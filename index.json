@@ -6,6 +6,13 @@
       "date": "2026-10-02",
       "result": "Fail",
       "file": "Purpose/review-report.pdf"
+    },
+    {
+      "id": "CanvasNet-Drawing",
+      "fingerprint": "5d671b27755d69066b2ce3d64ab02712c034cf141921ecc1e43a44b58017e1ba",
+      "date": "2026-10-02",
+      "result": "Fail",
+      "file": "CanvasNet-Drawing/review-report.pdf"
     }
   ]
 }

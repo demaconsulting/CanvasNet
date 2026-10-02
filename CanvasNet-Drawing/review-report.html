@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="dcterms.date" content="2026-10-02" />
+  <meta name="keywords" content="id=CanvasNet-Drawing
+fingerprint=5d671b27755d69066b2ce3d64ab02712c034cf141921ecc1e43a44b58017e1ba
+date=2026-10-02 result=fail" />
+  <title>Review that CanvasNet Drawing Subsystem Implementation is Correct</title>
+  <style>
+/* 
+ * This template uses CSS Paged Media Level 3 features (@page, string-set, target-counter)
+ * which require a compatible PDF generator such as Weasyprint or Prince.
+ * These features may not work with other tools like wkhtmltopdf or Puppeteer.
+ */
+
+/* General styling */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6;
+  color: #333;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  font-size: 10pt;
+}
+
+/* Title block */
+#title-block-header {
+  text-align: center;
+  margin-bottom: 3rem;
+  padding-bottom: 2rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.title {
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  color: #1a1a1a;
+}
+
+.subtitle {
+  font-size: 1.5rem;
+  color: #666;
+  margin-bottom: 1rem;
+}
+
+.version {
+  font-size: 1rem;
+  color: #888;
+  margin-bottom: 1rem;
+  font-style: italic;
+}
+
+.author, .date {
+  font-size: 1rem;
+  color: #888;
+}
+
+/* Table of Contents */
+#TOC {
+  background-color: #f8f9fa;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  border-radius: 4px;
+}
+
+#TOC h2 {
+  margin-top: 0;
+}
+
+#TOC ul {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+#TOC ul ul {
+  padding-left: 1.5rem;
+}
+
+#TOC li {
+  margin: 0.5rem 0;
+}
+
+#TOC a {
+  color: #0066cc;
+  text-decoration: none;
+}
+
+#TOC a:hover {
+  text-decoration: underline;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  line-height: 1.25;
+  page-break-after: avoid;
+}
+
+h1 {
+  font-size: 16pt;
+  border-bottom: 2px solid #e0e0e0;
+  padding-bottom: 0.5rem;
+}
+
+h2 {
+  font-size: 14pt;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 0.5rem;
+}
+
+h3 {
+  font-size: 12pt;
+}
+
+h4 {
+  font-size: 11pt;
+}
+
+h5 {
+  font-size: 10pt;
+}
+
+h6 {
+  font-size: 10pt;
+}
+
+/* Paragraphs */
+p {
+  margin-bottom: 1rem;
+}
+
+/* Lists */
+ul, ol {
+  margin-bottom: 1rem;
+  padding-left: 2rem;
+}
+
+li {
+  margin-bottom: 0.1rem;
+}
+
+/* Code blocks */
+pre {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+  overflow: auto;
+  margin-bottom: 1rem;
+  page-break-inside: avoid;
+}
+
+code {
+  background-color: #f5f5f5;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9em;
+}
+
+pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+/* Tables */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 1rem;
+  page-break-inside: avoid;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 0.15rem 0.3rem;
+  text-align: left;
+}
+
+th {
+  background-color: #f5f5f5;
+  font-weight: 600;
+}
+
+tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+/* Links */
+a {
+  color: #0066cc;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Blockquotes */
+blockquote {
+  border-left: 4px solid #ddd;
+  padding-left: 1rem;
+  margin-left: 0;
+  color: #666;
+  font-style: italic;
+}
+
+/* Images */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1rem auto;
+}
+
+/* Print styles for PDF generation */
+@media print {
+  body {
+    max-width: 100%;
+    padding: 0;
+  }
+
+  #TOC {
+    page-break-after: always;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+
+  pre, table, blockquote {
+    page-break-inside: avoid;
+  }
+
+  a {
+    color: #000;
+  }
+}
+
+/* PDF-specific styles for headers and footers */
+@page {
+  size: letter;
+  margin: 1in 0.75in;
+  
+  @top-left {
+    content: string(doctitle);
+    font-size: 10pt;
+    color: #666;
+  }
+  
+  @top-right {
+    content: string(docversion);
+    font-size: 10pt;
+    color: #666;
+  }
+  
+  @bottom-center {
+    content: "Page " counter(page) " of " counter(pages);
+    font-size: 10pt;
+    color: #666;
+  }
+}
+
+/* Don't show header/footer on title page */
+@page :first {
+  @top-left {
+    content: none;
+  }
+  
+  @top-right {
+    content: none;
+  }
+  
+  @bottom-center {
+    content: none;
+  }
+}
+
+/* Set the document title for the header */
+.title {
+  string-set: doctitle content();
+}
+
+/* Set the document version for the header */
+.version {
+  string-set: docversion content();
+}
+
+/* Add page numbers to TOC entries using target-counter */
+#TOC a::after {
+  content: leader('.') target-counter(attr(href), page);
+  float: right;
+}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Review that CanvasNet Drawing Subsystem Implementation
+is Correct</h1>
+<p class="date">2026-10-02</p>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a
+href="#review-that-canvasnet-drawing-subsystem-implementation-is-correct"
+id="toc-review-that-canvasnet-drawing-subsystem-implementation-is-correct"><span
+class="toc-section-number">1</span> Review that CanvasNet Drawing
+Subsystem Implementation is Correct</a>
+<ul>
+<li><a href="#introduction" id="toc-introduction"><span
+class="toc-section-number">1.1</span> 1. Introduction</a>
+<ul>
+<li><a href="#purpose" id="toc-purpose"><span
+class="toc-section-number">1.1.1</span> 1.1 Purpose</a></li>
+<li><a href="#scope" id="toc-scope"><span
+class="toc-section-number">1.1.2</span> 1.2 Scope</a></li>
+<li><a href="#outcomes" id="toc-outcomes"><span
+class="toc-section-number">1.1.3</span> 1.3 Outcomes</a></li>
+<li><a href="#review-details" id="toc-review-details"><span
+class="toc-section-number">1.1.4</span> 1.4 Review Details</a></li>
+<li><a href="#reviewers" id="toc-reviewers"><span
+class="toc-section-number">1.1.5</span> 1.5 Reviewers</a></li>
+<li><a href="#files-under-review" id="toc-files-under-review"><span
+class="toc-section-number">1.1.6</span> 1.6 Files Under Review</a></li>
+</ul></li>
+<li><a href="#review-checklist" id="toc-review-checklist"><span
+class="toc-section-number">1.2</span> 2. Review Checklist</a>
+<ul>
+<li><a href="#requirements-checks" id="toc-requirements-checks"><span
+class="toc-section-number">1.2.1</span> 2.1 Requirements Checks</a></li>
+<li><a href="#design-documentation-checks"
+id="toc-design-documentation-checks"><span
+class="toc-section-number">1.2.2</span> 2.2 Design Documentation
+Checks</a></li>
+<li><a href="#technical-documentation-checks"
+id="toc-technical-documentation-checks"><span
+class="toc-section-number">1.2.3</span> 2.3 Technical Documentation
+Checks</a></li>
+<li><a href="#codetestsecurityreadability-checks"
+id="toc-codetestsecurityreadability-checks"><span
+class="toc-section-number">1.2.4</span> 2.4-2.10, 2.12
+Code/Test/Security/Readability Checks</a></li>
+<li><a href="#requirements-vs-documentation-checks"
+id="toc-requirements-vs-documentation-checks"><span
+class="toc-section-number">1.2.5</span> 2.11 Requirements vs
+Documentation Checks</a></li>
+<li><a href="#requirements-vs-testing-checks"
+id="toc-requirements-vs-testing-checks"><span
+class="toc-section-number">1.2.6</span> 2.13 Requirements vs Testing
+Checks</a></li>
+<li><a href="#code-vs-design-documentation-checks"
+id="toc-code-vs-design-documentation-checks"><span
+class="toc-section-number">1.2.7</span> 2.14 Code vs Design
+Documentation Checks</a></li>
+</ul></li>
+<li><a href="#conclusion" id="toc-conclusion"><span
+class="toc-section-number">1.3</span> 3. Conclusion</a>
+<ul>
+<li><a href="#summary-of-findings" id="toc-summary-of-findings"><span
+class="toc-section-number">1.3.1</span> 3.1 Summary of Findings</a></li>
+<li><a href="#overall-outcome" id="toc-overall-outcome"><span
+class="toc-section-number">1.3.2</span> 3.2 Overall Outcome</a></li>
+</ul></li>
+</ul></li>
+</ul>
+</nav>
+<h1 data-number="1"
+id="review-that-canvasnet-drawing-subsystem-implementation-is-correct"><span
+class="header-section-number">1</span> Review that CanvasNet Drawing
+Subsystem Implementation is Correct</h1>
+<h2 data-number="1.1" id="introduction"><span
+class="header-section-number">1.1</span> 1. Introduction</h2>
+<h3 data-number="1.1.1" id="purpose"><span
+class="header-section-number">1.1.1</span> 1.1 Purpose</h3>
+<p>This document records the formal review of a set of project
+files.</p>
+<h3 data-number="1.1.2" id="scope"><span
+class="header-section-number">1.1.2</span> 1.2 Scope</h3>
+<p>This is the <code>CanvasNet-Drawing</code> ReviewMark review-set: a
+subsystem-level review proving that the <code>Drawing</code> subsystem’s
+top-level design and verification documentation accurately and
+completely describe what its constituent units provide, and that the
+subsystem requirements are satisfied — per the hierarchical-scope
+principle, unit-level implementation detail (source code, tests, and
+unit design/verification/requirements documents) is explicitly excluded
+and relied upon only through the subsystem’s own description of it. This
+effort added a new unit, <code>TilePaint</code>, to the
+<code>Drawing</code> subsystem (reviewed separately in its own
+<code>CanvasNet-Drawing-TilePaint</code> unit-level review-set) and
+updated <code>docs/reqstream/canvas-net/drawing.yaml</code> to add the
+corresponding subsystem-level requirement/cross-reference. This is the
+first formal review ever conducted for this review-set in this
+repository (the <code>reviews</code> branch <code>index.json</code> was
+empty prior to this review).</p>
+<h3 data-number="1.1.3" id="outcomes"><span
+class="header-section-number">1.1.3</span> 1.3 Outcomes</h3>
+<p>Each check must be recorded with one of the following outcomes:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">The check was performed and the criterion
+is satisfied</td>
+</tr>
+<tr>
+<td style="text-align: left;">Fail</td>
+<td style="text-align: left;">The check was performed and the criterion
+is not satisfied</td>
+</tr>
+<tr>
+<td style="text-align: left;">N/A</td>
+<td style="text-align: left;">The check does not apply; justification is
+required</td>
+</tr>
+</tbody>
+</table>
+<h3 data-number="1.1.4" id="review-details"><span
+class="header-section-number">1.1.4</span> 1.4 Review Details</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Field</th>
+<th style="text-align: left;">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Project</td>
+<td style="text-align: left;">CanvasNet</td>
+</tr>
+<tr>
+<td style="text-align: left;">Review ID</td>
+<td style="text-align: left;">CanvasNet-Drawing</td>
+</tr>
+<tr>
+<td style="text-align: left;">Review Title</td>
+<td style="text-align: left;">Review that CanvasNet Drawing Subsystem
+Implementation is Correct</td>
+</tr>
+<tr>
+<td style="text-align: left;">Fingerprint</td>
+<td
+style="text-align: left;"><code>5d671b27755d69066b2ce3d64ab02712c034cf141921ecc1e43a44b58017e1ba</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Review Date</td>
+<td style="text-align: left;">2026-10-02</td>
+</tr>
+</tbody>
+</table>
+<h3 data-number="1.1.5" id="reviewers"><span
+class="header-section-number">1.1.5</span> 1.5 Reviewers</h3>
+<table>
+<colgroup>
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 36%" />
+<col style="width: 27%" />
+<col style="width: 12%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Name</th>
+<th style="text-align: left;">Role</th>
+<th style="text-align: left;">Organization</th>
+<th style="text-align: left;">Signature</th>
+<th style="text-align: left;">Date</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Formal Review Agent</td>
+<td style="text-align: left;">Automated Formal Reviewer</td>
+<td style="text-align: left;">DEMA Consulting</td>
+<td style="text-align: left;"><em>(agent-generated, no handwritten
+signature)</em></td>
+<td style="text-align: left;">2026-10-02</td>
+</tr>
+</tbody>
+</table>
+<h3 data-number="1.1.6" id="files-under-review"><span
+class="header-section-number">1.1.6</span> 1.6 Files Under Review</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">File</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td
+style="text-align: left;"><code>docs/reqstream/canvas-net/drawing.yaml</code></td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><code>docs/design/canvas-net/drawing.md</code></td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><code>docs/verification/canvas-net/drawing.md</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Context (not under review, for orientation only):</strong>
+<code>docs/design/canvas-net.md</code>,
+<code>docs/reqstream/canvas-net.yaml</code>,
+<code>docs/design/introduction.md</code>.</p>
+<hr />
+<h2 data-number="1.2" id="review-checklist"><span
+class="header-section-number">1.2</span> 2. Review Checklist</h2>
+<h3 data-number="1.2.1" id="requirements-checks"><span
+class="header-section-number">1.2.1</span> 2.1 Requirements Checks</h3>
+<p><strong>Applicable:</strong> Yes</p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">REQ-01</td>
+<td style="text-align: left;">All requirements have a unique
+identifier</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">All IDs in <code>drawing.yaml</code>
+(e.g. <code>CanvasNet-Drawing-TilePaint</code>,
+<code>CanvasNet-Drawing-TilePaintValidation</code>) are unique within
+the file.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQ-02</td>
+<td style="text-align: left;">All requirements are unambiguous</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Each requirement statement is a single,
+clearly worded sentence.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQ-03</td>
+<td style="text-align: left;">All requirements are testable</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Each requirement lists concrete
+<code>tests:</code> entries
+(e.g. <code>PathFiller_Fill_TilePaint_CheckerboardTile_FillsWithBothTileColors</code>).</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQ-04</td>
+<td style="text-align: left;">All requirements are consistent</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">No contradictions found between
+<code>TilePaint</code>/<code>TilePaintValidation</code> and the
+pre-existing
+<code>GradientPaint</code>/<code>GradientPaintValidation</code>
+requirements they were modeled after.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQ-05</td>
+<td style="text-align: left;">All requirements are complete (no
+TBDs)</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">No placeholders or TBDs present.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQ-06</td>
+<td style="text-align: left;">All requirements are verifiable</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Requirements describe objectively
+observable rendering/validation outcomes.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQ-07</td>
+<td style="text-align: left;">No compound requirements are present</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;"><code>CanvasNet-Drawing-TilePaint</code>
+and <code>CanvasNet-Drawing-TilePaintValidation</code> each express one
+coherent testable criterion (the validation requirement groups three
+argument-null checks sharing one mechanism, consistent with the existing
+<code>GradientPaintValidation</code>/<code>PathFillValidation</code>
+pattern in this same file).</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQ-08</td>
+<td style="text-align: left;">No requirements are missing</td>
+<td style="text-align: left;">Fail</td>
+<td style="text-align: left;">The file’s top comment and requirement set
+correctly describe the <code>TilePaint</code> unit’s addition, but the
+subsystem’s own design and verification documents (the other two files
+in this review-set) do not reflect the new requirements at all — see
+DES-02, REQDOC-01, and the Summary of Findings. This is a
+documentation-completeness gap triggered by, not located in, the
+requirements file; see 3.1.</td>
+</tr>
+</tbody>
+</table>
+<h3 data-number="1.2.2" id="design-documentation-checks"><span
+class="header-section-number">1.2.2</span> 2.2 Design Documentation
+Checks</h3>
+<p><strong>Applicable:</strong> Yes</p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">DES-01</td>
+<td style="text-align: left;">Design documentation clearly describes the
+purpose of the component or feature</td>
+<td style="text-align: left;">Fail</td>
+<td style="text-align: left;"><code>drawing.md</code>’s Purpose section
+states the subsystem “currently contains three sibling units” and
+enumerates only <code>PathFiller</code>, <code>PathStroker</code>, and
+<code>GradientPaint</code>; it omits <code>TilePaint</code> entirely, so
+the stated purpose no longer matches the subsystem’s actual unit
+composition.</td>
+</tr>
+<tr>
+<td style="text-align: left;">DES-02</td>
+<td style="text-align: left;">Design documentation covers the necessary
+implementation details</td>
+<td style="text-align: left;">Fail</td>
+<td style="text-align: left;">The Units section lists only three units;
+there is no <code>TilePaint</code> bullet (compare the existing
+<code>GradientPaint</code> bullet, which correctly cross-references
+<code>_GradientPaint Unit Design_ (drawing/gradient-paint.md)</code> —
+no equivalent exists for
+<code>_TilePaint Unit Design_ (drawing/tile-paint.md)</code>, even
+though that unit design document exists on disk).</td>
+</tr>
+<tr>
+<td style="text-align: left;">DES-03</td>
+<td style="text-align: left;">Design documentation describes how the
+code is interfaced (APIs, inputs, outputs)</td>
+<td style="text-align: left;">Fail</td>
+<td style="text-align: left;"><code>TilePaint</code>’s public surface
+and its consumption via <code>PathFiller</code>’s tile-paint
+<code>Fill</code> overload are not described anywhere in this document,
+unlike the equivalent description given for <code>GradientPaint</code>’s
+gradient <code>Fill</code> overload.</td>
+</tr>
+<tr>
+<td style="text-align: left;">DES-04</td>
+<td style="text-align: left;">Design documentation describes the
+expected normal operation</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">For the three units it does describe
+(<code>PathFiller</code>, <code>PathStroker</code>,
+<code>GradientPaint</code>), normal-operation collaboration is clearly
+described.</td>
+</tr>
+<tr>
+<td style="text-align: left;">DES-05</td>
+<td style="text-align: left;">Design documentation describes the
+expected error handling</td>
+<td style="text-align: left;">N/A</td>
+<td style="text-align: left;">Subsystem-level design intentionally
+defers error-handling detail to unit design documents per
+<code>design-documentation.md</code>; the existing text does not
+describe error handling for any unit (including the three it does
+cover), so this is a pre-existing, uniform omission rather than a
+<code>TilePaint</code>-specific regression.</td>
+</tr>
+</tbody>
+</table>
+<h3 data-number="1.2.3" id="technical-documentation-checks"><span
+class="header-section-number">1.2.3</span> 2.3 Technical Documentation
+Checks</h3>
+<p><strong>Applicable:</strong> No</p>
+<p><em>No general technical documentation files (user guides, API
+references, README, release notes) are in this review-set’s file list;
+<code>drawing.md</code> and <code>drawing.yaml</code> are
+design/requirements artifacts covered by sections 2.2 and 2.1
+respectively.</em></p>
+<h3 data-number="1.2.4" id="codetestsecurityreadability-checks"><span
+class="header-section-number">1.2.4</span> 2.4-2.10, 2.12
+Code/Test/Security/Readability Checks</h3>
+<p><strong>Applicable:</strong> No</p>
+<p><em>This subsystem-level review-set contains no source code or test
+files per the hierarchical-scope principle
+(<code>.reviewmark.yaml</code> deliberately limits
+<code>CanvasNet-Drawing</code>’s paths to the subsystem requirements,
+design, and verification documents only); unit source and tests are
+reviewed under the separate <code>CanvasNet-Drawing-TilePaint</code>,
+<code>CanvasNet-Drawing-PathFiller</code>,
+<code>CanvasNet-Drawing-PathStroker</code>, and
+<code>CanvasNet-Drawing-GradientPaint</code> unit-level
+review-sets.</em></p>
+<h3 data-number="1.2.5" id="requirements-vs-documentation-checks"><span
+class="header-section-number">1.2.5</span> 2.11 Requirements vs
+Documentation Checks</h3>
+<p><strong>Applicable:</strong> Yes</p>
+<p><em>Both requirements (<code>drawing.yaml</code>) and
+design/verification documentation (<code>drawing.md</code> x2) are in
+this review-set’s file list.</em></p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">REQDOC-01</td>
+<td style="text-align: left;">All reviewed requirements are addressed in
+the general technical documentation</td>
+<td style="text-align: left;">Fail</td>
+<td style="text-align: left;"><code>drawing.yaml</code>’s
+<code>CanvasNet-Drawing-TilePaint</code> and
+<code>CanvasNet-Drawing-TilePaintValidation</code> requirements have no
+corresponding coverage in <code>docs/design/canvas-net/drawing.md</code>
+(Purpose/Units/Dependencies/Callers all omit <code>TilePaint</code>) or
+in <code>docs/verification/canvas-net/drawing.md</code> (Verification
+Approach and Acceptance Criteria both omit
+<code>_TilePaint Unit Verification Design_</code>). All other
+requirements in the file (<code>PathFill</code>,
+<code>PathStroke</code>, <code>GradientPaint</code>, and their
+validation/no-op variants) are correctly addressed in both
+documents.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQDOC-02</td>
+<td style="text-align: left;">No reviewed requirement is contradicted by
+the general technical documentation</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">For the requirements that are addressed,
+no contradictions were found; the gap is one of omission (REQDOC-01),
+not contradiction.</td>
+</tr>
+</tbody>
+</table>
+<h3 data-number="1.2.6" id="requirements-vs-testing-checks"><span
+class="header-section-number">1.2.6</span> 2.13 Requirements vs Testing
+Checks</h3>
+<p><strong>Applicable:</strong> Yes</p>
+<p><em>The requirements file links each requirement to named tests; no
+test source files are in this review-set’s scope, so applicability is
+limited to confirming traceability linkage is present.</em></p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">REQTEST-01</td>
+<td style="text-align: left;">Every requirement under review is covered
+by at least one test</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;"><code>CanvasNet-Drawing-TilePaint</code>
+links to
+<code>PathFiller_Fill_TilePaint_CheckerboardTile_FillsWithBothTileColors</code>
+and
+<code>EvaluateRow_WrapAroundBeyondOneTile_MatchesFirstTileRepetition</code>;
+<code>CanvasNet-Drawing-TilePaintValidation</code> links to three named
+null-argument tests. Every other requirement in the file also has a
+non-empty <code>tests:</code> list. Actual test pass/fail status is
+unit-level verification evidence, outside this subsystem review-set’s
+scope.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQTEST-02</td>
+<td style="text-align: left;">Tests verify the behavior described in
+each requirement</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Test names read as direct paraphrases of
+their requirement’s stated behavior (e.g. <code>TilePaint</code>
+sampling/wrap-around behavior, null-argument rejection).</td>
+</tr>
+</tbody>
+</table>
+<h3 data-number="1.2.7" id="code-vs-design-documentation-checks"><span
+class="header-section-number">1.2.7</span> 2.14 Code vs Design
+Documentation Checks</h3>
+<p><strong>Applicable:</strong> No</p>
+<p><em>No source code files are in this review-set’s scope
+(hierarchical-scope principle); code-to-design consistency for
+<code>TilePaint</code>’s actual implementation is assessed under the
+<code>CanvasNet-Drawing-TilePaint</code> unit-level review-set.</em></p>
+<hr />
+<h2 data-number="1.3" id="conclusion"><span
+class="header-section-number">1.3</span> 3. Conclusion</h2>
+<h3 data-number="1.3.1" id="summary-of-findings"><span
+class="header-section-number">1.3.1</span> 3.1 Summary of Findings</h3>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 33%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Finding</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">REQ-08</td>
+<td style="text-align: left;">No requirements are missing</td>
+<td style="text-align: left;">Symptom of the same gap as DES-01/02/03
+and REQDOC-01: the requirements file is itself complete and correctly
+updated for <code>TilePaint</code>, but the subsystem
+design/verification documents were not updated to match, leaving the
+requirement set effectively undocumented at the subsystem level.</td>
+</tr>
+<tr>
+<td style="text-align: left;">DES-01</td>
+<td style="text-align: left;">Purpose describes the component</td>
+<td
+style="text-align: left;"><code>docs/design/canvas-net/drawing.md</code>’s
+Purpose section states the subsystem “currently contains three sibling
+units” (<code>PathFiller</code>, <code>PathStroker</code>,
+<code>GradientPaint</code>) with no mention of <code>TilePaint</code>,
+even though <code>TilePaint</code> is a fourth sibling unit added
+alongside this change.</td>
+</tr>
+<tr>
+<td style="text-align: left;">DES-02 / DES-03</td>
+<td style="text-align: left;">Design covers necessary implementation
+detail / interfaces</td>
+<td style="text-align: left;">The Units section of the same document has
+no <code>TilePaint</code> bullet (unlike the parallel
+<code>GradientPaint</code> bullet), so it does not cross-reference
+<code>_TilePaint Unit Design_ (drawing/tile-paint.md)</code>, does not
+describe <code>TilePaint</code>’s public surface, and the
+Dependencies/Callers sections likewise never mention
+<code>TilePaint</code> or its internal <code>TilePaintEvaluator</code>
+helper.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQDOC-01</td>
+<td style="text-align: left;">Requirements vs documentation</td>
+<td
+style="text-align: left;"><code>docs/verification/canvas-net/drawing.md</code>
+has the identical gap on the verification side: its intro, Verification
+Approach, and Acceptance Criteria sections list <code>PathFiller</code>,
+<code>PathStroker</code>, and <code>GradientPaint</code> unit
+verification designs only —
+<code>_TilePaint Unit Verification Design_ (drawing/tile-paint.md)</code>
+is never cited, so the subsystem’s stated acceptance criteria do not
+include <code>TilePaint</code>’s test scenarios passing.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Observation (informational, out of this
+review-set’s scope)</td>
+<td style="text-align: left;">Cross-file consistency</td>
+<td style="text-align: left;">The parent system design document
+<code>docs/design/canvas-net.md</code> (global context, not a file under
+review here) has the same staleness one level up: its
+<code>Drawing subsystem</code> bullet enumerates “three public entry
+points” / three units and its later collaboration narrative says “The
+<code>Drawing</code> subsystem’s two units collaborate as follows” —
+both predate <code>GradientPaint</code> as well as
+<code>TilePaint</code> and are unaffected by this review’s pass/fail
+determination, but should be corrected in the
+<code>CanvasNet-Design</code>/<code>CanvasNet-Architecture</code>
+review-sets, which do include <code>canvas-net.md</code> as a file under
+review.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Positive finding</td>
+<td style="text-align: left;">Requirements completeness</td>
+<td
+style="text-align: left;"><code>docs/reqstream/canvas-net/drawing.yaml</code>
+was itself correctly and completely updated: its top-of-file comment
+names <code>TilePaint</code> as a covered unit, and it adds two
+well-formed, testable, non-contradictory requirements
+(<code>CanvasNet-Drawing-TilePaint</code>,
+<code>CanvasNet-Drawing-TilePaintValidation</code>) with correct
+downward links to unit-level requirement IDs and named tests.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Positive finding</td>
+<td style="text-align: left;">SysML2 cross-check</td>
+<td style="text-align: left;">The authoritative SysML2 model
+(<code>docs/sysml2/model/canvas-net/drawing.sysml</code>, consulted as
+orientation context) already declares
+<code>part tilePaint : TilePaint;</code> under the <code>Drawing</code>
+part def and describes <code>TilePaint</code> in the part def’s
+<code>doc</code> comment — confirming the structural model and the
+unit’s own artifacts
+(<code>docs/design/canvas-net/drawing/tile-paint.md</code>,
+<code>docs/verification/canvas-net/drawing/tile-paint.md</code>,
+<code>docs/reqstream/canvas-net/drawing/tile-paint.yaml</code>, and the
+<code>TilePaint.cs</code>/<code>TilePaintEvaluator.cs</code> source) all
+exist and are complete. The sole gap is that the two subsystem-level
+roll-up documents under review here were never updated to reflect
+them.</td>
+</tr>
+</tbody>
+</table>
+<h3 data-number="1.3.2" id="overall-outcome"><span
+class="header-section-number">1.3.2</span> 3.2 Overall Outcome</h3>
+<p><strong>Overall Outcome:</strong> Fail</p>
+<p>The <code>Drawing</code> subsystem’s requirements
+(<code>docs/reqstream/canvas-net/drawing.yaml</code>) were correctly and
+completely updated to add the new <code>TilePaint</code> unit. However,
+both of the subsystem’s other mandatory top-level documents under review
+— the design document (<code>docs/design/canvas-net/drawing.md</code>)
+and the verification design document
+(<code>docs/verification/canvas-net/drawing.md</code>) — were
+<strong>not</strong> updated: both still describe the
+<code>Drawing</code> subsystem as containing exactly three sibling units
+(<code>PathFiller</code>, <code>PathStroker</code>,
+<code>GradientPaint</code>) and omit every mention of
+<code>TilePaint</code>, its unit design document, its unit verification
+document, and its role in the subsystem’s
+dependency/caller/acceptance-criteria narrative. This fails the specific
+compliance question this review-set exists to prove: whether the
+<code>Drawing</code> subsystem’s top-level design and verification
+documentation still accurately and completely describe what its units
+provide and that its own subsystem requirements are satisfied.</p>
+<p><strong>Required follow-up before this review can be considered
+approved:</strong></p>
+<ol type="1">
+<li>Update <code>docs/design/canvas-net/drawing.md</code>’s Purpose
+section to state four sibling units (not three) and add a
+<code>TilePaint</code> bullet to the Units section, following the
+existing <code>GradientPaint</code> bullet’s pattern, cross-referencing
+<code>_TilePaint Unit Design_ (drawing/tile-paint.md)</code>.</li>
+<li>Update the same document’s Dependencies and Callers sections to
+describe <code>TilePaint</code>’s dependency on
+<code>PathFiller</code>’s tile-paint <code>Fill</code> overload and its
+internal <code>TilePaintEvaluator</code> helper, consistent with how
+<code>GradientPaint</code>/<code>GradientEvaluator</code> are already
+described.</li>
+<li>Update <code>docs/verification/canvas-net/drawing.md</code>’s intro,
+Verification Approach, and Acceptance Criteria sections to cite
+<code>_TilePaint Unit Verification Design_ (drawing/tile-paint.md)</code>
+alongside the existing three unit verification design references.</li>
+<li>Re-run this review after the above corrections are made.</li>
+</ol>
+</body>
+</html>
