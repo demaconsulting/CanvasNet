@@ -371,6 +371,17 @@ public sealed partial class PdfDocument
         var encodedByteAlign = parm is not null && GetBoolEntry(parm, "EncodedByteAlign", false);
         var endOfLine = parm is not null && GetBoolEntry(parm, "EndOfLine", false);
 
+        // Reject oversized /Columns or /Rows before decoding - DecodeCcittFax allocates its
+        // output buffer sized directly by these attacker-controlled values, so the bounds-check
+        // must run before that call (not merely before the later `new Surface(...)` call) to
+        // prevent a huge internal allocation from ever happening for a crafted image dictionary.
+        if (columns > Surface.MaxDimension || rows > Surface.MaxDimension)
+        {
+            throw new InvalidDataException(
+                $"CCITTFaxDecode image dimensions {columns}x{rows} exceed the maximum supported size of " +
+                $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
+        }
+
         var decoded = DecodeCcittFax(rawBytes, k, columns, rows, blackIs1, encodedByteAlign, endOfLine);
 
         var colorSpaceObject = stream.Get("ColorSpace");
@@ -384,13 +395,6 @@ public sealed partial class PdfDocument
             throw new UnsupportedImageFeatureException(
                 "pdf-ccittfax-colorspace",
                 "CCITTFaxDecode images require a single-component /ColorSpace.");
-        }
-
-        if (columns > Surface.MaxDimension || rows > Surface.MaxDimension)
-        {
-            throw new InvalidDataException(
-                $"CCITTFaxDecode image dimensions {columns}x{rows} exceed the maximum supported size of " +
-                $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
         }
 
         var surface = new Surface(columns, rows);

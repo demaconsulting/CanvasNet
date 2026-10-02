@@ -6,6 +6,17 @@ namespace DemaConsulting.CanvasNet.Pdf;
 public sealed partial class PdfDocument
 {
     /// <summary>
+    ///     The maximum number of character codes a single <c>bfrange</c> entry's
+    ///     <c>[srcLo, srcHi]</c> span is allowed to expand into before failing closed, bounding a
+    ///     decompression-bomb-style crafted <c>/ToUnicode</c> CMap (a tiny <c>srcLo</c>/<c>srcHi</c>
+    ///     hex-string pair declaring an enormous span) from allocating an enormous
+    ///     <see cref="Dictionary{TKey,TValue}"/> of code-to-codepoint entries. 65536 (the full
+    ///     2-byte code space) is generous for any legitimate CMap, since codes above that require
+    ///     successively larger encodings that a real font's actual code space would never need.
+    /// </summary>
+    private const int ToUnicodeMaxBfRangeSpan = 65536;
+
+    /// <summary>
     ///     Resolves a font dictionary's optional <c>/ToUnicode</c> CMap stream into a
     ///     code-to-Unicode-codepoint map, by tokenizing its <c>bfchar</c>/<c>bfrange</c>
     ///     operators (see <see cref="PdfTokenizer"/>/<see cref="ParseValue(PdfTokenizer)"/>,
@@ -183,7 +194,9 @@ public sealed partial class PdfDocument
     /// </exception>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the block is unterminated, <c>srcLo</c>/<c>srcHi</c> is not a string, the
-    ///     destination is not a string or array, or a destination array element is not a string.
+    ///     destination is not a string or array, a destination array element is not a string, or
+    ///     a single-string destination's <c>[srcLo, srcHi]</c> span exceeds
+    ///     <see cref="ToUnicodeMaxBfRangeSpan"/>.
     /// </exception>
     private static void ParseBfRangeBlock(PdfTokenizer tokenizer, Dictionary<int, int> map)
     {
@@ -221,6 +234,16 @@ public sealed partial class PdfDocument
                 // incrementing codepoints starting at the destination's own first codepoint. An
                 // empty destination string means the whole range has no Unicode equivalent - skip
                 // it rather than treating it as malformed.
+                //
+                // Reject an oversized span before expanding it - a crafted tiny srcLo/srcHi pair
+                // declaring an enormous span could otherwise allocate an enormous map even though
+                // the CMap stream itself is tiny (a decompression-bomb-style attack).
+                if (srcHi - srcLo + 1 > ToUnicodeMaxBfRangeSpan)
+                {
+                    throw new InvalidDataException(
+                        $"A bfrange entry's span exceeds the maximum supported size of {ToUnicodeMaxBfRangeSpan} codes.");
+                }
+
                 if (TryDecodeFirstUtf16CodePoint(destinationToken.Bytes ?? [], out var startCodepoint))
                 {
                     for (var code = srcLo; code <= srcHi; code++)

@@ -211,10 +211,34 @@ public sealed partial class PdfDocument
     private GraphicsState _gs = null!;
 
     /// <summary>
+    ///     The maximum number of entries <see cref="OpPushGraphicsState"/> (<c>q</c>) allows the
+    ///     graphics-state stack to grow to before failing closed, bounding a crafted content
+    ///     stream that issues an enormous run of unmatched <c>q</c> operators (each pushing a
+    ///     cloned <see cref="GraphicsState"/> instance) from exhausting memory. 256 is generous
+    ///     for any legitimate content stream's save/restore nesting, matching the
+    ///     <c>Max*NestingDepth</c> naming/exception-message convention used for Form XObject,
+    ///     Type3 glyph, and page-tree recursion elsewhere in this class.
+    /// </summary>
+    private const int MaxGraphicsStateStackDepth = 256;
+
+    /// <summary>
     ///     Handles the <c>q</c> operator: pushes a copy of the current graphics state, so a
     ///     matching <c>Q</c> can later restore exactly what was active before this <c>q</c>.
     /// </summary>
-    private void OpPushGraphicsState() => _gsStack.Push(_gs.Clone());
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the graphics-state stack already holds <see cref="MaxGraphicsStateStackDepth"/>
+    ///     entries.
+    /// </exception>
+    private void OpPushGraphicsState()
+    {
+        if (_gsStack.Count >= MaxGraphicsStateStackDepth)
+        {
+            throw new InvalidDataException(
+                $"Graphics state stack depth exceeds the maximum supported depth of {MaxGraphicsStateStackDepth}.");
+        }
+
+        _gsStack.Push(_gs.Clone());
+    }
 
     /// <summary>
     ///     Handles the <c>Q</c> operator: pops the most recently pushed graphics state and makes
@@ -346,8 +370,8 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     Validates that <paramref name="operands"/> contains exactly <paramref name="count"/>
-    ///     entries, each of kind <see cref="PdfKind.Number"/>, and returns their numeric values in
-    ///     order.
+    ///     entries, each of kind <see cref="PdfKind.Number"/> and finite, and returns their
+    ///     numeric values in order.
     /// </summary>
     /// <param name="operands">The operator's accumulated operand stack.</param>
     /// <param name="operatorName">The operator name, for the exception message.</param>
@@ -355,7 +379,8 @@ public sealed partial class PdfDocument
     /// <returns>The operands' numeric values, in order.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="operands"/> does not contain exactly <paramref name="count"/>
-    ///     entries, or when any entry is not of kind <see cref="PdfKind.Number"/>.
+    ///     entries, when any entry is not of kind <see cref="PdfKind.Number"/>, or when any
+    ///     entry's numeric value is not finite (<c>NaN</c> or an infinity).
     /// </exception>
     private static double[] RequireNumbers(IReadOnlyList<PdfObject> operands, string operatorName, int count)
     {
@@ -371,6 +396,16 @@ public sealed partial class PdfDocument
             if (operands[i].Kind != PdfKind.Number)
             {
                 throw new InvalidDataException($"Operator '{operatorName}' requires numeric operands.");
+            }
+
+            // Reject NaN/Infinity before any caller can use it in a transform or path
+            // coordinate - a crafted content stream supplying a non-finite operand to, e.g.,
+            // `cm` or a path-construction operator could otherwise propagate NaN/Infinity into
+            // downstream geometry/rendering code that assumes finite input.
+            if (!double.IsFinite(operands[i].Number))
+            {
+                throw new InvalidDataException(
+                    $"Operator '{operatorName}' requires finite numeric operands; got {operands[i].Number}.");
             }
 
             values[i] = operands[i].Number;

@@ -1,9 +1,19 @@
+// cspell:ignore uncatchable
 using System.IO.Compression;
 
 namespace DemaConsulting.CanvasNet.Pdf;
 
 public sealed partial class PdfDocument
 {
+    /// <summary>
+    ///     The maximum total number of decoded output bytes <see cref="ZlibDecompress"/> allows
+    ///     before failing closed, bounding a decompression-bomb-style crafted zlib stream (a tiny
+    ///     compressed input that expands to an enormous output) from exhausting memory. 64 MiB is
+    ///     generous for any legitimate PDF image/content stream, matching <c>LzwMaxOutputBytes</c>
+    ///     in <c>PdfDocument.Filters.Lzw.cs</c>.
+    /// </summary>
+    private const int FlateMaxOutputBytes = 64 * 1024 * 1024;
+
     /// <summary>The kind of location a <see cref="XrefEntry"/> describes.</summary>
     private enum XrefEntryType
     {
@@ -496,9 +506,31 @@ public sealed partial class PdfDocument
             throw new InvalidDataException($"Indirect object {number} is not defined.");
         }
 
-        var result = entry.Type == XrefEntryType.Direct
-            ? ParseIndirectObjectAt((int)entry.Offset, number)
-            : LoadCompressedObject(entry.StreamNumber, entry.IndexInStream, number);
+        PdfObject result;
+        if (entry.Type == XrefEntryType.Direct)
+        {
+            result = ParseIndirectObjectAt((int)entry.Offset, number);
+        }
+        else
+        {
+            // Guard against a crafted cross-reference table that marks an object stream's own
+            // container (or one of its ancestors in the resolution chain) as itself a compressed
+            // object - without this check, LoadCompressedObject's own call back into GetObject
+            // would recurse indefinitely and crash with an uncatchable StackOverflowException.
+            if (!_compressedObjectResolutionStack.Add(number))
+            {
+                throw new InvalidDataException("Object stream contains a reference cycle.");
+            }
+
+            try
+            {
+                result = LoadCompressedObject(entry.StreamNumber, entry.IndexInStream, number);
+            }
+            finally
+            {
+                _compressedObjectResolutionStack.Remove(number);
+            }
+        }
 
         _objectCache[number] = result;
         return result;
@@ -647,8 +679,9 @@ public sealed partial class PdfDocument
     /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the data is too short to be a valid zlib stream, the header's compression
-    ///     method is not DEFLATE, or the DEFLATE payload itself is truncated/corrupt (propagated
-    ///     from <see cref="DeflateStream"/>).
+    ///     method is not DEFLATE, the DEFLATE payload itself is truncated/corrupt (propagated
+    ///     from <see cref="DeflateStream"/>), or the decoded output exceeds
+    ///     <see cref="FlateMaxOutputBytes"/>.
     /// </exception>
     private static byte[] ZlibDecompress(byte[] zlibData)
     {
@@ -669,7 +702,27 @@ public sealed partial class PdfDocument
         using var input = new MemoryStream(deflateData);
         using var deflate = new DeflateStream(input, CompressionMode.Decompress);
         using var output = new MemoryStream();
-        deflate.CopyTo(output);
+
+        // Copy in bounded chunks, checking the running total after every chunk, rather than
+        // calling CopyTo(output) and checking output.Length afterward - a crafted tiny zlib
+        // stream can expand to gigabytes, and checking only after an unbounded CopyTo would
+        // already have allocated (and copied) all of that oversized output before the check
+        // ever ran. Mirrors the DecodeLzw output cap in PdfDocument.Filters.Lzw.cs.
+        var buffer = new byte[81920];
+        long total = 0;
+        int bytesRead;
+        while ((bytesRead = deflate.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            total += bytesRead;
+            if (total > FlateMaxOutputBytes)
+            {
+                throw new InvalidDataException(
+                    $"FlateDecode output exceeds the maximum supported size of {FlateMaxOutputBytes} bytes.");
+            }
+
+            output.Write(buffer, 0, bytesRead);
+        }
+
         return output.ToArray();
     }
 }

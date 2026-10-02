@@ -1481,6 +1481,66 @@ public class PdfDocumentTests
         Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
     }
 
+    /// <summary>
+    ///     Builds an in-memory, <c>/Type /XRef</c> cross-reference-stream-only PDF (no classic
+    ///     table, no explicit <c>trailer</c> keyword) whose object 1 - the trailer's intended
+    ///     <c>/Root</c> catalog - is marked, via its own raw cross-reference entry, as a
+    ///     compressed object (type 2) living inside object stream "1": itself. No object 1 bytes
+    ///     ever actually appear in the file (there is nothing to decompress into) - the crafted
+    ///     entry alone is enough to make resolving object 1 recurse back into resolving object 1
+    ///     as its own container, exercising the compressed-object-resolution cycle guard rather
+    ///     than overflowing the stack. Mirrors <see cref="BuildXrefStreamPdfWithWidths"/>'s own
+    ///     filter-less raw-entry-bytes technique.
+    /// </summary>
+    private static byte[] BuildCompressedObjectSelfCyclePdf()
+    {
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+
+        // Object 2: the self-referential, /Filter-less cross-reference stream, declaring 3 raw
+        // 6-byte entries (/W [1 4 1]): object 0 (free), object 1 (compressed, claiming to live
+        // inside object stream "1" - itself - at index 0), and object 2 (this very xref stream,
+        // direct, at its own real offset).
+        var xrefStreamOffset = buffer.Count;
+
+        static byte[] Entry(byte type, int field2, byte field3) =>
+        [
+            type,
+            (byte)(field2 >> 24), (byte)(field2 >> 16), (byte)(field2 >> 8), (byte)field2,
+            field3,
+        ];
+
+        var entryBytes = new List<byte>();
+        entryBytes.AddRange(Entry(0, 0, 0));
+        entryBytes.AddRange(Entry(2, 1, 0));
+        entryBytes.AddRange(Entry(1, xrefStreamOffset, 0));
+
+        buffer.AddRange("2 0 obj\n"u8.ToArray());
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /XRef /Size 3 /W [1 4 1] /Root 1 0 R /Length {entryBytes.Count} >>\nstream\n"));
+        buffer.AddRange(entryBytes);
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"startxref\n{xrefStreamOffset}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a crafted cross-reference table marking an object stream's own container
+    ///     object as itself compressed (a reference cycle entirely through the
+    ///     compressed-object-resolution path) throws <see cref="InvalidDataException"/> instead
+    ///     of recursing indefinitely into an uncatchable <see cref="StackOverflowException"/>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_CompressedObjectStreamSelfCycle_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildCompressedObjectSelfCyclePdf();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
     /// <summary>Proves that a page object compressed inside a <c>/Type /ObjStm</c> object stream is decompressed and resolved correctly.</summary>
     [Fact]
     public void PdfDocument_Open_ObjectStream_DecompressesAndResolvesCompressedPage()
@@ -2018,6 +2078,41 @@ public class PdfDocumentTests
         Assert.Throws<InvalidDataException>(() => RenderContent(content));
     }
 
+    /// <summary>
+    ///     Proves that a non-finite <c>cm</c> operand throws <see cref="InvalidDataException"/>
+    ///     rather than propagating an infinity into the current transformation matrix. A PDF
+    ///     content stream has no literal syntax for <c>NaN</c>/infinity, but an all-digit literal
+    ///     with enough digits to overflow <see cref="double"/> (per IEEE 754, rounds to positive
+    ///     infinity rather than failing to parse) reaches the same non-finite value through
+    ///     entirely well-formed PDF numeric-token syntax.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_GraphicsState_CmNonFiniteOperand_ThrowsInvalidDataException()
+    {
+        // Arrange: a 400-digit literal overflows double to +Infinity.
+        var hugeDigits = new string('9', 400);
+        var content = $"1 0 0 1 {hugeDigits} 0 cm";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderContent(content));
+    }
+
+    /// <summary>
+    ///     Proves that <c>q</c> operators nested beyond the graphics-state stack's maximum
+    ///     supported depth throw <see cref="InvalidDataException"/> rather than letting an
+    ///     unbounded run of unmatched <c>q</c> operators grow the stack without limit.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_GraphicsState_ExcessiveQNestingDepth_ThrowsInvalidDataException()
+    {
+        // Arrange: one more 'q' than the documented 256-entry cap allows.
+        var content = string.Concat(Enumerable.Repeat("q ", 257));
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(() => RenderContent(content));
+        Assert.Contains("exceeds the maximum supported depth", exception.Message, StringComparison.Ordinal);
+    }
+
     #endregion
 
     #region PathOps
@@ -2070,6 +2165,24 @@ public class PdfDocumentTests
     [InlineData("1 2 3 re")]
     public void PdfDocument_PathOps_MalformedOperandCount_ThrowsInvalidDataException(string content)
     {
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderContent(content));
+    }
+
+    /// <summary>
+    ///     Proves that a non-finite path-construction operand throws
+    ///     <see cref="InvalidDataException"/> rather than propagating an infinity into the path
+    ///     geometry. See <see cref="PdfDocument_GraphicsState_CmNonFiniteOperand_ThrowsInvalidDataException"/>'s
+    ///     own remarks for why an all-digit overflowing literal is used instead of a literal
+    ///     <c>NaN</c>/infinity token (which PDF content-stream syntax has no way to express).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_PathOps_NonFiniteOperand_ThrowsInvalidDataException()
+    {
+        // Arrange: a 400-digit literal overflows double to +Infinity.
+        var hugeDigits = new string('9', 400);
+        var content = $"{hugeDigits} 10 m";
+
         // Act & Assert
         Assert.Throws<InvalidDataException>(() => RenderContent(content));
     }
@@ -3155,6 +3268,36 @@ public class PdfDocumentTests
         Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 
+    /// <summary>
+    ///     Proves that a <c>FlateDecode</c> stream whose decoded output would exceed the
+    ///     decoder's output-size cap (a decompression-bomb-style crafted zlib stream: a tiny,
+    ///     highly repetitive, well-compressed input expanding into tens of megabytes) throws
+    ///     <see cref="InvalidDataException"/> instead of exhausting memory.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Filters_FlateDecode_OutputExceedsMaxSize_ThrowsInvalidDataException()
+    {
+        // Arrange: a single repeated byte value compresses to a tiny zlib stream, but decodes
+        // back to just over the decoder's 64 MiB output cap - used via a Form XObject's content
+        // stream (rather than an image XObject) so the image /Width x /Height dimension cap
+        // cannot short-circuit this test before ever reaching the FlateDecode decoder itself.
+        var rawData = new byte[(64 * 1024 * 1024) + (1024 * 1024)];
+        Array.Fill(rawData, (byte)'A');
+        var encoded = ZlibCompress(rawData);
+
+        var formStream = BuildStreamObjectBody("/Type /XObject /Subtype /Form /BBox [0 0 100 100] /Filter /FlateDecode", encoded);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Fm0 Do",
+            "/XObject << /Fm0 5 0 R >>",
+            [formStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
     /// <summary>Proves that an all-zero-group <c>ASCII85Decode</c> <c>z</c> shorthand decodes to four zero bytes.</summary>
     [Fact]
     public void PdfDocument_Filters_Ascii85Decode_ZeroGroup_DecodesToFourZeroBytes()
@@ -3393,6 +3536,45 @@ public class PdfDocumentTests
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(() => RenderGrayscaleImage(1, data, "/Filter /RunLengthDecode"));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>RunLengthDecode</c> stream whose decoded output would exceed the
+    ///     decoder's output-size cap (a decompression-bomb-style crafted stream: a small run of
+    ///     repeat-run pairs, each a 128x amplification, expanding into tens of megabytes) throws
+    ///     <see cref="InvalidDataException"/> instead of exhausting memory. Used via a Form
+    ///     XObject's content stream (rather than an image XObject) so the image /Width x /Height
+    ///     dimension cap cannot short-circuit this test before ever reaching the RunLengthDecode
+    ///     decoder itself.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Filters_RunLengthDecode_OutputExceedsMaxSize_ThrowsInvalidDataException()
+    {
+        // Arrange: enough [254, 0x41] repeat-run pairs (each expanding to 3 bytes) to push the
+        // total decoded output just over the decoder's 64 MiB output cap, followed by EOD (128).
+        const int maxOutputBytes = 64 * 1024 * 1024;
+        const int bytesPerRepeat = 3;
+        var pairCount = (maxOutputBytes / bytesPerRepeat) + 1024;
+        var data = new byte[(pairCount * 2) + 1];
+        for (var i = 0; i < pairCount; i++)
+        {
+            data[i * 2] = 254;
+            data[(i * 2) + 1] = 0x41;
+        }
+
+        data[^1] = 128;
+
+        var formStream = BuildStreamObjectBody("/Type /XObject /Subtype /Form /BBox [0 0 100 100] /Filter /RunLengthDecode", data);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Fm0 Do",
+            "/XObject << /Fm0 5 0 R >>",
+            [formStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 
     /// <summary>
@@ -4047,6 +4229,35 @@ public class PdfDocumentTests
         // Act & Assert
         var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
         Assert.Contains("Group 3", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Proves that <c>CCITTFaxDecode</c> with an oversized <c>/Columns</c>/<c>/Rows</c> is
+    ///     rejected with <see cref="InvalidDataException"/> before <c>DecodeCcittFax</c> ever
+    ///     allocates its internal output buffer sized by those attacker-controlled values - the
+    ///     bounds-check must run before the decode call, not merely before the later
+    ///     <c>new Surface(...)</c> call.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Images_CcittFaxOversizedDimensions_ThrowsInvalidDataExceptionBeforeDecoding()
+    {
+        // Arrange: /Columns and /Rows both declare a value far beyond Surface.MaxDimension; the
+        // stream bytes themselves can be tiny/garbage since the decoder must never be reached.
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 "
+            + "/Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns 1000000 /Rows 1000000 >>",
+            [0x00]);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+        Assert.Contains("exceed the maximum supported size", exception.Message, StringComparison.Ordinal);
     }
 
     /// <summary>Proves that <c>CCITTFaxDecode</c> combined with another filter throws <see cref="InvalidDataException"/>.</summary>
@@ -5299,6 +5510,31 @@ public class PdfDocumentTests
         Assert.Equal(0x0048, result[1]);
         Assert.Equal(0x0049, result[2]);
         Assert.Equal(0x004A, result[3]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>beginbfrange</c>/<c>endbfrange</c> entry whose single-hex-string-destination
+    ///     <c>[srcLo, srcHi]</c> span exceeds the decoder's maximum supported span throws
+    ///     <see cref="InvalidDataException"/> instead of allocating an enormous map for a tiny
+    ///     crafted CMap stream (a decompression-bomb-style attack).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_ToUnicode_BfRangeHexForm_SpanExceedsMaxSize_ThrowsInvalidDataException()
+    {
+        // Arrange: srcLo=0x000000, srcHi=0x010000 - a span of 65537 codes, one more than the
+        // decoder's 65536-code cap (expressible only via 3-byte source codes, since 2-byte codes
+        // top out at 0xFFFF, a span of only 65536).
+        var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<000000> <010000> <0048>\nendbfrange");
+        var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
+        {
+            ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
+        });
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => document.ResolveToUnicodeMap(fontDict));
     }
 
     /// <summary>Proves that a <c>beginbfrange</c>/<c>endbfrange</c> entry with an array-of-hex-strings destination maps each code in the range to its own corresponding array element.</summary>
