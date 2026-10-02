@@ -7,7 +7,7 @@ This document provides the system-level design for CanvasNetPdf.
 ![CanvasNetPdf Structure](CanvasNetPdfView.svg)
 
 <!-- cspell:ignore xref startxref CCITT bitstream Zapf unembedded bitdepth xobject Annots cidfonttype -->
-<!-- cspell:ignore AcroForms ccittfax -->
+<!-- cspell:ignore AcroForms ccittfax Noto functiontype multiinput bitspersample fontfile tounicode bfrange -->
 
 ## Architecture
 
@@ -71,35 +71,67 @@ single-element `/DescendantFonts` array names a `/Subtype /CIDFontType2` font wi
 `/FontDescriptor/FontFile2` is now resolved by decoding each shown 2-byte code directly as a CID,
 mapping it to a glyph index via the descendant's `/CIDToGIDMap`, and resolving its advance width
 from the descendant's `/DW`/`/W` entries — composite fonts have no fallback substitution path, so
-a missing embedded font still fails closed. **Current limitations**: `/Type1`, `/MMType1`, and
-`/Type3` fonts remain entirely unsupported and fail closed; `/Encoding` values other than
-`/Identity-H` (including `/Identity-V` and predefined CJK encodings) and descendant `/Subtype`
-values other than `/CIDFontType2` (including `/CIDFontType0`) fail closed too; only the
-`/WinAnsiEncoding`/`/MacRomanEncoding` base encodings (plus
-`/Differences`) are supported (an unrecognized base encoding fails closed); fill (`Tr 0`),
-stroke (`Tr 1`), fill+stroke (`Tr 2`), and invisible (`Tr 3`) text-rendering modes are
-supported (clip modes fail closed); no
-Form XObject rendering (fails closed, rather than being silently skipped); no shading/patterns/
-transparency groups; no `JPXDecode` filter decoding (fails closed; `CCITTFaxDecode` - Group 4
-(T.6 MMR) only - is supported); no
-`/SMask`/alpha compositing (every decoded image is treated as fully opaque); and encrypted
-documents (`/Encrypt` present in the trailer) are rejected outright rather than decrypted. These
-remain out of scope and are planned for later phases (see Risk Control Measures below for the
-complete, currently-thrown `Feature` string taxonomy).
+a missing embedded font still fails closed. Later phases substantially widened this scope. Phase
+12 resolves a `/CIDFontType0` descendant font (a non-CID-keyed CFF program, `/OpenType`-wrapped or
+bare) identically to `/CIDFontType2`. Phases B/C/D added simple-font subtypes beyond
+`/TrueType`: a `/Subtype /Type1` font with an embedded classic `/FontFile` program or a bare
+Type1C `/FontFile3` program is resolved and rendered exactly like an embedded `/TrueType` font,
+and a `/Subtype /Type3` font (whose glyphs are themselves small content-stream procedures rather
+than an outline font program) is resolved via its own dedicated glyph-painting path that re-enters
+the same content-stream interpreter for each glyph procedure. Phase 18 widened `/FontFile3`
+dispatch for both `/Type1` and composite `/CIDFontType0` fonts to sniff the stream's own decoded
+bytes for a recognized container shape rather than trusting the stream's declared `/Subtype`
+name. Phase 13 added `/Subtype /Form` XObject rendering: `Do` decodes and executes a Form's
+content stream as a nested, implicitly `q`/`Q`-bracketed execution of the same interpreter. Phase
+14 replaced the color-space model to add `/CalRGB`, `/ICCBased` (resolved via its `/N` or
+`/Alternate`), and `/Indexed` (a palette lookup over any supported base color space), and
+introduced the `/Pattern` color space: axial/radial shading patterns (`/PatternType 2`,
+`/ShadingType 2`/`3`) reusing a widened Function evaluator that now also supports
+`/FunctionType 2` (exponential interpolation) and `/FunctionType 3` (stitching) functions in
+addition to `/FunctionType 0` (sampled); and colored/uncolored tiling patterns (`/PatternType 1`,
+each cell rendered through the same nested-execution machinery `/Subtype /Form` XObjects use).
+Phase 15 added `CCITTFaxDecode` (Group 4/T.6 MMR only) image-XObject decoding. Phases 16/17 added
+decryption of a document encrypted with the PDF `/Filter /Standard` security handler using RC4
+(`/V 1`/`/V 2`), AES-128 (`/V 4`/`/CFM /AESV2`), or AES-256 using the simpler R5 key derivation
+(`/V 5`/`/R 5`/`/CFM /AESV3`), authenticating either the empty user password (the default) or an
+optional caller-supplied password tried as both the user and the owner password. **Current
+limitations**: `/MMType1` (Multiple Master Type 1) fonts remain entirely unsupported and fail
+closed; `/Encoding` values other than `/Identity-H` (including `/Identity-V` and predefined CJK
+encodings) and a CID-keyed CFF program fail closed too; only the `/WinAnsiEncoding`/
+`/MacRomanEncoding`/`/StandardEncoding` base encodings (plus `/Differences`) are supported (an
+unrecognized base encoding fails closed); fill (`Tr 0`), stroke (`Tr 1`), fill+stroke (`Tr 2`),
+and invisible (`Tr 3`) text-rendering modes are supported (clip modes `Tr 4`-`7` fail closed); a
+Form XObject's `/BBox` is never used to clip its content and its `/Group` (transparency group)
+entry is never consulted, though the Form itself renders; `/ShadingType` values other than `2`/`3`
+and `/FunctionType 4` (PostScript calculator) functions fail closed, as does the `sh` operator and
+general path clipping (`W`/`W*`), both of which are silently skipped rather than rejected; no
+`/SMask`/alpha compositing or transparency groups (every decoded image is treated as fully
+opaque); no `JPXDecode` filter decoding (fails closed; `CCITTFaxDecode` - Group 4 (T.6 MMR) only -
+is supported); `/Separation`/`/DeviceN`/`/CalGray`/`/Lab` color spaces remain unsupported and fail
+closed; and an encrypted document using any security handler, crypt-filter method, `/V`/`/R`
+combination other than the ones listed above, or whose correct password is not supplied, fails
+closed rather than being decrypted. These remain out of scope and are planned for later phases
+(see Risk Control Measures below for the complete, currently-thrown `Feature` string taxonomy).
 
 ## External Interfaces
 
 The system exposes the following public API to external consumers, all on the sealed
 `PdfDocument` class:
 
-- **PdfDocument.Open(Stream stream)** / **PdfDocument.Open(string path)**: Opens and parses a
-  PDF document exactly once, from a stream or a file path, buffering the input fully in memory.
-  `Open(Stream)` never takes ownership of (or disposes) the caller's stream. `Open(string)`
-  opens, reads, and closes its own internal `FileStream` before returning. Throws
-  `ArgumentNullException` for a null `stream`/`path`, `ArgumentException` for an
-  empty/whitespace-only `path`, `InvalidDataException` for malformed/unresolvable document
-  structure, and `Codecs.UnsupportedImageFeatureException` (feature `"pdf-encrypted"`) for an
-  encrypted document.
+- **PdfDocument.Open(Stream stream, string? password = null)** / **PdfDocument.Open(string path,
+  string? password = null)**: Opens and parses a PDF document exactly once, from a stream or a
+  file path, buffering the input fully in memory. `Open(Stream, ...)` never takes ownership of
+  (or disposes) the caller's stream. `Open(string, ...)` opens, reads, and closes its own
+  internal `FileStream` before returning. The optional `password` is consulted only for an
+  encrypted (`/Encrypt` present in the trailer) document: when `null` (the default), only the
+  empty user password is authenticated; when supplied, it is tried first as the user password,
+  then as the owner password, and the document is opened/decrypted transparently the moment
+  either authenticates. Throws `ArgumentNullException` for a null `stream`/`path`,
+  `ArgumentException` for an empty/whitespace-only `path`, `InvalidDataException` for
+  malformed/unresolvable document structure, and `Codecs.UnsupportedImageFeatureException` for an
+  encrypted document using an unsupported security handler/crypt-filter method/`/V`/`/R`
+  combination, or whose correct password was not supplied (see _PdfDocument Unit Design_ for the
+  complete, distinguishable `Feature` token set).
 - **PdfDocument.PageCount**: Reports the document's true resolved page count. Throws
   `ObjectDisposedException` once the document has been disposed.
 - **PdfDocument.GetPageInfo(int pageIndex)**: Reports the given page's display
@@ -108,18 +140,21 @@ The system exposes the following public API to external consumers, all on the se
   `ObjectDisposedException` once disposed.
 - **PdfDocument.Render(int pageIndex, int width, int height)**: Returns a `Surface` of the
   caller-specified `width`x`height` for the given page, painted with the page's interpreted
-  content-stream geometry (path construction/painting with real device color, any placed image
-  XObjects decoded through the full `/Filter` chain — `FlateDecode`, `LZWDecode`,
-  `ASCII85Decode`, `ASCIIHexDecode`, `RunLengthDecode`, `DCTDecode`, individually or composed —
-  and any shown text painted with a resolved embedded TrueType font, or an automatically
-  substituted system/bundled fallback font when none is embedded — see _PdfDocument Unit Design_
-  for the full operator set and its documented fail-closed boundaries), or a fully transparent
-  surface when the page declares no `/Contents`. Validates
+  content-stream geometry (path construction/painting with real device color, solid fills or
+  shading/tiling pattern fills, any placed image XObjects decoded through the full `/Filter`
+  chain — `FlateDecode`, `LZWDecode`, `ASCII85Decode`, `ASCIIHexDecode`, `RunLengthDecode`,
+  `DCTDecode`, `CCITTFaxDecode` (Group 4 only), individually or composed — any nested
+  `/Subtype /Form` XObject executed as a nested content stream, and any shown text painted with a
+  resolved embedded TrueType/Type1/Type1C/Type3/composite font, or an automatically substituted
+  system/bundled fallback font when a simple TrueType font has none embedded — see _PdfDocument
+  Unit Design_ for the full operator set and its documented fail-closed boundaries), or a fully
+  transparent surface when the page declares no `/Contents`. Validates
   `pageIndex` the same way as `GetPageInfo`, propagates `Surface`'s own `width`/`height`
   validation unwrapped, throws `InvalidDataException` for malformed `/Contents` or a malformed
   recognized operator, throws `Codecs.UnsupportedImageFeatureException` for a well-formed but
-  unsupported color space/stream filter/Form XObject/font subtype/encoding/text-rendering
-  mode/symbolic-font-without-embedded-data, and throws `ObjectDisposedException` once disposed.
+  unsupported color space/stream filter/pattern or shading shape/font subtype or encoding/
+  text-rendering mode/symbolic-font-without-embedded-data, and throws `ObjectDisposedException`
+  once disposed.
 - **PdfDocument.Render(int pageIndex, float dpi)**: Convenience overload preserving the page's
   own aspect ratio: reads `GetPageInfo(pageIndex)`'s rotation-adjusted point-space width/height,
   scales both by `dpi / 72`, rounds to the nearest pixel, and delegates to
@@ -131,7 +166,7 @@ The system exposes the following public API to external consumers, all on the se
 <!-- markdownlint-disable MD013 -->
 | Interface | Direction | Format | Constraints |
 | -------------------------------------- | ---------------- | ------------------------------------ | ------------------------------- |
-| `PdfDocument.Open(...)` | Inbound/Outbound | Method call / `PdfDocument` return | Valid PDF stream or path |
+| `PdfDocument.Open(...)` | Inbound/Outbound | Method call / `PdfDocument` return | Valid PDF stream or path; optional `password` for an encrypted document |
 | `PdfDocument.PageCount` | Outbound | Property read / `int` return | Not disposed |
 | `PdfDocument.GetPageInfo(...)` | Inbound/Outbound | Method call / `PdfPageInfo` return | `0 <= pageIndex < PageCount`; not disposed |
 | `PdfDocument.Render(...)` | Inbound/Outbound | Method call / `Surface` return | `0 <= pageIndex < PageCount`; `0 < width, height <= 8192`; not disposed |
@@ -151,8 +186,9 @@ and page-tree traversal/inheritance) and every method's full parameter and excep
 - The `Canvas` subsystem's `Surface` unit — the content-rendered destination raster `Render`
   returns, and `Rgba32` — the fill/stroke color and decoded image-pixel representation
 - The `Codecs` subsystem's shared `UnsupportedImageFeatureException` type — reused, unmodified,
-  to signal a well-formed-but-unsupported `/Encrypt`ed document, color space, stream filter, or
-  Form XObject (see Risk Control Measures below)
+  to signal a well-formed-but-unsupported encrypted-document shape, color space, stream filter,
+  pattern/shading shape, function type, or font subtype/encoding (see Risk Control Measures
+  below)
 - The `Codecs` subsystem's `JpegCodec` unit (new as of Phase 3) — decodes an image XObject's raw
   `DCTDecode` (JPEG) bitstream via `JpegCodec.Load(Stream)` directly, without requiring
   APP0/JFIF framing
@@ -161,15 +197,30 @@ and page-tree traversal/inheritance) and every method's full parameter and excep
 - The `Drawing` subsystem's `PathFiller`/`PathStroker`/`StrokeStyle`/`FillRule`/`LineCap`/
   `LineJoin` — rasterizes each finished path onto the destination `Surface` for every
   path-painting operator, and, as of Phase 4, every filled glyph outline
+- The `Drawing` subsystem's `Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop` and
+  `TilePaint` types (new as of the `/Pattern` color-space phase) — `PathFiller`'s `Gradient`
+  fill overload paints an axial/radial shading pattern built from the resolved `/Shading`
+  function(s); its `TilePaint` fill overload paints a colored/uncolored tiling pattern's
+  pre-rendered repeating tile cell, sampled per destination pixel through the pattern-to-device
+  transform
 - The `Fonts` subsystem's `TrueTypeFont` unit (new as of Phase 4) — loads an embedded
   `/FontFile2` byte stream and resolves each shown codepoint to a glyph index/outline/advance
   width, exactly as `CanvasNetSvg`'s own `SvgCodec.Text.cs` already uses it for SVG `<text>`
-  rendering
+  rendering; the same type's `LoadType1`/`LoadType1C` factory methods (new as of the Type1/Type1C
+  font phases) load, respectively, an embedded classic PostScript Type 1 `/FontFile` program and
+  a bare Type1C/CFF `/FontFile3` program, reusing the same glyph-outline representation rather
+  than introducing a separate font type
 - The `Fonts` subsystem's `SystemFontCatalog` unit (new as of Phase 6) — locates the
   closest-matching font actually installed on the host operating system (or, when nothing
-  matches, loads a bundled Liberation Sans/Serif/Mono fallback) when a page's `/Subtype
-  /TrueType` font declares no embedded `/FontFile2`, so that documents referencing an
-  unembedded standard font still render recognizable glyph shapes rather than failing closed
+  matches, loads a bundled Liberation Sans/Serif/Mono fallback, or - for `Symbol`/`ZapfDingbats` -
+  a bundled Noto substitute) when a simple font declares no embedded font program, so that
+  documents referencing an unembedded standard font still render recognizable glyph shapes
+  rather than failing closed
+- BCL `System.Security.Cryptography.MD5`/`SHA256`/`Aes` (new as of Phase 16, the encryption
+  phase) — implement the PDF Standard Security Handler's own mandated password-hashing
+  (ISO 32000-1 Algorithms 2/4/5, ISO 32000-2 Algorithm 2.A) and AES-128/AES-256 stream/string
+  decryption; RC4 has no BCL equivalent and is hand-rolled, consistent with this codebase's
+  existing convention for other standard algorithms (e.g. CRC-32/Adler-32/CCITT tables)
 
 This dependency on `Geometry`/`Drawing` is new as of Phase 2 (Phase 1 introduced no such
 dependency — no Phase 1 file constructed a `Path`, rasterized a fill/stroke, or looked up a
@@ -207,17 +258,23 @@ each with its own consistently-applied behavior:
   that cannot be located even after the linear-scan fallback, an invalid `/Rotate` value that is
   not a multiple of 90, and so on) is likewise rejected with `InvalidDataException`.
 
-An `/Encrypt` key present in the trailer is detected explicitly and fails closed: `PdfDocument`
-never attempts to interpret the (still-encrypted) bytes of an encrypted document as plaintext
-content, instead throwing `Codecs.UnsupportedImageFeatureException` (feature `"pdf-encrypted"`)
-immediately upon detection. Phase 3 extended this same fail-closed posture to every well-formed
-but out-of-scope construct it could then encounter: an unsupported color space (`Indexed`/
-`Separation`/`DeviceN`/`ICCBased`/`CalGray`/`Lab`/patterns), an unsupported stream filter,
-an unsupported image `/BitsPerComponent`, and a `/Subtype /Form` XObject are all rejected with
-`Codecs.UnsupportedImageFeatureException` rather than being silently skipped or mis-rendered.
-Phase 4 extended the same posture to text/font constructs: a font dictionary's `/Type1`/
-`/MMType1`/`/Type3` subtype, an `/Encoding` naming an unrecognized base encoding, and a
-clip text-rendering mode (`Tr 4`-`7`) are all likewise rejected with
+An `/Encrypt` key present in the trailer is detected explicitly: `PdfDocument` decrypts every
+indirect object's strings and every stream's raw bytes before any other parsing logic observes
+them, for a document using the PDF `/Filter /Standard` security handler with RC4 (`/V 1`/`/V 2`),
+AES-128 (`/V 4`/`/CFM /AESV2`), or AES-256 using the simpler R5 key derivation (`/V 5`/`/R 5`/
+`/CFM /AESV3`), authenticating either the empty user password (the default) or an optional
+caller-supplied password tried as both the user and the owner password. `PdfDocument` never
+attempts to interpret the (still-encrypted) bytes of an encrypted document as plaintext content
+when authentication fails, or when the document uses a security handler/crypt-filter
+method/`/V`/`/R` combination outside this supported set: each such shape fails closed with its
+own distinguishable `Codecs.UnsupportedImageFeatureException` immediately upon detection, never
+falling back to any tolerant/best-effort decoding. Phase 3 extended this same fail-closed posture
+to every well-formed but out-of-scope construct it could then encounter: an unsupported color
+space, an unsupported stream filter, and an unsupported image `/BitsPerComponent` are all
+rejected with `Codecs.UnsupportedImageFeatureException` rather than being silently skipped or
+mis-rendered. Phase 4 extended the same posture to text/font constructs: a font dictionary's
+`/MMType1` subtype, an `/Encoding` naming an unrecognized base encoding, and a clip
+text-rendering mode (`Tr 4`-`7`) are all likewise rejected with
 `Codecs.UnsupportedImageFeatureException`. Phase 6 narrowed (but did not remove) the font-subtype
 fail-closed boundary: a `/Subtype /TrueType` font lacking an embedded `/FontFile2` is now resolved
 via automatic system/bundled-font substitution rather than rejected outright, except that a
@@ -227,29 +284,68 @@ via automatic system/bundled-font substitution rather than rejected outright, ex
 symbol/dingbat glyph set has no meaningful generic-family equivalent and is never substituted
 with an unrelated font. Phase 7 extended the supported stream-filter set from `FlateDecode` alone
 to also include `LZWDecode`, `ASCII85Decode`, `ASCIIHexDecode`, and `RunLengthDecode`; any filter
-other than these five (plus `DCTDecode` for image XObjects) remains rejected with
-`Codecs.UnsupportedImageFeatureException` (`"pdf-filter-{name}"`), and malformed bytes for any of
-the five supported filters are rejected with `InvalidDataException` (malformed, not merely
+other than these five (plus `DCTDecode`/`CCITTFaxDecode` for image XObjects) remains rejected
+with `Codecs.UnsupportedImageFeatureException` (`"pdf-filter-{name}"`), and malformed bytes for
+any of the supported filters are rejected with `InvalidDataException` (malformed, not merely
 unsupported). Phase 9 narrowed the font-subtype fail-closed boundary again: a `/Subtype /Type0`
 font is no longer unconditionally rejected — an `/Encoding` other than `/Identity-H` (feature
-`"pdf-font-type0-encoding-{name}"`) or a descendant `/Subtype` other than `/CIDFontType2`
-(feature `"pdf-font-cidfonttype-{subtype}"`) still fails closed, and a composite font has no
-fallback substitution path, so a missing/non-embedded descendant `/FontFile2` fails closed with
-`InvalidDataException` rather than `Codecs.UnsupportedImageFeatureException`. Each
+`"pdf-font-type0-encoding-{name}"`) or a descendant `/Subtype` other than `/CIDFontType2`/
+`/CIDFontType0` (Phase 12 added `/CIDFontType0`, feature `"pdf-font-cidfonttype-{subtype}"`) still
+fails closed, and a composite font has no fallback substitution path, so a missing/non-embedded
+descendant font program fails closed with `InvalidDataException` rather than
+`Codecs.UnsupportedImageFeatureException`. Phases B/C/D narrowed the font-subtype fail-closed
+boundary a third time: `/MMType1` is now the only remaining unconditionally rejected font
+`/Subtype` — `/Type1` (embedded classic `/FontFile` or bare Type1C `/FontFile3`) and `/Type3`
+(procedure-painted glyphs) are both now resolved and rendered. Phase 13 narrowed the Phase 3
+color-space/XObject boundary further: `Do` on a `/Subtype /Form` XObject is no longer rejected —
+it decodes and executes the Form's content stream as a nested execution of the same interpreter,
+subject to its own documented, non-exception-raising limitation (the Form's `/BBox` is never used
+to clip its content and its `/Group` transparency-group entry is never consulted — the Form's
+content simply paints unclipped). Phase 14 replaced the color-space model: `/CalRGB`, `/ICCBased`
+(resolved via its `/N` or `/Alternate`, feature `"pdf-colorspace-ICCBased"` for an unsupported
+shape), and `/Indexed` (a palette lookup over any supported base space) are all now supported,
+narrowing the unsupported-color-space set to `Separation`/`DeviceN`/`CalGray`/`Lab` (feature
+`"pdf-colorspace-{name}"`); the same phase introduced the `/Pattern` color space and `scn`/`SCN`
+pattern operands (an undeclared pattern name, feature `"pdf-pattern-not-declared"`; an
+unsupported `/PatternType`, feature `"pdf-pattern-type-{n}"`; a malformed `/Pattern` array shape,
+feature `"pdf-colorspace-Pattern"`), axial/radial shading patterns (an unsupported
+`/ShadingType`, feature `"pdf-shading-type-{n}"`; an unsupported shading `/ColorSpace`, feature
+`"pdf-shading-colorspace-{family}"`), tiling patterns (an oversized rendered tile, feature
+`"pdf-pattern-tile-too-large"`), and a Function evaluator widened from `/FunctionType 0`
+(sampled) alone to also resolve `/FunctionType 2` (exponential) and `/FunctionType 3`
+(stitching); any other `/FunctionType` (including `4`, PostScript calculator) still fails closed
+(feature `"pdf-functiontype-{n}"`), as does a multi-input `/FunctionType 0` function (feature
+`"pdf-function-multiinput"`) and an unsupported `/BitsPerSample` (feature
+`"pdf-function-bitspersample-{n}"`). Phase 15 added `CCITTFaxDecode` (Group 4/T.6 MMR only) image
+decoding: a non-negative `/K` (Group 3, feature `"pdf-ccittfax-group3"`), `/EndOfLine true`
+(feature `"pdf-ccittfax-endofline"`), or a resolved `/ColorSpace` with more than 1 component
+(feature `"pdf-ccittfax-colorspace"`) each still fail closed. Phase 18 widened `/FontFile3`
+dispatch for `/Type1` and composite `/CIDFontType0` fonts to sniff the stream's own decoded bytes
+for a recognized container shape; only bytes matching neither a recognized SFNT nor bare-CFF
+shape still fail closed (feature `"pdf-font-fontfile3-unrecognized-shape"`). Each
 currently-thrown `Codecs.UnsupportedImageFeatureException` carries a distinct,
 descriptive `Feature` string so a caller (or this repository's own tests) can distinguish exactly
-which unsupported construct was encountered — the complete current set is: `pdf-encrypted`,
-`pdf-pattern-color`, `pdf-colorspace-{name}` (`Indexed`/`Separation`/`DeviceN`/`ICCBased`/
-`CalGray`/`Lab`), `pdf-filter-{name}` (`JPXDecode` and any other
-unrecognized filter), `pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}`,
-`pdf-form-xobject`, `pdf-font-subtype-{subtype}` (`Type1`/`MMType1`/`Type3`),
-`pdf-font-symbolic-not-embedded` (`Symbol`/`ZapfDingbats`), `pdf-font-encoding-{name}`,
-`pdf-font-type0-encoding-{name}` (a `/Type0` `/Encoding` other than `/Identity-H`),
-`pdf-font-cidfonttype-{subtype}` (a descendant `/Subtype` other than `/CIDFontType2`), and
-`pdf-text-render-mode-{mode}` (clip), `pdf-ccittfax-group3` (`CCITTFaxDecode` with a
-non-negative `/K`), `pdf-ccittfax-endofline` (`CCITTFaxDecode` with `/EndOfLine true`), and
-`pdf-ccittfax-colorspace` (a `CCITTFaxDecode` image whose resolved `/ColorSpace` has more than 1
-component). `/Annots` (annotations) and AcroForms are simply not
+which unsupported construct was encountered — the complete current set is:
+`pdf-encrypted-filter-{name}` (a non-`/Standard` security handler), `pdf-encrypted-cfm-{name}`
+(an unsupported `/CF/StdCF/CFM`), `pdf-encrypted-crypt-filter-{name}` (an unsupported named
+crypt filter), `pdf-encrypted-r6-hardened-hash`, `pdf-encrypted-r-{revision}`,
+`pdf-encrypted-v-{version}`, `pdf-encrypted-password-required` (a `null` password when a
+non-empty one is genuinely required), `pdf-encrypted-incorrect-password`,
+`pdf-encrypted-password-non-ascii` (an R2-R4 password outside ASCII 0-127),
+`pdf-colorspace-{name}` (`Separation`/`DeviceN`/`CalGray`/`Lab`), `pdf-colorspace-Pattern`,
+`pdf-colorspace-ICCBased`, `pdf-filter-{name}` (`JPXDecode` and any other unrecognized filter),
+`pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}`, `pdf-pattern-not-declared`,
+`pdf-pattern-type-{n}`, `pdf-pattern-tile-too-large`, `pdf-shading-type-{n}`,
+`pdf-shading-colorspace-{family}`, `pdf-functiontype-{n}`, `pdf-function-multiinput`,
+`pdf-function-bitspersample-{n}`, `pdf-font-subtype-{subtype}` (`MMType1` only),
+`pdf-font-symbolic-not-embedded` (`Symbol`/`ZapfDingbats` descriptor flags without an embedded
+font program), `pdf-font-encoding-{name}`, `pdf-font-type0-encoding-{name}` (a `/Type0`
+`/Encoding` other than `/Identity-H`), `pdf-font-cidfonttype-{subtype}` (a descendant `/Subtype`
+other than `/CIDFontType2`/`/CIDFontType0`), `pdf-font-fontfile3-unrecognized-shape`,
+`pdf-font-tounicode-{operator}` and `pdf-font-tounicode-bfrange-array-destination` (an
+unsupported `/ToUnicode` CMap construct), `pdf-text-render-mode-{mode}` (clip),
+`pdf-ccittfax-group3`, `pdf-ccittfax-endofline`, and `pdf-ccittfax-colorspace`. `/Annots`
+(annotations) and AcroForms are simply not
 processed at all — page rendering silently ignores `/Annots` rather than throwing — since this is
 an unimplemented feature, not a fail-closed scope boundary. No other segregation is required at
 the system level:
@@ -294,11 +390,12 @@ the system level:
    exactly like any other filled path; throws `InvalidDataException` for malformed `/Contents` or
    a malformed recognized operator's operand count/type, and throws
    `Codecs.UnsupportedImageFeatureException` for a well-formed but unsupported color space,
-   stream filter, Form XObject, font subtype/encoding/symbolic-font-without-embedded-data, or
-   text-rendering mode
+   stream filter, pattern/shading shape, function type, or
+   font subtype/encoding/symbolic-font-without-embedded-data/text-rendering mode
 4. **Output**: A new `Canvas.Surface` of exactly the requested size, painted with the page's
-   interpreted path geometry, any placed image XObjects, and any shown text (or fully
-   transparent, when the page declares no `/Contents` at all)
+   interpreted path geometry, any placed image XObjects and nested Form XObjects, any
+   pattern/shading-filled paths, and any shown text (or fully transparent, when the page declares
+   no `/Contents` at all)
 
 ## Design Constraints
 

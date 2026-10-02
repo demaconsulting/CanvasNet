@@ -230,19 +230,26 @@ re-parsing it each time — a property a purely static API could not express.
 
 ### Key Methods
 
-- **`Open(Stream stream)`** / **`Open(string path)`** — `ArgumentNullException.ThrowIfNull` the
-  `stream`/`path` first; `Open(string)` additionally rejects an empty or whitespace-only `path`
-  with `ArgumentException` (mirroring `PngCodec.Load(string)`'s exact null-then-empty check
-  order, but checking `string.IsNullOrWhiteSpace` rather than only length, per this system's
-  request-specific hard constraint). `Open(Stream)` reads the stream fully into an in-memory
-  buffer without ever calling `Dispose`/`Close` on the caller's stream. `Open(string)` opens its
-  own internal `FileStream`, reads it fully, and closes it (via `using`) before parsing —
-  mirroring `PngCodec.Load(string)`'s open/consume/close pattern exactly — then calls the same
-  shared private parse implementation the stream overload uses. Parsing runs the tokenizer,
-  object model, cross-reference resolution (classic/stream/ObjStm/hybrid, with the linear-scan
+- **`Open(Stream stream, string? password = null)`** / **`Open(string path, string? password =
+  null)`** — `ArgumentNullException.ThrowIfNull` the `stream`/`path` first; `Open(string, ...)`
+  additionally rejects an empty or whitespace-only `path` with `ArgumentException` (mirroring
+  `PngCodec.Load(string)`'s exact null-then-empty check order, but checking
+  `string.IsNullOrWhiteSpace` rather than only length, per this system's request-specific hard
+  constraint). `Open(Stream, ...)` reads the stream fully into an in-memory buffer without ever
+  calling `Dispose`/`Close` on the caller's stream. `Open(string, ...)` opens its own internal
+  `FileStream`, reads it fully, and closes it (via `using`) before parsing — mirroring
+  `PngCodec.Load(string)`'s open/consume/close pattern exactly — then calls the same shared
+  private parse implementation the stream overload uses. Parsing runs the tokenizer, object
+  model, cross-reference resolution (classic/stream/ObjStm/hybrid, with the linear-scan
   fallback), `/Encrypt` detection/decryption (see _Encryption (Standard Security Handler)_
-  below, Phase 16), and page-tree traversal exactly once, producing a fully
-  resolved `PdfDocument` instance.
+  below, Phases 16/17), and page-tree traversal exactly once, producing a fully
+  resolved `PdfDocument` instance. The optional `password` parameter (added in Phase 17) is
+  consulted only when the resolved trailer declares an `/Encrypt` key: when `null` (the
+  default), only the empty user password is authenticated, matching Phase 16's original
+  encrypted-document support; when supplied, it is tried first as the user password and, if that
+  fails, as the owner password, so a caller need not know in advance which of the two passwords
+  it holds — see _Encryption (Standard Security Handler)_ below for the full authentication and
+  fail-closed detail.
 - **`PageCount` (get)** — disposed-check, then returns `_pages.Count`.
 - **`GetPageInfo(int pageIndex)`** — disposed-check, then `ArgumentOutOfRangeException` for
   `pageIndex < 0 || pageIndex >= PageCount`, then returns `_pages[pageIndex]` (already computed
@@ -1374,8 +1381,9 @@ its own distinguishable `Feature` token.
   decoded image sample's color representation
 - `Codecs.UnsupportedImageFeatureException` (from the core `CanvasNet` system) — reused,
   unmodified, for `/Encrypt` detection and, as of Phase 3, an unsupported color space/stream
-  filter/image bit depth; as of Phase 16, also each of the five distinct narrowed encryption
-  rejection reasons documented under _Error Handling_ above
+  filter/image bit depth; as of Phase 14, also an unsupported pattern type/shading
+  type/shading color space/function type; as of Phase 16, also each of the five distinct
+  narrowed encryption rejection reasons documented under _Error Handling_ above
 - `Codecs.JpegCodec` (from the core `CanvasNet` system, new as of Phase 3) — `Load(Stream)`
   decodes an image XObject's bare `DCTDecode` (JPEG) bitstream directly, without requiring
   APP0/JFIF framing
@@ -1384,6 +1392,14 @@ its own distinguishable `Feature` token.
 - `Drawing.PathFiller`/`PathStroker`/`StrokeStyle`/`FillRule`/`LineCap`/`LineJoin` (from the core
   `CanvasNet` system) — rasterize the current path onto `_surface` for every path-painting
   operator, and, as of Phase 4, every filled glyph outline
+- `Drawing.Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop`/`GradientSpread` and
+  `Drawing.TilePaint` (from the core `CanvasNet` system, new as of the Phase 14 `/Pattern`
+  color-space work) — `PathFiller`'s `Gradient`-typed `Fill` overload paints an axial
+  (`LinearGradient`) or radial (`RadialGradient`) shading pattern built from the resolved
+  `/Shading` dictionary's evaluated function and `/Coords`; its `TilePaint`-typed `Fill` overload
+  paints a colored/uncolored tiling pattern's own pre-rendered repeating tile cell through the
+  pattern-to-device transform — see _`/Pattern` Color Space (Shading and Tiling Patterns)_ above
+  for the full construction detail
 - `Fonts.TrueTypeFont` (from the core `CanvasNet` system, new as of Phase 4, `LoadType1` added in
   Phase A) — loads an embedded `/FontFile2` byte stream and resolves each shown codepoint to a
   glyph index/outline/advance width, exactly as `SvgCodec.Text.cs` already uses it for SVG

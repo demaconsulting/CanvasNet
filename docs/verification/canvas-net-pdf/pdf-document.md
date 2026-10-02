@@ -469,7 +469,6 @@ asserting `InvalidDataException` in every case.
 `PdfDocument_Color_SetColorSpaceStroke_DeviceNames_ResetsColorToBlack` (`[Theory]`),
 `PdfDocument_Color_SetColorFillUsingCurrentColorSpace_Sc_PaintsExpectedColor`,
 `PdfDocument_Color_SetColorStrokeUsingCurrentColorSpace_SC_PaintsExpectedColor`,
-`PdfDocument_Color_ScnWithPatternName_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException` (`[Theory]`:
 Separation/DeviceN/ICCBased/CalGray/Lab),
 `PdfDocument_Color_CalRgbColorSpace_ResolvesToDeviceRgb`,
@@ -478,8 +477,7 @@ Separation/DeviceN/ICCBased/CalGray/Lab),
 Renders a red-filled rectangle, then a `cs`/`CS` device-name switch (asserted, for all three
 device names, to reset color to opaque black), then a second rectangle - proving the reset. Sets
 color via `sc`/`SC` against the current (`DeviceRGB`) color space, asserting the expected painted
-color. Renders `scn` with a trailing pattern name, asserting
-`Codecs.UnsupportedImageFeatureException`. A `[Theory]` selects each unsupported named color
+color. A `[Theory]` selects each unsupported named color
 space (declared inline in a `/Resources/ColorSpace` dictionary built via
 `BuildSinglePagePdfWithResources`) via `cs`, asserting
 `Codecs.UnsupportedImageFeatureException` in every case - including an `/ICCBased` array
@@ -487,7 +485,11 @@ referencing object `4` (the page's own content stream, reused as a convenient al
 stream object), whose dictionary has neither `/N` nor `/Alternate`. The end-to-end
 system-integration test independently
 proves `rg` painting a real, hand-authored fixture, asserting a specific interior pixel is opaque
-red and an exterior pixel remains transparent.
+red and an exterior pixel remains transparent. `scn`/`SCN` with a trailing pattern name is no
+longer a fail-closed case - a `/Pattern` color space resolves and paints the named pattern; see
+*CanvasNetPdf-PdfDocument-PatternColorSpace*, *CanvasNetPdf-PdfDocument-ShadingPatternFill*, and
+*CanvasNetPdf-PdfDocument-TilingPatternFill* below for that coverage (including the still-rejected
+malformed/undeclared/unsupported-pattern-type shapes).
 
 #### CanvasNetPdf-PdfDocument-IccBasedColorSpace: /ICCBased Resolves via /Alternate or /N, Fails Closed Otherwise
 
