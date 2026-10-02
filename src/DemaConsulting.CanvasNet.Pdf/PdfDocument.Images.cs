@@ -352,8 +352,9 @@ public sealed partial class PdfDocument
     ///     dimensions.
     /// </summary>
     /// <exception cref="InvalidDataException">
-    ///     Propagated from <see cref="DecodeCcittFax"/> for a malformed/truncated CCITT bit
-    ///     stream.
+    ///     Thrown when the resolved <c>/Columns</c> or <c>/Rows</c> is zero, negative, or exceeds
+    ///     <see cref="Surface.MaxDimension"/>, or propagated from <see cref="DecodeCcittFax"/> for
+    ///     a malformed/truncated CCITT bit stream.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when the resolved <c>/ColorSpace</c> has more than 1 component, or propagated
@@ -371,15 +372,16 @@ public sealed partial class PdfDocument
         var encodedByteAlign = parm is not null && GetBoolEntry(parm, "EncodedByteAlign", false);
         var endOfLine = parm is not null && GetBoolEntry(parm, "EndOfLine", false);
 
-        // Reject oversized /Columns or /Rows before decoding - DecodeCcittFax allocates its
-        // output buffer sized directly by these attacker-controlled values, so the bounds-check
-        // must run before that call (not merely before the later `new Surface(...)` call) to
-        // prevent a huge internal allocation from ever happening for a crafted image dictionary.
-        if (columns > Surface.MaxDimension || rows > Surface.MaxDimension)
+        // Reject oversized, zero, or negative /Columns or /Rows before decoding - DecodeCcittFax
+        // allocates its output buffer (rowBytes * rows) sized directly by these attacker-controlled
+        // values, so the bounds-check must run before that call (not merely before the later
+        // `new Surface(...)` call) to prevent a huge, zero-sized, or negative-sized internal
+        // allocation from ever happening for a crafted image dictionary.
+        if (columns <= 0 || rows <= 0 || columns > Surface.MaxDimension || rows > Surface.MaxDimension)
         {
             throw new InvalidDataException(
-                $"CCITTFaxDecode image dimensions {columns}x{rows} exceed the maximum supported size of " +
-                $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
+                $"CCITTFaxDecode image dimensions {columns}x{rows} are invalid or exceed the maximum supported " +
+                $"size of {Surface.MaxDimension}x{Surface.MaxDimension}.");
         }
 
         var decoded = DecodeCcittFax(rawBytes, k, columns, rows, blackIs1, encodedByteAlign, endOfLine);

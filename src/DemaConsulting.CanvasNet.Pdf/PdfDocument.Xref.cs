@@ -653,7 +653,14 @@ public sealed partial class PdfDocument
     private byte[] GetStreamRawBytes(PdfObject streamObject)
     {
         var length = GetStreamRawLength(streamObject);
-        if (length < 0 || streamObject.StreamDataStart < 0 || streamObject.StreamDataStart + length > _buffer.Length)
+
+        // Perform the bounds check in `long` arithmetic: with `int` arithmetic, a crafted huge
+        // /Length value close to int.MaxValue could cause `StreamDataStart + length` to overflow
+        // and silently wrap to a small (even negative) value, bypassing this check entirely and
+        // letting an invalid range reach `AsSpan` below, which throws the undocumented
+        // ArgumentOutOfRangeException instead of the documented InvalidDataException.
+        var streamEnd = (long)streamObject.StreamDataStart + length;
+        if (length < 0 || streamObject.StreamDataStart < 0 || streamEnd > _buffer.Length)
         {
             throw new InvalidDataException("Stream data range is out of bounds.");
         }

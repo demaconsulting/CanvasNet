@@ -18,14 +18,25 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///     <c>DemaConsulting.CanvasNet</c> package.
 /// </summary>
 /// <remarks>
-///     Phase 1 of this package's implementation establishes document parsing (tokenizer, object
-///     model, cross-reference resolution, page-tree traversal) and the public
-///     <see cref="PdfDocument"/> API surface (<see cref="PdfDocument.Open(System.IO.Stream, string?)"/>,
-///     <see cref="PdfDocument.PageCount"/>, <see cref="PdfDocument.GetPageInfo(int)"/>,
-///     <see cref="PdfDocument.Render(int, int, int)"/>, <see cref="PdfDocument.Dispose"/>), but
-///     does not yet interpret page content streams: <see cref="PdfDocument.Render(int, int, int)"/>
-///     currently returns a correctly sized but fully transparent (blank) <c>Surface</c>. Actual
-///     page content (paths, text, images) is planned for a later phase.
+///     <see cref="PdfDocument.Render(int, int, int)"/> fully interprets a page's content stream:
+///     vector path construction/painting with real device color (<c>DeviceGray</c>/
+///     <c>DeviceRGB</c>/<c>DeviceCMYK</c>, <c>CalRGB</c>, ICC-based, and <c>/Indexed</c> color
+///     spaces), text shown with a resolved font - simple <c>/Subtype /TrueType</c>/<c>/Type1</c>
+///     fonts, composite <c>/Subtype /Type0</c> fonts, and procedure-painted <c>/Subtype /Type3</c>
+///     fonts are all supported, with embedded font programs used directly and non-embedded simple
+///     fonts automatically substituted with a matching system or bundled font (only
+///     <c>/MMType1</c> is unsupported) - placed raster image XObjects (<c>DCTDecode</c>/
+///     <c>CCITTFaxDecode</c> (Group 4)/raw samples through the full supported <c>/Filter</c>
+///     pipeline: <c>FlateDecode</c>, <c>LZWDecode</c>, <c>ASCII85Decode</c>,
+///     <c>ASCIIHexDecode</c>, and <c>RunLengthDecode</c>, each with PNG/TIFF predictor reversal
+///     where applicable), placed Form XObjects (nested content streams with their own
+///     <c>/Matrix</c>/<c>/Resources</c>), and <c>/Pattern</c>-color-space shading (axial/radial)
+///     and tiling pattern fills/strokes. Opening a document encrypted with the PDF
+///     <c>/Filter /Standard</c> security handler (RC4, AES-128, or AES-256/R5) is also supported.
+///     See <see cref="PdfDocument"/>'s own remarks for the complete, current feature list and its
+///     documented scope boundaries (for example mesh shadings, <c>/FunctionType 4</c>
+///     PostScript-calculator functions, the <c>sh</c> operator, generic path clipping,
+///     transparency groups, and clip text-rendering modes).
 /// </remarks>
 /// <example>
 ///     Rendering every page of a PDF document to a 300 DPI PNG file, using

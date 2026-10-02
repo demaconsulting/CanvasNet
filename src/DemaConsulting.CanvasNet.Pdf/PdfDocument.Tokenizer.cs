@@ -341,6 +341,16 @@ public sealed partial class PdfDocument
                 Position++;
             }
 
+            // Reaching EOF while depth is still nonzero means the closing ')' for this literal
+            // string (or one of its nested parenthesized groups) was never found - failing closed
+            // here, rather than returning a token built from a truncated scan, matches the
+            // "Unterminated hexadecimal string." convention used by ReadHexString for the same
+            // kind of malformed, EOF-truncated token.
+            if (depth != 0)
+            {
+                throw new InvalidDataException("Unterminated literal string.");
+            }
+
             return new PdfToken(PdfTokenKind.LiteralString, bytes: bytes.ToArray());
         }
 

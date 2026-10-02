@@ -23,11 +23,21 @@ public class SystemFontCatalogRealDiscoveryIntegrationTests
         // Act: this is the real, unmocked SystemFontCatalog.Fonts scan
         var fonts = SystemFontCatalog.Fonts;
 
-        // Assert: the scan completed (no exception), and every reported path genuinely exists
+        // Assert: the scan completed (no exception), and every reported entry satisfies the
+        // documented invariants (CanvasNet-Fonts-SystemFontCatalog-DirectoryScanDiscovery): the
+        // path genuinely exists on disk, the family name is non-empty, and the path has one of
+        // the three supported font-file extensions.
         Assert.NotNull(fonts);
         foreach (var font in fonts)
         {
             Assert.True(File.Exists(font.FilePath), $"Reported font path '{font.FilePath}' does not exist.");
+            Assert.False(string.IsNullOrEmpty(font.FamilyName), $"Reported font '{font.FilePath}' has an empty family name.");
+            var extension = Path.GetExtension(font.FilePath);
+            Assert.True(
+                extension.Equals(".ttf", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".ttc", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".otf", StringComparison.OrdinalIgnoreCase),
+                $"Reported font path '{font.FilePath}' does not end in .ttf, .ttc, or .otf.");
         }
     }
 

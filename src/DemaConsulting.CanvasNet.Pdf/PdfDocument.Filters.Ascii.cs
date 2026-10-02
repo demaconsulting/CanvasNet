@@ -10,6 +10,15 @@ public sealed partial class PdfDocument
     private const byte Ascii85MaxChar = 0x75;
 
     /// <summary>
+    ///     The maximum total number of decoded output bytes <see cref="DecodeAscii85"/> allows
+    ///     before failing closed, bounding a decompression-bomb-style crafted stream (each single
+    ///     <c>z</c> character expands to 4 output bytes, a 4x amplification) from exhausting
+    ///     memory. 64 MiB is generous for any legitimate PDF image/content stream, matching
+    ///     <c>LzwMaxOutputBytes</c> in <c>PdfDocument.Filters.Lzw.cs</c>.
+    /// </summary>
+    private const int Ascii85MaxOutputBytes = 64 * 1024 * 1024;
+
+    /// <summary>
     ///     Decodes an <c>ASCII85Decode</c>-filtered stream (ISO 32000-1/2 section 7.4.3): groups
     ///     of 5 base-85 digit characters (<c>!</c> through <c>u</c>, code points <c>0x21</c>-
     ///     <c>0x75</c>) decode to 4 bytes each, the character <c>z</c> is shorthand for an
@@ -21,7 +30,8 @@ public sealed partial class PdfDocument
     /// <exception cref="InvalidDataException">
     ///     Thrown when an out-of-range character is encountered, <c>z</c> occurs in the middle of
     ///     a group, a decoded group's value exceeds <c>2^32 - 1</c>, a final partial group
-    ///     contains exactly one character, or the <c>~&gt;</c> EOD marker is missing.
+    ///     contains exactly one character, the <c>~&gt;</c> EOD marker is missing, or the decoded
+    ///     output exceeds <see cref="Ascii85MaxOutputBytes"/>.
     /// </exception>
     private static byte[] DecodeAscii85(byte[] data)
     {
@@ -62,6 +72,16 @@ public sealed partial class PdfDocument
                 if (group.Count != 0)
                 {
                     throw new InvalidDataException("ASCII85Decode 'z' shorthand may only occur at a group boundary.");
+                }
+
+                // Check the predicted post-append size against the cap BEFORE appending - not
+                // after - so a crafted stream of repeated 'z' characters (each a single input
+                // byte expanding to 4 output bytes) can never grow the output list past the cap
+                // even transiently.
+                if (output.Count + 4 > Ascii85MaxOutputBytes)
+                {
+                    throw new InvalidDataException(
+                        $"ASCII85Decode output exceeds the maximum supported size of {Ascii85MaxOutputBytes} bytes.");
                 }
 
                 output.AddRange(new byte[4]);
@@ -109,9 +129,23 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>Decodes one full 5-character ASCII85 group into up to 4 bytes, appending them to <paramref name="output"/>.</summary>
-    /// <exception cref="InvalidDataException">Thrown when the group's base-85 value exceeds <c>2^32 - 1</c>.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the group's base-85 value exceeds <c>2^32 - 1</c>, or appending the
+    ///     group's bytes would make <paramref name="output"/> exceed <see cref="Ascii85MaxOutputBytes"/>.
+    /// </exception>
     private static void AppendAscii85Group(IReadOnlyList<byte> group, int significantChars, List<byte> output)
     {
+        var emitCount = significantChars - 1;
+
+        // Check the predicted post-append size against the cap BEFORE appending - not after -
+        // so a crafted stream of many full 5-character groups (each emitting up to 4 output
+        // bytes) can never grow the output list past the cap even transiently.
+        if (output.Count + emitCount > Ascii85MaxOutputBytes)
+        {
+            throw new InvalidDataException(
+                $"ASCII85Decode output exceeds the maximum supported size of {Ascii85MaxOutputBytes} bytes.");
+        }
+
         var value = 0UL;
         for (var i = 0; i < 5; i++)
         {
@@ -124,7 +158,6 @@ public sealed partial class PdfDocument
         }
 
         Span<byte> bytes = [(byte)(value >> 24), (byte)(value >> 16), (byte)(value >> 8), (byte)value];
-        var emitCount = significantChars - 1;
         for (var i = 0; i < emitCount; i++)
         {
             output.Add(bytes[i]);

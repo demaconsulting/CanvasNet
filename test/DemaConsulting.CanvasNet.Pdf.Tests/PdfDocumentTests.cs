@@ -1186,6 +1186,22 @@ public class PdfDocumentTests
         Assert.Equal("He said (\"hi\") \n 1", text);
     }
 
+    /// <summary>
+    ///     Proves that a literal string missing its closing <c>)</c> before EOF (the parenthesis-
+    ///     nesting <c>depth</c> counter is still nonzero when the tokenizer runs out of input)
+    ///     throws <see cref="InvalidDataException"/> instead of silently returning a token built
+    ///     from the truncated scan.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Tokenizer_LiteralString_UnterminatedAtEof_ThrowsInvalidDataException()
+    {
+        // Arrange: an opening '(' with no matching closing ')' before the input ends.
+        var tokenizer = new PdfDocument.PdfTokenizer("(unterminated"u8.ToArray());
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => tokenizer.NextToken());
+    }
+
     /// <summary>Proves that a hex string with a full, even digit count decodes to the exact byte sequence.</summary>
     [Fact]
     public void PdfDocument_Tokenizer_HexString_DecodesFullBytes()
@@ -1581,6 +1597,46 @@ public class PdfDocumentTests
         var info = document.GetPageInfo(0);
         Assert.Equal(180, info.Width);
         Assert.Equal(260, info.Height);
+    }
+
+    /// <summary>
+    ///     Proves that a stream object declaring a crafted, near-<see cref="int.MaxValue"/>
+    ///     <c>/Length</c> - large enough that adding it to the stream's (small) start offset
+    ///     overflows 32-bit <see langword="int"/> arithmetic and wraps to a negative value -
+    ///     still fails closed with the documented <see cref="InvalidDataException"/> ("Stream
+    ///     data range is out of bounds.") rather than an undocumented
+    ///     <see cref="ArgumentOutOfRangeException"/> escaping from the later <c>AsSpan</c> call.
+    ///     Builds the stream object by hand (rather than via <see cref="BuildStreamObjectBody"/>,
+    ///     which always computes a correct, consistent <c>/Length</c>) specifically so the
+    ///     declared <c>/Length</c> can diverge from the actual byte count present.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_GetStreamRawBytes_LengthOverflowsIntArithmetic_ThrowsInvalidDataException()
+    {
+        // Arrange: a /Length just below int.MaxValue - the stream's actual start offset (a few
+        // hundred bytes into a small file) pushes `StreamDataStart + length` past int.MaxValue,
+        // which wraps to a negative number under 32-bit int arithmetic and would incorrectly
+        // satisfy an `int`-typed "> _buffer.Length" bounds check.
+        const int declaredLength = int.MaxValue - 100;
+        var streamData = "AB"u8.ToArray();
+        var header = System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /XObject /Subtype /Form /BBox [0 0 100 100] /Length {declaredLength} >>\nstream\n");
+        var footer = "\nendstream"u8.ToArray();
+        var formStream = new byte[header.Length + streamData.Length + footer.Length];
+        header.CopyTo(formStream, 0);
+        streamData.CopyTo(formStream, header.Length);
+        footer.CopyTo(formStream, header.Length + streamData.Length);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Fm0 Do",
+            "/XObject << /Fm0 5 0 R >>",
+            [formStream]);
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+        Assert.Contains("out of bounds", exception.Message, StringComparison.Ordinal);
     }
 
     #endregion
@@ -3409,6 +3465,41 @@ public class PdfDocumentTests
         Assert.Throws<InvalidDataException>(() => RenderGrayscaleImage(4, data, "/Filter /ASCII85Decode"));
     }
 
+    /// <summary>
+    ///     Proves that an <c>ASCII85Decode</c> stream whose decoded output would exceed the
+    ///     decoder's output-size cap (a decompression-bomb-style crafted stream: the <c>z</c>
+    ///     shorthand's 4x amplification - 1 input byte expands to 4 output bytes - applied many
+    ///     times) throws <see cref="InvalidDataException"/> instead of exhausting memory. Used
+    ///     via a Form XObject's content stream (rather than an image XObject) so the image
+    ///     /Width x /Height dimension cap cannot short-circuit this test before ever reaching the
+    ///     ASCII85Decode decoder itself. Mirrors
+    ///     <see cref="PdfDocument_Filters_LzwDecode_OutputExceedsMaxSize_ThrowsInvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Filters_Ascii85Decode_OutputExceedsMaxSize_ThrowsInvalidDataException()
+    {
+        // Arrange: enough 'z' characters (each expanding to 4 output bytes) to push the total
+        // decoded output just over the decoder's 64 MiB output cap, followed by the ~> EOD marker.
+        const int maxOutputBytes = 64 * 1024 * 1024;
+        var zCount = (maxOutputBytes / 4) + (1024 * 1024);
+        var data = new byte[zCount + 2];
+        Array.Fill(data, (byte)'z', 0, zCount);
+        data[zCount] = (byte)'~';
+        data[zCount + 1] = (byte)'>';
+
+        var formStream = BuildStreamObjectBody("/Type /XObject /Subtype /Form /BBox [0 0 100 100] /Filter /ASCII85Decode", data);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Fm0 Do",
+            "/XObject << /Fm0 5 0 R >>",
+            [formStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
     /// <summary>Proves that hex-digit pairs decode to the expected bytes.</summary>
     [Fact]
     public void PdfDocument_Filters_AsciiHexDecode_HexDigitPairs_DecodesExpectedBytes()
@@ -3575,6 +3666,51 @@ public class PdfDocumentTests
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>
+    ///     Proves that <c>RunLengthDecode</c>'s output-size cap is enforced by a preflight check
+    ///     against the REMAINING budget before a run is appended - not a check only after the run
+    ///     has already been added to the output - by crafting an input that fills the cap exactly
+    ///     with 128-byte literal runs and then adds one more single-byte literal run: the single
+    ///     byte that would push the total 1 byte past the cap is rejected immediately, so the
+    ///     output is never allowed to grow past the cap even transiently.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Filters_RunLengthDecode_RunExceedsRemainingBudget_ThrowsBeforeExceedingCap()
+    {
+        // Arrange: fill the cap exactly with maximal (128-byte) literal runs (length byte 127),
+        // then append one more single-byte literal run (length byte 0) that would overshoot.
+        const int maxOutputBytes = 64 * 1024 * 1024;
+        const int runSize = 128;
+        var runCount = maxOutputBytes / runSize;
+        var data = new byte[(runCount * (runSize + 1)) + 2 + 1];
+        var offset = 0;
+        for (var i = 0; i < runCount; i++)
+        {
+            data[offset++] = 127;
+            for (var k = 0; k < runSize; k++)
+            {
+                data[offset++] = 0x41;
+            }
+        }
+
+        data[offset++] = 0; // literal run length byte -> 1 literal byte follows
+        data[offset++] = 0x42;
+        data[offset] = 128; // EOD, unreachable: the preceding run must already have thrown
+
+        var formStream = BuildStreamObjectBody("/Type /XObject /Subtype /Form /BBox [0 0 100 100] /Filter /RunLengthDecode", data);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Fm0 Do",
+            "/XObject << /Fm0 5 0 R >>",
+            [formStream]);
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+        Assert.Contains("exceeds the maximum supported size", exception.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -4258,6 +4394,60 @@ public class PdfDocumentTests
         // Act & Assert
         var exception = Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
         Assert.Contains("exceed the maximum supported size", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Proves that <c>CCITTFaxDecode</c> with <c>/Columns 0</c> is rejected with
+    ///     <see cref="InvalidDataException"/> before <c>DecodeCcittFax</c> ever allocates its
+    ///     internal output buffer (sized <c>rowBytes * rows</c>) using that invalid dimension.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Images_CcittFaxZeroColumns_ThrowsInvalidDataException()
+    {
+        // Arrange: /Columns 0 is neither oversized nor negative, but still an invalid dimension
+        // that must be rejected before DecodeCcittFax's buffer allocation and row-decoding loop.
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 "
+            + "/Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns 0 /Rows 1 >>",
+            [0x00]);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>
+    ///     Proves that <c>CCITTFaxDecode</c> with a negative <c>/Columns</c> is rejected with
+    ///     <see cref="InvalidDataException"/> before <c>DecodeCcittFax</c> ever allocates its
+    ///     internal output buffer using that invalid dimension. (A negative <c>/Rows</c> cannot
+    ///     reach this check as a negative value: unlike <c>/Columns</c>, an absent-or-non-positive
+    ///     <c>/Rows</c> falls back to the already-validated-positive <c>/Height</c> before this
+    ///     check runs, so only <c>/Columns</c> can carry a crafted negative value this far.)
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Images_CcittFaxNegativeColumns_ThrowsInvalidDataException()
+    {
+        // Arrange: a negative /Columns value reaches this check unchanged via GetIntEntry.
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 "
+            + "/Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns -1 /Rows 1 >>",
+            [0x00]);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 
     /// <summary>Proves that <c>CCITTFaxDecode</c> combined with another filter throws <see cref="InvalidDataException"/>.</summary>

@@ -49,6 +49,16 @@ public sealed partial class PdfDocument
                     throw new InvalidDataException("Truncated RunLengthDecode literal run.");
                 }
 
+                // Preflight the run's size against the REMAINING budget before appending any of
+                // its bytes - checking only after the run has already been added to `output`
+                // would still allow a crafted (sequence of) run(s) to materialize an oversized
+                // allocation before the cap ever fires.
+                if (count > RunLengthMaxOutputBytes - output.Count)
+                {
+                    throw new InvalidDataException(
+                        $"RunLengthDecode output exceeds the maximum supported size of {RunLengthMaxOutputBytes} bytes.");
+                }
+
                 for (var k = 0; k < count; k++)
                 {
                     output.Add(data[i + k]);
@@ -65,19 +75,20 @@ public sealed partial class PdfDocument
 
                 var repeatByte = data[i++];
                 var count = 257 - length;
+
+                // Same preflight-before-append ordering as the literal-run branch above: a
+                // single repeat run can expand 2 input bytes to up to 128 output bytes, so the
+                // remaining-budget check must happen before any of those bytes are added.
+                if (count > RunLengthMaxOutputBytes - output.Count)
+                {
+                    throw new InvalidDataException(
+                        $"RunLengthDecode output exceeds the maximum supported size of {RunLengthMaxOutputBytes} bytes.");
+                }
+
                 for (var k = 0; k < count; k++)
                 {
                     output.Add(repeatByte);
                 }
-            }
-
-            // Check the running total after every run (not just once at the end) - bounding the
-            // intermediate allocation itself, not merely the final returned array, matching the
-            // DecodeLzw/ZlibDecompress output-cap convention elsewhere in this class.
-            if (output.Count > RunLengthMaxOutputBytes)
-            {
-                throw new InvalidDataException(
-                    $"RunLengthDecode output exceeds the maximum supported size of {RunLengthMaxOutputBytes} bytes.");
             }
         }
 

@@ -6,7 +6,7 @@ namespace DemaConsulting.CanvasNet.Pdf;
 
 /// <summary>
 ///     Provides read-only access to a PDF (Portable Document Format) document: page count, each
-///     page's displayed size and rotation, and (in a later phase) rendered page content.
+///     page's displayed size and rotation, and fully rendered page content.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -31,34 +31,42 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         matrix).
 ///     </para>
 ///     <para>
-///         Phase 4 (this release) adds embedded simple-TrueType-font text rendering: the text
-///         object/state/positioning/showing operators (<c>BT</c>/<c>ET</c>, <c>Tc</c>/<c>Tw</c>/
-///         <c>Tz</c>/<c>TL</c>/<c>Tf</c>/<c>Tr</c>/<c>Ts</c>, <c>Td</c>/<c>TD</c>/<c>Tm</c>/
-///         <c>T*</c>, and <c>Tj</c>/<c>'</c>/<c>"</c>/<c>TJ</c>), resolving each named
-///         <c>/Resources/Font</c> entry against <see cref="Fonts.TrueTypeFont"/> (see
-///         <c>PdfDocument.Fonts.cs</c>) and painting each glyph outline through the composed
-///         text-rendering matrix (see <c>PdfDocument.Text.cs</c>). <strong>Phase 4 scope
-///         boundary</strong>: only simple (<c>/Subtype /TrueType</c>) fonts are supported
-///         (a <c>/Type0</c> (composite), <c>/Type1</c>, <c>/MMType1</c>, or <c>/Type3</c>
-///         font fails closed), only the <c>/WinAnsiEncoding</c>/<c>/MacRomanEncoding</c>
-///         base encodings (plus <c>/Differences</c> overrides) are recognized (any other
-///         named base <c>/Encoding</c> fails closed), and only fill mode <c>0</c> and
+///         Text rendering (added starting with Phase 4 and substantially broadened by later
+///         phases) interprets the text object/state/positioning/showing operators
+///         (<c>BT</c>/<c>ET</c>, <c>Tc</c>/<c>Tw</c>/<c>Tz</c>/<c>TL</c>/<c>Tf</c>/<c>Tr</c>/
+///         <c>Ts</c>, <c>Td</c>/<c>TD</c>/<c>Tm</c>/<c>T*</c>, and <c>Tj</c>/<c>'</c>/<c>"</c>/
+///         <c>TJ</c>), resolving each named <c>/Resources/Font</c> entry against one of four
+///         supported font subtypes: simple <c>/Subtype /TrueType</c> and <c>/Subtype /Type1</c>
+///         fonts (see <c>PdfDocument.Fonts.cs</c>/<c>PdfDocument.Fonts.Type1.cs</c>), composite
+///         <c>/Subtype /Type0</c> fonts with an Identity-H encoding and a <c>CIDFontType2</c> or
+///         <c>CIDFontType0</c> descendant (see <c>PdfDocument.Fonts.Type0.cs</c>), and
+///         procedure-painted <c>/Subtype /Type3</c> fonts, whose glyph procedures are executed as
+///         nested content streams (see <c>PdfDocument.Fonts.Type3.cs</c>) - only <c>/MMType1</c>
+///         (Multiple Master Type 1) fails closed with <see cref="UnsupportedImageFeatureException"/>.
+///         Each resolved glyph outline is painted through the composed text-rendering matrix (see
+///         <c>PdfDocument.Text.cs</c>). Only the <c>/WinAnsiEncoding</c>/<c>/MacRomanEncoding</c>
+///         base encodings (plus <c>/Differences</c> overrides) are recognized for a simple font
+///         (any other named base <c>/Encoding</c> fails closed), and only fill mode <c>0</c> and
 ///         invisible mode <c>3</c> are supported for the text-rendering mode (a stroke/clip
 ///         mode, <c>1</c>/<c>2</c>/<c>4</c>-<c>7</c>, fails closed) - all with
 ///         <see cref="UnsupportedImageFeatureException"/> rather than silently substituting
-///         or skipping. A font with an embedded <c>/FontDescriptor/FontFile2</c> uses that
-///         embedded font; a font with no embedded <c>/FontFile2</c> is, since Phase 6 (see
-///         below), automatically substituted with a matching system or bundled font rather
-///         than failing closed. <strong>Phase 3/4 limitations</strong>: no
-///         shading/patterns/transparency groups, and no <c>/SMask</c>/alpha compositing
-///         (every decoded image is treated as fully opaque) - a later phase is expected to
-///         add these. (<c>LZWDecode</c>/<c>ASCII85Decode</c>/<c>ASCIIHexDecode</c>/
+///         or skipping. A font with an embedded font program (<c>/FontFile</c>/<c>/FontFile2</c>/
+///         <c>/FontFile3</c>, as appropriate to its subtype) uses that embedded font; a simple
+///         font with no embedded program is, since Phase 6 (see below), automatically substituted
+///         with a matching system or bundled font rather than failing closed.
+///         (<c>LZWDecode</c>/<c>ASCII85Decode</c>/<c>ASCIIHexDecode</c>/
 ///         <c>RunLengthDecode</c> are supported for any stream as of Phase 7;
 ///         <c>CCITTFaxDecode</c>, Group 4 only, is supported for image XObjects as of
 ///         Phase 15; only <c>JPXDecode</c> remains unsupported for image XObjects - see
-///         Phase 15's own remarks above.)
-///         Every other keyword not implemented by any phase is silently skipped, not an
-///         error. A page with no <c>/Contents</c> at all still renders as a fully
+///         Phase 15's own remarks above.) <c>/Pattern</c>-color-space shading (axial/radial,
+///         <c>/ShadingType 2</c>/<c>3</c>, driven by <c>/FunctionType 0</c>/<c>2</c>/<c>3</c>
+///         functions) and tiling (<c>/PaintType 1</c>/<c>2</c>) pattern fills/strokes are also
+///         fully supported, as are placed Form XObjects (see Phase 13 below); the remaining
+///         unsupported features are listed under "Documented scope boundaries" in this package's
+///         user guide (mesh shadings, <c>/FunctionType 4</c> PostScript-calculator functions,
+///         the <c>sh</c> operator, generic path clipping, transparency groups, and clip
+///         text-rendering modes). Every other keyword not implemented is silently skipped, not
+///         an error. A page with no <c>/Contents</c> at all still renders as a fully
 ///         transparent (blank) <see cref="Surface"/>, exactly as every page did in Phase 1.
 ///     </para>
 ///     <para>
