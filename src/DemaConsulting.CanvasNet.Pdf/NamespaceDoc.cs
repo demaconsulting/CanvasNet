@@ -27,6 +27,25 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///     currently returns a correctly sized but fully transparent (blank) <c>Surface</c>. Actual
 ///     page content (paths, text, images) is planned for a later phase.
 /// </remarks>
+/// <example>
+///     Rendering every page of a PDF document to a 300 DPI PNG file, using
+///     <see cref="PdfDocument.Render(int, float)"/> (which preserves each page's own aspect
+///     ratio) together with the core <c>DemaConsulting.CanvasNet</c> package's
+///     <see cref="DemaConsulting.CanvasNet.Codecs.PngCodec"/> - the separate package that holds
+///     <see cref="DemaConsulting.CanvasNet.Canvas.Surface"/> and every raster codec, since this
+///     namespace only rasterizes into a <c>Surface</c> and has no <c>Save</c> method of its own:
+///     <code>
+///     using DemaConsulting.CanvasNet.Codecs;
+///     using DemaConsulting.CanvasNet.Pdf;
+///
+///     using var document = PdfDocument.Open("input.pdf");
+///     for (var pageIndex = 0; pageIndex &lt; document.PageCount; pageIndex++)
+///     {
+///         using var surface = document.Render(pageIndex, dpi: 300f);
+///         PngCodec.Save(surface, $"page-{pageIndex}.png");
+///     }
+///     </code>
+/// </example>
 internal static class NamespaceDoc
 {
 }
