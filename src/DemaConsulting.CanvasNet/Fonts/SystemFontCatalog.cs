@@ -456,7 +456,9 @@ public static class SystemFontCatalog
     ///     Recursively enumerates every <c>.ttf</c>/<c>.ttc</c>/<c>.otf</c> file (case-insensitive
     ///     extension match) under <paramref name="root"/>, tolerating a missing root and any
     ///     inaccessible subdirectory encountered along the way (both are silently skipped rather
-    ///     than aborting the whole scan).
+    ///     than aborting the whole scan). Symlinked or junction subdirectories (reparse points) are
+    ///     skipped entirely, and every other subdirectory's canonical path is tracked so a cycle
+    ///     (for example, a symlink pointing back at an ancestor) cannot cause an infinite scan.
     /// </summary>
     private static IEnumerable<string> EnumerateFontFiles(string root)
     {
@@ -465,6 +467,14 @@ public static class SystemFontCatalog
         {
             return results;
         }
+
+        // Tracks every directory's canonicalized path already queued or visited, so a symlink (or
+        // junction/reparse point) that cycles back to an ancestor - or to another already-visited
+        // branch - cannot make this scan revisit the same real directory indefinitely.
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            NormalizeDirectoryPath(root),
+        };
 
         var pending = new Stack<string>();
         pending.Push(root);
@@ -505,10 +515,40 @@ public static class SystemFontCatalog
 
             foreach (var subdirectory in subdirectories)
             {
+                try
+                {
+                    // A symlinked or junction subdirectory can point anywhere - including back
+                    // at an ancestor of this scan - so it is skipped entirely rather than
+                    // followed, matching common font-discovery tooling's own treatment of
+                    // reparse points.
+                    if (new DirectoryInfo(subdirectory).Attributes.HasFlag(FileAttributes.ReparsePoint))
+                    {
+                        continue;
+                    }
+                }
+                catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+                {
+                    continue;
+                }
+
+                if (!visited.Add(NormalizeDirectoryPath(subdirectory)))
+                {
+                    continue;
+                }
+
                 pending.Push(subdirectory);
             }
         }
 
         return results;
     }
+
+    /// <summary>
+    ///     Canonicalizes a directory path (resolving <c>.</c>/<c>..</c> segments and relative
+    ///     roots via <see cref="Path.GetFullPath(string)"/>, then trimming any trailing directory
+    ///     separator) so two different textual spellings of the same real directory compare equal
+    ///     in <see cref="EnumerateFontFiles"/>'s visited-directory set.
+    /// </summary>
+    private static string NormalizeDirectoryPath(string path) =>
+        Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 }

@@ -16,6 +16,51 @@ namespace DemaConsulting.CanvasNet.Tests.Fonts;
 public class SystemFontCatalogTests
 {
     /// <summary>
+    ///     Proves that a subdirectory symlink (or junction) that cycles back to an ancestor
+    ///     directory does not cause font scanning to hang, and that a sibling real font file is
+    ///     still discovered. Skips itself (rather than failing) when the current process lacks
+    ///     the privilege to create a directory symlink, since that privilege is environment-
+    ///     dependent (for example, Windows requires Developer Mode or an elevated process).
+    /// </summary>
+    [Fact]
+    public void SystemFontCatalog_Fonts_SymlinkCycleInScanDirectory_DoesNotHangAndSiblingFontStillFound()
+    {
+        // Arrange: root/Valid.ttf plus root/loop -> root (a symlinked subdirectory cycling back
+        // to its own ancestor).
+        var root = Directory.CreateDirectory(
+            Path.Combine(Path.GetTempPath(), "canvasnet-test-symlink-cycle-" + Guid.NewGuid())).FullName;
+
+        try
+        {
+            File.WriteAllBytes(Path.Combine(root, "Valid.ttf"), BuildMinimalValidFont());
+
+            var loopPath = Path.Combine(root, "loop");
+            try
+            {
+                Directory.CreateSymbolicLink(loopPath, root);
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+            {
+                // This process/environment cannot create directory symlinks (for example,
+                // Windows without Developer Mode or elevation) - nothing more to verify here.
+                return;
+            }
+
+            // Act
+            var result = SystemFontCatalog.BuildCatalogFromRoots([root]);
+
+            // Assert: the scan terminated (it did not hang following the cycle forever) and the
+            // real font sibling to the symlink was still discovered.
+            var entry = Assert.Single(result);
+            Assert.Equal(Path.Combine(root, "Valid.ttf"), entry.FilePath);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
     ///     Proves that an exact (case-insensitive) family-name match is found and preferred over
     ///     any generic-bucket candidate, even when the case of the query and the catalog entry
     ///     differ.
