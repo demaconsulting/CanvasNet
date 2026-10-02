@@ -351,11 +351,12 @@ public sealed partial class PdfDocument
                     $"Encrypted PDF /V {version} is not supported.");
         }
 
-        // Every object resolved and cached so far - by IsValidCatalogRoot's own /Root lookup
-        // (normal path), by BuildLinearScanFallback's scan of every object number in the
-        // document (fallback path), or by this method's own /CF/StdCF lookups above - was
-        // cached before _encryptionKey existed, so none of those objects' own strings were ever
-        // decrypted. Discard every cached object except the /Encrypt dictionary's own (which
+        // Every object resolved and cached so far - by BuildLinearScanFallback's scan of every
+        // object number in the document (fallback path, where encryption cannot be initialized
+        // until a usable trailer has been recovered), or by this method's own /CF/StdCF lookups
+        // above - was cached before _encryptionKey existed, so none of those objects' own
+        // strings were ever decrypted. Discard every cached object except the /Encrypt
+        // dictionary's own (which
         // must never be decrypted - see this method's remarks above) so each is correctly
         // re-resolved, and decrypted, the next time anything asks for it.
         InvalidateObjectCacheExceptEncryptDictionary(encryptEntry);
@@ -363,9 +364,10 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     Clears <see cref="_objectCache"/> of every object cached before <see cref="_encryptionKey"/>
-    ///     was established - by <c>IsValidCatalogRoot</c>'s own <c>/Root</c> lookup, by
-    ///     <c>BuildLinearScanFallback</c>'s scan of every object number in the document, or by
-    ///     this class's own <c>/CF</c>/<c>/StdCF</c> lookups - except the <c>/Encrypt</c>
+    ///     was established - by <c>BuildLinearScanFallback</c>'s scan of every object number in
+    ///     the document (fallback path only; the normal path initializes encryption before
+    ///     resolving <c>/Root</c>), or by this class's own <c>/CF</c>/<c>/StdCF</c> lookups -
+    ///     except the <c>/Encrypt</c>
     ///     dictionary's own object (identified via <paramref name="encryptEntry"/>'s own
     ///     reference, not a redundant guard field), which must remain exactly as originally
     ///     cached (pre-key, hence never decrypted) per this file's own

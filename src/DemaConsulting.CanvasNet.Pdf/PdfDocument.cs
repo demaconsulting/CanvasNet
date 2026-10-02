@@ -231,6 +231,15 @@ public sealed partial class PdfDocument : IDisposable
         try
         {
             trailer = ParseCrossReferenceChain();
+
+            // Establish the file decryption key (if any) before resolving /Root: the catalog, or
+            // an ancestor in its page tree, may itself live inside a compressed /Type /ObjStm
+            // object stream that is only readable once the correct key is known. Validating the
+            // catalog before the key exists would decompress ciphertext as if it were plaintext
+            // and spuriously fail, triggering the linear-scan fallback below even though the
+            // document is otherwise well-formed.
+            InitializeEncryption(trailer, password);
+
             if (!IsValidCatalogRoot(trailer))
             {
                 throw new InvalidDataException("Trailer /Root does not resolve to a valid /Catalog.");
@@ -238,15 +247,16 @@ public sealed partial class PdfDocument : IDisposable
         }
         catch (InvalidDataException)
         {
-            // Normal cross-reference parsing failed, or resolved to something other than a valid
-            // catalog (for example a corrupt/missing startxref, or offsets that do not point at
-            // real objects) - fall back to a linear scan for "N G obj" markers, discarding any
-            // partially-cached objects resolved against the abandoned cross-reference table.
+            // Normal cross-reference parsing failed, the /Encrypt dictionary itself was
+            // malformed, or /Root resolved to something other than a valid catalog (for example a
+            // corrupt/missing startxref, or offsets that do not point at real objects) - fall back
+            // to a linear scan for "N G obj" markers, discarding any partially-cached objects
+            // resolved against the abandoned cross-reference table or encryption state.
             _objectCache.Clear();
             trailer = BuildLinearScanFallback();
+            InitializeEncryption(trailer, password);
         }
 
-        InitializeEncryption(trailer, password);
         _pages = BuildPageList(trailer);
     }
 

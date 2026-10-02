@@ -430,6 +430,96 @@ public class PdfDocumentEncryptionTests
         return [.. buffer];
     }
 
+    /// <summary>
+    ///     Builds an in-memory, single-page, <c>/Type /XRef</c> cross-reference-stream-based,
+    ///     encrypted PDF whose <c>/Type /Catalog</c> object itself (object 1) is compressed inside
+    ///     an encrypted <c>/Type /ObjStm</c> container (object 6): objects 2-4 are the
+    ///     Pages/Page/Contents (the latter RC4-encrypted, holding <paramref name="encryptedContentBytes"/>
+    ///     verbatim), object 5 is the Encrypt dictionary (<paramref name="encryptDictBody"/>),
+    ///     object 6 is the <c>/Type /ObjStm</c> container whose own raw (zlib-compressed) bytes are
+    ///     <paramref name="encryptedObjStmBytes"/> (RC4-encrypted as a whole), and object 7 is the
+    ///     cross-reference stream itself (a self-referential type-1 entry, left deliberately
+    ///     unencrypted). Resolving <c>/Root</c> therefore requires the file decryption key to
+    ///     already be established - the regression scenario for the fix that initializes
+    ///     encryption before validating the catalog root.
+    /// </summary>
+    private static byte[] BuildEncryptedPdfWithCompressedCatalog(
+        string encryptDictBody,
+        byte[] idBytes,
+        byte[] encryptedContentBytes,
+        byte[] encryptedObjStmBytes)
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamBody(encryptedContentBytes),
+            Encoding.ASCII.GetBytes(encryptDictBody),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        var offsets = new List<int>();
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            // Bodies start at object 2 (object 1, the Catalog, is compressed - see below).
+            offsets.Add(buffer.Count);
+            buffer.AddRange(Encoding.ASCII.GetBytes($"{i + 2} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // Object 6: the /Type /ObjStm container holding the compressed Catalog (object 1).
+        // /First 4 matches the fixed "1 0\n" 4-byte header this helper's callers always use
+        // ahead of the single contained object's body.
+        var objStmOffset = buffer.Count;
+        buffer.AddRange("6 0 obj\n"u8.ToArray());
+        buffer.AddRange(Encoding.ASCII.GetBytes(
+            $"<< /Type /ObjStm /N 1 /First 4 /Filter /FlateDecode /Length {encryptedObjStmBytes.Length} >>\nstream\n"));
+        buffer.AddRange(encryptedObjStmBytes);
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        // Object 7: the cross-reference stream itself - self-referential (its own type-1 entry
+        // below points back at xrefStreamOffset) and deliberately left unencrypted.
+        var xrefStreamOffset = buffer.Count;
+        var entries = new (int Type, int Field2, int Field3)[]
+        {
+            (0, 0, 0), // object 0: free
+            (2, 6, 0), // object 1: Catalog, compressed inside object 6, index 0
+            (1, offsets[0], 0), // object 2: Pages
+            (1, offsets[1], 0), // object 3: Page
+            (1, offsets[2], 0), // object 4: Contents stream
+            (1, offsets[3], 0), // object 5: Encrypt dictionary
+            (1, objStmOffset, 0), // object 6: ObjStm container
+            (1, xrefStreamOffset, 0), // object 7: the xref stream itself
+        };
+
+        var rawEntries = new byte[entries.Length * 6];
+        for (var i = 0; i < entries.Length; i++)
+        {
+            var (type, field2, field3) = entries[i];
+            var position = i * 6;
+            rawEntries[position] = (byte)type;
+            rawEntries[position + 1] = (byte)(field2 >> 24);
+            rawEntries[position + 2] = (byte)(field2 >> 16);
+            rawEntries[position + 3] = (byte)(field2 >> 8);
+            rawEntries[position + 4] = (byte)field2;
+            rawEntries[position + 5] = (byte)field3;
+        }
+
+        var compressedXref = ZlibCompress(rawEntries);
+        var idHex = ToHex(idBytes);
+        buffer.AddRange("7 0 obj\n"u8.ToArray());
+        buffer.AddRange(Encoding.ASCII.GetBytes(
+            $"<< /Type /XRef /Size {entries.Length} /W [1 4 1] /Root 1 0 R /Encrypt 5 0 R /ID [<{idHex}> <{idHex}>] " +
+            $"/Filter /FlateDecode /Length {compressedXref.Length} >>\nstream\n"));
+        buffer.AddRange(compressedXref);
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        buffer.AddRange(Encoding.ASCII.GetBytes($"startxref\n{xrefStreamOffset}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
     /// <summary>The fixed, arbitrary 16-byte <c>/ID</c> every test below uses, since a real-world ID's exact value carries no meaning beyond its role as Algorithm 2/4/5 input.</summary>
     private static byte[] TestIdBytes { get; } = [.. Enumerable.Range(0, 16).Select(i => (byte)(0x10 + i))];
 
@@ -1000,5 +1090,53 @@ public class PdfDocumentEncryptionTests
         var getObject = typeof(PdfDocument).GetMethod("GetObject", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var compressedObject = (PdfDocument.PdfObject)getObject.Invoke(document, [6])!;
         Assert.Equal(Encoding.ASCII.GetBytes(greeting), compressedObject.Get("Greeting")!.Bytes);
+    }
+
+    /// <summary>
+    ///     Proves that an encrypted document whose <c>/Type /Catalog</c> object itself is
+    ///     compressed inside an encrypted <c>/Type /ObjStm</c> container still opens and renders
+    ///     correctly, instead of incorrectly falling back to a linear scan. Resolving <c>/Root</c>
+    ///     (to validate the catalog) requires decompressing the container object, which in turn
+    ///     requires the container's own raw bytes to already be correctly decrypted - so this only
+    ///     succeeds when the file decryption key is established before the catalog root is
+    ///     validated, not after.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_Encrypted_CompressedCatalog_OpensWithoutLinearScanFallback()
+    {
+        const int keyLengthBytes = 5;
+        const int revision = 2;
+        const int permissions = -3904;
+        var idBytes = (byte[])[.. Enumerable.Range(0, 16).Select(i => (byte)(0xA0 + i))];
+
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, PasswordPadding, PasswordPadding);
+        var fileKey = ComputeFileKeyAlgorithm2(PasswordPadding, oBytes, permissions, idBytes, keyLengthBytes, revision);
+        var uBytes = ComputeUserEntryAlgorithm45(fileKey, idBytes, revision);
+
+        var contentObjectKey = ComputeObjectKeyAlgorithm1(fileKey, 4, 0, isAes: false);
+        var encryptedContent = Rc4(contentObjectKey, Encoding.ASCII.GetBytes(PlaintextContent));
+
+        // Object 1 (the Catalog, compressed inside object 6's ObjStm container at index 0). The
+        // object stream header is "1 0\n" (object number 1 at relative offset 0), so /First is 4.
+        var objStmPlaintext = Encoding.ASCII.GetBytes("1 0\n<< /Type /Catalog /Pages 2 0 R >>");
+        var compressedObjStm = ZlibCompress(objStmPlaintext);
+
+        // Object 6's own raw (compressed) bytes are RC4-encrypted as a whole with object 6's own
+        // per-object key - the catalog is only reachable once this container decrypts correctly.
+        var objStmObjectKey = ComputeObjectKeyAlgorithm1(fileKey, 6, 0, isAes: false);
+        var encryptedObjStm = Rc4(objStmObjectKey, compressedObjStm);
+
+        var encryptDictBody = $"<< /Filter /Standard /V 1 /R {revision} /O <{ToHex(oBytes)}> /U <{ToHex(uBytes)}> /P {permissions} >>";
+        var pdfBytes = BuildEncryptedPdfWithCompressedCatalog(encryptDictBody, idBytes, encryptedContent, encryptedObjStm);
+
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // The document opened via normal cross-reference parsing - not the linear-scan fallback,
+        // which would have scanned for "N G obj" markers and never found object 1 (it has no such
+        // marker; it only exists compressed inside object 6) - and renders correctly.
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
     }
 }
