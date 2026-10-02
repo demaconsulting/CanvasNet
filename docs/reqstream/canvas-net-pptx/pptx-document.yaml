@@ -1,7 +1,7 @@
 ---
 # Software Unit Requirements for PptxDocument
 #
-# cspell:ignore ooxml pptx
+# cspell:ignore ooxml pptx srgb
 #
 # These requirements describe the design-level behavior of the PptxDocument unit.
 #
@@ -138,3 +138,160 @@ sections:
               disposal both present) never throws.
             tests:
               - PptxDocument_Dispose_CalledTwice_DoesNotThrow
+
+          - id: CanvasNetPptx-PptxDocument-PresentationParsing
+            title: >-
+              The PptxDocument class shall, at Open() time, locate ppt/presentation.xml via the
+              package root's /officeDocument relationship, parse its declared slide size into a
+              public SlideSize property, resolve its ordered slide list into a public SlideCount
+              property, and expose a GetSlideSizeInPixels(float dpi) conversion method, all guarded
+              by ObjectDisposedException once the document is disposed.
+            justification: |
+              Callers need the presentation's overall slide size and slide count without
+              navigating the package's relationship graph themselves, and need a pixel-resolution
+              conversion ahead of any later rendering phase reusing the same arithmetic.
+            tests:
+              - PptxDocument_Open_MultiSlidePresentation_SlideCountAndSlideSizeResolveCorrectly
+              - PptxDocument_GetSlideSizeInPixels_ValidDpi_ComputesExpectedPixelSize
+              - PptxDocument_GetSlideSizeInPixels_NonPositiveDpi_ThrowsArgumentOutOfRangeException
+              - CanvasNetPptx_SystemIntegration_PptxOpenPresentation_SlideCountAndSizeResolveEndToEnd
+
+          - id: CanvasNetPptx-PptxDocument-PresentationValidation
+            title: >-
+              The PptxDocument class shall reject, with InvalidDataException, a package with no
+              /officeDocument relationship, a presentation part whose root is not a PresentationML
+              <p:presentation> element, a presentation missing a valid <p:sldSz> (including a
+              missing, non-numeric, or non-positive cx/cy attribute), and a presentation whose
+              <p:sldIdLst> is missing or declares zero slides.
+            justification: |
+              A malformed or non-presentation package must fail closed at Open() time rather than
+              later surfacing as a confusing null-reference or structural failure when a caller
+              first reads SlideCount/SlideSize.
+            tests:
+              - PptxDocument_Open_MissingOfficeDocumentRelationship_ThrowsInvalidDataException
+              - PptxDocument_Open_PresentationMissingSldSz_ThrowsInvalidDataException
+              - PptxDocument_Open_PresentationEmptySlideList_ThrowsInvalidDataException
+              - PptxDocument_Open_PresentationNonNumericSldSz_ThrowsInvalidDataException
+              - CanvasNetPptx_SystemIntegration_PptxOpenValidationEmptySlideList_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-SlideSizePixelConversion
+            title: >-
+              The PptxDocument class shall convert its EMU-unit SlideSize to a pixel size at a
+              caller-supplied DPI via GetSlideSizeInPixels(float dpi), rounding each dimension to
+              the nearest pixel, and reject a non-positive or non-finite dpi with
+              ArgumentOutOfRangeException.
+            justification: |
+              A later rendering phase needs a pixel-dimensioned Canvas.Surface to paint onto;
+              providing this conversion now, already tested, avoids re-deriving the EMU-to-pixel
+              arithmetic when that phase arrives.
+            tests:
+              - PptxDocument_GetSlideSizeInPixels_ValidDpi_ComputesExpectedPixelSize
+              - PptxDocument_GetSlideSizeInPixels_NonPositiveDpi_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNetPptx-PptxDocument-ThemeColorScheme
+            title: >-
+              The PptxDocument class shall resolve a theme part's 12-slot color scheme
+              (<a:clrScheme>) into concrete Rgba32 values, resolving an <a:srgbClr val="RRGGBB"/>
+              directly and an <a:sysClr val="..." lastClr="RRGGBB"/> via its cached lastClr value.
+            justification: |
+              A placeholder's effective properties may reference a theme color by scheme slot
+              rather than an explicit RGB value; resolving the scheme up front lets a later
+              rendering phase look up a concrete color without re-parsing the theme XML.
+            tests:
+              - PptxDocument_GetTheme_SrgbClrColorScheme_ResolvesRgba32Values
+              - PptxDocument_GetTheme_SysClrColorScheme_ResolvesLastClrValue
+
+          - id: CanvasNetPptx-PptxDocument-ThemeFontScheme
+            title: >-
+              The PptxDocument class shall resolve a theme part's font scheme (<a:fontScheme>)
+              into major (heading) and minor (body) typeface collections, each naming the Latin,
+              East Asian, and complex-script typeface.
+            justification: |
+              A placeholder's effective text properties may reference a theme's major/minor font
+              rather than an explicit typeface name; resolving the font scheme up front supports
+              that lookup without re-parsing the theme XML in a later phase.
+            tests:
+              - PptxDocument_GetTheme_FontScheme_ResolvesMajorMinorTypefaces
+
+          - id: CanvasNetPptx-PptxDocument-MasterPlaceholderParsing
+            title: >-
+              The PptxDocument class shall structurally parse a slide master's immediate
+              placeholder shapes (type and idx, defaulting to "obj"/0 when omitted) and resolve
+              its theme part via the master's own /theme relationship.
+            justification: |
+              A slide layout's placeholders may inherit effective properties from the owning
+              master's placeholders of a matching type, and a master's theme supplies the
+              scheme-level color/font context for the whole master/layout/slide chain beneath it.
+            tests:
+              - PptxDocument_GetMaster_PlaceholderShapes_ParsedWithTypeAndIdx
+
+          - id: CanvasNetPptx-PptxDocument-LayoutPlaceholderParsing
+            title: >-
+              The PptxDocument class shall structurally parse a slide layout's immediate
+              placeholder shapes (type and idx, defaulting to "obj"/0 when omitted) and resolve
+              its owning master's part path via the layout's own /slideMaster relationship.
+            justification: |
+              A slide's placeholders are matched against the owning layout's placeholders by idx;
+              the layout's own master part path is needed to continue the inheritance chain to
+              the master level when a layout-level match is found.
+            tests:
+              - PptxDocument_GetLayout_PlaceholderShapes_ParsedWithDefaultTypeAndIdx
+
+          - id: CanvasNetPptx-PptxDocument-SlidePlaceholderParsing
+            title: >-
+              The PptxDocument class shall expose GetSlide(int slideIndex), range-checked against
+              SlideCount with ArgumentOutOfRangeException, structurally parsing the slide's
+              immediate placeholder shapes (excluding non-placeholder shapes) and resolving its
+              owning layout's part path via the slide's own /slideLayout relationship.
+            justification: |
+              A caller (or a later rendering phase) needs to enumerate a specific slide's
+              placeholder shapes and locate its layout to begin the property-inheritance
+              resolution chain.
+            tests:
+              - PptxDocument_GetSlide_ImmediatePlaceholderShapes_ParsedStructurally
+              - PptxDocument_GetSlide_IndexOutOfRange_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNetPptx-PptxDocument-PlaceholderInheritanceIdxMatch
+            title: >-
+              The PptxDocument class shall resolve a slide placeholder's matching layout
+              placeholder by idx alone (type is not consulted at this hop), with a miss (no layout
+              placeholder shares the slide placeholder's idx) short-circuiting the remainder of
+              the inheritance chain rather than being retried by type.
+            justification: |
+              This is the verified ECMA-376 §19.3.1.36 slide-to-layout placeholder matching rule
+              (confirmed against the python-pptx reference implementation), distinct from a
+              naive "type+idx exact match" framing.
+            tests:
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_IdxMatchAtLayout_UsesLayoutSpPr
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_NoIdxMatchAtLayout_FallsThroughToMasterOnly
+
+          - id: CanvasNetPptx-PptxDocument-PlaceholderInheritanceTypeMatch
+            title: >-
+              The PptxDocument class shall, only when a layout-level idx match was found, resolve
+              that matched layout placeholder's matching master placeholder by type alone (idx is
+              not consulted at this hop), remapping the layout placeholder's type through a fixed
+              table (body/chart/bitmap/orgChart/mediaClip/obj/pic/subTitle/tbl/clipArt/dgm/media to
+              "body"; ctrTitle to "title"; every other type maps to itself) before matching.
+            justification: |
+              This is the verified ECMA-376 §19.3.1.36 layout-to-master placeholder matching rule;
+              getting the remap table or the "only runs after a layout match" short-circuit wrong
+              would resolve an incorrect or spurious master-level property fragment.
+            tests:
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_TypeMatchAtMaster_IgnoresMismatchedIdx
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_RemappedBodyLikeType_MatchesMasterBodyPlaceholder
+
+          - id: CanvasNetPptx-PptxDocument-PlaceholderInheritancePerCategory
+            title: >-
+              The PptxDocument class shall resolve a slide placeholder's effective <p:spPr> and
+              <p:txBody>/<a:lstStyle> property fragments independently (slide, then matched
+              layout, then matched master, taking the first element present at all - an empty
+              element still counts as present), and carry the resolved theme through unchanged as
+              context rather than selecting it via the same fallback.
+            justification: |
+              Each property category's inheritance chain is independent in real PowerPoint
+              behavior (a slide may override its fill without overriding its text style, or vice
+              versa); merging them into a single fallback decision would resolve incorrect
+              effective properties for one or both categories.
+            tests:
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_PerCategoryIndependentFallthrough_SlideOverridesFillButNotText
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_NoMatchAtAnyLevel_ReturnsNullForBothCategories

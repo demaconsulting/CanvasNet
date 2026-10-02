@@ -42,7 +42,21 @@ public class PptxSystemIntegrationTests
             </Relationships>
             """;
 
-        const string presentationXml = "<p:presentation xmlns:p=\"http://example.com/presentationml\" />";
+        const string presentationXml =
+            """
+            <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+              <p:sldSz cx="9144000" cy="6858000"/>
+              <p:sldIdLst><p:sldId id="256" r:id="rId2"/></p:sldIdLst>
+            </p:presentation>
+            """;
+
+        const string presentationRelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml" />
+            </Relationships>
+            """;
 
         var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
@@ -50,6 +64,7 @@ public class PptxSystemIntegrationTests
             WriteEntry(archive, "[Content_Types].xml", contentTypesXml);
             WriteEntry(archive, "_rels/.rels", packageRelsXml);
             WriteEntry(archive, "ppt/presentation.xml", presentationXml);
+            WriteEntry(archive, "ppt/_rels/presentation.xml.rels", presentationRelsXml);
         }
 
         stream.Position = 0;
@@ -104,5 +119,118 @@ public class PptxSystemIntegrationTests
     {
         // Act / Assert
         Assert.Throws<ArgumentException>(() => PptxDocument.Open(string.Empty));
+    }
+
+    /// <summary>
+    ///     Opens a multi-slide presentation package end-to-end and proves both
+    ///     <see cref="PptxDocument.SlideCount"/> and <see cref="PptxDocument.SlideSize"/> resolve
+    ///     correctly from <c>ppt/presentation.xml</c>'s <c>&lt;p:sldIdLst&gt;</c>/<c>&lt;p:sldSz&gt;</c>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPptx_SystemIntegration_PptxOpenPresentation_SlideCountAndSizeResolveEndToEnd()
+    {
+        // Arrange
+        const string contentTypesXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
+              <Default Extension="xml" ContentType="application/xml" />
+            </Types>
+            """;
+
+        const string packageRelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml" />
+            </Relationships>
+            """;
+
+        const string presentationXml =
+            """
+            <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+              <p:sldSz cx="9144000" cy="6858000"/>
+              <p:sldIdLst>
+                <p:sldId id="256" r:id="rId2"/>
+                <p:sldId id="257" r:id="rId3"/>
+              </p:sldIdLst>
+            </p:presentation>
+            """;
+
+        const string presentationRelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml" />
+              <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide2.xml" />
+            </Relationships>
+            """;
+
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            WriteEntry(archive, "[Content_Types].xml", contentTypesXml);
+            WriteEntry(archive, "_rels/.rels", packageRelsXml);
+            WriteEntry(archive, "ppt/presentation.xml", presentationXml);
+            WriteEntry(archive, "ppt/_rels/presentation.xml.rels", presentationRelsXml);
+        }
+
+        stream.Position = 0;
+
+        // Act
+        using var document = PptxDocument.Open(stream);
+
+        // Assert
+        Assert.Equal(2, document.SlideCount);
+        Assert.Equal(9144000L, document.SlideSize.WidthEmu);
+        Assert.Equal(6858000L, document.SlideSize.HeightEmu);
+    }
+
+    /// <summary>
+    ///     Proves opening a presentation package whose <c>&lt;p:sldIdLst&gt;</c> is empty throws
+    ///     <see cref="InvalidDataException"/> end-to-end.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPptx_SystemIntegration_PptxOpenValidationEmptySlideList_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string contentTypesXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
+              <Default Extension="xml" ContentType="application/xml" />
+            </Types>
+            """;
+
+        const string packageRelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml" />
+            </Relationships>
+            """;
+
+        const string presentationXml =
+            """
+            <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+              <p:sldSz cx="9144000" cy="6858000"/>
+              <p:sldIdLst></p:sldIdLst>
+            </p:presentation>
+            """;
+
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            WriteEntry(archive, "[Content_Types].xml", contentTypesXml);
+            WriteEntry(archive, "_rels/.rels", packageRelsXml);
+            WriteEntry(archive, "ppt/presentation.xml", presentationXml);
+        }
+
+        stream.Position = 0;
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => PptxDocument.Open(stream));
     }
 }

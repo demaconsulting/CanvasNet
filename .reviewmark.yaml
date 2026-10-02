@@ -824,9 +824,19 @@ reviews:
       - "docs/design/canvas-net-pptx/pptx-document.md"                # unit design
       - "docs/verification/canvas-net-pptx/pptx-document.md"          # unit verification
       - "docs/sysml2/model/canvas-net-pptx/pptx-document.sysml"       # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.cs"            # phase 1a unit source (public API)
-      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Package.cs"    # phase 1a unit source (OOXML package layer)
-      - "src/DemaConsulting.CanvasNet.Pptx/NamespaceDoc.cs"            # Pptx namespace documentation
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.cs"  # phase 1a unit source (public API)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Package.cs"  # phase 1a unit source (package layer)
+      - "src/DemaConsulting.CanvasNet.Pptx/NamespaceDoc.cs"  # Pptx namespace documentation
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Presentation.cs"  # phase 1b unit source (presentation)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxSlideSize.cs"  # phase 1b unit source (slide size model)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Theme.cs"  # phase 1b unit source (theme parsing)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxTheme.cs"  # phase 1b unit source (theme model)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Masters.cs"  # phase 1b unit source (master parsing)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Layouts.cs"  # phase 1b unit source (layout parsing)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Slides.cs"  # phase 1b unit source (slide parsing)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxPlaceholder.cs"  # phase 1b unit source (placeholder model)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Inheritance.cs"  # phase 1b unit source (inheritance)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxPlaceholderProperties.cs"  # phase 1b unit source (resolved properties)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxSystemIntegrationTests.cs"  # integration tests
 
