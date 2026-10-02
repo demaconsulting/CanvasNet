@@ -1,5 +1,5 @@
 ---
-# cspell:ignore ooxml pptx
+# cspell:ignore ooxml pptx srgb
 #
 # Software System Requirements for CanvasNetPptx
 #
@@ -105,3 +105,45 @@ sections:
         tests:
           - CanvasNetPptx_SystemIntegration_PptxOpenPresentation_SlideCountAndSizeResolveEndToEnd
           - CanvasNetPptx_SystemIntegration_PptxOpenValidationEmptySlideList_ThrowsInvalidDataException
+
+      - id: CanvasNetPptx-Theme
+        title: >-
+          The library shall, upon resolving a slide master's theme part, resolve that theme's
+          12-slot color scheme (<a:clrScheme>, including both srgbClr and sysClr entries) and its
+          major/minor font scheme (Latin, East Asian, and complex-script typefaces) into concrete
+          values usable by placeholder-property resolution and later rendering phases.
+        tags: [system]
+        justification: |
+          A placeholder's effective properties may reference a theme color by scheme slot or a
+          theme font by major/minor role rather than an explicit value; resolving the theme's
+          color and font schemes up front lets later phases look up concrete values without
+          re-parsing the theme XML for every placeholder that resolves to it.
+        children:
+          - CanvasNetPptx-PptxDocument-ThemeColorScheme
+          - CanvasNetPptx-PptxDocument-ThemeFontScheme
+        tests:
+          - CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage
+
+      - id: CanvasNetPptx-PlaceholderInheritance
+        title: >-
+          The library shall structurally parse the placeholder shapes declared on a slide's
+          master, layout, and slide (recording each one's type and idx, defaulting to "obj"/0 when
+          omitted) and resolve a slide placeholder's effective shape and text-body properties by
+          independently falling through slide, then matched layout, then matched master for each
+          property category, applying the verified ECMA-376 idx-then-remapped-type placeholder
+          matching algorithm at each hop.
+        tags: [system]
+        justification: |
+          A slide's placeholders rarely declare their own complete formatting; real PowerPoint
+          behavior inherits unset shape and text properties from the owning layout and, beyond
+          that, the owning master, and callers (and later rendering phases) need this resolved
+          chain rather than re-implementing OOXML's placeholder-matching rules themselves.
+        children:
+          - CanvasNetPptx-PptxDocument-MasterPlaceholderParsing
+          - CanvasNetPptx-PptxDocument-LayoutPlaceholderParsing
+          - CanvasNetPptx-PptxDocument-SlidePlaceholderParsing
+          - CanvasNetPptx-PptxDocument-PlaceholderInheritanceIdxMatch
+          - CanvasNetPptx-PptxDocument-PlaceholderInheritanceTypeMatch
+          - CanvasNetPptx-PptxDocument-PlaceholderInheritancePerCategory
+        tests:
+          - CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage
