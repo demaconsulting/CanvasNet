@@ -1,8 +1,8 @@
-## JpegCodec Unit Verification Design
+### JpegCodec Unit Verification Design
 
 This document describes the unit-level verification strategy for the `JpegCodec` class.
 
-### Verification Approach
+#### Verification Approach
 
 The `JpegCodec` unit is verified through unit tests that exercise `Load` and `Save` in isolation,
 using `MemoryStream` for all in-memory round-trip and malformed-stream checks. Several tests build
@@ -17,7 +17,7 @@ Conformance testing against the `JpegFixtures` corpus (five real-world files gen
 ImageMagick from the PngSuite corpus) resides separately in `JpegFixtureTests.cs` within the same
 project (see `JpegFixtures\README.md` for corpus provenance).
 
-### Test Environment
+#### Test Environment
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
@@ -25,9 +25,9 @@ project (see `JpegFixtures\README.md` for corpus provenance).
 - **Isolation**: Each test method builds its own `Surface` and/or JPEG byte array; no shared state
   between tests
 
-### Unit-Level Test Scenarios
+#### Unit-Level Test Scenarios
 
-#### CanvasNet-Codecs-JpegCodec-SaveLoadBaseline420: Baseline 4:2:0 Save Then Load Stays Within Tolerance
+##### CanvasNet-Codecs-JpegCodec-SaveLoadBaseline420: Baseline 4:2:0 Save Then Load Stays Within Tolerance
 
 **Tests**: `JpegCodec_SaveThenLoad_AlignedCanvas_RoundTripsWithinTolerance`,
 `JpegCodec_SaveThenLoad_OddSizedCanvas_RoundTripsWithinTolerance`,
@@ -38,7 +38,7 @@ loads them back, and asserts the decoded dimensions remain correct and the RGB c
 within the documented per-channel tolerance, including odd image sizes and the documented quality
 endpoints 1 and 100.
 
-#### CanvasNet-Codecs-JpegCodec-LoadBaseline444: Baseline 4:4:4 Fixtures Decode Within Tolerance
+##### CanvasNet-Codecs-JpegCodec-LoadBaseline444: Baseline 4:4:4 Fixtures Decode Within Tolerance
 
 **Tests**: `JpegCodec_Load_Fixture_ReturnsCanvasWithExpectedDimensions`,
 `JpegCodec_Load_ColorFixture_MatchesSourcePngWithinTolerance`
@@ -46,7 +46,7 @@ endpoints 1 and 100.
 Loads the baseline 4:4:4 fixture from `JpegFixtures`, asserting the expected dimensions and that
 its decoded RGB pixels remain within the documented tolerance of the PngSuite source image.
 
-#### CanvasNet-Codecs-JpegCodec-LoadBaseline422: Baseline 4:2:2 Fixtures Decode Within Tolerance
+##### CanvasNet-Codecs-JpegCodec-LoadBaseline422: Baseline 4:2:2 Fixtures Decode Within Tolerance
 
 **Tests**: `JpegCodec_Load_Fixture_ReturnsCanvasWithExpectedDimensions`,
 `JpegCodec_Load_ColorFixture_MatchesSourcePngWithinTolerance`
@@ -54,7 +54,7 @@ its decoded RGB pixels remain within the documented tolerance of the PngSuite so
 Loads the baseline 4:2:2 fixture from `JpegFixtures`, asserting the expected dimensions and that
 its decoded RGB pixels remain within the documented tolerance of the PngSuite source image.
 
-#### CanvasNet-Codecs-JpegCodec-LoadProgressive: Progressive JPEG Fixtures Decode Within Tolerance
+##### CanvasNet-Codecs-JpegCodec-LoadProgressive: Progressive JPEG Fixtures Decode Within Tolerance
 
 **Tests**: `JpegCodec_Load_Fixture_ReturnsCanvasWithExpectedDimensions`,
 `JpegCodec_Load_ColorFixture_MatchesSourcePngWithinTolerance`
@@ -63,7 +63,7 @@ Loads the progressive 4:2:0 fixture from `JpegFixtures`, asserting the expected 
 that the completed multi-scan decode remains within the documented tolerance of the PngSuite
 source image.
 
-#### CanvasNet-Codecs-JpegCodec-LoadGrayscale: Grayscale JPEG Expands to Equal RGB Channels
+##### CanvasNet-Codecs-JpegCodec-LoadGrayscale: Grayscale JPEG Expands to Equal RGB Channels
 
 **Tests**: `JpegCodec_Load_Fixture_ReturnsCanvasWithExpectedDimensions`,
 `JpegCodec_Load_GrayscaleFixture_HasEqualRgbChannels`
@@ -71,31 +71,31 @@ source image.
 Loads the grayscale baseline fixture, asserts the expected dimensions, and verifies every decoded
 pixel satisfies `R == G == B` with alpha forced to 255.
 
-#### CanvasNet-Codecs-JpegCodec-SaveNullCanvas: Save Rejects a Null Surface
+##### CanvasNet-Codecs-JpegCodec-SaveNullCanvas: Save Rejects a Null Surface
 
 **Test**: `JpegCodec_SaveStream_NullCanvas_ThrowsArgumentNullException`
 
 Calls `Save` with a null `surface` and asserts `ArgumentNullException` is thrown.
 
-#### CanvasNet-Codecs-JpegCodec-SaveNullStream: Save Rejects a Null Stream
+##### CanvasNet-Codecs-JpegCodec-SaveNullStream: Save Rejects a Null Stream
 
 **Test**: `JpegCodec_SaveStream_NullStream_ThrowsArgumentNullException`
 
 Calls `Save` with a valid surface and a null stream, and asserts `ArgumentNullException` is thrown.
 
-#### CanvasNet-Codecs-JpegCodec-SaveNullPath: Save Rejects a Null Path
+##### CanvasNet-Codecs-JpegCodec-SaveNullPath: Save Rejects a Null Path
 
 **Test**: `JpegCodec_SavePath_NullPath_ThrowsArgumentNullException`
 
 Calls `Save` with a valid surface and a null path, and asserts `ArgumentNullException` is thrown.
 
-#### CanvasNet-Codecs-JpegCodec-SaveEmptyPath: Save Rejects an Empty Path
+##### CanvasNet-Codecs-JpegCodec-SaveEmptyPath: Save Rejects an Empty Path
 
 **Test**: `JpegCodec_SavePath_EmptyPath_ThrowsArgumentException`
 
 Calls `Save` with a valid surface and an empty path, and asserts `ArgumentException` is thrown.
 
-#### CanvasNet-Codecs-JpegCodec-SaveInvalidQuality: Save Rejects Out-of-Range Quality Values
+##### CanvasNet-Codecs-JpegCodec-SaveInvalidQuality: Save Rejects Out-of-Range Quality Values
 
 **Tests**: `JpegCodec_SaveStream_QualityBelowRange_ThrowsArgumentOutOfRangeException`,
 `JpegCodec_SaveStream_QualityAboveRange_ThrowsArgumentOutOfRangeException`
@@ -103,32 +103,32 @@ Calls `Save` with a valid surface and an empty path, and asserts `ArgumentExcept
 Calls `Save` with quality values below 1 and above 100, and asserts
 `ArgumentOutOfRangeException` is thrown in both cases.
 
-#### CanvasNet-Codecs-JpegCodec-LoadNullStream: Load Rejects a Null Stream
+##### CanvasNet-Codecs-JpegCodec-LoadNullStream: Load Rejects a Null Stream
 
 **Test**: `JpegCodec_LoadStream_NullStream_ThrowsArgumentNullException`
 
 Calls `Load` with a null stream and asserts `ArgumentNullException` is thrown.
 
-#### CanvasNet-Codecs-JpegCodec-LoadNullPath: Load Rejects a Null Path
+##### CanvasNet-Codecs-JpegCodec-LoadNullPath: Load Rejects a Null Path
 
 **Test**: `JpegCodec_LoadPath_NullPath_ThrowsArgumentNullException`
 
 Calls `Load` with a null path and asserts `ArgumentNullException` is thrown.
 
-#### CanvasNet-Codecs-JpegCodec-LoadEmptyPath: Load Rejects an Empty Path
+##### CanvasNet-Codecs-JpegCodec-LoadEmptyPath: Load Rejects an Empty Path
 
 **Test**: `JpegCodec_LoadPath_EmptyPath_ThrowsArgumentException`
 
 Calls `Load` with an empty path and asserts `ArgumentException` is thrown.
 
-#### CanvasNet-Codecs-JpegCodec-RejectMalformedMarker: Load Rejects a Missing SOI Marker
+##### CanvasNet-Codecs-JpegCodec-RejectMalformedMarker: Load Rejects a Missing SOI Marker
 
 **Test**: `JpegCodec_Load_MissingSoiMarker_ThrowsInvalidDataException`
 
 Builds a byte stream that does not begin with SOI and asserts `Load` throws
 `InvalidDataException`.
 
-#### CanvasNet-Codecs-JpegCodec-RejectUnsupportedSof: Load and GetInfo Reject Unsupported SOF Markers Identically
+##### CanvasNet-Codecs-JpegCodec-RejectUnsupportedSof: Load and GetInfo Reject Unsupported SOF Markers Identically
 
 **Tests**: `JpegCodec_Load_UnsupportedSofMarker_ThrowsInvalidDataException` (`[Theory]` over
 three unsupported markers), `JpegCodec_UnsupportedSofMarkerFollowedByValidSof0_BothLoadAndGetInfoThrow`
@@ -142,14 +142,14 @@ the historical divergence where `GetInfo`'s marker scan would skip past the unsu
 (since it wasn't a recognized SOF0/SOF2) and wrongly succeed against the later valid SOF0, using
 the same shared rejection helper `Load` already relied on.
 
-#### CanvasNet-Codecs-JpegCodec-RejectFourComponent: Load Rejects Four-Component Frames
+##### CanvasNet-Codecs-JpegCodec-RejectFourComponent: Load Rejects Four-Component Frames
 
 **Test**: `JpegCodec_Load_FourComponentSof0_ThrowsInvalidDataException`
 
 Builds a baseline SOF0 stream declaring four components and asserts `Load` throws
 `InvalidDataException`.
 
-#### CanvasNet-Codecs-JpegCodec-RejectExceedsMaxDimension: Load Rejects Dimensions Exceeding Surface.MaxDimension
+##### CanvasNet-Codecs-JpegCodec-RejectExceedsMaxDimension: Load Rejects Dimensions Exceeding Surface.MaxDimension
 
 **Tests**: `JpegCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException`,
 `JpegCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException`
@@ -160,7 +160,7 @@ separately a frame height one greater, and asserts `Load` throws `InvalidDataExc
 cases, confirming the dimension check happens immediately after parsing the SOF segment, before
 any MCU-grid width/height arithmetic performed while decoding the scan.
 
-#### CanvasNet-Codecs-JpegCodec-RejectMissingSegments: Load Rejects Streams Missing Mandatory Segments
+##### CanvasNet-Codecs-JpegCodec-RejectMissingSegments: Load Rejects Streams Missing Mandatory Segments
 
 **Tests**: `JpegCodec_Load_MissingSofSegment_ThrowsInvalidDataException`,
 `JpegCodec_Load_MissingDhtSegment_ThrowsInvalidDataException`,
@@ -170,7 +170,7 @@ any MCU-grid width/height arithmetic performed while decoding the scan.
 Builds streams missing SOF, DHT, DQT, or SOS in turn, and asserts `Load` throws
 `InvalidDataException` for every missing mandatory segment case.
 
-#### CanvasNet-Codecs-JpegCodec-RejectTruncatedStream: Load Rejects Truncated Header or Entropy Data
+##### CanvasNet-Codecs-JpegCodec-RejectTruncatedStream: Load Rejects Truncated Header or Entropy Data
 
 **Tests**: `JpegCodec_Load_TruncatedHeader_ThrowsInvalidDataException`,
 `JpegCodec_Load_TruncatedEntropyData_ThrowsInvalidDataException`,
@@ -184,7 +184,7 @@ more payload bytes than are actually present in the stream, and asserts `Load` t
 `InvalidDataException` (rather than an unhandled `IndexOutOfRangeException`) for each truncated
 segment payload case.
 
-#### CanvasNet-Codecs-JpegCodec-RestartMarkers: Restart Markers Decode Identically to No Restart Markers
+##### CanvasNet-Codecs-JpegCodec-RestartMarkers: Restart Markers Decode Identically to No Restart Markers
 
 **Test**: `JpegCodec_Load_WithRestartMarkers_DecodesIdenticallyToWithoutRestartMarkers`
 
@@ -195,7 +195,7 @@ asserts they decode to identical dimensions and pixel bytes, proving the DRI/RST
 code path (DC-predictor and end-of-block run reset) produces the same result as the equivalent
 stream without restart markers.
 
-#### CanvasNet-Codecs-JpegCodec-FixtureSupported: JpegFixtures Corpus Loads Successfully
+##### CanvasNet-Codecs-JpegCodec-FixtureSupported: JpegFixtures Corpus Loads Successfully
 
 **Tests**: `JpegFixtures_SourcePngDimensions_Are32x32`,
 `JpegCodec_Load_Fixture_ReturnsCanvasWithExpectedDimensions` (`[Theory]` over 5 fixture files),
@@ -209,7 +209,7 @@ dimensions; for color fixtures, asserts every decoded pixel matches the PngSuite
 fixture's documented tolerance (15 for 4:4:4 and 4:2:2, 30 for baseline/progressive 4:2:0); for
 the grayscale fixture, asserts successful load, correct dimensions, and `R == G == B` per pixel.
 
-#### CanvasNet-Codecs-JpegCodec-SimdMatchesScalar: Vectorized YCbCr Conversion Matches Scalar Reference
+##### CanvasNet-Codecs-JpegCodec-SimdMatchesScalar: Vectorized YCbCr Conversion Matches Scalar Reference
 
 **Test**: `JpegCodec_ConvertYCbCrRowToRgb_VectorAndScalarRemainder_MatchesScalarReference`
 
@@ -217,7 +217,7 @@ Builds synthetic Y/Cb/Cr rows with both exact-vector and vector-plus-remainder l
 the scalar and vectorized conversion paths, and asserts the resulting R/G/B byte rows are
 identical.
 
-#### CanvasNet-Codecs-JpegCodec-GetInfo: GetInfo Reports Dimensions/Components Without Entropy-Decoding
+##### CanvasNet-Codecs-JpegCodec-GetInfo: GetInfo Reports Dimensions/Components Without Entropy-Decoding
 
 **Tests**: `JpegCodec_GetInfo_Grayscale_ReturnsExpectedInfoWithoutSosOrEntropyData`,
 `JpegCodec_GetInfo_Color_ReturnsExpectedInfo`, `JpegCodec_GetInfoPath_ReturnsExpectedInfo`,
@@ -342,7 +342,7 @@ past the soft cap end-to-end through the public `JpegCodec.GetInfo` entry point 
 manually constructed, padded JPEG byte stream, per `docs/verification/canvas-net.md`'s
 system-level evidence contract.
 
-#### CanvasNet-Codecs-JpegCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
+##### CanvasNet-Codecs-JpegCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
 
 **Tests**: `JpegCodec_GetInfoStream_NullStream_ThrowsArgumentNullException`,
 `JpegCodec_GetInfoPath_NullPath_ThrowsArgumentNullException`,
@@ -358,7 +358,7 @@ asserting `ArgumentNullException`, `ArgumentNullException`, `ArgumentException`,
 `InvalidDataException` (three times) respectively — the same exception contract as the
 corresponding `Load` scenarios, plus JPEG-specific malformed-ordering cases `Load` also rejects.
 
-### Acceptance Criteria
+#### Acceptance Criteria
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/value relationship constitutes a failure. Across

@@ -7,8 +7,10 @@
 <!-- cspell:ignore hflex flex1 hflex1 -->
 <!-- cspell:ignore noaccess definefont currentfile closefile misparse misparsing subsetting -->
 This document describes the unit-level verification strategy for the `TrueTypeFont` class and its
-supporting internal helpers `SfntContainer`, `CmapTable`, `GlyfLocaReader`, `CffTable`,
-`CffCharstringInterpreter`, `HmtxHheaReader`, and `KernTable`.
+supporting internal helpers `SfntContainer`, `CmapTable`, `GlyfLocaReader`, `IGlyphOutlineSource`,
+`CffTable`, `CffCharstringInterpreter`, `CffStandardEncoding`, `Type1Table`,
+`Type1CharstringInterpreter`, `Type1CharstringDecryption`, `Type1PfbReader`, `Type1PfaReader`,
+`Type1StandardGlyphNames`, `HmtxHheaReader`, `KernTable`, `NameTable`, and `StyleTable`.
 
 #### Verification Approach
 

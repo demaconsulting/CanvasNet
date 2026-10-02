@@ -1,4 +1,4 @@
-## Path / PathBuilder
+### Path / PathBuilder
 
 ![Geometry Structure](GeometryView.svg)
 
@@ -7,7 +7,7 @@ an immutable vector path: an ordered collection of independent `Subpath` contour
 ordered sequence of `PathCommand` drawing commands. `PathBuilder` is the mutable, fluent builder
 that is the only way to construct a `Path`.
 
-### Purpose
+#### Purpose
 
 `Path` represents an arbitrary vector shape - straight lines, quadratic and cubic Bezier curves,
 SVG-style elliptical arcs, and closed contours, potentially several disjoint subpaths at once -
@@ -17,7 +17,7 @@ drawing commands issued via a fluent (`this`-returning) API and produces `Path` 
 builder instance can be reused across many paths without per-path allocation overhead in a hot
 rendering loop.
 
-### Data Model
+#### Data Model
 
 | Type              | Description                                                                   |
 | ----------------- | ----------------------------------------------------------------------------- |
@@ -62,14 +62,14 @@ performed lazily, only when a consumer actually needs it (for example, `Path.Get
 never needs Bezier segments (for example, a hit-testing implementation with its own arc math)
 never pays for the conversion.
 
-### Key Methods
+#### Key Methods
 
-#### PathBuilder.MoveTo(Vector2 point)
+##### PathBuilder.MoveTo(Vector2 point)
 
 Starts a new subpath at `point`. If a previous subpath is still open (no `Close` issued), it is
 committed as-is (its `IsClosed` remains `false`) before the new subpath begins. Always succeeds.
 
-#### PathBuilder.LineTo/QuadraticBezierTo/CubicBezierTo/ArcTo(...)
+##### PathBuilder.LineTo/QuadraticBezierTo/CubicBezierTo/ArcTo(...)
 
 Appends the corresponding `PathCommand` to the current subpath.
 
@@ -78,7 +78,7 @@ Appends the corresponding `PathCommand` to the current subpath.
 - `InvalidOperationException` - when called before the first `MoveTo`, or after `Close` without
   an intervening `MoveTo` (there is no current point to continue from in either case)
 
-#### PathBuilder.Close()
+##### PathBuilder.Close()
 
 Appends a `Close` command to the current subpath and marks it closed (`IsClosed = true` on the
 resulting `Subpath`). A `Close` command carries no `EndPoint` of its own - a closed subpath
@@ -88,14 +88,14 @@ always returns to its own `Start`.
 
 - `InvalidOperationException` - under the same conditions as the drawing commands above
 
-#### PathBuilder.Build()
+##### PathBuilder.Build()
 
 Returns an immutable `Path` snapshot of every subpath recorded so far (including the
 currently-open subpath, if any, uncommitted state included). The builder remains usable
 afterward: further commands (and further `Build()` calls) do not affect a previously returned
 `Path`. If no commands have ever been issued, returns a `Path` with zero `Subpaths`.
 
-#### PathBuilder.Clear()
+##### PathBuilder.Clear()
 
 Resets the builder to the same empty state as a freshly constructed instance, so it can be reused
 to build further, unrelated paths without allocating a new builder instance. The internal
@@ -103,12 +103,12 @@ current-commands buffer is reset via its own `Clear()` method rather than being 
 new list, preserving its already-grown capacity across builds - so repeatedly building
 similarly-sized paths in a loop does not repeatedly reallocate that buffer.
 
-#### Path.Empty
+##### Path.Empty
 
 A static singleton `Path` with zero `Subpaths`. `Path.Empty.GetBounds()` returns `Rect.Empty`,
 matching `Rect`'s own union-identity convention.
 
-#### Path.GetBounds(float flattenTolerance = 0)
+##### Path.GetBounds(float flattenTolerance = 0)
 
 Computes an axis-aligned bounding `Rect` for the whole path, as the `Rect.Union` of every
 subpath's own contribution.
@@ -128,7 +128,7 @@ subpath's own contribution.
 
 Never throws.
 
-#### PathCommand.LineTo(end)
+##### PathCommand.LineTo(end)
 
 A public static factory constructing a standalone `LineTo` command, independent of
 `PathBuilder`. Unlike every other factory on this type, this one is public: a consumer outside
@@ -137,7 +137,7 @@ needs to synthesize a straight-line command of its own - for example, to represe
 subpath's implicit closing edge, which is never itself recorded as its own `PathCommand` (a
 `Close` command carries no `EndPoint`).
 
-#### PathCommand.ComputeTangents(start)
+##### PathCommand.ComputeTangents(start)
 
 Computes this command's outgoing (leaving `start`) and incoming (arriving at `EndPoint`) unit
 tangent directions. For `LineTo`, both tangents are the normalized direction of travel. For
@@ -156,7 +156,7 @@ future format codec package (for example, a PDF, PPTX, or VSDX codec rendering i
 arrowheads) needing the same tangent/direction computation can call this same public API instead
 of reimplementing it.
 
-### Error Handling
+#### Error Handling
 
 `PathBuilder`'s drawing-command guard (`InvalidOperationException` before the first `MoveTo`, or
 after `Close` without an intervening `MoveTo`) is the only validation this unit performs; every
@@ -164,14 +164,14 @@ other input (any finite `Vector2`, any `float` rotation, any `bool` flag combina
 without further checking. `Path` itself performs no validation - it can only ever be constructed,
 internally, from a well-formed `PathBuilder` snapshot (or as the `Empty` singleton).
 
-### Dependencies
+#### Dependencies
 
 `Path`/`PathBuilder` depend only on `System.Numerics.Vector2` (in-box BCL type, no new NuGet
 package) and, within this subsystem, on `Rect` (the return type of `GetBounds`),
 `BezierFlattening`, and `SvgArcConverter` (both used internally by `GetBounds`'s flattening mode
 and by its `ArcTo` handling, respectively).
 
-### Callers
+#### Callers
 
 `PathBuilder` and `Path` are public API entry points, invoked externally by consumers of the
 CanvasNet package. `Path` has no dependency on any consumer; within this repository, `Path` is

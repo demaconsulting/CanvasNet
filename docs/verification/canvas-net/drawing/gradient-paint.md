@@ -1,13 +1,13 @@
 <!-- cspell:ignore Rgba lerp precomputation precomputes -->
 
-## GradientPaint Unit Verification Design
+### GradientPaint Unit Verification Design
 
 This document describes the unit-level verification strategy for the `GradientPaint` unit: the
 public `Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop`/`GradientSpread` types and the
 internal `GradientEvaluator` helper, plus the gradient-specific scenarios of `PathFiller.Fill`,
 `ScanlineRasterizer.Fill`, and `Surface.CompositeOverSpan` that consume them.
 
-### Verification Approach
+#### Verification Approach
 
 The unit is verified through a layered mix of narrow constructor/validation tests, direct
 algorithmic tests of the internal `GradientEvaluator`, and end-to-end rendering tests that fill a
@@ -36,20 +36,20 @@ path with a gradient through the production `PathFiller` pipeline and inspect th
 
 No mocks are required. `GradientEvaluator` has no injectable dependencies.
 
-### Test Environment
+#### Test Environment
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required
 
-### Acceptance Criteria
+#### Acceptance Criteria
 
 The unit passes verification when every scenario below passes without unexpected exception and
 every expected pixel color, alpha, or thrown exception type matches exactly.
 
-### Test Scenarios
+#### Test Scenarios
 
-#### Gradient Stop and Gradient/Subtype Construction
+##### Gradient Stop and Gradient/Subtype Construction
 
 - `GradientStop_Constructor_OffsetOutsideZeroToOne_ThrowsArgumentOutOfRangeException`
 - `GradientStop_Constructor_NonFiniteOffset_ThrowsArgumentOutOfRangeException`
@@ -91,7 +91,7 @@ and `RadialGradient`, both declared in this assembly, may derive from it), and t
 transform argument resolves to the identity transform while an explicitly-supplied transform -
 including the all-zero matrix - is preserved exactly as given.
 
-#### GradientEvaluator: Linear and Radial Parameter Math
+##### GradientEvaluator: Linear and Radial Parameter Math
 
 - `EvaluatePoint_NullGradient_ThrowsArgumentNullException`
 - `EvaluatePoint_SingleStop_ResolvesToThatColorEverywhere`
@@ -138,7 +138,7 @@ exactly on every interpolated circle in the swept family) and assert it resolves
 boundary-conforming endpoint color per the same `dr`-sign convention established by the
 spurious-second-root tests, rather than being left transparent.
 
-#### GradientEvaluator: Spread Modes
+##### GradientEvaluator: Spread Modes
 
 - `EvaluatePoint_Linear_PadSpread_ClampsBeyondEndpoints`
 - `EvaluatePoint_Linear_RepeatSpread_WrapsNegativeAndPositiveOutOfRange`
@@ -149,7 +149,7 @@ parameter to the nearest endpoint color; `Repeat` floor-mods a raw parameter (in
 one) back into `[0, 1]`; and `Reflect` folds a raw parameter into a period-2 triangle wave, so a
 raw parameter of `1.5` resolves identically to `0.5`.
 
-#### GradientEvaluator: Stop Ordering and Hard Stops
+##### GradientEvaluator: Stop Ordering and Hard Stops
 
 - `EvaluatePoint_Linear_UnsortedInputStops_ResolvesInSortedOrder`
 - `EvaluatePoint_Linear_DuplicateStopOffsets_ProducesHardStepWithoutError`
@@ -163,7 +163,7 @@ inconsistent result. The last two tests verify the exact tie-break direction: ev
 at a shared offset always resolves to the later-supplied stop's color, both for an interior
 duplicate pair and for a duplicate pair at the gradient's very first offset.
 
-#### GradientEvaluator: Premultiplied-Alpha Interpolation
+##### GradientEvaluator: Premultiplied-Alpha Interpolation
 
 - `EvaluatePoint_Linear_TransparentAndOpaqueStops_InterpolatesInPremultipliedAlphaSpace`
 - `EvaluatePoint_Linear_BothStopsFullyTransparent_ResolvesToAllZeroPixel`
@@ -175,7 +175,7 @@ fully transparent stops with different RGB values and asserts the result is exac
 `(0, 0, 0, 0)`, matching `Surface.UnpremultiplyAlpha`'s documented "alpha == 0 implies R = G = B =
 0" convention rather than propagating a divide-by-zero artifact.
 
-#### GradientEvaluator: Degenerate-Case Policy
+##### GradientEvaluator: Degenerate-Case Policy
 
 - `Constructor_NonFiniteTransform_ThrowsArgumentOutOfRangeException`
 - `EvaluatePoint_SingularTransform_FlatFillsWithLastStopColor`
@@ -195,7 +195,7 @@ gradient's genuine "no valid root" region (a point outside every circle the grad
 sweeps through) resolves to fully transparent (alpha zero) rather than being flat-filled - proving
 these two superficially similar "nothing to paint" outcomes are correctly distinguished.
 
-#### GradientEvaluator: Extreme-Coordinate Robustness
+##### GradientEvaluator: Extreme-Coordinate Robustness
 
 - `EvaluatePoint_Linear_ExtremeMagnitudeCoordinates_ResolvesCorrectly`
 - `EvaluatePoint_Linear_ExtremeScaleInvertibleTransformWithExtremeCoordinates_ProducesFiniteNonNaNColor`
@@ -210,7 +210,7 @@ even though every individual coordinate and the true mathematical result remain 
 channels are all finite and non-`NaN` when both an extreme transform scale and extreme input
 coordinates combine.
 
-#### PathFiller/ScanlineRasterizer: Gradient Fill Shares Behavior with Solid-Color Fill
+##### PathFiller/ScanlineRasterizer: Gradient Fill Shares Behavior with Solid-Color Fill
 
 - `PathFiller_Fill_Gradient_HorizontalRectangleWithHorizontalLinearGradient_VariesLeftToRight`
 - `PathFiller_Fill_Gradient_SquareWithRadialGradient_CenterAndCornerMatchExpectedRamp`
@@ -239,7 +239,7 @@ per fill operation instead of once per row: it fills a 50-row-tall rectangle wit
 `GradientEvaluator.EvaluatePoint` calls, proving the once-per-fill plan reuse produces identical
 output to what per-pixel/per-row evaluation would.
 
-#### PathFiller: Gradient Fill Argument Validation
+##### PathFiller: Gradient Fill Argument Validation
 
 - `PathFiller_Fill_Gradient_NullSurface_ThrowsArgumentNullException`
 - `PathFiller_Fill_Gradient_NullPath_ThrowsArgumentNullException`
@@ -251,7 +251,7 @@ These tests verify the gradient overload rejects a null surface, path, or gradie
 argument, and a non-positive/non-finite `flattenTolerance` or undefined `fillRule` argument,
 matching the solid-color overload's own validation exactly.
 
-#### Surface: Per-Pixel-Color CompositeOverSpan Overload
+##### Surface: Per-Pixel-Color CompositeOverSpan Overload
 
 - `Surface_CompositeOverSpan_PerPixelColors_MatchesConstantColorOverload_WhenAllColorsEqual`
 - `Surface_CompositeOverSpan_PerPixelColors_FullCoverage_AppliesEachPixelsOwnColor`
@@ -267,7 +267,7 @@ Unit Design_, `../canvas/surface.md`); it applies each pixel's own color scaled 
 own coverage; it rejects a coverage/colors length mismatch; and its internal workspace-reusing
 counterpart matches its public form exactly.
 
-### Complexity Verification Policy
+#### Complexity Verification Policy
 
 No algorithmic complexity properties are newly established by this unit beyond those already
 documented for `ScanlineRasterizer`/`Surface.CompositeOverSpan` (see _PathFiller Unit Design_,

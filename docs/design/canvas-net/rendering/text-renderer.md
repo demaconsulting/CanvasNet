@@ -4,13 +4,22 @@ The `TextRenderer` class is a stateless static class that measures and renders T
 against a `Rendering.Canvas`. Its two entry points are the static `MeasureText` method and the
 `DrawText` extension method on `Rendering.Canvas`.
 
-#### Types covered inline
+#### Purpose
 
-The subsystem-scoped types `TextAlign` (enum with `Left`, `Center`, `Right`) and `TextMetrics`
-(a readonly struct with `Width`, `Ascent`, `Descent` fields) are simple data carriers with no
-independently testable behavior and are covered inline in this unit.
+`TextRenderer` composes `Fonts.TrueTypeFont` glyph/metric queries with `Rendering.Canvas` fills
+to measure and draw strings of text, so callers do not need to hand-write glyph iteration,
+advance-width/kerning accumulation, or alignment-offset math themselves.
 
-#### MeasureText
+#### Data Model
+
+`TextRenderer` is a stateless static class with no instance fields. The subsystem-scoped types
+`TextAlign` (enum with `Left`, `Center`, `Right`) and `TextMetrics` (a readonly struct with
+`Width`, `Ascent`, `Descent` fields) are simple data carriers with no independently testable
+behavior and are covered inline in this unit.
+
+#### Key Methods
+
+##### MeasureText
 
 Given a string, a `TrueTypeFont`, and a pixel `size`, `MeasureText` returns a `TextMetrics`
 where:
@@ -22,7 +31,7 @@ where:
 
 `size` scales font design units to pixels by the ratio `size / font.UnitsPerEm`.
 
-#### DrawText
+##### DrawText
 
 Given a `Rendering.Canvas`, a string, an anchor `(x, y)` at the text baseline, a `TextAlign`,
 a `TrueTypeFont`, a pixel `size`, and a fill `Rgba32`, `DrawText` walks the string as Unicode
@@ -43,8 +52,21 @@ runes and for each glyph:
 `alignOffset` is `0` for `Left`, `-width / 2` for `Center`, and `-width` for `Right`, where
 `width` is the pre-measured run width.
 
-#### Validation
+#### Error Handling
 
 - `MeasureText` and `DrawText` throw `ArgumentNullException` on a null `text` or null `font`.
 - `MeasureText` throws `ArgumentOutOfRangeException` on a non-finite `size`.
 - `DrawText` throws `ArgumentOutOfRangeException` on an undefined `TextAlign`.
+
+#### Dependencies
+
+`TextRenderer` depends on this subsystem's own `Canvas` unit, the `Fonts` subsystem's
+`TrueTypeFont` unit (glyph outlines, advance widths, kerning, and `Ascender`/`Descender`/
+`UnitsPerEm` metrics), the `Geometry` subsystem's `Path` unit, the `Drawing` subsystem's
+`PathFiller` unit, and `System.Numerics.Matrix3x2`/`System.Text.Rune` from the .NET Base Class
+Library.
+
+#### Callers
+
+`TextRenderer` is a public API entry point, invoked directly by consumers of the CanvasNet
+package. No unit within CanvasNet calls `TextRenderer` internally.

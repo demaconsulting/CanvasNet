@@ -3,7 +3,7 @@
 The `CornerRoundEffect` class is a stateless static class in the `Geometry` subsystem that
 returns a new `Path` in which polyline corners are replaced by tangent-radius arcs.
 
-#### Rationale for a path-level effect
+#### Purpose
 
 Corner rounding is applied at the `Path` level (a pre-processing pass on the immutable path)
 rather than inside the stroking pipeline. Placing it here composes cleanly with downstream
@@ -15,7 +15,17 @@ Dashing itself is a post-flatten step inside `PathStroker` (it operates on flatt
 segments), so the only architecturally valid composition point for corner rounding is
 before the fill/stroke pipeline. `CornerRoundEffect` occupies that position.
 
-#### Algorithm
+#### Data Model
+
+`CornerRoundEffect` is a stateless static class with no instance fields and no supporting types
+of its own. `Apply`'s only parameters are a `Path source` and a `float radius`; its private
+helpers (`ComputeWrapAroundCorner`, `ClampRadius`) operate purely on `Vector2` points and
+`Subpath`/`PathCommand` values already defined by the `Path` unit. There is no other data model
+to document.
+
+#### Key Methods
+
+##### Apply(Path source, float radius)
 
 For every command in the source path, if command `i` is a `LineTo` and command `i + 1` is also
 a `LineTo`, the corner is:
@@ -49,8 +59,21 @@ Corners involving a curved segment (cubic or quadratic Bezier or arc) are left u
 This documented policy avoids the derivative-matching logic that would be required to round
 curve tangents cleanly.
 
-#### Validation
+#### Error Handling
 
 - `Apply` throws `ArgumentNullException` on a null source path.
 - `Apply` throws `ArgumentOutOfRangeException` on a negative or non-finite radius.
 - A zero radius returns the source path unchanged (no allocation).
+
+#### Dependencies
+
+`CornerRoundEffect` depends only on the `Geometry` subsystem's own `Path`, `PathBuilder`,
+`Subpath`, and `PathCommand`/`PathCommandType` types, and on `System.Numerics.Vector2` from the
+.NET Base Class Library. It has no dependency on `Drawing`, `Canvas`, or any other subsystem.
+
+#### Callers
+
+`CornerRoundEffect` is a public API entry point, invoked externally by consumers of the
+CanvasNet package that want rounded-corner polylines (for example before passing the result to
+`Drawing.PathFiller`/`Drawing.PathStroker`). No unit within `Geometry` itself calls
+`CornerRoundEffect`.

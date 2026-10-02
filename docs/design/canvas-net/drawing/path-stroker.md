@@ -1,6 +1,6 @@
 <!-- cspell:ignore Outliner inradius Collinearity -->
 
-## PathStroker
+### PathStroker
 
 ![Drawing Structure](DrawingView.svg)
 
@@ -9,7 +9,7 @@ geometry that the existing `PathFiller` unit can rasterize unchanged. It also co
 `StrokeStyle`, `LineCap`, and `LineJoin` types, and the internal `StrokePathFlattener`,
 `DashSplitter`, and `StrokeOutliner` helpers.
 
-### Purpose
+#### Purpose
 
 `PathStroker` exists so CanvasNet can render strokes without introducing a second rasterizer.
 Rather than painting pixels directly, it transforms an input centerline path into one or more
@@ -19,7 +19,7 @@ analytic antialiasing and compositing behavior fills already use. This design ke
 rendering and fill rendering on one coverage-computation path, which reduces implementation
 duplication and ensures the two public APIs agree on how pixel coverage is resolved.
 
-### Data Model
+#### Data Model
 
 | Type | Description |
 | --- | --- |
@@ -38,9 +38,9 @@ original list elsewhere. This is important because dash phase and width are visi
 behavior; a caller must be able to reuse the same `StrokeStyle` instance across many paths and
 receive identical outline geometry every time.
 
-### Key Methods
+#### Key Methods
 
-#### StrokeStyle.StrokeStyle(...)
+##### StrokeStyle.StrokeStyle(...)
 
 The constructor validates every public styling input at the API boundary, mirroring
 `PathFiller.Fill`'s own validation conventions:
@@ -58,7 +58,7 @@ having `PathStroker` rediscover invalid style data every time a path is stroked.
 caller-controlled configuration object; rejecting bad values there keeps the conversion pipeline
 itself focused only on geometry.
 
-#### PathStroker.Stroke(Path path, StrokeStyle style, float flattenTolerance)
+##### PathStroker.Stroke(Path path, StrokeStyle style, float flattenTolerance)
 
 `Stroke` performs stroke-to-fill conversion in three geometry-only stages, then emits the result
 as a brand-new `Path`:
@@ -111,7 +111,7 @@ The returned path is assembled through `PathBuilder`; `PathStroker` never constr
 instances directly. Every emitted polygon becomes one closed subpath in the result, and
 `Path.Empty` is returned when no outline polygon is produced.
 
-#### StrokeOutliner.Outline(...) (internal)
+##### StrokeOutliner.Outline(...) (internal)
 
 `StrokeOutliner` carries most of the geometry-specific design decisions:
 
@@ -186,7 +186,7 @@ The helper intentionally removes only redundant consecutive duplicate vertices. 
 topologically simplify self-intersections or reorder segments; the contract is to preserve the
 input path's authored shape, not to reinterpret it.
 
-### Double-Precision Internal Computations
+#### Double-Precision Internal Computations
 
 Several of `StrokeOutliner`'s and `DashSplitter`'s internal computations are deliberately performed
 in `double` precision and only narrowed back to `float` (or kept as `double` when only a sign
@@ -221,7 +221,7 @@ result - never the literal double-precision magnitude exposed back through the p
 computing in `double` internally is a pure precision safeguard with no observable effect on
 ordinary, non-extreme stroke geometry.
 
-#### Bounding Dash-Interval Traversal Iteration Count
+##### Bounding Dash-Interval Traversal Iteration Count
 
 Computing `DashSplitter`'s dash intervals in `double` (rather than `float`) keeps its ULP (unit in
 the last place) negligible relative to any dash span at the path lengths this library is intended
@@ -281,7 +281,7 @@ pattern length. This fallback shape matches `SvgCodec.RenderStroke`'s own establ
 this dash pattern -> render as solid stroke" convention for other dash-pattern-specific numeric
 problems, rather than throwing or silently omitting the stroke.
 
-#### Bounding Retained On-Interval Count
+##### Bounding Retained On-Interval Count
 
 `MaxOnIntervalIterations` (above) bounds the traversal loop's worst-case *iteration count*, but a
 cloud-PR-review finding identified that iteration count is a distinct quantity from the loop's
@@ -321,7 +321,7 @@ Either budget being exceeded (via pre-flight estimate or in-loop backstop, for e
 iteration-count or the on-interval-count budget) is reported back to `Split` through the same
 `out bool` parameter and triggers the same solid-stroke fallback described above.
 
-### Complexity
+#### Complexity
 
 The total conversion cost is the sum of three bounded passes over the path data. Flattening is
 the same adaptive-subdivision cost already documented for `BezierFlattening`; dashing is linear in
@@ -336,7 +336,7 @@ tests. This mirrors the existing `PathFiller` design decision: wall-clock assert
 stable proof of algorithmic behavior on heterogeneous CI hardware, while the geometric pass
 structure and bounded per-vertex/per-arc work are visible directly in the implementation.
 
-### Error Handling
+#### Error Handling
 
 `PathStroker.Stroke` performs the public API validation:
 
@@ -348,7 +348,7 @@ The internal helpers assume they receive already-validated input from `PathStrok
 `StrokeStyle` performs its own constructor validation and throws `ArgumentOutOfRangeException` or
 `ArgumentException` before a style instance is ever created.
 
-### Dependencies
+#### Dependencies
 
 `PathStroker` depends on the `Geometry` subsystem's `Path`, `Subpath`, `PathCommand`,
 `PathBuilder`, `BezierFlattening`, and `SvgArcConverter` types, and on `System.Numerics.Vector2`
@@ -356,7 +356,7 @@ for the underlying geometry math. It has no direct dependency on `Canvas.Surface
 not rasterize; callers render its result through `PathFiller`, which in turn depends on the
 `Canvas` subsystem. No new runtime NuGet package is introduced by this unit.
 
-### Callers
+#### Callers
 
 `PathStroker.Stroke` is a public API entry point, invoked directly by consumers of the CanvasNet
 package and indirectly by the README and User Guide examples that demonstrate stroking followed by

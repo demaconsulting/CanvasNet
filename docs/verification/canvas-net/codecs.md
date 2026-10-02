@@ -33,3 +33,13 @@ The `Codecs` subsystem's verification passes when every unit test scenario descr
 codec unit verification documents under `codecs/`, and every `CanvasNet_SystemIntegration_*`
 round-trip/load test referenced by the `Codecs` subsystem requirements, pass without error or
 unexpected exception.
+
+### Test Scenarios
+
+The `Codecs` subsystem's test scenarios are those named in each of the five constituent unit
+verification documents under `codecs/` (_BmpCodec_, _PngCodec_, _TiffCodec_, _JpegCodec_, and
+_GifCodec Unit Verification Design_), covering `Load`/`Save`/`GetInfo` normal-path round-trips,
+malformed/truncated-input rejection, and `ImageInfo.CanDecode`/`UnsupportedImageFeatureException`
+well-formed-but-unsupported handling, plus the system-level `CanvasNet_SystemIntegration_*`
+round-trip (or, for `GifCodec`, load-only) tests that exercise each codec end-to-end against a
+`Surface` (see the system verification design, `../canvas-net.md`).

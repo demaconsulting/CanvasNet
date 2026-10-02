@@ -23,3 +23,12 @@ externally observable behavior.
 The `Canvas` subsystem's verification passes when every `Surface` unit test scenario described in
 _Surface Unit Verification Design_ (`canvas/surface.md`) passes without error or unexpected
 exception.
+
+### Test Scenarios
+
+The `Canvas` subsystem currently contains exactly one unit with externally observable behavior,
+so its test scenarios are exactly those named in _Surface Unit Verification Design_
+(`canvas/surface.md`): construction and invariants, indexer and span-accessor boundary conditions,
+`Crop` normal/boundary/error paths, `PremultiplyAlpha`/`UnpremultiplyAlpha`/`CompositeOver`
+compositing correctness, and `Dispose` idempotency. No subsystem-level test exists beyond this
+unit's own coverage.

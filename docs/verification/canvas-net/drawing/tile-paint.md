@@ -1,12 +1,12 @@
 <!-- cspell:ignore Rgba lerp precomputation precomputes unmutated -->
 
-## TilePaint Unit Verification Design
+### TilePaint Unit Verification Design
 
 This document describes the unit-level verification strategy for the `TilePaint` unit: the public
 `TilePaint` type and the internal `TilePaintEvaluator` helper, plus the tile-paint-specific
 scenarios of `PathFiller.Fill` and `ScanlineRasterizer.Fill` that consume them.
 
-### Verification Approach
+#### Verification Approach
 
 The unit is verified through a layered mix of narrow constructor/validation tests, direct
 algorithmic tests of the internal `TilePaintEvaluator`, and end-to-end rendering tests that fill a
@@ -30,20 +30,20 @@ path with a tile paint through the production `PathFiller` pipeline and inspect 
 
 No mocks are required. `TilePaintEvaluator` has no injectable dependencies.
 
-### Test Environment
+#### Test Environment
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required
 
-### Acceptance Criteria
+#### Acceptance Criteria
 
 The unit passes verification when every scenario below passes without unexpected exception and
 every expected pixel color, alpha, or thrown exception type matches exactly.
 
-### Test Scenarios
+#### Test Scenarios
 
-#### TilePaint Construction
+##### TilePaint Construction
 
 - `TilePaint_Constructor_NullSurface_ThrowsArgumentNullException`
 - `TilePaint_Constructor_TransformWithNaNComponent_ThrowsArgumentOutOfRangeException`
@@ -62,7 +62,7 @@ valid values round-trip exactly through the public properties; and that `WithTra
 new instance whose `Transform` is the original transform composed with the supplied transform,
 leaving `Surface`/`XStep`/`YStep` unchanged and the original instance unmutated.
 
-#### TilePaintEvaluator: Sampling and Wraparound
+##### TilePaintEvaluator: Sampling and Wraparound
 
 - `CreatePlan_NullTile_ThrowsArgumentNullException`
 - `EvaluateRow_NonInvertibleTransform_WritesFullyTransparentRow`
@@ -80,7 +80,7 @@ and a non-invertible (singular) `Transform` causes `EvaluateRow` to write a full
 from `GradientEvaluator`'s own flat-fill-with-last-stop-color policy (see `tile-paint.md`'s Key
 Methods section for the rationale).
 
-#### PathFiller/ScanlineRasterizer: Tile Paint Fill Shares Behavior with Solid-Color/Gradient Fill
+##### PathFiller/ScanlineRasterizer: Tile Paint Fill Shares Behavior with Solid-Color/Gradient Fill
 
 - `PathFiller_Fill_TilePaint_CheckerboardTile_FillsWithBothTileColors`
 - `PathFiller_Fill_TilePaint_NullSurface_ThrowsArgumentNullException`
@@ -97,7 +97,7 @@ checkerboard tile produces both of the tile's own colors in the filled result; t
 reject a null surface, path, or tile paint argument; and they honor the same empty-input/
 no-polygons no-op behavior already established for the solid-color and gradient overloads.
 
-### Complexity Verification Policy
+#### Complexity Verification Policy
 
 No algorithmic complexity properties are newly established by this unit beyond those already
 documented for `ScanlineRasterizer` (see _PathFiller Unit Design_, `path-filler.md`);

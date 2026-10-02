@@ -1,6 +1,6 @@
 <!-- cspell:ignore Rgba lerp precomputation -->
 
-## GradientPaint
+### GradientPaint
 
 ![Drawing Structure](DrawingView.svg)
 
@@ -11,7 +11,7 @@ has no independent externally visible behavior of its own: it exists to be consu
 `PathFiller`'s gradient `Fill(Surface, Path, Gradient, FillRule, float)` overload (see _PathFiller
 Unit Design_, `path-filler.md`).
 
-### Purpose
+#### Purpose
 
 `GradientPaint` lets a caller paint a filled path with a smoothly (or sharply) varying color ramp
 instead of a single solid color - the standard "gradient" capability of every established 2D
@@ -24,7 +24,7 @@ gradient's own coordinates into the caller's path coordinate space. Rendering a 
 `PathFiller`/`ScanlineRasterizer`'s existing antialiased scanline-coverage pipeline unchanged;
 `GradientPaint` only supplies a per-pixel color source in place of a single constant color.
 
-### Data Model
+#### Data Model
 
 | Type | Description |
 | --- | --- |
@@ -54,9 +54,9 @@ earlier-supplied stop's color is used for gradient parameter values approaching 
 the later-supplied stop's color for values at or beyond it (see `GradientEvaluator.ResolveColor`
 below).
 
-### Key Methods
+#### Key Methods
 
-#### Gradient(stops, spread, transform) (private protected)
+##### Gradient(stops, spread, transform) (private protected)
 
 Validates and stores the state shared by every gradient subtype:
 
@@ -69,7 +69,7 @@ Validates and stores the state shared by every gradient subtype:
   legitimately become momentarily singular (for example, mid-animation) without that necessarily
   being a programming error.
 
-#### LinearGradient(start, end, stops, spread, transform)
+##### LinearGradient(start, end, stops, spread, transform)
 
 Defines a ramp varying linearly along the vector from `start` to `end` (in gradient-defining
 coordinates). `start` and `end` must each have finite components; `end` equal to `start` (a
@@ -77,7 +77,7 @@ zero-length gradient vector) is accepted at construction - it is a defined degen
 case (flat-fill with the last stop's color), not a constructor error, since a caller could compose
 this state programmatically (for example, an animated gradient briefly collapsing to a point).
 
-#### RadialGradient(startCenter, startRadius, endCenter, endRadius, stops, spread, transform)
+##### RadialGradient(startCenter, startRadius, endCenter, endRadius, stops, spread, transform)
 
 Defines a ramp varying between two independently positioned and sized circles - the general
 "two-circle" (also called "focal" or "conical") gradient model used by SVG/CSS radial gradients,
@@ -102,7 +102,7 @@ preserved exactly as given and validated/stored unchanged. A plain `Matrix3x2 tr
 parameter cannot distinguish "the caller omitted the argument" from "the caller explicitly passed
 the all-zero matrix"; the nullable parameter removes that ambiguity without any special-casing.
 
-#### Gradient.WithTransform(transform) (abstract; overridden by LinearGradient/RadialGradient)
+##### Gradient.WithTransform(transform) (abstract; overridden by LinearGradient/RadialGradient)
 
 Returns a new gradient of the same runtime type and with the same `Stops`/`Spread`/geometry
 (`Start`/`End` for `LinearGradient`; `StartCenter`/`StartRadius`/`EndCenter`/`EndRadius` for
@@ -118,7 +118,7 @@ than remaining fixed in the shape's old, untransformed local frame. `WithTransfo
 the original instance - it returns a new gradient, preserving `Gradient`'s existing immutability
 guarantees.
 
-#### GradientEvaluator.CreatePlan / EvaluatePoint / EvaluateRow (internal)
+##### GradientEvaluator.CreatePlan / EvaluatePoint / EvaluateRow (internal)
 
 `CreatePlan` computes every quantity that depends only on `gradient` itself and not on the point
 being evaluated - the inverted `Transform`, the linear gradient's direction vector and its squared
@@ -228,7 +228,7 @@ the same numerical safeguard `PathStroker`'s `StrokeOutliner` already applies to
 distance or quadratic coefficient even when the true mathematical result would not, silently
 producing a degenerate result rather than a visible error.
 
-### Error Handling
+#### Error Handling
 
 `Gradient`'s `private protected` constructor (invoked by both `LinearGradient` and
 `RadialGradient`) throws:
@@ -248,14 +248,14 @@ producing a degenerate result rather than a visible error.
 performs no further argument validation of its own beyond null-checking the `gradient` reference
 itself (`ArgumentNullException`).
 
-### Dependencies
+#### Dependencies
 
 `GradientPaint` depends on `System.Numerics.Vector2`/`Matrix3x2` (in-box BCL types) and the
 `Canvas` subsystem's `Rgba32` (for `GradientStop.Color` and `GradientEvaluator`'s output) and
 `Surface.UnpremultiplyAlpha` convention (matched, not called directly, by
 `GradientEvaluator.LerpPremultiplied`). It introduces no new runtime NuGet package.
 
-### Callers
+#### Callers
 
 `GradientPaint`'s public types (`Gradient`, `LinearGradient`, `RadialGradient`, `GradientStop`,
 `GradientSpread`) are constructed directly by consumers of the CanvasNet package and passed to

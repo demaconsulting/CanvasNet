@@ -1,8 +1,8 @@
-## SvgArcConverter Unit Verification Design
+### SvgArcConverter Unit Verification Design
 
 This document describes the unit-level verification strategy for the `SvgArcConverter` class.
 
-### Verification Approach
+#### Verification Approach
 
 The `SvgArcConverter` unit is verified through unit tests exercising both documented degenerate
 cases, a true semicircle golden scenario, all four `largeArc`/`sweep` flag combinations on a
@@ -20,22 +20,22 @@ from the declared start point to the declared end point.
 Unit tests reside in `SvgArcConverterTests.cs` within the
 `DemaConsulting.CanvasNet.Tests.Geometry` project namespace.
 
-### Test Environment
+#### Test Environment
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required; `SvgArcConverter` has no injectable dependencies
 
-### Unit-Level Test Scenarios
+#### Unit-Level Test Scenarios
 
-#### CanvasNet-Geometry-SvgArcConverter-StartEqualsEnd: Zero-Length Arc Emits Nothing
+##### CanvasNet-Geometry-SvgArcConverter-StartEqualsEnd: Zero-Length Arc Emits Nothing
 
 **Test**: `SvgArcConverter_ToBeziers_StartEqualsEnd_EmitsNoSegments`
 
 Calls `ToBeziers` with `start` equal to `end` and asserts the output list remains empty, per the
 SVG specification's documented zero-length-arc case.
 
-#### CanvasNet-Geometry-SvgArcConverter-ZeroRadius: Zero Radius Emits a Synthetic Straight-Line Cubic
+##### CanvasNet-Geometry-SvgArcConverter-ZeroRadius: Zero Radius Emits a Synthetic Straight-Line Cubic
 
 **Tests**: `SvgArcConverter_ToBeziers_ZeroXRadius_EmitsSingleStraightLineEquivalentCubic`,
 `SvgArcConverter_ToBeziers_ZeroYRadius_EmitsSingleStraightLineEquivalentCubic`
@@ -44,7 +44,7 @@ Calls `ToBeziers` with a zero x-radius, and separately a zero y-radius, and asse
 cubic Bezier segment is emitted, whose control points lie exactly at one-third and two-thirds
 along the `start`-`end` chord and whose end point equals the declared `end`.
 
-#### CanvasNet-Geometry-SvgArcConverter-ToBeziers: Golden Semicircle, All Flag Combinations, and a Rotated Ellipse
+##### CanvasNet-Geometry-SvgArcConverter-ToBeziers: Golden Semicircle, All Flag Combinations, and a Rotated Ellipse
 
 **Test**: `SvgArcConverter_ToBeziers_Semicircle_ProducesContinuousChainOnExpectedCircle`
 
@@ -80,13 +80,13 @@ rather than the original, too-small radii. This is a regression test: the existi
 scenarios above all use radii already larger than their chord's half-distance, so none of them
 previously exercised this correction path.
 
-#### CanvasNet-Geometry-SvgArcConverter-NeverThrows: Never Throws for SVG-Valid Input
+##### CanvasNet-Geometry-SvgArcConverter-NeverThrows: Never Throws for SVG-Valid Input
 
 Covered by every test above: none of them expects or catches an exception, and each supplies
 SVG-valid input (including both degenerate cases, every flag combination, and out-of-range radii
 requiring the scale-up correction), so a passing test run is itself evidence that `ToBeziers`
 never throws for these inputs.
 
-### Acceptance Criteria
+#### Acceptance Criteria
 
 A unit test run passes when every scenario above passes without error or unexpected exception.

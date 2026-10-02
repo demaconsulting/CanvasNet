@@ -1,8 +1,8 @@
-## BezierFlattening Unit Verification Design
+### BezierFlattening Unit Verification Design
 
 This document describes the unit-level verification strategy for the `BezierFlattening` class.
 
-### Verification Approach
+#### Verification Approach
 
 The `BezierFlattening` unit is verified through unit tests exercising the never-write-start /
 always-write-end-last chaining convention, a tolerance-convergence property test (densely
@@ -31,15 +31,15 @@ guarantee, distinct from the tolerance guarantee, following the well-established
 Unit tests reside in `BezierFlatteningTests.cs` within the
 `DemaConsulting.CanvasNet.Tests.Geometry` project namespace.
 
-### Test Environment
+#### Test Environment
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required; `BezierFlattening` has no injectable dependencies
 
-### Unit-Level Test Scenarios
+#### Unit-Level Test Scenarios
 
-#### CanvasNet-Geometry-BezierFlattening-FlattenCubic / CanvasNet-Geometry-BezierFlattening-FlattenQuadratic: Chaining Convention
+##### CanvasNet-Geometry-BezierFlattening-FlattenCubic / -FlattenQuadratic: Chaining Convention
 
 **Tests**: `BezierFlattening_FlattenCubic_SimpleCurve_NeverWritesStartAndAlwaysWritesEndLast`,
 `BezierFlattening_FlattenQuadratic_SimpleCurve_NeverWritesStartAndAlwaysWritesEndLast`
@@ -48,7 +48,7 @@ Flattens a simple, non-degenerate cubic (and, separately, quadratic) curve and a
 output list never contains the curve's start point and its final element exactly equals the
 curve's end point.
 
-#### CanvasNet-Geometry-BezierFlattening-ToleranceConvergence: Flattened Points Stay Within Tolerance
+##### CanvasNet-Geometry-BezierFlattening-ToleranceConvergence: Flattened Points Stay Within Tolerance
 
 **Tests**: `BezierFlattening_FlattenCubic_VariousTolerances_SampledCurvePointsWithinTolerance`,
 `BezierFlattening_FlattenQuadratic_VariousTolerances_SampledCurvePointsWithinTolerance`,
@@ -64,14 +64,14 @@ the finite chord segment is not - and asserts the flattener still subdivides and
 tolerance, guarding against a bug where the flatness test measured distance to the infinite line
 rather than the finite chord segment.
 
-#### CanvasNet-Geometry-BezierFlattening-MonotonicSegmentCount: Segment Count Is Monotonic
+##### CanvasNet-Geometry-BezierFlattening-MonotonicSegmentCount: Segment Count Is Monotonic
 
 **Test**: `BezierFlattening_FlattenCubic_IncreasingTolerance_SegmentCountIsMonotonicallyNonIncreasing`
 
 Flattens the same cubic curve at a strictly increasing sequence of tolerances and asserts the
 resulting output point count never increases as tolerance increases.
 
-#### CanvasNet-Geometry-BezierFlattening-DegenerateControlPoints: Degenerate Curves Terminate
+##### CanvasNet-Geometry-BezierFlattening-DegenerateControlPoints: Degenerate Curves Terminate
 
 **Tests**: `BezierFlattening_FlattenCubic_CoincidentControlPoints_TerminatesWithSinglePoint`,
 `BezierFlattening_FlattenCubic_CollinearControlPoints_TerminatesWithCollinearPoints`
@@ -80,7 +80,7 @@ Flattens a cubic curve whose control points are coincident with an endpoint, and
 cubic curve whose control points are collinear with the chord between its endpoints, and asserts
 both terminate promptly (without throwing or hanging) with a geometrically sensible result.
 
-#### CanvasNet-Geometry-BezierFlattening-RecursionDepthSafetyValve: Pathological Input Still Terminates
+##### CanvasNet-Geometry-BezierFlattening-RecursionDepthSafetyValve: Pathological Input Still Terminates
 
 **Test**: `BezierFlattening_FlattenCubic_PathologicalNonConvergingCurve_TerminatesWithBoundedOutput`
 
@@ -92,13 +92,13 @@ end point. This test proves the documented safety-valve behavior itself (bounded
 it deliberately does not assert that the tolerance is met, since `MaxRecursionDepth`'s remarks
 document that the tolerance guarantee does not extend to input that hits this limit.
 
-#### CanvasNet-Geometry-BezierFlattening-NonPositiveTolerance: Non-Positive Tolerance Is Rejected
+##### CanvasNet-Geometry-BezierFlattening-NonPositiveTolerance: Non-Positive Tolerance Is Rejected
 
 **Test**: `BezierFlattening_Flatten_NonPositiveTolerance_ThrowsArgumentOutOfRangeException`
 
 Calls both `FlattenCubic` and `FlattenQuadratic` with a zero and a negative tolerance and asserts
 `ArgumentOutOfRangeException` is thrown in every case.
 
-### Acceptance Criteria
+#### Acceptance Criteria
 
 A unit test run passes when every scenario above passes without error or unexpected exception.

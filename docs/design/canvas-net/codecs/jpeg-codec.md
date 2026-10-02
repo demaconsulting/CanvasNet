@@ -1,4 +1,4 @@
-## JpegCodec
+### JpegCodec
 
 ![Codecs Structure](CodecsView.svg)
 
@@ -7,7 +7,7 @@ The `JpegCodec` class is the sixth software unit in CanvasNet, and depends on `S
 common real-world subset of JPEG (ITU-T T.81 / ISO/IEC 10918-1) files to and from `Surface` pixel
 buffers.
 
-### Purpose
+#### Purpose
 
 `JpegCodec` lets callers persist a `Surface` as a JPEG file (or stream) and load a JPEG file (or
 stream) back into a `Surface`. It is implemented entirely against the .NET base class library, with
@@ -25,9 +25,9 @@ incorrect pixels.
 utility shape was chosen over an object with nothing to construct or configure, matching
 `BmpCodec`, `PngCodec`, and `TiffCodec`.
 
-### Data Model
+#### Data Model
 
-#### JPEG marker/segment stream
+##### JPEG marker/segment stream
 
 | Marker | Name | Written by `Save` | Consumed by `Load` | Notes |
 | ------ | ---- | ----------------- | ------------------ | ----- |
@@ -45,7 +45,7 @@ APPn/COM and other unknown length-prefixed segments are skipped on load. `Save` 
 not emit an APP0/JFIF segment because the codec's decoder does not depend on it and the ITU-T T.81
 base JPEG syntax does not require it.
 
-#### SOF and SOS payload fields
+##### SOF and SOS payload fields
 
 | Segment | Field | Description |
 | ------- | ----- | ----------- |
@@ -60,7 +60,7 @@ base JPEG syntax does not require it.
 For decoding, the component sampling factors determine each component's MCU-grid block dimensions,
 chroma upsampling ratio, and plane size before conversion back to RGB.
 
-#### Huffman table construction
+##### Huffman table construction
 
 Each DHT segment supplies 16 code-length counts followed by a flat symbol list. `JpegCodec` builds
 canonical Huffman tables from that data using the `minCode`/`maxCode`/`valPtr` structure described
@@ -70,7 +70,7 @@ DC/AC tables. No implicit “standard” table is assumed to exist in the input 
 `Save` uses the ITU-T Annex K default luminance/chrominance DC and AC Huffman tables. Those tables
 are serialized into the output DHT segments and then reused by the encoder's entropy writer.
 
-#### Quantization tables and zigzag order
+##### Quantization tables and zigzag order
 
 JPEG coefficients are stored in zigzag order rather than natural 8x8 row-major order. `JpegCodec`
 maintains the standard 64-entry zigzag mapping (ITU-T T.81 Figure A.6) so that:
@@ -83,9 +83,9 @@ maintains the standard 64-entry zigzag mapping (ITU-T T.81 Figure A.6) so that:
 The encoder starts from the ITU-T Annex K example luminance and chrominance quantization tables,
 then applies the usual libjpeg-style quality scaling formula for caller-supplied qualities 1-100.
 
-### Key Methods
+#### Key Methods
 
-#### Load(Stream stream)
+##### Load(Stream stream)
 
 Reads a JPEG image from an open stream by buffering the remaining bytes into memory, validating the
 SOI marker, parsing DQT/DHT/DRI/SOF/SOS segments, and decoding one or more baseline or progressive
@@ -111,7 +111,7 @@ assuming any implicit standard tables are present.
   without a SOF0/SOF2 marker ever being found — the same two ceilings `GetInfo` enforces, described
   further below
 
-#### Load(string path)
+##### Load(string path)
 
 Opens `path` as a read-only `FileStream` and delegates to `Load(Stream)`.
 
@@ -127,7 +127,7 @@ path.
 - Underlying file-system exceptions (`FileNotFoundException`, `DirectoryNotFoundException`,
   `UnauthorizedAccessException`, `IOException`) propagate uncaught
 
-#### Save(Surface surface, Stream stream, int quality = 90)
+##### Save(Surface surface, Stream stream, int quality = 90)
 
 Writes `surface` to `stream` as a baseline (SOF0), 3-component YCbCr, 4:2:0 chroma-subsampled JPEG
 with the requested quality. The encoder converts RGB to YCbCr, pads partial MCUs by edge
@@ -147,7 +147,7 @@ by the libjpeg-style quality formula; it never writes progressive scans or APP0/
 - `ArgumentNullException` — `surface` or `stream` is null
 - `ArgumentOutOfRangeException` — `quality` is less than 1 or greater than 100
 
-#### Save(Surface surface, string path, int quality = 90)
+##### Save(Surface surface, string path, int quality = 90)
 
 Creates or overwrites `path` as a `FileStream` and delegates to `Save(Surface, Stream, int)`.
 
@@ -163,7 +163,7 @@ stay synchronized across both public entry points.
 - Underlying file-system exceptions (`UnauthorizedAccessException`, `DirectoryNotFoundException`,
   `IOException`) propagate uncaught
 
-#### GetInfo(Stream stream)
+##### GetInfo(Stream stream)
 
 Reports a JPEG's width, height, and component count without ever entropy-decoding scan data (and
 therefore without requiring an SOS segment, restart markers, or any entropy-coded bytes to be
@@ -304,7 +304,7 @@ given byte sequence produces.
   marker ever being found (same contract as `Load`, except the `Surface.MaxDimension` check is
   skipped and entropy-coded scan data is never required or read)
 
-#### GetInfo(string path)
+##### GetInfo(string path)
 
 Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`.
 
@@ -315,7 +315,7 @@ Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`.
 - `InvalidDataException` — see `GetInfo(Stream)`
 - Underlying file-system exceptions propagate uncaught
 
-### Error Handling
+#### Error Handling
 
 All argument validation happens at the start of each public method, before any image data is read
 or written. `Load` validates the marker stream incrementally, failing immediately for unsupported
@@ -325,7 +325,7 @@ validation failure results in an exception that propagates directly to the calle
 `surface`, `stream`/`path`, and `quality` before the encoder writes any bytes, so an invalid call
 fails fast without producing a partial JPEG.
 
-### Dependencies
+#### Dependencies
 
 `JpegCodec` depends on `Surface` (constructing surfaces in `Load` and reading rows via
 `Surface.GetRowSpanBytes` in `Save`), using only `Surface`'s existing public API exactly as
@@ -337,7 +337,7 @@ library's `System.IO` namespace (`Stream`, `FileStream`, `MemoryStream`,
 `InvalidDataException`) and `System.Numerics.Vector<T>` for optional vector acceleration in the
 IDCT/FDCT dot-product and YCbCr-to-RGB hot paths. No new runtime NuGet package is introduced.
 
-### Conformance Testing
+#### Conformance Testing
 
 In addition to hand-built malformed-stream tests and synthetic round-trip checks, `JpegCodec` is
 validated against the `JpegFixtures` corpus (see `test/DemaConsulting.CanvasNet.Tests/JpegFixtures/README.md`):
@@ -351,7 +351,7 @@ loading, correct dimensions, and exact `R == G == B` expansion. The in-memory ro
 `JpegCodecTests.cs` additionally enforce a 15-per-channel tolerance on synthetic quality-90 save
 then load scenarios.
 
-### Callers
+#### Callers
 
 `JpegCodec` is a public API entry point invoked directly by consumers of the CanvasNet package; it
 is not called by any other unit within this system. It calls into `Surface` (see *Dependencies*

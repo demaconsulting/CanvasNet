@@ -1,4 +1,4 @@
-## Surface
+### Surface
 
 ![Canvas Structure](CanvasView.svg)
 
@@ -7,7 +7,7 @@ The `Surface` class is the second software unit in CanvasNet. It provides a muta
 vectorized bulk pixel operations, forming the core pixel-storage primitive on which future
 drawing and codec functionality will build.
 
-### Purpose
+#### Purpose
 
 `Surface` stores pixel data for a rectangular image in a single contiguous byte array. It exposes
 single-pixel get/set access, row-level `Span<T>` access (both as raw bytes and as strongly typed
@@ -18,7 +18,7 @@ no I/O, and its only runtime dependency beyond the .NET base class library is
 `System.Numerics.Tensors` (used internally by the bulk pixel operations; see the Dependencies
 section below).
 
-### Data Model
+#### Data Model
 
 | Field/Property  | Type               | Description                                                          |
 | --------------- | ------------------ | -------------------------------------------------------------------- |
@@ -52,7 +52,7 @@ application and test code. It is documented here, inline within the `Surface` un
 its own software unit, because it has no independent behavior beyond being a 4-byte data carrier
 consumed exclusively by `Surface`.
 
-### Row Storage Layout
+#### Row Storage Layout
 
 Internally, each row is physically padded up to a multiple of 16 pixels (64 bytes), rather than
 being packed at exactly `Width * 4` bytes. `_strideBytes` is computed once in the constructor as
@@ -79,9 +79,9 @@ through any public accessor. `Crop` and all four codecs (`BmpCodec`, `PngCodec`,
 `JpegCodec`) are unaffected because they already exclusively use the public, `Width`-scoped
 `GetRowSpanBytes` accessor rather than assuming a flat, gap-free `Width * Height * 4` buffer.
 
-### Key Methods
+#### Key Methods
 
-#### Surface(int width, int height)
+##### Surface(int width, int height)
 
 Constructs a surface of the given size. Validates `0 < width <= MaxDimension` and
 `0 < height <= MaxDimension` (`MaxDimension` is a public constant equal to 8192 — see the Data
@@ -115,7 +115,7 @@ something is explicitly drawn into them.
 - `ArgumentOutOfRangeException` — when `height` is less than or equal to zero, or exceeds
   `MaxDimension` (8192)
 
-#### this[int x, int y]
+##### this[int x, int y]
 
 Indexer providing single-pixel get/set access. Validates `y` (via `GetRowSpan`) and `x`, throwing
 `ArgumentOutOfRangeException` naming the offending parameter.
@@ -129,7 +129,7 @@ many pixels in the same row should obtain the row span once instead of repeatedl
 - `ArgumentOutOfRangeException` — when `x` is outside `[0, Width)`
 - `ArgumentOutOfRangeException` — when `y` is outside `[0, Height)`
 
-#### GetRowSpanBytes(int y)
+##### GetRowSpanBytes(int y)
 
 Returns a `Span<byte>` of length `Width * 4` aliasing row `y`'s raw bytes directly over
 `_buffer` — no data is copied, so writes through the span are immediately visible through the
@@ -140,7 +140,7 @@ indexer and vice versa. The returned length is always exactly `Width * 4`, regar
 
 - `ArgumentOutOfRangeException` — when `y` is outside `[0, Height)`
 
-#### GetRowSpan(int y)
+##### GetRowSpan(int y)
 
 Returns a `Span<Rgba32>` of length `Width` by reinterpreting the result of `GetRowSpanBytes` via
 `MemoryMarshal.Cast<byte, Rgba32>`. This is a zero-copy reinterpretation, not a conversion: writes
@@ -150,7 +150,7 @@ through the returned span are immediately visible through the indexer and `GetRo
 
 - `ArgumentOutOfRangeException` — when `y` is outside `[0, Height)`
 
-#### Crop(int x, int y, int width, int height)
+##### Crop(int x, int y, int width, int height)
 
 Returns a new, independent `Surface` of size `width` by `height` containing a copy of the
 requested sub-region. Validates each argument individually:
@@ -171,14 +171,14 @@ both simpler and faster than iterating pixel by pixel for contiguous row data.
 
 - `ArgumentOutOfRangeException` — for any of the six invalid conditions listed above
 
-#### PremultiplyAlpha()
+##### PremultiplyAlpha()
 
 Converts this surface's pixel buffer, in place, from straight (unassociated) alpha to
 premultiplied alpha: for every pixel, each color channel is replaced by
 `round(channel * alpha / 255)` (round-half-away-from-zero, clamped to `[0, 255]`); the alpha
 channel is unchanged. Every possible input byte pattern is valid, so this method never throws.
 
-#### UnpremultiplyAlpha()
+##### UnpremultiplyAlpha()
 
 Converts this surface's pixel buffer, in place, from premultiplied alpha back to straight alpha —
 the inverse of `PremultiplyAlpha`. For every pixel with non-zero alpha, each color channel is
@@ -188,7 +188,7 @@ overshoot 255). For a fully transparent pixel (`alpha == 0`), no color informati
 recoverable; the defined result is `R = G = B = 0`, matching common raster-graphics convention.
 Every possible input byte pattern is valid, so this method never throws.
 
-#### CompositeOver(Surface foreground)
+##### CompositeOver(Surface foreground)
 
 Composites `foreground` "over" this surface using standard Porter-Duff "over" alpha compositing,
 writing the result back into this surface in place. Both surfaces are assumed to hold straight
@@ -211,13 +211,13 @@ Results are converted back to bytes with round-half-away-from-zero, clamped to `
 - `ArgumentException` — when `foreground.Width != Width` or `foreground.Height != Height`
 - `ObjectDisposedException` — when this surface, or `foreground`, has been disposed
 
-#### CompositeOver(Rgba32 color)
+##### CompositeOver(Rgba32 color)
 
 Composites the constant `color` "over" every pixel of this surface, using the same formula and
 rounding rule as `CompositeOver(Surface)`, with `color` acting as the foreground at every pixel.
 Every possible `Rgba32` value is valid, so this method never throws.
 
-#### Clear(Rgba32 color)
+##### Clear(Rgba32 color)
 
 Overwrites every pixel of this surface with the constant `color`, replacing rather than
 blending against existing pixel data. Every possible `Rgba32` value is valid, so this method
@@ -247,7 +247,7 @@ one pattern buffer are ever allocated/rented regardless of surface height — ev
 reuses the same already-built pattern via a fixed-size `CopyTo`, rather than repeating the
 fill/reinterleave work per row.
 
-#### CompositeOverSpan(int y, int x, ReadOnlySpan\<float\> coverage, Rgba32 color)
+##### CompositeOverSpan(int y, int x, ReadOnlySpan\<float\> coverage, Rgba32 color)
 
 Composites the constant `color` "over" a horizontal run of `coverage.Length` pixels within row
 `y`, starting at column `x`, using the same Porter-Duff "over" formula and rounding rule as
@@ -292,7 +292,7 @@ blend pipeline itself.
 - `ArgumentOutOfRangeException` — when `y` is outside `[0, Height)`
 - `ArgumentOutOfRangeException` — when `x` is negative, or `x + coverage.Length` exceeds `Width`
 
-#### CompositeOverSpan(int y, int x, ReadOnlySpan\<float\> coverage, ReadOnlySpan\<Rgba32\> colors)
+##### CompositeOverSpan(int y, int x, ReadOnlySpan\<float\> coverage, ReadOnlySpan\<Rgba32\> colors)
 
 Composites an independent foreground color, supplied per pixel via `colors`, "over" a horizontal
 run of `coverage.Length` pixels within row `y`, starting at column `x`, using the same Porter-Duff
@@ -330,7 +330,7 @@ no conditional-select primitive. Since `netstandard2.0` support has been dropped
 single, unconditional code path shared by `net8.0`, `net9.0`, and `net10.0` — no `#if`
 target-framework gating is required.
 
-#### Dispose()
+##### Dispose()
 
 Releases the resources held by this `Surface` and implements `IDisposable`. This method is
 idempotent: a second (or subsequent) call has no additional effect, guarded by the `_disposed`
@@ -372,7 +372,7 @@ implementation the same array could already be rented out to, and actively used 
 returned by either method as invalid once `Dispose()` has been called on the same surface, and must
 not retain one across a `Dispose()` call.
 
-### Error Handling
+#### Error Handling
 
 All validation is performed at the start of the constructor, indexer, `GetRowSpanBytes`, `Crop`,
 `CompositeOver(Surface)`, and `CompositeOverSpan`, using `ArgumentOutOfRangeException`/
@@ -388,7 +388,7 @@ buffer — the indexer (get and set), `GetRowSpanBytes`, `GetRowSpan`, `Crop`, `
 `CompositeOverSpan` overloads — throws `ObjectDisposedException` via a guard at entry, before any
 of the member's own argument validation runs.
 
-### Dependencies
+#### Dependencies
 
 `Surface` has one NuGet package dependency, `System.Numerics.Tensors` (pinned to a version
 compatible with `net8.0`), used both at compile time (for its `TensorPrimitives` API surface) and
@@ -398,7 +398,7 @@ implemented exclusively against the .NET Base Class Library
 (`System.Runtime.InteropServices.MemoryMarshal` and `System.Span<T>`), which is available natively
 on all of CanvasNet's target frameworks.
 
-### Callers
+#### Callers
 
 `Surface` is a public API entry point: it is invoked externally by consumers of the CanvasNet
 package. It is also invoked internally by all four in-house codec units (`BmpCodec`, `PngCodec`,
@@ -421,7 +421,7 @@ gradient-evaluated color per pixel — see _GradientPaint Unit Design_
 (`../drawing/gradient-paint.md`) for details of that dependency. `Surface` itself has no
 dependency on any codec, on `Drawing`, or on any other unit.
 
-### Internal workspace-reuse overload (allocation-reduction refactor)
+#### Internal workspace-reuse overload (allocation-reduction refactor)
 
 `ScanlineRasterizer.Fill` calls `CompositeOverSpan` once per rasterized row, and each call would
 otherwise rent (and, on return, clear and release) three fresh `RowChannelBuffers`/

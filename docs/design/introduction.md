@@ -199,6 +199,11 @@ src/DemaConsulting.CanvasNet/
 │   ├── GifCodec.cs               — Decode-only, first-frame-only GIF loader; public API entry
 │   │                                point, partial-class implementation continues under `Gif/`
 │   ├── Gif/                      — `GifCodec` partial-class implementation files (decode, LZW)
+│   ├── ImageInfo.cs              — Shared `GetInfo` return type (dimensions, channels, alpha,
+│   │                                `CanDecode`, `FrameCount`) common to all five codecs
+│   ├── UnsupportedImageFeatureException.cs — Thrown by `Load` for a well-formed but
+│   │                                unsupported file feature (for example PNG Adam7
+│   │                                interlacing), distinct from `InvalidDataException`
 │   └── NamespaceDoc.cs           — Namespace-level XML documentation
 ├── Drawing/
 │   ├── FillRule.cs                — Nonzero/even-odd fill-rule enumeration

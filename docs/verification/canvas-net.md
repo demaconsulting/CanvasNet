@@ -2,7 +2,6 @@
 
 <!-- cspell:ignore codepoint -->
 
-<!-- cspell:ignore codepoint -->
 This document describes the system-level verification strategy for CanvasNet.
 
 ## Verification Approach

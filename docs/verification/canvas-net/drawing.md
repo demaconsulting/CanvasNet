@@ -48,3 +48,13 @@ _GradientPaint Unit Verification Design_ (`drawing/gradient-paint.md`), and
 _TilePaint Unit Verification Design_ (`drawing/tile-paint.md`) passes without error or
 unexpected exception, and both system-level integration tests described above pass.
 <!-- cspell:ignore Outliner -->
+
+### Test Scenarios
+
+The `Drawing` subsystem's test scenarios are those named in each of its four constituent unit
+verification documents (`drawing/path-filler.md`, `drawing/path-stroker.md`,
+`drawing/gradient-paint.md`, `drawing/tile-paint.md`), covering fill-rule/stroke-style normal
+paths, degenerate/empty-path boundary conditions, and argument-validation error paths, plus the
+two system-level integration scenarios named above: a triangular `Path` filled onto a `Surface`
+with fully-covered/untouched/antialiased-edge pixel assertions, and an empty or
+entirely-out-of-bounds `Path` filled onto a `Surface` with a no-op (unchanged-pixel) assertion.

@@ -3,7 +3,25 @@
 The `Canvas` class is the sole stateful unit in the `Rendering` subsystem. It wraps a
 `Canvas.Surface` and owns an affine transform stack that is baked into every fill or stroke.
 
-#### Responsibilities
+#### Purpose
+
+`Canvas` provides a transform-aware drawing surface: callers push and pop a current 2D affine
+transform (`Translate`/`RotateDegrees`/`Save`/`Restore`), and every fill/stroke call bakes that
+transform into the geometry (and, for gradient fills, into the paint's coordinate mapping) before
+dispatching to the lower-level `Drawing` pipeline. It is a thin wrapper around a caller-owned
+`Canvas.Surface`, not an owner of the surface's lifetime.
+
+#### Data Model
+
+- `_current` — a `System.Numerics.Matrix3x2` field holding the current affine transform,
+  initialized to the identity.
+- A `Stack<Matrix3x2>` field used for `Save`/`Restore` bookkeeping.
+- `CurrentTransform` — a read-only property exposing `_current`.
+- A non-owning reference to the wrapped `Canvas.Surface` passed to the constructor.
+
+#### Key Methods
+
+##### Responsibilities
 
 - Own the current 2D affine transform as a `System.Numerics.Matrix3x2` field `_current`,
   initialized to the identity.
@@ -26,7 +44,7 @@ The `Canvas` class is the sole stateful unit in the `Rendering` subsystem. It wr
   is what keeps a gradient visually anchored to the shape it paints under a translated or rotated
   Canvas, instead of the gradient remaining fixed in the shape's old, untransformed local frame.
 
-#### Byte-identical no-transform guarantee
+##### Byte-identical no-transform guarantee
 
 When `CurrentTransform` is the identity, `FillPath` and `StrokePath` skip the `Path.Transform`
 call entirely and pass the original `Path` reference straight to the drawing pipeline; the
@@ -34,7 +52,7 @@ gradient-paint `FillPath` overload likewise skips `Gradient.WithTransform` and p
 `Gradient` reference straight through. This preserves the exact bit pattern of pre-existing
 renders when callers adopt the wrapper.
 
-#### Surface Ownership
+##### Surface Ownership
 
 `Canvas` holds a non-owning reference to the `Canvas.Surface` passed to its constructor: it never
 calls `Surface.Dispose()` and does not itself implement `IDisposable`. The caller that
@@ -43,10 +61,24 @@ the `Surface` are no longer needed. This is a deliberate design choice — `Canv
 transform-aware wrapper around a `Surface` a caller already owns, not an owner of that surface's
 lifetime.
 
-#### Validation
+#### Error Handling
 
 - The constructor throws `ArgumentNullException` on a null `Surface`.
 - `FillPath` / `StrokePath` throw `ArgumentNullException` on a null `Path`, `Gradient`, or
   `StrokeStyle`.
 - `FillPath` throws `ArgumentOutOfRangeException` on an undefined `FillRule`.
 - `Restore` throws `InvalidOperationException` when the stack is empty.
+
+#### Dependencies
+
+`Canvas` depends on the `Canvas` (pixel-buffer) subsystem's `Surface` and `Rgba32` units, the
+`Geometry` subsystem's `Path` unit, and the `Drawing` subsystem's `PathFiller`, `PathStroker`,
+`Gradient`, `FillRule`, and `StrokeStyle` units, plus `System.Numerics.Matrix3x2` from the .NET
+Base Class Library.
+
+#### Callers
+
+`Canvas` is a public API entry point, invoked directly by consumers of the CanvasNet package.
+Within this repository, it is additionally used internally by the `Shapes` and `TextRenderer`
+units of this same `Rendering` subsystem (see _Shapes Unit Design_, `shapes.md`, and
+_TextRenderer Unit Design_, `text-renderer.md`).

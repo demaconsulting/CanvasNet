@@ -28,3 +28,14 @@ units collaborate correctly (in particular, that `Path.GetBounds` correctly invo
 The `Geometry` subsystem's verification passes when every unit test scenario described in each
 unit's own verification design document passes without error or unexpected exception, and the
 system-level integration test described above passes.
+
+### Test Scenarios
+
+The `Geometry` subsystem's test scenarios are those named in each of its four constituent unit
+verification documents (_Rect_, _Path_, _BezierFlattening_, and _SvgArcConverter Unit
+Verification Design_ under `geometry/`), covering normal-path construction/transformation,
+boundary conditions (empty/degenerate geometry, zero/negative tolerance or radius), and
+argument-validation error paths, plus the one system-level integration scenario named above:
+building a `Path` via `PathBuilder` with a `MoveTo`/`CubicBezierTo`/`ArcTo`/`Close` sequence,
+flattening the cubic segment directly via `BezierFlattening`, and computing the path's bounds
+via `Path.GetBounds`.

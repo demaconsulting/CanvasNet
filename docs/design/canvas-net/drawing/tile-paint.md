@@ -1,6 +1,6 @@
 <!-- cspell:ignore Rgba lerp precomputation -->
 
-## TilePaint
+### TilePaint
 
 ![Drawing Structure](DrawingView.svg)
 
@@ -12,7 +12,7 @@ own: it exists to be consumed by `PathFiller`'s tile-paint `Fill(Surface, Path, 
 FillRule, float)` overload (see _PathFiller Unit Design_, `path-filler.md`), mirroring
 `GradientPaint`'s own public-type-plus-internal-evaluator shape (see `gradient-paint.md`).
 
-### Purpose
+#### Purpose
 
 `TilePaint` lets a caller paint a filled path by repeating a small pre-rendered bitmap ("tile")
 across the filled region, instead of a single solid color or a smoothly varying gradient ramp -
@@ -24,7 +24,7 @@ continuous mathematical function per pixel, `TilePaint` samples a caller-supplie
 for producing that one-cell bitmap by whatever means its own pattern content requires; `TilePaint`
 itself only repeats and samples it.
 
-### Data Model
+#### Data Model
 
 | Type | Description |
 | --- | --- |
@@ -39,9 +39,9 @@ meaning the tile repeats in the negative pattern-space axis direction) - only ze
 value is rejected by the constructor; `TilePaintEvaluator` wraps around using the absolute value of
 each step.
 
-### Key Methods
+#### Key Methods
 
-#### TilePaint(surface, transform, xStep, yStep)
+##### TilePaint(surface, transform, xStep, yStep)
 
 Validates and stores the tile paint's state:
 
@@ -50,14 +50,14 @@ Validates and stores the tile paint's state:
 - `xStep`/`yStep` must each be finite and non-zero; a negative value is accepted (see the Data
   Model section above).
 
-#### TilePaint.WithTransform(transform)
+##### TilePaint.WithTransform(transform)
 
 Returns a new `TilePaint` with the same `Surface`/`XStep`/`YStep`, whose `Transform` is this tile
 paint's own existing `Transform` composed with the supplied `transform` (row-vector convention
 matching `Gradient.WithTransform`: this tile paint's existing `Transform` is applied first, then
 the supplied `transform` is applied on top of that). Never mutates the original instance.
 
-#### TilePaintEvaluator.CreatePlan / EvaluateRow (internal)
+##### TilePaintEvaluator.CreatePlan / EvaluateRow (internal)
 
 Mirrors `GradientEvaluator`'s own "per-fill precomputation, per-row evaluation" shape exactly:
 `CreatePlan` computes the only per-fill-invariant quantity - the inverse of `TilePaint.Transform` -
@@ -90,7 +90,7 @@ all, so there is no equivalent fallback color to flat-fill with. Instead, this m
 affected pixels fully transparent/unpainted. This is an intentional, documented design decision,
 not an oversight or an accidental inconsistency with `GradientPaint`.
 
-### Error Handling
+#### Error Handling
 
 `TilePaint`'s constructor throws:
 
@@ -101,13 +101,13 @@ not an oversight or an accidental inconsistency with `GradientPaint`.
 `TilePaintEvaluator.CreatePlan` throws `ArgumentNullException` when `tile` is `null`; it performs
 no further argument validation of its own.
 
-### Dependencies
+#### Dependencies
 
 `TilePaint` depends on `System.Numerics.Vector2`/`Matrix3x2` (in-box BCL types) and the `Canvas`
 subsystem's `Surface`/`Rgba32` (for the tile bitmap and its sampled pixel values). It introduces no
 new runtime NuGet package.
 
-### Callers
+#### Callers
 
 `TilePaint` is constructed directly by consumers of the CanvasNet package - in practice,
 `DemaConsulting.CanvasNet.Pdf`'s `PdfDocument` tiling-pattern rendering, which renders a PDF

@@ -1,9 +1,9 @@
-## PathFiller Unit Verification Design
+### PathFiller Unit Verification Design
 
 This document describes the unit-level verification strategy for the `PathFiller` class (and the
 supporting `FillRule` enum and internal `EdgeFlattener`/`ScanlineRasterizer` helpers).
 
-### Verification Approach
+#### Verification Approach
 
 The `PathFiller` unit is verified through unit tests that exercise `PathFiller.Fill` end to end
 (constructing a `Path`, filling it onto a `Surface`, and inspecting resulting pixels), plus
@@ -21,13 +21,13 @@ Unit tests reside in `PathFillerTests.cs`, `EdgeFlattenerTests.cs`, and
 `ScanlineRasterizerTests.cs` within the `DemaConsulting.CanvasNet.Tests.Drawing` project
 namespace.
 
-### Test Environment
+#### Test Environment
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required; `PathFiller` has no injectable dependencies
 
-### Hand-Computed Reference Values
+#### Hand-Computed Reference Values
 
 The following geometric constructions and their exact hand-computed coverage results are used
 across the scenarios below:
@@ -55,9 +55,9 @@ across the scenarios below:
   `0`) - the standard nested-subpath "hole" construction used, for example, by the letter "O" in
   vector font outlines.
 
-### Unit-Level Test Scenarios
+#### Unit-Level Test Scenarios
 
-#### CanvasNet-Drawing-PathFiller-Fill: End-to-End Fill Composites the Requested Color
+##### CanvasNet-Drawing-PathFiller-Fill: End-to-End Fill Composites the Requested Color
 
 **Test**: `PathFiller_Fill_FullyCoveredInteriorPixel_ColorAndAlphaMatchOverOracle`
 
@@ -68,7 +68,7 @@ background pixel. Asserts the two results are byte-identical, confirming `PathFi
 performs the exact same Porter-Duff "over" blend as the existing `CompositeOver` overload for a
 fully covered pixel, not merely "some" blend.
 
-#### CanvasNet-Drawing-PathFiller-Antialiasing: Antialiased Coverage Matches Hand-Computed Reference Values
+##### CanvasNet-Drawing-PathFiller-Antialiasing: Antialiased Coverage Matches Hand-Computed Reference Values
 
 **Tests**: `PathFiller_Fill_AxisAlignedRectangleFractionalEdges_InteriorOpaqueEdgesAntialiased`,
 `PathFiller_Fill_DiagonalTriangle_MatchesHandComputedCoverageGradient`,
@@ -91,7 +91,7 @@ for a curved edge, which the straight-edged rectangle/triangle scenarios above d
 the `EdgeFlattener`-only tests (see below) do not either since they check flattened vertex
 positions in isolation rather than integrated fill coverage.
 
-#### CanvasNet-Drawing-PathFiller-FillRule: NonZero and EvenOdd Diverge on Self-Overlapping Geometry
+##### CanvasNet-Drawing-PathFiller-FillRule: NonZero and EvenOdd Diverge on Self-Overlapping Geometry
 
 **Test**: `PathFiller_Fill_OverlappingSameWoundRectangles_NonZeroVsEvenOddDiverge`
 
@@ -100,7 +100,7 @@ with `FillRule.EvenOdd`. Asserts the singly-covered pixel is fully opaque under 
 the doubly-covered overlap pixel is fully opaque under `NonZero` but fully transparent under
 `EvenOdd`, directly proving the two fill rules resolve overlapping winding differently.
 
-#### CanvasNet-Drawing-PathFiller-Holes: Nested Counter-Wound Subpaths Render a Hole
+##### CanvasNet-Drawing-PathFiller-Holes: Nested Counter-Wound Subpaths Render a Hole
 
 **Test**: `PathFiller_Fill_NestedCounterWoundSubpaths_RendersHole`
 
@@ -109,7 +109,7 @@ between the outer square and the inner hole is fully opaque at multiple sample p
 hole's own interior is fully transparent at multiple sample points, confirming winding-based hole
 resolution across two subpaths within a single `Path`.
 
-#### CanvasNet-Drawing-PathFiller-ImplicitClose: An Explicitly Open Subpath Fills Identically to a Closed One
+##### CanvasNet-Drawing-PathFiller-ImplicitClose: An Explicitly Open Subpath Fills Identically to a Closed One
 
 **Test**: `PathFiller_Fill_ExplicitlyOpenSubpath_FillsIdenticallyToClosed`
 
@@ -118,7 +118,7 @@ Builds the same triangle twice - once left explicitly open (no `Close` call, `Is
 asserts every pixel matches exactly between the two surfaces, confirming the implicit-close rule
 makes the `Close` call observably irrelevant to fill output.
 
-#### CanvasNet-Drawing-PathFiller-EmptyOrOutOfBoundsNoOp: Empty or Out-of-Bounds Paths Are a No-Op
+##### CanvasNet-Drawing-PathFiller-EmptyOrOutOfBoundsNoOp: Empty or Out-of-Bounds Paths Are a No-Op
 
 **Tests**: `PathFiller_Fill_EmptyPath_NoOpLeavesSurfaceUnchanged`,
 `PathFiller_Fill_PathFullyOutsideSurfaceBounds_NoOpLeavesSurfaceUnchanged`
@@ -128,7 +128,7 @@ completely unmodified. Separately, fills a well-formed rectangle whose bounding 
 outside the surface's pixel extent and asserts the surface is likewise completely unmodified.
 Neither case throws.
 
-#### CanvasNet-Drawing-PathFiller-NullArguments: Fill Rejects Null Surface/Path
+##### CanvasNet-Drawing-PathFiller-NullArguments: Fill Rejects Null Surface/Path
 
 **Tests**: `PathFiller_Fill_NullSurface_ThrowsArgumentNullException`,
 `PathFiller_Fill_NullPath_ThrowsArgumentNullException`
@@ -136,7 +136,7 @@ Neither case throws.
 Calls `PathFiller.Fill` with a `null` surface, and separately with a `null` path, and asserts
 `ArgumentNullException` is thrown in both cases.
 
-#### CanvasNet-Drawing-PathFiller-NonPositiveTolerance: Fill Rejects a Non-Positive flattenTolerance
+##### CanvasNet-Drawing-PathFiller-NonPositiveTolerance: Fill Rejects a Non-Positive flattenTolerance
 
 **Test**: `PathFiller_Fill_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException`
 
@@ -144,7 +144,7 @@ Calls `PathFiller.Fill` with `flattenTolerance` equal to `0`, and separately a n
 separately each of `float.NaN`, `float.PositiveInfinity`, and `float.NegativeInfinity`, and
 asserts `ArgumentOutOfRangeException` is thrown in every case (`[Theory]`-driven).
 
-#### CanvasNet-Drawing-PathFiller-InvalidFillRule: Fill Rejects an Undefined FillRule Value
+##### CanvasNet-Drawing-PathFiller-InvalidFillRule: Fill Rejects an Undefined FillRule Value
 
 **Test**: `PathFiller_Fill_UndefinedFillRule_ThrowsArgumentOutOfRangeException`
 
@@ -154,7 +154,7 @@ rejected at the public API boundary rather than silently falling through
 `ScanlineRasterizer.ResolveCoverage`'s winding-resolution `else` branch and being treated as
 `FillRule.EvenOdd`.
 
-#### CanvasNet-Drawing-PathFiller-EdgeFlattenerConversion: EdgeFlattener Converts Each Command Type Correctly
+##### CanvasNet-Drawing-PathFiller-EdgeFlattenerConversion: EdgeFlattener Converts Each Command Type Correctly
 
 **Tests**: `EdgeFlattener_Flatten_LineTo_ConvertsToExpectedPoint`,
 `EdgeFlattener_Flatten_QuadraticBezierTo_DelegatesToBezierFlattening`,
@@ -172,7 +172,7 @@ rather than an independent, potentially divergent implementation. Separately, bu
 multi-subpath `Path` and asserts the result contains one separate polygon per subpath. Separately,
 flattens `Path.Empty` and asserts an empty list is returned.
 
-#### CanvasNet-Drawing-PathFiller-EdgeFlattenerImplicitClose: Implicit Close Is Applied Exactly Once
+##### CanvasNet-Drawing-PathFiller-EdgeFlattenerImplicitClose: Implicit Close Is Applied Exactly Once
 
 **Tests**: `EdgeFlattener_Flatten_OpenSubpath_AppendsImplicitClosingPoint`,
 `EdgeFlattener_Flatten_AlreadyClosedSubpath_DoesNotDuplicateClosingPoint`
@@ -183,7 +183,7 @@ point was appended). Separately, flattens a subpath whose last command's end poi
 its start, and asserts no duplicate closing point was appended (the polygon's point count matches
 the walked command count exactly, not one more).
 
-#### CanvasNet-Drawing-PathFiller-ScanlineCoverageMath: Coverage Math Matches a Hand-Computed Sub-Pixel-Offset Reference
+##### CanvasNet-Drawing-PathFiller-ScanlineCoverageMath: Coverage Math Matches a Hand-Computed Sub-Pixel-Offset Reference
 
 **Test**: `ScanlineRasterizer_Fill_SubPixelOffsetSquare_MatchesHandComputedCoverage`
 
@@ -193,7 +193,7 @@ quarter of its unit cell) directly via `ScanlineRasterizer.Fill`, and asserts ev
 resulting alpha exactly equals the hand-computed expected value (`255 * 0.25 = 63.75`, which
 rounds to `64` under round-half-away-from-zero).
 
-#### CanvasNet-Drawing-PathFiller-ScanlineFillRuleResolution: Fill-Rule Resolution Formulas Are Verified Directly
+##### CanvasNet-Drawing-PathFiller-ScanlineFillRuleResolution: Fill-Rule Resolution Formulas Are Verified Directly
 
 **Tests**: `ScanlineRasterizer_Fill_RawWindingOfTwo_NonZeroClampsEvenOddFoldsToZero`,
 `ScanlineRasterizer_Fill_SubPixelOffsetDuplicatePolygons_SumsCoincidentContributionsPerCellAlgorithm`,
@@ -214,7 +214,7 @@ the total into `[0, 1]`. This is the documented, industry-standard (AGG/FreeType
 accepted in exchange for the crossing-edge correctness fix below, and both tests exist to detect
 any accidental regression in that specific, intentional behavior.
 
-#### CanvasNet-Drawing-PathFiller-ScanlineCrossingEdges: Self-Intersecting Polygons Produce Correct Partial Coverage
+##### CanvasNet-Drawing-PathFiller-ScanlineCrossingEdges: Self-Intersecting Polygons Produce Correct Partial Coverage
 
 **Test**: `ScanlineRasterizer_Fill_BowtieSelfIntersectingPolygon_ProducesCorrectPartialCoverageNotFullFill`
 
@@ -228,7 +228,7 @@ cell-based rewrite fixes: the prior sub-interval/sort-by-x algorithm produced ~1
 this exact case, because it assumed edges spanning a sub-interval never change their relative
 x-order within it - an assumption that crossing/self-intersecting edges violate by construction.
 
-#### CanvasNet-Drawing-PathFiller-ScanlineActiveEdgeList: Active-Edge-List Add/Remove Occurs at the Correct Rows
+##### CanvasNet-Drawing-PathFiller-ScanlineActiveEdgeList: Active-Edge-List Add/Remove Occurs at the Correct Rows
 
 **Test**: `ScanlineRasterizer_Fill_EdgeStartingAndEndingMidSweep_StopsContributingAtCorrectRows`
 
@@ -238,7 +238,7 @@ after its bottom edge remain completely untouched, while the rectangle's own row
 filled - confirming each edge is added to, and removed from, the active edge list at exactly its
 own `TopY`/`BottomY`, not the surface's full height.
 
-#### CanvasNet-Drawing-PathFiller-ScanlineDegenerateInputNoOp: Degenerate Input Is a No-Op
+##### CanvasNet-Drawing-PathFiller-ScanlineDegenerateInputNoOp: Degenerate Input Is a No-Op
 
 **Tests**: `ScanlineRasterizer_Fill_NoPolygons_NoOp`, `ScanlineRasterizer_Fill_DegeneratePolygon_ContributesZeroCoverage`
 
@@ -246,7 +246,7 @@ Calls `ScanlineRasterizer.Fill` with an empty polygon list, and separately with 
 reduced to two points (fewer than the edges needed to enclose any area), and asserts the surface
 remains completely unmodified in both cases, without throwing.
 
-#### CanvasNet-Drawing-PathFiller-GradientFill: Gradient Fill Shares Flattening/Clipping/Fill-Rule Behavior
+##### CanvasNet-Drawing-PathFiller-GradientFill: Gradient Fill Shares Flattening/Clipping/Fill-Rule Behavior
 
 **Tests**: `PathFiller_Fill_Gradient_HorizontalRectangleWithHorizontalLinearGradient_VariesLeftToRight`,
 `PathFiller_Fill_Gradient_SingleStop_MatchesSolidColorFill`,
@@ -269,7 +269,7 @@ fully-opaque pixels - between the solid-color and gradient overloads. Separately
 _CanvasNet-Drawing-PathFiller-EmptyOrOutOfBoundsNoOp_ above) against the gradient overload,
 confirming that shared behavior is genuinely shared rather than coincidentally similar.
 
-#### CanvasNet-Drawing-PathFiller-GradientFillValidation: Gradient Fill Validates Its Arguments
+##### CanvasNet-Drawing-PathFiller-GradientFillValidation: Gradient Fill Validates Its Arguments
 
 **Tests**: `PathFiller_Fill_Gradient_NullSurface_ThrowsArgumentNullException`,
 `PathFiller_Fill_Gradient_NullPath_ThrowsArgumentNullException`,
@@ -283,7 +283,7 @@ non-positive/non-finite `flattenTolerance` and with an undefined `fillRule` valu
 `ArgumentOutOfRangeException` in each case - matching the solid-color overload's own validation
 behavior exactly.
 
-#### CanvasNet-Drawing-PathFiller-TileFill: Tile Fill Shares Flattening/Clipping/Fill-Rule Behavior
+##### CanvasNet-Drawing-PathFiller-TileFill: Tile Fill Shares Flattening/Clipping/Fill-Rule Behavior
 
 **Tests**: `PathFiller_Fill_TilePaint_CheckerboardTile_FillsWithBothTileColors`,
 `PathFiller_Fill_TilePaint_EmptyPath_NoOpLeavesSurfaceUnchanged`,
@@ -299,7 +299,7 @@ no-op. Separately, repeats the empty-path no-op scenario already covered for the
 overload (see _CanvasNet-Drawing-PathFiller-EmptyOrOutOfBoundsNoOp_ above) against the tile
 overload, confirming that shared behavior is genuinely shared rather than coincidentally similar.
 
-#### CanvasNet-Drawing-PathFiller-TileFillValidation: Tile Fill Validates Its Arguments
+##### CanvasNet-Drawing-PathFiller-TileFillValidation: Tile Fill Validates Its Arguments
 
 **Tests**: `PathFiller_Fill_TilePaint_NullSurface_ThrowsArgumentNullException`,
 `PathFiller_Fill_TilePaint_NullPath_ThrowsArgumentNullException`,
@@ -312,7 +312,7 @@ turn, asserting `ArgumentNullException` in each case, and separately asserts the
 `ArgumentNullException` - matching the solid-color and gradient overloads' own validation
 behavior.
 
-### Floating-Point Tolerance
+#### Floating-Point Tolerance
 
 Every hand-computed coverage value used in most of these tests (`0.25`, `0.5`, `0.75`, and `1.0`
 covered fractions) resolves, after compositing through `Surface`'s existing
@@ -334,6 +334,6 @@ be the same `NearZeroDisplacement` epsilon (`1e-6f`) used internally by `Scanlin
 classify near-horizontal/near-vertical edges, since the analytic accumulation itself is exact
 arithmetic up to ordinary floating-point rounding at that scale.
 
-### Acceptance Criteria
+#### Acceptance Criteria
 
 A unit test run passes when every scenario above passes without error or unexpected exception.

@@ -12,7 +12,11 @@ unit that loads glyph-based TrueType SFNT fonts as well as CFF/OpenType (`OTTO`-
 and individual faces of a TrueType Collection (`ttcf`) container, maps Unicode codepoints to
 glyph indices, extracts glyph outlines as `Geometry.Path` geometry, reports horizontal metrics
 and basic kerning, and exposes each font's name (`name` table) and derived bold/italic/
-fixed-pitch style metadata; and (added this phase, `TrueTypeFont` itself unchanged) the
+fixed-pitch style metadata. `TrueTypeFont` additionally loads standalone classic PostScript
+Type 1 and Type 1C font programs (`LoadType1`/`LoadType1C`), decrypting and decoding their
+`eexec`-encrypted Type 1 charstrings (PFB segmented binary or PFA hex-encoded ASCII source) the
+same way it decodes `glyf`/CFF outlines, so a caller can load any of the three classic font
+program flavors through one unit; and (added this phase, `TrueTypeFont` itself unchanged) the
 `SystemFontCatalog` unit, which discovers fonts installed on the host operating system by
 directory scan, best-effort matches a requested family name/style against that catalog, and
 provides a bundled, always-available Liberation Sans/Serif/Mono last-resort fallback font shipped
@@ -30,7 +34,9 @@ supporting internal types of its own.
 
 The `Fonts` subsystem provides dependency-free parsing and querying of TrueType (`glyf`-based)
 and CFF/OpenType (`OTTO`-flavored, Type 2 charstring-based) SFNT font files, including selecting
-an individual face out of a TrueType Collection (`ttcf`) container. Its responsibility ends at
+an individual face out of a TrueType Collection (`ttcf`) container, as well as standalone classic
+PostScript Type 1 and Type 1C font programs (PFB/PFA source, `eexec`-encrypted Type 1
+charstrings). Its responsibility ends at
 vector geometry and scalar metrics: it loads font structure, resolves codepoints to glyph
 indices, decodes glyph contours into `DemaConsulting.CanvasNet.Geometry.Path`, reports advance
 widths, returns pairwise kerning adjustments from classic `kern` format-0 subtables when present,
@@ -46,6 +52,7 @@ pixel rendering remain outside this subsystem's boundary.
 
 - **TrueTypeFont** — the first public unit of the subsystem. It exposes `Load(Stream)` /
   `Load(string)`, the explicit-face-selection overloads `Load(Stream, int)` / `Load(string, int)`,
+  `LoadType1`/`LoadType1C` for standalone classic PostScript Type 1/Type 1C font programs,
   `GetFaceCount(Stream)` / `GetFaceCount(string)`, query methods for codepoint mapping, glyph
   outlines, advance widths, and kerning, `GetNameInfo()` for the font's name-table strings, and
   `IsBold`/`IsItalic`/`IsFixedPitch` for its derived style classification. Its unit design

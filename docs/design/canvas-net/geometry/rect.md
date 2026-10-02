@@ -1,4 +1,4 @@
-## Rect
+### Rect
 
 ![Geometry Structure](GeometryView.svg)
 
@@ -7,7 +7,7 @@ axis-aligned bounding rectangle using the position-plus-size convention (`X`, `Y
 `Height`, all `float`), reusing `System.Numerics.Vector2` for its point/size-valued members and
 `System.Numerics.Matrix3x2` for its `Transform` operation.
 
-### Purpose
+#### Purpose
 
 `Rect` is the common bounding-box representation used throughout the `Geometry` subsystem - most
 notably as the return type of `Path.GetBounds`. It provides computed edge/corner properties,
@@ -15,7 +15,7 @@ containment testing, union, intersection, matrix transformation, and value equal
 carefully chosen `Empty` sentinel that makes folding `Union` over zero or more contributing
 rectangles always produce the mathematically correct result.
 
-### Data Model
+#### Data Model
 
 | Field/Property       | Type                   | Description                                                |
 | -------------------- | ---------------------- | ---------------------------------------------------------- |
@@ -30,7 +30,7 @@ rectangles always produce the mathematically correct result.
 | `BottomRight`        | `Vector2`              | Computed; `(Right, Bottom)`.                               |
 | `Empty`              | `static readonly Rect` | The union-identity sentinel (see below).                   |
 
-### The `Empty` Sentinel
+#### The `Empty` Sentinel
 
 **Architectural decision**: `Empty` is represented as `X = Y = float.PositiveInfinity`,
 `Width = Height = float.NegativeInfinity` - a WPF-style "union identity" sentinel - rather than
@@ -54,9 +54,9 @@ involving `Empty` (propagating `NaN` through the subsequent `Math.Min`/`Math.Max
 `float.IsNegativeInfinity(Height)` and return `float.NegativeInfinity` directly in that case,
 matching the "inverted extent" behavior the rest of this type's design relies on.
 
-### Key Methods
+#### Key Methods
 
-#### Contains(Vector2 point)
+##### Contains(Vector2 point)
 
 Tests whether `point` lies within the rectangle using a half-open interval on both axes: the
 left/top edges are included, the right/bottom edges are excluded
@@ -64,13 +64,13 @@ left/top edges are included, the right/bottom edges are excluded
 extent (`Left` greater than `Right`) makes every comparison fail for any finite point, so `Empty`
 correctly contains no points. Never throws.
 
-#### Union(Rect) / Union(Rect, Rect)
+##### Union(Rect) / Union(Rect, Rect)
 
 Returns the smallest rectangle enclosing both input rectangles, computed as
 `(min(Left), min(Top))` to `(max(Right), max(Bottom))`. Available as both an instance method
 (`this.Union(other)`) and a static method (`Rect.Union(a, b)`). Never throws.
 
-#### Intersect(Rect) / Intersect(Rect, Rect)
+##### Intersect(Rect) / Intersect(Rect, Rect)
 
 Returns the overlapping region of both input rectangles, computed as `(max(Left), max(Top))` to
 `(min(Right), min(Bottom))`. If the rectangles are disjoint on either axis, including the boundary
@@ -79,7 +79,7 @@ case where they merely touch along an edge with no actual overlapping area (`rig
 non-canonical negative size or a zero-width/zero-height non-`Empty` rectangle. Available as both
 an instance method and a static method. Never throws.
 
-#### Transform(Matrix3x2 matrix)
+##### Transform(Matrix3x2 matrix)
 
 Returns the smallest axis-aligned rectangle enclosing this rectangle after applying `matrix`.
 
@@ -98,7 +98,7 @@ instead of `Empty`. `Transform` therefore checks `IsEmpty` first and returns `Em
 preserving it as an identity/no-op - the same guard philosophy already applied to `Right`/`Bottom`
 and `Intersect`.
 
-#### Equals(Rect) / Equals(object?) / GetHashCode / == / !=
+##### Equals(Rect) / Equals(object?) / GetHashCode / == / !=
 
 Value equality compares the raw bit pattern of each of the four fields (`X`, `Y`, `Width`,
 `Height`) via `BitConverter.SingleToInt32Bits`, rather than `==`/tolerance-based comparison. This
@@ -109,24 +109,24 @@ raw bits (rather than `==`) also avoids a SonarAnalyzer S1244 diagnostic (float 
 the call site, since the intent here is documented exact snapshot equality rather than a
 numerically fragile result comparison.
 
-#### ToString()
+##### ToString()
 
 Returns a human-readable string in the form `"{X=.., Y=.., Width=.., Height=..}"`, for diagnostic
 output.
 
-### Error Handling
+#### Error Handling
 
 `Rect` never throws from any public member; every input is either arithmetically well-defined (a
 `float` value, however large, small, `NaN`, or infinite) or produces `Empty` for a
 would-be-invalid result (a disjoint `Intersect`), rather than raising an exception.
 
-### Dependencies
+#### Dependencies
 
 `Rect` depends only on `System.Numerics.Vector2` and `System.Numerics.Matrix3x2` (in-box BCL
 types, no new NuGet package) and `System.BitConverter`/`System.HashCode` from the .NET Base Class
 Library.
 
-### Callers
+#### Callers
 
 `Rect` is a public API entry point, invoked externally by consumers of the CanvasNet package. It
 is also invoked internally by `Path.GetBounds`, which returns a `Rect` computed by folding
