@@ -9,6 +9,8 @@ needs-review:
   - "README.md"                   # Root README file
   - "requirements.yaml"           # Root requirements file
   - "**/*.cs"                     # All C# source and test files
+  - "**/*.csproj"                 # All project files (licensing/provenance, embedded resources)
+  - "**/README.md"                # All nested README files (licensing/provenance, fixtures)
   - "docs/reqstream/**/*.yaml"    # Requirements files
   - "docs/design/**/*.md"         # Design documentation files
   - "docs/verification/**/*.md"  # Verification documentation files
@@ -500,6 +502,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Fonts/Type1PfbReader.cs"    # internal helper source (standalone .pfb auto-detect)
       - "src/DemaConsulting.CanvasNet/Fonts/Type1PfaReader.cs"    # internal helper source (standalone .pfa auto-detect)
       - "src/DemaConsulting.CanvasNet/Fonts/Type1StandardGlyphNames.cs"  # internal helper (default glyph-name encoding)
+      - "src/DemaConsulting.CanvasNet/Fonts/CffStandardEncoding.cs"  # internal helper (CFF standard encoding table)
       - "src/DemaConsulting.CanvasNet/Fonts/HmtxHheaReader.cs"    # internal helper source
       - "src/DemaConsulting.CanvasNet/Fonts/KernTable.cs"         # internal helper source
       - "src/DemaConsulting.CanvasNet/Fonts/NameTable.cs"         # internal helper source (name-table resolution)
@@ -750,7 +753,9 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.cs"          # phase 4 unit source (font resolution)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.Type0.cs"  # phase 9 unit source (composite fonts)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.Type1.cs"  # phase B unit source (Type 1 simple fonts)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.Type3.cs"  # Type 3 glyph-procedure fonts
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.ToUnicode.cs"  # phase 10 unit source (ToUnicode CMap)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Encryption.cs"  # encryption/decryption (RC4, AESV2, AESV3 R5/R6)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Functions.cs"  # pattern phase 1 (sampled function)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Patterns.cs"         # pattern phase (shared /Pattern dispatch)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Patterns.Shading.cs"  # pattern phase (shading patterns)
