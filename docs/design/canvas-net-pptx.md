@@ -4,7 +4,7 @@ This document provides the system-level design for CanvasNetPptx.
 
 ![CanvasNetPptx Structure](CanvasNetPptxView.svg)
 
-<!-- cspell:ignore ooxml pptx -->
+<!-- cspell:ignore ooxml pptx srgb -->
 
 ## Architecture
 
@@ -32,18 +32,29 @@ _CanvasNetPdf System Design_, `docs/design/canvas-net-pdf.md`).
 **Phased delivery — this is an in-progress, multi-phase feature.** A `.pptx` file is an OOXML
 package: a ZIP archive whose parts (`[Content_Types].xml`, `_rels/.rels`, `ppt/presentation.xml`,
 each slide/layout/master XML part, and so on) are discovered by following a chain of
-relationships from the package root. **Phase 1a (this release)** implements only this underlying
-package layer: `PptxDocument.Open` opens a `.pptx` file as a read-only `ZipArchive`, resolves
+relationships from the package root. **Phase 1a** implemented only this underlying package layer:
+`PptxDocument.Open` opens a `.pptx` file as a read-only `ZipArchive`, resolves
 `[Content_Types].xml`'s default extension-to-content-type mappings and part-specific overrides,
 and resolves package-level (`_rels/.rels`) and per-part (`{dir}/_rels/{partName}.rels`)
 relationships, including OPC's relative-target resolution rules (a `"../"` parent-directory
 traversal segment, resolved relative to the referencing part's own directory, not the package
 root). `Open` succeeds on any well-formed OOXML/ZIP package, even one that is not actually a
-presentation, since nothing beyond the package layer is validated this phase. **No
-presentation-specific content is parsed or rendered yet**: `ppt/presentation.xml`, the slide
-list, slide layouts/masters, shape/text content, and any rendering surface are all deferred to
-later phases (1b and beyond), which will build on this package layer to actually resolve and
-render a presentation's slides.
+presentation, since nothing beyond the package layer was validated that phase.
+
+**Phase 1b (this release)** adds the presentation/theme/master/layout/slide model and the
+placeholder property-inheritance resolver, building on the Phase 1a package layer: `Open` now
+additionally locates `ppt/presentation.xml` (via the package's `/officeDocument` relationship),
+parses its declared slide size and ordered slide list (exposed as the new public `SlideSize`/
+`SlideCount` properties and `GetSlideSizeInPixels` conversion method), and rejects a package that
+is not a navigable presentation with at least one declared slide. Each slide master/layout/slide's
+placeholder shapes, and a slide master's theme (color/font scheme, resolved into
+`DemaConsulting.CanvasNet.Canvas.Rgba32` values), are resolved lazily on first access through new
+`internal` members. A new `internal` resolver (`ResolvePlaceholderProperties`) implements the
+verified ECMA-376 (ISO/IEC 29500) §19.3.1.36 placeholder matching algorithm, resolving a slide
+placeholder's effective `<p:spPr>`/`<p:txBody>/<a:lstStyle>` property fragments through its
+layout and master. **No shape geometry/paint rendering, non-placeholder (freeform) shape parsing,
+font loading, or rendering surface is implemented yet** - all deferred to later phases (1c and
+beyond), which will build on this model to actually render a presentation's slides.
 
 ## External Interfaces
 
@@ -55,23 +66,33 @@ The system exposes the following public API to external consumers, all on the se
   memory. `Open(Stream)` never takes ownership of (or disposes) the caller's stream. `Open(string)`
   opens, reads, and closes its own internal `FileStream` before returning. Throws
   `ArgumentNullException` for a null `stream`/`path`, `ArgumentException` for an
-  empty/whitespace-only `path`, and `InvalidDataException` for an unreadable/corrupt ZIP, or a
-  package missing `[Content_Types].xml` or `_rels/.rels`.
+  empty/whitespace-only `path`, and `InvalidDataException` for an unreadable/corrupt ZIP, a
+  package missing `[Content_Types].xml`/`_rels/.rels`, or (as of Phase 1b) a package that is not
+  a navigable presentation with a valid slide size and at least one declared slide.
+- **PptxDocument.SlideCount** (`int`, Phase 1b): The presentation's declared slide count.
+- **PptxDocument.SlideSize** (`PptxSlideSize`, Phase 1b): The presentation's declared slide size,
+  in EMU.
+- **PptxDocument.GetSlideSizeInPixels(float dpi)** (Phase 1b): Converts `SlideSize` to pixels at
+  the given resolution. Throws `ArgumentOutOfRangeException` for a non-positive/non-finite `dpi`.
 - **PptxDocument.Dispose()**: Idempotent; releases the underlying `ZipArchive` and its backing
   buffer. No other public member may be called afterward without throwing
-  `ObjectDisposedException` (enforced starting with the phase that adds a member whose behavior
-  depends on the package remaining open).
+  `ObjectDisposedException` (enforced, as of Phase 1b, by `SlideCount`/`SlideSize`/
+  `GetSlideSizeInPixels`).
 
 <!-- markdownlint-disable MD013 -->
 | Interface | Direction | Format | Constraints |
 | -------------------------------------- | ---------------- | ------------------------------------ | ------------------------------- |
-| `PptxDocument.Open(...)` | Inbound/Outbound | Method call / `PptxDocument` return | Valid `.pptx`/OPC stream or path |
+| `PptxDocument.Open(...)` | Inbound/Outbound | Method call / `PptxDocument` return | Valid `.pptx`/OPC presentation stream or path |
+| `PptxDocument.SlideCount` / `SlideSize` | Outbound | Property access | Document must not be disposed |
+| `PptxDocument.GetSlideSizeInPixels(...)` | Inbound/Outbound | Method call / `(int, int)` return | Positive, finite `dpi`; document must not be disposed |
 | `PptxDocument.Dispose()` | Inbound | Method call | Safe to call more than once |
 <!-- markdownlint-enable MD013 -->
 
-The package layer's `ResolvePart`/`ResolveRelationship` methods are `internal` (not part of the
-public surface), used by later phases of `PptxDocument` itself to navigate the package — see
-_PptxDocument Unit Design_ (`canvas-net-pptx/pptx-document.md`) for their complete contract.
+The package layer's `ResolvePart`/`ResolveRelationship` methods, and every Phase 1b
+presentation/theme/master/layout/slide/inheritance member, are `internal` (not part of the
+public surface), used by later phases of `PptxDocument` itself to navigate the package and
+resolve placeholder properties - see _PptxDocument Unit Design_
+(`canvas-net-pptx/pptx-document.md`) for their complete contract.
 
 ## Dependencies
 
@@ -82,18 +103,21 @@ package-bounded system in this repository's architecture convention of depending
 system for its shared types (`Canvas.Surface`, `Codecs.UnsupportedImageFeatureException`, and so
 on, as later phases add presentation rendering).
 
-**As of Phase 1a, no symbol from the `CanvasNet` core system is actually used yet** — the
-package layer relies solely on the .NET base class library's `System.IO.Compression.ZipArchive`
-(reading the `.pptx` ZIP container) and `System.Xml.Linq.XDocument`/`XElement` (parsing
-`[Content_Types].xml` and each `.rels` part). The `ProjectReference` to `CanvasNet` exists ahead
-of actual use, matching the architecture mandate that every package-bounded system in this
-family depends on the core system by construction; the `dependency` edge in this system's own
-SysML2 model (`docs/sysml2/model/canvas-net-pptx.sysml`) is deliberately **not** added yet,
-mirroring `CanvasNetPdf`'s and `CanvasNetSvg`'s own precedent of adding a `dependency` edge only
-at the phase that actually first uses the referenced subsystem (for example `CanvasNetPdf`'s
-`Fonts` dependency was added only at its own Phase 4, not at Phase 1). A future phase that
-returns a `Canvas.Surface` from a rendering method will add the corresponding `usesCanvas`
-dependency edge at that time.
+**As of Phase 1b, `CanvasNetPptx` uses the `CanvasNet` core system's `Canvas` subsystem** -
+specifically `Canvas.Rgba32`, to represent a theme's resolved 12-slot color scheme (each
+`<a:srgbClr>`/`<a:sysClr>` slot resolved to a concrete `Rgba32` value). The package layer itself
+still relies solely on the .NET base class library's `System.IO.Compression.ZipArchive` (reading
+the `.pptx` ZIP container) and `System.Xml.Linq.XDocument`/`XElement` (parsing
+`[Content_Types].xml`, each `.rels` part, and, as of Phase 1b, every presentation/theme/master/
+layout/slide part). The `ProjectReference` to `CanvasNet` now has a corresponding `dependency`
+edge in this system's own SysML2 model (`docs/sysml2/model/canvas-net-pptx.sysml`):
+`dependency usesCanvas from CanvasNetPptxSystem to Canvas;`, added at this phase because this is
+the phase that actually first uses a `Canvas` subsystem type, mirroring `CanvasNetPdf`'s and
+`CanvasNetSvg`'s own precedent of adding a `dependency` edge only at the phase that actually
+first uses the referenced subsystem (for example `CanvasNetPdf`'s `Fonts` dependency was added
+only at its own Phase 4, not at Phase 1). No other `CanvasNet` subsystem (`Codecs`, `Geometry`,
+`Drawing`, `Fonts`) is used yet; a future phase that actually renders a slide onto a
+`Canvas.Surface` may add further `dependency` edges at that time.
 
 This is an ordinary, same-repository, system-to-system dependency: both `CanvasNet` and
 `CanvasNetPptx` are produced by this repository, so it is neither an OTS Software Item (not a
@@ -106,17 +130,22 @@ VersionMark, WeasyPrint, xUnit) — see _OTS Integration Design_ (`docs/design/o
 ## Risk Control Measures
 
 `PptxDocument.Open` parses an externally-supplied, potentially untrusted `.pptx` package (a ZIP
-archive whose structure, `[Content_Types].xml`, and relationship parts may be malformed,
-incomplete, or adversarially constructed). Phase 1a's risk control is deliberately simple and
-entirely fail-closed, with no tolerated-recovery path (unlike `CanvasNetPdf`'s linear-scan
-fallback): an unreadable/corrupt ZIP, a missing `[Content_Types].xml` or `_rels/.rels`, an
-unresolvable relationship ID, an external-target relationship, or a relationship target that
-would traverse past the package root are all immediately rejected with a thrown
-`InvalidDataException` rather than silently producing an incomplete or incorrect package view.
+archive whose structure, `[Content_Types].xml`, relationship parts, and - as of Phase 1b -
+presentation/theme/master/layout/slide XML content may be malformed, incomplete, or
+adversarially constructed). Risk control remains deliberately simple and entirely fail-closed,
+with no tolerated-recovery path (unlike `CanvasNetPdf`'s linear-scan fallback): an
+unreadable/corrupt ZIP, a missing `[Content_Types].xml` or `_rels/.rels`, an unresolvable
+relationship ID, an external-target relationship, a relationship target that would traverse past
+the package root, a package with no navigable presentation part, or a presentation with no valid
+slide size/slide list are all immediately rejected with a thrown `InvalidDataException` rather
+than silently producing an incomplete or incorrect package view. Phase 1b's per-slide/layout/
+master/theme validation is deliberately lazy (only performed when that specific part is first
+accessed via `GetSlide`/`GetLayout`/`GetMaster`/`GetTheme`), matching Phase 1a's own eager
+(package-level)/lazy (per-part) validation split - a documented scope boundary, not an oversight.
 
 ## Data Flow
 
-**`.pptx` open/parse path (Phase 1a):**
+**`.pptx` open/parse path:**
 
 1. **Input**: A `.pptx` package (stream or file path)
 2. **Validation**: `Open` rejects a null `stream`/`path` with `ArgumentNullException` and an
@@ -124,11 +153,18 @@ would traverse past the package root are all immediately rejected with a thrown
 3. **Processing**: Fully buffers the input into memory, opens it as a read-only `ZipArchive`
    (rejecting an unreadable/corrupt archive with `InvalidDataException`), parses
    `[Content_Types].xml` into its default extension and part-specific override content-type
-   mappings, and eagerly parses the package-level `_rels/.rels` relationships part (rejecting a
-   missing or malformed part with `InvalidDataException`)
-4. **Output**: A new `PptxDocument` instance whose internal `ResolvePart`/`ResolveRelationship`
-   methods can now navigate the package's content-type and relationship graph — parsed once,
-   reused across every subsequent internal call on that instance
+   mappings, eagerly parses the package-level `_rels/.rels` relationships part (rejecting a
+   missing or malformed part with `InvalidDataException`), then locates and parses
+   `ppt/presentation.xml` (via the package's `/officeDocument` relationship), reading its
+   declared slide size and resolving its ordered slide list (rejecting a non-navigable or
+   structurally invalid presentation with `InvalidDataException`)
+4. **Output**: A new `PptxDocument` instance exposing `SlideCount`/`SlideSize`/
+   `GetSlideSizeInPixels` directly, and whose internal `ResolvePart`/`ResolveRelationship`/
+   `GetTheme`/`GetMaster`/`GetLayout`/`GetSlide`/`ResolvePlaceholderProperties` methods can now
+   navigate the package's content-type, relationship, and placeholder-inheritance graph — the
+   presentation-level state is parsed once at `Open()` time; each slide/layout/master/theme is
+   parsed lazily, on first access, and cached, reused across every subsequent call on that
+   instance
 
 ## Design Constraints
 

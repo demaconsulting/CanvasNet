@@ -11,17 +11,24 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         or seekable afterward).
 ///     </para>
 ///     <para>
-///         <strong>Phase 1a scope (this release)</strong>: only the underlying OOXML package
-///         layer is implemented - opening the <c>.pptx</c> file as a ZIP archive, resolving
+///         <strong>Phase 1a</strong> implemented only the underlying OOXML package layer -
+///         opening the <c>.pptx</c> file as a ZIP archive, resolving
 ///         <c>[Content_Types].xml</c> (both its default extension-to-content-type mappings and
 ///         any part-specific overrides), and resolving package-level (<c>_rels/.rels</c>) and
 ///         per-part (<c>{dir}/_rels/{partName}.rels</c>) relationships, including relative
-///         target resolution (for example <c>../slideLayouts/slideLayout1.xml</c>). No
-///         presentation-specific content is parsed yet - <c>ppt/presentation.xml</c>, slides,
-///         slide layouts/masters, and any rendering surface are all deferred to later phases.
-///         <see cref="Open(Stream)"/>/<see cref="Open(string)"/> will succeed on any well-formed
-///         OOXML/ZIP package, even one that is not actually a presentation, since nothing beyond
-///         the package layer is validated this phase.
+///         target resolution (for example <c>../slideLayouts/slideLayout1.xml</c>).
+///     </para>
+///     <para>
+///         <strong>Phase 1b (this release)</strong> adds: parsing <c>ppt/presentation.xml</c>
+///         (slide size, slide list - see <see cref="SlideCount"/>/<see cref="SlideSize"/>);
+///         theme color/font scheme parsing; slide master/layout/slide structural models
+///         (placeholder shapes only, not freeform shapes); and an isolated placeholder
+///         property-inheritance resolver implementing ECMA-376's placeholder matching
+///         algorithm. <see cref="Open(Stream)"/>/<see cref="Open(string)"/> now additionally
+///         require the package to be a navigable presentation (a resolvable
+///         <c>ppt/presentation.xml</c> part declaring a slide size and at least one slide). No
+///         shape geometry/paint rendering, freeform shape parsing, font loading, or rendering
+///         surface exists yet - all deferred to Phase 1c+.
 ///     </para>
 /// </remarks>
 public sealed partial class PptxDocument : IDisposable
@@ -47,8 +54,40 @@ public sealed partial class PptxDocument : IDisposable
         _defaultContentTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         _overrideContentTypes = new Dictionary<string, string>(StringComparer.Ordinal);
         _relationshipCache = new Dictionary<string, IReadOnlyDictionary<string, PackageRelationship>>(StringComparer.Ordinal);
+        _themeCache = new Dictionary<string, PptxTheme>(StringComparer.Ordinal);
+        _masterCache = new Dictionary<string, PptxMaster>(StringComparer.Ordinal);
+        _layoutCache = new Dictionary<string, PptxLayout>(StringComparer.Ordinal);
+        _slideCache = new Dictionary<int, PptxSlide>();
 
         InitializePackage();
+        InitializePresentation();
+    }
+
+    /// <summary>
+    ///     Gets the total number of slides declared by the presentation's <c>&lt;p:sldIdLst&gt;</c>.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">Thrown when this document has been disposed.</exception>
+    public int SlideCount
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return _slidePartPaths.Count;
+        }
+    }
+
+    /// <summary>
+    ///     Gets the presentation's slide size, in EMU (English Metric Units), as declared by
+    ///     <c>ppt/presentation.xml</c>'s <c>&lt;p:sldSz&gt;</c> element.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">Thrown when this document has been disposed.</exception>
+    public PptxSlideSize SlideSize
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return _slideSize;
+        }
     }
 
     /// <summary>

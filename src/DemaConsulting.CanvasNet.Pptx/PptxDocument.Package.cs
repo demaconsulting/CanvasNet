@@ -4,7 +4,7 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore pptx ooxml
+// cspell:ignore pptx ooxml navigations
 
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> OOXML (Office Open XML) package layer: opening
@@ -72,8 +72,16 @@ public sealed partial class PptxDocument
     ///     A single parsed <c>&lt;Relationship&gt;</c> element from a <c>.rels</c> part.
     /// </summary>
     /// <param name="Target">The relationship's raw (not yet resolved) <c>Target</c> attribute value.</param>
+    /// <param name="Type">
+    ///     The relationship's <c>Type</c> attribute value (a URI, for example
+    ///     <c>"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"</c>),
+    ///     or <see cref="string.Empty"/> when the attribute is absent - tolerated rather than
+    ///     fatal, since Phase 1a never required it and some hand-authored test fixtures omit it
+    ///     for brevity in scenarios unrelated to type-based lookup (see
+    ///     <see cref="ResolveRelationshipByType"/>, the Phase 1b consumer of this field).
+    /// </param>
     /// <param name="IsExternal">Whether <c>TargetMode="External"</c> was declared.</param>
-    private readonly record struct PackageRelationship(string Target, bool IsExternal);
+    private readonly record struct PackageRelationship(string Target, string Type, bool IsExternal);
 
     /// <summary>
     ///     Opens <paramref name="stream"/> as a read-only <see cref="ZipArchive"/>, wrapping any
@@ -195,8 +203,9 @@ public sealed partial class PptxDocument
 
             var targetMode = (string?)relationshipElement.Attribute("TargetMode");
             var isExternal = string.Equals(targetMode, "External", StringComparison.OrdinalIgnoreCase);
+            var type = (string?)relationshipElement.Attribute("Type") ?? string.Empty;
 
-            relationships[id] = new PackageRelationship(target, isExternal);
+            relationships[id] = new PackageRelationship(target, type, isExternal);
         }
 
         return relationships;
@@ -308,6 +317,77 @@ public sealed partial class PptxDocument
         }
 
         return ResolveRelativeTarget(normalizedSource, relationship.Target);
+    }
+
+    /// <summary>
+    ///     Resolves the target part path of the single relationship of
+    ///     <paramref name="sourcePartPath"/> whose <c>Type</c> attribute ends with
+    ///     <paramref name="relationshipTypeSuffix"/>, used for navigations that have no explicit
+    ///     <c>r:id</c> reference in the source part's own XML content (for example the package
+    ///     root's relationship to <c>ppt/presentation.xml</c>, or a slide's relationship to its
+    ///     layout) - see <see cref="ResolveRelationship"/> for navigations that do carry an
+    ///     explicit <c>r:id</c>.
+    /// </summary>
+    /// <param name="sourcePartPath">The source part's path, or empty string for the package root.</param>
+    /// <param name="relationshipTypeSuffix">
+    ///     The relationship Type URI suffix to match (for example <c>"/officeDocument"</c>),
+    ///     compared with an ordinal, case-sensitive <see cref="string.EndsWith(string, StringComparison)"/>.
+    /// </param>
+    /// <returns>The resolved target part path, with no leading slash.</returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="sourcePartPath"/> or <paramref name="relationshipTypeSuffix"/>
+    ///     is null.
+    /// </exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when no non-external relationship of <paramref name="sourcePartPath"/> has a
+    ///     <c>Type</c> ending with <paramref name="relationshipTypeSuffix"/>.
+    /// </exception>
+    internal string ResolveRelationshipByType(string sourcePartPath, string relationshipTypeSuffix)
+    {
+        ArgumentNullException.ThrowIfNull(sourcePartPath);
+        ArgumentNullException.ThrowIfNull(relationshipTypeSuffix);
+
+        var normalizedSource = NormalizePartPath(sourcePartPath);
+        var relationships = GetRelationships(normalizedSource);
+
+        foreach (var relationship in relationships.Values)
+        {
+            if (!relationship.IsExternal &&
+                relationship.Type.EndsWith(relationshipTypeSuffix, StringComparison.Ordinal))
+            {
+                return ResolveRelativeTarget(normalizedSource, relationship.Target);
+            }
+        }
+
+        throw new InvalidDataException(
+            $"No relationship of part '{sourcePartPath}' has a Type ending with '{relationshipTypeSuffix}'.");
+    }
+
+    /// <summary>
+    ///     Loads and returns the root XML element of the part at <paramref name="partPath"/>,
+    ///     wrapping a missing part or malformed XML in <see cref="InvalidDataException"/>. Shared
+    ///     by every Phase 1b presentation-specific parser (Presentation/Theme/Masters/Layouts/
+    ///     Slides) so each implements only its own element-shape parsing, not part lookup/XML-load
+    ///     error handling.
+    /// </summary>
+    /// <param name="partPath">The part's path within the package, with or without a leading slash.</param>
+    /// <returns>The part's root <see cref="XElement"/>.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="partPath"/> is null.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the package does not contain a part named <paramref name="partPath"/>, or
+    ///     when the part is not well-formed XML.
+    /// </exception>
+    internal XElement LoadPartXmlRoot(string partPath)
+    {
+        ArgumentNullException.ThrowIfNull(partPath);
+
+        var normalized = NormalizePartPath(partPath);
+        if (!_entriesByPath.TryGetValue(normalized, out var entry))
+        {
+            throw new InvalidDataException($"The package does not contain a part named '{partPath}'.");
+        }
+
+        return LoadXmlRoot(entry);
     }
 
     /// <summary>

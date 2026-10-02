@@ -26,12 +26,12 @@ System tests reside in `PptxSystemIntegrationTests.cs` within the
 
 The system has no external network or service interfaces requiring simulation - no HTTP calls,
 databases, or remote services are involved. It does support local file-path-based I/O through its
-public API (`Open(string path)` reads a `.pptx` package from a local file path), but Phase 1a's
-system tests exercise this entirely through hand-authored, in-memory `ZipArchive`-built packages
-passed via `Open(Stream)` rather than a file-based fixture - no file-based fixture exists for
-this phase (see _PptxDocument Unit Verification Design_,
-`canvas-net-pptx/pptx-document.md`, for why). System tests call the public API directly with
-controlled inputs and verify returned values and thrown exceptions.
+public API (`Open(string path)` reads a `.pptx` package from a local file path), but system tests
+exercise this entirely through hand-authored, in-memory `ZipArchive`-built packages passed via
+`Open(Stream)` rather than a file-based fixture - no file-based fixture exists for this system
+(see _PptxDocument Unit Verification Design_, `canvas-net-pptx/pptx-document.md`, for why).
+System tests call the public API directly with controlled inputs and verify returned values and
+thrown exceptions.
 
 ## System-Level Test Scenarios
 
@@ -65,12 +65,31 @@ Exercises end-to-end system behavior for empty-path-argument validation: calls t
 documented validation contract is honored at the system's own public entry point, before any
 file access is attempted.
 
+### Integration: Pptx Open Presentation Slide Count And Size Resolve End To End
+
+**Test**: `CanvasNetPptx_SystemIntegration_PptxOpenPresentation_SlideCountAndSizeResolveEndToEnd`
+
+Exercises end-to-end system behavior for Phase 1b's presentation parsing: opens a two-slide,
+well-formed, in-memory `.pptx`-shaped package through the public API and asserts `SlideCount`
+and `SlideSize` resolve to the package's declared `<p:sldIdLst>`/`<p:sldSz>` values, confirming
+the presentation model integrates correctly through the system's own public entry point.
+
+### Integration: Pptx Open Validation Empty Slide List Throws Invalid Data Exception
+
+**Test**: `CanvasNetPptx_SystemIntegration_PptxOpenValidationEmptySlideList_ThrowsInvalidDataException`
+
+Exercises end-to-end system behavior for presentation validation: opens a package whose
+`<p:sldIdLst>` is declared but empty, asserting `InvalidDataException` is thrown from the
+public `Open` entry point, confirming the fail-closed validation contract for a non-navigable
+presentation is honored end-to-end.
+
 ## Acceptance Criteria
 
 A system-level test run passes when all scenarios above pass without error or exception beyond
 those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return value
-constitutes a failure. Collectively, these scenarios cover the complete current (Phase 1a)
-CanvasNetPptx feature set: opening a well-formed OOXML/`.pptx` package, resolving its
-content-type and relationship graph, and validating the documented argument-validation contract.
-No presentation-specific content (slides, layouts, masters, rendering) is covered because none is
+constitutes a failure. Collectively, these scenarios cover the complete current CanvasNetPptx
+feature set: opening a well-formed OOXML/`.pptx` package, resolving its content-type and
+relationship graph, resolving its declared slide count/size (Phase 1b), and validating the
+documented argument- and structural-validation contracts. No shape geometry/paint rendering,
+non-placeholder shape parsing, font loading, or rendering surface is covered because none is
 implemented yet - later phases will extend this document's scenarios as that content is added.

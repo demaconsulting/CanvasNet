@@ -1,6 +1,6 @@
 ## PptxDocument Unit Verification Design
 
-<!-- cspell:ignore ooxml pptx -->
+<!-- cspell:ignore ooxml pptx srgb -->
 
 This document describes the unit-level verification strategy for the `PptxDocument` class.
 
@@ -11,25 +11,31 @@ package; its unit tests live in the sibling `DemaConsulting.CanvasNet.Pptx.Tests
 ### Verification Approach
 
 The `PptxDocument` unit is verified through unit tests that exercise its OOXML package layer
-(ZIP opening, `[Content_Types].xml` resolution, relationship resolution) in isolation, through
-the public API only (Phase 1a introduces no `internal`, `InternalsVisibleTo`-exposed types of its
-own - `ResolvePart`/`ResolveRelationship` are the package layer's own `internal` methods, called
-directly by tests via `InternalsVisibleTo`). Every test builds its own minimal, in-memory
-`.pptx`-shaped ZIP package via a private helper (`BuildPackage`, parameterized by an arbitrary
-set of entry name/content pairs) using the BCL `System.IO.Compression.ZipArchive` writer over a
-`MemoryStream` - this is a new fixture pattern for this repository (no existing precedent uses
-`ZipArchive` to build an in-memory test fixture), chosen as a natural, low-risk extension of the
-already-established "hand-authored, in-memory, byte-exact fixture" philosophy used throughout
-`PdfDocumentTests.cs` for this same class of structural/malformed-input test, without
-introducing an undocumented binary blob for a trivial package-layer scenario. No file-based
-fixture exists for Phase 1a (unlike `PdfFixtures/*.pdf`); every fixture is constructed entirely
-in-memory, at test-method scope.
+(ZIP opening, `[Content_Types].xml` resolution, relationship resolution) and its Phase 1b
+presentation/theme/master/layout/slide model and placeholder-inheritance resolver, in isolation,
+through the public API plus `internal` members exposed to the test project via
+`InternalsVisibleTo` (`ResolvePart`/`ResolveRelationship` in Phase 1a; `GetTheme`/`GetMaster`/
+`GetLayout`/`GetSlide`/`ResolvePlaceholderProperties` and every new `internal` record type in
+Phase 1b). Every test builds its own minimal, in-memory `.pptx`-shaped ZIP package via a private
+helper (`BuildPackage`, parameterized by an arbitrary set of entry name/content pairs) using the
+BCL `System.IO.Compression.ZipArchive` writer over a `MemoryStream` - this is a new fixture
+pattern for this repository (no existing precedent uses `ZipArchive` to build an in-memory test
+fixture), chosen as a natural, low-risk extension of the already-established "hand-authored,
+in-memory, byte-exact fixture" philosophy used throughout `PdfDocumentTests.cs` for this same
+class of structural/malformed-input test, without introducing an undocumented binary blob for a
+trivial package-layer scenario. No file-based fixture exists for this unit (unlike
+`PdfFixtures/*.pdf`); every fixture is constructed entirely in-memory, at test-method scope.
+Phase 1b's placeholder-inheritance tests additionally construct `PptxPlaceholder`/`PptxTheme`
+records directly in C# (bypassing XML parsing entirely), using marker-attribute XElements to
+unambiguously assert which level's property fragment "won" the fallback chain.
 
-Because `PptxDocument`'s Phase 1a dependencies (`System.IO.Compression.ZipArchive`,
-`System.Xml.Linq`) are BCL types, not external services, no mocking or stubbing is required.
-Tests assert on resolved content-type strings, resolved relationship target paths, and thrown
-exception types - never on "no exception thrown" alone, so every test can actually fail if the
-implementation is wrong.
+Because `PptxDocument`'s dependencies (`System.IO.Compression.ZipArchive`, `System.Xml.Linq`,
+and, as of Phase 1b, `DemaConsulting.CanvasNet.Canvas.Rgba32`) are BCL types or an already-tested
+sibling-package type, not external services, no mocking or stubbing is required. Tests assert on
+resolved content-type strings, resolved relationship target paths, resolved slide size/count,
+resolved theme colors/fonts, parsed placeholder type/idx values, resolved effective property
+fragments, and thrown exception types - never on "no exception thrown" alone, so every test can
+actually fail if the implementation is wrong.
 
 ### Test Environment
 
@@ -128,12 +134,123 @@ directory, not the package root). Separately, declares a relationship whose targ
 Opens a minimal package, calls `Dispose()` twice, and asserts (via `Record.Exception`) that the
 second call throws nothing.
 
+#### CanvasNetPptx-PptxDocument-PresentationParsing: SlideCount/SlideSize/GetSlideSizeInPixels Resolve Correctly
+
+**Tests**: `PptxDocument_Open_MultiSlidePresentation_SlideCountAndSlideSizeResolveCorrectly`,
+`PptxDocument_GetSlideSizeInPixels_ValidDpi_ComputesExpectedPixelSize`,
+`PptxDocument_GetSlideSizeInPixels_NonPositiveDpi_ThrowsArgumentOutOfRangeException`,
+`CanvasNetPptx_SystemIntegration_PptxOpenPresentation_SlideCountAndSizeResolveEndToEnd`
+
+Opens a multi-slide presentation package and asserts `SlideCount` and `SlideSize` resolve to the
+declared `<p:sldIdLst>`/`<p:sldSz>` values; asserts `GetSlideSizeInPixels(96f)` computes the
+expected pixel dimensions for a known EMU size (9144000x6858000 EMU -> 960x720px at 96 DPI); and
+asserts a non-positive/non-finite `dpi` throws `ArgumentOutOfRangeException`.
+
+#### CanvasNetPptx-PptxDocument-PresentationValidation: Malformed Presentation Parts Fail Closed
+
+**Tests**: `PptxDocument_Open_MissingOfficeDocumentRelationship_ThrowsInvalidDataException`,
+`PptxDocument_Open_PresentationMissingSldSz_ThrowsInvalidDataException`,
+`PptxDocument_Open_PresentationEmptySlideList_ThrowsInvalidDataException`,
+`PptxDocument_Open_PresentationNonNumericSldSz_ThrowsInvalidDataException`,
+`CanvasNetPptx_SystemIntegration_PptxOpenValidationEmptySlideList_ThrowsInvalidDataException`
+
+Proves each of the following throws `InvalidDataException` from `Open`: a package with no
+`/officeDocument` relationship; a presentation missing `<p:sldSz>`; a presentation with an empty
+`<p:sldIdLst>`; and a presentation whose `<p:sldSz>` has a non-numeric `cx` attribute.
+
+#### CanvasNetPptx-PptxDocument-SlideSizePixelConversion: EMU-to-Pixel Conversion Rounds Correctly and Validates DPI
+
+**Tests**: `PptxDocument_GetSlideSizeInPixels_ValidDpi_ComputesExpectedPixelSize`,
+`PptxDocument_GetSlideSizeInPixels_NonPositiveDpi_ThrowsArgumentOutOfRangeException`
+
+Proves `GetSlideSizeInPixels` computes the exact expected pixel dimensions for a known EMU slide
+size at a known DPI, and rejects a non-positive or non-finite `dpi` with
+`ArgumentOutOfRangeException`.
+
+#### CanvasNetPptx-PptxDocument-ThemeColorScheme: srgbClr and sysClr Color Scheme Slots Resolve Correctly
+
+**Tests**: `PptxDocument_GetTheme_SrgbClrColorScheme_ResolvesRgba32Values`,
+`PptxDocument_GetTheme_SysClrColorScheme_ResolvesLastClrValue`
+
+Proves all 12 `<a:clrScheme>` slots resolve to the expected `Rgba32` value when each is an
+`<a:srgbClr val="RRGGBB"/>`, and separately proves an `<a:sysClr val="..." lastClr="RRGGBB"/>`
+slot resolves to its cached `lastClr` RGB equivalent.
+
+#### CanvasNetPptx-PptxDocument-ThemeFontScheme: Major/Minor Font Scheme Typefaces Resolve Correctly
+
+**Test**: `PptxDocument_GetTheme_FontScheme_ResolvesMajorMinorTypefaces`
+
+Proves a theme's `<a:fontScheme>` resolves both the major and minor font collections' Latin,
+East Asian, and complex-script typeface names correctly.
+
+#### CanvasNetPptx-PptxDocument-MasterPlaceholderParsing: Master Placeholder Shapes and Theme Relationship Resolve
+
+**Test**: `PptxDocument_GetMaster_PlaceholderShapes_ParsedWithTypeAndIdx`
+
+Proves a slide master's immediate placeholder shapes parse with their explicit `type`/`idx`
+attribute values, and that the master's `/theme` relationship resolves to the expected theme
+part path.
+
+#### CanvasNetPptx-PptxDocument-LayoutPlaceholderParsing: Layout Placeholders Default Correctly, Master Relationship Resolves
+
+**Test**: `PptxDocument_GetLayout_PlaceholderShapes_ParsedWithDefaultTypeAndIdx`
+
+Proves a slide layout's `<p:ph/>` element with no `type`/`idx` attributes defaults to `"obj"`/`0`
+per the OOXML schema default, and that the layout's `/slideMaster` relationship resolves to the
+expected master part path.
+
+#### CanvasNetPptx-PptxDocument-SlidePlaceholderParsing: Slide Placeholders Parse, Non-Placeholders Excluded, Index Checked
+
+**Tests**: `PptxDocument_GetSlide_ImmediatePlaceholderShapes_ParsedStructurally`,
+`PptxDocument_GetSlide_IndexOutOfRange_ThrowsArgumentOutOfRangeException`
+
+Proves a slide's immediate placeholder shapes parse structurally while a sibling non-placeholder
+`<p:sp>` (no `<p:ph>` descendant) is excluded, and that an out-of-range slide index (negative or
+`>= SlideCount`) throws `ArgumentOutOfRangeException`.
+
+#### CanvasNetPptx-PptxDocument-PlaceholderInheritanceIdxMatch: Slide-to-Layout Match Is Idx-Only, Miss Short-Circuits
+
+**Tests**: `PptxDocumentInheritance_ResolvePlaceholderProperties_IdxMatchAtLayout_UsesLayoutSpPr`,
+`PptxDocumentInheritance_ResolvePlaceholderProperties_NoIdxMatchAtLayout_FallsThroughToMasterOnly`
+
+Proves a slide placeholder matches a layout placeholder sharing the same `idx` (regardless of
+differing `type`), resolving the layout placeholder's `<p:spPr>`/`<a:lstStyle>`. Separately,
+proves that when no layout placeholder shares the slide placeholder's `idx`, the chain
+short-circuits entirely - a master placeholder whose `type` matches the slide's own `type` is
+deliberately *not* consulted, proving there is no type-based retry at this hop.
+
+#### CanvasNetPptx-PptxDocument-PlaceholderInheritanceTypeMatch: Layout-to-Master Matching Is Type-Only via Remap Table
+
+**Tests**: `PptxDocumentInheritance_ResolvePlaceholderProperties_TypeMatchAtMaster_IgnoresMismatchedIdx`,
+`PptxDocumentInheritance_ResolvePlaceholderProperties_RemappedBodyLikeType_MatchesMasterBodyPlaceholder`
+
+Proves a matched layout placeholder resolves a master placeholder by `type` alone (a deliberately
+mismatched `idx` between the layout and master placeholders does not prevent the match), and
+proves a layout placeholder whose type remaps to `"body"` (for example `"subTitle"`) matches a
+master placeholder whose own `type` is literally `"body"`.
+
+#### CanvasNetPptx-PptxDocument-PlaceholderInheritancePerCategory: Categories Independent, Theme Is Unchanged Context
+
+**Tests**:
+`PptxDocumentInheritance_ResolvePlaceholderProperties_PerCategoryIndependentFallthrough_SlideOverridesFillButNotText`,
+`PptxDocumentInheritance_ResolvePlaceholderProperties_NoMatchAtAnyLevel_ReturnsNullForBothCategories`
+
+Proves `<p:spPr>` and `<p:txBody>/<a:lstStyle>` resolve independently - a slide-level `<p:spPr>`
+with no slide-level `<a:lstStyle>` resolves the slide's own fill while still falling through to
+the layout for text style. Separately, proves that when no placeholder matches at any level, both
+effective property categories resolve to `null` while the resolved theme is still returned
+unchanged as context.
+
 ## Acceptance Criteria
 
 A unit-level test run passes when all scenarios above pass without error or exception beyond
 those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return value
-constitutes a failure. Collectively, these scenarios cover the complete current (Phase 1a)
-`PptxDocument` package layer: ZIP opening, content-type resolution (default and override), and
-relationship resolution (including relative-target traversal and its root-escape guard), plus the
-public API's argument validation and disposal contract. No presentation-specific parsing is
-covered because none is implemented yet.
+constitutes a failure. Collectively, these scenarios cover the complete current `PptxDocument`
+package layer (Phase 1a: ZIP opening, content-type resolution, relationship resolution including
+relative-target traversal and its root-escape guard, and the public API's argument validation and
+disposal contract) and the presentation/theme/master/layout/slide model and placeholder
+property-inheritance resolver (Phase 1b: slide size/count, EMU-to-pixel conversion, theme
+color/font scheme resolution, master/layout/slide structural placeholder parsing, and the
+verified ECMA-376 placeholder-matching and per-category property-resolution algorithm). No shape
+geometry/paint rendering, non-placeholder (freeform) shape parsing, font loading, or rendering API
+is covered because none is implemented yet.

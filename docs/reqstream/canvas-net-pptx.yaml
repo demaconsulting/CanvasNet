@@ -9,18 +9,21 @@
 #
 # CanvasNetPptx is an independent software system, distributed as its own NuGet package,
 # depending on the core CanvasNet system (docs/reqstream/canvas-net.yaml) - see
-# docs/design/canvas-net-pptx.md's Dependencies section for details. No dependency on the core
-# system is actually exercised yet as of Phase 1a (only BCL System.IO.Compression/System.Xml.Linq
-# types are used); the ProjectReference exists ahead of actual use, matching this repository's
-# architecture mandate for a package-bounded system's dependency direction.
+# docs/design/canvas-net-pptx.md's Dependencies section for details. As of Phase 1b, the Canvas
+# subsystem's Rgba32 type is used to resolve a theme's color scheme; no other CanvasNet subsystem
+# is exercised yet.
 #
-# CanvasNetPptx is being delivered incrementally. Phase 1a (this release) implements only the
-# underlying OOXML (Office Open XML) package layer: opening a .pptx file as a ZIP archive,
-# resolving [Content_Types].xml (default extension mappings and part-specific overrides), and
-# resolving package-level (_rels/.rels) and per-part relationships, including relative-target
-# resolution. No presentation-specific content (ppt/presentation.xml, slides, slide
-# layouts/masters, or any rendering) is implemented yet - see docs/design/canvas-net-pptx.md for
-# the full current feature set and its documented, still-unimplemented scope.
+# CanvasNetPptx is being delivered incrementally. Phase 1a implemented the underlying OOXML
+# (Office Open XML) package layer: opening a .pptx file as a ZIP archive, resolving
+# [Content_Types].xml (default extension mappings and part-specific overrides), and resolving
+# package-level (_rels/.rels) and per-part relationships, including relative-target resolution.
+# Phase 1b (this release) adds the presentation/theme/master/layout/slide model and a placeholder
+# property-inheritance resolver: parsing ppt/presentation.xml's declared slide size and ordered
+# slide list (exposed as public SlideCount/SlideSize members), resolving each slide master's
+# theme, structurally parsing placeholder shapes, and the verified ECMA-376 placeholder-matching
+# algorithm. No shape geometry/paint rendering, non-placeholder shape parsing, font loading, or
+# rendering surface is implemented yet - see docs/design/canvas-net-pptx.md for the full current
+# feature set and its documented, still-unimplemented scope.
 
 sections:
   - title: CanvasNetPptx Requirements
@@ -83,3 +86,22 @@ sections:
           - CanvasNetPptx-PptxDocument-RelativeTargetTraversal
         tests:
           - CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage
+
+      - id: CanvasNetPptx-Presentation
+        title: >-
+          The library shall, upon opening a .pptx package, resolve its presentation part and
+          expose its declared slide count and slide size, converting the slide size to pixels at
+          a caller-supplied resolution, and shall reject a package that is not a navigable
+          presentation with a valid slide size and at least one declared slide.
+        tags: [system]
+        justification: |
+          Callers (and later rendering phases) need the presentation's overall slide size and
+          slide count without navigating the package's relationship graph themselves, and a
+          malformed or non-presentation package must fail closed at Open() time.
+        children:
+          - CanvasNetPptx-PptxDocument-PresentationParsing
+          - CanvasNetPptx-PptxDocument-PresentationValidation
+          - CanvasNetPptx-PptxDocument-SlideSizePixelConversion
+        tests:
+          - CanvasNetPptx_SystemIntegration_PptxOpenPresentation_SlideCountAndSizeResolveEndToEnd
+          - CanvasNetPptx_SystemIntegration_PptxOpenValidationEmptySlideList_ThrowsInvalidDataException
