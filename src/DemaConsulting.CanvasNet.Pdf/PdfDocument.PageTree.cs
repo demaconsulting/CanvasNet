@@ -23,6 +23,20 @@ public sealed partial class PdfDocument
     private readonly List<(PdfObject Node, double X0, double Y0, double BoxWidth, double BoxHeight, PdfObject? Resources)> _pageDetails = [];
 
     /// <summary>
+    ///     The maximum page-tree nesting depth (<c>/Pages</c> nodes recursing through
+    ///     <c>/Kids</c>) <see cref="TraversePageTree"/> allows before failing closed, bounding
+    ///     a chain of distinct, never-repeated nodes that the cycle-detecting <c>visited</c>
+    ///     set alone cannot catch, and which could otherwise exhaust the native C# call stack.
+    /// </summary>
+    private const int MaxPageTreeNestingDepth = 32;
+
+    /// <summary>
+    ///     The current page-tree recursion depth, incremented/decremented around every
+    ///     <see cref="TraversePageTree"/> call.
+    /// </summary>
+    private int _pageTreeNestingDepth;
+
+    /// <summary>
     ///     Walks the document catalog's page tree (<c>/Pages</c> and its recursively-nested
     ///     <c>/Kids</c>), producing an ordered, flattened list of every leaf page's resolved,
     ///     rotation-adjusted <see cref="PdfPageInfo"/>, and populating <see cref="_pageDetails"/>
@@ -74,38 +88,52 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("Page tree contains a reference cycle.");
         }
 
-        var node = Resolve(nodeReference);
-        if (node.Kind != PdfKind.Dictionary)
+        if (_pageTreeNestingDepth >= MaxPageTreeNestingDepth)
         {
-            throw new InvalidDataException("Page tree node is not a dictionary.");
+            throw new InvalidDataException(
+                $"Page tree nesting exceeds the maximum supported depth of {MaxPageTreeNestingDepth}.");
         }
 
-        var (x0, y0, width, height) = ResolveMediaBox(node, inheritedX0, inheritedY0, inheritedWidth, inheritedHeight);
-        var rotation = ResolveRotation(node, inheritedRotation);
-        var resources = node.Get("Resources") ?? inheritedResources;
-
-        var type = GetNameValue(node, "Type");
-        var kids = node.Get("Kids");
-        if (type == "Pages" || (type is null && kids is not null))
+        _pageTreeNestingDepth++;
+        try
         {
-            if (kids is not { Kind: PdfKind.Array })
+            var node = Resolve(nodeReference);
+            if (node.Kind != PdfKind.Dictionary)
             {
-                throw new InvalidDataException("/Pages node is missing a /Kids array.");
+                throw new InvalidDataException("Page tree node is not a dictionary.");
             }
 
-            foreach (var kid in kids.Items)
+            var (x0, y0, width, height) = ResolveMediaBox(node, inheritedX0, inheritedY0, inheritedWidth, inheritedHeight);
+            var rotation = ResolveRotation(node, inheritedRotation);
+            var resources = node.Get("Resources") ?? inheritedResources;
+
+            var type = GetNameValue(node, "Type");
+            var kids = node.Get("Kids");
+            if (type == "Pages" || (type is null && kids is not null))
             {
-                TraversePageTree(kid, x0, y0, width, height, rotation, resources, visited, pages);
+                if (kids is not { Kind: PdfKind.Array })
+                {
+                    throw new InvalidDataException("/Pages node is missing a /Kids array.");
+                }
+
+                foreach (var kid in kids.Items)
+                {
+                    TraversePageTree(kid, x0, y0, width, height, rotation, resources, visited, pages);
+                }
+            }
+            else
+            {
+                var (displayWidth, displayHeight) = rotation is 90 or 270 ? (height, width) : (width, height);
+                pages.Add(new PdfPageInfo(
+                    (int)Math.Round(displayWidth),
+                    (int)Math.Round(displayHeight),
+                    rotation));
+                _pageDetails.Add((node, x0, y0, width, height, resources));
             }
         }
-        else
+        finally
         {
-            var (displayWidth, displayHeight) = rotation is 90 or 270 ? (height, width) : (width, height);
-            pages.Add(new PdfPageInfo(
-                (int)Math.Round(displayWidth),
-                (int)Math.Round(displayHeight),
-                rotation));
-            _pageDetails.Add((node, x0, y0, width, height, resources));
+            _pageTreeNestingDepth--;
         }
     }
 

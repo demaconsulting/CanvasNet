@@ -281,6 +281,13 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("Image XObject /Width and /Height must be positive integers.");
         }
 
+        if (width > Surface.MaxDimension || height > Surface.MaxDimension)
+        {
+            throw new InvalidDataException(
+                $"Image XObject dimensions {width}x{height} exceed the maximum supported size of " +
+                $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
+        }
+
         var (filterNames, filterParms) = ResolveFilterPipeline(stream);
         if (filterNames.Count == 1 && filterNames[0] == "DCTDecode")
         {
@@ -379,6 +386,13 @@ public sealed partial class PdfDocument
                 "CCITTFaxDecode images require a single-component /ColorSpace.");
         }
 
+        if (columns > Surface.MaxDimension || rows > Surface.MaxDimension)
+        {
+            throw new InvalidDataException(
+                $"CCITTFaxDecode image dimensions {columns}x{rows} exceed the maximum supported size of " +
+                $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
+        }
+
         var surface = new Surface(columns, rows);
         for (var y = 0; y < rows; y++)
         {
@@ -400,6 +414,11 @@ public sealed partial class PdfDocument
     /// </summary>
     private static Rgba32 SamplesToColor(PdfColorSpace colorSpace, byte[] decoded, int offset, int count)
     {
+        if (offset < 0 || count < 0 || offset + count > decoded.Length)
+        {
+            throw new InvalidDataException("Image XObject sample data is truncated.");
+        }
+
         if (colorSpace.Kind == PdfColorSpace.Family.Indexed)
         {
             // An /Indexed sample is a raw palette index, not a [0, 1]-normalized component - do

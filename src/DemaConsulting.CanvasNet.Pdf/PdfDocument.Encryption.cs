@@ -259,6 +259,17 @@ public sealed partial class PdfDocument
         var lengthBits = GetIntEntry(encryptDict, "Length", 40);
         var keyLengthBytes = version == 1 ? 5 : lengthBits / 8;
 
+        // /V 5 (AES-256) never uses keyLengthBytes/lengthBits: its 32-byte file key is always
+        // derived via ISO 32000-2 Algorithm 2.A (see the "case 5" branch below), independent of
+        // whatever /Length value (conventionally 256 bits, outside the legacy 40-128 bit range)
+        // the Encrypt dictionary happens to declare - so the ISO 32000-1 §7.6.2 range check below
+        // applies only to the legacy /V 1/2/4 (RC4/AESV2) key-length path that actually consumes it.
+        if (version != 5 && keyLengthBytes is < 5 or > 16)
+        {
+            throw new InvalidDataException(
+                $"Encrypt dictionary's /Length entry ({lengthBits} bits) must be between 40 and 128 bits inclusive.");
+        }
+
         var oBytes = GetRequiredBytesEntry(encryptDict, "O");
         var uBytes = GetRequiredBytesEntry(encryptDict, "U");
         var permissions = GetRequiredIntEntry(encryptDict, "P");
@@ -975,13 +986,12 @@ public sealed partial class PdfDocument
     private static byte[] DecryptAesCbc(byte[] key, byte[] iv, byte[] data, int offset, int length, CipherMode mode, PaddingMode padding)
     {
         using var aes = Aes.Create();
-        aes.Key = key;
-        aes.IV = iv;
-        aes.Mode = mode;
-        aes.Padding = padding;
-
         try
         {
+            aes.Key = key;
+            aes.IV = iv;
+            aes.Mode = mode;
+            aes.Padding = padding;
             using var decryptor = aes.CreateDecryptor();
             return decryptor.TransformFinalBlock(data, offset, length);
         }

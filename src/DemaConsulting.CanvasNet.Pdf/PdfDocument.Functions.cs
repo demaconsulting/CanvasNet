@@ -113,11 +113,22 @@ public sealed partial class PdfDocument
         ///     value within the <paramref name="sampleGroupIndex"/>'th sample group.
         /// </summary>
         /// <exception cref="InvalidDataException">
-        ///     Thrown when the requested bits extend past the end of <see cref="Samples"/>.
+        ///     Thrown when the requested bits extend past the end of <see cref="Samples"/>, or
+        ///     when the sample-table dimensions overflow during bit-offset computation.
         /// </exception>
         private double ReadSample(int sampleGroupIndex, int outputIndex, int outputCount)
         {
-            var bitOffset = (long)((sampleGroupIndex * outputCount) + outputIndex) * BitsPerSample;
+            long bitOffset;
+            try
+            {
+                bitOffset = checked((((long)sampleGroupIndex * outputCount) + outputIndex) * (long)BitsPerSample);
+            }
+            catch (OverflowException ex)
+            {
+                throw new InvalidDataException(
+                    "Sampled function sample-table dimensions overflow during bit-offset computation.", ex);
+            }
+
             return ReadBits(Samples, bitOffset, BitsPerSample);
         }
 

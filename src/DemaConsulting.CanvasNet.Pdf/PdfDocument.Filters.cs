@@ -163,7 +163,10 @@ public sealed partial class PdfDocument
     ///     bytes.
     /// </summary>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <c>/Predictor</c> is not <c>2</c> or in <c>10..15</c>.
+    ///     Thrown when <c>/Predictor</c> is not <c>2</c> or in <c>10..15</c>, or when
+    ///     <c>/Colors</c>, <c>/BitsPerComponent</c>, or <c>/Columns</c> are not legal PDF values
+    ///     (defense-in-depth: a malformed/negative or zero value here could otherwise divide by
+    ///     zero or underflow downstream row/stride computations).
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when a TIFF predictor (<c>/Predictor 2</c>) is declared with a
@@ -175,6 +178,21 @@ public sealed partial class PdfDocument
         var colors = GetIntEntry(parms, "Colors", 1);
         var bitsPerComponent = GetIntEntry(parms, "BitsPerComponent", 8);
         var columns = GetIntEntry(parms, "Columns", 1);
+
+        if (colors < 1)
+        {
+            throw new InvalidDataException("Predictor /Colors must be a positive integer.");
+        }
+
+        if (bitsPerComponent is not (1 or 2 or 4 or 8 or 16))
+        {
+            throw new InvalidDataException("Predictor /BitsPerComponent must be 1, 2, 4, 8, or 16.");
+        }
+
+        if (columns < 1)
+        {
+            throw new InvalidDataException("Predictor /Columns must be a positive integer.");
+        }
 
         if (predictor == 2)
         {

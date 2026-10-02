@@ -16,6 +16,14 @@ public sealed partial class PdfDocument
     private const int LzwMaxTableSize = 4096;
 
     /// <summary>
+    ///     The maximum total number of decoded output bytes <see cref="DecodeLzw"/> allows before
+    ///     failing closed, bounding a decompression-bomb-style crafted stream (a tiny compressed
+    ///     input whose table entries chain into an enormous expanded output) from exhausting
+    ///     memory. 64 MiB is generous for any legitimate PDF image/content stream.
+    /// </summary>
+    private const int LzwMaxOutputBytes = 64 * 1024 * 1024;
+
+    /// <summary>
     ///     Decodes an <c>LZWDecode</c>-filtered stream (ISO 32000-1/2 section 7.4.4): an initial
     ///     258-entry table (codes 0-255 literal bytes, 256 Clear, 257 EOD, first dynamically
     ///     assigned code 258), MSB-first variable 9-12 bit code packing, and code-width growth
@@ -42,8 +50,9 @@ public sealed partial class PdfDocument
     /// </param>
     /// <returns>The decoded bytes.</returns>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the bit stream is truncated before an <c>EOD</c> code is reached, or when
-    ///     a decoded code is invalid (out of range for the current table state).
+    ///     Thrown when the bit stream is truncated before an <c>EOD</c> code is reached, when a
+    ///     decoded code is invalid (out of range for the current table state), or when the
+    ///     decoded output exceeds <see cref="LzwMaxOutputBytes"/>.
     /// </exception>
     private static byte[] DecodeLzw(byte[] data, bool earlyChange)
     {
@@ -105,6 +114,11 @@ public sealed partial class PdfDocument
             }
 
             output.AddRange(sequence);
+            if (output.Count > LzwMaxOutputBytes)
+            {
+                throw new InvalidDataException(
+                    $"LZWDecode output exceeds the maximum supported size of {LzwMaxOutputBytes} bytes.");
+            }
 
             if (oldCode is not null && nextCode < LzwMaxTableSize)
             {

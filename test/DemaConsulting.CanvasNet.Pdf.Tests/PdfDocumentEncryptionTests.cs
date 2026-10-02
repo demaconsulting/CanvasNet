@@ -795,6 +795,17 @@ public class PdfDocumentEncryptionTests
         Assert.Equal("pdf-encrypted-r6-hardened-hash", exception.Feature);
     }
 
+    /// <summary>Proves that an Encrypt dictionary whose <c>/Length</c> entry resolves to a key length outside the ISO 32000-1 §7.6.2 valid range of 40-128 bits (5-16 bytes) throws <see cref="InvalidDataException"/> before any key derivation is attempted, instead of deriving a nonsensical-length key or indexing out of range later.</summary>
+    [Fact]
+    public void PdfDocument_Open_Encrypted_LengthOutOfRange_ThrowsInvalidDataException()
+    {
+        var zero32 = new byte[32];
+        var encryptDictBody = $"<< /Filter /Standard /V 2 /R 3 /Length 0 /O <{ToHex(zero32)}> /U <{ToHex(zero32)}> /P -3904 >>";
+        var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, Encoding.ASCII.GetBytes(PlaintextContent));
+
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
     /// <summary>Proves that a document whose <c>/U</c> does not authenticate against the empty password throws <see cref="UnsupportedImageFeatureException"/> (a real, non-empty password is required), instead of silently proceeding with the wrong key.</summary>
     [Fact]
     public void PdfDocument_Open_EncryptedRc4_WrongUserPasswordHash_ThrowsUnsupportedImageFeatureException()

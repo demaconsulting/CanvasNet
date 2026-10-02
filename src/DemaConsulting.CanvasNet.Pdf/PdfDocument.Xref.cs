@@ -219,6 +219,11 @@ public sealed partial class PdfDocument
         }
 
         var widths = widthsObject.Items.Select(item => (int)item.Number).ToArray();
+        if (widths.Any(w => w is < 0 or > 8))
+        {
+            throw new InvalidDataException("Cross-reference stream /W entries must be between 0 and 8.");
+        }
+
         var size = streamObject.Get("Size") is { Kind: PdfKind.Number } sizeObject
             ? (int)sizeObject.Number
             : throw new InvalidDataException("Cross-reference stream is missing /Size.");

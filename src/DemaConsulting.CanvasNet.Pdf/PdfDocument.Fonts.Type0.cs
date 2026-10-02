@@ -326,6 +326,15 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
+    ///     The maximum number of CIDs a single <c>/W</c> array <c>cFirst cLast w</c> range-form
+    ///     entry may expand, bounding a crafted range (for example <c>[0 999999999 500]</c>) from
+    ///     looping effectively unbounded and exhausting memory. Generous for any real CID-keyed
+    ///     font, which rarely exceeds the 16-bit CID space in practice for a single contiguous
+    ///     <c>/W</c> range.
+    /// </summary>
+    private const int MaxCompositeWidthRangeSpan = 65536;
+
+    /// <summary>
     ///     Resolves a descendant CIDFontType2 dictionary's <c>/DW</c> (default width, defaulting
     ///     to <c>1000</c> per the PDF specification when absent) and <c>/W</c> (per-CID declared
     ///     width overrides, supporting both the <c>c [w1 w2 ... wn]</c> individual-width form and
@@ -340,8 +349,9 @@ public sealed partial class PdfDocument
     /// <exception cref="InvalidDataException">
     ///     Thrown when a <c>/W</c> array's shape does not match either documented sub-form (for
     ///     example a starting code not followed by an array or a number, a range form whose third
-    ///     element is not a number, or a range form whose <c>cLast</c> is less than its
-    ///     <c>cFirst</c>).
+    ///     element is not a number, a range form whose <c>cLast</c> is less than its
+    ///     <c>cFirst</c>, or a range form spanning more than <see cref="MaxCompositeWidthRangeSpan"/>
+    ///     CIDs).
     /// </exception>
     private (IReadOnlyDictionary<int, double> CidWidths, double DefaultWidth) ResolveCompositeWidths(PdfObject descendantFont)
     {
@@ -397,6 +407,12 @@ public sealed partial class PdfDocument
                     if (cLast < firstCid)
                     {
                         throw new InvalidDataException("/W array's cFirst-cLast-w range form must have cLast >= cFirst.");
+                    }
+
+                    if ((long)cLast - firstCid > MaxCompositeWidthRangeSpan)
+                    {
+                        throw new InvalidDataException(
+                            $"/W array's cFirst-cLast-w range form spans more than {MaxCompositeWidthRangeSpan} CIDs.");
                     }
 
                     for (var cid = firstCid; cid <= cLast; cid++)

@@ -1376,6 +1376,71 @@ public class PdfDocumentTests
 
     #region Cross-reference forms
 
+    /// <summary>
+    ///     Builds an in-memory, single-page, <c>/Type /XRef</c> cross-reference-stream-only PDF
+    ///     (no classic table) whose stream dictionary declares the given raw <c>/W</c> array
+    ///     literal verbatim - used to craft a malformed/adversarial <c>/W</c> entry (for example a
+    ///     negative field width) that the classic-xref-table builders above cannot express.
+    ///     Deliberately hides the <c>/Type /Catalog</c> object inside a compressed
+    ///     <c>/Type /ObjStm</c> container (object 6, compressed inside object 1) rather than
+    ///     leaving it as a plain top-level object: <see cref="PdfDocument"/>'s own
+    ///     <c>BuildLinearScanFallback</c> recovery path (triggered whenever normal
+    ///     cross-reference parsing throws <see cref="InvalidDataException"/>) only finds plain
+    ///     <c>N G obj</c> headers by a raw byte scan, so with the catalog plain and
+    ///     top-level, recovery would silently rebuild a working document regardless of whether
+    ///     the crafted <c>/W</c> entry is rejected - masking the very defect this helper exists to
+    ///     exercise. Hiding the catalog inside an object stream (which recovery's linear scan
+    ///     cannot see into) ensures that when the crafted <c>/W</c> entry is rejected and
+    ///     cross-reference parsing falls back to recovery, recovery also fails to locate a
+    ///     catalog, so the caller still observes a thrown, typed exception - proving the crafted
+    ///     input is converted into a controlled failure, never a raw CLR crash, at every layer.
+    /// </summary>
+    private static byte[] BuildXrefStreamPdfWithWidths(string wLiteral)
+    {
+        var catalogBytes = "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray();
+        var objStmHeader = "6 0\n"u8.ToArray();
+        var objStmContent = new List<byte>();
+        objStmContent.AddRange(objStmHeader);
+        objStmContent.AddRange(catalogBytes);
+        var compressedObjStm = ZlibCompress([.. objStmContent]);
+
+        var bodies = new List<byte[]>
+        {
+            BuildStreamObjectBody($"/Type /ObjStm /N 1 /First {objStmHeader.Length} /Filter /FlateDecode", compressedObjStm),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody(string.Empty, []),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        var offsets = new List<int>();
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            offsets.Add(buffer.Count);
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // Object 5: the self-referential, /Filter-less cross-reference stream, declaring the
+        // caller's crafted /W literal. Its raw entry bytes describe: object 0 (free), objects
+        // 1-5 (plain, direct), and object 6 (compressed, inside object 1 at index 0) - 7 entries
+        // of 10 zero-filled bytes each, far more than any legal (<=8-byte-wide field) entry could
+        // ever need, so a truncation check never short-circuits before reaching the actual
+        // malformed-width read this helper means to exercise.
+        var entryBytes = new byte[70];
+        var xrefStreamOffset = buffer.Count;
+        buffer.AddRange("5 0 obj\n"u8.ToArray());
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /XRef /Size 7 /W {wLiteral} /Root 6 0 R /Length {entryBytes.Length} >>\nstream\n"));
+        buffer.AddRange(entryBytes);
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"startxref\n{xrefStreamOffset}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
     /// <summary>Proves that a classic <c>xref</c>/<c>trailer</c> document resolves the catalog and its single page.</summary>
     [Fact]
     public void PdfDocument_Open_ClassicXref_ResolvesRootAndPage()
@@ -1403,6 +1468,17 @@ public class PdfDocumentTests
         var info = document.GetPageInfo(0);
         Assert.Equal(200, info.Width);
         Assert.Equal(300, info.Height);
+    }
+
+    /// <summary>Proves that a cross-reference stream's <c>/W</c> entry with a negative field width (which would otherwise drive a negative byte offset into <see cref="IndexOutOfRangeException"/>) throws <see cref="InvalidDataException"/> instead.</summary>
+    [Fact]
+    public void PdfDocument_Open_XrefStream_NegativeWidth_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildXrefStreamPdfWithWidths("[-1 1 1]");
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
     }
 
     /// <summary>Proves that a page object compressed inside a <c>/Type /ObjStm</c> object stream is decompressed and resolved correctly.</summary>
@@ -1511,6 +1587,71 @@ public class PdfDocumentTests
     {
         // Arrange, Act & Assert
         Assert.Throws<InvalidDataException>(() => PdfDocument.Open(Fixture("cyclic-page-tree.pdf")));
+    }
+
+    /// <summary>
+    ///     Builds an in-memory PDF whose page tree is a chain of <paramref name="depth"/> nested,
+    ///     distinct (never-repeated) <c>/Type /Pages</c> objects, each with a single <c>/Kids</c>
+    ///     entry pointing to the next - deliberately never revisiting an object number, so the
+    ///     existing cycle-detecting <c>visited</c> set cannot catch it, isolating the dedicated
+    ///     nesting-depth guard under test. Modeled on <see cref="BuildSinglePagePdf"/>'s own
+    ///     object/xref/trailer-writing tail.
+    /// </summary>
+    private static byte[] BuildDeepPageTreePdf(int depth)
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+        };
+
+        // Objects 2..(1 + depth): a chain of distinct /Pages nodes, each pointing only forward.
+        for (var i = 0; i < depth; i++)
+        {
+            var nextObjectNumber = 2 + i + 1;
+            bodies.Add(System.Text.Encoding.ASCII.GetBytes(
+                $"<< /Type /Pages /Kids [{nextObjectNumber} 0 R] /Count 1 /MediaBox [0 0 100 100] >>"));
+        }
+
+        // Final leaf page, parented to the last /Pages node.
+        var leafObjectNumber = 2 + depth;
+        var contentsObjectNumber = leafObjectNumber + 1;
+        bodies.Add(System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /Page /Parent {leafObjectNumber - 1} 0 R /Contents {contentsObjectNumber} 0 R >>"));
+        bodies.Add(BuildStreamObjectBody(string.Empty, []));
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        var offsets = new List<int>();
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            offsets.Add(buffer.Count);
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var xrefOffset = buffer.Count;
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"xref\n0 {bodies.Count + 1}\n"));
+        buffer.AddRange("0000000000 65535 f \n"u8.ToArray());
+        foreach (var offset in offsets)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{offset:D10} 00000 n \n"));
+        }
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"trailer\n<< /Size {bodies.Count + 1} /Root 1 0 R >>\nstartxref\n{xrefOffset}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    /// <summary>Proves that a page tree nested deeper than the maximum supported depth (via distinct, never-repeated <c>/Pages</c> objects the cycle check cannot catch) throws <see cref="InvalidDataException"/> instead of exhausting the call stack.</summary>
+    [Fact]
+    public void PdfDocument_PageTree_ExcessiveNestingDepth_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildDeepPageTreePdf(40);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
     }
 
     #endregion
@@ -2591,6 +2732,23 @@ public class PdfDocumentTests
         Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
     }
 
+    /// <summary>Proves that an <c>/Indexed</c> color space's <c>/Hival</c> exceeding the spec's 8-bit index maximum (255) throws <see cref="InvalidDataException"/> rather than silently corrupting the palette-length validation via <c>int</c> overflow.</summary>
+    [Fact]
+    public void PdfDocument_Color_IndexedColorSpace_HivalExceeds255_ThrowsInvalidDataException()
+    {
+        // Arrange: /Hival 999999999 is far outside the 8-bit index range (0-255) /Hival must stay
+        // within per the PDF specification.
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs",
+            "/ColorSpace << /CS0 [/Indexed /DeviceRGB 999999999 <00>] >>",
+            []);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
     #endregion
 
     #region Filters
@@ -2671,6 +2829,34 @@ public class PdfDocumentTests
         Assert.Equal(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 25]);
         Assert.Equal(new Canvas.Rgba32(10, 10, 10, 255), surface[25, 75]);
         Assert.Equal(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 75]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>/DecodeParms /Colors 0</c> predictor declaration throws
+    ///     <see cref="InvalidDataException"/> instead of being silently accepted (defense-in-depth:
+    ///     <see cref="PdfDocument"/>'s own TIFF/PNG predictor row/stride arithmetic already guards
+    ///     its internal divisors via <c>Math.Max(1, ...)</c>/ternary zero-checks, so this input
+    ///     does not currently reproduce a raw CLR crash - this test instead proves the new
+    ///     upfront validation rejects a spec-illegal value outright).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Images_FlateDecodeTiffPredictor_ZeroColors_ThrowsInvalidDataException()
+    {
+        // Arrange: /Colors 0 is not a legal PDF /DecodeParms value (must be a positive integer).
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 "
+            + "/Filter /FlateDecode /DecodeParms << /Predictor 2 /Colors 0 /BitsPerComponent 8 /Columns 2 >>",
+            ZlibCompress([10, 190, 10, 190]));
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 
     /// <summary>Proves that an image XObject declaring an unsupported filter throws <see cref="UnsupportedImageFeatureException"/>.</summary>
@@ -2883,6 +3069,33 @@ public class PdfDocumentTests
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(() => RenderGrayscaleImage(1, data, "/Filter /LZWDecode"));
+    }
+
+    /// <summary>Proves that an <c>LZWDecode</c> stream whose decoded output would exceed the decoder's output-size cap (a decompression-bomb-style crafted stream: a tiny, highly repetitive, well-compressed input expanding into tens of megabytes) throws <see cref="InvalidDataException"/> instead of exhausting memory.</summary>
+    [Fact]
+    public void PdfDocument_Filters_LzwDecode_OutputExceedsMaxSize_ThrowsInvalidDataException()
+    {
+        // Arrange: a single repeated byte value compresses to a tiny LZW stream (classic-LZW's
+        // well-known exponential-chain-growth behavior for a run of one repeated symbol), but
+        // decodes back to just over the decoder's 64 MiB output cap - used via a Form XObject's
+        // content stream (rather than an image XObject) so the image /Width x /Height dimension
+        // cap added by this same hardening pass cannot short-circuit this test before ever
+        // reaching the LZW decoder itself.
+        var rawData = new byte[(64 * 1024 * 1024) + (1024 * 1024)];
+        Array.Fill(rawData, (byte)'A');
+        var encoded = EncodeLzwForTest(rawData, earlyChange: true);
+
+        var formStream = BuildStreamObjectBody("/Type /XObject /Subtype /Form /BBox [0 0 100 100] /Filter /LZWDecode", encoded);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Fm0 Do",
+            "/XObject << /Fm0 5 0 R >>",
+            [formStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 
     /// <summary>Proves that an all-zero-group <c>ASCII85Decode</c> <c>z</c> shorthand decodes to four zero bytes.</summary>
@@ -4035,6 +4248,48 @@ public class PdfDocumentTests
         Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 
+    /// <summary>Proves that an image XObject declaring <c>/Width</c>/<c>/Height</c> beyond <see cref="Canvas.Surface.MaxDimension"/> throws <see cref="InvalidDataException"/> instead of allocating an unbounded decode buffer.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_WidthExceedsMaxDimension_ThrowsInvalidDataException()
+    {
+        // Arrange: /Width is declared far beyond Surface.MaxDimension; the stream itself can be
+        // empty/tiny, since the dimension guard must fire before any pixel data is read.
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 100000000 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8",
+            []);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that an image XObject whose decoded sample data is shorter than its declared <c>/Width</c>/<c>/Height</c>/<c>/ColorSpace</c> require (a truncated stream) throws <see cref="InvalidDataException"/> instead of a raw <see cref="IndexOutOfRangeException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_TruncatedSampleData_ThrowsInvalidDataException()
+    {
+        // Arrange: a 2x2 DeviceRGB image (needs 12 raw bytes) whose uncompressed stream supplies
+        // only a single byte.
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8",
+            [0]);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
     /// <summary>Proves that <c>Do</c> with a malformed (non-1, non-name) operand count/type throws <see cref="InvalidDataException"/>.</summary>
     [Theory]
     [InlineData("Do")]
@@ -4904,6 +5159,21 @@ public class PdfDocumentTests
         // Arrange
         var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
         var (resourcesBody, extraObjects) = BuildCompositeFontResources(fontBytes, cidFontExtra: "/W [1 (bad)]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that a <c>/W</c> array's <c>cFirst cLast w</c> range-form entry spanning an absurd number of CIDs (for example <c>[0 999999999 500]</c>) throws <see cref="InvalidDataException"/> instead of expanding the range and exhausting memory/time.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_Widths_WArrayRangeFormExcessiveSpan_ThrowsInvalidDataException()
+    {
+        // Arrange: a crafted range spanning essentially the entire CID space.
+        var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(fontBytes, cidFontExtra: "/W [0 999999999 500]");
 
         var bytes = BuildSinglePagePdfWithResources(
             100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
@@ -7021,6 +7291,21 @@ public class PdfDocumentTests
         var exception = Assert.Throws<UnsupportedImageFeatureException>(
             () => ResolveTestFunction("/FunctionType 0 /Domain [0 1 0 1]", []));
         Assert.Equal("pdf-function-multiinput", exception.Feature);
+    }
+
+    /// <summary>Proves that a sample-table whose <c>/Size</c> and output count would overflow <c>int32</c> arithmetic in the bit-offset computation (silently wrapping to a negative offset, which previously bypassed <see cref="PdfDocument.SampledFunction"/>'s own truncation guard and raised a raw <see cref="IndexOutOfRangeException"/>) now throws <see cref="InvalidDataException"/> instead.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_SampleTableDimensionsOverflowBitOffset_ThrowsInvalidDataException()
+    {
+        // Arrange: /Size [2000000000] with 2 outputs makes (sampleGroupIndex * outputCount)
+        // exceed int32.MaxValue when evaluated at the sample index nearest the domain maximum -
+        // silently wrapping negative under unchecked int arithmetic before this phase's fix.
+        var function = ResolveTestFunction(
+            "/FunctionType 0 /Domain [0 1] /Range [0 255 0 255] /Size [2000000000] /BitsPerSample 8",
+            []);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => function.Evaluate(1));
     }
 
     /// <summary>

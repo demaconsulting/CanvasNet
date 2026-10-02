@@ -638,8 +638,8 @@ public sealed partial class PdfDocument
     /// </summary>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="array"/> does not have exactly 4 elements, when
-    ///     <c>/Hival</c> is not a non-negative number, when the lookup table is neither a string
-    ///     nor a stream, or when the resolved palette is shorter than
+    ///     <c>/Hival</c> is not a non-negative number or exceeds <c>255</c>, when the lookup
+    ///     table is neither a string nor a stream, or when the resolved palette is shorter than
     ///     <c>(Hival + 1) * ComponentCount(baseSpace)</c> bytes.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
@@ -662,6 +662,10 @@ public sealed partial class PdfDocument
         }
 
         var hival = (int)hivalValue.Number;
+        if (hival > 255)
+        {
+            throw new InvalidDataException("Color space '/Indexed' /Hival must not exceed 255.");
+        }
 
         var lookup = Resolve(array.Items[3]);
         var palette = lookup.Kind switch
