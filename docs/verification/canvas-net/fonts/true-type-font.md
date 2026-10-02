@@ -5,6 +5,7 @@
 <!-- cspell:ignore hstemhm vstemhm callsubr callgsubr hhcurveto vvcurveto hvcurveto vhcurveto -->
 <!-- cspell:ignore rlineto hlineto vlineto rmoveto hmoveto vmoveto rrcurveto endchar seac gsubr -->
 <!-- cspell:ignore hflex flex1 hflex1 -->
+<!-- cspell:ignore noaccess definefont currentfile closefile misparse misparsing subsetting -->
 This document describes the unit-level verification strategy for the `TrueTypeFont` class and its
 supporting internal helpers `SfntContainer`, `CmapTable`, `GlyfLocaReader`, `CffTable`,
 `CffCharstringInterpreter`, `HmtxHheaReader`, and `KernTable`.
@@ -255,10 +256,13 @@ rejected before any glyph bytes are read.
 
 **Tests**: `HmtxHheaReader_Parse_ExposesMetrics`,
 `HmtxHheaReader_GetAdvanceWidth_TailGlyph_ReusesLastEntry`,
+`HmtxHheaReader_Parse_MissingTrailingLsbTail_ParsesSuccessfully`,
 `TrueTypeFont_Load_EndToEnd_GlyphIndexOutlineAdvanceAndKerning`
 
 Verifies direct `hhea` / `hmtx` parsing, the last-entry tail reuse rule, and the same behavior
-through the public `TrueTypeFont` API.
+through the public `TrueTypeFont` API. Also verifies that an `hmtx` table omitting its trailing
+left-side-bearing-only tail entirely (a shape produced by some real-world font subsetting tools)
+still parses successfully, since that tail is never read.
 
 ##### CanvasNet-Fonts-TrueTypeFont-AdvanceWidthValidation: `GetAdvanceWidth` Rejects Out-of-Range Glyph Indices
 
@@ -662,6 +666,7 @@ without throwing.
 `Type1Table_Parse_NegativeLength_ThrowsInvalidDataException`,
 `Type1Table_Parse_LengthsExceedFileBounds_ThrowsInvalidDataException`,
 `Type1Table_Parse_EmptyCharStrings_ThrowsInvalidDataException`,
+`Type1Table_Parse_TrailingBoilerplateAfterCharStringsEnd_DoesNotMisparse`,
 `Type1CharstringInterpreter_EmptyCharstring_ProducesEmptyPathAndZeroWidth`,
 `Type1CharstringInterpreter_Hsbw_CapturesWidthAndSideBearing`,
 `Type1CharstringInterpreter_Sbw_CapturesWidthAndBothSideBearings`,
@@ -694,7 +699,10 @@ custom-`lenIV` handling, and its fail-closed structural-malformation paths - and
 `Type1CharstringInterpreter`'s full opcode set in isolation, including a geometry-asserting
 end-to-end flex test that checks actual `Path` point data (not merely the absence of an
 exception), a hint-replacement pass-through test, `seac` rejection, and subroutine call-depth
-bounding.
+bounding. Also verifies that the `/CharStrings` scanner correctly stops at that dictionary's own
+matching closing `end` keyword rather than misparsing trailing font-closing PostScript
+boilerplate (`readonly put`/`noaccess put`/`definefont`/`currentfile closefile`) that some
+real-world Type 1 producers emit immediately afterward as further glyph entries.
 
 ##### CanvasNet-Fonts-TrueTypeFont-LoadType1Outlines: Standalone `.pfb`/`.pfa` Type 1 Files Auto-Detect Through `Load`
 

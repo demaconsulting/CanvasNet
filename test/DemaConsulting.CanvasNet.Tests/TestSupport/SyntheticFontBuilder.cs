@@ -1,6 +1,7 @@
 // cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO ttcf
+// cspell:ignore noaccess definefont currentfile closefile nnoaccess
 using DemaConsulting.CanvasNet.Fonts;
 
 namespace DemaConsulting.CanvasNet.Tests.TestSupport;
@@ -1150,13 +1151,22 @@ internal sealed class SyntheticFontBuilder
     ///     The (arbitrary, font-specific) "define" procedure name token to emit immediately after
     ///     each entry's raw bytes.
     /// </param>
+    /// <param name="trailer">
+    ///     Optional raw ASCII text to append immediately after the private dictionary's closing
+    ///     <c>end\nend\n</c> boilerplate, before <c>eexec</c>-encryption - defaults to empty, so
+    ///     every existing call site is unaffected. Lets a test fixture reproduce the trailing
+    ///     font-closing PostScript boilerplate (for example <c>readonly put\nnoaccess put\ndup
+    ///     /FontName get exch definefont pop\nmark currentfile closefile\n</c>) that some
+    ///     real-world Type 1 producers emit after the <c>/CharStrings</c> dictionary closes.
+    /// </param>
     /// <returns>The assembled font program bytes, and its cleartext/encrypted region lengths.</returns>
     public static (byte[] FontFileBytes, int Length1, int Length2) Type1(
         IReadOnlyList<(string Name, byte[] Charstring)> charStrings,
         IReadOnlyList<byte[]>? subrs = null,
         int lenIv = 4,
         string readToken = "RD",
-        string defToken = "ND")
+        string defToken = "ND",
+        string trailer = "")
     {
         subrs ??= [];
 
@@ -1194,6 +1204,10 @@ internal sealed class SyntheticFontBuilder
         }
 
         AppendAscii("end\nend\n");
+        if (trailer.Length > 0)
+        {
+            AppendAscii(trailer);
+        }
 
         // The eexec cipher's own leading discard count is fixed at 4 bytes, regardless of the
         // font's declared '/lenIV' (which only governs individual charstring/subroutine entries).

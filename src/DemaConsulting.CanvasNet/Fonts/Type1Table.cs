@@ -1,4 +1,5 @@
 // cspell:ignore eexec lenIV charstring charstrings subr subrs notdef hsbw sbw
+// cspell:ignore noaccess definefont currentfile closefile
 using System.Globalization;
 using System.Text;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
@@ -34,7 +35,12 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///     already fully determined by the declared length. <c>/Subrs</c> and <c>/CharStrings</c>
 ///     themselves are not aliased - they are the private dictionary's own fixed key names - so
 ///     locating those two keywords directly is reliable regardless of which font produced the
-///     file.
+///     file. The <c>/CharStrings</c> scan (see <see cref="ScanCharStrings"/>) is bounded by that
+///     dictionary's own matching closing <c>end</c> keyword - tracked via <c>begin</c>/<c>end</c>
+///     nesting depth - rather than by the end of the decrypted plaintext, so trailing Type 1
+///     font-closing PostScript boilerplate some real-world producers emit immediately afterward
+///     (for example <c>end end readonly put noaccess put dup /FontName get exch definefont pop
+///     mark currentfile closefile</c>) is never misinterpreted as further glyph entries.
 ///     </para>
 ///     <para>
 ///     Each entry's raw bytes are then individually decrypted
@@ -319,13 +325,21 @@ internal sealed class Type1Table : IGlyphOutlineSource
 
     /// <summary>
     ///     Scans the <c>/CharStrings</c> region (from just after the <c>/CharStrings</c> keyword
-    ///     through the end of the decrypted plaintext) for <c>/&lt;name&gt; &lt;length&gt;
+    ///     through that dictionary's own matching closing <c>end</c> keyword - tracked via
+    ///     <c>begin</c>/<c>end</c> nesting depth, starting at the <c>begin</c> that opens the
+    ///     <c>/CharStrings n dict dup begin</c> construct) for <c>/&lt;name&gt; &lt;length&gt;
     ///     &lt;token&gt; &lt;raw bytes&gt;</c> entries, agnostic to the literal spelling of
-    ///     <c>&lt;token&gt;</c>.
+    ///     <c>&lt;token&gt;</c>. Bounding the scan at the dictionary's own closing <c>end</c>
+    ///     (rather than scanning unconditionally to <paramref name="end"/>) means trailing Type 1
+    ///     font-closing PostScript boilerplate that some real-world producers emit immediately
+    ///     after the <c>/CharStrings</c> dictionary closes (for example <c>end end readonly put
+    ///     noaccess put dup /FontName get exch definefont pop mark currentfile closefile</c>) is
+    ///     never misinterpreted as further glyph entries.
     /// </summary>
     private static void ScanCharStrings(string text, int start, int end, List<(string Name, int Offset, int Length)> result)
     {
         var pos = start;
+        var depth = 0;
         while (pos < end)
         {
             if (!NextToken(text, ref pos, end, out var tokenStart, out var tokenEnd))
@@ -335,6 +349,25 @@ internal sealed class Type1Table : IGlyphOutlineSource
 
             if (text[tokenStart] != '/')
             {
+                var tokenLength = tokenEnd - tokenStart;
+                if (tokenLength == 5 && text.AsSpan(tokenStart, 5).SequenceEqual("begin"))
+                {
+                    depth++;
+                }
+                else if (tokenLength == 3 && text[tokenStart] == 'e' && text[tokenStart + 1] == 'n' && text[tokenStart + 2] == 'd')
+                {
+                    if (depth == 0)
+                    {
+                        break; // an 'end' with no matching 'begin' seen yet - stop defensively
+                    }
+
+                    depth--;
+                    if (depth == 0)
+                    {
+                        break; // the 'end' matching this dictionary's own opening 'begin'
+                    }
+                }
+
                 continue; // not a glyph-name token - skip unrelated tokens between entries
             }
 

@@ -115,4 +115,25 @@ public class HmtxHheaReaderTests
         // Act/Assert: parsing the truncated hmtx table throws
         Assert.Throws<InvalidDataException>(() => Parse(hhea, hmtx, 2));
     }
+
+    /// <summary>
+    ///     Proves that HmtxHheaReader Parse MissingTrailingLsbTail ParsesSuccessfully.
+    /// </summary>
+    [Fact]
+    public void HmtxHheaReader_Parse_MissingTrailingLsbTail_ParsesSuccessfully()
+    {
+        // Arrange: build an hmtx table with only the explicit long-metrics entries - numGlyphs is
+        // far larger than numOfLongHorMetrics, but zero trailing left-side-bearing-only tail
+        // bytes are present (a shape produced by some real-world font subsetting tools, which the
+        // reader tolerates since it never reads that tail anyway)
+        var hhea = SyntheticFontBuilder.Hhea(2048, -512, 100, 2);
+        var hmtx = SyntheticFontBuilder.Hmtx([600, 700]); // tailLsbCount defaults to 0
+
+        // Act: parse the combined hhea/hmtx tables, declaring far more glyphs than hmtx covers
+        var reader = Parse(hhea, hmtx, 50);
+
+        // Assert: parsing succeeds, and glyphs beyond the last explicit entry reuse it
+        Assert.Equal(700, reader.GetAdvanceWidth(1));
+        Assert.Equal(700, reader.GetAdvanceWidth(49));
+    }
 }

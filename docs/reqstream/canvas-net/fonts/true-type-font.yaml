@@ -7,6 +7,7 @@
 # cspell:ignore charsets ISOAdobe isoadobe
 # cspell:ignore bchar achar Agrave
 # cspell:ignore hflex flex1 hflex1
+# cspell:ignore misparse
 
 sections:
   - title: CanvasNet Requirements
@@ -340,6 +341,7 @@ sections:
                 tests:
                   - HmtxHheaReader_Parse_ExposesMetrics
                   - HmtxHheaReader_GetAdvanceWidth_TailGlyph_ReusesLastEntry
+                  - HmtxHheaReader_Parse_MissingTrailingLsbTail_ParsesSuccessfully
                   - TrueTypeFont_Load_EndToEnd_GlyphIndexOutlineAdvanceAndKerning
 
               - id: CanvasNet-Fonts-TrueTypeFont-AdvanceWidthValidation
@@ -958,6 +960,7 @@ sections:
                   - Type1Table_Parse_NegativeLength_ThrowsInvalidDataException
                   - Type1Table_Parse_LengthsExceedFileBounds_ThrowsInvalidDataException
                   - Type1Table_Parse_EmptyCharStrings_ThrowsInvalidDataException
+                  - Type1Table_Parse_TrailingBoilerplateAfterCharStringsEnd_DoesNotMisparse
                   - Type1CharstringInterpreter_EmptyCharstring_ProducesEmptyPathAndZeroWidth
                   - Type1CharstringInterpreter_Hsbw_CapturesWidthAndSideBearing
                   - Type1CharstringInterpreter_Sbw_CapturesWidthAndBothSideBearings

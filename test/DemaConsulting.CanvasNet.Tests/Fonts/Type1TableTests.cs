@@ -1,5 +1,5 @@
 // cspell:ignore charstring charstrings subr subrs notdef hsbw rlineto closepath endchar
-// cspell:ignore lenIV rmoveto
+// cspell:ignore lenIV rmoveto noaccess definefont currentfile closefile misparse nnoaccess
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
@@ -293,5 +293,32 @@ public class Type1TableTests
     {
         var program = SyntheticFontBuilder.Type1([]);
         Assert.Throws<InvalidDataException>(() => Parse(program));
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table Parse TrailingBoilerplateAfterCharStringsEnd DoesNotMisparse.
+    /// </summary>
+    /// <remarks>
+    ///     Real-world Type 1 fonts (this exact idiom was found in a pdfLaTeX Computer Modern
+    ///     font) commonly follow the <c>/CharStrings</c> dictionary's own closing <c>end</c> with
+    ///     standard font-closing PostScript boilerplate in the very same decrypted plaintext
+    ///     (<c>end readonly put noaccess put dup /FontName get exch definefont pop mark
+    ///     currentfile closefile</c>). An unbounded scanner mistakes the boilerplate's
+    ///     <c>/FontName</c> token for a further glyph-name entry, then fails trying to parse its
+    ///     next token (<c>get</c>) as an integer length. <see cref="Type1Table"/>'s scanner must
+    ///     stop at the dictionary's own matching closing <c>end</c> instead.
+    /// </remarks>
+    [Fact]
+    public void Type1Table_Parse_TrailingBoilerplateAfterCharStringsEnd_DoesNotMisparse()
+    {
+        var program = SyntheticFontBuilder.Type1(
+            [(".notdef", SpaceCharstring()), ("space", SpaceCharstring()), ("A", SimpleCharstring())],
+            trailer: "readonly put\nnoaccess put\ndup /FontName get exch definefont pop\nmark currentfile closefile\n");
+
+        var table = Parse(program);
+
+        Assert.Equal(3, table.GlyphCount);
+        Assert.Empty(table.GetGlyphOutline(1).Subpaths); // space - no contour
+        Assert.Single(table.GetGlyphOutline(2).Subpaths); // A - one contour
     }
 }

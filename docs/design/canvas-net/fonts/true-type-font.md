@@ -12,6 +12,7 @@
 <!-- cspell:ignore charsets ISOAdobe isoadobe -->
 <!-- cspell:ignore bchar achar adx ady Agrave -->
 <!-- cspell:ignore hflex flex1 hflex1 -->
+<!-- cspell:ignore noaccess definefont currentfile closefile -->
 
 The `TrueTypeFont` class is the sole public software unit in the `Fonts` subsystem. It provides
 hand-rolled loading and querying of glyph-based TrueType SFNT fonts, CFF/OpenType
@@ -135,7 +136,10 @@ invalid and throw `InvalidDataException` rather than returning `false`.
 | Remaining tail entries              | 2 bytes each | `leftSideBearing` only; reuse the last advance width |
 
 `HmtxHheaReader` stores only the explicit advance-width array because `TrueTypeFont` exposes
-advance widths, not left-side bearings.
+advance widths, not left-side bearings. The trailing tail region is therefore optional: because
+the reader never reads any of its bytes, a real-world font whose `hmtx` table omits that tail
+entirely (rather than padding it out to the full glyph count) still parses successfully - only
+the explicit `numOfLongHorMetrics` entries are required to be present.
 
 ##### `loca` Table Layout
 
@@ -316,7 +320,13 @@ with `Type1CharstringDecryption` (charstring key `R0 = 4330`) and discarding tha
 `lenIV` leading bytes (default `4`, overridable by an explicit `/lenIV` entry appearing before
 `/CharStrings` in the decrypted region). A glyph named `.notdef` is always forced to glyph index
 `0` regardless of its position in the `/CharStrings` dictionary, matching `glyf`/CFF-flavored
-font convention; every other glyph is indexed in first-seen dictionary order. `GetAdvanceWidth`
+font convention; every other glyph is indexed in first-seen dictionary order. The `/CharStrings`
+scan is bounded by that dictionary's own matching closing `end` keyword - tracked via `begin`/
+`end` nesting depth, rather than scanning unconditionally to the end of the decrypted plaintext -
+so trailing font-closing PostScript boilerplate some real-world producers emit immediately after
+the dictionary closes (for example `end end readonly put noaccess put dup /FontName get exch
+definefont pop mark currentfile closefile`) is never misinterpreted as further glyph entries.
+`GetAdvanceWidth`
 is derived without fully decoding a glyph's outline, by peeking only as far as that glyph's own
 leading `hsbw`/`sbw` operator and its width operand.
 
