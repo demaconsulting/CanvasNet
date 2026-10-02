@@ -202,12 +202,19 @@ jobs:
           end
           /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
 
+      # Packages are written to a single flat folder rather than each project's
+      # bin/Release. actions/upload-artifact roots its archive at the common ancestor of
+      # the paths it matches, so per-project output would preserve
+      # 'src/<project>/bin/Release/' inside the artifact and the downloaded folder would
+      # not be a usable local NuGet feed: 'dotnet tool install --add-source packages'
+      # finds no package at that path, which is how the integration tests first failed.
       - name: Create Library Package
         run: >
           dotnet pack
           --no-build
           --no-restore
           --configuration Release
+          --output packages
           --property:PackageVersion=${{ inputs.version }}
 
       # === UPLOAD ARTIFACTS ===
@@ -220,17 +227,13 @@ jobs:
           name: artifacts-build-${{ matrix.os }}
           path: artifacts/
 
+      # Packages are staged flat by the pack step above, so the artifact is a usable
+      # local NuGet feed the integration tests can install from directly.
       - name: Upload packages
         uses: actions/upload-artifact@v7
         with:
           name: packages-${{ matrix.os }}
-          path: |
-            src/DemaConsulting.CanvasNet/bin/Release/*.nupkg
-            src/DemaConsulting.CanvasNet/bin/Release/*.snupkg
-            src/DemaConsulting.CanvasNet.Svg/bin/Release/*.nupkg
-            src/DemaConsulting.CanvasNet.Svg/bin/Release/*.snupkg
-            src/DemaConsulting.CanvasNet.Pdf/bin/Release/*.nupkg
-            src/DemaConsulting.CanvasNet.Pdf/bin/Release/*.snupkg
+          path: packages/
 
   # Runs CodeQL security and quality analysis, gathering results to include
   # in the code quality report.
