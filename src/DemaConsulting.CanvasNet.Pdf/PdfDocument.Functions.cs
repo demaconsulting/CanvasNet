@@ -446,9 +446,10 @@ public sealed partial class PdfDocument
     /// </param>
     /// <returns>The resolved sampled function.</returns>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the resolved value is not a stream, or when a required entry
+    ///     Thrown when the resolved value is not a stream, when a required entry
     ///     (<c>/Domain</c>, <c>/Range</c>, <c>/Size</c>, <c>/BitsPerSample</c>) is missing or
-    ///     malformed.
+    ///     malformed, or when <c>/Size</c>'s element is not a finite number (defense-in-depth: a
+    ///     NaN/Infinity value would otherwise reach an unchecked numeric cast).
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when <c>/FunctionType</c> is not <c>0</c> (feature
@@ -492,6 +493,15 @@ public sealed partial class PdfDocument
         if (sizeArray.Length != 1)
         {
             throw new InvalidDataException("/Size must have exactly 1 element for a 1-input function.");
+        }
+
+        // Reject a non-finite /Size element before casting it to int - NaN/Infinity cast to int
+        // is an unchecked, unspecified-magnitude conversion in C# (not an exception), so a
+        // crafted function dictionary could otherwise smuggle a garbage `size` value past the
+        // `size < 1` check below and corrupt downstream sample-index arithmetic.
+        if (!double.IsFinite(sizeArray[0]))
+        {
+            throw new InvalidDataException("/Size must be a finite number.");
         }
 
         var size = (int)sizeArray[0];

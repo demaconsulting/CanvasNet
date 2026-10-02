@@ -44,8 +44,10 @@ public readonly record struct FontNameInfo(
 /// </summary>
 /// <remarks>
 ///     <para>
-///     <c>TrueTypeFont</c> is the sole public unit of the <see cref="Fonts"/> namespace; it fronts
-///     several internal, independently-parsed helpers (<see cref="SfntContainer"/>,
+///     <c>TrueTypeFont</c> is one of two public units in the <see cref="Fonts"/> namespace
+///     (alongside <see cref="SystemFontCatalog"/>, which locates installed system font files
+///     rather than parsing font data); it fronts several internal, independently-parsed helpers
+///     (<see cref="SfntContainer"/>,
 ///     <see cref="CmapTable"/>, <see cref="GlyfLocaReader"/>, <see cref="CffTable"/>,
 ///     <see cref="CffCharstringInterpreter"/>, <see cref="HmtxHheaReader"/>, <see cref="KernTable"/>)
 ///     exactly as <see cref="Codecs.PngCodec"/> internally parses chunks as one unit, and as

@@ -158,15 +158,31 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
+    ///     The maximum per-row byte size <see cref="ApplyPredictor"/> allows its
+    ///     <c>/Colors</c>/<c>/BitsPerComponent</c>/<c>/Columns</c>-derived row stride to reach,
+    ///     computed in <see langword="long"/> arithmetic before this cap is enforced so an
+    ///     attacker-controlled <c>/Columns</c> or <c>/Colors</c> cannot overflow the plain
+    ///     <see langword="int"/> arithmetic <see cref="ApplyTiffPredictor"/>/
+    ///     <see cref="ApplyPngPredictor"/> perform afterward. <c>int.MaxValue / 2</c> is far
+    ///     larger than any legitimate PDF row could need while still leaving headroom for the
+    ///     <c>+ 1</c> PNG filter-type-byte stride adjustment to stay within <see langword="int"/>
+    ///     range, matching the buffer-size caps <c>8d4bc3f</c> established elsewhere in this file.
+    /// </summary>
+    private const long PredictorMaxRowBytes = int.MaxValue / 2;
+
+    /// <summary>
     ///     Reverses a <c>/DecodeParms</c>-declared PNG (<c>/Predictor</c> <c>10</c>-<c>15</c>) or
     ///     TIFF (<c>/Predictor 2</c>) predictor against already-<c>FlateDecode</c>-decompressed
     ///     bytes.
     /// </summary>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <c>/Predictor</c> is not <c>2</c> or in <c>10..15</c>, or when
+    ///     Thrown when <c>/Predictor</c> is not <c>2</c> or in <c>10..15</c>, when
     ///     <c>/Colors</c>, <c>/BitsPerComponent</c>, or <c>/Columns</c> are not legal PDF values
     ///     (defense-in-depth: a malformed/negative or zero value here could otherwise divide by
-    ///     zero or underflow downstream row/stride computations).
+    ///     zero or underflow downstream row/stride computations), or when the resolved row size
+    ///     exceeds <see cref="PredictorMaxRowBytes"/> (defense-in-depth: an adversarially large
+    ///     <c>/Colors</c> or <c>/Columns</c> could otherwise overflow the downstream
+    ///     <see langword="int"/> row/stride computations).
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when a TIFF predictor (<c>/Predictor 2</c>) is declared with a
@@ -192,6 +208,19 @@ public sealed partial class PdfDocument
         if (columns < 1)
         {
             throw new InvalidDataException("Predictor /Columns must be a positive integer.");
+        }
+
+        // Compute the row stride in `long` arithmetic - `/Colors` and `/Columns` are each only
+        // bounded below (positive) above, so their product with `/BitsPerComponent` could
+        // otherwise overflow plain `int` arithmetic and wrap around to a small or negative
+        // value, defeating the positivity checks above and corrupting the downstream
+        // allocation/stride math in ApplyTiffPredictor/ApplyPngPredictor.
+        var rowBytesLong = ((long)colors * bitsPerComponent * columns + 7) / 8;
+        if (rowBytesLong > PredictorMaxRowBytes)
+        {
+            throw new InvalidDataException(
+                $"Predictor row size of {rowBytesLong} bytes exceeds the maximum supported size of " +
+                $"{PredictorMaxRowBytes} bytes.");
         }
 
         if (predictor == 2)

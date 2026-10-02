@@ -3085,6 +3085,63 @@ public class PdfDocumentTests
         Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 
+    /// <summary>
+    ///     Proves that a <c>/DecodeParms /Columns 0</c> predictor declaration throws
+    ///     <see cref="InvalidDataException"/> (the same "must be a positive integer" guard
+    ///     already applied to <c>/Colors</c>, exercised here for <c>/Columns</c>'s own
+    ///     independent check).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Images_FlateDecodeTiffPredictor_ZeroColumns_ThrowsInvalidDataException()
+    {
+        // Arrange: /Columns 0 is not a legal PDF /DecodeParms value (must be a positive integer).
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 "
+            + "/Filter /FlateDecode /DecodeParms << /Predictor 2 /Colors 1 /BitsPerComponent 8 /Columns 0 >>",
+            ZlibCompress([10, 190, 10, 190]));
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>/DecodeParms /Columns</c> declaration so large that
+    ///     <c>/Colors * /BitsPerComponent * /Columns</c> would overflow plain <c>int32</c>
+    ///     arithmetic (wrapping the computed row stride to a small or negative value and
+    ///     defeating the positivity checks already applied to <c>/Colors</c>/<c>/Columns</c>
+    ///     themselves) throws <see cref="InvalidDataException"/> instead of corrupting the
+    ///     downstream TIFF/PNG predictor row/stride allocation.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Images_FlateDecodeTiffPredictor_ColumnsOverflowsRowStride_ThrowsInvalidDataException()
+    {
+        // Arrange: /Colors 1, /BitsPerComponent 16, /Columns int.MaxValue - the row-stride product
+        // (1 * 16 * 2147483647 + 7) / 8 overflows int32 but is still rejected safely via the
+        // `long`-arithmetic bounds-check added for this case.
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 "
+            + "/Filter /FlateDecode /DecodeParms << /Predictor 2 /Colors 1 /BitsPerComponent 16 /Columns 2147483647 >>",
+            ZlibCompress([10, 190, 10, 190]));
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+        Assert.Contains("exceeds the maximum supported size", exception.Message, StringComparison.Ordinal);
+    }
+
     /// <summary>Proves that an image XObject declaring an unsupported filter throws <see cref="UnsupportedImageFeatureException"/>.</summary>
     [Fact]
     public void PdfDocument_Images_UnsupportedFilter_ThrowsUnsupportedImageFeatureException()
@@ -7789,6 +7846,29 @@ public class PdfDocumentTests
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(() => function.Evaluate(1));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>/Size</c> element too large for a <see langword="double"/> to
+    ///     represent (a run of 310 <c>9</c> digits, which overflows to
+    ///     <see cref="double.PositiveInfinity"/> during PDF numeric-token parsing - PDF's own
+    ///     numeric syntax has no exponent form, so this is the only way a non-finite value can
+    ///     reach <c>/Size</c> from PDF text) throws <see cref="InvalidDataException"/> instead of
+    ///     reaching the unchecked <c>(int)</c> cast that previously followed.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_SizeElementNonFinite_ThrowsInvalidDataException()
+    {
+        // Arrange: a 310-digit literal exceeds double.MaxValue (~1.8e308) and parses to
+        // positive infinity.
+        var oversizedDigits = new string('9', 310);
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(
+            () => ResolveTestFunction(
+                $"/FunctionType 0 /Domain [0 1] /Range [0 255] /Size [{oversizedDigits}] /BitsPerSample 8",
+                []));
+        Assert.Contains("/Size", exception.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

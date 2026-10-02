@@ -15,8 +15,10 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     ordered list of <see cref="GradientStop"/> colors and a <see cref="GradientSpread"/>
 ///     mode controlling how the gradient repeats beyond its defined extent - and
 ///     <see cref="TilePaint"/>, which repeats a caller-supplied
-///     <see cref="DemaConsulting.CanvasNet.Canvas.Surface"/> tile according to a
-///     <see cref="GradientSpread"/>-style wrap mode, are both integrated directly into
+///     <see cref="DemaConsulting.CanvasNet.Canvas.Surface"/> tile by unconditionally wrapping
+///     pattern-space coordinates modulo its <see cref="TilePaint.XStep"/>/
+///     <see cref="TilePaint.YStep"/> pitch - there is no caller-selectable spread mode analogous
+///     to <see cref="GradientSpread"/>; tiling always repeats - are both integrated directly into
 ///     <see cref="PathFiller"/> as alternatives to a single solid color. This namespace consumes
 ///     both
 ///     <see cref="DemaConsulting.CanvasNet.Geometry"/> (for <c>Path</c>, curve flattening, and
