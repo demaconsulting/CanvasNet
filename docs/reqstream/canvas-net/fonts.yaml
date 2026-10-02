@@ -130,8 +130,13 @@ sections:
               - CanvasNet-Fonts-TrueTypeFont-CffSubroutines
               - CanvasNet-Fonts-TrueTypeFont-CffEndChar
               - CanvasNet-Fonts-TrueTypeFont-CffUnsupportedOperatorRejection
+              - CanvasNet-Fonts-TrueTypeFont-CffSeacComposition
+              - CanvasNet-Fonts-TrueTypeFont-CffCharsetResolution
+              - CanvasNet-Fonts-TrueTypeFont-CffWidthResolution
+              - CanvasNet-Fonts-TrueTypeFont-LoadType1C
             tests:
               - TrueTypeFont_RealSourceSans3OtfFont_RendersCffGlyphOutlineAsVisibleInk
+              - TrueTypeFont_LoadType1C_WellFormedCff_ExposesGlyphsAndMetrics
 
           - id: CanvasNet-Fonts-TtcSupport
             title: >-
@@ -154,7 +159,7 @@ sections:
               - CanvasNet-Fonts-TrueTypeFont-RejectMalformedTtcHeader
             tests:
               - TrueTypeFont_RealTtcContainer_FaceOne_RendersCffGlyphOutlineAsVisibleInk
-              - TrueTypeFont_RealTtcContainer_FaceZero_RendersGlyfGlyphOutlineAsVisibleInk
+              - CanvasNet_SystemIntegration_LoadFaceFromTtcContainerByIndex_ReturnsExpectedFace
 
           - id: CanvasNet-Fonts-NameStyleMetadata
             title: >-

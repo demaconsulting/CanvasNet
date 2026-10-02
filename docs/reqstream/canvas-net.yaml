@@ -1138,6 +1138,14 @@ sections:
           - PathStroker_Stroke_NullStrokeStyle_ThrowsArgumentNullException
           - PathStroker_Stroke_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
 
+      # NOTE (requirements-traceability review): CanvasNet-Lib-DrawingGradientPaint,
+      # CanvasNet-Lib-DrawingGradientPaintValidation, CanvasNet-Lib-DrawingTilePaint, and
+      # CanvasNet-Lib-DrawingTilePaintValidation below currently link only to unit tests, with no
+      # CanvasNet-level system integration test evidence of their own (CanvasNetPdf's tiling-
+      # pattern-fill and CanvasNetSvg's pattern-rendering system tests exercise this Drawing
+      # subsystem functionality, but as a different system's own test evidence, not CanvasNet's).
+      # Adding a dedicated CanvasNet-level system integration test is out of scope for this
+      # documentation-only traceability pass; this is a known, deliberately-left-open gap.
       - id: CanvasNet-Lib-DrawingGradientPaint
         title: >-
           The library shall fill a closed Path with a linear or radial gradient color ramp, varying

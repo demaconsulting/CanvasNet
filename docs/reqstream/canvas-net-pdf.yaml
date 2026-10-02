@@ -125,15 +125,32 @@ sections:
       - id: CanvasNetPdf-EncryptDetection
         title: >-
           The library shall detect an encrypted document (an /Encrypt key present in the trailer)
-          and reject it with UnsupportedImageFeatureException rather than silently mis-parsing its
-          (still-encrypted) bytes as plaintext content.
+          and, for a supported encryption handler/filter shape (/Filter /Standard RC4 /V 1 or 2,
+          AES-128 /V 4/CFM AESV2, or AES-256 /V 5/R 5/CFM AESV3) with a correct (or, when none is
+          required, absent) password, transparently decrypt every indirect object's strings and
+          every stream's raw bytes before any other parsing logic observes them, so the document
+          opens and renders exactly as its plaintext equivalent would; it shall instead reject the
+          document with UnsupportedImageFeatureException (its own distinguishable feature token)
+          when the encryption handler/filter shape itself is unsupported (for example a non-
+          /Standard security handler, AES-256 /R 6 "hardened hash" key derivation, or a crypt
+          filter other than the standard /StdCF), or when a password is required but absent or
+          does not authenticate as either the user or owner password, rather than silently
+          mis-parsing still-encrypted bytes as plaintext content.
         tags: [system]
         justification: |
-          Decrypting a PDF is out of scope for this library; silently treating encrypted bytes as
-          plaintext would produce garbage results indistinguishable from a real (but malformed)
-          document, so callers need a clear, well-formed-but-unsupported signal instead.
+          Real-world encrypted PDFs (most commonly RC4/AES-128/AES-256 with an empty or known
+          user password) must actually open and render, not merely be detected and rejected;
+          however, decrypting an unsupported handler/filter shape, or a document whose required
+          password is missing or wrong, remains out of scope, and silently treating still-
+          encrypted bytes as plaintext in either case would produce garbage results
+          indistinguishable from a real (but malformed) document, so callers need a clear,
+          well-formed-but-unsupported (or incorrect-password) signal instead.
         children:
           - CanvasNetPdf-PdfDocument-EncryptDetection
+          - CanvasNetPdf-PdfDocument-EncryptionRc4
+          - CanvasNetPdf-PdfDocument-EncryptionAesV2
+          - CanvasNetPdf-PdfDocument-EncryptionAesV3R5
+          - CanvasNetPdf-PdfDocument-EncryptionPasswordAuthentication
         tests:
           - CanvasNetPdf_SystemIntegration_PdfEncryptDetection_EncryptedTrailerThrowsUnsupportedImageFeatureException
 
@@ -180,6 +197,9 @@ sections:
           - CanvasNetPdf-PdfDocument-DeviceColorOperators
           - CanvasNetPdf-PdfDocument-ColorSpaceOperators
           - CanvasNetPdf-PdfDocument-FunctionType0
+          - CanvasNetPdf-PdfDocument-FunctionType2And3
+          - CanvasNetPdf-PdfDocument-IccBasedColorSpace
+          - CanvasNetPdf-PdfDocument-IndexedColorSpace
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels
 
@@ -198,6 +218,7 @@ sections:
           - CanvasNetPdf-PdfDocument-LzwDecodeFilter
           - CanvasNetPdf-PdfDocument-AsciiDecodeFilters
           - CanvasNetPdf-PdfDocument-RunLengthDecodeFilter
+          - CanvasNetPdf-PdfDocument-CcittFaxDecodeFilter
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_LzwDecodeContentStream_PaintsExpectedPixels
           - CanvasNetPdf_SystemIntegration_PdfRender_Ascii85DecodeContentStream_PaintsExpectedPixels
@@ -215,6 +236,25 @@ sections:
           position/size in the rendered output, not merely be silently skipped.
         children:
           - CanvasNetPdf-PdfDocument-ImageXObjects
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels
+
+      - id: CanvasNetPdf-FormXObjects
+        title: >-
+          The library shall execute a /Subtype /Form XObject placed via the Do operator as a
+          nested content stream, concatenating its optional /Matrix into the current
+          transformation matrix and using its own /Resources when declared (else the invoking
+          content stream's /Resources), while leaving the invoking content stream's graphics
+          state and /Resources unaffected once the Form returns, and shall reject excessive
+          nested Form XObject recursion rather than overflow the call stack.
+        tags: [system]
+        justification: |
+          Form XObjects are a common PDF construct for reusable nested graphics content; callers
+          need that content actually rendered at its document-correct, matrix-adjusted position
+          without corrupting the invoking content stream's own graphics state, and a
+          pathological (self-referencing) Form must fail closed deterministically.
+        children:
+          - CanvasNetPdf-PdfDocument-FormXObjects
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels
 
@@ -247,11 +287,17 @@ sections:
           - CanvasNetPdf-PdfDocument-TextPositioning
           - CanvasNetPdf-PdfDocument-TextShowing
           - CanvasNetPdf-PdfDocument-TextErrorHandling
+          - CanvasNetPdf-PdfDocument-Type1FontResolution
+          - CanvasNetPdf-PdfDocument-Type1CFontResolution
+          - CanvasNetPdf-PdfDocument-Type3FontResolution
+          - CanvasNetPdf-PdfDocument-Type3GlyphPainting
+          - CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_EmbeddedTrueTypeFontText_PaintsGlyphStrokesNotCounters
           - CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk
           - CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_PaintsVisibleGlyphInk
           - CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException
+          - CanvasNetPdf_SystemIntegration_RenderEmbeddedType1Font_PaintsExpectedGlyphInk
 
       - id: CanvasNetPdf-CompositeFontTextRendering
         title: >-
@@ -276,3 +322,25 @@ sections:
           - CanvasNetPdf-PdfDocument-ToUnicodeCMap
         tests:
           - CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk
+
+      - id: CanvasNetPdf-PatternFills
+        title: >-
+          The library shall recognize /Pattern as a selectable cs/CS color space and fill/stroke
+          a path using the named pattern resolved from the current page's /Resources/Pattern
+          dictionary: a /PatternType 2 (shading) pattern sampling its /Function to paint an
+          axial (/ShadingType 2) or radial (/ShadingType 3) color gradient, and a /PatternType 1
+          (tiling) pattern rendering its own content stream once into an offscreen tile and
+          repeating it (colored or recolored per its /PaintType) across the painted region.
+        tags: [system]
+        justification: |
+          Real-world PDFs commonly use the /Pattern color space to render smooth-color gradient
+          backgrounds/vector art (shading patterns) and repeating textures/hatching/decorative
+          backgrounds (tiling patterns); without this support, every such fill previously failed
+          closed and the document could not be rendered at all.
+        children:
+          - CanvasNetPdf-PdfDocument-PatternColorSpace
+          - CanvasNetPdf-PdfDocument-ShadingPatternFill
+          - CanvasNetPdf-PdfDocument-TilingPatternFill
+        tests:
+          - CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors
+          - CanvasNetPdf_SystemIntegration_ColoredTilingPatternFill_PaintsRepeatingTileColors

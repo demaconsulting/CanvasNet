@@ -461,20 +461,26 @@ sections:
               DeviceRGB/DeviceCMYK directly or via the current page's /Resources/ColorSpace
               dictionary and resetting color to opaque black, and the sc/SC/scn/SCN operators,
               setting color from the current color space's required component count; any other
-              resolved color space (Separation/DeviceN/CalGray/Lab, an undeclared name, or
-              a scn/SCN /Pattern name) shall throw UnsupportedImageFeatureException rather than
-              being silently mis-rendered.
+              resolved color space (Separation/DeviceN/CalGray/Lab, or an undeclared name) shall
+              throw UnsupportedImageFeatureException rather than being silently mis-rendered; a
+              scn/SCN operand against a /Pattern color space is instead resolved per
+              CanvasNetPdf-PdfDocument-PatternColorSpace (see also
+              CanvasNetPdf-PdfDocument-ShadingPatternFill and
+              CanvasNetPdf-PdfDocument-TilingPatternFill for how the resolved pattern is
+              ultimately painted).
             justification: |
-              A content stream that selects an unsupported color space or a pattern color must be
-              rejected explicitly (fail closed), not silently mis-rendered with the wrong number
-              of components or an incorrect color, so a caller can detect the unsupported feature
-              rather than receiving a plausible-looking but wrong image.
+              A content stream that selects an unsupported color space must be rejected
+              explicitly (fail closed), not silently mis-rendered with the wrong number of
+              components or an incorrect color, so a caller can detect the unsupported feature
+              rather than receiving a plausible-looking but wrong image; a /Pattern color space
+              selection, by contrast, is now a fully supported fill/stroke source (shading and
+              tiling pattern fills), not a fail-closed case.
             tests:
               - PdfDocument_Color_SetColorSpaceFill_DeviceNames_ResetsColorToBlack
               - PdfDocument_Color_SetColorSpaceStroke_DeviceNames_ResetsColorToBlack
               - PdfDocument_Color_SetColorFillUsingCurrentColorSpace_Sc_PaintsExpectedColor
               - PdfDocument_Color_SetColorStrokeUsingCurrentColorSpace_SC_PaintsExpectedColor
-              - PdfDocument_Color_ScnWithPatternName_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Color_Scn_ColoredPatternOperand_NameAlone_ResolvesPattern
               - PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException
               - CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels
 
