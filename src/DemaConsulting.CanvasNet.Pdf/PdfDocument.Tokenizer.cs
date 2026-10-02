@@ -97,6 +97,14 @@ public sealed partial class PdfDocument
         private int Length => _buffer.Length;
 
         /// <summary>
+        ///     Gets the total number of bytes in the underlying buffer, allowing callers to bound
+        ///     a declared repeat count (for example a classic cross-reference subsection's entry
+        ///     count) against the actual remaining input before looping, rather than discovering
+        ///     the input is exhausted one <see cref="PdfTokenKind.EndOfFile"/> token at a time.
+        /// </summary>
+        internal int BufferLength => _buffer.Length;
+
+        /// <summary>
         ///     Reads and returns the next token, first skipping any leading whitespace and
         ///     <c>%</c> comments.
         /// </summary>

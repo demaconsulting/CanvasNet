@@ -1710,6 +1710,43 @@ public class PdfDocumentTests
         Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
     }
 
+    /// <summary>
+    ///     Builds an in-memory, classic <c>xref</c>-table PDF whose single subsection header
+    ///     declares a wildly inflated entry count (one million) immediately followed by only a
+    ///     literal <c>trailer</c> keyword and a tiny trailer dictionary - no real entry bytes at
+    ///     all. Without an upfront bound check relating the declared count to the bytes actually
+    ///     remaining in the buffer, the classic cross-reference parser's entry-reading loop would
+    ///     keep calling <c>NextToken</c> for up to the declared count of iterations, burning CPU
+    ///     time proportional to the attacker's chosen count rather than the file's real content.
+    /// </summary>
+    private static byte[] BuildClassicXrefSubsectionCountExceedsBufferLengthPdf()
+    {
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+
+        var xrefOffset = buffer.Count;
+
+        // A declared subsection count of one million, with no real entry bytes following it at
+        // all - the "trailer" keyword appears immediately, far short of satisfying even one real
+        // "N G n\n" entry triplet, let alone a million of them.
+        buffer.AddRange("xref\n0 1000000\n"u8.ToArray());
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"trailer\n<< /Size 1 /Root 1 0 R >>\nstartxref\n{xrefOffset}\n%%EOF\n"));
+
+        return [.. buffer];
+    }
+
+    /// <summary>Proves that a classic cross-reference subsection header declaring an entry count far larger than the bytes remaining in the buffer is rejected up front instead of spinning through a huge declared count.</summary>
+    [Fact]
+    public void PdfDocument_Open_ClassicXref_SubsectionCountExceedsBufferLength_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildClassicXrefSubsectionCountExceedsBufferLengthPdf();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
     /// <summary>Proves that a page object compressed inside a <c>/Type /ObjStm</c> object stream is decompressed and resolved correctly.</summary>
     [Fact]
     public void PdfDocument_Open_ObjectStream_DecompressesAndResolvesCompressedPage()

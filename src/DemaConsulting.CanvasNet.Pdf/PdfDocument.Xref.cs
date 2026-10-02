@@ -163,8 +163,27 @@ public sealed partial class PdfDocument
             }
 
             var count = (int)countToken.Number;
+
+            // Each classic cross-reference entry needs at least a few bytes (minimally
+            // "0 0 n\n"), so a declared count that exceeds the number of bytes remaining in the
+            // buffer can never be satisfied by real entries. Without this check, a crafted
+            // subsection header such as "0 2147483647" would make the loop below call
+            // NextToken() an unbounded number of times - bounded only by how much of the rest of
+            // the file happens to parse as plausible "offset generation keyword" triplets -
+            // before finally failing, a CPU-time denial of service proportional to the
+            // attacker's chosen count rather than the file's real content.
+            if (count < 0 || count > tokenizer.BufferLength - tokenizer.Position)
+            {
+                throw new InvalidDataException("Classic cross-reference subsection declares an invalid entry count.");
+            }
+
             for (var i = 0; i < count; i++)
             {
+                if (tokenizer.Position >= tokenizer.BufferLength)
+                {
+                    throw new InvalidDataException("Classic cross-reference table ended before all declared entries were read.");
+                }
+
                 var offsetToken = tokenizer.NextToken();
                 var generationToken = tokenizer.NextToken();
                 var flagToken = tokenizer.NextToken();
