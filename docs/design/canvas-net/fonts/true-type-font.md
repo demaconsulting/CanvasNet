@@ -14,7 +14,8 @@
 <!-- cspell:ignore hflex flex1 hflex1 -->
 <!-- cspell:ignore noaccess definefont currentfile closefile -->
 
-The `TrueTypeFont` class is the sole public software unit in the `Fonts` subsystem. It provides
+The `TrueTypeFont` class is the first of two public software units in the `Fonts` subsystem
+(alongside `SystemFontCatalog`). It provides
 hand-rolled loading and querying of glyph-based TrueType SFNT fonts, CFF/OpenType
 (`OTTO`-flavored) fonts, and classic PostScript Type 1 font programs (both as caller-supplied
 cleartext/encrypted byte segments and as standalone auto-detected `.pfb`/`.pfa` files), including

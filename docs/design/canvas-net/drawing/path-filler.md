@@ -2,7 +2,8 @@
 
 ![Drawing Structure](DrawingView.svg)
 
-The `PathFiller` class is the sole software unit in the `Drawing` subsystem. It provides a
+The `PathFiller` class is one of four sibling software units in the `Drawing` subsystem
+(alongside `PathStroker`, `GradientPaint`, and `TilePaint`). It provides a
 single public entry point family, `Fill(Surface, Path, Rgba32, FillRule, float)`,
 `Fill(Surface, Path, Gradient, FillRule, float)`, and
 `Fill(Surface, Path, TilePaint, FillRule, float)`, that rasterizes a

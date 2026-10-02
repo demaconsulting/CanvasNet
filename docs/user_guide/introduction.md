@@ -1239,9 +1239,9 @@ is not clamped or derived from the page's own `/MediaBox` size.
   operand count/type, an unresolvable font resource name, or a text-showing operator invoked with
   no font selected.
 - `UnsupportedImageFeatureException`: Thrown for a well-formed but unsupported color space,
-  stream filter, Form XObject, font subtype (`/Type0`/`/Type1`/`/MMType1`/`/Type3`), an
-  otherwise-symbolic font (other than `Symbol`/`ZapfDingbats`, which resolve via a bundled Noto
-  substitute instead) with no embedded font data, font encoding, or
+  stream filter, font subtype (`/MMType1`; `/TrueType`, `/Type0`, `/Type1`, and `/Type3` are all
+  supported), an otherwise-symbolic font (other than `Symbol`/`ZapfDingbats`, which resolve via a
+  bundled Noto substitute instead) with no embedded font data, font encoding, or
   text-rendering mode.
 - `ObjectDisposedException`: Thrown when called after `Dispose()` has been called.
 
@@ -1468,6 +1468,29 @@ gradient once per pixel and scaling the result by that pixel's antialiased cover
 curve-flattening, clip-bounds, argument validation, `FillRule`, and empty/out-of-bounds no-op
 behavior with the solid-color overload above - see `GradientPaint` below for gradient-specific
 behavior.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `surface`, `path`, or `paint` is null.
+- `ArgumentOutOfRangeException`: Thrown when `fillRule` is not a defined `FillRule` value, when
+  `flattenTolerance` is less than or equal to zero, or is not a finite value (NaN or infinity).
+
+##### PathFiller.Fill(Surface surface, Path path, TilePaint paint, FillRule fillRule, float flattenTolerance)
+
+```csharp
+public static void Fill(
+    Surface surface,
+    Path path,
+    TilePaint paint,
+    FillRule fillRule = FillRule.NonZero,
+    float flattenTolerance = 0.25f)
+```
+
+Fills `path` with `paint` (a repeating tile bitmap) onto `surface`, sampling the tile once per
+pixel at its wrapped-around pattern-space offset and scaling the result by that pixel's
+antialiased coverage. Shares curve-flattening, clip-bounds, argument validation, `FillRule`, and
+empty/out-of-bounds no-op behavior with the solid-color overload above - see `TilePaint` below for
+tile-specific behavior.
 
 **Exceptions:**
 
@@ -1716,6 +1739,46 @@ explicitly-supplied value - including the all-zero matrix - is preserved exactly
 - `ArgumentOutOfRangeException`: Thrown when `startCenter`/`endCenter` has a non-finite component;
   when `startRadius`/`endRadius` is not finite or is negative; when `spread` is not a defined
   `GradientSpread` value; or when any component of `transform` is not finite.
+
+### TilePaint
+
+`TilePaint` is the tiling-pattern analogue of `GradientPaint`: a resolved, renderable tile paint
+pairing a pre-rendered one-cell tile bitmap (a `Surface`) with a `Transform` mapping the tile's
+own pattern-space coordinates into the same coordinate space a filled `Path` already uses, and an
+`XStep`/`YStep` pitch describing how far apart successive tile repetitions are spaced in
+pattern-space units. A caller paints a filled path with a repeating tile via
+`PathFiller.Fill(Surface, Path, TilePaint, FillRule, float)` above.
+
+```csharp
+public sealed class TilePaint
+{
+    public TilePaint(Surface surface, Matrix3x2 transform, float xStep, float yStep);
+
+    public Surface Surface { get; }
+    public Matrix3x2 Transform { get; }
+    public float XStep { get; }
+    public float YStep { get; }
+
+    public TilePaint WithTransform(Matrix3x2 transform);
+}
+```
+
+`TilePaint` does not own `Surface`'s lifetime: it does not dispose it, and the caller that
+constructed the `TilePaint` remains responsible for disposing the underlying `Surface` once it is
+no longer needed - mirroring how `Gradient` similarly owns no disposable resource of its own.
+`XStep`/`YStep` may be negative (a legitimate PDF tiling-pattern value meaning the tile repeats in
+the negative pattern-space axis direction) - only zero or a non-finite value is rejected.
+`WithTransform` returns a new `TilePaint` with the same `Surface`/`XStep`/`YStep` whose `Transform`
+is this tile paint's own `Transform` composed with the supplied transform (this tile paint's
+existing `Transform` is applied first, then the supplied transform is applied on top of that) -
+the same row-vector composition convention as `Gradient.WithTransform`.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown by the constructor when `surface` is null.
+- `ArgumentOutOfRangeException`: Thrown by the constructor when any component of `transform` is
+  not finite, or when `xStep`/`yStep` is not finite or is zero; thrown by `WithTransform` when the
+  composed transform has a non-finite component.
 
 # Examples
 
