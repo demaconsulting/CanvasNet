@@ -343,7 +343,7 @@ Opens a single-page fixture and calls `GetPageInfo` with an out-of-range index. 
 **Tests**: `PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedOpaqueWhiteSurface`,
 `PdfDocument_Render_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException`,
 `PdfDocument_Render_InvalidWidth_PropagatesSurfaceArgumentOutOfRangeException`,
-`PdfDocument_ContentStream_NoContents_RendersBlankSurface`,
+`PdfDocument_ContentStream_NoContents_RendersWithoutThrowing`,
 `PdfDocument_Render_NoOptions_DefaultsToOpaqueWhiteBackground`,
 `PdfDocument_Render_CustomBackgroundColor_ClearsSurfaceToThatColor`,
 `PdfDocument_Render_TransparentBackgroundColor_ReproducesOldFullyTransparentBehavior`

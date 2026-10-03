@@ -2145,6 +2145,136 @@ public class PdfDocumentTests
         Assert.Equal(default, surface[5, 5]);
     }
 
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): the real object 3 (the Page)
+    ///     is defined with a genuine, early <c>3 0 obj</c> header, while an unrelated, later
+    ///     object 5's own plain (non-stream) dictionary contains a <c>/Decoy</c> string value
+    ///     whose text happens to spell out a byte-perfect <c>3 0 obj</c> sequence of its own -
+    ///     but embedded mid-line, never at the start of a line the way a genuine indirect-object
+    ///     header always is.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithObjMarkerInsideNonStreamDictionaryValue()
+    {
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+            "<< /Decoy (unrelated text mentions 3 0 obj in passing) >>"u8.ToArray(),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a byte-perfect <c>N G obj</c> sequence embedded mid-line inside an
+    ///     unrelated, later object's own dictionary value (see
+    ///     <see cref="BuildLinearScanFallbackWithObjMarkerInsideNonStreamDictionaryValue"/>) is
+    ///     never mistaken for a genuine indirect-object header, even though it is positioned
+    ///     later in the file than the real header for the same object number and so would
+    ///     otherwise win under the scan's own "later occurrence overrides an earlier one"
+    ///     semantics - corrupting that object's real, correct offset. The real object 3 (the
+    ///     page) must still resolve and render correctly using its own genuine, earlier header.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ObjMarkerInsideNonStreamDictionaryValue_DoesNotCorruptOffset()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithObjMarkerInsideNonStreamDictionaryValue();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): an unreferenced object 4's own
+    ///     stream payload deliberately contains an early, coincidental <c>endstream</c> byte
+    ///     sequence followed by further payload bytes that themselves spell out a byte-perfect,
+    ///     line-start <c>3 0 obj</c> header - mimicking the real object 3's own header - all
+    ///     covered by object 4's declared <c>/Length</c>, with the genuine <c>endstream</c>
+    ///     keyword only at the true end of that declared length.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithEarlyFalseEndstreamInStreamPayload()
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray(),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // Object 4 is an unreferenced, irrelevant stream. Its declared /Length covers the whole
+        // payload below, through the real, final "endstream" keyword - but the payload's own
+        // bytes contain an early, false "endstream" occurrence partway through, followed by a
+        // false, line-start "3 0 obj" header of their own.
+        var payloadBody = "XXXXX\nendstream\n3 0 obj\n<< /Bogus (decoy) >>\nendobj\n"u8.ToArray();
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"4 0 obj\n<< /Length {payloadBody.Length} >>\nstream\n"));
+        buffer.AddRange(payloadBody);
+        buffer.AddRange("endstream\nendobj\n"u8.ToArray());
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes("5 0 obj\n"));
+        buffer.AddRange(BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that an early, coincidental <c>endstream</c> byte sequence occurring partway
+    ///     through a stream's own payload (see
+    ///     <see cref="BuildLinearScanFallbackWithEarlyFalseEndstreamInStreamPayload"/>) does not
+    ///     end the protected payload range too soon. Ending it early would leave the remainder of
+    ///     the real payload bytes - including a false, line-start <c>3 0 obj</c> header embedded
+    ///     within them - to be scanned again as ordinary document bytes, corrupting the real object
+    ///     3's correct offset. The real object 3 (the page) must still resolve and render
+    ///     correctly.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_EarlyFalseEndstreamInPayload_DoesNotCorruptOffsets()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithEarlyFalseEndstreamInStreamPayload();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
     #endregion
 
     #region Page tree
@@ -2646,7 +2776,7 @@ public class PdfDocumentTests
 
     /// <summary>Proves that a page with no <c>/Contents</c> key at all renders without throwing.</summary>
     [Fact]
-    public void PdfDocument_ContentStream_NoContents_RendersBlankSurface()
+    public void PdfDocument_ContentStream_NoContents_RendersWithoutThrowing()
     {
         // Arrange
         using var document = PdfDocument.Open(Fixture("no-contents-page.pdf"));

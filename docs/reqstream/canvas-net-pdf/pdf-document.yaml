@@ -122,6 +122,9 @@ sections:
               - PdfDocument_Open_Encrypted_LinearScanFallback_RecoversObjectsCompressedInObjectStream
               - PdfDocument_Open_LinearScanFallback_StreamWordInsideDictionaryValue_DoesNotSkipFollowingObject
               - PdfDocument_Open_LinearScanFallback_TrailerKeywordInsideStreamPayload_DoesNotReplaceRealTrailer
+              - PdfDocument_Open_LinearScanFallback_ObjMarkerInsideNonStreamDictionaryValue_DoesNotCorruptOffset
+              - PdfDocument_Open_LinearScanFallback_EarlyFalseEndstreamInPayload_DoesNotCorruptOffsets
+              - PdfDocument_Open_LinearScanFallback_TrailerKeywordInCommentOutsideStream_DoesNotReplaceRealTrailer
 
           - id: CanvasNetPdf-PdfDocument-PageTreeTraversal
             title: >-
@@ -347,7 +350,7 @@ sections:
               - PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedOpaqueWhiteSurface
               - PdfDocument_Render_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException
               - PdfDocument_Render_InvalidWidth_PropagatesSurfaceArgumentOutOfRangeException
-              - PdfDocument_ContentStream_NoContents_RendersBlankSurface
+              - PdfDocument_ContentStream_NoContents_RendersWithoutThrowing
               - PdfDocument_Render_NoOptions_DefaultsToOpaqueWhiteBackground
               - PdfDocument_Render_CustomBackgroundColor_ClearsSurfaceToThatColor
               - PdfDocument_Render_TransparentBackgroundColor_ReproducesOldFullyTransparentBehavior

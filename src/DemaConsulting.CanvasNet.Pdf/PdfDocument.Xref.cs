@@ -591,9 +591,10 @@ public sealed partial class PdfDocument
             return searchStart;
         }
 
+        Dictionary<string, PdfObject> entries;
         try
         {
-            ParseDictionaryEntries(tokenizer, 0);
+            entries = ParseDictionaryEntries(tokenizer, 0);
         }
         catch (InvalidDataException)
         {
@@ -621,12 +622,77 @@ public sealed partial class PdfDocument
         SkipStreamLineEnding(tokenizer);
         var dataStart = tokenizer.Position;
 
+        // Prefer the stream dictionary's own declared /Length to bound the payload - the
+        // spec-mandated way to determine where stream data ends - using the raw "endstream"
+        // keyword search below only as a lightweight consistency check against it, and as the
+        // sole fallback when /Length is absent, an indirect reference (not yet resolvable while
+        // the cross-reference table this scan is building is itself still incomplete), or
+        // inconsistent with the buffer. Relying on a raw, unbounded "endstream" search alone would
+        // end the protected range too early whenever the payload's own bytes happen to contain a
+        // coincidental "endstream" byte sequence of their own, followed by a non-identifier byte.
+        if (entries.TryGetValue("Length", out var lengthValue) &&
+            lengthValue.Kind == PdfKind.Number &&
+            TryGetDeclaredStreamEnd(buffer, dataStart, lengthValue.Number, out var declaredEnd))
+        {
+            return declaredEnd;
+        }
+
         // Unlike the dictionary above, the payload itself can legitimately be large and binary,
         // so this search for the matching "endstream" keyword is intentionally unbounded and
         // operates on raw bytes rather than tokens (an arbitrary payload byte is not valid PDF
         // syntax for a tokenizer to walk through).
         var endStreamIndex = IndexOfKeyword(buffer, dataStart, buffer.Length, "endstream"u8, requirePrecedingBoundary: false);
         return endStreamIndex < 0 ? dataStart : endStreamIndex + "endstream"u8.Length;
+    }
+
+    /// <summary>
+    ///     Validates a stream dictionary's declared <c>/Length</c> against the buffer - it must be
+    ///     a non-negative integer landing fully within the buffer, and the bytes immediately
+    ///     following it (after tolerating an optional end-of-line sequence, since several
+    ///     real-world producers include one despite it not being strictly required) must be the
+    ///     literal <c>endstream</c> keyword - and if so, returns the index just past that keyword.
+    /// </summary>
+    private static bool TryGetDeclaredStreamEnd(byte[] buffer, int dataStart, double declaredLength, out int payloadEnd)
+    {
+        payloadEnd = 0;
+        if (declaredLength < 0 || !double.IsInteger(declaredLength) || declaredLength > buffer.Length)
+        {
+            return false;
+        }
+
+        var declaredDataEnd = dataStart + (long)declaredLength;
+        if (declaredDataEnd > buffer.Length)
+        {
+            return false;
+        }
+
+        var afterData = (int)declaredDataEnd;
+        if (afterData < buffer.Length && buffer[afterData] == (byte)'\r')
+        {
+            afterData++;
+        }
+
+        if (afterData < buffer.Length && buffer[afterData] == (byte)'\n')
+        {
+            afterData++;
+        }
+
+        var endStreamIndex = IndexOfKeyword(
+            buffer,
+            afterData,
+            Math.Min(afterData + "endstream"u8.Length, buffer.Length),
+            "endstream"u8,
+            requirePrecedingBoundary: false);
+        if (endStreamIndex != afterData)
+        {
+            // The declared /Length does not land on a literal "endstream" keyword, so it cannot
+            // be trusted (for example it is stale, wrong, or an indirect reference the caller
+            // already excluded) - let the caller fall back to its own raw "endstream" search.
+            return false;
+        }
+
+        payloadEnd = endStreamIndex + "endstream"u8.Length;
+        return true;
     }
 
     /// <summary>
@@ -742,6 +808,15 @@ public sealed partial class PdfDocument
             }
         }
 
+        if (!IsAtLineStart(buffer, numberStart))
+        {
+            // A genuine indirect-object header is conventionally written at the start of its own
+            // line; rejecting a candidate that is not protects against a coincidental byte-exact
+            // "N G obj" match embedded inside unrelated surrounding text, such as a PDF comment or
+            // a literal string, which must never overwrite a real object's offset.
+            return false;
+        }
+
         objectNumber = (int)parsedNumber;
         headerStart = numberStart;
         return true;
@@ -764,6 +839,28 @@ public sealed partial class PdfDocument
 
     private static bool IsMarkerIdentifierByte(byte b) =>
         IsMarkerDigit(b) || (b is >= (byte)'a' and <= (byte)'z') || (b is >= (byte)'A' and <= (byte)'Z');
+
+    /// <summary>
+    ///     Returns whether <paramref name="index"/> begins at the start of a line - the start of
+    ///     the buffer, or immediately after a line break, allowing for intervening horizontal
+    ///     whitespace/indentation (spaces or tabs) only. Real-world PDF object and trailer headers
+    ///     are conventionally written at the start of their own line; requiring this of a raw
+    ///     byte-scan candidate rejects the keyword otherwise being mistaken when it instead occurs
+    ///     embedded inside unrelated surrounding text - for example inside a PDF comment
+    ///     (<c>% see object 3 0 obj below</c>) or a literal string (<c>(3 0 obj)</c>) - that a
+    ///     scan operating on raw bytes, rather than tokens, cannot otherwise distinguish from a
+    ///     genuine header.
+    /// </summary>
+    private static bool IsAtLineStart(byte[] buffer, int index)
+    {
+        var cursor = index;
+        while (cursor > 0 && buffer[cursor - 1] is (byte)' ' or (byte)'\t')
+        {
+            cursor--;
+        }
+
+        return cursor == 0 || buffer[cursor - 1] is (byte)'\n' or (byte)'\r';
+    }
 
     /// <summary>
     ///     After a linear scan has located every directly-offset object (<c>N G obj</c> markers),
@@ -899,6 +996,17 @@ public sealed partial class PdfDocument
             }
 
             var after = found + "trailer"u8.Length;
+
+            if (!IsAtLineStart(buffer, found))
+            {
+                // A genuine trailer keyword is conventionally written at the start of its own
+                // line; rejecting a candidate that is not protects against a coincidental
+                // "trailer" byte sequence embedded inside unrelated surrounding text, such as a
+                // PDF comment or a literal string, which must never be mistaken for the
+                // document's real trailer.
+                position = after;
+                continue;
+            }
 
             if (streamPayloadRanges.Exists(range => found >= range.Start && found < range.End))
             {
