@@ -8,7 +8,8 @@ namespace DemaConsulting.CanvasNet.Pdf.Tests;
 /// <summary>
 ///     Fixture-conformance tests that exercise <see cref="PdfDocument"/> against the real-file PDF
 ///     fixture corpus in <c>PdfFixtures</c> (see <c>PdfFixtures\README.md</c> for provenance - the
-///     entire corpus is hand-authored for this repository), mirroring the pattern used by
+///     corpus is hand-authored for this repository, with a few documented exceptions that embed
+///     or excerpt real-world third-party content), mirroring the pattern used by
 ///     <c>SvgFixtureTests</c> in <c>DemaConsulting.CanvasNet.Svg.Tests</c>. Each test opens one
 ///     on-disk fixture, reads its page info, renders at least one page, and asserts a concrete,
 ///     non-trivial rendered result - a broad "this file loads and renders as documented" check,
@@ -249,6 +250,27 @@ public class PdfFixtureTests
         // Arrange & Act
         using var document = PdfDocument.Open(Fixture("text-standard14-type1-no-fontfile.pdf"));
         using var surface = document.Render(0, 100, 100, Transparent);
+
+        // Assert
+        AssertPaintedSomePixel(surface);
+    }
+
+    /// <summary>
+    ///     Proves the real-world <c>text-type1c-differences-agl-ligatures.pdf</c> fixture (a
+    ///     trimmed excerpt of an actual document, not hand-authored - see
+    ///     <c>PdfFixtures\README.md</c> for why) opens and renders visible glyph ink from its two
+    ///     genuinely embedded <c>/FontFile3 /Type1C</c> fonts despite their
+    ///     <c>/Encoding/Differences</c> arrays naming a glyph (<c>/uni03BC</c>) outside
+    ///     <c>StandardGlyphNames</c>' own common-name subset (<c>/thinspace</c> is itself now a
+    ///     direct entry in that subset, resolved without needing the AGL hex fallback at all) -
+    ///     the regression this fixture reproduces and this test guards against.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Load_TextType1CDifferencesAglLigaturesFixture_PaintsVisibleGlyphInk()
+    {
+        // Arrange & Act
+        using var document = PdfDocument.Open(Fixture("text-type1c-differences-agl-ligatures.pdf"));
+        using var surface = document.Render(0, 595, 842, Transparent);
 
         // Assert
         AssertPaintedSomePixel(surface);

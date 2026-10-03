@@ -4,9 +4,14 @@
 <!-- cspell:ignore bfchar bfrange codepoints -->
 <!-- cspell:ignore cidfonttype OTTO -->
 <!-- cspell:ignore hsbw fontfile -->
+<!-- cspell:ignore XUPVJI Gotham thinspace ligatures fontfile -->
 
-Every PDF file in this folder is a small, hand-authored document created specifically for this
-repository to exercise `PdfDocument`'s parsing internals (tokenizer, object model,
+Every PDF file in this folder, with three exceptions (`text-embedded-truetype-font.pdf` and
+`text-composite-truetype-identity-h.pdf`, which embed a real third-party TrueType font, and
+`text-type1c-differences-agl-ligatures.pdf`, a trimmed excerpt of a real-world document - see
+each file's own entry below), is a small, hand-authored document created specifically for this
+repository to exercise `PdfDocument`'s parsing internals
+(tokenizer, object model,
 cross-reference resolution in all three forms, the linear-scan fallback, page-tree traversal with
 inheritance, and `/Encrypt` detection - Phase 1), its content-stream interpreter (path
 construction/painting operators, the graphics-state stack, CTM/rotation derivation, and
@@ -24,9 +29,15 @@ Type 1 simple-font support (`/Subtype /Type1`, either an embedded `/FontDescript
 program or the free non-embedded fallback path, plus the `/StandardEncoding` base encoding -
 Phase B)
 end to end via real files on disk.
-There is no third-party source corpus behind any of them (unlike, for example, `PngSuite` in the core test
-project): each was constructed byte-by-byte from scratch for CanvasNet and is licensed under the
-same MIT license as the rest of this repository.
+With the same three exceptions noted above (`text-embedded-truetype-font.pdf` and
+`text-composite-truetype-identity-h.pdf`, which embed a real, third-party, SIL Open Font
+License-licensed TrueType font, and `text-type1c-differences-agl-ligatures.pdf`, a trimmed
+real-world excerpt), there is no third-party source corpus behind any of them (unlike, for
+example, `PngSuite` in the core test project): each remaining file's object structure,
+dictionaries, and content stream were constructed byte-by-byte from scratch for CanvasNet and
+are licensed under the same MIT license as the rest of this repository; the embedded font bytes
+in those three exception files retain their own original third-party licenses (see each file's
+own entry below for details).
 
 | File | Exercises |
 | ------ | ----------- |
@@ -58,6 +69,7 @@ same MIT license as the rest of this repository.
 | `malformed-content-stream.pdf` | `re` operator given only 2 of its 4 required operands (malformed) |
 | `text-embedded-type1-font.pdf` | `/Subtype /Type1`, embedded PostScript `/FontFile` (Phase B) - `Tf`/`Td`/`Tj` |
 | `text-standard14-type1-no-fontfile.pdf` | `/Subtype /Type1`, `/BaseFont /Helvetica`, no `/FontFile*` (Phase B) |
+| `text-type1c-differences-agl-ligatures.pdf` | Real-world `/Differences` names resolved via embedded font |
 
 For this phase, a real-world third-party PDF sourcing pass was investigated (mirroring
 `SvgFixtures`' Wikimedia Commons CC0 sourcing) to see whether a small, genuinely verifiable,
@@ -70,7 +82,7 @@ fabricate a "real-world" provenance claim for an unverifiable source, the corpus
 hand-authored and honestly documented as such; a human maintainer can revisit real-world sourcing
 in a future, non-blocking follow-up.
 
-`text-embedded-truetype-font.pdf` is the one exception to the "no third-party source corpus"
+`text-embedded-truetype-font.pdf` is one exception to the "no third-party source corpus"
 statement above: its `/FontFile2` stream is a real, unmodified, `FlateDecode`-compressed copy of
 the same "Open Sans" TrueType font every other CanvasNet test project shares (see
 `DemaConsulting.CanvasNet.Tests\FontFixtures\README.md` for its provenance and SIL Open Font
@@ -118,3 +130,20 @@ except its font dictionary declares `/Subtype /Type1` instead of `/Subtype /True
 the free non-embedded fallback path (`ResolveFallbackFont`) is reachable for `/Type1` fonts too,
 not only `/TrueType` fonts. Like `standard14-font-fallback.pdf`, it declares no
 `/FontDescriptor/FontFile`/`/FontFile2`/`/FontFile3` at all.
+
+`text-type1c-differences-agl-ligatures.pdf` is, unlike every other fixture in this folder, **not**
+hand-authored: it is a trimmed, single-page excerpt of a real-world document (page 4), kept
+otherwise intact (including its two genuinely embedded `/Subtype /Type1`/`/FontFile3 /Type1C`
+fonts, `XUPVJI+Gotham-Bold` (`/T1_0`) and `XUPVJI+Gotham-Book` (`/T1_1`)) because it reproduces a
+regression that a synthetic fixture could not credibly demonstrate: both fonts declare an
+`/Encoding/Differences` array naming glyphs by the exact spelling the embedded font's own CFF
+charset actually uses - for example code 28/27 `/uni03BC`, a name the generic Adobe-Glyph-List
+common-name subset (`StandardGlyphNames`) does not itself cover, resolved instead via the Adobe
+Glyph List's generic `uniXXXX` hex-codepoint naming convention. Code 27 `/thinspace` is itself
+now a direct `StandardGlyphNames` entry, not a missing-vocabulary case. Its content stream
+genuinely exercises both codes against real body text (`"...50μL..."`, `"...+1 % compared..."`).
+
+> **Note**: this fixture's content stream also exercises a `/f_f` ligature-glyph name (an
+> underscore-joined AGL ligature decomposition, not a `uniXXXX`/`uXXXX` hex name) that remains
+> unresolved by design - see `PdfDocumentTests`'s own remarks on this fixture's test for why that
+> is a deliberate, out-of-scope limitation, not a regression.

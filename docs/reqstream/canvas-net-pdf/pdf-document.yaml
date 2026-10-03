@@ -961,10 +961,15 @@ sections:
               /FontDescriptor/FontFile stream as a classic PostScript Type 1 font program: reading
               the stream's own /Length1 (cleartext byte count) and /Length2 (eexec-encrypted byte
               count) entries (not the /FontDescriptor's), decoding the stream, and loading it via
-              Fonts.TrueTypeFont.LoadType1, passing a Unicode-codepoint-to-Adobe-glyph-name
-              reverse map (built from the same StandardGlyphNames vocabulary
-              CanvasNetPdf-PdfDocument-FontEncoding's /Differences resolution already uses) as
-              the codepoint-to-glyph-name argument; a /Subtype /Type1 descriptor declaring only
+              Fonts.TrueTypeFont.LoadType1, passing this specific font dictionary's own enriched
+              Unicode-codepoint-to-glyph-name map as the codepoint-to-glyph-name argument: built
+              from the same StandardGlyphNames vocabulary CanvasNetPdf-PdfDocument-FontEncoding's
+              /Differences resolution already uses, but then overwritten, per codepoint, with this
+              font dictionary's own /Encoding/Differences array's literal declared glyph name
+              wherever that name itself resolves to a codepoint - so an embedded/subsetted font
+              whose own charset spells a glyph differently than the generic reverse-map guess (or
+              names a glyph the generic vocabulary has no entry for at all) is still found; a
+              /Subtype /Type1 descriptor declaring only
               /FontFile3 (no /FontFile and no /FontFile2) shall resolve via
               CanvasNetPdf-PdfDocument-Type1CFontResolution instead, and a missing or non-numeric
               /Length1 or /Length2 entry, or any exception propagated from
@@ -991,6 +996,7 @@ sections:
               - PdfDocument_Fonts_Type1_FontFileMissingLength1_ThrowsInvalidDataException
               - PdfDocument_Fonts_Type1_FontFileMissingLength2_ThrowsInvalidDataException
               - PdfDocument_Fonts_Type1_FontFileNonNumericLength2_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedType1FontGlyphMap
               - PdfDocument_Load_TextEmbeddedType1FontFixture_PaintsVisibleGlyphInk
               - PdfDocument_Load_TextStandard14Type1NoFontFileFixture_PaintsVisibleSubstituteGlyphInk
               - CanvasNetPdf_SystemIntegration_RenderEmbeddedType1Font_PaintsExpectedGlyphInk
@@ -1004,8 +1010,9 @@ sections:
               decoded bytes for a recognized SFNT container or a structurally plausible bare CFF
               header rather than requiring the stream's declared /Subtype to be exactly
               /Type1C: a bare CFF program is loaded via Fonts.TrueTypeFont.LoadType1C, passing
-              the same Unicode-codepoint-to-Adobe-glyph-name reverse map
-              CanvasNetPdf-PdfDocument-Type1FontResolution's classic /FontFile path already uses;
+              the same per-font-dictionary enriched codepoint-to-glyph-name map
+              CanvasNetPdf-PdfDocument-Type1FontResolution's classic /FontFile path already builds
+              and uses;
               an SFNT-wrapped CFF program is loaded via Fonts.TrueTypeFont.Load; bytes matching
               neither recognized shape shall throw UnsupportedImageFeatureException, regardless
               of the stream's own declared /Subtype (including a missing /Subtype).
@@ -1036,6 +1043,9 @@ sections:
               - PdfDocument_Fonts_Type1_MismatchedSubtype_BareCffBytes_ResolvesEmbeddedFont
               - PdfDocument_Fonts_Type1_MissingFontFile3Subtype_ResolvesEmbeddedFont
               - PdfDocument_Fonts_Type1_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_Differences_ThinspaceName_ResolvesAndPaintsEmbeddedGlyph
+              - PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedFontGlyphMap
+              - PdfDocument_Load_TextType1CDifferencesAglLigaturesFixture_PaintsVisibleGlyphInk
 
           - id: CanvasNetPdf-PdfDocument-Type3FontResolution
             title: >-
@@ -1270,7 +1280,9 @@ sections:
               supporting /WinAnsiEncoding, /MacRomanEncoding, and /StandardEncoding as named base
               encodings (throwing UnsupportedImageFeatureException for any other base encoding
               name), and applying an /Encoding/Differences array's code-then-glyph-name
-              run-length overrides via a standard Adobe-glyph-name-to-Unicode-codepoint mapping,
+              run-length overrides via a standard Adobe-glyph-name-to-Unicode-codepoint mapping
+              (itself falling back, for a name this mapping does not directly cover, to the Adobe
+              Glyph List's own generic uniXXXX/uXXXX hex-codepoint naming convention),
               tolerating an unrecognized glyph name (leaving that code at its base-encoding
               mapping) but throwing InvalidDataException for /Differences beginning with a glyph
               name before any starting code.
@@ -1295,6 +1307,8 @@ sections:
               - PdfDocument_Fonts_Differences_UnrecognizedGlyphName_FallsBackToBaseEncoding
               - PdfDocument_Fonts_Differences_FfFfiFflLigatureNames_DoNotThrow
               - PdfDocument_Fonts_Differences_NacuteName_DoesNotThrow
+              - PdfDocument_Fonts_Differences_ThinspaceName_ResolvesAndPaintsEmbeddedGlyph
+              - PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedFontGlyphMap
               - PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException
               - PdfDocument_Fonts_StandardEncoding_DiffersFromWinAnsiEncoding
               - PdfDocument_Fonts_StandardEncoding_Absent_DefaultWinAnsiDoesNotPaintQuoteright

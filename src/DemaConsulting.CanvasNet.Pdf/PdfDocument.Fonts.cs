@@ -15,7 +15,8 @@
 // cspell:ignore quoteleft quoteright quotesinglbase quotesingle scaron threequarters
 // cspell:ignore uacute yacute ydieresis Zapf Nonsymbolic fontfile stdenc
 // cspell:ignore ZapfDingbats Dingbats registerserif registersans copyrightserif copyrightsans
-// cspell:ignore trademarkserif trademarksans radicalex Noto
+// cspell:ignore trademarkserif trademarksans radicalex Noto thinspace
+using System.Globalization;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 
@@ -342,6 +343,14 @@ public sealed partial class PdfDocument
         var fontFileEntry = descriptor.Get("FontFile");
         IReadOnlyList<TrueTypeFont> fonts;
         int[]? defaultBaseTable = null;
+
+        // Captured before loading any embedded font program (not after - see this method's own
+        // remarks) so a /FontFile or /FontFile3 program's synthetic cmap-equivalent lookup (built
+        // by LoadType1Font/LoadType1CFont) is keyed by this font dictionary's own /Differences
+        // glyph-name vocabulary, not only the generic Adobe-glyph-name guess - see
+        // BuildEmbeddedFontGlyphNameMap's own remarks for why the literal declared name wins.
+        var embeddedFontGlyphNames = BuildEmbeddedFontGlyphNameMap(fontDict.Get("Encoding"));
+
         if (fontFile2Entry is not null)
         {
             var fontFileStream = Resolve(fontFile2Entry);
@@ -355,11 +364,11 @@ public sealed partial class PdfDocument
         }
         else if (fontFileEntry is not null)
         {
-            fonts = [LoadType1Font(descriptor)];
+            fonts = [LoadType1Font(descriptor, embeddedFontGlyphNames)];
         }
         else if (subtype == "Type1" && descriptor.Get("FontFile3") is not null)
         {
-            fonts = [LoadType1CFont(descriptor)];
+            fonts = [LoadType1CFont(descriptor, embeddedFontGlyphNames)];
         }
         else
         {
@@ -508,21 +517,20 @@ public sealed partial class PdfDocument
     ///     per the PDF specification's own alternating "a starting code, then zero or more names
     ///     assigned to consecutive codes from that starting code" grammar - a thin wrapper over
     ///     <see cref="ParseDifferences"/> that additionally resolves each glyph name to a Unicode
-    ///     codepoint via <see cref="StandardGlyphNames"/> (a simple/composite font's own
-    ///     <c>/Differences</c> entries name Adobe-Glyph-List glyphs, unlike a Type 3 font's own
-    ///     <c>/CharProcs</c>-keyed glyph names - see <c>ResolveType3Encoding</c> in
+    ///     codepoint via <see cref="TryResolveGlyphNameToCodepoint"/> (a simple/composite font's
+    ///     own <c>/Differences</c> entries name Adobe-Glyph-List glyphs, unlike a Type 3 font's
+    ///     own <c>/CharProcs</c>-keyed glyph names - see <c>ResolveType3Encoding</c> in
     ///     <c>PdfDocument.Fonts.Type3.cs</c>, which reuses <see cref="ParseDifferences"/> directly
     ///     without this codepoint-resolution step).
     /// </summary>
     /// <remarks>
-    ///     A glyph name not recognized by <see cref="StandardGlyphNames"/> (for example a
-    ///     producer-specific name such as <c>/gXX</c> or <c>/uniXXXX</c>-style name this table
-    ///     does not itself special-case) is tolerated: that one code is simply left at whatever
-    ///     the base encoding already assigned it, rather than rejecting the entire document - a
-    ///     single unrecognized override name is not evidence the document is corrupt, and real-world
-    ///     PDF producers routinely emit such names. <see cref="ShowText"/>'s own "no glyph for this
-    ///     codepoint" fallback (see this class's remarks) still applies to that code if the base
-    ///     encoding also leaves it undefined.
+    ///     A glyph name <see cref="TryResolveGlyphNameToCodepoint"/> cannot resolve (for example a
+    ///     producer-specific name such as <c>/gXX</c>) is tolerated: that one code is simply left
+    ///     at whatever the base encoding already assigned it, rather than rejecting the entire
+    ///     document - a single unrecognized override name is not evidence the document is
+    ///     corrupt, and real-world PDF producers routinely emit such names.
+    ///     <see cref="ShowText"/>'s own "no glyph for this codepoint" fallback (see this class's
+    ///     remarks) still applies to that code if the base encoding also leaves it undefined.
     /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="differences"/> is not an array, when an array entry is
@@ -532,11 +540,102 @@ public sealed partial class PdfDocument
     private void ApplyDifferences(PdfObject differences, int[] table) =>
         ParseDifferences(differences, (code, name) =>
         {
-            if (StandardGlyphNames.TryGetValue(name, out var codepoint))
+            if (TryResolveGlyphNameToCodepoint(name, out var codepoint))
             {
                 table[code] = codepoint;
             }
         });
+
+    /// <summary>
+    ///     Resolves a <c>/Differences</c> glyph name to its Adobe-Glyph-List Unicode codepoint:
+    ///     first consults <see cref="StandardGlyphNames"/> (the common-name subset), then - for a
+    ///     name that subset does not itself cover - falls back to the AGL's own generic
+    ///     <c>uniXXXX</c>/<c>uXXXX</c> hex-codepoint naming convention (four uppercase hex digits
+    ///     after <c>uni</c>, or four-to-six uppercase hex digits after <c>u</c>), per the
+    ///     published Adobe Glyph List specification. Introduced so a <c>/Differences</c> array
+    ///     naming a glyph this way (for example <c>/uni03BC</c>, seen in real-world subsetted
+    ///     fonts whose own CFF charset uses that exact literal spelling) resolves to the correct
+    ///     codepoint instead of being silently tolerated as unrecognized (see
+    ///     <see cref="ApplyDifferences"/>'s own remarks for that tolerant fallback).
+    /// </summary>
+    /// <param name="name">The <c>/Differences</c> array's glyph name to resolve.</param>
+    /// <param name="codepoint">The resolved Unicode codepoint, or <c>0</c> when unresolved.</param>
+    /// <returns><see langword="true"/> if <paramref name="name"/> resolved to a codepoint.</returns>
+    private static bool TryResolveGlyphNameToCodepoint(string name, out int codepoint) =>
+        StandardGlyphNames.TryGetValue(name, out codepoint) || TryParseAdobeGlyphListHexName(name, out codepoint);
+
+    /// <summary>
+    ///     Parses the Adobe Glyph List's generic hex-codepoint glyph-name conventions: <c>uniXXXX</c>
+    ///     (exactly four uppercase hex digits) or <c>uXXXX</c>/<c>uXXXXX</c>/<c>uXXXXXX</c> (four
+    ///     to six uppercase hex digits) - both name a single Unicode codepoint directly from the
+    ///     glyph name's own digits, rather than through a lookup table. Lowercase hex digits are
+    ///     deliberately rejected (not merely tolerated case-insensitively): the published AGL
+    ///     specification requires uppercase digits for both conventions, and a producer emitting
+    ///     lowercase digits is using a different, non-AGL naming convention this method has no
+    ///     basis to guess the meaning of.
+    /// </summary>
+    /// <param name="name">The glyph name to parse.</param>
+    /// <param name="codepoint">The parsed Unicode codepoint, or <c>0</c> when unparsed.</param>
+    /// <returns><see langword="true"/> if <paramref name="name"/> matched one of these conventions.</returns>
+    private static bool TryParseAdobeGlyphListHexName(string name, out int codepoint)
+    {
+        if (name.Length == 7 && name.StartsWith("uni", StringComparison.Ordinal) &&
+            TryParseUppercaseHexDigits(name.AsSpan(3), out codepoint))
+        {
+            return true;
+        }
+
+        if (name.Length is >= 5 and <= 7 && name[0] == 'u' &&
+            TryParseUppercaseHexDigits(name.AsSpan(1), out codepoint))
+        {
+            return true;
+        }
+
+        codepoint = 0;
+        return false;
+    }
+
+    /// <summary>
+    ///     Parses <paramref name="digits"/> as a Unicode codepoint, requiring every character to
+    ///     be an uppercase hex digit (<c>0-9</c>/<c>A-F</c>) - shared by
+    ///     <see cref="TryParseAdobeGlyphListHexName"/>'s two naming conventions so both reject a
+    ///     lowercase (or otherwise non-hex) digit identically. Also rejects a syntactically valid
+    ///     hex value above <c>0x10FFFF</c> (the highest valid Unicode codepoint): the four-to-six
+    ///     digit <c>uXXXX</c>/.../<c>uXXXXXX</c> convention can spell a six-digit value as large as
+    ///     <c>0xFFFFFF</c>, which is not a valid AGL codepoint name at all, so such a name must
+    ///     stay unresolved (per <see cref="ApplyDifferences"/>'s own tolerant handling for
+    ///     unrecognized names) rather than being treated as resolved.
+    /// </summary>
+    /// <param name="digits">The candidate hex digit span to parse.</param>
+    /// <param name="value">
+    ///     The parsed value, or <c>0</c> when <paramref name="digits"/> contains any
+    ///     non-uppercase-hex character, or when the parsed value exceeds <c>0x10FFFF</c>.
+    /// </param>
+    /// <returns>
+    ///     <see langword="true"/> if every character in <paramref name="digits"/> was an
+    ///     uppercase hex digit and the parsed value is a valid Unicode codepoint (at most
+    ///     <c>0x10FFFF</c>).
+    /// </returns>
+    private static bool TryParseUppercaseHexDigits(ReadOnlySpan<char> digits, out int value)
+    {
+        foreach (var c in digits)
+        {
+            if (c is not ((>= '0' and <= '9') or (>= 'A' and <= 'F')))
+            {
+                value = 0;
+                return false;
+            }
+        }
+
+        if (!int.TryParse(digits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value) ||
+            value > 0x10FFFF)
+        {
+            value = 0;
+            return false;
+        }
+
+        return true;
+    }
 
     /// <summary>
     ///     Parses a <c>/Differences</c> array's code/glyph-name pairs, per the PDF specification's
@@ -590,6 +689,63 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
+    ///     Builds the codepoint-to-glyph-name map <see cref="LoadType1Font"/>/
+    ///     <see cref="LoadType1CFont"/> (<c>PdfDocument.Fonts.Type1.cs</c>) pass to
+    ///     <see cref="Fonts.TrueTypeFont.LoadType1"/>/<see cref="Fonts.TrueTypeFont.LoadType1C"/>
+    ///     to build an embedded font program's synthetic <c>cmap</c>-equivalent lookup: starts
+    ///     from <see cref="CodepointToStandardGlyphName"/>'s generic Adobe-glyph-name guess, then
+    ///     - for this specific font dictionary's own <c>/Encoding/Differences</c> array, if any -
+    ///     overwrites that guess, per codepoint, with the array's own literal declared glyph name
+    ///     wherever that name itself resolves to a codepoint (via
+    ///     <see cref="TryResolveGlyphNameToCodepoint"/>).
+    /// </summary>
+    /// <remarks>
+    ///     This exists because the generic reverse-name guess and the embedded font program's own
+    ///     real glyph-name vocabulary can diverge for the exact same codepoint: a subsetted font
+    ///     may spell a glyph differently than <see cref="CodepointToStandardGlyphName"/>'s own
+    ///     first-wins guess (for example naming a ligature glyph with an AGL
+    ///     <c>uniXXXX</c>-convention name that has no entry in <see cref="StandardGlyphNames"/> at
+    ///     all, so the generic map has no name for that codepoint to try in the first place). Since
+    ///     a <c>/Differences</c> array's own declared name is the document author's (and often the
+    ///     embedded font's own charset's) literal spelling for that codepoint, it is strictly more
+    ///     likely to match the embedded font's real glyph name than a generic guess - so it wins on
+    ///     a per-codepoint basis here, before the embedded font program is ever loaded. A
+    ///     <c>/Differences</c> name that does not itself resolve to a codepoint (see
+    ///     <see cref="ApplyDifferences"/>'s own tolerant handling of that case) contributes nothing
+    ///     here either - this method never throws for it, mirroring that same leniency.
+    /// </remarks>
+    /// <param name="encodingEntry">
+    ///     The font dictionary's <c>/Encoding</c> entry (a name, a dictionary, or
+    ///     <see langword="null"/> when absent) - only a dictionary's own <c>/Differences</c> array
+    ///     (if present) contributes any enrichment; a bare base-encoding name contributes none.
+    /// </param>
+    /// <returns>
+    ///     The enriched codepoint-to-glyph-name map, newly allocated so mutating it never affects
+    ///     <see cref="CodepointToStandardGlyphName"/> itself.
+    /// </returns>
+    private IReadOnlyDictionary<int, string> BuildEmbeddedFontGlyphNameMap(PdfObject? encodingEntry)
+    {
+        var map = new Dictionary<int, string>(CodepointToStandardGlyphName);
+
+        if (encodingEntry is not null && Resolve(encodingEntry) is { Kind: PdfKind.Dictionary } resolvedEncoding)
+        {
+            var differencesEntry = resolvedEncoding.Get("Differences");
+            if (differencesEntry is not null)
+            {
+                ParseDifferences(Resolve(differencesEntry), (_, name) =>
+                {
+                    if (TryResolveGlyphNameToCodepoint(name, out var codepoint))
+                    {
+                        map[codepoint] = name;
+                    }
+                });
+            }
+        }
+
+        return map;
+    }
+
+    /// <summary>
     ///     Resolves a font dictionary's <c>/FirstChar</c>/<c>/LastChar</c>/<c>/Widths</c> entries
     ///     into a code-to-declared-width map, plus the font descriptor's <c>/MissingWidth</c>
     ///     fallback.
@@ -638,11 +794,14 @@ public sealed partial class PdfDocument
     /// </summary>
     /// <remarks>
     ///     This is a deliberately partial subset of the full Adobe Glyph List (not every glyph
-    ///     name ever defined) - a glyph name outside this set encountered in a <c>/Differences</c>
-    ///     array is a malformed/unsupported reference to an undefined name from this
-    ///     implementation's point of view, and <see cref="ApplyDifferences"/> throws
-    ///     <see cref="InvalidDataException"/> for it (a fail-closed policy, not a silent
-    ///     mis-mapping to codepoint <c>0</c>/<c>.notdef</c>).
+    ///     name ever defined) - a glyph name outside this set is additionally checked against the
+    ///     AGL's generic <c>uniXXXX</c>/<c>uXXXX</c> hex-codepoint naming convention by
+    ///     <see cref="TryResolveGlyphNameToCodepoint"/>, and a name neither this table nor that
+    ///     convention resolves is tolerated, not an error: <see cref="ApplyDifferences"/> simply
+    ///     leaves that one code at whatever the base encoding already assigned it, rather than
+    ///     rejecting the entire document (a silent "keep the prior mapping" leniency, not a
+    ///     silent mis-mapping to codepoint <c>0</c>/<c>.notdef</c>) - see that method's own
+    ///     remarks.
     /// </remarks>
     private static readonly IReadOnlyDictionary<string, int> StandardGlyphNames = new Dictionary<string, int>
     {
@@ -868,6 +1027,7 @@ public sealed partial class PdfDocument
         ["sterling"] = 0x00A3,
         ["summation"] = 0x2211,
         ["t"] = 0x0074,
+        ["thinspace"] = 0x2009,
         ["thorn"] = 0x00FE,
         ["three"] = 0x0033,
         ["threequarters"] = 0x00BE,
@@ -1129,17 +1289,22 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     The reverse mapping (Unicode codepoint to glyph name) built once from
-    ///     <see cref="StandardGlyphNames"/>, passed as <see cref="Fonts.TrueTypeFont.LoadType1"/>'s
-    ///     <c>codepointToGlyphName</c> argument by <see cref="LoadType1Font"/> (see
-    ///     <c>PdfDocument.Fonts.Type1.cs</c>) - reusing this class's existing Adobe-glyph-name
-    ///     vocabulary rather than introducing a second, separately-maintained glyph-name table.
+    ///     <see cref="StandardGlyphNames"/>, used by <see cref="BuildEmbeddedFontGlyphNameMap"/>
+    ///     as the generic starting point for the enriched, per-font-dictionary map
+    ///     <see cref="LoadType1Font"/>/<see cref="LoadType1CFont"/> (see
+    ///     <c>PdfDocument.Fonts.Type1.cs</c>) pass as <see cref="Fonts.TrueTypeFont.LoadType1"/>/
+    ///     <see cref="Fonts.TrueTypeFont.LoadType1C"/>'s own <c>codepointToGlyphName</c> argument -
+    ///     reusing this class's existing Adobe-glyph-name vocabulary rather than introducing a
+    ///     second, separately-maintained glyph-name table.
     /// </summary>
     /// <remarks>
     ///     When more than one glyph name in <see cref="StandardGlyphNames"/> maps to the same
     ///     codepoint (for example a hypothetical synonym pair), the first one encountered (in
     ///     <see cref="StandardGlyphNames"/>'s own declaration order) wins - the same "first-wins
     ///     on collision" convention <c>Fonts.Type1StandardGlyphNames</c> uses for its own reverse
-    ///     map.
+    ///     map. <see cref="BuildEmbeddedFontGlyphNameMap"/> may further overwrite an entry built
+    ///     from this generic map with a document's own literal <c>/Differences</c>-declared name
+    ///     for that same codepoint - see that method's own remarks for why.
     /// </remarks>
     private static readonly IReadOnlyDictionary<int, string> CodepointToStandardGlyphName =
         BuildCodepointToStandardGlyphName();
@@ -1165,8 +1330,10 @@ public sealed partial class PdfDocument
     ///     index resolution is always the identity function, bypassing
     ///     <see cref="Fonts.TrueTypeFont.GetGlyphIndex"/> (and therefore this map) entirely -
     ///     unlike <see cref="LoadType1CFont"/>'s own simple-font <c>/FontFile3</c> path (see
-    ///     <c>PdfDocument.Fonts.Type1.cs</c>), which passes <see cref="CodepointToStandardGlyphName"/>
-    ///     instead, since a simple font's codes are resolved to glyphs by codepoint.
+    ///     <c>PdfDocument.Fonts.Type1.cs</c>), which passes the enriched map
+    ///     <see cref="BuildEmbeddedFontGlyphNameMap"/> builds (seeded from
+    ///     <see cref="CodepointToStandardGlyphName"/>) instead, since a simple font's codes are
+    ///     resolved to glyphs by codepoint.
     /// </summary>
     private static readonly IReadOnlyDictionary<int, string> EmptyCodepointToGlyphName =
         new Dictionary<int, string>();

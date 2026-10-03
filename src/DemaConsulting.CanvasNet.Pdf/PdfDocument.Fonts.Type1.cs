@@ -12,9 +12,11 @@ public sealed partial class PdfDocument
     ///     numeric <c>/Length1</c>/<c>/Length2</c> entries (the cleartext/encrypted segment byte
     ///     counts <see cref="Fonts.TrueTypeFont.LoadType1"/> needs), decodes the stream via
     ///     <see cref="GetStreamDecodedBytes"/>, and loads it via
-    ///     <see cref="Fonts.TrueTypeFont.LoadType1"/>, passing <see cref="CodepointToStandardGlyphName"/>
-    ///     as the codepoint-to-glyph-name encoding (this class's own existing Adobe-glyph-name
-    ///     vocabulary, reused rather than duplicated - see that field's own remarks).
+    ///     <see cref="Fonts.TrueTypeFont.LoadType1"/>, passing <paramref name="codepointToGlyphName"/>
+    ///     as the codepoint-to-glyph-name encoding - this specific font dictionary's own enriched
+    ///     map (see <see cref="BuildEmbeddedFontGlyphNameMap"/>'s own remarks for why it can differ,
+    ///     per codepoint, from this class's generic <see cref="CodepointToStandardGlyphName"/>
+    ///     Adobe-glyph-name vocabulary that seeds it).
     /// </summary>
     /// <remarks>
     ///     <para>
@@ -35,6 +37,12 @@ public sealed partial class PdfDocument
     ///     </para>
     /// </remarks>
     /// <param name="descriptor">The resolved <c>/FontDescriptor</c> dictionary.</param>
+    /// <param name="codepointToGlyphName">
+    ///     The codepoint-to-glyph-name map used to build the loaded font's synthetic
+    ///     <c>cmap</c>-equivalent lookup - this font dictionary's own enriched map from
+    ///     <see cref="BuildEmbeddedFontGlyphNameMap"/>, not necessarily
+    ///     <see cref="CodepointToStandardGlyphName"/> itself.
+    /// </param>
     /// <returns>The loaded <see cref="Fonts.TrueTypeFont"/>.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <c>/FontDescriptor/FontFile</c> is missing or does not resolve to a
@@ -42,7 +50,7 @@ public sealed partial class PdfDocument
     ///     is missing or does not resolve to a number, or propagated from
     ///     <see cref="Fonts.TrueTypeFont.LoadType1"/> for a malformed embedded Type 1 program.
     /// </exception>
-    private TrueTypeFont LoadType1Font(PdfObject descriptor)
+    private TrueTypeFont LoadType1Font(PdfObject descriptor, IReadOnlyDictionary<int, string> codepointToGlyphName)
     {
         var fontFileEntry = descriptor.Get("FontFile")
             ?? throw new InvalidDataException("Descriptor /FontDescriptor is missing required /FontFile.");
@@ -68,7 +76,7 @@ public sealed partial class PdfDocument
 
         var fontBytes = GetStreamDecodedBytes(fontFileStream);
         return TrueTypeFont.LoadType1(
-            new MemoryStream(fontBytes), (int)length1Value.Number, (int)length2Value.Number, CodepointToStandardGlyphName);
+            new MemoryStream(fontBytes), (int)length1Value.Number, (int)length2Value.Number, codepointToGlyphName);
     }
 
     /// <summary>
@@ -79,10 +87,11 @@ public sealed partial class PdfDocument
     ///     than trusting the stream's own declared <c>/Subtype</c> name - see this method's own
     ///     remarks), and dispatches to <see cref="Fonts.TrueTypeFont.LoadType1C"/> (bare CFF) or
     ///     <see cref="Fonts.TrueTypeFont.Load(Stream)"/> (SFNT-wrapped) accordingly, passing
-    ///     <see cref="CodepointToStandardGlyphName"/> as the bare-CFF codepoint-to-glyph-name
+    ///     <paramref name="codepointToGlyphName"/> as the bare-CFF codepoint-to-glyph-name
     ///     encoding - exactly as <see cref="LoadType1Font"/> does for the classic <c>/FontFile</c>
-    ///     path (see that method's own remarks for why no font-dict-specific <c>/Encoding</c>
-    ///     resolution is needed here either).
+    ///     path (see that method's own remarks and <see cref="BuildEmbeddedFontGlyphNameMap"/>'s
+    ///     own remarks for how this font-dict-specific map differs from the generic
+    ///     <see cref="CodepointToStandardGlyphName"/> vocabulary that seeds it).
     /// </summary>
     /// <remarks>
     ///     <para>
@@ -112,6 +121,13 @@ public sealed partial class PdfDocument
     ///     </para>
     /// </remarks>
     /// <param name="descriptor">The resolved <c>/FontDescriptor</c> dictionary.</param>
+    /// <param name="codepointToGlyphName">
+    ///     The codepoint-to-glyph-name map used to build the loaded bare-CFF font's synthetic
+    ///     <c>cmap</c>-equivalent lookup - this font dictionary's own enriched map from
+    ///     <see cref="BuildEmbeddedFontGlyphNameMap"/>, not necessarily
+    ///     <see cref="CodepointToStandardGlyphName"/> itself. Unused for the SFNT-wrapped branch,
+    ///     which derives its own glyph lookup from the SFNT container's own <c>cmap</c> table.
+    /// </param>
     /// <returns>The loaded <see cref="Fonts.TrueTypeFont"/>.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <c>/FontDescriptor/FontFile3</c> is missing or does not resolve to a
@@ -123,7 +139,7 @@ public sealed partial class PdfDocument
     ///     Thrown when the <c>/FontFile3</c> stream's decoded bytes match neither a recognized
     ///     SFNT container nor a structurally plausible bare CFF header.
     /// </exception>
-    private TrueTypeFont LoadType1CFont(PdfObject descriptor)
+    private TrueTypeFont LoadType1CFont(PdfObject descriptor, IReadOnlyDictionary<int, string> codepointToGlyphName)
     {
         var fontFileEntry = descriptor.Get("FontFile3")
             ?? throw new InvalidDataException("Descriptor /FontDescriptor is missing required /FontFile3.");
@@ -137,7 +153,7 @@ public sealed partial class PdfDocument
         return SniffFontFile3Shape(fontBytes) switch
         {
             FontFile3Shape.Sfnt => TrueTypeFont.Load(new MemoryStream(fontBytes)),
-            FontFile3Shape.BareCff => TrueTypeFont.LoadType1C(new MemoryStream(fontBytes), CodepointToStandardGlyphName),
+            FontFile3Shape.BareCff => TrueTypeFont.LoadType1C(new MemoryStream(fontBytes), codepointToGlyphName),
             _ => throw new UnsupportedImageFeatureException(
                 "pdf-font-fontfile3-unrecognized-shape",
                 "/FontFile3 stream's decoded bytes are neither a recognized SFNT container " +

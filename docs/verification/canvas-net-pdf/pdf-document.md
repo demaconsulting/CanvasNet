@@ -1136,6 +1136,7 @@ logic applies identically regardless of which descendant-font outline flavor is 
 `PdfDocument_Fonts_Type1_FontFileMissingLength1_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_Type1_FontFileMissingLength2_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_Type1_FontFileNonNumericLength2_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedType1FontGlyphMap`,
 `PdfDocument_Load_TextEmbeddedType1FontFixture_PaintsVisibleGlyphInk`,
 `PdfDocument_Load_TextStandard14Type1NoFontFileFixture_PaintsVisibleSubstituteGlyphInk`,
 `CanvasNetPdf_SystemIntegration_RenderEmbeddedType1Font_PaintsExpectedGlyphInk`
@@ -1161,7 +1162,16 @@ own resolution and fail-closed cases. An embedded `/FontFile` stream declaring o
 stream declaring only `/Length1` asserts `InvalidDataException` too; separately, a stream
 declaring a non-numeric `/Length2` value (`/NotANumber`) asserts `InvalidDataException` as well -
 proving all three malformed-length cases fail closed, and that both lengths are read from the
-`/FontFile` stream's own dictionary (never the descriptor's). Two fixture-conformance tests open
+`/FontFile` stream's own dictionary (never the descriptor's). A further test,
+`PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedType1FontGlyphMap`, proves
+this classic `/FontFile` path's own call into `LoadType1Font` also receives the font dictionary's
+enriched codepoint-to-glyph-name map: a `/Differences` array names a code `/uni03BC`, and the
+embedded classic Type 1 program's own charstrings spell their one non-`.notdef` glyph with that
+exact literal name, so the glyph paints only because `LoadType1Font` is passed (and consults) the
+enriched map rather than the generic `CodepointToStandardGlyphName` reverse map alone - the same
+enrichment proven for the Type1C/CFF path by
+`CanvasNetPdf-PdfDocument-Type1CFontResolution`'s own matching test below, now proven for the
+classic `/FontFile` path too. Two fixture-conformance tests open
 the new hand-authored, entirely synthetic `text-embedded-type1-font.pdf` and
 `text-standard14-type1-no-fontfile.pdf` fixtures (see `PdfFixtures\README.md`) and assert visible
 painted ink from each. The end-to-end system-integration test opens
@@ -1175,7 +1185,10 @@ share the identical glyph design/placement), plus fully-transparent canvas corne
 **Tests**: `PdfDocument_Fonts_Type1_FontFile3Type1C_ResolvesEmbeddedFont_PaintsGlyphInk`,
 `PdfDocument_Fonts_Type1_MismatchedSubtype_BareCffBytes_ResolvesEmbeddedFont`,
 `PdfDocument_Fonts_Type1_MissingFontFile3Subtype_ResolvesEmbeddedFont`,
-`PdfDocument_Fonts_Type1_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException`
+`PdfDocument_Fonts_Type1_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Fonts_Differences_ThinspaceName_ResolvesAndPaintsEmbeddedGlyph`,
+`PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedFontGlyphMap`,
+`PdfDocument_Load_TextType1CDifferencesAglLigaturesFixture_PaintsVisibleGlyphInk`
 
 Builds a `/Subtype /Type1` font dictionary with an embedded, entirely synthetic, bare Type1C/CFF
 `/FontDescriptor/FontFile3` stream (via `SyntheticFontBuilder.Cff`, declaring a `/Subtype
@@ -1201,6 +1214,33 @@ not derived from any real-world font), asserting
 `Codecs.UnsupportedImageFeatureException` with `Feature ==
 "pdf-font-fontfile3-unrecognized-shape"` - the one shape genuinely still rejected, regardless of
 the stream's declared `/Subtype`.
+
+A later pair of tests, `PdfDocument_Fonts_Differences_ThinspaceName_ResolvesAndPaintsEmbeddedGlyph`
+and `PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedFontGlyphMap`, prove
+`LoadType1CFont` no longer passes the same generic, document-independent
+`CodepointToStandardGlyphName` reverse map every embedded Type1/Type1C font previously received
+regardless of its own font dictionary's `/Encoding`: each builds a `BuildEmbeddedType1CFontResources`
+font whose own CFF charset names its one non-`.notdef` glyph with a literal, non-generic name
+(`"thinspace"`, `"uni03BC"`) matching a `/Differences` array that remaps code `65` to that exact
+name, and asserts the embedded font's square glyph still paints - the `uni03BC` case specifically
+proves the fix's enrichment step is load-bearing (not merely the new Adobe Glyph List `uniXXXX`
+hex-codepoint fallback alone), since `StandardGlyphNames`'s own pre-existing `"mu"` entry maps to
+`U+00B5` (MICRO SIGN) rather than `U+03BC` (GREEK SMALL MU), so the generic reverse map has no
+name at all for codepoint `U+03BC` for the embedded-font loader to find on its own; only because
+`BuildResolvedSimpleFont` now builds this per-font-dictionary enriched map - from the generic map,
+then overwritten with each of this font's own `/Differences`-declared literal names, per
+codepoint, before either embedded-font loader runs - does the loader ever see `"uni03BC"` at all.
+A real-world fixture-conformance test,
+`PdfDocument_Load_TextType1CDifferencesAglLigaturesFixture_PaintsVisibleGlyphInk`, opens the
+trimmed, genuinely real-world `text-type1c-differences-agl-ligatures.pdf` fixture (see
+`PdfFixtures\README.md`) - two actual embedded, subsetted Type1C fonts (`Gotham-Bold`/
+`Gotham-Book`) whose own `/Differences` arrays name glyphs (`/uni03BC`, `/thinspace`) this exact
+regression previously left unresolved - and asserts visible glyph ink paints; this fixture's
+content stream also exercises an `/f_f` ligature-glyph name that remains unresolved by design (an
+AGL underscore-ligature decomposition rule, not a `uniXXXX`/`uXXXX` hex name, and explicitly out
+of this fix's scope), so this broad fixture test deliberately only asserts "some ink paints
+somewhere" rather than per-glyph pixel positions - the two precise synthetic tests above already
+isolate the fixed mechanisms exactly.
 
 #### CanvasNetPdf-PdfDocument-Type3FontResolution: Type3 Fonts Resolve Required Fields, Fail Closed on Malformed Ones
 
@@ -1460,7 +1500,17 @@ asserting no exception; separately declares a
 `/Differences` array beginning with a glyph name before any starting code number, asserting
 `InvalidDataException` for that malformed array shape too. A further test declares a
 `/Differences` array naming the `nacute` (Polish/Czech "ń") Latin Extended-A accented letter
-(found via the same real-world pdfLaTeX Computer Modern font), asserting no exception. As of
+(found via the same real-world pdfLaTeX Computer Modern font), asserting no exception. A
+`/Differences` array naming a glyph via the Adobe Glyph List's own generic `uniXXXX`/`uXXXX`
+hex-codepoint naming convention (for example `/uni03BC`, a name `StandardGlyphNames` does not
+itself cover by any direct lookup entry) now also resolves to its literal codepoint rather than
+falling back to the base encoding's own mapping, via the new `TryResolveGlyphNameToCodepoint`
+helper `ApplyDifferences` now calls instead of consulting `StandardGlyphNames` directly - see
+`CanvasNetPdf-PdfDocument-Type1CFontResolution` above for the dedicated regression tests proving
+this resolves end to end against an actual embedded font (both `ApplyDifferences`'s own codepoint
+resolution and the embedded-font loader's own synthetic-cmap-equivalent glyph-name lookup must
+agree on the same codepoint for a glyph to paint, so those tests exercise the full pipeline, not
+only this requirement's own codepoint-resolution half). As of
 Phase B, a font explicitly
 declaring `/StandardEncoding` and showing byte code `0x27` (which diverges between the two base
 encodings - `StandardEncoding` maps it to U+2019 "quoteright", `WinAnsiEncoding` maps it to
