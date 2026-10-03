@@ -2084,6 +2084,87 @@ public class PdfDocumentTests
     /// <summary>
     ///     Builds an in-memory, single-page PDF with no <c>xref</c> table or <c>startxref</c> at
     ///     all (forcing <c>BuildLinearScanFallback</c>'s raw byte scan to be the only route to a
+    ///     working object table), where object 3 (the Page) is first defined directly and early
+    ///     in the file (pointing its <c>/Contents</c> at object 4, a red-filling stream), then
+    ///     redefined later in physical file order via a compressed <c>/Type /ObjStm</c> container
+    ///     (object 6, pointing <c>/Contents</c> instead at object 5, a blue-filling stream) -
+    ///     mirroring a realistic incrementally-updated document where a later save redefines an
+    ///     object via a compressed object stream rather than a fresh direct definition. The two
+    ///     candidate definitions are otherwise identical (same parent, same media box) so the only
+    ///     observable difference is which content stream ends up referenced.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithLaterCompressedPageRedefinitionPdf()
+    {
+        var redPageBytes = "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray();
+        var bluePageBytes = "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray();
+        var objStmHeader = "3 0\n"u8.ToArray();
+        var objStmContent = new List<byte>();
+        objStmContent.AddRange(objStmHeader);
+        objStmContent.AddRange(bluePageBytes);
+
+        var redContentBytes = "1 0 0 rg 0 0 100 100 re f"u8.ToArray();
+        var blueContentBytes = "0 0 1 rg 0 0 100 100 re f"u8.ToArray();
+
+        // Objects appear, in physical file order, as: 1 (Catalog), 2 (Pages), 3 (Page, the
+        // ORIGINAL direct definition pointing at the red content stream), 4 (red content
+        // stream), 5 (blue content stream), 6 (the ObjStm, physically last, compressing a
+        // redefinition of object 3 that instead points at the blue content stream). Object 3's
+        // only direct "3 0 obj" header is the original/red one; its later/blue redefinition
+        // exists solely compressed inside object 6.
+        var numbers = new[] { 1, 2, 3, 4, 5, 6 };
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            redPageBytes,
+            BuildStreamObjectBody($"/Length {redContentBytes.Length}", redContentBytes),
+            BuildStreamObjectBody($"/Length {blueContentBytes.Length}", blueContentBytes),
+            BuildStreamObjectBody($"/Type /ObjStm /N 1 /First {objStmHeader.Length}", [.. objStmContent]),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{numbers[i]} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that when a compressed object stream redefines an object number that was
+    ///     already registered by an earlier direct definition, the fallback's compressed-object
+    ///     registration (<c>RegisterCompressedObjectsFromObjectStreams</c>) keeps the definition
+    ///     that physically occurs later in the file - matching <c>ScanObjectOffsets</c>'s own
+    ///     "later occurrence wins" rule for direct objects - rather than unconditionally
+    ///     preferring whichever definition happened to be registered first. See
+    ///     <see cref="BuildLinearScanFallbackWithLaterCompressedPageRedefinitionPdf"/>: object 3
+    ///     (the Page) is first defined directly (pointing at a red content stream) and then
+    ///     redefined, later in the file, compressed inside an <c>/Type /ObjStm</c> (pointing at a
+    ///     blue content stream). The rendered page must be blue, proving the later compressed
+    ///     redefinition - not the earlier direct one - was resolved.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_LaterCompressedRedefinitionOverridesEarlierDirectObject()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithLaterCompressedPageRedefinitionPdf();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no <c>xref</c> table or <c>startxref</c> at
+    ///     all (forcing <c>BuildLinearScanFallback</c>'s raw byte scan to be the only route to a
     ///     working object table), where object 3 (the Page, referenced by object 2's <c>/Kids</c>)
     ///     is never directly defined - it exists only compressed inside object 4's
     ///     <c>/Type /ObjStm</c> container, whose header entry declares a non-integer object

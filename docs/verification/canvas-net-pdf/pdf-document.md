@@ -277,6 +277,15 @@ confirms the fallback's own eager object-stream registration pass applies the sa
 `int` validation to a declared `/N` (entry count) before narrowing it: an object stream declaring
 `/N 1.5` is rejected outright even though an unchecked `(int)` cast would have truncated it to `1`
 and coincidentally matched the real single-entry content that follows.
+`PdfDocument_Open_LinearScanFallback_LaterCompressedRedefinitionOverridesEarlierDirectObject`
+confirms the fallback's eager object-stream registration pass applies the same "a later physical
+occurrence overrides an earlier one" rule `ScanObjectOffsets` already applies to direct `N G obj`
+headers: when an object number is first defined directly, earlier in the file, and then
+redefined later via a compressed `/Type /ObjStm` entry - a realistic shape for an incrementally
+updated document - the later, compressed definition is resolved, not the earlier direct one. An
+earlier revision instead refused to overwrite any already-registered entry regardless of physical
+position, silently keeping the stale direct definition; this test would have failed against that
+behavior.
 `PdfDocument_Open_LinearScanFallback_UnrelatedUnterminatedLiteralStringBeforeObjectHeader_StillResolvesDocument`
 confirms the deliberate trade-off documented on `AdvancePastNonSyntax` (see its remarks) holds in
 practice: a run of unmatched, never-closing `(` bytes that is unrelated binary noise - not a
@@ -553,7 +562,7 @@ dedicated transparent-override test passes `new PdfRenderOptions { BackgroundCol
 0) }` and asserts every pixel reproduces the fully transparent behavior `Render` had before this
 options parameter was added.
 
-#### CanvasNetPdf-PdfDocument-RenderWithDpi: Render(int, float) Scales Page Size by DPI/72 and Validates Arguments
+#### CanvasNetPdf-PdfDocument-RenderWithDpi: Render(int, float, PdfRenderOptions?) Scales by DPI/72
 
 **Tests**: `PdfDocument_RenderWithDpi_ScalesPageSizeByDpiOver72`,
 `PdfDocument_RenderWithDpi_InvalidDpi_ThrowsArgumentOutOfRangeException`,
@@ -561,19 +570,19 @@ options parameter was added.
 `PdfDocument_RenderWithDpi_AfterDispose_ThrowsObjectDisposedException`,
 `PdfDocument_RenderWithDpi_PropagatesOptionsBackgroundColor`
 
-Calls `Render(int, float)` with several DPI values (`[Theory]`: 72, 36, and 144) against a
-single-page fixture and asserts the returned `Surface`'s width/height exactly match the page's
-own point-space size scaled by `dpi / 72` and rounded to the nearest pixel, confirming the
+Calls `Render(int, float, PdfRenderOptions?)` with several DPI values (`[Theory]`: 72, 36, and 144)
+against a single-page fixture and asserts the returned `Surface`'s width/height exactly match the
+page's own point-space size scaled by `dpi / 72` and rounded to the nearest pixel, confirming the
 overload preserves the page's aspect ratio rather than requiring the caller to compute pixel
-dimensions itself. Calls `Render(int, float)` with a non-positive and a non-finite (`NaN`,
-`PositiveInfinity`) DPI (`[Theory]`), an out-of-range page index, and after the document has been
-disposed, asserting `ArgumentOutOfRangeException` for the first two cases and
+dimensions itself. Calls `Render(int, float, PdfRenderOptions?)` with a non-positive and a
+non-finite (`NaN`, `PositiveInfinity`) DPI (`[Theory]`), an out-of-range page index, and after the
+document has been disposed, asserting `ArgumentOutOfRangeException` for the first two cases and
 `ObjectDisposedException` for the last, matching the validation contract already proven for
-`Render(int, int, int)`. Renders a blank single-page fixture via `Render(int, float, PdfRenderOptions?)`
-with a custom `PdfRenderOptions.BackgroundColor` and asserts every pixel equals that custom
-color rather than the opaque-white default, proving the overload actually forwards its own
-`options` parameter through to `Render(int, int, int, PdfRenderOptions?)` instead of silently
-dropping it.
+`Render(int, int, int, PdfRenderOptions?)`. Renders a blank single-page fixture via
+`Render(int, float, PdfRenderOptions?)` with a custom `PdfRenderOptions.BackgroundColor` and
+asserts every pixel equals that custom color rather than the opaque-white default, proving the
+overload actually forwards its own `options` parameter through to
+`Render(int, int, int, PdfRenderOptions?)` instead of silently dropping it.
 
 #### CanvasNetPdf-PdfDocument-ContentStreamDispatch: Unknown Operators Are Skipped, Malformed Recognized Operators Throw
 

@@ -1394,16 +1394,43 @@ public sealed partial class PdfDocument
                     break;
                 }
 
-                // A direct "N G obj" marker (if one somehow also exists for this number) is more
-                // trustworthy than an assumed containment index, so never overwrite an existing
-                // entry here.
-                if (!_xref.ContainsKey(containedNumber))
+                // Apply the same "a later physical occurrence overrides an earlier one" rule
+                // ScanObjectOffsets already uses for direct "N G obj" markers, rather than always
+                // keeping whatever was registered first: an incrementally updated document can
+                // legitimately redefine an object - originally a direct header - later in the
+                // file via a compressed object stream, and that later definition must win. Every
+                // object inside a given stream shares that stream's own physical offset as its
+                // position, since entries inside an ObjStm have no individual byte position of
+                // their own.
+                var candidatePosition = _xref[streamNumber].Offset;
+                if (!_xref.TryGetValue(containedNumber, out var existingEntry) ||
+                    candidatePosition > GetPhysicalPosition(existingEntry))
                 {
                     _xref[containedNumber] = XrefEntry.CreateCompressed(streamNumber, i);
+
+                    // An earlier iteration of this same loop may already have called GetObject on
+                    // containedNumber (for example to inspect some other stream candidate that
+                    // turned out not to be an ObjStm), caching its now-superseded value. Evict
+                    // that stale cache entry so a later GetObject(containedNumber) call re-reads
+                    // from (and reflects) the xref entry we just overwrote above.
+                    _objectCache.Remove(containedNumber);
                 }
             }
         }
     }
+
+    /// <summary>
+    ///     Returns the physical buffer offset an <see cref="XrefEntry"/> is anchored to, used by
+    ///     <see cref="RegisterCompressedObjectsFromObjectStreams"/> to decide which of two
+    ///     candidate definitions for the same object number physically occurs later in the file.
+    ///     A <see cref="XrefEntryType.Direct"/> entry's own offset is used directly; a
+    ///     <see cref="XrefEntryType.Compressed"/> entry has no byte position of its own, so its
+    ///     containing object stream's own (always direct) offset is used as its position instead
+    ///     - every object inside a given stream physically occurs together, at that stream's
+    ///     location.
+    /// </summary>
+    private long GetPhysicalPosition(XrefEntry entry) =>
+        entry.Type == XrefEntryType.Compressed ? _xref[entry.StreamNumber].Offset : entry.Offset;
 
     /// <summary>
     ///     Returns whether <paramref name="value"/> is a finite integer exactly representable as
