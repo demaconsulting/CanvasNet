@@ -172,6 +172,16 @@ finite pattern-matching rule can fully distinguish from the genuine terminator -
 documented behavior of other mainstream recovery implementations (for example qpdf and mutool); a
 worst-case false match here can at most cause partial or no recovery of an already-malformed
 document, never a crash.
+`PdfDocument_Open_LinearScanFallback_TrailerKeywordAsNameToken_DoesNotReplaceRealTrailer` further
+confirms that a `/trailer` PDF *name* token (introduced by a literal `/` immediately before text
+that happens to read "trailer") is never mistaken for the bare `trailer` keyword - only the
+latter denotes a genuine trailer dictionary - and
+`PdfDocument_Open_LinearScanFallback_ManyStreamPayloadRangesBeforeTrailer_StillResolvesTrailer`
+confirms the trailer scan still locates the real trailer correctly when preceded by many
+unrelated stream objects, exercising its stream-payload-range membership check (a
+monotonically-advancing index into the ranges `ScanObjectOffsets` already discovered in
+increasing order, keeping the overall scan linear in document size rather than quadratic in
+stream-object count) across many entries.
 
 #### CanvasNetPdf-PdfDocument-PageTreeTraversal: Page Tree Traversal Reports All Pages
 

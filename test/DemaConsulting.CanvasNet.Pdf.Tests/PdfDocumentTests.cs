@@ -2550,6 +2550,69 @@ public class PdfDocumentTests
         Assert.Equal(default, surface[5, 5]);
     }
 
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table at all (forcing
+    ///     linear-scan fallback) preceded by many unrelated small stream objects, so that
+    ///     <c>ScanForTrailerDictionary</c>'s own <c>streamPayloadRanges</c> list accumulates many
+    ///     entries before the real trailer keyword is ever reached.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithManyStreamPayloadRangesBeforeTrailer()
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody(string.Empty, []),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // Many unrelated, directly-located stream objects - each one contributes its own
+        // [Start, End) entry to streamPayloadRanges before the trailer keyword is reached.
+        var nextObjectNumber = bodies.Count + 1;
+        for (var i = 0; i < 500; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{nextObjectNumber++} 0 obj\n"));
+            buffer.AddRange(BuildStreamObjectBody(string.Empty, System.Text.Encoding.ASCII.GetBytes($"filler-payload-{i}")));
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        buffer.AddRange("trailer\n<< /Size 1 /Root 1 0 R >>\n"u8.ToArray());
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that the real trailer is still correctly located when it is preceded by many
+    ///     unrelated stream objects (see
+    ///     <see cref="BuildLinearScanFallbackWithManyStreamPayloadRangesBeforeTrailer"/>),
+    ///     exercising <c>ScanForTrailerDictionary</c>'s monotonically-advancing stream-payload-
+    ///     range index across many entries rather than just the one or two ranges earlier,
+    ///     smaller fixtures produce.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ManyStreamPayloadRangesBeforeTrailer_StillResolvesTrailer()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithManyStreamPayloadRangesBeforeTrailer();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
     #endregion
 
     #region Page tree

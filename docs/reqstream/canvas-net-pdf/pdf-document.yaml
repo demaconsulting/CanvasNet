@@ -129,6 +129,8 @@ sections:
               - PdfDocument_Open_LinearScanFallback_ObjectHeaderNotAtLineStart_StillResolves
               - PdfDocument_Open_LinearScanFallback_ObjectHeaderDecoyInsideMultilineString_DoesNotCorruptOffsets
               - PdfDocument_Open_LinearScanFallback_UnsupportedFilterObjectStream_DoesNotAbortRecovery
+              - PdfDocument_Open_LinearScanFallback_TrailerKeywordAsNameToken_DoesNotReplaceRealTrailer
+              - PdfDocument_Open_LinearScanFallback_ManyStreamPayloadRangesBeforeTrailer_StillResolvesTrailer
 
           - id: CanvasNetPdf-PdfDocument-PageTreeTraversal
             title: >-

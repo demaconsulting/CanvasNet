@@ -1192,13 +1192,19 @@ public sealed partial class PdfDocument
     ///     parsed, since it is necessarily just coincidental content inside some object's
     ///     compressed/binary stream data (for example embedded verbatim inside a PDF being
     ///     recovered, or compressed content that happens to decompress-match nothing in
-    ///     particular) rather than the document's real trailer keyword.
+    ///     particular) rather than the document's real trailer keyword. <paramref
+    ///     name="streamPayloadRanges"/> is produced by <see cref="ScanObjectOffsets"/>'s single
+    ///     left-to-right pass in increasing, non-overlapping <c>Start</c> order, so membership is
+    ///     tested here with a single monotonically-advancing index alongside the scan position
+    ///     rather than a per-position linear search of the whole list - keeping this scan overall
+    ///     linear in the buffer size instead of quadratic in stream-object count.
     /// </param>
     private PdfObject? ScanForTrailerDictionary(List<(int Start, int End)> streamPayloadRanges)
     {
         var buffer = _buffer;
         PdfObject? last = null;
         var i = 0;
+        var rangeIndex = 0;
 
         while (i < buffer.Length)
         {
@@ -1209,12 +1215,17 @@ public sealed partial class PdfDocument
                 continue;
             }
 
-            var payloadRange = streamPayloadRanges.Find(range => i >= range.Start && i < range.End);
-            if (payloadRange != default)
+            while (rangeIndex < streamPayloadRanges.Count && i >= streamPayloadRanges[rangeIndex].End)
+            {
+                rangeIndex++;
+            }
+
+            if (rangeIndex < streamPayloadRanges.Count &&
+                i >= streamPayloadRanges[rangeIndex].Start && i < streamPayloadRanges[rangeIndex].End)
             {
                 // Jump straight past the whole payload range - it is not real PDF syntax, so
                 // neither comment/string tracking nor keyword matching apply inside it.
-                i = payloadRange.End;
+                i = streamPayloadRanges[rangeIndex].End;
                 continue;
             }
 
@@ -1249,10 +1260,16 @@ public sealed partial class PdfDocument
     ///     Returns whether <paramref name="keyword"/> matches the buffer exactly at
     ///     <paramref name="position"/>, applying the same identifier-boundary rules as
     ///     <see cref="IndexOfKeyword"/> (so a match inside a larger identifier, such as the tail
-    ///     of a longer word, is rejected) rather than merely comparing bytes.
+    ///     of a longer word, is rejected) rather than merely comparing bytes. A match is also
+    ///     rejected when immediately preceded by <c>/</c>: per the PDF specification a name token
+    ///     begins with <c>/</c> directly followed by its regular characters with no intervening
+    ///     whitespace, so (for example) <c>/trailer</c> is a <em>name</em> whose text happens to
+    ///     read "trailer" - a legitimate dictionary key or value any real document can contain -
+    ///     never the <c>trailer</c> keyword itself, and must not be parsed as one.
     /// </summary>
     private static bool IsKeywordAt(byte[] buffer, int position, ReadOnlySpan<byte> keyword) =>
         position + keyword.Length <= buffer.Length &&
+        (position == 0 || buffer[position - 1] != (byte)'/') &&
         IndexOfKeyword(buffer, position, position + keyword.Length, keyword) == position;
 
     private static string? GetNameValue(PdfObject dictionary, string key) =>
