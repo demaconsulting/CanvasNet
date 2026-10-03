@@ -259,9 +259,10 @@ public class PdfFixtureTests
     ///     trimmed excerpt of an actual document, not hand-authored - see
     ///     <c>PdfFixtures\README.md</c> for why) opens and renders visible glyph ink from its two
     ///     genuinely embedded <c>/FontFile3 /Type1C</c> fonts despite their
-    ///     <c>/Encoding/Differences</c> arrays naming glyphs (<c>/uni03BC</c>, <c>/thinspace</c>)
-    ///     outside <c>StandardGlyphNames</c>' own common-name subset - the regression this
-    ///     fixture reproduces and this test guards against.
+    ///     <c>/Encoding/Differences</c> arrays naming a glyph (<c>/uni03BC</c>) outside
+    ///     <c>StandardGlyphNames</c>' own common-name subset (<c>/thinspace</c> is itself now a
+    ///     direct entry in that subset, resolved without needing the AGL hex fallback at all) -
+    ///     the regression this fixture reproduces and this test guards against.
     /// </summary>
     [Fact]
     public void PdfDocument_Load_TextType1CDifferencesAglLigaturesFixture_PaintsVisibleGlyphInk()

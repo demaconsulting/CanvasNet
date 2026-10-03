@@ -125,10 +125,11 @@ hand-authored: it is a trimmed, single-page excerpt of a real-world document (pa
 otherwise intact (including its two genuinely embedded `/Subtype /Type1`/`/FontFile3 /Type1C`
 fonts, `XUPVJI+Gotham-Bold` (`/T1_0`) and `XUPVJI+Gotham-Book` (`/T1_1`)) because it reproduces a
 regression that a synthetic fixture could not credibly demonstrate: both fonts declare an
-`/Encoding/Differences` array naming glyphs the generic Adobe-Glyph-List common-name subset
-(`StandardGlyphNames`) does not itself cover by the exact spelling the embedded font's own CFF
-charset actually uses (for example code 28/27 `/uni03BC`, resolved via the Adobe Glyph List's
-generic `uniXXXX` hex-codepoint naming convention, and code 27 `/thinspace`). Its content stream
+`/Encoding/Differences` array naming glyphs by the exact spelling the embedded font's own CFF
+charset actually uses - for example code 28/27 `/uni03BC`, a name the generic Adobe-Glyph-List
+common-name subset (`StandardGlyphNames`) does not itself cover, resolved instead via the Adobe
+Glyph List's generic `uniXXXX` hex-codepoint naming convention. Code 27 `/thinspace` is itself
+now a direct `StandardGlyphNames` entry, not a missing-vocabulary case. Its content stream
 genuinely exercises both codes against real body text (`"...50μL..."`, `"...+1 % compared..."`).
 
 > **Note**: this fixture's content stream also exercises a `/f_f` ligature-glyph name (an

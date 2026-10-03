@@ -599,11 +599,23 @@ public sealed partial class PdfDocument
     ///     Parses <paramref name="digits"/> as a Unicode codepoint, requiring every character to
     ///     be an uppercase hex digit (<c>0-9</c>/<c>A-F</c>) - shared by
     ///     <see cref="TryParseAdobeGlyphListHexName"/>'s two naming conventions so both reject a
-    ///     lowercase (or otherwise non-hex) digit identically.
+    ///     lowercase (or otherwise non-hex) digit identically. Also rejects a syntactically valid
+    ///     hex value above <c>0x10FFFF</c> (the highest valid Unicode codepoint): the four-to-six
+    ///     digit <c>uXXXX</c>/.../<c>uXXXXXX</c> convention can spell a six-digit value as large as
+    ///     <c>0xFFFFFF</c>, which is not a valid AGL codepoint name at all, so such a name must
+    ///     stay unresolved (per <see cref="ApplyDifferences"/>'s own tolerant handling for
+    ///     unrecognized names) rather than being treated as resolved.
     /// </summary>
     /// <param name="digits">The candidate hex digit span to parse.</param>
-    /// <param name="value">The parsed value, or <c>0</c> when <paramref name="digits"/> contains any non-uppercase-hex character.</param>
-    /// <returns><see langword="true"/> if every character in <paramref name="digits"/> was an uppercase hex digit.</returns>
+    /// <param name="value">
+    ///     The parsed value, or <c>0</c> when <paramref name="digits"/> contains any
+    ///     non-uppercase-hex character, or when the parsed value exceeds <c>0x10FFFF</c>.
+    /// </param>
+    /// <returns>
+    ///     <see langword="true"/> if every character in <paramref name="digits"/> was an
+    ///     uppercase hex digit and the parsed value is a valid Unicode codepoint (at most
+    ///     <c>0x10FFFF</c>).
+    /// </returns>
     private static bool TryParseUppercaseHexDigits(ReadOnlySpan<char> digits, out int value)
     {
         foreach (var c in digits)
@@ -615,7 +627,14 @@ public sealed partial class PdfDocument
             }
         }
 
-        return int.TryParse(digits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value);
+        if (!int.TryParse(digits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value) ||
+            value > 0x10FFFF)
+        {
+            value = 0;
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>

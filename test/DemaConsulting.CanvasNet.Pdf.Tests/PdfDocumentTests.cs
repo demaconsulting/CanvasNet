@@ -900,19 +900,29 @@ public class PdfDocumentTests
     ///     <c>/FontDescriptor/FontFile</c> stream's own <c>/Length1</c>/<c>/Length2</c> entries
     ///     (not the descriptor's) are always emitted, matching real PDF producers and
     ///     <c>PdfDocument.Fonts.Type1.cs</c>'s own <c>LoadType1Font</c> documented requirement.
+    ///     When <paramref name="customGlyphName"/> is set, the third glyph (<see
+    ///     cref="BuildSquareType1Charstring"/>'s filled square) is named this literal custom glyph
+    ///     name instead of the default <c>"A"</c> - mirroring
+    ///     <c>BuildEmbeddedType1CFontResources</c>'s own <c>customGlyphName</c> parameter, used by
+    ///     <c>/Differences</c>-enrichment regression tests exercising this classic <c>/FontFile</c>
+    ///     path (not only the bare-CFF <c>/FontFile3</c> path) with a glyph name outside
+    ///     <c>PdfDocument.Fonts.cs</c>'s own <c>StandardGlyphNames</c>/
+    ///     <c>CodepointToStandardGlyphName</c> vocabulary (for example an AGL <c>uniXXXX</c>-style
+    ///     name).
     /// </remarks>
     private static (string ResourcesBody, List<byte[]> ExtraObjects) BuildEmbeddedType1FontResources(
         string fontDictExtra = "/FirstChar 65 /LastChar 65 /Widths [600]",
         string descriptorExtra = "",
         string fontResourceName = "F1",
         bool omitLength2 = false,
-        string baseFontName = "Test")
+        string baseFontName = "Test",
+        string? customGlyphName = null)
     {
         var (fontFileBytes, length1, length2) = SyntheticFontBuilder.Type1(
         [
             (".notdef", BuildEmptyType1Charstring()),
             ("space", BuildEmptyType1Charstring()),
-            ("A", BuildSquareType1Charstring()),
+            (customGlyphName ?? "A", BuildSquareType1Charstring()),
         ]);
 
         var lengthEntries = omitLength2 ? $"/Length1 {length1}" : $"/Length1 {length1} /Length2 {length2}";
@@ -7553,6 +7563,35 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Proves that a syntactically-valid-looking six-hex-digit <c>uXXXXXX</c> glyph name whose
+    ///     value exceeds <c>0x10FFFF</c> (the highest valid Unicode codepoint) is rejected rather
+    ///     than resolved: <c>/uFFFFFF</c> parses as valid uppercase hex digits, but
+    ///     <c>0xFFFFFF</c> is not a valid AGL codepoint name, so <c>TryParseUppercaseHexDigits</c>
+    ///     must reject it and leave the affected code at whatever its base encoding already
+    ///     assigned it - exactly like <see cref="PdfDocument_Fonts_Differences_UnrecognizedGlyphName_FallsBackToBaseEncoding"/>'s
+    ///     own genuinely-unrecognized-name case.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Differences_OutOfRangeUHexName_FallsBackToBaseEncoding()
+    {
+        // Arrange
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(
+            fontBytes,
+            fontDictExtra: "/FirstChar 65 /LastChar 66 /Widths [600 600] " +
+                           "/Encoding << /Differences [65 /uFFFFFF] >>");
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: no exception, and the glyph painted (base encoding's codepoint 65 mapping was
+        // preserved rather than overwritten by the out-of-range override).
+        Assert.NotEqual(default, surface[11, 44]);
+    }
+
+    /// <summary>
     ///     Proves that <c>/Differences</c> recognizes the <c>ff</c>/<c>ffi</c>/<c>ffl</c> Latin
     ///     ligature glyph names (found via a real-world pdfLaTeX Computer Modern font from
     ///     py-pdf/sample-files, which declares them in its own <c>/Differences</c> array) -
@@ -7629,6 +7668,36 @@ public class PdfDocumentTests
 
         // Assert: the embedded font's square glyph painted at the expected text-space location.
         Assert.NotEqual(default, surface[11, 44]);
+    }
+
+    /// <summary>
+    ///     Proves the <c>/Differences</c>-enrichment mechanism also reaches the classic
+    ///     <c>/FontFile</c> (PostScript Type 1 program) path, not only the bare-CFF
+    ///     <c>/FontFile3</c> path exercised by
+    ///     <see cref="PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedFontGlyphMap"/>:
+    ///     a <c>/Differences</c> array names code 65 <c>/uni03BC</c>, and an embedded classic
+    ///     Type 1 font whose own charstring vocabulary literally spells its only non-<c>.notdef</c>/
+    ///     <c>space</c> glyph <c>"uni03BC"</c> (the exact <c>/Differences</c>-declared name).
+    ///     <c>BuildResolvedSimpleFont</c> passes the same enriched
+    ///     <c>embeddedFontGlyphNames</c> map into <c>LoadType1Font</c> as it does into
+    ///     <c>LoadType1CFont</c>, so this must resolve and paint identically.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedType1FontGlyphMap()
+    {
+        // Arrange
+        var (resourcesBody, extraObjects) = BuildEmbeddedType1FontResources(
+            fontDictExtra: "/FirstChar 65 /LastChar 65 /Widths [600] " +
+                           "/Encoding << /Differences [65 /uni03BC] >>",
+            customGlyphName: "uni03BC");
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf 5 5 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the embedded font's square glyph painted at the expected text-space location.
+        Assert.NotEqual(default, surface[11, 89]);
     }
 
     /// <summary>
