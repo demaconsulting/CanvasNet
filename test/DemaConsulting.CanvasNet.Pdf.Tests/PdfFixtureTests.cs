@@ -255,6 +255,26 @@ public class PdfFixtureTests
     }
 
     /// <summary>
+    ///     Proves the real-world <c>text-type1c-differences-agl-ligatures.pdf</c> fixture (a
+    ///     trimmed excerpt of an actual document, not hand-authored - see
+    ///     <c>PdfFixtures\README.md</c> for why) opens and renders visible glyph ink from its two
+    ///     genuinely embedded <c>/FontFile3 /Type1C</c> fonts despite their
+    ///     <c>/Encoding/Differences</c> arrays naming glyphs (<c>/uni03BC</c>, <c>/thinspace</c>)
+    ///     outside <c>StandardGlyphNames</c>' own common-name subset - the regression this
+    ///     fixture reproduces and this test guards against.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Load_TextType1CDifferencesAglLigaturesFixture_PaintsVisibleGlyphInk()
+    {
+        // Arrange & Act
+        using var document = PdfDocument.Open(Fixture("text-type1c-differences-agl-ligatures.pdf"));
+        using var surface = document.Render(0, 595, 842, Transparent);
+
+        // Assert
+        AssertPaintedSomePixel(surface);
+    }
+
+    /// <summary>
     ///     Proves the shared "Open Sans" font fixture used by <c>combined-vector-text-image.pdf</c>
     ///     and <c>text-embedded-truetype-font.pdf</c> loads independently via the real
     ///     <see cref="TrueTypeFont"/> API, confirming the embedded <c>/FontFile2</c> bytes those

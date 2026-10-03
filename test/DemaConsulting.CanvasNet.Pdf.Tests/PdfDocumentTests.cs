@@ -957,6 +957,16 @@ public class PdfDocumentTests
     ///     nor a valid bare CFF header. When <see langword="null"/> (the default), the usual
     ///     synthetic bare CFF program is built and used instead.
     /// </param>
+    /// <param name="customGlyphName">
+    ///     When set (and <paramref name="fontFileBytes"/> is <see langword="null"/>), glyph 1's
+    ///     charset entry names it this literal custom glyph name (via a CFF custom String INDEX
+    ///     entry at SID <c>391</c>) instead of the default Standard String SID <c>34</c>
+    ///     (<c>A</c>) - used by <c>/Differences</c>-enrichment regression tests whose font's own
+    ///     charset spells a glyph outside <c>PdfDocument.Fonts.cs</c>'s own
+    ///     <c>StandardGlyphNames</c>/<c>CodepointToStandardGlyphName</c> vocabulary (for example
+    ///     an AGL <c>uniXXXX</c>-style name), mirroring a real-world subsetted font's own
+    ///     non-generic charset spelling.
+    /// </param>
     /// <remarks>
     ///     Numbered identically to <see cref="BuildSimpleTrueTypeFontResources"/>/
     ///     <see cref="BuildEmbeddedType1FontResources"/> (font-file object <c>7</c>, descriptor
@@ -967,7 +977,8 @@ public class PdfDocumentTests
         string fontDictExtra = "/FirstChar 65 /LastChar 65 /Widths [600]",
         string descriptorExtra = "",
         string fontResourceName = "F1",
-        byte[]? fontFileBytes = null)
+        byte[]? fontFileBytes = null,
+        string? customGlyphName = null)
     {
         byte[] cff;
         if (fontFileBytes is not null)
@@ -979,10 +990,23 @@ public class PdfDocumentTests
             var notdefCharstring = new List<byte>();
             SyntheticFontBuilder.WriteCharstringOperator(notdefCharstring, 14); // endchar
 
-            byte[] charsetTable = [0, 0, 34]; // format 0: glyph 1 -> SID 34 (A)
-            cff = SyntheticFontBuilder.Cff(
-                [[.. notdefCharstring], BuildSquareCffCharstring()],
-                charsetTable: charsetTable);
+            if (customGlyphName is null)
+            {
+                byte[] charsetTable = [0, 0, 34]; // format 0: glyph 1 -> SID 34 (A)
+                cff = SyntheticFontBuilder.Cff(
+                    [[.. notdefCharstring], BuildSquareCffCharstring()],
+                    charsetTable: charsetTable);
+            }
+            else
+            {
+                // Custom String INDEX entry 0 is SID 391 (the first SID past the 391
+                // predefined Standard Strings) - format 0: glyph 1 -> SID 391 (0x0187).
+                byte[] charsetTable = [0, 0x01, 0x87];
+                cff = SyntheticFontBuilder.Cff(
+                    [[.. notdefCharstring], BuildSquareCffCharstring()],
+                    stringIndexEntries: [System.Text.Encoding.ASCII.GetBytes(customGlyphName)],
+                    charsetTable: charsetTable);
+            }
         }
 
         var fontFileDictEntries = string.IsNullOrEmpty(fontFileSubtype) ? string.Empty : $"/Subtype {fontFileSubtype}";
@@ -7572,6 +7596,74 @@ public class PdfDocumentTests
         // Act & Assert: no exception
         using var surface = RenderPdfBytes(bytes);
         Assert.NotNull(surface);
+    }
+
+    /// <summary>
+    ///     Proves that <c>"thinspace"</c> (U+2009) - a legitimate, common Adobe Glyph List
+    ///     standard name, previously missing entirely from <c>StandardGlyphNames</c> - now
+    ///     resolves: a <c>/Differences</c> array names code 65 <c>/thinspace</c>, and an embedded
+    ///     Type1C font whose own CFF charset literally spells its only non-<c>.notdef</c> glyph
+    ///     <c>"thinspace"</c> (the same literal spelling) paints that glyph's outline, because
+    ///     <c>PdfDocument.Fonts.cs</c>'s <c>StandardGlyphNames</c> table's new <c>thinspace</c> entry now (a) lets
+    ///     <c>ApplyDifferences</c> resolve the code to codepoint <c>U+2009</c> and (b) seeds
+    ///     <c>CodepointToStandardGlyphName</c>'s reverse map with that same name for the
+    ///     embedded-font loader to find directly - isolating the <c>StandardGlyphNames</c>
+    ///     addition itself, independent of the AGL <c>uniXXXX</c> hex fallback or the
+    ///     <c>/Differences</c>-enrichment mechanism (see
+    ///     <see cref="PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedFontGlyphMap"/>
+    ///     for a case that needs those too).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Differences_ThinspaceName_ResolvesAndPaintsEmbeddedGlyph()
+    {
+        // Arrange
+        var (resourcesBody, extraObjects) = BuildEmbeddedType1CFontResources(
+            fontDictExtra: "/FirstChar 65 /LastChar 65 /Widths [600] " +
+                           "/Encoding << /Differences [65 /thinspace] >>",
+            customGlyphName: "thinspace");
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the embedded font's square glyph painted at the expected text-space location.
+        Assert.NotEqual(default, surface[11, 44]);
+    }
+
+    /// <summary>
+    ///     Proves the full <c>/Differences</c>-enrichment mechanism together: a
+    ///     <c>/Differences</c> array names code 65 <c>/uni03BC</c> (the Adobe Glyph List's generic
+    ///     hex-codepoint naming convention for U+03BC GREEK SMALL LETTER MU - deliberately
+    ///     distinct from <c>StandardGlyphNames</c>'s own pre-existing <c>"mu"</c> entry, which maps
+    ///     to U+00B5 MICRO SIGN instead, per WinAnsiEncoding's own convention - so
+    ///     <c>CodepointToStandardGlyphName</c>'s reverse map has no name at all for codepoint
+    ///     <c>U+03BC</c>), and an embedded Type1C font whose own CFF charset literally spells its
+    ///     only non-<c>.notdef</c> glyph <c>"uni03BC"</c> (the exact <c>/Differences</c>-declared
+    ///     name, not a generic guess - mirroring this fix's real-world Gotham font fixture). This
+    ///     resolves only because (a) <c>TryResolveGlyphNameToCodepoint</c>'s new AGL hex fallback
+    ///     resolves <c>/uni03BC</c> to codepoint <c>U+03BC</c> at all (<c>StandardGlyphNames</c>
+    ///     alone cannot), and (b) <c>BuildEmbeddedFontGlyphNameMap</c>'s enrichment then overwrites
+    ///     the (entirely absent) generic guess for that codepoint with the literal declared name
+    ///     <c>"uni03BC"</c> before the embedded font program is loaded - proving the embedded-font
+    ///     loader actually receives and uses that enriched map, not just the generic one.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedFontGlyphMap()
+    {
+        // Arrange
+        var (resourcesBody, extraObjects) = BuildEmbeddedType1CFontResources(
+            fontDictExtra: "/FirstChar 65 /LastChar 65 /Widths [600] " +
+                           "/Encoding << /Differences [65 /uni03BC] >>",
+            customGlyphName: "uni03BC");
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the embedded font's square glyph painted at the expected text-space location.
+        Assert.NotEqual(default, surface[11, 44]);
     }
 
     /// <summary>Proves that a <c>/Differences</c> array starting with a glyph name (before any starting code number) throws <see cref="InvalidDataException"/>.</summary>

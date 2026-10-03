@@ -740,7 +740,21 @@ its own distinguishable `Feature` token.
   `/FontFile` nor `/FontFile2`), `LoadType1CFont` loads the embedded bare Type1C/CFF program (see
   _Type 1C Font Resolution_ below); only when none of those apply does `BuildResolvedSimpleFont`
   call `ResolveFallbackFont` (see _Font Fallback Resolution_ immediately below) instead of failing
-  closed - reachable for `/Type1` fonts exactly as it already was for `/TrueType` fonts.
+  closed - reachable for `/Type1` fonts exactly as it already was for `/TrueType` fonts. Before
+  dispatching on those embedded-font keys, `BuildResolvedSimpleFont` calls
+  `BuildEmbeddedFontGlyphNameMap(fontDict.Get("Encoding"))` - deliberately ahead of (not after,
+  as in every phase before this one) loading any embedded font program - to build a
+  per-font-dictionary enriched codepoint-to-glyph-name map: it starts from the generic
+  `CodepointToStandardGlyphName` reverse map (below), then, for this font dictionary's own
+  `/Encoding/Differences` array (if any), overwrites the entry for each `(code, name)` pair's
+  resolved codepoint with that pair's own literal declared name, whenever `name` itself resolves
+  to a codepoint via `TryResolveGlyphNameToCodepoint` (below) - the document's own literal
+  declared glyph name wins over the generic guess for that specific codepoint, since an
+  embedded/subsetted font's own charset is more likely to spell a glyph the way its own
+  `/Differences` array names it than the way a generic, document-independent reverse-name guess
+  does (and some codepoints, for example U+03BC via `/uni03BC`, have no entry in the generic map
+  at all). This enriched map (not the raw `CodepointToStandardGlyphName` map) is what
+  `LoadType1Font`/`LoadType1CFont` now receive, below.
   `ResolveEncoding` builds a full
   256-entry `int[]` code-to-Unicode-codepoint map: `ApplyBaseEncoding` seeds it from one of three
   hand-transcribed 256-entry tables (`WinAnsiEncodingTable`/`MacRomanEncodingTable`/
@@ -749,22 +763,32 @@ its own distinguishable `Feature` token.
   `Codecs.UnsupportedImageFeatureException` for any other named base encoding
   (`/PDFDocEncoding`/anything else); `ApplyDifferences` then applies
   an `/Encoding/Differences` array's `code1 name1 name2 ... code2 name1 ...` run-length overrides,
-  resolving each glyph name via `StandardGlyphNames` (a ~240-entry Adobe Glyph List subset
-  covering common ASCII/Latin-1 names) - an unrecognized glyph name is tolerated (that one code is
+  resolving each glyph name via `TryResolveGlyphNameToCodepoint` - first consulting
+  `StandardGlyphNames` (a ~240-entry Adobe Glyph List subset
+  covering common ASCII/Latin-1 names), then, for a name that subset does not itself cover,
+  falling back to the Adobe Glyph List's own generic `uniXXXX` (exactly four uppercase hex
+  digits)/`uXXXX`/`uXXXXX`/`uXXXXXX` (four to six uppercase hex digits) hex-codepoint naming
+  convention - an unrecognized glyph name (one neither resolution reaches) is tolerated (that one
+  code is
   simply left at whatever the base encoding already assigned it, rather than rejecting the whole
   document), while a `/Differences` array beginning with a glyph name before any starting code
   number still throws `InvalidDataException`. A reverse of `StandardGlyphNames`
   (`CodepointToStandardGlyphName`, first-wins on
-  collision) is built once and reused by both `LoadType1Font` (as `Fonts.TrueTypeFont.LoadType1`'s
+  collision) is built once and used by `BuildEmbeddedFontGlyphNameMap` (above) as the generic
+  starting point for the enriched, per-font-dictionary map both `LoadType1Font` (as
+  `Fonts.TrueTypeFont.LoadType1`'s
   `codepointToGlyphName` argument) and `LoadType1CFont` (as `Fonts.TrueTypeFont.LoadType1C`'s
-  identical argument - the exact same resolution, never the PDF font dictionary's own
-  `/Encoding`), rather than introducing a second, separately-maintained glyph-name vocabulary.
+  identical argument) now receive - a document's own `/Differences`-declared literal glyph names
+  can therefore influence which name wins for a given codepoint, per font dictionary, rather than
+  every embedded font always receiving the exact same generic vocabulary regardless of its own
+  `/Encoding`.
   `ResolveWidths` builds a sparse `code -> width`
   (`/1000`-scaled) map from `/FirstChar`/`/Widths` (missing/malformed entries silently omitted,
   not rejected), plus `/FontDescriptor/MissingWidth` (defaulting to `0`, the specification's own
   documented default) as the fallback for any code absent from that map.
 - **Type 1 font resolution (`PdfDocument.Fonts.Type1.cs`, added in Phase B)** —
-  `LoadType1Font(PdfObject descriptor)` is `BuildResolvedSimpleFont`'s `/FontFile` loader
+  `LoadType1Font(PdfObject descriptor, IReadOnlyDictionary<int, string> codepointToGlyphName)`
+  is `BuildResolvedSimpleFont`'s `/FontFile` loader
   counterpart to `LoadCidFontType2Font`/`LoadCidFontType0Font` (see _Composite Font Resolution_
   below): it requires `/FontDescriptor/FontFile` to resolve to a stream
   (`InvalidDataException` otherwise), then reads that stream's own `/Length1`
@@ -774,7 +798,9 @@ its own distinguishable `Feature` token.
   does not resolve to a number. The stream is decoded via the same `GetStreamDecodedBytes` every
   other embedded font stream in this class uses, then loaded via
   `Fonts.TrueTypeFont.LoadType1(new MemoryStream(decodedBytes), length1, length2,
-  CodepointToStandardGlyphName)` - any exception the core `Fonts` layer itself throws for a
+  codepointToGlyphName)` - `codepointToGlyphName` being `BuildResolvedSimpleFont`'s own
+  per-font-dictionary enriched map (above), not necessarily `CodepointToStandardGlyphName`
+  itself - any exception the core `Fonts` layer itself throws for a
   malformed `eexec`-encrypted segment, an unparsable `/CharStrings`/`/Subrs` dictionary, or a
   rejected `seac` charstring propagates uncaught, consistent with this class's "embedded fonts
   fail closed on any embedded-font problem, no fallback" convention (matching
@@ -786,7 +812,9 @@ its own distinguishable `Feature` token.
   never consulted - only the PDF font dictionary's own `/Encoding` entry, resolved via
   `ResolveEncoding` above, determines which glyph a shown code selects.
 - **Type 1C font resolution (`PdfDocument.Fonts.Type1.cs`, added in Phase C; shape-sniffing
-  dispatch added in Phase 18)** — `LoadType1CFont(PdfObject descriptor)` is
+  dispatch added in Phase 18)** —
+  `LoadType1CFont(PdfObject descriptor, IReadOnlyDictionary<int, string> codepointToGlyphName)`
+  is
   `BuildResolvedSimpleFont`'s `/FontFile3` loader counterpart (reached only when `/FontFile` is
   absent, per the priority order above), mirroring `LoadCidFontType0Font`'s own shape-sniffing
   precedent (see _Composite Font Resolution_ below): it requires `/FontDescriptor/FontFile3` to
@@ -798,8 +826,10 @@ its own distinguishable `Feature` token.
   is read only for inclusion in the exception message below). An SFNT-wrapped (for example
   `'OTTO'`) CFF program is loaded via `Fonts.TrueTypeFont.Load(new MemoryStream(decodedBytes))`; a
   bare, non-SFNT-wrapped CFF program is loaded via
-  `Fonts.TrueTypeFont.LoadType1C(new MemoryStream(decodedBytes), CodepointToStandardGlyphName)` -
-  either way, a declared `/Subtype` of `Type1C`, `OpenType`, some other name, or no `/Subtype` key
+  `Fonts.TrueTypeFont.LoadType1C(new MemoryStream(decodedBytes), codepointToGlyphName)` -
+  `codepointToGlyphName` being the same per-font-dictionary enriched map `LoadType1Font` receives
+  (above), not necessarily `CodepointToStandardGlyphName` itself - either way, a declared
+  `/Subtype` of `Type1C`, `OpenType`, some other name, or no `/Subtype` key
   at all is accepted identically, as long as the bytes themselves match one of the two recognized
   shapes. Only bytes matching neither shape are rejected, with
   `Codecs.UnsupportedImageFeatureException` naming the stream's declared `/Subtype` (or "none") in

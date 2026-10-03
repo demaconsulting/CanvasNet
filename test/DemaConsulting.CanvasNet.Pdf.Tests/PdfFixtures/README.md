@@ -4,6 +4,7 @@
 <!-- cspell:ignore bfchar bfrange codepoints -->
 <!-- cspell:ignore cidfonttype OTTO -->
 <!-- cspell:ignore hsbw fontfile -->
+<!-- cspell:ignore XUPVJI Gotham thinspace ligatures fontfile -->
 
 Every PDF file in this folder is a small, hand-authored document created specifically for this
 repository to exercise `PdfDocument`'s parsing internals (tokenizer, object model,
@@ -118,3 +119,19 @@ except its font dictionary declares `/Subtype /Type1` instead of `/Subtype /True
 the free non-embedded fallback path (`ResolveFallbackFont`) is reachable for `/Type1` fonts too,
 not only `/TrueType` fonts. Like `standard14-font-fallback.pdf`, it declares no
 `/FontDescriptor/FontFile`/`/FontFile2`/`/FontFile3` at all.
+
+`text-type1c-differences-agl-ligatures.pdf` is, unlike every other fixture in this folder, **not**
+hand-authored: it is a trimmed, single-page excerpt of a real-world document (page 4), kept
+otherwise intact (including its two genuinely embedded `/Subtype /Type1`/`/FontFile3 /Type1C`
+fonts, `XUPVJI+Gotham-Bold` (`/T1_0`) and `XUPVJI+Gotham-Book` (`/T1_1`)) because it reproduces a
+regression that a synthetic fixture could not credibly demonstrate: both fonts declare an
+`/Encoding/Differences` array naming glyphs the generic Adobe-Glyph-List common-name subset
+(`StandardGlyphNames`) does not itself cover by the exact spelling the embedded font's own CFF
+charset actually uses (for example code 28/27 `/uni03BC`, resolved via the Adobe Glyph List's
+generic `uniXXXX` hex-codepoint naming convention, and code 27 `/thinspace`). Its content stream
+genuinely exercises both codes against real body text (`"...50μL..."`, `"...+1 % compared..."`).
+
+> **Note**: this fixture's content stream also exercises a `/f_f` ligature-glyph name (an
+> underscore-joined AGL ligature decomposition, not a `uniXXXX`/`uXXXX` hex name) that remains
+> unresolved by design - see `PdfDocumentTests`'s own remarks on this fixture's test for why that
+> is a deliberate, out-of-scope limitation, not a regression.
