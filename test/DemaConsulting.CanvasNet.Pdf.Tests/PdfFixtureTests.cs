@@ -8,7 +8,8 @@ namespace DemaConsulting.CanvasNet.Pdf.Tests;
 /// <summary>
 ///     Fixture-conformance tests that exercise <see cref="PdfDocument"/> against the real-file PDF
 ///     fixture corpus in <c>PdfFixtures</c> (see <c>PdfFixtures\README.md</c> for provenance - the
-///     entire corpus is hand-authored for this repository), mirroring the pattern used by
+///     corpus is hand-authored for this repository, with a few documented exceptions that embed
+///     or excerpt real-world third-party content), mirroring the pattern used by
 ///     <c>SvgFixtureTests</c> in <c>DemaConsulting.CanvasNet.Svg.Tests</c>. Each test opens one
 ///     on-disk fixture, reads its page info, renders at least one page, and asserts a concrete,
 ///     non-trivial rendered result - a broad "this file loads and renders as documented" check,
