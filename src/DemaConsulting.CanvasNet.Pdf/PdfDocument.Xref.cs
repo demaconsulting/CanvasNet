@@ -354,14 +354,13 @@ public sealed partial class PdfDocument
     /// <summary>Finds the byte offset recorded after the last <c>startxref</c> keyword in the buffer.</summary>
     private int FindStartXrefOffset()
     {
-        var marker = "startxref"u8.ToArray();
-        var index = LastIndexOf(_buffer, marker);
+        var index = LastIndexOfKeyword(_buffer, "startxref"u8);
         if (index < 0)
         {
             throw new InvalidDataException("No 'startxref' keyword found.");
         }
 
-        var tokenizer = new PdfTokenizer(_buffer) { Position = index + marker.Length };
+        var tokenizer = new PdfTokenizer(_buffer) { Position = index + "startxref"u8.Length };
         var offsetToken = tokenizer.NextToken();
         if (offsetToken.Kind != PdfTokenKind.Number)
         {
@@ -371,24 +370,50 @@ public sealed partial class PdfDocument
         return (int)offsetToken.Number;
     }
 
-    private static int LastIndexOf(byte[] haystack, byte[] needle)
+    /// <summary>
+    ///     Finds the last occurrence of <paramref name="keyword"/> in <paramref name="haystack"/>
+    ///     that is a genuine standalone token rather than a substring of some larger token -
+    ///     mirroring the same regular-byte boundary rule <see cref="IndexOfKeyword"/> applies when
+    ///     scanning forward, so a decoy such as <c>mystartxref</c> cannot be mistaken for the real
+    ///     <c>startxref</c> keyword, and a legitimate earlier match is not shadowed by a later one
+    ///     that is merely the tail or prefix of a larger run of regular bytes. This does not by
+    ///     itself exclude a boundary-respecting match that happens to sit inside a PDF comment or
+    ///     string, unlike the comment/string-aware scans in <see cref="ScanObjectOffsets"/> and
+    ///     <see cref="ScanForTrailerDictionary"/> - a narrower, best-effort improvement over the
+    ///     previous unguarded raw byte search, not a claim of full lexical correctness.
+    /// </summary>
+    private static int LastIndexOfKeyword(byte[] haystack, ReadOnlySpan<byte> keyword)
     {
-        for (var i = haystack.Length - needle.Length; i >= 0; i--)
+        var maxStart = haystack.Length - keyword.Length;
+        for (var i = maxStart; i >= 0; i--)
         {
             var matched = true;
-            for (var j = 0; j < needle.Length; j++)
+            for (var j = 0; j < keyword.Length; j++)
             {
-                if (haystack[i + j] != needle[j])
+                if (haystack[i + j] != keyword[j])
                 {
                     matched = false;
                     break;
                 }
             }
 
-            if (matched)
+            if (!matched)
             {
-                return i;
+                continue;
             }
+
+            if (i > 0 && IsMarkerRegularByte(haystack[i - 1]))
+            {
+                continue;
+            }
+
+            var after = i + keyword.Length;
+            if (after < haystack.Length && IsMarkerRegularByte(haystack[after]))
+            {
+                continue;
+            }
+
+            return i;
         }
 
         return -1;
@@ -525,10 +550,11 @@ public sealed partial class PdfDocument
         var ranges = new List<(int Start, int End)>();
         var buffer = _buffer;
         var i = 0;
+        var unterminatedStringEncountered = false;
 
         while (i < buffer.Length)
         {
-            var afterNonSyntax = AdvancePastNonSyntax(buffer, i);
+            var afterNonSyntax = AdvancePastNonSyntax(buffer, i, ref unterminatedStringEncountered);
             if (afterNonSyntax != i)
             {
                 i = afterNonSyntax;
@@ -986,6 +1012,14 @@ public sealed partial class PdfDocument
     ///     the index of the first byte past it. Otherwise returns <paramref name="position"/>
     ///     unchanged.
     /// </summary>
+    /// <param name="buffer">The byte buffer being scanned.</param>
+    /// <param name="position">The byte index to classify.</param>
+    /// <param name="unterminatedStringEncountered">
+    ///     Set to <see langword="true"/> once a literal or hex string attempt has run all the
+    ///     way to the end of the buffer without ever closing, and consulted on every call
+    ///     thereafter to skip further string-opening attempts outright. See the remarks below for
+    ///     why this is necessary for a bounded worst-case cost.
+    /// </param>
     /// <remarks>
     ///     <para>
     ///         This is what lets <see cref="ScanObjectOffsets"/> and
@@ -1008,10 +1042,24 @@ public sealed partial class PdfDocument
     ///         of a real string - for example binary noise containing a stray delimiter byte with
     ///         no matching close before the end of the buffer - this degrades safely by leaving
     ///         the position unchanged, so the caller simply treats that one byte as ordinary
-    ///         content instead of skipping an unbounded remainder of the file.
+    ///         content instead of skipping an unbounded remainder of the file. However, such a
+    ///         failed attempt only reaches that conclusion by scanning every remaining byte in the
+    ///         buffer looking for a close that never comes; if a crafted or corrupted input
+    ///         contains a long run of such bytes (for example many consecutive unmatched <c>(</c>
+    ///         bytes), retrying the same unbounded scan from every one of them would make this
+    ///         fallback scanner quadratic in the buffer size - a CPU/timeout denial-of-service
+    ///         risk, not merely a completeness limitation. <paramref
+    ///         name="unterminatedStringEncountered"/> bounds this: the first such failure anywhere
+    ///         in a scan permanently disables further string-opening attempts for the remainder of
+    ///         that same scan, so at most one failed attempt ever walks the buffer's tail, keeping
+    ///         total work linear. This sacrifices recovering any genuine <c>obj</c>/<c>trailer</c>
+    ///         marker that might coincidentally follow such a byte run, which is an acceptable
+    ///         heuristic limitation here: this path only runs once normal cross-reference parsing
+    ///         has already failed, and the PDF specification does not guarantee perfect recovery
+    ///         is even possible for arbitrarily malformed input.
     ///     </para>
     /// </remarks>
-    private static int AdvancePastNonSyntax(byte[] buffer, int position)
+    private static int AdvancePastNonSyntax(byte[] buffer, int position, ref bool unterminatedStringEncountered)
     {
         var b = buffer[position];
         if (b == (byte)'%')
@@ -1025,14 +1073,30 @@ public sealed partial class PdfDocument
             return end;
         }
 
-        if (b == (byte)'(')
+        if (unterminatedStringEncountered)
         {
-            return SkipLiteralString(buffer, position);
+            return position;
         }
 
-        if (b == (byte)'<' && (position + 1 >= buffer.Length || buffer[position + 1] != (byte)'<'))
+        if (b == (byte)'(')
         {
-            return SkipHexString(buffer, position);
+            var after = SkipLiteralString(buffer, position);
+            unterminatedStringEncountered = after == position;
+            return after;
+        }
+
+        // Only the first '<' of a dictionary's '<<' delimiter is excluded from hex-string
+        // detection by checking the following byte; the second '<' must also be excluded, which
+        // requires checking the *preceding* byte instead, since the following byte after the
+        // second '<' is ordinary dictionary content rather than another '<'.
+        var isDictionaryDelimiter =
+            (position + 1 < buffer.Length && buffer[position + 1] == (byte)'<') ||
+            (position > 0 && buffer[position - 1] == (byte)'<');
+        if (b == (byte)'<' && !isDictionaryDelimiter)
+        {
+            var after = SkipHexString(buffer, position);
+            unterminatedStringEncountered = after == position;
+            return after;
         }
 
         return position;
@@ -1249,10 +1313,11 @@ public sealed partial class PdfDocument
         PdfObject? last = null;
         var i = 0;
         var rangeIndex = 0;
+        var unterminatedStringEncountered = false;
 
         while (i < buffer.Length)
         {
-            var afterNonSyntax = AdvancePastNonSyntax(buffer, i);
+            var afterNonSyntax = AdvancePastNonSyntax(buffer, i, ref unterminatedStringEncountered);
             if (afterNonSyntax != i)
             {
                 i = afterNonSyntax;
@@ -1357,7 +1422,7 @@ public sealed partial class PdfDocument
             PdfObject result;
             if (entry.Type == XrefEntryType.Direct)
             {
-                result = ParseIndirectObjectAt((int)entry.Offset, number);
+                result = ParseIndirectObjectAt(entry.Offset, number);
             }
             else
             {
@@ -1373,10 +1438,14 @@ public sealed partial class PdfDocument
         }
     }
 
-    private PdfObject ParseIndirectObjectAt(int offset, int expectedNumber)
+    private PdfObject ParseIndirectObjectAt(long offset, int expectedNumber)
     {
+        // Validate against the original 64-bit offset before narrowing to int: narrowing first
+        // would let an out-of-range declared offset (for example one larger than int.MaxValue)
+        // silently wrap around to some in-bounds value and bypass this very check.
         ValidateBufferOffset(offset, _buffer.Length, $"Indirect object {expectedNumber}");
-        var tokenizer = new PdfTokenizer(_buffer) { Position = offset };
+        var position = (int)offset;
+        var tokenizer = new PdfTokenizer(_buffer) { Position = position };
         var numberToken = tokenizer.NextToken();
         var generationToken = tokenizer.NextToken();
         var objToken = tokenizer.NextToken();
@@ -1385,6 +1454,18 @@ public sealed partial class PdfDocument
             objToken.Kind != PdfTokenKind.Keyword || objToken.Text != "obj")
         {
             throw new InvalidDataException($"Malformed indirect object header for object {expectedNumber} at offset {offset}.");
+        }
+
+        // Cross-check the header's own declared object number against the number the caller
+        // looked up in the cross-reference table - mirroring the equivalent check already
+        // performed for compressed objects below. Without this, a corrupted or crafted
+        // cross-reference entry whose offset points at a different object's header would be
+        // silently accepted and relabeled with the wrong (requested) object number/identity.
+        if ((int)numberToken.Number != expectedNumber)
+        {
+            throw new InvalidDataException(
+                $"Indirect object header at offset {offset} declares object number {(int)numberToken.Number}, " +
+                $"which does not match expected object number {expectedNumber}.");
         }
 
         var generation = (int)generationToken.Number;

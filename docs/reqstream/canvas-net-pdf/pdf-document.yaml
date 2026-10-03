@@ -69,6 +69,8 @@ sections:
               and must be supported for broad real-world document compatibility.
             tests:
               - PdfDocument_Open_ClassicXref_ResolvesRootAndPage
+              - PdfDocument_Open_ClassicXref_EntryOffsetBeyondInt32Range_ThrowsInvalidDataException
+              - PdfDocument_Open_ClassicXref_EntryPointingAtWrongObjectHeader_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-XrefStream
             title: >-
@@ -134,6 +136,9 @@ sections:
               - PdfDocument_Open_LinearScanFallback_TrailerKeywordAfterHashByte_DoesNotReplaceRealTrailer
               - PdfDocument_Open_LinearScanFallback_ObjectNumberAsTokenSuffix_DoesNotCorruptOffset
               - PdfDocument_Open_LinearScanFallback_ObjectNumberAsNameToken_DoesNotCorruptOffset
+              - PdfDocument_Open_LinearScanFallback_SecondAngleBracketAsHexStringStart_DoesNotCorruptOffset
+              - PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly
+              - PdfDocument_Open_ClassicXref_StartxrefAsTokenSuffix_DoesNotRedirectToBogusOffset
 
           - id: CanvasNetPdf-PdfDocument-PageTreeTraversal
             title: >-

@@ -2742,6 +2742,330 @@ public class PdfDocumentTests
         Assert.Equal(default, surface[5, 5]);
     }
 
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): the real object 3 (the Page)
+    ///     is defined with a genuine, early <c>3 0 obj</c> header, while later, unstructured raw
+    ///     bytes form a dictionary opener <c>&lt;&lt;</c> immediately followed by a literal string
+    ///     <c>(dummy&gt;3 0 obj&lt;&lt; /Foo true &gt;&gt;\nendobj\ntail)</c> whose content itself
+    ///     contains a byte-perfect, properly-bounded <c>3 0 obj</c> header. A lexically correct
+    ///     scanner must recognize the literal string's own opening <c>(</c> and treat its entire
+    ///     balanced content - including the embedded "3 0 obj" text - as unreachable string data,
+    ///     never as object syntax.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithSecondAngleBracketAsHexStringStart()
+    {
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // If the dictionary opener's second '<' is wrongly treated as the start of a hex string,
+        // that premature (and incorrect) hex-string scan stops at the literal '>' right after
+        // "dummy" - well before the real literal string's own '(' is ever examined - leaving the
+        // embedded "3 0 obj" reachable as if it were ordinary syntax and overwriting the real
+        // object 3's offset recorded above.
+        buffer.AddRange("<<(dummy>3 0 obj<< /Foo true >>\nendobj\ntail)>>\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that the second <c>&lt;</c> of a dictionary's <c>&lt;&lt;</c> opener is never
+    ///     mistaken for the start of a hex string (see
+    ///     <see cref="BuildLinearScanFallbackWithSecondAngleBracketAsHexStringStart"/>), which
+    ///     would otherwise let a literal string's own embedded <c>&gt;</c> byte terminate a bogus
+    ///     hex-string scan early, exposing an object header lexically nested inside that string's
+    ///     content to the raw object scan and corrupting the real object's offset.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_SecondAngleBracketAsHexStringStart_DoesNotCorruptOffset()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithSecondAngleBracketAsHexStringStart();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): the real object 3 (the Page)
+    ///     is defined with a genuine, early <c>3 0 obj</c> header, while later, unstructured raw
+    ///     bytes consist of a very long run of unmatched, unescaped <c>(</c> bytes with no
+    ///     closing <c>)</c> anywhere before the end of the buffer.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithLongUnterminatedLiteralStringRun()
+    {
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // Without a bound on repeated failed literal-string scans, each of these 200,000 bytes
+        // would independently trigger its own scan of the remaining buffer looking for a '('
+        // close that never comes, making this fallback scanner quadratic in the run's length.
+        buffer.AddRange(new byte[200_000]);
+        for (var i = buffer.Count - 200_000; i < buffer.Count; i++)
+        {
+            buffer[i] = (byte)'(';
+        }
+
+        buffer.AddRange("\n%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a long run of unmatched, never-closing literal-string <c>(</c> bytes (see
+    ///     <see cref="BuildLinearScanFallbackWithLongUnterminatedLiteralStringRun"/>) is handled
+    ///     in time bounded by the buffer size rather than quadratic in the run's length: without
+    ///     that bound, a crafted or corrupted file could make this heuristic fallback scanner
+    ///     consume CPU far out of proportion to the file's size - a denial-of-service risk, not
+    ///     merely a completeness limitation. The real object 3 (the page) must still resolve and
+    ///     render correctly.
+    /// </summary>
+    [Fact]
+    public async Task PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithLongUnterminatedLiteralStringRun();
+
+        // Act: run on a background thread with a generous bounded timeout - if the quadratic-scan
+        // fix regresses, this fails fast with a TimeoutException instead of hanging the test run.
+        using var document = await Task.Run(() => PdfDocument.Open(new MemoryStream(pdfBytes)))
+            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page, classic-xref PDF (via <see cref="BuildSinglePagePdf"/>)
+    ///     with genuine, correctly-bounded <c>xref</c>/<c>trailer</c>/<c>startxref</c> syntax,
+    ///     followed by a second, structurally complete and independently valid classic
+    ///     cross-reference section (objects 5-8, a differently-shaped single page) whose own
+    ///     <c>startxref</c>-like marker is spelled <c>xstartxref</c> - a byte-perfect
+    ///     <c>startxref</c> sequence whose preceding byte <c>x</c> makes it only the suffix of the
+    ///     larger regular-byte token <c>xstartxref</c>, not a standalone keyword token of its own.
+    ///     Because the decoy section is itself fully valid (not merely a bogus offset), a search
+    ///     that wrongly selects it does not throw - it silently resolves the wrong document
+    ///     revision instead, so this is not masked by the linear-scan fallback that normally
+    ///     recovers from a thrown exception.
+    /// </summary>
+    private static byte[] BuildClassicXrefPdfWithStartxrefAsTokenSuffix()
+    {
+        var buffer = BuildSinglePagePdf(100, 100, "10 10 40 40 re f").ToList();
+
+        // A second, independently valid document revision (objects 5-8) with deliberately
+        // different content (a small square far from the real document's black square), used
+        // purely as a decoy target: if the corrupted search wrongly selects its "xstartxref", the
+        // active trailer silently becomes this revision's instead of throwing.
+        var contentB = "60 60 10 10 re f"u8.ToArray();
+        var bodiesB = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 6 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [7 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 6 0 R /Contents 8 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentB.Length}", contentB),
+        };
+
+        var offsetsB = new List<int>();
+        for (var i = 0; i < bodiesB.Count; i++)
+        {
+            offsetsB.Add(buffer.Count);
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 5} 0 obj\n"));
+            buffer.AddRange(bodiesB[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var xrefOffsetB = buffer.Count;
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"xref\n5 {bodiesB.Count}\n"));
+        foreach (var offset in offsetsB)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{offset:D10} 00000 n \n"));
+        }
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes("trailer\n<< /Size 9 /Root 5 0 R >>\n"));
+
+        // This decoy is physically positioned after the real "startxref" marker above, so it
+        // would otherwise be selected by a raw last-byte-match search were its "startxref" text
+        // wrongly treated as a standalone keyword token - redirecting cross-reference parsing to
+        // this structurally valid, but different, decoy revision.
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"xstartxref\n{xrefOffsetB}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a <c>startxref</c> keyword embedded as only the suffix of a larger
+    ///     regular-byte token (see
+    ///     <see cref="BuildClassicXrefPdfWithStartxrefAsTokenSuffix"/>) is never mistaken for a
+    ///     genuine, standalone <c>startxref</c> marker, even though the decoy is physically
+    ///     positioned later in the file than the real marker, points at an independently valid
+    ///     cross-reference section, and so would otherwise be selected by a raw last-byte-match
+    ///     search and silently resolve to the wrong document revision instead of the genuine one.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_ClassicXref_StartxrefAsTokenSuffix_DoesNotRedirectToBogusOffset()
+    {
+        // Arrange
+        var pdfBytes = BuildClassicXrefPdfWithStartxrefAsTokenSuffix();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Returns the character offset, within <paramref name="text"/> (the ASCII text of a PDF
+    ///     built by <see cref="BuildSinglePagePdf"/>), of the fixed-width 10-digit offset field
+    ///     belonging to the single classic cross-reference subsection's entry for
+    ///     <paramref name="objectNumber"/> - used by tests that corrupt one entry's declared
+    ///     offset in place without disturbing the table's fixed-width line layout.
+    /// </summary>
+    private static int FindClassicXrefEntryOffsetStart(string text, int objectNumber)
+    {
+        var xrefKeywordIndex = text.IndexOf("xref\n", StringComparison.Ordinal);
+        var entryStart = text.IndexOf('\n', xrefKeywordIndex + "xref\n".Length) + 1;
+        for (var i = 0; i < objectNumber; i++)
+        {
+            entryStart = text.IndexOf('\n', entryStart) + 1;
+        }
+
+        return entryStart;
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page, classic-xref PDF (via <see cref="BuildSinglePagePdf"/>)
+    ///     whose object 3 (the page) entry is rewritten to declare its own genuine offset plus
+    ///     2^32 (still within the ten fixed-width digits the classic cross-reference format
+    ///     allows, and so a value a conforming reader must reject as out of bounds) - chosen
+    ///     specifically because narrowing it to <see langword="int"/> via an unchecked,
+    ///     wraparound cast recovers the exact original, genuinely valid offset. A naive
+    ///     implementation that narrows to <see langword="int"/> before validating bounds would
+    ///     therefore accept this out-of-range offset and parse object 3 completely normally,
+    ///     silently masking the very validation bypass this test exists to catch; validating the
+    ///     original 64-bit value first instead rejects it outright.
+    /// </summary>
+    private static byte[] BuildClassicXrefPdfWithEntryOffsetBeyondInt32Range()
+    {
+        var pdfBytes = BuildSinglePagePdf(100, 100, "10 10 40 40 re f");
+        var text = System.Text.Encoding.ASCII.GetString(pdfBytes);
+        var entryStart = FindClassicXrefEntryOffsetStart(text, 3);
+        var realOffset = long.Parse(text.Substring(entryStart, 10), System.Globalization.CultureInfo.InvariantCulture);
+        var wrapped = (realOffset + (1L << 32)).ToString("D10", System.Globalization.CultureInfo.InvariantCulture);
+        var corrupted = text[..entryStart] + wrapped + text[(entryStart + 10)..];
+        return System.Text.Encoding.ASCII.GetBytes(corrupted);
+    }
+
+    /// <summary>
+    ///     Proves that a classic cross-reference entry declaring an offset beyond
+    ///     <see cref="int.MaxValue"/> (see
+    ///     <see cref="BuildClassicXrefPdfWithEntryOffsetBeyondInt32Range"/>) throws
+    ///     <see cref="InvalidDataException"/> instead of being narrowed to <see langword="int"/>
+    ///     before its bounds are checked, which would let it silently wrap around to some
+    ///     unrelated, in-bounds offset and be used as-is.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_ClassicXref_EntryOffsetBeyondInt32Range_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildClassicXrefPdfWithEntryOffsetBeyondInt32Range();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page, classic-xref PDF (via <see cref="BuildSinglePagePdf"/>)
+    ///     with genuine, correctly-bounded <c>xref</c>/<c>trailer</c>/<c>startxref</c> syntax,
+    ///     followed by two independently valid, orphaned objects appended after the real
+    ///     document's own <c>%%EOF</c> - object 5 a complete <c>/Type /Page</c> dictionary (with
+    ///     its own distinct <c>/Contents</c> stream, object 6, drawing a different shape) never
+    ///     reachable through any genuine <c>xref</c>/<c>trailer</c> path. Object 3's (the real
+    ///     page's) cross-reference entry is then rewritten to declare object 5's genuine offset
+    ///     instead of its own. Because object 5 is itself shape-compatible with a legitimate leaf
+    ///     page (not a different <c>/Type</c> or a non-dictionary stream, whose mismatch would be
+    ///     caught - for an unrelated reason - by the page-tree's own <c>/Type</c> validation), a
+    ///     missing object-number cross-check would let this resolve completely successfully with
+    ///     object 5's content, silently rendering the wrong page instead of throwing.
+    /// </summary>
+    private static byte[] BuildClassicXrefPdfWithEntryPointingAtWrongObjectHeader()
+    {
+        var buffer = BuildSinglePagePdf(100, 100, "10 10 40 40 re f").ToList();
+
+        var decoyContent = "60 60 10 10 re f"u8.ToArray();
+        var object5Offset = buffer.Count;
+        buffer.AddRange("5 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 6 0 R >>\nendobj\n"u8.ToArray());
+        buffer.AddRange("6 0 obj\n"u8.ToArray());
+        buffer.AddRange(BuildStreamObjectBody(string.Empty, decoyContent));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        var text = System.Text.Encoding.ASCII.GetString([.. buffer]);
+        var object3EntryStart = FindClassicXrefEntryOffsetStart(text, 3);
+        var corrupted = text[..object3EntryStart] +
+            object5Offset.ToString("D10", System.Globalization.CultureInfo.InvariantCulture) +
+            text[(object3EntryStart + 10)..];
+        return System.Text.Encoding.ASCII.GetBytes(corrupted);
+    }
+
+    /// <summary>
+    ///     Proves that a classic cross-reference entry whose declared offset leads to a
+    ///     different, genuine (and shape-compatible) object's header (see
+    ///     <see cref="BuildClassicXrefPdfWithEntryPointingAtWrongObjectHeader"/>) throws
+    ///     <see cref="InvalidDataException"/> instead of silently accepting the wrong object's
+    ///     content and relabeling it with the requested object number.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_ClassicXref_EntryPointingAtWrongObjectHeader_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildClassicXrefPdfWithEntryPointingAtWrongObjectHeader();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
     #endregion
 
     #region Page tree

@@ -113,6 +113,20 @@ Opens `PdfFixtures/classic-xref-single-page.pdf` (a classic `xref` table + `trai
 public API. Asserts `PageCount` and the single page's `GetPageInfo` size/rotation match the
 fixture's known content.
 
+`PdfDocument_Open_ClassicXref_EntryOffsetBeyondInt32Range_ThrowsInvalidDataException` confirms
+that a cross-reference entry's declared offset is validated against its original 64-bit value
+before ever being narrowed to `int`: the test entry declares the real page object's genuine
+offset plus 2^32 (still representable in the ten fixed-width digits the classic cross-reference
+format allows), chosen specifically because narrowing it to `int` via an unchecked, wraparound
+cast recovers the exact original, in-bounds offset - a bug that validated the already-narrowed
+value would wrongly accept and use. `PdfDocument_Open_ClassicXref_EntryPointingAtWrongObjectHeader_ThrowsInvalidDataException`
+confirms that an entry's declared offset must lead to a header whose own declared object number
+matches the number being resolved: the test corrupts the page object's entry to point at a
+second, independently well-formed and shape-compatible `/Type /Page` object appended after the
+document's own `%%EOF` (never reachable through any genuine `xref`/`trailer` path), proving the
+mismatch is rejected outright rather than silently accepted and relabeled with the requested
+object number - which would otherwise render the wrong page without any error.
+
 #### CanvasNetPdf-PdfDocument-XrefStream: Xref Stream Resolves Root and Page
 
 **Test**: `PdfDocument_Open_XrefStream_ResolvesRootAndPage`
@@ -199,6 +213,31 @@ analogous PDF name-token exclusion for the same backward parse: a decoy such as 
 rejected because `/3` is lexically a PDF name token whose text happens to read "3", never a
 standalone object-number token, even though `/` is itself a delimiter (not a regular byte) and so
 is not caught by the regular-byte boundary check alone.
+`PdfDocument_Open_LinearScanFallback_SecondAngleBracketAsHexStringStart_DoesNotCorruptOffset`
+confirms that both characters of a dictionary's opening `<<` are excluded from hex-string
+detection, not just the first: a decoy `3 0 obj` embedded inside a hex-string-shaped run
+immediately following a genuine `<<` is never reached, because the second `<` is itself
+recognized as dictionary syntax (by also checking the *preceding* byte, not only the following
+one) rather than mistaken for the start of a `<...>` hex string whose premature, early-closing
+`>` would otherwise expose the decoy to keyword matching.
+`PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly` confirms
+the fallback scan completes in bounded, linear time even when fed a long run of unmatched `(`
+bytes: rather than re-scanning the entire remaining buffer from every failed literal/hex-string
+open position (which is quadratic in a crafted file's size and so a CPU/timeout
+denial-of-service), the scan permanently stops attempting further string opens for the remainder
+of a single pass once any one string scan fails to find its close before EOF. This is a
+deliberate, documented heuristic trade-off - a legitimate recovery opportunity immediately after
+such a degenerate byte run could in principle be missed - accepted because the project's
+established policy treats a heuristic fallback scanner's incompleteness as acceptable as long as
+it never hangs or crashes.
+`PdfDocument_Open_ClassicXref_StartxrefAsTokenSuffix_DoesNotRedirectToBogusOffset` confirms that
+the fallback search for a `startxref` marker (used when a genuine marker could not already be
+located) applies the same regular-byte boundary rule as every other keyword match in this file:
+a byte-exact `startxref` sequence that is only the suffix of a larger regular-byte token (for
+example `xstartxref`) is never mistaken for a standalone marker, even when it is physically
+positioned later in the file, byte-identical, and points at an independently valid second
+cross-reference section - which would otherwise cause the wrong document revision to be silently
+resolved instead of the genuine one.
 
 #### CanvasNetPdf-PdfDocument-PageTreeTraversal: Page Tree Traversal Reports All Pages
 
