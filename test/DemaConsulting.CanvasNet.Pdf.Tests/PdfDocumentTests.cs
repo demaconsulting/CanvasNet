@@ -2613,6 +2613,135 @@ public class PdfDocumentTests
         Assert.Equal(default, surface[5, 5]);
     }
 
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): the real object 3 (the Page)
+    ///     is defined with a genuine, early <c>3 0 obj</c> header, while later, unstructured raw
+    ///     bytes - not inside any comment, string, or stream payload - spell out
+    ///     <c>decoy3 0 obj</c>: a byte-perfect <c>3 0 obj</c> sequence whose object number digit
+    ///     is only the suffix of the larger regular-byte token <c>decoy3</c>, not a standalone
+    ///     number token of its own.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithObjectNumberAsTokenSuffix()
+    {
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // This decoy is physically positioned after the real "3 0 obj" header above, so it would
+        // otherwise win under the scan's "later occurrence overrides an earlier one" semantics
+        // were its "3" digit wrongly treated as a standalone object-number token. It sits outside
+        // any comment, string, or stream payload, reaching the raw "obj" scan directly.
+        buffer.AddRange("decoy3 0 obj\n<< /Foo true >>\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that an object number embedded as only the numeric suffix of a larger
+    ///     regular-byte token (see
+    ///     <see cref="BuildLinearScanFallbackWithObjectNumberAsTokenSuffix"/>) is never mistaken
+    ///     for a genuine, standalone object-number token, even though the decoy is physically
+    ///     positioned later in the file than the real header for the same object number and so
+    ///     would otherwise win under the scan's own "later occurrence overrides an earlier one"
+    ///     semantics - corrupting that object's real, correct offset. The real object 3 (the
+    ///     page) must still resolve and render correctly using its own genuine, earlier header.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ObjectNumberAsTokenSuffix_DoesNotCorruptOffset()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithObjectNumberAsTokenSuffix();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): the real object 3 (the Page)
+    ///     is defined with a genuine, early <c>3 0 obj</c> header, while later, unstructured raw
+    ///     bytes - not inside any comment, string, or stream payload - spell out
+    ///     <c>/3 0 obj</c>: a byte-perfect <c>3 0 obj</c> sequence whose object number digit is
+    ///     immediately preceded by <c>/</c>, making it lexically the PDF <em>name</em> token
+    ///     <c>/3</c> (whose text happens to read "3") rather than a standalone number token.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithObjectNumberAsNameToken()
+    {
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // This decoy is physically positioned after the real "3 0 obj" header above, so it would
+        // otherwise win under the scan's "later occurrence overrides an earlier one" semantics
+        // were its "/3" name token wrongly treated as a standalone object-number token. It sits
+        // outside any comment, string, or stream payload, reaching the raw "obj" scan directly.
+        buffer.AddRange("/3 0 obj\n<< /Foo true >>\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that an object number embedded as a PDF name token's text (see
+    ///     <see cref="BuildLinearScanFallbackWithObjectNumberAsNameToken"/>) is never mistaken
+    ///     for a genuine, standalone object-number token, even though the decoy is physically
+    ///     positioned later in the file than the real header for the same object number and so
+    ///     would otherwise win under the scan's own "later occurrence overrides an earlier one"
+    ///     semantics - corrupting that object's real, correct offset. The real object 3 (the
+    ///     page) must still resolve and render correctly using its own genuine, earlier header.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ObjectNumberAsNameToken_DoesNotCorruptOffset()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithObjectNumberAsNameToken();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
     #endregion
 
     #region Page tree

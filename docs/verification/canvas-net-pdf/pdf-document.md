@@ -189,6 +189,16 @@ recognizes exactly the same "regular byte" rule (any byte that is neither PDF wh
 PDF delimiter) that `PdfTokenizer` itself uses to decide where a keyword token ends, rather than
 the narrower "ASCII letter or digit" check an earlier version relied on, which under-approximated
 the tokenizer's own notion of a token boundary and could be defeated by a byte such as `#`.
+`PdfDocument_Open_LinearScanFallback_ObjectNumberAsTokenSuffix_DoesNotCorruptOffset` confirms the
+same regular-byte boundary rule is also applied when parsing an object header's `N G obj` number
+backward from a matched `obj` keyword: a decoy such as `decoy3 0 obj` is rejected because the
+object-number digit `3` is only the suffix of the larger regular-byte token `decoy3`, not a
+standalone number token with a genuine boundary immediately before it.
+`PdfDocument_Open_LinearScanFallback_ObjectNumberAsNameToken_DoesNotCorruptOffset` confirms the
+analogous PDF name-token exclusion for the same backward parse: a decoy such as `/3 0 obj` is
+rejected because `/3` is lexically a PDF name token whose text happens to read "3", never a
+standalone object-number token, even though `/` is itself a delimiter (not a regular byte) and so
+is not caught by the regular-byte boundary check alone.
 
 #### CanvasNetPdf-PdfDocument-PageTreeTraversal: Page Tree Traversal Reports All Pages
 

@@ -876,7 +876,11 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Attempts to parse a <c>N G</c> object number/generation header immediately preceding
     ///     the byte index of a literal <c>obj</c> keyword match, walking backward over the
-    ///     generation digits, the separating whitespace, and the object number digits.
+    ///     generation digits, the separating whitespace, and the object number digits. The object
+    ///     number's own leading boundary is also verified: it must not be immediately preceded by
+    ///     another regular byte (which would make the digits only the suffix of a larger token)
+    ///     or by <c>/</c> (which would make them a PDF name token's text rather than a standalone
+    ///     number).
     /// </summary>
     private static bool TryParseObjectHeaderBackward(byte[] buffer, int objIndex, out int objectNumber, out int headerStart)
     {
@@ -913,6 +917,21 @@ public sealed partial class PdfDocument
         }
 
         var numberStart = cursor;
+
+        // Require a genuine token boundary immediately before the object number: without this, a
+        // decoy such as "foo3 0 obj" would be accepted as object 3, even though "foo3" is
+        // lexically a single regular-byte token under the PDF grammar and "3" is only its suffix,
+        // not a standalone number token of its own. A preceding '/' must also be rejected even
+        // though '/' is itself a delimiter (not a regular byte): per the PDF specification a name
+        // token begins with '/' directly followed by its regular characters with no intervening
+        // whitespace, so (for example) "/3 0 obj" has "/3" as a name token whose text happens to
+        // read "3" - a legitimate dictionary value any real document can contain - never a
+        // standalone object-number token, and must not be parsed as one.
+        if (numberStart > 0 && (IsMarkerRegularByte(buffer[numberStart - 1]) || buffer[numberStart - 1] == (byte)'/'))
+        {
+            return false;
+        }
+
         var parsedNumber = 0L;
         for (var i = numberStart; i < numberEnd; i++)
         {

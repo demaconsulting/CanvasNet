@@ -132,6 +132,8 @@ sections:
               - PdfDocument_Open_LinearScanFallback_TrailerKeywordAsNameToken_DoesNotReplaceRealTrailer
               - PdfDocument_Open_LinearScanFallback_ManyStreamPayloadRangesBeforeTrailer_StillResolvesTrailer
               - PdfDocument_Open_LinearScanFallback_TrailerKeywordAfterHashByte_DoesNotReplaceRealTrailer
+              - PdfDocument_Open_LinearScanFallback_ObjectNumberAsTokenSuffix_DoesNotCorruptOffset
+              - PdfDocument_Open_LinearScanFallback_ObjectNumberAsNameToken_DoesNotCorruptOffset
 
           - id: CanvasNetPdf-PdfDocument-PageTreeTraversal
             title: >-
