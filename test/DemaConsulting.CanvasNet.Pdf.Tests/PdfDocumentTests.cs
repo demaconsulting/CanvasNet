@@ -7592,6 +7592,39 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Proves that each of the AGL generic <c>uXXXX</c>/<c>uXXXXX</c>/<c>uXXXXXX</c>
+    ///     hex-codepoint glyph-name lengths (four, five, and six uppercase hex digits) actually
+    ///     resolves end-to-end rather than only rejecting the out-of-range case covered by
+    ///     <see cref="PdfDocument_Fonts_Differences_OutOfRangeUHexName_FallsBackToBaseEncoding"/>:
+    ///     a <c>/Differences</c> array names code 65 with the given <c>u...</c> name, and an
+    ///     embedded Type1C font whose own CFF charset literally spells its only non-<c>.notdef</c>
+    ///     glyph with that exact same name, so the glyph paints only if
+    ///     <c>TryParseUppercaseHexDigits</c> both accepts the digit span and
+    ///     <c>BuildEmbeddedFontGlyphNameMap</c>'s enrichment then wires the resolved codepoint to
+    ///     that literal embedded glyph name.
+    /// </summary>
+    [Theory]
+    [InlineData("u1234")] // Four hex digits -> U+1234 (Ethiopic syllable "see").
+    [InlineData("u10000")] // Five hex digits -> U+10000 (the first Supplementary Plane codepoint).
+    [InlineData("u10FFFF")] // Six hex digits -> U+10FFFF (the highest valid Unicode codepoint).
+    public void PdfDocument_Fonts_Differences_ValidUHexName_ResolvesViaEnrichedEmbeddedFontGlyphMap(string glyphName)
+    {
+        // Arrange
+        var (resourcesBody, extraObjects) = BuildEmbeddedType1CFontResources(
+            fontDictExtra: "/FirstChar 65 /LastChar 65 /Widths [600] " +
+                           $"/Encoding << /Differences [65 /{glyphName}] >>",
+            customGlyphName: glyphName);
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the embedded font's square glyph painted at the expected text-space location.
+        Assert.NotEqual(default, surface[11, 44]);
+    }
+
+    /// <summary>
     ///     Proves that <c>/Differences</c> recognizes the <c>ff</c>/<c>ffi</c>/<c>ffl</c> Latin
     ///     ligature glyph names (found via a real-world pdfLaTeX Computer Modern font from
     ///     py-pdf/sample-files, which declares them in its own <c>/Differences</c> array) -
