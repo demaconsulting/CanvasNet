@@ -3181,6 +3181,176 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): object 4 is an unreferenced
+    ///     stream with a genuine, direct, correctly-declared <c>/Length</c> covering its whole
+    ///     payload, but whose terminating <c>endstream</c> keyword is separated from the end of
+    ///     that declared payload by ordinary whitespace and a PDF comment rather than a bare
+    ///     end-of-line sequence - valid per the PDF grammar, but previously rejected by a
+    ///     declared-length validator that only tolerated an optional CRLF. The payload itself
+    ///     contains an early, coincidental <c>endstream</c> immediately followed by a genuine
+    ///     <c>endobj</c> (so it passes the structural "followed by endobj" check on its own), and
+    ///     then a false, line-start <c>3 0 obj</c> header - if the comment-separated, genuinely
+    ///     declared length is wrongly distrusted, the raw fallback scan accepts this early,
+    ///     coincidental match instead, ending the protected payload range too soon and exposing
+    ///     the false header to corrupt the real, earlier object 3's offset.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithCommentBeforeDeclaredLengthEndstream()
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray(),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // An early, coincidental "endstream" that IS immediately followed by "endobj" (so it
+        // would be accepted by the raw fallback scan's own structural check on its own merits),
+        // followed by a false, line-start "3 0 obj" header - both fully inside the declared
+        // /Length below, and so never reachable by the raw scan at all when the declared length
+        // is correctly trusted.
+        var payloadBody = "AAAA\nendstream\nendobj\nBBBB\n3 0 obj\n<< /Bogus (decoy) >>\nendobj\nCCCC"u8.ToArray();
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"4 0 obj\n<< /Length {payloadBody.Length} >>\nstream\n"));
+        buffer.AddRange(payloadBody);
+        buffer.AddRange("  % trailing comment\nendstream\nendobj\n"u8.ToArray());
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes("5 0 obj\n"));
+        buffer.AddRange(BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that whitespace and a PDF comment between the end of a stream's correctly
+    ///     declared <c>/Length</c> payload and its terminating <c>endstream</c> keyword (see
+    ///     <see cref="BuildLinearScanFallbackWithCommentBeforeDeclaredLengthEndstream"/>) do not
+    ///     cause that genuinely correct declared length to be distrusted. Distrusting it would
+    ///     fall through to the much weaker raw fallback scan, which accepts an early, coincidental
+    ///     <c>endstream</c>/<c>endobj</c> pair embedded within the payload itself - ending the
+    ///     protected payload range too soon and exposing a false, line-start <c>3 0 obj</c> header
+    ///     within it to corrupt the real, earlier object 3's correct offset. The real object 3
+    ///     (the page) must still resolve and render correctly using its own genuine, earlier
+    ///     header.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_CommentBeforeDeclaredLengthEndstream_DoesNotCorruptOffsets()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithCommentBeforeDeclaredLengthEndstream();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): object 4 is an unreferenced
+    ///     stream with an indirect, unresolvable <c>/Length</c> (forcing the raw
+    ///     <c>FindStructurallyValidEndstream</c> fallback search), whose payload begins with an
+    ///     early, coincidental <c>endstream</c> keyword immediately followed by a PDF comment that
+    ///     deliberately does not reach its own end-of-line terminator within
+    ///     <c>SkipMarkerWhitespaceAndCommentsForward</c>'s bounded scan window, with the literal
+    ///     text <c>endobj</c> positioned exactly at that window's cutoff. Followed by that is a
+    ///     false, line-start <c>3 0 obj</c> header, and then the stream's genuine, final
+    ///     <c>endstream</c>/<c>endobj</c> pair. A separator scan that mistook the bounded cutoff
+    ///     for a genuine comment terminator would read the <c>endobj</c> text sitting there - which
+    ///     is, per the PDF comment grammar, still ambiguous (possibly still part of the
+    ///     unterminated comment) - as confirmation that the early, coincidental <c>endstream</c> is
+    ///     structurally valid, ending the protected payload range far too soon.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithUnterminatedCommentAtForwardScanBound()
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray(),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // "endstream" immediately followed by a comment of exactly 256 bytes ('%' plus 255 'A'
+        // bytes) with no end-of-line anywhere in it - the same length as
+        // SkipMarkerWhitespaceAndCommentsForward's own bounded scan window - so that window's
+        // cutoff lands exactly on the following "endobj" text, which (since the comment never
+        // actually reached a real terminator) must not be mistaken for a genuine, standalone
+        // keyword.
+        var unterminatedComment = "%" + new string('A', 255);
+        var payloadBody = "endstream" + unterminatedComment + "endobj" +
+                           "\nBBBB\n3 0 obj\n<< /Bogus (decoy) >>\nendobj\nCCCC";
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"4 0 obj\n<< /Length 6 0 R >>\nstream\n"));
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(payloadBody));
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes("5 0 obj\n"));
+        buffer.AddRange(BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        // Object 6: the /Length value object 4's stream dictionary points to. Its own value is
+        // irrelevant to this test - it is never trusted as a declared length boundary merely by
+        // being referenced indirectly.
+        buffer.AddRange("6 0 obj\n9999\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that when the bounded forward whitespace-and-comment scan runs out before an
+    ///     in-progress comment reaches its own end-of-line terminator (see
+    ///     <see cref="BuildLinearScanFallbackWithUnterminatedCommentAtForwardScanBound"/>), the
+    ///     bytes sitting exactly at that bound are never mistaken for a genuine keyword even when
+    ///     they spell one exactly - because, per the PDF comment grammar, they may in fact still be
+    ///     part of the comment's own (longer than the bound) body. Accepting them regardless would
+    ///     let an early, coincidental <c>endstream</c> be mistaken for the stream's real terminator,
+    ///     ending the protected payload range too soon and exposing a false, line-start
+    ///     <c>3 0 obj</c> header to corrupt the real, earlier object 3's correct offset. The real
+    ///     object 3 (the page) must still resolve and render correctly using its own genuine,
+    ///     earlier header.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_UnterminatedCommentAtForwardScanBound_DoesNotCorruptOffsets()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithUnterminatedCommentAtForwardScanBound();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
     ///     Returns the character offset, within <paramref name="text"/> (the ASCII text of a PDF
     ///     built by <see cref="BuildSinglePagePdf"/>), of the fixed-width 10-digit offset field
     ///     belonging to the single classic cross-reference subsection's entry for

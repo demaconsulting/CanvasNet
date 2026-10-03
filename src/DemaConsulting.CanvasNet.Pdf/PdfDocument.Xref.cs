@@ -794,6 +794,16 @@ public sealed partial class PdfDocument
     ///     <see cref="MaxForwardSeparatorScanLength"/> bytes to keep this a strictly linear-time
     ///     operation overall.
     /// </summary>
+    /// <remarks>
+    ///     If a comment's own end-of-line terminator is not reached before that bound - which,
+    ///     given the bound's small size, can only happen when the comment is still genuinely
+    ///     unterminated at the point the scan gives up, with more buffer remaining beyond it -
+    ///     this returns the index of that comment's own leading <c>%</c> rather than guessing how
+    ///     far past it the comment extends. Returning any later position risked a caller (for
+    ///     example <see cref="IsFollowedByEndObjKeyword"/>) mistaking bytes that are still part of
+    ///     the comment's own body for a real keyword immediately following it - silently accepting
+    ///     a false boundary rather than conservatively reporting none.
+    /// </remarks>
     private static int SkipMarkerWhitespaceAndCommentsForward(byte[] buffer, int cursor)
     {
         var limit = Math.Min(buffer.Length, cursor + MaxForwardSeparatorScanLength);
@@ -807,9 +817,20 @@ public sealed partial class PdfDocument
 
             if (buffer[cursor] == (byte)'%')
             {
+                var commentStart = cursor;
                 while (cursor < limit && buffer[cursor] is not ((byte)'\n' or (byte)'\r'))
                 {
                     cursor++;
+                }
+
+                if (cursor == limit && limit < buffer.Length)
+                {
+                    // The bounded scan ran out before this comment reached its own end-of-line,
+                    // and the buffer continues past this point - whether that later content is
+                    // really past the comment, or still part of its (longer than our bound) body,
+                    // cannot be determined without unbounded work. Report the comment's own start
+                    // as the result instead of the ambiguous cutoff position.
+                    return commentStart;
                 }
 
                 continue;
@@ -824,9 +845,10 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Validates a stream dictionary's declared <c>/Length</c> against the buffer - it must be
     ///     a non-negative integer landing fully within the buffer, and the bytes immediately
-    ///     following it (after tolerating an optional end-of-line sequence, since several
-    ///     real-world producers include one despite it not being strictly required) must be the
-    ///     literal <c>endstream</c> keyword - and if so, returns the index just past that keyword.
+    ///     following it (after tolerating any PDF whitespace and comments, since the PDF grammar
+    ///     permits both - not merely an optional end-of-line sequence, despite that being what
+    ///     most real-world producers emit) must be the literal <c>endstream</c> keyword - and if
+    ///     so, returns the index just past that keyword.
     /// </summary>
     private static bool TryGetDeclaredStreamEnd(byte[] buffer, int dataStart, double declaredLength, out int payloadEnd)
     {
@@ -842,17 +864,7 @@ public sealed partial class PdfDocument
             return false;
         }
 
-        var afterData = (int)declaredDataEnd;
-        if (afterData < buffer.Length && buffer[afterData] == (byte)'\r')
-        {
-            afterData++;
-        }
-
-        if (afterData < buffer.Length && buffer[afterData] == (byte)'\n')
-        {
-            afterData++;
-        }
-
+        var afterData = SkipMarkerWhitespaceAndCommentsForward(buffer, (int)declaredDataEnd);
         var endStreamIndex = IndexOfKeyword(
             buffer,
             afterData,

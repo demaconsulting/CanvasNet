@@ -255,6 +255,22 @@ comment separating an object header's generation number from its `obj` keyword -
 PDF grammar, since a comment is whitespace-equivalent token separation - does not make the
 backward object-header scan miss that object entirely; fallback recovery must recognize the same
 header a real forward parser would find.
+`PdfDocument_Open_LinearScanFallback_CommentBeforeDeclaredLengthEndstream_DoesNotCorruptOffsets`
+confirms that whitespace and a PDF comment between the end of a stream's correctly declared
+`/Length` payload and its terminating `endstream` keyword - valid per the PDF grammar, not merely
+an optional CRLF sequence - do not cause that genuinely correct declared length to be distrusted.
+Distrusting it would fall through to the much weaker raw fallback scan, which accepts an early,
+coincidental `endstream`/`endobj` pair embedded within the payload itself, ending the protected
+payload range too soon and exposing a false object header within it to corrupt an earlier,
+genuine object's offset.
+`PdfDocument_Open_LinearScanFallback_UnterminatedCommentAtForwardScanBound_DoesNotCorruptOffsets`
+confirms that when the bounded forward whitespace-and-comment scan runs out before an in-progress
+comment reaches its own end-of-line terminator, the bytes sitting exactly at that bound are never
+mistaken for a genuine keyword even when they spell one exactly - because, per the PDF comment
+grammar, they may in fact still be part of the comment's own (longer than the bound) body.
+Accepting them regardless would let an early, coincidental `endstream` be mistaken for the
+stream's real terminator, ending the protected payload range too soon and exposing a false object
+header to corrupt an earlier, genuine object's offset.
 
 #### CanvasNetPdf-PdfDocument-PageTreeTraversal: Page Tree Traversal Reports All Pages
 
