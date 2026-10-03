@@ -376,9 +376,17 @@ public sealed partial class PdfDocument
     ///     mirroring the same regular-byte boundary rule <see cref="IndexOfKeyword"/> applies when
     ///     scanning forward, so a decoy such as <c>mystartxref</c> cannot be mistaken for the real
     ///     <c>startxref</c> keyword, and a legitimate earlier match is not shadowed by a later one
-    ///     that is merely the tail or prefix of a larger run of regular bytes. This does not by
-    ///     itself exclude a boundary-respecting match that happens to sit inside a PDF comment or
-    ///     string, unlike the comment/string-aware scans in <see cref="ScanObjectOffsets"/> and
+    ///     that is merely the tail or prefix of a larger run of regular bytes. A match is also
+    ///     rejected when immediately preceded by <c>/</c>, mirroring <see cref="IsKeywordAt"/>'s
+    ///     own name-token exclusion: per the PDF specification a name token begins with <c>/</c>
+    ///     directly followed by its regular characters with no intervening whitespace, so (for
+    ///     example) <c>/startxref</c> is a <em>name</em> whose text happens to read "startxref" -
+    ///     a legitimate dictionary key or value any real document can contain - never the
+    ///     <c>startxref</c> keyword itself, and must not be parsed as one; without this exclusion
+    ///     such a name occurring after the genuine marker could win this reverse search and
+    ///     redirect parsing to the wrong cross-reference section. This does not by itself exclude
+    ///     a boundary-respecting match that happens to sit inside a PDF comment or string, unlike
+    ///     the comment/string-aware scans in <see cref="ScanObjectOffsets"/> and
     ///     <see cref="ScanForTrailerDictionary"/> - a narrower, best-effort improvement over the
     ///     previous unguarded raw byte search, not a claim of full lexical correctness.
     /// </summary>
@@ -402,7 +410,7 @@ public sealed partial class PdfDocument
                 continue;
             }
 
-            if (i > 0 && IsMarkerRegularByte(haystack[i - 1]))
+            if (i > 0 && (IsMarkerRegularByte(haystack[i - 1]) || haystack[i - 1] == (byte)'/'))
             {
                 continue;
             }
@@ -749,30 +757,68 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Returns whether <paramref name="index"/>, after tolerating an optional end-of-line
-    ///     sequence, is immediately followed by the literal <c>endobj</c> keyword - the structure
-    ///     every genuine <c>endstream</c> keyword is followed by.
+    ///     Returns whether <paramref name="index"/>, after tolerating any PDF whitespace and
+    ///     comments between tokens (not merely a single optional end-of-line sequence - PDF
+    ///     permits any amount of whitespace, and comments are themselves whitespace-equivalent,
+    ///     between the <c>endstream</c> and <c>endobj</c> keywords), is immediately followed by
+    ///     the literal <c>endobj</c> keyword - the structure every genuine <c>endstream</c>
+    ///     keyword is followed by.
     /// </summary>
     private static bool IsFollowedByEndObjKeyword(byte[] buffer, int index)
     {
-        var afterEol = index;
-        if (afterEol < buffer.Length && buffer[afterEol] == (byte)'\r')
-        {
-            afterEol++;
-        }
-
-        if (afterEol < buffer.Length && buffer[afterEol] == (byte)'\n')
-        {
-            afterEol++;
-        }
-
+        var afterSeparators = SkipMarkerWhitespaceAndCommentsForward(buffer, index);
         var endObjIndex = IndexOfKeyword(
             buffer,
-            afterEol,
-            Math.Min(afterEol + "endobj"u8.Length, buffer.Length),
+            afterSeparators,
+            Math.Min(afterSeparators + "endobj"u8.Length, buffer.Length),
             "endobj"u8,
             requirePrecedingBoundary: false);
-        return endObjIndex == afterEol;
+        return endObjIndex == afterSeparators;
+    }
+
+    /// <summary>
+    ///     Maximum number of bytes <see cref="SkipMarkerWhitespaceAndCommentsForward"/> will walk
+    ///     forward. Bounded for the same reason as <see cref="MaxBackwardCommentScanLength"/>: so
+    ///     that a crafted file cannot turn this separator skip, performed once per candidate
+    ///     <c>endstream</c> match inside <see cref="FindStructurallyValidEndstream"/>'s loop, into
+    ///     quadratic work. Real producers never place hundreds of bytes of whitespace or comments
+    ///     between <c>endstream</c> and <c>endobj</c>; failing to look past this bound only risks
+    ///     missing that one structural-validity check, never a crash or a hang.
+    /// </summary>
+    private const int MaxForwardSeparatorScanLength = 256;
+
+    /// <summary>
+    ///     Walks <paramref name="cursor"/> forward over any run of PDF whitespace and comments (a
+    ///     <c>%</c> through end of line) - mirroring how <see cref="PdfTokenizer"/> itself treats
+    ///     a comment as insignificant, token-separating content. Bounded by
+    ///     <see cref="MaxForwardSeparatorScanLength"/> bytes to keep this a strictly linear-time
+    ///     operation overall.
+    /// </summary>
+    private static int SkipMarkerWhitespaceAndCommentsForward(byte[] buffer, int cursor)
+    {
+        var limit = Math.Min(buffer.Length, cursor + MaxForwardSeparatorScanLength);
+        while (cursor < limit)
+        {
+            if (IsMarkerWhitespace(buffer[cursor]))
+            {
+                cursor++;
+                continue;
+            }
+
+            if (buffer[cursor] == (byte)'%')
+            {
+                while (cursor < limit && buffer[cursor] is not ((byte)'\n' or (byte)'\r'))
+                {
+                    cursor++;
+                }
+
+                continue;
+            }
+
+            break;
+        }
+
+        return cursor;
     }
 
     /// <summary>
@@ -915,7 +961,7 @@ public sealed partial class PdfDocument
 
         var cursor = objIndex;
         var sectionEnd = cursor;
-        cursor = SkipMarkerBytesBackward(buffer, cursor, IsMarkerWhitespace);
+        cursor = SkipMarkerWhitespaceAndCommentsBackward(buffer, cursor);
         if (cursor == sectionEnd)
         {
             return false;
@@ -929,7 +975,7 @@ public sealed partial class PdfDocument
         }
 
         sectionEnd = cursor;
-        cursor = SkipMarkerBytesBackward(buffer, cursor, IsMarkerWhitespace);
+        cursor = SkipMarkerWhitespaceAndCommentsBackward(buffer, cursor);
         if (cursor == sectionEnd)
         {
             return false;
@@ -973,6 +1019,72 @@ public sealed partial class PdfDocument
         objectNumber = (int)parsedNumber;
         headerStart = numberStart;
         return true;
+    }
+
+    /// <summary>
+    ///     Maximum number of bytes <see cref="SkipMarkerWhitespaceAndCommentsBackward"/> will scan
+    ///     backward from a candidate comment's end while searching for its leading <c>%</c>.
+    ///     Deliberately small and fixed so that even a maliciously crafted file consisting of one
+    ///     enormous line cannot turn this backward comment check into O(n) work repeated at up to
+    ///     O(n) different candidate match positions - which would reintroduce the same quadratic
+    ///     blowup that <see cref="AdvancePastNonSyntax"/>'s own unterminated-literal-string guard
+    ///     exists to prevent. A genuine PDF comment this long between an object header's number,
+    ///     generation, and <c>obj</c> tokens is not a realistic producer output; failing to
+    ///     recognize one beyond this bound only risks the fallback recovery scanner missing one
+    ///     candidate header, never a crash or a hang.
+    /// </summary>
+    private const int MaxBackwardCommentScanLength = 256;
+
+    /// <summary>
+    ///     Walks <paramref name="cursor"/> backward over a run of PDF whitespace and, when one
+    ///     immediately precedes it, a single PDF comment (a <c>%</c> through end of line) -
+    ///     mirroring how <see cref="PdfTokenizer"/> itself treats a comment as insignificant,
+    ///     token-separating content when scanning forward. This lets fallback recovery's backward
+    ///     object-header scan recognize headers such as <c>1 0 % comment\nobj</c> that a real
+    ///     forward parser would find, which a whitespace-only backward skip would otherwise miss.
+    ///     Bounded by <see cref="MaxBackwardCommentScanLength"/> bytes per candidate comment to
+    ///     keep the overall scan strictly linear.
+    /// </summary>
+    private static int SkipMarkerWhitespaceAndCommentsBackward(byte[] buffer, int cursor)
+    {
+        while (true)
+        {
+            var beforeWhitespace = cursor;
+            cursor = SkipMarkerBytesBackward(buffer, cursor, IsMarkerWhitespace);
+
+            // Search a bounded window immediately before the current position for a '%' that
+            // isn't separated from here by an end-of-line byte - if found, everything from the
+            // '%' up to here is a single-line comment's body, which the PDF tokenizer treats as
+            // whitespace-equivalent and so must this backward scan.
+            var scanLimit = Math.Max(0, cursor - MaxBackwardCommentScanLength);
+            var percentIndex = -1;
+            for (var i = cursor - 1; i >= scanLimit; i--)
+            {
+                if (buffer[i] is (byte)'\n' or (byte)'\r')
+                {
+                    break;
+                }
+
+                if (buffer[i] == (byte)'%')
+                {
+                    percentIndex = i;
+                    break;
+                }
+            }
+
+            if (percentIndex < 0)
+            {
+                return cursor;
+            }
+
+            cursor = percentIndex;
+            if (cursor == beforeWhitespace)
+            {
+                // Defensive: a '%' is never whitespace, so this iteration always makes forward
+                // (backward) progress; stop rather than loop forever if that invariant ever broke.
+                return cursor;
+            }
+        }
     }
 
     /// <summary>Walks <paramref name="cursor"/> backward while the preceding byte satisfies <paramref name="predicate"/>.</summary>

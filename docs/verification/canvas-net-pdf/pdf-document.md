@@ -238,6 +238,23 @@ example `xstartxref`) is never mistaken for a standalone marker, even when it is
 positioned later in the file, byte-identical, and points at an independently valid second
 cross-reference section - which would otherwise cause the wrong document revision to be silently
 resolved instead of the genuine one.
+`PdfDocument_Open_ClassicXref_StartxrefAsNameToken_DoesNotRedirectToBogusOffset` confirms the
+analogous PDF name-token exclusion for that same `startxref` marker search: a decoy
+`/startxref` is rejected because it is lexically a PDF name token whose text happens to read
+"startxref", never a standalone keyword, mirroring the existing `/trailer` name-token exclusion
+`IsKeywordAt` already applies when scanning forward.
+`PdfDocument_Open_LinearScanFallback_CommentBeforeEndobj_DoesNotCorruptOffsets` confirms that a
+genuine `endstream` keyword separated from the `endobj` keyword that follows it by ordinary
+whitespace and a PDF comment (not merely an optional CRLF sequence) is still recognized as
+structurally valid: the PDF grammar permits any amount of whitespace, and comments, between
+tokens, and treating such a layout as coincidental payload noise would leave the stream's payload
+unprotected, exposing a false, embedded object header to corrupt an earlier, genuine object's
+offset.
+`PdfDocument_Open_LinearScanFallback_CommentInObjectHeader_ResolvesObject` confirms that a PDF
+comment separating an object header's generation number from its `obj` keyword - valid per the
+PDF grammar, since a comment is whitespace-equivalent token separation - does not make the
+backward object-header scan miss that object entirely; fallback recovery must recognize the same
+header a real forward parser would find.
 
 #### CanvasNetPdf-PdfDocument-PageTreeTraversal: Page Tree Traversal Reports All Pages
 

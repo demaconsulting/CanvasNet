@@ -139,6 +139,9 @@ sections:
               - PdfDocument_Open_LinearScanFallback_SecondAngleBracketAsHexStringStart_DoesNotCorruptOffset
               - PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly
               - PdfDocument_Open_ClassicXref_StartxrefAsTokenSuffix_DoesNotRedirectToBogusOffset
+              - PdfDocument_Open_ClassicXref_StartxrefAsNameToken_DoesNotRedirectToBogusOffset
+              - PdfDocument_Open_LinearScanFallback_CommentBeforeEndobj_DoesNotCorruptOffsets
+              - PdfDocument_Open_LinearScanFallback_CommentInObjectHeader_ResolvesObject
 
           - id: CanvasNetPdf-PdfDocument-PageTreeTraversal
             title: >-
