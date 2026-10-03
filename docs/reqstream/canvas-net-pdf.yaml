@@ -104,7 +104,7 @@ sections:
           - CanvasNetPdf-PdfDocument-Render
           - CanvasNetPdf-PdfDocument-RenderWithDpi
         tests:
-          - CanvasNetPdf_SystemIntegration_PdfRender_ReturnsBlankSizedSurface
+          - CanvasNetPdf_SystemIntegration_PdfRender_ReturnsOpaqueWhiteSizedSurface
           - CanvasNetPdf_SystemIntegration_PdfUnsupportedFormatValidation_MalformedContentStreamThrowsInvalidDataException
 
       - id: CanvasNetPdf-Dispose

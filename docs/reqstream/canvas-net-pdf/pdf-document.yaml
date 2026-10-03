@@ -118,6 +118,8 @@ sections:
               well-formed documents still be opened instead of always failing outright.
             tests:
               - PdfDocument_Open_MalformedStartxref_FallsBackToLinearScan
+              - PdfDocument_Open_LinearScanFallback_ObjMarkerInsideStreamPayload_DoesNotCorruptOffsets
+              - PdfDocument_Open_Encrypted_LinearScanFallback_RecoversObjectsCompressedInObjectStream
 
           - id: CanvasNetPdf-PdfDocument-PageTreeTraversal
             title: >-
@@ -369,6 +371,7 @@ sections:
               - PdfDocument_RenderWithDpi_InvalidDpi_ThrowsArgumentOutOfRangeException
               - PdfDocument_RenderWithDpi_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException
               - PdfDocument_RenderWithDpi_AfterDispose_ThrowsObjectDisposedException
+              - PdfDocument_RenderWithDpi_PropagatesOptionsBackgroundColor
 
           - id: CanvasNetPdf-PdfDocument-ContentStreamDispatch
             title: >-

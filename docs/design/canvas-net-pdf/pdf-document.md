@@ -277,6 +277,12 @@ re-parsing it each time — a property a purely static API could not express.
   never clamped to, or derived from, the page's own `/MediaBox` size. A caller that needs the
   previous fully transparent background back (for example to composite the result over
   something else itself) passes `new PdfRenderOptions { BackgroundColor = new(0, 0, 0, 0) }`.
+- **`Render(int pageIndex, float dpi, PdfRenderOptions? options = null)`** — disposed-check and
+  `pageIndex` range-check identical to `GetPageInfo`, then `ArgumentOutOfRangeException` for a
+  non-positive or non-finite `dpi`, computes `width`/`height` by scaling `GetPageInfo(pageIndex)`'s
+  own point-sized dimensions by `dpi / 72.0` (rounding away from zero), and forwards unchanged to
+  `Render(int, int, int, PdfRenderOptions?)` above — `options` (and its `BackgroundColor`
+  default/override semantics) is simply passed through as-is.
 - **`Dispose()`** — idempotent (mirrors `Surface`'s exact pattern): `if (_disposed) return;` then
   `_disposed = true;`. No finalizer (only managed memory — the buffered bytes and parsed object
   model — is held).

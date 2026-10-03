@@ -416,16 +416,44 @@ public sealed partial class PdfDocument
     ///     Recovers a usable trailer by scanning the whole buffer for <c>N G obj</c> markers when
     ///     normal cross-reference/trailer parsing fails or does not resolve to a valid catalog.
     /// </summary>
+    /// <param name="password">
+    ///     The password to authenticate the document's <c>/Encrypt</c> dictionary with, if the
+    ///     recovered trailer declares one - forwarded to <see cref="InitializeEncryption"/>. See
+    ///     <see cref="InitializeEncryption"/>'s own remarks for the full authentication semantics.
+    /// </param>
     /// <returns>A trailer dictionary with at least a working <c>/Root</c> entry.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when no document catalog can be located even via this fallback scan.
     /// </exception>
-    private PdfObject BuildLinearScanFallback()
+    private PdfObject BuildLinearScanFallback(string? password)
     {
         _xref = ScanObjectOffsets();
-        RegisterCompressedObjectsFromObjectStreams();
 
         var explicitTrailer = ScanForTrailerDictionary();
+
+        // Establish the file decryption key (if any) now, before decoding any compressed object
+        // streams below: a compressed object stream in an encrypted document is itself encrypted
+        // ciphertext, and attempting to inflate that ciphertext as if it were plain FlateDecode
+        // data before the correct key is known would fail - silently skipping every object nested
+        // in that stream as "unrecoverable" even though the key was available all along. A
+        // malformed /Encrypt dictionary is tolerated here (ignored) exactly as elsewhere in this
+        // fallback, since it must not prevent recovering whatever objects still can be recovered;
+        // an incorrect/missing password is not tolerated - it is allowed to propagate, matching
+        // the primary (non-fallback) parsing path's own fail-closed behavior.
+        if (explicitTrailer is not null)
+        {
+            try
+            {
+                InitializeEncryption(explicitTrailer, password);
+            }
+            catch (InvalidDataException)
+            {
+                // Ignore a malformed /Encrypt dictionary at this stage; keep attempting recovery.
+            }
+        }
+
+        RegisterCompressedObjectsFromObjectStreams();
+
         if (explicitTrailer is not null && IsValidCatalogRoot(explicitTrailer))
         {
             return explicitTrailer;
@@ -466,16 +494,23 @@ public sealed partial class PdfDocument
     ///     being misread as an implausibly long number or string token that swallows a genuine
     ///     "obj" marker a few bytes later). Matching the exact literal pattern
     ///     "&lt;digits&gt; &lt;digits&gt; obj" byte-by-byte is far more resilient to such noise.
+    ///     For the same reason, each matched object's <c>stream</c>/<c>endstream</c> payload (if
+    ///     any) is skipped over rather than scanned byte-by-byte: binary/compressed payload bytes
+    ///     can coincidentally spell out a byte-perfect "N G obj" marker of their own, which would
+    ///     otherwise register a bogus offset - possibly even overwriting a legitimate object
+    ///     number's real offset, since a later match wins.
     /// </summary>
     private Dictionary<int, XrefEntry> ScanObjectOffsets()
     {
         var xref = new Dictionary<int, XrefEntry>();
         var buffer = _buffer;
+        var i = 0;
 
-        for (var i = 0; i + 3 <= buffer.Length; i++)
+        while (i + 3 <= buffer.Length)
         {
             if (buffer[i] != (byte)'o' || buffer[i + 1] != (byte)'b' || buffer[i + 2] != (byte)'j')
             {
+                i++;
                 continue;
             }
 
@@ -484,16 +519,138 @@ public sealed partial class PdfDocument
             // is not immediately followed by another identifier byte.
             if (i + 3 < buffer.Length && IsMarkerIdentifierByte(buffer[i + 3]))
             {
+                i++;
                 continue;
             }
 
             if (TryParseObjectHeaderBackward(buffer, i, out var objectNumber, out var headerStart))
             {
                 xref[objectNumber] = XrefEntry.CreateDirect(headerStart);
+                i = SkipPastStreamPayload(buffer, i + 3);
+            }
+            else
+            {
+                // Not a genuine "N G obj" header - for example the tail of the "endobj" keyword
+                // itself. There is no associated stream payload to skip, so only advance past this
+                // "obj" occurrence and keep scanning normally.
+                i += 3;
             }
         }
 
         return xref;
+    }
+
+    /// <summary>
+    ///     If a literal <c>stream</c> keyword belonging to the object just matched by
+    ///     <see cref="ScanObjectOffsets"/> is found before the next <c>endobj</c> (searched within
+    ///     a generous bounded window, since a legitimate dictionary preceding <c>stream</c> is
+    ///     never remotely this large), returns the index just past the matching <c>endstream</c>
+    ///     keyword so the caller's scan resumes after the payload instead of inside it. Returns
+    ///     <paramref name="searchStart"/> unchanged when no such <c>stream</c> keyword is found
+    ///     (including when the search window is exhausted first), leaving the ordinary
+    ///     byte-by-byte scan to continue from there.
+    /// </summary>
+    private static int SkipPastStreamPayload(byte[] buffer, int searchStart)
+    {
+        // A real PDF dictionary between "N G obj" and its "stream" keyword is at most a few
+        // hundred bytes; this window is deliberately generous while still being bounded, so a
+        // missing/relocated "stream" keyword can never make this search scan arbitrarily far
+        // into unrelated later objects.
+        const int maxDictionaryWindow = 65536;
+
+        var windowEnd = Math.Min(searchStart + maxDictionaryWindow, buffer.Length);
+        var streamIndex = IndexOfKeyword(buffer, searchStart, windowEnd, "stream"u8);
+        if (streamIndex < 0)
+        {
+            return searchStart;
+        }
+
+        var endObjIndex = IndexOfKeyword(buffer, searchStart, windowEnd, "endobj"u8);
+        if (endObjIndex >= 0 && endObjIndex < streamIndex)
+        {
+            // This object has no stream of its own - the "stream" keyword found belongs to some
+            // later, unrelated object - so there is nothing to skip here.
+            return searchStart;
+        }
+
+        // Per the PDF specification, the keyword "stream" is followed by a CRLF or bare LF line
+        // ending (never a bare CR) before the actual payload bytes begin.
+        var dataStart = streamIndex + "stream"u8.Length;
+        if (dataStart < buffer.Length && buffer[dataStart] == (byte)'\r')
+        {
+            dataStart++;
+        }
+
+        if (dataStart < buffer.Length && buffer[dataStart] == (byte)'\n')
+        {
+            dataStart++;
+        }
+
+        // Unlike the dictionary search above, the payload itself can legitimately be large, so
+        // this search for the matching "endstream" is intentionally unbounded.
+        var endStreamIndex = IndexOfKeyword(buffer, dataStart, buffer.Length, "endstream"u8, requirePrecedingBoundary: false);
+        return endStreamIndex < 0 ? dataStart : endStreamIndex + "endstream"u8.Length;
+    }
+
+    /// <summary>
+    ///     Finds the first standalone occurrence of <paramref name="keyword"/> - one not
+    ///     immediately followed by another identifier byte, and (unless
+    ///     <paramref name="requirePrecedingBoundary"/> is <see langword="false"/>) not immediately
+    ///     preceded by one either - so a match is never found inside a larger identifier or
+    ///     incidental binary-noise byte run - at or after <paramref name="startIndex"/> and before
+    ///     <paramref name="searchLimit"/>. Returns -1 if no such occurrence exists in that range.
+    /// </summary>
+    /// <param name="buffer">The raw document buffer to search.</param>
+    /// <param name="startIndex">The byte index at which to start searching (inclusive).</param>
+    /// <param name="searchLimit">The byte index at which to stop searching (exclusive).</param>
+    /// <param name="keyword">The literal keyword bytes to search for.</param>
+    /// <param name="requirePrecedingBoundary">
+    ///     Whether the byte immediately before a candidate match must be a non-identifier byte.
+    ///     This must be <see langword="false"/> for a keyword such as <c>endstream</c>, whose
+    ///     preceding byte is the final byte of an arbitrary, possibly binary, payload rather than
+    ///     a continuation of a textual PDF token - that byte can legitimately be alphanumeric by
+    ///     coincidence, and requiring otherwise would wrongly reject a genuine match.
+    /// </param>
+    private static int IndexOfKeyword(
+        byte[] buffer,
+        int startIndex,
+        int searchLimit,
+        ReadOnlySpan<byte> keyword,
+        bool requirePrecedingBoundary = true)
+    {
+        var maxStart = Math.Min(searchLimit, buffer.Length) - keyword.Length;
+        for (var i = Math.Max(startIndex, 0); i <= maxStart; i++)
+        {
+            var isMatch = true;
+            for (var k = 0; k < keyword.Length; k++)
+            {
+                if (buffer[i + k] != keyword[k])
+                {
+                    isMatch = false;
+                    break;
+                }
+            }
+
+            if (!isMatch)
+            {
+                continue;
+            }
+
+            if (requirePrecedingBoundary && i > 0 && IsMarkerIdentifierByte(buffer[i - 1]))
+            {
+                continue;
+            }
+
+            var after = i + keyword.Length;
+            if (after < buffer.Length && IsMarkerIdentifierByte(buffer[after]))
+            {
+                continue;
+            }
+
+            return i;
+        }
+
+        return -1;
     }
 
     /// <summary>
@@ -682,39 +839,18 @@ public sealed partial class PdfDocument
     private PdfObject? ScanForTrailerDictionary()
     {
         var buffer = _buffer;
-        var keyword = "trailer"u8;
         PdfObject? last = null;
+        var position = 0;
 
-        for (var i = 0; i + keyword.Length <= buffer.Length; i++)
+        while (true)
         {
-            var isMatch = true;
-            for (var k = 0; k < keyword.Length; k++)
+            var found = IndexOfKeyword(buffer, position, buffer.Length, "trailer"u8);
+            if (found < 0)
             {
-                if (buffer[i + k] != keyword[k])
-                {
-                    isMatch = false;
-                    break;
-                }
+                break;
             }
 
-            if (!isMatch)
-            {
-                continue;
-            }
-
-            // Reject a match inside a larger identifier/binary-noise run: a genuine keyword is
-            // not immediately preceded or followed by another identifier byte.
-            if (i > 0 && IsMarkerIdentifierByte(buffer[i - 1]))
-            {
-                continue;
-            }
-
-            var after = i + keyword.Length;
-            if (after < buffer.Length && IsMarkerIdentifierByte(buffer[after]))
-            {
-                continue;
-            }
-
+            var after = found + "trailer"u8.Length;
             var tokenizer = new PdfTokenizer(buffer) { Position = after };
             try
             {
@@ -728,6 +864,8 @@ public sealed partial class PdfDocument
             {
                 // Ignore a malformed trailer at this position and keep scanning.
             }
+
+            position = after;
         }
 
         return last;

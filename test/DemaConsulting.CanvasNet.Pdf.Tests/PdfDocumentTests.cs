@@ -2009,6 +2009,76 @@ public class PdfDocumentTests
         Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
     }
 
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no <c>xref</c> table or <c>startxref</c> at
+    ///     all (forcing <c>BuildLinearScanFallback</c>'s raw byte scan to be the only route to a
+    ///     working object table, mirroring <c>malformed-startxref.pdf</c>'s own precedent), whose
+    ///     object 4 (the <c>/Contents</c> stream) payload embeds a PDF comment
+    ///     (<c>% ...noise... 3 0 obj ...noise...</c>) that byte-for-byte matches the literal
+    ///     <c>N G obj</c> pattern <c>ScanObjectOffsets</c> searches for - a benign, syntactically
+    ///     valid content-stream comment that nonetheless coincidentally spells out what looks
+    ///     like a header for object 3 (the real Page object, already declared earlier in the
+    ///     file). Without excluding stream payloads from the raw byte scan, this later,
+    ///     in-payload match would overwrite object 3's real, legitimate offset (the scan's
+    ///     documented "later match wins" semantics) with a bogus offset pointing into the middle
+    ///     of object 4's own stream payload - corrupting an unrelated object's cross-reference
+    ///     entry from binary/text noise that was never meant to be parsed as PDF syntax.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithObjMarkerInsideStreamPayload()
+    {
+        var contentBytes = System.Text.Encoding.ASCII.GetBytes(
+            "10 10 40 40 re f\n% noise noise 3 0 obj noise noise\n");
+
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a byte sequence resembling an <c>N G obj</c> marker inside a stream
+    ///     payload (here, a syntactically valid content-stream comment that happens to spell out
+    ///     <c>3 0 obj</c> - see
+    ///     <see cref="BuildLinearScanFallbackWithObjMarkerInsideStreamPayload"/>) is never mistaken
+    ///     for a genuine object header by the linear-scan fallback's raw byte scan: the document
+    ///     still resolves object 3 (the Page) to its real, correct offset and renders the expected
+    ///     filled rectangle, rather than having that offset silently overwritten by the bogus
+    ///     in-payload match.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ObjMarkerInsideStreamPayload_DoesNotCorruptOffsets()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithObjMarkerInsideStreamPayload();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        var info = document.GetPageInfo(0);
+        Assert.Equal(100, info.Width);
+        Assert.Equal(100, info.Height);
+
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
     #endregion
 
     #region Page tree
@@ -2352,6 +2422,24 @@ public class PdfDocumentTests
 
         // Act & Assert
         Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(0, dpi));
+    }
+
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, float, PdfRenderOptions?)"/> forwards its options parameter unchanged to <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/>, so a custom <see cref="PdfRenderOptions.BackgroundColor"/> is honored by the DPI-based overload too, not just the default opaque-white background.</summary>
+    [Fact]
+    public void PdfDocument_RenderWithDpi_PropagatesOptionsBackgroundColor()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("classic-xref-single-page.pdf"));
+        var options = new PdfRenderOptions { BackgroundColor = new Canvas.Rgba32(0, 255, 0, 255) };
+
+        // Act
+        using var surface = document.Render(0, 72f, options);
+
+        // Assert: the page paints no content of its own, so every pixel still equals the
+        // custom background color supplied via options - proving it was actually forwarded,
+        // not silently dropped in favor of the opaque-white default.
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[0, 0]);
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[surface.Width - 1, surface.Height - 1]);
     }
 
     /// <summary>Proves that <see cref="PdfDocument.Render(int, float, PdfRenderOptions?)"/> rejects an out-of-range page index the same way <see cref="PdfDocument.GetPageInfo"/> does.</summary>

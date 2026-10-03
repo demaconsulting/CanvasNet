@@ -439,6 +439,60 @@ public class PdfDocumentEncryptionTests
     }
 
     /// <summary>
+    ///     Builds an in-memory, single-page, encrypted PDF with no <c>xref</c> table and no
+    ///     <c>startxref</c> at all - mirroring <c>malformed-startxref.pdf</c>/
+    ///     <c>object-stream-linear-scan-fallback.pdf</c>'s own "forces
+    ///     <c>BuildLinearScanFallback</c> to be the document's only route to a working object
+    ///     table" precedent - so normal cross-reference parsing cannot run at all and the raw
+    ///     byte-pattern linear scan is the only way any object (including the Encrypt dictionary
+    ///     itself) is ever found. A single literal <c>trailer</c> keyword dictionary (naming
+    ///     <c>/Encrypt 5 0 R</c>) is appended at the end, exactly as
+    ///     <c>ScanForTrailerDictionary</c> expects to recover it. Object 7 (a plain dictionary
+    ///     with one string entry) is compressed inside object 6's RC4-encrypted (as a whole)
+    ///     <c>/Type /ObjStm</c> container - recoverable only if the fallback initializes
+    ///     encryption (from this same recovered trailer) before attempting to decode that
+    ///     container's ciphertext bytes as if they were already plaintext FlateDecode data.
+    /// </summary>
+    private static byte[] BuildEncryptedPdfLinearScanFallbackWithObjectStream(
+        string encryptDictBody,
+        byte[] idBytes,
+        byte[] encryptedContentBytes,
+        byte[] encryptedObjStmBytes)
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamBody(encryptedContentBytes),
+            Encoding.ASCII.GetBytes(encryptDictBody),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // Object 6: the /Type /ObjStm container holding the compressed object 7. /First 4
+        // matches the fixed "7 0\n" 4-byte header used ahead of the single contained object's
+        // body below.
+        buffer.AddRange("6 0 obj\n"u8.ToArray());
+        buffer.AddRange(Encoding.ASCII.GetBytes(
+            $"<< /Type /ObjStm /N 1 /First 4 /Filter /FlateDecode /Length {encryptedObjStmBytes.Length} >>\nstream\n"));
+        buffer.AddRange(encryptedObjStmBytes);
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        var idHex = ToHex(idBytes);
+        buffer.AddRange(Encoding.ASCII.GetBytes(
+            $"trailer\n<< /Size 8 /Root 1 0 R /Encrypt 5 0 R /ID [<{idHex}> <{idHex}>] >>\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    /// <summary>
     ///     Builds an in-memory, single-page, <c>/Type /XRef</c> cross-reference-stream-based,
     ///     encrypted PDF whose <c>/Type /Catalog</c> object itself (object 1) is compressed inside
     ///     an encrypted <c>/Type /ObjStm</c> container (object 6): objects 2-4 are the
@@ -1097,6 +1151,67 @@ public class PdfDocumentEncryptionTests
         // decrypt pass (the container stream's own), not a second, erroneous per-object pass.
         var getObject = typeof(PdfDocument).GetMethod("GetObject", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var compressedObject = (PdfDocument.PdfObject)getObject.Invoke(document, [6])!;
+        Assert.Equal(Encoding.ASCII.GetBytes(greeting), compressedObject.Get("Greeting")!.Bytes);
+    }
+
+    /// <summary>
+    ///     Proves that an encrypted document recovered entirely via the linear-scan fallback (no
+    ///     <c>xref</c> table or <c>startxref</c> at all - only a raw <c>trailer</c> keyword for
+    ///     <c>ScanForTrailerDictionary</c> to find) can still recover an object compressed inside
+    ///     a <c>/Type /ObjStm</c> container, even though that container's own raw bytes are
+    ///     themselves RC4-encrypted ciphertext. Before the fix, <c>BuildLinearScanFallback</c>
+    ///     called <c>RegisterCompressedObjectsFromObjectStreams</c> before ever initializing
+    ///     encryption from the just-recovered trailer, so the container's ciphertext bytes would
+    ///     be handed to <c>FlateDecode</c> as if already plaintext - failing to inflate, being
+    ///     silently skipped, and permanently losing every object compressed inside it. The fix
+    ///     initializes encryption from the recovered trailer immediately after it is found and
+    ///     before any compressed object stream is decoded, so object 7's own <c>/Greeting</c>
+    ///     string - reachable only through object 6's encrypted container - is correctly
+    ///     recovered.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_Encrypted_LinearScanFallback_RecoversObjectsCompressedInObjectStream()
+    {
+        const int keyLengthBytes = 5;
+        const int revision = 2;
+        const int permissions = -3904;
+        var idBytes = (byte[])[.. Enumerable.Range(0, 16).Select(i => (byte)(0xE0 + i))];
+
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, PasswordPadding, PasswordPadding);
+        var fileKey = ComputeFileKeyAlgorithm2(PasswordPadding, oBytes, permissions, idBytes, keyLengthBytes, revision);
+        var uBytes = ComputeUserEntryAlgorithm45(fileKey, idBytes, revision);
+
+        var contentObjectKey = ComputeObjectKeyAlgorithm1(fileKey, 4, 0, isAes: false);
+        var encryptedContent = Rc4(contentObjectKey, Encoding.ASCII.GetBytes(PlaintextContent));
+
+        // Object 7 (compressed inside object 6's ObjStm container at index 0): a plain
+        // dictionary with one string entry. The object stream header is "7 0\n" (object number 7
+        // at relative offset 0), so /First is 4 (the header's own byte length).
+        const string greeting = "Hello, Fallback-Recovered World!";
+        var objStmPlaintext = Encoding.ASCII.GetBytes($"7 0\n<< /Greeting ({greeting}) >>");
+        var compressedObjStm = ZlibCompress(objStmPlaintext);
+
+        // Object 6's own raw (compressed) bytes are RC4-encrypted as a whole with object 6's own
+        // per-object key - never re-encrypted per contained object.
+        var objStmObjectKey = ComputeObjectKeyAlgorithm1(fileKey, 6, 0, isAes: false);
+        var encryptedObjStm = Rc4(objStmObjectKey, compressedObjStm);
+
+        var encryptDictBody = $"<< /Filter /Standard /V 1 /R {revision} /O <{ToHex(oBytes)}> /U <{ToHex(uBytes)}> /P {permissions} >>";
+        var pdfBytes = BuildEncryptedPdfLinearScanFallbackWithObjectStream(encryptDictBody, idBytes, encryptedContent, encryptedObjStm);
+
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Object 4's own encrypted /Contents stream decrypted correctly.
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+
+        // Object 7's own /Greeting string, reached only via decompression of object 6's
+        // encryption-dependent container bytes, is correct - proving the fallback established
+        // the file decryption key before attempting to decode that container.
+        var getObject = typeof(PdfDocument).GetMethod("GetObject", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var compressedObject = (PdfDocument.PdfObject)getObject.Invoke(document, [7])!;
         Assert.Equal(Encoding.ASCII.GetBytes(greeting), compressedObject.Get("Greeting")!.Bytes);
     }
 

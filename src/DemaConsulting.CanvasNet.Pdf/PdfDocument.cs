@@ -264,7 +264,7 @@ public sealed partial class PdfDocument : IDisposable
             _objectCache.Clear();
             _encryptionKey = null;
             _encryptionCipher = EncryptionCipher.None;
-            trailer = BuildLinearScanFallback();
+            trailer = BuildLinearScanFallback(password);
             InitializeEncryption(trailer, password);
         }
 
