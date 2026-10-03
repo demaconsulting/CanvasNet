@@ -638,11 +638,72 @@ public sealed partial class PdfDocument
         }
 
         // Unlike the dictionary above, the payload itself can legitimately be large and binary,
-        // so this search for the matching "endstream" keyword is intentionally unbounded and
-        // operates on raw bytes rather than tokens (an arbitrary payload byte is not valid PDF
-        // syntax for a tokenizer to walk through).
-        var endStreamIndex = IndexOfKeyword(buffer, dataStart, buffer.Length, "endstream"u8, requirePrecedingBoundary: false);
-        return endStreamIndex < 0 ? dataStart : endStreamIndex + "endstream"u8.Length;
+        // so this search for the matching "endstream" keyword operates on raw bytes rather than
+        // tokens (an arbitrary payload byte is not valid PDF syntax for a tokenizer to walk
+        // through). It is not satisfied by the first raw match: binary payload noise can
+        // coincidentally spell "endstream" partway through genuine data, and accepting that match
+        // would resume scanning from inside the payload, letting embedded object/trailer markers
+        // there be mistaken for real document syntax. A genuine "endstream" is always itself
+        // immediately followed (after an optional end-of-line sequence) by "endobj" - so matches
+        // are rejected until one satisfying that structural check is found, or the buffer runs
+        // out.
+        return FindStructurallyValidEndstream(buffer, dataStart);
+    }
+
+    /// <summary>
+    ///     Searches forward from <paramref name="dataStart"/> for the first <c>endstream</c>
+    ///     keyword match that is itself immediately followed (after tolerating an optional
+    ///     end-of-line sequence) by the literal <c>endobj</c> keyword - the structure every
+    ///     genuine stream object has - skipping over any earlier match that fails this check as
+    ///     coincidental payload noise. Returns <paramref name="dataStart"/> if no match at all,
+    ///     structurally valid or not, exists before the end of the buffer.
+    /// </summary>
+    private static int FindStructurallyValidEndstream(byte[] buffer, int dataStart)
+    {
+        var position = dataStart;
+        while (true)
+        {
+            var endStreamIndex = IndexOfKeyword(buffer, position, buffer.Length, "endstream"u8, requirePrecedingBoundary: false);
+            if (endStreamIndex < 0)
+            {
+                return dataStart;
+            }
+
+            var afterKeyword = endStreamIndex + "endstream"u8.Length;
+            if (IsFollowedByEndObjKeyword(buffer, afterKeyword))
+            {
+                return afterKeyword;
+            }
+
+            position = afterKeyword;
+        }
+    }
+
+    /// <summary>
+    ///     Returns whether <paramref name="index"/>, after tolerating an optional end-of-line
+    ///     sequence, is immediately followed by the literal <c>endobj</c> keyword - the structure
+    ///     every genuine <c>endstream</c> keyword is followed by.
+    /// </summary>
+    private static bool IsFollowedByEndObjKeyword(byte[] buffer, int index)
+    {
+        var afterEol = index;
+        if (afterEol < buffer.Length && buffer[afterEol] == (byte)'\r')
+        {
+            afterEol++;
+        }
+
+        if (afterEol < buffer.Length && buffer[afterEol] == (byte)'\n')
+        {
+            afterEol++;
+        }
+
+        var endObjIndex = IndexOfKeyword(
+            buffer,
+            afterEol,
+            Math.Min(afterEol + "endobj"u8.Length, buffer.Length),
+            "endobj"u8,
+            requirePrecedingBoundary: false);
+        return endObjIndex == afterEol;
     }
 
     /// <summary>

@@ -125,6 +125,7 @@ sections:
               - PdfDocument_Open_LinearScanFallback_ObjMarkerInsideNonStreamDictionaryValue_DoesNotCorruptOffset
               - PdfDocument_Open_LinearScanFallback_EarlyFalseEndstreamInPayload_DoesNotCorruptOffsets
               - PdfDocument_Open_LinearScanFallback_TrailerKeywordInCommentOutsideStream_DoesNotReplaceRealTrailer
+              - PdfDocument_Open_LinearScanFallback_EarlyFalseEndstreamWithIndirectLength_DoesNotCorruptOffsets
 
           - id: CanvasNetPdf-PdfDocument-PageTreeTraversal
             title: >-

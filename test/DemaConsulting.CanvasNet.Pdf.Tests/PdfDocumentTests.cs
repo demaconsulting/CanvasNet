@@ -2275,6 +2275,84 @@ public class PdfDocumentTests
         Assert.Equal(default, surface[5, 5]);
     }
 
+    /// <summary>
+    ///     Builds the same scenario as
+    ///     <see cref="BuildLinearScanFallbackWithEarlyFalseEndstreamInStreamPayload"/> (an early,
+    ///     coincidental <c>endstream</c> byte sequence partway through a stream's own payload,
+    ///     followed by a false, line-start <c>3 0 obj</c> header), except the stream's own
+    ///     <c>/Length</c> is an indirect reference rather than a direct integer - so
+    ///     <c>TryGetDeclaredStreamEnd</c> cannot trust it, forcing the fallback raw
+    ///     <c>endstream</c> search to be exercised instead of the declared-length path.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithEarlyFalseEndstreamAndIndirectLength()
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray(),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // Object 4 is an unreferenced, irrelevant stream whose /Length is an indirect reference
+        // (object 6), so the declared-length boundary check cannot be used. Its payload contains
+        // an early, false "endstream" occurrence that is NOT itself immediately followed by
+        // "endobj" (it is instead followed by a false, line-start "3 0 obj" header) - so it must
+        // be rejected in favor of the later, real "endstream" that IS followed by "endobj".
+        var payloadBody = "XXXXX\nendstream\n3 0 obj\n<< /Bogus (decoy) >>\nendobj\nYYYY"u8.ToArray();
+        buffer.AddRange("4 0 obj\n<< /Length 6 0 R >>\nstream\n"u8.ToArray());
+        buffer.AddRange(payloadBody);
+        buffer.AddRange("endstream\nendobj\n"u8.ToArray());
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes("5 0 obj\n"));
+        buffer.AddRange(BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        // Object 6: the /Length value object 4's stream dictionary points to. Its own value is
+        // irrelevant to this test - it is never trusted as a declared length boundary merely by
+        // being referenced indirectly.
+        buffer.AddRange("6 0 obj\n9999\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that when a stream's own <c>/Length</c> is an indirect reference (so the
+    ///     declared-length boundary cannot be trusted), the fallback raw <c>endstream</c> search
+    ///     rejects an early, coincidental <c>endstream</c> byte sequence that is not itself
+    ///     immediately followed by <c>endobj</c>, instead continuing to the later, real
+    ///     <c>endstream</c> that is. Accepting the first, false match would end the protected
+    ///     payload range too soon, exposing the remainder of the payload - including a false,
+    ///     line-start <c>3 0 obj</c> header embedded within it - to be scanned again as ordinary
+    ///     document bytes, corrupting the real object 3's correct offset. The real object 3 (the
+    ///     page) must still resolve and render correctly.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_EarlyFalseEndstreamWithIndirectLength_DoesNotCorruptOffsets()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithEarlyFalseEndstreamAndIndirectLength();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
     #endregion
 
     #region Page tree
