@@ -149,6 +149,30 @@ public API. Asserts `PageCount` and the page's `GetPageInfo` size match the fixt
 content, confirming the linear-scan fallback successfully reconstructs an object-offset table and
 locates the catalog without any cross-reference section present.
 
+Further fixture-backed tests (`PdfDocument_Open_LinearScanFallback_*` and
+`PdfDocument_Open_Encrypted_LinearScanFallback_*`, listed in full in the requirements
+traceability data) exercise the fallback's resilience against decoy byte sequences that coincide
+with its "N G obj"/`stream`/`endstream`/`trailer` keyword matches - inside stream payloads,
+dictionary values, PDF comments, and multi-line string literals - as well as its handling of
+compressed-object recovery when an unrelated object stream declares a filter this library does
+not support for generic stream decoding. In particular,
+`PdfDocument_Open_LinearScanFallback_ObjectHeaderNotAtLineStart_StillResolves` and
+`PdfDocument_Open_LinearScanFallback_ObjectHeaderDecoyInsideMultilineString_DoesNotCorruptOffsets`
+confirm that object-header detection is governed by genuine PDF lexical structure (comments and
+string literals are skipped structurally before any keyword match is attempted) rather than a
+line-start convention, which is neither required by the PDF grammar nor sufficient to reject a
+decoy lexically embedded inside a multi-line string; and
+`PdfDocument_Open_LinearScanFallback_UnsupportedFilterObjectStream_DoesNotAbortRecovery` confirms
+that an unsupported stream filter on one object stream does not abort recovery of objects
+compressed in other, decodable object streams. The raw-byte search for a stream payload's
+terminating `endstream` keyword (used when no trustworthy `/Length` is available) remains an
+acknowledged, inherent limitation of the PDF format itself - binary payload data can
+legitimately, coincidentally contain a byte-exact `endstream` sequence of its own, which no
+finite pattern-matching rule can fully distinguish from the genuine terminator - matching the
+documented behavior of other mainstream recovery implementations (for example qpdf and mutool); a
+worst-case false match here can at most cause partial or no recovery of an already-malformed
+document, never a crash.
+
 #### CanvasNetPdf-PdfDocument-PageTreeTraversal: Page Tree Traversal Reports All Pages
 
 **Test**: `PdfDocument_PageTree_Traversal_ReportsAllPagesInDocumentOrder`

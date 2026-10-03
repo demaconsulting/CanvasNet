@@ -2353,6 +2353,203 @@ public class PdfDocumentTests
         Assert.Equal(default, surface[5, 5]);
     }
 
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback), whose object 1 (the catalog)
+    ///     and object 2 (the Pages node) headers are deliberately written on the same physical
+    ///     line, separated only by a single space after the first object's <c>endobj</c> rather
+    ///     than a line break - valid per the PDF grammar (whitespace alone separates tokens; an
+    ///     indirect object is not required to begin its own line) but previously rejected by a
+    ///     line-start heuristic this fallback no longer relies on.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithObjectHeaderNotAtLineStart()
+    {
+        var catalogBytes = "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray();
+        var pagesBytes = "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray();
+        var pageBytes = "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray();
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+
+        buffer.AddRange("1 0 obj\n"u8.ToArray());
+        buffer.AddRange(catalogBytes);
+        buffer.AddRange(" endobj 2 0 obj\n"u8.ToArray());
+        buffer.AddRange(pagesBytes);
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("3 0 obj\n"u8.ToArray());
+        buffer.AddRange(pageBytes);
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("4 0 obj\n"u8.ToArray());
+        buffer.AddRange(BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that an object header not conventionally placed at the start of its own line
+    ///     (see <see cref="BuildLinearScanFallbackWithObjectHeaderNotAtLineStart"/>) is still
+    ///     located by the linear-scan fallback. A previous line-start heuristic would wrongly
+    ///     reject this entirely valid header, leaving the Pages node unresolvable so the
+    ///     document could not be opened.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ObjectHeaderNotAtLineStart_StillResolves()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithObjectHeaderNotAtLineStart();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): the real object 3 (the page) is
+    ///     written normally, but a later, unreferenced object 9 contains a literal string value
+    ///     spanning several lines whose second line is a byte-perfect, line-start <c>3 0 obj</c>
+    ///     decoy header, followed by syntax (<c>bogus</c>) that cannot be parsed as a PDF value.
+    ///     A scanner that merely checks "is this candidate at the start of a line" - without
+    ///     tracking whether it is lexically inside a string at all - cannot tell this decoy apart
+    ///     from a genuine header, and (being the later match) would overwrite the real object 3's
+    ///     offset with this bogus one.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithObjectHeaderDecoyInsideMultilineString()
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray(),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes("5 0 obj\n"));
+        buffer.AddRange(BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        // Object 9 is an unreferenced, irrelevant dictionary whose /Note value is a literal
+        // string spanning several lines. The decoy "3 0 obj" text on the string's second line
+        // begins at the start of that line - satisfying a line-start-only check - but it is
+        // lexically still inside the enclosing "(...)" string, not real top-level PDF syntax.
+        buffer.AddRange("9 0 obj\n<< /Note (line one\n3 0 obj\nbogus\nline four) >>\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a byte-perfect, line-start <c>N G obj</c> decoy embedded inside another
+    ///     object's literal string value (see
+    ///     <see cref="BuildLinearScanFallbackWithObjectHeaderDecoyInsideMultilineString"/>) is
+    ///     never mistaken for a real header, regardless of its position on its own line: the real
+    ///     object 3 (the page) must still resolve and render correctly, rather than the decoy's
+    ///     bogus offset overwriting its real one.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ObjectHeaderDecoyInsideMultilineString_DoesNotCorruptOffsets()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithObjectHeaderDecoyInsideMultilineString();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): the catalog is reachable only
+    ///     compressed inside object 1's <c>/Type /ObjStm</c> container (so recovering it depends
+    ///     on the fallback's compressed-object recovery pass succeeding), while an unrelated,
+    ///     directly-located object 7 is also a <c>/Type /ObjStm</c> container declaring a stream
+    ///     filter (<c>/DCTDecode</c>) this library does not support for generic stream decoding -
+    ///     something that is rejected with <see cref="UnsupportedImageFeatureException"/> rather
+    ///     than <see cref="InvalidDataException"/>.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithUnsupportedFilterObjectStream()
+    {
+        var catalogBytes = "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray();
+        var objStmHeader = "6 0\n"u8.ToArray();
+        var objStmContent = new List<byte>();
+        objStmContent.AddRange(objStmHeader);
+        objStmContent.AddRange(catalogBytes);
+        var compressedObjStm = ZlibCompress([.. objStmContent]);
+
+        var bodies = new List<byte[]>
+        {
+            BuildStreamObjectBody($"/Type /ObjStm /N 1 /First {objStmHeader.Length} /Filter /FlateDecode", compressedObjStm),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody(string.Empty, []),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // Object 7: an unrelated, directly-located /Type /ObjStm container declaring an
+        // unsupported filter. It contributes nothing needed to resolve the catalog or page, and
+        // must not prevent either from being recovered.
+        buffer.AddRange("7 0 obj\n"u8.ToArray());
+        buffer.AddRange(BuildStreamObjectBody("/Type /ObjStm /N 1 /First 4 /Filter /DCTDecode", "0 0\n1"u8.ToArray()));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that an unrelated <c>/Type /ObjStm</c> object stream declaring a stream filter
+    ///     this library does not support (see
+    ///     <see cref="BuildLinearScanFallbackWithUnsupportedFilterObjectStream"/>) does not abort
+    ///     recovery of every other object: the real catalog, compressed inside a different,
+    ///     supported object stream, must still resolve and the page must still render correctly.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_UnsupportedFilterObjectStream_DoesNotAbortRecovery()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithUnsupportedFilterObjectStream();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
     #endregion
 
     #region Page tree
