@@ -427,9 +427,9 @@ public sealed partial class PdfDocument
     /// </exception>
     private PdfObject BuildLinearScanFallback(string? password)
     {
-        _xref = ScanObjectOffsets();
+        _xref = ScanObjectOffsets(out var streamPayloadRanges);
 
-        var explicitTrailer = ScanForTrailerDictionary();
+        var explicitTrailer = ScanForTrailerDictionary(streamPayloadRanges);
 
         // Establish the file decryption key (if any) now, before decoding any compressed object
         // streams below: a compressed object stream in an encrypted document is itself encrypted
@@ -500,9 +500,16 @@ public sealed partial class PdfDocument
     ///     otherwise register a bogus offset - possibly even overwriting a legitimate object
     ///     number's real offset, since a later match wins.
     /// </summary>
-    private Dictionary<int, XrefEntry> ScanObjectOffsets()
+    /// <param name="streamPayloadRanges">
+    ///     Populated with the <c>[Start, End)</c> byte range of every stream payload skipped over
+    ///     while scanning, so that <see cref="ScanForTrailerDictionary"/> can likewise exclude
+    ///     that same payload content from its own independent raw-byte search for the
+    ///     <c>trailer</c> keyword.
+    /// </param>
+    private Dictionary<int, XrefEntry> ScanObjectOffsets(out List<(int Start, int End)> streamPayloadRanges)
     {
         var xref = new Dictionary<int, XrefEntry>();
+        var ranges = new List<(int Start, int End)>();
         var buffer = _buffer;
         var i = 0;
 
@@ -526,7 +533,14 @@ public sealed partial class PdfDocument
             if (TryParseObjectHeaderBackward(buffer, i, out var objectNumber, out var headerStart))
             {
                 xref[objectNumber] = XrefEntry.CreateDirect(headerStart);
-                i = SkipPastStreamPayload(buffer, i + 3);
+                var searchStart = i + 3;
+                var next = SkipPastStreamPayload(buffer, searchStart);
+                if (next != searchStart)
+                {
+                    ranges.Add((searchStart, next));
+                }
+
+                i = next;
             }
             else
             {
@@ -537,57 +551,80 @@ public sealed partial class PdfDocument
             }
         }
 
+        streamPayloadRanges = ranges;
         return xref;
     }
 
     /// <summary>
-    ///     If a literal <c>stream</c> keyword belonging to the object just matched by
-    ///     <see cref="ScanObjectOffsets"/> is found before the next <c>endobj</c> (searched within
-    ///     a generous bounded window, since a legitimate dictionary preceding <c>stream</c> is
-    ///     never remotely this large), returns the index just past the matching <c>endstream</c>
+    ///     If the object just matched by <see cref="ScanObjectOffsets"/> is a dictionary
+    ///     immediately followed by a literal <c>stream</c> keyword (per the PDF specification's
+    ///     own stream-object grammar), returns the index just past the matching <c>endstream</c>
     ///     keyword so the caller's scan resumes after the payload instead of inside it. Returns
-    ///     <paramref name="searchStart"/> unchanged when no such <c>stream</c> keyword is found
-    ///     (including when the search window is exhausted first), leaving the ordinary
-    ///     byte-by-byte scan to continue from there.
+    ///     <paramref name="searchStart"/> unchanged when the object is not a dictionary, or its
+    ///     dictionary is not immediately followed by <c>stream</c> - including when the
+    ///     dictionary's own entries merely contain the word "stream" as a name, string, or other
+    ///     value, which must never be mistaken for the real keyword.
     /// </summary>
     private static int SkipPastStreamPayload(byte[] buffer, int searchStart)
     {
-        // A real PDF dictionary between "N G obj" and its "stream" keyword is at most a few
-        // hundred bytes; this window is deliberately generous while still being bounded, so a
-        // missing/relocated "stream" keyword can never make this search scan arbitrarily far
-        // into unrelated later objects.
-        const int maxDictionaryWindow = 65536;
-
-        var windowEnd = Math.Min(searchStart + maxDictionaryWindow, buffer.Length);
-        var streamIndex = IndexOfKeyword(buffer, searchStart, windowEnd, "stream"u8);
-        if (streamIndex < 0)
+        // Parsing the dictionary with the same tokenizer-based logic the primary (non-fallback)
+        // parsing path uses (see ParseDictionaryOrStream) - rather than raw-searching for the
+        // next standalone "stream" keyword within a bounded window - guarantees the keyword
+        // found truly terminates this object's own dictionary, instead of being a coincidental
+        // "/stream" name, a "(...stream...)" string, or some other unrelated dictionary value, or
+        // even the stream keyword belonging to a different, later object entirely.
+        var tokenizer = new PdfTokenizer(buffer) { Position = searchStart };
+        PdfToken openToken;
+        try
+        {
+            openToken = tokenizer.NextToken();
+        }
+        catch (InvalidDataException)
         {
             return searchStart;
         }
 
-        var endObjIndex = IndexOfKeyword(buffer, searchStart, windowEnd, "endobj"u8);
-        if (endObjIndex >= 0 && endObjIndex < streamIndex)
+        if (openToken.Kind != PdfTokenKind.DictStart)
         {
-            // This object has no stream of its own - the "stream" keyword found belongs to some
-            // later, unrelated object - so there is nothing to skip here.
+            // This object's value is not a dictionary at all (for example a bare number, string,
+            // or array), so it cannot possibly have a stream payload to skip.
             return searchStart;
         }
 
-        // Per the PDF specification, the keyword "stream" is followed by a CRLF or bare LF line
-        // ending (never a bare CR) before the actual payload bytes begin.
-        var dataStart = streamIndex + "stream"u8.Length;
-        if (dataStart < buffer.Length && buffer[dataStart] == (byte)'\r')
+        try
         {
-            dataStart++;
+            ParseDictionaryEntries(tokenizer, 0);
+        }
+        catch (InvalidDataException)
+        {
+            return searchStart;
         }
 
-        if (dataStart < buffer.Length && buffer[dataStart] == (byte)'\n')
+        var savedPosition = tokenizer.Position;
+        PdfToken next;
+        try
         {
-            dataStart++;
+            next = tokenizer.NextToken();
+        }
+        catch (InvalidDataException)
+        {
+            return searchStart;
         }
 
-        // Unlike the dictionary search above, the payload itself can legitimately be large, so
-        // this search for the matching "endstream" is intentionally unbounded.
+        if (next.Kind != PdfTokenKind.Keyword || next.Text != "stream")
+        {
+            // A plain dictionary object (not a stream) - nothing follows to skip past.
+            tokenizer.Position = savedPosition;
+            return searchStart;
+        }
+
+        SkipStreamLineEnding(tokenizer);
+        var dataStart = tokenizer.Position;
+
+        // Unlike the dictionary above, the payload itself can legitimately be large and binary,
+        // so this search for the matching "endstream" keyword is intentionally unbounded and
+        // operates on raw bytes rather than tokens (an arbitrary payload byte is not valid PDF
+        // syntax for a tokenizer to walk through).
         var endStreamIndex = IndexOfKeyword(buffer, dataStart, buffer.Length, "endstream"u8, requirePrecedingBoundary: false);
         return endStreamIndex < 0 ? dataStart : endStreamIndex + "endstream"u8.Length;
     }
@@ -800,14 +837,17 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Reads the next token, treating a malformed token - for example a hex string containing
     ///     a byte that is neither a hex digit nor whitespace - as unparsable noise rather than
-    ///     letting the exception abort the whole scan. This matters because the linear-scan
-    ///     fallback paths (<see cref="ScanObjectOffsets"/>, <see cref="ScanForTrailerDictionary"/>)
-    ///     tokenize the entire raw document buffer, including compressed/binary stream payloads
-    ///     that were never meant to be parsed as PDF syntax and can easily contain a stray
-    ///     <c>&lt;</c> byte by coincidence. On failure the tokenizer is resynchronized by
-    ///     advancing at least one byte past the token's start position (guaranteeing forward
-    ///     progress even when the failing token consumed zero bytes before throwing), and
-    ///     <see langword="null"/> is returned so the caller can simply keep scanning.
+    ///     letting the exception abort the whole header scan. This matters because
+    ///     <see cref="RegisterCompressedObjectsFromObjectStreams"/> tokenizes an object stream's
+    ///     own decompressed header bytes (the <c>N1 O1 N2 O2 ...</c> pairs following its
+    ///     <c>/Type /ObjStm</c> dictionary), which - unlike a well-formed document's normal
+    ///     content - cannot be trusted to be valid PDF syntax when this linear-scan fallback is
+    ///     running at all. On failure the tokenizer is resynchronized by advancing at least one
+    ///     byte past the token's start position (guaranteeing forward progress even when the
+    ///     failing token consumed zero bytes before throwing), and <see langword="null"/> is
+    ///     returned so the caller can simply stop registering further entries from that one
+    ///     object stream (its other already-registered entries, and every other object stream,
+    ///     are unaffected).
     /// </summary>
     private static PdfToken? TryNextToken(PdfTokenizer tokenizer)
     {
@@ -836,7 +876,15 @@ public sealed partial class PdfDocument
     ///     real-world binary stream noise routinely derails a general-purpose tokenizer long
     ///     before it would ever reach a genuine "trailer" keyword.
     /// </summary>
-    private PdfObject? ScanForTrailerDictionary()
+    /// <param name="streamPayloadRanges">
+    ///     The stream payload ranges already identified by <see cref="ScanObjectOffsets"/>; a
+    ///     "trailer" byte-sequence match found inside one of these ranges is ignored rather than
+    ///     parsed, since it is necessarily just coincidental content inside some object's
+    ///     compressed/binary stream data (for example embedded verbatim inside a PDF being
+    ///     recovered, or compressed content that happens to decompress-match nothing in
+    ///     particular) rather than the document's real trailer keyword.
+    /// </param>
+    private PdfObject? ScanForTrailerDictionary(List<(int Start, int End)> streamPayloadRanges)
     {
         var buffer = _buffer;
         PdfObject? last = null;
@@ -851,6 +899,15 @@ public sealed partial class PdfDocument
             }
 
             var after = found + "trailer"u8.Length;
+
+            if (streamPayloadRanges.Exists(range => found >= range.Start && found < range.End))
+            {
+                // This "trailer" byte sequence is inside a stream payload, not real PDF syntax -
+                // skip it without attempting to parse a dictionary here.
+                position = after;
+                continue;
+            }
+
             var tokenizer = new PdfTokenizer(buffer) { Position = after };
             try
             {

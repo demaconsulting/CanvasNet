@@ -120,6 +120,8 @@ sections:
               - PdfDocument_Open_MalformedStartxref_FallsBackToLinearScan
               - PdfDocument_Open_LinearScanFallback_ObjMarkerInsideStreamPayload_DoesNotCorruptOffsets
               - PdfDocument_Open_Encrypted_LinearScanFallback_RecoversObjectsCompressedInObjectStream
+              - PdfDocument_Open_LinearScanFallback_StreamWordInsideDictionaryValue_DoesNotSkipFollowingObject
+              - PdfDocument_Open_LinearScanFallback_TrailerKeywordInsideStreamPayload_DoesNotReplaceRealTrailer
 
           - id: CanvasNetPdf-PdfDocument-PageTreeTraversal
             title: >-

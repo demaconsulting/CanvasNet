@@ -2079,6 +2079,72 @@ public class PdfDocumentTests
         Assert.Equal(default, surface[5, 5]);
     }
 
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no <c>xref</c> table or <c>startxref</c> at
+    ///     all (forcing <c>BuildLinearScanFallback</c>'s raw byte scan to be the only route to a
+    ///     working object table), where object 3 (the Page) is a plain dictionary - not a stream -
+    ///     whose own value content happens to contain the standalone word "stream" (inside a
+    ///     string literal, a perfectly ordinary and syntactically valid dictionary value). Object
+    ///     4 (the real <c>/Contents</c> stream) immediately follows it.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithStreamWordInsideDictionaryValue()
+    {
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Description (this is a stream of data, not a real stream keyword) >>"u8
+                .ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that the word "stream" occurring inside a plain (non-stream) dictionary's own
+    ///     value content - rather than as the dictionary's real, immediately-following
+    ///     <c>stream</c> keyword - is never mistaken by the linear-scan fallback for the start of
+    ///     that object's payload (see
+    ///     <see cref="BuildLinearScanFallbackWithStreamWordInsideDictionaryValue"/>). Before this
+    ///     was fixed, the raw byte scan would treat that coincidental "stream" word as genuine,
+    ///     then search forward for the next "endstream" keyword - which belongs to the real,
+    ///     unrelated object 4 - and skip straight past object 4's own "4 0 obj" header in the
+    ///     process, silently dropping it from the reconstructed cross-reference table. This test
+    ///     proves object 4 (the page's <c>/Contents</c> stream) still resolves and renders
+    ///     correctly instead.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_StreamWordInsideDictionaryValue_DoesNotSkipFollowingObject()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithStreamWordInsideDictionaryValue();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        var info = document.GetPageInfo(0);
+        Assert.Equal(100, info.Width);
+        Assert.Equal(100, info.Height);
+
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
     #endregion
 
     #region Page tree
