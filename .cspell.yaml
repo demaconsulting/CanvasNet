@@ -41,6 +41,8 @@ words:
   - rasterizing
   - startxref
   - Startxref
+  - xstartxref
+  - mystartxref
   - SYNT
   - undecoded
   - BITMAPCOREHEADER
@@ -302,6 +304,8 @@ words:
   - decryptor
   - Decryptor
   - keystream
+  - qpdf
+  - mutool
 
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:

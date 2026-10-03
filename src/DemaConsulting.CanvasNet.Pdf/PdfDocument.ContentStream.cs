@@ -25,7 +25,7 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     The page's own initial current transformation matrix (the base CTM the top-level
-    ///     render call was invoked with), captured once per top-level <see cref="Render(int, int, int)"/>
+    ///     render call was invoked with), captured once per top-level <see cref="Render(int, int, int, PdfRenderOptions?)"/>
     ///     call and never mutated by any subsequent <c>cm</c>/Form-XObject-matrix composition -
     ///     used by <c>PdfDocument.Patterns.cs</c>'s <c>PatternToDeviceTransform</c> to anchor a
     ///     pattern's own <c>/Matrix</c> against the page's default coordinate system, per
@@ -56,7 +56,7 @@ public sealed partial class PdfDocument
     ///     when none is declared anywhere in the page's ancestry.
     /// </param>
     /// <remarks>
-    ///     This method is the single entry point called once per <see cref="Render(int, int, int)"/>
+    ///     This method is the single entry point called once per <see cref="Render(int, int, int, PdfRenderOptions?)"/>
     ///     call. A nested <c>/Subtype /Form</c> XObject (see <see cref="OpDrawFormXObject"/>) does
     ///     <em>not</em> call this method again - it re-enters <see cref="ExecuteOperators"/>
     ///     directly, so that only the Form-specific state it explicitly saves/swaps/restores is
@@ -399,7 +399,8 @@ public sealed partial class PdfDocument
     /// <param name="pageNode">The already-resolved leaf page dictionary.</param>
     /// <returns>
     ///     The concatenated, fully decoded content bytes, or an empty array when the page
-    ///     declares no <c>/Contents</c> at all (a page with no content is valid: a blank page).
+    ///     declares no <c>/Contents</c> at all (a page with no content is valid: nothing is
+    ///     painted over whatever background color <c>Render</c> clears the surface to).
     /// </returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <c>/Contents</c> is neither a stream nor an array of streams, or when an

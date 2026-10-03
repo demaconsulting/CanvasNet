@@ -1,5 +1,6 @@
 // cspell:ignore uncatchable
 using System.IO.Compression;
+using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Pdf;
 
@@ -353,14 +354,13 @@ public sealed partial class PdfDocument
     /// <summary>Finds the byte offset recorded after the last <c>startxref</c> keyword in the buffer.</summary>
     private int FindStartXrefOffset()
     {
-        var marker = "startxref"u8.ToArray();
-        var index = LastIndexOf(_buffer, marker);
+        var index = LastIndexOfKeyword(_buffer, "startxref"u8);
         if (index < 0)
         {
             throw new InvalidDataException("No 'startxref' keyword found.");
         }
 
-        var tokenizer = new PdfTokenizer(_buffer) { Position = index + marker.Length };
+        var tokenizer = new PdfTokenizer(_buffer) { Position = index + "startxref"u8.Length };
         var offsetToken = tokenizer.NextToken();
         if (offsetToken.Kind != PdfTokenKind.Number)
         {
@@ -370,24 +370,58 @@ public sealed partial class PdfDocument
         return (int)offsetToken.Number;
     }
 
-    private static int LastIndexOf(byte[] haystack, byte[] needle)
+    /// <summary>
+    ///     Finds the last occurrence of <paramref name="keyword"/> in <paramref name="haystack"/>
+    ///     that is a genuine standalone token rather than a substring of some larger token -
+    ///     mirroring the same regular-byte boundary rule <see cref="IndexOfKeyword"/> applies when
+    ///     scanning forward, so a decoy such as <c>mystartxref</c> cannot be mistaken for the real
+    ///     <c>startxref</c> keyword, and a legitimate earlier match is not shadowed by a later one
+    ///     that is merely the tail or prefix of a larger run of regular bytes. A match is also
+    ///     rejected when immediately preceded by <c>/</c>, mirroring <see cref="IsKeywordAt"/>'s
+    ///     own name-token exclusion: per the PDF specification a name token begins with <c>/</c>
+    ///     directly followed by its regular characters with no intervening whitespace, so (for
+    ///     example) <c>/startxref</c> is a <em>name</em> whose text happens to read "startxref" -
+    ///     a legitimate dictionary key or value any real document can contain - never the
+    ///     <c>startxref</c> keyword itself, and must not be parsed as one; without this exclusion
+    ///     such a name occurring after the genuine marker could win this reverse search and
+    ///     redirect parsing to the wrong cross-reference section. This does not by itself exclude
+    ///     a boundary-respecting match that happens to sit inside a PDF comment or string, unlike
+    ///     the comment/string-aware scans in <see cref="ScanObjectOffsets"/> and
+    ///     <see cref="ScanForTrailerDictionary"/> - a narrower, best-effort improvement over the
+    ///     previous unguarded raw byte search, not a claim of full lexical correctness.
+    /// </summary>
+    private static int LastIndexOfKeyword(byte[] haystack, ReadOnlySpan<byte> keyword)
     {
-        for (var i = haystack.Length - needle.Length; i >= 0; i--)
+        var maxStart = haystack.Length - keyword.Length;
+        for (var i = maxStart; i >= 0; i--)
         {
             var matched = true;
-            for (var j = 0; j < needle.Length; j++)
+            for (var j = 0; j < keyword.Length; j++)
             {
-                if (haystack[i + j] != needle[j])
+                if (haystack[i + j] != keyword[j])
                 {
                     matched = false;
                     break;
                 }
             }
 
-            if (matched)
+            if (!matched)
             {
-                return i;
+                continue;
             }
+
+            if (i > 0 && (IsMarkerRegularByte(haystack[i - 1]) || haystack[i - 1] == (byte)'/'))
+            {
+                continue;
+            }
+
+            var after = i + keyword.Length;
+            if (after < haystack.Length && IsMarkerRegularByte(haystack[after]))
+            {
+                continue;
+            }
+
+            return i;
         }
 
         return -1;
@@ -416,15 +450,44 @@ public sealed partial class PdfDocument
     ///     Recovers a usable trailer by scanning the whole buffer for <c>N G obj</c> markers when
     ///     normal cross-reference/trailer parsing fails or does not resolve to a valid catalog.
     /// </summary>
+    /// <param name="password">
+    ///     The password to authenticate the document's <c>/Encrypt</c> dictionary with, if the
+    ///     recovered trailer declares one - forwarded to <see cref="InitializeEncryption"/>. See
+    ///     <see cref="InitializeEncryption"/>'s own remarks for the full authentication semantics.
+    /// </param>
     /// <returns>A trailer dictionary with at least a working <c>/Root</c> entry.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when no document catalog can be located even via this fallback scan.
     /// </exception>
-    private PdfObject BuildLinearScanFallback()
+    private PdfObject BuildLinearScanFallback(string? password)
     {
-        _xref = ScanObjectOffsets();
+        _xref = ScanObjectOffsets(out var streamPayloadRanges);
 
-        var explicitTrailer = ScanForTrailerDictionary();
+        var explicitTrailer = ScanForTrailerDictionary(streamPayloadRanges);
+
+        // Establish the file decryption key (if any) now, before decoding any compressed object
+        // streams below: a compressed object stream in an encrypted document is itself encrypted
+        // ciphertext, and attempting to inflate that ciphertext as if it were plain FlateDecode
+        // data before the correct key is known would fail - silently skipping every object nested
+        // in that stream as "unrecoverable" even though the key was available all along. A
+        // malformed /Encrypt dictionary is tolerated here (ignored) exactly as elsewhere in this
+        // fallback, since it must not prevent recovering whatever objects still can be recovered;
+        // an incorrect/missing password is not tolerated - it is allowed to propagate, matching
+        // the primary (non-fallback) parsing path's own fail-closed behavior.
+        if (explicitTrailer is not null)
+        {
+            try
+            {
+                InitializeEncryption(explicitTrailer, password);
+            }
+            catch (InvalidDataException)
+            {
+                // Ignore a malformed /Encrypt dictionary at this stage; keep attempting recovery.
+            }
+        }
+
+        RegisterCompressedObjectsFromObjectStreams();
+
         if (explicitTrailer is not null && IsValidCatalogRoot(explicitTrailer))
         {
             return explicitTrailer;
@@ -455,65 +518,1048 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Scans the entire buffer, token by token, for <c>N G obj</c> markers, recording each
-    ///     object number's most recently seen offset (a later occurrence - for example from an
+    ///     Scans the entire buffer for literal <c>N G obj</c> byte markers, recording each object
+    ///     number's most recently seen offset (a later occurrence - for example from an
     ///     incremental update - overrides an earlier one, matching classic cross-reference table
-    ///     override semantics).
+    ///     override semantics). This operates directly on raw bytes rather than through
+    ///     <see cref="PdfTokenizer"/>: tokenizing the entire buffer would also tokenize
+    ///     compressed/binary stream payloads that were never meant to be parsed as PDF syntax, and
+    ///     real-world binary noise routinely derails a general-purpose tokenizer (for example by
+    ///     being misread as an implausibly long number or string token that swallows a genuine
+    ///     "obj" marker a few bytes later). Matching the exact literal pattern
+    ///     "&lt;digits&gt; &lt;digits&gt; obj" byte-by-byte is far more resilient to such noise.
+    ///     For the same reason, each matched object's <c>stream</c>/<c>endstream</c> payload (if
+    ///     any) is skipped over rather than scanned byte-by-byte: binary/compressed payload bytes
+    ///     can coincidentally spell out a byte-perfect "N G obj" marker of their own, which would
+    ///     otherwise register a bogus offset - possibly even overwriting a legitimate object
+    ///     number's real offset, since a later match wins.
+    ///     <para>
+    ///         Before checking each position for an "obj" match, <see cref="AdvancePastNonSyntax"/>
+    ///         is consulted to skip over any PDF comment or literal/hex string starting there.
+    ///         This is a soundness property, not a formatting-convention heuristic: a decoy byte
+    ///         sequence that is only reachable by first entering a comment or string can never be
+    ///         matched, regardless of how it is laid out (for example across several lines, or not
+    ///         at the start of any of them). This replaces an earlier line-start-based heuristic
+    ///         that was both unsound (a decoy could still be crafted to start at the beginning of
+    ///         a line while remaining lexically inside a multi-line string) and overly strict (a
+    ///         genuine header is not actually required by the PDF grammar to begin its own line,
+    ///         so that heuristic could also reject legitimate documents).
+    ///     </para>
     /// </summary>
-    private Dictionary<int, XrefEntry> ScanObjectOffsets()
+    /// <param name="streamPayloadRanges">
+    ///     Populated with the <c>[Start, End)</c> byte range of every stream payload skipped over
+    ///     while scanning, so that <see cref="ScanForTrailerDictionary"/> can likewise exclude
+    ///     that same payload content from its own independent raw-byte search for the
+    ///     <c>trailer</c> keyword.
+    /// </param>
+    private Dictionary<int, XrefEntry> ScanObjectOffsets(out List<(int Start, int End)> streamPayloadRanges)
     {
         var xref = new Dictionary<int, XrefEntry>();
-        var tokenizer = new PdfTokenizer(_buffer);
+        var ranges = new List<(int Start, int End)>();
+        var buffer = _buffer;
+        var i = 0;
+        var unterminatedStringEncountered = false;
 
-        while (true)
+        while (i < buffer.Length)
         {
-            var startPosition = tokenizer.Position;
-            var first = tokenizer.NextToken();
-            if (first.Kind == PdfTokenKind.EndOfFile)
+            var afterNonSyntax = AdvancePastNonSyntax(buffer, i, ref unterminatedStringEncountered);
+            if (afterNonSyntax != i)
             {
-                break;
-            }
-
-            if (first.Kind != PdfTokenKind.Number)
-            {
+                i = afterNonSyntax;
                 continue;
             }
 
-            var second = tokenizer.NextToken();
-            if (second.Kind != PdfTokenKind.Number)
+            if (i + 3 > buffer.Length ||
+                buffer[i] != (byte)'o' || buffer[i + 1] != (byte)'b' || buffer[i + 2] != (byte)'j')
             {
+                i++;
                 continue;
             }
 
-            var third = tokenizer.NextToken();
-            if (third.Kind == PdfTokenKind.Keyword && third.Text == "obj")
+            // Reject matches inside a larger token (for example the tail of "endobj", or a
+            // binary-noise byte run that merely contains "obj" as a substring): a genuine keyword
+            // is not immediately followed by another regular (non-whitespace, non-delimiter) byte
+            // - the same rule PdfTokenizer.ReadKeyword uses to decide where a keyword token ends.
+            if (i + 3 < buffer.Length && IsMarkerRegularByte(buffer[i + 3]))
             {
-                xref[(int)first.Number] = XrefEntry.CreateDirect(startPosition);
+                i++;
+                continue;
+            }
+
+            if (TryParseObjectHeaderBackward(buffer, i, out var objectNumber, out var headerStart))
+            {
+                xref[objectNumber] = XrefEntry.CreateDirect(headerStart);
+                var searchStart = i + 3;
+                var next = SkipPastStreamPayload(buffer, searchStart);
+                if (next != searchStart)
+                {
+                    ranges.Add((searchStart, next));
+                }
+
+                i = next;
+            }
+            else
+            {
+                // Not a genuine "N G obj" header - for example the tail of the "endobj" keyword
+                // itself. There is no associated stream payload to skip, so only advance past this
+                // "obj" occurrence and keep scanning normally.
+                i += 3;
             }
         }
 
+        streamPayloadRanges = ranges;
         return xref;
     }
 
-    /// <summary>Scans the buffer for the last <c>trailer</c> keyword and parses its dictionary.</summary>
-    private PdfObject? ScanForTrailerDictionary()
+    /// <summary>
+    ///     If the object just matched by <see cref="ScanObjectOffsets"/> is a dictionary
+    ///     immediately followed by a literal <c>stream</c> keyword (per the PDF specification's
+    ///     own stream-object grammar), returns the index just past the matching <c>endstream</c>
+    ///     keyword so the caller's scan resumes after the payload instead of inside it. Returns
+    ///     <paramref name="searchStart"/> unchanged when the object is not a dictionary, or its
+    ///     dictionary is not immediately followed by <c>stream</c> - including when the
+    ///     dictionary's own entries merely contain the word "stream" as a name, string, or other
+    ///     value, which must never be mistaken for the real keyword.
+    /// </summary>
+    private static int SkipPastStreamPayload(byte[] buffer, int searchStart)
     {
-        var tokenizer = new PdfTokenizer(_buffer);
-        PdfObject? last = null;
+        // Parsing the dictionary with the same tokenizer-based logic the primary (non-fallback)
+        // parsing path uses (see ParseDictionaryOrStream) - rather than raw-searching for the
+        // next standalone "stream" keyword within a bounded window - guarantees the keyword
+        // found truly terminates this object's own dictionary, instead of being a coincidental
+        // "/stream" name, a "(...stream...)" string, or some other unrelated dictionary value, or
+        // even the stream keyword belonging to a different, later object entirely.
+        var tokenizer = new PdfTokenizer(buffer) { Position = searchStart };
+        PdfToken openToken;
+        try
+        {
+            openToken = tokenizer.NextToken();
+        }
+        catch (InvalidDataException)
+        {
+            return searchStart;
+        }
 
+        if (openToken.Kind != PdfTokenKind.DictStart)
+        {
+            // This object's value is not a dictionary at all (for example a bare number, string,
+            // or array), so it cannot possibly have a stream payload to skip.
+            return searchStart;
+        }
+
+        Dictionary<string, PdfObject> entries;
+        try
+        {
+            entries = ParseDictionaryEntries(tokenizer, 0);
+        }
+        catch (InvalidDataException)
+        {
+            return searchStart;
+        }
+
+        var savedPosition = tokenizer.Position;
+        PdfToken next;
+        try
+        {
+            next = tokenizer.NextToken();
+        }
+        catch (InvalidDataException)
+        {
+            return searchStart;
+        }
+
+        if (next.Kind != PdfTokenKind.Keyword || next.Text != "stream")
+        {
+            // A plain dictionary object (not a stream) - nothing follows to skip past.
+            tokenizer.Position = savedPosition;
+            return searchStart;
+        }
+
+        SkipStreamLineEnding(tokenizer);
+        var dataStart = tokenizer.Position;
+
+        // Prefer the stream dictionary's own declared /Length to bound the payload - the
+        // spec-mandated way to determine where stream data ends - using the raw "endstream"
+        // keyword search below only as a lightweight consistency check against it, and as the
+        // sole fallback when /Length is absent, an indirect reference (not yet resolvable while
+        // the cross-reference table this scan is building is itself still incomplete), or
+        // inconsistent with the buffer. Relying on a raw, unbounded "endstream" search alone would
+        // end the protected range too early whenever the payload's own bytes happen to contain a
+        // coincidental "endstream" byte sequence of their own, followed by a non-regular byte.
+        if (entries.TryGetValue("Length", out var lengthValue) &&
+            lengthValue.Kind == PdfKind.Number &&
+            TryGetDeclaredStreamEnd(buffer, dataStart, lengthValue.Number, out var declaredEnd))
+        {
+            return declaredEnd;
+        }
+
+        // Unlike the dictionary above, the payload itself can legitimately be large and binary,
+        // so this search for the matching "endstream" keyword operates on raw bytes rather than
+        // tokens (an arbitrary payload byte is not valid PDF syntax for a tokenizer to walk
+        // through). This is a deliberate, acknowledged limitation rather than something this
+        // check fully closes: binary payload data can legitimately, coincidentally contain a
+        // byte-exact "endstream" (and even "endstream"+"endobj") sequence of its own partway
+        // through, before the real end of the payload, and no finite pattern-matching rule can
+        // distinguish that from the genuine terminator without a trustworthy declared length -
+        // this is an inherent consequence of the PDF format itself (a stream's data is defined to
+        // be arbitrary bytes, with no in-band escaping of its own terminator), not a gap specific
+        // to this implementation. It is also the reason every other mainstream recovery
+        // implementation we are aware of (for example the documented "attempting to recover
+        // stream length" fallback in qpdf, and the "clean" repair pass in mutool) takes the same
+        // approach of searching raw bytes for the next "endstream" when /Length cannot be
+        // trusted, without claiming to solve this case fully either. Requiring the match to
+        // additionally be followed by "endobj" (the one genuine structural neighbor every real
+        // stream object has) is retained here purely as a cheap, strictly-safer-than-nothing
+        // consistency check that rejects some, but provably not all, coincidental matches; a
+        // worst-case false match here can at most cause this one already-malformed document's
+        // recovery to produce partial or no content (the documented contract of this fallback
+        // path), never a crash, since every caller of the resulting offsets already handles a
+        // subsequently-unparseable object by catching <see cref="InvalidDataException"/> and
+        // treating that one object as unrecoverable.
+        return FindStructurallyValidEndstream(buffer, dataStart);
+    }
+
+    /// <summary>
+    ///     Searches forward from <paramref name="dataStart"/> for the first <c>endstream</c>
+    ///     keyword match that is itself immediately followed (after tolerating an optional
+    ///     end-of-line sequence) by the literal <c>endobj</c> keyword - the structure every
+    ///     genuine stream object has - skipping over any earlier match that fails this check as
+    ///     coincidental payload noise. Returns <paramref name="dataStart"/> if no match at all,
+    ///     structurally valid or not, exists before the end of the buffer.
+    /// </summary>
+    /// <remarks>
+    ///     This is only ever reached when the stream's own declared <c>/Length</c> is absent, an
+    ///     unresolvable indirect reference, or inconsistent with the buffer - that is, the
+    ///     document is already corrupt in a way the PDF specification provides no defined recovery
+    ///     for. See the caller's remarks for why no amount of additional pattern-matching here can
+    ///     fully close the resulting ambiguity, and why that residual risk is accepted rather than
+    ///     chased with further heuristics.
+    /// </remarks>
+    private static int FindStructurallyValidEndstream(byte[] buffer, int dataStart)
+    {
+        var position = dataStart;
         while (true)
         {
-            var token = tokenizer.NextToken();
-            if (token.Kind == PdfTokenKind.EndOfFile)
+            var endStreamIndex = IndexOfKeyword(buffer, position, buffer.Length, "endstream"u8, requirePrecedingBoundary: false);
+            if (endStreamIndex < 0)
             {
-                break;
+                return dataStart;
             }
 
-            if (token.Kind != PdfTokenKind.Keyword || token.Text != "trailer")
+            var afterKeyword = endStreamIndex + "endstream"u8.Length;
+            if (IsFollowedByEndObjKeyword(buffer, afterKeyword))
+            {
+                return afterKeyword;
+            }
+
+            position = afterKeyword;
+        }
+    }
+
+    /// <summary>
+    ///     Returns whether <paramref name="index"/>, after tolerating any PDF whitespace and
+    ///     comments between tokens (not merely a single optional end-of-line sequence - PDF
+    ///     permits any amount of whitespace, and comments are themselves whitespace-equivalent,
+    ///     between the <c>endstream</c> and <c>endobj</c> keywords), is immediately followed by
+    ///     the literal <c>endobj</c> keyword - the structure every genuine <c>endstream</c>
+    ///     keyword is followed by.
+    /// </summary>
+    private static bool IsFollowedByEndObjKeyword(byte[] buffer, int index)
+    {
+        var afterSeparators = SkipMarkerWhitespaceAndCommentsForward(buffer, index);
+        var endObjIndex = IndexOfKeyword(
+            buffer,
+            afterSeparators,
+            Math.Min(afterSeparators + "endobj"u8.Length, buffer.Length),
+            "endobj"u8,
+            requirePrecedingBoundary: false);
+        return endObjIndex == afterSeparators;
+    }
+
+    /// <summary>
+    ///     Maximum number of bytes <see cref="SkipMarkerWhitespaceAndCommentsForward"/> will walk
+    ///     forward. Bounded for the same reason as <see cref="MaxBackwardCommentScanLength"/>: so
+    ///     that a crafted file cannot turn this separator skip, performed once per candidate
+    ///     <c>endstream</c> match inside <see cref="FindStructurallyValidEndstream"/>'s loop, into
+    ///     quadratic work. Real producers never place hundreds of bytes of whitespace or comments
+    ///     between <c>endstream</c> and <c>endobj</c>; failing to look past this bound only risks
+    ///     missing that one structural-validity check, never a crash or a hang.
+    /// </summary>
+    private const int MaxForwardSeparatorScanLength = 256;
+
+    /// <summary>
+    ///     Walks <paramref name="cursor"/> forward over any run of PDF whitespace and comments (a
+    ///     <c>%</c> through end of line) - mirroring how <see cref="PdfTokenizer"/> itself treats
+    ///     a comment as insignificant, token-separating content. Bounded by
+    ///     <see cref="MaxForwardSeparatorScanLength"/> bytes to keep this a strictly linear-time
+    ///     operation overall.
+    /// </summary>
+    /// <remarks>
+    ///     If a comment's own end-of-line terminator is not reached before that bound - which,
+    ///     given the bound's small size, can only happen when the comment is still genuinely
+    ///     unterminated at the point the scan gives up, with more buffer remaining beyond it -
+    ///     this returns the index of that comment's own leading <c>%</c> rather than guessing how
+    ///     far past it the comment extends. Returning any later position risked a caller (for
+    ///     example <see cref="IsFollowedByEndObjKeyword"/>) mistaking bytes that are still part of
+    ///     the comment's own body for a real keyword immediately following it - silently accepting
+    ///     a false boundary rather than conservatively reporting none.
+    /// </remarks>
+    private static int SkipMarkerWhitespaceAndCommentsForward(byte[] buffer, int cursor)
+    {
+        var limit = Math.Min(buffer.Length, cursor + MaxForwardSeparatorScanLength);
+        while (cursor < limit)
+        {
+            if (IsMarkerWhitespace(buffer[cursor]))
+            {
+                cursor++;
+                continue;
+            }
+
+            if (buffer[cursor] == (byte)'%')
+            {
+                var commentStart = cursor;
+                while (cursor < limit && buffer[cursor] is not ((byte)'\n' or (byte)'\r'))
+                {
+                    cursor++;
+                }
+
+                if (cursor == limit && limit < buffer.Length)
+                {
+                    // The bounded scan ran out before this comment reached its own end-of-line,
+                    // and the buffer continues past this point - whether that later content is
+                    // really past the comment, or still part of its (longer than our bound) body,
+                    // cannot be determined without unbounded work. Report the comment's own start
+                    // as the result instead of the ambiguous cutoff position.
+                    return commentStart;
+                }
+
+                continue;
+            }
+
+            break;
+        }
+
+        return cursor;
+    }
+
+    /// <summary>
+    ///     Validates a stream dictionary's declared <c>/Length</c> against the buffer - it must be
+    ///     a non-negative integer landing fully within the buffer, and the bytes immediately
+    ///     following it (after tolerating any PDF whitespace and comments, since the PDF grammar
+    ///     permits both - not merely an optional end-of-line sequence, despite that being what
+    ///     most real-world producers emit) must be the literal <c>endstream</c> keyword - and if
+    ///     so, returns the index just past that keyword.
+    /// </summary>
+    private static bool TryGetDeclaredStreamEnd(byte[] buffer, int dataStart, double declaredLength, out int payloadEnd)
+    {
+        payloadEnd = 0;
+        if (declaredLength < 0 || !double.IsInteger(declaredLength) || declaredLength > buffer.Length)
+        {
+            return false;
+        }
+
+        var declaredDataEnd = dataStart + (long)declaredLength;
+        if (declaredDataEnd > buffer.Length)
+        {
+            return false;
+        }
+
+        var afterData = SkipMarkerWhitespaceAndCommentsForward(buffer, (int)declaredDataEnd);
+        var endStreamIndex = IndexOfKeyword(
+            buffer,
+            afterData,
+            Math.Min(afterData + "endstream"u8.Length, buffer.Length),
+            "endstream"u8,
+            requirePrecedingBoundary: false);
+        if (endStreamIndex != afterData)
+        {
+            // The declared /Length does not land on a literal "endstream" keyword, so it cannot
+            // be trusted (for example it is stale, wrong, or an indirect reference the caller
+            // already excluded) - let the caller fall back to its own raw "endstream" search.
+            return false;
+        }
+
+        payloadEnd = endStreamIndex + "endstream"u8.Length;
+        return true;
+    }
+
+    /// <summary>
+    ///     Finds the first standalone occurrence of <paramref name="keyword"/> - one not
+    ///     immediately followed by another regular byte, and (unless
+    ///     <paramref name="requirePrecedingBoundary"/> is <see langword="false"/>) not immediately
+    ///     preceded by one either - so a match is never found inside a larger token or incidental
+    ///     binary-noise byte run - at or after <paramref name="startIndex"/> and before
+    ///     <paramref name="searchLimit"/>. Returns -1 if no such occurrence exists in that range.
+    ///     <para>
+    ///         "Regular byte" here means exactly what <see cref="PdfTokenizer"/> itself treats as
+    ///         part of a keyword token: any byte that is not PDF whitespace and not one of the PDF
+    ///         delimiter characters (<c>( ) &lt; &gt; [ ] { } / %</c>). An earlier version of this
+    ///         check instead only recognized ASCII letters and digits as boundary bytes, which
+    ///         under-approximated the tokenizer's own notion of a token boundary: a byte such as
+    ///         <c>#</c> is neither a letter/digit nor PDF whitespace/a delimiter, so a sequence
+    ///         like <c>/foo#trailer</c> was wrongly treated as ending the identifier at <c>#</c>,
+    ///         exposing <c>trailer</c> as a standalone match even though <see cref="PdfTokenizer"/>
+    ///         would read <c>foo#trailer</c> as a single keyword token. Matching the tokenizer's
+    ///         own boundary rule exactly closes that gap.
+    ///     </para>
+    /// </summary>
+    /// <param name="buffer">The raw document buffer to search.</param>
+    /// <param name="startIndex">The byte index at which to start searching (inclusive).</param>
+    /// <param name="searchLimit">The byte index at which to stop searching (exclusive).</param>
+    /// <param name="keyword">The literal keyword bytes to search for.</param>
+    /// <param name="requirePrecedingBoundary">
+    ///     Whether the byte immediately before a candidate match must be a non-regular byte.
+    ///     This must be <see langword="false"/> for a keyword such as <c>endstream</c>, whose
+    ///     preceding byte is the final byte of an arbitrary, possibly binary, payload rather than
+    ///     a continuation of a textual PDF token - that byte can legitimately be alphanumeric (or
+    ///     any other regular byte) by coincidence, and requiring otherwise would wrongly reject a
+    ///     genuine match.
+    /// </param>
+    private static int IndexOfKeyword(
+        byte[] buffer,
+        int startIndex,
+        int searchLimit,
+        ReadOnlySpan<byte> keyword,
+        bool requirePrecedingBoundary = true)
+    {
+        var maxStart = Math.Min(searchLimit, buffer.Length) - keyword.Length;
+        for (var i = Math.Max(startIndex, 0); i <= maxStart; i++)
+        {
+            var isMatch = true;
+            for (var k = 0; k < keyword.Length; k++)
+            {
+                if (buffer[i + k] != keyword[k])
+                {
+                    isMatch = false;
+                    break;
+                }
+            }
+
+            if (!isMatch)
             {
                 continue;
             }
 
+            if (requirePrecedingBoundary && i > 0 && IsMarkerRegularByte(buffer[i - 1]))
+            {
+                continue;
+            }
+
+            var after = i + keyword.Length;
+            if (after < buffer.Length && IsMarkerRegularByte(buffer[after]))
+            {
+                continue;
+            }
+
+            return i;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    ///     Attempts to parse a <c>N G</c> object number/generation header immediately preceding
+    ///     the byte index of a literal <c>obj</c> keyword match, walking backward over the
+    ///     generation digits, the separating whitespace, and the object number digits. The object
+    ///     number's own leading boundary is also verified: it must not be immediately preceded by
+    ///     another regular byte (which would make the digits only the suffix of a larger token)
+    ///     or by <c>/</c> (which would make them a PDF name token's text rather than a standalone
+    ///     number).
+    /// </summary>
+    private static bool TryParseObjectHeaderBackward(byte[] buffer, int objIndex, out int objectNumber, out int headerStart)
+    {
+        objectNumber = 0;
+        headerStart = 0;
+
+        var cursor = objIndex;
+        var sectionEnd = cursor;
+        cursor = SkipMarkerWhitespaceAndCommentsBackward(buffer, cursor);
+        if (cursor == sectionEnd)
+        {
+            return false;
+        }
+
+        sectionEnd = cursor;
+        cursor = SkipMarkerBytesBackward(buffer, cursor, IsMarkerDigit);
+        if (cursor == sectionEnd)
+        {
+            return false;
+        }
+
+        sectionEnd = cursor;
+        cursor = SkipMarkerWhitespaceAndCommentsBackward(buffer, cursor);
+        if (cursor == sectionEnd)
+        {
+            return false;
+        }
+
+        var numberEnd = cursor;
+        cursor = SkipMarkerBytesBackward(buffer, cursor, IsMarkerDigit);
+        if (cursor == numberEnd)
+        {
+            return false;
+        }
+
+        var numberStart = cursor;
+
+        // Require a genuine token boundary immediately before the object number: without this, a
+        // decoy such as "foo3 0 obj" would be accepted as object 3, even though "foo3" is
+        // lexically a single regular-byte token under the PDF grammar and "3" is only its suffix,
+        // not a standalone number token of its own. A preceding '/' must also be rejected even
+        // though '/' is itself a delimiter (not a regular byte): per the PDF specification a name
+        // token begins with '/' directly followed by its regular characters with no intervening
+        // whitespace, so (for example) "/3 0 obj" has "/3" as a name token whose text happens to
+        // read "3" - a legitimate dictionary value any real document can contain - never a
+        // standalone object-number token, and must not be parsed as one.
+        if (numberStart > 0 && (IsMarkerRegularByte(buffer[numberStart - 1]) || buffer[numberStart - 1] == (byte)'/'))
+        {
+            return false;
+        }
+
+        var parsedNumber = 0L;
+        for (var i = numberStart; i < numberEnd; i++)
+        {
+            parsedNumber = parsedNumber * 10 + (buffer[i] - (byte)'0');
+            if (parsedNumber > int.MaxValue)
+            {
+                // An implausibly large object number is almost certainly a false-positive match
+                // against binary noise rather than a genuine object header.
+                return false;
+            }
+        }
+
+        objectNumber = (int)parsedNumber;
+        headerStart = numberStart;
+        return true;
+    }
+
+    /// <summary>
+    ///     Maximum number of bytes <see cref="SkipMarkerWhitespaceAndCommentsBackward"/> will scan
+    ///     backward from a candidate comment's end while searching for its leading <c>%</c>.
+    ///     Deliberately small and fixed so that even a maliciously crafted file consisting of one
+    ///     enormous line cannot turn this backward comment check into O(n) work repeated at up to
+    ///     O(n) different candidate match positions - which would reintroduce the same quadratic
+    ///     blowup that <see cref="AdvancePastNonSyntax"/>'s own unterminated-literal-string guard
+    ///     exists to prevent. A genuine PDF comment this long between an object header's number,
+    ///     generation, and <c>obj</c> tokens is not a realistic producer output; failing to
+    ///     recognize one beyond this bound only risks the fallback recovery scanner missing one
+    ///     candidate header, never a crash or a hang.
+    /// </summary>
+    private const int MaxBackwardCommentScanLength = 256;
+
+    /// <summary>
+    ///     Walks <paramref name="cursor"/> backward over a run of PDF whitespace and, when one
+    ///     immediately precedes it, a single PDF comment (a <c>%</c> through end of line) -
+    ///     mirroring how <see cref="PdfTokenizer"/> itself treats a comment as insignificant,
+    ///     token-separating content when scanning forward. This lets fallback recovery's backward
+    ///     object-header scan recognize headers such as <c>1 0 % comment\nobj</c> that a real
+    ///     forward parser would find, which a whitespace-only backward skip would otherwise miss.
+    ///     Bounded by <see cref="MaxBackwardCommentScanLength"/> bytes per candidate comment to
+    ///     keep the overall scan strictly linear.
+    /// </summary>
+    private static int SkipMarkerWhitespaceAndCommentsBackward(byte[] buffer, int cursor)
+    {
+        while (true)
+        {
+            var beforeWhitespace = cursor;
+            cursor = SkipMarkerBytesBackward(buffer, cursor, IsMarkerWhitespace);
+
+            // Search a bounded window immediately before the current position for a '%' that
+            // isn't separated from here by an end-of-line byte - if found, everything from the
+            // '%' up to here is a single-line comment's body, which the PDF tokenizer treats as
+            // whitespace-equivalent and so must this backward scan.
+            var scanLimit = Math.Max(0, cursor - MaxBackwardCommentScanLength);
+            var percentIndex = -1;
+            for (var i = cursor - 1; i >= scanLimit; i--)
+            {
+                if (buffer[i] is (byte)'\n' or (byte)'\r')
+                {
+                    break;
+                }
+
+                if (buffer[i] == (byte)'%')
+                {
+                    percentIndex = i;
+                    break;
+                }
+            }
+
+            if (percentIndex < 0)
+            {
+                return cursor;
+            }
+
+            cursor = percentIndex;
+            if (cursor == beforeWhitespace)
+            {
+                // Defensive: a '%' is never whitespace, so this iteration always makes forward
+                // (backward) progress; stop rather than loop forever if that invariant ever broke.
+                return cursor;
+            }
+        }
+    }
+
+    /// <summary>Walks <paramref name="cursor"/> backward while the preceding byte satisfies <paramref name="predicate"/>.</summary>
+    private static int SkipMarkerBytesBackward(byte[] buffer, int cursor, Func<byte, bool> predicate)
+    {
+        while (cursor > 0 && predicate(buffer[cursor - 1]))
+        {
+            cursor--;
+        }
+
+        return cursor;
+    }
+
+    private static bool IsMarkerWhitespace(byte b) => b is 0x00 or 0x09 or 0x0A or 0x0C or 0x0D or 0x20;
+
+    private static bool IsMarkerDigit(byte b) => b is >= (byte)'0' and <= (byte)'9';
+
+    private static bool IsMarkerDelimiter(byte b) =>
+        b is (byte)'(' or (byte)')' or (byte)'<' or (byte)'>' or (byte)'[' or (byte)']' or (byte)'{' or (byte)'}' or (byte)'/' or (byte)'%';
+
+    /// <summary>
+    ///     Whether <paramref name="b"/> is a "regular" byte under the PDF grammar - that is,
+    ///     neither PDF whitespace nor a PDF delimiter character - matching exactly the rule
+    ///     <see cref="PdfTokenizer"/> itself uses (via its own private <c>IsRegular</c>) to decide
+    ///     which bytes belong to the same keyword token. This is intentionally broader than
+    ///     "ASCII letter or digit": PDF permits other bytes (for example <c>#</c>, <c>!</c>,
+    ///     <c>$</c>) inside a regular run, and a boundary check narrower than the tokenizer's own
+    ///     would wrongly treat such a byte as ending a token when the tokenizer would not.
+    /// </summary>
+    private static bool IsMarkerRegularByte(byte b) => !IsMarkerWhitespace(b) && !IsMarkerDelimiter(b);
+
+    /// <summary>
+    ///     If <paramref name="position"/> is the first byte of a PDF comment (<c>%</c> through
+    ///     the end of its line) or a literal string - either round-bracket <c>(...)</c>, with
+    ///     backslash-escaped bytes and balanced nesting, or angle-bracket <c>&lt;...&gt;</c>
+    ///     hex, carefully distinguished from a dictionary's <c>&lt;&lt;</c> delimiter - returns
+    ///     the index of the first byte past it. Otherwise returns <paramref name="position"/>
+    ///     unchanged.
+    /// </summary>
+    /// <param name="buffer">The byte buffer being scanned.</param>
+    /// <param name="position">The byte index to classify.</param>
+    /// <param name="unterminatedStringEncountered">
+    ///     Set to <see langword="true"/> once a literal or hex string attempt has run all the
+    ///     way to the end of the buffer without ever closing, and consulted on every call
+    ///     thereafter to skip further string-opening attempts outright. See the remarks below for
+    ///     why this is necessary for a bounded worst-case cost.
+    /// </param>
+    /// <remarks>
+    ///     <para>
+    ///         This is what lets <see cref="ScanObjectOffsets"/> and
+    ///         <see cref="ScanForTrailerDictionary"/> reject an <c>N G obj</c>/<c>trailer</c>
+    ///         byte sequence embedded inside a PDF comment or string by construction, rather than
+    ///         by a formatting-convention heuristic. An earlier approach instead required such a
+    ///         candidate to begin at the start of its own line - a real-world convention, but not
+    ///         one the PDF grammar actually requires, and not a sound check either way: a decoy
+    ///         could still be crafted to sit at the start of a line while remaining lexically
+    ///         inside an enclosing multi-line string, and a genuine header not conventionally
+    ///         placed at a line's start (the grammar permits, for example, two object headers on
+    ///         the same physical line) would be wrongly rejected. Tracking the actual PDF lexical
+    ///         grammar for comments and strings instead closes the false-positive case completely
+    ///         (a comment or string's contents are structurally unreachable as a keyword match)
+    ///         while also removing the false-negative one (nothing about a header's position on
+    ///         its line matters any more).
+    ///     </para>
+    ///     <para>
+    ///         If a <c>(</c> or <c>&lt;</c> byte is encountered that turns out not to be the start
+    ///         of a real string - for example binary noise containing a stray delimiter byte with
+    ///         no matching close before the end of the buffer - this degrades safely by leaving
+    ///         the position unchanged, so the caller simply treats that one byte as ordinary
+    ///         content instead of skipping an unbounded remainder of the file. However, such a
+    ///         failed attempt only reaches that conclusion by scanning every remaining byte in the
+    ///         buffer looking for a close that never comes; if a crafted or corrupted input
+    ///         contains a long run of such bytes (for example many consecutive unmatched <c>(</c>
+    ///         bytes), retrying the same unbounded scan from every one of them would make this
+    ///         fallback scanner quadratic in the buffer size - a CPU/timeout denial-of-service
+    ///         risk, not merely a completeness limitation. <paramref
+    ///         name="unterminatedStringEncountered"/> bounds this: the first such failure anywhere
+    ///         in a scan permanently disables further string-opening attempts for the remainder of
+    ///         that same scan, so at most one failed attempt ever walks the buffer's tail, keeping
+    ///         total work linear.
+    ///     </para>
+    ///     <para>
+    ///         This does mean a byte-perfect <c>obj</c>/<c>trailer</c> marker that happens to be
+    ///         embedded past such a failed attempt is still reachable as ordinary syntax, rather
+    ///         than being treated as unconditionally unreachable "string content" through to the
+    ///         end of the buffer. Unlike a comment or a <em>successfully closed</em> string (both
+    ///         of which are unambiguously bounded regions a decoy cannot escape), a string that
+    ///         never closes does not actually tell us where its author intended it to end - a
+    ///         real-world corrupted or recovered PDF routinely contains unrelated binary noise
+    ///         with stray unmatched delimiters long before any genuine later object, and treating
+    ///         every subsequent byte as permanently unreachable would abandon recovery of that
+    ///         entire remainder, including perfectly legitimate objects - a strictly worse outcome
+    ///         for this best-effort recovery path than tolerating the narrow, byte-perfect decoy
+    ///         scenario this trade-off accepts. (An earlier revision of this method instead made
+    ///         the caller stop scanning entirely the first time this flag became true; that was
+    ///         measured to turn any incidental unmatched delimiter anywhere in the file - including
+    ///         ordinary binary stream noise unrelated to any attack - into total recovery failure
+    ///         for documents that otherwise resolve correctly, which is a worse trade-off than the
+    ///         narrow decoy scenario it closed.) This is an acceptable heuristic limitation here:
+    ///         this path only runs once normal cross-reference parsing has already failed, and the
+    ///         PDF specification does not guarantee perfect recovery is even possible for
+    ///         arbitrarily malformed input - this scanner's own documented policy is to never crash
+    ///         or hang, not to recover a perfect result from every conceivable corruption.
+    ///     </para>
+    /// </remarks>
+    private static int AdvancePastNonSyntax(byte[] buffer, int position, ref bool unterminatedStringEncountered)
+    {
+        var b = buffer[position];
+        if (b == (byte)'%')
+        {
+            var end = position + 1;
+            while (end < buffer.Length && buffer[end] is not ((byte)'\n' or (byte)'\r'))
+            {
+                end++;
+            }
+
+            return end;
+        }
+
+        if (unterminatedStringEncountered)
+        {
+            return position;
+        }
+
+        if (b == (byte)'(')
+        {
+            var after = SkipLiteralString(buffer, position);
+            unterminatedStringEncountered = after == position;
+            return after;
+        }
+
+        // Only the first '<' of a dictionary's '<<' delimiter is excluded from hex-string
+        // detection by checking the following byte; the second '<' must also be excluded, which
+        // requires checking the *preceding* byte instead, since the following byte after the
+        // second '<' is ordinary dictionary content rather than another '<'.
+        var isDictionaryDelimiter =
+            (position + 1 < buffer.Length && buffer[position + 1] == (byte)'<') ||
+            (position > 0 && buffer[position - 1] == (byte)'<');
+        if (b == (byte)'<' && !isDictionaryDelimiter)
+        {
+            var after = SkipHexString(buffer, position);
+            unterminatedStringEncountered = after == position;
+            return after;
+        }
+
+        return position;
+    }
+
+    /// <summary>
+    ///     Skips a literal string starting at the <c>(</c> byte index <paramref name="start"/>,
+    ///     tracking balanced nested parentheses and backslash-escaped bytes per the PDF
+    ///     specification's string-literal grammar, and returns the index just past the matching
+    ///     closing <c>)</c>. Returns <paramref name="start"/> unchanged if no matching close is
+    ///     found before the end of the buffer.
+    /// </summary>
+    private static int SkipLiteralString(byte[] buffer, int start)
+    {
+        var depth = 1;
+        var cursor = start + 1;
+        while (cursor < buffer.Length)
+        {
+            var b = buffer[cursor];
+            if (b == (byte)'\\')
+            {
+                // An escaped byte (including an escaped parenthesis) never affects nesting depth.
+                cursor += 2;
+                continue;
+            }
+
+            if (b == (byte)'(')
+            {
+                depth++;
+            }
+            else if (b == (byte)')')
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    return cursor + 1;
+                }
+            }
+
+            cursor++;
+        }
+
+        return start;
+    }
+
+    /// <summary>
+    ///     Skips a hex string starting at the <c>&lt;</c> byte index <paramref name="start"/> and
+    ///     returns the index just past the matching closing <c>&gt;</c>. Returns
+    ///     <paramref name="start"/> unchanged if no closing <c>&gt;</c> is found before the end of
+    ///     the buffer.
+    /// </summary>
+    private static int SkipHexString(byte[] buffer, int start)
+    {
+        var cursor = start + 1;
+        while (cursor < buffer.Length)
+        {
+            if (buffer[cursor] == (byte)'>')
+            {
+                return cursor + 1;
+            }
+
+            cursor++;
+        }
+
+        return start;
+    }
+
+    /// <summary>
+    ///     After a linear scan has located every directly-offset object (<c>N G obj</c> markers),
+    ///     also registers the objects nested inside any discovered object streams
+    ///     (<c>/Type /ObjStm</c>). A compressed object has no literal <c>N G obj</c> marker of its
+    ///     own in the raw buffer - it exists only inside its container stream's decompressed body
+    ///     - so without this pass, any page or resource reachable only through an object stream
+    ///     would be wrongly reported as missing whenever normal cross-reference parsing has failed
+    ///     and this linear scan is the document's only remaining route to a working object table.
+    ///     This scan examines every directly-located <c>/Type /ObjStm</c> candidate eagerly and
+    ///     independently of whether it is actually needed to resolve the document's catalog, so a
+    ///     single unrelated object stream must never be allowed to abort recovery of every other
+    ///     object: both <see cref="InvalidDataException"/> (malformed stream data) and
+    ///     <see cref="UnsupportedImageFeatureException"/> (well-formed data using a filter this
+    ///     library does not implement, for example a stream filter decoding path it does not
+    ///     support) are caught here for that reason - the two types are deliberately not a common
+    ///     base type (see <see cref="UnsupportedImageFeatureException"/>'s own remarks), so both
+    ///     must be listed explicitly to treat an unusable object stream the same way regardless of
+    ///     which of the two reasons made it unusable: skip only that one stream and keep
+    ///     recovering every other object normally.
+    /// </summary>
+    private void RegisterCompressedObjectsFromObjectStreams()
+    {
+        // Snapshot the object numbers before mutating `_xref` within the loop below.
+        foreach (var streamNumber in _xref.Keys.ToArray())
+        {
+            PdfObject container;
+            byte[] decoded;
+            try
+            {
+                container = GetObject(streamNumber);
+                if (container.Kind != PdfKind.Stream || GetNameValue(container, "Type") != "ObjStm")
+                {
+                    continue;
+                }
+
+                decoded = GetStreamDecodedBytes(container);
+            }
+            catch (InvalidDataException)
+            {
+                continue;
+            }
+            catch (UnsupportedImageFeatureException)
+            {
+                continue;
+            }
+
+            if (container.Get("N") is not { Kind: PdfKind.Number } countObject)
+            {
+                continue;
+            }
+
+            // Reject a malformed, non-integer, or out-of-range declared "/N" (for example "1.5"
+            // or a value far beyond int range) the same way the per-entry object numbers below
+            // already are - a bare (int) cast would otherwise either silently truncate or produce
+            // an unspecified wrapped value, both of which could make a grammatically invalid
+            // object stream be accepted as having some plausible entry count.
+            if (!TryGetNonNegativeInt(countObject.Number, out var count) || count > decoded.Length)
+            {
+                continue;
+            }
+
+            var headerTokenizer = new PdfTokenizer(decoded);
+            for (var i = 0; i < count; i++)
+            {
+                if (headerTokenizer.Position >= decoded.Length)
+                {
+                    break;
+                }
+
+                var numberToken = TryNextToken(headerTokenizer);
+                var offsetToken = TryNextToken(headerTokenizer);
+                if (numberToken is not { Kind: PdfTokenKind.Number } || offsetToken is not { Kind: PdfTokenKind.Number })
+                {
+                    break;
+                }
+
+                // A malformed, non-integer or out-of-range declared object number (for example
+                // "1.5" or a value far beyond int range) cannot be used as a dictionary key at
+                // all - narrowing it with a bare (int) cast first would either throw nothing and
+                // silently truncate (for "1.5") or produce an unspecified wrapped value (for an
+                // out-of-range magnitude). Treat either case the same as any other malformed
+                // header token: stop trusting the rest of this object stream's header.
+                if (!TryGetNonNegativeInt(numberToken.Value.Number, out var containedNumber))
+                {
+                    break;
+                }
+
+                // Apply the same "a later physical occurrence overrides an earlier one" rule
+                // ScanObjectOffsets already uses for direct "N G obj" markers, rather than always
+                // keeping whatever was registered first: an incrementally updated document can
+                // legitimately redefine an object - originally a direct header - later in the
+                // file via a compressed object stream, and that later definition must win. Every
+                // object inside a given stream shares that stream's own physical offset as its
+                // position, since entries inside an ObjStm have no individual byte position of
+                // their own.
+                var candidatePosition = _xref[streamNumber].Offset;
+                if (!_xref.TryGetValue(containedNumber, out var existingEntry) ||
+                    candidatePosition > GetPhysicalPosition(existingEntry))
+                {
+                    _xref[containedNumber] = XrefEntry.CreateCompressed(streamNumber, i);
+
+                    // An earlier iteration of this same loop may already have called GetObject on
+                    // containedNumber (for example to inspect some other stream candidate that
+                    // turned out not to be an ObjStm), caching its now-superseded value. Evict
+                    // that stale cache entry so a later GetObject(containedNumber) call re-reads
+                    // from (and reflects) the xref entry we just overwrote above.
+                    _objectCache.Remove(containedNumber);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Returns the physical buffer offset an <see cref="XrefEntry"/> is anchored to, used by
+    ///     <see cref="RegisterCompressedObjectsFromObjectStreams"/> to decide which of two
+    ///     candidate definitions for the same object number physically occurs later in the file.
+    ///     A <see cref="XrefEntryType.Direct"/> entry's own offset is used directly; a
+    ///     <see cref="XrefEntryType.Compressed"/> entry has no byte position of its own, so its
+    ///     containing object stream's own (always direct) offset is used as its position instead
+    ///     - every object inside a given stream physically occurs together, at that stream's
+    ///     location.
+    /// </summary>
+    private long GetPhysicalPosition(XrefEntry entry) =>
+        entry.Type == XrefEntryType.Compressed ? _xref[entry.StreamNumber].Offset : entry.Offset;
+
+    /// <summary>
+    ///     Returns whether <paramref name="value"/> is a finite integer exactly representable as
+    ///     a non-negative <see cref="int"/> - the validity rule every numeric field parsed from
+    ///     untrusted PDF syntax must satisfy before being narrowed and used as a dictionary key,
+    ///     array index, or identity comparison. A bare <c>(int)</c> cast on a value that fails
+    ///     this check either silently truncates a non-integer value (for example <c>1.5</c>
+    ///     becoming <c>1</c>) or produces an unspecified, platform-dependent wrapped result (for a
+    ///     magnitude outside <see cref="int"/>'s range) - both of which risk accepting a malformed
+    ///     declaration as if it were a different, legitimate one instead of rejecting it.
+    /// </summary>
+    private static bool TryGetNonNegativeInt(double value, out int result)
+    {
+        if (value >= 0 && value <= int.MaxValue && double.IsInteger(value))
+        {
+            result = (int)value;
+            return true;
+        }
+
+        result = 0;
+        return false;
+    }
+
+    /// <summary>
+    ///     Reads the next token, treating a malformed token - for example a hex string containing
+    ///     a byte that is neither a hex digit nor whitespace - as unparsable noise rather than
+    ///     letting the exception abort the whole header scan. This matters because
+    ///     <see cref="RegisterCompressedObjectsFromObjectStreams"/> tokenizes an object stream's
+    ///     own decompressed header bytes (the <c>N1 O1 N2 O2 ...</c> pairs following its
+    ///     <c>/Type /ObjStm</c> dictionary), which - unlike a well-formed document's normal
+    ///     content - cannot be trusted to be valid PDF syntax when this linear-scan fallback is
+    ///     running at all. On failure the tokenizer is resynchronized by advancing at least one
+    ///     byte past the token's start position (guaranteeing forward progress even when the
+    ///     failing token consumed zero bytes before throwing), and <see langword="null"/> is
+    ///     returned so the caller can simply stop registering further entries from that one
+    ///     object stream (its other already-registered entries, and every other object stream,
+    ///     are unaffected).
+    /// </summary>
+    private static PdfToken? TryNextToken(PdfTokenizer tokenizer)
+    {
+        var start = tokenizer.Position;
+        try
+        {
+            return tokenizer.NextToken();
+        }
+        catch (InvalidDataException)
+        {
+            if (tokenizer.Position <= start)
+            {
+                tokenizer.Position = start + 1;
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     Scans the buffer for every literal <c>trailer</c> keyword byte marker and parses the
+    ///     dictionary that follows it, keeping the last successfully parsed one (a later
+    ///     occurrence - for example from an incremental update - overrides an earlier one). This
+    ///     locates the keyword itself via a raw byte search rather than <see cref="PdfTokenizer"/>
+    ///     tokenizing the whole buffer, for the same reason <see cref="ScanObjectOffsets"/> does:
+    ///     real-world binary stream noise routinely derails a general-purpose tokenizer long
+    ///     before it would ever reach a genuine "trailer" keyword. As in
+    ///     <see cref="ScanObjectOffsets"/>, <see cref="AdvancePastNonSyntax"/> is consulted at
+    ///     every position so a "trailer" byte sequence embedded inside a comment or string can
+    ///     never be mistaken for the real keyword, soundly rather than via a formatting
+    ///     convention.
+    /// </summary>
+    /// <param name="streamPayloadRanges">
+    ///     The stream payload ranges already identified by <see cref="ScanObjectOffsets"/>; a
+    ///     "trailer" byte-sequence match found inside one of these ranges is ignored rather than
+    ///     parsed, since it is necessarily just coincidental content inside some object's
+    ///     compressed/binary stream data (for example embedded verbatim inside a PDF being
+    ///     recovered, or compressed content that happens to decompress-match nothing in
+    ///     particular) rather than the document's real trailer keyword. <paramref
+    ///     name="streamPayloadRanges"/> is produced by <see cref="ScanObjectOffsets"/>'s single
+    ///     left-to-right pass in increasing, non-overlapping <c>Start</c> order, so membership is
+    ///     tested here with a single monotonically-advancing index alongside the scan position
+    ///     rather than a per-position linear search of the whole list - keeping this scan overall
+    ///     linear in the buffer size instead of quadratic in stream-object count.
+    /// </param>
+    private PdfObject? ScanForTrailerDictionary(List<(int Start, int End)> streamPayloadRanges)
+    {
+        var buffer = _buffer;
+        PdfObject? last = null;
+        var i = 0;
+        var rangeIndex = 0;
+        var unterminatedStringEncountered = false;
+
+        while (i < buffer.Length)
+        {
+            while (rangeIndex < streamPayloadRanges.Count && i >= streamPayloadRanges[rangeIndex].End)
+            {
+                rangeIndex++;
+            }
+
+            if (rangeIndex < streamPayloadRanges.Count &&
+                i >= streamPayloadRanges[rangeIndex].Start && i < streamPayloadRanges[rangeIndex].End)
+            {
+                // Jump straight past the whole payload range before considering it for anything
+                // else: it is not real PDF syntax, so neither comment/string tracking nor keyword
+                // matching apply inside it. This check must run before AdvancePastNonSyntax is
+                // ever given this position - a payload beginning with '(' or '<' would otherwise
+                // be misread as the start of a literal/hex string and scanned by
+                // AdvancePastNonSyntax as if it were PDF syntax, which tracks nested
+                // parentheses/escapes only against the whole buffer's end, not this range's own
+                // End. That can carry the scan deep into - or even past - arbitrary binary
+                // payload content before this guard ever gets a chance to clip it, potentially
+                // skipping right over the document's real trailer keyword.
+                i = streamPayloadRanges[rangeIndex].End;
+                continue;
+            }
+
+            var afterNonSyntax = AdvancePastNonSyntax(buffer, i, ref unterminatedStringEncountered);
+            if (afterNonSyntax != i)
+            {
+                i = afterNonSyntax;
+                continue;
+            }
+
+            if (!IsKeywordAt(buffer, i, "trailer"u8))
+            {
+                i++;
+                continue;
+            }
+
+            var after = i + "trailer"u8.Length;
+            var tokenizer = new PdfTokenizer(buffer) { Position = after };
             try
             {
                 var candidate = ParseValue(tokenizer);
@@ -526,10 +1572,28 @@ public sealed partial class PdfDocument
             {
                 // Ignore a malformed trailer at this position and keep scanning.
             }
+
+            i = after;
         }
 
         return last;
     }
+
+    /// <summary>
+    ///     Returns whether <paramref name="keyword"/> matches the buffer exactly at
+    ///     <paramref name="position"/>, applying the same regular-byte boundary rules as
+    ///     <see cref="IndexOfKeyword"/> (so a match inside a larger token, such as the tail
+    ///     of a longer word, is rejected) rather than merely comparing bytes. A match is also
+    ///     rejected when immediately preceded by <c>/</c>: per the PDF specification a name token
+    ///     begins with <c>/</c> directly followed by its regular characters with no intervening
+    ///     whitespace, so (for example) <c>/trailer</c> is a <em>name</em> whose text happens to
+    ///     read "trailer" - a legitimate dictionary key or value any real document can contain -
+    ///     never the <c>trailer</c> keyword itself, and must not be parsed as one.
+    /// </summary>
+    private static bool IsKeywordAt(byte[] buffer, int position, ReadOnlySpan<byte> keyword) =>
+        position + keyword.Length <= buffer.Length &&
+        (position == 0 || buffer[position - 1] != (byte)'/') &&
+        IndexOfKeyword(buffer, position, position + keyword.Length, keyword) == position;
 
     private static string? GetNameValue(PdfObject dictionary, string key) =>
         dictionary.Get(key) is { Kind: PdfKind.Name } name ? name.Text : null;
@@ -572,7 +1636,7 @@ public sealed partial class PdfDocument
             PdfObject result;
             if (entry.Type == XrefEntryType.Direct)
             {
-                result = ParseIndirectObjectAt((int)entry.Offset, number);
+                result = ParseIndirectObjectAt(entry.Offset, number);
             }
             else
             {
@@ -588,10 +1652,14 @@ public sealed partial class PdfDocument
         }
     }
 
-    private PdfObject ParseIndirectObjectAt(int offset, int expectedNumber)
+    private PdfObject ParseIndirectObjectAt(long offset, int expectedNumber)
     {
+        // Validate against the original 64-bit offset before narrowing to int: narrowing first
+        // would let an out-of-range declared offset (for example one larger than int.MaxValue)
+        // silently wrap around to some in-bounds value and bypass this very check.
         ValidateBufferOffset(offset, _buffer.Length, $"Indirect object {expectedNumber}");
-        var tokenizer = new PdfTokenizer(_buffer) { Position = offset };
+        var position = (int)offset;
+        var tokenizer = new PdfTokenizer(_buffer) { Position = position };
         var numberToken = tokenizer.NextToken();
         var generationToken = tokenizer.NextToken();
         var objToken = tokenizer.NextToken();
@@ -600,6 +1668,23 @@ public sealed partial class PdfDocument
             objToken.Kind != PdfTokenKind.Keyword || objToken.Text != "obj")
         {
             throw new InvalidDataException($"Malformed indirect object header for object {expectedNumber} at offset {offset}.");
+        }
+
+        // Cross-check the header's own declared object number against the number the caller
+        // looked up in the cross-reference table - mirroring the equivalent check already
+        // performed for compressed objects below. Without this, a corrupted or crafted
+        // cross-reference entry whose offset points at a different object's header would be
+        // silently accepted and relabeled with the wrong (requested) object number/identity.
+        // Validating the header's declared number as a non-negative integer before comparing it
+        // (rather than narrowing it to int via a bare cast first) matters: a malformed,
+        // non-integer declaration such as "1.5 0 obj" would otherwise truncate to 1 and
+        // coincidentally compare equal to an expected object number of 1, silently accepting a
+        // header the PDF grammar does not actually permit instead of failing closed.
+        if (!TryGetNonNegativeInt(numberToken.Number, out var declaredNumber) || declaredNumber != expectedNumber)
+        {
+            throw new InvalidDataException(
+                $"Indirect object header at offset {offset} declares object number {numberToken.Number}, " +
+                $"which does not match expected object number {expectedNumber}.");
         }
 
         var generation = (int)generationToken.Number;
@@ -636,12 +1721,21 @@ public sealed partial class PdfDocument
 
         var decoded = GetStreamDecodedBytes(container);
 
-        var count = container.Get("N") is { Kind: PdfKind.Number } countObject
-            ? (int)countObject.Number
-            : throw new InvalidDataException("Object stream is missing /N.");
-        var first = container.Get("First") is { Kind: PdfKind.Number } firstObject
-            ? (int)firstObject.Number
-            : throw new InvalidDataException("Object stream is missing /First.");
+        // Reject a malformed, non-integer, or out-of-range declared "/N"/"/First" the same way
+        // RegisterCompressedObjectsFromObjectStreams's own eager pre-scan already does for /N - a
+        // bare (int) cast would otherwise silently truncate (for example "1.5" to 1) and accept a
+        // grammatically invalid object stream instead of failing closed.
+        if (container.Get("N") is not { Kind: PdfKind.Number } countObject ||
+            !TryGetNonNegativeInt(countObject.Number, out var count))
+        {
+            throw new InvalidDataException("Object stream is missing /N.");
+        }
+
+        if (container.Get("First") is not { Kind: PdfKind.Number } firstObject ||
+            !TryGetNonNegativeInt(firstObject.Number, out var first))
+        {
+            throw new InvalidDataException("Object stream is missing /First.");
+        }
 
         if (indexInStream < 0 || indexInStream >= count)
         {
@@ -682,11 +1776,26 @@ public sealed partial class PdfDocument
 
             if (i == indexInStream)
             {
-                relativeOffset = (int)offsetToken.Number;
-                if ((int)numberToken.Number != expectedNumber)
+                // Validating the header's declared number as a non-negative integer before
+                // comparing it (rather than narrowing it to int via a bare cast first) matters: a
+                // malformed, non-integer declaration such as "1.5" would otherwise truncate to 1
+                // and coincidentally compare equal to an expected object number of 1, silently
+                // accepting a header the PDF grammar does not actually permit instead of failing
+                // closed. The offset is validated the same way since it is genuinely used (not
+                // merely compared): a malformed, non-integer or out-of-range declared offset must
+                // be rejected outright rather than silently truncated or wrapped to an unrelated,
+                // in-range value that could coincidentally still pass the buffer-range check
+                // performed on it below.
+                if (!TryGetNonNegativeInt(numberToken.Number, out var containedNumber) || containedNumber != expectedNumber)
                 {
                     throw new InvalidDataException(
                         $"Object stream {streamNumber} entry {indexInStream} does not match expected object number {expectedNumber}.");
+                }
+
+                if (!TryGetNonNegativeInt(offsetToken.Number, out relativeOffset))
+                {
+                    throw new InvalidDataException(
+                        $"Object stream {streamNumber} entry {indexInStream} declares a malformed relative offset.");
                 }
             }
         }

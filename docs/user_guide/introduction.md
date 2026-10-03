@@ -1218,18 +1218,21 @@ page-tree ancestors when it does not declare its own.
 - `ArgumentOutOfRangeException`: Thrown when `pageIndex` is negative or `>= PageCount`.
 - `ObjectDisposedException`: Thrown when called after `Dispose()` has been called.
 
-##### PdfDocument.Render(int pageIndex, int width, int height)
+##### PdfDocument.Render(int pageIndex, int width, int height, PdfRenderOptions? options = null)
 
 ```csharp
-public Surface Render(int pageIndex, int width, int height)
+public Surface Render(int pageIndex, int width, int height, PdfRenderOptions? options = null)
 ```
 
-Returns a new `Surface` of the caller-specified `width` x `height` for the given page, painted
+Returns a new `Surface` of the caller-specified `width` x `height` for the given page, cleared to
+`options.BackgroundColor` (opaque white by default, when `options` is `null`) and then painted
 with the page's interpreted content-stream geometry (path construction/painting with real device
 color, placed image XObjects, and text shown with a resolved TrueType font - embedded when
-present, otherwise automatically substituted, see *PdfDocument* above), or a fully transparent
-surface when the page declares no `/Contents`. The `width`/`height` used is exactly as given - it
-is not clamped or derived from the page's own `/MediaBox` size.
+present, otherwise automatically substituted, see *PdfDocument* above). A page with no
+`/Contents` simply returns the cleared, unpainted background surface. The `width`/`height` used
+is exactly as given - it is not clamped or derived from the page's own `/MediaBox` size. To
+reproduce the pre-`PdfRenderOptions` fully transparent background, pass
+`new PdfRenderOptions { BackgroundColor = new(0, 0, 0, 0) }`.
 
 **Exceptions:**
 
@@ -1245,25 +1248,26 @@ is not clamped or derived from the page's own `/MediaBox` size.
   text-rendering mode.
 - `ObjectDisposedException`: Thrown when called after `Dispose()` has been called.
 
-##### PdfDocument.Render(int pageIndex, float dpi)
+##### PdfDocument.Render(int pageIndex, float dpi, PdfRenderOptions? options = null)
 
 ```csharp
-public Surface Render(int pageIndex, float dpi)
+public Surface Render(int pageIndex, float dpi, PdfRenderOptions? options = null)
 ```
 
-Convenience overload of `Render(int, int, int)` for the common "render at a given resolution"
-case: reads `GetPageInfo(pageIndex)`'s rotation-adjusted width/height (in points, 1/72 inch),
-scales both by `dpi / 72`, rounds to the nearest pixel, and renders at that size - preserving the
-page's own aspect ratio, unlike the three-argument overload. Use `Render(int, int, int)` directly
-instead when independent X/Y scaling (non-square pixels, or an exact pixel size regardless of
-aspect ratio) is needed.
+Convenience overload of `Render(int, int, int, PdfRenderOptions?)` for the common "render at a
+given resolution" case: reads `GetPageInfo(pageIndex)`'s rotation-adjusted width/height (in
+points, 1/72 inch), scales both by `dpi / 72`, rounds to the nearest pixel, and renders at that
+size - preserving the page's own aspect ratio, unlike the four-argument overload, and forwarding
+`options` unchanged. Use `Render(int, int, int, PdfRenderOptions?)` directly instead when
+independent X/Y scaling (non-square pixels, or an exact pixel size regardless of aspect ratio) is
+needed.
 
 **Exceptions:**
 
 - `ArgumentOutOfRangeException`: Thrown when `pageIndex` is negative or `>= PageCount`, when
   `dpi` is not a positive, finite number, or when the computed pixel width/height is not a valid
   `Surface` size.
-- Also throws every exception `Render(int, int, int)` itself can throw.
+- Also throws every exception `Render(int, int, int, PdfRenderOptions?)` itself can throw.
 
 ##### PdfDocument.Dispose()
 

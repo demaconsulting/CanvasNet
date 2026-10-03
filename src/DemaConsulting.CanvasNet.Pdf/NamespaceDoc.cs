@@ -18,7 +18,7 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///     <c>DemaConsulting.CanvasNet</c> package.
 /// </summary>
 /// <remarks>
-///     <see cref="PdfDocument.Render(int, int, int)"/> fully interprets a page's content stream:
+///     <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> fully interprets a page's content stream:
 ///     vector path construction/painting with real device color (<c>DeviceGray</c>/
 ///     <c>DeviceRGB</c>/<c>DeviceCMYK</c>, <c>CalRGB</c>, ICC-based, and <c>/Indexed</c> color
 ///     spaces), text shown with a resolved font - simple <c>/Subtype /TrueType</c>/<c>/Type1</c>
@@ -40,7 +40,7 @@ namespace DemaConsulting.CanvasNet.Pdf;
 /// </remarks>
 /// <example>
 ///     Rendering every page of a PDF document to a 300 DPI PNG file, using
-///     <see cref="PdfDocument.Render(int, float)"/> (which preserves each page's own aspect
+///     <see cref="PdfDocument.Render(int, float, PdfRenderOptions?)"/> (which preserves each page's own aspect
 ///     ratio) together with the core <c>DemaConsulting.CanvasNet</c> package's
 ///     <see cref="DemaConsulting.CanvasNet.Codecs.PngCodec"/> - the separate package that holds
 ///     <see cref="DemaConsulting.CanvasNet.Canvas.Surface"/> and every raster codec, since this

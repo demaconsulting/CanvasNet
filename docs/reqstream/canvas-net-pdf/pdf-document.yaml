@@ -69,6 +69,9 @@ sections:
               and must be supported for broad real-world document compatibility.
             tests:
               - PdfDocument_Open_ClassicXref_ResolvesRootAndPage
+              - PdfDocument_Open_ClassicXref_EntryOffsetBeyondInt32Range_ThrowsInvalidDataException
+              - PdfDocument_Open_ClassicXref_EntryPointingAtWrongObjectHeader_ThrowsInvalidDataException
+              - PdfDocument_Open_ClassicXref_NonIntegerObjectNumberHeader_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-XrefStream
             title: >-
@@ -93,6 +96,7 @@ sections:
               compressed this way, many modern documents' pages would be unreachable.
             tests:
               - PdfDocument_Open_ObjectStream_DecompressesAndResolvesCompressedPage
+              - PdfDocument_Open_CompressedObjectNonIntegerNumber_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-HybridXref
             title: >-
@@ -118,6 +122,34 @@ sections:
               well-formed documents still be opened instead of always failing outright.
             tests:
               - PdfDocument_Open_MalformedStartxref_FallsBackToLinearScan
+              - PdfDocument_Open_LinearScanFallback_ObjMarkerInsideStreamPayload_DoesNotCorruptOffsets
+              - PdfDocument_Open_Encrypted_LinearScanFallback_RecoversObjectsCompressedInObjectStream
+              - PdfDocument_Open_LinearScanFallback_StreamWordInsideDictionaryValue_DoesNotSkipFollowingObject
+              - PdfDocument_Open_LinearScanFallback_TrailerKeywordInsideStreamPayload_DoesNotReplaceRealTrailer
+              - PdfDocument_Open_LinearScanFallback_ObjMarkerInsideNonStreamDictionaryValue_DoesNotCorruptOffset
+              - PdfDocument_Open_LinearScanFallback_EarlyFalseEndstreamInPayload_DoesNotCorruptOffsets
+              - PdfDocument_Open_LinearScanFallback_TrailerKeywordInCommentOutsideStream_DoesNotReplaceRealTrailer
+              - PdfDocument_Open_LinearScanFallback_EarlyFalseEndstreamWithIndirectLength_DoesNotCorruptOffsets
+              - PdfDocument_Open_LinearScanFallback_ObjectHeaderNotAtLineStart_StillResolves
+              - PdfDocument_Open_LinearScanFallback_ObjectHeaderDecoyInsideMultilineString_DoesNotCorruptOffsets
+              - PdfDocument_Open_LinearScanFallback_UnsupportedFilterObjectStream_DoesNotAbortRecovery
+              - PdfDocument_Open_LinearScanFallback_TrailerKeywordAsNameToken_DoesNotReplaceRealTrailer
+              - PdfDocument_Open_LinearScanFallback_ManyStreamPayloadRangesBeforeTrailer_StillResolvesTrailer
+              - PdfDocument_Open_LinearScanFallback_TrailerKeywordAfterHashByte_DoesNotReplaceRealTrailer
+              - PdfDocument_Open_LinearScanFallback_ObjectNumberAsTokenSuffix_DoesNotCorruptOffset
+              - PdfDocument_Open_LinearScanFallback_ObjectNumberAsNameToken_DoesNotCorruptOffset
+              - PdfDocument_Open_LinearScanFallback_SecondAngleBracketAsHexStringStart_DoesNotCorruptOffset
+              - PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly
+              - PdfDocument_Open_ClassicXref_StartxrefAsTokenSuffix_DoesNotRedirectToBogusOffset
+              - PdfDocument_Open_ClassicXref_StartxrefAsNameToken_DoesNotRedirectToBogusOffset
+              - PdfDocument_Open_LinearScanFallback_CommentBeforeEndobj_DoesNotCorruptOffsets
+              - PdfDocument_Open_LinearScanFallback_CommentInObjectHeader_ResolvesObject
+              - PdfDocument_Open_LinearScanFallback_CommentBeforeDeclaredLengthEndstream_DoesNotCorruptOffsets
+              - PdfDocument_Open_LinearScanFallback_UnterminatedCommentAtForwardScanBound_DoesNotCorruptOffsets
+              - PdfDocument_Open_LinearScanFallback_CompressedObjectNonIntegerNumber_ThrowsInvalidDataException
+              - PdfDocument_Open_LinearScanFallback_ObjectStreamNonIntegerCount_ThrowsInvalidDataException
+              - PdfDocument_Open_LinearScanFallback_LaterCompressedRedefinitionOverridesEarlierDirectObject
+              - PdfDocument_Open_LinearScanFallback_UnrelatedUnterminatedLiteralStringBeforeObjectHeader_StillResolvesDocument
 
           - id: CanvasNetPdf-PdfDocument-PageTreeTraversal
             title: >-
@@ -326,19 +358,27 @@ sections:
               The PdfDocument class shall return a Surface of the caller-specified width and
               height for a valid page index, painting it with the page's interpreted content-
               stream geometry (see CanvasNetPdf-PdfDocument-ContentStreamDispatch and its sibling
-              requirements below) or, when the page declares no /Contents at all, a fully
-              transparent surface; it shall validate the page index the same way GetPageInfo does,
-              and propagate Surface's own width/height validation unwrapped rather than
-              duplicating it.
+              requirements below) over a surface cleared to the caller-configurable
+              PdfRenderOptions.BackgroundColor (opaque white by default) via an optional trailing
+              PdfRenderOptions? options parameter; it shall validate the page index the same way
+              GetPageInfo does, and propagate Surface's own width/height validation unwrapped
+              rather than duplicating it.
             justification: |
               Phase 1 established Render's final call shape (page index plus caller-chosen output
               size) so Phase 2's real content-stream rendering could be added without a breaking
-              API change; callers need a correctly sized, correctly painted result.
+              API change; callers need a correctly sized, correctly painted result, and many
+              downstream consumers (for example PDF-to-image conversion for print or preview)
+              expect an opaque, non-transparent page background by default while still being able
+              to opt back into the old fully transparent behavior when they need to composite the
+              result over something else themselves.
             tests:
-              - PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedBlankSurface
+              - PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedOpaqueWhiteSurface
               - PdfDocument_Render_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException
               - PdfDocument_Render_InvalidWidth_PropagatesSurfaceArgumentOutOfRangeException
-              - PdfDocument_ContentStream_NoContents_RendersBlankSurface
+              - PdfDocument_ContentStream_NoContents_RendersWithoutThrowing
+              - PdfDocument_Render_NoOptions_DefaultsToOpaqueWhiteBackground
+              - PdfDocument_Render_CustomBackgroundColor_ClearsSurfaceToThatColor
+              - PdfDocument_Render_TransparentBackgroundColor_ReproducesOldFullyTransparentBehavior
 
           - id: CanvasNetPdf-PdfDocument-RenderWithDpi
             title: >-
@@ -347,8 +387,9 @@ sections:
               compute an output width/height in pixels themselves, scaling the page's own
               rotation-adjusted point-space size by dpi/72, preserving its aspect ratio, and
               rounding the result to the nearest pixel before producing the same painted Surface
-              as the width/height overload; it shall reject a dpi that is not a positive, finite
-              number, and validate the page index the same way the width/height overload does.
+              as the width/height overload (forwarding its own optional PdfRenderOptions?
+              parameter unchanged); it shall reject a dpi that is not a positive, finite number,
+              and validate the page index the same way the width/height overload does.
             justification: |
               Callers frequently think in terms of a target resolution (dots per inch) rather than
               an absolute pixel size, and computing a page's correctly aspect-ratio-preserving
@@ -360,6 +401,7 @@ sections:
               - PdfDocument_RenderWithDpi_InvalidDpi_ThrowsArgumentOutOfRangeException
               - PdfDocument_RenderWithDpi_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException
               - PdfDocument_RenderWithDpi_AfterDispose_ThrowsObjectDisposedException
+              - PdfDocument_RenderWithDpi_PropagatesOptionsBackgroundColor
 
           - id: CanvasNetPdf-PdfDocument-ContentStreamDispatch
             title: >-

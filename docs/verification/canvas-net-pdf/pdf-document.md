@@ -113,6 +113,26 @@ Opens `PdfFixtures/classic-xref-single-page.pdf` (a classic `xref` table + `trai
 public API. Asserts `PageCount` and the single page's `GetPageInfo` size/rotation match the
 fixture's known content.
 
+`PdfDocument_Open_ClassicXref_EntryOffsetBeyondInt32Range_ThrowsInvalidDataException` confirms
+that a cross-reference entry's declared offset is validated against its original 64-bit value
+before ever being narrowed to `int`: the test entry declares the real page object's genuine
+offset plus 2^32 (still representable in the ten fixed-width digits the classic cross-reference
+format allows), chosen specifically because narrowing it to `int` via an unchecked, wraparound
+cast recovers the exact original, in-bounds offset - a bug that validated the already-narrowed
+value would wrongly accept and use. `PdfDocument_Open_ClassicXref_EntryPointingAtWrongObjectHeader_ThrowsInvalidDataException`
+confirms that an entry's declared offset must lead to a header whose own declared object number
+matches the number being resolved: the test corrupts the page object's entry to point at a
+second, independently well-formed and shape-compatible `/Type /Page` object appended after the
+document's own `%%EOF` (never reachable through any genuine `xref`/`trailer` path), proving the
+mismatch is rejected outright rather than silently accepted and relabeled with the requested
+object number - which would otherwise render the wrong page without any error.
+`PdfDocument_Open_ClassicXref_NonIntegerObjectNumberHeader_ThrowsInvalidDataException` confirms
+that an object header's declared number token is validated as representable by a non-negative
+`int` before being compared against the number being resolved: the parsed token value is a
+floating-point `double`, so a bare narrowing cast (for example `(int)value`) would silently
+truncate a non-integer value such as `1.5` to `1`, wrongly treating a malformed header as a match
+for object 1 instead of rejecting it outright.
+
 #### CanvasNetPdf-PdfDocument-XrefStream: Xref Stream Resolves Root and Page
 
 **Test**: `PdfDocument_Open_XrefStream_ResolvesRootAndPage`
@@ -129,6 +149,28 @@ Opens `PdfFixtures/object-stream.pdf` (a `/Type /ObjStm` compressed-object strea
 dictionary) through the public API. Asserts `PageCount` and the compressed page's `GetPageInfo`
 size match the fixture's known content, confirming FlateDecode decompression and per-object
 resolution within the stream both work correctly.
+
+`PdfDocument_Open_CompressedObjectNonIntegerNumber_ThrowsInvalidDataException` confirms that a
+compressed object's own declared object number (read from inside the decompressed `/Type /ObjStm`
+body) is likewise validated as a non-negative `int` before use as a dictionary key and before
+comparison against the number being resolved, for the same reason as the classic-xref header
+check above: the parsed token is a `double`, and an unchecked narrowing cast would silently
+truncate a non-integer value rather than reject it.
+
+An object stream's own declared `/N` (entry count) and `/First` (header length) are validated the
+same way, as non-negative `int` values, before being used to bound the header-reading loop and to
+locate compressed object bodies: an unchecked narrowing cast on either would silently truncate a
+non-integer declaration (for example `/N 1.5`) instead of rejecting a container the PDF grammar
+does not actually permit. This mirrors the already-tested validation
+`PdfDocument_Open_ObjectStream_DeclaredCountExceedsDecodedLength_ThrowsInvalidDataException`
+exercises for the eager, fallback-only object-stream pre-scan; here the equivalent check guards
+the separate, primary (non-fallback) compressed-object resolution path reached by ordinary
+`/Type /XRef` documents, which is reachable far more often in practice. No dedicated fixture
+targets a fractional `/N`/`/First` on this specific path: constructing one that fails only because
+of that value (and not for an unrelated reason, such as the minimal test document's catalog having
+no `/Pages` to resolve) proved to require a disproportionate amount of hand-built binary
+cross-reference-stream scaffolding for a fix that is otherwise a direct, low-risk mirror of an
+already-verified sibling check; the fix is covered by direct reasoning instead.
 
 #### CanvasNetPdf-PdfDocument-HybridXref: Hybrid Xref Resolves Compressed Entry via XRefStm
 
@@ -148,6 +190,166 @@ Opens `PdfFixtures/malformed-startxref.pdf` (no `startxref`/`xref`/`trailer` at 
 public API. Asserts `PageCount` and the page's `GetPageInfo` size match the fixture's known
 content, confirming the linear-scan fallback successfully reconstructs an object-offset table and
 locates the catalog without any cross-reference section present.
+
+Further fixture-backed tests (`PdfDocument_Open_LinearScanFallback_*` and
+`PdfDocument_Open_Encrypted_LinearScanFallback_*`, listed in full in the requirements
+traceability data) exercise the fallback's resilience against decoy byte sequences that coincide
+with its "N G obj"/`stream`/`endstream`/`trailer` keyword matches - inside stream payloads,
+dictionary values, PDF comments, and multi-line string literals - as well as its handling of
+compressed-object recovery when an unrelated object stream declares a filter this library does
+not support for generic stream decoding. In particular,
+`PdfDocument_Open_LinearScanFallback_ObjectHeaderNotAtLineStart_StillResolves` and
+`PdfDocument_Open_LinearScanFallback_ObjectHeaderDecoyInsideMultilineString_DoesNotCorruptOffsets`
+confirm that object-header detection is governed by genuine PDF lexical structure (comments and
+string literals are skipped structurally before any keyword match is attempted) rather than a
+line-start convention, which is neither required by the PDF grammar nor sufficient to reject a
+decoy lexically embedded inside a multi-line string; and
+`PdfDocument_Open_LinearScanFallback_UnsupportedFilterObjectStream_DoesNotAbortRecovery` confirms
+that an unsupported stream filter on one object stream does not abort recovery of objects
+compressed in other, decodable object streams. The raw-byte search for a stream payload's
+terminating `endstream` keyword (used when no trustworthy `/Length` is available) remains an
+acknowledged, inherent limitation of the PDF format itself - binary payload data can
+legitimately, coincidentally contain a byte-exact `endstream` sequence of its own, which no
+finite pattern-matching rule can fully distinguish from the genuine terminator - matching the
+documented behavior of other mainstream recovery implementations (for example qpdf and mutool); a
+worst-case false match here can at most cause partial or no recovery of an already-malformed
+document, never a crash.
+`PdfDocument_Open_LinearScanFallback_TrailerKeywordAsNameToken_DoesNotReplaceRealTrailer` further
+confirms that a `/trailer` PDF *name* token (introduced by a literal `/` immediately before text
+that happens to read "trailer") is never mistaken for the bare `trailer` keyword - only the
+latter denotes a genuine trailer dictionary - and
+`PdfDocument_Open_LinearScanFallback_ManyStreamPayloadRangesBeforeTrailer_StillResolvesTrailer`
+confirms the trailer scan still locates the real trailer correctly when preceded by many
+unrelated stream objects, exercising its stream-payload-range membership check (a
+monotonically-advancing index into the ranges `ScanObjectOffsets` already discovered in
+increasing order, keeping the overall scan linear in document size rather than quadratic in
+stream-object count) across many entries.
+`PdfDocument_Open_LinearScanFallback_TrailerKeywordAfterHashByte_DoesNotReplaceRealTrailer`
+confirms that a `trailer` suffix embedded inside a longer regular-byte run such as
+`foo#trailer` is never mistaken for a standalone keyword match: keyword-boundary detection
+recognizes exactly the same "regular byte" rule (any byte that is neither PDF whitespace nor a
+PDF delimiter) that `PdfTokenizer` itself uses to decide where a keyword token ends, rather than
+the narrower "ASCII letter or digit" check an earlier version relied on, which under-approximated
+the tokenizer's own notion of a token boundary and could be defeated by a byte such as `#`.
+`PdfDocument_Open_LinearScanFallback_ObjectNumberAsTokenSuffix_DoesNotCorruptOffset` confirms the
+same regular-byte boundary rule is also applied when parsing an object header's `N G obj` number
+backward from a matched `obj` keyword: a decoy such as `decoy3 0 obj` is rejected because the
+object-number digit `3` is only the suffix of the larger regular-byte token `decoy3`, not a
+standalone number token with a genuine boundary immediately before it.
+`PdfDocument_Open_LinearScanFallback_ObjectNumberAsNameToken_DoesNotCorruptOffset` confirms the
+analogous PDF name-token exclusion for the same backward parse: a decoy such as `/3 0 obj` is
+rejected because `/3` is lexically a PDF name token whose text happens to read "3", never a
+standalone object-number token, even though `/` is itself a delimiter (not a regular byte) and so
+is not caught by the regular-byte boundary check alone.
+`PdfDocument_Open_LinearScanFallback_SecondAngleBracketAsHexStringStart_DoesNotCorruptOffset`
+confirms that both characters of a dictionary's opening `<<` are excluded from hex-string
+detection, not just the first: a decoy `3 0 obj` embedded inside a hex-string-shaped run
+immediately following a genuine `<<` is never reached, because the second `<` is itself
+recognized as dictionary syntax (by also checking the *preceding* byte, not only the following
+one) rather than mistaken for the start of a `<...>` hex string whose premature, early-closing
+`>` would otherwise expose the decoy to keyword matching.
+`PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly` confirms
+the fallback scan completes in bounded, linear time even when fed a long run of unmatched `(`
+bytes: rather than re-scanning the entire remaining buffer from every failed literal/hex-string
+open position (which is quadratic in a crafted file's size and so a CPU/timeout
+denial-of-service), the scan permanently stops attempting further string opens for the remainder
+of a single pass once any one string scan fails to find its close before EOF. This is a
+deliberate, documented heuristic trade-off - a legitimate recovery opportunity immediately after
+such a degenerate byte run could in principle be missed - accepted because the project's
+established policy treats a heuristic fallback scanner's incompleteness as acceptable as long as
+it never hangs or crashes.
+`PdfDocument_Open_ClassicXref_StartxrefAsTokenSuffix_DoesNotRedirectToBogusOffset` confirms that
+the fallback search for a `startxref` marker (used when a genuine marker could not already be
+located) applies the same regular-byte boundary rule as every other keyword match in this file:
+a byte-exact `startxref` sequence that is only the suffix of a larger regular-byte token (for
+example `xstartxref`) is never mistaken for a standalone marker, even when it is physically
+positioned later in the file, byte-identical, and points at an independently valid second
+cross-reference section - which would otherwise cause the wrong document revision to be silently
+resolved instead of the genuine one.
+`PdfDocument_Open_LinearScanFallback_CompressedObjectNonIntegerNumber_ThrowsInvalidDataException`
+confirms the same non-negative-`int` validation applied to a compressed object's declared number
+(see `CanvasNetPdf-PdfDocument-ObjectStream` above) is also enforced when an object stream is
+reached only through this fallback's own eager object-stream registration pass, rather than
+through the primary cross-reference path - both call sites share the same validation helper, but
+each is independently reachable and so independently verified.
+`PdfDocument_Open_LinearScanFallback_ObjectStreamNonIntegerCount_ThrowsInvalidDataException`
+confirms the fallback's own eager object-stream registration pass applies the same non-negative-
+`int` validation to a declared `/N` (entry count) before narrowing it: an object stream declaring
+`/N 1.5` is rejected outright even though an unchecked `(int)` cast would have truncated it to `1`
+and coincidentally matched the real single-entry content that follows.
+`PdfDocument_Open_LinearScanFallback_LaterCompressedRedefinitionOverridesEarlierDirectObject`
+confirms the fallback's eager object-stream registration pass applies the same "a later physical
+occurrence overrides an earlier one" rule `ScanObjectOffsets` already applies to direct `N G obj`
+headers: when an object number is first defined directly, earlier in the file, and then
+redefined later via a compressed `/Type /ObjStm` entry - a realistic shape for an incrementally
+updated document - the later, compressed definition is resolved, not the earlier direct one. An
+earlier revision instead refused to overwrite any already-registered entry regardless of physical
+position, silently keeping the stale direct definition; this test would have failed against that
+behavior.
+`PdfDocument_Open_LinearScanFallback_UnrelatedUnterminatedLiteralStringBeforeObjectHeader_StillResolvesDocument`
+confirms the deliberate trade-off documented on `AdvancePastNonSyntax` (see its remarks) holds in
+practice: a run of unmatched, never-closing `(` bytes that is unrelated binary noise - not a
+crafted decoy - appearing *before* a document's genuine object headers does not abandon recovery
+of the rest of an otherwise perfectly valid document. An earlier revision of this fallback instead
+stopped scanning entirely the first time such a failed string-open was detected, which this test
+would have failed against; that stricter approach was reverted because it was measured to turn
+any incidental unmatched delimiter anywhere in the file into total recovery failure for documents
+that otherwise resolve correctly - a worse outcome than the narrow, byte-perfect decoy scenario it
+closed. No fixture targets that narrower decoy scenario directly (a genuine `obj`/`trailer`
+keyword appearing immediately after such a run, redefining an earlier object): accepting it as
+reachable, ordinary syntax is this trade-off's intentional, documented behavior, not a defect to
+regress-test against.
+
+The stream-payload-range membership check in the trailer-keyword scan (used by this fallback to
+locate an explicit `trailer` dictionary when no trustworthy cross-reference chain is available)
+is ordered to run *before* any comment/string-literal tracking is attempted at a given scan
+position, mirroring the proven-safe pattern `ScanObjectOffsets` already uses for the same ranges:
+a stream payload beginning with an unescaped `(` or `<` byte must never be treated as the start of
+real PDF string syntax, since the literal/hex-string skip tracks a matching close byte only
+against the whole buffer's end, not the payload's own end, and so could in principle carry the
+scan arbitrarily far - including past a genuine `trailer` keyword - before a check running only
+*after* that attempt ever gets a chance to redirect it. No dedicated fixture reproduces this
+ordering actually changing behavior: `streamPayloadRanges` always begins immediately after an
+object's `obj` keyword match, at a position that is reached one byte at a time by the scan and is
+always a few bytes of guaranteed-safe dictionary-header text (which `AdvancePastNonSyntax` never
+treats specially) before any payload content proper, so the range check applied either before or
+after already catches the position deterministically at that safe boundary in every construction
+attempted. The reordering is kept regardless, both because it is strictly safer with no
+behavioral downside and because it removes the dependency on this incidental property, which is
+not guaranteed by anything the PDF format itself requires.
+`PdfDocument_Open_ClassicXref_StartxrefAsNameToken_DoesNotRedirectToBogusOffset` confirms the
+analogous PDF name-token exclusion for that same `startxref` marker search: a decoy
+`/startxref` is rejected because it is lexically a PDF name token whose text happens to read
+"startxref", never a standalone keyword, mirroring the existing `/trailer` name-token exclusion
+`IsKeywordAt` already applies when scanning forward.
+`PdfDocument_Open_LinearScanFallback_CommentBeforeEndobj_DoesNotCorruptOffsets` confirms that a
+genuine `endstream` keyword separated from the `endobj` keyword that follows it by ordinary
+whitespace and a PDF comment (not merely an optional CRLF sequence) is still recognized as
+structurally valid: the PDF grammar permits any amount of whitespace, and comments, between
+tokens, and treating such a layout as coincidental payload noise would leave the stream's payload
+unprotected, exposing a false, embedded object header to corrupt an earlier, genuine object's
+offset.
+`PdfDocument_Open_LinearScanFallback_CommentInObjectHeader_ResolvesObject` confirms that a PDF
+comment separating an object header's generation number from its `obj` keyword - valid per the
+PDF grammar, since a comment is whitespace-equivalent token separation - does not make the
+backward object-header scan miss that object entirely; fallback recovery must recognize the same
+header a real forward parser would find.
+`PdfDocument_Open_LinearScanFallback_CommentBeforeDeclaredLengthEndstream_DoesNotCorruptOffsets`
+confirms that whitespace and a PDF comment between the end of a stream's correctly declared
+`/Length` payload and its terminating `endstream` keyword - valid per the PDF grammar, not merely
+an optional CRLF sequence - do not cause that genuinely correct declared length to be distrusted.
+Distrusting it would fall through to the much weaker raw fallback scan, which accepts an early,
+coincidental `endstream`/`endobj` pair embedded within the payload itself, ending the protected
+payload range too soon and exposing a false object header within it to corrupt an earlier,
+genuine object's offset.
+`PdfDocument_Open_LinearScanFallback_UnterminatedCommentAtForwardScanBound_DoesNotCorruptOffsets`
+confirms that when the bounded forward whitespace-and-comment scan runs out before an in-progress
+comment reaches its own end-of-line terminator, the bytes sitting exactly at that bound are never
+mistaken for a genuine keyword even when they spell one exactly - because, per the PDF comment
+grammar, they may in fact still be part of the comment's own (longer than the bound) body.
+Accepting them regardless would let an early, coincidental `endstream` be mistaken for the
+stream's real terminator, ending the protected payload range too soon and exposing a false object
+header to corrupt an earlier, genuine object's offset.
 
 #### CanvasNetPdf-PdfDocument-PageTreeTraversal: Page Tree Traversal Reports All Pages
 
@@ -340,33 +542,47 @@ Opens a single-page fixture and calls `GetPageInfo` with an out-of-range index. 
 
 #### CanvasNetPdf-PdfDocument-Render: Render Paints Content-Stream Geometry and Validates Arguments
 
-**Tests**: `PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedBlankSurface`,
+**Tests**: `PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedOpaqueWhiteSurface`,
 `PdfDocument_Render_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException`,
 `PdfDocument_Render_InvalidWidth_PropagatesSurfaceArgumentOutOfRangeException`,
-`PdfDocument_ContentStream_NoContents_RendersBlankSurface`
+`PdfDocument_ContentStream_NoContents_RendersWithoutThrowing`,
+`PdfDocument_Render_NoOptions_DefaultsToOpaqueWhiteBackground`,
+`PdfDocument_Render_CustomBackgroundColor_ClearsSurfaceToThatColor`,
+`PdfDocument_Render_TransparentBackgroundColor_ReproducesOldFullyTransparentBehavior`
 
 Calls `Render` with a valid page index and caller-chosen size against a fixture with no
-`/Contents`, asserting the returned `Surface` has exactly the requested dimensions and every
-pixel is the default (fully transparent) value. Calls `Render` with an out-of-range page index
-and a non-positive width, asserting `ArgumentOutOfRangeException` in both cases (the latter
-propagated unwrapped from `Surface`'s own constructor).
+`/Contents`, asserting the returned `Surface` has exactly the requested dimensions and, with no
+`options` argument supplied, every pixel is opaque white (`PdfRenderOptions.Default`'s
+`BackgroundColor`) - the surface is cleared to that color before any content-stream geometry is
+painted over it. Calls `Render` with an out-of-range page index and a non-positive width,
+asserting `ArgumentOutOfRangeException` in both cases (the latter propagated unwrapped from
+`Surface`'s own constructor). A dedicated custom-color test passes a `PdfRenderOptions` with a
+distinct, non-white opaque `BackgroundColor` and asserts every pixel matches it exactly, and a
+dedicated transparent-override test passes `new PdfRenderOptions { BackgroundColor = new(0, 0, 0,
+0) }` and asserts every pixel reproduces the fully transparent behavior `Render` had before this
+options parameter was added.
 
-#### CanvasNetPdf-PdfDocument-RenderWithDpi: Render(int, float) Scales Page Size by DPI/72 and Validates Arguments
+#### CanvasNetPdf-PdfDocument-RenderWithDpi: Render(int, float, PdfRenderOptions?) Scales by DPI/72
 
 **Tests**: `PdfDocument_RenderWithDpi_ScalesPageSizeByDpiOver72`,
 `PdfDocument_RenderWithDpi_InvalidDpi_ThrowsArgumentOutOfRangeException`,
 `PdfDocument_RenderWithDpi_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException`,
-`PdfDocument_RenderWithDpi_AfterDispose_ThrowsObjectDisposedException`
+`PdfDocument_RenderWithDpi_AfterDispose_ThrowsObjectDisposedException`,
+`PdfDocument_RenderWithDpi_PropagatesOptionsBackgroundColor`
 
-Calls `Render(int, float)` with several DPI values (`[Theory]`: 72, 36, and 144) against a
-single-page fixture and asserts the returned `Surface`'s width/height exactly match the page's
-own point-space size scaled by `dpi / 72` and rounded to the nearest pixel, confirming the
+Calls `Render(int, float, PdfRenderOptions?)` with several DPI values (`[Theory]`: 72, 36, and 144)
+against a single-page fixture and asserts the returned `Surface`'s width/height exactly match the
+page's own point-space size scaled by `dpi / 72` and rounded to the nearest pixel, confirming the
 overload preserves the page's aspect ratio rather than requiring the caller to compute pixel
-dimensions itself. Calls `Render(int, float)` with a non-positive and a non-finite (`NaN`,
-`PositiveInfinity`) DPI (`[Theory]`), an out-of-range page index, and after the document has been
-disposed, asserting `ArgumentOutOfRangeException` for the first two cases and
+dimensions itself. Calls `Render(int, float, PdfRenderOptions?)` with a non-positive and a
+non-finite (`NaN`, `PositiveInfinity`) DPI (`[Theory]`), an out-of-range page index, and after the
+document has been disposed, asserting `ArgumentOutOfRangeException` for the first two cases and
 `ObjectDisposedException` for the last, matching the validation contract already proven for
-`Render(int, int, int)`.
+`Render(int, int, int, PdfRenderOptions?)`. Renders a blank single-page fixture via
+`Render(int, float, PdfRenderOptions?)` with a custom `PdfRenderOptions.BackgroundColor` and
+asserts every pixel equals that custom color rather than the opaque-white default, proving the
+overload actually forwards its own `options` parameter through to
+`Render(int, int, int, PdfRenderOptions?)` instead of silently dropping it.
 
 #### CanvasNetPdf-PdfDocument-ContentStreamDispatch: Unknown Operators Are Skipped, Malformed Recognized Operators Throw
 

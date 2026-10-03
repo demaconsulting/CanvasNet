@@ -30,6 +30,14 @@ public class PdfDocumentTests
     private static readonly Canvas.Rgba32 Black = new(0, 0, 0, 255);
 
     /// <summary>
+    ///     A fully transparent <see cref="PdfRenderOptions.BackgroundColor"/>, used by tests that
+    ///     assert an unpainted region equals <see langword="default"/> to prove paint isolation
+    ///     from neighboring drawing, reproducing the fully transparent background <c>Render</c>
+    ///     always produced before <see cref="PdfRenderOptions"/> was introduced.
+    /// </summary>
+    private static readonly PdfRenderOptions Transparent = new() { BackgroundColor = new(0, 0, 0, 0) };
+
+    /// <summary>
     ///     Builds an in-memory, single-page, classic-xref PDF (matching
     ///     <c>PdfFixtures\README.md</c>'s hand-authored template) whose one page declares the
     ///     given <c>/MediaBox</c>, optional <c>/Rotate</c>, and a single <c>/Contents</c> stream
@@ -94,7 +102,7 @@ public class PdfDocumentTests
     {
         var bytes = BuildSinglePagePdf(mediaBoxWidth, mediaBoxHeight, content, rotate);
         using var document = PdfDocument.Open(new MemoryStream(bytes));
-        return document.Render(0, width, height);
+        return document.Render(0, width, height, Transparent);
     }
 
     /// <summary>
@@ -193,7 +201,7 @@ public class PdfDocumentTests
     private static Canvas.Surface RenderPdfBytes(byte[] bytes, int width = 100, int height = 100)
     {
         using var document = PdfDocument.Open(new MemoryStream(bytes));
-        return document.Render(0, width, height);
+        return document.Render(0, width, height, Transparent);
     }
 
     /// <summary>
@@ -1432,19 +1440,23 @@ public class PdfDocumentTests
     ///     (no classic table) whose stream dictionary declares the given raw <c>/W</c> array
     ///     literal verbatim - used to craft a malformed/adversarial <c>/W</c> entry (for example a
     ///     negative field width) that the classic-xref-table builders above cannot express.
-    ///     Deliberately hides the <c>/Type /Catalog</c> object inside a compressed
-    ///     <c>/Type /ObjStm</c> container (object 6, compressed inside object 1) rather than
-    ///     leaving it as a plain top-level object: <see cref="PdfDocument"/>'s own
-    ///     <c>BuildLinearScanFallback</c> recovery path (triggered whenever normal
-    ///     cross-reference parsing throws <see cref="InvalidDataException"/>) only finds plain
-    ///     <c>N G obj</c> headers by a raw byte scan, so with the catalog plain and
-    ///     top-level, recovery would silently rebuild a working document regardless of whether
-    ///     the crafted <c>/W</c> entry is rejected - masking the very defect this helper exists to
-    ///     exercise. Hiding the catalog inside an object stream (which recovery's linear scan
-    ///     cannot see into) ensures that when the crafted <c>/W</c> entry is rejected and
-    ///     cross-reference parsing falls back to recovery, recovery also fails to locate a
-    ///     catalog, so the caller still observes a thrown, typed exception - proving the crafted
-    ///     input is converted into a controlled failure, never a raw CLR crash, at every layer.
+    ///     Hides the <c>/Type /Catalog</c> object inside a compressed <c>/Type /ObjStm</c>
+    ///     container (object 6, compressed inside object 1) rather than leaving it as a plain
+    ///     top-level object, so this fixture also doubles as coverage for
+    ///     <see cref="PdfDocument"/>'s <c>BuildLinearScanFallback</c> recovery path: that raw
+    ///     byte-scan recovery (triggered whenever normal cross-reference parsing throws
+    ///     <see cref="InvalidDataException"/>) locates plain <c>N G obj</c> headers directly and
+    ///     also decodes any directly-located <c>/Type /ObjStm</c> object it finds that way to
+    ///     register the objects compressed inside it - so a crafted <c>/W</c> entry that forces
+    ///     the normal cross-reference stream parse to fail no longer prevents the document from
+    ///     opening: recovery still locates object 1's <c>ObjStm</c> by the raw scan, decodes it,
+    ///     and resolves the catalog compressed within it. Callers that want to prove a malformed
+    ///     <c>/W</c> entry is converted into a controlled, typed failure rather than a raw CLR
+    ///     crash must therefore assert successful, gracefully-recovered output (see
+    ///     <see cref="PdfDocument_Open_XrefStream_NegativeWidth_RecoversViaLinearScanFallback"/>
+    ///     and
+    ///     <see cref="PdfDocument_Open_XrefStream_AllZeroWidths_RecoversViaLinearScanFallback"/>),
+    ///     not a thrown exception.
     /// </summary>
     private static byte[] BuildXrefStreamPdfWithWidths(string wLiteral)
     {
@@ -1521,26 +1533,49 @@ public class PdfDocumentTests
         Assert.Equal(300, info.Height);
     }
 
-    /// <summary>Proves that a cross-reference stream's <c>/W</c> entry with a negative field width (which would otherwise drive a negative byte offset into <see cref="IndexOutOfRangeException"/>) throws <see cref="InvalidDataException"/> instead.</summary>
+    /// <summary>
+    ///     Proves that a cross-reference stream's <c>/W</c> entry with a negative field width
+    ///     (which would otherwise drive a negative byte offset into
+    ///     <see cref="IndexOutOfRangeException"/>) never reaches the caller as a raw CLR crash:
+    ///     normal cross-reference parsing rejects it with a controlled, typed exception
+    ///     internally, and the document still opens successfully by falling back to the raw
+    ///     linear scan (which locates the catalog compressed inside object 1's object stream, as
+    ///     described on <see cref="BuildXrefStreamPdfWithWidths"/>).
+    /// </summary>
     [Fact]
-    public void PdfDocument_Open_XrefStream_NegativeWidth_ThrowsInvalidDataException()
+    public void PdfDocument_Open_XrefStream_NegativeWidth_RecoversViaLinearScanFallback()
     {
         // Arrange
         var pdfBytes = BuildXrefStreamPdfWithWidths("[-1 1 1]");
 
-        // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
     }
 
-    /// <summary>Proves that a cross-reference stream's <c>/W</c> entry whose three widths are all zero (which would otherwise produce a zero-length per-entry stride and never advance the decode position, allowing a crafted large <c>/Size</c> or <c>/Index</c> to spin indefinitely) throws <see cref="InvalidDataException"/> instead of looping.</summary>
+    /// <summary>
+    ///     Proves that a cross-reference stream's <c>/W</c> entry whose three widths are all zero
+    ///     (which would otherwise produce a zero-length per-entry stride and never advance the
+    ///     decode position, allowing a crafted large <c>/Size</c> or <c>/Index</c> to spin
+    ///     indefinitely) never reaches the caller as an infinite loop: normal cross-reference
+    ///     parsing rejects it with a controlled, typed exception internally, and the document
+    ///     still opens successfully by falling back to the raw linear scan (which locates the
+    ///     catalog compressed inside object 1's object stream, as described on
+    ///     <see cref="BuildXrefStreamPdfWithWidths"/>).
+    /// </summary>
     [Fact]
-    public void PdfDocument_Open_XrefStream_AllZeroWidths_ThrowsInvalidDataException()
+    public void PdfDocument_Open_XrefStream_AllZeroWidths_RecoversViaLinearScanFallback()
     {
         // Arrange
         var pdfBytes = BuildXrefStreamPdfWithWidths("[0 0 0]");
 
-        // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
     }
 
     /// <summary>
@@ -1639,6 +1674,78 @@ public class PdfDocumentTests
     {
         // Arrange
         var pdfBytes = BuildCompressedObjectSelfCyclePdf();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, <c>/Type /XRef</c> cross-reference-stream-only PDF whose object 1
+    ///     - an object-stream (<c>/Type /ObjStm</c>) container - holds exactly one compressed
+    ///     entry whose header declares a non-integer object number ("2.5", not "2"), even though
+    ///     the cross-reference stream's own entry for object 2 claims it lives inside this
+    ///     container at index 0. Narrowing "2.5" to an <see cref="int"/> via a bare cast before
+    ///     comparing it against the expected object number (2) would truncate it to 2 and
+    ///     coincidentally match, silently accepting a header the PDF grammar does not actually
+    ///     permit; comparing the un-narrowed value instead correctly rejects the mismatch.
+    /// </summary>
+    private static byte[] BuildCompressedObjectNonIntegerNumberPdf()
+    {
+        var catalogBytes = "<< /Type /Catalog >>"u8.ToArray();
+        var objStmHeader = "2.5 0\n"u8.ToArray();
+        var objStmContent = new List<byte>();
+        objStmContent.AddRange(objStmHeader);
+        objStmContent.AddRange(catalogBytes);
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+
+        var objStmOffset = buffer.Count;
+        buffer.AddRange("1 0 obj\n"u8.ToArray());
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /ObjStm /N 1 /First {objStmHeader.Length} >>\nstream\n"));
+        buffer.AddRange(objStmContent);
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        // Object 3: the self-referential, /Filter-less cross-reference stream, declaring 4 raw
+        // 6-byte entries (/W [1 4 1]): object 0 (free), object 1 (direct, the ObjStm container),
+        // object 2 (compressed, claiming to live inside object stream 1 at index 0), and object 3
+        // (this very xref stream, direct, at its own real offset).
+        var xrefStreamOffset = buffer.Count;
+
+        static byte[] Entry(byte type, int field2, byte field3) =>
+        [
+            type,
+            (byte)(field2 >> 24), (byte)(field2 >> 16), (byte)(field2 >> 8), (byte)field2,
+            field3,
+        ];
+
+        var entryBytes = new List<byte>();
+        entryBytes.AddRange(Entry(0, 0, 0));
+        entryBytes.AddRange(Entry(1, objStmOffset, 0));
+        entryBytes.AddRange(Entry(2, 1, 0));
+        entryBytes.AddRange(Entry(1, xrefStreamOffset, 0));
+
+        buffer.AddRange("3 0 obj\n"u8.ToArray());
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /XRef /Size 4 /W [1 4 1] /Root 2 0 R /Length {entryBytes.Count} >>\nstream\n"));
+        buffer.AddRange(entryBytes);
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"startxref\n{xrefStreamOffset}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a compressed object's header declaring a non-integer object number (for
+    ///     example "2.5" where "2" is expected) is rejected with <see cref="InvalidDataException"/>
+    ///     rather than silently accepted via truncation to a coincidentally-matching integer.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_CompressedObjectNonIntegerNumber_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildCompressedObjectNonIntegerNumberPdf();
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
@@ -1905,6 +2012,1876 @@ public class PdfDocumentTests
         Assert.Contains("out of bounds", exception.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    ///     Proves that the linear-scan fallback (<c>linear-scan-stream-noise.pdf</c> - no
+    ///     <c>startxref</c>/<c>xref</c>/<c>trailer</c> at all, mirroring
+    ///     <c>malformed-startxref.pdf</c>) still opens successfully even though an unrelated,
+    ///     unreferenced stream object's raw payload contains a stray <c>&lt;</c> byte
+    ///     immediately followed by <c>Z</c> - neither a hex digit nor whitespace. Before the
+    ///     crash fix, <c>ScanObjectOffsets</c>/<c>ScanForTrailerDictionary</c> located "N G obj"/
+    ///     "trailer" markers by tokenizing the *entire* raw buffer with a general-purpose
+    ///     tokenizer (including stream payloads never meant to be parsed as PDF syntax): the
+    ///     tokenizer's hex-string reader would reach the stray <c>&lt;Z</c> and throw
+    ///     <see cref="InvalidDataException"/> from inside the fallback itself, with no further
+    ///     <c>catch</c> around it, escaping <see cref="PdfDocument.Open(Stream, string?)"/>
+    ///     entirely as an unhandled exception. The fix instead locates markers via raw
+    ///     byte-pattern matching (and, for the trailer scan, a narrowly-scoped per-candidate
+    ///     tokenizer wrapped in its own <c>try</c>/<c>catch</c>), so the same noise byte is simply
+    ///     skipped over.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_StreamPayloadContainsInvalidHexByte_OpensWithoutThrowing()
+    {
+        // Arrange
+        PdfDocument? document = null;
+
+        // Act
+        var exception = Record.Exception(() => document = PdfDocument.Open(Fixture("linear-scan-stream-noise.pdf")));
+        using (document)
+        {
+            // Assert
+            Assert.Null(exception);
+            Assert.NotNull(document);
+            Assert.Equal(1, document.PageCount);
+            var info = document.GetPageInfo(0);
+            Assert.Equal(150, info.Width);
+            Assert.Equal(220, info.Height);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that a page dictionary compressed inside a <c>/Type /ObjStm</c> object stream
+    ///     (<c>object-stream-linear-scan-fallback.pdf</c>) is resolvable even when normal
+    ///     cross-reference/trailer parsing cannot run at all (the fixture, like
+    ///     <c>malformed-startxref.pdf</c>, has no <c>startxref</c>/<c>xref</c>/<c>trailer</c>),
+    ///     forcing <c>BuildLinearScanFallback</c> to be the document's only route to a working
+    ///     object table. The fallback's raw byte scan finds the object stream directly (it has
+    ///     its own literal <c>5 0 obj</c> marker), and
+    ///     <c>RegisterCompressedObjectsFromObjectStreams</c> then decodes it to register the page
+    ///     dictionary (object 3) compressed within it - resolved here via fully public,
+    ///     observable behavior (rendering the page that depends on it, not an internal
+    ///     test-only accessor): the fixture's single page paints an opaque red rectangle across
+    ///     its entire 100x100 <c>/MediaBox</c>, so a successful render with the expected color
+    ///     proves the compressed page dictionary - and its <c>/Contents</c> reference - were both
+    ///     genuinely recovered, not merely that <see cref="PdfDocument.PageCount"/> reports 1.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ResolvesPageCompressedInObjectStream()
+    {
+        // Arrange & Act
+        using var document = PdfDocument.Open(Fixture("object-stream-linear-scan-fallback.pdf"));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        var info = document.GetPageInfo(0);
+        Assert.Equal(100, info.Width);
+        Assert.Equal(100, info.Height);
+
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no <c>xref</c> table or <c>startxref</c> at
+    ///     all (forcing <c>BuildLinearScanFallback</c>'s raw byte scan to be the only route to a
+    ///     working object table), where object 3 (the Page) is first defined directly and early
+    ///     in the file (pointing its <c>/Contents</c> at object 4, a red-filling stream), then
+    ///     redefined later in physical file order via a compressed <c>/Type /ObjStm</c> container
+    ///     (object 6, pointing <c>/Contents</c> instead at object 5, a blue-filling stream) -
+    ///     mirroring a realistic incrementally-updated document where a later save redefines an
+    ///     object via a compressed object stream rather than a fresh direct definition. The two
+    ///     candidate definitions are otherwise identical (same parent, same media box) so the only
+    ///     observable difference is which content stream ends up referenced.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithLaterCompressedPageRedefinitionPdf()
+    {
+        var redPageBytes = "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray();
+        var bluePageBytes = "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray();
+        var objStmHeader = "3 0\n"u8.ToArray();
+        var objStmContent = new List<byte>();
+        objStmContent.AddRange(objStmHeader);
+        objStmContent.AddRange(bluePageBytes);
+
+        var redContentBytes = "1 0 0 rg 0 0 100 100 re f"u8.ToArray();
+        var blueContentBytes = "0 0 1 rg 0 0 100 100 re f"u8.ToArray();
+
+        // Objects appear, in physical file order, as: 1 (Catalog), 2 (Pages), 3 (Page, the
+        // ORIGINAL direct definition pointing at the red content stream), 4 (red content
+        // stream), 5 (blue content stream), 6 (the ObjStm, physically last, compressing a
+        // redefinition of object 3 that instead points at the blue content stream). Object 3's
+        // only direct "3 0 obj" header is the original/red one; its later/blue redefinition
+        // exists solely compressed inside object 6.
+        var numbers = new[] { 1, 2, 3, 4, 5, 6 };
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            redPageBytes,
+            BuildStreamObjectBody($"/Length {redContentBytes.Length}", redContentBytes),
+            BuildStreamObjectBody($"/Length {blueContentBytes.Length}", blueContentBytes),
+            BuildStreamObjectBody($"/Type /ObjStm /N 1 /First {objStmHeader.Length}", [.. objStmContent]),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{numbers[i]} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that when a compressed object stream redefines an object number that was
+    ///     already registered by an earlier direct definition, the fallback's compressed-object
+    ///     registration (<c>RegisterCompressedObjectsFromObjectStreams</c>) keeps the definition
+    ///     that physically occurs later in the file - matching <c>ScanObjectOffsets</c>'s own
+    ///     "later occurrence wins" rule for direct objects - rather than unconditionally
+    ///     preferring whichever definition happened to be registered first. See
+    ///     <see cref="BuildLinearScanFallbackWithLaterCompressedPageRedefinitionPdf"/>: object 3
+    ///     (the Page) is first defined directly (pointing at a red content stream) and then
+    ///     redefined, later in the file, compressed inside an <c>/Type /ObjStm</c> (pointing at a
+    ///     blue content stream). The rendered page must be blue, proving the later compressed
+    ///     redefinition - not the earlier direct one - was resolved.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_LaterCompressedRedefinitionOverridesEarlierDirectObject()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithLaterCompressedPageRedefinitionPdf();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no <c>xref</c> table or <c>startxref</c> at
+    ///     all (forcing <c>BuildLinearScanFallback</c>'s raw byte scan to be the only route to a
+    ///     working object table), where object 3 (the Page, referenced by object 2's <c>/Kids</c>)
+    ///     is never directly defined - it exists only compressed inside object 4's
+    ///     <c>/Type /ObjStm</c> container, whose header entry declares a non-integer object
+    ///     number ("3.5", not "3"). Narrowing "3.5" to an <see cref="int"/> via a bare cast before
+    ///     registering it as a compressed-object entry would truncate it to 3 and coincidentally
+    ///     register a working (if grammatically illegitimate) entry for object 3; correctly
+    ///     rejecting the malformed header instead leaves object 3 permanently undefined.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithNonIntegerCompressedObjectNumberPdf()
+    {
+        var pageBytes = "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray();
+        var objStmHeader = "3.5 0\n"u8.ToArray();
+        var objStmContent = new List<byte>();
+        objStmContent.AddRange(objStmHeader);
+        objStmContent.AddRange(pageBytes);
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        // Index 0 -> object 1, index 1 -> object 2, index 2 -> object 4, index 3 -> object 5:
+        // object 3 (the Page) is deliberately skipped here - it exists only compressed inside
+        // object 4's /ObjStm, never as its own directly-scannable "3 0 obj" marker.
+        var numbers = new[] { 1, 2, 4, 5 };
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Type /ObjStm /N 1 /First {objStmHeader.Length}", [.. objStmContent]),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{numbers[i]} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a compressed object's header declaring a non-integer object number (for
+    ///     example "3.5" where "3" is expected, see
+    ///     <see cref="BuildLinearScanFallbackWithNonIntegerCompressedObjectNumberPdf"/>) is never
+    ///     registered under its truncated integer value during linear-scan-fallback recovery: the
+    ///     referencing object remains genuinely undefined and resolution fails with
+    ///     <see cref="InvalidDataException"/>, rather than silently succeeding against an object
+    ///     the PDF grammar does not actually permit.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_CompressedObjectNonIntegerNumber_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithNonIntegerCompressedObjectNumberPdf();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no <c>xref</c> table or <c>startxref</c> at
+    ///     all (forcing linear-scan fallback), whose object 3 - the Page - is never directly
+    ///     defined - it exists only compressed inside object 4's <c>/Type /ObjStm</c> container,
+    ///     whose dictionary declares a non-integer entry count (<c>/N 1.5</c>, not <c>/N 1</c>)
+    ///     even though the container's own header content still spells out exactly one
+    ///     well-formed <c>3 0</c> entry. Narrowing "1.5" to an <see cref="int"/> via a bare cast
+    ///     before using it as the number of header entries to read would truncate it to 1 and
+    ///     coincidentally read that one legitimate-looking entry anyway, accepting a container the
+    ///     PDF grammar does not actually permit; correctly rejecting the malformed <c>/N</c>
+    ///     instead discards the whole container's entries, leaving object 3 permanently
+    ///     undefined.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithNonIntegerObjectStreamCountPdf()
+    {
+        var pageBytes = "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray();
+        var objStmHeader = "3 0\n"u8.ToArray();
+        var objStmContent = new List<byte>();
+        objStmContent.AddRange(objStmHeader);
+        objStmContent.AddRange(pageBytes);
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        // Index 0 -> object 1, index 1 -> object 2, index 2 -> object 4, index 3 -> object 5:
+        // object 3 (the Page) is deliberately skipped here - it exists only compressed inside
+        // object 4's /ObjStm, never as its own directly-scannable "3 0 obj" marker.
+        var numbers = new[] { 1, 2, 4, 5 };
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Type /ObjStm /N 1.5 /First {objStmHeader.Length}", [.. objStmContent]),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{numbers[i]} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that an object stream's declared entry count (for example <c>/N 1.5</c> where
+    ///     <c>/N 1</c> is expected, see
+    ///     <see cref="BuildLinearScanFallbackWithNonIntegerObjectStreamCountPdf"/>) is never
+    ///     narrowed to its truncated integer value and used to read header entries during
+    ///     linear-scan-fallback recovery: the container is rejected outright and the compressed
+    ///     object it would otherwise have declared remains genuinely undefined, so resolution
+    ///     fails with <see cref="InvalidDataException"/> rather than silently succeeding against a
+    ///     container the PDF grammar does not actually permit.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ObjectStreamNonIntegerCount_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithNonIntegerObjectStreamCountPdf();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no <c>xref</c> table or <c>startxref</c> at
+    ///     all (forcing <c>BuildLinearScanFallback</c>'s raw byte scan to be the only route to a
+    ///     working object table, mirroring <c>malformed-startxref.pdf</c>'s own precedent), whose
+    ///     object 4 (the <c>/Contents</c> stream) payload embeds a PDF comment
+    ///     (<c>% ...noise... 3 0 obj ...noise...</c>) that byte-for-byte matches the literal
+    ///     <c>N G obj</c> pattern <c>ScanObjectOffsets</c> searches for - a benign, syntactically
+    ///     valid content-stream comment that nonetheless coincidentally spells out what looks
+    ///     like a header for object 3 (the real Page object, already declared earlier in the
+    ///     file). Without excluding stream payloads from the raw byte scan, this later,
+    ///     in-payload match would overwrite object 3's real, legitimate offset (the scan's
+    ///     documented "later match wins" semantics) with a bogus offset pointing into the middle
+    ///     of object 4's own stream payload - corrupting an unrelated object's cross-reference
+    ///     entry from binary/text noise that was never meant to be parsed as PDF syntax.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithObjMarkerInsideStreamPayload()
+    {
+        var contentBytes = System.Text.Encoding.ASCII.GetBytes(
+            "10 10 40 40 re f\n% noise noise 3 0 obj noise noise\n");
+
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a byte sequence resembling an <c>N G obj</c> marker inside a stream
+    ///     payload (here, a syntactically valid content-stream comment that happens to spell out
+    ///     <c>3 0 obj</c> - see
+    ///     <see cref="BuildLinearScanFallbackWithObjMarkerInsideStreamPayload"/>) is never mistaken
+    ///     for a genuine object header by the linear-scan fallback's raw byte scan: the document
+    ///     still resolves object 3 (the Page) to its real, correct offset and renders the expected
+    ///     filled rectangle, rather than having that offset silently overwritten by the bogus
+    ///     in-payload match.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ObjMarkerInsideStreamPayload_DoesNotCorruptOffsets()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithObjMarkerInsideStreamPayload();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        var info = document.GetPageInfo(0);
+        Assert.Equal(100, info.Width);
+        Assert.Equal(100, info.Height);
+
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no <c>xref</c> table or <c>startxref</c> at
+    ///     all (forcing <c>BuildLinearScanFallback</c>'s raw byte scan to be the only route to a
+    ///     working object table), where object 3 (the Page) is a plain dictionary - not a stream -
+    ///     whose own value content happens to contain the standalone word "stream" (inside a
+    ///     string literal, a perfectly ordinary and syntactically valid dictionary value). Object
+    ///     4 (the real <c>/Contents</c> stream) immediately follows it.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithStreamWordInsideDictionaryValue()
+    {
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Description (this is a stream of data, not a real stream keyword) >>"u8
+                .ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that the word "stream" occurring inside a plain (non-stream) dictionary's own
+    ///     value content - rather than as the dictionary's real, immediately-following
+    ///     <c>stream</c> keyword - is never mistaken by the linear-scan fallback for the start of
+    ///     that object's payload (see
+    ///     <see cref="BuildLinearScanFallbackWithStreamWordInsideDictionaryValue"/>). Before this
+    ///     was fixed, the raw byte scan would treat that coincidental "stream" word as genuine,
+    ///     then search forward for the next "endstream" keyword - which belongs to the real,
+    ///     unrelated object 4 - and skip straight past object 4's own "4 0 obj" header in the
+    ///     process, silently dropping it from the reconstructed cross-reference table. This test
+    ///     proves object 4 (the page's <c>/Contents</c> stream) still resolves and renders
+    ///     correctly instead.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_StreamWordInsideDictionaryValue_DoesNotSkipFollowingObject()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithStreamWordInsideDictionaryValue();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        var info = document.GetPageInfo(0);
+        Assert.Equal(100, info.Width);
+        Assert.Equal(100, info.Height);
+
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): the real object 3 (the Page)
+    ///     is defined with a genuine, early <c>3 0 obj</c> header, while an unrelated, later
+    ///     object 5's own plain (non-stream) dictionary contains a <c>/Decoy</c> string value
+    ///     whose text happens to spell out a byte-perfect <c>3 0 obj</c> sequence of its own -
+    ///     but embedded mid-line, never at the start of a line the way a genuine indirect-object
+    ///     header always is.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithObjMarkerInsideNonStreamDictionaryValue()
+    {
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+            "<< /Decoy (unrelated text mentions 3 0 obj in passing) >>"u8.ToArray(),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a byte-perfect <c>N G obj</c> sequence embedded mid-line inside an
+    ///     unrelated, later object's own dictionary value (see
+    ///     <see cref="BuildLinearScanFallbackWithObjMarkerInsideNonStreamDictionaryValue"/>) is
+    ///     never mistaken for a genuine indirect-object header, even though it is positioned
+    ///     later in the file than the real header for the same object number and so would
+    ///     otherwise win under the scan's own "later occurrence overrides an earlier one"
+    ///     semantics - corrupting that object's real, correct offset. The real object 3 (the
+    ///     page) must still resolve and render correctly using its own genuine, earlier header.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ObjMarkerInsideNonStreamDictionaryValue_DoesNotCorruptOffset()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithObjMarkerInsideNonStreamDictionaryValue();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): an unreferenced object 4's own
+    ///     stream payload deliberately contains an early, coincidental <c>endstream</c> byte
+    ///     sequence followed by further payload bytes that themselves spell out a byte-perfect,
+    ///     line-start <c>3 0 obj</c> header - mimicking the real object 3's own header - all
+    ///     covered by object 4's declared <c>/Length</c>, with the genuine <c>endstream</c>
+    ///     keyword only at the true end of that declared length.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithEarlyFalseEndstreamInStreamPayload()
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray(),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // Object 4 is an unreferenced, irrelevant stream. Its declared /Length covers the whole
+        // payload below, through the real, final "endstream" keyword - but the payload's own
+        // bytes contain an early, false "endstream" occurrence partway through, followed by a
+        // false, line-start "3 0 obj" header of their own.
+        var payloadBody = "XXXXX\nendstream\n3 0 obj\n<< /Bogus (decoy) >>\nendobj\n"u8.ToArray();
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"4 0 obj\n<< /Length {payloadBody.Length} >>\nstream\n"));
+        buffer.AddRange(payloadBody);
+        buffer.AddRange("endstream\nendobj\n"u8.ToArray());
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes("5 0 obj\n"));
+        buffer.AddRange(BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that an early, coincidental <c>endstream</c> byte sequence occurring partway
+    ///     through a stream's own payload (see
+    ///     <see cref="BuildLinearScanFallbackWithEarlyFalseEndstreamInStreamPayload"/>) does not
+    ///     end the protected payload range too soon. Ending it early would leave the remainder of
+    ///     the real payload bytes - including a false, line-start <c>3 0 obj</c> header embedded
+    ///     within them - to be scanned again as ordinary document bytes, corrupting the real object
+    ///     3's correct offset. The real object 3 (the page) must still resolve and render
+    ///     correctly.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_EarlyFalseEndstreamInPayload_DoesNotCorruptOffsets()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithEarlyFalseEndstreamInStreamPayload();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds the same scenario as
+    ///     <see cref="BuildLinearScanFallbackWithEarlyFalseEndstreamInStreamPayload"/> (an early,
+    ///     coincidental <c>endstream</c> byte sequence partway through a stream's own payload,
+    ///     followed by a false, line-start <c>3 0 obj</c> header), except the stream's own
+    ///     <c>/Length</c> is an indirect reference rather than a direct integer - so
+    ///     <c>TryGetDeclaredStreamEnd</c> cannot trust it, forcing the fallback raw
+    ///     <c>endstream</c> search to be exercised instead of the declared-length path.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithEarlyFalseEndstreamAndIndirectLength()
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray(),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // Object 4 is an unreferenced, irrelevant stream whose /Length is an indirect reference
+        // (object 6), so the declared-length boundary check cannot be used. Its payload contains
+        // an early, false "endstream" occurrence that is NOT itself immediately followed by
+        // "endobj" (it is instead followed by a false, line-start "3 0 obj" header) - so it must
+        // be rejected in favor of the later, real "endstream" that IS followed by "endobj".
+        var payloadBody = "XXXXX\nendstream\n3 0 obj\n<< /Bogus (decoy) >>\nendobj\nYYYY"u8.ToArray();
+        buffer.AddRange("4 0 obj\n<< /Length 6 0 R >>\nstream\n"u8.ToArray());
+        buffer.AddRange(payloadBody);
+        buffer.AddRange("endstream\nendobj\n"u8.ToArray());
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes("5 0 obj\n"));
+        buffer.AddRange(BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        // Object 6: the /Length value object 4's stream dictionary points to. Its own value is
+        // irrelevant to this test - it is never trusted as a declared length boundary merely by
+        // being referenced indirectly.
+        buffer.AddRange("6 0 obj\n9999\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that when a stream's own <c>/Length</c> is an indirect reference (so the
+    ///     declared-length boundary cannot be trusted), the fallback raw <c>endstream</c> search
+    ///     rejects an early, coincidental <c>endstream</c> byte sequence that is not itself
+    ///     immediately followed by <c>endobj</c>, instead continuing to the later, real
+    ///     <c>endstream</c> that is. Accepting the first, false match would end the protected
+    ///     payload range too soon, exposing the remainder of the payload - including a false,
+    ///     line-start <c>3 0 obj</c> header embedded within it - to be scanned again as ordinary
+    ///     document bytes, corrupting the real object 3's correct offset. The real object 3 (the
+    ///     page) must still resolve and render correctly.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_EarlyFalseEndstreamWithIndirectLength_DoesNotCorruptOffsets()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithEarlyFalseEndstreamAndIndirectLength();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback), whose object 1 (the catalog)
+    ///     and object 2 (the Pages node) headers are deliberately written on the same physical
+    ///     line, separated only by a single space after the first object's <c>endobj</c> rather
+    ///     than a line break - valid per the PDF grammar (whitespace alone separates tokens; an
+    ///     indirect object is not required to begin its own line) but previously rejected by a
+    ///     line-start heuristic this fallback no longer relies on.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithObjectHeaderNotAtLineStart()
+    {
+        var catalogBytes = "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray();
+        var pagesBytes = "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray();
+        var pageBytes = "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray();
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+
+        buffer.AddRange("1 0 obj\n"u8.ToArray());
+        buffer.AddRange(catalogBytes);
+        buffer.AddRange(" endobj 2 0 obj\n"u8.ToArray());
+        buffer.AddRange(pagesBytes);
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("3 0 obj\n"u8.ToArray());
+        buffer.AddRange(pageBytes);
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("4 0 obj\n"u8.ToArray());
+        buffer.AddRange(BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that an object header not conventionally placed at the start of its own line
+    ///     (see <see cref="BuildLinearScanFallbackWithObjectHeaderNotAtLineStart"/>) is still
+    ///     located by the linear-scan fallback. A previous line-start heuristic would wrongly
+    ///     reject this entirely valid header, leaving the Pages node unresolvable so the
+    ///     document could not be opened.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ObjectHeaderNotAtLineStart_StillResolves()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithObjectHeaderNotAtLineStart();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): the real object 3 (the page) is
+    ///     written normally, but a later, unreferenced object 9 contains a literal string value
+    ///     spanning several lines whose second line is a byte-perfect, line-start <c>3 0 obj</c>
+    ///     decoy header, followed by syntax (<c>bogus</c>) that cannot be parsed as a PDF value.
+    ///     A scanner that merely checks "is this candidate at the start of a line" - without
+    ///     tracking whether it is lexically inside a string at all - cannot tell this decoy apart
+    ///     from a genuine header, and (being the later match) would overwrite the real object 3's
+    ///     offset with this bogus one.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithObjectHeaderDecoyInsideMultilineString()
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray(),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes("5 0 obj\n"));
+        buffer.AddRange(BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        // Object 9 is an unreferenced, irrelevant dictionary whose /Note value is a literal
+        // string spanning several lines. The decoy "3 0 obj" text on the string's second line
+        // begins at the start of that line - satisfying a line-start-only check - but it is
+        // lexically still inside the enclosing "(...)" string, not real top-level PDF syntax.
+        buffer.AddRange("9 0 obj\n<< /Note (line one\n3 0 obj\nbogus\nline four) >>\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a byte-perfect, line-start <c>N G obj</c> decoy embedded inside another
+    ///     object's literal string value (see
+    ///     <see cref="BuildLinearScanFallbackWithObjectHeaderDecoyInsideMultilineString"/>) is
+    ///     never mistaken for a real header, regardless of its position on its own line: the real
+    ///     object 3 (the page) must still resolve and render correctly, rather than the decoy's
+    ///     bogus offset overwriting its real one.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ObjectHeaderDecoyInsideMultilineString_DoesNotCorruptOffsets()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithObjectHeaderDecoyInsideMultilineString();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): the catalog is reachable only
+    ///     compressed inside object 1's <c>/Type /ObjStm</c> container (so recovering it depends
+    ///     on the fallback's compressed-object recovery pass succeeding), while an unrelated,
+    ///     directly-located object 7 is also a <c>/Type /ObjStm</c> container declaring a stream
+    ///     filter (<c>/DCTDecode</c>) this library does not support for generic stream decoding -
+    ///     something that is rejected with <see cref="UnsupportedImageFeatureException"/> rather
+    ///     than <see cref="InvalidDataException"/>.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithUnsupportedFilterObjectStream()
+    {
+        var catalogBytes = "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray();
+        var objStmHeader = "6 0\n"u8.ToArray();
+        var objStmContent = new List<byte>();
+        objStmContent.AddRange(objStmHeader);
+        objStmContent.AddRange(catalogBytes);
+        var compressedObjStm = ZlibCompress([.. objStmContent]);
+
+        var bodies = new List<byte[]>
+        {
+            BuildStreamObjectBody($"/Type /ObjStm /N 1 /First {objStmHeader.Length} /Filter /FlateDecode", compressedObjStm),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody(string.Empty, []),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // Object 7: an unrelated, directly-located /Type /ObjStm container declaring an
+        // unsupported filter. It contributes nothing needed to resolve the catalog or page, and
+        // must not prevent either from being recovered.
+        buffer.AddRange("7 0 obj\n"u8.ToArray());
+        buffer.AddRange(BuildStreamObjectBody("/Type /ObjStm /N 1 /First 4 /Filter /DCTDecode", "0 0\n1"u8.ToArray()));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that an unrelated <c>/Type /ObjStm</c> object stream declaring a stream filter
+    ///     this library does not support (see
+    ///     <see cref="BuildLinearScanFallbackWithUnsupportedFilterObjectStream"/>) does not abort
+    ///     recovery of every other object: the real catalog, compressed inside a different,
+    ///     supported object stream, must still resolve and the page must still render correctly.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_UnsupportedFilterObjectStream_DoesNotAbortRecovery()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithUnsupportedFilterObjectStream();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback) preceded by many unrelated small
+    ///     stream objects, so that <c>ScanForTrailerDictionary</c>'s own
+    ///     <c>streamPayloadRanges</c> list accumulates many entries before the real trailer
+    ///     keyword is ever reached.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithManyStreamPayloadRangesBeforeTrailer()
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody(string.Empty, []),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // Many unrelated, directly-located stream objects - each one contributes its own
+        // [Start, End) entry to streamPayloadRanges before the trailer keyword is reached.
+        var nextObjectNumber = bodies.Count + 1;
+        for (var i = 0; i < 500; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{nextObjectNumber++} 0 obj\n"));
+            buffer.AddRange(BuildStreamObjectBody(string.Empty, System.Text.Encoding.ASCII.GetBytes($"filler-payload-{i}")));
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        buffer.AddRange("trailer\n<< /Size 1 /Root 1 0 R >>\n"u8.ToArray());
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that the real trailer is still correctly located when it is preceded by many
+    ///     unrelated stream objects (see
+    ///     <see cref="BuildLinearScanFallbackWithManyStreamPayloadRangesBeforeTrailer"/>),
+    ///     exercising <c>ScanForTrailerDictionary</c>'s monotonically-advancing stream-payload-
+    ///     range index across many entries rather than just the one or two ranges earlier,
+    ///     smaller fixtures produce.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ManyStreamPayloadRangesBeforeTrailer_StillResolvesTrailer()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithManyStreamPayloadRangesBeforeTrailer();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): the real object 3 (the Page)
+    ///     is defined with a genuine, early <c>3 0 obj</c> header, while later, unstructured raw
+    ///     bytes - not inside any comment, string, or stream payload - spell out
+    ///     <c>decoy3 0 obj</c>: a byte-perfect <c>3 0 obj</c> sequence whose object number digit
+    ///     is only the suffix of the larger regular-byte token <c>decoy3</c>, not a standalone
+    ///     number token of its own.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithObjectNumberAsTokenSuffix()
+    {
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // This decoy is physically positioned after the real "3 0 obj" header above, so it would
+        // otherwise win under the scan's "later occurrence overrides an earlier one" semantics
+        // were its "3" digit wrongly treated as a standalone object-number token. It sits outside
+        // any comment, string, or stream payload, reaching the raw "obj" scan directly.
+        buffer.AddRange("decoy3 0 obj\n<< /Foo true >>\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that an object number embedded as only the numeric suffix of a larger
+    ///     regular-byte token (see
+    ///     <see cref="BuildLinearScanFallbackWithObjectNumberAsTokenSuffix"/>) is never mistaken
+    ///     for a genuine, standalone object-number token, even though the decoy is physically
+    ///     positioned later in the file than the real header for the same object number and so
+    ///     would otherwise win under the scan's own "later occurrence overrides an earlier one"
+    ///     semantics - corrupting that object's real, correct offset. The real object 3 (the
+    ///     page) must still resolve and render correctly using its own genuine, earlier header.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ObjectNumberAsTokenSuffix_DoesNotCorruptOffset()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithObjectNumberAsTokenSuffix();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): the real object 3 (the Page)
+    ///     is defined with a genuine, early <c>3 0 obj</c> header, while later, unstructured raw
+    ///     bytes - not inside any comment, string, or stream payload - spell out
+    ///     <c>/3 0 obj</c>: a byte-perfect <c>3 0 obj</c> sequence whose object number digit is
+    ///     immediately preceded by <c>/</c>, making it lexically the PDF <em>name</em> token
+    ///     <c>/3</c> (whose text happens to read "3") rather than a standalone number token.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithObjectNumberAsNameToken()
+    {
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // This decoy is physically positioned after the real "3 0 obj" header above, so it would
+        // otherwise win under the scan's "later occurrence overrides an earlier one" semantics
+        // were its "/3" name token wrongly treated as a standalone object-number token. It sits
+        // outside any comment, string, or stream payload, reaching the raw "obj" scan directly.
+        buffer.AddRange("/3 0 obj\n<< /Foo true >>\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that an object number embedded as a PDF name token's text (see
+    ///     <see cref="BuildLinearScanFallbackWithObjectNumberAsNameToken"/>) is never mistaken
+    ///     for a genuine, standalone object-number token, even though the decoy is physically
+    ///     positioned later in the file than the real header for the same object number and so
+    ///     would otherwise win under the scan's own "later occurrence overrides an earlier one"
+    ///     semantics - corrupting that object's real, correct offset. The real object 3 (the
+    ///     page) must still resolve and render correctly using its own genuine, earlier header.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ObjectNumberAsNameToken_DoesNotCorruptOffset()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithObjectNumberAsNameToken();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): the real object 3 (the Page)
+    ///     is defined with a genuine, early <c>3 0 obj</c> header, while later, unstructured raw
+    ///     bytes form a dictionary opener <c>&lt;&lt;</c> immediately followed by a literal string
+    ///     <c>(dummy&gt;3 0 obj&lt;&lt; /Foo true &gt;&gt;\nendobj\ntail)</c> whose content itself
+    ///     contains a byte-perfect, properly-bounded <c>3 0 obj</c> header. A lexically correct
+    ///     scanner must recognize the literal string's own opening <c>(</c> and treat its entire
+    ///     balanced content - including the embedded "3 0 obj" text - as unreachable string data,
+    ///     never as object syntax.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithSecondAngleBracketAsHexStringStart()
+    {
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // If the dictionary opener's second '<' is wrongly treated as the start of a hex string,
+        // that premature (and incorrect) hex-string scan stops at the literal '>' right after
+        // "dummy" - well before the real literal string's own '(' is ever examined - leaving the
+        // embedded "3 0 obj" reachable as if it were ordinary syntax and overwriting the real
+        // object 3's offset recorded above.
+        buffer.AddRange("<<(dummy>3 0 obj<< /Foo true >>\nendobj\ntail)>>\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that the second <c>&lt;</c> of a dictionary's <c>&lt;&lt;</c> opener is never
+    ///     mistaken for the start of a hex string (see
+    ///     <see cref="BuildLinearScanFallbackWithSecondAngleBracketAsHexStringStart"/>), which
+    ///     would otherwise let a literal string's own embedded <c>&gt;</c> byte terminate a bogus
+    ///     hex-string scan early, exposing an object header lexically nested inside that string's
+    ///     content to the raw object scan and corrupting the real object's offset.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_SecondAngleBracketAsHexStringStart_DoesNotCorruptOffset()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithSecondAngleBracketAsHexStringStart();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): the real object 3 (the Page)
+    ///     is defined with a genuine, early <c>3 0 obj</c> header, while later, unstructured raw
+    ///     bytes consist of a very long run of unmatched, unescaped <c>(</c> bytes with no
+    ///     closing <c>)</c> anywhere before the end of the buffer.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithLongUnterminatedLiteralStringRun()
+    {
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // Without a bound on repeated failed literal-string scans, each of these 200,000 bytes
+        // would independently trigger its own scan of the remaining buffer looking for a '('
+        // close that never comes, making this fallback scanner quadratic in the run's length.
+        buffer.AddRange(new byte[200_000]);
+        for (var i = buffer.Count - 200_000; i < buffer.Count; i++)
+        {
+            buffer[i] = (byte)'(';
+        }
+
+        buffer.AddRange("\n%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a long run of unmatched, never-closing literal-string <c>(</c> bytes (see
+    ///     <see cref="BuildLinearScanFallbackWithLongUnterminatedLiteralStringRun"/>) is handled
+    ///     in time bounded by the buffer size rather than quadratic in the run's length: without
+    ///     that bound, a crafted or corrupted file could make this heuristic fallback scanner
+    ///     consume CPU far out of proportion to the file's size - a denial-of-service risk, not
+    ///     merely a completeness limitation. The real object 3 (the page) must still resolve and
+    ///     render correctly.
+    /// </summary>
+    [Fact]
+    public async Task PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithLongUnterminatedLiteralStringRun();
+
+        // Act: run on a background thread with a generous bounded timeout - if the quadratic-scan
+        // fix regresses, this fails fast with a TimeoutException instead of hanging the test run.
+        using var document = await Task.Run(() => PdfDocument.Open(new MemoryStream(pdfBytes)))
+            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): a run of unmatched,
+    ///     never-closing literal-string <c>(</c> bytes with no closing <c>)</c> anywhere in the
+    ///     remainder of the buffer - unrelated binary noise, not an attempted decoy - appears
+    ///     <em>before</em> the real object 3 (the Page) header rather than after it, so the real
+    ///     header is only reachable by a scan that keeps looking for genuine markers once a
+    ///     string-opening attempt has failed, instead of abandoning the rest of the buffer
+    ///     entirely.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithUnrelatedUnterminatedLiteralStringBeforeObjectHeader()
+    {
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+
+        // Unrelated binary noise containing an unmatched '(' with no ')' anywhere in the rest of
+        // the buffer (including inside the real headers that follow) - this is exactly the kind
+        // of incidental corruption/noise this fallback scanner must still recover past, not a
+        // crafted decoy of its own.
+        buffer.AddRange(new byte[500]);
+        for (var i = buffer.Count - 500; i < buffer.Count; i++)
+        {
+            buffer[i] = (byte)'(';
+        }
+
+        buffer.AddRange("\n"u8.ToArray());
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that an unmatched, never-closing literal-string run that is unrelated binary
+    ///     noise rather than a crafted decoy (see
+    ///     <see cref="BuildLinearScanFallbackWithUnrelatedUnterminatedLiteralStringBeforeObjectHeader"/>)
+    ///     does not prevent the fallback scanner from recovering every genuine object header that
+    ///     follows it: once a string-opening attempt fails to find its close, the scanner must
+    ///     keep searching the remainder of the buffer for real markers (bounded, via <see
+    ///     cref="PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly"/>,
+    ///     to at most one further failed string-opening attempt), rather than abandoning recovery
+    ///     of the rest of an otherwise perfectly valid document. Real-world corrupted or recovered
+    ///     PDFs routinely contain unrelated binary noise with stray unmatched delimiters well
+    ///     before any genuine object header.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_UnrelatedUnterminatedLiteralStringBeforeObjectHeader_StillResolvesDocument()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithUnrelatedUnterminatedLiteralStringBeforeObjectHeader();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page, classic-xref PDF (via <see cref="BuildSinglePagePdf"/>)
+    ///     with genuine, correctly-bounded <c>xref</c>/<c>trailer</c>/<c>startxref</c> syntax,
+    ///     followed by a second, structurally complete and independently valid classic
+    ///     cross-reference section (objects 5-8, a differently-shaped single page) whose own
+    ///     <c>startxref</c>-like marker is spelled <c>xstartxref</c> - a byte-perfect
+    ///     <c>startxref</c> sequence whose preceding byte <c>x</c> makes it only the suffix of the
+    ///     larger regular-byte token <c>xstartxref</c>, not a standalone keyword token of its own.
+    ///     Because the decoy section is itself fully valid (not merely a bogus offset), a search
+    ///     that wrongly selects it does not throw - it silently resolves the wrong document
+    ///     revision instead, so this is not masked by the linear-scan fallback that normally
+    ///     recovers from a thrown exception.
+    /// </summary>
+    private static byte[] BuildClassicXrefPdfWithStartxrefAsTokenSuffix()
+    {
+        var buffer = BuildSinglePagePdf(100, 100, "10 10 40 40 re f").ToList();
+
+        // A second, independently valid document revision (objects 5-8) with deliberately
+        // different content (a small square far from the real document's black square), used
+        // purely as a decoy target: if the corrupted search wrongly selects its "xstartxref", the
+        // active trailer silently becomes this revision's instead of throwing.
+        var contentB = "60 60 10 10 re f"u8.ToArray();
+        var bodiesB = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 6 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [7 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 6 0 R /Contents 8 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentB.Length}", contentB),
+        };
+
+        var offsetsB = new List<int>();
+        for (var i = 0; i < bodiesB.Count; i++)
+        {
+            offsetsB.Add(buffer.Count);
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 5} 0 obj\n"));
+            buffer.AddRange(bodiesB[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var xrefOffsetB = buffer.Count;
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"xref\n5 {bodiesB.Count}\n"));
+        foreach (var offset in offsetsB)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{offset:D10} 00000 n \n"));
+        }
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes("trailer\n<< /Size 9 /Root 5 0 R >>\n"));
+
+        // This decoy is physically positioned after the real "startxref" marker above, so it
+        // would otherwise be selected by a raw last-byte-match search were its "startxref" text
+        // wrongly treated as a standalone keyword token - redirecting cross-reference parsing to
+        // this structurally valid, but different, decoy revision.
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"xstartxref\n{xrefOffsetB}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a <c>startxref</c> keyword embedded as only the suffix of a larger
+    ///     regular-byte token (see
+    ///     <see cref="BuildClassicXrefPdfWithStartxrefAsTokenSuffix"/>) is never mistaken for a
+    ///     genuine, standalone <c>startxref</c> marker, even though the decoy is physically
+    ///     positioned later in the file than the real marker, points at an independently valid
+    ///     cross-reference section, and so would otherwise be selected by a raw last-byte-match
+    ///     search and silently resolve to the wrong document revision instead of the genuine one.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_ClassicXref_StartxrefAsTokenSuffix_DoesNotRedirectToBogusOffset()
+    {
+        // Arrange
+        var pdfBytes = BuildClassicXrefPdfWithStartxrefAsTokenSuffix();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page, classic-xref PDF (via <see cref="BuildSinglePagePdf"/>)
+    ///     with genuine, correctly-bounded <c>xref</c>/<c>trailer</c>/<c>startxref</c> syntax,
+    ///     followed by a second, structurally complete and independently valid classic
+    ///     cross-reference section (objects 5-8, a differently-shaped single page) preceded by a
+    ///     decoy PDF name token <c>/startxref</c> - a byte-perfect <c>startxref</c> sequence whose
+    ///     preceding byte <c>/</c> makes it only a name token's text, not a standalone keyword
+    ///     token of its own. Because the decoy section is itself fully valid (not merely a bogus
+    ///     offset), a search that wrongly selects it does not throw - it silently resolves the
+    ///     wrong document revision instead, so this is not masked by the linear-scan fallback that
+    ///     normally recovers from a thrown exception.
+    /// </summary>
+    private static byte[] BuildClassicXrefPdfWithStartxrefAsNameToken()
+    {
+        var buffer = BuildSinglePagePdf(100, 100, "10 10 40 40 re f").ToList();
+
+        // A second, independently valid document revision (objects 5-8) with deliberately
+        // different content (a small square far from the real document's black square), used
+        // purely as a decoy target: if the corrupted search wrongly selects its "/startxref", the
+        // active trailer silently becomes this revision's instead of throwing.
+        var contentB = "60 60 10 10 re f"u8.ToArray();
+        var bodiesB = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 6 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [7 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 6 0 R /Contents 8 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentB.Length}", contentB),
+        };
+
+        var offsetsB = new List<int>();
+        for (var i = 0; i < bodiesB.Count; i++)
+        {
+            offsetsB.Add(buffer.Count);
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 5} 0 obj\n"));
+            buffer.AddRange(bodiesB[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var xrefOffsetB = buffer.Count;
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"xref\n5 {bodiesB.Count}\n"));
+        foreach (var offset in offsetsB)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{offset:D10} 00000 n \n"));
+        }
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes("trailer\n<< /Size 9 /Root 5 0 R >>\n"));
+
+        // This decoy is physically positioned after the real "startxref" marker above, so it
+        // would otherwise be selected by a raw last-byte-match search were its "startxref" text
+        // (the trailing part of the "/startxref" name token) wrongly treated as a standalone
+        // keyword token - redirecting cross-reference parsing to this structurally valid, but
+        // different, decoy revision.
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"/startxref\n{xrefOffsetB}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a <c>startxref</c> keyword embedded as only the text of a PDF name token
+    ///     (see <see cref="BuildClassicXrefPdfWithStartxrefAsNameToken"/>) is never mistaken for a
+    ///     genuine, standalone <c>startxref</c> marker, even though the decoy is physically
+    ///     positioned later in the file than the real marker, points at an independently valid
+    ///     cross-reference section, and so would otherwise be selected by a raw last-byte-match
+    ///     search and silently resolve to the wrong document revision instead of the genuine one.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_ClassicXref_StartxrefAsNameToken_DoesNotRedirectToBogusOffset()
+    {
+        // Arrange
+        var pdfBytes = BuildClassicXrefPdfWithStartxrefAsNameToken();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): object 4 is an unreferenced,
+    ///     irrelevant stream whose <c>/Length</c> is an indirect reference (object 6), so the
+    ///     declared-length boundary check cannot be used, forcing <c>FindStructurallyValidEndstream</c>
+    ///     to be exercised. Its payload contains a false, line-start <c>3 0 obj</c> header
+    ///     (overwriting the real, earlier object 3 if the payload is left unprotected) followed by
+    ///     the genuine <c>endstream</c> keyword, itself separated from the following, genuine
+    ///     <c>endobj</c> keyword by ordinary whitespace and a PDF comment - a layout the PDF
+    ///     grammar permits (any amount of whitespace, and comments, may separate tokens) but which
+    ///     a CRLF-only separator check would reject, wrongly treating this genuine endstream match
+    ///     as coincidental payload noise and leaving the whole payload - including the false
+    ///     <c>3 0 obj</c> decoy - unprotected and open to being scanned again.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithCommentBeforeEndobj()
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray(),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var payloadBody = "XXXX\n3 0 obj\n<< /Bogus (decoy) >>\nendobj\nYYYY"u8.ToArray();
+        buffer.AddRange("4 0 obj\n<< /Length 6 0 R >>\nstream\n"u8.ToArray());
+        buffer.AddRange(payloadBody);
+        buffer.AddRange("\nendstream  % trailing comment\nendobj\n"u8.ToArray());
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes("5 0 obj\n"));
+        buffer.AddRange(BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        // Object 6: the /Length value object 4's stream dictionary points to. Its own value is
+        // irrelevant to this test - it is never trusted as a declared length boundary merely by
+        // being referenced indirectly.
+        buffer.AddRange("6 0 obj\n9999\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that whitespace and a PDF comment between a genuine <c>endstream</c> keyword and
+    ///     the <c>endobj</c> keyword that follows it (see
+    ///     <see cref="BuildLinearScanFallbackWithCommentBeforeEndobj"/>) do not cause that
+    ///     genuine match to be wrongly rejected as coincidental payload noise. Rejecting it would
+    ///     leave the stream's payload unprotected, exposing a false, line-start <c>3 0 obj</c>
+    ///     header embedded within it to be scanned again as if it were real document syntax -
+    ///     overwriting the real, earlier object 3's correct offset with the decoy's. The real
+    ///     object 3 (the page) must still resolve and render correctly using its own genuine,
+    ///     earlier header.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_CommentBeforeEndobj_DoesNotCorruptOffsets()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithCommentBeforeEndobj();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback), whose object 3 (the page)
+    ///     header places a PDF comment between its generation number and the <c>obj</c> keyword -
+    ///     <c>3 0 % comment\nobj</c> - valid per the PDF grammar (a comment is whitespace-equivalent
+    ///     token separation) but previously unrecognized by a backward object-header scan that
+    ///     only walked raw whitespace bytes, making this genuine object appear entirely missing
+    ///     during fallback recovery.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithCommentInObjectHeader()
+    {
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        buffer.AddRange("1 0 obj\n"u8.ToArray());
+        buffer.AddRange(bodies[0]);
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+        buffer.AddRange("2 0 obj\n"u8.ToArray());
+        buffer.AddRange(bodies[1]);
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        // Object 3's header places a comment between the generation number and "obj".
+        buffer.AddRange("3 0 % object header comment\nobj\n"u8.ToArray());
+        buffer.AddRange(bodies[2]);
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("4 0 obj\n"u8.ToArray());
+        buffer.AddRange(bodies[3]);
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a PDF comment separating an object header's generation number from its
+    ///     <c>obj</c> keyword (see <see cref="BuildLinearScanFallbackWithCommentInObjectHeader"/>)
+    ///     does not make the backward object-header scan miss that object entirely. A real forward
+    ///     parser treats the comment as insignificant whitespace and finds the header; fallback
+    ///     recovery's backward scan must recognize the same header so the object resolves
+    ///     correctly instead of appearing to be missing from the document.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_CommentInObjectHeader_ResolvesObject()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithCommentInObjectHeader();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): object 4 is an unreferenced
+    ///     stream with a genuine, direct, correctly-declared <c>/Length</c> covering its whole
+    ///     payload, but whose terminating <c>endstream</c> keyword is separated from the end of
+    ///     that declared payload by ordinary whitespace and a PDF comment rather than a bare
+    ///     end-of-line sequence - valid per the PDF grammar, but previously rejected by a
+    ///     declared-length validator that only tolerated an optional CRLF. The payload itself
+    ///     contains an early, coincidental <c>endstream</c> immediately followed by a genuine
+    ///     <c>endobj</c> (so it passes the structural "followed by endobj" check on its own), and
+    ///     then a false, line-start <c>3 0 obj</c> header - if the comment-separated, genuinely
+    ///     declared length is wrongly distrusted, the raw fallback scan accepts this early,
+    ///     coincidental match instead, ending the protected payload range too soon and exposing
+    ///     the false header to corrupt the real, earlier object 3's offset.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithCommentBeforeDeclaredLengthEndstream()
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray(),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // An early, coincidental "endstream" that IS immediately followed by "endobj" (so it
+        // would be accepted by the raw fallback scan's own structural check on its own merits),
+        // followed by a false, line-start "3 0 obj" header - both fully inside the declared
+        // /Length below, and so never reachable by the raw scan at all when the declared length
+        // is correctly trusted.
+        var payloadBody = "AAAA\nendstream\nendobj\nBBBB\n3 0 obj\n<< /Bogus (decoy) >>\nendobj\nCCCC"u8.ToArray();
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"4 0 obj\n<< /Length {payloadBody.Length} >>\nstream\n"));
+        buffer.AddRange(payloadBody);
+        buffer.AddRange("  % trailing comment\nendstream\nendobj\n"u8.ToArray());
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes("5 0 obj\n"));
+        buffer.AddRange(BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that whitespace and a PDF comment between the end of a stream's correctly
+    ///     declared <c>/Length</c> payload and its terminating <c>endstream</c> keyword (see
+    ///     <see cref="BuildLinearScanFallbackWithCommentBeforeDeclaredLengthEndstream"/>) do not
+    ///     cause that genuinely correct declared length to be distrusted. Distrusting it would
+    ///     fall through to the much weaker raw fallback scan, which accepts an early, coincidental
+    ///     <c>endstream</c>/<c>endobj</c> pair embedded within the payload itself - ending the
+    ///     protected payload range too soon and exposing a false, line-start <c>3 0 obj</c> header
+    ///     within it to corrupt the real, earlier object 3's correct offset. The real object 3
+    ///     (the page) must still resolve and render correctly using its own genuine, earlier
+    ///     header.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_CommentBeforeDeclaredLengthEndstream_DoesNotCorruptOffsets()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithCommentBeforeDeclaredLengthEndstream();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): object 4 is an unreferenced
+    ///     stream with an indirect, unresolvable <c>/Length</c> (forcing the raw
+    ///     <c>FindStructurallyValidEndstream</c> fallback search), whose payload begins with an
+    ///     early, coincidental <c>endstream</c> keyword immediately followed by a PDF comment that
+    ///     deliberately does not reach its own end-of-line terminator within
+    ///     <c>SkipMarkerWhitespaceAndCommentsForward</c>'s bounded scan window, with the literal
+    ///     text <c>endobj</c> positioned exactly at that window's cutoff. Followed by that is a
+    ///     false, line-start <c>3 0 obj</c> header, and then the stream's genuine, final
+    ///     <c>endstream</c>/<c>endobj</c> pair. A separator scan that mistook the bounded cutoff
+    ///     for a genuine comment terminator would read the <c>endobj</c> text sitting there - which
+    ///     is, per the PDF comment grammar, still ambiguous (possibly still part of the
+    ///     unterminated comment) - as confirmation that the early, coincidental <c>endstream</c> is
+    ///     structurally valid, ending the protected payload range far too soon.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithUnterminatedCommentAtForwardScanBound()
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray(),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        // "endstream" immediately followed by a comment of exactly 256 bytes ('%' plus 255 'A'
+        // bytes) with no end-of-line anywhere in it - the same length as
+        // SkipMarkerWhitespaceAndCommentsForward's own bounded scan window - so that window's
+        // cutoff lands exactly on the following "endobj" text, which (since the comment never
+        // actually reached a real terminator) must not be mistaken for a genuine, standalone
+        // keyword.
+        var unterminatedComment = "%" + new string('A', 255);
+        var payloadBody = "endstream" + unterminatedComment + "endobj" +
+                           "\nBBBB\n3 0 obj\n<< /Bogus (decoy) >>\nendobj\nCCCC";
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"4 0 obj\n<< /Length 6 0 R >>\nstream\n"));
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(payloadBody));
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes("5 0 obj\n"));
+        buffer.AddRange(BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        // Object 6: the /Length value object 4's stream dictionary points to. Its own value is
+        // irrelevant to this test - it is never trusted as a declared length boundary merely by
+        // being referenced indirectly.
+        buffer.AddRange("6 0 obj\n9999\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that when the bounded forward whitespace-and-comment scan runs out before an
+    ///     in-progress comment reaches its own end-of-line terminator (see
+    ///     <see cref="BuildLinearScanFallbackWithUnterminatedCommentAtForwardScanBound"/>), the
+    ///     bytes sitting exactly at that bound are never mistaken for a genuine keyword even when
+    ///     they spell one exactly - because, per the PDF comment grammar, they may in fact still be
+    ///     part of the comment's own (longer than the bound) body. Accepting them regardless would
+    ///     let an early, coincidental <c>endstream</c> be mistaken for the stream's real terminator,
+    ///     ending the protected payload range too soon and exposing a false, line-start
+    ///     <c>3 0 obj</c> header to corrupt the real, earlier object 3's correct offset. The real
+    ///     object 3 (the page) must still resolve and render correctly using its own genuine,
+    ///     earlier header.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_UnterminatedCommentAtForwardScanBound_DoesNotCorruptOffsets()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithUnterminatedCommentAtForwardScanBound();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Returns the character offset, within <paramref name="text"/> (the ASCII text of a PDF
+    ///     built by <see cref="BuildSinglePagePdf"/>), of the fixed-width 10-digit offset field
+    ///     belonging to the single classic cross-reference subsection's entry for
+    ///     <paramref name="objectNumber"/> - used by tests that corrupt one entry's declared
+    ///     offset in place without disturbing the table's fixed-width line layout.
+    /// </summary>
+    private static int FindClassicXrefEntryOffsetStart(string text, int objectNumber)
+    {
+        var xrefKeywordIndex = text.IndexOf("xref\n", StringComparison.Ordinal);
+        var entryStart = text.IndexOf('\n', xrefKeywordIndex + "xref\n".Length) + 1;
+        for (var i = 0; i < objectNumber; i++)
+        {
+            entryStart = text.IndexOf('\n', entryStart) + 1;
+        }
+
+        return entryStart;
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page, classic-xref PDF (via <see cref="BuildSinglePagePdf"/>)
+    ///     whose object 3 (the page) entry is rewritten to declare its own genuine offset plus
+    ///     2^32 (still within the ten fixed-width digits the classic cross-reference format
+    ///     allows, and so a value a conforming reader must reject as out of bounds) - chosen
+    ///     specifically because narrowing it to <see langword="int"/> via an unchecked,
+    ///     wraparound cast recovers the exact original, genuinely valid offset. A naive
+    ///     implementation that narrows to <see langword="int"/> before validating bounds would
+    ///     therefore accept this out-of-range offset and parse object 3 completely normally,
+    ///     silently masking the very validation bypass this test exists to catch; validating the
+    ///     original 64-bit value first instead rejects it outright.
+    /// </summary>
+    private static byte[] BuildClassicXrefPdfWithEntryOffsetBeyondInt32Range()
+    {
+        var pdfBytes = BuildSinglePagePdf(100, 100, "10 10 40 40 re f");
+        var text = System.Text.Encoding.ASCII.GetString(pdfBytes);
+        var entryStart = FindClassicXrefEntryOffsetStart(text, 3);
+        var realOffset = long.Parse(text.Substring(entryStart, 10), System.Globalization.CultureInfo.InvariantCulture);
+        var wrapped = (realOffset + (1L << 32)).ToString("D10", System.Globalization.CultureInfo.InvariantCulture);
+        var corrupted = text[..entryStart] + wrapped + text[(entryStart + 10)..];
+        return System.Text.Encoding.ASCII.GetBytes(corrupted);
+    }
+
+    /// <summary>
+    ///     Proves that a classic cross-reference entry declaring an offset beyond
+    ///     <see cref="int.MaxValue"/> (see
+    ///     <see cref="BuildClassicXrefPdfWithEntryOffsetBeyondInt32Range"/>) throws
+    ///     <see cref="InvalidDataException"/> instead of being narrowed to <see langword="int"/>
+    ///     before its bounds are checked, which would let it silently wrap around to some
+    ///     unrelated, in-bounds offset and be used as-is.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_ClassicXref_EntryOffsetBeyondInt32Range_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildClassicXrefPdfWithEntryOffsetBeyondInt32Range();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page, classic-xref PDF (via <see cref="BuildSinglePagePdf"/>)
+    ///     with genuine, correctly-bounded <c>xref</c>/<c>trailer</c>/<c>startxref</c> syntax,
+    ///     followed by two independently valid, orphaned objects appended after the real
+    ///     document's own <c>%%EOF</c> - object 5 a complete <c>/Type /Page</c> dictionary (with
+    ///     its own distinct <c>/Contents</c> stream, object 6, drawing a different shape) never
+    ///     reachable through any genuine <c>xref</c>/<c>trailer</c> path. Object 3's (the real
+    ///     page's) cross-reference entry is then rewritten to declare object 5's genuine offset
+    ///     instead of its own. Because object 5 is itself shape-compatible with a legitimate leaf
+    ///     page (not a different <c>/Type</c> or a non-dictionary stream, whose mismatch would be
+    ///     caught - for an unrelated reason - by the page-tree's own <c>/Type</c> validation), a
+    ///     missing object-number cross-check would let this resolve completely successfully with
+    ///     object 5's content, silently rendering the wrong page instead of throwing.
+    /// </summary>
+    private static byte[] BuildClassicXrefPdfWithEntryPointingAtWrongObjectHeader()
+    {
+        var buffer = BuildSinglePagePdf(100, 100, "10 10 40 40 re f").ToList();
+
+        var decoyContent = "60 60 10 10 re f"u8.ToArray();
+        var object5Offset = buffer.Count;
+        buffer.AddRange("5 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 6 0 R >>\nendobj\n"u8.ToArray());
+        buffer.AddRange("6 0 obj\n"u8.ToArray());
+        buffer.AddRange(BuildStreamObjectBody(string.Empty, decoyContent));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        var text = System.Text.Encoding.ASCII.GetString([.. buffer]);
+        var object3EntryStart = FindClassicXrefEntryOffsetStart(text, 3);
+        var corrupted = text[..object3EntryStart] +
+            object5Offset.ToString("D10", System.Globalization.CultureInfo.InvariantCulture) +
+            text[(object3EntryStart + 10)..];
+        return System.Text.Encoding.ASCII.GetBytes(corrupted);
+    }
+
+    /// <summary>
+    ///     Proves that a classic cross-reference entry whose declared offset leads to a
+    ///     different, genuine (and shape-compatible) object's header (see
+    ///     <see cref="BuildClassicXrefPdfWithEntryPointingAtWrongObjectHeader"/>) throws
+    ///     <see cref="InvalidDataException"/> instead of silently accepting the wrong object's
+    ///     content and relabeling it with the requested object number.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_ClassicXref_EntryPointingAtWrongObjectHeader_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildClassicXrefPdfWithEntryPointingAtWrongObjectHeader();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page, classic-xref PDF whose object 3 (the Page) header is
+    ///     deliberately written as <c>3.5 0 obj</c> rather than <c>3 0 obj</c> - a malformed,
+    ///     non-integer declared object number - even though the classic <c>xref</c> table's own
+    ///     entry for object 3 correctly points at this exact offset. Narrowing "3.5" to an
+    ///     <see cref="int"/> via a bare cast before comparing it against the expected object
+    ///     number (3) would truncate it to 3 and coincidentally match, silently accepting a
+    ///     header the PDF grammar does not actually permit; comparing the un-narrowed value
+    ///     instead correctly rejects the mismatch.
+    /// </summary>
+    private static byte[] BuildClassicXrefPdfWithNonIntegerObjectNumberHeader()
+    {
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+        var headerNumbers = new[] { "1", "2", "3.5", "4" };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        var offsets = new List<int>();
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            offsets.Add(buffer.Count);
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{headerNumbers[i]} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var xrefOffset = buffer.Count;
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"xref\n0 {bodies.Count + 1}\n"));
+        buffer.AddRange("0000000000 65535 f \n"u8.ToArray());
+        foreach (var offset in offsets)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{offset:D10} 00000 n \n"));
+        }
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"trailer\n<< /Size {bodies.Count + 1} /Root 1 0 R >>\nstartxref\n{xrefOffset}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a direct indirect-object header declaring a non-integer object number (for
+    ///     example "3.5" where "3" is expected, see
+    ///     <see cref="BuildClassicXrefPdfWithNonIntegerObjectNumberHeader"/>) throws
+    ///     <see cref="InvalidDataException"/> rather than silently accepting it via truncation to
+    ///     a coincidentally-matching integer.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_ClassicXref_NonIntegerObjectNumberHeader_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildClassicXrefPdfWithNonIntegerObjectNumberHeader();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
     #endregion
 
     #region Page tree
@@ -2103,9 +4080,9 @@ public class PdfDocumentTests
 
     #region Render
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int)"/> returns a fully transparent surface of the caller-requested size (Phase 1 renders no content).</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> returns an opaque-white surface of the caller-requested size by default (Phase 1 renders no content; the surface is cleared to <see cref="PdfRenderOptions.Default"/>'s opaque white background).</summary>
     [Fact]
-    public void PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedBlankSurface()
+    public void PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedOpaqueWhiteSurface()
     {
         // Arrange
         using var document = PdfDocument.Open(Fixture("classic-xref-single-page.pdf"));
@@ -2120,12 +4097,81 @@ public class PdfDocumentTests
         {
             for (var x = 0; x < surface.Width; x++)
             {
+                Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> defaults to an opaque white background when no <see cref="PdfRenderOptions"/> is passed.</summary>
+    [Fact]
+    public void PdfDocument_Render_NoOptions_DefaultsToOpaqueWhiteBackground()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("no-contents-page.pdf"));
+
+        // Act
+        using var surface = document.Render(0, 20, 20);
+
+        // Assert
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>Proves that a custom, non-white, opaque <see cref="PdfRenderOptions.BackgroundColor"/> clears the surface to exactly that color.</summary>
+    [Fact]
+    public void PdfDocument_Render_CustomBackgroundColor_ClearsSurfaceToThatColor()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("no-contents-page.pdf"));
+        var options = new PdfRenderOptions { BackgroundColor = new Canvas.Rgba32(10, 20, 30, 255) };
+
+        // Act
+        using var surface = document.Render(0, 20, 20, options);
+
+        // Assert
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                Assert.Equal(new Canvas.Rgba32(10, 20, 30, 255), surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>Proves that passing a fully transparent <see cref="PdfRenderOptions.BackgroundColor"/> reproduces the fully transparent background <c>Render</c> always produced before <see cref="PdfRenderOptions"/> was introduced.</summary>
+    [Fact]
+    public void PdfDocument_Render_TransparentBackgroundColor_ReproducesOldFullyTransparentBehavior()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("no-contents-page.pdf"));
+
+        // Act
+        using var surface = document.Render(0, 20, 20, Transparent);
+
+        // Assert
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
                 Assert.Equal(default, surface[x, y]);
             }
         }
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int)"/> rejects an out-of-range page index the same way <see cref="PdfDocument.GetPageInfo"/> does.</summary>
+    /// <summary>Proves that <see cref="PdfRenderOptions.Default"/>'s <see cref="PdfRenderOptions.BackgroundColor"/> is opaque white.</summary>
+    [Fact]
+    public void PdfRenderOptions_Default_BackgroundColorIsOpaqueWhite()
+    {
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), PdfRenderOptions.Default.BackgroundColor);
+    }
+
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> rejects an out-of-range page index the same way <see cref="PdfDocument.GetPageInfo"/> does.</summary>
     [Fact]
     public void PdfDocument_Render_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException()
     {
@@ -2136,7 +4182,7 @@ public class PdfDocumentTests
         Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(5, 10, 10));
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int)"/> lets <see cref="Canvas.Surface"/>'s own constructor validate width/height rather than duplicating that check.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> lets <see cref="Canvas.Surface"/>'s own constructor validate width/height rather than duplicating that check.</summary>
     [Fact]
     public void PdfDocument_Render_InvalidWidth_PropagatesSurfaceArgumentOutOfRangeException()
     {
@@ -2147,7 +4193,7 @@ public class PdfDocumentTests
         Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(0, 0, 10));
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, float)"/> scales the page's own point-space size by DPI/72, preserving aspect ratio.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, float, PdfRenderOptions?)"/> scales the page's own point-space size by DPI/72, preserving aspect ratio.</summary>
     [Theory]
     [InlineData(72f, 200, 300)]
     [InlineData(36f, 100, 150)]
@@ -2165,7 +4211,7 @@ public class PdfDocumentTests
         Assert.Equal(expectedHeight, surface.Height);
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, float)"/> rejects a non-positive or non-finite DPI.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, float, PdfRenderOptions?)"/> rejects a non-positive or non-finite DPI.</summary>
     /// <param name="dpi">The invalid DPI value under test.</param>
     [Theory]
     [InlineData(0f)]
@@ -2181,7 +4227,25 @@ public class PdfDocumentTests
         Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(0, dpi));
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, float)"/> rejects an out-of-range page index the same way <see cref="PdfDocument.GetPageInfo"/> does.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, float, PdfRenderOptions?)"/> forwards its options parameter unchanged to <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/>, so a custom <see cref="PdfRenderOptions.BackgroundColor"/> is honored by the DPI-based overload too, not just the default opaque-white background.</summary>
+    [Fact]
+    public void PdfDocument_RenderWithDpi_PropagatesOptionsBackgroundColor()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("classic-xref-single-page.pdf"));
+        var options = new PdfRenderOptions { BackgroundColor = new Canvas.Rgba32(0, 255, 0, 255) };
+
+        // Act
+        using var surface = document.Render(0, 72f, options);
+
+        // Assert: the page paints no content of its own, so every pixel still equals the
+        // custom background color supplied via options - proving it was actually forwarded,
+        // not silently dropped in favor of the opaque-white default.
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[0, 0]);
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[surface.Width - 1, surface.Height - 1]);
+    }
+
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, float, PdfRenderOptions?)"/> rejects an out-of-range page index the same way <see cref="PdfDocument.GetPageInfo"/> does.</summary>
     [Fact]
     public void PdfDocument_RenderWithDpi_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException()
     {
@@ -2192,7 +4256,7 @@ public class PdfDocumentTests
         Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(5, 72f));
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, float)"/> throws <see cref="ObjectDisposedException"/> once the document is disposed.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, float, PdfRenderOptions?)"/> throws <see cref="ObjectDisposedException"/> once the document is disposed.</summary>
     [Fact]
     public void PdfDocument_RenderWithDpi_AfterDispose_ThrowsObjectDisposedException()
     {
@@ -2250,7 +4314,7 @@ public class PdfDocumentTests
         Assert.Throws<ObjectDisposedException>(() => document.GetPageInfo(0));
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int)"/> throws <see cref="ObjectDisposedException"/> once the document is disposed.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> throws <see cref="ObjectDisposedException"/> once the document is disposed.</summary>
     [Fact]
     public void PdfDocument_Render_AfterDispose_ThrowsObjectDisposedException()
     {
@@ -2289,7 +4353,7 @@ public class PdfDocumentTests
 
         // Act: stream 4 holds "10 10 40" and stream 5 holds "40 re f"; correct concatenation
         // with a space separator reconstructs "10 10 40 40 re f" (a filled 40x40 square).
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert
         Assert.Equal(Black, surface[30, 70]);
@@ -2317,24 +4381,18 @@ public class PdfDocumentTests
         Assert.Equal(Black, surface[30, 65]);
     }
 
-    /// <summary>Proves that a page with no <c>/Contents</c> key at all renders as a fully blank surface, without throwing.</summary>
+    /// <summary>Proves that a page with no <c>/Contents</c> key at all renders without throwing.</summary>
     [Fact]
-    public void PdfDocument_ContentStream_NoContents_RendersBlankSurface()
+    public void PdfDocument_ContentStream_NoContents_RendersWithoutThrowing()
     {
         // Arrange
         using var document = PdfDocument.Open(Fixture("no-contents-page.pdf"));
 
         // Act
-        using var surface = document.Render(0, 20, 20);
+        var exception = Record.Exception(() => document.Render(0, 20, 20, Transparent));
 
         // Assert
-        for (var y = 0; y < surface.Height; y++)
-        {
-            for (var x = 0; x < surface.Width; x++)
-            {
-                Assert.Equal(default, surface[x, y]);
-            }
-        }
+        Assert.Null(exception);
     }
 
     #endregion

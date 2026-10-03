@@ -763,6 +763,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.FontFallback.cs"  # phase 6 unit source (font fallback)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Text.cs"          # phase 4 unit source (text rendering)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfPageInfo.cs"              # phase 1 unit source (supporting record struct)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfRenderOptions.cs"         # supporting options type (background color)
       - "src/DemaConsulting.CanvasNet.Pdf/NamespaceDoc.cs"             # Pdf namespace documentation
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfSystemIntegrationTests.cs"  # integration tests

@@ -20,6 +20,14 @@ public class PdfSystemIntegrationTests
     private static string Fixture(string name) => Path.Join(FixturesPath, name);
 
     /// <summary>
+    ///     A fully transparent <see cref="PdfRenderOptions.BackgroundColor"/>, used by tests that
+    ///     assert an unpainted region equals <see langword="default"/> to prove paint isolation
+    ///     from neighboring drawing, reproducing the fully transparent background <c>Render</c>
+    ///     always produced before <see cref="PdfRenderOptions"/> was introduced.
+    /// </summary>
+    private static readonly PdfRenderOptions Transparent = new() { BackgroundColor = new(0, 0, 0, 0) };
+
+    /// <summary>
     ///     The path to the real "Open Sans" TrueType font, copied to the test output directory by
     ///     this project's <c>FontFixtures\**</c> content-link item (mirroring
     ///     <c>DemaConsulting.CanvasNet.Svg.Tests</c>'s own reuse of the same shared file - see
@@ -30,7 +38,7 @@ public class PdfSystemIntegrationTests
     /// <summary>
     ///     Opens a multi-page fixture once, asserts <see cref="PdfDocument.PageCount"/>, then calls
     ///     <see cref="PdfDocument.GetPageInfo"/> for two different pages and
-    ///     <see cref="PdfDocument.Render(int, int, int)"/> for two different pages against the <em>same</em>
+    ///     <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> for two different pages against the <em>same</em>
     ///     opened instance - demonstrating the "parse once, reused across calls" property that no
     ///     stateless design could express. This is also the shared platform-proof test referenced
     ///     by every <c>CanvasNetPdf-Platform-*</c> requirement.
@@ -45,8 +53,8 @@ public class PdfSystemIntegrationTests
         var pageCount = document.PageCount;
         var firstInfo = document.GetPageInfo(0);
         var secondInfo = document.GetPageInfo(2);
-        using var firstSurface = document.Render(0, 32, 32);
-        using var secondSurface = document.Render(2, 16, 16);
+        using var firstSurface = document.Render(0, 32, 32, Transparent);
+        using var secondSurface = document.Render(2, 16, 16, Transparent);
 
         // Assert
         Assert.Equal(3, pageCount);
@@ -74,9 +82,9 @@ public class PdfSystemIntegrationTests
         Assert.Equal(90, info.Rotation);
     }
 
-    /// <summary>Proves <see cref="PdfDocument.Render(int, int, int)"/> returns a blank, correctly sized surface (Phase 1).</summary>
+    /// <summary>Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> returns an opaque-white, correctly sized surface by default (Phase 1 renders no content).</summary>
     [Fact]
-    public void CanvasNetPdf_SystemIntegration_PdfRender_ReturnsBlankSizedSurface()
+    public void CanvasNetPdf_SystemIntegration_PdfRender_ReturnsOpaqueWhiteSizedSurface()
     {
         // Arrange
         using var document = PdfDocument.Open(Fixture("classic-xref-single-page.pdf"));
@@ -87,12 +95,12 @@ public class PdfSystemIntegrationTests
         // Assert
         Assert.Equal(40, surface.Width);
         Assert.Equal(20, surface.Height);
-        Assert.Equal(default, surface[0, 0]);
-        Assert.Equal(default, surface[39, 19]);
+        Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[0, 0]);
+        Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[39, 19]);
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> rasterizes real path geometry end-to-end: a
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> rasterizes real path geometry end-to-end: a
     ///     hand-authored fixture containing a filled rectangle and a stroked vertical line,
     ///     asserting specific opaque-black/transparent pixels at specific coordinates (not merely
     ///     "the surface is not blank").
@@ -106,7 +114,7 @@ public class PdfSystemIntegrationTests
         using var document = PdfDocument.Open(Fixture("path-construction-rect-and-line.pdf"));
 
         // Act
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: interior of the filled rectangle is opaque black; a point outside it is not.
         Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[30, 70]);
@@ -131,7 +139,7 @@ public class PdfSystemIntegrationTests
         using var document = PdfDocument.Open(Fixture("path-construction-rotated-page.pdf"));
 
         // Act: displayed size swaps to 100x200 under /Rotate 90 - render at that exact size.
-        using var surface = document.Render(0, 100, 200);
+        using var surface = document.Render(0, 100, 200, Transparent);
 
         // Assert: correctly rotated, the rectangle lands at device px in [10,30), py in [10,40).
         Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[20, 25]);
@@ -161,7 +169,7 @@ public class PdfSystemIntegrationTests
     ///     Proves a well-formed document/xref/page-tree whose <c>/Contents</c> stream is itself
     ///     lexically malformed (a <c>re</c> operator given only 2 of its 4 required operands) is
     ///     rejected with <see cref="InvalidDataException"/> end-to-end through
-    ///     <see cref="PdfDocument.Render(int, int, int)"/>, distinct from the structural malformations
+    ///     <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/>, distinct from the structural malformations
     ///     (<c>malformed-startxref.pdf</c>/<c>cyclic-page-tree.pdf</c>) already covered elsewhere.
     /// </summary>
     [Fact]
@@ -246,7 +254,7 @@ public class PdfSystemIntegrationTests
 
         // Act
         using var document = PdfDocument.Open(new MemoryStream(pdfBytes), userPassword);
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: the rectangle's device footprint is painted; outside it is left blank.
         Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[30, 70]);
@@ -254,7 +262,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> paints real device color end-to-end (Phase 3):
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> paints real device color end-to-end (Phase 3):
     ///     a hand-authored fixture using <c>rg</c> to fill a rectangle red, asserting a specific
     ///     interior pixel is opaque red and an exterior pixel remains transparent.
     /// </summary>
@@ -266,7 +274,7 @@ public class PdfSystemIntegrationTests
         using var document = PdfDocument.Open(Fixture("color-rgb-rectangle-fill.pdf"));
 
         // Act
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: interior of the filled rectangle is opaque red; a point outside it is not.
         Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
@@ -274,7 +282,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> decodes and composites an image XObject
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> decodes and composites an image XObject
     ///     end-to-end (Phase 3): a hand-authored fixture placing a 2x2 <c>DeviceRGB</c>
     ///     <c>FlateDecode</c> image via <c>cm</c>/<c>Do</c>, asserting specific composited pixel
     ///     colors matching the fixture's known source pixels, and a pixel outside the placed
@@ -290,7 +298,7 @@ public class PdfSystemIntegrationTests
         using var document = PdfDocument.Open(Fixture("image-xobject-devicergb-flate.pdf"));
 
         // Act
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: the four source quadrants land in their mathematically correct device pixels.
         Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 40]);
@@ -303,7 +311,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> executes a <c>/Subtype /Form</c> XObject
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> executes a <c>/Subtype /Form</c> XObject
     ///     placed via the <c>Do</c> operator end-to-end: a synthetic, in-memory single-page PDF
     ///     (no binary fixture) whose page content stream invokes <c>/Fm0 Do</c>, where <c>/Fm0</c>
     ///     is a genuine Form XObject (<c>/Type /XObject /Subtype /Form</c>) with its own nested
@@ -326,7 +334,7 @@ public class PdfSystemIntegrationTests
 
         // Act
         using var document = PdfDocument.Open(new MemoryStream(bytes));
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: the rectangle's device footprint is painted; outside it is left blank.
         Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[50, 50]);
@@ -334,7 +342,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> decodes an <c>LZWDecode</c>-compressed page
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> decodes an <c>LZWDecode</c>-compressed page
     ///     content stream end-to-end (Phase 7): a hand-authored fixture whose <c>/Contents</c>
     ///     stream is the PDF-variant-LZW-compressed bytes of <c>"1 0 0 rg 10 10 80 80 re f"</c>
     ///     (an 80x80 rectangle filled opaque red), proving the decoded operator text is parsed
@@ -347,7 +355,7 @@ public class PdfSystemIntegrationTests
         using var document = PdfDocument.Open(Fixture("content-stream-lzw.pdf"));
 
         // Act
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: interior of the filled rectangle is opaque red; a point outside it is not.
         Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
@@ -355,7 +363,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> decodes an <c>ASCII85Decode</c>-armored page
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> decodes an <c>ASCII85Decode</c>-armored page
     ///     content stream end-to-end (Phase 7): a hand-authored fixture whose <c>/Contents</c>
     ///     stream is the base-85 encoding (terminated by <c>~&gt;</c>) of the same
     ///     <c>"1 0 0 rg 10 10 80 80 re f"</c> content-stream text.
@@ -367,7 +375,7 @@ public class PdfSystemIntegrationTests
         using var document = PdfDocument.Open(Fixture("content-stream-ascii85.pdf"));
 
         // Act
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: interior of the filled rectangle is opaque red; a point outside it is not.
         Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
@@ -375,7 +383,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> decodes an <c>ASCIIHexDecode</c>-armored page
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> decodes an <c>ASCIIHexDecode</c>-armored page
     ///     content stream end-to-end (Phase 7): a hand-authored fixture whose <c>/Contents</c>
     ///     stream is the hex-digit-pair encoding (terminated by <c>&gt;</c>) of the same
     ///     <c>"1 0 0 rg 10 10 80 80 re f"</c> content-stream text.
@@ -387,7 +395,7 @@ public class PdfSystemIntegrationTests
         using var document = PdfDocument.Open(Fixture("content-stream-asciihex.pdf"));
 
         // Act
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: interior of the filled rectangle is opaque red; a point outside it is not.
         Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
@@ -395,7 +403,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> decodes a <c>RunLengthDecode</c>-compressed
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> decodes a <c>RunLengthDecode</c>-compressed
     ///     page content stream end-to-end (Phase 7): a hand-authored fixture whose
     ///     <c>/Contents</c> stream is a single PackBits-style literal run (length byte, the
     ///     literal bytes, then the <c>128</c> EOD marker) wrapping the same
@@ -408,7 +416,7 @@ public class PdfSystemIntegrationTests
         using var document = PdfDocument.Open(Fixture("content-stream-runlength.pdf"));
 
         // Act
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: interior of the filled rectangle is opaque red; a point outside it is not.
         Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
@@ -416,7 +424,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> resolves an embedded simple TrueType font end
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> resolves an embedded simple TrueType font end
     ///     to end (Phase 4): a hand-authored fixture with a real, embedded (via
     ///     <c>/FontDescriptor/FontFile2</c>) copy of the shared <c>OpenSans-Regular.ttf</c>
     ///     production font (see <c>PdfFixtures\README.md</c> for provenance and the
@@ -446,7 +454,7 @@ public class PdfSystemIntegrationTests
         // Act: render at the MediaBox's own pixel dimensions (a 1:1 user-space-to-device-pixel
         // mapping, since width/height exactly match the MediaBox), then load the same real font
         // independently to re-derive expected glyph-ink pixel positions from its own metrics.
-        using var surface = document.Render(0, 200, 100);
+        using var surface = document.Render(0, 200, 100, Transparent);
         var font = TrueTypeFont.Load(FontPath);
 
         // Maps a font-design-space point (in the glyph currently being measured, whose text-space
@@ -494,7 +502,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> resolves a <c>/Type0</c>/<c>/Identity-H</c>
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> resolves a <c>/Type0</c>/<c>/Identity-H</c>
     ///     <c>CIDFontType2</c> composite font end to end (Phase 9): a hand-authored fixture with a
     ///     real, embedded (via the descendant font's <c>/FontDescriptor/FontFile2</c>) copy of the
     ///     shared <c>OpenSans-Regular.ttf</c> production font (see <c>PdfFixtures\README.md</c> for
@@ -531,7 +539,7 @@ public class PdfSystemIntegrationTests
         // Act: render at the MediaBox's own pixel dimensions (a 1:1 user-space-to-device-pixel
         // mapping), then load the same real font independently to re-derive expected glyph-ink
         // pixel positions from its own outline, looked up directly by glyph index.
-        using var surface = document.Render(0, 200, 100);
+        using var surface = document.Render(0, 200, 100, Transparent);
         var font = TrueTypeFont.Load(FontPath);
 
         // Maps a font-design-space point (in the glyph currently being measured, whose text-space
@@ -582,7 +590,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> resolves a <c>/Type0</c>/<c>/Identity-H</c>
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> resolves a <c>/Type0</c>/<c>/Identity-H</c>
     ///     <c>CIDFontType0</c> composite font end to end (Phase 12): a hand-authored, entirely
     ///     synthetic fixture (see <c>PdfFixtures\README.md</c>) whose descendant font's
     ///     <c>/FontDescriptor/FontFile3</c> is a synthetic, non-CID-keyed, <c>/OpenType</c>-
@@ -603,7 +611,7 @@ public class PdfSystemIntegrationTests
         using var document = PdfDocument.Open(Fixture("text-composite-cff-cidfonttype0-identity-h.pdf"));
 
         // Act
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: text x [7, 15) holds the painted square glyph (design x [100, 500) of 1000,
         // scaled by fontSize 20, offset by originX 5, flipped against the MediaBox height for
@@ -618,7 +626,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> resolves a <c>/Subtype /Type1</c> simple font
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> resolves a <c>/Subtype /Type1</c> simple font
     ///     with an embedded classic PostScript <c>/FontDescriptor/FontFile</c> program end to end
     ///     (Phase B): a hand-authored, entirely synthetic fixture (see
     ///     <c>PdfFixtures\README.md</c>) built via <c>SyntheticFontBuilder.Type1</c> (no
@@ -635,7 +643,7 @@ public class PdfSystemIntegrationTests
         using var document = PdfDocument.Open(Fixture("text-embedded-type1-font.pdf"));
 
         // Act
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: text x [7, 15) holds the painted square glyph (design x [100, 500) of 1000,
         // scaled by fontSize 20, offset by originX 5, flipped against the MediaBox height for
@@ -650,7 +658,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> resolves a Standard-14 simple TrueType font
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> resolves a Standard-14 simple TrueType font
     ///     (<c>/BaseFont /Helvetica</c>) with no embedded <c>/FontFile2</c> end to end (Phase 6):
     ///     a synthetic, in-memory single-page document (no new binary fixture needed) drawing a
     ///     single glyph. Since the actual substitute font (a matching system font, or the bundled
@@ -670,7 +678,7 @@ public class PdfSystemIntegrationTests
 
         // Act
         using var document = PdfDocument.Open(new MemoryStream(bytes));
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: at least one visibly-painted (non-transparent) pixel proves a real substitute
         // glyph was actually rendered, not merely that no exception was thrown.
@@ -691,7 +699,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> resolves a <c>/BaseFont /Symbol</c> font with
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> resolves a <c>/BaseFont /Symbol</c> font with
     ///     no embedded <c>/FontFile2</c> and no <c>/FontDescriptor</c> entries at all (PDF
     ///     32000-1 §9.6.2.2 permits an entirely absent/empty descriptor) end to end (Phase 6):
     ///     Symbol/ZapfDingbats no longer fail closed, instead resolving via the bundled Noto
@@ -711,7 +719,7 @@ public class PdfSystemIntegrationTests
 
         // Act
         using var document = PdfDocument.Open(new MemoryStream(bytes));
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: at least one visibly-painted (non-transparent) pixel proves a real Noto
         // substitute glyph was actually rendered, not merely that no exception was thrown.
@@ -757,7 +765,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Regression guard: proves <see cref="PdfDocument.Render(int, int, int)"/> still fails closed end to
+    ///     Regression guard: proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> still fails closed end to
     ///     end (Phase 6) for a non-Symbol/ZapfDingbats font whose <c>/FontDescriptor/Flags</c>
     ///     declares the <c>Symbolic</c> bit without also declaring <c>Nonsymbolic</c>, and has no
     ///     embedded <c>/FontFile2</c> - proving the new Symbol/ZapfDingbats Noto-substitution
@@ -828,7 +836,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> paints an axial (<c>/ShadingType 2</c>) shading
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> paints an axial (<c>/ShadingType 2</c>) shading
     ///     pattern fill end-to-end through the public API: a synthetic, in-memory single-page PDF
     ///     (no binary fixture) declaring a <c>/Pattern</c>-color-space fill driven by a
     ///     <c>/FunctionType 2</c> function, proving the painted gradient visibly varies from
@@ -849,7 +857,7 @@ public class PdfSystemIntegrationTests
 
         // Act
         using var document = PdfDocument.Open(new MemoryStream(bytes));
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: near-black at the start coordinate, near-white at the end coordinate.
         Assert.True(surface[2, 50].R < 50);
@@ -857,7 +865,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> paints a colored (<c>/PaintType 1</c>) tiling
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> paints a colored (<c>/PaintType 1</c>) tiling
     ///     pattern fill end-to-end through the public API: a synthetic, in-memory single-page PDF
     ///     (no binary fixture) declaring a <c>/Pattern</c>-color-space fill driven by a 10x10
     ///     pattern cell (left half red, right half blue), proving the painted result repeats both
@@ -880,7 +888,7 @@ public class PdfSystemIntegrationTests
 
         // Act
         using var document = PdfDocument.Open(new MemoryStream(bytes));
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: both tile colors appear, at multiple repeated tile offsets.
         Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[2, 50]);

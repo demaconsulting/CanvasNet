@@ -199,7 +199,7 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     The graphics-state stack pushed/popped by <c>q</c>/<c>Q</c>, for the content stream
     ///     currently being executed by <see cref="ExecuteContentStream"/>. Reinitialized fresh at
-    ///     the start of every <see cref="Render(int, int, int)"/> call; never shared or reused
+    ///     the start of every <see cref="Render(int, int, int, PdfRenderOptions?)"/> call; never shared or reused
     ///     across calls.
     /// </summary>
     private Stack<GraphicsState> _gsStack = null!;

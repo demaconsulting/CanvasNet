@@ -80,7 +80,7 @@ public sealed partial class PdfDocument
     /// <remarks>
     ///     Instances are built once by <see cref="BuildResolvedSimpleFont"/> and cached by
     ///     <see cref="ResolveFont"/> in <see cref="_fontCache"/> for the lifetime of a single
-    ///     <see cref="Render(int, int, int)"/> call - see <see cref="_fontCache"/>'s own remarks
+    ///     <see cref="Render(int, int, int, PdfRenderOptions?)"/> call - see <see cref="_fontCache"/>'s own remarks
     ///     for why the cache is never shared across calls.
     /// </remarks>
     private sealed class ResolvedSimpleFont : IResolvedFont
@@ -187,8 +187,8 @@ public sealed partial class PdfDocument
     /// <remarks>
     ///     Reinitialized (cleared) at the start of every <see cref="ExecuteContentStream"/> call,
     ///     alongside <see cref="_gsStack"/>/<see cref="_pathBuilder"/> - an explicit, documented
-    ///     "per-<see cref="Render(int, int, int)"/>-call only" cache scope, never shared or reused
-    ///     across separate <see cref="Render(int, int, int)"/> calls on the same
+    ///     "per-<see cref="Render(int, int, int, PdfRenderOptions?)"/>-call only" cache scope, never shared or reused
+    ///     across separate <see cref="Render(int, int, int, PdfRenderOptions?)"/> calls on the same
     ///     <see cref="PdfDocument"/> instance (each of which may, in principle, execute a
     ///     different page's content stream against the same font resource name, so caching a
     ///     resolved font beyond one call's lifetime could serve a stale/wrong font).

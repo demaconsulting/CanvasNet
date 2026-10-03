@@ -53,15 +53,16 @@ containing a page with a non-zero `/Rotate` value through the public API, then c
 `/MediaBox` and `Rotation` reports the effective normalized value, confirming page-tree
 inheritance and rotation normalization integrate correctly with the public API.
 
-### Integration: Pdf Render Returns Blank Sized Surface
+### Integration: Pdf Render Returns Opaque White Sized Surface
 
-**Test**: `CanvasNetPdf_SystemIntegration_PdfRender_ReturnsBlankSizedSurface`
+**Test**: `CanvasNetPdf_SystemIntegration_PdfRender_ReturnsOpaqueWhiteSizedSurface`
 
 Exercises end-to-end system behavior for `Render`: calls the public `Render` API for a valid page
 index and caller-chosen size, against a fixture with no `/Contents`. Asserts the returned
-`Surface` has exactly the requested dimensions and every pixel is the default (fully transparent)
-value, confirming the documented "a page with no content renders blank" behavior is honored at
-the system's own public entry point.
+`Surface` has exactly the requested dimensions and every pixel is opaque white, confirming the
+documented "a page with no content renders at its default background color" behavior (opaque
+white, matching most real-world PDF renderers) is honored at the system's own public entry
+point.
 
 ### Integration: Pdf Render Filled Rectangle And Stroked Line Paints Expected Pixels
 

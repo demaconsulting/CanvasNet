@@ -14,7 +14,7 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         <see cref="Open(string, string?)"/>, which read and parse the entire document exactly once (the
 ///         resolved page list and cross-reference data are cached for the lifetime of the
 ///         instance, so <see cref="PageCount"/>/<see cref="GetPageInfo(int)"/>/
-///         <see cref="Render(int, int, int)"/> are cheap, repeatable operations against the same
+///         <see cref="Render(int, int, int, PdfRenderOptions?)"/> are cheap, repeatable operations against the same
 ///         instance).
 ///     </para>
 ///     <para>
@@ -66,8 +66,9 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         user guide (mesh shadings, <c>/FunctionType 4</c> PostScript-calculator functions,
 ///         the <c>sh</c> operator, generic path clipping, transparency groups, and clip
 ///         text-rendering modes). Every other keyword not implemented is silently skipped, not
-///         an error. A page with no <c>/Contents</c> at all still renders as a fully
-///         transparent (blank) <see cref="Surface"/>, exactly as every page did in Phase 1.
+///         an error. A page with no <c>/Contents</c> at all still renders a <see cref="Surface"/>
+///         cleared to <see cref="PdfRenderOptions.BackgroundColor"/> (opaque white by default;
+///         see <see cref="Render(int, int, int, PdfRenderOptions?)"/>).
 ///     </para>
 ///     <para>
 ///         Phase 13 (this release) adds <c>/Subtype /Form</c> XObject rendering: <c>Do</c>
@@ -263,7 +264,7 @@ public sealed partial class PdfDocument : IDisposable
             _objectCache.Clear();
             _encryptionKey = null;
             _encryptionCipher = EncryptionCipher.None;
-            trailer = BuildLinearScanFallback();
+            trailer = BuildLinearScanFallback(password);
             InitializeEncryption(trailer, password);
         }
 
@@ -385,10 +386,20 @@ public sealed partial class PdfDocument : IDisposable
     /// <param name="pageIndex">The zero-based index of the page to render.</param>
     /// <param name="width">The width of the rendered surface, in pixels.</param>
     /// <param name="height">The height of the rendered surface, in pixels.</param>
+    /// <param name="options">
+    ///     Optional page-rendering configuration. When <see langword="null"/> (the default),
+    ///     <see cref="PdfRenderOptions.Default"/> is used, which clears the surface to opaque
+    ///     white before the page's content is painted.
+    /// </param>
     /// <returns>
     ///     A new <see cref="Surface"/> of the requested <paramref name="width"/> x
     ///     <paramref name="height"/>, painted with the page's interpreted content-stream geometry.
-    ///     A page with no <c>/Contents</c> renders as a fully transparent (blank) surface.
+    ///     The surface is first cleared to <paramref name="options"/>'s
+    ///     <see cref="PdfRenderOptions.BackgroundColor"/> (opaque white by default), so a page
+    ///     with no <c>/Contents</c> renders as a surface filled with that color. Pass
+    ///     <c>new PdfRenderOptions { BackgroundColor = new Rgba32(0, 0, 0, 0) }</c> to reproduce
+    ///     the fully transparent background this method always produced before this option
+    ///     existed.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">
     ///     Thrown when <paramref name="pageIndex"/> is negative or greater than or equal to
@@ -411,7 +422,7 @@ public sealed partial class PdfDocument : IDisposable
     ///     defined but unsupported text-rendering mode.
     /// </exception>
     /// <exception cref="ObjectDisposedException">Thrown when this document has been disposed.</exception>
-    public Surface Render(int pageIndex, int width, int height)
+    public Surface Render(int pageIndex, int width, int height, PdfRenderOptions? options = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (pageIndex < 0 || pageIndex >= _pages.Count)
@@ -420,6 +431,7 @@ public sealed partial class PdfDocument : IDisposable
         }
 
         var surface = new Surface(width, height);
+        surface.Clear((options ?? PdfRenderOptions.Default).BackgroundColor);
         var pageInfo = _pages[pageIndex];
         var (pageNode, x0, y0, boxWidth, boxHeight, resources) = ResolvePageDetails(pageIndex);
         var baseCtm = BuildBaseCtm(x0, y0, boxWidth, boxHeight, pageInfo.Rotation, width, height);
@@ -434,20 +446,31 @@ public sealed partial class PdfDocument : IDisposable
     ///     ratio.
     /// </summary>
     /// <remarks>
-    ///     A convenience wrapper over <see cref="Render(int, int, int)"/> for the common case of
+    ///     A convenience wrapper over <see cref="Render(int, int, int, PdfRenderOptions?)"/> for the common case of
     ///     wanting undistorted, uniformly-scaled output: this overload reads the page's
     ///     rotation-adjusted <see cref="PdfPageInfo.Width"/>/<see cref="PdfPageInfo.Height"/> (in
     ///     points, 1/72 inch) via <see cref="GetPageInfo"/>, scales both by <paramref name="dpi"/>
     ///     / 72, and rounds to the nearest pixel before delegating to
-    ///     <see cref="Render(int, int, int)"/>. Callers needing independent X/Y scaling (for
+    ///     <see cref="Render(int, int, int, PdfRenderOptions?)"/>. Callers needing independent X/Y scaling (for
     ///     example, non-square pixels, or a specific pixel size regardless of aspect ratio) should
-    ///     call <see cref="Render(int, int, int)"/> directly instead.
+    ///     call <see cref="Render(int, int, int, PdfRenderOptions?)"/> directly instead.
     /// </remarks>
     /// <param name="pageIndex">The zero-based index of the page to render.</param>
     /// <param name="dpi">The resolution to render at, in dots (pixels) per inch.</param>
+    /// <param name="options">
+    ///     Optional page-rendering configuration, forwarded unchanged to
+    ///     <see cref="Render(int, int, int, PdfRenderOptions?)"/>. When <see langword="null"/>
+    ///     (the default), <see cref="PdfRenderOptions.Default"/> is used, which clears the
+    ///     surface to opaque white before the page's content is painted.
+    /// </param>
     /// <returns>
     ///     A new <see cref="Surface"/> sized to the page's aspect ratio at <paramref name="dpi"/>,
-    ///     painted with the page's interpreted content-stream geometry.
+    ///     painted with the page's interpreted content-stream geometry. The surface is first
+    ///     cleared to <paramref name="options"/>'s <see cref="PdfRenderOptions.BackgroundColor"/>
+    ///     (opaque white by default) - see
+    ///     <see cref="Render(int, int, int, PdfRenderOptions?)"/> for details, including how to
+    ///     reproduce the fully transparent background this method always produced before this
+    ///     option existed.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">
     ///     Thrown when <paramref name="pageIndex"/> is negative or greater than or equal to
@@ -457,13 +480,13 @@ public sealed partial class PdfDocument : IDisposable
     ///     constructor).
     /// </exception>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     See <see cref="Render(int, int, int)"/>.
+    ///     See <see cref="Render(int, int, int, PdfRenderOptions?)"/>.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     See <see cref="Render(int, int, int)"/>.
+    ///     See <see cref="Render(int, int, int, PdfRenderOptions?)"/>.
     /// </exception>
     /// <exception cref="ObjectDisposedException">Thrown when this document has been disposed.</exception>
-    public Surface Render(int pageIndex, float dpi)
+    public Surface Render(int pageIndex, float dpi, PdfRenderOptions? options = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (!float.IsFinite(dpi) || dpi <= 0)
@@ -475,7 +498,7 @@ public sealed partial class PdfDocument : IDisposable
         var scale = dpi / 72.0;
         var width = (int)Math.Round(info.Width * scale, MidpointRounding.AwayFromZero);
         var height = (int)Math.Round(info.Height * scale, MidpointRounding.AwayFromZero);
-        return Render(pageIndex, width, height);
+        return Render(pageIndex, width, height, options);
     }
 
     /// <summary>
