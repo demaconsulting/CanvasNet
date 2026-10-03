@@ -1136,6 +1136,7 @@ logic applies identically regardless of which descendant-font outline flavor is 
 `PdfDocument_Fonts_Type1_FontFileMissingLength1_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_Type1_FontFileMissingLength2_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_Type1_FontFileNonNumericLength2_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedType1FontGlyphMap`,
 `PdfDocument_Load_TextEmbeddedType1FontFixture_PaintsVisibleGlyphInk`,
 `PdfDocument_Load_TextStandard14Type1NoFontFileFixture_PaintsVisibleSubstituteGlyphInk`,
 `CanvasNetPdf_SystemIntegration_RenderEmbeddedType1Font_PaintsExpectedGlyphInk`
@@ -1161,7 +1162,16 @@ own resolution and fail-closed cases. An embedded `/FontFile` stream declaring o
 stream declaring only `/Length1` asserts `InvalidDataException` too; separately, a stream
 declaring a non-numeric `/Length2` value (`/NotANumber`) asserts `InvalidDataException` as well -
 proving all three malformed-length cases fail closed, and that both lengths are read from the
-`/FontFile` stream's own dictionary (never the descriptor's). Two fixture-conformance tests open
+`/FontFile` stream's own dictionary (never the descriptor's). A further test,
+`PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedType1FontGlyphMap`, proves
+this classic `/FontFile` path's own call into `LoadType1Font` also receives the font dictionary's
+enriched codepoint-to-glyph-name map: a `/Differences` array names a code `/uni03BC`, and the
+embedded classic Type 1 program's own charstrings spell their one non-`.notdef` glyph with that
+exact literal name, so the glyph paints only because `LoadType1Font` is passed (and consults) the
+enriched map rather than the generic `CodepointToStandardGlyphName` reverse map alone - the same
+enrichment proven for the Type1C/CFF path by
+`CanvasNetPdf-PdfDocument-Type1CFontResolution`'s own matching test below, now proven for the
+classic `/FontFile` path too. Two fixture-conformance tests open
 the new hand-authored, entirely synthetic `text-embedded-type1-font.pdf` and
 `text-standard14-type1-no-fontfile.pdf` fixtures (see `PdfFixtures\README.md`) and assert visible
 painted ink from each. The end-to-end system-integration test opens

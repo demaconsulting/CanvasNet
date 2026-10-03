@@ -6,9 +6,11 @@
 <!-- cspell:ignore hsbw fontfile -->
 <!-- cspell:ignore XUPVJI Gotham thinspace ligatures fontfile -->
 
-Every PDF file in this folder, with one exception (`text-type1c-differences-agl-ligatures.pdf`,
-a trimmed excerpt of a real-world document - see its own entry below), is a small, hand-authored
-document created specifically for this repository to exercise `PdfDocument`'s parsing internals
+Every PDF file in this folder, with three exceptions (`text-embedded-truetype-font.pdf` and
+`text-composite-truetype-identity-h.pdf`, which embed a real third-party TrueType font, and
+`text-type1c-differences-agl-ligatures.pdf`, a trimmed excerpt of a real-world document - see
+each file's own entry below), is a small, hand-authored document created specifically for this
+repository to exercise `PdfDocument`'s parsing internals
 (tokenizer, object model,
 cross-reference resolution in all three forms, the linear-scan fallback, page-tree traversal with
 inheritance, and `/Encrypt` detection - Phase 1), its content-stream interpreter (path
@@ -27,11 +29,15 @@ Type 1 simple-font support (`/Subtype /Type1`, either an embedded `/FontDescript
 program or the free non-embedded fallback path, plus the `/StandardEncoding` base encoding -
 Phase B)
 end to end via real files on disk.
-With one exception (`text-type1c-differences-agl-ligatures.pdf`, a trimmed excerpt of a
-real-world document - see its own entry below), there is no third-party source corpus behind
-any of them (unlike, for example, `PngSuite` in the core test project): each was constructed
-byte-by-byte from scratch for CanvasNet and is licensed under the same MIT license as the rest of
-this repository.
+With the same three exceptions noted above (`text-embedded-truetype-font.pdf` and
+`text-composite-truetype-identity-h.pdf`, which embed a real, third-party, SIL Open Font
+License-licensed TrueType font, and `text-type1c-differences-agl-ligatures.pdf`, a trimmed
+real-world excerpt), there is no third-party source corpus behind any of them (unlike, for
+example, `PngSuite` in the core test project): each remaining file's object structure,
+dictionaries, and content stream were constructed byte-by-byte from scratch for CanvasNet and
+are licensed under the same MIT license as the rest of this repository; the embedded font bytes
+in those three exception files retain their own original third-party licenses (see each file's
+own entry below for details).
 
 | File | Exercises |
 | ------ | ----------- |

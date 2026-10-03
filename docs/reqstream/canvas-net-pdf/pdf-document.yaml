@@ -996,6 +996,7 @@ sections:
               - PdfDocument_Fonts_Type1_FontFileMissingLength1_ThrowsInvalidDataException
               - PdfDocument_Fonts_Type1_FontFileMissingLength2_ThrowsInvalidDataException
               - PdfDocument_Fonts_Type1_FontFileNonNumericLength2_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedType1FontGlyphMap
               - PdfDocument_Load_TextEmbeddedType1FontFixture_PaintsVisibleGlyphInk
               - PdfDocument_Load_TextStandard14Type1NoFontFileFixture_PaintsVisibleSubstituteGlyphInk
               - CanvasNetPdf_SystemIntegration_RenderEmbeddedType1Font_PaintsExpectedGlyphInk
