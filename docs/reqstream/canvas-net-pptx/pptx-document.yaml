@@ -1,7 +1,7 @@
 ---
 # Software Unit Requirements for PptxDocument
 #
-# cspell:ignore ooxml pptx srgb
+# cspell:ignore ooxml pptx srgb xfrm prst cust patt
 #
 # These requirements describe the design-level behavior of the PptxDocument unit.
 #
@@ -295,3 +295,200 @@ sections:
             tests:
               - PptxDocumentInheritance_ResolvePlaceholderProperties_PerCategoryIndependentFallthrough_SlideOverridesFillButNotText
               - PptxDocumentInheritance_ResolvePlaceholderProperties_NoMatchAtAnyLevel_ReturnsNullForBothCategories
+
+          - id: CanvasNetPptx-PptxDocument-ShapeFrameTransform
+            title: >-
+              The PptxDocument class shall resolve a shape's <a:xfrm> element (off/ext position and
+              size, an optional rot rotation in 60,000ths of a degree about the shape's own center,
+              defaulting to zero when omitted, and optional flipH/flipV mirroring about the shape's
+              own center) into a single composed transform placing the shape's local coordinate
+              space into its parent's coordinate space, and reject a missing off/ext child element
+              or a non-numeric rot attribute with InvalidDataException.
+            justification: |
+              Every DrawingML shape's geometry is authored in its own local coordinate space; a
+              correct, single composed transform is the foundation every later geometry and paint
+              resolution in this phase, and any future rendering phase, builds on.
+            tests:
+              - ResolveShapeFrame_PlainOffsetAndSize_MapsLocalOriginToOffset
+              - ResolveShapeFrame_MissingOff_ThrowsInvalidDataException
+              - ResolveShapeFrame_MissingExt_ThrowsInvalidDataException
+              - ResolveShapeFrame_Rotation90Degrees_RotatesAboutOwnCenterClockwise
+              - ResolveShapeFrame_MissingRot_DefaultsToZeroRotation
+              - ResolveShapeFrame_FlipHorizontal_MirrorsAboutOwnCenterX
+              - ResolveShapeFrame_FlipVertical_MirrorsAboutOwnCenterY
+              - ResolveShapeFrame_InvalidRotAttribute_ThrowsInvalidDataException
+              - CanvasNetPptx_SystemIntegration_GeometryAndPaint_FreeformShapeResolvesEndToEnd
+
+          - id: CanvasNetPptx-PptxDocument-GroupChildTransform
+            title: >-
+              The PptxDocument class shall resolve a group shape's (<p:grpSp>) own <a:xfrm> element
+              into a child-space-to-group-space transform, scaling and translating a child
+              coordinate declared in the group's chOff/chExt child coordinate space into the
+              group's own off/ext box, defaulting to an identity child coordinate space when
+              chOff/chExt are omitted, so a child shape's own resolved frame transform composes
+              correctly through its owning group's transform chain.
+            justification: |
+              A group shape's children are authored in a child-specific coordinate space distinct
+              from the group's own placement in its parent; composing a child's transform without
+              correctly scaling through the group's chOff/chExt would misplace every shape nested
+              in a group.
+            tests:
+              - ResolveGroupChildTransform_IdentityChildSpace_MatchesGroupFrameDirectly
+              - ResolveGroupChildTransform_ScaledChildSpace_ScalesChildCoordinatesIntoGroupBox
+              - ResolveGroupChildTransform_OffsetChildSpace_TranslatesChildOriginBeforeScaling
+              - ResolveGroupChildTransform_ChildOfChild_ComposesThroughBothTransforms
+              - ResolveGroupChildTransform_MissingChOffChExt_DefaultsToIdentityChildSpace
+              - CanvasNetPptx_SystemIntegration_GeometryAndPaint_GroupShapeChildTransformComposesEndToEnd
+
+          - id: CanvasNetPptx-PptxDocument-PresetGeometry
+            title: >-
+              The PptxDocument class shall resolve a shape's <a:prstGeom prst="..."> element into a
+              concrete geometric path sized to the shape's own width/height, supporting a fixed set
+              of approximately 24 common preset geometry names (including rect, roundRect, ellipse,
+              triangle, and a practical subset of arrows, stars, and other basic shapes), and shall
+              reject a preset name outside this supported set with PptxUnsupportedFeatureException
+              (feature token "pptx-preset-geometry") rather than producing incorrect geometry, and
+              reject a missing geometry element (neither <a:prstGeom> nor <a:custGeom>) or a
+              <a:prstGeom> missing its prst attribute with InvalidDataException.
+            justification: |
+              DrawingML's preset geometry vocabulary is large; implementing every preset is out of
+              scope for this phase, but silently rendering an unsupported preset as the wrong shape
+              would be worse than a clear, distinguishable failure a caller can catch and handle.
+            tests:
+              - ResolveShapeGeometry_PrstGeomRect_ReturnsRectanglePath
+              - ResolveShapeGeometry_NeitherPrstGeomNorCustGeom_ThrowsInvalidDataException
+              - ResolveShapeGeometry_UnsupportedPreset_ThrowsPptxUnsupportedFeatureException
+              - ResolveShapeGeometry_PrstGeomMissingPrstAttribute_ThrowsInvalidDataException
+              - PptxPresetGeometry_Build_EachSupportedPreset_ProducesPathWithinDeclaredBounds
+              - PptxPresetGeometry_Build_UpArrow_PointsUpward
+              - PptxPresetGeometry_Build_DownArrow_PointsDownward
+              - PptxPresetGeometry_Build_UnsupportedPreset_ThrowsWithFeatureToken
+              - PptxPresetGeometry_Build_NonPositiveSize_ReturnsEmptyPath
+
+          - id: CanvasNetPptx-PptxDocument-CustomGeometry
+            title: >-
+              The PptxDocument class shall resolve a shape's <a:custGeom> element by parsing every
+              <a:path> under its <a:pathLst>, interpreting moveTo/lnTo/cubicBezTo/quadBezTo/close
+              commands into the equivalent core Path commands, scaling each path's own w/h
+              coordinate space (defaulting to the shape's own extent when omitted) to the shape's
+              declared extent, and resolving a <a:custGeom> with no <a:pathLst> to an empty path.
+            justification: |
+              Many real-world DrawingML shapes (especially those hand-drawn or imported from other
+              authoring tools) use an explicit custom geometry rather than a named preset; without
+              this parser, such shapes could not be resolved to any geometry at all.
+            tests:
+              - ResolveCustomGeometry_MoveLineClose_ProducesClosedTriangle
+              - ResolveCustomGeometry_CubicBezTo_ProducesCubicBezierCommand
+              - ResolveCustomGeometry_QuadBezTo_ProducesQuadraticBezierCommand
+              - ResolveCustomGeometry_PathCoordinateSpaceScaledToShapeExtent
+              - ResolveCustomGeometry_NoPathLst_ReturnsEmptyPath
+
+          - id: CanvasNetPptx-PptxDocument-FillResolution
+            title: >-
+              The PptxDocument class shall resolve a shape's fill from its <p:spPr> into a closed
+              PptxPaint value: an explicit <a:noFill>, no recognized fill child element, or a null
+              <p:spPr> all resolve to PptxNoFill; <a:solidFill> resolves to a PptxSolidFill via
+              color resolution; <a:gradFill> resolves to a PptxGradientFill; and <a:pattFill>/
+              <a:blipFill> are rejected with PptxUnsupportedFeatureException (feature tokens
+              "pptx-pattern-fill"/"pptx-picture-fill" respectively) rather than being silently
+              misinterpreted as unfilled or solid-filled.
+            justification: |
+              Pattern and picture fills require image-decoding and tiling machinery out of scope
+              for this phase; rejecting them explicitly, rather than silently falling back to
+              PptxNoFill, lets a caller distinguish "genuinely unfilled" from "fill kind not yet
+              supported".
+            tests:
+              - ResolveFill_NullParent_ReturnsNoFill
+              - ResolveFill_ExplicitNoFill_ReturnsNoFill
+              - ResolveFill_NoRecognizedFillChild_ReturnsNoFill
+              - ResolveFill_SolidFillSrgbClr_ReturnsResolvedSolidFill
+              - ResolveFill_SolidFillSchemeClr_ResolvesThroughTheme
+              - ResolveFill_GradFillLinear_ReturnsResolvedGradientFill
+              - ResolveFill_PatternFill_ThrowsPptxUnsupportedFeatureException
+              - ResolveFill_PictureFill_ThrowsPptxUnsupportedFeatureException
+
+          - id: CanvasNetPptx-PptxDocument-ColorResolution
+            title: >-
+              The PptxDocument class shall resolve a DrawingML color-definition element to a
+              concrete Rgba32 value: <a:srgbClr val="RRGGBB"/> directly, <a:sysClr .../> via its
+              lastClr attribute, and <a:schemeClr val="..."/> by looking the named slot up in the
+              supplied PptxTheme's color scheme (reusing the existing PptxTheme/PptxColorScheme
+              resolver rather than re-resolving the theme), including the bg1/tx1/bg2/tx2
+              background/text aliases mapped to their corresponding dk/lt scheme slots; an
+              unrecognized schemeClr slot name throws InvalidDataException, and any other,
+              unsupported color-definition element kind throws PptxUnsupportedFeatureException
+              (feature token "pptx-color-kind").
+            justification: |
+              Scheme color resolution must build directly on Phase 1b's already-verified
+              PptxTheme/PptxColorScheme resolver rather than duplicating its 12-slot lookup table,
+              so both phases stay in sync automatically if that table ever changes.
+            tests:
+              - ResolveColor_SrgbClr_ParsesHexDirectly
+              - ResolveColor_SysClr_UsesLastClrAttribute
+              - ResolveColor_SchemeClrOrdinarySlots_ResolveToMatchingThemeSlot
+              - ResolveColor_SchemeClrBackgroundTextAliases_MapToExpectedSlot
+              - ResolveColor_SchemeClrUnrecognizedSlot_ThrowsInvalidDataException
+              - ResolveColor_UnsupportedColorKind_ThrowsPptxUnsupportedFeatureException
+
+          - id: CanvasNetPptx-PptxDocument-ColorTransforms
+            title: >-
+              The PptxDocument class shall apply a DrawingML color-definition element's
+              lumMod/lumOff/shade/tint/alpha child transforms to its resolved base color in a
+              fixed pipeline order - lumMod and lumOff applied together first in HSL luminance
+              space, then shade and tint in RGB space, then alpha replacing the alpha channel
+              outright - interpreting each val attribute as OOXML's thousandths-of-a-percent unit
+              (100000 = 100%).
+            justification: |
+              Real-world themes and shapes very commonly apply one or more of these transforms
+              (for example a "lighter" or "darker" accent-color shade) rather than referencing a
+              raw color directly; without this pipeline, such shapes would resolve to the wrong,
+              untransformed color.
+            tests:
+              - ResolveColor_Alpha_SetsAlphaChannel
+              - ResolveColor_Shade_DarkensProportionally
+              - ResolveColor_Tint_LightensProportionally
+              - ResolveColor_LumMod_DecreasesLuminance
+              - ResolveColor_LumOff_IncreasesLuminance
+              - ResolveColor_CombinedLumModLumOffShadeTintAlpha_AppliesFixedPipelineOrder
+
+          - id: CanvasNetPptx-PptxDocument-GradientFill
+            title: >-
+              The PptxDocument class shall resolve a <a:gradFill> element's <a:gsLst> gradient
+              stops and its <a:lin> linear-direction angle (in 60,000ths of a degree) into a core
+              LinearGradient spanning the shape's own width/height, and shall reject a <a:gradFill>
+              with no <a:lin> child (for example a path/radial gradient) with
+              PptxUnsupportedFeatureException (feature token "pptx-gradient-path"), and a
+              <a:gradFill> with no <a:gsLst> with InvalidDataException.
+            justification: |
+              Linear gradients are the most common DrawingML gradient fill in practice; radial and
+              path gradients require a different, not-yet-implemented core gradient paint type, so
+              rejecting them explicitly avoids silently rendering them as an incorrect linear
+              approximation.
+            tests:
+              - ResolveGradientFill_LinearZeroDegrees_PointsAlongPositiveX
+              - ResolveGradientFill_MissingLin_ThrowsPptxUnsupportedFeatureException
+              - ResolveGradientFill_MissingGsLst_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-LineStyleResolution
+            title: >-
+              The PptxDocument class shall resolve a shape's <a:ln> stroke element into a
+              PptxLineStyle (width in EMU, resolved fill, and an optional dash array derived from
+              <a:prstDash val="..."/>), resolving to no stroke (null) when <a:ln> is null, its w
+              attribute is missing or non-positive, or its resolved fill is PptxNoFill, and shall
+              realize a resolved PptxLineStyle against a shape's path into a stroked outline path
+              via the core PathStroker, mirroring the PDF renderer's own StrokeStyle/PathStroker
+              call pattern.
+            justification: |
+              A shape's visible outline is produced by stroking its geometric path with the
+              resolved line style, not merely resolving the line style's data in isolation; reusing
+              the already-tested core PathStroker exactly as the PDF renderer already does avoids
+              a second, divergent stroking implementation for this package.
+            tests:
+              - ResolveLineStyle_NullElement_ReturnsNull
+              - ResolveLineStyle_ZeroWidth_ReturnsNull
+              - ResolveLineStyle_NoFillLine_ReturnsNull
+              - ResolveLineStyle_WidthAndSolidFill_ResolvesWidthAndColor
+              - ResolveLineStyle_DashPresets_ProduceNonNullDashArray
+              - ResolveLineStyle_SolidPreset_ProducesNullDashArray
+              - ResolveStrokeOutline_RectangleWithSolidLine_ProducesNonEmptyOutline
+              - CanvasNetPptx_SystemIntegration_GeometryAndPaint_FreeformShapeResolvesEndToEnd

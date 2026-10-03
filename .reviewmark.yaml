@@ -837,7 +837,16 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pptx/PptxPlaceholder.cs"  # phase 1b unit source (placeholder model)
       - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Inheritance.cs"  # phase 1b unit source (inheritance)
       - "src/DemaConsulting.CanvasNet.Pptx/PptxPlaceholderProperties.cs"  # phase 1b unit source (resolved properties)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Geometry.cs"  # phase 1c unit source (geometry resolvers)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Paint.cs"  # phase 1c unit source (fill/color/stroke resolvers)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxPresetGeometry.cs"  # phase 1c unit source (preset shape builder)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxShapeFrame.cs"  # phase 1c unit source (resolved shape frame model)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxPaint.cs"  # phase 1c unit source (resolved paint model)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxLineStyle.cs"  # phase 1c unit source (resolved line style model)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxUnsupportedFeatureException.cs"  # phase 1c unit source (exceptions)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxDocumentTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxGeometryTests.cs"  # phase 1c unit tests (geometry)
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxPaintTests.cs"  # phase 1c unit tests (paint)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxSystemIntegrationTests.cs"  # integration tests
 
   # OTS-BuildMark Review (one per OTS item)
