@@ -1176,11 +1176,30 @@ public sealed partial class PdfDocument
     ///         name="unterminatedStringEncountered"/> bounds this: the first such failure anywhere
     ///         in a scan permanently disables further string-opening attempts for the remainder of
     ///         that same scan, so at most one failed attempt ever walks the buffer's tail, keeping
-    ///         total work linear. This sacrifices recovering any genuine <c>obj</c>/<c>trailer</c>
-    ///         marker that might coincidentally follow such a byte run, which is an acceptable
-    ///         heuristic limitation here: this path only runs once normal cross-reference parsing
-    ///         has already failed, and the PDF specification does not guarantee perfect recovery
-    ///         is even possible for arbitrarily malformed input.
+    ///         total work linear.
+    ///     </para>
+    ///     <para>
+    ///         This does mean a byte-perfect <c>obj</c>/<c>trailer</c> marker that happens to be
+    ///         embedded past such a failed attempt is still reachable as ordinary syntax, rather
+    ///         than being treated as unconditionally unreachable "string content" through to the
+    ///         end of the buffer. Unlike a comment or a <em>successfully closed</em> string (both
+    ///         of which are unambiguously bounded regions a decoy cannot escape), a string that
+    ///         never closes does not actually tell us where its author intended it to end - a
+    ///         real-world corrupted or recovered PDF routinely contains unrelated binary noise
+    ///         with stray unmatched delimiters long before any genuine later object, and treating
+    ///         every subsequent byte as permanently unreachable would abandon recovery of that
+    ///         entire remainder, including perfectly legitimate objects - a strictly worse outcome
+    ///         for this best-effort recovery path than tolerating the narrow, byte-perfect decoy
+    ///         scenario this trade-off accepts. (An earlier revision of this method instead made
+    ///         the caller stop scanning entirely the first time this flag became true; that was
+    ///         measured to turn any incidental unmatched delimiter anywhere in the file - including
+    ///         ordinary binary stream noise unrelated to any attack - into total recovery failure
+    ///         for documents that otherwise resolve correctly, which is a worse trade-off than the
+    ///         narrow decoy scenario it closed.) This is an acceptable heuristic limitation here:
+    ///         this path only runs once normal cross-reference parsing has already failed, and the
+    ///         PDF specification does not guarantee perfect recovery is even possible for
+    ///         arbitrarily malformed input - this scanner's own documented policy is to never crash
+    ///         or hang, not to recover a perfect result from every conceivable corruption.
     ///     </para>
     /// </remarks>
     private static int AdvancePastNonSyntax(byte[] buffer, int position, ref bool unterminatedStringEncountered)
@@ -1339,8 +1358,12 @@ public sealed partial class PdfDocument
                 continue;
             }
 
-            var count = (int)countObject.Number;
-            if (count < 0 || count > decoded.Length)
+            // Reject a malformed, non-integer, or out-of-range declared "/N" (for example "1.5"
+            // or a value far beyond int range) the same way the per-entry object numbers below
+            // already are - a bare (int) cast would otherwise either silently truncate or produce
+            // an unspecified wrapped value, both of which could make a grammatically invalid
+            // object stream be accepted as having some plausible entry count.
+            if (!TryGetNonNegativeInt(countObject.Number, out var count) || count > decoded.Length)
             {
                 continue;
             }
@@ -1671,12 +1694,21 @@ public sealed partial class PdfDocument
 
         var decoded = GetStreamDecodedBytes(container);
 
-        var count = container.Get("N") is { Kind: PdfKind.Number } countObject
-            ? (int)countObject.Number
-            : throw new InvalidDataException("Object stream is missing /N.");
-        var first = container.Get("First") is { Kind: PdfKind.Number } firstObject
-            ? (int)firstObject.Number
-            : throw new InvalidDataException("Object stream is missing /First.");
+        // Reject a malformed, non-integer, or out-of-range declared "/N"/"/First" the same way
+        // RegisterCompressedObjectsFromObjectStreams's own eager pre-scan already does for /N - a
+        // bare (int) cast would otherwise silently truncate (for example "1.5" to 1) and accept a
+        // grammatically invalid object stream instead of failing closed.
+        if (container.Get("N") is not { Kind: PdfKind.Number } countObject ||
+            !TryGetNonNegativeInt(countObject.Number, out var count))
+        {
+            throw new InvalidDataException("Object stream is missing /N.");
+        }
+
+        if (container.Get("First") is not { Kind: PdfKind.Number } firstObject ||
+            !TryGetNonNegativeInt(firstObject.Number, out var first))
+        {
+            throw new InvalidDataException("Object stream is missing /First.");
+        }
 
         if (indexInStream < 0 || indexInStream >= count)
         {

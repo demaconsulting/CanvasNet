@@ -2146,6 +2146,72 @@ public class PdfDocumentTests
 
     /// <summary>
     ///     Builds an in-memory, single-page PDF with no <c>xref</c> table or <c>startxref</c> at
+    ///     all (forcing linear-scan fallback), whose object 3 - the Page - is never directly
+    ///     defined - it exists only compressed inside object 4's <c>/Type /ObjStm</c> container,
+    ///     whose dictionary declares a non-integer entry count (<c>/N 1.5</c>, not <c>/N 1</c>)
+    ///     even though the container's own header content still spells out exactly one
+    ///     well-formed <c>3 0</c> entry. Narrowing "1.5" to an <see cref="int"/> via a bare cast
+    ///     before using it as the number of header entries to read would truncate it to 1 and
+    ///     coincidentally read that one legitimate-looking entry anyway, accepting a container the
+    ///     PDF grammar does not actually permit; correctly rejecting the malformed <c>/N</c>
+    ///     instead discards the whole container's entries, leaving object 3 permanently
+    ///     undefined.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithNonIntegerObjectStreamCountPdf()
+    {
+        var pageBytes = "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray();
+        var objStmHeader = "3 0\n"u8.ToArray();
+        var objStmContent = new List<byte>();
+        objStmContent.AddRange(objStmHeader);
+        objStmContent.AddRange(pageBytes);
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        // Index 0 -> object 1, index 1 -> object 2, index 2 -> object 4, index 3 -> object 5:
+        // object 3 (the Page) is deliberately skipped here - it exists only compressed inside
+        // object 4's /ObjStm, never as its own directly-scannable "3 0 obj" marker.
+        var numbers = new[] { 1, 2, 4, 5 };
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Type /ObjStm /N 1.5 /First {objStmHeader.Length}", [.. objStmContent]),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{numbers[i]} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that an object stream's declared entry count (for example <c>/N 1.5</c> where
+    ///     <c>/N 1</c> is expected, see
+    ///     <see cref="BuildLinearScanFallbackWithNonIntegerObjectStreamCountPdf"/>) is never
+    ///     narrowed to its truncated integer value and used to read header entries during
+    ///     linear-scan-fallback recovery: the container is rejected outright and the compressed
+    ///     object it would otherwise have declared remains genuinely undefined, so resolution
+    ///     fails with <see cref="InvalidDataException"/> rather than silently succeeding against a
+    ///     container the PDF grammar does not actually permit.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ObjectStreamNonIntegerCount_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithNonIntegerObjectStreamCountPdf();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no <c>xref</c> table or <c>startxref</c> at
     ///     all (forcing <c>BuildLinearScanFallback</c>'s raw byte scan to be the only route to a
     ///     working object table, mirroring <c>malformed-startxref.pdf</c>'s own precedent), whose
     ///     object 4 (the <c>/Contents</c> stream) payload embeds a PDF comment
@@ -3003,6 +3069,82 @@ public class PdfDocumentTests
         // fix regresses, this fails fast with a TimeoutException instead of hanging the test run.
         using var document = await Task.Run(() => PdfDocument.Open(new MemoryStream(pdfBytes)))
             .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback): a run of unmatched,
+    ///     never-closing literal-string <c>(</c> bytes with no closing <c>)</c> anywhere in the
+    ///     remainder of the buffer - unrelated binary noise, not an attempted decoy - appears
+    ///     <em>before</em> the real object 3 (the Page) header rather than after it, so the real
+    ///     header is only reachable by a scan that keeps looking for genuine markers once a
+    ///     string-opening attempt has failed, instead of abandoning the rest of the buffer
+    ///     entirely.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithUnrelatedUnterminatedLiteralStringBeforeObjectHeader()
+    {
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+
+        // Unrelated binary noise containing an unmatched '(' with no ')' anywhere in the rest of
+        // the buffer (including inside the real headers that follow) - this is exactly the kind
+        // of incidental corruption/noise this fallback scanner must still recover past, not a
+        // crafted decoy of its own.
+        buffer.AddRange(new byte[500]);
+        for (var i = buffer.Count - 500; i < buffer.Count; i++)
+        {
+            buffer[i] = (byte)'(';
+        }
+
+        buffer.AddRange("\n"u8.ToArray());
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that an unmatched, never-closing literal-string run that is unrelated binary
+    ///     noise rather than a crafted decoy (see
+    ///     <see cref="BuildLinearScanFallbackWithUnrelatedUnterminatedLiteralStringBeforeObjectHeader"/>)
+    ///     does not prevent the fallback scanner from recovering every genuine object header that
+    ///     follows it: once a string-opening attempt fails to find its close, the scanner must
+    ///     keep searching the remainder of the buffer for real markers (bounded, via <see
+    ///     cref="PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly"/>,
+    ///     to at most one further failed string-opening attempt), rather than abandoning recovery
+    ///     of the rest of an otherwise perfectly valid document. Real-world corrupted or recovered
+    ///     PDFs routinely contain unrelated binary noise with stray unmatched delimiters well
+    ///     before any genuine object header.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_UnrelatedUnterminatedLiteralStringBeforeObjectHeader_StillResolvesDocument()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithUnrelatedUnterminatedLiteralStringBeforeObjectHeader();
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
 
         // Assert
         Assert.Equal(1, document.PageCount);

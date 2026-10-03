@@ -157,6 +157,21 @@ comparison against the number being resolved, for the same reason as the classic
 check above: the parsed token is a `double`, and an unchecked narrowing cast would silently
 truncate a non-integer value rather than reject it.
 
+An object stream's own declared `/N` (entry count) and `/First` (header length) are validated the
+same way, as non-negative `int` values, before being used to bound the header-reading loop and to
+locate compressed object bodies: an unchecked narrowing cast on either would silently truncate a
+non-integer declaration (for example `/N 1.5`) instead of rejecting a container the PDF grammar
+does not actually permit. This mirrors the already-tested validation
+`PdfDocument_Open_ObjectStream_DeclaredCountExceedsDecodedLength_ThrowsInvalidDataException`
+exercises for the eager, fallback-only object-stream pre-scan; here the equivalent check guards
+the separate, primary (non-fallback) compressed-object resolution path reached by ordinary
+`/Type /XRef` documents, which is reachable far more often in practice. No dedicated fixture
+targets a fractional `/N`/`/First` on this specific path: constructing one that fails only because
+of that value (and not for an unrelated reason, such as the minimal test document's catalog having
+no `/Pages` to resolve) proved to require a disproportionate amount of hand-built binary
+cross-reference-stream scaffolding for a fix that is otherwise a direct, low-risk mirror of an
+already-verified sibling check; the fix is covered by direct reasoning instead.
+
 #### CanvasNetPdf-PdfDocument-HybridXref: Hybrid Xref Resolves Compressed Entry via XRefStm
 
 **Test**: `PdfDocument_Open_HybridXref_ResolvesCompressedEntryViaXRefStm`
@@ -257,6 +272,24 @@ confirms the same non-negative-`int` validation applied to a compressed object's
 reached only through this fallback's own eager object-stream registration pass, rather than
 through the primary cross-reference path - both call sites share the same validation helper, but
 each is independently reachable and so independently verified.
+`PdfDocument_Open_LinearScanFallback_ObjectStreamNonIntegerCount_ThrowsInvalidDataException`
+confirms the fallback's own eager object-stream registration pass applies the same non-negative-
+`int` validation to a declared `/N` (entry count) before narrowing it: an object stream declaring
+`/N 1.5` is rejected outright even though an unchecked `(int)` cast would have truncated it to `1`
+and coincidentally matched the real single-entry content that follows.
+`PdfDocument_Open_LinearScanFallback_UnrelatedUnterminatedLiteralStringBeforeObjectHeader_StillResolvesDocument`
+confirms the deliberate trade-off documented on `AdvancePastNonSyntax` (see its remarks) holds in
+practice: a run of unmatched, never-closing `(` bytes that is unrelated binary noise - not a
+crafted decoy - appearing *before* a document's genuine object headers does not abandon recovery
+of the rest of an otherwise perfectly valid document. An earlier revision of this fallback instead
+stopped scanning entirely the first time such a failed string-open was detected, which this test
+would have failed against; that stricter approach was reverted because it was measured to turn
+any incidental unmatched delimiter anywhere in the file into total recovery failure for documents
+that otherwise resolve correctly - a worse outcome than the narrow, byte-perfect decoy scenario it
+closed. No fixture targets that narrower decoy scenario directly (a genuine `obj`/`trailer`
+keyword appearing immediately after such a run, redefining an earlier object): accepting it as
+reachable, ordinary syntax is this trade-off's intentional, documented behavior, not a defect to
+regress-test against.
 
 The stream-payload-range membership check in the trailer-keyword scan (used by this fallback to
 locate an explicit `trailer` dictionary when no trustworthy cross-reference chain is available)
@@ -525,7 +558,8 @@ options parameter was added.
 **Tests**: `PdfDocument_RenderWithDpi_ScalesPageSizeByDpiOver72`,
 `PdfDocument_RenderWithDpi_InvalidDpi_ThrowsArgumentOutOfRangeException`,
 `PdfDocument_RenderWithDpi_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException`,
-`PdfDocument_RenderWithDpi_AfterDispose_ThrowsObjectDisposedException`
+`PdfDocument_RenderWithDpi_AfterDispose_ThrowsObjectDisposedException`,
+`PdfDocument_RenderWithDpi_PropagatesOptionsBackgroundColor`
 
 Calls `Render(int, float)` with several DPI values (`[Theory]`: 72, 36, and 144) against a
 single-page fixture and asserts the returned `Surface`'s width/height exactly match the page's
@@ -535,10 +569,11 @@ dimensions itself. Calls `Render(int, float)` with a non-positive and a non-fini
 `PositiveInfinity`) DPI (`[Theory]`), an out-of-range page index, and after the document has been
 disposed, asserting `ArgumentOutOfRangeException` for the first two cases and
 `ObjectDisposedException` for the last, matching the validation contract already proven for
-`Render(int, int, int)`. The overload forwards its own `options` parameter unchanged to
-`Render(int, int, int, PdfRenderOptions?)`, so no separate DPI-specific background-color test is
-needed - `CanvasNetPdf-PdfDocument-Render`'s own tests above already cover every
-`BackgroundColor` behavior this overload shares.
+`Render(int, int, int)`. Renders a blank single-page fixture via `Render(int, float, PdfRenderOptions?)`
+with a custom `PdfRenderOptions.BackgroundColor` and asserts every pixel equals that custom
+color rather than the opaque-white default, proving the overload actually forwards its own
+`options` parameter through to `Render(int, int, int, PdfRenderOptions?)` instead of silently
+dropping it.
 
 #### CanvasNetPdf-PdfDocument-ContentStreamDispatch: Unknown Operators Are Skipped, Malformed Recognized Operators Throw
 

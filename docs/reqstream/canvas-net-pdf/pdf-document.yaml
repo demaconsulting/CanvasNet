@@ -147,6 +147,8 @@ sections:
               - PdfDocument_Open_LinearScanFallback_CommentBeforeDeclaredLengthEndstream_DoesNotCorruptOffsets
               - PdfDocument_Open_LinearScanFallback_UnterminatedCommentAtForwardScanBound_DoesNotCorruptOffsets
               - PdfDocument_Open_LinearScanFallback_CompressedObjectNonIntegerNumber_ThrowsInvalidDataException
+              - PdfDocument_Open_LinearScanFallback_ObjectStreamNonIntegerCount_ThrowsInvalidDataException
+              - PdfDocument_Open_LinearScanFallback_UnrelatedUnterminatedLiteralStringBeforeObjectHeader_StillResolvesDocument
 
           - id: CanvasNetPdf-PdfDocument-PageTreeTraversal
             title: >-
