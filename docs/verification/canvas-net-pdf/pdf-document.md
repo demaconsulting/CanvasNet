@@ -182,6 +182,13 @@ unrelated stream objects, exercising its stream-payload-range membership check (
 monotonically-advancing index into the ranges `ScanObjectOffsets` already discovered in
 increasing order, keeping the overall scan linear in document size rather than quadratic in
 stream-object count) across many entries.
+`PdfDocument_Open_LinearScanFallback_TrailerKeywordAfterHashByte_DoesNotReplaceRealTrailer`
+confirms that a `trailer` suffix embedded inside a longer regular-byte run such as
+`foo#trailer` is never mistaken for a standalone keyword match: keyword-boundary detection
+recognizes exactly the same "regular byte" rule (any byte that is neither PDF whitespace nor a
+PDF delimiter) that `PdfTokenizer` itself uses to decide where a keyword token ends, rather than
+the narrower "ASCII letter or digit" check an earlier version relied on, which under-approximated
+the tokenizer's own notion of a token boundary and could be defeated by a byte such as `#`.
 
 #### CanvasNetPdf-PdfDocument-PageTreeTraversal: Page Tree Traversal Reports All Pages
 

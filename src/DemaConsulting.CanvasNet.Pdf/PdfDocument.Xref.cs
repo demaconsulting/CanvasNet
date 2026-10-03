@@ -542,10 +542,11 @@ public sealed partial class PdfDocument
                 continue;
             }
 
-            // Reject matches inside a larger identifier (for example the tail of "endobj", or a
+            // Reject matches inside a larger token (for example the tail of "endobj", or a
             // binary-noise byte run that merely contains "obj" as a substring): a genuine keyword
-            // is not immediately followed by another identifier byte.
-            if (i + 3 < buffer.Length && IsMarkerIdentifierByte(buffer[i + 3]))
+            // is not immediately followed by another regular (non-whitespace, non-delimiter) byte
+            // - the same rule PdfTokenizer.ReadKeyword uses to decide where a keyword token ends.
+            if (i + 3 < buffer.Length && IsMarkerRegularByte(buffer[i + 3]))
             {
                 i++;
                 continue;
@@ -650,7 +651,7 @@ public sealed partial class PdfDocument
         // the cross-reference table this scan is building is itself still incomplete), or
         // inconsistent with the buffer. Relying on a raw, unbounded "endstream" search alone would
         // end the protected range too early whenever the payload's own bytes happen to contain a
-        // coincidental "endstream" byte sequence of their own, followed by a non-identifier byte.
+        // coincidental "endstream" byte sequence of their own, followed by a non-regular byte.
         if (entries.TryGetValue("Length", out var lengthValue) &&
             lengthValue.Kind == PdfKind.Number &&
             TryGetDeclaredStreamEnd(buffer, dataStart, lengthValue.Number, out var declaredEnd))
@@ -800,22 +801,35 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     Finds the first standalone occurrence of <paramref name="keyword"/> - one not
-    ///     immediately followed by another identifier byte, and (unless
+    ///     immediately followed by another regular byte, and (unless
     ///     <paramref name="requirePrecedingBoundary"/> is <see langword="false"/>) not immediately
-    ///     preceded by one either - so a match is never found inside a larger identifier or
-    ///     incidental binary-noise byte run - at or after <paramref name="startIndex"/> and before
+    ///     preceded by one either - so a match is never found inside a larger token or incidental
+    ///     binary-noise byte run - at or after <paramref name="startIndex"/> and before
     ///     <paramref name="searchLimit"/>. Returns -1 if no such occurrence exists in that range.
+    ///     <para>
+    ///         "Regular byte" here means exactly what <see cref="PdfTokenizer"/> itself treats as
+    ///         part of a keyword token: any byte that is not PDF whitespace and not one of the PDF
+    ///         delimiter characters (<c>( ) &lt; &gt; [ ] { } / %</c>). An earlier version of this
+    ///         check instead only recognized ASCII letters and digits as boundary bytes, which
+    ///         under-approximated the tokenizer's own notion of a token boundary: a byte such as
+    ///         <c>#</c> is neither a letter/digit nor PDF whitespace/a delimiter, so a sequence
+    ///         like <c>/foo#trailer</c> was wrongly treated as ending the identifier at <c>#</c>,
+    ///         exposing <c>trailer</c> as a standalone match even though <see cref="PdfTokenizer"/>
+    ///         would read <c>foo#trailer</c> as a single keyword token. Matching the tokenizer's
+    ///         own boundary rule exactly closes that gap.
+    ///     </para>
     /// </summary>
     /// <param name="buffer">The raw document buffer to search.</param>
     /// <param name="startIndex">The byte index at which to start searching (inclusive).</param>
     /// <param name="searchLimit">The byte index at which to stop searching (exclusive).</param>
     /// <param name="keyword">The literal keyword bytes to search for.</param>
     /// <param name="requirePrecedingBoundary">
-    ///     Whether the byte immediately before a candidate match must be a non-identifier byte.
+    ///     Whether the byte immediately before a candidate match must be a non-regular byte.
     ///     This must be <see langword="false"/> for a keyword such as <c>endstream</c>, whose
     ///     preceding byte is the final byte of an arbitrary, possibly binary, payload rather than
-    ///     a continuation of a textual PDF token - that byte can legitimately be alphanumeric by
-    ///     coincidence, and requiring otherwise would wrongly reject a genuine match.
+    ///     a continuation of a textual PDF token - that byte can legitimately be alphanumeric (or
+    ///     any other regular byte) by coincidence, and requiring otherwise would wrongly reject a
+    ///     genuine match.
     /// </param>
     private static int IndexOfKeyword(
         byte[] buffer,
@@ -842,13 +856,13 @@ public sealed partial class PdfDocument
                 continue;
             }
 
-            if (requirePrecedingBoundary && i > 0 && IsMarkerIdentifierByte(buffer[i - 1]))
+            if (requirePrecedingBoundary && i > 0 && IsMarkerRegularByte(buffer[i - 1]))
             {
                 continue;
             }
 
             var after = i + keyword.Length;
-            if (after < buffer.Length && IsMarkerIdentifierByte(buffer[after]))
+            if (after < buffer.Length && IsMarkerRegularByte(buffer[after]))
             {
                 continue;
             }
@@ -931,8 +945,19 @@ public sealed partial class PdfDocument
 
     private static bool IsMarkerDigit(byte b) => b is >= (byte)'0' and <= (byte)'9';
 
-    private static bool IsMarkerIdentifierByte(byte b) =>
-        IsMarkerDigit(b) || (b is >= (byte)'a' and <= (byte)'z') || (b is >= (byte)'A' and <= (byte)'Z');
+    private static bool IsMarkerDelimiter(byte b) =>
+        b is (byte)'(' or (byte)')' or (byte)'<' or (byte)'>' or (byte)'[' or (byte)']' or (byte)'{' or (byte)'}' or (byte)'/' or (byte)'%';
+
+    /// <summary>
+    ///     Whether <paramref name="b"/> is a "regular" byte under the PDF grammar - that is,
+    ///     neither PDF whitespace nor a PDF delimiter character - matching exactly the rule
+    ///     <see cref="PdfTokenizer"/> itself uses (via its own private <c>IsRegular</c>) to decide
+    ///     which bytes belong to the same keyword token. This is intentionally broader than
+    ///     "ASCII letter or digit": PDF permits other bytes (for example <c>#</c>, <c>!</c>,
+    ///     <c>$</c>) inside a regular run, and a boundary check narrower than the tokenizer's own
+    ///     would wrongly treat such a byte as ending a token when the tokenizer would not.
+    /// </summary>
+    private static bool IsMarkerRegularByte(byte b) => !IsMarkerWhitespace(b) && !IsMarkerDelimiter(b);
 
     /// <summary>
     ///     If <paramref name="position"/> is the first byte of a PDF comment (<c>%</c> through
@@ -1258,8 +1283,8 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     Returns whether <paramref name="keyword"/> matches the buffer exactly at
-    ///     <paramref name="position"/>, applying the same identifier-boundary rules as
-    ///     <see cref="IndexOfKeyword"/> (so a match inside a larger identifier, such as the tail
+    ///     <paramref name="position"/>, applying the same regular-byte boundary rules as
+    ///     <see cref="IndexOfKeyword"/> (so a match inside a larger token, such as the tail
     ///     of a longer word, is rejected) rather than merely comparing bytes. A match is also
     ///     rejected when immediately preceded by <c>/</c>: per the PDF specification a name token
     ///     begins with <c>/</c> directly followed by its regular characters with no intervening

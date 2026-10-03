@@ -131,6 +131,7 @@ sections:
               - PdfDocument_Open_LinearScanFallback_UnsupportedFilterObjectStream_DoesNotAbortRecovery
               - PdfDocument_Open_LinearScanFallback_TrailerKeywordAsNameToken_DoesNotReplaceRealTrailer
               - PdfDocument_Open_LinearScanFallback_ManyStreamPayloadRangesBeforeTrailer_StillResolvesTrailer
+              - PdfDocument_Open_LinearScanFallback_TrailerKeywordAfterHashByte_DoesNotReplaceRealTrailer
 
           - id: CanvasNetPdf-PdfDocument-PageTreeTraversal
             title: >-

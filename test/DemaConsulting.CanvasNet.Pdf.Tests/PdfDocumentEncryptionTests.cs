@@ -1645,5 +1645,94 @@ public class PdfDocumentEncryptionTests
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
     }
+
+    private static byte[] BuildEncryptedPdfLinearScanFallbackWithDecoyTrailerAfterHashByte(
+        string encryptDictBody,
+        byte[] idBytes,
+        byte[] encryptedContentBytes)
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        buffer.AddRange("4 0 obj\n"u8.ToArray());
+        buffer.AddRange(Encoding.ASCII.GetBytes($"<< /Length {encryptedContentBytes.Length} >>\nstream\n"));
+        buffer.AddRange(encryptedContentBytes);
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        buffer.AddRange("5 0 obj\n"u8.ToArray());
+        buffer.AddRange(Encoding.ASCII.GetBytes(encryptDictBody));
+        buffer.AddRange("\nendobj\n"u8.ToArray());
+
+        var idHex = ToHex(idBytes);
+        buffer.AddRange(Encoding.ASCII.GetBytes(
+            $"trailer\n<< /Size 6 /Root 1 0 R /Encrypt 5 0 R /ID [<{idHex}> <{idHex}>] >>\n"));
+
+        // "#" is neither PDF whitespace nor a PDF delimiter, so it is itself a "regular" byte: per
+        // the PDF grammar, "foo#trailer" is a single keyword token (identical to how
+        // PdfTokenizer.ReadKeyword would read it), not "foo" followed by a standalone "trailer"
+        // keyword. It sits outside any stream payload, comment, or string, and is physically
+        // positioned after the genuine trailer above, so it would otherwise win under the scan's
+        // "later occurrence overrides an earlier one" semantics were its "trailer" suffix wrongly
+        // treated as a standalone keyword match.
+        buffer.AddRange("foo#trailer << /Root 1 0 R >>\n"u8.ToArray());
+        buffer.AddRange("%%EOF\n"u8.ToArray());
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a <c>trailer</c> suffix embedded inside a longer regular-byte run such as
+    ///     <c>foo#trailer</c> (see
+    ///     <see cref="BuildEncryptedPdfLinearScanFallbackWithDecoyTrailerAfterHashByte"/>) - where
+    ///     the preceding byte <c>#</c> is neither PDF whitespace nor a PDF delimiter, and so does
+    ///     not end the token under the PDF grammar - is never mistaken by
+    ///     <c>ScanForTrailerDictionary</c> for a standalone <c>trailer</c> keyword, even though it
+    ///     is physically positioned later in the file and so would otherwise win under the raw
+    ///     scan's own "later occurrence overrides an earlier one" semantics. The genuine trailer's
+    ///     <c>/Encrypt</c> entry must survive for object 4's own RC4-encrypted content to decrypt
+    ///     and render correctly.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_TrailerKeywordAfterHashByte_DoesNotReplaceRealTrailer()
+    {
+        const int keyLengthBytes = 5;
+        const int revision = 2;
+        const int permissions = -3904;
+        var idBytes = (byte[])[.. Enumerable.Range(0, 16).Select(i => (byte)(0xE0 + i))];
+
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, PasswordPadding, PasswordPadding);
+        var fileKey = ComputeFileKeyAlgorithm2(PasswordPadding, oBytes, permissions, idBytes, keyLengthBytes, revision);
+        var uBytes = ComputeUserEntryAlgorithm45(fileKey, idBytes, revision);
+        var encryptDictBody = $"<< /Filter /Standard /V 1 /R {revision} /O <{ToHex(oBytes)}> /U <{ToHex(uBytes)}> /P {permissions} >>";
+
+        var contentObjectKey = ComputeObjectKeyAlgorithm1(fileKey, 4, 0, isAes: false);
+        var encryptedContent = Rc4(contentObjectKey, Encoding.ASCII.GetBytes(PlaintextContent));
+
+        var pdfBytes = BuildEncryptedPdfLinearScanFallbackWithDecoyTrailerAfterHashByte(encryptDictBody, idBytes, encryptedContent);
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert: object 4's RC4-encrypted content decrypted and rendered correctly - without the
+        // fix, the decoy "foo#trailer << /Root 1 0 R >>" (lacking /Encrypt) would have won,
+        // leaving the encryption key unestablished and these bytes rendered as raw,
+        // still-encrypted ciphertext instead.
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
 }
 
