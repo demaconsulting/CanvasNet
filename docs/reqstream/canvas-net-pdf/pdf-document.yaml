@@ -71,6 +71,7 @@ sections:
               - PdfDocument_Open_ClassicXref_ResolvesRootAndPage
               - PdfDocument_Open_ClassicXref_EntryOffsetBeyondInt32Range_ThrowsInvalidDataException
               - PdfDocument_Open_ClassicXref_EntryPointingAtWrongObjectHeader_ThrowsInvalidDataException
+              - PdfDocument_Open_ClassicXref_NonIntegerObjectNumberHeader_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-XrefStream
             title: >-
@@ -95,6 +96,7 @@ sections:
               compressed this way, many modern documents' pages would be unreachable.
             tests:
               - PdfDocument_Open_ObjectStream_DecompressesAndResolvesCompressedPage
+              - PdfDocument_Open_CompressedObjectNonIntegerNumber_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-HybridXref
             title: >-
@@ -144,6 +146,7 @@ sections:
               - PdfDocument_Open_LinearScanFallback_CommentInObjectHeader_ResolvesObject
               - PdfDocument_Open_LinearScanFallback_CommentBeforeDeclaredLengthEndstream_DoesNotCorruptOffsets
               - PdfDocument_Open_LinearScanFallback_UnterminatedCommentAtForwardScanBound_DoesNotCorruptOffsets
+              - PdfDocument_Open_LinearScanFallback_CompressedObjectNonIntegerNumber_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-PageTreeTraversal
             title: >-

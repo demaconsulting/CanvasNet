@@ -1681,6 +1681,78 @@ public class PdfDocumentTests
 
     /// <summary>
     ///     Builds an in-memory, <c>/Type /XRef</c> cross-reference-stream-only PDF whose object 1
+    ///     - an object-stream (<c>/Type /ObjStm</c>) container - holds exactly one compressed
+    ///     entry whose header declares a non-integer object number ("2.5", not "2"), even though
+    ///     the cross-reference stream's own entry for object 2 claims it lives inside this
+    ///     container at index 0. Narrowing "2.5" to an <see cref="int"/> via a bare cast before
+    ///     comparing it against the expected object number (2) would truncate it to 2 and
+    ///     coincidentally match, silently accepting a header the PDF grammar does not actually
+    ///     permit; comparing the un-narrowed value instead correctly rejects the mismatch.
+    /// </summary>
+    private static byte[] BuildCompressedObjectNonIntegerNumberPdf()
+    {
+        var catalogBytes = "<< /Type /Catalog >>"u8.ToArray();
+        var objStmHeader = "2.5 0\n"u8.ToArray();
+        var objStmContent = new List<byte>();
+        objStmContent.AddRange(objStmHeader);
+        objStmContent.AddRange(catalogBytes);
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+
+        var objStmOffset = buffer.Count;
+        buffer.AddRange("1 0 obj\n"u8.ToArray());
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /ObjStm /N 1 /First {objStmHeader.Length} >>\nstream\n"));
+        buffer.AddRange(objStmContent);
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        // Object 3: the self-referential, /Filter-less cross-reference stream, declaring 4 raw
+        // 6-byte entries (/W [1 4 1]): object 0 (free), object 1 (direct, the ObjStm container),
+        // object 2 (compressed, claiming to live inside object stream 1 at index 0), and object 3
+        // (this very xref stream, direct, at its own real offset).
+        var xrefStreamOffset = buffer.Count;
+
+        static byte[] Entry(byte type, int field2, byte field3) =>
+        [
+            type,
+            (byte)(field2 >> 24), (byte)(field2 >> 16), (byte)(field2 >> 8), (byte)field2,
+            field3,
+        ];
+
+        var entryBytes = new List<byte>();
+        entryBytes.AddRange(Entry(0, 0, 0));
+        entryBytes.AddRange(Entry(1, objStmOffset, 0));
+        entryBytes.AddRange(Entry(2, 1, 0));
+        entryBytes.AddRange(Entry(1, xrefStreamOffset, 0));
+
+        buffer.AddRange("3 0 obj\n"u8.ToArray());
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /XRef /Size 4 /W [1 4 1] /Root 2 0 R /Length {entryBytes.Count} >>\nstream\n"));
+        buffer.AddRange(entryBytes);
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"startxref\n{xrefStreamOffset}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a compressed object's header declaring a non-integer object number (for
+    ///     example "2.5" where "2" is expected) is rejected with <see cref="InvalidDataException"/>
+    ///     rather than silently accepted via truncation to a coincidentally-matching integer.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_CompressedObjectNonIntegerNumber_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildCompressedObjectNonIntegerNumberPdf();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, <c>/Type /XRef</c> cross-reference-stream-only PDF whose object 1
     ///     - an object-stream (<c>/Type /ObjStm</c>) container - declares its own <c>/Length</c>
     ///     as an indirect reference to object 2, a compressed object that lives inside object 1
     ///     itself. Decoding object 1's own stream bytes (to in turn decompress and resolve object
@@ -2007,6 +2079,69 @@ public class PdfDocumentTests
 
         using var surface = document.Render(0, 100, 100, Transparent);
         Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page PDF with no <c>xref</c> table or <c>startxref</c> at
+    ///     all (forcing <c>BuildLinearScanFallback</c>'s raw byte scan to be the only route to a
+    ///     working object table), where object 3 (the Page, referenced by object 2's <c>/Kids</c>)
+    ///     is never directly defined - it exists only compressed inside object 4's
+    ///     <c>/Type /ObjStm</c> container, whose header entry declares a non-integer object
+    ///     number ("3.5", not "3"). Narrowing "3.5" to an <see cref="int"/> via a bare cast before
+    ///     registering it as a compressed-object entry would truncate it to 3 and coincidentally
+    ///     register a working (if grammatically illegitimate) entry for object 3; correctly
+    ///     rejecting the malformed header instead leaves object 3 permanently undefined.
+    /// </summary>
+    private static byte[] BuildLinearScanFallbackWithNonIntegerCompressedObjectNumberPdf()
+    {
+        var pageBytes = "<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>"u8.ToArray();
+        var objStmHeader = "3.5 0\n"u8.ToArray();
+        var objStmContent = new List<byte>();
+        objStmContent.AddRange(objStmHeader);
+        objStmContent.AddRange(pageBytes);
+
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        // Index 0 -> object 1, index 1 -> object 2, index 2 -> object 4, index 3 -> object 5:
+        // object 3 (the Page) is deliberately skipped here - it exists only compressed inside
+        // object 4's /ObjStm, never as its own directly-scannable "3 0 obj" marker.
+        var numbers = new[] { 1, 2, 4, 5 };
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Type /ObjStm /N 1 /First {objStmHeader.Length}", [.. objStmContent]),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{numbers[i]} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a compressed object's header declaring a non-integer object number (for
+    ///     example "3.5" where "3" is expected, see
+    ///     <see cref="BuildLinearScanFallbackWithNonIntegerCompressedObjectNumberPdf"/>) is never
+    ///     registered under its truncated integer value during linear-scan-fallback recovery: the
+    ///     referencing object remains genuinely undefined and resolution fails with
+    ///     <see cref="InvalidDataException"/>, rather than silently succeeding against an object
+    ///     the PDF grammar does not actually permit.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_CompressedObjectNonIntegerNumber_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildLinearScanFallbackWithNonIntegerCompressedObjectNumberPdf();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
     }
 
     /// <summary>
@@ -2551,10 +2686,11 @@ public class PdfDocumentTests
     }
 
     /// <summary>
-    ///     Builds an in-memory, single-page PDF with no cross-reference table at all (forcing
-    ///     linear-scan fallback) preceded by many unrelated small stream objects, so that
-    ///     <c>ScanForTrailerDictionary</c>'s own <c>streamPayloadRanges</c> list accumulates many
-    ///     entries before the real trailer keyword is ever reached.
+    ///     Builds an in-memory, single-page PDF with no cross-reference table or
+    ///     <c>startxref</c> at all (forcing linear-scan fallback) preceded by many unrelated small
+    ///     stream objects, so that <c>ScanForTrailerDictionary</c>'s own
+    ///     <c>streamPayloadRanges</c> list accumulates many entries before the real trailer
+    ///     keyword is ever reached.
     /// </summary>
     private static byte[] BuildLinearScanFallbackWithManyStreamPayloadRangesBeforeTrailer()
     {
@@ -3455,6 +3591,69 @@ public class PdfDocumentTests
     {
         // Arrange
         var pdfBytes = BuildClassicXrefPdfWithEntryPointingAtWrongObjectHeader();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page, classic-xref PDF whose object 3 (the Page) header is
+    ///     deliberately written as <c>3.5 0 obj</c> rather than <c>3 0 obj</c> - a malformed,
+    ///     non-integer declared object number - even though the classic <c>xref</c> table's own
+    ///     entry for object 3 correctly points at this exact offset. Narrowing "3.5" to an
+    ///     <see cref="int"/> via a bare cast before comparing it against the expected object
+    ///     number (3) would truncate it to 3 and coincidentally match, silently accepting a
+    ///     header the PDF grammar does not actually permit; comparing the un-narrowed value
+    ///     instead correctly rejects the mismatch.
+    /// </summary>
+    private static byte[] BuildClassicXrefPdfWithNonIntegerObjectNumberHeader()
+    {
+        var contentBytes = "10 10 40 40 re f"u8.ToArray();
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamObjectBody($"/Length {contentBytes.Length}", contentBytes),
+        };
+        var headerNumbers = new[] { "1", "2", "3.5", "4" };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        var offsets = new List<int>();
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            offsets.Add(buffer.Count);
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{headerNumbers[i]} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var xrefOffset = buffer.Count;
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"xref\n0 {bodies.Count + 1}\n"));
+        buffer.AddRange("0000000000 65535 f \n"u8.ToArray());
+        foreach (var offset in offsets)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{offset:D10} 00000 n \n"));
+        }
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"trailer\n<< /Size {bodies.Count + 1} /Root 1 0 R >>\nstartxref\n{xrefOffset}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a direct indirect-object header declaring a non-integer object number (for
+    ///     example "3.5" where "3" is expected, see
+    ///     <see cref="BuildClassicXrefPdfWithNonIntegerObjectNumberHeader"/>) throws
+    ///     <see cref="InvalidDataException"/> rather than silently accepting it via truncation to
+    ///     a coincidentally-matching integer.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_ClassicXref_NonIntegerObjectNumberHeader_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildClassicXrefPdfWithNonIntegerObjectNumberHeader();
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));

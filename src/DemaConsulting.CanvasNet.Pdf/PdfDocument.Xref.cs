@@ -1360,16 +1360,48 @@ public sealed partial class PdfDocument
                     break;
                 }
 
+                // A malformed, non-integer or out-of-range declared object number (for example
+                // "1.5" or a value far beyond int range) cannot be used as a dictionary key at
+                // all - narrowing it with a bare (int) cast first would either throw nothing and
+                // silently truncate (for "1.5") or produce an unspecified wrapped value (for an
+                // out-of-range magnitude). Treat either case the same as any other malformed
+                // header token: stop trusting the rest of this object stream's header.
+                if (!TryGetNonNegativeInt(numberToken.Value.Number, out var containedNumber))
+                {
+                    break;
+                }
+
                 // A direct "N G obj" marker (if one somehow also exists for this number) is more
                 // trustworthy than an assumed containment index, so never overwrite an existing
                 // entry here.
-                var containedNumber = (int)numberToken.Value.Number;
                 if (!_xref.ContainsKey(containedNumber))
                 {
                     _xref[containedNumber] = XrefEntry.CreateCompressed(streamNumber, i);
                 }
             }
         }
+    }
+
+    /// <summary>
+    ///     Returns whether <paramref name="value"/> is a finite integer exactly representable as
+    ///     a non-negative <see cref="int"/> - the validity rule every numeric field parsed from
+    ///     untrusted PDF syntax must satisfy before being narrowed and used as a dictionary key,
+    ///     array index, or identity comparison. A bare <c>(int)</c> cast on a value that fails
+    ///     this check either silently truncates a non-integer value (for example <c>1.5</c>
+    ///     becoming <c>1</c>) or produces an unspecified, platform-dependent wrapped result (for a
+    ///     magnitude outside <see cref="int"/>'s range) - both of which risk accepting a malformed
+    ///     declaration as if it were a different, legitimate one instead of rejecting it.
+    /// </summary>
+    private static bool TryGetNonNegativeInt(double value, out int result)
+    {
+        if (value >= 0 && value <= int.MaxValue && double.IsInteger(value))
+        {
+            result = (int)value;
+            return true;
+        }
+
+        result = 0;
+        return false;
     }
 
     /// <summary>
@@ -1441,13 +1473,6 @@ public sealed partial class PdfDocument
 
         while (i < buffer.Length)
         {
-            var afterNonSyntax = AdvancePastNonSyntax(buffer, i, ref unterminatedStringEncountered);
-            if (afterNonSyntax != i)
-            {
-                i = afterNonSyntax;
-                continue;
-            }
-
             while (rangeIndex < streamPayloadRanges.Count && i >= streamPayloadRanges[rangeIndex].End)
             {
                 rangeIndex++;
@@ -1456,9 +1481,24 @@ public sealed partial class PdfDocument
             if (rangeIndex < streamPayloadRanges.Count &&
                 i >= streamPayloadRanges[rangeIndex].Start && i < streamPayloadRanges[rangeIndex].End)
             {
-                // Jump straight past the whole payload range - it is not real PDF syntax, so
-                // neither comment/string tracking nor keyword matching apply inside it.
+                // Jump straight past the whole payload range before considering it for anything
+                // else: it is not real PDF syntax, so neither comment/string tracking nor keyword
+                // matching apply inside it. This check must run before AdvancePastNonSyntax is
+                // ever given this position - a payload beginning with '(' or '<' would otherwise
+                // be misread as the start of a literal/hex string and scanned by
+                // AdvancePastNonSyntax as if it were PDF syntax, which tracks nested
+                // parentheses/escapes only against the whole buffer's end, not this range's own
+                // End. That can carry the scan deep into - or even past - arbitrary binary
+                // payload content before this guard ever gets a chance to clip it, potentially
+                // skipping right over the document's real trailer keyword.
                 i = streamPayloadRanges[rangeIndex].End;
+                continue;
+            }
+
+            var afterNonSyntax = AdvancePastNonSyntax(buffer, i, ref unterminatedStringEncountered);
+            if (afterNonSyntax != i)
+            {
+                i = afterNonSyntax;
                 continue;
             }
 
@@ -1585,10 +1625,15 @@ public sealed partial class PdfDocument
         // performed for compressed objects below. Without this, a corrupted or crafted
         // cross-reference entry whose offset points at a different object's header would be
         // silently accepted and relabeled with the wrong (requested) object number/identity.
-        if ((int)numberToken.Number != expectedNumber)
+        // Validating the header's declared number as a non-negative integer before comparing it
+        // (rather than narrowing it to int via a bare cast first) matters: a malformed,
+        // non-integer declaration such as "1.5 0 obj" would otherwise truncate to 1 and
+        // coincidentally compare equal to an expected object number of 1, silently accepting a
+        // header the PDF grammar does not actually permit instead of failing closed.
+        if (!TryGetNonNegativeInt(numberToken.Number, out var declaredNumber) || declaredNumber != expectedNumber)
         {
             throw new InvalidDataException(
-                $"Indirect object header at offset {offset} declares object number {(int)numberToken.Number}, " +
+                $"Indirect object header at offset {offset} declares object number {numberToken.Number}, " +
                 $"which does not match expected object number {expectedNumber}.");
         }
 
@@ -1672,11 +1717,26 @@ public sealed partial class PdfDocument
 
             if (i == indexInStream)
             {
-                relativeOffset = (int)offsetToken.Number;
-                if ((int)numberToken.Number != expectedNumber)
+                // Validating the header's declared number as a non-negative integer before
+                // comparing it (rather than narrowing it to int via a bare cast first) matters: a
+                // malformed, non-integer declaration such as "1.5" would otherwise truncate to 1
+                // and coincidentally compare equal to an expected object number of 1, silently
+                // accepting a header the PDF grammar does not actually permit instead of failing
+                // closed. The offset is validated the same way since it is genuinely used (not
+                // merely compared): a malformed, non-integer or out-of-range declared offset must
+                // be rejected outright rather than silently truncated or wrapped to an unrelated,
+                // in-range value that could coincidentally still pass the buffer-range check
+                // performed on it below.
+                if (!TryGetNonNegativeInt(numberToken.Number, out var containedNumber) || containedNumber != expectedNumber)
                 {
                     throw new InvalidDataException(
                         $"Object stream {streamNumber} entry {indexInStream} does not match expected object number {expectedNumber}.");
+                }
+
+                if (!TryGetNonNegativeInt(offsetToken.Number, out relativeOffset))
+                {
+                    throw new InvalidDataException(
+                        $"Object stream {streamNumber} entry {indexInStream} declares a malformed relative offset.");
                 }
             }
         }

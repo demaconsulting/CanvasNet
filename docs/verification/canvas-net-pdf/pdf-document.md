@@ -126,6 +126,12 @@ second, independently well-formed and shape-compatible `/Type /Page` object appe
 document's own `%%EOF` (never reachable through any genuine `xref`/`trailer` path), proving the
 mismatch is rejected outright rather than silently accepted and relabeled with the requested
 object number - which would otherwise render the wrong page without any error.
+`PdfDocument_Open_ClassicXref_NonIntegerObjectNumberHeader_ThrowsInvalidDataException` confirms
+that an object header's declared number token is validated as representable by a non-negative
+`int` before being compared against the number being resolved: the parsed token value is a
+floating-point `double`, so a bare narrowing cast (for example `(int)value`) would silently
+truncate a non-integer value such as `1.5` to `1`, wrongly treating a malformed header as a match
+for object 1 instead of rejecting it outright.
 
 #### CanvasNetPdf-PdfDocument-XrefStream: Xref Stream Resolves Root and Page
 
@@ -143,6 +149,13 @@ Opens `PdfFixtures/object-stream.pdf` (a `/Type /ObjStm` compressed-object strea
 dictionary) through the public API. Asserts `PageCount` and the compressed page's `GetPageInfo`
 size match the fixture's known content, confirming FlateDecode decompression and per-object
 resolution within the stream both work correctly.
+
+`PdfDocument_Open_CompressedObjectNonIntegerNumber_ThrowsInvalidDataException` confirms that a
+compressed object's own declared object number (read from inside the decompressed `/Type /ObjStm`
+body) is likewise validated as a non-negative `int` before use as a dictionary key and before
+comparison against the number being resolved, for the same reason as the classic-xref header
+check above: the parsed token is a `double`, and an unchecked narrowing cast would silently
+truncate a non-integer value rather than reject it.
 
 #### CanvasNetPdf-PdfDocument-HybridXref: Hybrid Xref Resolves Compressed Entry via XRefStm
 
@@ -238,6 +251,30 @@ example `xstartxref`) is never mistaken for a standalone marker, even when it is
 positioned later in the file, byte-identical, and points at an independently valid second
 cross-reference section - which would otherwise cause the wrong document revision to be silently
 resolved instead of the genuine one.
+`PdfDocument_Open_LinearScanFallback_CompressedObjectNonIntegerNumber_ThrowsInvalidDataException`
+confirms the same non-negative-`int` validation applied to a compressed object's declared number
+(see `CanvasNetPdf-PdfDocument-ObjectStream` above) is also enforced when an object stream is
+reached only through this fallback's own eager object-stream registration pass, rather than
+through the primary cross-reference path - both call sites share the same validation helper, but
+each is independently reachable and so independently verified.
+
+The stream-payload-range membership check in the trailer-keyword scan (used by this fallback to
+locate an explicit `trailer` dictionary when no trustworthy cross-reference chain is available)
+is ordered to run *before* any comment/string-literal tracking is attempted at a given scan
+position, mirroring the proven-safe pattern `ScanObjectOffsets` already uses for the same ranges:
+a stream payload beginning with an unescaped `(` or `<` byte must never be treated as the start of
+real PDF string syntax, since the literal/hex-string skip tracks a matching close byte only
+against the whole buffer's end, not the payload's own end, and so could in principle carry the
+scan arbitrarily far - including past a genuine `trailer` keyword - before a check running only
+*after* that attempt ever gets a chance to redirect it. No dedicated fixture reproduces this
+ordering actually changing behavior: `streamPayloadRanges` always begins immediately after an
+object's `obj` keyword match, at a position that is reached one byte at a time by the scan and is
+always a few bytes of guaranteed-safe dictionary-header text (which `AdvancePastNonSyntax` never
+treats specially) before any payload content proper, so the range check applied either before or
+after already catches the position deterministically at that safe boundary in every construction
+attempted. The reordering is kept regardless, both because it is strictly safer with no
+behavioral downside and because it removes the dependency on this incidental property, which is
+not guaranteed by anything the PDF format itself requires.
 `PdfDocument_Open_ClassicXref_StartxrefAsNameToken_DoesNotRedirectToBogusOffset` confirms the
 analogous PDF name-token exclusion for that same `startxref` marker search: a decoy
 `/startxref` is rejected because it is lexically a PDF name token whose text happens to read
