@@ -227,6 +227,15 @@ re-parsing it each time — a property a purely static API could not express.
   sufficient to size a `Render` call, because a later phase's content-stream-to-device
   transformation matrix construction needs the effective rotation value itself, not just its
   width/height side effect.
+- **`PdfRenderOptions`** (public, `sealed class`, `PdfRenderOptions.cs`) — a small, deliberately
+  growable bag of page-rendering configuration, documented inline here for the same reason as
+  `PdfPageInfo` above. Currently exposes a single `init`-only `BackgroundColor` property
+  (`Canvas.Rgba32`, defaulting to opaque white) plus a `static readonly Default` instance used
+  whenever a `Render` caller passes `null`. **Design decision**: a `sealed class` with `init`
+  properties was chosen over a `record`/`record struct` specifically so future properties can be
+  added without a breaking positional-argument/constructor change for any caller already using
+  `new PdfRenderOptions { ... }` object-initializer syntax - no specific future property is
+  planned or implied by this shape choice.
 
 ### Key Methods
 
@@ -254,16 +263,20 @@ re-parsing it each time — a property a purely static API could not express.
 - **`GetPageInfo(int pageIndex)`** — disposed-check, then `ArgumentOutOfRangeException` for
   `pageIndex < 0 || pageIndex >= PageCount`, then returns `_pages[pageIndex]` (already computed
   during `Open`).
-- **`Render(int pageIndex, int width, int height)`** — disposed-check and `pageIndex`
-  range-check identical to `GetPageInfo`, then builds `new Surface(width, height)`, resolves the
-  page's leaf node, raw `/MediaBox` origin, and inherited `/Resources` via `ResolvePageDetails`,
-  derives the page's base CTM via `BuildBaseCtm` (see _Content-Stream Interpreter_ below),
-  resolves the page's `/Contents` bytes via `ResolvePageContentBytes`, executes them via
-  `ExecuteContentStream` (passing the resolved `/Resources`), and returns the painted surface.
-  `Surface`'s own constructor supplies the `width`/`height` `ArgumentOutOfRangeException`/
-  `MaxDimension` contract; this is deliberately not duplicated here, and the caller-specified
-  `width`/`height` is used exactly as given — it is never clamped to, or derived from, the page's
-  own `/MediaBox` size.
+- **`Render(int pageIndex, int width, int height, PdfRenderOptions? options = null)`** —
+  disposed-check and `pageIndex` range-check identical to `GetPageInfo`, then builds `new
+  Surface(width, height)` and immediately clears it via `surface.Clear((options ??
+  PdfRenderOptions.Default).BackgroundColor)` (opaque white when `options` is `null` or leaves
+  `BackgroundColor` at its own default), resolves the page's leaf node, raw `/MediaBox` origin,
+  and inherited `/Resources` via `ResolvePageDetails`, derives the page's base CTM via
+  `BuildBaseCtm` (see _Content-Stream Interpreter_ below), resolves the page's `/Contents` bytes
+  via `ResolvePageContentBytes`, executes them via `ExecuteContentStream` (passing the resolved
+  `/Resources`), and returns the painted surface. `Surface`'s own constructor supplies the
+  `width`/`height` `ArgumentOutOfRangeException`/`MaxDimension` contract; this is deliberately not
+  duplicated here, and the caller-specified `width`/`height` is used exactly as given — it is
+  never clamped to, or derived from, the page's own `/MediaBox` size. A caller that needs the
+  previous fully transparent background back (for example to composite the result over
+  something else itself) passes `new PdfRenderOptions { BackgroundColor = new(0, 0, 0, 0) }`.
 - **`Dispose()`** — idempotent (mirrors `Surface`'s exact pattern): `if (_disposed) return;` then
   `_disposed = true;`. No finalizer (only managed memory — the buffered bytes and parsed object
   model — is held).
@@ -478,8 +491,9 @@ its own distinguishable `Feature` token.
   `/Contents`: a single stream is decoded directly via `GetStreamDecodedBytes`; an array of
   streams is decoded entry-by-entry and concatenated with a single space byte inserted between
   each entry (per the PDF specification's own requirement, so adjacent tokens from different
-  streams can never merge); a page with no `/Contents` key returns an empty array (rendered as a
-  blank page, exactly as every page did in Phase 1).
+  streams can never merge); a page with no `/Contents` key returns an empty array (rendered as
+  just its `PdfRenderOptions.BackgroundColor`-cleared surface, with no further geometry painted
+  over it).
 - **Graphics-state operators (`PdfDocument.GraphicsState.cs`)** — `OpPushGraphicsState`
   (`q`, pushes a clone of `_gs`), `OpPopGraphicsState` (`Q`, pops into `_gs`, tolerating an empty
   stack as a documented no-op leniency distinct from this class's strict operand-count/type

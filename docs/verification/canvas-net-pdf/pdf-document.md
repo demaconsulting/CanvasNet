@@ -340,16 +340,25 @@ Opens a single-page fixture and calls `GetPageInfo` with an out-of-range index. 
 
 #### CanvasNetPdf-PdfDocument-Render: Render Paints Content-Stream Geometry and Validates Arguments
 
-**Tests**: `PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedBlankSurface`,
+**Tests**: `PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedOpaqueWhiteSurface`,
 `PdfDocument_Render_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException`,
 `PdfDocument_Render_InvalidWidth_PropagatesSurfaceArgumentOutOfRangeException`,
-`PdfDocument_ContentStream_NoContents_RendersBlankSurface`
+`PdfDocument_ContentStream_NoContents_RendersBlankSurface`,
+`PdfDocument_Render_NoOptions_DefaultsToOpaqueWhiteBackground`,
+`PdfDocument_Render_CustomBackgroundColor_ClearsSurfaceToThatColor`,
+`PdfDocument_Render_TransparentBackgroundColor_ReproducesOldFullyTransparentBehavior`
 
 Calls `Render` with a valid page index and caller-chosen size against a fixture with no
-`/Contents`, asserting the returned `Surface` has exactly the requested dimensions and every
-pixel is the default (fully transparent) value. Calls `Render` with an out-of-range page index
-and a non-positive width, asserting `ArgumentOutOfRangeException` in both cases (the latter
-propagated unwrapped from `Surface`'s own constructor).
+`/Contents`, asserting the returned `Surface` has exactly the requested dimensions and, with no
+`options` argument supplied, every pixel is opaque white (`PdfRenderOptions.Default`'s
+`BackgroundColor`) - the surface is cleared to that color before any content-stream geometry is
+painted over it. Calls `Render` with an out-of-range page index and a non-positive width,
+asserting `ArgumentOutOfRangeException` in both cases (the latter propagated unwrapped from
+`Surface`'s own constructor). A dedicated custom-color test passes a `PdfRenderOptions` with a
+distinct, non-white opaque `BackgroundColor` and asserts every pixel matches it exactly, and a
+dedicated transparent-override test passes `new PdfRenderOptions { BackgroundColor = new(0, 0, 0,
+0) }` and asserts every pixel reproduces the fully transparent behavior `Render` had before this
+options parameter was added.
 
 #### CanvasNetPdf-PdfDocument-RenderWithDpi: Render(int, float) Scales Page Size by DPI/72 and Validates Arguments
 
@@ -366,7 +375,10 @@ dimensions itself. Calls `Render(int, float)` with a non-positive and a non-fini
 `PositiveInfinity`) DPI (`[Theory]`), an out-of-range page index, and after the document has been
 disposed, asserting `ArgumentOutOfRangeException` for the first two cases and
 `ObjectDisposedException` for the last, matching the validation contract already proven for
-`Render(int, int, int)`.
+`Render(int, int, int)`. The overload forwards its own `options` parameter unchanged to
+`Render(int, int, int, PdfRenderOptions?)`, so no separate DPI-specific background-color test is
+needed - `CanvasNetPdf-PdfDocument-Render`'s own tests above already cover every
+`BackgroundColor` behavior this overload shares.
 
 #### CanvasNetPdf-PdfDocument-ContentStreamDispatch: Unknown Operators Are Skipped, Malformed Recognized Operators Throw
 

@@ -423,6 +423,7 @@ public sealed partial class PdfDocument
     private PdfObject BuildLinearScanFallback()
     {
         _xref = ScanObjectOffsets();
+        RegisterCompressedObjectsFromObjectStreams();
 
         var explicitTrailer = ScanForTrailerDictionary();
         if (explicitTrailer is not null && IsValidCatalogRoot(explicitTrailer))
@@ -455,65 +456,266 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Scans the entire buffer, token by token, for <c>N G obj</c> markers, recording each
-    ///     object number's most recently seen offset (a later occurrence - for example from an
+    ///     Scans the entire buffer for literal <c>N G obj</c> byte markers, recording each object
+    ///     number's most recently seen offset (a later occurrence - for example from an
     ///     incremental update - overrides an earlier one, matching classic cross-reference table
-    ///     override semantics).
+    ///     override semantics). This operates directly on raw bytes rather than through
+    ///     <see cref="PdfTokenizer"/>: tokenizing the entire buffer would also tokenize
+    ///     compressed/binary stream payloads that were never meant to be parsed as PDF syntax, and
+    ///     real-world binary noise routinely derails a general-purpose tokenizer (for example by
+    ///     being misread as an implausibly long number or string token that swallows a genuine
+    ///     "obj" marker a few bytes later). Matching the exact literal pattern
+    ///     "&lt;digits&gt; &lt;digits&gt; obj" byte-by-byte is far more resilient to such noise.
     /// </summary>
     private Dictionary<int, XrefEntry> ScanObjectOffsets()
     {
         var xref = new Dictionary<int, XrefEntry>();
-        var tokenizer = new PdfTokenizer(_buffer);
+        var buffer = _buffer;
 
-        while (true)
+        for (var i = 0; i + 3 <= buffer.Length; i++)
         {
-            var startPosition = tokenizer.Position;
-            var first = tokenizer.NextToken();
-            if (first.Kind == PdfTokenKind.EndOfFile)
-            {
-                break;
-            }
-
-            if (first.Kind != PdfTokenKind.Number)
+            if (buffer[i] != (byte)'o' || buffer[i + 1] != (byte)'b' || buffer[i + 2] != (byte)'j')
             {
                 continue;
             }
 
-            var second = tokenizer.NextToken();
-            if (second.Kind != PdfTokenKind.Number)
+            // Reject matches inside a larger identifier (for example the tail of "endobj", or a
+            // binary-noise byte run that merely contains "obj" as a substring): a genuine keyword
+            // is not immediately followed by another identifier byte.
+            if (i + 3 < buffer.Length && IsMarkerIdentifierByte(buffer[i + 3]))
             {
                 continue;
             }
 
-            var third = tokenizer.NextToken();
-            if (third.Kind == PdfTokenKind.Keyword && third.Text == "obj")
+            if (TryParseObjectHeaderBackward(buffer, i, out var objectNumber, out var headerStart))
             {
-                xref[(int)first.Number] = XrefEntry.CreateDirect(startPosition);
+                xref[objectNumber] = XrefEntry.CreateDirect(headerStart);
             }
         }
 
         return xref;
     }
 
-    /// <summary>Scans the buffer for the last <c>trailer</c> keyword and parses its dictionary.</summary>
-    private PdfObject? ScanForTrailerDictionary()
+    /// <summary>
+    ///     Attempts to parse a <c>N G</c> object number/generation header immediately preceding
+    ///     the byte index of a literal <c>obj</c> keyword match, walking backward over the
+    ///     generation digits, the separating whitespace, and the object number digits.
+    /// </summary>
+    private static bool TryParseObjectHeaderBackward(byte[] buffer, int objIndex, out int objectNumber, out int headerStart)
     {
-        var tokenizer = new PdfTokenizer(_buffer);
-        PdfObject? last = null;
+        objectNumber = 0;
+        headerStart = 0;
 
-        while (true)
+        var cursor = objIndex;
+        var sectionEnd = cursor;
+        cursor = SkipMarkerBytesBackward(buffer, cursor, IsMarkerWhitespace);
+        if (cursor == sectionEnd)
         {
-            var token = tokenizer.NextToken();
-            if (token.Kind == PdfTokenKind.EndOfFile)
-            {
-                break;
-            }
+            return false;
+        }
 
-            if (token.Kind != PdfTokenKind.Keyword || token.Text != "trailer")
+        sectionEnd = cursor;
+        cursor = SkipMarkerBytesBackward(buffer, cursor, IsMarkerDigit);
+        if (cursor == sectionEnd)
+        {
+            return false;
+        }
+
+        sectionEnd = cursor;
+        cursor = SkipMarkerBytesBackward(buffer, cursor, IsMarkerWhitespace);
+        if (cursor == sectionEnd)
+        {
+            return false;
+        }
+
+        var numberEnd = cursor;
+        cursor = SkipMarkerBytesBackward(buffer, cursor, IsMarkerDigit);
+        if (cursor == numberEnd)
+        {
+            return false;
+        }
+
+        var numberStart = cursor;
+        var parsedNumber = 0L;
+        for (var i = numberStart; i < numberEnd; i++)
+        {
+            parsedNumber = parsedNumber * 10 + (buffer[i] - (byte)'0');
+            if (parsedNumber > int.MaxValue)
+            {
+                // An implausibly large object number is almost certainly a false-positive match
+                // against binary noise rather than a genuine object header.
+                return false;
+            }
+        }
+
+        objectNumber = (int)parsedNumber;
+        headerStart = numberStart;
+        return true;
+    }
+
+    /// <summary>Walks <paramref name="cursor"/> backward while the preceding byte satisfies <paramref name="predicate"/>.</summary>
+    private static int SkipMarkerBytesBackward(byte[] buffer, int cursor, Func<byte, bool> predicate)
+    {
+        while (cursor > 0 && predicate(buffer[cursor - 1]))
+        {
+            cursor--;
+        }
+
+        return cursor;
+    }
+
+    private static bool IsMarkerWhitespace(byte b) => b is 0x00 or 0x09 or 0x0A or 0x0C or 0x0D or 0x20;
+
+    private static bool IsMarkerDigit(byte b) => b is >= (byte)'0' and <= (byte)'9';
+
+    private static bool IsMarkerIdentifierByte(byte b) =>
+        IsMarkerDigit(b) || (b is >= (byte)'a' and <= (byte)'z') || (b is >= (byte)'A' and <= (byte)'Z');
+
+    /// <summary>
+    ///     After a linear scan has located every directly-offset object (<c>N G obj</c> markers),
+    ///     also registers the objects nested inside any discovered object streams
+    ///     (<c>/Type /ObjStm</c>). A compressed object has no literal <c>N G obj</c> marker of its
+    ///     own in the raw buffer - it exists only inside its container stream's decompressed body
+    ///     - so without this pass, any page or resource reachable only through an object stream
+    ///     would be wrongly reported as missing whenever normal cross-reference parsing has failed
+    ///     and this linear scan is the document's only remaining route to a working object table.
+    /// </summary>
+    private void RegisterCompressedObjectsFromObjectStreams()
+    {
+        // Snapshot the object numbers before mutating `_xref` within the loop below.
+        foreach (var streamNumber in _xref.Keys.ToArray())
+        {
+            PdfObject container;
+            byte[] decoded;
+            try
+            {
+                container = GetObject(streamNumber);
+                if (container.Kind != PdfKind.Stream || GetNameValue(container, "Type") != "ObjStm")
+                {
+                    continue;
+                }
+
+                decoded = GetStreamDecodedBytes(container);
+            }
+            catch (InvalidDataException)
             {
                 continue;
             }
 
+            if (container.Get("N") is not { Kind: PdfKind.Number } countObject)
+            {
+                continue;
+            }
+
+            var count = (int)countObject.Number;
+            if (count < 0 || count > decoded.Length)
+            {
+                continue;
+            }
+
+            var headerTokenizer = new PdfTokenizer(decoded);
+            for (var i = 0; i < count; i++)
+            {
+                if (headerTokenizer.Position >= decoded.Length)
+                {
+                    break;
+                }
+
+                var numberToken = TryNextToken(headerTokenizer);
+                var offsetToken = TryNextToken(headerTokenizer);
+                if (numberToken is not { Kind: PdfTokenKind.Number } || offsetToken is not { Kind: PdfTokenKind.Number })
+                {
+                    break;
+                }
+
+                // A direct "N G obj" marker (if one somehow also exists for this number) is more
+                // trustworthy than an assumed containment index, so never overwrite an existing
+                // entry here.
+                var containedNumber = (int)numberToken.Value.Number;
+                if (!_xref.ContainsKey(containedNumber))
+                {
+                    _xref[containedNumber] = XrefEntry.CreateCompressed(streamNumber, i);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Reads the next token, treating a malformed token - for example a hex string containing
+    ///     a byte that is neither a hex digit nor whitespace - as unparsable noise rather than
+    ///     letting the exception abort the whole scan. This matters because the linear-scan
+    ///     fallback paths (<see cref="ScanObjectOffsets"/>, <see cref="ScanForTrailerDictionary"/>)
+    ///     tokenize the entire raw document buffer, including compressed/binary stream payloads
+    ///     that were never meant to be parsed as PDF syntax and can easily contain a stray
+    ///     <c>&lt;</c> byte by coincidence. On failure the tokenizer is resynchronized by
+    ///     advancing at least one byte past the token's start position (guaranteeing forward
+    ///     progress even when the failing token consumed zero bytes before throwing), and
+    ///     <see langword="null"/> is returned so the caller can simply keep scanning.
+    /// </summary>
+    private static PdfToken? TryNextToken(PdfTokenizer tokenizer)
+    {
+        var start = tokenizer.Position;
+        try
+        {
+            return tokenizer.NextToken();
+        }
+        catch (InvalidDataException)
+        {
+            if (tokenizer.Position <= start)
+            {
+                tokenizer.Position = start + 1;
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     Scans the buffer for every literal <c>trailer</c> keyword byte marker and parses the
+    ///     dictionary that follows it, keeping the last successfully parsed one (a later
+    ///     occurrence - for example from an incremental update - overrides an earlier one). This
+    ///     locates the keyword itself via a raw byte search rather than <see cref="PdfTokenizer"/>
+    ///     tokenizing the whole buffer, for the same reason <see cref="ScanObjectOffsets"/> does:
+    ///     real-world binary stream noise routinely derails a general-purpose tokenizer long
+    ///     before it would ever reach a genuine "trailer" keyword.
+    /// </summary>
+    private PdfObject? ScanForTrailerDictionary()
+    {
+        var buffer = _buffer;
+        var keyword = "trailer"u8;
+        PdfObject? last = null;
+
+        for (var i = 0; i + keyword.Length <= buffer.Length; i++)
+        {
+            var isMatch = true;
+            for (var k = 0; k < keyword.Length; k++)
+            {
+                if (buffer[i + k] != keyword[k])
+                {
+                    isMatch = false;
+                    break;
+                }
+            }
+
+            if (!isMatch)
+            {
+                continue;
+            }
+
+            // Reject a match inside a larger identifier/binary-noise run: a genuine keyword is
+            // not immediately preceded or followed by another identifier byte.
+            if (i > 0 && IsMarkerIdentifierByte(buffer[i - 1]))
+            {
+                continue;
+            }
+
+            var after = i + keyword.Length;
+            if (after < buffer.Length && IsMarkerIdentifierByte(buffer[after]))
+            {
+                continue;
+            }
+
+            var tokenizer = new PdfTokenizer(buffer) { Position = after };
             try
             {
                 var candidate = ParseValue(tokenizer);

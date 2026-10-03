@@ -326,19 +326,27 @@ sections:
               The PdfDocument class shall return a Surface of the caller-specified width and
               height for a valid page index, painting it with the page's interpreted content-
               stream geometry (see CanvasNetPdf-PdfDocument-ContentStreamDispatch and its sibling
-              requirements below) or, when the page declares no /Contents at all, a fully
-              transparent surface; it shall validate the page index the same way GetPageInfo does,
-              and propagate Surface's own width/height validation unwrapped rather than
-              duplicating it.
+              requirements below) over a surface cleared to the caller-configurable
+              PdfRenderOptions.BackgroundColor (opaque white by default) via an optional trailing
+              PdfRenderOptions? options parameter; it shall validate the page index the same way
+              GetPageInfo does, and propagate Surface's own width/height validation unwrapped
+              rather than duplicating it.
             justification: |
               Phase 1 established Render's final call shape (page index plus caller-chosen output
               size) so Phase 2's real content-stream rendering could be added without a breaking
-              API change; callers need a correctly sized, correctly painted result.
+              API change; callers need a correctly sized, correctly painted result, and many
+              downstream consumers (for example PDF-to-image conversion for print or preview)
+              expect an opaque, non-transparent page background by default while still being able
+              to opt back into the old fully transparent behavior when they need to composite the
+              result over something else themselves.
             tests:
-              - PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedBlankSurface
+              - PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedOpaqueWhiteSurface
               - PdfDocument_Render_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException
               - PdfDocument_Render_InvalidWidth_PropagatesSurfaceArgumentOutOfRangeException
               - PdfDocument_ContentStream_NoContents_RendersBlankSurface
+              - PdfDocument_Render_NoOptions_DefaultsToOpaqueWhiteBackground
+              - PdfDocument_Render_CustomBackgroundColor_ClearsSurfaceToThatColor
+              - PdfDocument_Render_TransparentBackgroundColor_ReproducesOldFullyTransparentBehavior
 
           - id: CanvasNetPdf-PdfDocument-RenderWithDpi
             title: >-
@@ -347,8 +355,9 @@ sections:
               compute an output width/height in pixels themselves, scaling the page's own
               rotation-adjusted point-space size by dpi/72, preserving its aspect ratio, and
               rounding the result to the nearest pixel before producing the same painted Surface
-              as the width/height overload; it shall reject a dpi that is not a positive, finite
-              number, and validate the page index the same way the width/height overload does.
+              as the width/height overload (forwarding its own optional PdfRenderOptions?
+              parameter unchanged); it shall reject a dpi that is not a positive, finite number,
+              and validate the page index the same way the width/height overload does.
             justification: |
               Callers frequently think in terms of a target resolution (dots per inch) rather than
               an absolute pixel size, and computing a page's correctly aspect-ratio-preserving

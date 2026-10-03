@@ -38,7 +38,7 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Caches every <see cref="TrueTypeFont"/> loaded from a <see cref="SystemFontCatalog.FindBestMatch"/>
     ///     hit, keyed by the matched font's <c>(FilePath, FaceIndex)</c> - deliberately a
-    ///     process-lifetime cache (unlike <see cref="_fontCache"/>'s per-<see cref="Render(int, int, int)"/>
+    ///     process-lifetime cache (unlike <see cref="_fontCache"/>'s per-<see cref="Render(int, int, int, PdfRenderOptions?)"/>
     ///     call scope), since a system font file's bytes never change between calls, so
     ///     re-parsing it from disk on every fallback lookup would reintroduce the "hundreds of
     ///     files scanned repeatedly" cost <see cref="SystemFontCatalog.Fonts"/>'s own laziness

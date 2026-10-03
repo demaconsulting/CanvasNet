@@ -29,6 +29,14 @@ public class PdfDocumentEncryptionTests
     private static readonly Canvas.Rgba32 Black = new(0, 0, 0, 255);
 
     /// <summary>
+    ///     A fully transparent <see cref="PdfRenderOptions.BackgroundColor"/>, used by tests that
+    ///     assert an unpainted region equals <see langword="default"/> to prove paint isolation
+    ///     from neighboring drawing, reproducing the fully transparent background <c>Render</c>
+    ///     always produced before <see cref="PdfRenderOptions"/> was introduced.
+    /// </summary>
+    private static readonly PdfRenderOptions Transparent = new() { BackgroundColor = new(0, 0, 0, 0) };
+
+    /// <summary>
     ///     The standard 32-byte password padding string (ISO 32000-1 7.6.3.3), used verbatim as
     ///     the padded empty password throughout every helper below.
     /// </summary>
@@ -547,7 +555,7 @@ public class PdfDocumentEncryptionTests
         var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, encryptedContent);
 
         using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
@@ -577,7 +585,7 @@ public class PdfDocumentEncryptionTests
         var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, encryptedContent);
 
         using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
@@ -605,7 +613,7 @@ public class PdfDocumentEncryptionTests
         var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, encryptedContent);
 
         using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
@@ -638,7 +646,7 @@ public class PdfDocumentEncryptionTests
         var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, encryptedContent);
 
         using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
@@ -666,7 +674,7 @@ public class PdfDocumentEncryptionTests
         var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, encryptedContent);
 
         using var document = PdfDocument.Open(new MemoryStream(pdfBytes), userPassword);
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
@@ -696,7 +704,7 @@ public class PdfDocumentEncryptionTests
         var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, encryptedContent);
 
         using var document = PdfDocument.Open(new MemoryStream(pdfBytes), userPassword);
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
@@ -731,7 +739,7 @@ public class PdfDocumentEncryptionTests
         var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, encryptedContent);
 
         using var document = PdfDocument.Open(new MemoryStream(pdfBytes), userPassword);
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
@@ -767,7 +775,7 @@ public class PdfDocumentEncryptionTests
         var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, encryptedContent);
 
         using var document = PdfDocument.Open(new MemoryStream(pdfBytes), ownerPassword);
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
@@ -810,7 +818,7 @@ public class PdfDocumentEncryptionTests
         var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, encryptedContent);
 
         using var document = PdfDocument.Open(new MemoryStream(pdfBytes), ownerPassword);
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
@@ -970,7 +978,7 @@ public class PdfDocumentEncryptionTests
         using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
 
         Assert.Equal(1, document.PageCount);
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
     }
@@ -1015,7 +1023,7 @@ public class PdfDocumentEncryptionTests
 
         // (a) the whole document still opens and renders correctly.
         Assert.Equal(1, document.PageCount);
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
 
@@ -1080,7 +1088,7 @@ public class PdfDocumentEncryptionTests
 
         // Object 4's own encrypted /Contents stream decrypted correctly.
         Assert.Equal(1, document.PageCount);
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
 
@@ -1135,7 +1143,7 @@ public class PdfDocumentEncryptionTests
         // which would have scanned for "N G obj" markers and never found object 1 (it has no such
         // marker; it only exists compressed inside object 6) - and renders correctly.
         Assert.Equal(1, document.PageCount);
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
     }
@@ -1235,7 +1243,7 @@ public class PdfDocumentEncryptionTests
         // without the fix, the stale RC4 key would have garbled these already-plaintext bytes
         // before content-stream parsing ever saw them.
         Assert.Equal(1, document.PageCount);
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
     }

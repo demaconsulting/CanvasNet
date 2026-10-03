@@ -26,6 +26,14 @@ public class PdfFixtureTests
     private static string Fixture(string name) => Path.Join(FixturesPath, name);
 
     /// <summary>
+    ///     A fully transparent <see cref="PdfRenderOptions.BackgroundColor"/>, used so
+    ///     <see cref="AssertPaintedSomePixel"/>'s "any painted pixel" check keeps proving real
+    ///     content was rendered rather than becoming vacuously true against an opaque-white
+    ///     default background.
+    /// </summary>
+    private static readonly PdfRenderOptions Transparent = new() { BackgroundColor = new(0, 0, 0, 0) };
+
+    /// <summary>
     ///     The path to the real "Open Sans" TrueType font, copied to the test output directory by
     ///     this project's <c>FontFixtures\**</c> content-link item (see
     ///     <c>DemaConsulting.CanvasNet.Tests\FontFixtures\README.md</c> for provenance/licensing).
@@ -65,7 +73,7 @@ public class PdfFixtureTests
         // Arrange & Act
         using var document = PdfDocument.Open(Fixture("classic-xref-single-page.pdf"));
         var info = document.GetPageInfo(0);
-        using var surface = document.Render(0, info.Width, info.Height);
+        using var surface = document.Render(0, info.Width, info.Height, Transparent);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -89,7 +97,7 @@ public class PdfFixtureTests
         for (var pageIndex = 0; pageIndex < document.PageCount; pageIndex++)
         {
             var info = document.GetPageInfo(pageIndex);
-            using var surface = document.Render(pageIndex, info.Width, info.Height);
+            using var surface = document.Render(pageIndex, info.Width, info.Height, Transparent);
             Assert.Equal(info.Width, surface.Width);
             Assert.Equal(info.Height, surface.Height);
         }
@@ -104,7 +112,7 @@ public class PdfFixtureTests
     {
         // Arrange & Act
         using var document = PdfDocument.Open(Fixture("color-rgb-rectangle-fill.pdf"));
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert
         AssertPaintedSomePixel(surface);
@@ -119,7 +127,7 @@ public class PdfFixtureTests
     {
         // Arrange & Act
         using var document = PdfDocument.Open(Fixture("image-xobject-devicergb-flate.pdf"));
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert
         AssertPaintedSomePixel(surface);
@@ -134,7 +142,7 @@ public class PdfFixtureTests
     {
         // Arrange & Act
         using var document = PdfDocument.Open(Fixture("text-embedded-truetype-font.pdf"));
-        using var surface = document.Render(0, 200, 100);
+        using var surface = document.Render(0, 200, 100, Transparent);
 
         // Assert
         AssertPaintedSomePixel(surface);
@@ -154,7 +162,7 @@ public class PdfFixtureTests
     {
         // Arrange & Act
         using var document = PdfDocument.Open(Fixture(fixtureName));
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert
         AssertPaintedSomePixel(surface);
@@ -175,7 +183,7 @@ public class PdfFixtureTests
         using var document = PdfDocument.Open(Fixture("combined-vector-text-image.pdf"));
 
         // Act
-        using var surface = document.Render(0, 200, 200);
+        using var surface = document.Render(0, 200, 200, Transparent);
 
         // Assert: the filled vector rectangle painted opaque black.
         Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[30, 170]);
@@ -204,7 +212,7 @@ public class PdfFixtureTests
     {
         // Arrange & Act
         using var document = PdfDocument.Open(Fixture("standard14-font-fallback.pdf"));
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert
         AssertPaintedSomePixel(surface);
@@ -221,7 +229,7 @@ public class PdfFixtureTests
     {
         // Arrange & Act
         using var document = PdfDocument.Open(Fixture("text-embedded-type1-font.pdf"));
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert
         AssertPaintedSomePixel(surface);
@@ -240,7 +248,7 @@ public class PdfFixtureTests
     {
         // Arrange & Act
         using var document = PdfDocument.Open(Fixture("text-standard14-type1-no-fontfile.pdf"));
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert
         AssertPaintedSomePixel(surface);

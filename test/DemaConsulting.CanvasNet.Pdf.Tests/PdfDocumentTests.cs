@@ -30,6 +30,14 @@ public class PdfDocumentTests
     private static readonly Canvas.Rgba32 Black = new(0, 0, 0, 255);
 
     /// <summary>
+    ///     A fully transparent <see cref="PdfRenderOptions.BackgroundColor"/>, used by tests that
+    ///     assert an unpainted region equals <see langword="default"/> to prove paint isolation
+    ///     from neighboring drawing, reproducing the fully transparent background <c>Render</c>
+    ///     always produced before <see cref="PdfRenderOptions"/> was introduced.
+    /// </summary>
+    private static readonly PdfRenderOptions Transparent = new() { BackgroundColor = new(0, 0, 0, 0) };
+
+    /// <summary>
     ///     Builds an in-memory, single-page, classic-xref PDF (matching
     ///     <c>PdfFixtures\README.md</c>'s hand-authored template) whose one page declares the
     ///     given <c>/MediaBox</c>, optional <c>/Rotate</c>, and a single <c>/Contents</c> stream
@@ -94,7 +102,7 @@ public class PdfDocumentTests
     {
         var bytes = BuildSinglePagePdf(mediaBoxWidth, mediaBoxHeight, content, rotate);
         using var document = PdfDocument.Open(new MemoryStream(bytes));
-        return document.Render(0, width, height);
+        return document.Render(0, width, height, Transparent);
     }
 
     /// <summary>
@@ -193,7 +201,7 @@ public class PdfDocumentTests
     private static Canvas.Surface RenderPdfBytes(byte[] bytes, int width = 100, int height = 100)
     {
         using var document = PdfDocument.Open(new MemoryStream(bytes));
-        return document.Render(0, width, height);
+        return document.Render(0, width, height, Transparent);
     }
 
     /// <summary>
@@ -1432,19 +1440,23 @@ public class PdfDocumentTests
     ///     (no classic table) whose stream dictionary declares the given raw <c>/W</c> array
     ///     literal verbatim - used to craft a malformed/adversarial <c>/W</c> entry (for example a
     ///     negative field width) that the classic-xref-table builders above cannot express.
-    ///     Deliberately hides the <c>/Type /Catalog</c> object inside a compressed
-    ///     <c>/Type /ObjStm</c> container (object 6, compressed inside object 1) rather than
-    ///     leaving it as a plain top-level object: <see cref="PdfDocument"/>'s own
-    ///     <c>BuildLinearScanFallback</c> recovery path (triggered whenever normal
-    ///     cross-reference parsing throws <see cref="InvalidDataException"/>) only finds plain
-    ///     <c>N G obj</c> headers by a raw byte scan, so with the catalog plain and
-    ///     top-level, recovery would silently rebuild a working document regardless of whether
-    ///     the crafted <c>/W</c> entry is rejected - masking the very defect this helper exists to
-    ///     exercise. Hiding the catalog inside an object stream (which recovery's linear scan
-    ///     cannot see into) ensures that when the crafted <c>/W</c> entry is rejected and
-    ///     cross-reference parsing falls back to recovery, recovery also fails to locate a
-    ///     catalog, so the caller still observes a thrown, typed exception - proving the crafted
-    ///     input is converted into a controlled failure, never a raw CLR crash, at every layer.
+    ///     Hides the <c>/Type /Catalog</c> object inside a compressed <c>/Type /ObjStm</c>
+    ///     container (object 6, compressed inside object 1) rather than leaving it as a plain
+    ///     top-level object, so this fixture also doubles as coverage for
+    ///     <see cref="PdfDocument"/>'s <c>BuildLinearScanFallback</c> recovery path: that raw
+    ///     byte-scan recovery (triggered whenever normal cross-reference parsing throws
+    ///     <see cref="InvalidDataException"/>) locates plain <c>N G obj</c> headers directly and
+    ///     also decodes any directly-located <c>/Type /ObjStm</c> object it finds that way to
+    ///     register the objects compressed inside it - so a crafted <c>/W</c> entry that forces
+    ///     the normal cross-reference stream parse to fail no longer prevents the document from
+    ///     opening: recovery still locates object 1's <c>ObjStm</c> by the raw scan, decodes it,
+    ///     and resolves the catalog compressed within it. Callers that want to prove a malformed
+    ///     <c>/W</c> entry is converted into a controlled, typed failure rather than a raw CLR
+    ///     crash must therefore assert successful, gracefully-recovered output (see
+    ///     <see cref="PdfDocument_Open_XrefStream_NegativeWidth_RecoversViaLinearScanFallback"/>
+    ///     and
+    ///     <see cref="PdfDocument_Open_XrefStream_AllZeroWidths_RecoversViaLinearScanFallback"/>),
+    ///     not a thrown exception.
     /// </summary>
     private static byte[] BuildXrefStreamPdfWithWidths(string wLiteral)
     {
@@ -1521,26 +1533,49 @@ public class PdfDocumentTests
         Assert.Equal(300, info.Height);
     }
 
-    /// <summary>Proves that a cross-reference stream's <c>/W</c> entry with a negative field width (which would otherwise drive a negative byte offset into <see cref="IndexOutOfRangeException"/>) throws <see cref="InvalidDataException"/> instead.</summary>
+    /// <summary>
+    ///     Proves that a cross-reference stream's <c>/W</c> entry with a negative field width
+    ///     (which would otherwise drive a negative byte offset into
+    ///     <see cref="IndexOutOfRangeException"/>) never reaches the caller as a raw CLR crash:
+    ///     normal cross-reference parsing rejects it with a controlled, typed exception
+    ///     internally, and the document still opens successfully by falling back to the raw
+    ///     linear scan (which locates the catalog compressed inside object 1's object stream, as
+    ///     described on <see cref="BuildXrefStreamPdfWithWidths"/>).
+    /// </summary>
     [Fact]
-    public void PdfDocument_Open_XrefStream_NegativeWidth_ThrowsInvalidDataException()
+    public void PdfDocument_Open_XrefStream_NegativeWidth_RecoversViaLinearScanFallback()
     {
         // Arrange
         var pdfBytes = BuildXrefStreamPdfWithWidths("[-1 1 1]");
 
-        // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
     }
 
-    /// <summary>Proves that a cross-reference stream's <c>/W</c> entry whose three widths are all zero (which would otherwise produce a zero-length per-entry stride and never advance the decode position, allowing a crafted large <c>/Size</c> or <c>/Index</c> to spin indefinitely) throws <see cref="InvalidDataException"/> instead of looping.</summary>
+    /// <summary>
+    ///     Proves that a cross-reference stream's <c>/W</c> entry whose three widths are all zero
+    ///     (which would otherwise produce a zero-length per-entry stride and never advance the
+    ///     decode position, allowing a crafted large <c>/Size</c> or <c>/Index</c> to spin
+    ///     indefinitely) never reaches the caller as an infinite loop: normal cross-reference
+    ///     parsing rejects it with a controlled, typed exception internally, and the document
+    ///     still opens successfully by falling back to the raw linear scan (which locates the
+    ///     catalog compressed inside object 1's object stream, as described on
+    ///     <see cref="BuildXrefStreamPdfWithWidths"/>).
+    /// </summary>
     [Fact]
-    public void PdfDocument_Open_XrefStream_AllZeroWidths_ThrowsInvalidDataException()
+    public void PdfDocument_Open_XrefStream_AllZeroWidths_RecoversViaLinearScanFallback()
     {
         // Arrange
         var pdfBytes = BuildXrefStreamPdfWithWidths("[0 0 0]");
 
-        // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
     }
 
     /// <summary>
@@ -1905,6 +1940,75 @@ public class PdfDocumentTests
         Assert.Contains("out of bounds", exception.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    ///     Proves that the linear-scan fallback (<c>linear-scan-stream-noise.pdf</c> - no
+    ///     <c>startxref</c>/<c>xref</c>/<c>trailer</c> at all, mirroring
+    ///     <c>malformed-startxref.pdf</c>) still opens successfully even though an unrelated,
+    ///     unreferenced stream object's raw payload contains a stray <c>&lt;</c> byte
+    ///     immediately followed by <c>Z</c> - neither a hex digit nor whitespace. Before the
+    ///     crash fix, <c>ScanObjectOffsets</c>/<c>ScanForTrailerDictionary</c> located "N G obj"/
+    ///     "trailer" markers by tokenizing the *entire* raw buffer with a general-purpose
+    ///     tokenizer (including stream payloads never meant to be parsed as PDF syntax): the
+    ///     tokenizer's hex-string reader would reach the stray <c>&lt;Z</c> and throw
+    ///     <see cref="InvalidDataException"/> from inside the fallback itself, with no further
+    ///     <c>catch</c> around it, escaping <see cref="PdfDocument.Open(Stream, string?)"/>
+    ///     entirely as an unhandled exception. The fix instead locates markers via raw
+    ///     byte-pattern matching (and, for the trailer scan, a narrowly-scoped per-candidate
+    ///     tokenizer wrapped in its own <c>try</c>/<c>catch</c>), so the same noise byte is simply
+    ///     skipped over.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_StreamPayloadContainsInvalidHexByte_OpensWithoutThrowing()
+    {
+        // Arrange
+        PdfDocument? document = null;
+
+        // Act
+        var exception = Record.Exception(() => document = PdfDocument.Open(Fixture("linear-scan-stream-noise.pdf")));
+        using (document)
+        {
+            // Assert
+            Assert.Null(exception);
+            Assert.NotNull(document);
+            Assert.Equal(1, document.PageCount);
+            var info = document.GetPageInfo(0);
+            Assert.Equal(150, info.Width);
+            Assert.Equal(220, info.Height);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that a page dictionary compressed inside a <c>/Type /ObjStm</c> object stream
+    ///     (<c>object-stream-linear-scan-fallback.pdf</c>) is resolvable even when normal
+    ///     cross-reference/trailer parsing cannot run at all (the fixture, like
+    ///     <c>malformed-startxref.pdf</c>, has no <c>startxref</c>/<c>xref</c>/<c>trailer</c>),
+    ///     forcing <c>BuildLinearScanFallback</c> to be the document's only route to a working
+    ///     object table. The fallback's raw byte scan finds the object stream directly (it has
+    ///     its own literal <c>5 0 obj</c> marker), and
+    ///     <c>RegisterCompressedObjectsFromObjectStreams</c> then decodes it to register the page
+    ///     dictionary (object 3) compressed within it - resolved here via fully public,
+    ///     observable behavior (rendering the page that depends on it, not an internal
+    ///     test-only accessor): the fixture's single page paints an opaque red rectangle across
+    ///     its entire 100x100 <c>/MediaBox</c>, so a successful render with the expected color
+    ///     proves the compressed page dictionary - and its <c>/Contents</c> reference - were both
+    ///     genuinely recovered, not merely that <see cref="PdfDocument.PageCount"/> reports 1.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_LinearScanFallback_ResolvesPageCompressedInObjectStream()
+    {
+        // Arrange & Act
+        using var document = PdfDocument.Open(Fixture("object-stream-linear-scan-fallback.pdf"));
+
+        // Assert
+        Assert.Equal(1, document.PageCount);
+        var info = document.GetPageInfo(0);
+        Assert.Equal(100, info.Width);
+        Assert.Equal(100, info.Height);
+
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
     #endregion
 
     #region Page tree
@@ -2103,9 +2207,9 @@ public class PdfDocumentTests
 
     #region Render
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int)"/> returns a fully transparent surface of the caller-requested size (Phase 1 renders no content).</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> returns an opaque-white surface of the caller-requested size by default (Phase 1 renders no content; the surface is cleared to <see cref="PdfRenderOptions.Default"/>'s opaque white background).</summary>
     [Fact]
-    public void PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedBlankSurface()
+    public void PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedOpaqueWhiteSurface()
     {
         // Arrange
         using var document = PdfDocument.Open(Fixture("classic-xref-single-page.pdf"));
@@ -2120,12 +2224,81 @@ public class PdfDocumentTests
         {
             for (var x = 0; x < surface.Width; x++)
             {
+                Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> defaults to an opaque white background when no <see cref="PdfRenderOptions"/> is passed.</summary>
+    [Fact]
+    public void PdfDocument_Render_NoOptions_DefaultsToOpaqueWhiteBackground()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("no-contents-page.pdf"));
+
+        // Act
+        using var surface = document.Render(0, 20, 20);
+
+        // Assert
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>Proves that a custom, non-white, opaque <see cref="PdfRenderOptions.BackgroundColor"/> clears the surface to exactly that color.</summary>
+    [Fact]
+    public void PdfDocument_Render_CustomBackgroundColor_ClearsSurfaceToThatColor()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("no-contents-page.pdf"));
+        var options = new PdfRenderOptions { BackgroundColor = new Canvas.Rgba32(10, 20, 30, 255) };
+
+        // Act
+        using var surface = document.Render(0, 20, 20, options);
+
+        // Assert
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                Assert.Equal(new Canvas.Rgba32(10, 20, 30, 255), surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>Proves that passing a fully transparent <see cref="PdfRenderOptions.BackgroundColor"/> reproduces the fully transparent background <c>Render</c> always produced before <see cref="PdfRenderOptions"/> was introduced.</summary>
+    [Fact]
+    public void PdfDocument_Render_TransparentBackgroundColor_ReproducesOldFullyTransparentBehavior()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("no-contents-page.pdf"));
+
+        // Act
+        using var surface = document.Render(0, 20, 20, Transparent);
+
+        // Assert
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
                 Assert.Equal(default, surface[x, y]);
             }
         }
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int)"/> rejects an out-of-range page index the same way <see cref="PdfDocument.GetPageInfo"/> does.</summary>
+    /// <summary>Proves that <see cref="PdfRenderOptions.Default"/>'s <see cref="PdfRenderOptions.BackgroundColor"/> is opaque white.</summary>
+    [Fact]
+    public void PdfRenderOptions_Default_BackgroundColorIsOpaqueWhite()
+    {
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), PdfRenderOptions.Default.BackgroundColor);
+    }
+
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> rejects an out-of-range page index the same way <see cref="PdfDocument.GetPageInfo"/> does.</summary>
     [Fact]
     public void PdfDocument_Render_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException()
     {
@@ -2136,7 +2309,7 @@ public class PdfDocumentTests
         Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(5, 10, 10));
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int)"/> lets <see cref="Canvas.Surface"/>'s own constructor validate width/height rather than duplicating that check.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> lets <see cref="Canvas.Surface"/>'s own constructor validate width/height rather than duplicating that check.</summary>
     [Fact]
     public void PdfDocument_Render_InvalidWidth_PropagatesSurfaceArgumentOutOfRangeException()
     {
@@ -2147,7 +2320,7 @@ public class PdfDocumentTests
         Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(0, 0, 10));
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, float)"/> scales the page's own point-space size by DPI/72, preserving aspect ratio.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, float, PdfRenderOptions?)"/> scales the page's own point-space size by DPI/72, preserving aspect ratio.</summary>
     [Theory]
     [InlineData(72f, 200, 300)]
     [InlineData(36f, 100, 150)]
@@ -2165,7 +2338,7 @@ public class PdfDocumentTests
         Assert.Equal(expectedHeight, surface.Height);
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, float)"/> rejects a non-positive or non-finite DPI.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, float, PdfRenderOptions?)"/> rejects a non-positive or non-finite DPI.</summary>
     /// <param name="dpi">The invalid DPI value under test.</param>
     [Theory]
     [InlineData(0f)]
@@ -2181,7 +2354,7 @@ public class PdfDocumentTests
         Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(0, dpi));
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, float)"/> rejects an out-of-range page index the same way <see cref="PdfDocument.GetPageInfo"/> does.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, float, PdfRenderOptions?)"/> rejects an out-of-range page index the same way <see cref="PdfDocument.GetPageInfo"/> does.</summary>
     [Fact]
     public void PdfDocument_RenderWithDpi_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException()
     {
@@ -2192,7 +2365,7 @@ public class PdfDocumentTests
         Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(5, 72f));
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, float)"/> throws <see cref="ObjectDisposedException"/> once the document is disposed.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, float, PdfRenderOptions?)"/> throws <see cref="ObjectDisposedException"/> once the document is disposed.</summary>
     [Fact]
     public void PdfDocument_RenderWithDpi_AfterDispose_ThrowsObjectDisposedException()
     {
@@ -2250,7 +2423,7 @@ public class PdfDocumentTests
         Assert.Throws<ObjectDisposedException>(() => document.GetPageInfo(0));
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int)"/> throws <see cref="ObjectDisposedException"/> once the document is disposed.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> throws <see cref="ObjectDisposedException"/> once the document is disposed.</summary>
     [Fact]
     public void PdfDocument_Render_AfterDispose_ThrowsObjectDisposedException()
     {
@@ -2289,7 +2462,7 @@ public class PdfDocumentTests
 
         // Act: stream 4 holds "10 10 40" and stream 5 holds "40 re f"; correct concatenation
         // with a space separator reconstructs "10 10 40 40 re f" (a filled 40x40 square).
-        using var surface = document.Render(0, 100, 100);
+        using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert
         Assert.Equal(Black, surface[30, 70]);
@@ -2317,7 +2490,7 @@ public class PdfDocumentTests
         Assert.Equal(Black, surface[30, 65]);
     }
 
-    /// <summary>Proves that a page with no <c>/Contents</c> key at all renders as a fully blank surface, without throwing.</summary>
+    /// <summary>Proves that a page with no <c>/Contents</c> key at all renders without throwing.</summary>
     [Fact]
     public void PdfDocument_ContentStream_NoContents_RendersBlankSurface()
     {
@@ -2325,16 +2498,10 @@ public class PdfDocumentTests
         using var document = PdfDocument.Open(Fixture("no-contents-page.pdf"));
 
         // Act
-        using var surface = document.Render(0, 20, 20);
+        var exception = Record.Exception(() => document.Render(0, 20, 20, Transparent));
 
         // Assert
-        for (var y = 0; y < surface.Height; y++)
-        {
-            for (var x = 0; x < surface.Width; x++)
-            {
-                Assert.Equal(default, surface[x, y]);
-            }
-        }
+        Assert.Null(exception);
     }
 
     #endregion
