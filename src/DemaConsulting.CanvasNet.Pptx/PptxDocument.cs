@@ -1,5 +1,7 @@
 namespace DemaConsulting.CanvasNet.Pptx;
 
+// cspell:ignore xfrm prst cust pptx
+
 /// <summary>
 ///     Provides read-only access to a PowerPoint (<c>.pptx</c>) presentation document.
 /// </summary>
@@ -19,16 +21,27 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         target resolution (for example <c>../slideLayouts/slideLayout1.xml</c>).
 ///     </para>
 ///     <para>
-///         <strong>Phase 1b (this release)</strong> adds: parsing <c>ppt/presentation.xml</c>
+///         <strong>Phase 1b</strong> adds: parsing <c>ppt/presentation.xml</c>
 ///         (slide size, slide list - see <see cref="SlideCount"/>/<see cref="SlideSize"/>);
 ///         theme color/font scheme parsing; slide master/layout/slide structural models
 ///         (placeholder shapes only, not freeform shapes); and an isolated placeholder
 ///         property-inheritance resolver implementing ECMA-376's placeholder matching
 ///         algorithm. <see cref="Open(Stream)"/>/<see cref="Open(string)"/> now additionally
 ///         require the package to be a navigable presentation (a resolvable
-///         <c>ppt/presentation.xml</c> part declaring a slide size and at least one slide). No
-///         shape geometry/paint rendering, freeform shape parsing, font loading, or rendering
-///         surface exists yet - all deferred to Phase 1c+.
+///         <c>ppt/presentation.xml</c> part declaring a slide size and at least one slide).
+///     </para>
+///     <para>
+///         <strong>Phase 1c (this release)</strong> adds DrawingML shape geometry and paint
+///         resolution (<c>PptxDocument.Geometry.cs</c>/<c>PptxDocument.Paint.cs</c>):
+///         <c>&lt;a:xfrm&gt;</c> position/rotation/flip transform resolution, <c>&lt;p:grpSp&gt;</c>
+///         child-coordinate-space transform composition, preset (<c>&lt;a:prstGeom&gt;</c>) and
+///         custom (<c>&lt;a:custGeom&gt;</c>) geometry resolution into the core
+///         <see cref="Geometry.Path"/> type, and fill/stroke resolution into core
+///         <c>DemaConsulting.CanvasNet.Drawing</c>/<c>DemaConsulting.CanvasNet.Canvas</c> paint
+///         types - see <c>pptx-document.md</c>'s "Geometry and Paint (Phase 1c)" design section.
+///         Freeform (non-placeholder) shape *enumeration* from a slide's full <c>&lt;p:spTree&gt;</c>,
+///         font loading, and a rendering surface still do not exist yet - all deferred to a later
+///         phase.
 ///     </para>
 /// </remarks>
 public sealed partial class PptxDocument : IDisposable

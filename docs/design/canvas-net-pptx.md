@@ -4,7 +4,7 @@ This document provides the system-level design for CanvasNetPptx.
 
 ![CanvasNetPptx Structure](CanvasNetPptxView.svg)
 
-<!-- cspell:ignore ooxml pptx srgb -->
+<!-- cspell:ignore ooxml pptx srgb xfrm prst cust -->
 
 ## Architecture
 
@@ -52,9 +52,23 @@ placeholder shapes, and a slide master's theme (color/font scheme, resolved into
 `internal` members. A new `internal` resolver (`ResolvePlaceholderProperties`) implements the
 verified ECMA-376 (ISO/IEC 29500) §19.3.1.36 placeholder matching algorithm, resolving a slide
 placeholder's effective `<p:spPr>`/`<p:txBody>/<a:lstStyle>` property fragments through its
-layout and master. **No shape geometry/paint rendering, non-placeholder (freeform) shape parsing,
-font loading, or rendering surface is implemented yet** - all deferred to later phases (1c and
-beyond), which will build on this model to actually render a presentation's slides.
+layout and master. No shape geometry/paint rendering, non-placeholder (freeform) shape parsing,
+font loading, or rendering surface was implemented that phase - deferred to later phases.
+
+**Phase 1c (this release)** adds DrawingML shape geometry and paint resolution, building on the
+Phase 1b model: a shape's `<a:xfrm>` position/rotation/flip resolves to a transform; a
+`<p:grpSp>` group's `chOff`/`chExt` child coordinate space composes correctly with its children's
+own transforms; a shape's `<a:prstGeom>` (24 supported preset names) or `<a:custGeom>` (parsed
+`moveTo`/`lnTo`/`cubicBezTo`/`quadBezTo`/`close` path commands) resolves to a concrete path; and a
+shape's `<a:solidFill>`/`<a:gradFill>`/`<a:noFill>` fill and `<a:ln>` stroke resolve to concrete
+paint, including scheme-color lookup through the resolved theme, the `lumMod`/`lumOff`/`shade`/
+`tint`/`alpha` color-transform pipeline, and a stroked outline realized via the core
+`PathStroker`. Pattern/picture fill, radial/path gradients, `<a:avLst>` adjustment-value parsing,
+and full group-shape rendering semantics beyond transform composition remain explicitly deferred
+(see _PptxDocument Unit Design_'s "Geometry and Paint (Phase 1c)" section for the complete
+supported/deferred boundary). **No non-placeholder (freeform) shape _enumeration_ from a slide's
+full `<p:spTree>`, font loading, or rendering surface is implemented yet** - all deferred to later
+phases, which will build on this model to actually render a presentation's slides.
 
 ## External Interfaces
 
@@ -105,19 +119,25 @@ on, as later phases add presentation rendering).
 
 **As of Phase 1b, `CanvasNetPptx` uses the `CanvasNet` core system's `Canvas` subsystem** -
 specifically `Canvas.Rgba32`, to represent a theme's resolved 12-slot color scheme (each
-`<a:srgbClr>`/`<a:sysClr>` slot resolved to a concrete `Rgba32` value). The package layer itself
-still relies solely on the .NET base class library's `System.IO.Compression.ZipArchive` (reading
+`<a:srgbClr>`/`<a:sysClr>` slot resolved to a concrete `Rgba32` value). **As of Phase 1c,
+`CanvasNetPptx` additionally uses the `CanvasNet` core system's `Geometry` and `Drawing`
+subsystems** - `Geometry.Path`/`PathBuilder` to build and compose resolved shape geometry, and
+`Drawing.PathStroker`/`StrokeStyle` to realize a resolved stroke's outline, plus `Canvas.Gradient`/
+`LinearGradient` to represent a resolved gradient fill. The package layer itself still relies
+solely on the .NET base class library's `System.IO.Compression.ZipArchive` (reading
 the `.pptx` ZIP container) and `System.Xml.Linq.XDocument`/`XElement` (parsing
 `[Content_Types].xml`, each `.rels` part, and, as of Phase 1b, every presentation/theme/master/
-layout/slide part). The `ProjectReference` to `CanvasNet` now has a corresponding `dependency`
-edge in this system's own SysML2 model (`docs/sysml2/model/canvas-net-pptx.sysml`):
-`dependency usesCanvas from CanvasNetPptxSystem to Canvas;`, added at this phase because this is
-the phase that actually first uses a `Canvas` subsystem type, mirroring `CanvasNetPdf`'s and
+layout/slide part). The `ProjectReference` to `CanvasNet` now has corresponding `dependency`
+edges in this system's own SysML2 model (`docs/sysml2/model/canvas-net-pptx.sysml`):
+`dependency usesCanvas from CanvasNetPptxSystem to Canvas;` (added at Phase 1b, the phase that
+actually first uses a `Canvas` subsystem type) and, added this phase,
+`dependency usesGeometry from CanvasNetPptxSystem to Geometry;`/
+`dependency usesDrawing from CanvasNetPptxSystem to Drawing;`, mirroring `CanvasNetPdf`'s and
 `CanvasNetSvg`'s own precedent of adding a `dependency` edge only at the phase that actually
 first uses the referenced subsystem (for example `CanvasNetPdf`'s `Fonts` dependency was added
-only at its own Phase 4, not at Phase 1). No other `CanvasNet` subsystem (`Codecs`, `Geometry`,
-`Drawing`, `Fonts`) is used yet; a future phase that actually renders a slide onto a
-`Canvas.Surface` may add further `dependency` edges at that time.
+only at its own Phase 4, not at Phase 1). No other `CanvasNet` subsystem (`Codecs`, `Fonts`) is
+used yet; a future phase that actually renders a slide onto a `Canvas.Surface` may add further
+`dependency` edges at that time.
 
 This is an ordinary, same-repository, system-to-system dependency: both `CanvasNet` and
 `CanvasNetPptx` are produced by this repository, so it is neither an OTS Software Item (not a
@@ -142,6 +162,13 @@ than silently producing an incomplete or incorrect package view. Phase 1b's per-
 master/theme validation is deliberately lazy (only performed when that specific part is first
 accessed via `GetSlide`/`GetLayout`/`GetMaster`/`GetTheme`), matching Phase 1a's own eager
 (package-level)/lazy (per-part) validation split - a documented scope boundary, not an oversight.
+Phase 1c's geometry/paint resolvers extend this same fail-closed philosophy to shape content: a
+malformed `<a:xfrm>`/`<a:custGeom>`/color-definition element throws `InvalidDataException`
+exactly like a malformed Phase 1a/1b part, and a recognized-but-unsupported DrawingML construct
+(an unsupported preset geometry name, color-definition kind, gradient kind, or pattern/picture
+fill) throws the new `PptxUnsupportedFeatureException` rather than being silently substituted
+with incorrect geometry or paint - the same fail-closed-over-silent-approximation choice Phase
+1a/1b already made for the package layer.
 
 ## Data Flow
 

@@ -1,5 +1,5 @@
 ---
-# cspell:ignore ooxml pptx srgb
+# cspell:ignore ooxml pptx srgb xfrm prst cust paintable
 #
 # Software System Requirements for CanvasNetPptx
 #
@@ -10,20 +10,28 @@
 # CanvasNetPptx is an independent software system, distributed as its own NuGet package,
 # depending on the core CanvasNet system (docs/reqstream/canvas-net.yaml) - see
 # docs/design/canvas-net-pptx.md's Dependencies section for details. As of Phase 1b, the Canvas
-# subsystem's Rgba32 type is used to resolve a theme's color scheme; no other CanvasNet subsystem
-# is exercised yet.
+# subsystem's Rgba32 type is used to resolve a theme's color scheme. As of Phase 1c (this
+# release), the Geometry subsystem's Path/PathBuilder/PathCommand types, the Drawing subsystem's
+# PathStroker/StrokeStyle and Gradient/LinearGradient/GradientStop types, and Rgba32's color-space
+# math are additionally used to resolve shape geometry, fills, and stroked outlines.
 #
 # CanvasNetPptx is being delivered incrementally. Phase 1a implemented the underlying OOXML
 # (Office Open XML) package layer: opening a .pptx file as a ZIP archive, resolving
 # [Content_Types].xml (default extension mappings and part-specific overrides), and resolving
 # package-level (_rels/.rels) and per-part relationships, including relative-target resolution.
-# Phase 1b (this release) adds the presentation/theme/master/layout/slide model and a placeholder
+# Phase 1b added the presentation/theme/master/layout/slide model and a placeholder
 # property-inheritance resolver: parsing ppt/presentation.xml's declared slide size and ordered
 # slide list (exposed as public SlideCount/SlideSize members), resolving each slide master's
 # theme, structurally parsing placeholder shapes, and the verified ECMA-376 placeholder-matching
-# algorithm. No shape geometry/paint rendering, non-placeholder shape parsing, font loading, or
-# rendering surface is implemented yet - see docs/design/canvas-net-pptx.md for the full current
-# feature set and its documented, still-unimplemented scope.
+# algorithm. Phase 1c (this release) adds DrawingML shape geometry and paint resolution: resolving
+# a shape's <a:xfrm> transform (position, size, rotation, flip) and a group shape's child
+# coordinate-space composition; resolving <a:prstGeom> preset geometry (approximately 24 common
+# presets) and <a:custGeom> custom path geometry into the core Path type; and resolving
+# <a:solidFill>/<a:gradFill> (linear)/<a:noFill> fills, DrawingML color transforms
+# (lumMod/lumOff/shade/tint/alpha), and <a:ln> stroke outlines via the core PathStroker. Pattern
+# and picture fills, radial/path gradients, and full group-shape rendering semantics beyond
+# transform composition remain unimplemented this phase - see docs/design/canvas-net-pptx.md for
+# the full current feature set and its documented, still-unimplemented scope.
 
 sections:
   - title: CanvasNetPptx Requirements
@@ -147,3 +155,35 @@ sections:
           - CanvasNetPptx-PptxDocument-PlaceholderInheritancePerCategory
         tests:
           - CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage
+
+      - id: CanvasNetPptx-ShapeGeometryAndPaint
+        title: >-
+          The library shall resolve a DrawingML shape's position, size, rotation, and flip into a
+          single transform (including a group shape's child-coordinate-space composition);
+          resolve its preset or custom geometry into a concrete path sized to the shape's own
+          extent; resolve its fill (solid, linear gradient, or none) and color, including
+          scheme-color lookup through the resolved theme and the lumMod/lumOff/shade/tint/alpha
+          color-transform pipeline; and resolve and realize its stroke outline via the core
+          path-stroking machinery - rejecting any unsupported preset geometry, gradient kind, or
+          fill kind with a distinguishable exception rather than producing incorrect output.
+        tags: [system]
+        justification: |
+          A .pptx presentation's visual content is overwhelmingly expressed as DrawingML shapes
+          whose geometry and paint are declared relative to the shape's own local coordinate
+          space and the presentation's theme; resolving these into concrete, paintable path and
+          color data is the prerequisite every later rendering phase needs, and must fail closed,
+          rather than silently rendering incorrect output, for the DrawingML constructs this phase
+          does not yet implement.
+        children:
+          - CanvasNetPptx-PptxDocument-ShapeFrameTransform
+          - CanvasNetPptx-PptxDocument-GroupChildTransform
+          - CanvasNetPptx-PptxDocument-PresetGeometry
+          - CanvasNetPptx-PptxDocument-CustomGeometry
+          - CanvasNetPptx-PptxDocument-FillResolution
+          - CanvasNetPptx-PptxDocument-ColorResolution
+          - CanvasNetPptx-PptxDocument-ColorTransforms
+          - CanvasNetPptx-PptxDocument-GradientFill
+          - CanvasNetPptx-PptxDocument-LineStyleResolution
+        tests:
+          - CanvasNetPptx_SystemIntegration_GeometryAndPaint_FreeformShapeResolvesEndToEnd
+          - CanvasNetPptx_SystemIntegration_GeometryAndPaint_GroupShapeChildTransformComposesEndToEnd
