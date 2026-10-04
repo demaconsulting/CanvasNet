@@ -55,8 +55,43 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         glyph-ink painting primitive reusing the core <see cref="Fonts.TrueTypeFont"/>/
 ///         <see cref="Fonts.SystemFontCatalog"/> infrastructure - see <c>pptx-document.md</c>'s
 ///         "Text Layout and Rendering (Phase 1d)" design section. Bullets/numbering, full text
-///         justification, <c>spAutoFit</c> shape-resize behavior, kerning, text clipping on
-///         overflow, and a full per-slide public <c>Render</c> API are explicitly deferred.
+///         justification, <c>spAutoFit</c> shape-resize behavior, kerning, and text clipping on
+///         overflow are explicitly deferred.
+///     </para>
+///     <para>
+///         <strong>Phase 1e</strong> adds dedicated <c>&lt;p:pic&gt;</c> picture-shape support
+///         (<c>PptxDocument.Images.cs</c>: content-type dispatch, <c>&lt;a:srcRect&gt;</c>
+///         crop-rectangle resolution, and y-down nearest-neighbor compositing), <c>&lt;a:tbl&gt;</c>
+///         table support (<c>PptxDocument.Tables.cs</c>: structure/cell parsing reusing the Phase
+///         1c/1d fill/border/text-body resolvers verbatim, merge-aware cell-rect resolution, and
+///         cell fill/border/text painting), and recursive, full shape-tree parsing
+///         (<c>PptxDocument.ShapeTree.cs</c>) across a slide's own <c>&lt;p:sp&gt;</c>/
+///         <c>&lt;p:pic&gt;</c>/<c>&lt;p:graphicFrame&gt;</c>/<c>&lt;p:grpSp&gt;</c> elements
+///         (including nested <c>&lt;p:grpSp&gt;</c> child-transform composition), exposed as
+///         <see cref="PptxSlide.ShapeTree"/>, with lazy, invoke-on-demand theme resolution so a
+///         shape tree with no <c>&lt;p:graphicFrame&gt;</c> never resolves a theme at all - see
+///         <c>pptx-document.md</c>'s "Images, Tables, and Shape Tree (Phase 1e)" design section.
+///         A non-placeholder shape's own background fill via <c>&lt;a:blipFill&gt;</c>/
+///         <c>&lt;a:pattFill&gt;</c> inside <c>&lt;p:spPr&gt;</c>, picture effects/shadows, nested
+///         tables, table auto-sizing/banding, master/layout full shape-tree enumeration, and a
+///         full per-slide public <c>Render</c> API remained deferred.
+///     </para>
+///     <para>
+///         <strong>Phase 1f (this release)</strong> adds the public, slide-level
+///         <see cref="Render(int, int, int, PptxRenderOptions?)"/>/
+///         <see cref="Render(int, float, PptxRenderOptions?)"/> rendering API
+///         (<c>PptxDocument.Render.cs</c>): a recursive, document-order walk of a slide's full
+///         <see cref="PptxSlide.ShapeTree"/>, composing nested group transforms and dispatching
+///         each shape/picture/table node to the already-verified Phase 1c/1d/1e resolvers and
+///         painters onto a <see cref="Canvas.Surface"/> of the requested pixel dimensions - see
+///         <c>pptx-document.md</c>'s "Full Slide Rendering (Phase 1f)" design section for the
+///         full per-node-kind dispatch and this phase's documented deferred items (a slide's own
+///         <c>&lt;p:bg&gt;</c> background fill, <c>&lt;p:cxnSp&gt;</c> connector shapes, nested
+///         tables, table auto-sizing/banding, group-level style cascading beyond transform
+///         composition, and master/layout full shape-tree rendering). With this phase, the
+///         planned PPTX 1.0 feature set is complete; any remaining gaps are candidates for a
+///         future, corpus-driven hardening pass (<c>pptx-phase-2</c>), not a currently planned
+///         phase.
 ///     </para>
 /// </remarks>
 public sealed partial class PptxDocument : IDisposable
