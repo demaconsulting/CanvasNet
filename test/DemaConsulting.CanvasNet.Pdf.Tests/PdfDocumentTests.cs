@@ -7592,6 +7592,67 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Proves that a syntactically-valid-looking four-hex-digit <c>uniXXXX</c> glyph name
+    ///     whose value falls within the UTF-16 surrogate range (<c>0xD800</c>-<c>0xDFFF</c>) is
+    ///     rejected rather than resolved: a lone surrogate value is not a valid Unicode scalar
+    ///     value on its own, so <c>TryParseUppercaseHexDigits</c> must reject it (exactly like the
+    ///     above-<c>0x10FFFF</c> case) and leave the affected code at whatever its base encoding
+    ///     already assigned it, rather than propagating an invalid codepoint that would later
+    ///     throw <see cref="ArgumentOutOfRangeException"/> from <c>char.ConvertFromUtf32</c> if it
+    ///     ever reached <c>TryResolveLigatureUnderscoreName</c>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Differences_SurrogateRangeUniHexName_FallsBackToBaseEncoding()
+    {
+        // Arrange
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(
+            fontBytes,
+            fontDictExtra: "/FirstChar 65 /LastChar 66 /Widths [600 600] " +
+                           "/Encoding << /Differences [65 /uniD800] >>");
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: no exception, and the glyph painted (base encoding's codepoint 65 mapping was
+        // preserved rather than overwritten by the surrogate-range override).
+        Assert.NotEqual(default, surface[11, 44]);
+    }
+
+    /// <summary>
+    ///     Proves that a ligature-underscore glyph name whose component resolves to a UTF-16
+    ///     surrogate-range value (for example <c>uniD800_i</c>, a deliberately pathological name
+    ///     whose first component names a lone surrogate) does not throw
+    ///     <see cref="ArgumentOutOfRangeException"/>: <c>TryResolveLigatureUnderscoreName</c>
+    ///     resolves each component via <c>TryResolveGlyphNameToCodepoint</c>, which (via
+    ///     <c>TryParseUppercaseHexDigits</c>'s surrogate-range rejection) now fails closed for that
+    ///     component instead of handing an invalid scalar value to <c>char.ConvertFromUtf32</c>,
+    ///     so the whole ligature name is left unresolved and the affected code falls back to its
+    ///     base encoding - exactly like any other unrecognized <c>/Differences</c> name.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Differences_LigatureComponentSurrogateRange_FallsBackToBaseEncoding()
+    {
+        // Arrange
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(
+            fontBytes,
+            fontDictExtra: "/FirstChar 65 /LastChar 66 /Widths [600 600] " +
+                           "/Encoding << /Differences [65 /uniD800_i] >>");
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: no exception, and the glyph painted (base encoding's codepoint 65 mapping was
+        // preserved rather than overwritten by the unresolved ligature override).
+        Assert.NotEqual(default, surface[11, 44]);
+    }
+
+    /// <summary>
     ///     Proves that each of the AGL generic <c>uXXXX</c>/<c>uXXXXX</c>/<c>uXXXXXX</c>
     ///     hex-codepoint glyph-name lengths (four, five, and six uppercase hex digits) actually
     ///     resolves end-to-end rather than only rejecting the out-of-range case covered by

@@ -660,17 +660,25 @@ public sealed partial class PdfDocument
     ///     digit <c>uXXXX</c>/.../<c>uXXXXXX</c> convention can spell a six-digit value as large as
     ///     <c>0xFFFFFF</c>, which is not a valid AGL codepoint name at all, so such a name must
     ///     stay unresolved (per <see cref="ApplyDifferences"/>'s own tolerant handling for
-    ///     unrecognized names) rather than being treated as resolved.
+    ///     unrecognized names) rather than being treated as resolved. Likewise rejects a value in
+    ///     the UTF-16 surrogate range (<c>0xD800</c>-<c>0xDFFF</c>): a lone surrogate value is not
+    ///     a valid Unicode scalar value on its own (surrogates only exist in pairs, as a UTF-16
+    ///     encoding detail, never as a standalone codepoint), so resolving one here would hand
+    ///     <see cref="TryResolveLigatureUnderscoreName"/>'s <c>char.ConvertFromUtf32</c> call (and
+    ///     any other codepoint consumer) a value it cannot legally convert, throwing
+    ///     <see cref="ArgumentOutOfRangeException"/> instead of this method's own documented
+    ///     fail-closed "stay unresolved" contract.
     /// </summary>
     /// <param name="digits">The candidate hex digit span to parse.</param>
     /// <param name="value">
     ///     The parsed value, or <c>0</c> when <paramref name="digits"/> contains any
-    ///     non-uppercase-hex character, or when the parsed value exceeds <c>0x10FFFF</c>.
+    ///     non-uppercase-hex character, when the parsed value exceeds <c>0x10FFFF</c>, or when the
+    ///     parsed value falls within the UTF-16 surrogate range (<c>0xD800</c>-<c>0xDFFF</c>).
     /// </param>
     /// <returns>
     ///     <see langword="true"/> if every character in <paramref name="digits"/> was an
-    ///     uppercase hex digit and the parsed value is a valid Unicode codepoint (at most
-    ///     <c>0x10FFFF</c>).
+    ///     uppercase hex digit and the parsed value is a valid Unicode scalar value (at most
+    ///     <c>0x10FFFF</c> and outside the surrogate range).
     /// </returns>
     private static bool TryParseUppercaseHexDigits(ReadOnlySpan<char> digits, out int value)
     {
@@ -684,7 +692,7 @@ public sealed partial class PdfDocument
         }
 
         if (!int.TryParse(digits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value) ||
-            value > 0x10FFFF)
+            value > 0x10FFFF || value is >= 0xD800 and <= 0xDFFF)
         {
             value = 0;
             return false;

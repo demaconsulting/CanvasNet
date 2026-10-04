@@ -1283,7 +1283,9 @@ sections:
               name), and applying an /Encoding/Differences array's code-then-glyph-name
               run-length overrides via a standard Adobe-glyph-name-to-Unicode-codepoint mapping
               (itself falling back, for a name this mapping does not directly cover, first to the
-              Adobe Glyph List's own generic uniXXXX/uXXXX hex-codepoint naming convention, then
+              Adobe Glyph List's own generic uniXXXX/uXXXX hex-codepoint naming convention (itself
+              rejecting a value above 0x10FFFF or within the UTF-16 surrogate range
+              0xD800-0xDFFF as unresolved, since neither is a valid Unicode scalar value), then
               to the AGL's own underscore ligature-naming convention - two or more
               underscore-separated component names, each itself resolved the same way, whose
               concatenated characters match one of the mapping's own dedicated ligature names),
@@ -1321,6 +1323,8 @@ sections:
               - PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedFontGlyphMap
               - PdfDocument_Fonts_Differences_LigatureUnderscoreName_ResolvesViaEnrichedEmbeddedFontGlyphMap
               - PdfDocument_Fonts_Differences_UnrecognizedUnderscoreName_FallsBackToBaseEncoding
+              - PdfDocument_Fonts_Differences_SurrogateRangeUniHexName_FallsBackToBaseEncoding
+              - PdfDocument_Fonts_Differences_LigatureComponentSurrogateRange_FallsBackToBaseEncoding
               - PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException
               - PdfDocument_Fonts_StandardEncoding_DiffersFromWinAnsiEncoding
               - PdfDocument_Fonts_StandardEncoding_Absent_DefaultWinAnsiDoesNotPaintQuoteright

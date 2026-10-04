@@ -1479,6 +1479,8 @@ dogfooding shape for the 12 pre-existing Liberation files.
 `PdfDocument_Fonts_Differences_NacuteName_DoesNotThrow`,
 `PdfDocument_Fonts_Differences_LigatureUnderscoreName_ResolvesViaEnrichedEmbeddedFontGlyphMap`,
 `PdfDocument_Fonts_Differences_UnrecognizedUnderscoreName_FallsBackToBaseEncoding`,
+`PdfDocument_Fonts_Differences_SurrogateRangeUniHexName_FallsBackToBaseEncoding`,
+`PdfDocument_Fonts_Differences_LigatureComponentSurrogateRange_FallsBackToBaseEncoding`,
 `PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_StandardEncoding_DiffersFromWinAnsiEncoding`,
 `PdfDocument_Fonts_StandardEncoding_Absent_DefaultWinAnsiDoesNotPaintQuoteright`
@@ -1531,7 +1533,20 @@ missing/tofu glyphs. A companion test,
 `PdfDocument_Fonts_Differences_UnrecognizedUnderscoreName_FallsBackToBaseEncoding`, declares an
 underscore-joined name whose concatenation (`"foobar"`) is not any recognized AGL ligature name,
 asserting it is tolerated identically to any other unrecognized `/Differences` name (falling back
-to the base encoding) rather than throwing or fabricating a codepoint. As of
+to the base encoding) rather than throwing or fabricating a codepoint. Two further tests prove
+`TryParseUppercaseHexDigits` also rejects a value in the UTF-16 surrogate range
+(`0xD800`-`0xDFFF`), not only a value above `0x10FFFF`: a lone surrogate is not a valid Unicode
+scalar value on its own, and - unlike every other unresolved codepoint, which is merely tolerated
+
+- would otherwise reach `TryResolveLigatureUnderscoreName`'s `char.ConvertFromUtf32` call and
+throw `ArgumentOutOfRangeException` instead of failing closed.
+`PdfDocument_Fonts_Differences_SurrogateRangeUniHexName_FallsBackToBaseEncoding` declares
+`/uniD800` directly (the generic hex-codepoint path, with no ligature involved), asserting no
+exception and a base-encoding fallback exactly like the above-`0x10FFFF` case;
+`PdfDocument_Fonts_Differences_LigatureComponentSurrogateRange_FallsBackToBaseEncoding` declares
+`/uniD800_i` (a ligature-underscore name whose first component is the surrogate-range value),
+asserting the same no-exception fallback - proving the surrogate rejection is load-bearing for
+the ligature path specifically, not merely a defensive check that happens to also work there. As of
 Phase B, a font explicitly
 declaring `/StandardEncoding` and showing byte code `0x27` (which diverges between the two base
 encodings - `StandardEncoding` maps it to U+2019 "quoteright", `WinAnsiEncoding` maps it to
