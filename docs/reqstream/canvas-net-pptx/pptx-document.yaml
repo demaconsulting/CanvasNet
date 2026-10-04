@@ -338,6 +338,28 @@ sections:
               - PptxDocumentInheritance_ResolvePlaceholderProperties_TypeMatchAtMaster_IgnoresMismatchedIdx
               - PptxDocumentInheritance_ResolvePlaceholderProperties_RemappedBodyLikeType_MatchesMasterBodyPlaceholder
 
+          - id: CanvasNetPptx-PptxDocument-EffectivePlaceholderTypeForTextStyle
+            title: >-
+              The PptxDocument class shall resolve a slide placeholder's effective type for master
+              text-style-bucket selection (titleStyle/bodyStyle/otherStyle) and default-typeface
+              selection as its own declared <p:ph type="..."/> value when explicitly present,
+              otherwise the idx-matched layout placeholder's type (PlaceholderInheritanceIdxMatch's
+              own hop-1 match), otherwise its own schema-defaulted type ("obj") as a last resort,
+              rather than always using the slide placeholder's own raw, schema-defaulted type.
+            justification: |
+              A slide <p:ph> that omits type is a valid, common OOXML pattern meaning "inherit the
+              idx-matched layout placeholder's type" - exactly as PlaceholderXfrmGeometryInheritance
+              already resolves for position/size/geometry via the same idx-matched layout
+              placeholder. Using the slide placeholder's own raw, schema-defaulted type ("obj")
+              directly for text-style-bucket selection instead incorrectly collapsed an
+              omitted-type title placeholder into the bodyStyle bucket rather than titleStyle,
+              confirmed via a synthetic repro of a real-world regression (a "Section Header"
+              layout's title placeholder rendering at its master's bodyStyle font size instead of
+              titleStyle - roughly 1/3 PowerPoint's own ground-truth size).
+            tests:
+              - ResolveEffectiveRunProperties_SectionHeaderTitlePlaceholderWithOmittedType_ResolvesMasterTitleStyleNotBodyStyle
+              - Render_SectionHeaderTitleWithOmittedType_PaintsIdenticallyToExplicitTitleType
+
           - id: CanvasNetPptx-PptxDocument-PlaceholderInheritancePerCategory
             title: >-
               The PptxDocument class shall resolve a slide placeholder's effective <p:spPr> and
@@ -842,7 +864,11 @@ sections:
               PowerPoint may persist only one of the two (for example only a computed fontScale);
               requiring both before applying either would discard a validly persisted single
               attribute entirely and fall through to the attribute-less shrink loop instead of
-              honoring the author's/PowerPoint's own already-computed factor.
+              honoring the author's/PowerPoint's own already-computed factor. A subsequent
+              real-world-corpus investigation of a reported subtitle "invisible sliver" symptom
+              confirmed the shrink loop does not over-shrink content that genuinely fits a
+              realistically-sized box (see the companion design document's "Genuine bug 3" entry
+              for the full investigation and its inconclusive result for that specific symptom).
             tests:
               - ResolveTextLayout_NoAutofit_AppliesNoScalingEvenWhenOverflowing
               - ResolveTextLayout_SpAutoFit_AppliesNoScaling
@@ -850,6 +876,7 @@ sections:
               - ResolveTextLayout_NormAutofitAttributeLess_ShrinkLoopConvergesOnFirstFittingScale
               - ResolveTextLayout_NormAutofitFontScaleOnly_AppliesStoredFontScaleVerbatim
               - ResolveTextLayout_NormAutofitLnSpcReductionOnly_AppliesStoredReductionWithNeutralFontScale
+              - ResolveTextLayout_SubtitlePlaceholderWithAttributeLessNormAutofit_DoesNotOverShrinkContentThatFits
 
           - id: CanvasNetPptx-PptxDocument-TextRendering
             title: >-

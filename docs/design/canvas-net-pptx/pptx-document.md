@@ -1107,6 +1107,75 @@ an already-correct, merely-undocumented behavior and two of which were genuine, 
   three slides' placeholders inherit their master's standard `<a:prstGeom prst="rect">` geometry
   and their layout's `<a:xfrm>` position/size, and paint visible content. Regression test:
   `Render_PlaceholderShapeWithEmptySpPr_InheritsXfrmAndGeometryFromLayout` (`PptxRenderTests.cs`).
+- **Genuine bug 3 - `curvedUpArrow` preset geometry crash, plus a placeholder text-style-bucket
+  mis-selection causing a "Section Header" title placeholder to render at roughly 1/3 PowerPoint's
+  own font size.** Discovered via a separate real-world-corpus visual comparison against real
+  PowerPoint COM-automation ground truth (not the ten-file automated corpus above) on two decks
+  not held in this repository.
+  - **Crash**: one slide used `<a:prstGeom prst="curvedUpArrow"/>`, which `PptxPresetGeometry.Build`
+    did not recognize, throwing `PptxUnsupportedFeatureException` and failing that slide's render
+    entirely. **Fix**: added `curvedRightArrow` as a new canonical quarter-annulus-band builder
+    (an outer arc sweeping 90&deg;&rarr;0&deg; and an inner arc sweeping 20&deg;&rarr;90&deg;,
+    connected by straight lines, producing the arrowhead naturally where the inner arc stops
+    short of the outer arc's full sweep), with `curvedLeftArrow` derived via the existing `Mirror`
+    helper and `curvedUpArrow`/`curvedDownArrow` derived via a new `CurvedUpOrDownArrow` helper
+    composing `RotateQuarter` and `Mirror` - mirroring the existing `upArrow`/`downArrow`/
+    `leftArrow` derivation pattern from `rightArrow`/`leftRightArrow` exactly, since the
+    architecture already made deriving all four cheaply and naturally. Regression tests:
+    `PptxPresetGeometry_Build_CurvedUpArrow_PointsUpwardWithoutThrowing`,
+    `PptxPresetGeometry_Build_CurvedArrowSiblings_EachPointsTowardItsOwnDeclaredEdge`
+    (`PptxGeometryTests.cs`), `Render_CurvedUpArrowShape_RendersWithoutThrowingAndPaintsInk`
+    (`PptxRenderTests.cs`).
+  - **Title font-size bug - confirmed root cause and fixed.** A "Section Header"-layout-style
+    title placeholder whose slide-level `<p:ph idx="0"/>` omits `type` (a common, valid OOXML
+    pattern - the slide placeholder inherits its effective type from the idx-matched layout
+    placeholder, per ECMA-376/`python-pptx`'s own matching algorithm) rendered at the master's
+    `<p:bodyStyle>` font size (28pt in the reported case) instead of `<p:titleStyle>` (90pt).
+    Root cause, empirically confirmed by a synthetic repro built against the unmodified code
+    (master `titleStyle` sz="9000"/`bodyStyle` sz="2800", layout placeholder `type="title"
+    idx="0"`, slide placeholder `<p:ph idx="0"/>` with `type` omitted): `RenderShape`
+    (`PptxDocument.Render.cs`) passed the slide placeholder's own raw, schema-defaulted `Type`
+    ("obj" - OOXML's `type`-omitted default) directly into
+    `ResolveEffectiveRunProperties`/`SelectMasterTextStyle`'s master-text-style-bucket selection,
+    even though `ResolvePlaceholderProperties` (`PptxDocument.Inheritance.cs`) already correctly
+    resolves an idx-matched **effective** type for `<a:xfrm>`/geometry inheritance via its
+    existing hop-1 (idx-only) match - that correctly-resolved type was simply never reused for
+    text-style selection. **Fix**: `PptxPlaceholder` gained a new `DeclaredType` field (the raw
+    `<p:ph type="..."/>` value, or `null` when omitted, distinct from `Type`'s schema-defaulted
+    value) and `PptxPlaceholderProperties` gained a new `EffectivePlaceholderType` field, computed
+    by `ResolvePlaceholderProperties` as the slide placeholder's own `DeclaredType` when present,
+    otherwise the idx-matched layout placeholder's `Type`, otherwise the slide placeholder's own
+    schema-defaulted `Type` as a last resort. `RenderShape` now passes
+    `placeholderProperties.EffectivePlaceholderType ?? placeholder.Type` into text-style
+    resolution instead of `placeholder.Type` directly. Before: an omitted-type title placeholder
+    resolved to `bodyStyle`. After: it correctly resolves to `titleStyle`, matching an
+    explicitly-`type="title"`-declared placeholder's rendering exactly. Verified
+    fail-before/pass-after by temporarily reverting the fix and confirming the new test failed
+    with the pre-fix (28pt/`bodyStyle`) result before re-applying it. Regression tests:
+    `ResolveEffectiveRunProperties_SectionHeaderTitlePlaceholderWithOmittedType_ResolvesMasterTitleStyleNotBodyStyle`,
+    `Render_SectionHeaderTitleWithOmittedType_PaintsIdenticallyToExplicitTitleType`
+    (`PptxRenderTests.cs`).
+  - **Subtitle "invisible sliver" bug - investigated, not reproduced as a bug in isolation.** A
+    subtitle placeholder on a different slide rendered as a tiny, essentially unreadable sliver of
+    text compared to PowerPoint's ground truth. Two independent hypotheses were investigated with
+    synthetic repro cases built directly against the unmodified code: (1) the same placeholder-type
+    mis-threading bug above - ruled out, because `SelectMasterTextStyle` already buckets every
+    non-`title`/`ctrTitle` type (including both the schema-defaulted `"obj"` and an explicitly
+    declared `"subTitle"`) identically into `bodyStyle` - an omitted-vs-explicit `type` therefore
+    makes no difference to a subtitle's resolved font size either way, so the title bug's fix
+    cannot be the (sole) cause of a subtitle-specific symptom; (2) the attribute-less
+    `<a:normAutofit/>` bounded shrink loop (`ResolveAutofitScale`, `PptxDocument.TextLayout.cs`)
+    over-shrinking given correct inputs - tested directly with a master `bodyStyle` sz="3200",
+    a realistically-sized subtitle box, and content that genuinely fits: the resolved
+    `AppliedFontScale` stayed at `1.0` (no over-shrink), refuting this hypothesis for this
+    scenario. Neither hypothesis reproduces the reported symptom from a minimal, correctly-formed
+    synthetic fixture; the real-world deck's specific box dimensions/content that produced the
+    "sliver" are not available in this repository, so the precise trigger could not be isolated
+    further in this pass. This is reported as an open, unconfirmed root cause rather than a forced
+    fix - the two negative-result repro cases are retained as permanent regression tests
+    (`ResolveTextLayout_SubtitlePlaceholderWithAttributeLessNormAutofit_DoesNotOverShrinkContentThatFits`,
+    `PptxRenderTests.cs`) both documenting the two mechanisms' confirmed-correct behavior in
+    isolation and guarding against a future regression of either.
 
 **What remains intentionally deferred**: every item already listed in the Phase 1c, 1d, 1e, and
 1f _Deferred to a Later Phase_ sections above remains deferred unchanged - this phase fixed two

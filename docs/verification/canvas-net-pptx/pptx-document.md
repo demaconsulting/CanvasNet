@@ -291,6 +291,23 @@ mismatched `idx` between the layout and master placeholders does not prevent the
 proves a layout placeholder whose type remaps to `"body"` (for example `"subTitle"`) matches a
 master placeholder whose own `type` is literally `"body"`.
 
+#### CanvasNetPptx-PptxDocument-EffectivePlaceholderTypeForTextStyle: Omitted-Type Resolves to Idx-Matched Layout Type
+
+**Tests**: `ResolveEffectiveRunProperties_SectionHeaderTitlePlaceholderWithOmittedType_ResolvesMasterTitleStyleNotBodyStyle`,
+`Render_SectionHeaderTitleWithOmittedType_PaintsIdenticallyToExplicitTitleType`
+
+Proves a "Section Header" layout's title placeholder whose slide-level `<p:ph idx="0"/>` omits
+`type` resolves `EffectivePlaceholderType` to the idx-matched layout placeholder's own
+`type="title"`, and that `ResolveEffectiveRunProperties` consequently resolves the run's font
+size from the master's `<p:titleStyle>` (90pt in the test's fixture), not `<p:bodyStyle>` (28pt) -
+the fix for a confirmed, real-world regression (a Section Header title rendering at roughly 1/3
+PowerPoint's own ground-truth size). The fix was verified to be both necessary and sufficient by
+temporarily reverting it and confirming the exact same test failed, resolving to `bodyStyle`'s
+28pt instead of `titleStyle`'s 90pt, before re-applying it. The second, end-to-end test proves the
+same omitted-type placeholder paints pixel-for-pixel identical glyph ink to an otherwise-identical
+placeholder that declares `type="title"` explicitly, through the public `Render` API rather than
+only the internal resolver.
+
 #### CanvasNetPptx-PptxDocument-PlaceholderInheritancePerCategory: Categories Independent, Theme Is Unchanged Context
 
 **Tests**:
@@ -647,7 +664,8 @@ first/last glyph `OriginYEmu` at the expected hand-computed offset within the av
 `ResolveTextLayout_NormAutofitWithExplicitAttributes_AppliesStoredFactorsVerbatim`,
 `ResolveTextLayout_NormAutofitAttributeLess_ShrinkLoopConvergesOnFirstFittingScale`,
 `ResolveTextLayout_NormAutofitFontScaleOnly_AppliesStoredFontScaleVerbatim`,
-`ResolveTextLayout_NormAutofitLnSpcReductionOnly_AppliesStoredReductionWithNeutralFontScale`
+`ResolveTextLayout_NormAutofitLnSpcReductionOnly_AppliesStoredReductionWithNeutralFontScale`,
+`ResolveTextLayout_SubtitlePlaceholderWithAttributeLessNormAutofit_DoesNotOverShrinkContentThatFits`
 
 Proves `<a:noAutofit>`/absent-autofit/`<a:spAutoFit>` all apply no scaling even when the resolved
 text overflows the available height; proves an explicit `<a:normAutofit fontScale="..."
@@ -659,7 +677,13 @@ shrink loop, to the first hand-computed scale whose naturally laid-out height fi
 falling through to the attribute-less shrink loop; and proves a `<a:normAutofit
 lnSpcReduction="..."/>` with no `fontScale` attribute applies the stored line-spacing reduction
 (verified via the resulting glyph Y positions) while leaving `fontScale` at its neutral 100%
-default.
+default. The final test was added during a real-world-corpus investigation of a reported subtitle
+"invisible sliver" symptom: it proves a subtitle placeholder's attribute-less `<a:normAutofit/>`
+does not over-shrink content that genuinely fits a realistically-sized box (`AppliedFontScale`
+stays at `1.0`), refuting the hypothesis that the bounded shrink loop itself over-shrinks given
+correct inputs - the reported symptom's precise real-world trigger could not be isolated further
+from a minimal synthetic fixture in this pass (see the companion design document's "Genuine bug 3"
+entry for the full investigation).
 
 #### CanvasNetPptx-PptxDocument-TextRendering: Glyph Painting and Font Resolution
 
