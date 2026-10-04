@@ -10,7 +10,7 @@
 <!-- cspell:ignore lnL lnR lnT lnB pattFill hMerge vMerge gridSpan rowSpan tableStyleId -->
 <!-- cspell:ignore graphicFrame graphicData contentPart unrenderable -->
 <!-- cspell:ignore autoshape pythonpptx groupshape paintable aiden0z aiden unnamespaced reparenting FAFAF -->
-<!-- cspell:ignore bgRef bgFillStyleLst phClr fmtScheme -->
+<!-- cspell:ignore bgRef bgFillStyleLst phClr fmtScheme asvg -->
 `PptxDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pptx` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pptx`), which references the core `DemaConsulting.CanvasNet`
 package.
@@ -731,12 +731,18 @@ resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surfac
 
 - **Relationship resolution**: `<a:blip>`'s `r:embed` attribute (an embedded-image relationship
   ID) is resolved via the existing `ResolveRelationship`/`GetPartBytes` package-layer primitives
-  into the raw media part bytes. A `<a:blip>` with neither `r:embed` nor `r:link` throws
-  `InvalidDataException` (malformed - ECMA-376 requires at least one); one with only `r:link` (an
-  external, non-embedded image reference) throws `PptxUnsupportedFeatureException` (feature token
-  `"pptx-image-link"`) - a linked image has no embedded bytes this package can read without
-  performing file-system I/O outside the supplied package stream, a well-formed-but-deliberately-
-  unsupported construct, not malformed data.
+  into the raw media part bytes. One with only `r:link` (an external, non-embedded image
+  reference) throws `PptxUnsupportedFeatureException` (feature token `"pptx-image-link"`) - a
+  linked image has no embedded bytes this package can read without performing file-system I/O
+  outside the supplied package stream, a well-formed-but-deliberately-unsupported construct, not
+  malformed data. One with neither `r:embed` nor `r:link`, but carrying only a Microsoft SVG
+  extension fallback (`<a:extLst>/<a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}">` wrapping an
+  `<asvg:svgBlip>` element - the "Insert Icon" SVG-with-no-raster-fallback pattern real PowerPoint
+  produces) throws `PptxUnsupportedFeatureException` (feature token `"pptx-image-svg-only"`) -
+  also a well-formed, valid OOXML construct this package does not yet decode, not malformed data.
+  Only when neither an embed/link attribute nor this recognized extension fallback is present does
+  `<a:blip>` throw `InvalidDataException` (genuinely malformed - ECMA-376 requires at least one of
+  these).
 - **Content-type dispatch**: the resolved media part's content type (via the existing
   `ResolvePart` content-type lookup) dispatches to a private `ResolveRasterDecoder` helper
   mirroring `DemaConsulting.CanvasNet.Svg.SvgCodec.ResolveRasterDecoder`'s own
@@ -1435,13 +1441,28 @@ proves this is load-bearing by giving the slide's own `.rels` a deliberately con
 wrong-colored `rId2` and confirming the master's own picture still resolves its own correct
 color.
 
-**Already-deferred features are handled identically for a master/layout shape as for a
-slide-level shape - no new failure mode was introduced**: a master/layout decorative shape that
-itself uses a feature this codebase does not yet support (a connector, an unsupported preset
-geometry, and so on) hits the exact same graceful-skip or `PptxUnsupportedFeatureException`
-boundary a slide-level shape already hits, because both now flow through the same `RenderNode`
-dispatch; this pass did not add, special-case, or relax any deferred-feature boundary for a
-master/layout shape.
+**Already-deferred features throw the same `PptxUnsupportedFeatureException` for a master/layout
+shape as for a slide-level shape, but a master/layout shape's own exception is now caught and
+only that single shape skipped**: a master/layout decorative shape that itself uses a feature
+this codebase does not yet support (a connector, an unsupported preset geometry, an unsupported
+raster picture format, and so on) hits the exact same `PptxUnsupportedFeatureException` boundary
+a slide-level shape already hits, because both now flow through the same `RenderNode` dispatch.
+Unlike a slide-level shape, however, this exception is now caught at the leaf dispatch point
+inside `RenderNode` (gated on the existing `skipPlaceholderShapes` flag, which this fix repurposed
+to also mean "this is a master/layout decorative-shape walk") and only that one shape is skipped -
+rendering continues with the shape's own siblings (including, for a shape nested inside a
+`<p:grpSp>` group, its siblings within that same group), the rest of that master's or layout's
+own shapes, the subsequent layout/slide walks, and `Render` as a whole completes successfully.
+This is a deliberate, newly-introduced containment boundary that applies **only** to
+master/layout-owned shapes (`skipPlaceholderShapes == true`) - a slide's own shape throwing the
+same exception still hard-fails `Render` exactly as before this fix, unchanged. This containment
+was added as a regression fix after real-file testing found that, without it, a single
+already-deferred feature used by a decorative master/layout shape (for example an EMF picture)
+would abort rendering for every slide using that master/layout - a severe regression versus the
+pre-existing behavior where master/layout shape trees were never walked at all. See
+`Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent`
+and `Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException` in
+`PptxRenderTests.cs` for the regression coverage proving both halves of this boundary.
 
 **Fidelity achieved**:
 
@@ -1479,3 +1500,10 @@ silently: `Render_MasterNonPlaceholderPicture_PaintsOnEverySlideUsingThatMasterR
 `Render_MasterAndLayoutShapesOverlap_LayoutShapePaintsOnTopOfMasterShape`,
 `Render_MasterPlaceholderShape_DoesNotRenderItsOwnPromptContent`, and
 `Render_LayoutPlaceholderShape_DoesNotRenderItsOwnPromptContent`.
+
+Two further regression tests cover the graceful-skip containment fix described above:
+`Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent`
+(a master's own EMF picture shape is skipped and the slide's own content still paints) and
+`Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException` (a
+slide's own EMF picture shape still hard-fails `Render`, proving the containment is scoped to
+master/layout-owned shapes only).

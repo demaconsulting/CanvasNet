@@ -952,9 +952,13 @@ sections:
               The PptxDocument class shall resolve a <p:pic> shape's <p:blipFill>/<a:blip> into a
               decoded core Surface by dispatching on the embedded relationship's resolved part
               content type (mirroring the SVG codec's own raster-decoder dispatch), rejecting a
-              <a:blip> with neither an r:embed nor an r:link attribute and one with only r:link
-              with InvalidDataException and PptxUnsupportedFeatureException (feature token
-              "pptx-image-link") respectively, rejecting an unsupported content type with
+              <a:blip> with only an r:link with PptxUnsupportedFeatureException (feature token
+              "pptx-image-link"), rejecting a <a:blip> with neither an r:embed nor an r:link
+              attribute but carrying a recognized Microsoft SVG extension fallback
+              (<a:extLst>/<a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}">) with
+              PptxUnsupportedFeatureException (feature token "pptx-image-svg-only"), rejecting a
+              <a:blip> with neither an embed/link attribute nor any recognized extension fallback
+              with InvalidDataException, rejecting an unsupported content type with
               PptxUnsupportedFeatureException (feature token "pptx-image-format"), and shall
               resolve a <p:blipFill>'s optional <a:srcRect> into a normalized, scaled-fraction
               PptxSrcRect crop rectangle (each edge defaulting to zero/full-extent when its own
@@ -967,10 +971,17 @@ sections:
               pattern rather than inventing a second, divergent raster-decode entry point. A linked
               (external-file) image has no embedded bytes this package can read without performing
               file-system I/O outside the supplied package stream, so it is deliberately
-              unsupported rather than silently treated as a missing/blank image. <a:srcRect>'s
-              scaled-fraction percentages (in thousandths of a percent) must be parsed exactly as
-              OOXML defines them, or a crop that is supposed to trim a small edge sliver would
-              instead crop away most or all of the image.
+              unsupported rather than silently treated as a missing/blank image. A real PowerPoint
+              "Insert Icon"-style picture may declare only a Microsoft SVG extension fallback (no
+              raster r:embed/r:link at all) - this is a well-formed, valid OOXML construct this
+              package does not yet decode, and a regression fix corrected this case from being
+              misclassified as InvalidDataException (malformed data) to the dedicated
+              "pptx-image-svg-only" PptxUnsupportedFeatureException token; a <a:blip> with neither
+              an embed/link attribute nor any recognized extension still throws
+              InvalidDataException unchanged (genuinely malformed - ECMA-376 requires at least one
+              of these). <a:srcRect>'s scaled-fraction percentages (in thousandths of a percent)
+              must be parsed exactly as OOXML defines them, or a crop that is supposed to trim a
+              small edge sliver would instead crop away most or all of the image.
             tests:
               - ResolveSrcRect_NoSrcRectElement_ReturnsNull
               - ResolveSrcRect_AllEdgesPresent_ParsesScaledFractions
@@ -981,6 +992,7 @@ sections:
               - ResolvePictureSurface_NoBlipElement_ThrowsInvalidDataException
               - ResolvePictureSurface_BlipMissingEmbedAndLink_ThrowsInvalidDataException
               - ResolvePictureSurface_LinkedBlipOnly_ThrowsPptxUnsupportedFeatureExceptionWithImageLinkToken
+              - ResolvePictureSurface_SvgOnlyBlipExtension_ThrowsPptxUnsupportedFeatureExceptionWithSvgOnlyToken
               - ResolvePictureSurface_UnsupportedContentType_ThrowsPptxUnsupportedFeatureExceptionWithImageFormatToken
               - ResolvePictureSurface_NullArguments_ThrowsArgumentNullException
 
@@ -1310,7 +1322,11 @@ sections:
               slide's own shapes unchanged on top - immediately after painting the resolved
               background and before the existing slide shape-tree walk, using the exact same
               per-shape-type paint dispatch a slide-level shape already uses, while never
-              rendering a master's or layout's own placeholder shapes directly.
+              rendering a master's or layout's own placeholder shapes directly, and shall catch a
+              PptxUnsupportedFeatureException thrown while painting a single master/layout shape
+              (including one nested inside a group) and skip only that shape, continuing to render
+              every other master/layout and slide shape, while a slide's own shape throwing the
+              same exception continues to hard-fail Render unchanged.
             justification: |
               A real PowerPoint deck frequently places decoration (a logo, a rule, a watermark)
               directly on a slide master's or slide layout's own shape tree, outside any
@@ -1332,9 +1348,17 @@ sections:
               shape tree (the same slide -> layout -> master relationship already resolved for
               placeholder inheritance and background), never an unrelated layout's or master's
               shapes. A master/layout shape that itself uses an already-deferred feature (a
-              connector, an unsupported preset geometry, and so on) hits the exact same
-              graceful-skip or PptxUnsupportedFeatureException boundary a slide-level shape
-              already hits - no new failure mode is introduced for a master/layout shape.
+              connector, an unsupported preset geometry, an unsupported raster picture format, and
+              so on) hits the exact same PptxUnsupportedFeatureException boundary a slide-level
+              shape already hits. A regression fix corrected the original implementation, which did
+              not contain this exception: without containment, a single already-deferred feature
+              used by one decorative master/layout shape aborted rendering for every slide using
+              that master/layout - a severe regression versus the pre-existing behavior where
+              master/layout shape trees were never walked at all. RenderNode now catches
+              PptxUnsupportedFeatureException at each leaf dispatch point, gated on the same
+              skipPlaceholderShapes flag, so only the single failing master/layout shape is
+              skipped and rendering continues; a slide's own shape (skipPlaceholderShapes == false)
+              is never caught here and continues to hard-fail Render exactly as before this fix.
             tests:
               - Render_MasterNonPlaceholderPicture_PaintsOnEverySlideUsingThatMasterResolvingOwnRels
               - Render_LayoutNonPlaceholderAutoshape_PaintsOnlyOnSlidesUsingThatLayout
@@ -1342,4 +1366,6 @@ sections:
               - Render_MasterAndLayoutShapesOverlap_LayoutShapePaintsOnTopOfMasterShape
               - Render_MasterPlaceholderShape_DoesNotRenderItsOwnPromptContent
               - Render_LayoutPlaceholderShape_DoesNotRenderItsOwnPromptContent
+              - Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent
+              - Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException
               - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature
