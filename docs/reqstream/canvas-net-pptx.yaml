@@ -1,5 +1,6 @@
 ---
-# cspell:ignore ooxml pptx srgb xfrm prst cust paintable
+# cspell:ignore ooxml pptx srgb xfrm prst cust paintable bodyPr pPr rPr txBody txStyles lstStyle
+# cspell:ignore defRPr normAutofit noAutofit spAutoFit lnSpcReduction fontScale
 #
 # Software System Requirements for CanvasNetPptx
 #
@@ -10,10 +11,12 @@
 # CanvasNetPptx is an independent software system, distributed as its own NuGet package,
 # depending on the core CanvasNet system (docs/reqstream/canvas-net.yaml) - see
 # docs/design/canvas-net-pptx.md's Dependencies section for details. As of Phase 1b, the Canvas
-# subsystem's Rgba32 type is used to resolve a theme's color scheme. As of Phase 1c (this
-# release), the Geometry subsystem's Path/PathBuilder/PathCommand types, the Drawing subsystem's
-# PathStroker/StrokeStyle and Gradient/LinearGradient/GradientStop types, and Rgba32's color-space
-# math are additionally used to resolve shape geometry, fills, and stroked outlines.
+# subsystem's Rgba32 type is used to resolve a theme's color scheme. As of Phase 1c, the Geometry
+# subsystem's Path/PathBuilder/PathCommand types, the Drawing subsystem's PathStroker/StrokeStyle
+# and Gradient/LinearGradient/GradientStop types, and Rgba32's color-space math are additionally
+# used to resolve shape geometry, fills, and stroked outlines. As of Phase 1d (this release), the
+# Fonts subsystem's TrueTypeFont/SystemFontCatalog types and the Drawing subsystem's PathFiller
+# type are additionally used to resolve text layout and paint glyph ink onto a core Surface.
 #
 # CanvasNetPptx is being delivered incrementally. Phase 1a implemented the underlying OOXML
 # (Office Open XML) package layer: opening a .pptx file as a ZIP archive, resolving
@@ -23,15 +26,21 @@
 # property-inheritance resolver: parsing ppt/presentation.xml's declared slide size and ordered
 # slide list (exposed as public SlideCount/SlideSize members), resolving each slide master's
 # theme, structurally parsing placeholder shapes, and the verified ECMA-376 placeholder-matching
-# algorithm. Phase 1c (this release) adds DrawingML shape geometry and paint resolution: resolving
-# a shape's <a:xfrm> transform (position, size, rotation, flip) and a group shape's child
-# coordinate-space composition; resolving <a:prstGeom> preset geometry (approximately 24 common
-# presets) and <a:custGeom> custom path geometry into the core Path type; and resolving
-# <a:solidFill>/<a:gradFill> (linear)/<a:noFill> fills, DrawingML color transforms
-# (lumMod/lumOff/shade/tint/alpha), and <a:ln> stroke outlines via the core PathStroker. Pattern
-# and picture fills, radial/path gradients, and full group-shape rendering semantics beyond
-# transform composition remain unimplemented this phase - see docs/design/canvas-net-pptx.md for
-# the full current feature set and its documented, still-unimplemented scope.
+# algorithm. Phase 1c added DrawingML shape geometry and paint resolution: resolving a shape's
+# <a:xfrm> transform (position, size, rotation, flip) and a group shape's child coordinate-space
+# composition; resolving <a:prstGeom> preset geometry (approximately 24 common presets) and
+# <a:custGeom> custom path geometry into the core Path type; and resolving <a:solidFill>/
+# <a:gradFill> (linear)/<a:noFill> fills, DrawingML color transforms (lumMod/lumOff/shade/tint/
+# alpha), and <a:ln> stroke outlines via the core PathStroker. Phase 1d (this release) adds
+# DrawingML text body parsing (<p:txBody>/<a:bodyPr>/<a:p>/<a:pPr>/<a:r>/<a:rPr>/<a:t>),
+# attribute-level run/paragraph property inheritance through the placeholder/layout/master
+# (including the master's own <p:txStyles> title/body/other style buckets)/theme chain,
+# word-wrap/alignment/vertical-anchor/autofit text layout, and glyph-ink rendering onto a core
+# Surface. Pattern and picture fills, radial/path gradients, full group-shape rendering semantics
+# beyond transform composition, bullets/numbering, full text justification, spAutoFit shape-resize
+# behavior, kerning, text clipping on overflow, and a full per-slide public Render API remain
+# unimplemented this phase - see docs/design/canvas-net-pptx.md for the full current feature set
+# and its documented, still-unimplemented scope.
 
 sections:
   - title: CanvasNetPptx Requirements
@@ -187,3 +196,32 @@ sections:
         tests:
           - CanvasNetPptx_SystemIntegration_GeometryAndPaint_FreeformShapeResolvesEndToEnd
           - CanvasNetPptx_SystemIntegration_GeometryAndPaint_GroupShapeChildTransformComposesEndToEnd
+
+      - id: CanvasNetPptx-TextLayoutAndRendering
+        title: >-
+          The library shall parse a shape's DrawingML text body into paragraphs and runs; resolve
+          each run's and paragraph's effective properties attribute-by-attribute through the
+          placeholder/layout/master (including the master's own titleStyle/bodyStyle/otherStyle
+          text-style buckets)/theme inheritance chain; word-wrap, align, vertically anchor, and
+          (for the common fontScale/lnSpcReduction-bearing and attribute-less shrink-to-fit cases)
+          autofit the resulting text within the shape's own bounding box; and paint the laid-out
+          glyphs onto a core Surface by composing each glyph's own transform with the shape's own
+          frame transform and resolving typefaces through the core system font catalog.
+        tags: [system]
+        justification: |
+          Text is the dominant content type in real-world presentations; without resolving its
+          inherited properties correctly and laying it out and painting it onto a concrete
+          rendering surface, no later full-slide rendering phase of this feature could produce
+          visually correct output for the overwhelming majority of real .pptx content.
+        children:
+          - CanvasNetPptx-PptxDocument-TextBodyParsing
+          - CanvasNetPptx-PptxDocument-ParagraphRunParsing
+          - CanvasNetPptx-PptxDocument-TextPropertyInheritance
+          - CanvasNetPptx-PptxDocument-TextStylesInheritance
+          - CanvasNetPptx-PptxDocument-TextLayoutWordWrap
+          - CanvasNetPptx-PptxDocument-TextVerticalAnchor
+          - CanvasNetPptx-PptxDocument-TextAutofit
+          - CanvasNetPptx-PptxDocument-TextRendering
+        tests:
+          - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
+          - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd

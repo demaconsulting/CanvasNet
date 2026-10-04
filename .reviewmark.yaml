@@ -844,9 +844,19 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pptx/PptxPaint.cs"  # phase 1c unit source (resolved paint model)
       - "src/DemaConsulting.CanvasNet.Pptx/PptxLineStyle.cs"  # phase 1c unit source (resolved line style model)
       - "src/DemaConsulting.CanvasNet.Pptx/PptxUnsupportedFeatureException.cs"  # phase 1c unit source (exceptions)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxTextBody.cs"  # phase 1d unit source (text body model)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Text.cs"  # phase 1d unit source (text body parsing)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxEffectiveTextProperties.cs"  # phase 1d unit source (text props)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.TextInheritance.cs"  # phase 1d unit source (inheritance)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxTextLayout.cs"  # phase 1d unit source (resolved text layout model)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.TextLayout.cs"  # phase 1d unit source (text layout)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.TextRender.cs"  # phase 1d unit source (glyph rendering)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxGeometryTests.cs"  # phase 1c unit tests (geometry)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxPaintTests.cs"  # phase 1c unit tests (paint)
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxTextTests.cs"  # phase 1d unit tests (text parsing)
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxTextLayoutTests.cs"  # phase 1d unit tests (text layout)
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxTextRenderTests.cs"  # phase 1d unit tests (glyph rendering)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxSystemIntegrationTests.cs"  # integration tests
 
   # OTS-BuildMark Review (one per OTS item)

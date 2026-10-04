@@ -318,6 +318,11 @@ words:
   - presentationml
   - pptx
   - Pptx
+  - autofit
+  - Autofit
+  - unrotated
+  - unflipped
+  - unshifted
 
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:

@@ -55,7 +55,7 @@ placeholder's effective `<p:spPr>`/`<p:txBody>/<a:lstStyle>` property fragments 
 layout and master. No shape geometry/paint rendering, non-placeholder (freeform) shape parsing,
 font loading, or rendering surface was implemented that phase - deferred to later phases.
 
-**Phase 1c (this release)** adds DrawingML shape geometry and paint resolution, building on the
+**Phase 1c** adds DrawingML shape geometry and paint resolution, building on the
 Phase 1b model: a shape's `<a:xfrm>` position/rotation/flip resolves to a transform; a
 `<p:grpSp>` group's `chOff`/`chExt` child coordinate space composes correctly with its children's
 own transforms; a shape's `<a:prstGeom>` (24 supported preset names) or `<a:custGeom>` (parsed
@@ -69,6 +69,22 @@ and full group-shape rendering semantics beyond transform composition remain exp
 supported/deferred boundary). **No non-placeholder (freeform) shape _enumeration_ from a slide's
 full `<p:spTree>`, font loading, or rendering surface is implemented yet** - all deferred to later
 phases, which will build on this model to actually render a presentation's slides.
+
+**Phase 1d (this release)** adds DrawingML text body parsing, attribute-level run/paragraph
+property inheritance (including a slide master's own `<p:txStyles>` title/body/other style
+buckets), word-wrap/alignment/vertical-anchor/autofit text layout, and glyph-ink rendering onto a
+core `Canvas.Surface`, building on the Phase 1b/1c models: a shape's `<p:txBody>` resolves to an
+ordered paragraph/run structure; each run's/paragraph's effective properties resolve through the
+placeholder/layout/master/theme inheritance chain, attribute-by-attribute; the resolved text is
+word-wrapped, aligned, vertically anchored, and (where a `normAutofit` element is present)
+autofit within the owning shape's own bounding box; and the resulting glyphs are painted onto a
+`Canvas.Surface` via the core `Fonts.TrueTypeFont`/`SystemFontCatalog` and `Drawing.PathFiller`,
+mirroring `CanvasNetPdf`'s own glyph-painting pattern. Bullets/numbering, full text justification,
+`<a:spAutoFit>` shape-resize autofit, kerning, text clipping on overflow, and a full per-slide
+rendering entry point remain explicitly deferred (see _PptxDocument Unit Design_'s "Text Layout
+and Rendering (Phase 1d)" section for the complete supported/deferred boundary). **No non-
+placeholder (freeform) shape _enumeration_ from a slide's full `<p:spTree>`, nor a full per-slide
+public rendering entry point, is implemented yet** - deferred to a later phase.
 
 ## External Interfaces
 
@@ -123,21 +139,27 @@ specifically `Canvas.Rgba32`, to represent a theme's resolved 12-slot color sche
 `CanvasNetPptx` additionally uses the `CanvasNet` core system's `Geometry` and `Drawing`
 subsystems** - `Geometry.Path`/`PathBuilder` to build and compose resolved shape geometry, and
 `Drawing.PathStroker`/`StrokeStyle` to realize a resolved stroke's outline, plus `Canvas.Gradient`/
-`LinearGradient` to represent a resolved gradient fill. The package layer itself still relies
+`LinearGradient` to represent a resolved gradient fill. **As of Phase 1d (this release),
+`CanvasNetPptx` additionally uses the `CanvasNet` core system's `Fonts` subsystem** -
+`Fonts.TrueTypeFont`/`SystemFontCatalog` to resolve a DrawingML typeface name hint to a concrete
+font and extract its glyph outlines - and the core `Drawing.PathFiller`/`Canvas.Surface` types to
+paint resolved glyph ink onto a rendering surface, mirroring `CanvasNetPdf`'s own
+font-resolution/glyph-painting pattern. The package layer itself still relies
 solely on the .NET base class library's `System.IO.Compression.ZipArchive` (reading
 the `.pptx` ZIP container) and `System.Xml.Linq.XDocument`/`XElement` (parsing
 `[Content_Types].xml`, each `.rels` part, and, as of Phase 1b, every presentation/theme/master/
 layout/slide part). The `ProjectReference` to `CanvasNet` now has corresponding `dependency`
 edges in this system's own SysML2 model (`docs/sysml2/model/canvas-net-pptx.sysml`):
 `dependency usesCanvas from CanvasNetPptxSystem to Canvas;` (added at Phase 1b, the phase that
-actually first uses a `Canvas` subsystem type) and, added this phase,
+actually first uses a `Canvas` subsystem type) and, added at Phase 1c,
 `dependency usesGeometry from CanvasNetPptxSystem to Geometry;`/
 `dependency usesDrawing from CanvasNetPptxSystem to Drawing;`, mirroring `CanvasNetPdf`'s and
 `CanvasNetSvg`'s own precedent of adding a `dependency` edge only at the phase that actually
 first uses the referenced subsystem (for example `CanvasNetPdf`'s `Fonts` dependency was added
-only at its own Phase 4, not at Phase 1). No other `CanvasNet` subsystem (`Codecs`, `Fonts`) is
-used yet; a future phase that actually renders a slide onto a `Canvas.Surface` may add further
-`dependency` edges at that time.
+only at its own Phase 4, not at Phase 1). Added this phase (Phase 1d), mirroring that same
+precedent: `dependency usesFonts from CanvasNetPptxSystem to Fonts;`. No other `CanvasNet`
+subsystem (`Codecs`) is used yet; a future phase that implements picture fill may add a further
+`dependency` edge at that time.
 
 This is an ordinary, same-repository, system-to-system dependency: both `CanvasNet` and
 `CanvasNetPptx` are produced by this repository, so it is neither an OTS Software Item (not a

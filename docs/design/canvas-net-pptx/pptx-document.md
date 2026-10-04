@@ -3,6 +3,9 @@
 ![CanvasNetPptx Structure](CanvasNetPptxView.svg)
 
 <!-- cspell:ignore ooxml pptx navigations hlink srgb xfrm prst cust fmla scrgb patt misrender -->
+<!-- cspell:ignore bodyPr pPr rPr txBody txStyles lstStyle defRPr ctrTitle lIns tIns rIns bIns -->
+<!-- cspell:ignore algn marL lnSpc spcBef spcAft justLow lnSpcReduction fontScale noAutofit -->
+<!-- cspell:ignore normAutofit spAutoFit spcPct spcPts -->
 
 `PptxDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pptx` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pptx`), which references the core `DemaConsulting.CanvasNet`
@@ -16,7 +19,11 @@ unit additionally depends on several core `DemaConsulting.CanvasNet` types - `Ge
 `PathBuilder`, `Drawing.PathStroker`/`StrokeStyle`, and `Canvas.Rgba32`/`Gradient`/
 `LinearGradient` - reusing the already-tested core geometry/drawing machinery rather than
 reimplementing it in this package (see _CanvasNetPptx System Design_'s Dependencies section,
-`../canvas-net-pptx.md`, and the _Geometry and Paint (Phase 1c)_ section below).
+`../canvas-net-pptx.md`, and the _Geometry and Paint (Phase 1c)_ section below). As of Phase 1d
+(this release), the unit additionally depends on core `Fonts.TrueTypeFont`/`SystemFontCatalog`
+(font resolution and glyph-outline extraction) and `Drawing.PathFiller` (glyph-ink fill), reusing
+the same font-resolution/glyph-painting pattern `DemaConsulting.CanvasNet.Pdf` already established
+(see the _Text Layout and Rendering (Phase 1d)_ section below).
 
 ### Package Layer (Phase 1a)
 
@@ -478,3 +485,192 @@ yet implemented anywhere in `CanvasNet` (not merely unimplemented in this packag
 - **Full group-shape semantics** beyond transform composition (style cascading, a slide's
   `<p:spTree>` recursing into `<p:grpSp>`/parsing freeform, non-placeholder shapes at all) -
   deferred to Phase 1e; see _Group Shape Child Transform Composition_ above.
+
+### Text Layout and Rendering (Phase 1d)
+
+Phase 1d adds DrawingML text body parsing, attribute-level property inheritance, word-wrap/
+alignment/vertical-anchor/autofit text layout, and glyph-ink rendering onto a core
+`DemaConsulting.CanvasNet.Canvas.Surface`. It additionally depends on the core
+`DemaConsulting.CanvasNet.Fonts.TrueTypeFont`/`SystemFontCatalog` types (font resolution and
+glyph-outline extraction) and `DemaConsulting.CanvasNet.Drawing.PathFiller` (glyph-ink fill),
+reusing exactly the same font-resolution/glyph-painting pattern `DemaConsulting.CanvasNet.Pdf`'s
+`PdfDocument.Text.cs` already established, rather than a second, divergent implementation. Every
+new member introduced this phase is `internal` - no public shape/rendering surface is introduced
+yet (matching Phase 1b/1c's own precedent).
+
+#### Text Body Parsing
+
+`PptxDocument.Text.cs` parses a shape's `<p:txBody>` element (`ParseTextBody`) into a
+`PptxTextBody` (an `internal sealed record`, defined alongside its sibling small record types in
+`PptxTextBody.cs`, mirroring `PptxShapeFrame.cs`/`PptxPaint.cs`'s one-file-per-small-type-family
+convention): resolved body properties plus an ordered list of paragraphs.
+
+- **`ParseBodyProperties(XElement? bodyPrElement)`** resolves `<a:bodyPr>`'s vertical anchor
+  (`anchor="t"/"ctr"/"b"`, defaulting to `t`/`PptxTextAnchor.Top`), word-wrap mode
+  (`wrap="square"/"none"`, defaulting to `square`/`PptxTextWrap.Square`), and the four insets
+  (`lIns`/`tIns`/`rIns`/`bIns`, each in EMU), defaulting to the OOXML schema's own documented
+  defaults - `91440`/`45720`/`91440`/`45720` EMU respectively - when `<a:bodyPr>` itself, or an
+  individual inset attribute, is absent. The raw autofit child element (`<a:noAutofit>`/
+  `<a:normAutofit>`/`<a:spAutoFit>`, if present) is retained **unparsed**, as an `XElement?`, for
+  the layout engine (`PptxDocument.TextLayout.cs`) to interpret - body-property parsing does not
+  itself implement autofit policy.
+- **`ParseParagraph(XElement pElement)`** resolves `<a:p>` into a `PptxParagraph`: raw paragraph
+  properties (via `ParseParagraphProperties`) plus an ordered list of runs (via `ParseRun`). A
+  paragraph with no recognized child element resolves to an empty run list - a valid, empty
+  paragraph (a blank line), not an error; `InvalidDataException` is reserved for genuinely
+  malformed structure, not merely sparse/empty content.
+- **`ParseParagraphProperties(XElement? pPrElement)`** resolves `<a:pPr>`'s `algn`, `marL`,
+  `indent`, `lnSpc`, `spcBef`, `spcAft`, and `defRPr` child/attributes, each retained **raw and
+  unresolved** (a `PptxRawParagraphProperties` record) - resolution against the inheritance chain
+  happens later, in `PptxDocument.TextInheritance.cs`, not here. The paragraph's own `lvl`
+  attribute (its placeholder/master style level) is clamped to the OOXML schema's documented
+  ten-level `[0,8]` range.
+- **`ParseRun(XElement rElement)`** resolves `<a:r>` into a `PptxTextRun`: its own raw,
+  unresolved `<a:rPr>` element (or `null`) plus its `<a:t>` text, defaulting to `string.Empty`
+  when `<a:t>` is absent, per the OOXML schema.
+
+#### Master `<p:txStyles>` Parsing
+
+`PptxDocument.Masters.cs`'s `GetMaster` additionally parses the slide master root element's own
+`<p:txStyles>` child - a direct sibling of `<p:cSld>` per ECMA-376 (ISO/IEC 29500) §19.3.1.53's
+`CT_SlideMaster` content model, not nested inside it, exactly paralleling how `GetMaster` already
+reads `<p:cSld>` as a direct child of the same root - into a new `PptxMasterTextStyles(XElement?
+TitleStyle, XElement? BodyStyle, XElement? OtherStyle)` record (`PptxPlaceholder.cs`), each an
+`<a:lstStyle>`-shaped element or `null` when the master omits that schema-optional style bucket.
+`PptxMaster` gains a new, non-nullable `TxStyles` field (always populated, even when all three
+buckets inside are `null`), and `PptxPlaceholderProperties` gains a new optional
+`MasterTextStyles` field threaded through unconditionally from `ResolvePlaceholderProperties`'s
+new optional `masterTextStyles` parameter - independent of whether a layout/master placeholder
+match was found, since a master's own default text styling exists even for a shape with no
+placeholder match at all (see _Property Inheritance_ below).
+
+#### Property Inheritance
+
+**Design decision: attribute-level, not element-level, fallback.** Phase 1b's placeholder
+property inheritance (`<p:spPr>` and `<p:txBody>/<a:lstStyle>`) resolves at the level of the
+_whole element_: the first category-level element present anywhere in the chain wins outright,
+with no deeper merging. Run/paragraph text-property inheritance deliberately does **not** reuse
+that same element-level pattern. Real-world DrawingML very commonly overrides a single attribute
+at the run level (for example, bolding one word within an otherwise plain sentence) without
+overriding every other attribute at the same level; an element-level fallback would incorrectly
+discard every other, more specific attribute resolution available at a shallower level for that
+run. `PptxDocument.TextInheritance.cs` therefore resolves **each attribute independently**,
+walking the same conceptual chain - run/paragraph own value -> paragraph's own `defRPr` ->
+placeholder's level-indexed `<a:lstStyle>` entry -> master's level-indexed `<p:txStyles>` bucket
+entry -> theme/hard-coded default - via six small private per-attribute helpers for run
+properties (`ResolveTypeface`, `ResolveFontSizeEmu`, `ResolveBold`, `ResolveItalic`,
+`ResolveUnderline`, `ResolveRunColor`) and an analogous set for paragraph properties, each
+independently taking its own first non-`null` hit.
+
+- **`ResolveEffectiveRunProperties(PptxTextRun run, PptxParagraph paragraph,
+  PptxPlaceholderProperties placeholderProperties, PptxTheme theme, string placeholderType)`**
+  resolves a `PptxEffectiveRunProperties` (font family, size in EMU, bold, italic, underline,
+  color). Font size (`<a:rPr sz="1800"/>` means 18pt, i.e. `sz / 100` points, further scaled by
+  `* 12700` to EMU) and every boolean flag (`"1"`/`"true"`) are parsed at whichever tier first
+  supplies a non-`null` value.
+- **`ResolveEffectiveParagraphProperties(...)`** resolves a `PptxEffectiveParagraphProperties`
+  (alignment, left margin, indent, line spacing). Alignment normalizes `algn="just"`/`"justLow"`
+  (full/low text justification) to `"l"` (left) - full justification requires redistributing
+  inter-word spacing per line, a separable refinement explicitly deferred (see _Deferred to a
+  Later Phase_ below). Line spacing (`<a:lnSpc>`) is either `<a:spcPct val="…"/>` (percentage,
+  `val / 100000`) or `<a:spcPts val="…"/>` (fixed points, `val / 100 * 12700` EMU) - mutually
+  exclusive per schema - modeled as a `PptxLineSpacing(float? Percent, float? FixedEmu)`
+  discriminated record (exactly one field non-`null`), with a static `Default` of 100%.
+- **`<p:txStyles>` bucket selection**: for a given shape's placeholder type, `title`/`ctrTitle`
+  selects the master's `TitleStyle`, the empty-string sentinel (used for a non-placeholder shape
+  - see `PptxDocument.Masters.cs`'s `RemapPlaceholderType`/placeholder-matching precedent in
+  Phase 1b) selects `OtherStyle`, and every other type (including `body` and every type the
+  Phase 1b remapping table folds into `body`) selects `BodyStyle`.
+
+#### Text Layout
+
+`PptxDocument.TextLayout.cs`'s `ResolveTextLayout(PptxTextBody textBody, PptxPlaceholderProperties
+placeholderProperties, PptxTheme theme, string placeholderType, float widthEmu, float heightEmu,
+Func<string, bool, bool, TrueTypeFont> fontResolver)` produces a `PptxTextLayout`
+(`PptxTextLayout.cs`): an ordered list of `PptxGlyphPlacement` (resolved font, glyph index,
+baseline-relative origin in the shape's own local, unrotated coordinate space, size, and color)
+plus the resolved total block height.
+
+1. Every run's/paragraph's effective properties are resolved via `PptxDocument.TextInheritance.cs`
+   (above).
+2. **Autofit** (the body's raw autofit element) is applied in three tiers, resolved once for the
+   whole text body before layout:
+   - **No scaling** - `<a:noAutofit>`, an absent autofit element, or `<a:spAutoFit>` (shape-resize
+     autofit; deliberately not implemented - see _Deferred to a Later Phase (Phase 1d)_ below,
+     since it would require resizing the owning shape itself, a cross-cutting concern beyond this
+     unit's text-layout scope).
+   - **Explicit `<a:normAutofit fontScale="…" lnSpcReduction="…"/>`** - the stored factors are
+     applied verbatim (PowerPoint persists these once it has itself computed a fit).
+   - **Attribute-less `<a:normAutofit/>`** - a bounded, deterministic shrink loop: starting at
+     100% and stepping down in 10% increments (at most 9 iterations, floored at 10%), the loop
+     stops at the first scale whose naturally laid-out height fits the available height. This
+     reproduces PowerPoint's own "shrink text on overflow" user-visible effect without depending
+     on PowerPoint's own unpublished exact algorithm (which lazily computes and persists its own
+     `fontScale`/`lnSpcReduction` once a user has interacted with the file - an attribute-less
+     `<a:normAutofit/>` is PowerPoint's own "not yet computed" state).
+3. **Tokenization and word-wrap**: each run's text is tokenized into whitespace/non-whitespace
+   tokens via a small manual scanner (not `string.Split(' ')`, so consecutive spaces/tabs are
+   preserved as their own token's own advance width, rather than collapsed). Each distinct
+   `(FontFamily, Bold, Italic)` combination is resolved to a `TrueTypeFont` once via
+   `fontResolver`, memoized per layout call (a document-level, cross-call cache is not needed
+   this phase, mirroring Phase 1b's own per-document, not static, theme/master/layout caches).
+   Tokens are packed greedily onto lines bounded by `widthEmu` less the body's horizontal insets;
+   a single token that alone exceeds the available width is placed alone on its own (overflowing)
+   line rather than looping indefinitely - a documented overflow policy, not a crash.
+4. **Line height** is computed from the _tallest_ run on that line:
+   `(Ascender - Descender + LineGap) / UnitsPerEm * SizeEmu * LineSpacingFactor`. **Horizontal
+   start X** is computed from the effective alignment (`l`/`ctr`/`r` - `just`/`justLow` already
+   normalized to `l` by property inheritance, above) against the available width, honoring
+   `MarginLeftEmu`/`IndentEmu` (first line of a paragraph only, per the OOXML indent model).
+5. **Vertical start Y** is computed from `PptxBodyProperties.Anchor` (`t`/`ctr`/`b`) and the
+   total resolved block height within `heightEmu` less the body's vertical insets. No clipping is
+   applied when the block overflows the available height - text is positioned exactly as
+   computed, even past the shape's own box (see _Deferred to a Later Phase (Phase 1d)_ below).
+6. One `PptxGlyphPlacement` is emitted per non-whitespace glyph.
+
+#### Rendering
+
+`PptxDocument.TextRender.cs`'s `PaintTextLayout(Surface surface, PptxTextLayout layout, Matrix3x2
+shapeToSurfaceTransform)` paints a resolved layout's glyphs onto a core `Surface`, mirroring
+`DemaConsulting.CanvasNet.Pdf`'s `PdfDocument.Text.cs`'s own glyph-painting pattern exactly: for
+each `PptxGlyphPlacement`, a `glyphMatrix = Matrix3x2.CreateScale(glyph.SizeEmu /
+glyph.Font.UnitsPerEm) * Matrix3x2.CreateTranslation(glyph.OriginXEmu, glyph.OriginYEmu) *
+shapeToSurfaceTransform` is composed (scale to EMU-per-unit, then translate to the shape-local
+baseline origin, then compose with the shape's own frame transform), the glyph's outline
+(`TrueTypeFont.GetGlyphOutline`) is re-issued through a fresh `Geometry.PathBuilder` with every
+point transformed by `glyphMatrix`, and the result filled via `Drawing.PathFiller.Fill(surface,
+path, glyph.Color, Drawing.FillRule.NonZero)`. A glyph whose outline has zero subpaths (a
+whitespace or control character) is skipped entirely, rather than issuing an empty fill.
+
+`ResolveTextFont(string familyNameHint, bool bold, bool italic)` resolves a DrawingML typeface
+name hint to a concrete `TrueTypeFont` via the core `Fonts.SystemFontCatalog.FindBestMatch`
+(always passing `serif: false, fixedPitch: false`, since DrawingML never signals either
+classification - unlike the PDF renderer's Standard-14 font concept, DrawingML typeface names are
+a free-form string with no implied serif/fixed-pitch/symbolic classification), falling back to
+`Fonts.SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic)` when
+no installed font matches. This is the default `fontResolver` delegate `ResolveTextLayout` is
+driven with in production use; tests inject their own synthetic resolver for deterministic,
+installed-font-independent assertions.
+
+#### Deferred to a Later Phase (Phase 1d)
+
+The following are explicitly out of scope for Phase 1d, each because it depends on machinery not
+yet implemented anywhere in `CanvasNet`, or is a separable refinement with its own, independent
+design cost:
+
+- **Bullets and numbering** (`<a:buChar>`/`<a:buAutoNum>`/`<a:buNone>`) - require a separate glyph/
+  counter-rendering pass distinct from run-text layout; deferred to a later phase.
+- **Full text justification** (`algn="just"`/`"justLow"`) - requires redistributing inter-word
+  spacing per line to reach the line's own right margin exactly; normalized to left-alignment
+  this phase (see _Property Inheritance_ above).
+- **`<a:spAutoFit>` shape-resize autofit** - requires resizing the owning shape itself in response
+  to its own text content, a cross-cutting concern beyond this unit's text-layout scope; treated
+  as a pass-through (no scaling) this phase (see _Text Layout_ above).
+- **Kerning** - `<a:rPr kern="…"/>` and font-pair kerning tables are not consulted; glyph advances
+  use each glyph's own unscaled advance width only.
+- **Text clipping on overflow** - an overflowing text block is positioned exactly as computed,
+  without being clipped to the shape's own bounding box (see _Text Layout_ above).
+- **A full per-slide public `Render` API** - this phase delivers the text-layout/rendering
+  _primitives_ (`ResolveTextLayout`/`PaintTextLayout`), not a complete shape-tree-walking,
+  slide-level rendering entry point; deferred to a later phase alongside full group-shape
+  semantics (see _Geometry and Paint (Phase 1c)_'s own deferred-items list above).

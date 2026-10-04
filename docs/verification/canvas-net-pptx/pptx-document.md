@@ -1,6 +1,8 @@
 ## PptxDocument Unit Verification Design
 
-<!-- cspell:ignore ooxml pptx srgb xfrm prst cust patt -->
+<!-- cspell:ignore ooxml pptx srgb xfrm prst cust patt bodyPr normAutofit noAutofit spAutoFit pPr -->
+<!-- cspell:ignore rPr txBody txStyles lstStyle defRPr lnSpc spcBef spcAft justLow fontScale -->
+<!-- cspell:ignore spcPct spcPts -->
 
 This document describes the unit-level verification strategy for the `PptxDocument` class.
 
@@ -27,7 +29,15 @@ trivial package-layer scenario. No file-based fixture exists for this unit (unli
 `PdfFixtures/*.pdf`); every fixture is constructed entirely in-memory, at test-method scope.
 Phase 1b's placeholder-inheritance tests additionally construct `PptxPlaceholder`/`PptxTheme`
 records directly in C# (bypassing XML parsing entirely), using marker-attribute XElements to
-unambiguously assert which level's property fragment "won" the fallback chain.
+unambiguously assert which level's property fragment "won" the fallback chain. Phase 1d's
+text-layout tests additionally link the sibling `DemaConsulting.CanvasNet.Tests` project's
+`TestSupport` folder (via an MSBuild `<Compile Include>` glob, mirroring
+`DemaConsulting.CanvasNet.Pdf.Tests`'s own established precedent) to reuse the shared
+`SyntheticFontBuilder` helper, constructing a hand-built `TrueTypeFont` with deterministic
+metrics so every word-wrap/alignment/anchor/autofit expectation can be hand-computed exactly in
+EMU, and Phase 1d's rendering tests use a synthetic filled-square glyph font for deterministic,
+installed-font-independent painted-pixel assertions, mirroring `PdfDocumentTests.cs`'s own
+painted-pixel assertion style.
 
 Because `PptxDocument`'s dependencies (`System.IO.Compression.ZipArchive`, `System.Xml.Linq`,
 and, as of Phase 1b, `DemaConsulting.CanvasNet.Canvas.Rgba32`) are BCL types or an already-tested
@@ -402,6 +412,127 @@ line); and proves `ResolveStrokeOutline` produces a non-empty outline path for a
 solid line, via the core `PathStroker`/`StrokeStyle` machinery reused from the PDF renderer's own
 call pattern.
 
+### Text Layout and Rendering (Phase 1d) Test Scenarios
+
+#### CanvasNetPptx-PptxDocument-TextBodyParsing: Text Body/Paragraph/Run Structure Parses Correctly
+
+**Tests**: `ParseBodyProperties_Absent_ResolvesSchemaDefaults`,
+`ParseBodyProperties_AnchorCtr_ResolvesMiddle`, `ParseBodyProperties_AnchorB_ResolvesBottom`,
+`ParseBodyProperties_AnchorT_ResolvesTop`, `ParseBodyProperties_WrapNone_ResolvesWrapNone`,
+`ParseBodyProperties_CustomInsets_ResolvesDeclaredValues`,
+`ParseBodyProperties_AutofitElement_IsRetainedUnparsed` (a `[Theory]` covering
+`noAutofit`/`normAutofit`/`spAutoFit`), `ParseTextBody_NoParagraphs_ResolvesEmptyParagraphList`,
+`ParseTextBody_SingleParagraphSingleRun_ParsesBodyAndParagraph`,
+`ParseParagraph_NoChildren_ResolvesEmptyRunList`
+
+Proves `ParseBodyProperties` resolves the OOXML schema's documented defaults when `<a:bodyPr>` or
+an individual attribute is absent, resolves each of the three vertical anchors and the `none` wrap
+mode explicitly, resolves custom inset values when declared, and retains the raw autofit child
+element unparsed; proves `ParseTextBody` resolves an empty paragraph list for a text body with no
+`<a:p>` children and resolves a single paragraph/run structure correctly; and proves an empty
+`<a:p>` with no recognized child resolves an empty run list rather than throwing.
+
+#### CanvasNetPptx-PptxDocument-ParagraphRunParsing: Paragraph/Run Raw Property Extraction and Level Clamping
+
+**Tests**: `ParseParagraphProperties_Absent_ResolvesLevelZeroAndNullOptionals`,
+`ParseParagraphProperties_LevelAttribute_ClampsToZeroToEight` (a `[Theory]` covering below-range,
+in-range, and above-range `lvl` values), `ParseParagraphProperties_FullyPopulated_ResolvesEveryField`,
+`ParseRun_NoText_ResolvesEmptyString`, `ParseRun_WithTextAndRPr_ResolvesBoth`
+
+Proves `ParseParagraphProperties` resolves level `0` and every optional field `null` when
+`<a:pPr>` is absent, clamps an out-of-range `lvl` attribute into the documented `[0,8]` range,
+resolves every field when fully populated; and proves `ParseRun` resolves an empty string when
+`<a:t>` is absent and resolves both the raw `<a:rPr>` element and text when both are present.
+
+#### CanvasNetPptx-PptxDocument-TextPropertyInheritance: Attribute-Level Run/Paragraph Property Resolution
+
+**Tests**: `ResolveEffectiveRunProperties_RunOverride_WinsOverEveryOtherTier`,
+`ResolveEffectiveRunProperties_ParagraphDefRPrOnly_WinsWhenRunDeclaresNothing`,
+`ResolveEffectiveRunProperties_PlaceholderLevelStyleOnly_WinsWhenRunAndParagraphDeclareNothing`,
+`ResolveEffectiveRunProperties_NoneDeclared_ResolvesHardCodedDefaults`,
+`ResolveEffectiveRunProperties_UnderlineAttribute_ResolvesExpectedBoolean` (a `[Theory]` covering
+`"1"`/`"true"`/`"0"`/`"false"` underline values), `ResolveEffectiveRunProperties_RunSolidFillSrgbClr_ResolvesExplicitColor`,
+`ResolveEffectiveParagraphProperties_NoneDeclared_ResolvesHardCodedDefaults`,
+`ResolveEffectiveParagraphProperties_Alignment_NormalizesJustificationToLeft` (a `[Theory]`
+covering `just`/`justLow`), `ResolveEffectiveParagraphProperties_FixedLineSpacing_ResolvesPointsToEmu`,
+`ResolveEffectiveParagraphProperties_PlaceholderLevelStyleOnly_WinsWhenParagraphDeclaresNothing`
+
+Proves each inheritance tier (run override, paragraph `defRPr`, placeholder level-indexed
+`lstStyle`, hard-coded default) wins in isolation when every higher-priority tier declares
+nothing, for both run properties (typeface/size/bold/italic/underline/color) and paragraph
+properties (alignment/margin/indent/line-spacing); proves `algn="just"`/`"justLow"` normalizes to
+`"l"`; and proves fixed-point line spacing (`<a:spcPts>`) resolves to the expected EMU value.
+
+#### CanvasNetPptx-PptxDocument-TextStylesInheritance: Master `<p:txStyles>` Parsing and Bucket Selection
+
+**Tests**: `GetMaster_TxStylesSiblingOfCSld_ParsesAllThreeStyles`,
+`ResolveEffectiveRunProperties_MasterTxStylesOnly_WinsWhenEverythingAboveIsAbsent`,
+`ResolveEffectiveRunProperties_MasterTitleStyle_SelectedForTitlePlaceholderType`,
+`ResolveEffectiveRunProperties_MasterOtherStyle_SelectedForNonPlaceholderShape`,
+`ResolveEffectiveParagraphProperties_MasterTxStylesOnly_WinsWhenEverythingAboveIsAbsent`,
+`CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd`,
+`CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd`
+
+Proves `GetMaster` parses a slide master's own `<p:txStyles>` element (a direct sibling of
+`<p:cSld>`) into its three schema-optional style buckets; proves the master's own `txStyles`
+bucket wins when every higher-priority tier is absent; proves `title`/`ctrTitle` placeholder types
+select `TitleStyle` and a non-placeholder shape (the empty-string sentinel) selects `OtherStyle`;
+and the two system-integration tests prove, end-to-end through a full in-memory package opened
+via `PptxDocument.Open`, that a `title` placeholder resolves its effective run size from the
+master's own `<p:titleStyle>` and that an ordinary (non-placeholder) text box resolves its
+effective run size from the master's own `<p:otherStyle>` rather than `<p:bodyStyle>`.
+
+#### CanvasNetPptx-PptxDocument-TextLayoutWordWrap: Word-Wrap and Horizontal Alignment
+
+**Tests**: `ResolveTextLayout_WordWrap_NarrowWidth_WrapsAtTokenBoundary`,
+`ResolveTextLayout_WordWrap_SingleTokenWiderThanAvailableWidth_PlacedAloneOnOwnLine`,
+`ResolveTextLayout_AlignCenter_CentersLineWithinAvailableWidth`,
+`ResolveTextLayout_AlignRight_RightAlignsLineAgainstAvailableWidth`
+
+Proves a long run wraps onto multiple lines at the expected token boundary for a narrow
+`widthEmu`; proves a single token that alone exceeds the available width is placed alone on its
+own (overflowing) line rather than looping indefinitely; and proves center/right alignment
+position a line's glyphs at the expected hand-computed X offset within the available width.
+
+#### CanvasNetPptx-PptxDocument-TextVerticalAnchor: Vertical Anchor Positioning
+
+**Tests**: `ResolveTextLayout_AnchorTop_PositionsFirstBaselineAtAscentFromTop`,
+`ResolveTextLayout_AnchorMiddle_CentersBlockVerticallyWithinAvailableHeight`,
+`ResolveTextLayout_AnchorBottom_PositionsBlockAtBottomOfAvailableHeight`
+
+Proves each of the three vertical anchors (`t`/`ctr`/`b`) positions the resolved text block's
+first/last glyph `OriginYEmu` at the expected hand-computed offset within the available height.
+
+#### CanvasNetPptx-PptxDocument-TextAutofit: Three-Tier Autofit Policy
+
+**Tests**: `ResolveTextLayout_NoAutofit_AppliesNoScalingEvenWhenOverflowing`,
+`ResolveTextLayout_SpAutoFit_AppliesNoScaling`,
+`ResolveTextLayout_NormAutofitWithExplicitAttributes_AppliesStoredFactorsVerbatim`,
+`ResolveTextLayout_NormAutofitAttributeLess_ShrinkLoopConvergesOnFirstFittingScale`
+
+Proves `<a:noAutofit>`/absent-autofit/`<a:spAutoFit>` all apply no scaling even when the resolved
+text overflows the available height; proves an explicit `<a:normAutofit fontScale="..."
+lnSpcReduction="..."/>` applies the stored factors verbatim; and proves an attribute-less
+`<a:normAutofit/>` on an intentionally overflowing fixture converges, via the bounded 10%-step
+shrink loop, to the first hand-computed scale whose naturally laid-out height fits.
+
+#### CanvasNetPptx-PptxDocument-TextRendering: Glyph Painting and Font Resolution
+
+**Tests**: `PaintTextLayout_IdentityTransform_PaintsGlyphAtExpectedLocationWithResolvedColor`,
+`PaintTextLayout_TranslatedShapeTransform_ShiftsPaintedLocation`,
+`PaintTextLayout_EmptyOutlineGlyph_PaintsNothing`, `ResolveTextFont_AnyFamilyHint_ResolvesNonNullFont`,
+`CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd`,
+`CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd`
+
+Proves `PaintTextLayout` paints a synthetic filled-square glyph's known ink pixel(s) in the
+resolved color at the expected location under an identity shape-to-surface transform, proves a
+translated shape transform shifts the painted location by the expected offset, proves a glyph
+with an empty outline (no subpaths) paints nothing, and proves `ResolveTextFont` resolves a
+non-null `TrueTypeFont` for an arbitrary family-name hint (falling back to the bundled font); the
+two system-integration tests additionally prove `PaintTextLayout` paints at least one
+non-background pixel end-to-end, from a full in-memory package opened via `PptxDocument.Open`
+through `ResolveTextLayout` to a test `Surface`.
+
 ## Acceptance Criteria
 
 A unit-level test run passes when all scenarios above pass without error or exception beyond
@@ -412,15 +543,20 @@ relative-target traversal and its root-escape guard, and the public API's argume
 disposal contract); the presentation/theme/master/layout/slide model and placeholder
 property-inheritance resolver (Phase 1b: slide size/count, EMU-to-pixel conversion, theme
 color/font scheme resolution, master/layout/slide structural placeholder parsing, and the
-verified ECMA-376 placeholder-matching and per-category property-resolution algorithm); and
-DrawingML shape geometry and paint resolution (Phase 1c: `<a:xfrm>` position/rotation/flip
-transform resolution, `<p:grpSp>` child-coordinate-space transform composition, 24 supported
-`<a:prstGeom>` preset shapes plus `<a:custGeom>` custom path-command parsing, `<a:solidFill>`/
-`<a:gradFill>`/`<a:noFill>` resolution including scheme-color lookup through the resolved theme
-and the `lumMod`/`lumOff`/`shade`/`tint`/`alpha` color-transform pipeline, and `<a:ln>` stroke
-width/dash/fill resolution realized as a stroked outline path via the core `PathStroker`). Not yet
-covered: non-placeholder (freeform) shape *enumeration* from a slide's full `<p:spTree>` (Phase
-1c's resolvers operate on hand-fetched shape fragments, not a higher-level "enumerate every shape
-on a slide" API), pattern/picture fill, radial/path gradients, `<a:avLst>` preset adjustment-value
-parsing, full group-shape rendering semantics beyond transform composition, font loading, and
-rendering to a `Surface` - none of these is implemented yet.
+verified ECMA-376 placeholder-matching and per-category property-resolution algorithm); DrawingML
+shape geometry and paint resolution (Phase 1c: `<a:xfrm>` position/rotation/flip transform
+resolution, `<p:grpSp>` child-coordinate-space transform composition, 24 supported `<a:prstGeom>`
+preset shapes plus `<a:custGeom>` custom path-command parsing, `<a:solidFill>`/`<a:gradFill>`/
+`<a:noFill>` resolution including scheme-color lookup through the resolved theme and the
+`lumMod`/`lumOff`/`shade`/`tint`/`alpha` color-transform pipeline, and `<a:ln>` stroke
+width/dash/fill resolution realized as a stroked outline path via the core `PathStroker`); and
+DrawingML text body parsing, attribute-level property inheritance (including a slide master's own
+`<p:txStyles>` buckets), word-wrap/alignment/vertical-anchor/autofit text layout, and glyph-ink
+rendering onto a core `Surface` (Phase 1d: see the *Text Layout and Rendering (Phase 1d) Test
+Scenarios* section above). Not yet covered: non-placeholder (freeform) shape *enumeration* from a
+slide's full `<p:spTree>` (Phase 1c's resolvers operate on hand-fetched shape fragments, not a
+higher-level "enumerate every shape on a slide" API), pattern/picture fill, radial/path gradients,
+`<a:avLst>` preset adjustment-value parsing, full group-shape rendering semantics beyond transform
+composition, bullets/numbering, full text justification, `<a:spAutoFit>` shape-resize autofit,
+kerning, text clipping on overflow, and a full per-slide public `Render` API - none of these is
+implemented yet.

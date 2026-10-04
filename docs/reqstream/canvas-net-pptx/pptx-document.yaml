@@ -1,7 +1,9 @@
 ---
 # Software Unit Requirements for PptxDocument
 #
-# cspell:ignore ooxml pptx srgb xfrm prst cust patt
+# cspell:ignore ooxml pptx srgb xfrm prst cust patt bodyPr normAutofit noAutofit spAutoFit pPr
+# cspell:ignore rPr txBody txStyles lstStyle defRPr ctrTitle lIns tIns rIns bIns algn marL lnSpc
+# cspell:ignore spcBef spcAft justLow lnSpcReduction fontScale lvl
 #
 # These requirements describe the design-level behavior of the PptxDocument unit.
 #
@@ -492,3 +494,181 @@ sections:
               - ResolveLineStyle_SolidPreset_ProducesNullDashArray
               - ResolveStrokeOutline_RectangleWithSolidLine_ProducesNonEmptyOutline
               - CanvasNetPptx_SystemIntegration_GeometryAndPaint_FreeformShapeResolvesEndToEnd
+
+          - id: CanvasNetPptx-PptxDocument-TextBodyParsing
+            title: >-
+              The PptxDocument class shall parse a shape's <p:txBody> element into an ordered list
+              of paragraphs, each with its own raw, unresolved paragraph properties and ordered
+              runs, and shall parse its <a:bodyPr> element into resolved vertical anchor (t/ctr/b,
+              defaulting to t), word-wrap mode (square/none, defaulting to square), four insets
+              (lIns/tIns/rIns/bIns, defaulting to 91440/45720/91440/45720 EMU when absent), and the
+              raw autofit child element (noAutofit/normAutofit/spAutoFit), retained unparsed for
+              the layout engine to interpret; an empty <a:p> with no recognized child is a valid,
+              empty paragraph (a blank line), not an error.
+            justification: |
+              Text layout and rendering cannot begin without first structurally parsing the
+              DrawingML text-body element tree into a form later phases of this feature (property
+              inheritance, word-wrap, rendering) can consume without re-parsing raw XML.
+            tests:
+              - ParseBodyProperties_Absent_ResolvesSchemaDefaults
+              - ParseBodyProperties_AnchorCtr_ResolvesMiddle
+              - ParseBodyProperties_AnchorB_ResolvesBottom
+              - ParseBodyProperties_AnchorT_ResolvesTop
+              - ParseBodyProperties_WrapNone_ResolvesWrapNone
+              - ParseBodyProperties_CustomInsets_ResolvesDeclaredValues
+              - ParseBodyProperties_AutofitElement_IsRetainedUnparsed
+              - ParseTextBody_NoParagraphs_ResolvesEmptyParagraphList
+              - ParseTextBody_SingleParagraphSingleRun_ParsesBodyAndParagraph
+              - ParseParagraph_NoChildren_ResolvesEmptyRunList
+
+          - id: CanvasNetPptx-PptxDocument-ParagraphRunParsing
+            title: >-
+              The PptxDocument class shall parse a paragraph's <a:pPr> element (algn, marL, indent,
+              lnSpc, spcBef, spcAft, and defRPr, each retained raw/unresolved) and its lvl attribute
+              (clamped to the valid [0,8] level range per the OOXML schema's ten-level style
+              vocabulary), defaulting every field/level to its schema default when <a:pPr> or the
+              individual attribute is absent, and shall parse a run's <a:rPr> element (retained
+              raw/unresolved) and its <a:t> text, defaulting text to the empty string when <a:t> is
+              absent.
+            justification: |
+              Resolving effective run/paragraph properties (CanvasNetPptx-PptxDocument-
+              TextPropertyInheritance) requires each paragraph's/run's own raw property fragment to
+              already be extracted and level-clamped, independent of the inheritance chain itself.
+            tests:
+              - ParseParagraphProperties_Absent_ResolvesLevelZeroAndNullOptionals
+              - ParseParagraphProperties_LevelAttribute_ClampsToZeroToEight
+              - ParseParagraphProperties_FullyPopulated_ResolvesEveryField
+              - ParseRun_NoText_ResolvesEmptyString
+              - ParseRun_WithTextAndRPr_ResolvesBoth
+
+          - id: CanvasNetPptx-PptxDocument-TextPropertyInheritance
+            title: >-
+              The PptxDocument class shall resolve a run's effective character properties
+              (typeface, size, bold, italic, underline, color) and a paragraph's effective
+              properties (alignment, left margin, indent, line spacing) attribute-by-attribute
+              through the chain run/paragraph defRPr -> placeholder level-indexed lstStyle ->
+              master level-indexed txStyles bucket -> theme/hard-coded default, each attribute
+              independently taking its own first non-null value rather than falling back at the
+              level of the whole run/paragraph, and shall normalize algn="just"/"justLow" to "l"
+              (full text justification is explicitly out of scope this phase).
+            justification: |
+              Real-world DrawingML text commonly overrides a single attribute (for example making
+              one word bold) without overriding every other attribute at the same level; an
+              element-level (not attribute-level) fallback would incorrectly lose every other
+              attribute's own, more specific resolution for that run/paragraph.
+            tests:
+              - ResolveEffectiveRunProperties_RunOverride_WinsOverEveryOtherTier
+              - ResolveEffectiveRunProperties_ParagraphDefRPrOnly_WinsWhenRunDeclaresNothing
+              - ResolveEffectiveRunProperties_PlaceholderLevelStyleOnly_WinsWhenRunAndParagraphDeclareNothing
+              - ResolveEffectiveRunProperties_NoneDeclared_ResolvesHardCodedDefaults
+              - ResolveEffectiveRunProperties_UnderlineAttribute_ResolvesExpectedBoolean
+              - ResolveEffectiveRunProperties_RunSolidFillSrgbClr_ResolvesExplicitColor
+              - ResolveEffectiveParagraphProperties_NoneDeclared_ResolvesHardCodedDefaults
+              - ResolveEffectiveParagraphProperties_Alignment_NormalizesJustificationToLeft
+              - ResolveEffectiveParagraphProperties_FixedLineSpacing_ResolvesPointsToEmu
+              - ResolveEffectiveParagraphProperties_PlaceholderLevelStyleOnly_WinsWhenParagraphDeclaresNothing
+
+          - id: CanvasNetPptx-PptxDocument-TextStylesInheritance
+            title: >-
+              The PptxDocument class shall parse a slide master's own <p:txStyles> element (a
+              direct, sibling-of-<p:cSld> child of <p:sldMaster>, not nested inside it) into its
+              schema-optional titleStyle/bodyStyle/otherStyle buckets, and shall select, for a
+              given shape's placeholder type, titleStyle for title/ctrTitle placeholder types,
+              otherStyle for a non-placeholder shape, and bodyStyle otherwise, consulting the
+              selected bucket's level-indexed entry in the run/paragraph property-inheritance
+              chain (CanvasNetPptx-PptxDocument-TextPropertyInheritance) after the placeholder's
+              own lstStyle and before the theme/hard-coded default.
+            justification: |
+              A slide master's own default text styling (distinct from any one placeholder's own
+              lstStyle override) is the next fallback tier ECMA-376 defines before the theme/
+              hard-coded default; without parsing and consulting it, text with no placeholder-level
+              style override would skip straight to an incorrect default.
+            tests:
+              - GetMaster_TxStylesSiblingOfCSld_ParsesAllThreeStyles
+              - ResolveEffectiveRunProperties_MasterTxStylesOnly_WinsWhenEverythingAboveIsAbsent
+              - ResolveEffectiveRunProperties_MasterTitleStyle_SelectedForTitlePlaceholderType
+              - ResolveEffectiveRunProperties_MasterOtherStyle_SelectedForNonPlaceholderShape
+              - ResolveEffectiveParagraphProperties_MasterTxStylesOnly_WinsWhenEverythingAboveIsAbsent
+              - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
+              - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd
+
+          - id: CanvasNetPptx-PptxDocument-TextLayoutWordWrap
+            title: >-
+              The PptxDocument class shall word-wrap a text body's resolved runs into lines bounded
+              by the owning shape's own width (less its horizontal insets), tokenizing each run's
+              text into whitespace/non-whitespace tokens (preserving multi-space runs as their own
+              token, not collapsing them) and greedily packing tokens onto each line, placing a
+              single token that alone exceeds the available width alone on its own (overflowing)
+              line rather than looping indefinitely, and shall resolve horizontal alignment (left/
+              center/right, using each line's own margin/indent) against the available width.
+            justification: |
+              Word-wrap is the foundational text-layout behavior every other layout concern
+              (vertical anchor, autofit) builds on; an incorrect or infinite-looping wrap algorithm
+              would make every other text-layout feature unusable.
+            tests:
+              - ResolveTextLayout_WordWrap_NarrowWidth_WrapsAtTokenBoundary
+              - ResolveTextLayout_WordWrap_SingleTokenWiderThanAvailableWidth_PlacedAloneOnOwnLine
+              - ResolveTextLayout_AlignCenter_CentersLineWithinAvailableWidth
+              - ResolveTextLayout_AlignRight_RightAlignsLineAgainstAvailableWidth
+
+          - id: CanvasNetPptx-PptxDocument-TextVerticalAnchor
+            title: >-
+              The PptxDocument class shall position a text body's word-wrapped lines vertically
+              per its resolved anchor (t/ctr/b) and total resolved block height within the owning
+              shape's own height (less its vertical insets), with no clipping applied when the
+              block overflows the available height (text positioned exactly as computed, even past
+              the shape's own box).
+            justification: |
+              Vertical anchoring is a required, independently observable text-layout behavior
+              (PowerPoint commonly anchors title/body placeholders differently); an incorrect
+              anchor calculation would visibly misplace every anchored text body.
+            tests:
+              - ResolveTextLayout_AnchorTop_PositionsFirstBaselineAtAscentFromTop
+              - ResolveTextLayout_AnchorMiddle_CentersBlockVerticallyWithinAvailableHeight
+              - ResolveTextLayout_AnchorBottom_PositionsBlockAtBottomOfAvailableHeight
+
+          - id: CanvasNetPptx-PptxDocument-TextAutofit
+            title: >-
+              The PptxDocument class shall apply a text body's resolved autofit policy in three
+              tiers: no scaling at all for noAutofit, an absent autofit element, or spAutoFit
+              (shape-resize autofit, deliberately not implemented this phase); an explicit
+              normAutofit fontScale/lnSpcReduction pair applied verbatim; and an attribute-less
+              normAutofit running a bounded, deterministic 10%-step shrink loop (at most 9
+              iterations, floored at 10% scale) that stops at the first scale whose naturally
+              laid-out height fits the available height.
+            justification: |
+              PowerPoint's own "shrink text on overflow" autofit behavior is commonly authored
+              without explicit fontScale/lnSpcReduction values (PowerPoint itself computes and
+              persists them lazily); a bounded, deterministic shrink loop reproduces the same
+              user-visible effect without depending on PowerPoint's own unpublished exact algorithm.
+            tests:
+              - ResolveTextLayout_NoAutofit_AppliesNoScalingEvenWhenOverflowing
+              - ResolveTextLayout_SpAutoFit_AppliesNoScaling
+              - ResolveTextLayout_NormAutofitWithExplicitAttributes_AppliesStoredFactorsVerbatim
+              - ResolveTextLayout_NormAutofitAttributeLess_ShrinkLoopConvergesOnFirstFittingScale
+
+          - id: CanvasNetPptx-PptxDocument-TextRendering
+            title: >-
+              The PptxDocument class shall paint a resolved text layout's glyphs onto a core
+              Surface by composing each glyph's own unit-to-EMU scale, its resolved baseline
+              origin, and the owning shape's own frame transform into a single glyph-to-surface
+              matrix, re-issuing the glyph's outline through that matrix and filling it with the
+              glyph's resolved color via the core PathFiller (mirroring the PDF renderer's own
+              glyph-painting pattern), skipping a glyph whose outline has no subpaths (for example
+              a whitespace glyph) entirely rather than painting an empty fill, and shall resolve a
+              DrawingML typeface name hint to a concrete TrueTypeFont via the core
+              SystemFontCatalog (always passing serif/fixed-pitch false, since DrawingML never
+              signals either classification), falling back to a bundled font when no installed
+              font matches.
+            justification: |
+              Painting resolved glyph ink onto a Surface is this phase's terminal, user-visible
+              output; reusing the already-verified core PathFiller/SystemFontCatalog building
+              blocks (exactly as the PDF renderer already does) avoids a second, divergent
+              glyph-painting/font-resolution implementation for this package.
+            tests:
+              - PaintTextLayout_IdentityTransform_PaintsGlyphAtExpectedLocationWithResolvedColor
+              - PaintTextLayout_TranslatedShapeTransform_ShiftsPaintedLocation
+              - PaintTextLayout_EmptyOutlineGlyph_PaintsNothing
+              - ResolveTextFont_AnyFamilyHint_ResolvesNonNullFont
+              - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
+              - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd
