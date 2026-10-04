@@ -165,6 +165,38 @@ public class PptxGeometryTests
         Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveShapeFrame(xfrm));
     }
 
+    /// <summary>
+    ///     Resolve Shape Frame - Non Numeric Off Attribute - Throws Invalid Data Exception
+    ///     (not the raw <see cref="FormatException"/> an explicit <c>(float?)</c> cast would
+    ///     otherwise let escape).
+    /// </summary>
+    [Fact]
+    public void ResolveShapeFrame_NonNumericOffAttribute_ThrowsInvalidDataException()
+    {
+        var xfrm = new XElement(
+            A + "xfrm",
+            new XElement(A + "off", new XAttribute("x", "abc"), new XAttribute("y", 0)),
+            new XElement(A + "ext", new XAttribute("cx", 100), new XAttribute("cy", 100)));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveShapeFrame(xfrm));
+    }
+
+    /// <summary>
+    ///     Resolve Shape Frame - Non Numeric Ext Attribute - Throws Invalid Data Exception
+    ///     (not the raw <see cref="FormatException"/> an explicit <c>(float?)</c> cast would
+    ///     otherwise let escape).
+    /// </summary>
+    [Fact]
+    public void ResolveShapeFrame_NonNumericExtAttribute_ThrowsInvalidDataException()
+    {
+        var xfrm = new XElement(
+            A + "xfrm",
+            new XElement(A + "off", new XAttribute("x", 0), new XAttribute("y", 0)),
+            new XElement(A + "ext", new XAttribute("cx", "abc"), new XAttribute("cy", 100)));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveShapeFrame(xfrm));
+    }
+
     // --- ResolveGroupChildTransform -------------------------------------------------------------
 
     /// <summary>Resolve Group Child Transform - Identity Child Space - Matches Group Frame Directly.</summary>
@@ -239,6 +271,40 @@ public class PptxGeometryTests
         var childTransform = PptxDocument.ResolveGroupChildTransform(groupXfrm);
 
         AssertVectorsClose(new Vector2(10, 10), Vector2.Transform(new Vector2(0, 0), childTransform));
+    }
+
+    /// <summary>
+    ///     Resolve Group Child Transform - Ch Off Present With Missing Attribute - Throws Invalid
+    ///     Data Exception (a present-but-incomplete <c>&lt;a:chOff&gt;</c> must fail closed, not
+    ///     silently fall back to the "element absent" default).
+    /// </summary>
+    [Fact]
+    public void ResolveGroupChildTransform_ChOffPresentWithMissingAttribute_ThrowsInvalidDataException()
+    {
+        var groupXfrm = new XElement(
+            A + "xfrm",
+            new XElement(A + "off", new XAttribute("x", 0), new XAttribute("y", 0)),
+            new XElement(A + "ext", new XAttribute("cx", 100), new XAttribute("cy", 100)),
+            new XElement(A + "chOff", new XAttribute("x", 0))); // missing required 'y'
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveGroupChildTransform(groupXfrm));
+    }
+
+    /// <summary>
+    ///     Resolve Group Child Transform - Ch Ext Present With Missing Attribute - Throws Invalid
+    ///     Data Exception (a present-but-incomplete <c>&lt;a:chExt&gt;</c> must fail closed, not
+    ///     silently fall back to the "element absent" default).
+    /// </summary>
+    [Fact]
+    public void ResolveGroupChildTransform_ChExtPresentWithMissingAttribute_ThrowsInvalidDataException()
+    {
+        var groupXfrm = new XElement(
+            A + "xfrm",
+            new XElement(A + "off", new XAttribute("x", 0), new XAttribute("y", 0)),
+            new XElement(A + "ext", new XAttribute("cx", 100), new XAttribute("cy", 100)),
+            new XElement(A + "chExt", new XAttribute("cx", 100))); // missing required 'cy'
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveGroupChildTransform(groupXfrm));
     }
 
     // --- ResolveShapeGeometry: dispatch + failure modes ---------------------------------------

@@ -363,6 +363,22 @@ public class PptxPaintTests
         Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveGradientFill(gradFill, BuildTestTheme(), 200, 100));
     }
 
+    /// <summary>
+    ///     Resolve Gradient Fill - Non Numeric Gs Pos - Throws Invalid Data Exception (not the
+    ///     raw conversion-failure exception an explicit <c>(float?)</c> cast would otherwise let
+    ///     escape).
+    /// </summary>
+    [Fact]
+    public void ResolveGradientFill_NonNumericGsPos_ThrowsInvalidDataException()
+    {
+        var gradFill = new XElement(
+            A + "gradFill",
+            new XElement(A + "gsLst", new XElement(A + "gs", new XAttribute("pos", "not-a-number"), SrgbClr("FF0000"))),
+            new XElement(A + "lin", new XAttribute("ang", 0)));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveGradientFill(gradFill, BuildTestTheme(), 200, 100));
+    }
+
     // --- ResolveLineStyle --------------------------------------------------------------------------
 
     /// <summary>Resolve Line Style - Null Element - Returns Null.</summary>

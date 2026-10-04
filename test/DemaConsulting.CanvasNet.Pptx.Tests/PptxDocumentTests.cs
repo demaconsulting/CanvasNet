@@ -559,6 +559,260 @@ public class PptxDocumentTests
         Assert.Throws<InvalidDataException>(() => document.ResolvePart("ppt/missing.xml"));
     }
 
+    // --- Package-layer hardening: case-sensitive part names, bounded XML, root/attribute validation ---
+
+    /// <summary>
+    ///     Proves two part names differing only by case (<c>Slide1.xml</c> vs <c>slide1.xml</c>)
+    ///     are treated as two distinct parts, each independently resolvable - per OPC's own
+    ///     ordinal (case-sensitive) part-name comparison rule.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_ResolvePart_PartNamesDifferingOnlyByCase_ResolveAsDistinctParts()
+    {
+        // Arrange
+        const string contentTypesXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
+              <Default Extension="xml" ContentType="application/xml" />
+              <Override PartName="/ppt/slides/Slide1.xml" ContentType="application/vnd.example.uppercase+xml" />
+              <Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.example.lowercase+xml" />
+            </Types>
+            """;
+        using var stream = BuildPackage(
+            ("[Content_Types].xml", contentTypesXml),
+            ("_rels/.rels", DefaultPackageRelsXml),
+            ("ppt/presentation.xml", DefaultPresentationXml),
+            ("ppt/_rels/presentation.xml.rels", DefaultPresentationRelsXml),
+            ("ppt/slides/Slide1.xml", "<uppercase/>"),
+            ("ppt/slides/slide1.xml", "<lowercase/>"));
+        using var document = PptxDocument.Open(stream);
+
+        // Act
+        var upperContentType = document.ResolvePart("ppt/slides/Slide1.xml");
+        var lowerContentType = document.ResolvePart("ppt/slides/slide1.xml");
+
+        // Assert
+        Assert.Equal("application/vnd.example.uppercase+xml", upperContentType);
+        Assert.Equal("application/vnd.example.lowercase+xml", lowerContentType);
+    }
+
+    /// <summary>
+    ///     Proves an incorrectly-cased reserved part name (<c>[content_types].xml</c>, not the
+    ///     exact <c>[Content_Types].xml</c>) is never accepted as the reserved content-types part,
+    ///     since OPC part-name comparison is ordinal (case-sensitive).
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Open_WrongCaseContentTypesPartName_ThrowsInvalidDataException()
+    {
+        // Arrange
+        using var stream = BuildPackage(
+            ("[content_types].xml", DefaultContentTypesXml),
+            ("_rels/.rels", DefaultPackageRelsXml));
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => PptxDocument.Open(stream));
+    }
+
+    /// <summary>
+    ///     Proves a package containing two ZIP entries with exactly identical names throws
+    ///     <see cref="InvalidDataException"/> (a malformed/corrupt ZIP, never legitimate for a
+    ///     well-formed OPC package).
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Open_DuplicateEntryNames_ThrowsInvalidDataException()
+    {
+        // Arrange: ZipArchive itself allows creating two entries with the same name.
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var _ in new[] { 0, 1 })
+            {
+                var entry = archive.CreateEntry("[Content_Types].xml");
+                using var entryStream = entry.Open();
+                using var writer = new StreamWriter(entryStream, Encoding.UTF8);
+                writer.Write(DefaultContentTypesXml);
+            }
+        }
+
+        stream.Position = 0;
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => PptxDocument.Open(stream));
+    }
+
+    /// <summary>
+    ///     Proves an oversized <c>[Content_Types].xml</c> part (exceeding the bounded XML parser's
+    ///     character budget - an "XML bomb"/zip-bomb-style attack) throws
+    ///     <see cref="InvalidDataException"/> rather than exhausting memory while parsing.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Open_OversizedContentTypesPart_ThrowsInvalidDataException()
+    {
+        // Arrange: pad with an oversized comment so the part exceeds the parser's character
+        // budget well before any genuine content-types declaration is reached.
+        var padding = new string('x', 2_100_000);
+        var oversizedContentTypesXml =
+            $"""
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <!--{padding}-->
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
+              <Default Extension="xml" ContentType="application/xml" />
+            </Types>
+            """;
+        using var stream = BuildPackage(
+            ("[Content_Types].xml", oversizedContentTypesXml),
+            ("_rels/.rels", DefaultPackageRelsXml));
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => PptxDocument.Open(stream));
+    }
+
+    /// <summary>
+    ///     Proves <c>[Content_Types].xml</c> with a malformed root element (neither named
+    ///     <c>Types</c> nor in the content-types namespace) throws
+    ///     <see cref="InvalidDataException"/>, rather than silently finding zero
+    ///     <c>Default</c>/<c>Override</c> children and proceeding.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Open_ContentTypesWrongRoot_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string wrongRootContentTypesXml =
+            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Root/>""";
+        using var stream = BuildPackage(
+            ("[Content_Types].xml", wrongRootContentTypesXml),
+            ("_rels/.rels", DefaultPackageRelsXml));
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => PptxDocument.Open(stream));
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;Default&gt;</c> element missing its required <c>Extension</c> or
+    ///     <c>ContentType</c> attribute throws <see cref="InvalidDataException"/> rather than
+    ///     being silently discarded.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Open_ContentTypesDefaultMissingRequiredAttribute_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string contentTypesWithBadDefaultXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default ContentType="application/xml" />
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
+            </Types>
+            """;
+        using var stream = BuildPackage(
+            ("[Content_Types].xml", contentTypesWithBadDefaultXml),
+            ("_rels/.rels", DefaultPackageRelsXml));
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => PptxDocument.Open(stream));
+    }
+
+    /// <summary>
+    ///     Proves an <c>&lt;Override&gt;</c> element missing its required <c>PartName</c> or
+    ///     <c>ContentType</c> attribute throws <see cref="InvalidDataException"/> rather than
+    ///     being silently discarded.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Open_ContentTypesOverrideMissingRequiredAttribute_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string contentTypesWithBadOverrideXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
+              <Default Extension="xml" ContentType="application/xml" />
+              <Override ContentType="application/xml" />
+            </Types>
+            """;
+        using var stream = BuildPackage(
+            ("[Content_Types].xml", contentTypesWithBadOverrideXml),
+            ("_rels/.rels", DefaultPackageRelsXml));
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => PptxDocument.Open(stream));
+    }
+
+    /// <summary>
+    ///     Proves a <c>.rels</c> part with a malformed root element (neither named
+    ///     <c>Relationships</c> nor in the relationships namespace) throws
+    ///     <see cref="InvalidDataException"/>, rather than silently finding zero
+    ///     <c>Relationship</c> children and proceeding.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Open_PackageRelsWrongRoot_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string wrongRootRelsXml =
+            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><wrongRoot/>""";
+        using var stream = BuildPackage(
+            ("[Content_Types].xml", DefaultContentTypesXml),
+            ("_rels/.rels", wrongRootRelsXml));
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => PptxDocument.Open(stream));
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;Relationship&gt;</c> element missing a required attribute (<c>Id</c>,
+    ///     <c>Type</c>, or <c>Target</c>) throws <see cref="InvalidDataException"/> rather than
+    ///     being silently skipped.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Open_RelationshipMissingRequiredAttribute_ThrowsInvalidDataException()
+    {
+        // Arrange: this <Relationship> has no 'Type' attribute.
+        const string relsWithBadRelationshipXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Target="ppt/presentation.xml" />
+            </Relationships>
+            """;
+        using var stream = BuildPackage(
+            ("[Content_Types].xml", DefaultContentTypesXml),
+            ("_rels/.rels", relsWithBadRelationshipXml));
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => PptxDocument.Open(stream));
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PptxDocument.ResolveRelationship"/> throws
+    ///     <see cref="InvalidDataException"/> for a relationship declaring
+    ///     <c>TargetMode="External"</c>, which this phase does not support.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_ResolveRelationship_ExternalTargetMode_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string externalRelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml" />
+              <Relationship Id="rIdExternal" Type="http://example.com/external" Target="https://example.com/external-resource" TargetMode="External" />
+            </Relationships>
+            """;
+        using var stream = BuildPackage(
+            ("[Content_Types].xml", DefaultContentTypesXml),
+            ("_rels/.rels", externalRelsXml),
+            ("ppt/presentation.xml", DefaultPresentationXml),
+            ("ppt/_rels/presentation.xml.rels", DefaultPresentationRelsXml));
+        using var document = PptxDocument.Open(stream);
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => document.ResolveRelationship(string.Empty, "rIdExternal"));
+    }
+
     /// <summary>Proves <see cref="PptxDocument.Open(Stream)"/> rejects a null stream.</summary>
     [Fact]
     public void PptxDocument_Open_NullStream_ThrowsArgumentNullException()
@@ -680,6 +934,34 @@ public class PptxDocumentTests
         Assert.Throws<InvalidDataException>(() => PptxDocument.Open(stream));
     }
 
+    /// <summary>
+    ///     Proves a <c>&lt;p:sldId r:id="..."/&gt;</c> whose relationship resolves but whose
+    ///     <c>Type</c> does not identify a slide part (here, a theme relationship type) throws
+    ///     <see cref="InvalidDataException"/> at <see cref="PptxDocument.Open(Stream)"/> time,
+    ///     rather than only later surfacing from <see cref="PptxDocument.GetSlide(int)"/>.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Open_SlideIdRelationshipWrongType_ThrowsInvalidDataException()
+    {
+        // Arrange: rId2's Type ends with "/theme", not "/slide", even though its target path
+        // ("slides/slide1.xml") looks plausible.
+        const string wrongTypePresentationRelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="slides/slide1.xml" />
+            </Relationships>
+            """;
+        using var stream = BuildPackage(
+            ("[Content_Types].xml", DefaultContentTypesXml),
+            ("_rels/.rels", OfficeDocumentPackageRelsXml),
+            ("ppt/presentation.xml", BuildPresentationXml(ValidSldSz, 1)),
+            ("ppt/_rels/presentation.xml.rels", wrongTypePresentationRelsXml));
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => PptxDocument.Open(stream));
+    }
+
     /// <summary>Proves <see cref="PptxDocument.GetSlideSizeInPixels"/> computes the expected pixel size at a known DPI.</summary>
     [Fact]
     public void PptxDocument_GetSlideSizeInPixels_ValidDpi_ComputesExpectedPixelSize()
@@ -711,6 +993,28 @@ public class PptxDocumentTests
         // Act / Assert
         Assert.Throws<ArgumentOutOfRangeException>(() => document.GetSlideSizeInPixels(0f));
         Assert.Throws<ArgumentOutOfRangeException>(() => document.GetSlideSizeInPixels(float.NaN));
+    }
+
+    /// <summary>
+    ///     Proves an oversized declared slide dimension, which overflows <see cref="int"/> once
+    ///     converted to pixels at the requested DPI, throws <see cref="InvalidDataException"/>
+    ///     rather than silently wrapping/truncating to an incorrect pixel size.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_GetSlideSizeInPixels_OversizedDimension_ThrowsInvalidDataException()
+    {
+        // Arrange: 9,000,000,000,000 EMU at 300 DPI converts to roughly 2.95 billion pixels,
+        // which overflows int.MaxValue (~2.147 billion).
+        const string oversizedSldSz = """<p:sldSz cx="9000000000000" cy="6858000"/>""";
+        using var stream = BuildPackage(
+            ("[Content_Types].xml", DefaultContentTypesXml),
+            ("_rels/.rels", OfficeDocumentPackageRelsXml),
+            ("ppt/presentation.xml", BuildPresentationXml(oversizedSldSz, 1)),
+            ("ppt/_rels/presentation.xml.rels", BuildPresentationRelsXml(1)));
+        using var document = PptxDocument.Open(stream);
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => document.GetSlideSizeInPixels(300f));
     }
 
     // --- Phase 1b: theme parsing -------------------------------------------------------------
@@ -756,6 +1060,48 @@ public class PptxDocumentTests
 
         // Assert
         Assert.Equal(new Rgba32(0x11, 0x22, 0x33, 255), theme.ColorScheme.Dark1);
+    }
+
+    /// <summary>
+    ///     Proves an eight-digit <c>AARRGGBB</c> color value (not OOXML's own always-six-digit
+    ///     <c>RRGGBB</c> form) is rejected with <see cref="InvalidDataException"/> rather than
+    ///     silently accepted with its first byte misread as alpha.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_GetTheme_SrgbClrEightDigitValue_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string themeXmlWithEightDigitColor =
+            """
+            <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="TestTheme">
+              <a:themeElements>
+                <a:clrScheme name="Test">
+                  <a:dk1><a:srgbClr val="FF010101"/></a:dk1>
+                  <a:lt1><a:srgbClr val="020202"/></a:lt1>
+                  <a:dk2><a:srgbClr val="030303"/></a:dk2>
+                  <a:lt2><a:srgbClr val="040404"/></a:lt2>
+                  <a:accent1><a:srgbClr val="050505"/></a:accent1>
+                  <a:accent2><a:srgbClr val="060606"/></a:accent2>
+                  <a:accent3><a:srgbClr val="070707"/></a:accent3>
+                  <a:accent4><a:srgbClr val="080808"/></a:accent4>
+                  <a:accent5><a:srgbClr val="090909"/></a:accent5>
+                  <a:accent6><a:srgbClr val="0a0a0a"/></a:accent6>
+                  <a:hlink><a:srgbClr val="0b0b0b"/></a:hlink>
+                  <a:folHlink><a:srgbClr val="0c0c0c"/></a:folHlink>
+                </a:clrScheme>
+                <a:fontScheme name="TestFonts">
+                  <a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface="MajorEA"/><a:cs typeface="MajorCS"/></a:majorFont>
+                  <a:minorFont><a:latin typeface="Calibri"/><a:ea typeface="MinorEA"/><a:cs typeface="MinorCS"/></a:minorFont>
+                </a:fontScheme>
+              </a:themeElements>
+            </a:theme>
+            """;
+        using var stream = BuildPackage(
+            [.. MinimalOpenableEntries(), ("ppt/theme/theme1.xml", themeXmlWithEightDigitColor)]);
+        using var document = PptxDocument.Open(stream);
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => document.GetTheme("ppt/theme/theme1.xml"));
     }
 
     /// <summary>Proves the font scheme's major/minor typefaces (Latin/East Asian/complex script) resolve correctly.</summary>

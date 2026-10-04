@@ -82,12 +82,16 @@ public class PptxSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Opens a well-formed, minimal presentation package end-to-end and proves both its
-    ///     package-level relationship and its overridden part content type resolve correctly -
+    ///     Opens a well-formed, minimal presentation package end-to-end and proves its
+    ///     package-level relationship and presentation-part content resolve correctly -
     ///     demonstrating the "open once, resolve package structure" property that
-    ///     <see cref="PptxDocument"/>'s Phase 1a package layer exists to provide. This is also the
-    ///     shared platform-proof test referenced by every <c>CanvasNetPptx-Platform-*</c>
-    ///     requirement.
+    ///     <see cref="PptxDocument"/>'s Phase 1a package layer exists to provide - purely through
+    ///     the public <see cref="PptxDocument"/> surface (<see cref="PptxDocument.SlideCount"/>/
+    ///     <see cref="PptxDocument.SlideSize"/>), matching this suite's own stated intent of
+    ///     exercising only consumer-visible behavior (the equivalent internal-API assertions,
+    ///     calling <c>ResolveRelationship</c>/<c>ResolvePart</c> directly, already live in the
+    ///     unit-level <see cref="PptxDocumentTests"/>). This is also the shared platform-proof
+    ///     test referenced by every <c>CanvasNetPptx-Platform-*</c> requirement.
     /// </summary>
     [Fact]
     public void CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage()
@@ -97,14 +101,10 @@ public class PptxSystemIntegrationTests
 
         // Act
         using var document = PptxDocument.Open(stream);
-        var presentationPartPath = document.ResolveRelationship(string.Empty, "rId1");
-        var presentationContentType = document.ResolvePart(presentationPartPath);
 
         // Assert
-        Assert.Equal("ppt/presentation.xml", presentationPartPath);
-        Assert.Equal(
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
-            presentationContentType);
+        Assert.Equal(1, document.SlideCount);
+        Assert.Equal(new PptxSlideSize(9144000, 6858000), document.SlideSize);
     }
 
     /// <summary>Proves <see cref="PptxDocument.Open(Stream)"/> rejects a null stream argument end-to-end.</summary>
