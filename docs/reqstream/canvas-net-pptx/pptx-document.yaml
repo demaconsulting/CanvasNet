@@ -3,7 +3,7 @@
 #
 # cspell:ignore ooxml pptx srgb xfrm prst cust patt bodyPr normAutofit noAutofit spAutoFit pPr
 # cspell:ignore rPr txBody txStyles lstStyle defRPr ctrTitle lIns tIns rIns bIns algn marL lnSpc
-# cspell:ignore spcBef spcAft justLow lnSpcReduction fontScale lvl ordinally mistargeted
+# cspell:ignore spcBef spcAft justLow lnSpcReduction fontScale lvl ordinally mistargeted unrenderable
 #
 # These requirements describe the design-level behavior of the PptxDocument unit.
 #
@@ -1011,3 +1011,87 @@ sections:
               - TryParsePlaceholder_FreeformShape_ReturnsNull
               - TryParsePlaceholder_NoTypeOrIdxAttributes_DefaultsToObjAndZero
               - TryParsePlaceholder_NonNumericIdx_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-SlideRendering
+            title: >-
+              The PptxDocument class shall render a slide's full PptxSlide.ShapeTree onto a
+              destination Surface by walking it recursively in document order with an
+              accumulating transform seeded from the base EMU-to-pixel scale, composing a
+              PptxGroupShapeNode's own already-resolved ChildTransform into that accumulator
+              before recursing into its children, resolving a PptxSpShapeNode's effective shape
+              properties (via ResolvePlaceholderProperties for a placeholder, or directly from its
+              own spPr for a freeform shape) and painting its geometry/fill/stroke and, when
+              present, its own slide-level text body via the Phase 1d text pipeline, painting a
+              PptxPictureShapeNode's embedded image via the Phase 1e picture pipeline, and
+              painting a PptxGraphicFrameShapeNode's already-parsed table via PaintTable using the
+              graphic frame's own direct p:xfrm child, while silently skipping a shape, picture, or
+              graphic frame whose geometry resolves no a:xfrm/p:xfrm element anywhere in its own
+              ancestry, or a picture with no p:blipFill.
+            justification: |
+              Every geometry/paint/text/image/table primitive this requirement composes was
+              already independently verified by Phase 1c/1d/1e's own unit tests; this requirement's
+              own responsibility is purely the shape-tree walk and per-node-kind dispatch that
+              wires those primitives together in the correct document order and coordinate space,
+              which no earlier phase exercised end-to-end. A placeholder shape's text is read from
+              the slide-level shape element's own txBody, never from a layout/master placeholder's
+              text, because ResolvePlaceholderProperties only ever carries styling, never content -
+              conflating the two would silently render stale layout boilerplate text instead of a
+              slide's own authored content. Skipping a position-less shape or an image-less
+              picture silently, rather than throwing, matches ParseShapeTree's own established
+              tolerant-tree-walk precedent (see CanvasNetPptx-PptxDocument-ShapeTree above);
+              treating a malformed-but-unused construct as fatal would make an otherwise-renderable
+              slide unrenderable over a single unused, incidental shape.
+            tests:
+              - Render_SingleFullSlideShape_PaintsFillColorAcrossSurface
+              - Render_EmptyShapeTree_RendersOnlyBackground
+              - Render_SmallPixelDimensionsAgainstLargeEmuSlideSize_DoesNotTruncateTransformToZero
+              - Render_TwoOverlappingShapes_LaterShapePaintsOnTopInDocumentOrder
+              - Render_ShapeWithNoXfrm_SkippedSilently
+              - Render_ConnectorShape_SkippedSilentlyWithoutError
+              - Render_NestedGroup_ComposesChildTransformIntoExpectedSurfaceLocation
+              - Render_DoublyNestedGroups_EachComposeOwnChildTransform
+              - Render_Picture_PaintsEmbeddedImageAtExpectedLocation
+              - Render_PictureMissingBlipFill_SkippedSilently
+              - Render_Table_PaintsCellFillAcrossCellRectangle
+              - Render_GraphicFrameMissingXfrm_SkippedSilently
+              - Render_NonPlaceholderShapeWithText_PaintsGlyphInkInsideShapeRectangle
+              - Render_PlaceholderShape_ReadsTextFromSlideLevelShapeNotLayout
+
+          - id: CanvasNetPptx-PptxDocument-RenderPublicApi
+            title: >-
+              The PptxDocument class shall expose public Render(int slideIndex, int width, int
+              height, PptxRenderOptions? options = null) and Render(int slideIndex, float dpi,
+              PptxRenderOptions? options = null) overloads that each validate a disposed document,
+              an out-of-range slideIndex, non-positive width/height, and a non-positive or
+              non-finite dpi by throwing ObjectDisposedException or ArgumentOutOfRangeException
+              respectively before any rendering work begins, shall compute the dpi overload's own
+              pixel width/height from the slide's own SlideSize EMU dimensions using the same
+              EMU-per-inch convention as DemaConsulting.CanvasNet.Pdf.PdfDocument's own DPI
+              overload, and shall clear the destination Surface to options.BackgroundColor (or
+              PptxRenderOptions.Default's opaque white when options is null) before painting any
+              shape.
+            justification: |
+              Validating every argument before any rendering work begins - rather than allowing a
+              later internal resolver to throw a less specific or less helpfully-named exception -
+              keeps this API's own failure modes consistent with every other public entry point in
+              this codebase (see CanvasNetPptx-PptxDocument's own earlier public-API requirements).
+              Reusing PdfDocument's own DPI-to-pixel-dimension convention keeps the two sibling
+              format renderers' public APIs symmetric for a caller already familiar with one of
+              them. Clearing to a caller-supplied background color before painting - defaulting to
+              opaque white - mirrors PdfRenderOptions's own convention and gives a caller painting
+              a slide with transparent or partially-covered shapes a predictable, non-garbage
+              background rather than undefined pixel contents.
+            tests:
+              - Render_DefaultOptions_ClearsUnpaintedAreaToOpaqueWhite
+              - Render_CustomBackgroundColor_ClearsToThatColor
+              - Render_FullyTransparentBackgroundColor_ClearsToTransparent
+              - Render_NegativeSlideIndex_ThrowsArgumentOutOfRangeException
+              - Render_SlideIndexAtSlideCount_ThrowsArgumentOutOfRangeException
+              - Render_NonPositiveWidth_ThrowsArgumentOutOfRangeException
+              - Render_NonPositiveHeight_ThrowsArgumentOutOfRangeException
+              - Render_DisposedDocument_ThrowsObjectDisposedException
+              - Render_Dpi_NonPositiveDpi_ThrowsArgumentOutOfRangeException
+              - Render_Dpi_NonFiniteDpi_ThrowsArgumentOutOfRangeException
+              - Render_Dpi_NegativeSlideIndex_ThrowsArgumentOutOfRangeException
+              - Render_Dpi_SlideIndexAtSlideCount_ThrowsArgumentOutOfRangeException
+              - Render_DpiOverload_ComputesExpectedPixelDimensionsFromSlideSize

@@ -8,7 +8,7 @@
 <!-- cspell:ignore normAutofit spAutoFit spcPct spcPts -->
 <!-- cspell:ignore srcRect blipFill grpSp grpSpPr nvGrpSpPr cxnSp tblGrid gridCol tblPr tcPr -->
 <!-- cspell:ignore lnL lnR lnT lnB pattFill hMerge vMerge gridSpan rowSpan tableStyleId -->
-<!-- cspell:ignore graphicFrame graphicData contentPart -->
+<!-- cspell:ignore graphicFrame graphicData contentPart unrenderable -->
 
 `PptxDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pptx` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pptx`), which references the core `DemaConsulting.CanvasNet`
@@ -686,10 +686,10 @@ design cost:
   use each glyph's own unscaled advance width only.
 - **Text clipping on overflow** - an overflowing text block is positioned exactly as computed,
   without being clipped to the shape's own bounding box (see _Text Layout_ above).
-- **A full per-slide public `Render` API** - this phase delivers the text-layout/rendering
-  _primitives_ (`ResolveTextLayout`/`PaintTextLayout`), not a complete shape-tree-walking,
-  slide-level rendering entry point; deferred to a later phase alongside full group-shape
-  semantics (see _Geometry and Paint (Phase 1c)_'s own deferred-items list above).
+
+A full per-slide public `Render` API is deferred to a later phase alongside full group-shape
+semantics and picture/table support (see _Images, Tables, and Shape Tree (Phase 1e)_ and _Full
+Slide Rendering (Phase 1f)_ below).
 
 ### Images, Tables, and Shape Tree (Phase 1e)
 
@@ -905,8 +905,97 @@ design cost:
 - **Group-level style cascading** - a group's own `<p:grpSpPr>` (for example an inherited line/
   fill style flowing down to a child with no `<p:spPr>` of its own) is not implemented; each
   child shape's own properties are resolved independently of its enclosing group's properties.
-- **A full per-slide public `Render` API** - this phase delivers picture/table/shape-tree
-  _parsing and painting primitives_, not a complete shape-tree-walking, slide-level rendering
-  entry point that paints every `PptxShapeTreeNode` in document order; deferred to a later phase
-  alongside Phase 1d's own equivalent deferral (see _Text Layout and Rendering (Phase 1d)_'s own
-  deferred-items list above).
+
+A full per-slide public `Render` API is deferred to a later phase (see _Full Slide Rendering
+(Phase 1f)_ below).
+
+### Full Slide Rendering (Phase 1f)
+
+Phase 1f adds the public, slide-level rendering API (`PptxDocument.Render.cs`):
+`Render(int slideIndex, int width, int height, PptxRenderOptions? options = null)` and a DPI
+convenience overload `Render(int slideIndex, float dpi, PptxRenderOptions? options = null)`,
+mirroring `DemaConsulting.CanvasNet.Pdf.PdfDocument.Render`'s own public API shape/semantics as
+closely as PPTX's different, EMU-based, rotation-free slide geometry model allows. This phase is
+purely integration - no new geometry/paint/text/image/table resolution logic is introduced; every
+pixel painted is produced by an already-verified Phase 1c/1d/1e resolver or painter.
+
+#### Rendering Options
+
+`PptxRenderOptions` mirrors `PdfRenderOptions`'s own shape: a `sealed` class with a single
+`init`-only `BackgroundColor` property (defaulting to opaque white) and a `Default` static
+instance, so future rendering options can be added as new properties without a breaking change
+to `Render`'s own signature.
+
+#### Base Transform
+
+`Render` builds the EMU-to-pixel base transform directly from the slide's own `SlideSize` (EMU)
+and the requested pixel width/height:
+
+```text
+baseTransform = Scale(width / SlideSize.WidthEmu, height / SlideSize.HeightEmu)
+```
+
+Unlike `PdfDocument`'s own `BuildBaseCtm`, this transform needs no page-rotation handling (PPTX
+slides have no rotation concept analogous to a PDF page's own `/Rotate` entry) and no y-axis flip
+(PPTX's coordinate space is already y-down, matching this library's own surface convention - see
+_Picture Decoding, Cropping, and Painting_'s own "Deliberate divergence from the PDF renderer"
+note in the Phase 1e section above for the same point applied to picture compositing).
+`SlideSize.WidthEmu`/`HeightEmu` are `long`; both are explicitly
+cast to a floating-point type before dividing, so a requested pixel size far smaller than the
+slide's own EMU magnitude does not truncate the transform to a zero scale factor via integer
+division.
+
+#### Shape-Tree Walk and Per-Node-Kind Dispatch
+
+`Render` resolves the slide's layout/master/theme chain once, eagerly, at the top of the method -
+unlike `GetSlide`'s own lazy, invoke-on-demand theme resolution (see _Shape Tree_ in the Phase 1e
+section above) - because virtually any shape's own fill or text can reference a theme scheme
+color at paint time, not only a table's own cell fills. It then walks the slide's own
+`PptxSlide.ShapeTree` (Phase 1e) recursively, in document order, threading an accumulating
+`Matrix3x2` transform (starting from the base transform above) through each node:
+
+- **`PptxGroupShapeNode`**: composes its own `ChildTransform` (already resolved by
+  `ParseShapeTree` via `ResolveGroupChildTransform` - not re-resolved here) with the accumulated
+  parent transform, then recurses into its own `Children` with the composed transform.
+- **`PptxSpShapeNode`** (an ordinary or placeholder shape): resolves its effective `<p:spPr>` -
+  for a placeholder, via `ResolvePlaceholderProperties` walking the slide → layout → master
+  chain; for a freeform shape, directly from its own `<p:spPr>` - resolves its geometry (
+  `ResolveShapeGeometry`) and fill/stroke (`ResolveFill`/`ResolveLineStyle`/
+  `ResolveStrokeOutline`), paints them, and then, if the shape declares its own `<p:txBody>`,
+  resolves and paints its text via `ResolveTextLayout`/`PaintTextLayout`. A placeholder's own
+  text content is always read from the slide-level shape element's own `<p:txBody>` - never from
+  a layout/master placeholder's own text, which supplies styling only, never content (confirmed
+  by a dedicated test, `Render_PlaceholderShape_ReadsTextFromSlideLevelShapeNotLayout`). A
+  non-placeholder shape's text resolves its placeholder properties as
+  `new PptxPlaceholderProperties(null, null, theme, master.TxStyles)` - the fuller form carrying
+  the master's own text styles, distinct from `PaintTable`'s own narrower, cell-scoped
+  `new PptxPlaceholderProperties(null, null, theme)`.
+- **`PptxPictureShapeNode`**: resolves and composites its embedded image via
+  `ResolvePictureSurface`/`ResolveSrcRect`/`PaintPicture` (Phase 1e).
+- **`PptxGraphicFrameShapeNode`**: paints its already-parsed `PptxTable` via `PaintTable` (Phase
+  1e), using the graphic frame's own direct `<p:xfrm>` child - **not** nested in a `<p:spPr>`
+  like an ordinary shape or picture, per ECMA-376's `CT_GraphicalObjectFrame` content model.
+
+A `<p:cxnSp>` connector shape is never represented in the parsed shape tree at all (see _Shape
+Tree_ in the Phase 1e section above) - there is no connector case in `Render`'s own dispatch, and
+none is needed.
+
+#### Tolerant Skip Policy
+
+A shape, picture, or graphic-frame whose fully-resolved geometry element declares no `<a:xfrm>`/
+`<p:xfrm>` anywhere in its own ancestry is **skipped silently**, not treated as an error - a
+position-less shape is a genuinely unrenderable (not malformed) construct this phase tolerates,
+mirroring `ParseShapeTree`'s own established "tolerant tree walk" precedent (see _Shape Tree_
+above). The same policy applies to a `<p:pic>` missing its own `<p:blipFill>`.
+
+#### Deferred to a Later Phase (Phase 1f)
+
+With this phase, the planned PPTX 1.0 feature set is complete. The following remain
+unimplemented, carried forward unchanged from Phase 1d/1e's own deferred-items lists (see above):
+a slide's own `<p:bg>` background fill (no parsing support exists anywhere in this codebase),
+`<p:cxnSp>` connector shapes, nested tables, table auto-sizing/banding, group-level style
+cascading beyond transform composition, picture effects/shadows, master/layout full shape-tree
+rendering, bullets/numbering, full text justification, `<a:spAutoFit>` shape-resize autofit,
+kerning, and text clipping on overflow. None of these is a currently planned phase; any of them
+remaining important is a candidate for a future, corpus-driven hardening pass (`pptx-phase-2`),
+not a scheduled increment of this unit's own design.

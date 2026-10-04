@@ -857,6 +857,8 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Tables.cs"  # phase 1e unit source (table parsing/painting)
       - "src/DemaConsulting.CanvasNet.Pptx/PptxShapeTree.cs"  # phase 1e unit source (shape-tree node model)
       - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.ShapeTree.cs"  # phase 1e unit source (shape-tree parsing)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxRenderOptions.cs"  # phase 1f unit source (render options)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Render.cs"  # phase 1f unit source (public Render API)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxGeometryTests.cs"  # phase 1c unit tests (geometry)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxPaintTests.cs"  # phase 1c unit tests (paint)
@@ -867,6 +869,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxTablesTests.cs"  # phase 1e unit tests (tables)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxGroupsTests.cs"  # phase 1e unit tests (shape tree/groups)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxSystemIntegrationTests.cs"  # integration tests
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxRenderTests.cs"  # phase 1f unit tests (render API)
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark

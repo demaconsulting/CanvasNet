@@ -788,6 +788,68 @@ callable helper with no behavior change - confirmed by re-running the full pre-e
 the `"obj"`/`0` schema defaults when `type`/`idx` attributes are omitted, and rejects a
 non-numeric `idx` attribute with `InvalidDataException`.
 
+### Full Slide Rendering (Phase 1f) Test Scenarios
+
+#### CanvasNetPptx-PptxDocument-SlideRendering: Shape-Tree Walk and Per-Node-Kind Dispatch
+
+**Tests**: `Render_SingleFullSlideShape_PaintsFillColorAcrossSurface`,
+`Render_EmptyShapeTree_RendersOnlyBackground`,
+`Render_SmallPixelDimensionsAgainstLargeEmuSlideSize_DoesNotTruncateTransformToZero`,
+`Render_TwoOverlappingShapes_LaterShapePaintsOnTopInDocumentOrder`,
+`Render_ShapeWithNoXfrm_SkippedSilently`,
+`Render_ConnectorShape_SkippedSilentlyWithoutError`,
+`Render_NestedGroup_ComposesChildTransformIntoExpectedSurfaceLocation`,
+`Render_DoublyNestedGroups_EachComposeOwnChildTransform`,
+`Render_Picture_PaintsEmbeddedImageAtExpectedLocation`,
+`Render_PictureMissingBlipFill_SkippedSilently`,
+`Render_Table_PaintsCellFillAcrossCellRectangle`,
+`Render_GraphicFrameMissingXfrm_SkippedSilently`,
+`Render_NonPlaceholderShapeWithText_PaintsGlyphInkInsideShapeRectangle`,
+`Render_PlaceholderShape_ReadsTextFromSlideLevelShapeNotLayout`
+
+Proves a single full-slide shape's resolved fill paints across the destination surface, proves a
+slide with no shapes at all renders only the cleared background, proves rendering at a pixel size
+far smaller than the slide's own EMU magnitude does not truncate the EMU-to-pixel transform to a
+zero scale factor via integer division, proves two overlapping shapes composite in document order
+(the later shape paints on top of the earlier one), proves a shape with no resolvable `<a:xfrm>`
+is skipped silently rather than throwing, proves a slide containing only a `<p:cxnSp>` connector
+renders without error and paints nothing (connectors are never represented in the parsed shape
+tree at all), proves a shape nested inside a `<p:grpSp>` is painted at the expected surface
+location after composing the group's own child transform with the base transform, proves doubly
+nested groups each compose their own child transform independently through two full levels of
+recursion, proves a `<p:pic>` paints its embedded image at the expected surface location, proves
+a `<p:pic>` missing its own `<p:blipFill>` is skipped silently, proves a `<p:graphicFrame>`'s
+table paints a cell's own resolved fill across its cell rectangle, proves a `<p:graphicFrame>`
+missing its own direct `<p:xfrm>` child is skipped silently, proves a non-placeholder shape's own
+text body paints glyph ink somewhere inside the shape's own rectangle, and proves a placeholder
+shape's text is read from the slide-level shape element's own `<p:txBody>` rather than from its
+matched layout placeholder (which supplies styling only).
+
+#### CanvasNetPptx-PptxDocument-RenderPublicApi: Public API Argument Validation and DPI Convenience Overload
+
+**Tests**: `Render_DefaultOptions_ClearsUnpaintedAreaToOpaqueWhite`,
+`Render_CustomBackgroundColor_ClearsToThatColor`,
+`Render_FullyTransparentBackgroundColor_ClearsToTransparent`,
+`Render_NegativeSlideIndex_ThrowsArgumentOutOfRangeException`,
+`Render_SlideIndexAtSlideCount_ThrowsArgumentOutOfRangeException`,
+`Render_NonPositiveWidth_ThrowsArgumentOutOfRangeException`,
+`Render_NonPositiveHeight_ThrowsArgumentOutOfRangeException`,
+`Render_DisposedDocument_ThrowsObjectDisposedException`,
+`Render_Dpi_NonPositiveDpi_ThrowsArgumentOutOfRangeException`,
+`Render_Dpi_NonFiniteDpi_ThrowsArgumentOutOfRangeException`,
+`Render_Dpi_NegativeSlideIndex_ThrowsArgumentOutOfRangeException`,
+`Render_Dpi_SlideIndexAtSlideCount_ThrowsArgumentOutOfRangeException`,
+`Render_DpiOverload_ComputesExpectedPixelDimensionsFromSlideSize`
+
+Proves `Render` clears its destination surface to `PptxRenderOptions.Default`'s opaque white when
+no options are supplied, proves a caller-supplied `BackgroundColor` (including a fully transparent
+one) clears the surface to that exact color instead, proves both overloads reject a negative or
+out-of-range `slideIndex`, a non-positive `width`/`height`, a disposed document, and - for the DPI
+overload only - a non-positive or non-finite `dpi`, each with `ArgumentOutOfRangeException` or
+`ObjectDisposedException` as appropriate, and proves the DPI convenience overload computes the
+expected pixel width/height from the slide's own EMU `SlideSize` (a 10in by 7.5in slide at 96 DPI
+renders a 960 by 720 pixel surface).
+
 ## Acceptance Criteria
 
 A unit-level test run passes when all scenarios above pass without error or exception beyond
@@ -816,14 +878,20 @@ recursive, full shape-tree parsing/dispatch across `<p:sp>`/`<p:pic>`/`<p:graphi
 Linking, and Crop-Rectangle Resolution*, *Picture Compositing Without PDF's Y-Flip*, *Table
 Structure, Cell Attributes, and Verbatim Fill/Border/Text Reuse*, *Merge-Aware Cell-Rect
 Computation*, *Cell Fill, Border, and Text Painting*, and *Recursive Shape-Tree Parsing and
-Deferred Theme Resolution* Test Scenarios sections above). Not yet covered: a non-placeholder
+Deferred Theme Resolution* Test Scenarios sections above); and the public, slide-level rendering
+API that walks a slide's full shape tree in document order and paints every supported node kind
+onto a destination `Surface`, with full public-API argument validation and a DPI convenience
+overload (Phase 1f: see the *Full Slide Rendering (Phase 1f) Test Scenarios* section above). With
+Phase 1f, the planned PPTX 1.0 feature set is complete. Not yet covered: a slide's own `<p:bg>`
+background fill (no parsing support exists anywhere in this codebase), a non-placeholder
 (freeform) shape's own background fill via `<a:blipFill>`/`<a:pattFill>` inside `<p:spPr>`
-(picture/pattern fill remain scoped to a dedicated `<p:pic>` shape's own `<p:blipFill>` this
-phase), picture effects/shadows, nested tables, table auto-sizing to fit overflowing cell content
-(each row's resolved height is taken verbatim from its declared `<a:tr h="...">` value, with no
-growth to accommodate overflowing cell content), table style/banding (`<a:tableStyleId>`), `<p:cxnSp>` connector
-shapes, master/layout full shape-tree enumeration (only a slide's own shape tree is parsed),
-group-level style cascading beyond transform composition, radial/path gradients, `<a:avLst>`
-preset adjustment-value parsing, bullets/numbering, full text justification, `<a:spAutoFit>`
-shape-resize autofit, kerning, text clipping on overflow, and a full per-slide public `Render`
-API - none of these is implemented yet.
+(picture/pattern fill remain scoped to a dedicated `<p:pic>` shape's own `<p:blipFill>`), picture
+effects/shadows, nested tables, table auto-sizing to fit overflowing cell content (each row's
+resolved height is taken verbatim from its declared `<a:tr h="...">` value, with no growth to
+accommodate overflowing cell content), table style/banding (`<a:tableStyleId>`), `<p:cxnSp>`
+connector shapes, master/layout full shape-tree enumeration/rendering (only a slide's own shape
+tree is parsed/rendered), group-level style cascading beyond transform composition, radial/path
+gradients, `<a:avLst>` preset adjustment-value parsing, bullets/numbering, full text
+justification, `<a:spAutoFit>` shape-resize autofit, kerning, and text clipping on overflow.
+None of these is a currently planned phase; any of them remaining important is a candidate for a
+future, corpus-driven hardening pass (`pptx-phase-2`), not a scheduled increment.
