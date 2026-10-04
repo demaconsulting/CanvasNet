@@ -1,6 +1,6 @@
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore xfrm prst cust pptx
+// cspell:ignore xfrm prst cust pptx patt
 
 /// <summary>
 ///     Provides read-only access to a PowerPoint (<c>.pptx</c>) presentation document.

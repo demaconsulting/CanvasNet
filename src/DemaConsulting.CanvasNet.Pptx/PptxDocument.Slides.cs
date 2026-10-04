@@ -28,7 +28,14 @@ public sealed partial class PptxDocument
     ///     Thrown when the slide part is missing or not well-formed XML, when its root element is
     ///     not a PresentationML <c>&lt;p:sld&gt;</c> element, when its
     ///     <c>&lt;p:cSld&gt;/&lt;p:spTree&gt;</c> element is missing, when a placeholder's
-    ///     <c>idx</c> attribute is invalid, or when it has no <c>/slideLayout</c> relationship.
+    ///     <c>idx</c> attribute is invalid, when it has no <c>/slideLayout</c> relationship, or
+    ///     (via <see cref="ParseShapeTree"/>, lazily resolving this slide's layout/master/theme
+    ///     chain only when its shape tree actually declares a <c>&lt;p:graphicFrame&gt;</c> table)
+    ///     when any part along that chain is malformed.
+    /// </exception>
+    /// <exception cref="PptxUnsupportedFeatureException">
+    ///     Thrown (via <see cref="ParseShapeTree"/>) when a <c>&lt;p:graphicFrame&gt;</c>'s
+    ///     <c>&lt;a:graphicData&gt;</c> declares a recognized-but-unsupported (non-table) kind.
     /// </exception>
     internal PptxSlide GetSlide(int slideIndex)
     {
@@ -56,7 +63,19 @@ public sealed partial class PptxDocument
         var placeholders = PptxPlaceholderParser.ParsePlaceholderShapes(spTree);
         var layoutPartPath = ResolveRelationshipByType(slidePartPath, "/slideLayout");
 
-        var slide = new PptxSlide(slidePartPath, layoutPartPath, placeholders);
+        // The shape tree's <p:graphicFrame> tables resolve their cell fills against the slide's
+        // own theme (see ParseTable's theme parameter). Resolving the layout -> master -> theme
+        // relationship chain (the same chain a caller would otherwise walk manually - see
+        // PptxSystemIntegrationTests.cs's own ResolveTheme helper) is deferred into this lambda
+        // so slides with no tables at all never require it to be walked.
+        var shapeTree = ParseShapeTree(spTree, () =>
+        {
+            var layout = GetLayout(layoutPartPath);
+            var master = GetMaster(layout.MasterPartPath);
+            return GetTheme(master.ThemePartPath);
+        });
+
+        var slide = new PptxSlide(slidePartPath, layoutPartPath, placeholders, shapeTree);
         _slideCache[slideIndex] = slide;
         return slide;
     }

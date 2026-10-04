@@ -3,6 +3,8 @@
 <!-- cspell:ignore ooxml pptx srgb xfrm prst cust patt bodyPr normAutofit noAutofit spAutoFit pPr -->
 <!-- cspell:ignore rPr txBody txStyles lstStyle defRPr lnSpc spcBef spcAft justLow fontScale -->
 <!-- cspell:ignore spcPct spcPts Ordinally -->
+<!-- cspell:ignore srcRect blipFill tblGrid gridCol tcPr hMerge vMerge gridSpan rowSpan grpSp -->
+<!-- cspell:ignore grpSpPr cxnSp graphicFrame tableStyleId spTree contentPart -->
 
 This document describes the unit-level verification strategy for the `PptxDocument` class.
 
@@ -640,6 +642,152 @@ font); the two system-integration tests additionally prove `PaintTextLayout` pai
 non-background pixel end-to-end, from a full in-memory package opened via `PptxDocument.Open`
 through `ResolveTextLayout` to a test `Surface`.
 
+#### CanvasNetPptx-PptxDocument-PictureDecodeAndCrop: Picture Decoding, Linking, and Crop-Rectangle Resolution
+
+**Tests**: `ResolveSrcRect_NoSrcRectElement_ReturnsNull`,
+`ResolveSrcRect_AllEdgesPresent_ParsesScaledFractions`,
+`ResolveSrcRect_SomeEdgesAbsent_DefaultsToZero`,
+`ResolveSrcRect_NonNumericEdgeAttribute_ThrowsInvalidDataException`,
+`ResolveSrcRect_NullBlipFillElement_ThrowsArgumentNullException`,
+`ResolvePictureSurface_EmbeddedPng_DecodesSurfaceWithExpectedPixel`,
+`ResolvePictureSurface_NoBlipElement_ThrowsInvalidDataException`,
+`ResolvePictureSurface_BlipMissingEmbedAndLink_ThrowsInvalidDataException`,
+`ResolvePictureSurface_LinkedBlipOnly_ThrowsPptxUnsupportedFeatureExceptionWithImageLinkToken`,
+`ResolvePictureSurface_UnsupportedContentType_ThrowsPptxUnsupportedFeatureExceptionWithImageFormatToken`,
+`ResolvePictureSurface_NullArguments_ThrowsArgumentNullException`
+
+Proves `ResolveSrcRect` returns `null` when `<a:srcRect>` is absent, proves it parses all four
+`l`/`t`/`r`/`b` scaled-fraction edges into a normalized `[0,1]` `PptxSrcRect` when present, proves
+each omitted edge defaults to `0`, proves a non-numeric edge attribute throws
+`InvalidDataException`, and proves a `null` `<p:blipFill>` element throws
+`ArgumentNullException`. Proves `ResolvePictureSurface` decodes a synthetic 1x1 embedded PNG media
+part (constructed via an in-memory `.pptx`-shaped ZIP package with slide/layout/master/theme/media
+parts, `BuildMinimalImagePackage`) into a `Surface` whose single pixel matches the source PNG's
+known color, proves a `<p:pic>` with no `<a:blip>` element at all throws
+`InvalidDataException`, proves a `<a:blip>` with neither `r:embed` nor `r:link` throws
+`InvalidDataException`, proves a `<a:blip>` with only `r:link` (no embedded bytes) throws
+`PptxUnsupportedFeatureException` carrying the `"pptx-image-link"` feature token, proves a media
+part whose resolved content type is not a recognized raster format throws
+`PptxUnsupportedFeatureException` carrying the `"pptx-image-format"` feature token, and proves
+null argument validation for both `picElement`/`document`.
+
+#### CanvasNetPptx-PptxDocument-PicturePainting: Picture Compositing Without PDF's Y-Flip
+
+**Tests**: `PaintPicture_IdentityTransformNoCrop_PaintsImagePixelsUnflipped`,
+`PaintPicture_TopBottomAsymmetricImage_PaintsWithoutVerticalFlip`,
+`PaintPicture_WithSrcRectCroppingLeftHalf_SamplesOnlyRightHalf`,
+`PaintPicture_TranslatedTransform_ShiftsPaintedFootprint`,
+`PaintPicture_DegenerateTransform_PaintsNothing`,
+`PaintPicture_NullSurfaceOrImage_ThrowsArgumentNullException`
+
+Proves `PaintPicture` paints a decoded image's pixels onto a destination `Surface` unchanged
+(pixel-for-pixel) under an identity shape transform with no crop, proves a deliberately
+top/bottom-asymmetric synthetic source image (a shape a symmetric image cannot substitute for,
+mirroring Phase 1d's own asymmetric-glyph regression-detection rationale) paints with its rows in
+the same top-down order as the source - **not** vertically flipped, the deliberate divergence from
+`DemaConsulting.CanvasNet.Pdf`'s own y-up image-painting convention - proves an `<a:srcRect>`
+cropping away the left half samples only the image's own right half, proves a translated shape
+transform shifts the painted footprint by the expected offset, proves a singular (non-invertible,
+for example zero-scale) shape transform paints no pixels at all rather than throwing or dividing
+by zero, and proves `null` `destination`/`image` arguments throw `ArgumentNullException`.
+
+#### CanvasNetPptx-PptxDocument-TableParsing: Table Structure, Cell Attributes, and Verbatim Fill/Border/Text Reuse
+
+**Tests**: `ParseTable_WellFormedTable_ParsesColumnsAndRows`,
+`ParseTable_MissingGraphicData_ThrowsInvalidDataException`,
+`ParseTable_NonTableGraphicFrameKind_ThrowsPptxUnsupportedFeatureExceptionWithGraphicFrameKindToken`,
+`ParseTable_MissingTblGrid_ThrowsInvalidDataException`,
+`ParseTable_GridColNonNumericWidth_ThrowsInvalidDataException`,
+`ParseTable_TrMissingHeight_ThrowsInvalidDataException`,
+`ParseTableCell_NoAttributes_DefaultsToSpanOneNoMerge`,
+`ParseTableCell_AttributesPresent_ParsesSpanAndMergeFlags`,
+`ParseTableCell_NonNumericGridSpan_ThrowsInvalidDataException`,
+`ParseTableCell_TcPrWithFillAndBorders_ResolvesFillAndBorders`,
+`ParseTableCell_NoTxBody_TextBodyIsNull`,
+`ParseTableCell_WithTxBody_ParsesTextBody`
+
+Proves `ParseTable` parses a well-formed `<a:tbl>`'s column widths, row heights, and cell
+structure into a `PptxTable`; proves a missing `<a:graphicData>` throws
+`InvalidDataException`; proves a `<a:graphicData>` whose `uri` does not end in `"/table"` throws
+`PptxUnsupportedFeatureException` carrying the `"pptx-graphic-frame-kind"` feature token; proves a
+missing `<a:tblGrid>`, a non-numeric `<a:gridCol>` `w` attribute, and a missing `<a:tr>` `h`
+attribute each throw `InvalidDataException`. Proves `ParseTableCell` defaults `gridSpan`/`rowSpan`
+to `1` and `hMerge`/`vMerge` to `false` when their attributes are absent, proves it parses each
+attribute correctly when present, proves a non-numeric `gridSpan` throws `InvalidDataException`,
+proves a cell's `<a:tcPr>` fill/border elements resolve via the already-verified Phase 1c
+`ResolveFill`/`ResolveLineStyle` resolvers, and proves a cell's `<a:txBody>` presence/absence
+resolves its `PptxTableCell.TextBody` field correctly (`null` when absent, a parsed
+`PptxTextBody` via the already-verified Phase 1d `ParseTextBody` when present).
+
+#### CanvasNetPptx-PptxDocument-TableCellRectResolution: Merge-Aware Cell-Rect Computation
+
+**Tests**: `ResolveCellRects_SimpleGrid_ComputesCumulativeOffsets`,
+`ResolveCellRects_MergeContinuationCells_AreSkipped`,
+`ResolveCellRects_HorizontalMerge_ComputesSpannedWidth`,
+`ResolveCellRects_VerticalMerge_ComputesSpannedHeight`
+
+Proves `ResolveCellRects` computes each cell's own cumulative `X`/`Y` offset correctly across a
+simple, unmerged grid; proves a merge-continuation cell (`hMerge`/`vMerge` set) contributes no
+`PptxResolvedTableCell` of its own (it is skipped entirely); proves a horizontally-merged cell's
+resolved rectangle width equals the sum of its spanned columns' own widths, while the column
+offset for cells *after* the merge still advances correctly (this test originally failed during
+implementation - the running column offset was incorrectly advancing by the merged cell's own
+full spanned width instead of by each physical `<a:tc>` entry's own single-column width, a defect
+diagnosed and fixed in `ResolveCellRects` before this test was declared passing - see the design
+doc's own *Cell-Rect Resolution* subsection for the full root-cause explanation); and proves a
+vertically-merged cell's resolved rectangle height equals the sum of its spanned rows' own
+heights.
+
+#### CanvasNetPptx-PptxDocument-TablePainting: Cell Fill, Border, and Text Painting
+
+**Tests**: `PaintTable_SolidFilledCell_PaintsFillColorAcrossCellRectangle`,
+`PaintTable_CellWithTopBorder_PaintsStrokedLineAtTopEdge`,
+`PaintTable_CellWithText_PaintsGlyphInkInsideCellRectangle`,
+`PaintTable_EmptyCell_PaintsNothing`
+
+Proves `PaintTable` paints a solid-filled cell's resolved color across its own rectangle, proves a
+cell with a resolved top border paints a stroked line at the cell's own top edge, proves a cell's
+text content paints glyph ink somewhere inside the cell's own rectangle (via a cell sized/scaled
+and inset-zeroed so a default-size glyph reliably lands within the test surface - mirroring Phase
+1d's own `ResolveTextLayout`/`PaintTextLayout` test conventions), and proves an empty cell (no
+fill, no border, no text) paints no non-background pixels at all.
+
+#### CanvasNetPptx-PptxDocument-ShapeTree: Recursive Shape-Tree Parsing and Deferred Theme Resolution
+
+**Tests**: `ParseShapeTree_FreeformShape_ProducesSpShapeNodeWithNullPlaceholder`,
+`ParseShapeTree_PlaceholderShape_ProducesSpShapeNodeWithResolvedPlaceholder`,
+`ParseShapeTree_Picture_ProducesPictureShapeNode`,
+`ParseShapeTree_GraphicFrameTable_ProducesGraphicFrameShapeNodeWithParsedTable`,
+`ParseShapeTree_NoGraphicFrame_NeverInvokesThemeResolver`,
+`ParseShapeTree_UnrecognizedElements_SilentlySkipped`,
+`ParseShapeTree_Group_ProducesGroupShapeNodeWithDirectSiblingChildren`,
+`ParseShapeTree_NestedGroups_EachResolveOwnChildTransformAndChildren`,
+`ParseShapeTree_GroupMissingXfrm_ThrowsInvalidDataException`,
+`ParseShapeTree_GraphicFrameInsideGroup_ParsesTableUsingPropagatedThemeResolver`,
+`TryParsePlaceholder_FreeformShape_ReturnsNull`,
+`TryParsePlaceholder_NoTypeOrIdxAttributes_DefaultsToObjAndZero`,
+`TryParsePlaceholder_NonNumericIdx_ThrowsInvalidDataException`
+
+Proves `ParseShapeTree` dispatches a freeform `<p:sp>` (no `<p:ph>`) to a `PptxSpShapeNode` with a
+`null` `Placeholder`, proves a placeholder `<p:sp>` resolves a non-null `Placeholder` with the
+expected type/idx, proves a `<p:pic>` dispatches to a `PptxPictureShapeNode` wrapping the raw
+element, proves a `<p:graphicFrame>` declaring a table dispatches to a `PptxGraphicFrameShapeNode`
+with its table eagerly parsed, proves a shape tree with no `<p:graphicFrame>` at all never invokes
+the supplied `Func<PptxTheme>` theme resolver (confirming the deferred, lazy theme-resolution
+design - see the design doc's own *Shape Tree* subsection), proves unrecognized element kinds
+(`<p:cxnSp>`, `<p:contentPart>`) are silently skipped rather than rejected, proves a `<p:grpSp>`
+dispatches to a `PptxGroupShapeNode` whose children are its own direct siblings (not wrapped in a
+nested `<p:spTree>`) with its child transform resolved from its own `<a:xfrm>`, proves nested
+`<p:grpSp>` elements each resolve their own child transform and recurse into their own direct
+children independently, proves a `<p:grpSp>` with no `<p:grpSpPr>/<a:xfrm>` element throws
+`InvalidDataException`, and proves a `<p:graphicFrame>` nested inside a group still resolves its
+table correctly via the propagated theme resolver. Proves `PptxPlaceholderParser.TryParsePlaceholder`
+(the Phase 1b placeholder-detection logic, extracted this phase into a standalone, independently
+callable helper with no behavior change - confirmed by re-running the full pre-existing Phase
+1a-1d test suite immediately after the extraction) returns `null` for a freeform shape, applies
+the `"obj"`/`0` schema defaults when `type`/`idx` attributes are omitted, and rejects a
+non-numeric `idx` attribute with `InvalidDataException`.
+
 ## Acceptance Criteria
 
 A unit-level test run passes when all scenarios above pass without error or exception beyond
@@ -660,10 +808,22 @@ width/dash/fill resolution realized as a stroked outline path via the core `Path
 DrawingML text body parsing, attribute-level property inheritance (including a slide master's own
 `<p:txStyles>` buckets), word-wrap/alignment/vertical-anchor/autofit text layout, and glyph-ink
 rendering onto a core `Surface` (Phase 1d: see the *Text Layout and Rendering (Phase 1d) Test
-Scenarios* section above). Not yet covered: non-placeholder (freeform) shape *enumeration* from a
-slide's full `<p:spTree>` (Phase 1c's resolvers operate on hand-fetched shape fragments, not a
-higher-level "enumerate every shape on a slide" API), pattern/picture fill, radial/path gradients,
-`<a:avLst>` preset adjustment-value parsing, full group-shape rendering semantics beyond transform
-composition, bullets/numbering, full text justification, `<a:spAutoFit>` shape-resize autofit,
-kerning, text clipping on overflow, and a full per-slide public `Render` API - none of these is
-implemented yet.
+Scenarios* section above); and dedicated `<p:pic>` picture-shape decoding/cropping/painting,
+`<a:tbl>` table structure parsing (reusing the Phase 1c/1d fill/border/text-body resolvers
+verbatim), merge-aware table cell-rect resolution, table cell fill/border/text painting, and
+recursive, full shape-tree parsing/dispatch across `<p:sp>`/`<p:pic>`/`<p:graphicFrame>`/
+`<p:grpSp>` with lazy, invoke-on-demand theme resolution (Phase 1e: see the *Picture Decoding,
+Linking, and Crop-Rectangle Resolution*, *Picture Compositing Without PDF's Y-Flip*, *Table
+Structure, Cell Attributes, and Verbatim Fill/Border/Text Reuse*, *Merge-Aware Cell-Rect
+Computation*, *Cell Fill, Border, and Text Painting*, and *Recursive Shape-Tree Parsing and
+Deferred Theme Resolution* Test Scenarios sections above). Not yet covered: a non-placeholder
+(freeform) shape's own background fill via `<a:blipFill>`/`<a:pattFill>` inside `<p:spPr>`
+(picture/pattern fill remain scoped to a dedicated `<p:pic>` shape's own `<p:blipFill>` this
+phase), picture effects/shadows, nested tables, table auto-sizing to fit overflowing cell content
+(each row's resolved height is taken verbatim from its declared `<a:tr h="...">` value, with no
+growth to accommodate overflowing cell content), table style/banding (`<a:tableStyleId>`), `<p:cxnSp>` connector
+shapes, master/layout full shape-tree enumeration (only a slide's own shape tree is parsed),
+group-level style cascading beyond transform composition, radial/path gradients, `<a:avLst>`
+preset adjustment-value parsing, bullets/numbering, full text justification, `<a:spAutoFit>`
+shape-resize autofit, kerning, text clipping on overflow, and a full per-slide public `Render`
+API - none of these is implemented yet.

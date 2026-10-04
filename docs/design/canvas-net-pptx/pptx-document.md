@@ -6,6 +6,9 @@
 <!-- cspell:ignore bodyPr pPr rPr txBody txStyles lstStyle defRPr ctrTitle lIns tIns rIns bIns -->
 <!-- cspell:ignore algn marL lnSpc spcBef spcAft justLow lnSpcReduction fontScale noAutofit -->
 <!-- cspell:ignore normAutofit spAutoFit spcPct spcPts -->
+<!-- cspell:ignore srcRect blipFill grpSp grpSpPr nvGrpSpPr cxnSp tblGrid gridCol tblPr tcPr -->
+<!-- cspell:ignore lnL lnR lnT lnB pattFill hMerge vMerge gridSpan rowSpan tableStyleId -->
+<!-- cspell:ignore graphicFrame graphicData contentPart -->
 
 `PptxDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pptx` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pptx`), which references the core `DemaConsulting.CanvasNet`
@@ -23,7 +26,11 @@ reimplementing it in this package (see _CanvasNetPptx System Design_'s Dependenc
 (this release), the unit additionally depends on core `Fonts.TrueTypeFont`/`SystemFontCatalog`
 (font resolution and glyph-outline extraction) and `Drawing.PathFiller` (glyph-ink fill), reusing
 the same font-resolution/glyph-painting pattern `DemaConsulting.CanvasNet.Pdf` already established
-(see the _Text Layout and Rendering (Phase 1d)_ section below).
+(see the _Text Layout and Rendering (Phase 1d)_ section below). As of Phase 1e (this release),
+the unit additionally reuses the raster codec dispatch pattern established by
+`DemaConsulting.CanvasNet.Svg`'s `SvgCodec.ResolveRasterDecoder` to decode a `<p:pic>` shape's
+embedded image (see the _Images, Tables, and Shape Tree (Phase 1e)_ section below); no new core
+`CanvasNet` type is introduced by Phase 1e beyond what Phase 1c/1d already established.
 
 ### Package Layer (Phase 1a)
 
@@ -284,10 +291,12 @@ its own parent group's child transform before being combined with a descendant's
 
 **Group-semantics deferral boundary**: this phase implements transform composition only. Full
 group-shape semantics beyond that - inherited/overridden fill or line style cascading from a
-group to its children, group-level effects, and the `<p:grpSp>`'s own enumeration/recursion
-through a slide's full shape tree (Phase 1b's placeholder parser still only walks a `<p:spTree>`'s
-_immediate_ `<p:sp>` children, not recursing into `<p:grpSp>`/parsing freeform shapes at all) -
-are explicitly deferred to Phase 1e, per the approved plan.
+group to its children, and group-level effects - remain deferred to a later phase (see
+_Deferred to a Later Phase_ below). The `<p:grpSp>`'s own enumeration/recursion through a slide's
+full shape tree (Phase 1b's placeholder parser still only walks a `<p:spTree>`'s _immediate_
+`<p:sp>` children, not recursing into `<p:grpSp>`/parsing freeform shapes at all) was deferred to
+Phase 1e at the time this phase was written, and is now implemented - see
+_Images, Tables, and Shape Tree (Phase 1e)_'s _Shape Tree_ subsection below.
 
 #### Preset Geometry
 
@@ -410,12 +419,15 @@ shape's fill from its `<p:spPr>` (or lack thereof) into one of three closed `Ppt
   child, via `ResolveColor` above.
 - **`PptxGradientFill(Gradient Gradient)`**: resolved from `<a:gradFill>`, via
   `ResolveGradientFill` below.
-- **`<a:pattFill>`/`<a:blipFill>`** (pattern/picture fill): rejected with
-  `PptxUnsupportedFeatureException` (feature tokens `"pptx-pattern-fill"`/`"pptx-picture-fill"`
-  respectively) - implementing either requires tiling/image-decoding machinery out of scope for
-  this phase, and resolving either to `PptxNoFill` would silently drop a fill a real presentation
-  shows, which this phase's fail-closed philosophy for unsupported-but-declared features rejects
-  in favor of a caller-visible, distinguishable exception. Deferred to Phase 1e.
+- **`<a:pattFill>`/`<a:blipFill>`** (pattern/picture fill) **as an ordinary shape's own background
+  fill** (under `<p:spPr>`, as distinct from a dedicated `<p:pic>` picture shape - see
+  _Images, Tables, and Shape Tree (Phase 1e)_ below for the latter, which Phase 1e does
+  implement): rejected with `PptxUnsupportedFeatureException` (feature tokens
+  `"pptx-pattern-fill"`/`"pptx-picture-fill"` respectively) - implementing either as a shape's own
+  _background_ requires tiling/general picture-as-fill machinery still out of scope, and
+  resolving either to `PptxNoFill` would silently drop a fill a real presentation shows, which
+  this phase's fail-closed philosophy for unsupported-but-declared features rejects in favor of a
+  caller-visible, distinguishable exception. Remains deferred to a later phase.
 
 #### Gradient Fill
 
@@ -476,15 +488,19 @@ no rendering surface yet, so only the outline geometry is produced here.
 The following are explicitly out of scope for Phase 1c, each because it depends on machinery not
 yet implemented anywhere in `CanvasNet` (not merely unimplemented in this package):
 
-- **Pattern fill** (`<a:pattFill>`) and **picture fill** (`<a:blipFill>`) - require tiling/
-  image-decoding machinery; deferred to Phase 1e.
+- **Pattern fill** (`<a:pattFill>`) and **picture fill** (`<a:blipFill>`) **as an ordinary
+  shape's own background fill** - require tiling/general picture-as-fill machinery; remains
+  deferred to a later phase (Phase 1e implements a dedicated `<p:pic>` picture _shape_, which is a
+  distinct construct - see _Images, Tables, and Shape Tree (Phase 1e)_ below).
 - **Radial/path gradients** - require a core `RadialGradient`/path-gradient paint type this
   package can reuse; deferred to a later phase.
 - **`<a:avLst>` adjustment-value parsing** for preset geometries - deferred to a later phase; see
   _Preset Geometry_ above.
-- **Full group-shape semantics** beyond transform composition (style cascading, a slide's
-  `<p:spTree>` recursing into `<p:grpSp>`/parsing freeform, non-placeholder shapes at all) -
-  deferred to Phase 1e; see _Group Shape Child Transform Composition_ above.
+- **Full group-shape semantics** beyond transform composition and shape-tree recursion (style
+  cascading, group-level effects) - remains deferred to a later phase. The `<p:grpSp>`'s own
+  enumeration/recursion through a slide's full shape tree, listed here as deferred at the time
+  this phase was written, is now implemented - see _Shape Tree_ in
+  _Images, Tables, and Shape Tree (Phase 1e)_ below.
 
 ### Text Layout and Rendering (Phase 1d)
 
@@ -674,3 +690,223 @@ design cost:
   _primitives_ (`ResolveTextLayout`/`PaintTextLayout`), not a complete shape-tree-walking,
   slide-level rendering entry point; deferred to a later phase alongside full group-shape
   semantics (see _Geometry and Paint (Phase 1c)_'s own deferred-items list above).
+
+### Images, Tables, and Shape Tree (Phase 1e)
+
+Phase 1e adds three additive capabilities: raster picture decoding/cropping/compositing for
+dedicated `<p:pic>` picture shapes (`PptxDocument.Images.cs`), `<a:tbl>` table structural
+parsing/cell-rect computation/painting (`PptxDocument.Tables.cs`), and a full recursive
+shape-tree walker recognizing every shape kind this phase supports, including nested
+`<p:grpSp>` groups (`PptxDocument.ShapeTree.cs`). Every new member introduced this phase is
+`internal` - no public shape/rendering surface is introduced yet (matching Phase 1b/1c/1d's own
+precedent). This phase introduces no new core `CanvasNet` dependency beyond what Phase 1c/1d
+already established (`Geometry.Path`, `Drawing.PathFiller`, `Canvas.Surface`/`Rgba32`) - raster
+image decoding reuses the core codec infrastructure the `DemaConsulting.CanvasNet.Svg` package's
+`SvgCodec.ResolveRasterDecoder` already established for embedding a raster image inside another
+document format.
+
+**Scope decision**: only a dedicated `<p:pic>` picture shape is in scope this phase for image
+rendering. An ordinary shape's own _background_ fill as a picture or pattern
+(`<a:blipFill>`/`<a:pattFill>` under `<p:spPr>`/`ResolveFill`, as distinct from a `<p:pic>` shape)
+remains out of scope and continues to be rejected by `ResolveFill` exactly as Phase 1c left it
+(see _Fill Resolution_ above) - this phase does not touch `ResolveFill` at all.
+
+#### Picture Decoding, Cropping, and Painting
+
+`PptxDocument.Images.cs`'s `ResolvePictureSurface(XElement picElement, PptxDocument document)`
+resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surface`:
+
+- **Relationship resolution**: `<a:blip>`'s `r:embed` attribute (an embedded-image relationship
+  ID) is resolved via the existing `ResolveRelationship`/`GetPartBytes` package-layer primitives
+  into the raw media part bytes. A `<a:blip>` with neither `r:embed` nor `r:link` throws
+  `InvalidDataException` (malformed - ECMA-376 requires at least one); one with only `r:link` (an
+  external, non-embedded image reference) throws `PptxUnsupportedFeatureException` (feature token
+  `"pptx-image-link"`) - a linked image has no embedded bytes this package can read without
+  performing file-system I/O outside the supplied package stream, a well-formed-but-deliberately-
+  unsupported construct, not malformed data.
+- **Content-type dispatch**: the resolved media part's content type (via the existing
+  `ResolvePart` content-type lookup) dispatches to a private `ResolveRasterDecoder` helper
+  mirroring `DemaConsulting.CanvasNet.Svg.SvgCodec.ResolveRasterDecoder`'s own
+  content-type-to-decoder dispatch pattern (PNG/JPEG/BMP/GIF, via the core raster codecs already
+  used elsewhere in `CanvasNet`) rather than inventing a second, divergent raster-decode entry
+  point. An unrecognized content type throws `PptxUnsupportedFeatureException` (feature token
+  `"pptx-image-format"`).
+- **Crop rectangle**: `ResolveSrcRect(XElement blipFillElement)` resolves `<p:blipFill>`'s
+  optional `<a:srcRect>` into a `PptxSrcRect(float Left, float Top, float Right, float Bottom)`
+  record (`PptxPicture.cs`) - each edge a `[0,1]`-normalized fraction of the image's own
+  full extent, parsed from OOXML's thousandths-of-a-percent `l`/`t`/`r`/`b` attributes (each
+  defaulting to `0` - no crop on that edge - when its own attribute is absent), or `null` when
+  `<a:srcRect>` itself is absent entirely (meaning "no cropping at all" - the full image).
+- **Painting**: `PaintPicture(Surface destination, Surface image, PptxSrcRect? srcRect, Matrix3x2
+  shapeTransform)` composes the crop rectangle's own crop-to-unit-square mapping with
+  `shapeTransform` into a single image-to-surface matrix, inverts it once, and for every
+  destination pixel whose inverse-mapped coordinate falls within `[0,1]x[0,1]` samples the source
+  image with nearest-neighbor filtering (no bilinear/anti-aliased resampling this phase - a
+  documented simplification, consistent with this package's existing "no anti-aliasing yet"
+  posture established by `PaintTextLayout`'s own glyph-ink fill). A singular (non-invertible)
+  `shapeTransform` (for example a zero-area shape frame) paints nothing, rather than throwing or
+  dividing by zero.
+
+**Deliberate divergence from the PDF renderer**: `PaintPicture` does **not** apply the `(1 - v)`
+row flip `DemaConsulting.CanvasNet.Pdf`'s own image-painting code applies. PDF's content stream
+coordinate space is y-up, so painting a top-down-row-ordered decoded image there requires
+flipping its sampled V coordinate; this package's shape-local/surface space is already y-down
+(matching every other transform in this unit - see _Shape Frame Transform_ above), so the image's
+own top-down row order already matches the surface's own row order with no flip needed. Applying
+the PDF renderer's flip here, by copy-paste habit, would paint every picture upside down - this
+is a deliberate, documented decision, not an oversight.
+
+#### Table Parsing
+
+`PptxDocument.Tables.cs`'s `ParseTable(XElement graphicFrameElement, PptxTheme theme)` parses a
+`<p:graphicFrame>`'s `<a:graphic>/<a:graphicData>/<a:tbl>` into a `PptxTable` (`PptxTable.cs`):
+
+- **Graphic-frame kind dispatch**: a `<a:graphicData>` whose `uri` attribute does not end in
+  `"/table"` throws `PptxUnsupportedFeatureException` (feature token
+  `"pptx-graphic-frame-kind"`) - a `<p:graphicFrame>` can declare other graphic data kinds (for
+  example an embedded chart or OLE object), each a well-formed-but-deliberately-unsupported
+  construct this phase does not implement. A missing `<a:graphicData>`/`<a:tbl>` throws
+  `InvalidDataException` (structurally malformed).
+- **Column grid**: `<a:tblGrid>/<a:gridCol>` elements resolve `PptxTable.ColumnWidthsEmu` (each
+  `w` attribute, in EMU); a missing `<a:tblGrid>` or a non-numeric `w` throws
+  `InvalidDataException`.
+- **Rows**: each `<a:tr>` resolves a `PptxTableRow(HeightEmu, Cells)`; a missing/non-numeric `h`
+  attribute throws `InvalidDataException`.
+- **Cells**: `ParseTableCell(XElement tcElement, PptxTheme theme, float widthEmu, float
+  heightEmu)` resolves each `<a:tc>` into a `PptxTableCell`, reading `gridSpan`/`rowSpan`
+  (defaulting to `1`) and `hMerge`/`vMerge` (defaulting to `false`) attributes - each
+  merge-continuation placeholder cell (`hMerge`/`vMerge` set) is still structurally parsed (it is
+  a required, well-formed `<a:tc>` entry per ECMA-376), just excluded from
+  `ResolveCellRects`'s own output (see below). A non-numeric `gridSpan`/`rowSpan` throws
+  `InvalidDataException`.
+- **Cell fill/border/text reuse**: a cell's `<a:tcPr>` fill (via the already-verified Phase 1c
+  `ResolveFill`), left/right/top/bottom line styles (`<a:lnL>`/`<a:lnR>`/`<a:lnT>`/`<a:lnB>`, via
+  the already-verified Phase 1c `ResolveLineStyle`), and `<a:txBody>` text body (via the
+  already-verified Phase 1d `ParseTextBody`) are each resolved **verbatim, unmodified** -
+  deliberately reusing the exact same resolvers an ordinary shape's own fill/border/text use,
+  rather than maintaining a second, divergent resolution path solely for table cells.
+
+**Signature deviation from the original plan**: the plan's one-line signature summary for
+`ParseTable` omitted a `theme` parameter; this implementation adds it (`ParseTable(XElement
+graphicFrameElement, PptxTheme theme)`), since `ParseTableCell`'s own fill resolution
+(`ResolveFill`) requires a `PptxTheme` to resolve theme-referenced colors - the plan's own
+detailed prose already implied this requirement even though its one-line signature summary did
+not spell it out explicitly.
+
+#### Cell-Rect Resolution
+
+`ResolveCellRects(PptxTable table)` resolves each of a table's non-merge-continuation cells (a
+cell with neither `hMerge` nor `vMerge` set) into a `PptxResolvedTableCell` carrying its own
+EMU-space rectangle (`X`, `Y`, `Width`, `Height`), by walking each row's `<a:tc>` entries in
+document order while accumulating a running column offset.
+
+**Merge-continuation column-advancement rule**: per ECMA-376's table content model, each `<a:tc>`
+XML entry - whether a real cell or an `hMerge`/`vMerge` continuation placeholder - represents
+exactly **one physical grid column**; a `gridSpan="N"` cell is followed by `(N-1)` separate
+continuation `<a:tc>` entries, each itself a single-column-wide placeholder. The per-iteration
+running column offset therefore always advances by that **single column's own width**
+(`table.ColumnWidthsEmu[columnIndex]`), **never** by the governing cell's own full merged-span
+width - only the surviving (non-continuation) cell's own stored rectangle width uses the full
+merged-span sum (`SumColumnWidths(..., cell.GridSpan)`). Advancing by the merged width instead
+would double-count the columns already covered by that cell's own trailing continuation entries,
+corrupting every subsequent cell's computed left edge in the same row - a defect caught and fixed
+during this phase's own test-driven implementation (see `ResolveCellRects_HorizontalMerge_
+ComputesSpannedWidth`).
+
+#### Table Painting
+
+`PaintTable(Surface destination, PptxTable table, PptxTheme theme, Matrix3x2 shapeTransform,
+Func<string, bool, bool, TrueTypeFont?> fontResolver)` paints each resolved cell rectangle in
+turn:
+
+- **Fill**: the cell's own resolved `PptxPaint` (solid or gradient) is painted via the core
+  `PathFiller`, after transforming the cell's own `Path.Rectangle` through `shapeTransform` (a
+  `PptxNoFill` cell paints no fill pixels at all).
+- **Border**: each of the cell's four resolved `PptxLineStyle`s (left/right/top/bottom, each
+  independently nullable) is stroked via the already-verified Phase 1c `ResolveStrokeOutline`
+  pattern, one side at a time.
+- **Text**: the cell's own text body (when present) is painted via the already-verified Phase 1d
+  `ResolveTextLayout`/`PaintTextLayout` pipeline, constrained to the cell's own rectangle
+  dimensions exactly as an ordinary shape's own text body would be.
+
+An empty cell (no fill, no border, no text) paints no pixels at all - a common, valid table shape.
+
+#### Shape Tree
+
+`PptxDocument.ShapeTree.cs`'s `ParseShapeTree(XElement spTreeOrGroupElement, Func<PptxTheme>
+themeResolver)` recursively parses a `<p:spTree>` (or, for a nested group, a `<p:grpSp>`'s own
+direct children - **not** wrapped in a nested `<p:spTree>`, per ECMA-376's `CT_GroupShape`
+content model, an assumption the plan flagged as "likely, not fully verified" and this phase's
+own synthetic test fixtures (`PptxGroupsTests.cs`) now directly encode and exercise) into a
+closed `PptxShapeTreeNode` hierarchy (`PptxShapeTree.cs`):
+
+- **`<p:sp>` → `PptxSpShapeNode`**: resolves its placeholder, if any, via
+  `PptxPlaceholderParser.TryParsePlaceholder` - a pure extract-method refactor of Phase 1b's own
+  per-`<p:sp>` placeholder-detection logic (previously inline in `ParsePlaceholderShapes`, now a
+  standalone, independently callable helper), with no behavior change to the existing
+  `PptxSlide.Placeholders` flat list (confirmed by re-running the full pre-existing test suite
+  immediately after the extraction, before writing any Phase 1e code that depends on it).
+- **`<p:pic>` → `PptxPictureShapeNode`**: the raw element only - `ResolvePictureSurface`/
+  `PaintPicture` are invoked later, by a future rendering pass, not eagerly here (unlike a
+  table's own eager `ParseTable` - decoding image bytes eagerly for every picture in a shape tree
+  that might never be rendered would be wasteful, whereas a table's own structural parse is cheap
+  pure-XML work).
+- **`<p:graphicFrame>` → `PptxGraphicFrameShapeNode`**: eagerly parses its table via `ParseTable`.
+- **`<p:grpSp>` → `PptxGroupShapeNode`**: resolves its own child-coordinate-space transform via
+  the already-verified Phase 1c `ResolveGroupChildTransform` (reading its `<p:grpSpPr>/<a:xfrm>`
+  element, throwing `InvalidDataException` when absent) and recurses `ParseShapeTree` on the same
+  group element for its own children.
+- **Anything else** (`<p:nvGrpSpPr>`, `<p:grpSpPr>`, `<p:cxnSp>`, `<p:contentPart>`, or any other
+  unrecognized element kind) is **silently skipped** - a tree-walk tolerance, not a fail-closed
+  feature rejection, matching the existing Phase 1b precedent of silently excluding
+  non-placeholder shapes from the flat placeholder list.
+
+**Deferred, lazy theme resolution**: a `<p:graphicFrame>`'s table needs a `PptxTheme` to resolve
+its cells' fills (see _Table Parsing_ above), but the overwhelming majority of slides declare no
+tables at all. Rather than `GetSlide` eagerly walking its slide's layout → master → theme
+relationship chain for every slide, `ParseShapeTree` accepts a `Func<PptxTheme> themeResolver`
+invoked lazily, only when a `<p:graphicFrame>` is actually encountered - confirmed by a dedicated
+test (`ParseShapeTree_NoGraphicFrame_NeverInvokesThemeResolver`) asserting the resolver delegate
+is never called for a shape tree with no tables. `GetSlide` populates the new
+`PptxSlide.ShapeTree` field (`IReadOnlyList<PptxShapeTreeNode>`) alongside the existing, unchanged
+`PptxSlide.Placeholders` flat list - the inheritance resolver continues to consult the flat list,
+not the shape tree.
+
+`PptxMaster`/`PptxLayout` are **not** changed - full freeform shape-tree enumeration for masters/
+layouts remains explicitly out of scope (masters/layouts commonly only declare placeholders plus
+occasional decorative pictures; extending this is a reasonable, documented future increment).
+
+#### Deferred to a Later Phase (Phase 1e)
+
+The following are explicitly out of scope for Phase 1e, each because it depends on machinery not
+yet implemented anywhere in `CanvasNet`, or is a separable refinement with its own, independent
+design cost:
+
+- **An ordinary shape's own background fill as a picture or pattern** (`<a:blipFill>`/
+  `<a:pattFill>` under `<p:spPr>`/`ResolveFill`, as distinct from a dedicated `<p:pic>` shape,
+  which this phase does implement) - requires tiling/general picture-as-fill machinery; `ResolveFill`
+  is untouched this phase and continues to reject both with `PptxUnsupportedFeatureException`
+  exactly as Phase 1c left it.
+- **Picture effects/shadows** - `<p:pic>`'s own `<p:spPr>/<a:effectLst>` is not consulted; only
+  the picture's own pixels are painted.
+- **Nested tables** - a table cell's own `<a:txBody>` is painted as plain text only; a cell
+  containing another `<a:tbl>` is not specially recognized.
+- **Table auto-sizing to fit overflowing cell content** - `ResolveCellRects` computes each cell's
+  rectangle purely from the table's own declared column widths/row heights; a cell whose text
+  content overflows its own declared row height is not given additional vertical space (beyond
+  the row height the table itself declares) the way PowerPoint's own auto-grow-row behavior does.
+- **Table style/banding** (`<a:tblPr>`'s `<a:tableStyleId>` and first-row/banded-row styling) -
+  only a cell's own explicit `<a:tcPr>` fill/border/text is resolved; any table-style-sheet-driven
+  default styling a real presentation would show is not applied.
+- **`<p:cxnSp>` connector shapes** - silently skipped by `ParseShapeTree` (see _Shape Tree_
+  above), not yet represented by any `PptxShapeTreeNode` subtype.
+- **Master/layout full shape-tree enumeration** - `PptxMaster`/`PptxLayout` still only expose
+  their own flat placeholder lists, not a full `ParseShapeTree` result (see _Shape Tree_ above).
+- **Group-level style cascading** - a group's own `<p:grpSpPr>` (for example an inherited line/
+  fill style flowing down to a child with no `<p:spPr>` of its own) is not implemented; each
+  child shape's own properties are resolved independently of its enclosing group's properties.
+- **A full per-slide public `Render` API** - this phase delivers picture/table/shape-tree
+  _parsing and painting primitives_, not a complete shape-tree-walking, slide-level rendering
+  entry point that paints every `PptxShapeTreeNode` in document order; deferred to a later phase
+  alongside Phase 1d's own equivalent deferral (see _Text Layout and Rendering (Phase 1d)_'s own
+  deferred-items list above).

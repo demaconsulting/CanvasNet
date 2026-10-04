@@ -60,14 +60,31 @@ internal sealed record PptxMasterTextStyles(XElement? TitleStyle, XElement? Body
 /// <param name="Placeholders">The layout's immediate placeholder shapes, in document order.</param>
 internal sealed record PptxLayout(string PartPath, string MasterPartPath, IReadOnlyList<PptxPlaceholder> Placeholders);
 
-/// <summary>A parsed slide: its own part path, its layout's part path, and its placeholder shapes.</summary>
+/// <summary>
+///     A parsed slide: its own part path, its layout's part path, its placeholder shapes, and (as
+///     of Phase 1e) its full recursive shape tree.
+/// </summary>
 /// <param name="PartPath">The slide's own resolved part path.</param>
 /// <param name="LayoutPartPath">The slide's resolved <c>/slideLayout</c> relationship target part path.</param>
 /// <param name="Placeholders">
 ///     The slide's immediate placeholder shapes (direct children of <c>&lt;p:spTree&gt;</c> only -
-///     Phase 1b does not recurse into groups), in document order.
+///     Phase 1b does not recurse into groups), in document order. Still populated and unchanged by
+///     Phase 1e - the run/paragraph property-inheritance resolver
+///     (<see cref="PptxDocument.ResolvePlaceholderProperties"/>) continues to consult this flat
+///     list rather than <see cref="ShapeTree"/>.
 /// </param>
-internal sealed record PptxSlide(string PartPath, string LayoutPartPath, IReadOnlyList<PptxPlaceholder> Placeholders);
+/// <param name="ShapeTree">
+///     The slide's full recursive shape tree (Phase 1e), parsed via
+///     <see cref="PptxDocument.ParseShapeTree"/> from the same <c>&lt;p:spTree&gt;</c> element as
+///     <paramref name="Placeholders"/> - recurses into <c>&lt;p:grpSp&gt;</c> groups (unlike
+///     <paramref name="Placeholders"/>) and additionally recognizes <c>&lt;p:pic&gt;</c>/
+///     <c>&lt;p:graphicFrame&gt;</c> shapes.
+/// </param>
+internal sealed record PptxSlide(
+    string PartPath,
+    string LayoutPartPath,
+    IReadOnlyList<PptxPlaceholder> Placeholders,
+    IReadOnlyList<PptxShapeTreeNode> ShapeTree);
 
 /// <summary>
 ///     Shared placeholder-shape structural parser, used identically by the master/layout/slide
@@ -96,21 +113,49 @@ internal static class PptxPlaceholderParser
 
         foreach (var sp in spTreeElement.Elements(PptxDocument.PresentationNamespace + "sp"))
         {
-            var ph = sp.Element(PptxDocument.PresentationNamespace + "nvSpPr")?
-                .Element(PptxDocument.PresentationNamespace + "nvPr")?
-                .Element(PptxDocument.PresentationNamespace + "ph");
-            if (ph is null)
+            if (TryParsePlaceholder(sp) is { } placeholder)
             {
-                continue;
+                placeholders.Add(placeholder);
             }
-
-            var type = (string?)ph.Attribute("type") ?? "obj";
-            var idx = ParseIdx(ph);
-
-            placeholders.Add(new PptxPlaceholder(type, idx, sp));
         }
 
         return placeholders;
+    }
+
+    /// <summary>
+    ///     Parses a single <c>&lt;p:sp&gt;</c> element's <c>&lt;p:nvSpPr&gt;/&lt;p:nvPr&gt;/
+    ///     &lt;p:ph&gt;</c> descendant (if any) into a <see cref="PptxPlaceholder"/>, applying the
+    ///     <c>type</c>/<c>idx</c> schema defaults (<c>"obj"</c>/<c>0</c>) when the corresponding
+    ///     attribute is omitted. Extracted from <see cref="ParsePlaceholderShapes"/>'s own
+    ///     per-<c>&lt;p:sp&gt;</c> inline logic (no behavior change) so the Phase 1e shape-tree
+    ///     walker (<see cref="PptxDocument.ParseShapeTree"/>) can reuse the exact same
+    ///     placeholder-detection logic without duplicating Phase 1b's placeholder-type/idx
+    ///     parsing.
+    /// </summary>
+    /// <param name="spElement">The <c>&lt;p:sp&gt;</c> element to inspect.</param>
+    /// <returns>
+    ///     The parsed <see cref="PptxPlaceholder"/>, or <see langword="null"/> when
+    ///     <paramref name="spElement"/> has no <c>&lt;p:nvSpPr&gt;/&lt;p:nvPr&gt;/&lt;p:ph&gt;</c>
+    ///     descendant (a freeform, non-placeholder shape).
+    /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when a present <c>&lt;p:ph&gt;</c> element's <c>idx</c> attribute is present but
+    ///     not a valid non-negative integer.
+    /// </exception>
+    internal static PptxPlaceholder? TryParsePlaceholder(XElement spElement)
+    {
+        var ph = spElement.Element(PptxDocument.PresentationNamespace + "nvSpPr")?
+            .Element(PptxDocument.PresentationNamespace + "nvPr")?
+            .Element(PptxDocument.PresentationNamespace + "ph");
+        if (ph is null)
+        {
+            return null;
+        }
+
+        var type = (string?)ph.Attribute("type") ?? "obj";
+        var idx = ParseIdx(ph);
+
+        return new PptxPlaceholder(type, idx, spElement);
     }
 
     /// <summary>

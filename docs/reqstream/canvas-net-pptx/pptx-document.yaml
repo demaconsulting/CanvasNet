@@ -821,3 +821,193 @@ sections:
               - ResolveTextFont_AnyFamilyHint_ResolvesNonNullFont
               - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
               - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd
+
+          - id: CanvasNetPptx-PptxDocument-PictureDecodeAndCrop
+            title: >-
+              The PptxDocument class shall resolve a <p:pic> shape's <p:blipFill>/<a:blip> into a
+              decoded core Surface by dispatching on the embedded relationship's resolved part
+              content type (mirroring the SVG codec's own raster-decoder dispatch), rejecting a
+              <a:blip> with neither an r:embed nor an r:link attribute and one with only r:link
+              with InvalidDataException and PptxUnsupportedFeatureException (feature token
+              "pptx-image-link") respectively, rejecting an unsupported content type with
+              PptxUnsupportedFeatureException (feature token "pptx-image-format"), and shall
+              resolve a <p:blipFill>'s optional <a:srcRect> into a normalized, scaled-fraction
+              PptxSrcRect crop rectangle (each edge defaulting to zero/full-extent when its own
+              attribute is absent).
+            justification: |
+              A dedicated <p:pic> picture shape is the only in-scope picture-rendering construct
+              this phase (an ordinary shape's own <a:blipFill>/<a:pattFill> background fill remains
+              explicitly deferred - see this unit's own remarks); decoding its referenced media
+              part eagerly, by content type, mirrors the already-verified SVG codec dispatch
+              pattern rather than inventing a second, divergent raster-decode entry point. A linked
+              (external-file) image has no embedded bytes this package can read without performing
+              file-system I/O outside the supplied package stream, so it is deliberately
+              unsupported rather than silently treated as a missing/blank image. <a:srcRect>'s
+              scaled-fraction percentages (in thousandths of a percent) must be parsed exactly as
+              OOXML defines them, or a crop that is supposed to trim a small edge sliver would
+              instead crop away most or all of the image.
+            tests:
+              - ResolveSrcRect_NoSrcRectElement_ReturnsNull
+              - ResolveSrcRect_AllEdgesPresent_ParsesScaledFractions
+              - ResolveSrcRect_SomeEdgesAbsent_DefaultsToZero
+              - ResolveSrcRect_NonNumericEdgeAttribute_ThrowsInvalidDataException
+              - ResolveSrcRect_NullBlipFillElement_ThrowsArgumentNullException
+              - ResolvePictureSurface_EmbeddedPng_DecodesSurfaceWithExpectedPixel
+              - ResolvePictureSurface_NoBlipElement_ThrowsInvalidDataException
+              - ResolvePictureSurface_BlipMissingEmbedAndLink_ThrowsInvalidDataException
+              - ResolvePictureSurface_LinkedBlipOnly_ThrowsPptxUnsupportedFeatureExceptionWithImageLinkToken
+              - ResolvePictureSurface_UnsupportedContentType_ThrowsPptxUnsupportedFeatureExceptionWithImageFormatToken
+              - ResolvePictureSurface_NullArguments_ThrowsArgumentNullException
+
+          - id: CanvasNetPptx-PptxDocument-PicturePainting
+            title: >-
+              The PptxDocument class shall paint a decoded picture Surface onto a destination
+              Surface by composing the picture's own crop-rectangle-to-unit-square mapping with
+              the shape's resolved frame transform into a single image-to-surface matrix, sampling
+              the source image with nearest-neighbor filtering for each destination pixel whose
+              inverse-mapped source coordinate falls within the image bounds, and painting no
+              pixels at all when the composed transform is singular (non-invertible), without
+              applying any Y-axis flip to the sampled image (unlike a y-up rendering target such as
+              PDF, this package's surface space is already y-down, matching the image's own
+              top-down pixel row order).
+            justification: |
+              Nearest-neighbor sampling composed through a single matrix keeps picture painting
+              consistent with this package's existing shape-transform/geometry conventions (see
+              Phase 1c's ResolveShapeFrame) without introducing a second coordinate-mapping scheme
+              just for images. A singular transform (for example a zero-area shape frame) has no
+              well-defined inverse to sample through, so painting nothing is the only fail-safe
+              behavior; explicitly omitting the (1-v) row flip that an equivalent y-up target would
+              require is a deliberate, documented divergence from the PDF renderer's own pattern,
+              not an oversight - applying it here would paint every picture upside down.
+            tests:
+              - PaintPicture_IdentityTransformNoCrop_PaintsImagePixelsUnflipped
+              - PaintPicture_TopBottomAsymmetricImage_PaintsWithoutVerticalFlip
+              - PaintPicture_WithSrcRectCroppingLeftHalf_SamplesOnlyRightHalf
+              - PaintPicture_TranslatedTransform_ShiftsPaintedFootprint
+              - PaintPicture_DegenerateTransform_PaintsNothing
+              - PaintPicture_NullSurfaceOrImage_ThrowsArgumentNullException
+
+          - id: CanvasNetPptx-PptxDocument-TableParsing
+            title: >-
+              The PptxDocument class shall parse a <p:graphicFrame>'s <a:graphic>/<a:graphicData>/
+              <a:tbl> into a PptxTable (column widths from <a:tblGrid>/<a:gridCol>, rows from
+              <a:tr> with required height attributes, cells from <a:tc> with gridSpan/rowSpan/
+              hMerge/vMerge attributes defaulting to 1/1/false/false when absent), rejecting a
+              <a:graphicData> whose uri does not end in "/table" with
+              PptxUnsupportedFeatureException (feature token "pptx-graphic-frame-kind") and a
+              missing <a:graphicData>, <a:tblGrid>, or <a:tr> height, or a non-numeric gridCol
+              width/gridSpan/rowSpan attribute, with InvalidDataException, and shall resolve each
+              cell's <a:tcPr> fill and line styles (<a:lnL>/<a:lnR>/<a:lnT>/<a:lnB>) and text body
+              by reusing the already-verified Phase 1c/1d ResolveFill/ResolveLineStyle/
+              ParseTextBody resolvers verbatim.
+            justification: |
+              A <p:graphicFrame> can declare graphic data kinds other than a table (for example an
+              embedded chart or OLE object); this phase only implements tables, so any other kind
+              is a deliberately unsupported, well-formed construct rather than a malformed one.
+              Reusing ResolveFill/ResolveLineStyle/ParseTextBody verbatim for cell-level properties
+              keeps a table cell's own fill/border/text behavior in lock-step with an ordinary
+              shape's own fill/border/text behavior, rather than maintaining a second, divergent
+              resolution path solely for table cells.
+            tests:
+              - ParseTable_WellFormedTable_ParsesColumnsAndRows
+              - ParseTable_MissingGraphicData_ThrowsInvalidDataException
+              - ParseTable_NonTableGraphicFrameKind_ThrowsPptxUnsupportedFeatureExceptionWithGraphicFrameKindToken
+              - ParseTable_MissingTblGrid_ThrowsInvalidDataException
+              - ParseTable_GridColNonNumericWidth_ThrowsInvalidDataException
+              - ParseTable_TrMissingHeight_ThrowsInvalidDataException
+              - ParseTableCell_NoAttributes_DefaultsToSpanOneNoMerge
+              - ParseTableCell_AttributesPresent_ParsesSpanAndMergeFlags
+              - ParseTableCell_NonNumericGridSpan_ThrowsInvalidDataException
+              - ParseTableCell_TcPrWithFillAndBorders_ResolvesFillAndBorders
+              - ParseTableCell_NoTxBody_TextBodyIsNull
+              - ParseTableCell_WithTxBody_ParsesTextBody
+
+          - id: CanvasNetPptx-PptxDocument-TableCellRectResolution
+            title: >-
+              The PptxDocument class shall resolve each of a PptxTable's non-merge-continuation
+              cells (a cell with neither hMerge nor vMerge set) into a PptxResolvedTableCell
+              carrying its own EMU-space rectangle, computed by accumulating each physical
+              <a:tc>-entry's own single grid column's width when advancing the running column
+              offset (so that a spanning cell's own trailing continuation entries are never
+              double-counted), while the surviving cell's own stored rectangle width/height spans
+              the full gridSpan/rowSpan range of columns/rows it covers, and shall silently skip
+              any merge-continuation cell (it contributes no PptxResolvedTableCell of its own).
+            justification: |
+              Per ECMA-376's table content model, each <a:tc> XML entry - whether a real cell or an
+              hMerge/vMerge continuation placeholder - represents exactly one physical grid column;
+              only the governing (non-continuation) cell of a merged region owns a rectangle wide/
+              tall enough to span that whole region. Advancing the running column offset by the
+              merged cell's own full spanned width, rather than by each physical entry's own single
+              column width, would double-count the columns already covered by that cell's trailing
+              continuation entries, corrupting every subsequent cell's computed left edge in the
+              same row.
+            tests:
+              - ResolveCellRects_SimpleGrid_ComputesCumulativeOffsets
+              - ResolveCellRects_MergeContinuationCells_AreSkipped
+              - ResolveCellRects_HorizontalMerge_ComputesSpannedWidth
+              - ResolveCellRects_VerticalMerge_ComputesSpannedHeight
+
+          - id: CanvasNetPptx-PptxDocument-TablePainting
+            title: >-
+              The PptxDocument class shall paint a PptxTable onto a destination Surface by, for
+              each resolved cell rectangle, filling its own resolved fill (solid or gradient, via
+              the core PathFiller, transforming the cell's core Path.Rectangle through the table's
+              own shape transform first), stroking each side with a resolved line style whose own
+              width/dash/cap matches the Phase 1c stroke-outline convention, and painting the
+              cell's own text body (when present) via the already-verified Phase 1d
+              ResolveTextLayout/PaintTextLayout pipeline constrained to the cell's own rectangle,
+              and shall paint nothing for an empty cell (no fill, no borders, no text).
+            justification: |
+              Reusing the core PathFiller for cell fills and the Phase 1d text-layout/rendering
+              pipeline for cell text keeps a table cell's painted appearance consistent with how an
+              ordinary shape's own fill and text are painted elsewhere in this package, rather than
+              introducing a third, divergent painting code path solely for tables. An empty cell
+              (no fill, no border, no text) is a common, valid table shape and must not paint any
+              visible pixels at all.
+            tests:
+              - PaintTable_SolidFilledCell_PaintsFillColorAcrossCellRectangle
+              - PaintTable_CellWithTopBorder_PaintsStrokedLineAtTopEdge
+              - PaintTable_CellWithText_PaintsGlyphInkInsideCellRectangle
+              - PaintTable_EmptyCell_PaintsNothing
+
+          - id: CanvasNetPptx-PptxDocument-ShapeTree
+            title: >-
+              The PptxDocument class shall recursively parse a <p:spTree> (or, for a nested group,
+              a <p:grpSp>'s own direct children, which are not wrapped in a nested <p:spTree> per
+              ECMA-376's CT_GroupShape content model) into a closed PptxShapeTreeNode hierarchy,
+              dispatching a <p:sp> to PptxSpShapeNode (resolving its placeholder, if any, via the
+              Phase 1b placeholder-detection logic extracted into TryParsePlaceholder), a <p:pic>
+              to PptxPictureShapeNode, a <p:graphicFrame> to PptxGraphicFrameShapeNode (eagerly
+              parsing its table via ParseTable, against a theme lazily resolved - only when a
+              table is actually encountered - via the slide's own layout/master/theme relationship
+              chain), and a <p:grpSp> to PptxGroupShapeNode (resolving its own child-coordinate-
+              space transform via the already-verified Phase 1c ResolveGroupChildTransform and
+              recursing into its own children), silently skipping any other element kind (for
+              example <p:nvGrpSpPr>, <p:grpSpPr>, <p:cxnSp>, or <p:contentPart>), and shall expose
+              the result as PptxSlide.ShapeTree alongside the existing, unchanged
+              PptxSlide.Placeholders flat list.
+            justification: |
+              Earlier phases only enumerated a slide's immediate placeholder shapes, excluding
+              freeform shapes and never recursing into groups at all; a full shape-tree walk is the
+              structural foundation a future per-slide Render API needs to paint every shape in
+              document order, including nested groups' own children with their own composed
+              transforms. Deferring theme resolution until a table is actually encountered avoids
+              forcing every slide - including the overwhelming majority with no tables at all - to
+              walk its layout/master/theme relationship chain merely to build its shape tree.
+              Silently skipping unrecognized element kinds (rather than rejecting them) matches the
+              existing Phase 1b precedent of excluding non-placeholder shapes from the flat
+              placeholder list - a tree-walk tolerance, not a fail-closed feature rejection.
+            tests:
+              - ParseShapeTree_FreeformShape_ProducesSpShapeNodeWithNullPlaceholder
+              - ParseShapeTree_PlaceholderShape_ProducesSpShapeNodeWithResolvedPlaceholder
+              - ParseShapeTree_Picture_ProducesPictureShapeNode
+              - ParseShapeTree_GraphicFrameTable_ProducesGraphicFrameShapeNodeWithParsedTable
+              - ParseShapeTree_NoGraphicFrame_NeverInvokesThemeResolver
+              - ParseShapeTree_UnrecognizedElements_SilentlySkipped
+              - ParseShapeTree_Group_ProducesGroupShapeNodeWithDirectSiblingChildren
+              - ParseShapeTree_NestedGroups_EachResolveOwnChildTransformAndChildren
+              - ParseShapeTree_GroupMissingXfrm_ThrowsInvalidDataException
+              - ParseShapeTree_GraphicFrameInsideGroup_ParsesTableUsingPropagatedThemeResolver
+              - TryParsePlaceholder_FreeformShape_ReturnsNull
+              - TryParsePlaceholder_NoTypeOrIdxAttributes_DefaultsToObjAndZero
+              - TryParsePlaceholder_NonNumericIdx_ThrowsInvalidDataException
