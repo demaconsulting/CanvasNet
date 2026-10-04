@@ -77,4 +77,11 @@
     <Compile Include="..\DemaConsulting.CanvasNet.Tests\TestSupport\**\*.cs" Link="TestSupport\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <!-- Real-world PPTX test fixtures (see PptxFixtures\README.md for provenance) -->
+  <ItemGroup>
+    <None Include="PptxFixtures\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
