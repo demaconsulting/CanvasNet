@@ -7,7 +7,7 @@ using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore pptx blipfill srcrect embed sppr nvpicpr nvpr cnvpr cnvpicpr srgb hlink folhlink calibri
+// cspell:ignore pptx blipfill srcrect embed sppr nvpicpr nvpr cnvpr cnvpicpr srgb hlink folhlink calibri asvg
 
 /// <summary>
 ///     Unit-level tests for the Phase 1e picture-shape resolvers and painting primitive
@@ -454,6 +454,36 @@ public class PptxImagesTests
 
         var ex = Assert.Throws<PptxUnsupportedFeatureException>(() => document.ResolvePictureSurface(slidePartPath, blipFill));
         Assert.Equal("pptx-image-link", ex.Feature);
+    }
+
+    /// <summary>
+    ///     Proves an <c>&lt;a:blip&gt;</c> declaring neither <c>r:embed</c> nor <c>r:link</c>, but
+    ///     only a Microsoft SVG extension (<c>&lt;a:extLst&gt;/&lt;a:ext uri="{96DAC541-7B7A-43D3-
+    ///     8B79-37D633B846F1}"&gt;&lt;asvg:svgBlip .../&gt;&lt;/a:ext&gt;</c>) fallback, throws
+    ///     <see cref="PptxUnsupportedFeatureException"/> with feature token
+    ///     <c>"pptx-image-svg-only"</c> rather than <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void ResolvePictureSurface_SvgOnlyBlipExtension_ThrowsPptxUnsupportedFeatureExceptionWithSvgOnlyToken()
+    {
+        var (package, slidePartPath) = BuildMinimalImagePackage("png", "image/png", BuildPngBytes(default));
+        using var stream = package;
+        using var document = PptxDocument.Open(stream);
+
+        XNamespace asvg = "http://schemas.microsoft.com/office/drawing/2016/SVG/main";
+        var blipFill = new XElement(
+            PresentationNs + "blipFill",
+            new XElement(
+                A + "blip",
+                new XElement(
+                    A + "extLst",
+                    new XElement(
+                        A + "ext",
+                        new XAttribute("uri", "{96DAC541-7B7A-43D3-8B79-37D633B846F1}"),
+                        new XElement(asvg + "svgBlip", new XAttribute(R + "embed", "rId75"))))));
+
+        var ex = Assert.Throws<PptxUnsupportedFeatureException>(() => document.ResolvePictureSurface(slidePartPath, blipFill));
+        Assert.Equal("pptx-image-svg-only", ex.Feature);
     }
 
     /// <summary>Proves an unrecognized media content type (for example an EMF vector picture) throws <see cref="PptxUnsupportedFeatureException"/> with feature token <c>"pptx-image-format"</c>.</summary>

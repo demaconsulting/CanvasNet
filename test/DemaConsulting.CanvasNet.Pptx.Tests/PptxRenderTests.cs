@@ -1910,4 +1910,67 @@ public class PptxRenderTests
         // still paints normally.
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 1]);
     }
+
+    /// <summary>
+    ///     Regression test (see the companion planning report's bug-fix rationale): a master's own
+    ///     non-placeholder <c>&lt;p:pic&gt;</c> referencing an unsupported raster format (an EMF
+    ///     vector picture) must be skipped silently - its own <see cref="PptxUnsupportedFeatureException"/>
+    ///     must not abort the rest of the render - so the slide's own content still paints
+    ///     normally.
+    /// </summary>
+    [Fact]
+    public void Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent()
+    {
+        const string masterShapeTreeXml =
+            """
+            <p:pic>
+              <p:nvPicPr><p:cNvPr id="3" name="MasterPic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:pic>
+            """;
+        var slideShapeXml = FullSlideShapeXml("SlideShape", "0000FF");
+        using var stream = BuildRenderPackage(
+            slideShapeXml,
+            masterShapeTreeXml: masterShapeTreeXml,
+            masterMedia: ("emf", "image/x-emf", [1, 2, 3, 4]));
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 20, 20);
+
+        // The master's own broken EMF picture shape was skipped - the slide's own shape still
+        // paints over the full slide footprint.
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Regression test (see the companion planning report's bug-fix rationale): a
+    ///     <strong>slide's own</strong> (not a master/layout's) <c>&lt;p:pic&gt;</c> referencing an
+    ///     unsupported raster format must still hard-fail <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>
+    ///     with <see cref="PptxUnsupportedFeatureException"/>, exactly as before the master/layout
+    ///     graceful-skip containment was added - proving the containment is scoped to master/
+    ///     layout-owned shapes only.
+    /// </summary>
+    [Fact]
+    public void Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException()
+    {
+        const string spTreeInnerXml =
+            """
+            <p:pic>
+              <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:pic>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml, media: ("emf", "image/x-emf", [1, 2, 3, 4]));
+        using var document = PptxDocument.Open(stream);
+
+        Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(0, 20, 20));
+    }
 }
