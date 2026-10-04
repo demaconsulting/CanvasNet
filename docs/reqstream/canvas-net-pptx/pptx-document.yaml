@@ -4,7 +4,7 @@
 # cspell:ignore ooxml pptx srgb xfrm prst cust patt bodyPr normAutofit noAutofit spAutoFit pPr
 # cspell:ignore rPr txBody txStyles lstStyle defRPr ctrTitle lIns tIns rIns bIns algn marL lnSpc
 # cspell:ignore spcBef spcAft justLow lnSpcReduction fontScale lvl ordinally mistargeted unrenderable
-# cspell:ignore pythonpptx Autoshape
+# cspell:ignore pythonpptx Autoshape aiden0z Aiden aiden
 #
 # These requirements describe the design-level behavior of the PptxDocument unit.
 #
@@ -1157,6 +1157,16 @@ sections:
               - PptxDocument_Render_TxtTextFrameFixture_RendersEverySlideWithVisibleContent
               - PptxDocument_Render_ShpShapesFixture_Slide0ThrowsUnsupportedFeatureSlide1PaintsContent
               - PptxDocument_Render_SamplelibSamplePresentationFixture_Slide4ThrowsUnsupportedFeatureOthersPaintContent
+              - PptxDocument_Render_SldBackgroundFixture_RendersWithoutErrorBackgroundNotPainted
+              - PptxDocument_Render_PhInheritPropsFixture_Slide0PaintsSlide1RendersWithoutError
+              - PptxDocument_Render_PhUnpopulatedPlaceholdersFixture_RendersEverySlideWithoutError
+              - PptxDocument_Render_TxtFitTextFixture_PaintsVisibleContent
+              - PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsSkippedSilently
+              - PptxDocument_Render_DmlFillFixture_BothSlidesThrowUnsupportedFillFeature
+              - PptxDocument_Render_DmlLineFixture_RendersEverySlideWithVisibleContent
+              - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature
+              - PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentBackgroundNotPainted
+              - PptxDocument_Render_Aiden0zTableStaleFrameFixture_PaintsVisibleContentDespiteFrameSizeMismatch
 
           - id: CanvasNetPptx-PptxDocument-RenderPublicApi
             title: >-

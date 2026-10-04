@@ -9,7 +9,7 @@
 <!-- cspell:ignore srcRect blipFill grpSp grpSpPr nvGrpSpPr cxnSp tblGrid gridCol tblPr tcPr -->
 <!-- cspell:ignore lnL lnR lnT lnB pattFill hMerge vMerge gridSpan rowSpan tableStyleId -->
 <!-- cspell:ignore graphicFrame graphicData contentPart unrenderable -->
-<!-- cspell:ignore autoshape pythonpptx groupshape paintable -->
+<!-- cspell:ignore autoshape pythonpptx groupshape paintable aiden0z aiden -->
 
 `PptxDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pptx` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pptx`), which references the core `DemaConsulting.CanvasNet`
@@ -1188,3 +1188,54 @@ bullets/numbering, full text justification, shape auto-fit, kerning, text-overfl
 slide background fill, picture effects/shadows, master/layout full shape-tree rendering,
 pattern/picture shape fill, radial/path gradients, or adjustment-value (`avLst`) geometry
 parsing).
+
+#### Phase 2 Follow-Up: Corpus Growth to Three Sources
+
+A later follow-up pass grew the fixture corpus from ten files across two sources to **twenty**
+files across **three** independent sources, adding seven further `python-pptx` files (a slide
+background fill, placeholder geometry-inheritance regression coverage, nine unpopulated-
+placeholder types, `wrap="none"` + `<a:spAutoFit/>` text, a lone connector plus a picture, and
+explicit solid-fill/line-stroke property variety) and three files newly sourced from
+`aiden0z/pptx-renderer` (Apache-2.0 licensed, not MIT - see `PptxFixtures/README.md` and
+`PptxFixtures/Aiden0zPptxRenderer.LICENSE` for the corrected license finding and full provenance):
+a dense org-chart-style slide with a sibling chart slide, an image-crop/background-fill slide, and
+a "stale table frame" slide. Every candidate was empirically verified against a built harness
+calling `PptxDocument.Open`/`Render` directly before inclusion, the same methodology the original
+Phase 2 pass established.
+
+**New confirmed-graceful deferred-feature boundaries found this pass**:
+
+- `pythonpptx-dml-fill.pptx` is the first fixture in this corpus to place a `<a:blipFill>` or
+  `<a:pattFill>` directly inside an ordinary shape's own `<p:spPr>` (a picture or pattern used as a
+  shape's own background fill, rather than a picture/pattern applied to a `<p:pic>` or table cell).
+  `ResolveFill` already throws `PptxUnsupportedFeatureException` for both cases (feature tokens
+  `pptx-picture-fill` and `pptx-pattern-fill` respectively) - this pass is the first to exercise
+  either exception token against a real file; no source change was needed.
+- `aiden0z-table-stale-frame.pptx`'s single table graphic frame declares a `<p:xfrm>` extent that
+  does not match the sum of its own `<a:gridCol>` widths - a real-world "stale frame size"
+  authoring artifact. Confirmed, by direct code reading of `PptxDocument.Tables.cs`, that column/
+  row sizing is derived entirely from `<a:tblGrid>`/`<a:tr h>`, independent of the graphic frame's
+  own declared extent, and empirically confirmed this renders and paints without exception - a
+  genuine, confirmed-graceful edge case, not a bug.
+
+**No new bugs were found in this pass** - unlike the original Phase 2 pass (which fixed two
+genuine inheritance/alignment bugs), every ungraceful-looking result investigated in this
+follow-up pass (two chart/SmartArt exceptions, two shape-background-fill exceptions, several
+zero-painted-pixel slides) matched an already-implemented, already-documented deferred-feature or
+exception-path precedent; none required a source change.
+
+**Seven additional candidates were evaluated and excluded** (see `PptxFixtures/README.md`'s own
+"Excluded Staged Candidates" section for full per-candidate rationale): `shp-freeform.pptx` (no
+freeform content actually baked into the published file), `shp-autoshape-adjustments.pptx`
+(strictly redundant with the already-included `pythonpptx-shp-autoshape-props.pptx`),
+`dml-effect.pptx` (its only effect-related element is an empty, no-op `<a:effectLst/>` override),
+`mst-shapes.pptx`/`mst-slide-layouts.pptx`/`lyt-shapes.pptx` (each declares zero slides, the same
+disqualifying precedent as the original pass's two excluded candidates), and
+`aiden0z/pptx-renderer`'s own `docs/example/embedded-font/source.pptx` (near-byte-identical in XML
+structure to the included `aiden0z-image-crop-css-reset.pptx`; the font-embedding differentiator
+is not observable to CanvasNet, which has no custom font-embedding support).
+
+Every item in this unit's own _Deferred to a Later Phase_ lists (Phase 1c/1d/1e/1f, reproduced
+above) remains deferred unchanged after this follow-up pass; this pass grew real-file test
+coverage and confirmed additional already-graceful boundaries, it did not implement any
+previously-deferred feature.

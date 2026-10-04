@@ -5,7 +5,7 @@
 <!-- cspell:ignore spcPct spcPts Ordinally -->
 <!-- cspell:ignore srcRect blipFill tblGrid gridCol tcPr hMerge vMerge gridSpan rowSpan grpSp -->
 <!-- cspell:ignore grpSpPr cxnSp graphicFrame tableStyleId spTree contentPart -->
-<!-- cspell:ignore pythonpptx Autoshape groupshape -->
+<!-- cspell:ignore pythonpptx Autoshape groupshape aiden0z Aiden aiden -->
 
 This document describes the unit-level verification strategy for the `PptxDocument` class.
 
@@ -882,7 +882,17 @@ non-numeric `idx` attribute with `InvalidDataException`.
 `PptxDocument_Render_TxtFontPropsFixture_RendersEverySlideWithVisibleContent`,
 `PptxDocument_Render_TxtTextFrameFixture_RendersEverySlideWithVisibleContent`,
 `PptxDocument_Render_ShpShapesFixture_Slide0ThrowsUnsupportedFeatureSlide1PaintsContent`,
-`PptxDocument_Render_SamplelibSamplePresentationFixture_Slide4ThrowsUnsupportedFeatureOthersPaintContent`
+`PptxDocument_Render_SamplelibSamplePresentationFixture_Slide4ThrowsUnsupportedFeatureOthersPaintContent`,
+`PptxDocument_Render_SldBackgroundFixture_RendersWithoutErrorBackgroundNotPainted`,
+`PptxDocument_Render_PhInheritPropsFixture_Slide0PaintsSlide1RendersWithoutError`,
+`PptxDocument_Render_PhUnpopulatedPlaceholdersFixture_RendersEverySlideWithoutError`,
+`PptxDocument_Render_TxtFitTextFixture_PaintsVisibleContent`,
+`PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsSkippedSilently`,
+`PptxDocument_Render_DmlFillFixture_BothSlidesThrowUnsupportedFillFeature`,
+`PptxDocument_Render_DmlLineFixture_RendersEverySlideWithVisibleContent`,
+`PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature`,
+`PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentBackgroundNotPainted`,
+`PptxDocument_Render_Aiden0zTableStaleFrameFixture_PaintsVisibleContentDespiteFrameSizeMismatch`
 
 Proves a single full-slide shape's resolved fill paints across the destination surface, proves a
 slide with no shapes at all renders only the cleared background, proves rendering at a pixel size
@@ -904,18 +914,24 @@ matched layout placeholder (which supplies styling only), and proves a placehold
 own `<p:spPr/>` is empty still inherits its `<a:xfrm>`/geometry from its matched layout placeholder
 rather than being silently skipped.
 
-The remaining ten `PptxDocument_Render_*Fixture_*` tests are the real-world corpus-conformance
+The remaining twenty `PptxDocument_Render_*Fixture_*` tests are the real-world corpus-conformance
 tier added in the Phase 2 hardening pass (see `pptx-document.md`'s own Phase 2 design section and
-`PptxFixtures/README.md` for full provenance): each opens one of ten genuine, independently-sourced
-`.pptx` files and renders every one of its slides, proving real-file conformance - not merely
-synthetic-package conformance - for the shape-tree walk and per-node-kind dispatch this
-requirement specifies. These tests additionally prove, against real files rather than merely
-hand-authored packages, that a chart/SmartArt-bearing `<p:graphicFrame>` slide throws
-`PptxUnsupportedFeatureException` cleanly (`pythonpptx-shp-shapes.pptx` slide 0,
-`samplelib-sample-presentation.pptx` slide 4), and that a group shape whose every child shape
+`PptxFixtures/README.md` for full provenance): each opens one of twenty genuine, independently-
+sourced `.pptx` files across three independent sources and renders every one of its slides,
+proving real-file conformance - not merely synthetic-package conformance - for the shape-tree walk
+and per-node-kind dispatch this requirement specifies. These tests additionally prove, against
+real files rather than merely hand-authored packages, that a chart/SmartArt-bearing
+`<p:graphicFrame>` slide throws `PptxUnsupportedFeatureException` cleanly
+(`pythonpptx-shp-shapes.pptx` slide 0, `samplelib-sample-presentation.pptx` slide 4,
+`aiden0z-1-chart-and-complex.pptx` slide 1), that a group shape whose every child shape
 relies solely on an unresolved `<p:style>` shape-style-matrix reference for its fill (an
 out-of-scope construct, see `pptx-document.md`'s Phase 1c deferred-items list) renders without
-error despite painting no visible ink (`pythonpptx-shp-groupshape.pptx`).
+error despite painting no visible ink (`pythonpptx-shp-groupshape.pptx`), that a shape-background
+picture fill and a shape-background pattern fill each throw their own documented
+`PptxUnsupportedFeatureException` feature token (`pythonpptx-dml-fill.pptx`, feature tokens
+`pptx-picture-fill`/`pptx-pattern-fill`), and that a slide's own `<p:bg>` background fill - not
+parsed anywhere in this codebase - correctly renders without error while painting nothing
+(`pythonpptx-sld-background.pptx`, `aiden0z-image-crop-css-reset.pptx`).
 
 #### CanvasNetPptx-PptxDocument-RenderPublicApi: Public API Argument Validation and DPI Convenience Overload
 
