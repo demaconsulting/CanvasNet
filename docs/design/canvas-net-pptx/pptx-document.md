@@ -687,9 +687,9 @@ design cost:
 - **Text clipping on overflow** - an overflowing text block is positioned exactly as computed,
   without being clipped to the shape's own bounding box (see _Text Layout_ above).
 
-A full per-slide public `Render` API is deferred to a later phase alongside full group-shape
-semantics and picture/table support (see _Images, Tables, and Shape Tree (Phase 1e)_ and _Full
-Slide Rendering (Phase 1f)_ below).
+A full per-slide public `Render` API was deferred to a later phase alongside full group-shape
+semantics and picture/table support, and is now implemented (see _Images, Tables, and Shape Tree
+(Phase 1e)_ and _Full Slide Rendering (Phase 1f)_ below).
 
 ### Images, Tables, and Shape Tree (Phase 1e)
 
@@ -906,8 +906,8 @@ design cost:
   fill style flowing down to a child with no `<p:spPr>` of its own) is not implemented; each
   child shape's own properties are resolved independently of its enclosing group's properties.
 
-A full per-slide public `Render` API is deferred to a later phase (see _Full Slide Rendering
-(Phase 1f)_ below).
+A full per-slide public `Render` API was deferred to a later phase and is now implemented (see
+_Full Slide Rendering (Phase 1f)_ below).
 
 ### Full Slide Rendering (Phase 1f)
 
