@@ -4,14 +4,16 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore pptx ooxml navigations
+// cspell:ignore pptx ooxml navigations ordinally mistargeted
 
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> OOXML (Office Open XML) package layer: opening
 ///     the <c>.pptx</c> file as a ZIP archive, resolving <c>[Content_Types].xml</c>, and
-///     resolving package- and part-level relationships. This is the sole functionality
-///     implemented as of Phase 1a - no presentation-specific content (<c>ppt/presentation.xml</c>,
-///     slides, slide layouts/masters) is parsed by this or any other part of this class yet.
+///     resolving package- and part-level relationships. This file implements only the
+///     package-layer (OPC/ZIP/content-types/relationships) mechanics - the other
+///     <c>PptxDocument.*.cs</c> partials layer presentation/theme/master/layout/slide/text
+///     parsing on top of it; see <see cref="PptxDocument"/>'s own remarks for this class's full,
+///     current scope.
 /// </summary>
 public sealed partial class PptxDocument
 {
@@ -20,6 +22,20 @@ public sealed partial class PptxDocument
 
     /// <summary>The well-known part name of the package-level relationships part.</summary>
     private const string PackageRelationshipsPartName = "_rels/.rels";
+
+    /// <summary>
+    ///     The maximum number of characters <see cref="LoadXmlRoot"/> allows an
+    ///     <see cref="XmlReader"/> to read while parsing <c>[Content_Types].xml</c> or any
+    ///     <c>.rels</c> part, bounding the worst-case parse-time memory/CPU cost of an
+    ///     attacker-controlled, highly inflated ZIP entry (an "XML bomb") before it is ever
+    ///     materialized into an in-memory DOM. 2,000,000 characters is far larger than any
+    ///     real-world <c>[Content_Types].xml</c> or <c>.rels</c> part (these parts list only the
+    ///     package's own extension/override/relationship declarations, never arbitrary document
+    ///     content), while remaining small enough to keep worst-case memory bounded to a small,
+    ///     practical amount - mirroring <c>SvgCodec.MaxDocumentCharacters</c>'s own "generous but
+    ///     bounded" sizing rationale for the equivalent attacker-controlled-XML risk.
+    /// </summary>
+    private const int MaxPartCharacters = 2_000_000;
 
     /// <summary>The XML namespace used by <c>[Content_Types].xml</c>.</summary>
     private static readonly XNamespace ContentTypesNamespace =
@@ -38,7 +54,10 @@ public sealed partial class PptxDocument
     /// <summary>The opened, read-only ZIP archive view of this package.</summary>
     private readonly ZipArchive _archive;
 
-    /// <summary>Every part name present in the package, for existence checks, keyed case-insensitively.</summary>
+    /// <summary>
+    ///     Every part name present in the package, for existence checks, keyed case-sensitively
+    ///     per OPC's own ordinal part-name comparison rule (see <see cref="BuildEntryLookup"/>).
+    /// </summary>
     private readonly IReadOnlyDictionary<string, ZipArchiveEntry> _entriesByPath;
 
     /// <summary>
@@ -73,12 +92,11 @@ public sealed partial class PptxDocument
     /// </summary>
     /// <param name="Target">The relationship's raw (not yet resolved) <c>Target</c> attribute value.</param>
     /// <param name="Type">
-    ///     The relationship's <c>Type</c> attribute value (a URI, for example
-    ///     <c>"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"</c>),
-    ///     or <see cref="string.Empty"/> when the attribute is absent - tolerated rather than
-    ///     fatal, since Phase 1a never required it and some hand-authored test fixtures omit it
-    ///     for brevity in scenarios unrelated to type-based lookup (see
-    ///     <see cref="ResolveRelationshipByType"/>, the Phase 1b consumer of this field).
+    ///     The relationship's required <c>Type</c> attribute value (a URI, for example
+    ///     <c>"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"</c>)
+    ///     - a missing or empty <c>Type</c> attribute is rejected by <see cref="ParseRelationships"/>
+    ///     before a <see cref="PackageRelationship"/> is ever constructed, so this field is never
+    ///     empty (see <see cref="ResolveRelationshipByType"/>, the Phase 1b consumer of this field).
     /// </param>
     /// <param name="IsExternal">Whether <c>TargetMode="External"</c> was declared.</param>
     private readonly record struct PackageRelationship(string Target, string Type, bool IsExternal);
@@ -105,13 +123,33 @@ public sealed partial class PptxDocument
         }
     }
 
-    /// <summary>Builds a case-insensitive lookup of every entry in <paramref name="archive"/> by its full path.</summary>
+    /// <summary>
+    ///     Builds a case-sensitive lookup of every entry in <paramref name="archive"/> by its full
+    ///     path, per the Open Packaging Conventions (OPC, ECMA-376 Part 2) specification's own
+    ///     part-name comparison rule: part names are compared ordinally (case-sensitively), so a
+    ///     package legitimately may contain both <c>ppt/slides/Slide1.xml</c> and
+    ///     <c>ppt/slides/slide1.xml</c> as two distinct parts, and an incorrectly-cased reserved
+    ///     name (for example <c>[content_types].xml</c>) must never be accepted as if it were
+    ///     <c>[Content_Types].xml</c>.
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the archive contains two entries whose full names are exactly identical
+    ///     (a malformed/corrupt ZIP, since a well-formed ZIP never duplicates an entry name).
+    /// </exception>
     private static IReadOnlyDictionary<string, ZipArchiveEntry> BuildEntryLookup(ZipArchive archive)
     {
-        var entries = new Dictionary<string, ZipArchiveEntry>(StringComparer.OrdinalIgnoreCase);
+        var entries = new Dictionary<string, ZipArchiveEntry>(StringComparer.Ordinal);
         foreach (var entry in archive.Entries)
         {
-            entries[entry.FullName] = entry;
+            try
+            {
+                entries.Add(entry.FullName, entry);
+            }
+            catch (ArgumentException ex)
+            {
+                throw new InvalidDataException(
+                    $"The package contains duplicate entries named '{entry.FullName}'.", ex);
+            }
         }
 
         return entries;
@@ -152,10 +190,22 @@ public sealed partial class PptxDocument
     ///     Parses <c>[Content_Types].xml</c>'s <c>&lt;Default&gt;</c> and <c>&lt;Override&gt;</c>
     ///     elements into <see cref="_defaultContentTypes"/>/<see cref="_overrideContentTypes"/>.
     /// </summary>
-    /// <exception cref="InvalidDataException">Thrown when the part is not well-formed XML.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the part is not well-formed XML, its root element is not the OPC
+    ///     content-types namespace's <c>Types</c> element, or any <c>&lt;Default&gt;</c>/
+    ///     <c>&lt;Override&gt;</c> child is missing a required attribute (<c>Extension</c>/
+    ///     <c>ContentType</c> for <c>Default</c>, <c>PartName</c>/<c>ContentType</c> for
+    ///     <c>Override</c>) - malformed input must fail <see cref="Open(Stream)"/> outright rather
+    ///     than silently resolving an incomplete content-type map.
+    /// </exception>
     private void ParseContentTypes(ZipArchiveEntry entry)
     {
         var root = LoadXmlRoot(entry);
+        if (root.Name != ContentTypesNamespace + "Types")
+        {
+            throw new InvalidDataException(
+                $"'{entry.FullName}' root element is '{root.Name}', not the expected '{ContentTypesNamespace + "Types"}'.");
+        }
 
         foreach (var defaultElement in root.Elements(ContentTypesNamespace + "Default"))
         {
@@ -163,7 +213,8 @@ public sealed partial class PptxDocument
             var contentType = (string?)defaultElement.Attribute("ContentType");
             if (string.IsNullOrEmpty(extension) || string.IsNullOrEmpty(contentType))
             {
-                continue;
+                throw new InvalidDataException(
+                    $"'{entry.FullName}' has a <Default> element with a missing or empty 'Extension'/'ContentType' attribute.");
             }
 
             _defaultContentTypes[extension] = contentType;
@@ -175,7 +226,8 @@ public sealed partial class PptxDocument
             var contentType = (string?)overrideElement.Attribute("ContentType");
             if (string.IsNullOrEmpty(partName) || string.IsNullOrEmpty(contentType))
             {
-                continue;
+                throw new InvalidDataException(
+                    $"'{entry.FullName}' has an <Override> element with a missing or empty 'PartName'/'ContentType' attribute.");
             }
 
             _overrideContentTypes[NormalizePartPath(partName)] = contentType;
@@ -186,24 +238,36 @@ public sealed partial class PptxDocument
     ///     Parses a <c>.rels</c> part's <c>&lt;Relationship&gt;</c> elements into a lookup from
     ///     relationship ID to its <see cref="PackageRelationship"/>.
     /// </summary>
-    /// <exception cref="InvalidDataException">Thrown when the part is not well-formed XML.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the part is not well-formed XML, its root element is not the OPC
+    ///     relationships namespace's <c>Relationships</c> element, or any
+    ///     <c>&lt;Relationship&gt;</c> child is missing a required attribute (<c>Id</c>,
+    ///     <c>Type</c>, or <c>Target</c>) - malformed input must fail resolution outright rather
+    ///     than silently skipping the malformed relationship.
+    /// </exception>
     private static IReadOnlyDictionary<string, PackageRelationship> ParseRelationships(ZipArchiveEntry entry)
     {
         var root = LoadXmlRoot(entry);
+        if (root.Name != RelationshipsNamespace + "Relationships")
+        {
+            throw new InvalidDataException(
+                $"'{entry.FullName}' root element is '{root.Name}', not the expected '{RelationshipsNamespace + "Relationships"}'.");
+        }
 
         var relationships = new Dictionary<string, PackageRelationship>(StringComparer.Ordinal);
         foreach (var relationshipElement in root.Elements(RelationshipsNamespace + "Relationship"))
         {
             var id = (string?)relationshipElement.Attribute("Id");
             var target = (string?)relationshipElement.Attribute("Target");
-            if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(target))
+            var type = (string?)relationshipElement.Attribute("Type");
+            if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(target) || string.IsNullOrEmpty(type))
             {
-                continue;
+                throw new InvalidDataException(
+                    $"'{entry.FullName}' has a <Relationship> element with a missing or empty 'Id'/'Type'/'Target' attribute.");
             }
 
             var targetMode = (string?)relationshipElement.Attribute("TargetMode");
             var isExternal = string.Equals(targetMode, "External", StringComparison.OrdinalIgnoreCase);
-            var type = (string?)relationshipElement.Attribute("Type") ?? string.Empty;
 
             relationships[id] = new PackageRelationship(target, type, isExternal);
         }
@@ -215,12 +279,30 @@ public sealed partial class PptxDocument
     ///     Loads and returns <paramref name="entry"/>'s root XML element, wrapping any XML parse
     ///     failure in <see cref="InvalidDataException"/>.
     /// </summary>
+    /// <remarks>
+    ///     Both <c>[Content_Types].xml</c> and every <c>.rels</c> part are attacker-controlled ZIP
+    ///     entries (a malicious package can declare any content for them); parsing them with an
+    ///     unbounded <see cref="XmlReader"/> would let a small ZIP containing a highly inflated
+    ///     XML part (an "XML bomb"/zip-bomb pattern) exhaust memory during <see cref="Open(Stream)"/>.
+    ///     <see cref="MaxPartCharacters"/> bounds the reader's total character count before
+    ///     <see cref="XDocument.Load(XmlReader, LoadOptions)"/> ever begins materializing the DOM
+    ///     tree, and disabling DTD processing (with no XML resolver) hardens against XML External
+    ///     Entity (XXE) injection - mirroring <c>SvgCodec.LoadRootElement</c>'s own established
+    ///     hardening pattern for the same class of attacker-controlled-XML risk.
+    /// </remarks>
     private static XElement LoadXmlRoot(ZipArchiveEntry entry)
     {
         try
         {
             using var stream = entry.Open();
-            var document = XDocument.Load(stream, LoadOptions.None);
+            var settings = new XmlReaderSettings
+            {
+                MaxCharactersInDocument = MaxPartCharacters,
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null
+            };
+            using var reader = XmlReader.Create(stream, settings);
+            var document = XDocument.Load(reader, LoadOptions.None);
             return document.Root ?? throw new InvalidDataException(
                 $"'{entry.FullName}' does not contain a root XML element.");
         }
@@ -317,6 +399,44 @@ public sealed partial class PptxDocument
         }
 
         return ResolveRelativeTarget(normalizedSource, relationship.Target);
+    }
+
+    /// <summary>
+    ///     Returns the <c>Type</c> attribute value of the relationship identified by
+    ///     <paramref name="relationshipId"/> within <paramref name="sourcePartPath"/>'s
+    ///     relationships, used by callers (for example <c>ParseSlideIdList</c>) that must confirm
+    ///     a relationship points at the expected kind of part before trusting its resolved target
+    ///     - resolving a relationship's target path alone (<see cref="ResolveRelationship"/>)
+    ///     cannot distinguish "points at a slide" from "points at an arbitrary, wrongly-typed
+    ///     part".
+    /// </summary>
+    /// <param name="sourcePartPath">
+    ///     The source part's path, or the empty string for a package-level relationship.
+    /// </param>
+    /// <param name="relationshipId">The relationship's <c>Id</c> attribute value.</param>
+    /// <returns>The relationship's <c>Type</c> attribute value (never null or empty).</returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="sourcePartPath"/> or <paramref name="relationshipId"/> is null.
+    /// </exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="sourcePartPath"/> has no relationship named
+    ///     <paramref name="relationshipId"/>.
+    /// </exception>
+    internal string GetRelationshipType(string sourcePartPath, string relationshipId)
+    {
+        ArgumentNullException.ThrowIfNull(sourcePartPath);
+        ArgumentNullException.ThrowIfNull(relationshipId);
+
+        var normalizedSource = NormalizePartPath(sourcePartPath);
+        var relationships = GetRelationships(normalizedSource);
+
+        if (!relationships.TryGetValue(relationshipId, out var relationship))
+        {
+            throw new InvalidDataException(
+                $"Relationship '{relationshipId}' was not found for part '{sourcePartPath}'.");
+        }
+
+        return relationship.Type;
     }
 
     /// <summary>
