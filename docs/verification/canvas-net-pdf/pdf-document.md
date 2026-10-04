@@ -1236,11 +1236,15 @@ trimmed, genuinely real-world `text-type1c-differences-agl-ligatures.pdf` fixtur
 `PdfFixtures\README.md`) - two actual embedded, subsetted Type1C fonts (`Gotham-Bold`/
 `Gotham-Book`) whose own `/Differences` arrays name glyphs (`/uni03BC`, `/thinspace`) this exact
 regression previously left unresolved - and asserts visible glyph ink paints; this fixture's
-content stream also exercises an `/f_f` ligature-glyph name that remains unresolved by design (an
-AGL underscore-ligature decomposition rule, not a `uniXXXX`/`uXXXX` hex name, and explicitly out
-of this fix's scope), so this broad fixture test deliberately only asserts "some ink paints
-somewhere" rather than per-glyph pixel positions - the two precise synthetic tests above already
-isolate the fixed mechanisms exactly.
+content stream also genuinely contains an `/f_f` ligature-glyph name (an AGL underscore-ligature
+decomposition naming the "ff" ligature glyph) against real body text, which this fix also allows
+to resolve via `TryResolveLigatureUnderscoreName` - but this broad fixture test only asserts "some
+ink paints somewhere" on the whole page (a page that already painted ink before this fix, from the
+unrelated text surrounding the ligature), so it cannot by itself distinguish a resolved `/f_f`
+glyph from an unresolved tofu glyph; the dedicated, isolated proof that the mechanism itself works
+is `PdfDocument_Fonts_Differences_LigatureUnderscoreName_ResolvesViaEnrichedEmbeddedFontGlyphMap`
+above, which pixel-asserts the specific glyph position against a synthetic embedded font built
+for exactly that purpose.
 
 #### CanvasNetPdf-PdfDocument-Type3FontResolution: Type3 Fonts Resolve Required Fields, Fail Closed on Malformed Ones
 
@@ -1475,6 +1479,10 @@ dogfooding shape for the 12 pre-existing Liberation files.
 `PdfDocument_Fonts_Differences_UnrecognizedGlyphName_FallsBackToBaseEncoding`,
 `PdfDocument_Fonts_Differences_FfFfiFflLigatureNames_DoNotThrow`,
 `PdfDocument_Fonts_Differences_NacuteName_DoesNotThrow`,
+`PdfDocument_Fonts_Differences_LigatureUnderscoreName_ResolvesViaEnrichedEmbeddedFontGlyphMap`,
+`PdfDocument_Fonts_Differences_UnrecognizedUnderscoreName_FallsBackToBaseEncoding`,
+`PdfDocument_Fonts_Differences_SurrogateRangeUniHexName_FallsBackToBaseEncoding`,
+`PdfDocument_Fonts_Differences_LigatureComponentSurrogateRange_FallsBackToBaseEncoding`,
 `PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_StandardEncoding_DiffersFromWinAnsiEncoding`,
 `PdfDocument_Fonts_StandardEncoding_Absent_DefaultWinAnsiDoesNotPaintQuoteright`
@@ -1510,7 +1518,37 @@ helper `ApplyDifferences` now calls instead of consulting `StandardGlyphNames` d
 this resolves end to end against an actual embedded font (both `ApplyDifferences`'s own codepoint
 resolution and the embedded-font loader's own synthetic-cmap-equivalent glyph-name lookup must
 agree on the same codepoint for a glyph to paint, so those tests exercise the full pipeline, not
-only this requirement's own codepoint-resolution half). As of
+only this requirement's own codepoint-resolution half). A further theory,
+`PdfDocument_Fonts_Differences_LigatureUnderscoreName_ResolvesViaEnrichedEmbeddedFontGlyphMap`,
+proves the AGL's own underscore ligature-naming convention (two or more underscore-separated
+component glyph names, for example `f_i`, `f_l`, `f_f`, `f_f_i`, `f_f_l` - a real-world spelling
+several PDF producers, for example XeTeX/LuaTeX-derived toolchains, use for a subsetted font's own
+ligature glyphs, as distinct from `StandardGlyphNames`'s own dedicated `fi`/`fl`/`ff`/`ffi`/`ffl`
+names) resolves end to end against an actual embedded Type1C font whose own CFF charset literally
+spells its only non-`.notdef` glyph with that exact underscore name: the new
+`TryResolveLigatureUnderscoreName` helper resolves each component recursively (so a component may
+itself use the `uniXXXX`/`uXXXX` hex convention), concatenates the resolved characters, and looks
+the concatenated string up as an AGL glyph name in its own right - `f` + `i` concatenates to `fi`,
+which `StandardGlyphNames` already maps to U+FB01. This is the real-world regression a PDF
+producer's `/Differences` array naming ligature glyphs this way previously rendered as
+missing/tofu glyphs. A companion test,
+`PdfDocument_Fonts_Differences_UnrecognizedUnderscoreName_FallsBackToBaseEncoding`, declares an
+underscore-joined name whose concatenation (`"foobar"`) is not any recognized AGL ligature name,
+asserting it is tolerated identically to any other unrecognized `/Differences` name (falling back
+to the base encoding) rather than throwing or fabricating a codepoint. Two further tests prove
+`TryParseUppercaseHexDigits` also rejects a value in the UTF-16 surrogate range
+(`0xD800`-`0xDFFF`), not only a value above `0x10FFFF`: a lone surrogate is not a valid Unicode
+scalar value on its own, and - unlike every other unresolved codepoint, which is merely tolerated
+
+- would otherwise reach `TryResolveLigatureUnderscoreName`'s `char.ConvertFromUtf32` call and
+throw `ArgumentOutOfRangeException` instead of failing closed.
+`PdfDocument_Fonts_Differences_SurrogateRangeUniHexName_FallsBackToBaseEncoding` declares
+`/uniD800` directly (the generic hex-codepoint path, with no ligature involved), asserting no
+exception and a base-encoding fallback exactly like the above-`0x10FFFF` case;
+`PdfDocument_Fonts_Differences_LigatureComponentSurrogateRange_FallsBackToBaseEncoding` declares
+`/uniD800_i` (a ligature-underscore name whose first component is the surrogate-range value),
+asserting the same no-exception fallback - proving the surrogate rejection is load-bearing for
+the ligature path specifically, not merely a defensive check that happens to also work there. As of
 Phase B, a font explicitly
 declaring `/StandardEncoding` and showing byte code `0x27` (which diverges between the two base
 encodings - `StandardEncoding` maps it to U+2019 "quoteright", `WinAnsiEncoding` maps it to

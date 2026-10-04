@@ -1045,6 +1045,7 @@ sections:
               - PdfDocument_Fonts_Type1_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Fonts_Differences_ThinspaceName_ResolvesAndPaintsEmbeddedGlyph
               - PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedFontGlyphMap
+              - PdfDocument_Fonts_Differences_LigatureUnderscoreName_ResolvesViaEnrichedEmbeddedFontGlyphMap
               - PdfDocument_Load_TextType1CDifferencesAglLigaturesFixture_PaintsVisibleGlyphInk
 
           - id: CanvasNetPdf-PdfDocument-Type3FontResolution
@@ -1281,8 +1282,13 @@ sections:
               encodings (throwing UnsupportedImageFeatureException for any other base encoding
               name), and applying an /Encoding/Differences array's code-then-glyph-name
               run-length overrides via a standard Adobe-glyph-name-to-Unicode-codepoint mapping
-              (itself falling back, for a name this mapping does not directly cover, to the Adobe
-              Glyph List's own generic uniXXXX/uXXXX hex-codepoint naming convention),
+              (itself falling back, for a name this mapping does not directly cover, first to the
+              Adobe Glyph List's own generic uniXXXX/uXXXX hex-codepoint naming convention (itself
+              rejecting a value above 0x10FFFF or within the UTF-16 surrogate range
+              0xD800-0xDFFF as unresolved, since neither is a valid Unicode scalar value), then
+              to the AGL's own underscore ligature-naming convention - two or more
+              underscore-separated component names, each itself resolved the same way, whose
+              concatenated characters match one of the mapping's own dedicated ligature names),
               tolerating an unrecognized glyph name (leaving that code at its base-encoding
               mapping) but throwing InvalidDataException for /Differences beginning with a glyph
               name before any starting code.
@@ -1297,7 +1303,13 @@ sections:
               /Differences glyph name is not evidence of document corruption - real-world
               producers routinely emit producer-specific names this library does not itself
               recognize - so that one code is left at its base-encoding mapping instead of
-              rejecting the whole document.
+              rejecting the whole document. The underscore ligature-naming convention is likewise
+              required because real-world PDF producers (for example XeTeX/LuaTeX-derived
+              toolchains) routinely spell a subsetted font's own ligature glyphs as
+              underscore-joined component names (for example f_i for the "fi" ligature) instead
+              of the Adobe Glyph List's own dedicated ligature names, and without recognizing
+              that convention those ligature glyphs render as missing/tofu glyphs even though the
+              embedded font and a dedicated AGL codepoint for the same ligature both exist.
             tests:
               - PdfDocument_Fonts_UnrecognizedEncoding_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Fonts_DefaultEncoding_IsWinAnsiEncoding
@@ -1309,6 +1321,10 @@ sections:
               - PdfDocument_Fonts_Differences_NacuteName_DoesNotThrow
               - PdfDocument_Fonts_Differences_ThinspaceName_ResolvesAndPaintsEmbeddedGlyph
               - PdfDocument_Fonts_Differences_Uni03BCName_ResolvesViaEnrichedEmbeddedFontGlyphMap
+              - PdfDocument_Fonts_Differences_LigatureUnderscoreName_ResolvesViaEnrichedEmbeddedFontGlyphMap
+              - PdfDocument_Fonts_Differences_UnrecognizedUnderscoreName_FallsBackToBaseEncoding
+              - PdfDocument_Fonts_Differences_SurrogateRangeUniHexName_FallsBackToBaseEncoding
+              - PdfDocument_Fonts_Differences_LigatureComponentSurrogateRange_FallsBackToBaseEncoding
               - PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException
               - PdfDocument_Fonts_StandardEncoding_DiffersFromWinAnsiEncoding
               - PdfDocument_Fonts_StandardEncoding_Absent_DefaultWinAnsiDoesNotPaintQuoteright

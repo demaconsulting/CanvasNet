@@ -7592,6 +7592,67 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Proves that a syntactically-valid-looking four-hex-digit <c>uniXXXX</c> glyph name
+    ///     whose value falls within the UTF-16 surrogate range (<c>0xD800</c>-<c>0xDFFF</c>) is
+    ///     rejected rather than resolved: a lone surrogate value is not a valid Unicode scalar
+    ///     value on its own, so <c>TryParseUppercaseHexDigits</c> must reject it (exactly like the
+    ///     above-<c>0x10FFFF</c> case) and leave the affected code at whatever its base encoding
+    ///     already assigned it, rather than propagating an invalid codepoint that would later
+    ///     throw <see cref="ArgumentOutOfRangeException"/> from <c>char.ConvertFromUtf32</c> if it
+    ///     ever reached <c>TryResolveLigatureUnderscoreName</c>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Differences_SurrogateRangeUniHexName_FallsBackToBaseEncoding()
+    {
+        // Arrange
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(
+            fontBytes,
+            fontDictExtra: "/FirstChar 65 /LastChar 66 /Widths [600 600] " +
+                           "/Encoding << /Differences [65 /uniD800] >>");
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: no exception, and the glyph painted (base encoding's codepoint 65 mapping was
+        // preserved rather than overwritten by the surrogate-range override).
+        Assert.NotEqual(default, surface[11, 44]);
+    }
+
+    /// <summary>
+    ///     Proves that a ligature-underscore glyph name whose component resolves to a UTF-16
+    ///     surrogate-range value (for example <c>uniD800_i</c>, a deliberately pathological name
+    ///     whose first component names a lone surrogate) does not throw
+    ///     <see cref="ArgumentOutOfRangeException"/>: <c>TryResolveLigatureUnderscoreName</c>
+    ///     resolves each component via <c>TryResolveGlyphNameToCodepoint</c>, which (via
+    ///     <c>TryParseUppercaseHexDigits</c>'s surrogate-range rejection) now fails closed for that
+    ///     component instead of handing an invalid scalar value to <c>char.ConvertFromUtf32</c>,
+    ///     so the whole ligature name is left unresolved and the affected code falls back to its
+    ///     base encoding - exactly like any other unrecognized <c>/Differences</c> name.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Differences_LigatureComponentSurrogateRange_FallsBackToBaseEncoding()
+    {
+        // Arrange
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(
+            fontBytes,
+            fontDictExtra: "/FirstChar 65 /LastChar 66 /Widths [600 600] " +
+                           "/Encoding << /Differences [65 /uniD800_i] >>");
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: no exception, and the glyph painted (base encoding's codepoint 65 mapping was
+        // preserved rather than overwritten by the unresolved ligature override).
+        Assert.NotEqual(default, surface[11, 44]);
+    }
+
+    /// <summary>
     ///     Proves that each of the AGL generic <c>uXXXX</c>/<c>uXXXXX</c>/<c>uXXXXXX</c>
     ///     hex-codepoint glyph-name lengths (four, five, and six uppercase hex digits) actually
     ///     resolves end-to-end rather than only rejecting the out-of-range case covered by
@@ -7621,6 +7682,84 @@ public class PdfDocumentTests
         using var surface = RenderPdfBytes(bytes);
 
         // Assert: the embedded font's square glyph painted at the expected text-space location.
+        Assert.NotEqual(default, surface[11, 44]);
+    }
+
+    /// <summary>
+    ///     Proves that the AGL underscore ligature-naming convention (<c>f_i</c>, <c>f_l</c>,
+    ///     <c>f_f</c>, <c>f_f_i</c>, <c>f_f_l</c>) - the real-world spelling several PDF producers
+    ///     (for example XeTeX/LuaTeX-derived toolchains) use for a subsetted font's own ligature
+    ///     glyphs, as distinct from the AGL's own dedicated <c>fi</c>/<c>fl</c>/<c>ff</c>/<c>ffi</c>/
+    ///     <c>ffl</c> names already covered by <c>StandardGlyphNames</c> - resolves end-to-end via
+    ///     <c>TryResolveLigatureUnderscoreName</c>: a <c>/Differences</c> array names code 65 with
+    ///     the given underscore name, and an embedded Type1C font whose own CFF charset literally
+    ///     spells its only non-<c>.notdef</c> glyph with that exact same underscore name, so the
+    ///     glyph paints only if the name's components ("f", "i", and so on) each resolve to a
+    ///     codepoint, their concatenation matches one of <c>StandardGlyphNames</c>'s own dedicated
+    ///     ligature names, and <c>BuildEmbeddedFontGlyphNameMap</c>'s enrichment then wires the
+    ///     resolved codepoint back to the literal embedded glyph name (mirroring
+    ///     <see cref="PdfDocument_Fonts_Differences_ValidUHexName_ResolvesViaEnrichedEmbeddedFontGlyphMap"/>'s
+    ///     own end-to-end pattern). This is the reported real-world regression: a PDF's
+    ///     <c>/Differences</c> array naming ligature glyphs this way previously rendered as
+    ///     missing/tofu glyphs because neither <c>StandardGlyphNames</c> nor the AGL hex
+    ///     convention recognized the underscore-joined name at all. The final case,
+    ///     <c>uni0066_uni0069</c>, instead spells both components using the AGL's own generic
+    ///     <c>uniXXXX</c> hex-codepoint convention (rather than a literal single-letter name),
+    ///     proving <c>TryResolveLigatureUnderscoreName</c>'s per-component recursion into
+    ///     <c>TryResolveGlyphNameToCodepoint</c> - not just a direct <c>StandardGlyphNames</c>
+    ///     lookup - correctly resolves each component before concatenation.
+    /// </summary>
+    [Theory]
+    [InlineData("f_i")] // "f" + "i" -> "fi" -> U+FB01 LATIN SMALL LIGATURE FI.
+    [InlineData("f_l")] // "f" + "l" -> "fl" -> U+FB02 LATIN SMALL LIGATURE FL.
+    [InlineData("f_f")] // "f" + "f" -> "ff" -> U+FB00 LATIN SMALL LIGATURE FF.
+    [InlineData("f_f_i")] // "f" + "f" + "i" -> "ffi" -> U+FB03 LATIN SMALL LIGATURE FFI.
+    [InlineData("f_f_l")] // "f" + "f" + "l" -> "ffl" -> U+FB04 LATIN SMALL LIGATURE FFL.
+    [InlineData("uni0066_uni0069")] // AGL-hex components "uni0066" + "uni0069" -> "f" + "i" -> "fi" -> U+FB01.
+    public void PdfDocument_Fonts_Differences_LigatureUnderscoreName_ResolvesViaEnrichedEmbeddedFontGlyphMap(
+        string glyphName)
+    {
+        // Arrange
+        var (resourcesBody, extraObjects) = BuildEmbeddedType1CFontResources(
+            fontDictExtra: "/FirstChar 65 /LastChar 65 /Widths [600] " +
+                           $"/Encoding << /Differences [65 /{glyphName}] >>",
+            customGlyphName: glyphName);
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the embedded font's square glyph painted at the expected text-space location.
+        Assert.NotEqual(default, surface[11, 44]);
+    }
+
+    /// <summary>
+    ///     Proves that a glyph name with underscore-separated components that do not themselves
+    ///     resolve to a recognized ligature (for example <c>"foo_bar"</c>, whose concatenation
+    ///     "foobar" is not any AGL ligature name) is tolerated exactly like any other unrecognized
+    ///     <c>/Differences</c> name - left at whatever its base encoding already assigned it -
+    ///     rather than throwing or otherwise failing: <c>TryResolveLigatureUnderscoreName</c> must
+    ///     fail closed (return <see langword="false"/>) rather than guess or fabricate a codepoint
+    ///     when the concatenated candidate name is not in <c>StandardGlyphNames</c>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Differences_UnrecognizedUnderscoreName_FallsBackToBaseEncoding()
+    {
+        // Arrange
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(
+            fontBytes,
+            fontDictExtra: "/FirstChar 65 /LastChar 66 /Widths [600 600] " +
+                           "/Encoding << /Differences [65 /foo_bar] >>");
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: no exception, and the glyph painted (base encoding's codepoint 65 mapping was
+        // preserved rather than cleared by the unrecognized override).
         Assert.NotEqual(default, surface[11, 44]);
     }
 

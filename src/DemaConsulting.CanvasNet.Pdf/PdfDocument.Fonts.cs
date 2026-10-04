@@ -17,6 +17,7 @@
 // cspell:ignore ZapfDingbats Dingbats registerserif registersans copyrightserif copyrightsans
 // cspell:ignore trademarkserif trademarksans radicalex Noto thinspace
 using System.Globalization;
+using System.Text;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 
@@ -551,18 +552,73 @@ public sealed partial class PdfDocument
     ///     first consults <see cref="StandardGlyphNames"/> (the common-name subset), then - for a
     ///     name that subset does not itself cover - falls back to the AGL's own generic
     ///     <c>uniXXXX</c>/<c>uXXXX</c> hex-codepoint naming convention (four uppercase hex digits
-    ///     after <c>uni</c>, or four-to-six uppercase hex digits after <c>u</c>), per the
-    ///     published Adobe Glyph List specification. Introduced so a <c>/Differences</c> array
-    ///     naming a glyph this way (for example <c>/uni03BC</c>, seen in real-world subsetted
-    ///     fonts whose own CFF charset uses that exact literal spelling) resolves to the correct
-    ///     codepoint instead of being silently tolerated as unrecognized (see
-    ///     <see cref="ApplyDifferences"/>'s own remarks for that tolerant fallback).
+    ///     after <c>uni</c>, or four-to-six uppercase hex digits after <c>u</c>), then finally to
+    ///     the AGL's own underscore ligature-naming convention (see
+    ///     <see cref="TryResolveLigatureUnderscoreName"/>), per the published Adobe Glyph List
+    ///     specification. Introduced so a <c>/Differences</c> array naming a glyph this way (for
+    ///     example <c>/uni03BC</c>, seen in real-world subsetted fonts whose own CFF charset uses
+    ///     that exact literal spelling) resolves to the correct codepoint instead of being
+    ///     silently tolerated as unrecognized (see <see cref="ApplyDifferences"/>'s own remarks
+    ///     for that tolerant fallback).
     /// </summary>
     /// <param name="name">The <c>/Differences</c> array's glyph name to resolve.</param>
     /// <param name="codepoint">The resolved Unicode codepoint, or <c>0</c> when unresolved.</param>
     /// <returns><see langword="true"/> if <paramref name="name"/> resolved to a codepoint.</returns>
     private static bool TryResolveGlyphNameToCodepoint(string name, out int codepoint) =>
-        StandardGlyphNames.TryGetValue(name, out codepoint) || TryParseAdobeGlyphListHexName(name, out codepoint);
+        StandardGlyphNames.TryGetValue(name, out codepoint) ||
+        TryParseAdobeGlyphListHexName(name, out codepoint) ||
+        TryResolveLigatureUnderscoreName(name, out codepoint);
+
+    /// <summary>
+    ///     Resolves an Adobe-Glyph-List "ligature" glyph name - two or more component glyph names
+    ///     joined by underscores (for example <c>f_i</c>, a common real-world subsetted-font
+    ///     spelling of the "fi" ligature glyph, as distinct from the AGL's own dedicated <c>fi</c>
+    ///     name already covered by <see cref="StandardGlyphNames"/>) - per the published AGL
+    ///     specification's own ligature-naming convention: each underscore-separated component is
+    ///     itself resolved to a Unicode codepoint (recursively, via
+    ///     <see cref="TryResolveGlyphNameToCodepoint"/>, so a component may itself use the
+    ///     <c>uniXXXX</c>/<c>uXXXX</c> hex convention, for example <c>uni0066_uni0069</c>), the
+    ///     resolved characters are concatenated in order, and the resulting string is looked up as
+    ///     an AGL glyph name in its own right - for example <c>f_i</c> concatenates to <c>fi</c>,
+    ///     which <see cref="StandardGlyphNames"/> already maps to the dedicated "LATIN SMALL
+    ///     LIGATURE FI" codepoint <c>U+FB01</c>. Introduced because real-world PDF producers (for
+    ///     example XeTeX/LuaTeX and several PostScript-derived toolchains) routinely name a
+    ///     subsetted font's ligature glyphs this way rather than with the AGL's own dedicated
+    ///     ligature names, leaving a <c>/Differences</c> array entry naming such a glyph otherwise
+    ///     unresolved (and its text rendered as missing/tofu glyphs) even though
+    ///     <see cref="StandardGlyphNames"/> already has a perfectly good codepoint for the exact
+    ///     same ligature under its dedicated name.
+    /// </summary>
+    /// <param name="name">The glyph name to resolve.</param>
+    /// <param name="codepoint">The resolved Unicode codepoint, or <c>0</c> when unresolved.</param>
+    /// <returns>
+    ///     <see langword="true"/> if <paramref name="name"/> has at least two non-empty
+    ///     underscore-separated components, every component itself resolves to a codepoint, and
+    ///     the components' concatenated characters match a name in <see cref="StandardGlyphNames"/>.
+    /// </returns>
+    private static bool TryResolveLigatureUnderscoreName(string name, out int codepoint)
+    {
+        codepoint = 0;
+
+        var components = name.Split('_');
+        if (components.Length < 2)
+        {
+            return false;
+        }
+
+        var concatenated = new StringBuilder();
+        foreach (var component in components)
+        {
+            if (component.Length == 0 || !TryResolveGlyphNameToCodepoint(component, out var componentCodepoint))
+            {
+                return false;
+            }
+
+            concatenated.Append(char.ConvertFromUtf32(componentCodepoint));
+        }
+
+        return StandardGlyphNames.TryGetValue(concatenated.ToString(), out codepoint);
+    }
 
     /// <summary>
     ///     Parses the Adobe Glyph List's generic hex-codepoint glyph-name conventions: <c>uniXXXX</c>
@@ -604,17 +660,25 @@ public sealed partial class PdfDocument
     ///     digit <c>uXXXX</c>/.../<c>uXXXXXX</c> convention can spell a six-digit value as large as
     ///     <c>0xFFFFFF</c>, which is not a valid AGL codepoint name at all, so such a name must
     ///     stay unresolved (per <see cref="ApplyDifferences"/>'s own tolerant handling for
-    ///     unrecognized names) rather than being treated as resolved.
+    ///     unrecognized names) rather than being treated as resolved. Likewise rejects a value in
+    ///     the UTF-16 surrogate range (<c>0xD800</c>-<c>0xDFFF</c>): a lone surrogate value is not
+    ///     a valid Unicode scalar value on its own (surrogates only exist in pairs, as a UTF-16
+    ///     encoding detail, never as a standalone codepoint), so resolving one here would hand
+    ///     <see cref="TryResolveLigatureUnderscoreName"/>'s <c>char.ConvertFromUtf32</c> call (and
+    ///     any other codepoint consumer) a value it cannot legally convert, throwing
+    ///     <see cref="ArgumentOutOfRangeException"/> instead of this method's own documented
+    ///     fail-closed "stay unresolved" contract.
     /// </summary>
     /// <param name="digits">The candidate hex digit span to parse.</param>
     /// <param name="value">
     ///     The parsed value, or <c>0</c> when <paramref name="digits"/> contains any
-    ///     non-uppercase-hex character, or when the parsed value exceeds <c>0x10FFFF</c>.
+    ///     non-uppercase-hex character, when the parsed value exceeds <c>0x10FFFF</c>, or when the
+    ///     parsed value falls within the UTF-16 surrogate range (<c>0xD800</c>-<c>0xDFFF</c>).
     /// </param>
     /// <returns>
     ///     <see langword="true"/> if every character in <paramref name="digits"/> was an
-    ///     uppercase hex digit and the parsed value is a valid Unicode codepoint (at most
-    ///     <c>0x10FFFF</c>).
+    ///     uppercase hex digit and the parsed value is a valid Unicode scalar value (at most
+    ///     <c>0x10FFFF</c> and outside the surrogate range).
     /// </returns>
     private static bool TryParseUppercaseHexDigits(ReadOnlySpan<char> digits, out int value)
     {
@@ -628,7 +692,7 @@ public sealed partial class PdfDocument
         }
 
         if (!int.TryParse(digits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value) ||
-            value > 0x10FFFF)
+            value > 0x10FFFF || value is >= 0xD800 and <= 0xDFFF)
         {
             value = 0;
             return false;
