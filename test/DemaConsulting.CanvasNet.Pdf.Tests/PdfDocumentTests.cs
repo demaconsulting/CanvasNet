@@ -7625,6 +7625,78 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Proves that the AGL underscore ligature-naming convention (<c>f_i</c>, <c>f_l</c>,
+    ///     <c>f_f</c>, <c>f_f_i</c>, <c>f_f_l</c>) - the real-world spelling several PDF producers
+    ///     (for example XeTeX/LuaTeX-derived toolchains) use for a subsetted font's own ligature
+    ///     glyphs, as distinct from the AGL's own dedicated <c>fi</c>/<c>fl</c>/<c>ff</c>/<c>ffi</c>/
+    ///     <c>ffl</c> names already covered by <c>StandardGlyphNames</c> - resolves end-to-end via
+    ///     <c>TryResolveLigatureUnderscoreName</c>: a <c>/Differences</c> array names code 65 with
+    ///     the given underscore name, and an embedded Type1C font whose own CFF charset literally
+    ///     spells its only non-<c>.notdef</c> glyph with that exact same underscore name, so the
+    ///     glyph paints only if the name's components ("f", "i", and so on) each resolve to a
+    ///     codepoint, their concatenation matches one of <c>StandardGlyphNames</c>'s own dedicated
+    ///     ligature names, and <c>BuildEmbeddedFontGlyphNameMap</c>'s enrichment then wires the
+    ///     resolved codepoint back to the literal embedded glyph name (mirroring
+    ///     <see cref="PdfDocument_Fonts_Differences_ValidUHexName_ResolvesViaEnrichedEmbeddedFontGlyphMap"/>'s
+    ///     own end-to-end pattern). This is the reported real-world regression: a PDF's
+    ///     <c>/Differences</c> array naming ligature glyphs this way previously rendered as
+    ///     missing/tofu glyphs because neither <c>StandardGlyphNames</c> nor the AGL hex
+    ///     convention recognized the underscore-joined name at all.
+    /// </summary>
+    [Theory]
+    [InlineData("f_i")] // "f" + "i" -> "fi" -> U+FB01 LATIN SMALL LIGATURE FI.
+    [InlineData("f_l")] // "f" + "l" -> "fl" -> U+FB02 LATIN SMALL LIGATURE FL.
+    [InlineData("f_f")] // "f" + "f" -> "ff" -> U+FB00 LATIN SMALL LIGATURE FF.
+    [InlineData("f_f_i")] // "f" + "f" + "i" -> "ffi" -> U+FB03 LATIN SMALL LIGATURE FFI.
+    [InlineData("f_f_l")] // "f" + "f" + "l" -> "ffl" -> U+FB04 LATIN SMALL LIGATURE FFL.
+    public void PdfDocument_Fonts_Differences_LigatureUnderscoreName_ResolvesViaEnrichedEmbeddedFontGlyphMap(
+        string glyphName)
+    {
+        // Arrange
+        var (resourcesBody, extraObjects) = BuildEmbeddedType1CFontResources(
+            fontDictExtra: "/FirstChar 65 /LastChar 65 /Widths [600] " +
+                           $"/Encoding << /Differences [65 /{glyphName}] >>",
+            customGlyphName: glyphName);
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the embedded font's square glyph painted at the expected text-space location.
+        Assert.NotEqual(default, surface[11, 44]);
+    }
+
+    /// <summary>
+    ///     Proves that a glyph name with underscore-separated components that do not themselves
+    ///     resolve to a recognized ligature (for example <c>"foo_bar"</c>, whose concatenation
+    ///     "foobar" is not any AGL ligature name) is tolerated exactly like any other unrecognized
+    ///     <c>/Differences</c> name - left at whatever its base encoding already assigned it -
+    ///     rather than throwing or otherwise failing: <c>TryResolveLigatureUnderscoreName</c> must
+    ///     fail closed (return <see langword="false"/>) rather than guess or fabricate a codepoint
+    ///     when the concatenated candidate name is not in <c>StandardGlyphNames</c>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Differences_UnrecognizedUnderscoreName_FallsBackToBaseEncoding()
+    {
+        // Arrange
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(
+            fontBytes,
+            fontDictExtra: "/FirstChar 65 /LastChar 66 /Widths [600 600] " +
+                           "/Encoding << /Differences [65 /foo_bar] >>");
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: no exception, and the glyph painted (base encoding's codepoint 65 mapping was
+        // preserved rather than cleared by the unrecognized override).
+        Assert.NotEqual(default, surface[11, 44]);
+    }
+
+    /// <summary>
     ///     Proves that <c>/Differences</c> recognizes the <c>ff</c>/<c>ffi</c>/<c>ffl</c> Latin
     ///     ligature glyph names (found via a real-world pdfLaTeX Computer Modern font from
     ///     py-pdf/sample-files, which declares them in its own <c>/Differences</c> array) -

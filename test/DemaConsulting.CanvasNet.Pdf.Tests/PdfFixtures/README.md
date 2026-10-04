@@ -143,7 +143,9 @@ Glyph List's generic `uniXXXX` hex-codepoint naming convention. Code 27 `/thinsp
 now a direct `StandardGlyphNames` entry, not a missing-vocabulary case. Its content stream
 genuinely exercises both codes against real body text (`"...50μL..."`, `"...+1 % compared..."`).
 
-> **Note**: this fixture's content stream also exercises a `/f_f` ligature-glyph name (an
-> underscore-joined AGL ligature decomposition, not a `uniXXXX`/`uXXXX` hex name) that remains
-> unresolved by design - see `PdfDocumentTests`'s own remarks on this fixture's test for why that
-> is a deliberate, out-of-scope limitation, not a regression.
+> **Note**: this fixture's content stream also genuinely exercises a `/f_f` ligature-glyph name
+> (an underscore-joined AGL ligature decomposition, naming the "ff" ligature glyph) against real
+> body text - previously left unresolved by design, this now resolves via
+> `TryResolveLigatureUnderscoreName`'s underscore-decomposition fallback (see
+> `PdfDocumentTests`'s own dedicated synthetic regression tests for the isolated mechanism, and
+> this fixture for proof it resolves against a genuinely real-world embedded font too).
