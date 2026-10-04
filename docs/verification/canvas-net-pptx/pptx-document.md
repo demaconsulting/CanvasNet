@@ -318,7 +318,11 @@ Proves `<p:spPr>` and `<p:txBody>/<a:lstStyle>` resolve independently - a slide-
 with no slide-level `<a:lstStyle>` resolves the slide's own fill while still falling through to
 the layout for text style. Separately, proves that when no placeholder matches at any level, both
 effective property categories resolve to `null` while the resolved theme is still returned
-unchanged as context.
+unchanged as context. For `<p:spPr>` (fill/line resolution), an empty element still counts as
+present, stopping the fallback for that category; `<a:xfrm>`/geometry
+(`PlaceholderXfrmGeometryInheritance`, below) and `<a:lstStyle>` level overrides
+(`TxBodyListStyleLevelInheritance`, below) are the two named exceptions, each verified separately
+via its own independent, non-whole-element walk.
 
 #### CanvasNetPptx-PptxDocument-PlaceholderXfrmGeometryInheritance: `<a:xfrm>`/Geometry Inherit Past an Empty `<p:spPr/>`
 
@@ -337,6 +341,30 @@ the first present `<p:spPr>` regardless of its own contents. The second test add
 this against a real-world fixture (`samplelib-sample-presentation.pptx` slides 0-2, each a
 placeholder with exactly this empty-`<p:spPr/>` shape), confirming the synthetic regression test's
 finding generalizes to genuine third-party-generated files, not merely a hand-authored edge case.
+
+#### CanvasNetPptx-PptxDocument-TxBodyListStyleLevelInheritance: `<a:lstStyle>` Level Overrides Inherit Past an Empty `<a:lstStyle/>`
+
+**Tests**:
+`PptxDocumentInheritance_ResolvePlaceholderProperties_SlideLstStyleEmptyWithNoLevelOverride_FallsThroughToLayoutLevelOverride`,
+`PptxDocumentInheritance_ResolvePlaceholderProperties_SlideLstStyleHasLevelOverride_SlideWinsOverLayout`,
+`ResolveEffectiveRunProperties_CtrTitlePlaceholderWithEmptySlideLstStyle_ResolvesLayoutDefRPrSizeNotMasterTitleStyleFallback`,
+`Render_CtrTitlePlaceholderWithEmptySlideLstStyle_PaintsIdenticallyToAbsentLstStyle`
+
+The first resolver-level test proves a slide's own empty, self-closing `<a:lstStyle/>` (no
+`<a:lvl1pPr>`..`<a:lvl9pPr>` level-override child at all - the exact real-world shape reported
+from "ERF IWF Breadboard Peer Review.pptx") does not "win" `PlaceholderInheritancePerCategory`'s
+own whole-element fallback: the idx-matched layout placeholder's own, level-bearing
+`<a:lstStyle>` is selected instead. The second resolver-level test is a regression guard proving
+the pre-existing, correct behavior is preserved - when the slide-level `<a:lstStyle>` DOES declare
+a real level override, it still wins over the layout's. The third test proves the resolved
+`EffectiveTxBodyListStyle` is actually consumed correctly downstream: a `ctrTitle` placeholder
+with this exact empty-`<a:lstStyle/>` shape resolves its run's effective font size from the
+layout's `<a:lvl1pPr>`/`<a:defRPr sz="6000">` (60pt), not the master's `<p:titleStyle>` fallback
+(28pt) - the exact pre-fix symptom magnitude described in the bug report. The fourth, end-to-end
+test proves (through the public `Render` API, not just the internal resolver) that the same
+placeholder with an empty-but-present `<a:lstStyle/>` paints pixel-for-pixel identical glyph ink
+to the same placeholder with `<a:lstStyle>` omitted entirely, confirming the layout's 60pt
+override is actually painted, not merely resolved, in both cases.
 
 #### CanvasNetPptx-PptxDocument-ShapeFrameTransform: Position/Rotation/Flip Compose Into the Correct Local-to-Parent Transform
 

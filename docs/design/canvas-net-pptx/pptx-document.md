@@ -205,11 +205,15 @@ single-criterion matches**, not a uniform "type+idx exact match, then type-only 
 Once the matched layout/master placeholders (if any) are determined, each of exactly two named
 property categories - `<p:spPr>` and `<p:txBody>/<a:lstStyle>` - is independently resolved via a
 first-non-null-in-chain walk: slide -> matched layout -> matched master, taking the first element
-present at all (an empty element still counts as present, stopping the fallback for that
-category; no deeper per-attribute merging is performed in Phase 1b). The resolved theme is
-carried through unchanged as context (`PptxPlaceholderProperties.Theme`) - it is not itself part
-of the matching chain, since a theme supplies scheme-level tokens a property fragment may
-reference, rather than containing placeholder-shaped XML to match against.
+present at all; no deeper per-attribute merging is performed in Phase 1b. For `<p:spPr>` itself
+(fill/line resolution), an empty element still counts as present, stopping the fallback for that
+category. `<p:txBody>/<a:lstStyle>` is the one named exception (see "Genuine bug 4" below): a
+tier's own empty, self-closing `<a:lstStyle/>` (no `<a:lvl1pPr>`..`<a:lvl9pPr>` level-override
+child) is walked past rather than "winning", mirroring the same empty-element-skipping precedent
+`<a:xfrm>`/geometry resolution already establishes (see "Genuine bug 2" below). The resolved
+theme is carried through unchanged as context (`PptxPlaceholderProperties.Theme`) - it is not
+itself part of the matching chain, since a theme supplies scheme-level tokens a property fragment
+may reference, rather than containing placeholder-shaped XML to match against.
 
 ### Public API (Phase 1b)
 
@@ -1176,6 +1180,56 @@ an already-correct, merely-undocumented behavior and two of which were genuine, 
     (`ResolveTextLayout_SubtitlePlaceholderWithAttributeLessNormAutofit_DoesNotOverShrinkContentThatFits`,
     `PptxRenderTests.cs`) both documenting the two mechanisms' confirmed-correct behavior in
     isolation and guarding against a future regression of either.
+- **Genuine bug 4 - `<a:lstStyle>` level-override inheritance broken by an empty, but present,
+  `<a:lstStyle/>`.** Reported from a real-world deck ("ERF IWF Breadboard Peer Review.pptx", not
+  in this repository): a `ctrTitle` placeholder rendered its title at roughly 28pt instead of its
+  layout's declared 60pt. Root cause: the exact same structural mechanism as Genuine bug 2, but
+  for `<p:txBody>/<a:lstStyle>` instead of `<p:spPr>`/`<a:xfrm>`/geometry - `ResolvePlaceholderProperties`
+  resolved `effectiveTxBodyListStyle` via a first-non-null-**element**-wins chain (slide, then
+  matched layout, then matched master), so a slide's own empty, self-closing `<a:lstStyle/>` (no
+  `<a:lvl1pPr>`..`<a:lvl9pPr>` level-override child at all, deliberately relying on the
+  layout/master for level-based run/paragraph overrides) still "won" that chain outright. Because
+  `PptxDocument.TextInheritance.cs`'s `GetLevelDefRPr`/`GetLevelElement` index this element by
+  level, an empty `<a:lstStyle/>` with no level children caused every level lookup against it to
+  silently fail exactly as if the element were entirely absent, so the run's font-size resolution
+  fell through past the layout's real 60pt `<a:defRPr>` override to the master's `<p:titleStyle>`
+  bucket (28pt) instead. **Fix**: a new `GetTxBodyListStyleWithLevelOverride` helper
+  (`PptxDocument.Inheritance.cs`) mirrors `GetSpPrWithGeometry`'s own precedent exactly - it
+  returns a tier's `<a:lstStyle>` element only when that element itself declares at least one
+  `<a:lvl1pPr>`..`<a:lvl9pPr>` child, walking past a tier's own empty-but-present `<a:lstStyle/>`
+  otherwise. The three `effectiveTxBodyListStyle` resolution call sites in
+  `ResolvePlaceholderProperties` now call this new helper instead of the unconditional
+  `GetTxBodyListStyle`. Unlike Genuine bug 2, no new `PptxPlaceholderProperties` field was needed -
+  `EffectiveTxBodyListStyle` itself is now resolved this way directly, since (unlike `<p:spPr>`,
+  which fill/line resolution still relies on whole-element semantics for) nothing in this
+  codebase depends on `<a:lstStyle>`'s own unconditional, whole-element-presence resolution.
+  Before: an empty slide-level `<a:lstStyle/>` silently blocked the layout's real level override.
+  After: the layout/master's own level-bearing `<a:lstStyle>` is correctly consulted, while a
+  slide-level `<a:lstStyle>` that genuinely declares its own level override still wins (no
+  regression to that pre-existing, correct case). Regression tests:
+  `PptxDocumentInheritance_ResolvePlaceholderProperties_SlideLstStyleEmptyWithNoLevelOverride_FallsThroughToLayoutLevelOverride`,
+  `PptxDocumentInheritance_ResolvePlaceholderProperties_SlideLstStyleHasLevelOverride_SlideWinsOverLayout`
+  (`PptxDocumentTests.cs`),
+  `ResolveEffectiveRunProperties_CtrTitlePlaceholderWithEmptySlideLstStyle_ResolvesLayoutDefRPrSizeNotMasterTitleStyleFallback`,
+  `Render_CtrTitlePlaceholderWithEmptySlideLstStyle_PaintsIdenticallyToAbsentLstStyle`
+  (`PptxRenderTests.cs`).
+  - **Candidate follow-up (investigated, not fixed in this pass): `effectiveSpPr`'s fill/line
+    resolution has the identical structural mechanism.** `effectiveSpPr`'s own three-tier `??`
+    chain (`PlaceholderInheritancePerCategory`) has the same "empty element still counts as
+    present" behavior for `<p:spPr>`-based fill/line resolution. However, this is not the same bug
+    class in effect: `ResolveFill`'s own graceful `fillParentElement is null`-means-`PptxNoFill`
+    no-op behavior, and `EffectiveGeometrySpPr`'s own documented "fill/line inheritance from
+    placeholder/layout/master is a deliberate, documented Phase 1c simplification, not resolved at
+    all" remarks, both confirm per-tier fill/line inheritance for a placeholder was never
+    implemented or promised - unlike `<a:xfrm>`/geometry and `<a:lstStyle>` level overrides, which
+    the design does promise to resolve via inheritance. An empty `<p:spPr/>` "winning" fill/line
+    resolution today produces `PptxNoFill`/no stroke, indistinguishable in effect from the
+    already-accepted "fill/line inheritance is not resolved" simplification - there is no
+    currently-promised behavior being silently defeated. Recorded here as a candidate follow-up:
+    if `effectiveSpPr`-based fill/line inheritance is ever promoted to a promised, per-tier-
+    inherited feature (mirroring geometry/`<a:lstStyle>`), the identical empty-element fix pattern
+    (`GetTxBodyListStyleWithLevelOverride`/`GetSpPrWithGeometry`'s own precedent) would need to be
+    applied there too. No code change made for `effectiveSpPr` in this pass.
 
 **What remains intentionally deferred**: every item already listed in the Phase 1c, 1d, 1e, and
 1f _Deferred to a Later Phase_ sections above remains deferred unchanged - this phase fixed two

@@ -364,9 +364,14 @@ sections:
             title: >-
               The PptxDocument class shall resolve a slide placeholder's effective <p:spPr> and
               <p:txBody>/<a:lstStyle> property fragments independently (slide, then matched
-              layout, then matched master, taking the first element present at all - an empty
-              element still counts as present), and carry the resolved theme through unchanged as
-              context rather than selecting it via the same fallback.
+              layout, then matched master, taking the first element present at all), and carry
+              the resolved theme through unchanged as context rather than selecting it via the
+              same fallback. For <p:spPr> (fill/line resolution), an empty element still counts
+              as present, stopping the fallback for that category; <a:xfrm>/geometry
+              (PlaceholderXfrmGeometryInheritance) and <a:lstStyle> level overrides
+              (TxBodyListStyleLevelInheritance) are the two named exceptions, each resolved via
+              its own independent, non-whole-element walk that continues past a tier's own
+              empty-but-present element.
             justification: |
               Each property category's inheritance chain is independent in real PowerPoint
               behavior (a slide may override its fill without overriding its text style, or vice
@@ -407,6 +412,35 @@ sections:
             tests:
               - Render_PlaceholderShapeWithEmptySpPr_InheritsXfrmAndGeometryFromLayout
               - PptxDocument_Render_SamplelibSamplePresentationFixture_Slide4ThrowsUnsupportedFeatureOthersPaintContent
+
+          - id: CanvasNetPptx-PptxDocument-TxBodyListStyleLevelInheritance
+            title: >-
+              The PptxDocument class shall resolve a placeholder's effective <p:txBody>/<a:lstStyle>
+              element by walking slide -> matched layout -> matched master and selecting the first
+              tier whose own <a:lstStyle> element itself declares at least one <a:lvl{N}pPr> (N = 1..9)
+              level-override child, independently of PlaceholderInheritancePerCategory's own
+              whole-element fallback, continuing past a tier's own empty-but-present <a:lstStyle/>
+              that declares no level child at all, rather than letting that empty element "win" and
+              block the layout/master's real level overrides.
+            justification: |
+              A slide-level placeholder frequently declares an empty, self-closing <a:lstStyle/> (no
+              <a:lvl{N}pPr> children at all) while its matched layout placeholder declares a real
+              override (for example a large title defRPr sz) - confirmed against a real-world deck
+              ("ERF IWF Breadboard Peer Review.pptx", a ctrTitle placeholder) where this
+              empty-but-present element silently blocked the layout's 60pt title-size override,
+              causing text to render at a smaller, further-downstream fallback size (~28pt) instead.
+              This is the exact same bug class PlaceholderXfrmGeometryInheritance already fixed for
+              <a:xfrm>/geometry (an empty, non-descriptive element incorrectly "winning"
+              PlaceholderInheritancePerCategory's own element-presence fallback) applied to the
+              <a:lstStyle> category - TextPropertyInheritance's GetLevelDefRPr/GetLevelElement helpers
+              index this element by level, so an empty <a:lstStyle/> with no level children causes
+              those lookups to silently fail for every level exactly as if the element were entirely
+              absent, making "treat empty as absent" both correct and necessary for this category.
+            tests:
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_SlideLstStyleEmptyWithNoLevelOverride_FallsThroughToLayoutLevelOverride
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_SlideLstStyleHasLevelOverride_SlideWinsOverLayout
+              - ResolveEffectiveRunProperties_CtrTitlePlaceholderWithEmptySlideLstStyle_ResolvesLayoutDefRPrSizeNotMasterTitleStyleFallback
+              - Render_CtrTitlePlaceholderWithEmptySlideLstStyle_PaintsIdenticallyToAbsentLstStyle
 
           - id: CanvasNetPptx-PptxDocument-ShapeFrameTransform
             title: >-
