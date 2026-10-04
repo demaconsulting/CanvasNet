@@ -338,8 +338,23 @@ public class PptxDocumentTests
         ("ppt/_rels/presentation.xml.rels", BuildPresentationRelsXml(1)),
     ];
 
-    /// <summary>Builds a test placeholder shape (<c>&lt;p:sp&gt;</c>) with optional marker-tagged <c>&lt;p:spPr&gt;</c>/<c>&lt;a:lstStyle&gt;</c> children.</summary>
-    private static XElement BuildShapeElement(string? spPrMarker = null, string? lstStyleMarker = null)
+    /// <summary>
+    ///     Builds a test placeholder shape (<c>&lt;p:sp&gt;</c>) with optional marker-tagged
+    ///     <c>&lt;p:spPr&gt;</c>/<c>&lt;a:lstStyle&gt;</c> children.
+    /// </summary>
+    /// <param name="spPrMarker">When non-null, adds a <c>&lt;p:spPr marker="..."/&gt;</c> child.</param>
+    /// <param name="lstStyleMarker">When non-null, adds a <c>&lt;p:txBody&gt;/&lt;a:lstStyle marker="..."/&gt;</c> child.</param>
+    /// <param name="lstStyleHasLevelOverride">
+    ///     When <see langword="true"/> (the default) and <paramref name="lstStyleMarker"/> is
+    ///     non-null, the added <c>&lt;a:lstStyle&gt;</c> also gets a concrete
+    ///     <c>&lt;a:lvl1pPr&gt;/&lt;a:defRPr sz="6000"/&gt;</c> child, so it is selected by
+    ///     <see cref="PptxDocument.ResolvePlaceholderProperties"/>'s level-override-aware
+    ///     <c>GetTxBodyListStyleWithLevelOverride</c> resolution - preserving every pre-existing
+    ///     call site's "present and selected" semantics unchanged. Pass <see langword="false"/>
+    ///     to build the real-world "empty, self-closing <c>&lt;a:lstStyle/&gt;</c>" shape (marker
+    ///     only, no level child at all) that new regression tests need to reproduce.
+    /// </param>
+    private static XElement BuildShapeElement(string? spPrMarker = null, string? lstStyleMarker = null, bool lstStyleHasLevelOverride = true)
     {
         var sp = new XElement(PresentationNs + "sp");
         if (spPrMarker is not null)
@@ -349,9 +364,13 @@ public class PptxDocumentTests
 
         if (lstStyleMarker is not null)
         {
-            sp.Add(new XElement(
-                PresentationNs + "txBody",
-                new XElement(DrawingNs + "lstStyle", new XAttribute("marker", lstStyleMarker))));
+            var lstStyle = new XElement(DrawingNs + "lstStyle", new XAttribute("marker", lstStyleMarker));
+            if (lstStyleHasLevelOverride)
+            {
+                lstStyle.Add(new XElement(DrawingNs + "lvl1pPr", new XElement(DrawingNs + "defRPr", new XAttribute("sz", "6000"))));
+            }
+
+            sp.Add(new XElement(PresentationNs + "txBody", lstStyle));
         }
 
         return sp;
@@ -1367,5 +1386,51 @@ public class PptxDocumentTests
         Assert.Null(result.EffectiveSpPr);
         Assert.Null(result.EffectiveTxBodyListStyle);
         Assert.Same(theme, result.Theme);
+    }
+
+    /// <summary>
+    ///     Proves a slide's own empty-but-present <c>&lt;a:lstStyle/&gt;</c> (no level-override
+    ///     child at all - the exact real-world shape reported from "ERF IWF Breadboard Peer
+    ///     Review.pptx") does not "win" PlaceholderInheritancePerCategory's own whole-element
+    ///     fallback: the idx-matched layout placeholder's own, level-bearing <c>&lt;a:lstStyle&gt;</c>
+    ///     must be selected instead.
+    /// </summary>
+    [Fact]
+    public void PptxDocumentInheritance_ResolvePlaceholderProperties_SlideLstStyleEmptyWithNoLevelOverride_FallsThroughToLayoutLevelOverride()
+    {
+        // Arrange
+        var theme = BuildTestTheme();
+        var slidePlaceholder = new PptxPlaceholder("ctrTitle", 0, BuildShapeElement(lstStyleMarker: "slide", lstStyleHasLevelOverride: false));
+        var layoutPlaceholder = new PptxPlaceholder("ctrTitle", 0, BuildShapeElement(lstStyleMarker: "layout"));
+        var masterPlaceholder = new PptxPlaceholder("title", 0, BuildShapeElement());
+
+        // Act
+        var result = PptxDocument.ResolvePlaceholderProperties(
+            slidePlaceholder, [layoutPlaceholder], [masterPlaceholder], theme);
+
+        // Assert: the layout's populated <a:lstStyle> wins, not the slide's empty-but-present one.
+        Assert.Equal("layout", (string?)result.EffectiveTxBodyListStyle?.Attribute("marker"));
+    }
+
+    /// <summary>
+    ///     Proves the pre-existing, correct behavior is preserved: when the slide-level
+    ///     <c>&lt;a:lstStyle&gt;</c> DOES declare a real level override, it still wins over the
+    ///     layout's - no regression to the "slide wins when it actually specifies something" case.
+    /// </summary>
+    [Fact]
+    public void PptxDocumentInheritance_ResolvePlaceholderProperties_SlideLstStyleHasLevelOverride_SlideWinsOverLayout()
+    {
+        // Arrange
+        var theme = BuildTestTheme();
+        var slidePlaceholder = new PptxPlaceholder("ctrTitle", 0, BuildShapeElement(lstStyleMarker: "slide"));
+        var layoutPlaceholder = new PptxPlaceholder("ctrTitle", 0, BuildShapeElement(lstStyleMarker: "layout"));
+        var masterPlaceholder = new PptxPlaceholder("title", 0, BuildShapeElement());
+
+        // Act
+        var result = PptxDocument.ResolvePlaceholderProperties(
+            slidePlaceholder, [layoutPlaceholder], [masterPlaceholder], theme);
+
+        // Assert
+        Assert.Equal("slide", (string?)result.EffectiveTxBodyListStyle?.Attribute("marker"));
     }
 }

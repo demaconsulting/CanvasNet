@@ -821,6 +821,160 @@ public class PptxRenderTests
         Assert.True(paintedAnyInk, "Expected the placeholder's inherited geometry/position to allow its own text to paint glyph ink.");
     }
 
+    /// <summary>
+    ///     Proves a ctrTitle placeholder whose slide-level <c>&lt;a:lstStyle/&gt;</c> is present but
+    ///     empty (no level-override child - the exact shape reported from "ERF IWF Breadboard Peer
+    ///     Review.pptx") resolves its run's effective font size from the idx-matched layout
+    ///     placeholder's own <c>&lt;a:lstStyle&gt;</c>/<c>&lt;a:lvl1pPr&gt;</c>/<c>&lt;a:defRPr
+    ///     sz="6000"&gt;</c> (60pt), not the master's <c>&lt;p:titleStyle&gt;</c> fallback (28pt) -
+    ///     the exact pre-fix symptom magnitude described in the bug report.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_CtrTitlePlaceholderWithEmptySlideLstStyle_ResolvesLayoutDefRPrSizeNotMasterTitleStyleFallback()
+    {
+        const string masterTxStylesXml =
+            """
+            <p:titleStyle><a:lvl1pPr><a:defRPr sz="2800"/></a:lvl1pPr></p:titleStyle>
+            """;
+        const string layoutPlaceholderXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Title Placeholder"/>
+                <p:cNvSpPr/>
+                <p:nvPr><p:ph type="ctrTitle" hasCustomPrompt="1"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="685800" y="2130425"/><a:ext cx="7772400" cy="2259013"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+              <p:txBody>
+                <a:bodyPr anchor="b"/>
+                <a:lstStyle><a:lvl1pPr algn="l"><a:defRPr sz="6000"/></a:lvl1pPr></a:lstStyle>
+                <a:p><a:r><a:t>Click to edit Master title style</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>
+            """;
+
+        static string BuildSlideXml(string lstStyleXml) =>
+            $"""
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Title 1"/>
+                <p:cNvSpPr/>
+                <p:nvPr><p:ph type="ctrTitle"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr/>
+              <p:txBody>
+                <a:bodyPr/>
+                {lstStyleXml}
+                <a:p><a:r><a:rPr lang="en-US"/><a:t>Fluidic Schematics</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>
+            """;
+
+        using var stream = BuildRenderPackage(BuildSlideXml("<a:lstStyle/>"), masterTxStylesXml, layoutPlaceholderXml);
+        using var document = PptxDocument.Open(stream);
+
+        var slide = document.GetSlide(0);
+        var layout = document.GetLayout(slide.LayoutPartPath);
+        var master = document.GetMaster(layout.MasterPartPath);
+        var theme = document.GetTheme(master.ThemePartPath);
+        var slidePlaceholder = slide.Placeholders[0];
+
+        var placeholderProperties = PptxDocument.ResolvePlaceholderProperties(
+            slidePlaceholder, layout.Placeholders, master.Placeholders, theme, master.TxStyles);
+
+        var txBody = slidePlaceholder.ShapeElement.Element("{http://schemas.openxmlformats.org/presentationml/2006/main}txBody")!;
+        var textBody = PptxDocument.ParseTextBody(txBody);
+        var paragraph = textBody.Paragraphs[0];
+        var run = paragraph.Runs[0];
+
+        var effective = PptxDocument.ResolveEffectiveRunProperties(
+            run, paragraph, placeholderProperties, theme,
+            placeholderProperties.EffectivePlaceholderType ?? slidePlaceholder.Type);
+
+        Assert.Equal(60f * 12700f, effective.SizeEmu);
+    }
+
+    /// <summary>
+    ///     End-to-end proof (through the public <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>
+    ///     API) that a ctrTitle placeholder's own empty-but-present <c>&lt;a:lstStyle/&gt;</c> paints
+    ///     pixel-for-pixel identical glyph ink to the same placeholder whose <c>&lt;a:lstStyle&gt;</c>
+    ///     is omitted entirely - proving the empty element no longer "wins" differently from an
+    ///     absent one, and that the layout's real 60pt override is actually painted (not merely
+    ///     resolved) in both cases.
+    /// </summary>
+    [Fact]
+    public void Render_CtrTitlePlaceholderWithEmptySlideLstStyle_PaintsIdenticallyToAbsentLstStyle()
+    {
+        const string masterTxStylesXml =
+            """
+            <p:titleStyle><a:lvl1pPr><a:defRPr sz="2800"/></a:lvl1pPr></p:titleStyle>
+            """;
+        const string layoutPlaceholderXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Title Placeholder"/>
+                <p:cNvSpPr/>
+                <p:nvPr><p:ph type="ctrTitle" hasCustomPrompt="1"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="685800" y="2130425"/><a:ext cx="7772400" cy="2259013"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+              <p:txBody>
+                <a:bodyPr anchor="b"/>
+                <a:lstStyle><a:lvl1pPr algn="l"><a:defRPr sz="6000"/></a:lvl1pPr></a:lstStyle>
+                <a:p><a:r><a:t>Click to edit Master title style</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>
+            """;
+
+        static string BuildSlideXml(string lstStyleXml) =>
+            $"""
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Title 1"/>
+                <p:cNvSpPr/>
+                <p:nvPr><p:ph type="ctrTitle"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr/>
+              <p:txBody>
+                <a:bodyPr/>
+                {lstStyleXml}
+                <a:p><a:r><a:rPr lang="en-US"/><a:t>Fluidic Schematics</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>
+            """;
+
+        using var emptyLstStyleStream = BuildRenderPackage(BuildSlideXml("<a:lstStyle/>"), masterTxStylesXml, layoutPlaceholderXml);
+        using var emptyLstStyleDocument = PptxDocument.Open(emptyLstStyleStream);
+        using var emptyLstStyleSurface = emptyLstStyleDocument.Render(0, 300, 200);
+
+        using var absentLstStyleStream = BuildRenderPackage(BuildSlideXml(string.Empty), masterTxStylesXml, layoutPlaceholderXml);
+        using var absentLstStyleDocument = PptxDocument.Open(absentLstStyleStream);
+        using var absentLstStyleSurface = absentLstStyleDocument.Render(0, 300, 200);
+
+        var paintedAnyInk = false;
+        for (var y = 0; y < 200; y++)
+        {
+            for (var x = 0; x < 300; x++)
+            {
+                var emptyPixel = emptyLstStyleSurface[x, y];
+                if (emptyPixel != new Rgba32(255, 255, 255, 255))
+                {
+                    paintedAnyInk = true;
+                }
+
+                Assert.Equal(emptyPixel, absentLstStyleSurface[x, y]);
+            }
+        }
+
+        Assert.True(paintedAnyInk, "Expected the ctrTitle placeholder's inherited 60pt text to paint glyph ink.");
+    }
+
     // --- Argument validation ---------------------------------------------------------------------
 
     /// <summary>Proves <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/> rejects a negative slide index.</summary>
