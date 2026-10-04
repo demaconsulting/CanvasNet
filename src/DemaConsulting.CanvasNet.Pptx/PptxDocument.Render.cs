@@ -119,9 +119,28 @@ public sealed partial class PptxDocument
             FillPaint(surface, backgroundPath, backgroundFill);
         }
 
+        // Phase 2 Follow-Up: paint the master's, then the layout's, own non-placeholder
+        // decorative shapes (pictures, autoshapes, groups, freeform shapes) before the slide's
+        // own shape tree, so paint order becomes background -> master decoration -> layout
+        // decoration -> slide content (each later tier painting on top of the earlier ones). Each
+        // walk's own owner part path (not the slide's) is threaded through so a master/layout-
+        // owned <p:pic>'s embedded-image relationship resolves against its own .rels file, not
+        // the slide's. skipPlaceholderShapes: true means a master/layout's own placeholder shapes
+        // (its "Click to edit..." prompt content) are never painted directly - only their
+        // non-placeholder siblings are.
+        foreach (var node in master.ShapeTree)
+        {
+            RenderNode(surface, node, master.PartPath, layout, master, theme, baseTransform, skipPlaceholderShapes: true);
+        }
+
+        foreach (var node in layout.ShapeTree)
+        {
+            RenderNode(surface, node, layout.PartPath, layout, master, theme, baseTransform, skipPlaceholderShapes: true);
+        }
+
         foreach (var node in slide.ShapeTree)
         {
-            RenderNode(surface, node, slide, layout, master, theme, baseTransform);
+            RenderNode(surface, node, slide.PartPath, layout, master, theme, baseTransform);
         }
 
         return surface;
@@ -198,14 +217,40 @@ public sealed partial class PptxDocument
     ///     Dispatches a single shape-tree node to its own per-kind rendering helper, recursing
     ///     into a group's own children with its composed child transform.
     /// </summary>
+    /// <param name="surface">The destination surface to paint onto.</param>
+    /// <param name="node">The shape-tree node to dispatch.</param>
+    /// <param name="ownerPartPath">
+    ///     The part path that owns <paramref name="node"/> (the slide's, layout's, or master's own
+    ///     part path) - needed so a <see cref="PptxPictureShapeNode"/>'s embedded-image
+    ///     relationship (see <see cref="RenderPicture"/>) resolves against the <em>owning</em>
+    ///     part's own <c>.rels</c> file, not always the slide's (OPC relationships are part-scoped
+    ///     - see the companion planning report's bug-fix rationale).
+    /// </param>
+    /// <param name="layout">The slide's own resolved layout, consulted for placeholder-property inheritance.</param>
+    /// <param name="master">The slide's own resolved master, consulted for placeholder-property inheritance.</param>
+    /// <param name="theme">The slide's own resolved theme, consulted for color/font resolution.</param>
+    /// <param name="parentToSurface">The accumulated transform from this node's own parent space into surface pixel space.</param>
+    /// <param name="skipPlaceholderShapes">
+    ///     When <see langword="true"/> (the master/layout decorative-shape walks in
+    ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/>), a <see cref="PptxSpShapeNode"/>
+    ///     with a non-null <see cref="PptxSpShapeNode.Placeholder"/> is skipped without recursing
+    ///     into <see cref="RenderShape"/> - a master/layout's own placeholder shapes are
+    ///     edit-mode-only "Click to edit..." prompt content in real PowerPoint and must stay
+    ///     invisible when rendering an actual slide; only their non-placeholder siblings (and a
+    ///     group's own non-placeholder descendants) are painted. Propagated unchanged into
+    ///     recursive calls for a group's own children. Always <see langword="false"/> for the
+    ///     slide's own shape-tree walk (a slide's placeholder shapes, unlike a master's/layout's
+    ///     own, are real content and must render normally).
+    /// </param>
     private void RenderNode(
         Surface surface,
         PptxShapeTreeNode node,
-        PptxSlide slide,
+        string ownerPartPath,
         PptxLayout layout,
         PptxMaster master,
         PptxTheme theme,
-        Matrix3x2 parentToSurface)
+        Matrix3x2 parentToSurface,
+        bool skipPlaceholderShapes = false)
     {
         switch (node)
         {
@@ -213,17 +258,22 @@ public sealed partial class PptxDocument
                 var childToSurface = group.ChildTransform * parentToSurface;
                 foreach (var child in group.Children)
                 {
-                    RenderNode(surface, child, slide, layout, master, theme, childToSurface);
+                    RenderNode(surface, child, ownerPartPath, layout, master, theme, childToSurface, skipPlaceholderShapes);
                 }
 
                 break;
 
             case PptxSpShapeNode sp:
+                if (skipPlaceholderShapes && sp.Placeholder is not null)
+                {
+                    break;
+                }
+
                 RenderShape(surface, sp, layout, master, theme, parentToSurface);
                 break;
 
             case PptxPictureShapeNode pic:
-                RenderPicture(surface, pic, slide, parentToSurface);
+                RenderPicture(surface, pic, ownerPartPath, parentToSurface);
                 break;
 
             case PptxGraphicFrameShapeNode graphicFrame:
@@ -321,7 +371,15 @@ public sealed partial class PptxDocument
     ///     Renders a <see cref="PptxPictureShapeNode"/>: decodes and composites its embedded
     ///     image via the Phase 1e picture pipeline.
     /// </summary>
-    private void RenderPicture(Surface surface, PptxPictureShapeNode node, PptxSlide slide, Matrix3x2 parentToSurface)
+    /// <param name="surface">The destination surface to paint onto.</param>
+    /// <param name="node">The picture shape-tree node to render.</param>
+    /// <param name="ownerPartPath">
+    ///     The part path that owns <paramref name="node"/> (the slide's, layout's, or master's own
+    ///     part path) - the <c>&lt;a:blip r:embed="..."/&gt;</c> relationship is scoped to this
+    ///     part's own <c>.rels</c> file (see <see cref="ResolvePictureSurface"/>).
+    /// </param>
+    /// <param name="parentToSurface">The accumulated transform from this node's own parent space into surface pixel space.</param>
+    private void RenderPicture(Surface surface, PptxPictureShapeNode node, string ownerPartPath, Matrix3x2 parentToSurface)
     {
         var spPrElement = node.PicElement.Element(PresentationNamespace + "spPr");
         var xfrmElement = spPrElement?.Element(DrawingNamespace + "xfrm");
@@ -342,7 +400,7 @@ public sealed partial class PptxDocument
         var frame = ResolveShapeFrame(xfrmElement);
         var localToSurface = frame.Transform * parentToSurface;
 
-        var image = ResolvePictureSurface(slide.PartPath, blipFillElement);
+        var image = ResolvePictureSurface(ownerPartPath, blipFillElement);
         var srcRect = ResolveSrcRect(blipFillElement);
         PaintPicture(surface, image, srcRect, localToSurface, frame.WidthEmu, frame.HeightEmu);
     }

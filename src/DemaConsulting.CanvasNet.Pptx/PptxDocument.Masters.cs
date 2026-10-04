@@ -51,7 +51,12 @@ public sealed partial class PptxDocument
         var txStyles = ParseMasterTextStyles(root.Element(PresentationNamespace + "txStyles"));
         var background = cSld.Element(PresentationNamespace + "bg");
 
-        var master = new PptxMaster(masterPartPath, themePartPath, placeholders, txStyles, background);
+        // The master's theme is already eagerly resolved above (themePartPath), so there is no
+        // added laziness concern in also eagerly resolving it here for the shape tree's own
+        // <p:graphicFrame> tables (see ParseShapeTree's themeResolver parameter).
+        var shapeTree = ParseShapeTree(spTree, () => GetTheme(themePartPath));
+
+        var master = new PptxMaster(masterPartPath, themePartPath, placeholders, txStyles, background, shapeTree);
         _masterCache[masterPartPath] = master;
         return master;
     }

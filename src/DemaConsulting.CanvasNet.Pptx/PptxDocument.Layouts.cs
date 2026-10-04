@@ -46,7 +46,13 @@ public sealed partial class PptxDocument
         var masterPartPath = ResolveRelationshipByType(layoutPartPath, "/slideMaster");
         var background = cSld.Element(PresentationNamespace + "bg");
 
-        var layout = new PptxLayout(layoutPartPath, masterPartPath, placeholders, background);
+        // The shape tree's <p:graphicFrame> tables resolve their cell fills against the layout's
+        // own master's theme. Resolving the master -> theme relationship chain is deferred into
+        // this lambda (mirroring GetSlide's own lazy theme resolver) so layouts with no tables at
+        // all never require it to be walked.
+        var shapeTree = ParseShapeTree(spTree, () => GetTheme(GetMaster(masterPartPath).ThemePartPath));
+
+        var layout = new PptxLayout(layoutPartPath, masterPartPath, placeholders, background, shapeTree);
         _layoutCache[layoutPartPath] = layout;
         return layout;
     }

@@ -56,12 +56,27 @@ internal sealed record PptxPlaceholder(string Type, uint Idx, XElement ShapeElem
 ///     of the slide -&gt; layout -&gt; master background-fill resolution chain (see
 ///     <see cref="PptxDocument.ResolveSlideBackgroundFill"/>).
 /// </param>
+/// <param name="ShapeTree">
+///     The master's full recursive shape tree, parsed via <see cref="PptxDocument.ParseShapeTree"/>
+///     from the same <c>&lt;p:cSld&gt;/&lt;p:spTree&gt;</c> element as <paramref name="Placeholders"/> -
+///     used (Phase 2 Follow-Up) to render the master's own non-placeholder decorative shapes
+///     (pictures, autoshapes, groups, freeform shapes) beneath every slide using this master; its
+///     own placeholder shapes are never painted directly from this list (see
+///     <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>'s
+///     <c>skipPlaceholderShapes</c> mechanism). Defaults to <c>Array.Empty&lt;PptxShapeTreeNode&gt;()</c>
+///     so pre-existing 4-argument call sites continue to compile unchanged.
+/// </param>
 internal sealed record PptxMaster(
     string PartPath,
     string ThemePartPath,
     IReadOnlyList<PptxPlaceholder> Placeholders,
     PptxMasterTextStyles TxStyles,
-    XElement? Background = null);
+    XElement? Background = null,
+    IReadOnlyList<PptxShapeTreeNode>? ShapeTree = null)
+{
+    /// <summary>The master's full recursive shape tree - see the constructor parameter's own remarks.</summary>
+    public IReadOnlyList<PptxShapeTreeNode> ShapeTree { get; init; } = ShapeTree ?? Array.Empty<PptxShapeTreeNode>();
+}
 
 /// <summary>
 ///     A slide master's own <c>&lt;p:txStyles&gt;</c> element (Phase 1d), carrying each of its
@@ -85,11 +100,26 @@ internal sealed record PptxMasterTextStyles(XElement? TitleStyle, XElement? Body
 ///     slide -&gt; layout -&gt; master background-fill resolution chain (see
 ///     <see cref="PptxDocument.ResolveSlideBackgroundFill"/>).
 /// </param>
+/// <param name="ShapeTree">
+///     The layout's full recursive shape tree, parsed via <see cref="PptxDocument.ParseShapeTree"/>
+///     from the same <c>&lt;p:cSld&gt;/&lt;p:spTree&gt;</c> element as <paramref name="Placeholders"/> -
+///     used (Phase 2 Follow-Up) to render the layout's own non-placeholder decorative shapes
+///     (pictures, autoshapes, groups, freeform shapes) on every slide using this layout, on top of
+///     its master's own equivalent shapes; its own placeholder shapes are never painted directly
+///     from this list (see <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>'s
+///     <c>skipPlaceholderShapes</c> mechanism). Defaults to <c>Array.Empty&lt;PptxShapeTreeNode&gt;()</c>
+///     so pre-existing 4-argument call sites continue to compile unchanged.
+/// </param>
 internal sealed record PptxLayout(
     string PartPath,
     string MasterPartPath,
     IReadOnlyList<PptxPlaceholder> Placeholders,
-    XElement? Background = null);
+    XElement? Background = null,
+    IReadOnlyList<PptxShapeTreeNode>? ShapeTree = null)
+{
+    /// <summary>The layout's full recursive shape tree - see the constructor parameter's own remarks.</summary>
+    public IReadOnlyList<PptxShapeTreeNode> ShapeTree { get; init; } = ShapeTree ?? Array.Empty<PptxShapeTreeNode>();
+}
 
 /// <summary>
 ///     A parsed slide: its own part path, its layout's part path, its placeholder shapes, and (as
