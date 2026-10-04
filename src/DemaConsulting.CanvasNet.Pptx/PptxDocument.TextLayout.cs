@@ -353,6 +353,15 @@ public sealed partial class PptxDocument
     ///     line's own token list. An <see cref="ResolvedToken.IsLineBreak"/> token (from an
     ///     explicit <c>&lt;a:br&gt;</c>) is never itself added to a line - it instead force-flushes
     ///     the current line (even if empty) and starts a new one, independent of word-wrap width.
+    ///     Only whitespace tokens (and line breaks) are legal wrap points: consecutive
+    ///     non-whitespace tokens are accumulated into a single wrap-atomic "word group" and
+    ///     packed as one unit, so a word <see cref="Tokenize"/> happened to split across two
+    ///     adjacent formatting runs (for example <c>"Hel"</c> in a bold run immediately followed
+    ///     by <c>"lo"</c> in a plain run, with no whitespace between them) can never wrap at that
+    ///     run boundary - it wraps only where whitespace actually separates the runs' combined
+    ///     text. A word group that alone exceeds <paramref name="availableWidthEmu"/> is still
+    ///     placed whole on its own (overflowing) line, per the same documented overflow policy as
+    ///     any other oversized token.
     /// </summary>
     private static List<List<ResolvedToken>> PackTokensIntoLines(IReadOnlyList<ResolvedToken> tokens, float availableWidthEmu)
     {
@@ -361,28 +370,61 @@ public sealed partial class PptxDocument
         var currentWidth = 0f;
         var sawAnyToken = false;
 
+        var pendingGroup = new List<ResolvedToken>();
+        var pendingGroupWidth = 0f;
+
+        void FlushPendingGroup()
+        {
+            if (pendingGroup.Count == 0)
+            {
+                return;
+            }
+
+            Pack(pendingGroup, pendingGroupWidth);
+            pendingGroup.Clear();
+            pendingGroupWidth = 0f;
+        }
+
+        void Pack(IReadOnlyList<ResolvedToken> unit, float unitWidth)
+        {
+            if (currentLine.Count > 0 && currentWidth + unitWidth > availableWidthEmu)
+            {
+                lines.Add(currentLine);
+                currentLine = [];
+                currentWidth = 0f;
+            }
+
+            currentLine.AddRange(unit);
+            currentWidth += unitWidth;
+        }
+
         foreach (var token in tokens)
         {
             sawAnyToken = true;
 
             if (token.IsLineBreak)
             {
+                FlushPendingGroup();
                 lines.Add(currentLine);
                 currentLine = [];
                 currentWidth = 0f;
                 continue;
             }
 
-            if (currentLine.Count > 0 && currentWidth + token.WidthEmu > availableWidthEmu)
+            if (token.IsWhitespace)
             {
-                lines.Add(currentLine);
-                currentLine = [];
-                currentWidth = 0f;
+                FlushPendingGroup();
+                Pack([token], token.WidthEmu);
+                continue;
             }
 
-            currentLine.Add(token);
-            currentWidth += token.WidthEmu;
+            // Non-whitespace: accumulate into the pending word group rather than packing
+            // immediately, so a word split across run boundaries is never wrapped mid-word.
+            pendingGroup.Add(token);
+            pendingGroupWidth += token.WidthEmu;
         }
+
+        FlushPendingGroup();
 
         // The final (or only) line is always kept, even if empty - a trailing <a:br/> or a
         // paragraph consisting solely of break(s) still produces the trailing blank line(s) the

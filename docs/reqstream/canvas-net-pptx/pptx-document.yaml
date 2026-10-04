@@ -697,31 +697,44 @@ sections:
               The PptxDocument class shall word-wrap a text body's resolved runs into lines bounded
               by the owning shape's own width (less its horizontal insets), tokenizing each run's
               text into whitespace/non-whitespace tokens (preserving multi-space runs as their own
-              token, not collapsing them) and greedily packing tokens onto each line, placing a
-              single token that alone exceeds the available width alone on its own (overflowing)
-              line rather than looping indefinitely, shall resolve horizontal alignment (left/
-              center/right, using each line's own margin/indent) against the available width, shall
-              force a new line at each preserved <a:br> explicit line-break item (in addition to
-              word-wrap-induced line breaks), and shall select the tallest-run candidate for each
-              line's natural height/baseline by comparing each run's font metrics (ascender,
-              descender, line gap) scaled by that run's own font.UnitsPerEm and its own resolved
-              SizeEmu, rather than by comparing raw, unscaled font-design-unit metrics across runs
-              that may use different fonts and/or sizes.
+              token, not collapsing them) and greedily packing tokens onto each line - treating
+              only whitespace (and explicit line-break items) as legal wrap points, so consecutive
+              non-whitespace tokens spanning two or more adjacent runs (a single word split across
+              a formatting-run boundary, with no whitespace between them) are packed as one
+              wrap-atomic unit that is never itself broken mid-word - placing a single token or
+              word-spanning-runs unit that alone exceeds the available width alone on its own
+              (overflowing) line rather than looping indefinitely, shall resolve horizontal
+              alignment (left/center/right, using each line's own margin/indent) against the
+              available width, shall force a new line at each preserved <a:br> explicit line-break
+              item (in addition to word-wrap-induced line breaks), and shall select the
+              tallest-run candidate for each line's natural height/baseline by comparing each
+              run's font metrics (ascender, descender, line gap) scaled by that run's own font.
+              UnitsPerEm and its own resolved SizeEmu, rather than by comparing raw, unscaled
+              font-design-unit metrics across runs that may use different fonts and/or sizes.
             justification: |
               Word-wrap is the foundational text-layout behavior every other layout concern
               (vertical anchor, autofit) builds on; an incorrect or infinite-looping wrap algorithm
-              would make every other text-layout feature unusable. <a:br/> is DrawingML's explicit
-              line-break element and must force a line boundary distinct from word-wrap's own
-              token-packing decisions, or an author-intended forced break would be silently
-              dropped and its following text would incorrectly run on into the same line. Raw
-              font-design-unit metrics are not directly comparable across runs using different
-              fonts or point sizes (for example a font with an unusually tall em-box can report
-              larger raw ascender/descender/line-gap values despite rendering at a visually smaller
-              size); comparing unscaled values can therefore select the wrong run as "tallest" and
-              produce an incorrect line height/baseline for that line.
+              would make every other text-layout feature unusable. Wrapping at a non-whitespace
+              run boundary would be a visible layout defect indistinguishable from a tokenizer bug:
+              since each run is tokenized independently of its neighbors, a single word spelled
+              across two formatting runs (for example a bold "Hel" run immediately followed by a
+              plain "lo" run spelling "Hello", with no whitespace between them - a routine
+              consequence of a PowerPoint author changing formatting mid-word) would otherwise be
+              eligible to wrap at that internal run boundary even though no whitespace exists
+              there, producing an incorrect line break a real document could trigger at any
+              width. <a:br/> is DrawingML's explicit line-break element and must force a line
+              boundary distinct from word-wrap's own token-packing decisions, or an
+              author-intended forced break would be silently dropped and its following text would
+              incorrectly run on into the same line. Raw font-design-unit metrics are not directly
+              comparable across runs using different fonts or point sizes (for example a font with
+              an unusually tall em-box can report larger raw ascender/descender/line-gap values
+              despite rendering at a visually smaller size); comparing unscaled values can
+              therefore select the wrong run as "tallest" and produce an incorrect line
+              height/baseline for that line.
             tests:
               - ResolveTextLayout_WordWrap_NarrowWidth_WrapsAtTokenBoundary
               - ResolveTextLayout_WordWrap_SingleTokenWiderThanAvailableWidth_PlacedAloneOnOwnLine
+              - ResolveTextLayout_WordWrap_WordSplitAcrossRuns_DoesNotWrapAtRunBoundary
               - ResolveTextLayout_AlignCenter_CentersLineWithinAvailableWidth
               - ResolveTextLayout_AlignRight_RightAlignsLineAgainstAvailableWidth
               - ResolveTextLayout_RunBreakRun_ForcesSecondLine

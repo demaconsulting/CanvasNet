@@ -176,6 +176,52 @@ public class PptxTextLayoutTests
     }
 
     /// <summary>
+    ///     Proves a word split across two adjacent formatting runs with no whitespace between
+    ///     them (for example a bold "Hel" run immediately followed by a plain "lo" run spelling
+    ///     "Hello") is never wrapped at that run boundary: <c>PackTokensIntoLines</c> must treat
+    ///     the two runs' tokens as a single wrap-atomic word group, not two tokens each
+    ///     independently eligible to wrap, even though <c>Tokenize</c> only ever sees one run's
+    ///     text at a time.
+    ///     An available width that sits strictly between the width of either run's own text and
+    ///     their combined width would, under the old per-token wrap logic, incorrectly wrap
+    ///     between the two runs (producing "A" / "A" on two lines) - here both glyphs must still
+    ///     land on the very same (overflowing) line, since there is no whitespace anywhere in the
+    ///     paragraph to legally wrap at, exactly mirroring
+    ///     <see cref="ResolveTextLayout_WordWrap_SingleTokenWiderThanAvailableWidth_PlacedAloneOnOwnLine"/>'s
+    ///     own single-token overflow policy, just for a word spread across two runs instead of one.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_WordWrap_WordSplitAcrossRuns_DoesNotWrapAtRunBoundary()
+    {
+        var pPr = new XElement(DrawingNs + "pPr");
+        var bodyPr = new XElement(
+            DrawingNs + "bodyPr",
+            new XAttribute("lIns", "0"), new XAttribute("tIns", "0"), new XAttribute("rIns", "0"), new XAttribute("bIns", "0"));
+        var txBody = new XElement(
+            PresentationNs + "txBody",
+            bodyPr,
+            new XElement(
+                DrawingNs + "p",
+                pPr,
+                new XElement(DrawingNs + "r", new XElement(DrawingNs + "rPr", new XAttribute("sz", "100")), new XElement(DrawingNs + "t", "A")),
+                new XElement(DrawingNs + "r", new XElement(DrawingNs + "rPr", new XAttribute("sz", "100")), new XElement(DrawingNs + "t", "A"))));
+        var textBody = PptxDocument.ParseTextBody(txBody);
+
+        // Each run's "A" at sz=100 is 6350 EMU wide; the combined word "AA" is 12700 EMU. An
+        // available width of 10000 sits strictly between the two - wide enough for either run's
+        // text alone, but not their combined word - so the old per-token wrap logic would
+        // incorrectly wrap between the two runs after placing the first "A".
+        var layout = Layout(textBody, 10000f, 100000f);
+
+        Assert.Equal(2, layout.Glyphs.Count);
+        Assert.Equal(0f, layout.Glyphs[0].OriginXEmu, 2);
+        Assert.Equal(10160f, layout.Glyphs[0].OriginYEmu, 2);
+        // Both glyphs on the very same line - no wrap at the run boundary.
+        Assert.Equal(6350f, layout.Glyphs[1].OriginXEmu, 2);
+        Assert.Equal(10160f, layout.Glyphs[1].OriginYEmu, 2);
+    }
+
+    /// <summary>
     ///     Proves an <c>&lt;a:br/&gt;</c> between two runs forces an explicit second line even
     ///     though the available width is ample enough to fit both runs' text on a single
     ///     word-wrapped line - i.e. "A&lt;br/&gt;B" must lay out as two lines, not "AB" on one

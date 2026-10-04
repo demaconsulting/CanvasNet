@@ -562,6 +562,7 @@ effective run size from the master's own `<p:otherStyle>` rather than `<p:bodySt
 
 **Tests**: `ResolveTextLayout_WordWrap_NarrowWidth_WrapsAtTokenBoundary`,
 `ResolveTextLayout_WordWrap_SingleTokenWiderThanAvailableWidth_PlacedAloneOnOwnLine`,
+`ResolveTextLayout_WordWrap_WordSplitAcrossRuns_DoesNotWrapAtRunBoundary`,
 `ResolveTextLayout_AlignCenter_CentersLineWithinAvailableWidth`,
 `ResolveTextLayout_AlignRight_RightAlignsLineAgainstAvailableWidth`,
 `ResolveTextLayout_RunBreakRun_ForcesSecondLine`,
@@ -569,7 +570,13 @@ effective run size from the master's own `<p:otherStyle>` rather than `<p:bodySt
 
 Proves a long run wraps onto multiple lines at the expected token boundary for a narrow
 `widthEmu`; proves a single token that alone exceeds the available width is placed alone on its
-own (overflowing) line rather than looping indefinitely; proves center/right alignment
+own (overflowing) line rather than looping indefinitely; proves a word spelled across two
+adjacent formatting runs with no whitespace between them (for example a bold "Hel" run
+immediately followed by a plain "lo" run) is never wrapped at that internal run boundary -
+`PackTokensIntoLines` packs consecutive non-whitespace tokens as a single wrap-atomic word group
+regardless of which run each token's text came from, so an available width that fits either run's
+own text alone but not their combined word still keeps both runs' glyphs on the same (overflowing)
+line rather than incorrectly wrapping where no whitespace exists; proves center/right alignment
 position a line's glyphs at the expected hand-computed X offset within the available width;
 proves a paragraph containing a run, a preserved `<a:br/>` line-break item, and a second run lays
 out as two separate lines (the break forces a line boundary independent of word-wrap's own
