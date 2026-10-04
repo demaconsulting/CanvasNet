@@ -240,7 +240,16 @@ public sealed partial class PptxDocument
     ///     group's own non-placeholder descendants) are painted. Propagated unchanged into
     ///     recursive calls for a group's own children. Always <see langword="false"/> for the
     ///     slide's own shape-tree walk (a slide's placeholder shapes, unlike a master's/layout's
-    ///     own, are real content and must render normally).
+    ///     own, are real content and must render normally). This same flag also gates
+    ///     exception-containment: when <see langword="true"/>, a <see cref="PptxUnsupportedFeatureException"/>
+    ///     thrown while painting a single master/layout shape (including one nested inside a
+    ///     group) is caught and only that one shape is skipped, so one already-deferred, well-
+    ///     formed-but-unsupported decorative shape (for example an EMF picture) cannot abort the
+    ///     rest of the slide's rendering - see <c>pptx-document.md</c>'s "Phase 2 Follow-Up:
+    ///     Master/Layout Decorative Shape Rendering" section. A slide's own shape
+    ///     (<see langword="false"/>) is never caught here and continues to hard-fail
+    ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/> exactly as before this
+    ///     containment was added.
     /// </param>
     private void RenderNode(
         Surface surface,
@@ -269,15 +278,44 @@ public sealed partial class PptxDocument
                     break;
                 }
 
-                RenderShape(surface, sp, layout, master, theme, parentToSurface);
+                try
+                {
+                    RenderShape(surface, sp, layout, master, theme, parentToSurface);
+                }
+                catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
+                {
+                    // A master/layout's own decorative shape using an already-deferred, well-
+                    // formed-but-unsupported feature must not abort the rest of the slide - see
+                    // pptx-document.md's "Phase 2 Follow-Up: Master/Layout Decorative Shape
+                    // Rendering" (graceful-skip containment). The `when (skipPlaceholderShapes)`
+                    // filter means a slide's own shape (skipPlaceholderShapes == false) is never
+                    // caught here and continues to hard-fail Render exactly as before this fix.
+                }
+
                 break;
 
             case PptxPictureShapeNode pic:
-                RenderPicture(surface, pic, ownerPartPath, parentToSurface);
+                try
+                {
+                    RenderPicture(surface, pic, ownerPartPath, parentToSurface);
+                }
+                catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
+                {
+                    // See the PptxSpShapeNode case's own remarks above.
+                }
+
                 break;
 
             case PptxGraphicFrameShapeNode graphicFrame:
-                RenderGraphicFrame(surface, graphicFrame, theme, parentToSurface);
+                try
+                {
+                    RenderGraphicFrame(surface, graphicFrame, theme, parentToSurface);
+                }
+                catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
+                {
+                    // See the PptxSpShapeNode case's own remarks above.
+                }
+
                 break;
         }
 

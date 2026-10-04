@@ -6,7 +6,7 @@ using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore blipfill srcrect pptx embed
+// cspell:ignore blipfill srcrect pptx embed asvg
 
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> picture-shape resolvers and painting primitive
@@ -23,6 +23,13 @@ namespace DemaConsulting.CanvasNet.Pptx;
 /// </summary>
 public sealed partial class PptxDocument
 {
+    /// <summary>
+    ///     The <c>uri</c> attribute value identifying the Microsoft SVG blip extension
+    ///     (<c>&lt;a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}"&gt;&lt;asvg:svgBlip
+    ///     .../&gt;&lt;/a:ext&gt;</c>) - see <see cref="HasSvgOnlyExtensionFallback"/>.
+    /// </summary>
+    private const string SvgBlipExtensionUri = "{96DAC541-7B7A-43D3-8B79-37D633B846F1}";
+
     /// <summary>
     ///     Resolves a <c>&lt;p:pic&gt;</c> shape's <c>&lt;p:blipFill&gt;</c> element into a
     ///     fully decoded raster <see cref="Surface"/>: resolves its <c>&lt;a:blip r:embed="..."/&gt;</c>
@@ -48,10 +55,15 @@ public sealed partial class PptxDocument
     /// <exception cref="PptxUnsupportedFeatureException">
     ///     Thrown (feature token <c>"pptx-image-link"</c>) when <c>&lt;a:blip&gt;</c> declares only
     ///     an <c>r:link</c> (a linked, non-embedded image - requires external/network resolution,
-    ///     out of scope this phase), or (feature token <c>"pptx-image-format"</c>) when the
-    ///     resolved media part's content type is not one of the five raster formats this package's
-    ///     codecs decode (for example an EMF/WMF vector picture, or an SVG image - common
-    ///     PowerPoint picture formats this phase's raster-only codecs cannot decode).
+    ///     out of scope this phase), (feature token <c>"pptx-image-svg-only"</c>) when
+    ///     <c>&lt;a:blip&gt;</c> declares neither <c>r:embed</c> nor <c>r:link</c> but instead
+    ///     carries only a Microsoft SVG extension (<c>&lt;a:extLst&gt;/&lt;a:ext uri="{96DAC541-
+    ///     7B7A-43D3-8B79-37D633B846F1}"&gt;&lt;asvg:svgBlip&gt;</c>) with no raster fallback - a
+    ///     well-formed, valid "Insert Icon"-style SVG-only picture this package does not yet
+    ///     decode, or (feature token <c>"pptx-image-format"</c>) when the resolved media part's
+    ///     content type is not one of the five raster formats this package's codecs decode (for
+    ///     example an EMF/WMF vector picture, or an SVG image - common PowerPoint picture formats
+    ///     this phase's raster-only codecs cannot decode).
     /// </exception>
     /// <remarks>
     ///     A codec decode failure (corrupt image bytes) is <em>not</em> wrapped here - it
@@ -76,6 +88,14 @@ public sealed partial class PptxDocument
                 throw new PptxUnsupportedFeatureException(
                     "pptx-image-link",
                     "A linked (not embedded) <a:blip r:link=\"...\"> image is not supported.");
+            }
+
+            if (HasSvgOnlyExtensionFallback(blip))
+            {
+                throw new PptxUnsupportedFeatureException(
+                    "pptx-image-svg-only",
+                    "An <a:blip> declares only a Microsoft SVG extension (<asvg:svgBlip>) with no " +
+                    "r:embed/r:link raster fallback; SVG-only pictures are not supported.");
             }
 
             throw new InvalidDataException("An <a:blip> element has neither an 'r:embed' nor an 'r:link' attribute.");
@@ -116,6 +136,39 @@ public sealed partial class PptxDocument
         "image/gif" => GifCodec.Load,
         _ => null
     };
+
+    /// <summary>
+    ///     Detects the Microsoft "SVG-only" <c>&lt;a:blip&gt;</c> fallback pattern: an
+    ///     <c>&lt;a:extLst&gt;</c> child containing an <c>&lt;a:ext uri="{96DAC541-7B7A-43D3-8B79-
+    ///     37D633B846F1}"&gt;</c> wrapping an <c>&lt;asvg:svgBlip&gt;</c> extension element - a
+    ///     well-formed, valid OOXML picture ("Insert Icon"-style SVG with no raster fallback) that
+    ///     this package does not yet decode, distinct from a genuinely malformed <c>&lt;a:blip&gt;</c>
+    ///     with neither an embed/link attribute nor any recognized extension.
+    /// </summary>
+    /// <param name="blip">The <c>&lt;a:blip&gt;</c> element to inspect.</param>
+    /// <returns>
+    ///     <see langword="true"/> when <paramref name="blip"/> has an <c>&lt;a:extLst&gt;</c> child
+    ///     with an <c>&lt;a:ext&gt;</c> whose <c>uri</c> attribute matches
+    ///     <see cref="SvgBlipExtensionUri"/>; otherwise <see langword="false"/>.
+    /// </returns>
+    private static bool HasSvgOnlyExtensionFallback(XElement blip)
+    {
+        var extLst = blip.Element(DrawingNamespace + "extLst");
+        if (extLst is null)
+        {
+            return false;
+        }
+
+        foreach (var ext in extLst.Elements(DrawingNamespace + "ext"))
+        {
+            if ((string?)ext.Attribute("uri") == SvgBlipExtensionUri)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     ///     Resolves a <c>&lt;p:blipFill&gt;</c>'s optional <c>&lt;a:srcRect&gt;</c> crop element
