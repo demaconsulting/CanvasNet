@@ -41,7 +41,7 @@ traversal segment, resolved relative to the referencing part's own directory, no
 root). `Open` succeeds on any well-formed OOXML/ZIP package, even one that is not actually a
 presentation, since nothing beyond the package layer was validated that phase.
 
-**Phase 1b (this release)** adds the presentation/theme/master/layout/slide model and the
+**Phase 1b** adds the presentation/theme/master/layout/slide model and the
 placeholder property-inheritance resolver, building on the Phase 1a package layer: `Open` now
 additionally locates `ppt/presentation.xml` (via the package's `/officeDocument` relationship),
 parses its declared slide size and ordered slide list (exposed as the new public `SlideSize`/

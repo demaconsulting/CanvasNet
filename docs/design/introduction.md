@@ -91,16 +91,23 @@ software items, specifically:
   This is an in-progress, multi-phase feature: Phase 1a implemented the underlying OOXML (Office
   Open XML) package layer — opening a `.pptx` file as a ZIP archive, resolving
   `[Content_Types].xml`'s default and part-specific override content-type mappings, and resolving
-  package-level and per-part relationships (including relative-target traversal). Phase 1b (the
-  current release) adds the presentation/theme/master/layout/slide model and a placeholder
-  property-inheritance resolver — parsing `ppt/presentation.xml`'s declared slide size and
-  ordered slide list (exposed as public `SlideCount`/`SlideSize` members), resolving each slide
-  master's theme (color/font scheme), structurally parsing each master/layout/slide's placeholder
-  shapes, and implementing the verified ECMA-376 placeholder-matching algorithm. No shape
-  geometry/paint rendering, non-placeholder shape parsing, font loading, or rendering surface is
-  implemented yet — later phases will build on this model. As of Phase 1b, `CanvasNetPptx`
-  depends on the `CanvasNet` system's `Canvas` subsystem (for the `Rgba32` type used to resolve a
-  theme's color scheme) — see _CanvasNetPptx System Design_ (`canvas-net-pptx.md`)
+  package-level and per-part relationships (including relative-target traversal). Phase 1b adds
+  the presentation/theme/master/layout/slide model and a placeholder property-inheritance
+  resolver — parsing `ppt/presentation.xml`'s declared slide size and ordered slide list (exposed
+  as public `SlideCount`/`SlideSize` members), resolving each slide master's theme (color/font
+  scheme), structurally parsing each master/layout/slide's placeholder shapes, and implementing
+  the verified ECMA-376 placeholder-matching algorithm. Phase 1c adds DrawingML shape geometry
+  (position/rotation/flip transform resolution, group child-coordinate-space composition, preset
+  and custom geometry resolution) and paint resolution (solid/gradient fills, line styles).
+  Phase 1d (the current release) adds DrawingML text layout and rendering — structural text
+  parsing, an attribute-level run/paragraph property-inheritance resolver, word-wrap/alignment/
+  vertical-anchor/autofit layout, and glyph-ink text rendering. A full per-slide public `Render`
+  API, non-placeholder (freeform) shape enumeration, bullets/numbering, and text clipping on
+  overflow are not implemented yet — later phases will build on this model. As of Phase 1d,
+  `CanvasNetPptx` depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, and `Fonts`
+  subsystems (for the `Rgba32` color type, path geometry/stroking, and font/glyph resolution used
+  to resolve and render shape/text content) — see _CanvasNetPptx System Design_
+  (`canvas-net-pptx.md`)
 
 The following OTS items are also covered:
 

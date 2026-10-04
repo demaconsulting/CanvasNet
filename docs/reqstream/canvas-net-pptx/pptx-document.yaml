@@ -3,7 +3,7 @@
 #
 # cspell:ignore ooxml pptx srgb xfrm prst cust patt bodyPr normAutofit noAutofit spAutoFit pPr
 # cspell:ignore rPr txBody txStyles lstStyle defRPr ctrTitle lIns tIns rIns bIns algn marL lnSpc
-# cspell:ignore spcBef spcAft justLow lnSpcReduction fontScale lvl
+# cspell:ignore spcBef spcAft justLow lnSpcReduction fontScale lvl ordinally mistargeted
 #
 # These requirements describe the design-level behavior of the PptxDocument unit.
 #
@@ -55,27 +55,62 @@ sections:
           - id: CanvasNetPptx-PptxDocument-ContentTypesValidation
             title: >-
               The PptxDocument class shall require the package to contain a well-formed
-              [Content_Types].xml part, parsing its Default (extension-to-content-type) and
-              Override (part-specific) entries, and reject a package missing this part with
-              InvalidDataException.
+              [Content_Types].xml part whose root is a Types element in the OPC content-types
+              namespace, parsing its Default (extension-to-content-type) and Override
+              (part-specific) entries - each of which must declare its required attribute(s)
+              (Extension/ContentType for Default, PartName/ContentType for Override) - and reject
+              a package missing this part, an oversized part exceeding a bounded character budget,
+              a part with a malformed root element, or a Default/Override element with a missing
+              required attribute, all with InvalidDataException.
             justification: |
               Every valid OPC package must declare [Content_Types].xml; its absence means the
               package is fundamentally malformed and must be rejected before any later phase
-              attempts to interpret any part's content.
+              attempts to interpret any part's content. A malformed root or incomplete
+              Default/Override element must fail closed (per Open()'s documented contract) rather
+              than silently being skipped, and an attacker-controlled, unbounded XML part (an "XML
+              bomb") must not be allowed to exhaust memory while parsing.
             tests:
               - PptxDocument_Open_MissingContentTypes_ThrowsInvalidDataException
+              - PptxDocument_Open_OversizedContentTypesPart_ThrowsInvalidDataException
+              - PptxDocument_Open_ContentTypesWrongRoot_ThrowsInvalidDataException
+              - PptxDocument_Open_ContentTypesDefaultMissingRequiredAttribute_ThrowsInvalidDataException
+              - PptxDocument_Open_ContentTypesOverrideMissingRequiredAttribute_ThrowsInvalidDataException
 
           - id: CanvasNetPptx-PptxDocument-PackageRelationshipsValidation
             title: >-
               The PptxDocument class shall require the package to contain a well-formed
-              package-level _rels/.rels relationships part, parsing it eagerly at Open() time, and
-              reject a package missing this part with InvalidDataException.
+              package-level _rels/.rels relationships part whose root is a Relationships element
+              in the OPC relationships namespace, parsing it eagerly at Open() time, and reject a
+              package missing this part, a part with a malformed root element, or a Relationship
+              element missing a required attribute (Id, Type, or Target), all with
+              InvalidDataException.
             justification: |
               The package-level relationships part is the sole entry point for discovering the
               presentation's root part in later phases; its absence means the package cannot be
-              navigated at all.
+              navigated at all. A malformed root or an incomplete Relationship element must fail
+              closed rather than silently being skipped, which would otherwise let a malformed
+              package appear navigable when it is not.
             tests:
               - PptxDocument_Open_MissingPackageRelationships_ThrowsInvalidDataException
+              - PptxDocument_Open_PackageRelsWrongRoot_ThrowsInvalidDataException
+              - PptxDocument_Open_RelationshipMissingRequiredAttribute_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-CaseSensitivePartNames
+            title: >-
+              The PptxDocument class shall compare OPC part names ordinally (case-sensitively),
+              treating two part names differing only by case as distinct parts, rejecting an
+              incorrectly-cased reserved part name (for example "[content_types].xml") as if the
+              reserved part were absent, and rejecting a package containing two ZIP entries with
+              exactly identical names, all with InvalidDataException where applicable.
+            justification: |
+              OPC (ECMA-376 Part 2) defines part-name comparison as ordinal; treating part names
+              case-insensitively would incorrectly merge two legitimately distinct parts (for
+              example "ppt/slides/Slide1.xml" and "ppt/slides/slide1.xml") or incorrectly accept
+              a malformed reserved-name part that must instead be rejected as absent.
+            tests:
+              - PptxDocument_ResolvePart_PartNamesDifferingOnlyByCase_ResolveAsDistinctParts
+              - PptxDocument_Open_WrongCaseContentTypesPartName_ThrowsInvalidDataException
+              - PptxDocument_Open_DuplicateEntryNames_ThrowsInvalidDataException
 
           - id: CanvasNetPptx-PptxDocument-ContentTypeOverride
             title: >-
@@ -115,6 +150,7 @@ sections:
             tests:
               - PptxDocument_Open_WellFormedMinimalPackage_Succeeds
               - PptxDocument_ResolveRelationship_UnknownRelationshipId_ThrowsInvalidDataException
+              - PptxDocument_ResolveRelationship_ExternalTargetMode_ThrowsInvalidDataException
 
           - id: CanvasNetPptx-PptxDocument-RelativeTargetTraversal
             title: >-
@@ -163,17 +199,22 @@ sections:
               The PptxDocument class shall reject, with InvalidDataException, a package with no
               /officeDocument relationship, a presentation part whose root is not a PresentationML
               <p:presentation> element, a presentation missing a valid <p:sldSz> (including a
-              missing, non-numeric, or non-positive cx/cy attribute), and a presentation whose
-              <p:sldIdLst> is missing or declares zero slides.
+              missing, non-numeric, or non-positive cx/cy attribute, or a cx/cy that would
+              overflow int once converted to pixels), a presentation whose <p:sldIdLst> is missing
+              or declares zero slides, and a <p:sldId> whose resolved relationship Type does not
+              identify a slide part.
             justification: |
               A malformed or non-presentation package must fail closed at Open() time rather than
               later surfacing as a confusing null-reference or structural failure when a caller
-              first reads SlideCount/SlideSize.
+              first reads SlideCount/SlideSize, calls GetSlideSizeInPixels, or navigates to a
+              mistargeted "slide" that is actually a theme or other arbitrary part.
             tests:
               - PptxDocument_Open_MissingOfficeDocumentRelationship_ThrowsInvalidDataException
               - PptxDocument_Open_PresentationMissingSldSz_ThrowsInvalidDataException
               - PptxDocument_Open_PresentationEmptySlideList_ThrowsInvalidDataException
               - PptxDocument_Open_PresentationNonNumericSldSz_ThrowsInvalidDataException
+              - PptxDocument_Open_SlideIdRelationshipWrongType_ThrowsInvalidDataException
+              - PptxDocument_GetSlideSizeInPixels_OversizedDimension_ThrowsInvalidDataException
               - CanvasNetPptx_SystemIntegration_PptxOpenValidationEmptySlideList_ThrowsInvalidDataException
 
           - id: CanvasNetPptx-PptxDocument-SlideSizePixelConversion
@@ -194,14 +235,19 @@ sections:
             title: >-
               The PptxDocument class shall resolve a theme part's 12-slot color scheme
               (<a:clrScheme>) into concrete Rgba32 values, resolving an <a:srgbClr val="RRGGBB"/>
-              directly and an <a:sysClr val="..." lastClr="RRGGBB"/> via its cached lastClr value.
+              directly and an <a:sysClr val="..." lastClr="RRGGBB"/> via its cached lastClr value,
+              and reject a color value that is not exactly six hexadecimal digits (for example an
+              eight-digit AARRGGBB value) with InvalidDataException.
             justification: |
               A placeholder's effective properties may reference a theme color by scheme slot
               rather than an explicit RGB value; resolving the scheme up front lets a later
-              rendering phase look up a concrete color without re-parsing the theme XML.
+              rendering phase look up a concrete color without re-parsing the theme XML. OOXML's
+              own color-value attributes are always exactly six hex digits; an eight-digit value
+              must be rejected rather than silently misread with its first byte as alpha.
             tests:
               - PptxDocument_GetTheme_SrgbClrColorScheme_ResolvesRgba32Values
               - PptxDocument_GetTheme_SysClrColorScheme_ResolvesLastClrValue
+              - PptxDocument_GetTheme_SrgbClrEightDigitValue_ThrowsInvalidDataException
 
           - id: CanvasNetPptx-PptxDocument-ThemeFontScheme
             title: >-
@@ -304,12 +350,15 @@ sections:
               size, an optional rot rotation in 60,000ths of a degree about the shape's own center,
               defaulting to zero when omitted, and optional flipH/flipV mirroring about the shape's
               own center) into a single composed transform placing the shape's local coordinate
-              space into its parent's coordinate space, and reject a missing off/ext child element
-              or a non-numeric rot attribute with InvalidDataException.
+              space into its parent's coordinate space, and reject a missing off/ext child element,
+              a non-numeric off/ext attribute (x/y/cx/cy), or a non-numeric rot attribute with
+              InvalidDataException.
             justification: |
               Every DrawingML shape's geometry is authored in its own local coordinate space; a
               correct, single composed transform is the foundation every later geometry and paint
-              resolution in this phase, and any future rendering phase, builds on.
+              resolution in this phase, and any future rendering phase, builds on. A malformed
+              (non-numeric) off/ext attribute must fail with the documented InvalidDataException
+              contract, not an unrelated raw conversion-failure exception.
             tests:
               - ResolveShapeFrame_PlainOffsetAndSize_MapsLocalOriginToOffset
               - ResolveShapeFrame_MissingOff_ThrowsInvalidDataException
@@ -319,6 +368,8 @@ sections:
               - ResolveShapeFrame_FlipHorizontal_MirrorsAboutOwnCenterX
               - ResolveShapeFrame_FlipVertical_MirrorsAboutOwnCenterY
               - ResolveShapeFrame_InvalidRotAttribute_ThrowsInvalidDataException
+              - ResolveShapeFrame_NonNumericOffAttribute_ThrowsInvalidDataException
+              - ResolveShapeFrame_NonNumericExtAttribute_ThrowsInvalidDataException
               - CanvasNetPptx_SystemIntegration_GeometryAndPaint_FreeformShapeResolvesEndToEnd
 
           - id: CanvasNetPptx-PptxDocument-GroupChildTransform
@@ -327,19 +378,25 @@ sections:
               into a child-space-to-group-space transform, scaling and translating a child
               coordinate declared in the group's chOff/chExt child coordinate space into the
               group's own off/ext box, defaulting to an identity child coordinate space when
-              chOff/chExt are omitted, so a child shape's own resolved frame transform composes
-              correctly through its owning group's transform chain.
+              chOff/chExt are omitted (but requiring both attributes, failing closed with
+              InvalidDataException, whenever chOff/chExt IS present but incomplete), so a child
+              shape's own resolved frame transform composes correctly through its owning group's
+              transform chain.
             justification: |
               A group shape's children are authored in a child-specific coordinate space distinct
               from the group's own placement in its parent; composing a child's transform without
               correctly scaling through the group's chOff/chExt would misplace every shape nested
-              in a group.
+              in a group. A present-but-incomplete chOff/chExt is malformed input, not an "absent
+              element" the schema-default fallback is meant to cover, and must fail closed rather
+              than silently substituting a default.
             tests:
               - ResolveGroupChildTransform_IdentityChildSpace_MatchesGroupFrameDirectly
               - ResolveGroupChildTransform_ScaledChildSpace_ScalesChildCoordinatesIntoGroupBox
               - ResolveGroupChildTransform_OffsetChildSpace_TranslatesChildOriginBeforeScaling
               - ResolveGroupChildTransform_ChildOfChild_ComposesThroughBothTransforms
               - ResolveGroupChildTransform_MissingChOffChExt_DefaultsToIdentityChildSpace
+              - ResolveGroupChildTransform_ChOffPresentWithMissingAttribute_ThrowsInvalidDataException
+              - ResolveGroupChildTransform_ChExtPresentWithMissingAttribute_ThrowsInvalidDataException
               - CanvasNetPptx_SystemIntegration_GeometryAndPaint_GroupShapeChildTransformComposesEndToEnd
 
           - id: CanvasNetPptx-PptxDocument-PresetGeometry
@@ -459,17 +516,21 @@ sections:
               stops and its <a:lin> linear-direction angle (in 60,000ths of a degree) into a core
               LinearGradient spanning the shape's own width/height, and shall reject a <a:gradFill>
               with no <a:lin> child (for example a path/radial gradient) with
-              PptxUnsupportedFeatureException (feature token "pptx-gradient-path"), and a
-              <a:gradFill> with no <a:gsLst> with InvalidDataException.
+              PptxUnsupportedFeatureException (feature token "pptx-gradient-path"), a <a:gradFill>
+              with no <a:gsLst> with InvalidDataException, and a <a:gs> element with a non-numeric
+              pos attribute with InvalidDataException.
             justification: |
               Linear gradients are the most common DrawingML gradient fill in practice; radial and
               path gradients require a different, not-yet-implemented core gradient paint type, so
               rejecting them explicitly avoids silently rendering them as an incorrect linear
-              approximation.
+              approximation. A malformed (non-numeric) gradient-stop position must fail with the
+              documented InvalidDataException contract, not an unrelated raw conversion-failure
+              exception.
             tests:
               - ResolveGradientFill_LinearZeroDegrees_PointsAlongPositiveX
               - ResolveGradientFill_MissingLin_ThrowsPptxUnsupportedFeatureException
               - ResolveGradientFill_MissingGsLst_ThrowsInvalidDataException
+              - ResolveGradientFill_NonNumericGsPos_ThrowsInvalidDataException
 
           - id: CanvasNetPptx-PptxDocument-LineStyleResolution
             title: >-

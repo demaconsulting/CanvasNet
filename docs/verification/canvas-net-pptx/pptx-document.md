@@ -2,7 +2,7 @@
 
 <!-- cspell:ignore ooxml pptx srgb xfrm prst cust patt bodyPr normAutofit noAutofit spAutoFit pPr -->
 <!-- cspell:ignore rPr txBody txStyles lstStyle defRPr lnSpc spcBef spcAft justLow fontScale -->
-<!-- cspell:ignore spcPct spcPts -->
+<!-- cspell:ignore spcPct spcPts Ordinally -->
 
 This document describes the unit-level verification strategy for the `PptxDocument` class.
 
@@ -13,12 +13,13 @@ package; its unit tests live in the sibling `DemaConsulting.CanvasNet.Pptx.Tests
 ### Verification Approach
 
 The `PptxDocument` unit is verified through unit tests that exercise its OOXML package layer
-(ZIP opening, `[Content_Types].xml` resolution, relationship resolution) and its Phase 1b
-presentation/theme/master/layout/slide model and placeholder-inheritance resolver, in isolation,
-through the public API plus `internal` members exposed to the test project via
-`InternalsVisibleTo` (`ResolvePart`/`ResolveRelationship` in Phase 1a; `GetTheme`/`GetMaster`/
-`GetLayout`/`GetSlide`/`ResolvePlaceholderProperties` and every new `internal` record type in
-Phase 1b). Every test builds its own minimal, in-memory `.pptx`-shaped ZIP package via a private
+(ZIP opening, `[Content_Types].xml` resolution, relationship resolution) and its current
+presentation/theme/master/layout/slide model, placeholder-inheritance resolver, DrawingML shape
+geometry/paint resolution, and text layout/rendering, in isolation, through the public API plus
+`internal` members exposed to the test project via `InternalsVisibleTo` (`ResolvePart`/
+`ResolveRelationship` from Phase 1a; `GetTheme`/`GetMaster`/`GetLayout`/`GetSlide`/
+`ResolvePlaceholderProperties` and every other `internal` record type and resolver added through
+Phase 1d). Every test builds its own minimal, in-memory `.pptx`-shaped ZIP package via a private
 helper (`BuildPackage`, parameterized by an arbitrary set of entry name/content pairs) using the
 BCL `System.IO.Compression.ZipArchive` writer over a `MemoryStream` - this is a new fixture
 pattern for this repository (no existing precedent uses `ZipArchive` to build an in-memory test
@@ -86,17 +87,48 @@ leaking through uncaught.
 
 #### CanvasNetPptx-PptxDocument-ContentTypesValidation: Missing [Content_Types].xml Throws InvalidDataException
 
-**Test**: `PptxDocument_Open_MissingContentTypes_ThrowsInvalidDataException`
+**Tests**: `PptxDocument_Open_MissingContentTypes_ThrowsInvalidDataException`,
+`PptxDocument_Open_OversizedContentTypesPart_ThrowsInvalidDataException`,
+`PptxDocument_Open_ContentTypesWrongRoot_ThrowsInvalidDataException`,
+`PptxDocument_Open_ContentTypesDefaultMissingRequiredAttribute_ThrowsInvalidDataException`,
+`PptxDocument_Open_ContentTypesOverrideMissingRequiredAttribute_ThrowsInvalidDataException`
 
 Proves a package containing only `_rels/.rels` (no `[Content_Types].xml` entry at all) throws
-`InvalidDataException` from `Open`.
+`InvalidDataException` from `Open`. Also proves `Open` fails closed for an attacker-controlled
+`[Content_Types].xml` part: one padded past the bounded character budget (an "XML bomb" pattern)
+throws `InvalidDataException` rather than risking unbounded memory use; a part whose root element
+is not the OPC `Types` element throws `InvalidDataException` rather than being silently accepted
+with no `Default`/`Override` entries found; and a `Default`/`Override` element missing one of its
+required attributes (`Extension`/`ContentType` or `PartName`/`ContentType` respectively) throws
+`InvalidDataException` rather than being silently discarded.
 
 #### CanvasNetPptx-PptxDocument-PackageRelationshipsValidation: Missing _rels/.rels Throws InvalidDataException
 
-**Test**: `PptxDocument_Open_MissingPackageRelationships_ThrowsInvalidDataException`
+**Tests**: `PptxDocument_Open_MissingPackageRelationships_ThrowsInvalidDataException`,
+`PptxDocument_Open_PackageRelsWrongRoot_ThrowsInvalidDataException`,
+`PptxDocument_Open_RelationshipMissingRequiredAttribute_ThrowsInvalidDataException`
 
 Proves a package containing only `[Content_Types].xml` (no package-level `_rels/.rels` entry at
-all) throws `InvalidDataException` from `Open`.
+all) throws `InvalidDataException` from `Open`. Also proves a relationships part whose root
+element is not the OPC `Relationships` element throws `InvalidDataException` rather than being
+silently accepted with no relationships found, and a `<Relationship>` element missing one of its
+required attributes (`Id`, `Type`, or `Target`) throws `InvalidDataException` rather than being
+silently skipped.
+
+#### CanvasNetPptx-PptxDocument-CaseSensitivePartNames: OPC Part Names Compare Ordinally (Case-Sensitively)
+
+**Tests**: `PptxDocument_ResolvePart_PartNamesDifferingOnlyByCase_ResolveAsDistinctParts`,
+`PptxDocument_Open_WrongCaseContentTypesPartName_ThrowsInvalidDataException`,
+`PptxDocument_Open_DuplicateEntryNames_ThrowsInvalidDataException`
+
+Declares a package with both `ppt/slides/Slide1.xml` and `ppt/slides/slide1.xml`, each given its
+own distinct `Override` content type, and asserts `ResolvePart` resolves each to its own distinct
+content type rather than the two names colliding under a case-insensitive comparison. Also proves
+a package whose reserved content-types part is incorrectly cased (for example
+`[content_types].xml` instead of `[Content_Types].xml`) is treated as if the part were entirely
+absent, throwing `InvalidDataException`; and proves a package containing two ZIP entries with
+exactly identical names throws `InvalidDataException` from `Open` rather than one silently
+shadowing the other.
 
 #### CanvasNetPptx-PptxDocument-ContentTypeOverride: Override Content Type Takes Precedence Over Default Extension
 
@@ -120,11 +152,13 @@ rather than silently falling through to a spurious default.
 
 **Tests**: `PptxDocument_Open_WellFormedMinimalPackage_Succeeds` (also proves package-root
 relationship resolution via `ResolveRelationship(string.Empty, "rId1")`),
-`PptxDocument_ResolveRelationship_UnknownRelationshipId_ThrowsInvalidDataException`
+`PptxDocument_ResolveRelationship_UnknownRelationshipId_ThrowsInvalidDataException`,
+`PptxDocument_ResolveRelationship_ExternalTargetMode_ThrowsInvalidDataException`
 
 Proves a known relationship ID in the package-level `_rels/.rels` resolves to its declared
 target part path, and proves requesting an unknown relationship ID throws
-`InvalidDataException`.
+`InvalidDataException`. Also proves a relationship declaring `TargetMode="External"` throws
+`InvalidDataException` rather than being resolved as if it were an in-package target.
 
 #### CanvasNetPptx-PptxDocument-RelativeTargetTraversal: Relative "../" Target Resolves, Root Escape Fails Closed
 
@@ -162,11 +196,18 @@ asserts a non-positive/non-finite `dpi` throws `ArgumentOutOfRangeException`.
 `PptxDocument_Open_PresentationMissingSldSz_ThrowsInvalidDataException`,
 `PptxDocument_Open_PresentationEmptySlideList_ThrowsInvalidDataException`,
 `PptxDocument_Open_PresentationNonNumericSldSz_ThrowsInvalidDataException`,
+`PptxDocument_Open_SlideIdRelationshipWrongType_ThrowsInvalidDataException`,
+`PptxDocument_GetSlideSizeInPixels_OversizedDimension_ThrowsInvalidDataException`,
 `CanvasNetPptx_SystemIntegration_PptxOpenValidationEmptySlideList_ThrowsInvalidDataException`
 
 Proves each of the following throws `InvalidDataException` from `Open`: a package with no
 `/officeDocument` relationship; a presentation missing `<p:sldSz>`; a presentation with an empty
-`<p:sldIdLst>`; and a presentation whose `<p:sldSz>` has a non-numeric `cx` attribute.
+`<p:sldIdLst>`; a presentation whose `<p:sldSz>` has a non-numeric `cx` attribute; and a
+`<p:sldId>` whose resolved relationship `Type` does not identify a slide part (for example one
+pointed at a theme part instead), so a malformed package cannot silently report a non-slide part
+as a valid slide. Also proves `GetSlideSizeInPixels` throws `InvalidDataException` (rather than
+overflowing or returning a negative size) for a slide dimension whose pixel conversion would
+exceed the representable `int` range.
 
 #### CanvasNetPptx-PptxDocument-SlideSizePixelConversion: EMU-to-Pixel Conversion Rounds Correctly and Validates DPI
 
@@ -180,11 +221,14 @@ size at a known DPI, and rejects a non-positive or non-finite `dpi` with
 #### CanvasNetPptx-PptxDocument-ThemeColorScheme: srgbClr and sysClr Color Scheme Slots Resolve Correctly
 
 **Tests**: `PptxDocument_GetTheme_SrgbClrColorScheme_ResolvesRgba32Values`,
-`PptxDocument_GetTheme_SysClrColorScheme_ResolvesLastClrValue`
+`PptxDocument_GetTheme_SysClrColorScheme_ResolvesLastClrValue`,
+`PptxDocument_GetTheme_SrgbClrEightDigitValue_ThrowsInvalidDataException`
 
 Proves all 12 `<a:clrScheme>` slots resolve to the expected `Rgba32` value when each is an
 `<a:srgbClr val="RRGGBB"/>`, and separately proves an `<a:sysClr val="..." lastClr="RRGGBB"/>`
-slot resolves to its cached `lastClr` RGB equivalent.
+slot resolves to its cached `lastClr` RGB equivalent. Also proves an eight-digit `val`
+(`AARRGGBB`) throws `InvalidDataException` rather than being silently accepted with its leading
+byte misinterpreted as alpha, since OOXML color values are always exactly six hex digits.
 
 #### CanvasNetPptx-PptxDocument-ThemeFontScheme: Major/Minor Font Scheme Typefaces Resolve Correctly
 
@@ -260,14 +304,18 @@ unchanged as context.
 `ResolveShapeFrame_MissingRot_DefaultsToZeroRotation`,
 `ResolveShapeFrame_FlipHorizontal_MirrorsAboutOwnCenterX`,
 `ResolveShapeFrame_FlipVertical_MirrorsAboutOwnCenterY`,
-`ResolveShapeFrame_InvalidRotAttribute_ThrowsInvalidDataException`
+`ResolveShapeFrame_InvalidRotAttribute_ThrowsInvalidDataException`,
+`ResolveShapeFrame_NonNumericOffAttribute_ThrowsInvalidDataException`,
+`ResolveShapeFrame_NonNumericExtAttribute_ThrowsInvalidDataException`,
+`CanvasNetPptx_SystemIntegration_GeometryAndPaint_FreeformShapeResolvesEndToEnd`
 
 Proves a plain `<a:off>`/`<a:ext>` (no rotation/flip) maps a shape's local origin to the declared
 offset; proves a `90`-degree `rot` rotates a known local point about the shape's own center to
 the expected clockwise-on-screen location; proves an absent `rot` defaults to no rotation; proves
 `flipH`/`flipV` each mirror a known local point about the shape's own center on the expected
-axis; and proves a missing `<a:off>`, missing `<a:ext>`, or non-numeric `rot` attribute each
-throw `InvalidDataException`.
+axis; and proves a missing `<a:off>`, missing `<a:ext>`, non-numeric `rot` attribute, or
+non-numeric `<a:off>`/`<a:ext>` `x`/`y`/`cx`/`cy` attribute each throw `InvalidDataException`
+rather than an unrelated raw `FormatException`.
 
 #### CanvasNetPptx-PptxDocument-GroupChildTransform: Group chOff/chExt Child Coordinate Space Composes Correctly
 
@@ -276,6 +324,8 @@ throw `InvalidDataException`.
 `ResolveGroupChildTransform_OffsetChildSpace_TranslatesChildOriginBeforeScaling`,
 `ResolveGroupChildTransform_ChildOfChild_ComposesThroughBothTransforms`,
 `ResolveGroupChildTransform_MissingChOffChExt_DefaultsToIdentityChildSpace`,
+`ResolveGroupChildTransform_ChOffPresentWithMissingAttribute_ThrowsInvalidDataException`,
+`ResolveGroupChildTransform_ChExtPresentWithMissingAttribute_ThrowsInvalidDataException`,
 `CanvasNetPptx_SystemIntegration_GeometryAndPaint_GroupShapeChildTransformComposesEndToEnd`
 
 Proves a group whose `chOff`/`chExt` exactly matches its own `off`/`ext` produces the same
@@ -284,9 +334,11 @@ scales a child coordinate up proportionally into the group's box; proves a non-z
 translates a child coordinate's origin before that scaling is applied; proves a group nested
 inside another group composes both levels' child transforms together with a descendant shape's
 own frame correctly; proves an absent `chOff`/`chExt` defaults to an identity child coordinate
-space; and the end-to-end system test proves this composition holds through the real
-package-load path (a shape nested in a group with non-trivial `chOff`/`chExt` resolves to the
-expected slide-space point).
+space; proves a `chOff`/`chExt` that IS present but omits one of its required attributes throws
+`InvalidDataException` rather than silently substituting a default (a present-but-incomplete
+element is malformed input, not the "absent element" case the default is meant to cover); and the
+end-to-end system test proves this composition holds through the real package-load path (a shape
+nested in a group with non-trivial `chOff`/`chExt` resolves to the expected slide-space point).
 
 #### CanvasNetPptx-PptxDocument-PresetGeometry: Supported Presets Build Correctly, Unsupported Presets Fail Closed
 
@@ -386,14 +438,16 @@ to prove the implementation does not depend on it.
 
 **Tests**: `ResolveGradientFill_LinearZeroDegrees_PointsAlongPositiveX`,
 `ResolveGradientFill_MissingLin_ThrowsPptxUnsupportedFeatureException`,
-`ResolveGradientFill_MissingGsLst_ThrowsInvalidDataException`
+`ResolveGradientFill_MissingGsLst_ThrowsInvalidDataException`,
+`ResolveGradientFill_NonNumericGsPos_ThrowsInvalidDataException`
 
 Proves a `<a:lin ang="0"/>` (zero-degree angle) resolves a `LinearGradient` whose start/end points
 lie along the positive X axis, centered on the shape's own bounding box, with its `<a:gsLst>`
 stops resolved to the expected offsets and colors; proves a `<a:gradFill>` with no `<a:lin>` child
 (a path/radial gradient) throws `PptxUnsupportedFeatureException` rather than silently
-approximating a linear direction; and proves a `<a:gradFill>` missing its required `<a:gsLst>`
-throws `InvalidDataException`.
+approximating a linear direction; proves a `<a:gradFill>` missing its required `<a:gsLst>`
+throws `InvalidDataException`; and proves a `<a:gs>` element with a non-numeric `pos` attribute
+throws `InvalidDataException` rather than an unrelated raw `FormatException`.
 
 #### CanvasNetPptx-PptxDocument-LineStyleResolution: Stroke Width/Fill/Dash Resolve, Outline Realizes via Core PathStroker
 

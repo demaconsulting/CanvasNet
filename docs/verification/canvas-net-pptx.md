@@ -1,6 +1,6 @@
 # System Verification Design
 
-<!-- cspell:ignore ooxml pptx -->
+<!-- cspell:ignore ooxml pptx xfrm prst -->
 
 This document describes the system-level verification strategy for CanvasNetPptx.
 
@@ -40,12 +40,11 @@ thrown exceptions.
 **Test**: `CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage`
 
 Exercises end-to-end system behavior for `Open`/package-layer resolution: opens a minimal,
-well-formed, in-memory OPC package through the public API, then uses the internal
-`ResolveRelationship`/`ResolvePart` methods to follow the package-level relationship to
-`ppt/presentation.xml` and resolve its overridden content type. Confirms that opening a
-well-formed `.pptx`-shaped package and navigating its content-type/relationship graph integrate
-correctly through the system's own public entry point, and serves as the shared platform-proof
-test referenced by every `CanvasNetPptx-Platform-*` requirement.
+well-formed, in-memory OPC package through the public API, then asserts `SlideCount`/`SlideSize`
+resolve to the expected values declared by the package's `ppt/presentation.xml`. Confirms that
+opening a well-formed `.pptx`-shaped package and navigating its content-type/relationship graph
+integrate correctly through the system's own public entry point, and serves as the shared
+platform-proof test referenced by every `CanvasNetPptx-Platform-*` requirement.
 
 ### Integration: Pptx Open Validation Null Null Stream Throws Argument Null Exception
 
@@ -83,13 +82,56 @@ Exercises end-to-end system behavior for presentation validation: opens a packag
 public `Open` entry point, confirming the fail-closed validation contract for a non-navigable
 presentation is honored end-to-end.
 
+### Integration: Geometry And Paint Freeform Shape Resolves End To End
+
+**Test**: `CanvasNetPptx_SystemIntegration_GeometryAndPaint_FreeformShapeResolvesEndToEnd`
+
+Exercises end-to-end system behavior for Phase 1c's shape geometry and paint resolution: opens a
+full presentation package whose one slide contains a single freeform `<p:sp>` declaring a rotated
+`<a:xfrm>`, an `<a:prstGeom prst="roundRect">`, a theme-scheme-color `<a:solidFill>`, and an
+`<a:ln>` stroke. Confirms the geometry transform, preset-geometry resolution, and fill/stroke
+paint resolution all compose correctly when driven through the full package-load path (slide ->
+layout -> master -> theme), not just from hand-built fragments.
+
+### Integration: Geometry And Paint Group Shape Child Transform Composes End To End
+
+**Test**: `CanvasNetPptx_SystemIntegration_GeometryAndPaint_GroupShapeChildTransformComposesEndToEnd`
+
+Exercises end-to-end system behavior for Phase 1c's group child-coordinate-space transform: opens
+a full presentation package whose one slide contains a `<p:grpSp>` (with its own `<a:xfrm>`
+declaring both the group's parent-space placement and its child coordinate space) wrapping a
+single child `<p:sp>`. Confirms the composed group/child transform resolves correctly end-to-end.
+
+### Integration: Text Layout And Render Title Placeholder Resolves Master Title Style End To End
+
+**Test**: `CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd`
+
+Exercises end-to-end system behavior for Phase 1d's text property inheritance and layout: opens a
+full presentation package whose one slide contains a `title` placeholder shape with a `<p:txBody>`
+run declaring no font size of its own. Confirms the run's effective font size resolves through the
+real slide -> layout -> master placeholder-matching chain all the way to the master's own
+`<p:titleStyle>`, and that the resulting text body lays out and paints without error.
+
+### Integration: Text Layout And Render Non Placeholder Shape Resolves Master Other Style End To End
+
+**Test**: `CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd`
+
+Exercises end-to-end system behavior for Phase 1d's text property inheritance: opens a full
+presentation package whose one slide contains an ordinary, non-placeholder text box. Confirms the
+`placeholderType: ""` sentinel convention correctly selects the master's `<p:otherStyle>` bucket
+(not `<p:bodyStyle>`) when driven through a real, non-placeholder shape resolved from the full
+package-load path.
+
 ## Acceptance Criteria
 
 A system-level test run passes when all scenarios above pass without error or exception beyond
 those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return value
-constitutes a failure. Collectively, these scenarios cover the complete current CanvasNetPptx
-feature set: opening a well-formed OOXML/`.pptx` package, resolving its content-type and
-relationship graph, resolving its declared slide count/size (Phase 1b), and validating the
-documented argument- and structural-validation contracts. No shape geometry/paint rendering,
-non-placeholder shape parsing, font loading, or rendering surface is covered because none is
-implemented yet - later phases will extend this document's scenarios as that content is added.
+constitutes a failure. Collectively, these scenarios cover the complete current (through Phase 1d)
+CanvasNetPptx feature set: opening a well-formed OOXML/`.pptx` package, resolving its content-type
+and relationship graph, resolving its declared slide count/size (Phase 1b), resolving DrawingML
+shape geometry and paint - including group child-transform composition (Phase 1c), and resolving
+DrawingML text property inheritance, layout, and rendering (Phase 1d) - plus validating the
+documented argument- and structural-validation contracts. A full per-slide public `Render` API,
+non-placeholder (freeform) shape _enumeration_ from a slide's full `<p:spTree>`, bullets/
+numbering, and text clipping on overflow are not covered because none is implemented yet - later
+phases will extend this document's scenarios as that content is added.
