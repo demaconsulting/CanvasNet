@@ -57,9 +57,15 @@ public sealed partial class PptxDocument
     ///     per the verified ECMA-376 placeholder matching algorithm (see this class's remarks),
     ///     then independently walking each named property category (<c>&lt;p:spPr&gt;</c>,
     ///     <c>&lt;p:txBody&gt;/&lt;a:lstStyle&gt;</c>) slide -&gt; matched layout -&gt; matched
-    ///     master, taking the first element present at all (an empty element still counts as
-    ///     present, stopping the fallback for that category - no deeper per-attribute merging is
-    ///     performed in Phase 1b).
+    ///     master, taking the first element present at all - no deeper per-attribute merging is
+    ///     performed in Phase 1b. For <c>&lt;p:spPr&gt;</c> itself, an empty element still counts
+    ///     as present, stopping the fallback for that category (fill/line resolution is a Phase
+    ///     1c no-op either way - see <see cref="PptxPlaceholderProperties.EffectiveSpPr"/>'s
+    ///     remarks). <c>&lt;a:lstStyle&gt;</c> is the one named exception: it is resolved via
+    ///     <see cref="GetTxBodyListStyleWithLevelOverride"/>, which walks past a tier's own
+    ///     empty-but-present <c>&lt;a:lstStyle/&gt;</c> that declares no <c>&lt;a:lvl{N}pPr&gt;</c>
+    ///     level-override child, mirroring <see cref="GetSpPrWithGeometry"/>'s own precedent for
+    ///     <c>&lt;a:xfrm&gt;</c>/geometry.
     /// </summary>
     /// <param name="slidePlaceholder">The slide-level placeholder to resolve.</param>
     /// <param name="layoutPlaceholders">The owning slide's layout's placeholder shapes.</param>
@@ -114,9 +120,9 @@ public sealed partial class PptxDocument
             matchedMasterPlaceholder?.ShapeElement.Element(PresentationNamespace + "spPr");
 
         var effectiveTxBodyListStyle =
-            GetTxBodyListStyle(slidePlaceholder) ??
-            (matchedLayoutPlaceholder is null ? null : GetTxBodyListStyle(matchedLayoutPlaceholder)) ??
-            (matchedMasterPlaceholder is null ? null : GetTxBodyListStyle(matchedMasterPlaceholder));
+            GetTxBodyListStyleWithLevelOverride(slidePlaceholder) ??
+            (matchedLayoutPlaceholder is null ? null : GetTxBodyListStyleWithLevelOverride(matchedLayoutPlaceholder)) ??
+            (matchedMasterPlaceholder is null ? null : GetTxBodyListStyleWithLevelOverride(matchedMasterPlaceholder));
 
         // Resolved independently of effectiveSpPr (see PptxPlaceholderProperties.EffectiveXfrmElement's
         // own remarks): a real-world placeholder frequently declares its own empty <p:spPr/> (no
@@ -163,6 +169,34 @@ public sealed partial class PptxDocument
     /// <summary>Extracts a placeholder's <c>&lt;p:txBody&gt;/&lt;a:lstStyle&gt;</c> element, if present.</summary>
     private static XElement? GetTxBodyListStyle(PptxPlaceholder placeholder) =>
         placeholder.ShapeElement.Element(PresentationNamespace + "txBody")?.Element(DrawingNamespace + "lstStyle");
+
+    /// <summary>
+    ///     Extracts a placeholder's <c>&lt;p:txBody&gt;/&lt;a:lstStyle&gt;</c> element, but only
+    ///     when that element itself declares at least one <c>&lt;a:lvl1pPr&gt;</c> through
+    ///     <c>&lt;a:lvl9pPr&gt;</c> level-override child (see
+    ///     <see cref="GetLevelElement"/>'s own <c>lvl{N+1}pPr</c>
+    ///     naming convention, <c>N</c> = 1..9) - mirroring <see cref="GetSpPrWithGeometry"/>'s
+    ///     pattern of only accepting a <c>&lt;p:spPr&gt;</c> when it declares the one child that
+    ///     actually matters for that property category, rather than merely being present at all.
+    /// </summary>
+    private static XElement? GetTxBodyListStyleWithLevelOverride(PptxPlaceholder placeholder)
+    {
+        var lstStyle = GetTxBodyListStyle(placeholder);
+        if (lstStyle is null)
+        {
+            return null;
+        }
+
+        for (var level = 1; level <= 9; level++)
+        {
+            if (lstStyle.Element(DrawingNamespace + $"lvl{level}pPr") is not null)
+            {
+                return lstStyle;
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>Extracts a <c>&lt;p:sp&gt;</c>-shaped shape element's own <c>&lt;p:spPr&gt;/&lt;a:xfrm&gt;</c> element, if present.</summary>
     private static XElement? GetXfrm(XElement shapeElement) =>

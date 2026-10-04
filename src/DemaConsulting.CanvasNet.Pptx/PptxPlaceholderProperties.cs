@@ -14,10 +14,20 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     none of the three declares one.
 /// </param>
 /// <param name="EffectiveTxBodyListStyle">
-///     The first non-null <c>&lt;p:txBody&gt;/&lt;a:lstStyle&gt;</c> element found walking the
-///     same slide -&gt; matched layout placeholder -&gt; matched master placeholder chain
-///     independently of <see cref="EffectiveSpPr"/>, or <see langword="null"/> if none declares
-///     one.
+///     The first <c>&lt;p:txBody&gt;/&lt;a:lstStyle&gt;</c> element (walking the same slide -&gt;
+///     matched layout placeholder -&gt; matched master placeholder chain, independently of
+///     <see cref="EffectiveSpPr"/>) that itself declares at least one <c>&lt;a:lvl1pPr&gt;</c>
+///     through <c>&lt;a:lvl9pPr&gt;</c> level-override child, or <see langword="null"/> if none
+///     declares one. A tier's own empty, self-closing <c>&lt;a:lstStyle/&gt;</c> (no level-override
+///     child at all) does <em>not</em> count as "declaring one" and is walked past, for the same
+///     reason <see cref="EffectiveGeometrySpPr"/> walks past an empty, otherwise-"present"
+///     <c>&lt;p:spPr/&gt;</c>: a real-world slide placeholder commonly declares its own empty
+///     <c>&lt;a:lstStyle/&gt;</c> while deliberately relying on the layout/master for level-based
+///     run/paragraph overrides (for example a large title <c>&lt;a:defRPr sz="..."/&gt;</c>) -
+///     <c>GetLevelDefRPr</c>/<c>GetLevelElement</c> (<see cref="PptxDocument"/>'s text-inheritance
+///     resolver, in <c>PptxDocument.TextInheritance.cs</c>) index this
+///     element by level, so stopping at an empty element here would silently defeat every level
+///     lookup against the layout/master's real override instead of consulting it.
 /// </param>
 /// <param name="EffectiveXfrmElement">
 ///     The first non-null <c>&lt;p:spPr&gt;/&lt;a:xfrm&gt;</c> element found walking the same
