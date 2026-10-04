@@ -41,14 +41,17 @@ public sealed partial class PptxDocument
             throw new InvalidDataException($"Part '{masterPartPath}' is not a <p:sldMaster> part.");
         }
 
-        var spTree = root.Element(PresentationNamespace + "cSld")?.Element(PresentationNamespace + "spTree") ??
+        var cSld = root.Element(PresentationNamespace + "cSld") ??
+            throw new InvalidDataException($"Slide master '{masterPartPath}' has no <p:cSld> element.");
+        var spTree = cSld.Element(PresentationNamespace + "spTree") ??
             throw new InvalidDataException($"Slide master '{masterPartPath}' has no <p:cSld>/<p:spTree> element.");
 
         var placeholders = PptxPlaceholderParser.ParsePlaceholderShapes(spTree);
         var themePartPath = ResolveRelationshipByType(masterPartPath, "/theme");
         var txStyles = ParseMasterTextStyles(root.Element(PresentationNamespace + "txStyles"));
+        var background = cSld.Element(PresentationNamespace + "bg");
 
-        var master = new PptxMaster(masterPartPath, themePartPath, placeholders, txStyles);
+        var master = new PptxMaster(masterPartPath, themePartPath, placeholders, txStyles, background);
         _masterCache[masterPartPath] = master;
         return master;
     }

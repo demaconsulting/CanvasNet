@@ -54,9 +54,29 @@ public sealed partial class PptxDocument
             throw new InvalidDataException($"Theme part '{themePartPath}' has no <a:fontScheme> element.");
         var fontScheme = ParseFontScheme(fontSchemeElement, themePartPath);
 
-        var theme = new PptxTheme(colorScheme, fontScheme);
+        var bgFillStyleList = ParseBgFillStyleList(themeElements);
+
+        var theme = new PptxTheme(colorScheme, fontScheme, bgFillStyleList);
         _themeCache[themePartPath] = theme;
         return theme;
+    }
+
+    /// <summary>
+    ///     Parses a theme's optional <c>&lt;a:fmtScheme&gt;/&lt;a:bgFillStyleLst&gt;</c> element
+    ///     into its raw, unparsed fill-definition child elements, in document order.
+    /// </summary>
+    /// <param name="themeElementsElement">The theme's <c>&lt;a:themeElements&gt;</c> element.</param>
+    /// <returns>
+    ///     The <c>&lt;a:bgFillStyleLst&gt;</c>'s children, or an empty list when the theme
+    ///     declares no <c>&lt;a:fmtScheme&gt;</c> or no <c>&lt;a:bgFillStyleLst&gt;</c> at all -
+    ///     this content is rare in practice (only consulted by a <c>&lt;p:bgRef&gt;</c> background
+    ///     reference), so its absence is tolerated rather than treated as malformed.
+    /// </returns>
+    private static IReadOnlyList<XElement> ParseBgFillStyleList(XElement themeElementsElement)
+    {
+        var bgFillStyleLst = themeElementsElement.Element(DrawingNamespace + "fmtScheme")?
+            .Element(DrawingNamespace + "bgFillStyleLst");
+        return bgFillStyleLst is null ? [] : bgFillStyleLst.Elements().ToList();
     }
 
     /// <summary>Parses all 12 named slots of <c>&lt;a:clrScheme&gt;</c> into a <see cref="PptxColorScheme"/>.</summary>

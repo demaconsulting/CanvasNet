@@ -37,13 +37,16 @@ public sealed partial class PptxDocument
             throw new InvalidDataException($"Part '{layoutPartPath}' is not a <p:sldLayout> part.");
         }
 
-        var spTree = root.Element(PresentationNamespace + "cSld")?.Element(PresentationNamespace + "spTree") ??
+        var cSld = root.Element(PresentationNamespace + "cSld") ??
+            throw new InvalidDataException($"Part '{layoutPartPath}' has no <p:cSld> element.");
+        var spTree = cSld.Element(PresentationNamespace + "spTree") ??
             throw new InvalidDataException($"Slide layout '{layoutPartPath}' has no <p:cSld>/<p:spTree> element.");
 
         var placeholders = PptxPlaceholderParser.ParsePlaceholderShapes(spTree);
         var masterPartPath = ResolveRelationshipByType(layoutPartPath, "/slideMaster");
+        var background = cSld.Element(PresentationNamespace + "bg");
 
-        var layout = new PptxLayout(layoutPartPath, masterPartPath, placeholders);
+        var layout = new PptxLayout(layoutPartPath, masterPartPath, placeholders, background);
         _layoutCache[layoutPartPath] = layout;
         return layout;
     }

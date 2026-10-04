@@ -48,11 +48,20 @@ internal sealed record PptxPlaceholder(string Type, uint Idx, XElement ShapeElem
 ///     <see cref="PptxMasterTextStyles"/> - a direct child of <c>&lt;p:sldMaster&gt;</c>, a
 ///     sibling of <c>&lt;p:cSld&gt;</c>, not nested inside it.
 /// </param>
+/// <param name="Background">
+///     The master's own <c>&lt;p:cSld&gt;/&lt;p:bg&gt;</c> element, retained raw/unparsed (the
+///     same "retain raw, resolve lazily" pattern <see cref="PptxPlaceholder.ShapeElement"/>
+///     already establishes),
+///     or <see langword="null"/> when the master declares no background - the final fallback tier
+///     of the slide -&gt; layout -&gt; master background-fill resolution chain (see
+///     <see cref="PptxDocument.ResolveSlideBackgroundFill"/>).
+/// </param>
 internal sealed record PptxMaster(
     string PartPath,
     string ThemePartPath,
     IReadOnlyList<PptxPlaceholder> Placeholders,
-    PptxMasterTextStyles TxStyles);
+    PptxMasterTextStyles TxStyles,
+    XElement? Background = null);
 
 /// <summary>
 ///     A slide master's own <c>&lt;p:txStyles&gt;</c> element (Phase 1d), carrying each of its
@@ -70,7 +79,17 @@ internal sealed record PptxMasterTextStyles(XElement? TitleStyle, XElement? Body
 /// <param name="PartPath">The layout's own resolved part path.</param>
 /// <param name="MasterPartPath">The layout's resolved <c>/slideMaster</c> relationship target part path.</param>
 /// <param name="Placeholders">The layout's immediate placeholder shapes, in document order.</param>
-internal sealed record PptxLayout(string PartPath, string MasterPartPath, IReadOnlyList<PptxPlaceholder> Placeholders);
+/// <param name="Background">
+///     The layout's own <c>&lt;p:cSld&gt;/&lt;p:bg&gt;</c> element, retained raw/unparsed, or
+///     <see langword="null"/> when the layout declares no background - the middle tier of the
+///     slide -&gt; layout -&gt; master background-fill resolution chain (see
+///     <see cref="PptxDocument.ResolveSlideBackgroundFill"/>).
+/// </param>
+internal sealed record PptxLayout(
+    string PartPath,
+    string MasterPartPath,
+    IReadOnlyList<PptxPlaceholder> Placeholders,
+    XElement? Background = null);
 
 /// <summary>
 ///     A parsed slide: its own part path, its layout's part path, its placeholder shapes, and (as
@@ -92,11 +111,18 @@ internal sealed record PptxLayout(string PartPath, string MasterPartPath, IReadO
 ///     <paramref name="Placeholders"/>) and additionally recognizes <c>&lt;p:pic&gt;</c>/
 ///     <c>&lt;p:graphicFrame&gt;</c> shapes.
 /// </param>
+/// <param name="Background">
+///     The slide's own <c>&lt;p:cSld&gt;/&lt;p:bg&gt;</c> element, retained raw/unparsed, or
+///     <see langword="null"/> when the slide declares no background - the highest-priority tier
+///     of the slide -&gt; layout -&gt; master background-fill resolution chain (see
+///     <see cref="PptxDocument.ResolveSlideBackgroundFill"/>).
+/// </param>
 internal sealed record PptxSlide(
     string PartPath,
     string LayoutPartPath,
     IReadOnlyList<PptxPlaceholder> Placeholders,
-    IReadOnlyList<PptxShapeTreeNode> ShapeTree);
+    IReadOnlyList<PptxShapeTreeNode> ShapeTree,
+    XElement? Background = null);
 
 /// <summary>
 ///     Shared placeholder-shape structural parser, used identically by the master/layout/slide

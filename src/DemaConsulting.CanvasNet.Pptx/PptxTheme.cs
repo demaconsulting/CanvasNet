@@ -1,5 +1,6 @@
-// cspell:ignore srgb hlink
+// cspell:ignore srgb hlink bgfillstylelst patt
 
+using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx;
@@ -13,7 +14,33 @@ namespace DemaConsulting.CanvasNet.Pptx;
 /// </summary>
 /// <param name="ColorScheme">The theme's <c>&lt;a:clrScheme&gt;</c>, resolved to concrete colors.</param>
 /// <param name="FontScheme">The theme's <c>&lt;a:fontScheme&gt;</c>, resolved to concrete typefaces.</param>
-internal sealed record PptxTheme(PptxColorScheme ColorScheme, PptxFontScheme FontScheme);
+/// <param name="BgFillStyleList">
+///     The theme's <c>&lt;a:fmtScheme&gt;/&lt;a:bgFillStyleLst&gt;</c> entries - each a raw,
+///     unparsed fill-definition element (<c>&lt;a:solidFill&gt;</c>/<c>&lt;a:gradFill&gt;</c>/
+///     <c>&lt;a:pattFill&gt;</c>/<c>&lt;a:blipFill&gt;</c>), in document order, typically
+///     parameterized with an <c>&lt;a:schemeClr val="phClr"/&gt;</c> placeholder-color token a
+///     <c>&lt;p:bgRef&gt;</c>'s own color child substitutes a concrete value for (see
+///     <see cref="PptxDocument.ResolveSlideBackgroundFill"/>) - mirrors
+///     <see cref="PptxMasterTextStyles"/>'s own "retain raw, unparsed" precedent for list-shaped
+///     theme/master content. Defaults to an empty list when the theme declares no
+///     <c>&lt;a:fmtScheme&gt;</c>/<c>&lt;a:bgFillStyleLst&gt;</c> at all - the overwhelming
+///     majority of themes/slides never reference <c>&lt;p:bgRef&gt;</c>, so this content is
+///     parsed lazily/defensively rather than required.
+/// </param>
+internal sealed record PptxTheme(
+    PptxColorScheme ColorScheme,
+    PptxFontScheme FontScheme,
+    IReadOnlyList<XElement>? BgFillStyleList = null)
+{
+    /// <summary>
+    ///     The theme's <c>&lt;a:fmtScheme&gt;/&lt;a:bgFillStyleLst&gt;</c> entries, normalized to
+    ///     an empty list (rather than <see langword="null"/>) when the constructor's own optional
+    ///     <c>BgFillStyleList</c> argument is omitted - every pre-existing 2-argument call site
+    ///     continues to compile unchanged, each now implicitly declaring "no background
+    ///     format-scheme style list" rather than being required to pass an empty list explicitly.
+    /// </summary>
+    public IReadOnlyList<XElement> BgFillStyleList { get; init; } = BgFillStyleList ?? [];
+}
 
 /// <summary>
 ///     A theme's resolved 12-slot color scheme (<c>&lt;a:clrScheme&gt;</c>), each slot already

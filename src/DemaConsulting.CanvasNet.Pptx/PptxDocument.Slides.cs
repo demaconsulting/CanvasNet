@@ -57,11 +57,14 @@ public sealed partial class PptxDocument
             throw new InvalidDataException($"Part '{slidePartPath}' is not a <p:sld> part.");
         }
 
-        var spTree = root.Element(PresentationNamespace + "cSld")?.Element(PresentationNamespace + "spTree") ??
+        var cSld = root.Element(PresentationNamespace + "cSld") ??
+            throw new InvalidDataException($"Slide '{slidePartPath}' has no <p:cSld> element.");
+        var spTree = cSld.Element(PresentationNamespace + "spTree") ??
             throw new InvalidDataException($"Slide '{slidePartPath}' has no <p:cSld>/<p:spTree> element.");
 
         var placeholders = PptxPlaceholderParser.ParsePlaceholderShapes(spTree);
         var layoutPartPath = ResolveRelationshipByType(slidePartPath, "/slideLayout");
+        var background = cSld.Element(PresentationNamespace + "bg");
 
         // The shape tree's <p:graphicFrame> tables resolve their cell fills against the slide's
         // own theme (see ParseTable's theme parameter). Resolving the layout -> master -> theme
@@ -75,7 +78,7 @@ public sealed partial class PptxDocument
             return GetTheme(master.ThemePartPath);
         });
 
-        var slide = new PptxSlide(slidePartPath, layoutPartPath, placeholders, shapeTree);
+        var slide = new PptxSlide(slidePartPath, layoutPartPath, placeholders, shapeTree, background);
         _slideCache[slideIndex] = slide;
         return slide;
     }
