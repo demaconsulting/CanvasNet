@@ -37,11 +37,28 @@ public class PptxRenderTests
     ///     slide's own relationship <c>rId2</c> - present only when a test's shape tree declares a
     ///     <c>&lt;p:pic&gt;</c> referencing <c>r:embed="rId2"</c>.
     /// </param>
+    /// <param name="slideBackgroundXml">
+    ///     The slide's own <c>&lt;p:cSld&gt;/&lt;p:bg&gt;</c> inner content (a <c>&lt;p:bgPr&gt;</c>
+    ///     or <c>&lt;p:bgRef&gt;</c> element), or empty (the default) to omit <c>&lt;p:bg&gt;</c>
+    ///     from the slide entirely.
+    /// </param>
+    /// <param name="layoutBackgroundXml">The slide's layout's own <c>&lt;p:bg&gt;</c> inner content - see <paramref name="slideBackgroundXml"/>.</param>
+    /// <param name="masterBackgroundXml">That layout's master's own <c>&lt;p:bg&gt;</c> inner content - see <paramref name="slideBackgroundXml"/>.</param>
+    /// <param name="themeBgFillStyleListXml">
+    ///     The theme's own <c>&lt;a:fmtScheme&gt;/&lt;a:bgFillStyleLst&gt;</c> inner content (one or
+    ///     more raw fill-definition elements, e.g. <c>&lt;a:solidFill&gt;...&lt;/a:solidFill&gt;</c>),
+    ///     or empty (the default) to omit <c>&lt;a:fmtScheme&gt;</c> from the theme entirely - only
+    ///     needed by a <c>&lt;p:bgRef&gt;</c>-based test.
+    /// </param>
     private static Stream BuildRenderPackage(
         string spTreeInnerXml,
         string masterTxStylesXml = "",
         string layoutPlaceholderXml = "",
-        (string Extension, string ContentType, byte[] Bytes)? media = null)
+        (string Extension, string ContentType, byte[] Bytes)? media = null,
+        string slideBackgroundXml = "",
+        string layoutBackgroundXml = "",
+        string masterBackgroundXml = "",
+        string themeBgFillStyleListXml = "")
     {
         var contentTypesXml =
             $"""
@@ -81,6 +98,7 @@ public class PptxRenderTests
             $"""
             <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
               <p:cSld>
+                {(slideBackgroundXml.Length > 0 ? $"""<p:bg>{slideBackgroundXml}</p:bg>""" : string.Empty)}
                 <p:spTree>
                   {spTreeInnerXml}
                 </p:spTree>
@@ -100,7 +118,10 @@ public class PptxRenderTests
         var layoutXml =
             $"""
             <p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-              <p:cSld><p:spTree>{layoutPlaceholderXml}</p:spTree></p:cSld>
+              <p:cSld>
+                {(layoutBackgroundXml.Length > 0 ? $"""<p:bg>{layoutBackgroundXml}</p:bg>""" : string.Empty)}
+                <p:spTree>{layoutPlaceholderXml}</p:spTree>
+              </p:cSld>
             </p:sldLayout>
             """;
 
@@ -115,7 +136,10 @@ public class PptxRenderTests
         var masterXml =
             $"""
             <p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-              <p:cSld><p:spTree/></p:cSld>
+              <p:cSld>
+                {(masterBackgroundXml.Length > 0 ? $"""<p:bg>{masterBackgroundXml}</p:bg>""" : string.Empty)}
+                <p:spTree/>
+              </p:cSld>
               <p:txStyles>{masterTxStylesXml}</p:txStyles>
             </p:sldMaster>
             """;
@@ -128,8 +152,8 @@ public class PptxRenderTests
             </Relationships>
             """;
 
-        const string themeXml =
-            """
+        var themeXml =
+            $$"""
             <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="TestTheme">
               <a:themeElements>
                 <a:clrScheme name="Test">
@@ -150,6 +174,7 @@ public class PptxRenderTests
                   <a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>
                   <a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>
                 </a:fontScheme>
+                {{(themeBgFillStyleListXml.Length > 0 ? $"""<a:fmtScheme name="TestFormat"><a:bgFillStyleLst>{themeBgFillStyleListXml}</a:bgFillStyleLst></a:fmtScheme>""" : string.Empty)}}
               </a:themeElements>
             </a:theme>
             """;
@@ -304,6 +329,157 @@ public class PptxRenderTests
                 Assert.Equal(new Rgba32(255, 255, 255, 255), surface[x, y]);
             }
         }
+    }
+
+    // --- Slide/layout/master background fill (<p:bg>) -----------------------------------------
+
+    /// <summary>A <c>&lt;p:bgPr&gt;</c> inner content declaring an opaque solid green fill.</summary>
+    private const string GreenSolidBgPrXml =
+        """<p:bgPr><a:solidFill><a:srgbClr val="00FF00"/></a:solidFill><a:effectLst/></p:bgPr>""";
+
+    /// <summary>Proves a slide's own solid-fill <c>&lt;p:bg&gt;</c> paints across the full slide, beneath (and visible outside) its own shape tree.</summary>
+    [Fact]
+    public void Render_SlideLevelSolidBackground_PaintsAcrossFullSlide()
+    {
+        using var stream = BuildRenderPackage(spTreeInnerXml: string.Empty, slideBackgroundXml: GreenSolidBgPrXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 50, 50);
+
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[25, 25]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[49, 49]);
+    }
+
+    /// <summary>Proves a slide's own background fill paints first, with its own shape tree content still painting on top of it.</summary>
+    [Fact]
+    public void Render_SlideLevelBackgroundWithShape_ShapePaintsOnTopOfBackground()
+    {
+        const string smallBlueShapeXml =
+            """
+            <p:sp>
+              <p:nvSpPr><p:cNvPr id="2" name="Small"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="1000000" cy="1000000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="0000FF"/></a:solidFill>
+              </p:spPr>
+            </p:sp>
+            """;
+        using var stream = BuildRenderPackage(smallBlueShapeXml, slideBackgroundXml: GreenSolidBgPrXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 100, 100);
+
+        // The small blue shape occupies only the top-left corner (see Render_DefaultOptions_
+        // ClearsUnpaintedAreaToOpaqueWhite's own remarks for the EMU -> pixel math) - it must
+        // paint on top of the green background there, while the green background remains visible
+        // everywhere else.
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 1]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[90, 90]);
+    }
+
+    /// <summary>Proves a layout's own <c>&lt;p:bg&gt;</c> paints when the slide itself declares none.</summary>
+    [Fact]
+    public void Render_LayoutLevelSolidBackground_PaintsWhenSlideDeclaresNone()
+    {
+        using var stream = BuildRenderPackage(spTreeInnerXml: string.Empty, layoutBackgroundXml: GreenSolidBgPrXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 50, 50);
+
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[25, 25]);
+    }
+
+    /// <summary>Proves a master's own <c>&lt;p:bg&gt;</c> paints when neither the slide nor its layout declares one.</summary>
+    [Fact]
+    public void Render_MasterLevelSolidBackground_PaintsWhenNeitherSlideNorLayoutDeclaresOne()
+    {
+        using var stream = BuildRenderPackage(spTreeInnerXml: string.Empty, masterBackgroundXml: GreenSolidBgPrXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 50, 50);
+
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[25, 25]);
+    }
+
+    /// <summary>Proves the slide's own <c>&lt;p:bg&gt;</c> takes priority over both its layout's and its master's own <c>&lt;p:bg&gt;</c>.</summary>
+    [Fact]
+    public void Render_SlideLevelBackground_TakesPriorityOverLayoutAndMasterBackgrounds()
+    {
+        const string blueSolidBgPrXml = """<p:bgPr><a:solidFill><a:srgbClr val="0000FF"/></a:solidFill><a:effectLst/></p:bgPr>""";
+        const string redSolidBgPrXml = """<p:bgPr><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill><a:effectLst/></p:bgPr>""";
+        using var stream = BuildRenderPackage(
+            spTreeInnerXml: string.Empty,
+            slideBackgroundXml: GreenSolidBgPrXml,
+            layoutBackgroundXml: blueSolidBgPrXml,
+            masterBackgroundXml: redSolidBgPrXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 50, 50);
+
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[25, 25]);
+    }
+
+    /// <summary>Proves a layout's own <c>&lt;p:bg&gt;</c> takes priority over its master's own <c>&lt;p:bg&gt;</c> when the slide itself declares none.</summary>
+    [Fact]
+    public void Render_LayoutLevelBackground_TakesPriorityOverMasterBackgroundWhenSlideDeclaresNone()
+    {
+        const string redSolidBgPrXml = """<p:bgPr><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill><a:effectLst/></p:bgPr>""";
+        using var stream = BuildRenderPackage(
+            spTreeInnerXml: string.Empty,
+            layoutBackgroundXml: GreenSolidBgPrXml,
+            masterBackgroundXml: redSolidBgPrXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 50, 50);
+
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[25, 25]);
+    }
+
+    /// <summary>Proves that when none of the slide/layout/master declare a <c>&lt;p:bg&gt;</c>, rendering falls back unchanged to <see cref="PptxRenderOptions.BackgroundColor"/>.</summary>
+    [Fact]
+    public void Render_NoBackgroundAnywhere_FallsBackToOptionsBackgroundColor()
+    {
+        using var stream = BuildRenderPackage(spTreeInnerXml: string.Empty);
+        using var document = PptxDocument.Open(stream);
+        var options = new PptxRenderOptions { BackgroundColor = new Rgba32(10, 20, 30, 255) };
+
+        using var surface = document.Render(0, 50, 50, options);
+
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[25, 25]);
+    }
+
+    /// <summary>Proves a slide's own theme-indexed <c>&lt;p:bgRef&gt;</c> background resolves the matched <c>&lt;a:bgFillStyleLst&gt;</c> entry, substituting its own color child for the entry's <c>phClr</c> token.</summary>
+    [Fact]
+    public void Render_SlideLevelThemeIndexedBackgroundReference_ResolvesBgFillStyleListEntryWithPhClrSubstitution()
+    {
+        // idx 1001 is the bgFillStyleLst's first (0-based) entry; its own phClr token is
+        // substituted with the <p:bgRef>'s own srgbClr child (FF00FF, magenta).
+        const string bgRefXml = """<p:bgRef idx="1001"><a:srgbClr val="FF00FF"/></p:bgRef>""";
+        const string bgFillStyleListXml = """<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>""";
+        using var stream = BuildRenderPackage(
+            spTreeInnerXml: string.Empty,
+            slideBackgroundXml: bgRefXml,
+            themeBgFillStyleListXml: bgFillStyleListXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 50, 50);
+
+        Assert.Equal(new Rgba32(255, 0, 255, 255), surface[25, 25]);
+    }
+
+    /// <summary>Proves a <c>&lt;p:bgRef idx="0"&gt;</c> (the ECMA-376 "no background" sentinel) paints nothing, falling through to the default opaque-white clear.</summary>
+    [Fact]
+    public void Render_SlideLevelThemeIndexedBackgroundReferenceIdxZero_PaintsNoBackground()
+    {
+        const string bgRefXml = """<p:bgRef idx="0"><a:srgbClr val="FF00FF"/></p:bgRef>""";
+        using var stream = BuildRenderPackage(spTreeInnerXml: string.Empty, slideBackgroundXml: bgRefXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 50, 50);
+
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[25, 25]);
     }
 
     /// <summary>

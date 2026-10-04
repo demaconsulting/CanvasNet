@@ -3,7 +3,7 @@ using DemaConsulting.CanvasNet.Canvas;
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
 // cspell:ignore pptx pythonpptx samplelib groupshape autoshape autoshapes paintable sppr
-// cspell:ignore aiden0z blipfill pattfill custgeom avlst gridcol tblgrid srcrect cxnsp lummod prstdash cmpd thickthin xfrm Xfrm
+// cspell:ignore aiden0z blipfill pattfill custgeom avlst gridcol tblgrid srcrect cxnsp lummod prstdash cmpd thickthin xfrm Xfrm FAFAF
 
 /// <summary>
 ///     Fixture-conformance tests that exercise <see cref="PptxDocument"/>'s full public
@@ -307,29 +307,30 @@ public class PptxFixturesCorpusTests
     }
 
     /// <summary>
-    ///     Proves both slides of <c>pythonpptx-sld-background.pptx</c> render without error.
-    ///     Slide index 1 declares a <c>&lt;p:bg&gt;</c> solid fill - slide background fill parsing
-    ///     is explicitly deferred (see <c>pptx-document.md</c>'s deferred-items list; no
-    ///     <c>&lt;p:bg&gt;</c> parsing support exists anywhere in this codebase), so neither slide
-    ///     is expected to paint any pixel: slide 0 has no shape-tree content at all, and slide 1's
-    ///     only content is its own (unpainted) background fill. This is the honest "renders
-    ///     without throwing, confirms the deferred-background-fill boundary against a real file"
-    ///     claim, not a claim that the background itself is painted.
+    ///     Proves both slides of <c>pythonpptx-sld-background.pptx</c> render without error, and
+    ///     that slide index 1's own declared <c>&lt;p:bg&gt;</c> solid-red fill is now painted -
+    ///     a pixel-level real-file regression test for the Phase 2 Follow-Up background-fill
+    ///     feature (see <c>pptx-document.md</c>'s "Phase 2 Follow-Up: Slide/Layout/Master
+    ///     Background Fill" design section). Slide index 0 has no shape-tree content and declares
+    ///     no <c>&lt;p:bg&gt;</c> of its own, so it still renders as a blank, fully transparent
+    ///     surface.
     /// </summary>
     [Fact]
-    public void PptxDocument_Render_SldBackgroundFixture_RendersWithoutErrorBackgroundNotPainted()
+    public void PptxDocument_Render_SldBackgroundFixture_RendersAndPaintsSlideBackgroundFill()
     {
         // Arrange
         using var document = PptxDocument.Open(Fixture("pythonpptx-sld-background.pptx"));
 
         // Act & Assert
         Assert.Equal(2, document.SlideCount);
-        for (var slideIndex = 0; slideIndex < document.SlideCount; slideIndex++)
-        {
-            using var surface = document.Render(slideIndex, Dpi, Transparent);
-            Assert.True(surface.Width > 0);
-            Assert.True(surface.Height > 0);
-        }
+        using var surface0 = document.Render(0, Dpi, Transparent);
+        Assert.True(surface0.Width > 0);
+        Assert.True(surface0.Height > 0);
+
+        using var surface1 = document.Render(1, Dpi, Transparent);
+        Assert.True(surface1.Width > 0);
+        Assert.True(surface1.Height > 0);
+        Assert.Equal(new Rgba32(0xFF, 0x00, 0x00, 255), surface1[surface1.Width / 2, surface1.Height / 2]);
     }
 
     /// <summary>
@@ -515,14 +516,15 @@ public class PptxFixturesCorpusTests
     /// <summary>
     ///     Proves <c>aiden0z-image-crop-css-reset.pptx</c> (a single slide from
     ///     <c>aiden0z/pptx-renderer</c>'s own example corpus) renders and paints visible content.
-    ///     The slide declares a <c>&lt;p:bg&gt;</c> solid fill (deferred, correctly not painted -
-    ///     another independent real-file instance of the same boundary proven by
-    ///     <c>pythonpptx-sld-background.pptx</c>) plus four embedded raster pictures, three with
-    ///     distinct <c>&lt;a:srcRect&gt;</c> crop rectangles - new crop-rectangle variety not
-    ///     covered by any existing fixture.
+    ///     The slide declares a <c>&lt;p:bg&gt;</c> solid <c>FAFAF9</c> fill, now painted (a
+    ///     pixel-level real-file regression test for the Phase 2 Follow-Up background-fill
+    ///     feature - see <see cref="PptxDocument_Render_SldBackgroundFixture_RendersAndPaintsSlideBackgroundFill"/>'s
+    ///     own remarks for the companion <c>pythonpptx-sld-background.pptx</c> fixture) beneath
+    ///     four embedded raster pictures, three with distinct <c>&lt;a:srcRect&gt;</c> crop
+    ///     rectangles - new crop-rectangle variety not covered by any existing fixture.
     /// </summary>
     [Fact]
-    public void PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentBackgroundNotPainted()
+    public void PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentAndBackgroundFill()
     {
         // Arrange & Act
         using var document = PptxDocument.Open(Fixture("aiden0z-image-crop-css-reset.pptx"));
@@ -531,6 +533,7 @@ public class PptxFixturesCorpusTests
         Assert.Equal(1, document.SlideCount);
         using var surface = document.Render(0, Dpi, Transparent);
         AssertPaintedSomePixel(surface);
+        Assert.Equal(new Rgba32(0xFA, 0xFA, 0xF9, 255), surface[0, 0]);
     }
 
     /// <summary>
