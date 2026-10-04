@@ -311,6 +311,32 @@ public class PptxTextLayoutTests
         Assert.Equal(101600f, layout.Glyphs[1].OriginYEmu, 2);
     }
 
+    /// <summary>
+    ///     Proves a <c>wrap="none"</c> shape's centered paragraph is still positioned against the
+    ///     shape's own real, finite declared width - not against the effectively-infinite width
+    ///     <see cref="PptxDocument.ResolveTextLayout"/> internally uses to suppress word-wrapping
+    ///     for <c>wrap="none"</c> - which would otherwise place the line's glyphs at an
+    ///     astronomical X offset, far outside the shape (and any realistic surface) entirely,
+    ///     painting nothing despite centered alignment being an already-implemented, in-scope
+    ///     feature.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_AlignCenter_WrapNone_StillCentersAgainstShapesDeclaredWidth()
+    {
+        // "AA" line width = 12700. Shape's own declared width 50000 (passed as widthEmu).
+        // startX = (50000 - 12700) / 2 = 18650 - identical to the wrap="square" case, proving
+        // alignment ignores the infinite wrap-suppression width entirely.
+        var textBody = BuildSingleRunTextBody(
+            "AA",
+            bodyPrExtra: """<bodyPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main" wrap="none" />""",
+            paragraphExtra: """<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main" algn="ctr" />""");
+
+        var layout = Layout(textBody, 50000f, 100000f);
+
+        Assert.Equal(18650f, layout.Glyphs[0].OriginXEmu, 2);
+        Assert.Equal(18650f + 6350f, layout.Glyphs[1].OriginXEmu, 2);
+    }
+
     #endregion
 
     #region Horizontal alignment

@@ -62,6 +62,16 @@ public sealed partial class PptxDocument
             : MathF.Max(0f, widthEmu - insetLeft - insetRight);
         var availableHeight = MathF.Max(0f, heightEmu - insetTop - insetBottom);
 
+        // Horizontal alignment (center/right) must always be computed against the shape's own
+        // declared box width, never against the effectively-infinite width used above to suppress
+        // word-wrapping for a wrap="none" (typically spAutoFit) shape: PositionLines centers (or
+        // right-aligns) each line within "availableWidthEmu" - passing the infinite wrap width
+        // through unchanged would place a centered/right-aligned line's glyphs at an astronomical
+        // X offset, far outside the shape (and surface) entirely, painting nothing. A wrap="none"
+        // shape still has a real, finite declared width (<c>widthEmu</c>/<c>cx</c>) that
+        // alignment must honor even though wrapping itself is suppressed.
+        var alignmentWidth = MathF.Max(0f, widthEmu - insetLeft - insetRight);
+
         var fontCache = new Dictionary<(string Family, bool Bold, bool Italic), TrueTypeFont>();
         TrueTypeFont ResolveFont(string family, bool bold, bool italic)
         {
@@ -90,7 +100,7 @@ public sealed partial class PptxDocument
             ResolveFont);
 
         var lines = BuildLines(paragraphs, availableWidth, fontScale, lineSpacingFactor, ResolveFont);
-        var glyphs = PositionLines(lines, bodyProperties.Anchor, insetLeft, insetTop, availableWidth, availableHeight);
+        var glyphs = PositionLines(lines, bodyProperties.Anchor, insetLeft, insetTop, alignmentWidth, availableHeight);
 
         return new PptxTextLayout(glyphs, fontScale);
     }
