@@ -34,10 +34,14 @@ public sealed class PptxRenderOptions
     /// </summary>
     /// <remarks>
     ///     Set this to a fully transparent color (<c>new Rgba32(0, 0, 0, 0)</c>) to reproduce a
-    ///     fully transparent background. A slide's own <c>&lt;p:bg&gt;</c> background fill is not
-    ///     parsed by this phase (see <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>'s
-    ///     remarks) - this option is the only control over the rendered surface's background
-    ///     color.
+    ///     fully transparent background. A slide's own <c>&lt;p:bg&gt;</c> background fill (or,
+    ///     when the slide declares none, its layout's/master's own <c>&lt;p:bg&gt;</c>) now takes
+    ///     priority over this option when declared - painted across the full slide after this
+    ///     clear and before the shape-tree walk (see
+    ///     <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>'s remarks and
+    ///     <see cref="PptxDocument.ResolveSlideBackgroundFill"/>). This option remains the
+    ///     fallback - and the base clear color - only when none of slide/layout/master declare a
+    ///     <c>&lt;p:bg&gt;</c> at all.
     /// </remarks>
     public Rgba32 BackgroundColor { get; init; } = new(255, 255, 255, 255);
 }

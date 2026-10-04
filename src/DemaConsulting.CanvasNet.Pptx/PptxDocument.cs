@@ -93,6 +93,24 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         future, corpus-driven hardening pass (<c>pptx-phase-2</c>), not a currently planned
 ///         phase.
 ///     </para>
+///     <para>
+///         <strong>Phase 2 Follow-Up: Slide/Layout/Master Background Fill</strong> (this release)
+///         closes the single highest-visual-impact gap left by Phase 1f's own "a slide's own
+///         <c>&lt;p:bg&gt;</c> background fill" deferral above: <see cref="Render(int, int, int, PptxRenderOptions?)"/>
+///         now resolves and paints a slide's own <c>&lt;p:cSld&gt;/&lt;p:bg&gt;</c> background
+///         fill - falling back to its layout's, then its master's, own <c>&lt;p:bg&gt;</c> when
+///         the slide declares none, and to <see cref="PptxRenderOptions.BackgroundColor"/> only
+///         when none of the three declare one at all - before the shape-tree walk, reusing the
+///         existing Phase 1c fill/color resolution pipeline verbatim (<c>PptxDocument.Background.cs</c>).
+///         Solid-color fills and theme-indexed <c>&lt;p:bgRef&gt;</c> fills are fully supported
+///         (including <c>phClr</c> substitution); a linear gradient background fill is
+///         best-effort (inheriting Phase 1c's existing linear-only, non-radial/path gradient
+///         boundary); a pattern or picture background fill remains deferred (inheriting
+///         <see cref="ResolveFill"/>'s existing <see cref="PptxUnsupportedFeatureException"/>
+///         boundary unchanged) - see <c>pptx-document.md</c>'s "Phase 2 Follow-Up: Slide/Layout/
+///         Master Background Fill (&lt;p:bg&gt;)" design section for the full algorithm and
+///         fidelity boundary.
+///     </para>
 /// </remarks>
 public sealed partial class PptxDocument : IDisposable
 {

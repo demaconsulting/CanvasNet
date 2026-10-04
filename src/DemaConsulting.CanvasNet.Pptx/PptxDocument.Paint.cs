@@ -33,6 +33,15 @@ public sealed partial class PptxDocument
     /// <param name="theme">The resolved theme, used to resolve any <c>&lt;a:schemeClr&gt;</c>.</param>
     /// <param name="widthEmu">The owning shape's own declared width, in EMU (needed to position a gradient fill).</param>
     /// <param name="heightEmu">The owning shape's own declared height, in EMU (needed to position a gradient fill).</param>
+    /// <param name="phClrOverride">
+    ///     The concrete color to substitute for an <c>&lt;a:schemeClr val="phClr"/&gt;</c>
+    ///     ("placeholder color") token, or <see langword="null"/> (the default) to preserve the
+    ///     existing <see cref="PptxColorScheme.Dark1"/> fallback - see
+    ///     <see cref="ResolveColor"/>'s remarks. Supplied by
+    ///     <see cref="ResolveSlideBackgroundFill"/> when resolving a <c>&lt;p:bgRef&gt;</c>'s own
+    ///     theme format-scheme fill-style entry, which is always <c>phClr</c>-templated; every
+    ///     other, pre-existing call site omits this parameter, leaving its behavior unchanged.
+    /// </param>
     /// <returns>
     ///     The resolved <see cref="PptxPaint"/> - <see cref="PptxNoFill.Instance"/> when
     ///     <paramref name="fillParentElement"/> is <see langword="null"/>, declares an explicit
@@ -45,7 +54,8 @@ public sealed partial class PptxDocument
     ///     fill) or <c>&lt;a:blipFill&gt;</c> (picture fill) - both deferred to a later phase (see
     ///     the design document's rationale).
     /// </exception>
-    internal static PptxPaint ResolveFill(XElement? fillParentElement, PptxTheme theme, float widthEmu, float heightEmu)
+    internal static PptxPaint ResolveFill(
+        XElement? fillParentElement, PptxTheme theme, float widthEmu, float heightEmu, Rgba32? phClrOverride = null)
     {
         if (fillParentElement is null)
         {
@@ -62,13 +72,13 @@ public sealed partial class PptxDocument
         {
             var colorElement = solidFill.Elements().FirstOrDefault() ??
                 throw new InvalidDataException("An <a:solidFill> element has no color-definition child.");
-            return new PptxSolidFill(ResolveColor(colorElement, theme));
+            return new PptxSolidFill(ResolveColor(colorElement, theme, phClrOverride));
         }
 
         var gradFill = fillParentElement.Element(DrawingNamespace + "gradFill");
         if (gradFill is not null)
         {
-            return ResolveGradientFill(gradFill, theme, widthEmu, heightEmu);
+            return ResolveGradientFill(gradFill, theme, widthEmu, heightEmu, phClrOverride);
         }
 
         if (fillParentElement.Element(DrawingNamespace + "pattFill") is not null)
@@ -92,6 +102,11 @@ public sealed partial class PptxDocument
     /// <param name="theme">The resolved theme, used to resolve any stop's <c>&lt;a:schemeClr&gt;</c>.</param>
     /// <param name="widthEmu">The owning shape's own declared width, in EMU.</param>
     /// <param name="heightEmu">The owning shape's own declared height, in EMU.</param>
+    /// <param name="phClrOverride">
+    ///     The concrete color to substitute for each stop's <c>&lt;a:schemeClr val="phClr"/&gt;</c>
+    ///     token, or <see langword="null"/> (the default) - see <see cref="ResolveFill"/>'s
+    ///     matching parameter.
+    /// </param>
     /// <returns>The resolved <see cref="PptxGradientFill"/>, positioned in the shape's own local geometry coordinate space.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="gradFillElement"/> has no <c>&lt;a:gsLst&gt;</c>, or
@@ -104,7 +119,8 @@ public sealed partial class PptxDocument
     ///     neither - both radial/path gradients and the (rare) gradient with no direction element
     ///     at all are deferred to a later phase (feature token <c>"pptx-gradient-path"</c>).
     /// </exception>
-    internal static PptxGradientFill ResolveGradientFill(XElement gradFillElement, PptxTheme theme, float widthEmu, float heightEmu)
+    internal static PptxGradientFill ResolveGradientFill(
+        XElement gradFillElement, PptxTheme theme, float widthEmu, float heightEmu, Rgba32? phClrOverride = null)
     {
         var gsLst = gradFillElement.Element(DrawingNamespace + "gsLst") ??
             throw new InvalidDataException("An <a:gradFill> element has no <a:gsLst> element.");
@@ -128,7 +144,7 @@ public sealed partial class PptxDocument
             var colorElement = gs.Elements().FirstOrDefault() ??
                 throw new InvalidDataException("An <a:gs> element has no color-definition child.");
             var offset = Math.Clamp(pos / 100000f, 0f, 1f);
-            stops.Add(new GradientStop(offset, ResolveColor(colorElement, theme)));
+            stops.Add(new GradientStop(offset, ResolveColor(colorElement, theme, phClrOverride)));
         }
 
         if (gradFillElement.Element(DrawingNamespace + "lin") is not { } lin)
@@ -153,9 +169,6 @@ public sealed partial class PptxDocument
     ///     (<c>&lt;a:srgbClr&gt;</c>/<c>&lt;a:sysClr&gt;</c>/<c>&lt;a:schemeClr&gt;</c>) and its
     ///     child color-transform chain into a concrete <see cref="Rgba32"/> value.
     /// </summary>
-    /// <param name="colorElement">The color-definition element.</param>
-    /// <param name="theme">The resolved theme, used to resolve an <c>&lt;a:schemeClr&gt;</c>'s named slot.</param>
-    /// <returns>The resolved, fully color-transformed <see cref="Rgba32"/> value.</returns>
     /// <remarks>
     ///     <para>
     ///     <c>&lt;a:schemeClr val="..."/&gt;</c>'s 12 ordinary slot names (<c>dk1</c>/<c>lt1</c>/
@@ -164,10 +177,12 @@ public sealed partial class PptxDocument
     ///     <c>bg1</c>/<c>tx1</c>/<c>bg2</c>/<c>tx2</c> map to <c>lt1</c>/<c>dk1</c>/<c>lt2</c>/
     ///     <c>dk2</c> respectively (per ECMA-376's documented background/text-color aliasing),
     ///     and <c>phClr</c> ("placeholder color" - a shape-style-reference token meaning "whatever
-    ///     color this shape's style already resolved to") is not resolvable without that
-    ///     surrounding shape-style-reference context, which this phase does not thread through -
-    ///     it resolves to <see cref="PptxColorScheme.Dark1"/> as a deterministic, documented
-    ///     fallback.
+    ///     color this shape's style already resolved to") resolves to <paramref name="phClrOverride"/>
+    ///     when supplied (the one caller that threads shape-style-reference context through -
+    ///     <see cref="ResolveSlideBackgroundFill"/>'s <c>&lt;p:bgRef&gt;</c> resolution); every
+    ///     other call site - which does not have that surrounding context available - omits
+    ///     <paramref name="phClrOverride"/>, so <c>phClr</c> resolves to
+    ///     <see cref="PptxColorScheme.Dark1"/> as a deterministic, documented fallback.
     ///     </para>
     ///     <para>
     ///     The color-transform chain is applied in a fixed pipeline order regardless of the
@@ -180,6 +195,17 @@ public sealed partial class PptxDocument
     ///     see the design document.
     ///     </para>
     /// </remarks>
+    /// <param name="colorElement">The color-definition element.</param>
+    /// <param name="theme">The resolved theme, used to resolve an <c>&lt;a:schemeClr&gt;</c>'s named slot.</param>
+    /// <param name="phClrOverride">
+    ///     The concrete color to substitute for an <c>&lt;a:schemeClr val="phClr"/&gt;</c> token,
+    ///     or <see langword="null"/> (the default) to preserve the existing
+    ///     <see cref="PptxColorScheme.Dark1"/> fallback documented below. Every pre-existing call
+    ///     site omits this parameter, leaving its behavior unchanged; only
+    ///     <see cref="ResolveSlideBackgroundFill"/>'s <c>&lt;p:bgRef&gt;</c> resolution supplies
+    ///     it.
+    /// </param>
+    /// <returns>The resolved, fully color-transformed <see cref="Rgba32"/> value.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="colorElement"/> is an <c>&lt;a:srgbClr&gt;</c>/
     ///     <c>&lt;a:sysClr&gt;</c>/<c>&lt;a:schemeClr&gt;</c> missing its required <c>val</c>
@@ -192,14 +218,14 @@ public sealed partial class PptxDocument
     ///     <c>&lt;a:scrgbClr&gt;</c>/<c>&lt;a:hslClr&gt;</c>/<c>&lt;a:prstClr&gt;</c>) - deferred
     ///     to a later phase (feature token <c>"pptx-color-kind"</c>).
     /// </exception>
-    internal static Rgba32 ResolveColor(XElement colorElement, PptxTheme theme)
+    internal static Rgba32 ResolveColor(XElement colorElement, PptxTheme theme, Rgba32? phClrOverride = null)
     {
-        var baseColor = ResolveBaseColor(colorElement, theme);
+        var baseColor = ResolveBaseColor(colorElement, theme, phClrOverride);
         return ApplyColorTransforms(baseColor, colorElement);
     }
 
     /// <summary>Resolves a color-definition element's own base color, before any color-transform chain is applied.</summary>
-    private static Rgba32 ResolveBaseColor(XElement colorElement, PptxTheme theme)
+    private static Rgba32 ResolveBaseColor(XElement colorElement, PptxTheme theme, Rgba32? phClrOverride = null)
     {
         if (colorElement.Name == DrawingNamespace + "srgbClr")
         {
@@ -219,6 +245,11 @@ public sealed partial class PptxDocument
         {
             var val = (string?)colorElement.Attribute("val") ??
                 throw new InvalidDataException("An <a:schemeClr> element has no 'val' attribute.");
+            if (val == "phClr" && phClrOverride is { } overrideColor)
+            {
+                return overrideColor;
+            }
+
             return ResolveSchemeColor(val, theme.ColorScheme);
         }
 

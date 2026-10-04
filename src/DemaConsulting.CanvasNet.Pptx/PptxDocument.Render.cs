@@ -15,6 +15,9 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     dispatches each leaf node kind to the already-verified Phase 1c/1d/1e resolvers/painters -
 ///     see <c>pptx-document.md</c>'s "Full Slide Rendering (Phase 1f)" design section for the
 ///     full per-node-kind dispatch and the deferred-items list this phase leaves unimplemented.
+///     As of the Phase 2 Follow-Up background-fill hardening pass, also paints the slide's own
+///     (or, failing that, its layout's/master's) <c>&lt;p:bg&gt;</c> background fill before the
+///     shape-tree walk - see <see cref="ResolveSlideBackgroundFill"/>.
 /// </summary>
 public sealed partial class PptxDocument
 {
@@ -37,10 +40,16 @@ public sealed partial class PptxDocument
     ///     A new <see cref="Surface"/> of the requested <paramref name="width"/> x
     ///     <paramref name="height"/>, painted with the slide's interpreted shape tree. The surface
     ///     is first cleared to <paramref name="options"/>'s
-    ///     <see cref="PptxRenderOptions.BackgroundColor"/> (opaque white by default), so a slide
-    ///     with an empty shape tree renders as a surface filled with that color. Pass
+    ///     <see cref="PptxRenderOptions.BackgroundColor"/> (opaque white by default); the slide's
+    ///     own <c>&lt;p:cSld&gt;/&lt;p:bg&gt;</c> background fill (falling back to its layout's,
+    ///     then its master's, own <c>&lt;p:bg&gt;</c> - see
+    ///     <see cref="ResolveSlideBackgroundFill"/>) is then painted across the full slide, before
+    ///     any shape is walked, so slide content continues to draw on top of it; when none of
+    ///     slide/layout/master declare a <c>&lt;p:bg&gt;</c> at all, <paramref name="options"/>'s
+    ///     <see cref="PptxRenderOptions.BackgroundColor"/> remains the only background a slide
+    ///     with an empty shape tree renders as. Pass
     ///     <c>new PptxRenderOptions { BackgroundColor = new Rgba32(0, 0, 0, 0) }</c> to reproduce a
-    ///     fully transparent background.
+    ///     fully transparent fallback background.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">
     ///     Thrown when <paramref name="slideIndex"/> is negative or greater than or equal to
@@ -75,11 +84,13 @@ public sealed partial class PptxDocument
     ///         <see cref="ParseShapeTree"/>'s own established "tolerant tree walk" precedent.
     ///     </para>
     ///     <para>
-    ///         A <c>&lt;p:cxnSp&gt;</c> connector shape, a slide's own <c>&lt;p:bg&gt;</c>
-    ///         background fill, a nested table, table auto-sizing/banding, group-level style
-    ///         cascading, and picture effects/shadows are not rendered this phase - see
-    ///         <c>pptx-document.md</c>'s "Full Slide Rendering (Phase 1f)" design section for the
-    ///         complete deferred-items list.
+    ///         A <c>&lt;p:cxnSp&gt;</c> connector shape, a nested table, table auto-sizing/
+    ///         banding, group-level style cascading, and picture effects/shadows are not rendered
+    ///         this phase - see <c>pptx-document.md</c>'s "Full Slide Rendering (Phase 1f)" design
+    ///         section for the complete deferred-items list, and its "Phase 2 Follow-Up: Slide/
+    ///         Layout/Master Background Fill (&lt;p:bg&gt;)" section for the background-fill
+    ///         fidelity achieved (solid and theme-indexed <c>&lt;p:bgRef&gt;</c> fills: full;
+    ///         linear gradient: best-effort; pattern/picture background fill: still deferred).
     ///     </para>
     /// </remarks>
     public Surface Render(int slideIndex, int width, int height, PptxRenderOptions? options = null)
@@ -99,6 +110,14 @@ public sealed partial class PptxDocument
         var theme = GetTheme(master.ThemePartPath);
 
         var baseTransform = Matrix3x2.CreateScale(width / (float)SlideSize.WidthEmu, height / (float)SlideSize.HeightEmu);
+
+        var backgroundFill = ResolveSlideBackgroundFill(
+            slide.Background, layout.Background, master.Background, theme, SlideSize.WidthEmu, SlideSize.HeightEmu);
+        if (backgroundFill is not null)
+        {
+            var backgroundPath = Path.Rectangle(0, 0, SlideSize.WidthEmu, SlideSize.HeightEmu).Transform(baseTransform);
+            FillPaint(surface, backgroundPath, backgroundFill);
+        }
 
         foreach (var node in slide.ShapeTree)
         {
