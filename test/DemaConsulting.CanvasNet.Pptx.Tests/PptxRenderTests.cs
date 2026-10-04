@@ -1018,6 +1018,80 @@ public class PptxRenderTests
     }
 
     /// <summary>
+    ///     Proves an attribute-less <c>&lt;a:normAutofit/&gt;</c> on a subtitle placeholder whose
+    ///     content genuinely fits its declared box does not over-shrink: the resolved
+    ///     <see cref="PptxTextLayout.AppliedFontScale"/> stays at <c>1.0</c> rather than being
+    ///     driven toward the shrink loop's floor. This directly tests (and refutes, for this
+    ///     scenario) the "subtitle sliver" bug's second hypothesis - that the bounded shrink loop
+    ///     itself over-shrinks given correct inputs - documented as confirmed-correct behavior to
+    ///     guard against a future regression of this mechanism (see this test class's remarks and
+    ///     the companion planning report for the full investigation).
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_SubtitlePlaceholderWithAttributeLessNormAutofit_DoesNotOverShrinkContentThatFits()
+    {
+        const string masterTxStylesXml =
+            """
+            <p:bodyStyle><a:lvl1pPr><a:defRPr sz="3200"/></a:lvl1pPr></p:bodyStyle>
+            """;
+        const string layoutPlaceholderXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="3" name="Subtitle Placeholder"/>
+                <p:cNvSpPr/>
+                <p:nvPr><p:ph type="subTitle" idx="1"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="2000000"/><a:ext cx="9144000" cy="1200000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:sp>
+            """;
+        const string spTreeInnerXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="3" name="Subtitle"/>
+                <p:cNvSpPr/>
+                <p:nvPr><p:ph type="subTitle" idx="1"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr/>
+              <p:txBody>
+                <a:bodyPr><a:normAutofit/></a:bodyPr>
+                <a:p><a:r><a:t>Subtitle</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml, masterTxStylesXml, layoutPlaceholderXml);
+        using var document = PptxDocument.Open(stream);
+
+        var slide = document.GetSlide(0);
+        var layout = document.GetLayout(slide.LayoutPartPath);
+        var master = document.GetMaster(layout.MasterPartPath);
+        var theme = document.GetTheme(master.ThemePartPath);
+
+        var slidePlaceholder = slide.Placeholders[0];
+
+        var placeholderProperties = PptxDocument.ResolvePlaceholderProperties(
+            slidePlaceholder, layout.Placeholders, master.Placeholders, theme, master.TxStyles);
+
+        var txBody = slidePlaceholder.ShapeElement.Element("{http://schemas.openxmlformats.org/presentationml/2006/main}txBody")!;
+        var textBody = PptxDocument.ParseTextBody(txBody);
+
+        Assert.NotNull(placeholderProperties.EffectiveXfrmElement);
+        var frame = PptxDocument.ResolveShapeFrame(placeholderProperties.EffectiveXfrmElement);
+
+        var layoutResult = PptxDocument.ResolveTextLayout(
+            textBody, placeholderProperties, theme,
+            placeholderProperties.EffectivePlaceholderType ?? slidePlaceholder.Type,
+            frame.WidthEmu, frame.HeightEmu,
+            (family, bold, italic) => DemaConsulting.CanvasNet.Fonts.SystemFontCatalog.LoadBundledFallback(bold, italic, bold, italic));
+
+        Assert.Equal(1f, layoutResult.AppliedFontScale);
+    }
+
+    /// <summary>
     ///     End-to-end proof (through the public <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>
     ///     API, not just the internal resolver) that a "Section Header" title placeholder whose
     ///     slide-level <c>&lt;p:ph idx="0"/&gt;</c> omits <c>type</c> paints pixel-for-pixel
