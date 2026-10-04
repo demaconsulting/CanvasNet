@@ -306,13 +306,21 @@ named preset geometry (`<a:prstGeom prst="..."/>`), sized to exactly `(0,0)`-`(w
 coordinates (the caller then applies the shape's resolved `PptxShapeFrame.Transform` via
 `Path.Transform(Matrix3x2)` to place it into parent coordinates).
 
-**Supported presets (24)**: `rect`, `roundRect`, `ellipse`, `triangle`, `rtTriangle`, `diamond`,
+**Supported presets (28)**: `rect`, `roundRect`, `ellipse`, `triangle`, `rtTriangle`, `diamond`,
 `parallelogram`, `trapezoid`, `hexagon`, `octagon`, `pentagon`, `chevron`, `homePlate`, `pie`,
 `donut`, `plus`, `rightArrow`, `leftArrow`, `upArrow`, `downArrow`, `leftRightArrow`,
-`upDownArrow`, `star4`, `star5`. This set was chosen to cover the small handful of presets
+`upDownArrow`, `star4`, `star5`, `curvedRightArrow`, `curvedLeftArrow`, `curvedUpArrow`,
+`curvedDownArrow`. This set was chosen to cover the small handful of presets
 (`rect`/`roundRect`/`ellipse`/`triangle`) PowerPoint itself defaults new shapes to, plus a
 practical cross-section of the arrow, star, and other basic-shape categories real-world
-presentations most commonly use, per the approved plan's "aim for ~24 total" guidance.
+presentations most commonly use, per the approved plan's "aim for ~24 total" guidance. The four
+curved-arrow presets were added in a later real-world-corpus hardening pass (see _Phase 2: Real-
+World Corpus Hardening_'s "Genuine bug 3" entry below) once `curvedUpArrow` was found to crash
+rendering of a real-world deck; the remaining three (`curvedDownArrow`/`curvedLeftArrow`/
+`curvedRightArrow`) were added alongside it because the existing `Mirror`/`RotateQuarter`
+derivation pattern already used for `upArrow`/`downArrow`/`leftArrow` (each derived from
+`rightArrow`/`leftRightArrow`) made deriving all four curved arrows from one canonical
+`CurvedRightArrow` builder equally cheap, not because they were independently reported.
 
 **Adjustment-value scope**: OOXML preset shapes are parameterized by named "adjustment values"
 (`<a:avLst>/<a:gd name="adj" fmla="val NNNNN"/>`) a document may override to reshape a preset (for

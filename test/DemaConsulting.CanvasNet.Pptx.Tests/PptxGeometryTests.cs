@@ -498,6 +498,10 @@ public class PptxGeometryTests
     [InlineData("upDownArrow")]
     [InlineData("star4")]
     [InlineData("star5")]
+    [InlineData("curvedUpArrow")]
+    [InlineData("curvedDownArrow")]
+    [InlineData("curvedLeftArrow")]
+    [InlineData("curvedRightArrow")]
     public void PptxPresetGeometry_Build_EachSupportedPreset_ProducesPathWithinDeclaredBounds(string prst)
     {
         const float w = 200f;
@@ -557,5 +561,51 @@ public class PptxGeometryTests
     {
         Assert.Same(Path.Empty, PptxPresetGeometry.Build("rect", 0, 100));
         Assert.Same(Path.Empty, PptxPresetGeometry.Build("rect", 100, 0));
+    }
+
+    /// <summary>Pptx Preset Geometry - Build - Curved Up Arrow - Points Upward Without Throwing.</summary>
+    [Fact]
+    public void PptxPresetGeometry_Build_CurvedUpArrow_PointsUpwardWithoutThrowing()
+    {
+        // This is the exact regression scenario from the real-world corpus crash report:
+        // Build must no longer throw PptxUnsupportedFeatureException for "curvedUpArrow", and
+        // the resulting path's apex (its topmost point) must reach the declared top edge
+        // (y approx 0), mirroring the existing upArrow/downArrow direction checks.
+        var path = PptxPresetGeometry.Build("curvedUpArrow", 200, 120);
+
+        Assert.NotEmpty(path.Subpaths);
+        var bounds = path.GetBounds();
+        Assert.True(bounds.Y <= 0.5f, $"curvedUpArrow's top bound should be ~0, was {bounds.Y}");
+    }
+
+    /// <summary>Pptx Preset Geometry - Build - Curved Arrow Siblings - Each Points Toward Its Own Declared Edge.</summary>
+    [Theory]
+    [InlineData("curvedDownArrow")]
+    [InlineData("curvedLeftArrow")]
+    [InlineData("curvedRightArrow")]
+    public void PptxPresetGeometry_Build_CurvedArrowSiblings_EachPointsTowardItsOwnDeclaredEdge(string prst)
+    {
+        // curvedUpArrow's three siblings are derived via the same Mirror/RotateQuarter
+        // transforms already used for upArrow/downArrow/leftArrow - this proves each sibling's
+        // own apex reaches its own named edge of the declared (0,0)-(w,h) bounds.
+        const float w = 200f;
+        const float h = 120f;
+
+        var path = PptxPresetGeometry.Build(prst, w, h);
+        Assert.NotEmpty(path.Subpaths);
+
+        var bounds = path.GetBounds();
+        switch (prst)
+        {
+            case "curvedDownArrow":
+                Assert.True(bounds.Y + bounds.Height >= h - 0.5f, $"curvedDownArrow's bottom bound should be ~{h}, was {bounds.Y + bounds.Height}");
+                break;
+            case "curvedLeftArrow":
+                Assert.True(bounds.X <= 0.5f, $"curvedLeftArrow's left bound should be ~0, was {bounds.X}");
+                break;
+            case "curvedRightArrow":
+                Assert.True(bounds.X + bounds.Width >= w - 0.5f, $"curvedRightArrow's right bound should be ~{w}, was {bounds.X + bounds.Width}");
+                break;
+        }
     }
 }

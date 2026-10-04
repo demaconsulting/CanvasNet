@@ -445,16 +445,23 @@ sections:
             title: >-
               The PptxDocument class shall resolve a shape's <a:prstGeom prst="..."> element into a
               concrete geometric path sized to the shape's own width/height, supporting a fixed set
-              of approximately 24 common preset geometry names (including rect, roundRect, ellipse,
-              triangle, and a practical subset of arrows, stars, and other basic shapes), and shall
-              reject a preset name outside this supported set with PptxUnsupportedFeatureException
-              (feature token "pptx-preset-geometry") rather than producing incorrect geometry, and
-              reject a missing geometry element (neither <a:prstGeom> nor <a:custGeom>) or a
-              <a:prstGeom> missing its prst attribute with InvalidDataException.
+              of approximately 28 common preset geometry names (including rect, roundRect, ellipse,
+              triangle, and a practical subset of arrows, stars, curved arrows, and other basic
+              shapes), and shall reject a preset name outside this supported set with
+              PptxUnsupportedFeatureException (feature token "pptx-preset-geometry") rather than
+              producing incorrect geometry, and reject a missing geometry element (neither
+              <a:prstGeom> nor <a:custGeom>) or a <a:prstGeom> missing its prst attribute with
+              InvalidDataException.
             justification: |
               DrawingML's preset geometry vocabulary is large; implementing every preset is out of
               scope for this phase, but silently rendering an unsupported preset as the wrong shape
               would be worse than a clear, distinguishable failure a caller can catch and handle.
+              The four curved-arrow presets (curvedRightArrow/curvedLeftArrow/curvedUpArrow/
+              curvedDownArrow) were added in a real-world-corpus hardening pass after
+              curvedUpArrow was found to crash rendering of a real-world slide; the architecture's
+              existing Mirror/RotateQuarter derivation pattern (already used for
+              upArrow/downArrow/leftArrow) made deriving all four cheaply and naturally from one
+              canonical builder.
             tests:
               - ResolveShapeGeometry_PrstGeomRect_ReturnsRectanglePath
               - ResolveShapeGeometry_NeitherPrstGeomNorCustGeom_ThrowsInvalidDataException
@@ -465,6 +472,9 @@ sections:
               - PptxPresetGeometry_Build_DownArrow_PointsDownward
               - PptxPresetGeometry_Build_UnsupportedPreset_ThrowsWithFeatureToken
               - PptxPresetGeometry_Build_NonPositiveSize_ReturnsEmptyPath
+              - PptxPresetGeometry_Build_CurvedUpArrow_PointsUpwardWithoutThrowing
+              - PptxPresetGeometry_Build_CurvedArrowSiblings_EachPointsTowardItsOwnDeclaredEdge
+              - Render_CurvedUpArrowShape_RendersWithoutThrowingAndPaintsInk
 
           - id: CanvasNetPptx-PptxDocument-CustomGeometry
             title: >-

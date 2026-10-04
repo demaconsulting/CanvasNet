@@ -404,6 +404,48 @@ public class PptxRenderTests
         }
     }
 
+    /// <summary>
+    ///     Proves the real-world-corpus crash is fixed: a shape using
+    ///     <c>&lt;a:prstGeom prst="curvedUpArrow"/&gt;</c> (previously unsupported, throwing
+    ///     <see cref="PptxUnsupportedFeatureException"/> for the entire slide) renders without
+    ///     throwing, and paints ink (not merely the unpainted background) within its own shape
+    ///     rectangle.
+    /// </summary>
+    [Fact]
+    public void Render_CurvedUpArrowShape_RendersWithoutThrowingAndPaintsInk()
+    {
+        const string spTreeInnerXml =
+            """
+            <p:sp>
+              <p:nvSpPr><p:cNvPr id="2" name="CurvedUpArrow"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="curvedUpArrow"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>
+              </p:spPr>
+            </p:sp>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 100, 100);
+
+        var paintedSomeInk = false;
+        for (var y = 0; y < 100 && !paintedSomeInk; y++)
+        {
+            for (var x = 0; x < 100; x++)
+            {
+                if (surface[x, y] == new Rgba32(255, 0, 0, 255))
+                {
+                    paintedSomeInk = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(paintedSomeInk, "curvedUpArrow shape should have painted at least one red pixel.");
+    }
+
     // --- Group transform composition ------------------------------------------------------------
 
     /// <summary>Proves a nested group's own transform composes with its parent's, placing a child shape at the expected final surface location.</summary>
@@ -894,4 +936,5 @@ public class PptxRenderTests
         Assert.Equal(720, surface.Height);
         Assert.Equal(new Rgba32(255, 0, 0, 255), surface[480, 360]);
     }
+
 }

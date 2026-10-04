@@ -79,6 +79,10 @@ internal static class PptxPresetGeometry
             "upDownArrow" => UpDownArrow(w, h),
             "star4" => Star(w, h, 4, 0.42f),
             "star5" => Star(w, h, 5, 0.42f),
+            "curvedRightArrow" => CurvedRightArrow(w, h),
+            "curvedLeftArrow" => Mirror(CurvedRightArrow(w, h), w),
+            "curvedUpArrow" => CurvedUpOrDownArrow(w, h, pointingDown: false),
+            "curvedDownArrow" => CurvedUpOrDownArrow(w, h, pointingDown: true),
             _ => throw new PptxUnsupportedFeatureException(
                 "pptx-preset-geometry",
                 $"Preset geometry '{prst}' is not supported."),
@@ -326,6 +330,70 @@ internal static class PptxPresetGeometry
         var swappedWidth = h;
         var swappedHeight = w;
         return RotateQuarter(LeftRightArrow(swappedWidth, swappedHeight), h);
+    }
+
+    /// <summary>
+    ///     Builds a quarter-annulus band curving from a flat tail (at the left edge) to a
+    ///     pointed arrowhead tip (at the top-right corner), approximating OOXML's
+    ///     <c>curvedRightArrow</c> preset's own schema default adjustment values (a 90-degree
+    ///     sweep, an inner radius at half the outer, and a tip formed by letting the band's outer
+    ///     rim reach the full sweep while the inner rim stops short - matching this file's own
+    ///     documented "single, fixed, documented proportion" approximation philosophy).
+    /// </summary>
+    /// <remarks>
+    ///     Built on an ellipse of radii <c>(w,h)</c> centered at the local origin <c>(0,0)</c>
+    ///     (the box's own top-left corner): the tail sits at angle 90 degrees (the box's
+    ///     bottom-left corner, <c>(0,h)</c>) and the tip sits at angle 0 degrees (the box's
+    ///     top-right corner, <c>(w,0)</c>). Every vertex lies on or inside the unit ellipse
+    ///     (<c>cos</c>/<c>sin</c> of an angle within <c>[0,90]</c> degrees are both within
+    ///     <c>[0,1]</c>), so the whole shape stays within the declared <c>(0,0)</c>-<c>(w,h)</c>
+    ///     bounds by construction.
+    /// </remarks>
+    private static Path CurvedRightArrow(float w, float h)
+    {
+        const float innerRatio = 0.5f;
+        const float innerEndDeg = 20f;
+
+        var tailOuter = EllipsePointAtOrigin(w, h, 90f, 1f);
+        var tip = EllipsePointAtOrigin(w, h, 0f, 1f);
+        var innerEnd = EllipsePointAtOrigin(w, h, innerEndDeg, innerRatio);
+        var tailInner = EllipsePointAtOrigin(w, h, 90f, innerRatio);
+
+        return new PathBuilder()
+            .MoveTo(tailOuter)
+            .ArcTo(new Vector2(w, h), 0f, largeArc: false, sweep: false, tip)
+            .LineTo(innerEnd)
+            .ArcTo(new Vector2(w * innerRatio, h * innerRatio), 0f, largeArc: false, sweep: true, tailInner)
+            .Close()
+            .Build();
+    }
+
+    /// <summary>
+    ///     Builds <c>curvedUpArrow</c>/<c>curvedDownArrow</c> by rotating a
+    ///     <see cref="CurvedRightArrow"/> built in a swapped-axis local box - the same
+    ///     derivation precedent <see cref="UpArrow"/> already uses for <see cref="RightArrow"/>.
+    /// </summary>
+    private static Path CurvedUpOrDownArrow(float w, float h, bool pointingDown)
+    {
+        var swappedWidth = h;
+        var swappedHeight = w;
+        var arrow = CurvedRightArrow(swappedWidth, swappedHeight);
+        if (pointingDown)
+        {
+            arrow = Mirror(arrow, swappedWidth);
+        }
+
+        return RotateQuarter(arrow, h);
+    }
+
+    /// <summary>
+    ///     Computes a point on the ellipse of radii <c>(w,h)</c> centered at the local origin
+    ///     <c>(0,0)</c>, at the given angle and radius scale (1.0 = the outer rim).
+    /// </summary>
+    private static Vector2 EllipsePointAtOrigin(float w, float h, float angleDegrees, float radiusScale)
+    {
+        var radians = angleDegrees * MathF.PI / 180f;
+        return new Vector2(w * radiusScale * MathF.Cos(radians), h * radiusScale * MathF.Sin(radians));
     }
 
     /// <summary>

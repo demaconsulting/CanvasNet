@@ -373,21 +373,31 @@ nested in a group with non-trivial `chOff`/`chExt` resolves to the expected slid
 `ResolveShapeGeometry_UnsupportedPreset_ThrowsPptxUnsupportedFeatureException`,
 `ResolveShapeGeometry_PrstGeomMissingPrstAttribute_ThrowsInvalidDataException`,
 `PptxPresetGeometry_Build_EachSupportedPreset_ProducesPathWithinDeclaredBounds` (a `[Theory]`
-covering all 24 supported preset names), `PptxPresetGeometry_Build_UpArrow_PointsUpward`,
+covering all 28 supported preset names), `PptxPresetGeometry_Build_UpArrow_PointsUpward`,
 `PptxPresetGeometry_Build_DownArrow_PointsDownward`,
 `PptxPresetGeometry_Build_UnsupportedPreset_ThrowsWithFeatureToken`,
-`PptxPresetGeometry_Build_NonPositiveSize_ReturnsEmptyPath`
+`PptxPresetGeometry_Build_NonPositiveSize_ReturnsEmptyPath`,
+`PptxPresetGeometry_Build_CurvedUpArrow_PointsUpwardWithoutThrowing`,
+`PptxPresetGeometry_Build_CurvedArrowSiblings_EachPointsTowardItsOwnDeclaredEdge`,
+`Render_CurvedUpArrowShape_RendersWithoutThrowingAndPaintsInk`
 
 Proves `ResolveShapeGeometry` dispatches `<a:prstGeom prst="rect">` to a rectangle path sized to
 the shape's declared extent; proves a `<p:spPr>` with neither `<a:prstGeom>` nor `<a:custGeom>`,
 and a `<a:prstGeom>` missing its required `prst` attribute, each throw `InvalidDataException`; and
 proves an unrecognized preset name throws `PptxUnsupportedFeatureException`. Proves every one of
-the 24 supported preset names (via a `[Theory]` enumerating all of them) builds a path whose
+the 28 supported preset names (via a `[Theory]` enumerating all of them) builds a path whose
 points all lie within `(0,0)`-`(w,h)` bounds; proves `upArrow`/`downArrow` each orient their arrow
 point toward the expected direction (a directional sanity check distinguishing a correctly
 oriented preset from a trivially-passing bounds check alone); proves an unsupported preset throws
 `PptxUnsupportedFeatureException` carrying the expected feature token; and proves a non-positive
 width or height resolves to `Path.Empty` rather than throwing or producing a degenerate path.
+`PptxPresetGeometry_Build_CurvedUpArrow_PointsUpwardWithoutThrowing` proves the exact reported
+crash scenario (`Build("curvedUpArrow", ...)`) no longer throws and that the resulting path's
+apex lies near the shape's top edge; `PptxPresetGeometry_Build_CurvedArrowSiblings_EachPointsTowardItsOwnDeclaredEdge`
+proves each of `curvedDownArrow`/`curvedLeftArrow`/`curvedRightArrow` similarly points toward its
+own named edge; `Render_CurvedUpArrowShape_RendersWithoutThrowingAndPaintsInk` proves the full
+`curvedUpArrow` scenario renders end-to-end through the public `Render` API and paints visible
+ink, not merely that the geometry builder itself does not throw.
 
 #### CanvasNetPptx-PptxDocument-CustomGeometry: pathLst Commands Parse Into the Expected Path, Coordinate Space Scales Correctly
 
