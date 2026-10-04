@@ -25,7 +25,19 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     <c>&lt;p:spPr&gt;</c>) from it directly rather than this type pre-extracting every
 ///     possible fragment.
 /// </param>
-internal sealed record PptxPlaceholder(string Type, uint Idx, XElement ShapeElement);
+/// <param name="DeclaredType">
+///     The placeholder's own <c>&lt;p:ph type="..."/&gt;</c> value exactly as written, or
+///     <see langword="null"/> when the attribute is omitted - distinct from <see cref="Type"/>,
+///     which collapses "omitted" and "explicitly <c>obj</c>" into the same schema-defaulted
+///     string. <see cref="PptxDocument.ResolvePlaceholderProperties"/> consults this to resolve a
+///     slide placeholder's <em>effective</em> type (its own declared type when present,
+///     otherwise the idx-matched layout placeholder's type) for master text-style-bucket
+///     selection (<see cref="PptxDocument.ResolveEffectiveRunProperties"/>) - an omitted slide
+///     <c>type</c> must inherit the matched layout placeholder's type rather than being treated
+///     as a genuine, schema-defaulted <c>"obj"</c> placeholder. Defaults to <see langword="null"/>
+///     so pre-existing 3-argument call sites continue to compile unchanged.
+/// </param>
+internal sealed record PptxPlaceholder(string Type, uint Idx, XElement ShapeElement, string? DeclaredType = null);
 
 /// <summary>A parsed slide master: its own part path, its theme's part path, its placeholder shapes, and its text styles.</summary>
 /// <param name="PartPath">The master's own resolved part path.</param>
@@ -152,10 +164,11 @@ internal static class PptxPlaceholderParser
             return null;
         }
 
-        var type = (string?)ph.Attribute("type") ?? "obj";
+        var declaredType = (string?)ph.Attribute("type");
+        var type = declaredType ?? "obj";
         var idx = ParseIdx(ph);
 
-        return new PptxPlaceholder(type, idx, spElement);
+        return new PptxPlaceholder(type, idx, spElement, declaredType);
     }
 
     /// <summary>

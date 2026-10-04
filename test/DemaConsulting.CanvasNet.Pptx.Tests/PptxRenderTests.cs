@@ -937,4 +937,158 @@ public class PptxRenderTests
         Assert.Equal(new Rgba32(255, 0, 0, 255), surface[480, 360]);
     }
 
+    /// <summary>
+    ///     Proves a "Section Header" layout-style title placeholder whose slide-level
+    ///     <c>&lt;p:ph idx="0"/&gt;</c> omits <c>type</c> (relying entirely on the idx-matched
+    ///     layout placeholder's own <c>type="title"</c>) resolves its run font size from the
+    ///     master's <c>&lt;p:titleStyle&gt;</c> (90pt), not from <c>&lt;p:bodyStyle&gt;</c> (28pt) -
+    ///     the exact reported real-world regression (CanvasNet previously rendered this
+    ///     placeholder's title at roughly 1/3 PowerPoint's own ground-truth size because the
+    ///     render pipeline previously passed the slide placeholder's own raw, schema-defaulted
+    ///     <c>type</c> ("obj") directly into text-style-bucket selection instead of the
+    ///     idx-matched layout placeholder's effective type).
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_SectionHeaderTitlePlaceholderWithOmittedType_ResolvesMasterTitleStyleNotBodyStyle()
+    {
+        const string masterTxStylesXml =
+            """
+            <p:titleStyle><a:lvl1pPr><a:defRPr sz="9000"/></a:lvl1pPr></p:titleStyle>
+            <p:bodyStyle><a:lvl1pPr><a:defRPr sz="2800"/></a:lvl1pPr></p:bodyStyle>
+            """;
+        const string layoutPlaceholderXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Title Placeholder"/>
+                <p:cNvSpPr/>
+                <p:nvPr><p:ph type="title" idx="0"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="1600200"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:sp>
+            """;
+        const string spTreeInnerXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Title"/>
+                <p:cNvSpPr/>
+                <p:nvPr><p:ph idx="0"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr/>
+              <p:txBody>
+                <a:bodyPr/>
+                <a:p><a:r><a:t>Section Header Title</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml, masterTxStylesXml, layoutPlaceholderXml);
+        using var document = PptxDocument.Open(stream);
+
+        var slide = document.GetSlide(0);
+        var layout = document.GetLayout(slide.LayoutPartPath);
+        var master = document.GetMaster(layout.MasterPartPath);
+        var theme = document.GetTheme(master.ThemePartPath);
+
+        var slidePlaceholder = slide.Placeholders[0];
+        Assert.Equal("obj", slidePlaceholder.Type); // Schema-defaulted, omitted on the slide itself.
+        Assert.Null(slidePlaceholder.DeclaredType);
+
+        var placeholderProperties = PptxDocument.ResolvePlaceholderProperties(
+            slidePlaceholder, layout.Placeholders, master.Placeholders, theme, master.TxStyles);
+
+        // The effective type must be inherited from the idx-matched layout placeholder ("title"),
+        // not the slide's own schema-defaulted "obj".
+        Assert.Equal("title", placeholderProperties.EffectivePlaceholderType);
+
+        var txBody = slidePlaceholder.ShapeElement.Element("{http://schemas.openxmlformats.org/presentationml/2006/main}txBody")!;
+        var textBody = PptxDocument.ParseTextBody(txBody);
+        var paragraph = textBody.Paragraphs[0];
+        var run = paragraph.Runs[0];
+
+        // This mirrors exactly what RenderShape passes into ResolveEffectiveRunProperties.
+        var effective = PptxDocument.ResolveEffectiveRunProperties(
+            run, paragraph, placeholderProperties, theme,
+            placeholderProperties.EffectivePlaceholderType ?? slidePlaceholder.Type);
+
+        Assert.Equal(90f * 12700f, effective.SizeEmu);
+    }
+
+    /// <summary>
+    ///     End-to-end proof (through the public <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>
+    ///     API, not just the internal resolver) that a "Section Header" title placeholder whose
+    ///     slide-level <c>&lt;p:ph idx="0"/&gt;</c> omits <c>type</c> paints pixel-for-pixel
+    ///     identical glyph ink to the same placeholder declaring its type explicitly
+    ///     (<c>type="title"</c>) - both must resolve to the master's <c>&lt;p:titleStyle&gt;</c>
+    ///     font size. Before the fix, the omitted-type variant painted visibly smaller (28pt
+    ///     <c>&lt;p:bodyStyle&gt;</c>) glyph ink than the explicit-type variant (90pt
+    ///     <c>&lt;p:titleStyle&gt;</c>), so the two renders differed.
+    /// </summary>
+    [Fact]
+    public void Render_SectionHeaderTitleWithOmittedType_PaintsIdenticallyToExplicitTitleType()
+    {
+        const string masterTxStylesXml =
+            """
+            <p:titleStyle><a:lvl1pPr><a:defRPr sz="9000"/></a:lvl1pPr></p:titleStyle>
+            <p:bodyStyle><a:lvl1pPr><a:defRPr sz="2800"/></a:lvl1pPr></p:bodyStyle>
+            """;
+        const string layoutPlaceholderXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Title Placeholder"/>
+                <p:cNvSpPr/>
+                <p:nvPr><p:ph type="title" idx="0"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="1600200"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:sp>
+            """;
+
+        string BuildSlideXml(string phXml) =>
+            $"""
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Title"/>
+                <p:cNvSpPr/>
+                <p:nvPr>{phXml}</p:nvPr>
+              </p:nvSpPr>
+              <p:spPr/>
+              <p:txBody>
+                <a:bodyPr/>
+                <a:p><a:r><a:t>Section Header Title</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>
+            """;
+
+        using var omittedTypeStream = BuildRenderPackage(BuildSlideXml("""<p:ph idx="0"/>"""), masterTxStylesXml, layoutPlaceholderXml);
+        using var omittedTypeDocument = PptxDocument.Open(omittedTypeStream);
+        using var omittedTypeSurface = omittedTypeDocument.Render(0, 300, 160);
+
+        using var explicitTypeStream = BuildRenderPackage(BuildSlideXml("""<p:ph type="title" idx="0"/>"""), masterTxStylesXml, layoutPlaceholderXml);
+        using var explicitTypeDocument = PptxDocument.Open(explicitTypeStream);
+        using var explicitTypeSurface = explicitTypeDocument.Render(0, 300, 160);
+
+        var paintedAnyInk = false;
+        for (var y = 0; y < 160; y++)
+        {
+            for (var x = 0; x < 300; x++)
+            {
+                var omittedPixel = omittedTypeSurface[x, y];
+                if (omittedPixel != new Rgba32(255, 255, 255, 255))
+                {
+                    paintedAnyInk = true;
+                }
+
+                Assert.Equal(omittedPixel, explicitTypeSurface[x, y]);
+            }
+        }
+
+        Assert.True(paintedAnyInk, "Expected the title placeholder's text to paint glyph ink.");
+    }
 }

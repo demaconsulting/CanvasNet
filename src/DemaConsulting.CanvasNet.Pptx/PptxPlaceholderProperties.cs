@@ -61,10 +61,26 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     Defaults to <see langword="null"/> (treated identically to all-<see langword="null"/>
 ///     buckets) so Phase 1b/1c call sites that predate Phase 1d continue to compile unchanged.
 /// </param>
+/// <param name="EffectivePlaceholderType">
+///     The slide placeholder's effective type for master text-style-bucket selection
+///     (<see cref="PptxDocument.SelectMasterTextStyle"/>/<see cref="PptxDocument.DefaultTypeface"/>):
+///     its own <see cref="PptxPlaceholder.DeclaredType"/> when explicitly present, otherwise the
+///     idx-matched layout placeholder's <see cref="PptxPlaceholder.Type"/> (mirroring the same
+///     hop-1 idx-only match already used for <see cref="EffectiveXfrmElement"/>/
+///     <see cref="EffectiveGeometrySpPr"/>), otherwise the slide placeholder's own
+///     schema-defaulted <see cref="PptxPlaceholder.Type"/> - a slide <c>&lt;p:ph&gt;</c> that
+///     omits <c>type</c> must inherit the matched layout placeholder's type rather than being
+///     treated as a genuinely-declared <c>"obj"</c> placeholder (see the companion planning
+///     report's root-cause finding for the Section Header title font-size bug). Defaults to
+///     <see langword="null"/> so pre-existing call sites continue to compile unchanged; a
+///     <see langword="null"/> value means "no placeholder-specific override available" (for
+///     example a non-placeholder shape), and callers should fall back to their own raw type.
+/// </param>
 internal sealed record PptxPlaceholderProperties(
     XElement? EffectiveSpPr,
     XElement? EffectiveTxBodyListStyle,
     PptxTheme Theme,
     PptxMasterTextStyles? MasterTextStyles = null,
     XElement? EffectiveXfrmElement = null,
-    XElement? EffectiveGeometrySpPr = null);
+    XElement? EffectiveGeometrySpPr = null,
+    string? EffectivePlaceholderType = null);

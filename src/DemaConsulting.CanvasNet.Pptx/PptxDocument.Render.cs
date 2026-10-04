@@ -244,7 +244,13 @@ public sealed partial class PptxDocument
             spPrElement = placeholderProperties.EffectiveSpPr;
             xfrmElement = placeholderProperties.EffectiveXfrmElement;
             geometrySpPrElement = placeholderProperties.EffectiveGeometrySpPr;
-            placeholderType = placeholder.Type;
+            // Use the resolved effective type (own declared type, else the idx-matched layout
+            // placeholder's type, else the schema-defaulted type) rather than the slide
+            // placeholder's own raw/schema-defaulted type - see
+            // PptxPlaceholderProperties.EffectivePlaceholderType's remarks for why using the raw
+            // type here under-resolves an omitted-type title/subtitle placeholder's master
+            // text-style bucket to body style.
+            placeholderType = placeholderProperties.EffectivePlaceholderType ?? placeholder.Type;
         }
         else
         {

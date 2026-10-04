@@ -143,7 +143,21 @@ public sealed partial class PptxDocument
             (matchedLayoutPlaceholder is null ? null : GetSpPrWithGeometry(matchedLayoutPlaceholder.ShapeElement)) ??
             (matchedMasterPlaceholder is null ? null : GetSpPrWithGeometry(matchedMasterPlaceholder.ShapeElement));
 
-        return new PptxPlaceholderProperties(effectiveSpPr, effectiveTxBodyListStyle, theme, masterTextStyles, effectiveXfrmElement, effectiveGeometrySpPr);
+        // Resolved the same hop-1-idx-matched way as effectiveXfrmElement/effectiveGeometrySpPr
+        // (see PptxPlaceholderProperties.EffectivePlaceholderType's own remarks): the slide
+        // placeholder's own declared type when explicitly present, otherwise the idx-matched
+        // layout placeholder's type, otherwise the slide placeholder's schema-defaulted type as a
+        // last resort (no layout match found at all). A slide <p:ph> that omits type must inherit
+        // the matched layout placeholder's type for master text-style-bucket selection, exactly
+        // as it already does for position/size/geometry above - using the schema-defaulted "obj"
+        // directly here (as prior code did) incorrectly collapses an omitted-type title/subtitle
+        // placeholder into the body-style bucket instead of its true, inherited type.
+        var effectivePlaceholderType =
+            slidePlaceholder.DeclaredType ??
+            matchedLayoutPlaceholder?.Type ??
+            slidePlaceholder.Type;
+
+        return new PptxPlaceholderProperties(effectiveSpPr, effectiveTxBodyListStyle, theme, masterTextStyles, effectiveXfrmElement, effectiveGeometrySpPr, effectivePlaceholderType);
     }
 
     /// <summary>Extracts a placeholder's <c>&lt;p:txBody&gt;/&lt;a:lstStyle&gt;</c> element, if present.</summary>
