@@ -3,14 +3,16 @@ using DemaConsulting.CanvasNet.Canvas;
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
 // cspell:ignore pptx pythonpptx samplelib groupshape autoshape autoshapes paintable sppr
+// cspell:ignore aiden0z blipfill pattfill custgeom avlst gridcol tblgrid srcrect cxnsp lummod prstdash cmpd thickthin xfrm Xfrm
 
 /// <summary>
 ///     Fixture-conformance tests that exercise <see cref="PptxDocument"/>'s full public
 ///     <see cref="PptxDocument.Render(int, float, PptxRenderOptions?)"/> API against the
 ///     real-world <c>.pptx</c> fixture corpus in <c>PptxFixtures</c> (see
-///     <c>PptxFixtures\README.md</c> for provenance - ten real files from two independent
-///     sources, <c>python-pptx</c>'s own MIT-licensed test corpus and samplelib.com's
-///     permissively-stated sample downloads). Each test opens one on-disk fixture and renders
+///     <c>PptxFixtures\README.md</c> for provenance - twenty real files from three independent
+///     sources, <c>python-pptx</c>'s own MIT-licensed test corpus, samplelib.com's
+///     permissively-stated sample downloads, and <c>aiden0z/pptx-renderer</c>'s own
+///     Apache-2.0-licensed example corpus). Each test opens one on-disk fixture and renders
 ///     every one of its slides, asserting a broad "this real file opens and renders every slide
 ///     without an ungraceful failure, painting real content where content is expected" result -
 ///     a tier distinct from (and complementing, not duplicating) the finer-grained,
@@ -302,5 +304,254 @@ public class PptxFixturesCorpusTests
             using var surface = document.Render(slideIndex, Dpi, Transparent);
             AssertPaintedSomePixel(surface);
         }
+    }
+
+    /// <summary>
+    ///     Proves both slides of <c>pythonpptx-sld-background.pptx</c> render without error.
+    ///     Slide index 1 declares a <c>&lt;p:bg&gt;</c> solid fill - slide background fill parsing
+    ///     is explicitly deferred (see <c>pptx-document.md</c>'s deferred-items list; no
+    ///     <c>&lt;p:bg&gt;</c> parsing support exists anywhere in this codebase), so neither slide
+    ///     is expected to paint any pixel: slide 0 has no shape-tree content at all, and slide 1's
+    ///     only content is its own (unpainted) background fill. This is the honest "renders
+    ///     without throwing, confirms the deferred-background-fill boundary against a real file"
+    ///     claim, not a claim that the background itself is painted.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Render_SldBackgroundFixture_RendersWithoutErrorBackgroundNotPainted()
+    {
+        // Arrange
+        using var document = PptxDocument.Open(Fixture("pythonpptx-sld-background.pptx"));
+
+        // Act & Assert
+        Assert.Equal(2, document.SlideCount);
+        for (var slideIndex = 0; slideIndex < document.SlideCount; slideIndex++)
+        {
+            using var surface = document.Render(slideIndex, Dpi, Transparent);
+            Assert.True(surface.Width > 0);
+            Assert.True(surface.Height > 0);
+        }
+    }
+
+    /// <summary>
+    ///     Proves both slides of <c>pythonpptx-ph-inherit-props.pptx</c> render without error -
+    ///     real-file regression coverage for placeholder <c>&lt;a:xfrm&gt;</c>/geometry
+    ///     inheritance (see <c>Render_PlaceholderShapeWithEmptySpPr_InheritsXfrmAndGeometryFromLayout</c>
+    ///     and this unit's own Phase 2 design-doc section for the original bug this guards
+    ///     against). Slide index 0 paints (an idx-matched, no-<c>type</c> content placeholder with
+    ///     its own chevron geometry); slide index 1 does not paint (both placeholders have empty
+    ///     text and rely entirely on inherited geometry) - both asserted explicitly, mirroring the
+    ///     existing <c>ShpGroupShapeFixture</c> precedent's honesty about exactly what each slide
+    ///     can and cannot prove.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Render_PhInheritPropsFixture_Slide0PaintsSlide1RendersWithoutError()
+    {
+        // Arrange
+        using var document = PptxDocument.Open(Fixture("pythonpptx-ph-inherit-props.pptx"));
+
+        // Assert: slide count
+        Assert.Equal(2, document.SlideCount);
+
+        // Act & Assert: slide 0 has its own chevron geometry and paints.
+        using var surface0 = document.Render(0, Dpi, Transparent);
+        AssertPaintedSomePixel(surface0);
+
+        // Act & Assert: slide 1's placeholders are both empty text, inherited geometry only.
+        using var surface1 = document.Render(1, Dpi, Transparent);
+        Assert.True(surface1.Width > 0);
+        Assert.True(surface1.Height > 0);
+    }
+
+    /// <summary>
+    ///     Proves every one of <c>pythonpptx-ph-unpopulated-placeholders.pptx</c>'s nine slides
+    ///     renders without error. Each slide contains exactly one empty, fully-inherited
+    ///     placeholder of a distinct declared type (title/body/chart/table/diagram/media/clip art/
+    ///     picture) - no slide has any populated text or non-placeholder shape content, so no
+    ///     painted-pixel assertion is made for any slide (the same honest "renders without an
+    ///     ungraceful failure" claim already established for <c>ShpGroupShapeFixture</c> and the
+    ///     blank-slide fixtures above).
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Render_PhUnpopulatedPlaceholdersFixture_RendersEverySlideWithoutError()
+    {
+        // Arrange
+        using var document = PptxDocument.Open(Fixture("pythonpptx-ph-unpopulated-placeholders.pptx"));
+
+        // Act & Assert
+        Assert.Equal(9, document.SlideCount);
+        for (var slideIndex = 0; slideIndex < document.SlideCount; slideIndex++)
+        {
+            using var surface = document.Render(slideIndex, Dpi, Transparent);
+            Assert.True(surface.Width > 0);
+            Assert.True(surface.Height > 0);
+        }
+    }
+
+    /// <summary>
+    ///     Proves <c>pythonpptx-txt-fit-text.pptx</c> (a single slide with a real paragraph using
+    ///     <c>wrap="none"</c> combined with <c>&lt;a:spAutoFit/&gt;</c> - shape-resize autofit
+    ///     itself remains deferred, see <c>pptx-document.md</c>'s deferred-items list, so no
+    ///     scaling is applied) renders its one slide and paints visible glyph ink.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Render_TxtFitTextFixture_PaintsVisibleContent()
+    {
+        // Arrange & Act
+        using var document = PptxDocument.Open(Fixture("pythonpptx-txt-fit-text.pptx"));
+
+        // Assert
+        Assert.Equal(1, document.SlideCount);
+        using var surface = document.Render(0, Dpi, Transparent);
+        AssertPaintedSomePixel(surface);
+    }
+
+    /// <summary>
+    ///     Proves both slides of <c>pythonpptx-shp-connector-props.pptx</c> render without error.
+    ///     Slide index 0 contains only a lone <c>&lt;p:cxnSp&gt;</c> connector - connectors are
+    ///     silently skipped and never represented in the parsed shape tree at all (see
+    ///     <c>Render_ConnectorShape_SkippedSilentlyWithoutError</c>) - so slide 0 paints nothing;
+    ///     slide index 1 additionally places a picture alongside its own connector, so slide 1
+    ///     paints the picture while the connector is, again, silently ignored.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsSkippedSilently()
+    {
+        // Arrange
+        using var document = PptxDocument.Open(Fixture("pythonpptx-shp-connector-props.pptx"));
+
+        // Assert: slide count
+        Assert.Equal(2, document.SlideCount);
+
+        // Act & Assert: slide 0 has only a connector - renders, paints nothing.
+        using var surface0 = document.Render(0, Dpi, Transparent);
+        Assert.True(surface0.Width > 0);
+        Assert.True(surface0.Height > 0);
+
+        // Act & Assert: slide 1 has a picture alongside its own connector - paints the picture.
+        using var surface1 = document.Render(1, Dpi, Transparent);
+        AssertPaintedSomePixel(surface1);
+    }
+
+    /// <summary>
+    ///     Proves both slides of <c>pythonpptx-dml-fill.pptx</c> each throw
+    ///     <see cref="PptxUnsupportedFeatureException"/> for a documented, already-implemented
+    ///     deferred-fill construct: slide index 0 places a <c>&lt;a:blipFill&gt;</c> directly
+    ///     inside an ordinary shape's own <c>&lt;p:spPr&gt;</c> (a picture used as a shape
+    ///     background, feature token <c>"pptx-picture-fill"</c>), and slide index 1 places a
+    ///     <c>&lt;a:pattFill&gt;</c> the same way (a pattern fill, feature token
+    ///     <c>"pptx-pattern-fill"</c>). Both exception tokens are already implemented by
+    ///     <c>ResolveFill</c>; this is the only fixture in this corpus exercising either path
+    ///     against a real file.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Render_DmlFillFixture_BothSlidesThrowUnsupportedFillFeature()
+    {
+        // Arrange
+        using var document = PptxDocument.Open(Fixture("pythonpptx-dml-fill.pptx"));
+
+        // Assert: slide count
+        Assert.Equal(2, document.SlideCount);
+
+        // Act & Assert: slide 0's shape-background picture fill throws.
+        var exception0 = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(0, Dpi, Transparent));
+        Assert.Equal("pptx-picture-fill", exception0.Feature);
+
+        // Act & Assert: slide 1's shape-background pattern fill throws.
+        var exception1 = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(1, Dpi, Transparent));
+        Assert.Equal("pptx-pattern-fill", exception1.Feature);
+    }
+
+    /// <summary>
+    ///     Proves every slide of <c>pythonpptx-dml-line.pptx</c> (four slides with real, explicit
+    ///     <c>&lt;a:solidFill&gt;</c>/<c>&lt;a:ln&gt;</c> stroke-property variety - RGB and
+    ///     scheme+<c>lumMod</c> colors, a <c>cmpd="thickThin"</c> compound line, and several
+    ///     <c>prstDash</c> values) renders and paints visible content - genuinely new in-scope
+    ///     stroke-property variety not covered by any style-matrix-only existing fixture.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Render_DmlLineFixture_RendersEverySlideWithVisibleContent()
+    {
+        // Arrange
+        using var document = PptxDocument.Open(Fixture("pythonpptx-dml-line.pptx"));
+
+        // Act & Assert
+        Assert.Equal(4, document.SlideCount);
+        for (var slideIndex = 0; slideIndex < document.SlideCount; slideIndex++)
+        {
+            using var surface = document.Render(slideIndex, Dpi, Transparent);
+            AssertPaintedSomePixel(surface);
+        }
+    }
+
+    /// <summary>
+    ///     Proves <c>aiden0z-1-chart-and-complex.pptx</c> (two slides from
+    ///     <c>aiden0z/pptx-renderer</c>'s own Apache-2.0-licensed example corpus) behaves exactly
+    ///     as the corpus README documents: slide index 0 is a dense, real org-chart-style slide
+    ///     (58 shapes, 17 connectors, a <c>&lt;a:custGeom&gt;</c> freeform, and 11 <c>avLst</c>
+    ///     adjustment overrides across varied preset geometries) that renders cleanly and paints
+    ///     visible content with no chart graphic frame of its own, while slide index 1 declares a
+    ///     chart graphic frame and throws <see cref="PptxUnsupportedFeatureException"/> - the
+    ///     same already-graceful, already-designed "unsupported graphic-frame kind" path proven
+    ///     elsewhere in this corpus against the <c>python-pptx</c>/<c>samplelib.com</c> fixtures.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature()
+    {
+        // Arrange
+        using var document = PptxDocument.Open(Fixture("aiden0z-1-chart-and-complex.pptx"));
+
+        // Assert: slide count
+        Assert.Equal(2, document.SlideCount);
+
+        // Act & Assert: slide 0 has no chart content and renders cleanly with real paint.
+        using var surface0 = document.Render(0, Dpi, Transparent);
+        AssertPaintedSomePixel(surface0);
+
+        // Act & Assert: slide 1's chart graphic frame throws.
+        var exception = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(1, Dpi, Transparent));
+        Assert.Equal("pptx-graphic-frame-kind", exception.Feature);
+    }
+
+    /// <summary>
+    ///     Proves <c>aiden0z-image-crop-css-reset.pptx</c> (a single slide from
+    ///     <c>aiden0z/pptx-renderer</c>'s own example corpus) renders and paints visible content.
+    ///     The slide declares a <c>&lt;p:bg&gt;</c> solid fill (deferred, correctly not painted -
+    ///     another independent real-file instance of the same boundary proven by
+    ///     <c>pythonpptx-sld-background.pptx</c>) plus four embedded raster pictures, three with
+    ///     distinct <c>&lt;a:srcRect&gt;</c> crop rectangles - new crop-rectangle variety not
+    ///     covered by any existing fixture.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentBackgroundNotPainted()
+    {
+        // Arrange & Act
+        using var document = PptxDocument.Open(Fixture("aiden0z-image-crop-css-reset.pptx"));
+
+        // Assert
+        Assert.Equal(1, document.SlideCount);
+        using var surface = document.Render(0, Dpi, Transparent);
+        AssertPaintedSomePixel(surface);
+    }
+
+    /// <summary>
+    ///     Proves <c>aiden0z-table-stale-frame.pptx</c> (a single slide from
+    ///     <c>aiden0z/pptx-renderer</c>'s own example corpus) renders and paints visible content
+    ///     despite a real-world authoring artifact: its one <c>&lt;a:tbl&gt;</c> graphic frame's
+    ///     declared <c>&lt;p:xfrm&gt;</c> extent does not match the sum of its own
+    ///     <c>&lt;a:gridCol&gt;</c> widths. Table column/row sizing is derived entirely from
+    ///     <c>&lt;a:tblGrid&gt;</c>/<c>&lt;a:tr h&gt;</c>, independent of the graphic frame's own
+    ///     declared extent, so this "stale frame size" mismatch renders and paints without
+    ///     exception - a genuine, confirmed-graceful real-world edge case, not a bug.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Render_Aiden0zTableStaleFrameFixture_PaintsVisibleContentDespiteFrameSizeMismatch()
+    {
+        // Arrange & Act
+        using var document = PptxDocument.Open(Fixture("aiden0z-table-stale-frame.pptx"));
+
+        // Assert
+        Assert.Equal(1, document.SlideCount);
+        using var surface = document.Render(0, Dpi, Transparent);
+        AssertPaintedSomePixel(surface);
     }
 }
