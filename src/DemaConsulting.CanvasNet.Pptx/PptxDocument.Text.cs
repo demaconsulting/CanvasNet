@@ -1,0 +1,148 @@
+using System.Globalization;
+using System.Xml.Linq;
+
+namespace DemaConsulting.CanvasNet.Pptx;
+
+// cspell:ignore txbody bodypr lstyle lnspc spcbef spcaft spcpct spcpts marl pptx
+
+/// <summary>
+///     Implements the <see cref="PptxDocument"/> DrawingML text-body/paragraph/run parser (Phase
+///     1d): <c>&lt;p:txBody&gt;</c>/<c>&lt;a:bodyPr&gt;</c>/<c>&lt;a:p&gt;</c>/<c>&lt;a:pPr&gt;</c>/
+///     <c>&lt;a:r&gt;</c>/<c>&lt;a:rPr&gt;</c>/<c>&lt;a:t&gt;</c> - see
+///     <c>pptx-document.md</c>'s "Text Layout and Rendering (Phase 1d)" design section for the
+///     full structural parsing boundary, and <c>PptxDocument.TextInheritance.cs</c> for how the
+///     raw, unresolved properties this parser extracts are later resolved against the
+///     placeholder/layout/master/theme inheritance chain.
+/// </summary>
+public sealed partial class PptxDocument
+{
+    /// <summary>The OOXML schema default left/right text inset, in EMU (0.1 inch).</summary>
+    private const float DefaultInsetLeftRightEmu = 91440f;
+
+    /// <summary>The OOXML schema default top/bottom text inset, in EMU (0.05 inch).</summary>
+    private const float DefaultInsetTopBottomEmu = 45720f;
+
+    /// <summary>The highest paragraph list level this phase resolves (<c>&lt;a:lvl9pPr&gt;</c>, 0-based).</summary>
+    internal const int MaxParagraphLevel = 8;
+
+    /// <summary>
+    ///     Parses a <c>&lt;p:txBody&gt;</c> element into a <see cref="PptxTextBody"/>: its
+    ///     resolved <c>&lt;a:bodyPr&gt;</c> properties plus its ordered <c>&lt;a:p&gt;</c>
+    ///     paragraphs.
+    /// </summary>
+    /// <param name="txBodyElement">The <c>&lt;p:txBody&gt;</c> element to parse.</param>
+    /// <returns>The parsed <see cref="PptxTextBody"/>.</returns>
+    internal static PptxTextBody ParseTextBody(XElement txBodyElement)
+    {
+        var properties = ParseBodyProperties(txBodyElement.Element(DrawingNamespace + "bodyPr"));
+        var paragraphs = txBodyElement.Elements(DrawingNamespace + "p").Select(ParseParagraph).ToList();
+        return new PptxTextBody(properties, paragraphs);
+    }
+
+    /// <summary>
+    ///     Parses an <c>&lt;a:bodyPr&gt;</c> element into a <see cref="PptxBodyProperties"/>,
+    ///     applying the OOXML schema's documented defaults for every attribute/child the element
+    ///     (or an absent element itself) omits.
+    /// </summary>
+    /// <param name="bodyPrElement">The <c>&lt;a:bodyPr&gt;</c> element to parse, or <see langword="null"/> when absent.</param>
+    /// <returns>The parsed <see cref="PptxBodyProperties"/>.</returns>
+    internal static PptxBodyProperties ParseBodyProperties(XElement? bodyPrElement)
+    {
+        if (bodyPrElement is null)
+        {
+            return new PptxBodyProperties(
+                PptxTextAnchor.Top,
+                PptxTextWrap.Square,
+                DefaultInsetLeftRightEmu,
+                DefaultInsetTopBottomEmu,
+                DefaultInsetLeftRightEmu,
+                DefaultInsetTopBottomEmu,
+                null);
+        }
+
+        var anchor = (string?)bodyPrElement.Attribute("anchor") switch
+        {
+            "ctr" => PptxTextAnchor.Middle,
+            "b" => PptxTextAnchor.Bottom,
+            _ => PptxTextAnchor.Top,
+        };
+
+        var wrap = (string?)bodyPrElement.Attribute("wrap") == "none" ? PptxTextWrap.None : PptxTextWrap.Square;
+
+        var insetLeft = (float?)bodyPrElement.Attribute("lIns") ?? DefaultInsetLeftRightEmu;
+        var insetTop = (float?)bodyPrElement.Attribute("tIns") ?? DefaultInsetTopBottomEmu;
+        var insetRight = (float?)bodyPrElement.Attribute("rIns") ?? DefaultInsetLeftRightEmu;
+        var insetBottom = (float?)bodyPrElement.Attribute("bIns") ?? DefaultInsetTopBottomEmu;
+
+        var autofitElement =
+            bodyPrElement.Element(DrawingNamespace + "noAutofit") ??
+            bodyPrElement.Element(DrawingNamespace + "normAutofit") ??
+            bodyPrElement.Element(DrawingNamespace + "spAutoFit");
+
+        return new PptxBodyProperties(anchor, wrap, insetLeft, insetTop, insetRight, insetBottom, autofitElement);
+    }
+
+    /// <summary>
+    ///     Parses an <c>&lt;a:p&gt;</c> element into a <see cref="PptxParagraph"/>: its raw,
+    ///     unresolved properties plus its ordered <c>&lt;a:r&gt;</c> runs. An <c>&lt;a:p&gt;</c>
+    ///     with no recognized child produces a valid, empty paragraph (a blank line) - not an
+    ///     error.
+    /// </summary>
+    /// <param name="pElement">The <c>&lt;a:p&gt;</c> element to parse.</param>
+    /// <returns>The parsed <see cref="PptxParagraph"/>.</returns>
+    internal static PptxParagraph ParseParagraph(XElement pElement)
+    {
+        var properties = ParseParagraphProperties(pElement.Element(DrawingNamespace + "pPr"));
+        var runs = pElement.Elements(DrawingNamespace + "r").Select(ParseRun).ToList();
+        return new PptxParagraph(properties, runs);
+    }
+
+    /// <summary>
+    ///     Parses an <c>&lt;a:pPr&gt;</c> element into a <see cref="PptxRawParagraphProperties"/>,
+    ///     retaining every value as the paragraph's own, unresolved value - no inheritance
+    ///     resolution happens here.
+    /// </summary>
+    /// <param name="pPrElement">The <c>&lt;a:pPr&gt;</c> element to parse, or <see langword="null"/> when absent.</param>
+    /// <returns>The parsed <see cref="PptxRawParagraphProperties"/>.</returns>
+    internal static PptxRawParagraphProperties ParseParagraphProperties(XElement? pPrElement)
+    {
+        if (pPrElement is null)
+        {
+            return new PptxRawParagraphProperties(0, null, null, null, null, null, null, null);
+        }
+
+        var level = Math.Clamp(ParseOptionalInt(pPrElement, "lvl") ?? 0, 0, MaxParagraphLevel);
+        var algn = (string?)pPrElement.Attribute("algn");
+        var marL = (float?)pPrElement.Attribute("marL");
+        var indent = (float?)pPrElement.Attribute("indent");
+        var lnSpc = pPrElement.Element(DrawingNamespace + "lnSpc");
+        var spcBefore = pPrElement.Element(DrawingNamespace + "spcBef");
+        var spcAfter = pPrElement.Element(DrawingNamespace + "spcAft");
+        var defRPr = pPrElement.Element(DrawingNamespace + "defRPr");
+
+        return new PptxRawParagraphProperties(level, algn, marL, indent, lnSpc, spcBefore, spcAfter, defRPr);
+    }
+
+    /// <summary>
+    ///     Parses an <c>&lt;a:r&gt;</c> element into a <see cref="PptxTextRun"/>: its own raw,
+    ///     unresolved <c>&lt;a:rPr&gt;</c> element plus its <c>&lt;a:t&gt;</c> text (defaulting to
+    ///     <see cref="string.Empty"/> when <c>&lt;a:t&gt;</c> is absent, per the OOXML schema).
+    /// </summary>
+    /// <param name="rElement">The <c>&lt;a:r&gt;</c> element to parse.</param>
+    /// <returns>The parsed <see cref="PptxTextRun"/>.</returns>
+    internal static PptxTextRun ParseRun(XElement rElement)
+    {
+        var rPr = rElement.Element(DrawingNamespace + "rPr");
+        var text = rElement.Element(DrawingNamespace + "t")?.Value ?? string.Empty;
+        return new PptxTextRun(rPr, text);
+    }
+
+    /// <summary>Parses an optional integer attribute, returning <see langword="null"/> when absent or non-numeric.</summary>
+    private static int? ParseOptionalInt(XElement element, string attributeName)
+    {
+        var value = (string?)element.Attribute(attributeName);
+        return value is not null && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
+    }
+}

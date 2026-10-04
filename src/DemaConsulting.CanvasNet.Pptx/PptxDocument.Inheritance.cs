@@ -66,11 +66,18 @@ public sealed partial class PptxDocument
     /// <param name="masterPlaceholders">That layout's master's placeholder shapes.</param>
     /// <param name="theme">The resolved theme, carried through unchanged as context.</param>
     /// <returns>The resolved <see cref="PptxPlaceholderProperties"/>.</returns>
+    /// <param name="masterTextStyles">
+    ///     The owning slide master's own <c>&lt;p:txStyles&gt;</c> (Phase 1d), carried through
+    ///     unchanged into the returned <see cref="PptxPlaceholderProperties.MasterTextStyles"/> -
+    ///     optional (defaults to <see langword="null"/>) so Phase 1b/1c call sites continue to
+    ///     compile unchanged.
+    /// </param>
     internal static PptxPlaceholderProperties ResolvePlaceholderProperties(
         PptxPlaceholder slidePlaceholder,
         IReadOnlyList<PptxPlaceholder> layoutPlaceholders,
         IReadOnlyList<PptxPlaceholder> masterPlaceholders,
-        PptxTheme theme)
+        PptxTheme theme,
+        PptxMasterTextStyles? masterTextStyles = null)
     {
         // Hop 1: slide -> layout, matched by idx ALONE (type is not consulted here - verified,
         // see this class's remarks). A miss is a genuine miss, not retried by type.
@@ -111,7 +118,7 @@ public sealed partial class PptxDocument
             (matchedLayoutPlaceholder is null ? null : GetTxBodyListStyle(matchedLayoutPlaceholder)) ??
             (matchedMasterPlaceholder is null ? null : GetTxBodyListStyle(matchedMasterPlaceholder));
 
-        return new PptxPlaceholderProperties(effectiveSpPr, effectiveTxBodyListStyle, theme);
+        return new PptxPlaceholderProperties(effectiveSpPr, effectiveTxBodyListStyle, theme, masterTextStyles);
     }
 
     /// <summary>Extracts a placeholder's <c>&lt;p:txBody&gt;/&lt;a:lstStyle&gt;</c> element, if present.</summary>

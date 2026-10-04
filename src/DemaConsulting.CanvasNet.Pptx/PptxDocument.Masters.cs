@@ -1,11 +1,15 @@
+using System.Xml.Linq;
+
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore sldmaster csld pptx
+// cspell:ignore sldmaster csld pptx txstyles titlestyle bodystyle otherstyle
 
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> slide master parser (Phase 1b): parses
 ///     <c>ppt/slideMasters/slideMasterN.xml</c>, resolving its <c>/theme</c> relationship and
-///     enumerating its placeholder shapes. Lazy and cached by resolved part path.
+///     enumerating its placeholder shapes. As of Phase 1d, also parses the master root's own
+///     <c>&lt;p:txStyles&gt;</c> child (a sibling of <c>&lt;p:cSld&gt;</c>, not nested inside it)
+///     into a <see cref="PptxMasterTextStyles"/>. Lazy and cached by resolved part path.
 /// </summary>
 public sealed partial class PptxDocument
 {
@@ -42,9 +46,31 @@ public sealed partial class PptxDocument
 
         var placeholders = PptxPlaceholderParser.ParsePlaceholderShapes(spTree);
         var themePartPath = ResolveRelationshipByType(masterPartPath, "/theme");
+        var txStyles = ParseMasterTextStyles(root.Element(PresentationNamespace + "txStyles"));
 
-        var master = new PptxMaster(masterPartPath, themePartPath, placeholders);
+        var master = new PptxMaster(masterPartPath, themePartPath, placeholders, txStyles);
         _masterCache[masterPartPath] = master;
         return master;
+    }
+
+    /// <summary>
+    ///     Parses a slide master's own <c>&lt;p:txStyles&gt;</c> element (Phase 1d) into a
+    ///     <see cref="PptxMasterTextStyles"/>, each of its three schema-optional named styles
+    ///     (<c>&lt;p:titleStyle&gt;</c>/<c>&lt;p:bodyStyle&gt;</c>/<c>&lt;p:otherStyle&gt;</c>)
+    ///     retained unparsed as its own <c>&lt;a:lstStyle&gt;</c>-shaped element.
+    /// </summary>
+    /// <param name="txStylesElement">The master's <c>&lt;p:txStyles&gt;</c> element, or <see langword="null"/> when absent.</param>
+    /// <returns>The parsed <see cref="PptxMasterTextStyles"/>.</returns>
+    private static PptxMasterTextStyles ParseMasterTextStyles(XElement? txStylesElement)
+    {
+        if (txStylesElement is null)
+        {
+            return new PptxMasterTextStyles(null, null, null);
+        }
+
+        return new PptxMasterTextStyles(
+            txStylesElement.Element(PresentationNamespace + "titleStyle"),
+            txStylesElement.Element(PresentationNamespace + "bodyStyle"),
+            txStylesElement.Element(PresentationNamespace + "otherStyle"));
     }
 }

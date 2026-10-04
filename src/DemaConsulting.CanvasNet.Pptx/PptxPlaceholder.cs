@@ -27,11 +27,32 @@ namespace DemaConsulting.CanvasNet.Pptx;
 /// </param>
 internal sealed record PptxPlaceholder(string Type, uint Idx, XElement ShapeElement);
 
-/// <summary>A parsed slide master: its own part path, its theme's part path, and its placeholder shapes.</summary>
+/// <summary>A parsed slide master: its own part path, its theme's part path, its placeholder shapes, and its text styles.</summary>
 /// <param name="PartPath">The master's own resolved part path.</param>
 /// <param name="ThemePartPath">The master's resolved <c>/theme</c> relationship target part path.</param>
 /// <param name="Placeholders">The master's immediate placeholder shapes, in document order.</param>
-internal sealed record PptxMaster(string PartPath, string ThemePartPath, IReadOnlyList<PptxPlaceholder> Placeholders);
+/// <param name="TxStyles">
+///     The master's own <c>&lt;p:txStyles&gt;</c> element (Phase 1d), parsed into a
+///     <see cref="PptxMasterTextStyles"/> - a direct child of <c>&lt;p:sldMaster&gt;</c>, a
+///     sibling of <c>&lt;p:cSld&gt;</c>, not nested inside it.
+/// </param>
+internal sealed record PptxMaster(
+    string PartPath,
+    string ThemePartPath,
+    IReadOnlyList<PptxPlaceholder> Placeholders,
+    PptxMasterTextStyles TxStyles);
+
+/// <summary>
+///     A slide master's own <c>&lt;p:txStyles&gt;</c> element (Phase 1d), carrying each of its
+///     (schema-optional) title/body/other list styles unparsed - each is an <c>&lt;a:lstStyle&gt;</c>
+///     -shaped element consulted, level-indexed, by the run/paragraph property-inheritance
+///     resolver (<see cref="PptxDocument.ResolveEffectiveRunProperties"/>) after a placeholder's
+///     own <c>EffectiveTxBodyListStyle</c> and before the theme/hard-coded default.
+/// </summary>
+/// <param name="TitleStyle">The master's <c>&lt;p:titleStyle&gt;</c> element, or <see langword="null"/> when absent.</param>
+/// <param name="BodyStyle">The master's <c>&lt;p:bodyStyle&gt;</c> element, or <see langword="null"/> when absent.</param>
+/// <param name="OtherStyle">The master's <c>&lt;p:otherStyle&gt;</c> element, or <see langword="null"/> when absent.</param>
+internal sealed record PptxMasterTextStyles(XElement? TitleStyle, XElement? BodyStyle, XElement? OtherStyle);
 
 /// <summary>A parsed slide layout: its own part path, its master's part path, and its placeholder shapes.</summary>
 /// <param name="PartPath">The layout's own resolved part path.</param>

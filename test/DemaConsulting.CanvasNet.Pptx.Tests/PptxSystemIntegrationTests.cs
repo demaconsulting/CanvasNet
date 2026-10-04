@@ -519,4 +519,289 @@ public class PptxSystemIntegrationTests
         Assert.Equal(1100f, resolved.X, 0.01f);
         Assert.Equal(1100f, resolved.Y, 0.01f);
     }
+
+    // --- Phase 1d: text layout + rendering, exercised end-to-end through the full package-load path ---
+
+    /// <summary>
+    ///     Builds a full, navigable presentation package (presentation -&gt; slide -&gt; layout -&gt;
+    ///     master -&gt; theme) whose master declares <c>&lt;p:txStyles&gt;</c>
+    ///     (<paramref name="masterTxStylesXml"/>), whose layout declares
+    ///     <paramref name="layoutPlaceholderXml"/> placeholder shape(s), and whose one slide's
+    ///     <c>&lt;p:spTree&gt;</c> content is supplied verbatim by <paramref name="spTreeInnerXml"/>
+    ///     - letting each Phase 1d test describe only the text-bearing shape(s) and master text
+    ///     styles relevant to its scenario, exactly as <see cref="BuildGeometryPaintPackage"/> does
+    ///     for Phase 1c.
+    /// </summary>
+    private static Stream BuildTextPackage(string spTreeInnerXml, string masterTxStylesXml, string layoutPlaceholderXml)
+    {
+        const string contentTypesXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
+              <Default Extension="xml" ContentType="application/xml" />
+            </Types>
+            """;
+
+        const string packageRelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml" />
+            </Relationships>
+            """;
+
+        const string presentationXml =
+            """
+            <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+              <p:sldSz cx="9144000" cy="6858000"/>
+              <p:sldIdLst><p:sldId id="256" r:id="rId2"/></p:sldIdLst>
+            </p:presentation>
+            """;
+
+        const string presentationRelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml" />
+            </Relationships>
+            """;
+
+        var slideXml =
+            $"""
+            <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:cSld>
+                <p:spTree>
+                  {spTreeInnerXml}
+                </p:spTree>
+              </p:cSld>
+            </p:sld>
+            """;
+
+        const string slideRelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml" />
+            </Relationships>
+            """;
+
+        var layoutXml =
+            $"""
+            <p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:cSld><p:spTree>{layoutPlaceholderXml}</p:spTree></p:cSld>
+            </p:sldLayout>
+            """;
+
+        const string layoutRelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml" />
+            </Relationships>
+            """;
+
+        var masterXml =
+            $"""
+            <p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:cSld><p:spTree/></p:cSld>
+              <p:txStyles>{masterTxStylesXml}</p:txStyles>
+            </p:sldMaster>
+            """;
+
+        const string masterRelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml" />
+            </Relationships>
+            """;
+
+        const string themeXml =
+            """
+            <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="TestTheme">
+              <a:themeElements>
+                <a:clrScheme name="Test">
+                  <a:dk1><a:srgbClr val="101010"/></a:dk1>
+                  <a:lt1><a:srgbClr val="F0F0F0"/></a:lt1>
+                  <a:dk2><a:srgbClr val="202020"/></a:dk2>
+                  <a:lt2><a:srgbClr val="E0E0E0"/></a:lt2>
+                  <a:accent1><a:srgbClr val="4472C4"/></a:accent1>
+                  <a:accent2><a:srgbClr val="ED7D31"/></a:accent2>
+                  <a:accent3><a:srgbClr val="A5A5A5"/></a:accent3>
+                  <a:accent4><a:srgbClr val="FFC000"/></a:accent4>
+                  <a:accent5><a:srgbClr val="5B9BD5"/></a:accent5>
+                  <a:accent6><a:srgbClr val="70AD47"/></a:accent6>
+                  <a:hlink><a:srgbClr val="0563C1"/></a:hlink>
+                  <a:folHlink><a:srgbClr val="954F72"/></a:folHlink>
+                </a:clrScheme>
+                <a:fontScheme name="TestFonts">
+                  <a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>
+                  <a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>
+                </a:fontScheme>
+              </a:themeElements>
+            </a:theme>
+            """;
+
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            WriteEntry(archive, "[Content_Types].xml", contentTypesXml);
+            WriteEntry(archive, "_rels/.rels", packageRelsXml);
+            WriteEntry(archive, "ppt/presentation.xml", presentationXml);
+            WriteEntry(archive, "ppt/_rels/presentation.xml.rels", presentationRelsXml);
+            WriteEntry(archive, "ppt/slides/slide1.xml", slideXml);
+            WriteEntry(archive, "ppt/slides/_rels/slide1.xml.rels", slideRelsXml);
+            WriteEntry(archive, "ppt/slideLayouts/slideLayout1.xml", layoutXml);
+            WriteEntry(archive, "ppt/slideLayouts/_rels/slideLayout1.xml.rels", layoutRelsXml);
+            WriteEntry(archive, "ppt/slideMasters/slideMaster1.xml", masterXml);
+            WriteEntry(archive, "ppt/slideMasters/_rels/slideMaster1.xml.rels", masterRelsXml);
+            WriteEntry(archive, "ppt/theme/theme1.xml", themeXml);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    /// <summary>
+    ///     Opens a full presentation package end-to-end whose one slide contains a <c>title</c>
+    ///     placeholder shape (<c>idx="1"</c>) with a <c>&lt;p:txBody&gt;</c> run declaring no font
+    ///     size of its own, matched through the real slide -&gt; layout -&gt; master placeholder
+    ///     chain to a layout placeholder of the same <c>idx</c> (itself declaring no <c>sz</c>
+    ///     either) - proving the run's effective font size falls all the way through to the
+    ///     master's own <c>&lt;p:titleStyle&gt;</c> (Phase 1d's master <c>&lt;p:txStyles&gt;</c>
+    ///     bucket selected by the matched layout placeholder's <c>type="title"</c>), then that the
+    ///     resulting text body lays out and paints without error.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd()
+    {
+        // Arrange
+        const string spTreeInnerXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Title"/>
+                <p:cNvSpPr/>
+                <p:nvPr><p:ph type="title" idx="1"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr/>
+              <p:txBody>
+                <a:bodyPr/>
+                <a:p><a:r><a:t>Hello</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>
+            """;
+        const string layoutPlaceholderXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Title Placeholder"/>
+                <p:cNvSpPr/>
+                <p:nvPr><p:ph type="title" idx="1"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr/>
+            </p:sp>
+            """;
+        const string masterTxStylesXml =
+            """
+            <p:titleStyle><a:lvl1pPr><a:defRPr sz="4400"/></a:lvl1pPr></p:titleStyle>
+            <p:bodyStyle><a:lvl1pPr><a:defRPr sz="1800"/></a:lvl1pPr></p:bodyStyle>
+            """;
+        using var stream = BuildTextPackage(spTreeInnerXml, masterTxStylesXml, layoutPlaceholderXml);
+        using var document = PptxDocument.Open(stream);
+
+        // Act
+        var slide = document.GetSlide(0);
+        var layout = document.GetLayout(slide.LayoutPartPath);
+        var master = document.GetMaster(layout.MasterPartPath);
+        var theme = document.GetTheme(master.ThemePartPath);
+
+        var slidePlaceholder = slide.Placeholders[0];
+        var placeholderProperties = PptxDocument.ResolvePlaceholderProperties(
+            slidePlaceholder, layout.Placeholders, master.Placeholders, theme, master.TxStyles);
+
+        var txBodyElement = slidePlaceholder.ShapeElement.Element(P + "txBody")!;
+        var textBody = PptxDocument.ParseTextBody(txBodyElement);
+        var paragraph = textBody.Paragraphs[0];
+        var run = paragraph.Runs[0];
+
+        var runProperties = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, slidePlaceholder.Type);
+
+        // Assert: the master's own titleStyle sz="4400" (hundredths of a point) -> EMU.
+        Assert.Equal(4400f * 127f, runProperties.SizeEmu);
+
+        // Act: lay out and paint the resolved text body end-to-end, using a deterministic,
+        // installed-font-discovery-bypassing resolver (see PptxTextLayoutTests/PptxTextRenderTests
+        // for why FindBestMatch is not reliable for cross-machine test determinism).
+        var textLayout = PptxDocument.ResolveTextLayout(
+            textBody, placeholderProperties, theme, slidePlaceholder.Type, 2000000f, 500000f,
+            (_, bold, italic) => DemaConsulting.CanvasNet.Fonts.SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic));
+
+        using var surface = new Surface(200, 200);
+        var shapeTransform = System.Numerics.Matrix3x2.CreateScale(200f / 2000000f, 200f / 500000f);
+        PptxDocument.PaintTextLayout(surface, textLayout, shapeTransform);
+
+        Assert.NotEmpty(textLayout.Glyphs);
+    }
+
+    /// <summary>
+    ///     Opens a full presentation package end-to-end whose one slide contains an ordinary,
+    ///     non-placeholder text box (a <c>&lt;p:sp&gt;</c> with no <c>&lt;p:ph&gt;</c> descendant)
+    ///     - proving the <c>placeholderType: ""</c> sentinel convention (see
+    ///     <c>PptxDocument.TextInheritance.cs</c>'s <c>SelectMasterTextStyle</c>) correctly selects
+    ///     the master's <c>&lt;p:otherStyle&gt;</c> bucket, not <c>&lt;p:bodyStyle&gt;</c>, when
+    ///     driven through a real, non-placeholder shape resolved from the full package-load path
+    ///     (not a hand-built <see cref="PptxTextTests"/> fixture).
+    /// </summary>
+    [Fact]
+    public void CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd()
+    {
+        // Arrange
+        const string spTreeInnerXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="TextBox 1"/>
+                <p:cNvSpPr txBox="1"/>
+                <p:nvPr/>
+              </p:nvSpPr>
+              <p:spPr/>
+              <p:txBody>
+                <a:bodyPr/>
+                <a:p><a:r><a:t>Plain text</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>
+            """;
+        const string masterTxStylesXml =
+            """
+            <p:bodyStyle><a:lvl1pPr><a:defRPr sz="1800"/></a:lvl1pPr></p:bodyStyle>
+            <p:otherStyle><a:lvl1pPr><a:defRPr sz="1200"/></a:lvl1pPr></p:otherStyle>
+            """;
+        using var stream = BuildTextPackage(spTreeInnerXml, masterTxStylesXml, layoutPlaceholderXml: string.Empty);
+        using var document = PptxDocument.Open(stream);
+
+        // Act
+        var slide = document.GetSlide(0);
+        var layout = document.GetLayout(slide.LayoutPartPath);
+        var master = document.GetMaster(layout.MasterPartPath);
+        var theme = document.GetTheme(master.ThemePartPath);
+
+        var spTree = document.LoadPartXmlRoot(slide.PartPath).Element(P + "cSld")!.Element(P + "spTree")!;
+        var shapeElement = spTree.Element(P + "sp")!;
+        var txBodyElement = shapeElement.Element(P + "txBody")!;
+        var textBody = PptxDocument.ParseTextBody(txBodyElement);
+        var paragraph = textBody.Paragraphs[0];
+        var run = paragraph.Runs[0];
+
+        // A non-placeholder shape has no PptxPlaceholder/slide-layout-master match to walk, so
+        // its PptxPlaceholderProperties carries only the theme/master text styles through,
+        // exactly as a real renderer would construct for such a shape.
+        var placeholderProperties = new PptxPlaceholderProperties(null, null, theme, master.TxStyles);
+
+        var runProperties = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, string.Empty);
+
+        // Assert: the master's own otherStyle sz="1200" wins, not bodyStyle's sz="1800".
+        Assert.Equal(1200f * 127f, runProperties.SizeEmu);
+    }
 }

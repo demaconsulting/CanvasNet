@@ -67,4 +67,14 @@
     <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.Pptx\DemaConsulting.CanvasNet.Pptx.csproj" />
   </ItemGroup>
 
+  <!-- Shared test-support helpers reused from the core test project (single source of truth;
+       linked, not duplicated - see DemaConsulting.CanvasNet.Tests\TestSupport\*.cs). The whole
+       folder is linked (not just SyntheticFontBuilder.cs) so its own XML doc comments'
+       cross-references to sibling TestSupport types still resolve. Used by the Phase 1d text
+       layout/render tests (PptxTextLayoutTests.cs, PptxTextRenderTests.cs) for deterministic,
+       synthetic TrueType fonts. -->
+  <ItemGroup>
+    <Compile Include="..\DemaConsulting.CanvasNet.Tests\TestSupport\**\*.cs" Link="TestSupport\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

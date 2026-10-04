@@ -21,7 +21,16 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     The resolved theme carried through as context (not itself selected via the fallback chain -
 ///     see <see cref="PptxDocument.ResolvePlaceholderProperties"/>'s remarks).
 /// </param>
+/// <param name="MasterTextStyles">
+///     The owning slide master's own <c>&lt;p:txStyles&gt;</c> (Phase 1d), carried through
+///     alongside <see cref="Theme"/> as further context for the run/paragraph property-inheritance
+///     resolver (<see cref="PptxDocument.ResolveEffectiveRunProperties"/>) - like <see cref="Theme"/>,
+///     it is not itself part of the slide-&gt;layout-&gt;master placeholder matching chain.
+///     Defaults to <see langword="null"/> (treated identically to all-<see langword="null"/>
+///     buckets) so Phase 1b/1c call sites that predate Phase 1d continue to compile unchanged.
+/// </param>
 internal sealed record PptxPlaceholderProperties(
     XElement? EffectiveSpPr,
     XElement? EffectiveTxBodyListStyle,
-    PptxTheme Theme);
+    PptxTheme Theme,
+    PptxMasterTextStyles? MasterTextStyles = null);

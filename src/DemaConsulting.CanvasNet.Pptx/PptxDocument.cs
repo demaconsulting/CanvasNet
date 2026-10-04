@@ -31,7 +31,7 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         <c>ppt/presentation.xml</c> part declaring a slide size and at least one slide).
 ///     </para>
 ///     <para>
-///         <strong>Phase 1c (this release)</strong> adds DrawingML shape geometry and paint
+///         <strong>Phase 1c</strong> adds DrawingML shape geometry and paint
 ///         resolution (<c>PptxDocument.Geometry.cs</c>/<c>PptxDocument.Paint.cs</c>):
 ///         <c>&lt;a:xfrm&gt;</c> position/rotation/flip transform resolution, <c>&lt;p:grpSp&gt;</c>
 ///         child-coordinate-space transform composition, preset (<c>&lt;a:prstGeom&gt;</c>) and
@@ -42,6 +42,21 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         Freeform (non-placeholder) shape *enumeration* from a slide's full <c>&lt;p:spTree&gt;</c>,
 ///         font loading, and a rendering surface still do not exist yet - all deferred to a later
 ///         phase.
+///     </para>
+///     <para>
+///         <strong>Phase 1d (this release)</strong> adds DrawingML text layout and rendering
+///         (<c>PptxDocument.Text.cs</c>/<c>PptxDocument.TextInheritance.cs</c>/
+///         <c>PptxDocument.TextLayout.cs</c>/<c>PptxDocument.TextRender.cs</c>):
+///         <c>&lt;p:txBody&gt;</c>/<c>&lt;a:bodyPr&gt;</c>/<c>&lt;a:p&gt;</c>/<c>&lt;a:pPr&gt;</c>/
+///         <c>&lt;a:r&gt;</c>/<c>&lt;a:rPr&gt;</c>/<c>&lt;a:t&gt;</c> structural parsing; an
+///         attribute-level run/paragraph property-inheritance resolver walking the
+///         placeholder/layout/master <c>&lt;p:txStyles&gt;</c>/theme chain; word-wrap,
+///         horizontal alignment, vertical anchor, and a three-tier autofit policy; and a
+///         glyph-ink painting primitive reusing the core <see cref="Fonts.TrueTypeFont"/>/
+///         <see cref="Fonts.SystemFontCatalog"/> infrastructure - see <c>pptx-document.md</c>'s
+///         "Text Layout and Rendering (Phase 1d)" design section. Bullets/numbering, full text
+///         justification, <c>spAutoFit</c> shape-resize behavior, kerning, text clipping on
+///         overflow, and a full per-slide public <c>Render</c> API are explicitly deferred.
 ///     </para>
 /// </remarks>
 public sealed partial class PptxDocument : IDisposable
