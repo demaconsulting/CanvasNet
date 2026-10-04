@@ -96,7 +96,7 @@ public sealed partial class PptxDocument
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="gradFillElement"/> has no <c>&lt;a:gsLst&gt;</c>, or
     ///     <c>&lt;a:gsLst&gt;</c> has no <c>&lt;a:gs&gt;</c> children, or a <c>&lt;a:gs&gt;</c> has
-    ///     no <c>pos</c> attribute or no color-definition child.
+    ///     a missing or non-numeric <c>pos</c> attribute or no color-definition child.
     /// </exception>
     /// <exception cref="PptxUnsupportedFeatureException">
     ///     Thrown when <paramref name="gradFillElement"/> declares a path gradient
@@ -118,8 +118,13 @@ public sealed partial class PptxDocument
         var stops = new List<GradientStop>(gsElements.Count);
         foreach (var gs in gsElements)
         {
-            var pos = (float?)gs.Attribute("pos") ??
+            var posValue = (string?)gs.Attribute("pos") ??
                 throw new InvalidDataException("An <a:gs> element has no 'pos' attribute.");
+            if (!float.TryParse(posValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var pos))
+            {
+                throw new InvalidDataException($"An <a:gs> element has a non-numeric 'pos' attribute value '{posValue}'.");
+            }
+
             var colorElement = gs.Elements().FirstOrDefault() ??
                 throw new InvalidDataException("An <a:gs> element has no color-definition child.");
             var offset = Math.Clamp(pos / 100000f, 0f, 1f);

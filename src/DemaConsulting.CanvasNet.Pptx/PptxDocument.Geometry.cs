@@ -231,30 +231,45 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>Parses an <c>&lt;a:off x= y=/&gt;</c> element, required to be present.</summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <c>&lt;a:off&gt;</c> is missing, or its <c>x</c>/<c>y</c> attribute is
+    ///     missing or non-numeric.
+    /// </exception>
     private static (float X, float Y) ParseOff(XElement xfrmElement)
     {
         var off = xfrmElement.Element(DrawingNamespace + "off") ??
             throw new InvalidDataException("An <a:xfrm> element has no <a:off> element.");
         return (
-            (float?)off.Attribute("x") ?? throw new InvalidDataException("An <a:off> element has no 'x' attribute."),
-            (float?)off.Attribute("y") ?? throw new InvalidDataException("An <a:off> element has no 'y' attribute."));
+            ParseRequiredFloatAttribute(off, "x"),
+            ParseRequiredFloatAttribute(off, "y"));
     }
 
     /// <summary>Parses an <c>&lt;a:ext cx= cy=/&gt;</c> element, required to be present.</summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <c>&lt;a:ext&gt;</c> is missing, or its <c>cx</c>/<c>cy</c> attribute is
+    ///     missing or non-numeric.
+    /// </exception>
     private static (float Cx, float Cy) ParseExt(XElement xfrmElement)
     {
         var ext = xfrmElement.Element(DrawingNamespace + "ext") ??
             throw new InvalidDataException("An <a:xfrm> element has no <a:ext> element.");
         return (
-            (float?)ext.Attribute("cx") ?? throw new InvalidDataException("An <a:ext> element has no 'cx' attribute."),
-            (float?)ext.Attribute("cy") ?? throw new InvalidDataException("An <a:ext> element has no 'cy' attribute."));
+            ParseRequiredFloatAttribute(ext, "cx"),
+            ParseRequiredFloatAttribute(ext, "cy"));
     }
 
     /// <summary>
     ///     Parses an optional two-attribute child element (<c>&lt;a:chOff x= y=/&gt;</c> or
     ///     <c>&lt;a:chExt cx= cy=/&gt;</c>), falling back to the given defaults when the element
-    ///     itself is absent (both elements are schema-optional on a group's <c>&lt;a:xfrm&gt;</c>).
+    ///     itself is absent (both elements are schema-optional on a group's <c>&lt;a:xfrm&gt;</c>)
+    ///     - but requiring both attributes, failing closed, whenever the element IS present, since
+    ///     a present-but-incomplete <c>&lt;a:chOff&gt;</c>/<c>&lt;a:chExt&gt;</c> is malformed
+    ///     input, not an "absent element" the schema-default fallback is meant to cover.
     /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the element is present but its first/second required attribute is missing
+    ///     or non-numeric.
+    /// </exception>
     private static (float First, float Second) ParseOptionalPoint(XElement xfrmElement, string elementName, float defaultFirst, float defaultSecond)
     {
         var element = xfrmElement.Element(DrawingNamespace + elementName);
@@ -266,8 +281,34 @@ public sealed partial class PptxDocument
         var firstAttrName = elementName == "chOff" ? "x" : "cx";
         var secondAttrName = elementName == "chOff" ? "y" : "cy";
         return (
-            (float?)element.Attribute(firstAttrName) ?? defaultFirst,
-            (float?)element.Attribute(secondAttrName) ?? defaultSecond);
+            ParseRequiredFloatAttribute(element, firstAttrName),
+            ParseRequiredFloatAttribute(element, secondAttrName));
+    }
+
+    /// <summary>
+    ///     Parses <paramref name="element"/>'s <paramref name="attributeName"/> attribute as an
+    ///     invariant-culture floating-point value, used by every <c>&lt;a:xfrm&gt;</c>-family
+    ///     attribute parse in this file so a non-numeric attribute value (for example
+    ///     <c>x="abc"</c>) fails with the documented <see cref="InvalidDataException"/> contract
+    ///     rather than letting an explicit <c>(float?)</c> cast's raw <see cref="FormatException"/>
+    ///     propagate uncaught - mirroring <c>PptxDocument.Paint.cs</c>'s own
+    ///     <c>ReadPercentageChild</c> precedent for the same class of malformed-attribute input.
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the attribute is missing or not a valid floating-point number.
+    /// </exception>
+    private static float ParseRequiredFloatAttribute(XElement element, string attributeName)
+    {
+        var value = (string?)element.Attribute(attributeName) ??
+            throw new InvalidDataException($"An <{element.Name.LocalName}> element has no '{attributeName}' attribute.");
+
+        if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+        {
+            throw new InvalidDataException(
+                $"An <{element.Name.LocalName}> element has a non-numeric '{attributeName}' attribute value '{value}'.");
+        }
+
+        return parsed;
     }
 
     /// <summary>

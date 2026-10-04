@@ -84,7 +84,11 @@ public sealed partial class PptxDocument
     /// <exception cref="InvalidDataException">
     ///     Thrown when the named slot element is missing, has no color-definition child, has an
     ///     unrecognized color-definition element, or that element's hex color value is missing or
-    ///     not a valid <c>#RRGGBB</c> string.
+    ///     not a valid six-digit <c>RRGGBB</c> string (OOXML's <c>srgbClr/@val</c> and
+    ///     <c>sysClr/@lastClr</c> are always exactly six hex digits - an eight-digit
+    ///     <c>AARRGGBB</c> value, which <see cref="Rgba32.Parse(string)"/> would otherwise also
+    ///     accept, misinterpreting its first byte as alpha, must be rejected rather than silently
+    ///     misread).
     /// </exception>
     private static Rgba32 ParseSchemeColor(XElement clrSchemeElement, string slotName, string themePartPath)
     {
@@ -112,6 +116,12 @@ public sealed partial class PptxDocument
         {
             throw new InvalidDataException(
                 $"Theme part '{themePartPath}' color scheme slot '{slotName}' has an unrecognized color definition element '{colorElement.Name.LocalName}'.");
+        }
+
+        if (hex.Length != 6)
+        {
+            throw new InvalidDataException(
+                $"Theme part '{themePartPath}' color scheme slot '{slotName}' has a color value '{hex}' that is not exactly six hexadecimal digits (OOXML's RRGGBB form).");
         }
 
         try
