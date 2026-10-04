@@ -1,7 +1,9 @@
 python-pptx
 -----------
 
-The nine `pythonpptx-*.pptx` files in this folder are real test fixture files taken, unmodified,
+<!-- cspell:ignore pythonpptx -->
+
+The fifteen `pythonpptx-*.pptx` files in this folder are real test fixture files taken, unmodified,
 from the `python-pptx` project's own test suite (see `README.md` in this same folder for the exact
 source URL of each individual file). `python-pptx` is distributed under the MIT License, reproduced
 below.
