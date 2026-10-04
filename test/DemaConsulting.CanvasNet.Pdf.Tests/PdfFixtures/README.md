@@ -143,9 +143,14 @@ Glyph List's generic `uniXXXX` hex-codepoint naming convention. Code 27 `/thinsp
 now a direct `StandardGlyphNames` entry, not a missing-vocabulary case. Its content stream
 genuinely exercises both codes against real body text (`"...50μL..."`, `"...+1 % compared..."`).
 
-> **Note**: this fixture's content stream also genuinely exercises a `/f_f` ligature-glyph name
+> **Note**: this fixture's content stream also genuinely contains a `/f_f` ligature-glyph name
 > (an underscore-joined AGL ligature decomposition, naming the "ff" ligature glyph) against real
-> body text - previously left unresolved by design, this now resolves via
-> `TryResolveLigatureUnderscoreName`'s underscore-decomposition fallback (see
-> `PdfDocumentTests`'s own dedicated synthetic regression tests for the isolated mechanism, and
-> this fixture for proof it resolves against a genuinely real-world embedded font too).
+> body text - previously left unresolved by design, this name now resolves via
+> `TryResolveLigatureUnderscoreName`'s underscore-decomposition fallback. However, this fixture's
+> own test only asserts that some pixel paints somewhere on the page - a page that already
+> painted ink before this fix, from the unrelated text surrounding the ligature - so it cannot by
+> itself distinguish a resolved `/f_f` glyph from an unresolved tofu glyph. The isolated proof
+> that the mechanism itself works is `PdfDocumentTests`'s own dedicated synthetic regression
+> tests, which pixel-assert the specific glyph position against a synthetic embedded font built
+> for exactly that purpose; this fixture merely shows the real-world name occurs and the document
+> still opens and renders without error.

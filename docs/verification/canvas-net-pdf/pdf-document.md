@@ -1236,13 +1236,15 @@ trimmed, genuinely real-world `text-type1c-differences-agl-ligatures.pdf` fixtur
 `PdfFixtures\README.md`) - two actual embedded, subsetted Type1C fonts (`Gotham-Bold`/
 `Gotham-Book`) whose own `/Differences` arrays name glyphs (`/uni03BC`, `/thinspace`) this exact
 regression previously left unresolved - and asserts visible glyph ink paints; this fixture's
-content stream also genuinely exercises an `/f_f` ligature-glyph name (an AGL underscore-ligature
-decomposition naming the "ff" ligature glyph) against real body text, which now likewise resolves
-via `TryResolveLigatureUnderscoreName` (see
-`PdfDocument_Fonts_Differences_LigatureUnderscoreName_ResolvesViaEnrichedEmbeddedFontGlyphMap`
-above for the precise synthetic regression test isolating that mechanism) - so this broad fixture
-test deliberately only asserts "some ink paints somewhere" rather than per-glyph pixel positions,
-since the precise synthetic tests already isolate each fixed mechanism exactly.
+content stream also genuinely contains an `/f_f` ligature-glyph name (an AGL underscore-ligature
+decomposition naming the "ff" ligature glyph) against real body text, which this fix also allows
+to resolve via `TryResolveLigatureUnderscoreName` - but this broad fixture test only asserts "some
+ink paints somewhere" on the whole page (a page that already painted ink before this fix, from the
+unrelated text surrounding the ligature), so it cannot by itself distinguish a resolved `/f_f`
+glyph from an unresolved tofu glyph; the dedicated, isolated proof that the mechanism itself works
+is `PdfDocument_Fonts_Differences_LigatureUnderscoreName_ResolvesViaEnrichedEmbeddedFontGlyphMap`
+above, which pixel-asserts the specific glyph position against a synthetic embedded font built
+for exactly that purpose.
 
 #### CanvasNetPdf-PdfDocument-Type3FontResolution: Type3 Fonts Resolve Required Fields, Fail Closed on Malformed Ones
 

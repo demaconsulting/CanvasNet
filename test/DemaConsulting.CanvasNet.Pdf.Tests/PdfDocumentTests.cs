@@ -7702,7 +7702,12 @@ public class PdfDocumentTests
     ///     own end-to-end pattern). This is the reported real-world regression: a PDF's
     ///     <c>/Differences</c> array naming ligature glyphs this way previously rendered as
     ///     missing/tofu glyphs because neither <c>StandardGlyphNames</c> nor the AGL hex
-    ///     convention recognized the underscore-joined name at all.
+    ///     convention recognized the underscore-joined name at all. The final case,
+    ///     <c>uni0066_uni0069</c>, instead spells both components using the AGL's own generic
+    ///     <c>uniXXXX</c> hex-codepoint convention (rather than a literal single-letter name),
+    ///     proving <c>TryResolveLigatureUnderscoreName</c>'s per-component recursion into
+    ///     <c>TryResolveGlyphNameToCodepoint</c> - not just a direct <c>StandardGlyphNames</c>
+    ///     lookup - correctly resolves each component before concatenation.
     /// </summary>
     [Theory]
     [InlineData("f_i")] // "f" + "i" -> "fi" -> U+FB01 LATIN SMALL LIGATURE FI.
@@ -7710,6 +7715,7 @@ public class PdfDocumentTests
     [InlineData("f_f")] // "f" + "f" -> "ff" -> U+FB00 LATIN SMALL LIGATURE FF.
     [InlineData("f_f_i")] // "f" + "f" + "i" -> "ffi" -> U+FB03 LATIN SMALL LIGATURE FFI.
     [InlineData("f_f_l")] // "f" + "f" + "l" -> "ffl" -> U+FB04 LATIN SMALL LIGATURE FFL.
+    [InlineData("uni0066_uni0069")] // AGL-hex components "uni0066" + "uni0069" -> "f" + "i" -> "fi" -> U+FB01.
     public void PdfDocument_Fonts_Differences_LigatureUnderscoreName_ResolvesViaEnrichedEmbeddedFontGlyphMap(
         string glyphName)
     {
