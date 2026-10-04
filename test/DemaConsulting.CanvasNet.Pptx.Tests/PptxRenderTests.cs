@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Linq;
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
@@ -50,6 +51,26 @@ public class PptxRenderTests
     ///     or empty (the default) to omit <c>&lt;a:fmtScheme&gt;</c> from the theme entirely - only
     ///     needed by a <c>&lt;p:bgRef&gt;</c>-based test.
     /// </param>
+    /// <param name="masterShapeTreeXml">
+    ///     The slide master's own <c>&lt;p:spTree&gt;</c> inner content, or empty (the default) for
+    ///     an empty master shape tree - used (Phase 2 Follow-Up) by master decorative-shape tests.
+    /// </param>
+    /// <param name="masterMedia">
+    ///     An optional embedded media part (extension, content type, bytes) owned by the slide
+    ///     <em>master</em> (its own <c>ppt/slideMasters/_rels/slideMaster1.xml.rels</c>, referenced
+    ///     via <c>r:embed="rId2"</c>) - present only when <paramref name="masterShapeTreeXml"/>
+    ///     declares a <c>&lt;p:pic&gt;</c> referencing <c>r:embed="rId2"</c>, proving a
+    ///     master-owned picture's relationship resolves against the master's own <c>.rels</c> file
+    ///     rather than the slide's (see the companion planning report's <c>ownerPartPath</c>
+    ///     bug-fix rationale).
+    /// </param>
+    /// <param name="layoutMedia">
+    ///     An optional embedded media part (extension, content type, bytes) owned by the slide
+    ///     <em>layout</em> (its own <c>ppt/slideLayouts/_rels/slideLayout1.xml.rels</c>, referenced
+    ///     via <c>r:embed="rId2"</c>) - present only when <paramref name="layoutPlaceholderXml"/>
+    ///     declares a <c>&lt;p:pic&gt;</c> referencing <c>r:embed="rId2"</c>. See
+    ///     <paramref name="masterMedia"/>'s own remarks.
+    /// </param>
     private static Stream BuildRenderPackage(
         string spTreeInnerXml,
         string masterTxStylesXml = "",
@@ -58,15 +79,28 @@ public class PptxRenderTests
         string slideBackgroundXml = "",
         string layoutBackgroundXml = "",
         string masterBackgroundXml = "",
-        string themeBgFillStyleListXml = "")
+        string themeBgFillStyleListXml = "",
+        string masterShapeTreeXml = "",
+        (string Extension, string ContentType, byte[] Bytes)? masterMedia = null,
+        (string Extension, string ContentType, byte[] Bytes)? layoutMedia = null)
     {
+        // Distinct <Default Extension=".../> content-type entries, one per distinct extension
+        // across all three possible media owners (slide/layout/master), avoiding a duplicate
+        // Default entry when two owners happen to share the same extension/content-type.
+        var allMedia = new[] { media, layoutMedia, masterMedia };
+        var distinctMediaDefaults = allMedia
+            .Where(m => m is not null)
+            .Select(m => m!.Value)
+            .GroupBy(m => m.Extension)
+            .Select(g => g.First());
+
         var contentTypesXml =
             $"""
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
             <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
               <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
               <Default Extension="xml" ContentType="application/xml" />
-              {(media is { } m ? $"""<Default Extension="{m.Extension}" ContentType="{m.ContentType}" />""" : string.Empty)}
+              {string.Join("\n  ", distinctMediaDefaults.Select(m => $"""<Default Extension="{m.Extension}" ContentType="{m.ContentType}" />"""))}
             </Types>
             """;
 
@@ -117,7 +151,7 @@ public class PptxRenderTests
 
         var layoutXml =
             $"""
-            <p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+            <p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
               <p:cSld>
                 {(layoutBackgroundXml.Length > 0 ? $"""<p:bg>{layoutBackgroundXml}</p:bg>""" : string.Empty)}
                 <p:spTree>{layoutPlaceholderXml}</p:spTree>
@@ -125,30 +159,32 @@ public class PptxRenderTests
             </p:sldLayout>
             """;
 
-        const string layoutRelsXml =
-            """
+        var layoutRelsXml =
+            $"""
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
               <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml" />
+              {(layoutMedia is { } lm ? $"""<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/layoutImage1.{lm.Extension}" />""" : string.Empty)}
             </Relationships>
             """;
 
         var masterXml =
             $"""
-            <p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+            <p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
               <p:cSld>
                 {(masterBackgroundXml.Length > 0 ? $"""<p:bg>{masterBackgroundXml}</p:bg>""" : string.Empty)}
-                <p:spTree/>
+                <p:spTree>{masterShapeTreeXml}</p:spTree>
               </p:cSld>
               <p:txStyles>{masterTxStylesXml}</p:txStyles>
             </p:sldMaster>
             """;
 
-        const string masterRelsXml =
-            """
+        var masterRelsXml =
+            $"""
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
               <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml" />
+              {(masterMedia is { } mm ? $"""<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/masterImage1.{mm.Extension}" />""" : string.Empty)}
             </Relationships>
             """;
 
@@ -197,6 +233,16 @@ public class PptxRenderTests
             if (media is { } writtenMedia)
             {
                 WriteBinaryEntry(archive, $"ppt/media/image1.{writtenMedia.Extension}", writtenMedia.Bytes);
+            }
+
+            if (layoutMedia is { } writtenLayoutMedia)
+            {
+                WriteBinaryEntry(archive, $"ppt/media/layoutImage1.{writtenLayoutMedia.Extension}", writtenLayoutMedia.Bytes);
+            }
+
+            if (masterMedia is { } writtenMasterMedia)
+            {
+                WriteBinaryEntry(archive, $"ppt/media/masterImage1.{writtenMasterMedia.Extension}", writtenMasterMedia.Bytes);
             }
         }
 
@@ -1494,5 +1540,374 @@ public class PptxRenderTests
         }
 
         Assert.True(paintedAnyInk, "Expected the title placeholder's text to paint glyph ink.");
+    }
+
+    // --- Master/layout non-placeholder decorative shape rendering (Phase 2 Follow-Up) ---------
+
+    /// <summary>
+    ///     Builds a two-slide, two-layout, one-master package (presentation -&gt; 2x slide -&gt;
+    ///     2x layout -&gt; 1x master -&gt; theme): slide index 0 uses layout 1 (whose own
+    ///     <c>&lt;p:spTree&gt;</c> inner content is <paramref name="layout1ShapeTreeXml"/>), slide
+    ///     index 1 uses layout 2 (<paramref name="layout2ShapeTreeXml"/>) - both layouts share the
+    ///     same, otherwise-empty master. Used by
+    ///     <see cref="Render_LayoutNonPlaceholderAutoshape_PaintsOnlyOnSlidesUsingThatLayout"/> to
+    ///     prove a layout's own decorative shapes paint only on slides using that specific layout,
+    ///     not on sibling slides using a different layout that shares the same master.
+    /// </summary>
+    private static Stream BuildTwoLayoutTwoSlideRenderPackage(string layout1ShapeTreeXml, string layout2ShapeTreeXml)
+    {
+        const string contentTypesXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
+              <Default Extension="xml" ContentType="application/xml" />
+            </Types>
+            """;
+
+        const string packageRelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml" />
+            </Relationships>
+            """;
+
+        const string presentationXml =
+            """
+            <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+              <p:sldSz cx="9144000" cy="6858000"/>
+              <p:sldIdLst><p:sldId id="256" r:id="rId2"/><p:sldId id="257" r:id="rId3"/></p:sldIdLst>
+            </p:presentation>
+            """;
+
+        const string presentationRelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml" />
+              <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide2.xml" />
+            </Relationships>
+            """;
+
+        const string emptySpTreeSlideXml =
+            """
+            <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:cSld>
+                <p:spTree/>
+              </p:cSld>
+            </p:sld>
+            """;
+
+        const string slide1RelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml" />
+            </Relationships>
+            """;
+
+        const string slide2RelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout2.xml" />
+            </Relationships>
+            """;
+
+        var layout1Xml =
+            $"""
+            <p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:cSld>
+                <p:spTree>{layout1ShapeTreeXml}</p:spTree>
+              </p:cSld>
+            </p:sldLayout>
+            """;
+
+        var layout2Xml =
+            $"""
+            <p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:cSld>
+                <p:spTree>{layout2ShapeTreeXml}</p:spTree>
+              </p:cSld>
+            </p:sldLayout>
+            """;
+
+        const string layoutRelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml" />
+            </Relationships>
+            """;
+
+        const string masterXml =
+            """
+            <p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:cSld>
+                <p:spTree/>
+              </p:cSld>
+              <p:txStyles/>
+            </p:sldMaster>
+            """;
+
+        const string masterRelsXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml" />
+            </Relationships>
+            """;
+
+        const string themeXml =
+            """
+            <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="TestTheme">
+              <a:themeElements>
+                <a:clrScheme name="Test">
+                  <a:dk1><a:srgbClr val="101010"/></a:dk1>
+                  <a:lt1><a:srgbClr val="F0F0F0"/></a:lt1>
+                  <a:dk2><a:srgbClr val="202020"/></a:dk2>
+                  <a:lt2><a:srgbClr val="E0E0E0"/></a:lt2>
+                  <a:accent1><a:srgbClr val="4472C4"/></a:accent1>
+                  <a:accent2><a:srgbClr val="ED7D31"/></a:accent2>
+                  <a:accent3><a:srgbClr val="A5A5A5"/></a:accent3>
+                  <a:accent4><a:srgbClr val="FFC000"/></a:accent4>
+                  <a:accent5><a:srgbClr val="5B9BD5"/></a:accent5>
+                  <a:accent6><a:srgbClr val="70AD47"/></a:accent6>
+                  <a:hlink><a:srgbClr val="0563C1"/></a:hlink>
+                  <a:folHlink><a:srgbClr val="954F72"/></a:folHlink>
+                </a:clrScheme>
+                <a:fontScheme name="TestFonts">
+                  <a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>
+                  <a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>
+                </a:fontScheme>
+              </a:themeElements>
+            </a:theme>
+            """;
+
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            WriteTextEntry(archive, "[Content_Types].xml", contentTypesXml);
+            WriteTextEntry(archive, "_rels/.rels", packageRelsXml);
+            WriteTextEntry(archive, "ppt/presentation.xml", presentationXml);
+            WriteTextEntry(archive, "ppt/_rels/presentation.xml.rels", presentationRelsXml);
+            WriteTextEntry(archive, "ppt/slides/slide1.xml", emptySpTreeSlideXml);
+            WriteTextEntry(archive, "ppt/slides/_rels/slide1.xml.rels", slide1RelsXml);
+            WriteTextEntry(archive, "ppt/slides/slide2.xml", emptySpTreeSlideXml);
+            WriteTextEntry(archive, "ppt/slides/_rels/slide2.xml.rels", slide2RelsXml);
+            WriteTextEntry(archive, "ppt/slideLayouts/slideLayout1.xml", layout1Xml);
+            WriteTextEntry(archive, "ppt/slideLayouts/_rels/slideLayout1.xml.rels", layoutRelsXml);
+            WriteTextEntry(archive, "ppt/slideLayouts/slideLayout2.xml", layout2Xml);
+            WriteTextEntry(archive, "ppt/slideLayouts/_rels/slideLayout2.xml.rels", layoutRelsXml);
+            WriteTextEntry(archive, "ppt/slideMasters/slideMaster1.xml", masterXml);
+            WriteTextEntry(archive, "ppt/slideMasters/_rels/slideMaster1.xml.rels", masterRelsXml);
+            WriteTextEntry(archive, "ppt/theme/theme1.xml", themeXml);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    /// <summary>A full-slide-sized freeform shape with a solid fill of the given color, as a layout/master decorative shape.</summary>
+    private static string FullSlideShapeXml(string name, string hexColor) =>
+        $"""
+        <p:sp>
+          <p:nvSpPr>
+            <p:cNvPr id="2" name="{name}"/>
+            <p:cNvSpPr/>
+            <p:nvPr/>
+          </p:nvSpPr>
+          <p:spPr>
+            <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+            <a:solidFill><a:srgbClr val="{hexColor}"/></a:solidFill>
+          </p:spPr>
+        </p:sp>
+        """;
+
+    /// <summary>
+    ///     Proves a master's own non-placeholder <c>&lt;p:pic&gt;</c> paints on a slide using that
+    ///     master even when the slide's own shape tree is empty, and that the picture's embedded-
+    ///     image relationship resolves against the <strong>master's own</strong> <c>.rels</c> file
+    ///     rather than the slide's - a slide-owned relationship is deliberately given the exact
+    ///     same <c>rId2</c> identifier but targets a different (wrong) image, proving the
+    ///     <c>ownerPartPath</c> fix (see the companion planning report) is load-bearing and not
+    ///     accidentally correct.
+    /// </summary>
+    [Fact]
+    public void Render_MasterNonPlaceholderPicture_PaintsOnEverySlideUsingThatMasterResolvingOwnRels()
+    {
+        var masterPngBytes = BuildPngBytes(new Rgba32(10, 20, 30, 255));
+        var wrongSlidePngBytes = BuildPngBytes(new Rgba32(200, 0, 200, 255));
+        const string masterShapeTreeXml =
+            """
+            <p:pic>
+              <p:nvPicPr><p:cNvPr id="3" name="MasterPic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:pic>
+            """;
+        using var stream = BuildRenderPackage(
+            spTreeInnerXml: string.Empty,
+            masterShapeTreeXml: masterShapeTreeXml,
+            masterMedia: ("png", "image/png", masterPngBytes),
+            media: ("png", "image/png", wrongSlidePngBytes));
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 20, 20);
+
+        // If RenderPicture incorrectly resolved the master's own <a:blip r:embed="rId2"> against
+        // the slide's own .rels (which also declares an rId2, deliberately targeting a different
+        // image), this would instead sample the wrong (200, 0, 200) picture.
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves a layout's own decorative, non-placeholder autoshape paints only on slides using
+    ///     that specific layout, not on a sibling slide using a different layout that shares the
+    ///     same master.
+    /// </summary>
+    [Fact]
+    public void Render_LayoutNonPlaceholderAutoshape_PaintsOnlyOnSlidesUsingThatLayout()
+    {
+        var layout1ShapeTreeXml = FullSlideShapeXml("LayoutAShape", "00FF00");
+        using var stream = BuildTwoLayoutTwoSlideRenderPackage(layout1ShapeTreeXml, layout2ShapeTreeXml: string.Empty);
+        using var document = PptxDocument.Open(stream);
+
+        using var surfaceUsingLayout1 = document.Render(0, 20, 20);
+        using var surfaceUsingLayout2 = document.Render(1, 20, 20);
+
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surfaceUsingLayout1[10, 10]);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surfaceUsingLayout2[10, 10]);
+    }
+
+    /// <summary>Proves a slide-level shape paints on top of an overlapping master decorative shape (z-order: slide content on top).</summary>
+    [Fact]
+    public void Render_MasterAndSlideShapesOverlap_SlideShapePaintsOnTopOfMasterShape()
+    {
+        var masterShapeTreeXml = FullSlideShapeXml("MasterShape", "FF0000");
+        var slideShapeXml = FullSlideShapeXml("SlideShape", "0000FF");
+        using var stream = BuildRenderPackage(slideShapeXml, masterShapeTreeXml: masterShapeTreeXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 20, 20);
+
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[10, 10]);
+    }
+
+    /// <summary>Proves a layout decorative shape paints on top of an overlapping master decorative shape (z-order: layout above master).</summary>
+    [Fact]
+    public void Render_MasterAndLayoutShapesOverlap_LayoutShapePaintsOnTopOfMasterShape()
+    {
+        var masterShapeTreeXml = FullSlideShapeXml("MasterShape", "FF0000");
+        var layoutShapeXml = FullSlideShapeXml("LayoutShape", "00FF00");
+        using var stream = BuildRenderPackage(spTreeInnerXml: string.Empty, layoutPlaceholderXml: layoutShapeXml, masterShapeTreeXml: masterShapeTreeXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 20, 20);
+
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves a master's own placeholder shape never paints its own prompt content, while a
+    ///     sibling non-placeholder decorative shape on the same master still renders normally.
+    /// </summary>
+    [Fact]
+    public void Render_MasterPlaceholderShape_DoesNotRenderItsOwnPromptContent()
+    {
+        const string masterShapeTreeXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Title Placeholder"/>
+                <p:cNvSpPr/>
+                <p:nvPr><p:ph type="title"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>
+              </p:spPr>
+            </p:sp>
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="3" name="Decorative"/>
+                <p:cNvSpPr/>
+                <p:nvPr/>
+              </p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="1000000" cy="1000000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="0000FF"/></a:solidFill>
+              </p:spPr>
+            </p:sp>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml: string.Empty, masterShapeTreeXml: masterShapeTreeXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 100, 100);
+
+        // The master's own title placeholder declares a full-slide red fill - it must never
+        // paint, so the bottom-right corner (outside the small decorative shape's own footprint)
+        // remains the cleared default white background.
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[90, 90]);
+
+        // The master's own non-placeholder decorative shape (small blue rect, top-left corner)
+        // still paints normally.
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 1]);
+    }
+
+    /// <summary>
+    ///     Proves a layout's own placeholder shape never paints its own prompt content, while a
+    ///     sibling non-placeholder decorative shape on the same layout still renders normally.
+    /// </summary>
+    [Fact]
+    public void Render_LayoutPlaceholderShape_DoesNotRenderItsOwnPromptContent()
+    {
+        const string layoutShapeTreeXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Title Placeholder"/>
+                <p:cNvSpPr/>
+                <p:nvPr><p:ph type="title"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>
+              </p:spPr>
+            </p:sp>
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="3" name="Decorative"/>
+                <p:cNvSpPr/>
+                <p:nvPr/>
+              </p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="1000000" cy="1000000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="0000FF"/></a:solidFill>
+              </p:spPr>
+            </p:sp>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml: string.Empty, layoutPlaceholderXml: layoutShapeTreeXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 100, 100);
+
+        // The layout's own title placeholder declares a full-slide red fill - it must never
+        // paint, so the bottom-right corner (outside the small decorative shape's own footprint)
+        // remains the cleared default white background.
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[90, 90]);
+
+        // The layout's own non-placeholder decorative shape (small blue rect, top-left corner)
+        // still paints normally.
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 1]);
     }
 }

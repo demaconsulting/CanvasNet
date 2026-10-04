@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
@@ -34,6 +35,9 @@ namespace DemaConsulting.CanvasNet.Pptx.Tests;
 /// </remarks>
 public class PptxFixturesCorpusTests
 {
+    /// <summary>The PresentationML namespace, used to inspect a parsed shape element's own name.</summary>
+    private static readonly XNamespace P = "http://schemas.openxmlformats.org/presentationml/2006/main";
+
     /// <summary>The directory containing the PPTX fixture corpus, copied to the test output directory
     ///     by this project's <c>PptxFixtures\**</c> content item.</summary>
     private static string FixturesPath => Path.Join(AppContext.BaseDirectory, "PptxFixtures");
@@ -495,6 +499,23 @@ public class PptxFixturesCorpusTests
     ///     same already-graceful, already-designed "unsupported graphic-frame kind" path proven
     ///     elsewhere in this corpus against the <c>python-pptx</c>/<c>samplelib.com</c> fixtures.
     /// </summary>
+    /// <remarks>
+    ///     Slide index 0 uses <c>ppt/slideLayouts/slideLayout1.xml</c>, which (per the companion
+    ///     Phase 2 Follow-Up planning report) declares a real, non-placeholder, <c>userDrawn="1"</c>
+    ///     <c>&lt;a:custGeom&gt;</c> freeform shape named "Freeform 5" (<c>&lt;a:off x="750334"
+    ///     y="762000"/&gt;</c>, <c>&lt;a:ext cx="3941064" cy="312470"/&gt;</c>), filled
+    ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c> - this fixture's own theme resolves <c>bg1</c> to
+    ///     pure white, the same color as this fixture's own slide master background
+    ///     (<c>&lt;p:bgRef idx="1001"&gt;&lt;a:schemeClr val="bg1"/&gt;&lt;/p:bgRef&gt;</c>), so a
+    ///     pixel sample against this shape cannot prove a visually dramatic z-order/contrast
+    ///     difference (the synthetic <see cref="PptxRenderTests"/> master/layout tests carry that
+    ///     proof with deliberately contrasting colors) - this real-world regression test's primary
+    ///     proof is instead structural: that this layout's own parsed shape tree genuinely
+    ///     contains "Freeform 5" as a non-placeholder shape node at all. A near-white pixel sample
+    ///     in its own bounding box is kept only as a secondary, no-throw regression check, since a
+    ///     pure-white pixel there is also what an unimplemented or broken dispatch path would
+    ///     produce (this fixture's own background is pure white too).
+    /// </remarks>
     [Fact]
     public void PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature()
     {
@@ -507,6 +528,38 @@ public class PptxFixturesCorpusTests
         // Act & Assert: slide 0 has no chart content and renders cleanly with real paint.
         using var surface0 = document.Render(0, Dpi, Transparent);
         AssertPaintedSomePixel(surface0);
+
+        // Act & Assert (primary, structurally-discriminating proof): slide layout 1's own parsed
+        // shape tree genuinely contains "Freeform 5" as a real, non-placeholder PptxSpShapeNode -
+        // proving the master/layout decorative-shape parsing path actually walks this real file's
+        // own layout shape tree, independent of this shape's own paint color (see this test's own
+        // remarks for why a pixel sample alone cannot discriminate this shape from its background).
+        var layout = document.GetLayout("ppt/slideLayouts/slideLayout1.xml");
+        var freeform5 = layout.ShapeTree
+            .OfType<PptxSpShapeNode>()
+            .SingleOrDefault(node => node.ShapeElement
+                .Descendants(P + "cNvPr")
+                .Any(cNvPr => (string?)cNvPr.Attribute("name") == "Freeform 5"));
+        Assert.NotNull(freeform5);
+        Assert.Null(freeform5.Placeholder);
+
+        // Act & Assert (secondary, no-throw regression check): slide layout 1's own "Freeform 5"
+        // decorative custGeom shape (sampled near its own <a:off>/<a:ext> bounding box, in the
+        // vertical band above the slide's own title placeholder so the sample isn't masked by
+        // slide-level content painted on top) renders without throwing; the sampled pixel is at
+        // least near-white (a tolerance, not an exact match, because this real custGeom path is a
+        // thin decorative flourish rather than a solid rectangle - most of its own bounding box is
+        // unfilled background, and the rasterizer anti-aliases the path's own edges). This pixel
+        // sample is deliberately NOT the primary proof above, since a pure-white pixel here is
+        // consistent with both a correctly-rendered shape and a silently-skipped one.
+        var slideSize = document.SlideSize;
+        var freeformMidXEmu = 750334 + 3941064 / 2.0;
+        var freeformMidYEmu = (762000 + 989358) / 2.0;
+        var x = (int)(freeformMidXEmu / slideSize.WidthEmu * surface0.Width);
+        var y = (int)(freeformMidYEmu / slideSize.HeightEmu * surface0.Height);
+        var actual = surface0[Math.Clamp(x, 0, surface0.Width - 1), Math.Clamp(y, 0, surface0.Height - 1)];
+        Assert.True(actual is { R: >= 240, G: >= 240, B: >= 240, A: 255 },
+            $"Expected a near-white pixel at ({x}, {y}) (this fixture's own bg1 theme color and master background both resolve to pure white), got R{actual.R} G{actual.G} B{actual.B} A{actual.A}.");
 
         // Act & Assert: slide 1's chart graphic frame throws.
         var exception = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(1, Dpi, Transparent));
