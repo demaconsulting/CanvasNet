@@ -2,7 +2,7 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore sldsz sldidlst sldid pptx
+// cspell:ignore sldsz sldidlst sldid pptx mistargeted
 
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> presentation-root parser (Phase 1b):
@@ -13,6 +13,14 @@ namespace DemaConsulting.CanvasNet.Pptx;
 /// </summary>
 public sealed partial class PptxDocument
 {
+    /// <summary>
+    ///     The OOXML relationship <c>Type</c> URI suffix identifying a slide part, used to
+    ///     validate each <c>&lt;p:sldId r:id="..."/&gt;</c>'s resolved relationship actually
+    ///     targets a slide (rather than, for example, a theme or an arbitrary mistyped part) -
+    ///     see <see cref="ParseSlideIdList"/>.
+    /// </summary>
+    private const string SlideRelationshipTypeSuffix = "/slide";
+
     /// <summary>The XML namespace used by PresentationML parts (<c>ppt/presentation.xml</c>, slides, layouts, masters).</summary>
     internal static readonly XNamespace PresentationNamespace =
         "http://schemas.openxmlformats.org/presentationml/2006/main";
@@ -53,7 +61,8 @@ public sealed partial class PptxDocument
     ///     <c>&lt;p:presentation&gt;</c> element, when <c>&lt;p:sldSz&gt;</c> is missing or has a
     ///     missing/non-numeric/non-positive <c>cx</c>/<c>cy</c>, or when <c>&lt;p:sldIdLst&gt;</c>
     ///     is missing, has zero <c>&lt;p:sldId&gt;</c> children, or any child has a missing or
-    ///     unresolvable <c>r:id</c>.
+    ///     unresolvable <c>r:id</c>, or an <c>r:id</c> resolving to a relationship whose
+    ///     <c>Type</c> does not identify a slide part.
     /// </exception>
     private void InitializePresentation()
     {
@@ -116,8 +125,12 @@ public sealed partial class PptxDocument
     /// </summary>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <c>&lt;p:sldIdLst&gt;</c> is missing, declares zero <c>&lt;p:sldId&gt;</c>
-    ///     children (an empty slide list), or any child has a missing <c>r:id</c> attribute or an
-    ///     <c>r:id</c> that does not resolve to a relationship of the presentation part.
+    ///     children (an empty slide list), any child has a missing <c>r:id</c> attribute or an
+    ///     <c>r:id</c> that does not resolve to a relationship of the presentation part, or a
+    ///     resolved relationship's <c>Type</c> is not the OOXML slide-relationship type (a
+    ///     malformed package pointing a declared slide ID at a theme, layout, or other
+    ///     mistargeted part must fail here, at <see cref="Open(Stream)"/> time, rather than only
+    ///     later surfacing as a confusing failure from <see cref="GetSlide(int)"/>).
     /// </exception>
     private IReadOnlyList<string> ParseSlideIdList(XElement presentationRoot, string presentationPartPath)
     {
@@ -131,6 +144,13 @@ public sealed partial class PptxDocument
             if (string.IsNullOrEmpty(relationshipId))
             {
                 throw new InvalidDataException("A <p:sldId> element has a missing or empty 'r:id' attribute.");
+            }
+
+            var relationshipType = GetRelationshipType(presentationPartPath, relationshipId);
+            if (!relationshipType.EndsWith(SlideRelationshipTypeSuffix, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    $"A <p:sldId> element's relationship '{relationshipId}' has Type '{relationshipType}', which does not identify a slide part.");
             }
 
             slidePartPaths.Add(ResolveRelationship(presentationPartPath, relationshipId));
@@ -160,6 +180,13 @@ public sealed partial class PptxDocument
     ///     Thrown when <paramref name="dpi"/> is not a positive, finite number.
     /// </exception>
     /// <exception cref="ObjectDisposedException">Thrown when this document has been disposed.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when either converted dimension, rounded to the nearest pixel, would fall
+    ///     outside the representable <see cref="int"/> range - <c>&lt;p:sldSz&gt;</c> accepts any
+    ///     positive EMU value, so a sufficiently large declared dimension (or a sufficiently high
+    ///     <paramref name="dpi"/>) must fail closed here rather than silently overflowing into a
+    ///     negative or wrapped pixel size.
+    /// </exception>
     public (int Width, int Height) GetSlideSizeInPixels(float dpi)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -170,8 +197,18 @@ public sealed partial class PptxDocument
 
         const double emuPerInch = 914400d;
         var scale = dpi / emuPerInch;
-        var width = (int)Math.Round(SlideSize.WidthEmu * scale, MidpointRounding.AwayFromZero);
-        var height = (int)Math.Round(SlideSize.HeightEmu * scale, MidpointRounding.AwayFromZero);
-        return (width, height);
+        var roundedWidth = Math.Round(SlideSize.WidthEmu * scale, MidpointRounding.AwayFromZero);
+        var roundedHeight = Math.Round(SlideSize.HeightEmu * scale, MidpointRounding.AwayFromZero);
+
+        // Reject a rounded dimension outside int's representable range before casting - a direct
+        // (int) cast on an out-of-range double silently wraps/truncates to an incorrect value
+        // rather than failing closed, which would otherwise be worse than a documented exception.
+        if (roundedWidth is < int.MinValue or > int.MaxValue || roundedHeight is < int.MinValue or > int.MaxValue)
+        {
+            throw new InvalidDataException(
+                $"The slide size converted to pixels at {dpi} DPI is outside the representable range.");
+        }
+
+        return ((int)roundedWidth, (int)roundedHeight);
     }
 }
