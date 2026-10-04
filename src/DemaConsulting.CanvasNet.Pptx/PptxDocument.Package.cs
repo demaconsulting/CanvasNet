@@ -511,6 +511,43 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>
+    ///     Reads and returns the raw, undecoded bytes of the part at <paramref name="partPath"/> -
+    ///     the Phase 1e counterpart to <see cref="LoadPartXmlRoot"/> for a part whose content is
+    ///     not XML at all (a media part, for example <c>ppt/media/image1.png</c>, referenced by a
+    ///     <c>&lt;p:pic&gt;</c>'s <c>&lt;a:blip r:embed="..."/&gt;</c> - see
+    ///     <see cref="ResolvePictureSurface"/>, this method's sole Phase 1e caller).
+    /// </summary>
+    /// <param name="partPath">The part's path within the package, with or without a leading slash.</param>
+    /// <returns>The part's full, raw byte content.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="partPath"/> is null.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the package does not contain a part named <paramref name="partPath"/>.
+    /// </exception>
+    /// <remarks>
+    ///     Unlike <see cref="LoadXmlRoot"/>, no <see cref="MaxPartCharacters"/>-style bound is
+    ///     applied here: a media part's raw byte size is already bounded by this package's own
+    ///     overall package-size safeguard (<see cref="MaxPackageBytes"/>, enforced once for the
+    ///     whole ZIP at <see cref="Open(Stream)"/> time), so no additional, narrower cap is
+    ///     introduced for an individual part - keeping this method a thin, direct read with no
+    ///     new risk surface beyond what <see cref="Open(Stream)"/> already bounds.
+    /// </remarks>
+    internal byte[] GetPartBytes(string partPath)
+    {
+        ArgumentNullException.ThrowIfNull(partPath);
+
+        var normalized = NormalizePartPath(partPath);
+        if (!_entriesByPath.TryGetValue(normalized, out var entry))
+        {
+            throw new InvalidDataException($"The package does not contain a part named '{partPath}'.");
+        }
+
+        using var entryStream = entry.Open();
+        using var buffer = new MemoryStream();
+        entryStream.CopyTo(buffer);
+        return buffer.ToArray();
+    }
+
+    /// <summary>
     ///     Returns the parsed relationships for <paramref name="normalizedSourcePartPath"/>,
     ///     parsing and caching them (in <see cref="_relationshipCache"/>) on first access. A
     ///     part with no <c>.rels</c> file of its own simply has no relationships - that is not an
