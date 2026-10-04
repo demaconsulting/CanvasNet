@@ -9,8 +9,8 @@
 <!-- cspell:ignore srcRect blipFill grpSp grpSpPr nvGrpSpPr cxnSp tblGrid gridCol tblPr tcPr -->
 <!-- cspell:ignore lnL lnR lnT lnB pattFill hMerge vMerge gridSpan rowSpan tableStyleId -->
 <!-- cspell:ignore graphicFrame graphicData contentPart unrenderable -->
-<!-- cspell:ignore autoshape pythonpptx groupshape paintable aiden0z aiden -->
-
+<!-- cspell:ignore autoshape pythonpptx groupshape paintable aiden0z aiden unnamespaced reparenting FAFAF -->
+<!-- cspell:ignore bgRef bgFillStyleLst phClr fmtScheme -->
 `PptxDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pptx` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pptx`), which references the core `DemaConsulting.CanvasNet`
 package.
@@ -1005,7 +1005,9 @@ above). The same policy applies to a `<p:pic>` missing its own `<p:blipFill>`.
 
 With this phase, the planned PPTX 1.0 feature set is complete. The following remain
 unimplemented, carried forward unchanged from Phase 1d/1e's own deferred-items lists (see above):
-a slide's own `<p:bg>` background fill (no parsing support exists anywhere in this codebase),
+~~a slide's own `<p:bg>` background fill (no parsing support exists anywhere in this codebase),~~
+(closed by the _Phase 2 Follow-Up: Slide/Layout/Master Background Fill_ section below - the single
+highest-visual-impact gap left by this phase),
 `<p:cxnSp>` connector shapes, nested tables, table auto-sizing/banding, group-level style
 cascading beyond transform composition, picture effects/shadows, master/layout full shape-tree
 rendering, bullets/numbering, full text justification, `<a:spAutoFit>` shape-resize autofit,
@@ -1239,9 +1241,10 @@ already-correct deferred-feature boundary (shape-style-matrix fill/line resoluti
 did not implement, and does not propose implementing, any item from those lists (charts, OLE,
 movies, connectors, nested tables, table auto-sizing/banding, group-level style cascading,
 bullets/numbering, full text justification, shape auto-fit, kerning, text-overflow clipping,
-slide background fill, picture effects/shadows, master/layout full shape-tree rendering,
+picture effects/shadows, master/layout full shape-tree rendering,
 pattern/picture shape fill, radial/path gradients, or adjustment-value (`avLst`) geometry
-parsing).
+parsing). Slide background fill (`<p:bg>`) is no longer on this list - see _Phase 2 Follow-Up:
+Slide/Layout/Master Background Fill (`<p:bg>`)_ below, which closed this gap in a later pass.
 
 #### Phase 2 Follow-Up: Corpus Growth to Three Sources
 
@@ -1293,3 +1296,78 @@ Every item in this unit's own _Deferred to a Later Phase_ lists (Phase 1c/1d/1e/
 above) remains deferred unchanged after this follow-up pass; this pass grew real-file test
 coverage and confirmed additional already-graceful boundaries, it did not implement any
 previously-deferred feature.
+
+#### Phase 2 Follow-Up: Slide/Layout/Master Background Fill (`<p:bg>`)
+
+A later follow-up pass closed the single highest-visual-impact gap left unimplemented by Phase 1f
+(and carried forward, unchanged, through the two corpus-hardening passes above): a slide's own
+`<p:cSld>`/`<p:bg>` background fill. Before this pass, `Render` painted every slide against a
+plain, uniform `PptxRenderOptions.BackgroundColor` (opaque white by default) regardless of what
+the real `.pptx` file itself declared - the real-world fixture corpus already contained two
+independent files (`pythonpptx-sld-background.pptx`, added specifically for this feature, and
+`aiden0z-image-crop-css-reset.pptx`) whose slides declare a branded, non-white background that
+rendered as plain white before this pass.
+
+**Resolution algorithm** (`PptxDocument.Background.cs`'s `ResolveSlideBackgroundFill`): mirrors
+the Phase 1b placeholder-inheritance "first element present at all wins" precedent exactly (see
+_Placeholder Inheritance_ above) - a slide's own `<p:bg>` wins outright when present (even an
+empty `<p:bg/>`); otherwise its layout's own `<p:bg>` wins; otherwise its master's own `<p:bg>`
+wins; when none of the three declare a `<p:bg>` at all, `Render` falls back unchanged to
+`PptxRenderOptions.BackgroundColor`, matching this unit's pre-existing behavior exactly for every
+file that declares no background anywhere. The resolved paint, when non-null, is painted as a
+single full-slide rectangle (`Path.Rectangle(0, 0, SlideSize.WidthEmu, SlideSize.HeightEmu)`,
+transformed by the same base EMU-to-pixel transform every shape uses) immediately after the
+surface's own `BackgroundColor` clear and immediately before the shape-tree walk begins - so slide
+content continues to draw on top of it unchanged.
+
+A `<p:bg>` element declares either `<p:bgPr>` (an explicit fill - resolved by calling the existing
+`ResolveFill` directly, since `<p:bgPr>` has the same "fill-definition child element" shape as
+`<p:spPr>`, no new fill-resolution logic was written) or `<p:bgRef idx="…">` (a theme
+format-scheme style-matrix reference). A `<p:bgRef>`'s `idx` follows ECMA-376's
+`CT_StyleMatrixReference` convention: `idx` 0 or 1000 means "no background fill" (resolved to
+`PptxNoFill`); `idx` 1-999 indexes the theme's `<a:fillStyleLst>` (the rare, not-used-for-
+backgrounds-in-practice half of the style matrix - throws `PptxUnsupportedFeatureException`,
+feature token `pptx-bg-fill-style-ref`); `idx` 1001 and above indexes the theme's own
+`<a:fmtScheme>/<a:bgFillStyleLst>` (a new `PptxTheme.BgFillStyleList`, parsed by
+`PptxDocument.Theme.cs`'s new `ParseBgFillStyleList`, defaulting to an empty list for the
+overwhelming majority of themes that declare no `<a:fmtScheme>` at all), 0-based from that offset.
+A matched `<a:bgFillStyleLst>` entry is itself parameterized with an `<a:schemeClr val="phClr"/>`
+placeholder-color token; `<p:bgRef>`'s own single color-definition child supplies the concrete
+substitution value, resolved via the existing `ResolveColor`. Reusing `ResolveFill` for a style-
+list entry (which is itself a bare fill-definition element, not a parent containing one) required
+wrapping it in a synthetic, unnamespaced parent `XElement` first - adding an `XElement` that
+already has a parent as content to a new element clones it rather than reparenting it, so the
+theme's own cached, shared tree is never mutated by this (confirmed by a dedicated regression
+test, `ResolveSlideBackgroundFill_BgRefResolution_DoesNotMutateThemeBgFillStyleList`).
+
+**`phClr` substitution is a general mechanism, not special-cased to backgrounds**: `ResolveFill`/
+`ResolveGradientFill`/`ResolveColor`/`ResolveBaseColor` each gained a new, optional, trailing
+`Rgba32? phClrOverride = null` parameter - when supplied and non-null, a `<a:schemeClr
+val="phClr"/>` resolves to that value instead of the pre-existing `ResolveSchemeColor(val,
+theme.ColorScheme)` lookup (which still resolves `"phClr"` to `Dark1`, unchanged, for every
+pre-existing call site that does not supply an override). This is a purely additive, source-
+compatible change - every pre-existing call site continues to compile and behave unchanged.
+
+**Fidelity achieved**:
+
+- **Solid-color fills and theme-indexed `<p:bgRef>` fills**: fully supported, including `phClr`
+  substitution - the highest-priority, most-common-in-real-decks case this feature targeted.
+- **Linear gradient background fills**: best-effort - inherits Phase 1c's own existing linear-
+  only boundary (`ResolveGradientFill` already throws `PptxUnsupportedFeatureException` for a
+  radial/path gradient; a `<p:bg>`'s own `<a:gradFill>` is resolved via the same `ResolveFill`/
+  `ResolveGradientFill` pipeline every shape fill already uses, so this boundary is inherited
+  unchanged, not newly introduced).
+- **Pattern and picture background fills remain explicitly deferred** - `<a:pattFill>`/
+  `<a:blipFill>` inside a `<p:bgPr>` throws `PptxUnsupportedFeatureException` (feature tokens
+  `pptx-pattern-fill`/`pptx-picture-fill`), inherited unchanged from `ResolveFill`'s own
+  pre-existing boundary (see _Deferred to a Later Phase (Phase 1c)_ above) - no new background-
+  specific handling was added for either kind, and none is currently planned.
+
+**Real-file regression coverage**: both `pythonpptx-sld-background.pptx` and
+`aiden0z-image-crop-css-reset.pptx`'s own fixture-corpus tests, previously honestly titled/worded
+to describe the background as "not painted" (because no `<p:bg>` parsing existed at all), were
+extended with pixel-level assertions confirming their own real, solid-color backgrounds (`FF0000`
+and `FAFAF9` respectively) now paint correctly - see
+`PptxDocument_Render_SldBackgroundFixture_RendersAndPaintsSlideBackgroundFill` and
+`PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentAndBackgroundFill` in
+`PptxFixturesCorpusTests.cs`.

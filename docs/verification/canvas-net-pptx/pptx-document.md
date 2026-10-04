@@ -5,8 +5,8 @@
 <!-- cspell:ignore spcPct spcPts Ordinally -->
 <!-- cspell:ignore srcRect blipFill tblGrid gridCol tcPr hMerge vMerge gridSpan rowSpan grpSp -->
 <!-- cspell:ignore grpSpPr cxnSp graphicFrame tableStyleId spTree contentPart -->
-<!-- cspell:ignore pythonpptx Autoshape groupshape aiden0z Aiden aiden -->
-
+<!-- cspell:ignore pythonpptx Autoshape groupshape aiden0z Aiden aiden reparents FAFAF -->
+<!-- cspell:ignore bgRef bgFillStyleLst phClr fmtScheme -->
 This document describes the unit-level verification strategy for the `PptxDocument` class.
 
 `PptxDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pptx` NuGet package
@@ -954,12 +954,12 @@ real files rather than merely hand-authored packages, that a chart/SmartArt-bear
 `aiden0z-1-chart-and-complex.pptx` slide 1), that a group shape whose every child shape
 relies solely on an unresolved `<p:style>` shape-style-matrix reference for its fill (an
 out-of-scope construct, see `pptx-document.md`'s Phase 1c deferred-items list) renders without
-error despite painting no visible ink (`pythonpptx-shp-groupshape.pptx`), that a shape-background
-picture fill and a shape-background pattern fill each throw their own documented
+error despite painting no visible ink (`pythonpptx-shp-groupshape.pptx`), and that a
+shape-background picture fill and a shape-background pattern fill each throw their own documented
 `PptxUnsupportedFeatureException` feature token (`pythonpptx-dml-fill.pptx`, feature tokens
-`pptx-picture-fill`/`pptx-pattern-fill`), and that a slide's own `<p:bg>` background fill - not
-parsed anywhere in this codebase - correctly renders without error while painting nothing
-(`pythonpptx-sld-background.pptx`, `aiden0z-image-crop-css-reset.pptx`).
+`pptx-picture-fill`/`pptx-pattern-fill`). A slide's own `<p:bg>` background fill is covered by
+`CanvasNetPptx-PptxDocument-SlideBackgroundFill` below instead, including both of these same real
+fixtures' own now-painted backgrounds.
 
 #### CanvasNetPptx-PptxDocument-RenderPublicApi: Public API Argument Validation and DPI Convenience Overload
 
@@ -985,6 +985,79 @@ overload only - a non-positive or non-finite `dpi`, each with `ArgumentOutOfRang
 `ObjectDisposedException` as appropriate, and proves the DPI convenience overload computes the
 expected pixel width/height from the slide's own EMU `SlideSize` (a 10in by 7.5in slide at 96 DPI
 renders a 960 by 720 pixel surface).
+
+#### CanvasNetPptx-PptxDocument-SlideBackgroundFill: Slide/Layout/Master Background Fill (`<p:bg>`)
+
+**Tests**: `Render_SlideLevelSolidBackground_PaintsAcrossFullSlide`,
+`Render_SlideLevelBackgroundWithShape_ShapePaintsOnTopOfBackground`,
+`Render_LayoutLevelSolidBackground_PaintsWhenSlideDeclaresNone`,
+`Render_MasterLevelSolidBackground_PaintsWhenNeitherSlideNorLayoutDeclaresOne`,
+`Render_SlideLevelBackground_TakesPriorityOverLayoutAndMasterBackgrounds`,
+`Render_LayoutLevelBackground_TakesPriorityOverMasterBackgroundWhenSlideDeclaresNone`,
+`Render_NoBackgroundAnywhere_FallsBackToOptionsBackgroundColor`,
+`Render_SlideLevelThemeIndexedBackgroundReference_ResolvesBgFillStyleListEntryWithPhClrSubstitution`,
+`Render_SlideLevelThemeIndexedBackgroundReferenceIdxZero_PaintsNoBackground`,
+`ResolveSlideBackgroundFill_AllThreeTiersNull_ReturnsNull`,
+`ResolveSlideBackgroundFill_SlideDeclaresOne_ResolvesSlideOwnBackground`,
+`ResolveSlideBackgroundFill_SlideDeclaresNoneLayoutDoes_ResolvesLayoutOwnBackground`,
+`ResolveSlideBackgroundFill_SlideAndLayoutDeclareNoneMasterDoes_ResolvesMasterOwnBackground`,
+`ResolveSlideBackgroundFill_EmptySlideBackgroundStillWinsOverLayout_MatchesPlaceholderInheritancePrecedent`,
+`ResolveSlideBackgroundFill_BgElementWithNeitherBgPrNorBgRef_ThrowsInvalidDataException`,
+`ResolveSlideBackgroundFill_BgRefIdxZero_ReturnsNoFill`,
+`ResolveSlideBackgroundFill_BgRefIdxOneThousand_ReturnsNoFill`,
+`ResolveSlideBackgroundFill_BgRefIdxInFillStyleListRange_ThrowsPptxUnsupportedFeatureException`,
+`ResolveSlideBackgroundFill_BgRefIdxResolvesBgFillStyleListEntryWithPhClrSubstitution`,
+`ResolveSlideBackgroundFill_BgRefIdxSecondEntry_ResolvesSecondBgFillStyleListEntry`,
+`ResolveSlideBackgroundFill_BgRefResolution_DoesNotMutateThemeBgFillStyleList`,
+`ResolveSlideBackgroundFill_BgRefIdxPastEndOfBgFillStyleList_ThrowsInvalidDataException`,
+`ResolveSlideBackgroundFill_BgRefWithNoIdxAttribute_ThrowsInvalidDataException`,
+`ResolveSlideBackgroundFill_BgRefWithNonNumericIdxAttribute_ThrowsInvalidDataException`,
+`ResolveSlideBackgroundFill_BgRefWithNoColorChild_ResolvesEntryWithDefaultPhClr`,
+`GetTheme_NoFmtScheme_BgFillStyleListIsEmpty`,
+`GetTheme_FmtSchemeWithNoBgFillStyleLst_BgFillStyleListIsEmpty`,
+`GetTheme_FmtSchemeWithBgFillStyleLst_ParsesEntriesInDocumentOrder`,
+`PptxDocument_Render_SldBackgroundFixture_RendersAndPaintsSlideBackgroundFill`,
+`PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentAndBackgroundFill`
+
+Proves the slide -> layout -> master `<p:bg>` precedence chain resolves exactly like the
+established placeholder-property "first element present at all wins" inheritance rule, at both
+the resolver level (`ResolveSlideBackgroundFill` called directly against hand-built `<p:bg>`
+fragments) and the full, pixel-level `Render` integration level (a slide-level background paints
+across the full surface; a layout-level background paints only when the slide itself declares
+none; a master-level background paints only when neither the slide nor its layout declares one; a
+higher tier's own background takes priority over a lower tier's even when both are present; an
+empty-but-present `<p:bg/>` at a higher tier still wins, and - having neither `<p:bgPr>` nor
+`<p:bgRef>` - throws `InvalidDataException` rather than silently falling through to the next
+tier). Proves the resolved background paints *before* the shape-tree walk, so a shape's own fill
+still paints on top of it unchanged, and proves that when none of slide/layout/master declare a
+`<p:bg>` at all, rendering falls back unchanged to `PptxRenderOptions.BackgroundColor` exactly as
+before this feature existed. Proves `<p:bgRef idx="…">` theme-indexed resolution across its full
+ECMA-376 `CT_StyleMatrixReference` boundary: `idx` 0 and 1000 both resolve to no background
+(`PptxNoFill`); `idx` 1-999 (the theme's `<a:fillStyleLst>` half of the style matrix) throws
+`PptxUnsupportedFeatureException` with feature token `pptx-bg-fill-style-ref`; `idx` 1001 and
+above resolves the theme's own `<a:fmtScheme>/<a:bgFillStyleLst>`, 0-based from that offset
+(including its second, not just first, entry), substituting `<p:bgRef>`'s own color child for the
+matched entry's `phClr` token (or, when `<p:bgRef>` itself declares no color child, falling back
+to `ResolveColor`'s own pre-existing default); a missing/non-numeric `idx` and an out-of-range
+`idx` (including against an empty `<a:bgFillStyleLst>`) both throw `InvalidDataException`. Proves
+resolving a `<p:bgRef>` never mutates the theme's own cached, shared `BgFillStyleList` tree (a
+regression test for the "wrap the matched entry in a synthetic parent, which clones rather than
+reparents it" approach this resolver relies on - the theme is parsed once and reused across every
+slide in a document). Proves `GetTheme` parses `<a:fmtScheme>/<a:bgFillStyleLst>` into
+`PptxTheme.BgFillStyleList` in document order, tolerating an absent `<a:fmtScheme>` or an absent
+`<a:bgFillStyleLst>` as an empty list rather than an error (the overwhelming majority of real
+themes declare neither). Proves, against two independent real-world fixture files
+(`pythonpptx-sld-background.pptx`, added specifically for this feature, and
+`aiden0z-image-crop-css-reset.pptx`), that each file's own real, solid-color `<p:bg>` fill now
+paints the exact declared color at the pixel level (`FF0000` and `FAFAF9` respectively) - a
+pixel-level, not merely XML-resolution-level, regression guard against this feature's own
+single highest-visual-impact motivation. A pattern or picture background fill is not covered by
+this requirement - it is rejected with `PptxUnsupportedFeatureException`, inherited unchanged
+from `ResolveFill`'s own pre-existing Phase 1c boundary (see
+`CanvasNetPptx-PptxDocument-FillResolution`'s own verification above) - and a linear gradient
+background fill is covered only indirectly, by the same `ResolveGradientFill` tests
+`CanvasNetPptx-PptxDocument-GradientFill` already verifies, since `<p:bg>` resolution reuses that
+pipeline verbatim rather than introducing a background-specific gradient path.
 
 ## Acceptance Criteria
 

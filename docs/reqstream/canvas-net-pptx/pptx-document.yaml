@@ -4,7 +4,7 @@
 # cspell:ignore ooxml pptx srgb xfrm prst cust patt bodyPr normAutofit noAutofit spAutoFit pPr
 # cspell:ignore rPr txBody txStyles lstStyle defRPr ctrTitle lIns tIns rIns bIns algn marL lnSpc
 # cspell:ignore spcBef spcAft justLow lnSpcReduction fontScale lvl ordinally mistargeted unrenderable
-# cspell:ignore pythonpptx Autoshape aiden0z Aiden aiden
+# cspell:ignore pythonpptx Autoshape aiden0z Aiden aiden misrendered bgRef bgFillStyleLst phClr
 #
 # These requirements describe the design-level behavior of the PptxDocument unit.
 #
@@ -1191,7 +1191,7 @@ sections:
               - PptxDocument_Render_TxtTextFrameFixture_RendersEverySlideWithVisibleContent
               - PptxDocument_Render_ShpShapesFixture_Slide0ThrowsUnsupportedFeatureSlide1PaintsContent
               - PptxDocument_Render_SamplelibSamplePresentationFixture_Slide4ThrowsUnsupportedFeatureOthersPaintContent
-              - PptxDocument_Render_SldBackgroundFixture_RendersWithoutErrorBackgroundNotPainted
+              - PptxDocument_Render_SldBackgroundFixture_RendersAndPaintsSlideBackgroundFill
               - PptxDocument_Render_PhInheritPropsFixture_Slide0PaintsSlide1RendersWithoutError
               - PptxDocument_Render_PhUnpopulatedPlaceholdersFixture_RendersEverySlideWithoutError
               - PptxDocument_Render_TxtFitTextFixture_PaintsVisibleContent
@@ -1199,7 +1199,7 @@ sections:
               - PptxDocument_Render_DmlFillFixture_BothSlidesThrowUnsupportedFillFeature
               - PptxDocument_Render_DmlLineFixture_RendersEverySlideWithVisibleContent
               - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature
-              - PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentBackgroundNotPainted
+              - PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentAndBackgroundFill
               - PptxDocument_Render_Aiden0zTableStaleFrameFixture_PaintsVisibleContentDespiteFrameSizeMismatch
 
           - id: CanvasNetPptx-PptxDocument-RenderPublicApi
@@ -1240,3 +1240,64 @@ sections:
               - Render_Dpi_NegativeSlideIndex_ThrowsArgumentOutOfRangeException
               - Render_Dpi_SlideIndexAtSlideCount_ThrowsArgumentOutOfRangeException
               - Render_DpiOverload_ComputesExpectedPixelDimensionsFromSlideSize
+
+          - id: CanvasNetPptx-PptxDocument-SlideBackgroundFill
+            title: >-
+              The PptxDocument class's Render methods shall resolve and paint a slide's own
+              p:cSld/p:bg background fill - falling back to its layout's, then its master's, own
+              p:bg when the slide declares none - across the full slide immediately before the
+              shape-tree walk begins, reusing the existing ResolveFill/ResolveColor DrawingML
+              fill-resolution pipeline (solid, linear-gradient, and p:bgRef theme-indexed fills via
+              a:fmtScheme/a:bgFillStyleLst with phClr substitution) rather than duplicating it, and
+              shall fall back unchanged to PptxRenderOptions.BackgroundColor only when none of
+              slide/layout/master declare a p:bg at all.
+            justification: |
+              A branded, non-white background fill is the single highest-visual-impact gap between
+              CanvasNetPptx's rendered output and a real PowerPoint export - before this
+              requirement, every slide rendered against a plain, uniform BackgroundColor regardless
+              of what the file itself declared, even though two real fixture files in this
+              project's own corpus (pythonpptx-sld-background.pptx, added specifically for this
+              feature, and aiden0z-image-crop-css-reset.pptx) declare one. Resolving slide, then
+              layout, then master in "first element present at all wins" order mirrors this unit's
+              own established placeholder-property-inheritance precedent (see
+              CanvasNetPptx-PptxDocument-PlaceholderInheritancePerCategory above) exactly, rather than
+              introducing a second, bespoke inheritance rule. Reusing ResolveFill/ResolveColor
+              rather than re-implementing fill resolution for backgrounds keeps every future
+              fill-resolution bug fix or feature addition automatically applicable to backgrounds
+              too, and keeps this requirement's own verification scope limited to the
+              background-specific resolution/dispatch logic layered on top. A pattern or picture
+              background fill is explicitly out of scope for this requirement - it is rejected with
+              PptxUnsupportedFeatureException, inherited unchanged from ResolveFill's own
+              pre-existing Phase 1c boundary (see CanvasNetPptx-PptxDocument-FillResolution above) -
+              rather than silently dropped or misrendered.
+            tests:
+              - Render_SlideLevelSolidBackground_PaintsAcrossFullSlide
+              - Render_SlideLevelBackgroundWithShape_ShapePaintsOnTopOfBackground
+              - Render_LayoutLevelSolidBackground_PaintsWhenSlideDeclaresNone
+              - Render_MasterLevelSolidBackground_PaintsWhenNeitherSlideNorLayoutDeclaresOne
+              - Render_SlideLevelBackground_TakesPriorityOverLayoutAndMasterBackgrounds
+              - Render_LayoutLevelBackground_TakesPriorityOverMasterBackgroundWhenSlideDeclaresNone
+              - Render_NoBackgroundAnywhere_FallsBackToOptionsBackgroundColor
+              - Render_SlideLevelThemeIndexedBackgroundReference_ResolvesBgFillStyleListEntryWithPhClrSubstitution
+              - Render_SlideLevelThemeIndexedBackgroundReferenceIdxZero_PaintsNoBackground
+              - ResolveSlideBackgroundFill_AllThreeTiersNull_ReturnsNull
+              - ResolveSlideBackgroundFill_SlideDeclaresOne_ResolvesSlideOwnBackground
+              - ResolveSlideBackgroundFill_SlideDeclaresNoneLayoutDoes_ResolvesLayoutOwnBackground
+              - ResolveSlideBackgroundFill_SlideAndLayoutDeclareNoneMasterDoes_ResolvesMasterOwnBackground
+              - ResolveSlideBackgroundFill_EmptySlideBackgroundStillWinsOverLayout_MatchesPlaceholderInheritancePrecedent
+              - ResolveSlideBackgroundFill_BgElementWithNeitherBgPrNorBgRef_ThrowsInvalidDataException
+              - ResolveSlideBackgroundFill_BgRefIdxZero_ReturnsNoFill
+              - ResolveSlideBackgroundFill_BgRefIdxOneThousand_ReturnsNoFill
+              - ResolveSlideBackgroundFill_BgRefIdxInFillStyleListRange_ThrowsPptxUnsupportedFeatureException
+              - ResolveSlideBackgroundFill_BgRefIdxResolvesBgFillStyleListEntryWithPhClrSubstitution
+              - ResolveSlideBackgroundFill_BgRefIdxSecondEntry_ResolvesSecondBgFillStyleListEntry
+              - ResolveSlideBackgroundFill_BgRefResolution_DoesNotMutateThemeBgFillStyleList
+              - ResolveSlideBackgroundFill_BgRefIdxPastEndOfBgFillStyleList_ThrowsInvalidDataException
+              - ResolveSlideBackgroundFill_BgRefWithNoIdxAttribute_ThrowsInvalidDataException
+              - ResolveSlideBackgroundFill_BgRefWithNonNumericIdxAttribute_ThrowsInvalidDataException
+              - ResolveSlideBackgroundFill_BgRefWithNoColorChild_ResolvesEntryWithDefaultPhClr
+              - GetTheme_NoFmtScheme_BgFillStyleListIsEmpty
+              - GetTheme_FmtSchemeWithNoBgFillStyleLst_BgFillStyleListIsEmpty
+              - GetTheme_FmtSchemeWithBgFillStyleLst_ParsesEntriesInDocumentOrder
+              - PptxDocument_Render_SldBackgroundFixture_RendersAndPaintsSlideBackgroundFill
+              - PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentAndBackgroundFill
