@@ -1009,8 +1009,11 @@ unimplemented, carried forward unchanged from Phase 1d/1e's own deferred-items l
 (closed by the _Phase 2 Follow-Up: Slide/Layout/Master Background Fill_ section below - the single
 highest-visual-impact gap left by this phase),
 `<p:cxnSp>` connector shapes, nested tables, table auto-sizing/banding, group-level style
-cascading beyond transform composition, picture effects/shadows, master/layout full shape-tree
-rendering, bullets/numbering, full text justification, `<a:spAutoFit>` shape-resize autofit,
+cascading beyond transform composition, picture effects/shadows,
+~~master/layout full shape-tree rendering,~~
+(closed by the _Phase 2 Follow-Up: Master/Layout Decorative Shape Rendering_ section below - a
+still-later pass that independently walks and paints each master's/layout's own non-placeholder
+shapes), bullets/numbering, full text justification, `<a:spAutoFit>` shape-resize autofit,
 kerning, and text clipping on overflow. None of these is a currently planned phase; any of them
 remaining important is a candidate for a future, corpus-driven hardening pass (`pptx-phase-2`),
 not a scheduled increment of this unit's own design.
@@ -1241,10 +1244,13 @@ already-correct deferred-feature boundary (shape-style-matrix fill/line resoluti
 did not implement, and does not propose implementing, any item from those lists (charts, OLE,
 movies, connectors, nested tables, table auto-sizing/banding, group-level style cascading,
 bullets/numbering, full text justification, shape auto-fit, kerning, text-overflow clipping,
-picture effects/shadows, master/layout full shape-tree rendering,
+picture effects/shadows,
 pattern/picture shape fill, radial/path gradients, or adjustment-value (`avLst`) geometry
 parsing). Slide background fill (`<p:bg>`) is no longer on this list - see _Phase 2 Follow-Up:
 Slide/Layout/Master Background Fill (`<p:bg>`)_ below, which closed this gap in a later pass.
+Master/layout full shape-tree rendering is likewise no longer on this list - see _Phase 2
+Follow-Up: Master/Layout Decorative Shape Rendering_ below, which closed that gap in a
+still-later pass.
 
 #### Phase 2 Follow-Up: Corpus Growth to Three Sources
 
@@ -1371,3 +1377,105 @@ and `FAFAF9` respectively) now paint correctly - see
 `PptxDocument_Render_SldBackgroundFixture_RendersAndPaintsSlideBackgroundFill` and
 `PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentAndBackgroundFill` in
 `PptxFixturesCorpusTests.cs`.
+
+#### Phase 2 Follow-Up: Master/Layout Decorative Shape Rendering
+
+A still-later follow-up pass closed the remaining visual-fidelity gap left by every prior
+pass: a slide master's and slide layout's own non-placeholder shapes (pictures, autoshapes,
+groups, freeform/custGeom shapes - anything in a `<p:cSld>/<p:spTree>` that is not itself a
+placeholder) were parsed only far enough to find placeholder shapes (for the Phase 1b
+inheritance chain) and, after the previous pass, to resolve a `<p:bg>` background - their own
+decorative shapes were never independently walked or painted. A real PowerPoint deck frequently
+places logos, rules, and other decoration directly on a master or layout's own shape tree
+(outside any placeholder), so every such file rendered with that decoration silently missing
+before this pass.
+
+**Parsing**: `PptxMaster` and `PptxLayout` (`PptxPlaceholder.cs`) each gained a new
+`IReadOnlyList<PptxShapeTreeNode> ShapeTree` property (defaulting to `Array.Empty<
+PptxShapeTreeNode>()` via the same "redeclare the positional-record property with an `init`
+default" pattern already used elsewhere in this unit), populated by `GetMaster`/`GetLayout`
+(`PptxDocument.Masters.cs`/`PptxDocument.Layouts.cs`) calling the pre-existing
+`ParseShapeTree` - the same shape-tree parser `GetSlide` already used - against each part's own
+`<p:cSld>/<p:spTree>`. `GetLayout` resolves its theme lazily (`() => GetTheme(GetMaster(
+masterPartPath).ThemePartPath)`), mirroring `GetSlide`'s own existing lazy-theme pattern exactly;
+`GetMaster` resolves its theme eagerly, since a master's own theme part path is already resolved
+eagerly by the time its shape tree is parsed.
+
+**Rendering order** (`PptxDocument.Render.cs`'s `Render`): between painting the resolved
+background (previous pass, unchanged) and walking the slide's own shape tree (pre-existing,
+unchanged), two new loops walk the slide's own master's shape tree, then its own layout's shape
+tree, each back-to-front in document order - the documented, intended back-to-front order for a
+real slide is background, then master decoration, then layout decoration, then the slide's own
+content on top. A slide only ever walks its **own** layout's and that layout's **own** master's
+shape tree (the same slide -> layout -> master relationship already resolved for placeholder
+inheritance and background), never an unrelated layout or master's shapes.
+
+**Placeholder shapes on a master/layout are still never rendered directly**: a master/layout
+placeholder shape is real PowerPoint's own "Click to edit…" prompt/edit-mode-only text, invisible
+on an actual slide - rendering it directly would paint phantom prompt content no real exported
+slide ever shows. `RenderNode` (`PptxDocument.Render.cs`) gained a new `bool
+skipPlaceholderShapes = false` parameter, propagated unchanged into every recursive call
+(including group children); the two new master/layout loops pass `skipPlaceholderShapes: true`,
+while the pre-existing slide-shape-tree loop continues to pass the parameter's own default
+(`false`, unchanged slide behavior) - a `PptxSpShapeNode` whose own `Placeholder` is non-null is
+skipped outright when the flag is set, every other node kind (picture, autoshape, group,
+freeform, graphic frame) is unaffected and dispatches through the exact same per-shape-type paint
+functions a slide-level shape already used, so a picture/autoshape/group on a master or layout
+renders pixel-for-pixel identically to the same shape declared directly on a slide.
+
+**A latent relationship-resolution bug was fixed as a prerequisite**: `RenderNode`/
+`RenderPicture` previously took a `PptxSlide slide` parameter and used `slide.PartPath` to resolve
+a `<a:blip r:embed="…">`'s own image relationship - correct only for a slide's own pictures,
+since OPC relationships are always scoped to the owning part's own `.rels` file, not the part
+that happens to be rendering. Both methods' `PptxSlide slide` parameter was replaced with a
+`string ownerPartPath`, threaded through recursively so a master-owned or layout-owned picture
+resolves its own `rId` against its own owning part's own `.rels` file, never the slide's. A
+dedicated regression test (`Render_MasterNonPlaceholderPicture_PaintsOnEverySlideUsingThatMasterResolvingOwnRels`)
+proves this is load-bearing by giving the slide's own `.rels` a deliberately conflicting,
+wrong-colored `rId2` and confirming the master's own picture still resolves its own correct
+color.
+
+**Already-deferred features are handled identically for a master/layout shape as for a
+slide-level shape - no new failure mode was introduced**: a master/layout decorative shape that
+itself uses a feature this codebase does not yet support (a connector, an unsupported preset
+geometry, and so on) hits the exact same graceful-skip or `PptxUnsupportedFeatureException`
+boundary a slide-level shape already hits, because both now flow through the same `RenderNode`
+dispatch; this pass did not add, special-case, or relax any deferred-feature boundary for a
+master/layout shape.
+
+**Fidelity achieved**:
+
+- A master's own non-placeholder pictures, autoshapes, groups, and freeform shapes now paint on
+  every slide that uses that master (regardless of which layout the slide itself uses).
+- A layout's own non-placeholder pictures, autoshapes, groups, and freeform shapes now paint only
+  on a slide that uses that specific layout.
+- Correct back-to-front z-order is preserved: a slide's own content always paints on top of its
+  own layout's decoration, which always paints on top of its own master's decoration.
+- A master/layout's own placeholder shapes remain invisible, exactly as before this pass -
+  this pass only changed non-placeholder sibling shapes.
+
+**Real-file regression coverage**: `aiden0z-1-chart-and-complex.pptx`'s own
+`ppt/slideLayouts/slideLayout1.xml` contains a real, non-placeholder, `userDrawn="1"`
+`<a:custGeom>` freeform shape named "Freeform 5", exercised by
+`PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature`
+(`PptxFixturesCorpusTests.cs`). This fixture's own `bg1` theme color and its own slide master
+background both already resolve to pure white, the same color this freeform shape itself is
+filled, so a pixel sample alone cannot show a dramatic visual contrast against the background (the
+synthetic tests below carry that contrast proof with deliberately contrasting colors) and would
+pass whether or not this feature actually walks the layout's own shape tree. This test's primary,
+discriminating proof is therefore structural instead: it resolves the layout directly via
+`PptxDocument.GetLayout` and asserts its parsed `ShapeTree` genuinely contains "Freeform 5" as a
+`PptxSpShapeNode` with a `null` `Placeholder` - proving this real file's own layout shape tree is
+actually parsed and that this shape is recognized as non-placeholder decoration, independent of
+its own paint color. The near-white pixel sample within the freeform's own bounding box is kept
+only as a secondary, no-throw regression check (a tolerance, not an exact match, because the real
+custGeom path is a thin decorative flourish rather than a solid-filled rectangle).
+
+Six new synthetic, pixel-level tests in `PptxRenderTests.cs` carry the primary proof, each with
+deliberately contrasting colors so a wrong z-order or a missed shape fails visibly rather than
+silently: `Render_MasterNonPlaceholderPicture_PaintsOnEverySlideUsingThatMasterResolvingOwnRels`,
+`Render_LayoutNonPlaceholderAutoshape_PaintsOnlyOnSlidesUsingThatLayout`,
+`Render_MasterAndSlideShapesOverlap_SlideShapePaintsOnTopOfMasterShape`,
+`Render_MasterAndLayoutShapesOverlap_LayoutShapePaintsOnTopOfMasterShape`,
+`Render_MasterPlaceholderShape_DoesNotRenderItsOwnPromptContent`, and
+`Render_LayoutPlaceholderShape_DoesNotRenderItsOwnPromptContent`.

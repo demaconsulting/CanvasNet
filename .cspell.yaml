@@ -323,6 +323,9 @@ words:
   - unrotated
   - unflipped
   - unshifted
+  - autoshape
+  - Autoshape
+  - autoshapes
 
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:

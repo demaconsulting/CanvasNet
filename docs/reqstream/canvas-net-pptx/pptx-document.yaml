@@ -1301,3 +1301,45 @@ sections:
               - GetTheme_FmtSchemeWithBgFillStyleLst_ParsesEntriesInDocumentOrder
               - PptxDocument_Render_SldBackgroundFixture_RendersAndPaintsSlideBackgroundFill
               - PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentAndBackgroundFill
+
+          - id: CanvasNetPptx-PptxDocument-MasterLayoutShapeRendering
+            title: >-
+              The PptxDocument class's Render methods shall render a slide's own master's and own
+              layout's non-placeholder shapes (pictures, autoshapes, groups, and freeform shapes)
+              back-to-front in document order - master shapes first, then layout shapes, then the
+              slide's own shapes unchanged on top - immediately after painting the resolved
+              background and before the existing slide shape-tree walk, using the exact same
+              per-shape-type paint dispatch a slide-level shape already uses, while never
+              rendering a master's or layout's own placeholder shapes directly.
+            justification: |
+              A real PowerPoint deck frequently places decoration (a logo, a rule, a watermark)
+              directly on a slide master's or slide layout's own shape tree, outside any
+              placeholder - before this requirement, CanvasNetPptx walked a master's or layout's
+              own p:cSld/p:spTree only far enough to find placeholder shapes for the
+              PlaceholderInheritancePerCategory chain (and, after the SlideBackgroundFill
+              requirement above, to resolve p:bg) - any non-placeholder sibling shape was silently
+              never painted, leaving a visible gap between CanvasNetPptx's rendered output and a
+              real PowerPoint export. Reusing the existing per-shape-type paint dispatch (the same
+              RenderNode/RenderShape/RenderPicture/RenderGraphicFrame functions a slide-level shape
+              already uses) rather than introducing a parallel master/layout-specific rendering
+              path keeps every future shape-rendering bug fix or feature addition automatically
+              applicable to master/layout shapes too. A master/layout's own placeholder shapes
+              must never be painted directly - they are real PowerPoint's own "Click to
+              edit…" prompt/edit-mode-only text, never shown on an actual exported slide - so
+              RenderNode gained a skipPlaceholderShapes flag, set only for the two new master/
+              layout loops, leaving the pre-existing slide-shape-tree loop's own behavior
+              unchanged. A slide only ever walks its own layout's and that layout's own master's
+              shape tree (the same slide -> layout -> master relationship already resolved for
+              placeholder inheritance and background), never an unrelated layout's or master's
+              shapes. A master/layout shape that itself uses an already-deferred feature (a
+              connector, an unsupported preset geometry, and so on) hits the exact same
+              graceful-skip or PptxUnsupportedFeatureException boundary a slide-level shape
+              already hits - no new failure mode is introduced for a master/layout shape.
+            tests:
+              - Render_MasterNonPlaceholderPicture_PaintsOnEverySlideUsingThatMasterResolvingOwnRels
+              - Render_LayoutNonPlaceholderAutoshape_PaintsOnlyOnSlidesUsingThatLayout
+              - Render_MasterAndSlideShapesOverlap_SlideShapePaintsOnTopOfMasterShape
+              - Render_MasterAndLayoutShapesOverlap_LayoutShapePaintsOnTopOfMasterShape
+              - Render_MasterPlaceholderShape_DoesNotRenderItsOwnPromptContent
+              - Render_LayoutPlaceholderShape_DoesNotRenderItsOwnPromptContent
+              - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature

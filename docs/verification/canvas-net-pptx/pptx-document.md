@@ -1059,6 +1059,41 @@ background fill is covered only indirectly, by the same `ResolveGradientFill` te
 `CanvasNetPptx-PptxDocument-GradientFill` already verifies, since `<p:bg>` resolution reuses that
 pipeline verbatim rather than introducing a background-specific gradient path.
 
+#### CanvasNetPptx-PptxDocument-MasterLayoutShapeRendering: Master/Layout Decorative Shape Rendering
+
+**Tests**: `Render_MasterNonPlaceholderPicture_PaintsOnEverySlideUsingThatMasterResolvingOwnRels`,
+`Render_LayoutNonPlaceholderAutoshape_PaintsOnlyOnSlidesUsingThatLayout`,
+`Render_MasterAndSlideShapesOverlap_SlideShapePaintsOnTopOfMasterShape`,
+`Render_MasterAndLayoutShapesOverlap_LayoutShapePaintsOnTopOfMasterShape`,
+`Render_MasterPlaceholderShape_DoesNotRenderItsOwnPromptContent`,
+`Render_LayoutPlaceholderShape_DoesNotRenderItsOwnPromptContent`,
+`PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature`
+
+Proves, at the pixel level with deliberately contrasting colors so a wrong z-order or a missed
+shape fails visibly rather than silently, that a slide master's own non-placeholder picture paints
+on every slide that uses that master regardless of which layout the slide itself uses, and that
+the picture resolves its own image relationship against its own owning part's own `.rels` file -
+not the rendering slide's - by giving the slide's own `.rels` a deliberately conflicting,
+wrong-colored `rId2` and confirming the master's own correct color still paints (a regression
+guard for the `ownerPartPath`-threading fix this feature required). Proves a slide layout's own
+non-placeholder autoshape paints only on a slide that uses that specific layout, not on a sibling
+slide using a different layout backed by the same master. Proves the documented back-to-front
+z-order at both boundaries: a slide's own shape paints on top of an overlapping master shape, and
+a layout's own shape paints on top of an overlapping master shape. Proves a master's and a
+layout's own placeholder shape is never rendered directly - its own "Click to edit…" prompt
+content stays invisible - while its own non-placeholder sibling shape in the same shape tree still
+renders, confirming the `skipPlaceholderShapes` flag discriminates correctly between a
+`PptxSpShapeNode` with and without a non-null `Placeholder`. Proves, against a real-world fixture
+(`aiden0z-1-chart-and-complex.pptx`, whose own `slideLayout1.xml` declares a real, non-placeholder,
+`userDrawn="1"` `<a:custGeom>` freeform shape named "Freeform 5"), that the custGeom-freeform-on-
+layout dispatch path executes without throwing and resolves its own documented `bg1`-scheme fill
+to a near-white pixel within its own bounding box (a tolerance, not an exact pixel match, because
+the real custGeom path is a thin decorative flourish rather than a solid-filled rectangle, so most
+of its own bounding box is unfilled background with anti-aliased edges) - this fixture cannot show
+a dramatic visual contrast on its own, since its own `bg1` theme color and its own slide master
+background both already resolve to the same pure white this freeform shape itself is filled, so
+the synthetic tests above carry the primary, deliberately-contrasting-color proof instead.
+
 ## Acceptance Criteria
 
 A unit-level test run passes when all scenarios above pass without error or exception beyond
@@ -1091,16 +1126,16 @@ Deferred Theme Resolution* Test Scenarios sections above); and the public, slide
 API that walks a slide's full shape tree in document order and paints every supported node kind
 onto a destination `Surface`, with full public-API argument validation and a DPI convenience
 overload (Phase 1f: see the *Full Slide Rendering (Phase 1f) Test Scenarios* section above). With
-Phase 1f, the planned PPTX 1.0 feature set is complete. Not yet covered: a slide's own `<p:bg>`
-background fill (no parsing support exists anywhere in this codebase), a non-placeholder
-(freeform) shape's own background fill via `<a:blipFill>`/`<a:pattFill>` inside `<p:spPr>`
-(picture/pattern fill remain scoped to a dedicated `<p:pic>` shape's own `<p:blipFill>`), picture
-effects/shadows, nested tables, table auto-sizing to fit overflowing cell content (each row's
-resolved height is taken verbatim from its declared `<a:tr h="...">` value, with no growth to
-accommodate overflowing cell content), table style/banding (`<a:tableStyleId>`), `<p:cxnSp>`
-connector shapes, master/layout full shape-tree enumeration/rendering (only a slide's own shape
-tree is parsed/rendered), group-level style cascading beyond transform composition, radial/path
-gradients, `<a:avLst>` preset adjustment-value parsing, bullets/numbering, full text
-justification, `<a:spAutoFit>` shape-resize autofit, kerning, and text clipping on overflow.
-None of these is a currently planned phase; any of them remaining important is a candidate for a
+Phase 1f, the planned PPTX 1.0 feature set is complete. A slide's own `<p:bg>` background fill is
+covered by *CanvasNetPptx-PptxDocument-SlideBackgroundFill* above instead, and master/layout
+decorative shape rendering is covered by *CanvasNetPptx-PptxDocument-MasterLayoutShapeRendering*
+above instead. Not yet covered: a non-placeholder (freeform) shape's own background fill via
+`<a:blipFill>`/`<a:pattFill>` inside `<p:spPr>` (picture/pattern fill remain scoped to a dedicated
+`<p:pic>` shape's own `<p:blipFill>`), picture effects/shadows, nested tables, table auto-sizing to
+fit overflowing cell content (each row's resolved height is taken verbatim from its declared
+`<a:tr h="...">` value, with no growth to accommodate overflowing cell content), table
+style/banding (`<a:tableStyleId>`), `<p:cxnSp>` connector shapes, group-level style cascading
+beyond transform composition, radial/path gradients, `<a:avLst>` preset adjustment-value parsing,
+bullets/numbering, full text justification, `<a:spAutoFit>` shape-resize autofit, kerning, and text
+clipping on overflow. None of these is a currently planned phase; any of them remaining important is a candidate for a
 future, corpus-driven hardening pass (`pptx-phase-2`), not a scheduled increment.
