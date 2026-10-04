@@ -2,6 +2,8 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
+// cspell:ignore xfrm prst cust
+
 /// <summary>
 ///     The effective, resolved property fragments for a single slide placeholder, produced by
 ///     <see cref="PptxDocument.ResolvePlaceholderProperties"/>.
@@ -16,6 +18,36 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     same slide -&gt; matched layout placeholder -&gt; matched master placeholder chain
 ///     independently of <see cref="EffectiveSpPr"/>, or <see langword="null"/> if none declares
 ///     one.
+/// </param>
+/// <param name="EffectiveXfrmElement">
+///     The first non-null <c>&lt;p:spPr&gt;/&lt;a:xfrm&gt;</c> element found walking the same
+///     slide -&gt; matched layout placeholder -&gt; matched master placeholder chain, resolved
+///     <em>independently</em> of <see cref="EffectiveSpPr"/> (a per-attribute lookup, not a
+///     by-product of whichever tier's whole <c>&lt;p:spPr&gt;</c> element won): a real-world
+///     placeholder commonly declares its own empty <c>&lt;p:spPr/&gt;</c> (no <c>&lt;a:xfrm&gt;</c>
+///     child at all, deliberately relying on the layout/master for position/size while still
+///     being "present" for <see cref="EffectiveSpPr"/>'s own element-level fallback) - resolving
+///     <see cref="EffectiveSpPr"/>'s <c>&lt;a:xfrm&gt;</c> child directly would incorrectly stop at
+///     that empty element and never consult the layout/master's own geometry, silently rendering
+///     nothing. Defaults to <see langword="null"/> so pre-existing call sites continue to compile
+///     unchanged.
+/// </param>
+/// <param name="EffectiveGeometrySpPr">
+///     The first <c>&lt;p:spPr&gt;</c> element (walking the same slide -&gt; matched layout
+///     placeholder -&gt; matched master placeholder chain) that itself declares an
+///     <c>&lt;a:prstGeom&gt;</c> or <c>&lt;a:custGeom&gt;</c> child, resolved independently of
+///     <see cref="EffectiveSpPr"/> for exactly the same reason <see cref="EffectiveXfrmElement"/>
+///     is: a real-world placeholder's own (otherwise "present", element-level-winning) empty
+///     <c>&lt;p:spPr/&gt;</c> commonly omits geometry too, deliberately relying on the slide
+///     master's own placeholder shape (which, per ECMA-376's standard master content, always
+///     declares <c>&lt;a:prstGeom prst="rect"/&gt;</c>) - unlike fill/line (see
+///     <see cref="PptxDocument.ResolveFill"/>'s own remarks: fill/line inheritance from
+///     placeholder/layout/master is a deliberate, documented Phase 1c simplification, not
+///     resolved at all), geometry has no such graceful no-op fallback - <see cref="PptxDocument.ResolveShapeGeometry"/>
+///     throws when neither child is present, so failing to walk this chain independently turns a
+///     a real, common document shape into an unhandled exception instead of a silent skip.
+///     Defaults to <see langword="null"/> so pre-existing call sites continue to compile
+///     unchanged.
 /// </param>
 /// <param name="Theme">
 ///     The resolved theme carried through as context (not itself selected via the fallback chain -
@@ -33,4 +65,6 @@ internal sealed record PptxPlaceholderProperties(
     XElement? EffectiveSpPr,
     XElement? EffectiveTxBodyListStyle,
     PptxTheme Theme,
-    PptxMasterTextStyles? MasterTextStyles = null);
+    PptxMasterTextStyles? MasterTextStyles = null,
+    XElement? EffectiveXfrmElement = null,
+    XElement? EffectiveGeometrySpPr = null);

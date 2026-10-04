@@ -7,7 +7,7 @@ namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
 // cspell:ignore pptx sppr nvsppr nvpr cnvpr cnvsppr grpsp nvgrpsppr grpsppr cxnsp nvcxnsppr cnvcxnsppr
 // cspell:ignore nvpicpr nvpr cnvpicpr blipfill srcrect embed graphicframe tbl tblgrid gridcol tcpr srgb
-// cspell:ignore calibri txbox xfrm prst Xfrm hlink Hlink
+// cspell:ignore calibri txbox xfrm prst Xfrm hlink Hlink cust
 
 /// <summary>
 ///     Unit-level tests for the Phase 1f public, slide-level rendering API
@@ -704,6 +704,79 @@ public class PptxRenderTests
         }
 
         Assert.True(paintedAnyInk, "Expected the slide-level placeholder shape's own text to paint glyph ink.");
+    }
+
+    /// <summary>
+    ///     Proves a placeholder shape whose own <c>&lt;p:spPr/&gt;</c> is present but empty (no
+    ///     <c>&lt;a:xfrm&gt;</c>, no <c>&lt;a:prstGeom&gt;</c>/<c>&lt;a:custGeom&gt;</c> - relying
+    ///     entirely on its matched layout placeholder for position/size/geometry, exactly as real-
+    ///     world (non-PowerPoint-authored) <c>.pptx</c> generators commonly emit) still renders and
+    ///     paints visible content, rather than being silently skipped (an empty-but-present
+    ///     <c>&lt;p:spPr/&gt;</c> must not "win" the slide-vs-layout-vs-master fallback chain the
+    ///     way it does for fill/line, which this project deliberately does not resolve past the
+    ///     first present element - geometry/position, unlike fill/line, has no graceful "absent
+    ///     means no-op" behavior, so failing to walk past an empty element here would either skip
+    ///     the shape outright or throw).
+    /// </summary>
+    [Fact]
+    public void Render_PlaceholderShapeWithEmptySpPr_InheritsXfrmAndGeometryFromLayout()
+    {
+        const string spTreeInnerXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Title"/>
+                <p:cNvSpPr/>
+                <p:nvPr><p:ph type="title" idx="1"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr/>
+              <p:txBody>
+                <a:bodyPr/>
+                <a:p><a:r><a:rPr sz="4400"/><a:t>Slide Title</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>
+            """;
+        const string layoutPlaceholderXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Title Placeholder"/>
+                <p:cNvSpPr/>
+                <p:nvPr><p:ph type="title" idx="1"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+              <p:txBody>
+                <a:bodyPr/>
+                <a:p><a:r><a:t>Layout placeholder text (never rendered as content)</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml, layoutPlaceholderXml: layoutPlaceholderXml);
+        using var document = PptxDocument.Open(stream);
+
+        // Rendering must complete without error (no skip, no InvalidDataException from unresolved
+        // geometry) and paint glyph ink for the slide-level shape's own text content, proving both
+        // <a:xfrm> and <a:prstGeom> were inherited from the matched layout placeholder past the
+        // slide's own empty <p:spPr/>.
+        using var surface = document.Render(0, 200, 150);
+
+        var paintedAnyInk = false;
+        for (var y = 0; y < 150 && !paintedAnyInk; y++)
+        {
+            for (var x = 0; x < 200; x++)
+            {
+                if (surface[x, y] != new Rgba32(255, 255, 255, 255))
+                {
+                    paintedAnyInk = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(paintedAnyInk, "Expected the placeholder's inherited geometry/position to allow its own text to paint glyph ink.");
     }
 
     // --- Argument validation ---------------------------------------------------------------------

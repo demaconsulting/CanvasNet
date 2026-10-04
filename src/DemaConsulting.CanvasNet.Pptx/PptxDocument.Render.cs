@@ -232,6 +232,8 @@ public sealed partial class PptxDocument
         Matrix3x2 parentToSurface)
     {
         XElement? spPrElement;
+        XElement? xfrmElement;
+        XElement? geometrySpPrElement;
         PptxPlaceholderProperties placeholderProperties;
         string placeholderType;
 
@@ -240,28 +242,31 @@ public sealed partial class PptxDocument
             placeholderProperties = ResolvePlaceholderProperties(
                 placeholder, layout.Placeholders, master.Placeholders, theme, master.TxStyles);
             spPrElement = placeholderProperties.EffectiveSpPr;
+            xfrmElement = placeholderProperties.EffectiveXfrmElement;
+            geometrySpPrElement = placeholderProperties.EffectiveGeometrySpPr;
             placeholderType = placeholder.Type;
         }
         else
         {
             placeholderProperties = new PptxPlaceholderProperties(null, null, theme, master.TxStyles);
             spPrElement = node.ShapeElement.Element(PresentationNamespace + "spPr");
+            xfrmElement = spPrElement?.Element(DrawingNamespace + "xfrm");
+            geometrySpPrElement = spPrElement;
             placeholderType = string.Empty;
         }
 
-        var xfrmElement = spPrElement?.Element(DrawingNamespace + "xfrm");
-        if (spPrElement is null || xfrmElement is null)
+        if (spPrElement is null || xfrmElement is null || geometrySpPrElement is null)
         {
-            // No resolvable <a:xfrm> anywhere in this shape's ancestry - skip silently rather
-            // than throwing (see this file's Render remarks, Assumption 1 of the companion
-            // planning report).
+            // No resolvable <a:xfrm> (or no resolvable <a:prstGeom>/<a:custGeom>) anywhere in
+            // this shape's ancestry - skip silently rather than throwing (see this file's Render
+            // remarks, Assumption 1 of the companion planning report).
             return;
         }
 
         var frame = ResolveShapeFrame(xfrmElement);
         var localToSurface = frame.Transform * parentToSurface;
 
-        var geometryPath = ResolveShapeGeometry(spPrElement, frame.WidthEmu, frame.HeightEmu);
+        var geometryPath = ResolveShapeGeometry(geometrySpPrElement, frame.WidthEmu, frame.HeightEmu);
         var transformedPath = geometryPath.Transform(localToSurface);
 
         var fill = ResolveFill(spPrElement, theme, frame.WidthEmu, frame.HeightEmu);

@@ -2,7 +2,7 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore sppr txbody lststyle sptree pptx ctrtitle sldnum
+// cspell:ignore sppr txbody lststyle sptree pptx ctrtitle sldnum xfrm prst cust
 
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> placeholder property-inheritance resolver
@@ -118,12 +118,54 @@ public sealed partial class PptxDocument
             (matchedLayoutPlaceholder is null ? null : GetTxBodyListStyle(matchedLayoutPlaceholder)) ??
             (matchedMasterPlaceholder is null ? null : GetTxBodyListStyle(matchedMasterPlaceholder));
 
-        return new PptxPlaceholderProperties(effectiveSpPr, effectiveTxBodyListStyle, theme, masterTextStyles);
+        // Resolved independently of effectiveSpPr (see PptxPlaceholderProperties.EffectiveXfrmElement's
+        // own remarks): a real-world placeholder frequently declares its own empty <p:spPr/> (no
+        // <a:xfrm> child, deliberately relying on the layout/master for position/size) - that empty
+        // element still "wins" effectiveSpPr's own element-level fallback above, so looking up
+        // effectiveSpPr's own xfrm child directly would never see the layout/master's geometry at
+        // all. <a:xfrm> is therefore looked up per-tier (slide's own <p:spPr>, then the matched
+        // layout placeholder's, then the matched master placeholder's), independently continuing
+        // the chain past an empty-but-present <p:spPr/> that itself declares no <a:xfrm>.
+        var effectiveXfrmElement =
+            GetXfrm(slidePlaceholder.ShapeElement) ??
+            (matchedLayoutPlaceholder is null ? null : GetXfrm(matchedLayoutPlaceholder.ShapeElement)) ??
+            (matchedMasterPlaceholder is null ? null : GetXfrm(matchedMasterPlaceholder.ShapeElement));
+
+        // Resolved the same per-tier way as effectiveXfrmElement, and for the same reason (see
+        // PptxPlaceholderProperties.EffectiveGeometrySpPr's own remarks): a real-world
+        // placeholder's own empty <p:spPr/> commonly declares neither <a:prstGeom> nor
+        // <a:custGeom> either, relying on the slide master's own placeholder shape (which always
+        // declares one, per ECMA-376's standard master content) - unlike fill/line, geometry has
+        // no graceful "absent means no-op" fallback, so this must walk past an empty-but-present
+        // <p:spPr/> explicitly rather than stopping at it.
+        var effectiveGeometrySpPr =
+            GetSpPrWithGeometry(slidePlaceholder.ShapeElement) ??
+            (matchedLayoutPlaceholder is null ? null : GetSpPrWithGeometry(matchedLayoutPlaceholder.ShapeElement)) ??
+            (matchedMasterPlaceholder is null ? null : GetSpPrWithGeometry(matchedMasterPlaceholder.ShapeElement));
+
+        return new PptxPlaceholderProperties(effectiveSpPr, effectiveTxBodyListStyle, theme, masterTextStyles, effectiveXfrmElement, effectiveGeometrySpPr);
     }
 
     /// <summary>Extracts a placeholder's <c>&lt;p:txBody&gt;/&lt;a:lstStyle&gt;</c> element, if present.</summary>
     private static XElement? GetTxBodyListStyle(PptxPlaceholder placeholder) =>
         placeholder.ShapeElement.Element(PresentationNamespace + "txBody")?.Element(DrawingNamespace + "lstStyle");
+
+    /// <summary>Extracts a <c>&lt;p:sp&gt;</c>-shaped shape element's own <c>&lt;p:spPr&gt;/&lt;a:xfrm&gt;</c> element, if present.</summary>
+    private static XElement? GetXfrm(XElement shapeElement) =>
+        shapeElement.Element(PresentationNamespace + "spPr")?.Element(DrawingNamespace + "xfrm");
+
+    /// <summary>
+    ///     Extracts a <c>&lt;p:sp&gt;</c>-shaped shape element's own <c>&lt;p:spPr&gt;</c>
+    ///     element, but only when that <c>&lt;p:spPr&gt;</c> itself declares an
+    ///     <c>&lt;a:prstGeom&gt;</c> or <c>&lt;a:custGeom&gt;</c> child (see
+    ///     <see cref="PptxPlaceholderProperties.EffectiveGeometrySpPr"/>'s remarks).
+    /// </summary>
+    private static XElement? GetSpPrWithGeometry(XElement shapeElement)
+    {
+        var spPr = shapeElement.Element(PresentationNamespace + "spPr");
+        var hasGeometry = spPr?.Element(DrawingNamespace + "prstGeom") is not null || spPr?.Element(DrawingNamespace + "custGeom") is not null;
+        return hasGeometry ? spPr : null;
+    }
 
     /// <summary>
     ///     Remaps a layout placeholder's <c>type</c> to the type used to match against a master
