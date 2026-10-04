@@ -9,6 +9,7 @@
 <!-- cspell:ignore srcRect blipFill grpSp grpSpPr nvGrpSpPr cxnSp tblGrid gridCol tblPr tcPr -->
 <!-- cspell:ignore lnL lnR lnT lnB pattFill hMerge vMerge gridSpan rowSpan tableStyleId -->
 <!-- cspell:ignore graphicFrame graphicData contentPart unrenderable -->
+<!-- cspell:ignore autoshape pythonpptx groupshape paintable -->
 
 `PptxDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pptx` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pptx`), which references the core `DemaConsulting.CanvasNet`
@@ -999,3 +1000,114 @@ rendering, bullets/numbering, full text justification, `<a:spAutoFit>` shape-res
 kerning, and text clipping on overflow. None of these is a currently planned phase; any of them
 remaining important is a candidate for a future, corpus-driven hardening pass (`pptx-phase-2`),
 not a scheduled increment of this unit's own design.
+
+### Phase 2: Real-World Corpus Hardening
+
+Phase 1a-1f were verified exclusively against small, hand-authored, synthetic `.pptx` packages
+(see each phase's own test file). Phase 2 adds no new feature; it instead renders a corpus of ten
+real-world `.pptx` files - every slide of every file - and investigates any ungraceful failure
+(an unexpected exception, or a silent paint of zero pixels where content is genuinely expected)
+discovered against an already-implemented, in-scope Phase 1b/1c/1d/1e/1f feature.
+
+**Corpus sourced**: ten files from two independent, non-synthetic sources - `python-pptx`'s own
+MIT-licensed `features/steps/test_files/` integration-test corpus (eight files, each exercising a
+specific, named construct: blank slide, autoshape adjustment handles, group shapes, pictures,
+tables, font properties, text-frame properties, and a richer multi-construct "shapes" deck) and
+two files downloaded from samplelib.com (a blank slide and an eight-slide general-purpose sample
+presentation). Licensing: `python-pptx`'s MIT license is reproduced verbatim in
+`PptxFixtures/PythonPptx.LICENSE`; samplelib.com's own terms.html states only that downloading its
+files locally is permitted, which is a permissive download statement, not a formal copyright or
+license grant - see `PptxFixtures/README.md` for the full, file-by-file provenance table and the
+exact wording of both statements. Two additional staged candidates
+(`pythonpptx-minimal.pptx`/`pythonpptx-mst-placeholders.pptx`) were excluded: both declare zero
+slides, so neither can exercise `Render` at all.
+
+**Methodology**: `PptxFixturesCorpusTests.cs` opens each of the ten fixtures, asserts a sane
+(positive) slide count and slide size, and then, for every slide, either renders it against a
+transparent background and asserts at least one non-transparent pixel was painted somewhere
+(proving real content, not a vacuously-true all-background render), or - for the two slides known
+in advance to declare chart/SmartArt `<p:graphicFrame>` content - asserts the render instead
+throws `PptxUnsupportedFeatureException`, since charts/diagrams remain an explicitly deferred
+feature (see the Phase 1e deferred-items list above).
+
+**What was found**: running the full corpus surfaced three ungraceful results, one of which was
+an already-correct, merely-undocumented behavior and two of which were genuine, in-scope bugs.
+
+- **Chart-exception-graceful-behavior hypothesis: confirmed.** Both of the two chart/SmartArt-
+  bearing slides (`pythonpptx-shp-shapes.pptx` slide index 0 and
+  `samplelib-sample-presentation.pptx` slide index 4) throw `PptxUnsupportedFeatureException`
+  (feature token `pptx-graphic-frame-kind`) exactly as the pre-existing `ParseTable` uri-check
+  logic (Phase 1e) already implements - no source change was needed for this.
+- **`pythonpptx-shp-groupshape.pptx` paints zero pixels: confirmed as correct, deferred behavior,
+  not a bug.** All four shapes in this fixture declare their fill/line/font exclusively via a
+  `<p:style>` shape-style-matrix reference (`<a:fillRef>`/`<a:lnRef>`/`<a:effectRef>`/
+  `<a:fontRef>`, each only an `idx` plus a `<a:schemeClr>`), never an explicit `<a:solidFill>`/
+  `<a:ln>` inside their own `<p:spPr>`, and every shape's own `<p:txBody>` is empty. Resolving a
+  shape-style-matrix reference into a concrete color is explicitly out of scope (see the Phase 1c
+  deferred-items list above); `ResolveFill` already gracefully resolves an unrecognized/absent
+  fill to `PptxNoFill` rather than throwing. The fixture, as authored, genuinely has zero
+  paintable ink under the currently-implemented feature set - the corpus test's own assertion was
+  adjusted to match (`PptxDocument_Render_ShpGroupShapeFixture_RendersWithoutError`: renders
+  without throwing, no painted-pixel assertion), not the source.
+- **Genuine bug 1 - centered/right-aligned text invisible in a `wrap="none"` shape.**
+  `pythonpptx-txt-font-props.pptx` slide index 3 (a centered, `wrap="none"` underline demo)
+  painted zero pixels. Root cause: `ResolveTextLayout` (`PptxDocument.TextLayout.cs`) used the
+  same effectively-infinite width (`float.MaxValue / 4f`, used to suppress word-wrapping for a
+  `wrap="none"` shape) for both line-breaking **and** `PositionLines`'s horizontal alignment math.
+  For `algn="ctr"`/`algn="r"`, this placed every glyph at an astronomical X offset, far outside
+  the shape and the rendered surface - a silent, incorrect-output failure on text alignment, an
+  already-implemented, in-scope feature (Phase 1d), not a deferred one. **Fix**: a new
+  `alignmentWidth` (`MathF.Max(0f, widthEmu - insetLeft - insetRight)` - the shape's real,
+  finite declared width, independent of the wrap setting) is now passed to `PositionLines`
+  instead of the infinite wrap-suppression width, which continues to be used only for
+  `BuildLines`'s own line-breaking decision. Before: all glyphs of a centered/right-aligned
+  `wrap="none"` paragraph positioned off-canvas, painting nothing. After: alignment is computed
+  against the same finite width a `wrap="square"` shape would use, identically for both wrap
+  modes. Regression test: `ResolveTextLayout_AlignCenter_WrapNone_StillCentersAgainstShapesDeclaredWidth`
+  (`PptxTextLayoutTests.cs`).
+- **Genuine bug 2 - placeholder geometry/position inheritance broken by an empty, but present,
+  `<p:spPr/>`.** `samplelib-sample-presentation.pptx` slide indices 0, 1, and 2 each painted zero
+  pixels. Root cause: `ResolvePlaceholderProperties` (`PptxDocument.Inheritance.cs`, Phase 1b)
+  resolves a placeholder's effective `<p:spPr>` via a first-non-null-**element**-wins chain
+  (slide's own element, then the matched layout's, then the matched master's) - since `??` only
+  falls through on a `null` reference, a slide's own empty, self-closing `<p:spPr/>` (declaring
+  neither `<a:xfrm>` nor `<a:prstGeom>`/`<a:custGeom>`, and deliberately relying on the
+  layout/master for both - extremely common in `.pptx` files not authored by actual PowerPoint,
+  exactly this corpus's generator) still "wins" that chain outright, so the layout/master's real,
+  populated `<p:spPr>` is never consulted. For `<a:xfrm>`, this caused `RenderShape`'s existing
+  "no resolvable `<a:xfrm>` anywhere - skip silently" tolerant-skip policy (see above) to discard
+  the whole shape. Fixing only the `<a:xfrm>` half then exposed a second, cascading failure:
+  `ResolveShapeGeometry` (Phase 1c) has no equivalent graceful fallback for a missing geometry
+  child - it throws `InvalidDataException` - so once the shape stopped being silently skipped, it
+  instead crashed. Both `<a:xfrm>` and geometry resolution/position inheritance are Phase 1b/1c
+  features, already implemented and already expected to work via inheritance; this is squarely
+  in scope, not a deferred-feature gap. **Fix**: rather than changing `EffectiveSpPr`'s own
+  element-level semantics (which fill/line resolution continues to rely on unchanged, matching
+  the Phase 1c "fill/line inheritance from placeholder/layout/master is a deliberate
+  simplification, not resolved at all" design), two new fields were added to
+  `PptxPlaceholderProperties` - `EffectiveXfrmElement` and `EffectiveGeometrySpPr` - each
+  resolved independently via its own per-tier (slide -> matched layout -> matched master) walk
+  that looks specifically for an `<a:xfrm>` child, or a `<p:spPr>` that itself declares an
+  `<a:prstGeom>`/`<a:custGeom>` child, respectively, continuing past an empty-but-present
+  `<p:spPr>` that lacks one. This mirrors the precedent `PptxDocument.TextInheritance.cs` already
+  established for per-attribute (not per-whole-element) run/paragraph property resolution.
+  `RenderShape` now resolves its `<a:xfrm>` and geometry `<p:spPr>` from these new fields for the
+  placeholder branch (a non-placeholder shape's own `<p:spPr>` is unaffected), and skips the
+  shape silently - consistent with the existing tolerant-skip policy - if either is still
+  unresolved anywhere in the chain, rather than letting `ResolveShapeGeometry` throw. Before:
+  slides 0-2 either rendered nothing (shape skipped) or threw `InvalidDataException`. After: all
+  three slides' placeholders inherit their master's standard `<a:prstGeom prst="rect">` geometry
+  and their layout's `<a:xfrm>` position/size, and paint visible content. Regression test:
+  `Render_PlaceholderShapeWithEmptySpPr_InheritsXfrmAndGeometryFromLayout` (`PptxRenderTests.cs`).
+
+**What remains intentionally deferred**: every item already listed in the Phase 1c, 1d, 1e, and
+1f _Deferred to a Later Phase_ sections above remains deferred unchanged - this phase fixed two
+genuine inheritance/alignment bugs on already-implemented features, confirmed one already-graceful
+deferred-feature boundary (chart/diagram graphic frames) against real files, and confirmed one
+already-correct deferred-feature boundary (shape-style-matrix fill/line resolution) likewise; it
+did not implement, and does not propose implementing, any item from those lists (charts, OLE,
+movies, connectors, nested tables, table auto-sizing/banding, group-level style cascading,
+bullets/numbering, full text justification, shape auto-fit, kerning, text-overflow clipping,
+slide background fill, picture effects/shadows, master/layout full shape-tree rendering,
+pattern/picture shape fill, radial/path gradients, or adjustment-value (`avLst`) geometry
+parsing).

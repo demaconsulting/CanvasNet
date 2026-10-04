@@ -4,6 +4,7 @@
 # cspell:ignore ooxml pptx srgb xfrm prst cust patt bodyPr normAutofit noAutofit spAutoFit pPr
 # cspell:ignore rPr txBody txStyles lstStyle defRPr ctrTitle lIns tIns rIns bIns algn marL lnSpc
 # cspell:ignore spcBef spcAft justLow lnSpcReduction fontScale lvl ordinally mistargeted unrenderable
+# cspell:ignore pythonpptx Autoshape
 #
 # These requirements describe the design-level behavior of the PptxDocument unit.
 #
@@ -352,6 +353,38 @@ sections:
             tests:
               - PptxDocumentInheritance_ResolvePlaceholderProperties_PerCategoryIndependentFallthrough_SlideOverridesFillButNotText
               - PptxDocumentInheritance_ResolvePlaceholderProperties_NoMatchAtAnyLevel_ReturnsNullForBothCategories
+
+          - id: CanvasNetPptx-PptxDocument-PlaceholderXfrmGeometryInheritance
+            title: >-
+              The PptxDocument class shall resolve a placeholder's effective <a:xfrm> element, and
+              separately its effective geometry-bearing <p:spPr> element (the first <p:spPr>, slide
+              then matched layout then matched master, that itself declares an <a:prstGeom> or
+              <a:custGeom> child), each independently of PlaceholderInheritancePerCategory's own
+              whole-<p:spPr>-element fallback, continuing the slide -> matched layout -> matched
+              master walk past a tier's own empty-but-present <p:spPr/> that declares neither, and
+              shall skip painting the shape silently, rather than throwing, when no tier anywhere
+              in the chain resolves one or the other.
+            justification: |
+              A placeholder's own <p:spPr> is frequently present but empty (self-closing
+              <p:spPr/>, declaring no <a:xfrm> and no <a:prstGeom>/<a:custGeom>), deliberately
+              relying on its matched layout/master placeholder for position, size, and geometry -
+              extremely common in real-world .pptx files not authored by actual PowerPoint
+              (confirmed against samplelib.com's own general-purpose sample deck). Because
+              PlaceholderInheritancePerCategory's own effective-<p:spPr> fallback only advances
+              past a null reference (an empty-but-present element still "wins"), it never reaches
+              the layout/master's own populated <p:spPr> for such a placeholder, silently
+              discarding the whole shape when ShapeFrameTransform then finds no <a:xfrm>, or
+              crashing with InvalidDataException once geometry resolution is reached. Unlike
+              fill/line resolution (FillResolution's own absent-fill-means-no-op behavior),
+              geometry resolution has no graceful fallback for "no geometry anywhere" - a real
+              master placeholder always declares one per ECMA-376's standard master content, so
+              resolving it via this independent, per-element (not per-whole-<p:spPr>) walk is both
+              safe and necessary for conformance with real-world files, mirroring the per-attribute
+              (not per-whole-element) resolution TextPropertyInheritance already establishes for
+              run/paragraph properties.
+            tests:
+              - Render_PlaceholderShapeWithEmptySpPr_InheritsXfrmAndGeometryFromLayout
+              - PptxDocument_Render_SamplelibSamplePresentationFixture_Slide4ThrowsUnsupportedFeatureOthersPaintContent
 
           - id: CanvasNetPptx-PptxDocument-ShapeFrameTransform
             title: >-
@@ -740,6 +773,27 @@ sections:
               - ResolveTextLayout_RunBreakRun_ForcesSecondLine
               - ResolveTextLayout_TallestFontComparison_ScalesByUnitsPerEmAndSizeEmu_NotRawFontUnits
 
+          - id: CanvasNetPptx-PptxDocument-TextAlignmentWidthUnderWrapNone
+            title: >-
+              The PptxDocument class shall position horizontally-aligned (center/right) lines of a
+              wrap="none" text body against the same finite, real width - the owning shape's own
+              declared width, less its horizontal insets - that a wrap="square" text body's own
+              alignment uses, independently of the effectively-infinite width used only to
+              suppress word-wrapping for a wrap="none" body's own line-breaking decision.
+            justification: |
+              wrap="none" is implemented by widening the width passed to the word-wrap
+              line-breaking step to an effectively-infinite value, suppressing any wrap decision.
+              Reusing that same infinite width for PositionLines's own center/right alignment
+              math (rather than the shape's real, finite declared width) positioned every glyph of
+              a centered or right-aligned wrap="none" paragraph at an astronomical X offset, far
+              outside the shape and the rendered surface entirely - a silent, incorrect-output
+              failure on text alignment (TextLayoutWordWrap's own already-implemented feature),
+              discovered rendering pythonpptx-txt-font-props.pptx's own real-world centered,
+              wrap="none" underline-demo slide, which painted zero pixels before this fix.
+            tests:
+              - ResolveTextLayout_AlignCenter_WrapNone_StillCentersAgainstShapesDeclaredWidth
+              - PptxDocument_Render_TxtFontPropsFixture_RendersEverySlideWithVisibleContent
+
           - id: CanvasNetPptx-PptxDocument-TextVerticalAnchor
             title: >-
               The PptxDocument class shall position a text body's word-wrapped lines vertically
@@ -1056,6 +1110,16 @@ sections:
               - Render_GraphicFrameMissingXfrm_SkippedSilently
               - Render_NonPlaceholderShapeWithText_PaintsGlyphInkInsideShapeRectangle
               - Render_PlaceholderShape_ReadsTextFromSlideLevelShapeNotLayout
+              - Render_PlaceholderShapeWithEmptySpPr_InheritsXfrmAndGeometryFromLayout
+              - PptxDocument_Render_BlankSlideFixtures_RendersWithoutError
+              - PptxDocument_Render_ShpAutoshapePropsFixture_PaintsVisibleContent
+              - PptxDocument_Render_ShpGroupShapeFixture_RendersWithoutError
+              - PptxDocument_Render_ShpPictureFixture_RendersEverySlideWithVisibleContent
+              - PptxDocument_Render_TblCellFixture_RendersEverySlideWithVisibleContent
+              - PptxDocument_Render_TxtFontPropsFixture_RendersEverySlideWithVisibleContent
+              - PptxDocument_Render_TxtTextFrameFixture_RendersEverySlideWithVisibleContent
+              - PptxDocument_Render_ShpShapesFixture_Slide0ThrowsUnsupportedFeatureSlide1PaintsContent
+              - PptxDocument_Render_SamplelibSamplePresentationFixture_Slide4ThrowsUnsupportedFeatureOthersPaintContent
 
           - id: CanvasNetPptx-PptxDocument-RenderPublicApi
             title: >-

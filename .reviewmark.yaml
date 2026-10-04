@@ -870,6 +870,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxGroupsTests.cs"  # phase 1e unit tests (shape tree/groups)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxSystemIntegrationTests.cs"  # integration tests
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxRenderTests.cs"  # phase 1f unit tests (render API)
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxFixturesCorpusTests.cs"  # fixture conformance tests
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark

@@ -5,6 +5,7 @@
 <!-- cspell:ignore spcPct spcPts Ordinally -->
 <!-- cspell:ignore srcRect blipFill tblGrid gridCol tcPr hMerge vMerge gridSpan rowSpan grpSp -->
 <!-- cspell:ignore grpSpPr cxnSp graphicFrame tableStyleId spTree contentPart -->
+<!-- cspell:ignore pythonpptx Autoshape groupshape -->
 
 This document describes the unit-level verification strategy for the `PptxDocument` class.
 
@@ -302,6 +303,24 @@ the layout for text style. Separately, proves that when no placeholder matches a
 effective property categories resolve to `null` while the resolved theme is still returned
 unchanged as context.
 
+#### CanvasNetPptx-PptxDocument-PlaceholderXfrmGeometryInheritance: `<a:xfrm>`/Geometry Inherit Past an Empty `<p:spPr/>`
+
+**Tests**: `Render_PlaceholderShapeWithEmptySpPr_InheritsXfrmAndGeometryFromLayout`,
+`PptxDocument_Render_SamplelibSamplePresentationFixture_Slide4ThrowsUnsupportedFeatureOthersPaintContent`
+
+Proves a placeholder shape whose own `<p:spPr/>` is present but empty (declaring neither
+`<a:xfrm>` nor `<a:prstGeom>`/`<a:custGeom>`, deliberately relying on its matched layout
+placeholder for both) still renders and paints visible content, rather than being silently
+skipped (for a missing `<a:xfrm>`) or crashing with `InvalidDataException` (for missing geometry) -
+`EffectiveXfrmElement`/`EffectiveGeometrySpPr` each independently walk slide -> matched layout ->
+matched master looking specifically for an `<a:xfrm>` child, or a `<p:spPr>` that itself declares
+a geometry child, continuing past a tier's own empty-but-present `<p:spPr>` that declares
+neither - unlike `PlaceholderInheritancePerCategory`'s own whole-element fallback, which stops at
+the first present `<p:spPr>` regardless of its own contents. The second test additionally proves
+this against a real-world fixture (`samplelib-sample-presentation.pptx` slides 0-2, each a
+placeholder with exactly this empty-`<p:spPr/>` shape), confirming the synthetic regression test's
+finding generalizes to genuine third-party-generated files, not merely a hand-authored edge case.
+
 #### CanvasNetPptx-PptxDocument-ShapeFrameTransform: Position/Rotation/Flip Compose Into the Correct Local-to-Parent Transform
 
 **Tests**: `ResolveShapeFrame_PlainOffsetAndSize_MapsLocalOriginToOffset`,
@@ -588,6 +607,20 @@ run's own resolved `SizeEmu`, so a visually smaller run on a font reporting disp
 large raw font-design-unit metrics is not incorrectly selected over a visually larger run on a
 differently-scaled font.
 
+#### CanvasNetPptx-PptxDocument-TextAlignmentWidthUnderWrapNone: Alignment Width Independent of Line-Breaking Width
+
+**Tests**: `ResolveTextLayout_AlignCenter_WrapNone_StillCentersAgainstShapesDeclaredWidth`,
+`PptxDocument_Render_TxtFontPropsFixture_RendersEverySlideWithVisibleContent`
+
+Proves a `wrap="none"` text body's centered paragraph is positioned against the same finite,
+real width (`alignmentWidth`, the shape's own declared width less its horizontal insets) a
+`wrap="square"` body's own alignment uses - identical X offsets for the same `"AA"` line in both
+wrap modes - rather than against the effectively-infinite width `ResolveTextLayout` uses only to
+suppress `wrap="none"`'s own word-wrap line-breaking decision. The second test additionally
+proves this against a real-world fixture (`pythonpptx-txt-font-props.pptx` slide index 3, a
+centered, `wrap="none"` underline-demo slide), confirming the synthetic regression test's finding
+generalizes to a genuine third-party-generated file, not merely a hand-authored edge case.
+
 #### CanvasNetPptx-PptxDocument-TextVerticalAnchor: Vertical Anchor Positioning
 
 **Tests**: `ResolveTextLayout_AnchorTop_PositionsFirstBaselineAtAscentFromTop`,
@@ -805,7 +838,17 @@ non-numeric `idx` attribute with `InvalidDataException`.
 `Render_Table_PaintsCellFillAcrossCellRectangle`,
 `Render_GraphicFrameMissingXfrm_SkippedSilently`,
 `Render_NonPlaceholderShapeWithText_PaintsGlyphInkInsideShapeRectangle`,
-`Render_PlaceholderShape_ReadsTextFromSlideLevelShapeNotLayout`
+`Render_PlaceholderShape_ReadsTextFromSlideLevelShapeNotLayout`,
+`Render_PlaceholderShapeWithEmptySpPr_InheritsXfrmAndGeometryFromLayout`,
+`PptxDocument_Render_BlankSlideFixtures_RendersWithoutError`,
+`PptxDocument_Render_ShpAutoshapePropsFixture_PaintsVisibleContent`,
+`PptxDocument_Render_ShpGroupShapeFixture_RendersWithoutError`,
+`PptxDocument_Render_ShpPictureFixture_RendersEverySlideWithVisibleContent`,
+`PptxDocument_Render_TblCellFixture_RendersEverySlideWithVisibleContent`,
+`PptxDocument_Render_TxtFontPropsFixture_RendersEverySlideWithVisibleContent`,
+`PptxDocument_Render_TxtTextFrameFixture_RendersEverySlideWithVisibleContent`,
+`PptxDocument_Render_ShpShapesFixture_Slide0ThrowsUnsupportedFeatureSlide1PaintsContent`,
+`PptxDocument_Render_SamplelibSamplePresentationFixture_Slide4ThrowsUnsupportedFeatureOthersPaintContent`
 
 Proves a single full-slide shape's resolved fill paints across the destination surface, proves a
 slide with no shapes at all renders only the cleared background, proves rendering at a pixel size
@@ -821,9 +864,24 @@ recursion, proves a `<p:pic>` paints its embedded image at the expected surface 
 a `<p:pic>` missing its own `<p:blipFill>` is skipped silently, proves a `<p:graphicFrame>`'s
 table paints a cell's own resolved fill across its cell rectangle, proves a `<p:graphicFrame>`
 missing its own direct `<p:xfrm>` child is skipped silently, proves a non-placeholder shape's own
-text body paints glyph ink somewhere inside the shape's own rectangle, and proves a placeholder
+text body paints glyph ink somewhere inside the shape's own rectangle, proves a placeholder
 shape's text is read from the slide-level shape element's own `<p:txBody>` rather than from its
-matched layout placeholder (which supplies styling only).
+matched layout placeholder (which supplies styling only), and proves a placeholder shape whose
+own `<p:spPr/>` is empty still inherits its `<a:xfrm>`/geometry from its matched layout placeholder
+rather than being silently skipped.
+
+The remaining ten `PptxDocument_Render_*Fixture_*` tests are the real-world corpus-conformance
+tier added in the Phase 2 hardening pass (see `pptx-document.md`'s own Phase 2 design section and
+`PptxFixtures/README.md` for full provenance): each opens one of ten genuine, independently-sourced
+`.pptx` files and renders every one of its slides, proving real-file conformance - not merely
+synthetic-package conformance - for the shape-tree walk and per-node-kind dispatch this
+requirement specifies. These tests additionally prove, against real files rather than merely
+hand-authored packages, that a chart/SmartArt-bearing `<p:graphicFrame>` slide throws
+`PptxUnsupportedFeatureException` cleanly (`pythonpptx-shp-shapes.pptx` slide 0,
+`samplelib-sample-presentation.pptx` slide 4), and that a group shape whose every child shape
+relies solely on an unresolved `<p:style>` shape-style-matrix reference for its fill (an
+out-of-scope construct, see `pptx-document.md`'s Phase 1c deferred-items list) renders without
+error despite painting no visible ink (`pythonpptx-shp-groupshape.pptx`).
 
 #### CanvasNetPptx-PptxDocument-RenderPublicApi: Public API Argument Validation and DPI Convenience Overload
 
