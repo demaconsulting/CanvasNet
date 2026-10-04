@@ -89,10 +89,10 @@ public sealed partial class PptxDocument
         var paragraphDefRPr = paragraph.RawProperties.DefRPrElement;
 
         var typeface =
-            GetTypeface(runRPr) ??
-            GetTypeface(paragraphDefRPr) ??
-            GetTypeface(placeholderLevelDefRPr) ??
-            GetTypeface(masterLevelDefRPr) ??
+            ResolveTypeface(GetTypeface(runRPr), theme) ??
+            ResolveTypeface(GetTypeface(paragraphDefRPr), theme) ??
+            ResolveTypeface(GetTypeface(placeholderLevelDefRPr), theme) ??
+            ResolveTypeface(GetTypeface(masterLevelDefRPr), theme) ??
             DefaultTypeface(theme, placeholderType);
 
         var sizeEmu =
@@ -210,6 +210,35 @@ public sealed partial class PptxDocument
     /// <summary>Extracts an <c>&lt;a:rPr&gt;</c>/<c>&lt;a:defRPr&gt;</c>-shaped element's <c>&lt;a:latin typeface="..."/&gt;</c> value.</summary>
     private static string? GetTypeface(XElement? rPrLikeElement) =>
         (string?)rPrLikeElement?.Element(DrawingNamespace + "latin")?.Attribute("typeface");
+
+    /// <summary>
+    ///     Resolves a raw <c>&lt;a:latin typeface="..."/&gt;</c> value: DrawingML permits the six
+    ///     theme-font tokens <c>+mj-lt</c>/<c>+mn-lt</c> (major/minor Latin),
+    ///     <c>+mj-ea</c>/<c>+mn-ea</c> (major/minor East Asian), and <c>+mj-cs</c>/<c>+mn-cs</c>
+    ///     (major/minor complex-script) in place of a literal family name, each referring back to
+    ///     <paramref name="theme"/>'s own <see cref="PptxTheme.FontScheme"/> rather than naming a
+    ///     font directly - resolving these here, rather than passing the literal token string
+    ///     through to the font resolver, is required so lookups actually find the theme's real
+    ///     major/minor font instead of silently falling back to the font resolver's own default.
+    /// </summary>
+    /// <param name="rawTypeface">The raw <c>typeface</c> attribute value, or <see langword="null"/> when absent.</param>
+    /// <param name="theme">The resolved theme supplying the <see cref="PptxTheme.FontScheme"/> a token refers to.</param>
+    /// <returns>
+    ///     The resolved family name, or <see langword="null"/> when <paramref name="rawTypeface"/>
+    ///     is <see langword="null"/> (preserving the attribute's absence through the inheritance chain).
+    /// </returns>
+    private static string? ResolveTypeface(string? rawTypeface, PptxTheme theme) =>
+        rawTypeface switch
+        {
+            null => null,
+            "+mj-lt" => theme.FontScheme.MajorFont.Latin,
+            "+mn-lt" => theme.FontScheme.MinorFont.Latin,
+            "+mj-ea" => theme.FontScheme.MajorFont.EastAsian,
+            "+mn-ea" => theme.FontScheme.MinorFont.EastAsian,
+            "+mj-cs" => theme.FontScheme.MajorFont.ComplexScript,
+            "+mn-cs" => theme.FontScheme.MinorFont.ComplexScript,
+            _ => rawTypeface,
+        };
 
     /// <summary>Resolves the hard-coded default typeface: the theme's major font for a title-type placeholder, else its minor font.</summary>
     private static string DefaultTypeface(PptxTheme theme, string placeholderType) =>

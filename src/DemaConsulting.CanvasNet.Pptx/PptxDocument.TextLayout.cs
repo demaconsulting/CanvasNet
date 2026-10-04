@@ -98,10 +98,14 @@ public sealed partial class PptxDocument
     /// <summary>
     ///     Resolves the autofit font-scale/line-spacing-reduction factors to apply, per Design
     ///     Decision 4's three-tier policy: <c>noAutofit</c>/absent/<c>spAutoFit</c> apply no
-    ///     scaling; an explicit <c>normAutofit fontScale="..."/lnSpcReduction="..."</c> is applied
-    ///     verbatim; an attribute-less <c>normAutofit</c> runs a bounded 10%-step shrink loop,
-    ///     stopping at the first scale whose natural layout height fits <paramref name="availableHeight"/>
-    ///     or at the 10% floor, whichever comes first.
+    ///     scaling; an explicit <c>normAutofit</c> applies each of its <c>fontScale</c>/
+    ///     <c>lnSpcReduction</c> attributes independently (per OOXML, each is independently
+    ///     optional - an element declaring only one still carries a meaningful, persisted factor
+    ///     for that one, falling back to that one attribute's own spec-defined neutral default
+    ///     (<c>100000</c>/no reduction) only when it is itself absent); a <c>normAutofit</c>
+    ///     declaring neither attribute runs a bounded 10%-step shrink loop instead, stopping at
+    ///     the first scale whose natural layout height fits <paramref name="availableHeight"/> or
+    ///     at the 10% floor, whichever comes first.
     /// </summary>
     /// <returns>A <c>(FontScale, LineSpacingFactor)</c> pair, each <c>1.0</c> meaning "unscaled".</returns>
     private static (float FontScale, float LineSpacingFactor) ResolveAutofitScale(
@@ -118,9 +122,11 @@ public sealed partial class PptxDocument
 
         var fontScaleAttribute = (float?)autofitElement.Attribute("fontScale");
         var lnSpcReductionAttribute = (float?)autofitElement.Attribute("lnSpcReduction");
-        if (fontScaleAttribute is { } storedFontScale && lnSpcReductionAttribute is { } storedReduction)
+        if (fontScaleAttribute is { } || lnSpcReductionAttribute is { })
         {
-            return (storedFontScale / 100000f, 1f - (storedReduction / 100000f));
+            var fontScale = fontScaleAttribute is { } storedFontScale ? storedFontScale / 100000f : 1f;
+            var lineSpacingFactor = lnSpcReductionAttribute is { } storedReduction ? 1f - (storedReduction / 100000f) : 1f;
+            return (fontScale, lineSpacingFactor);
         }
 
         // Attribute-less <a:normAutofit/>: bounded deterministic shrink loop (Design Decision 4).
@@ -162,12 +168,24 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>A single word-wrap token, resolved to a specific run's effective properties/font for width measurement and emission.</summary>
+    /// <param name="Text">The token's own text (empty for an <see cref="IsLineBreak"/> token).</param>
+    /// <param name="IsWhitespace">Whether the token is a collapsible run of whitespace rather than a visible word.</param>
+    /// <param name="RunProperties">The owning run's effective, already font-scaled properties (unused for an <see cref="IsLineBreak"/> token).</param>
+    /// <param name="Font">The owning run's resolved font (unused for an <see cref="IsLineBreak"/> token).</param>
+    /// <param name="WidthEmu">The token's measured advance width, in EMU (always <c>0</c> for an <see cref="IsLineBreak"/> token).</param>
+    /// <param name="IsLineBreak">
+    ///     When <see langword="true"/>, this token represents an explicit <c>&lt;a:br&gt;</c> line
+    ///     break rather than run text: it carries no text/font/width of its own and is never
+    ///     added to a line's glyph content - <see cref="PackTokensIntoLines"/> instead consumes
+    ///     it to force a new line boundary at this point in the paragraph's token stream.
+    /// </param>
     private readonly record struct ResolvedToken(
         string Text,
         bool IsWhitespace,
         PptxEffectiveRunProperties RunProperties,
         TrueTypeFont Font,
-        float WidthEmu);
+        float WidthEmu,
+        bool IsLineBreak = false);
 
     /// <summary>A single laid-out glyph, positioned relative to its own line's start (alignment/margin not yet applied).</summary>
     private readonly record struct LineGlyph(TrueTypeFont Font, int GlyphIndex, float XInLineEmu, float SizeEmu, Rgba32 Color);
@@ -222,12 +240,22 @@ public sealed partial class PptxDocument
             var paragraph = resolvedParagraph.Paragraph;
             var paraProps = resolvedParagraph.ParagraphProperties;
 
-            // Build the paragraph's scaled token stream, resolving each run's font once.
+            // Build the paragraph's scaled token stream, resolving each run's font once. An
+            // <c>&lt;a:br&gt;</c> item becomes a break-marker token that forces a new line in
+            // PackTokensIntoLines, preserving its position relative to surrounding runs.
             var tokens = new List<ResolvedToken>();
-            for (var runIndex = 0; runIndex < paragraph.Runs.Count; runIndex++)
+            var runIndex = 0;
+            foreach (var item in paragraph.Items)
             {
-                var run = paragraph.Runs[runIndex];
+                if (item is PptxLineBreakItem)
+                {
+                    tokens.Add(new ResolvedToken(string.Empty, false, default!, null!, 0f, IsLineBreak: true));
+                    continue;
+                }
+
+                var run = ((PptxRunItem)item).Run;
                 var runProps = resolvedParagraph.RunProperties[runIndex];
+                runIndex++;
                 var scaledSizeEmu = runProps.SizeEmu * fontScale;
                 var font = resolveFont(runProps.FontFamily, runProps.Bold, runProps.Italic);
                 var scaledRunProps = runProps with { SizeEmu = scaledSizeEmu };
@@ -265,7 +293,13 @@ public sealed partial class PptxDocument
 
                 foreach (var token in lineTokens)
                 {
-                    var naturalHeight = token.Font.Ascender - token.Font.Descender + token.Font.LineGap;
+                    // Compare each candidate's actual rendered natural height (its raw font-design-
+                    // unit metrics scaled by its own UnitsPerEm and SizeEmu), not raw font-design
+                    // units directly - otherwise a small-font run using a font with a tall em-box
+                    // can out-rank a much larger run that happens to use a more compact em-box,
+                    // producing the wrong line height/baseline.
+                    var naturalHeight = (token.Font.Ascender - token.Font.Descender + token.Font.LineGap) /
+                        (float)token.Font.UnitsPerEm * token.RunProperties.SizeEmu;
                     if (naturalHeight > tallestNaturalHeight)
                     {
                         tallestNaturalHeight = naturalHeight;
@@ -314,15 +348,31 @@ public sealed partial class PptxDocument
         return lines;
     }
 
-    /// <summary>Greedily packs a paragraph's token stream into width-bounded lines, returning each line's own token list.</summary>
+    /// <summary>
+    ///     Greedily packs a paragraph's token stream into width-bounded lines, returning each
+    ///     line's own token list. An <see cref="ResolvedToken.IsLineBreak"/> token (from an
+    ///     explicit <c>&lt;a:br&gt;</c>) is never itself added to a line - it instead force-flushes
+    ///     the current line (even if empty) and starts a new one, independent of word-wrap width.
+    /// </summary>
     private static List<List<ResolvedToken>> PackTokensIntoLines(IReadOnlyList<ResolvedToken> tokens, float availableWidthEmu)
     {
         var lines = new List<List<ResolvedToken>>();
         var currentLine = new List<ResolvedToken>();
         var currentWidth = 0f;
+        var sawAnyToken = false;
 
         foreach (var token in tokens)
         {
+            sawAnyToken = true;
+
+            if (token.IsLineBreak)
+            {
+                lines.Add(currentLine);
+                currentLine = [];
+                currentWidth = 0f;
+                continue;
+            }
+
             if (currentLine.Count > 0 && currentWidth + token.WidthEmu > availableWidthEmu)
             {
                 lines.Add(currentLine);
@@ -334,7 +384,12 @@ public sealed partial class PptxDocument
             currentWidth += token.WidthEmu;
         }
 
-        if (currentLine.Count > 0)
+        // The final (or only) line is always kept, even if empty - a trailing <a:br/> or a
+        // paragraph consisting solely of break(s) still produces the trailing blank line(s) the
+        // explicit break boundary implies. A paragraph with no tokens at all (no runs, no
+        // breaks) intentionally yields no lines here - BuildLines supplies its own single blank
+        // line for that case.
+        if (currentLine.Count > 0 || sawAnyToken)
         {
             lines.Add(currentLine);
         }

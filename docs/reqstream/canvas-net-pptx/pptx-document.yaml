@@ -21,13 +21,22 @@ sections:
               The PptxDocument class shall expose a static Open(Stream) method that buffers the
               entire supplied stream into memory (without disposing or requiring it to remain
               seekable afterward), constructs the OOXML package layer from the buffered bytes,
-              and rejects a null stream with ArgumentNullException.
+              rejects a null stream with ArgumentNullException, and bounds the number of bytes
+              read from the supplied stream to a fixed maximum package size (256 MiB), rejecting a
+              stream exceeding that bound with InvalidDataException rather than buffering it in
+              full.
             justification: |
               Callers need to open a package from any stream source (file, network, in-memory)
-              without CanvasNetPptx retaining a dependency on the caller's stream lifetime.
+              without CanvasNetPptx retaining a dependency on the caller's stream lifetime. A
+              caller-supplied stream is not necessarily trusted or even finite (for example a
+              network stream under adversarial control, or a non-terminating stream), so buffering
+              it in full with no upper bound would let a single Open(Stream) call exhaust available
+              memory or block indefinitely; a fixed, documented size bound fails the call closed
+              with a clear exception instead.
             tests:
               - PptxDocument_Open_WellFormedMinimalPackage_Succeeds
               - PptxDocument_Open_NullStream_ThrowsArgumentNullException
+              - PptxDocument_Open_NonTerminatingOversizedStream_ThrowsInvalidDataException
 
           - id: CanvasNetPptx-PptxDocument-OpenPath
             title: >-
@@ -474,13 +483,21 @@ sections:
               supplied PptxTheme's color scheme (reusing the existing PptxTheme/PptxColorScheme
               resolver rather than re-resolving the theme), including the bg1/tx1/bg2/tx2
               background/text aliases mapped to their corresponding dk/lt scheme slots; an
-              unrecognized schemeClr slot name throws InvalidDataException, and any other,
+              unrecognized schemeClr slot name throws InvalidDataException, any other,
               unsupported color-definition element kind throws PptxUnsupportedFeatureException
-              (feature token "pptx-color-kind").
+              (feature token "pptx-color-kind"), and an srgbClr/sysClr hex value whose length
+              (after stripping an optional leading '#') is not exactly six hex digits - for
+              example an 8-digit  # AARRGGBB-style value - throws InvalidDataException rather than
+              being passed to the underlying hex parser.
             justification: |
               Scheme color resolution must build directly on Phase 1b's already-verified
               PptxTheme/PptxColorScheme resolver rather than duplicating its 12-slot lookup table,
-              so both phases stay in sync automatically if that table ever changes.
+              so both phases stay in sync automatically if that table ever changes. OOXML's
+              srgbClr/sysClr val attribute is specified as exactly six RGB hex digits; the
+              underlying Rgba32 hex parser also accepts an 8-digit  # AARRGGBB form and would
+              silently treat the first byte as alpha for a malformed 8-digit value, so the
+              six-digit form must be enforced before parsing to fail closed rather than silently
+              produce a wrong, unintended-alpha color.
             tests:
               - ResolveColor_SrgbClr_ParsesHexDirectly
               - ResolveColor_SysClr_UsesLastClrAttribute
@@ -488,6 +505,8 @@ sections:
               - ResolveColor_SchemeClrBackgroundTextAliases_MapToExpectedSlot
               - ResolveColor_SchemeClrUnrecognizedSlot_ThrowsInvalidDataException
               - ResolveColor_UnsupportedColorKind_ThrowsPptxUnsupportedFeatureException
+              - ResolveColor_SrgbClrEightDigitValue_ThrowsInvalidDataException
+              - ResolveColor_SysClrEightDigitLastClrValue_ThrowsInvalidDataException
 
           - id: CanvasNetPptx-PptxDocument-ColorTransforms
             title: >-
@@ -588,19 +607,28 @@ sections:
               lnSpc, spcBef, spcAft, and defRPr, each retained raw/unresolved) and its lvl attribute
               (clamped to the valid [0,8] level range per the OOXML schema's ten-level style
               vocabulary), defaulting every field/level to its schema default when <a:pPr> or the
-              individual attribute is absent, and shall parse a run's <a:rPr> element (retained
+              individual attribute is absent, shall parse a run's <a:rPr> element (retained
               raw/unresolved) and its <a:t> text, defaulting text to the empty string when <a:t> is
-              absent.
+              absent, and shall parse a paragraph's <a:r> run children and <a:br> explicit
+              line-break children into a single ordered item list preserving their original
+              document order (rather than selecting only <a:r> children and discarding every
+              <a:br>), so a later layout pass can turn each preserved <a:br> into an explicit line
+              boundary.
             justification: |
               Resolving effective run/paragraph properties (CanvasNetPptx-PptxDocument-
               TextPropertyInheritance) requires each paragraph's/run's own raw property fragment to
               already be extracted and level-clamped, independent of the inheritance chain itself.
+              <a:br/> is DrawingML's explicit line-break element (distinct from word-wrap-induced
+              line breaks); discarding it during parsing would make it structurally impossible for
+              any later layout stage to honor an author-intended forced line break, so document
+              order between runs and breaks must be preserved from the parse stage onward.
             tests:
               - ParseParagraphProperties_Absent_ResolvesLevelZeroAndNullOptionals
               - ParseParagraphProperties_LevelAttribute_ClampsToZeroToEight
               - ParseParagraphProperties_FullyPopulated_ResolvesEveryField
               - ParseRun_NoText_ResolvesEmptyString
               - ParseRun_WithTextAndRPr_ResolvesBoth
+              - ParseParagraph_RunBreakRun_PreservesBreakInDocumentOrder
 
           - id: CanvasNetPptx-PptxDocument-TextPropertyInheritance
             title: >-
@@ -610,13 +638,22 @@ sections:
               through the chain run/paragraph defRPr -> placeholder level-indexed lstStyle ->
               master level-indexed txStyles bucket -> theme/hard-coded default, each attribute
               independently taking its own first non-null value rather than falling back at the
-              level of the whole run/paragraph, and shall normalize algn="just"/"justLow" to "l"
-              (full text justification is explicitly out of scope this phase).
+              level of the whole run/paragraph, shall normalize algn="just"/"justLow" to "l" (full
+              text justification is explicitly out of scope this phase), and shall resolve an
+              <a:latin typeface="..."/> value naming one of the six reserved DrawingML theme-font
+              tokens (+mj-lt/+mn-lt, +mj-ea/+mn-ea, +mj-cs/+mn-cs) through the supplied PptxTheme's
+              FontScheme (major/minor Latin/EastAsian/ComplexScript font) at whichever inheritance
+              tier the token is declared, rather than returning the literal token string as the
+              resolved family name.
             justification: |
               Real-world DrawingML text commonly overrides a single attribute (for example making
               one word bold) without overriding every other attribute at the same level; an
               element-level (not attribute-level) fallback would incorrectly lose every other
-              attribute's own, more specific resolution for that run/paragraph.
+              attribute's own, more specific resolution for that run/paragraph. DrawingML permits
+              an <a:latin typeface="..."/> to name a theme-font token instead of a literal family
+              name so that body text tracks the theme's own major/minor font choice; returning the
+              token string unresolved would make font lookup miss the theme's actual font and fall
+              back to a bundled default font even when the theme itself defines the intended one.
             tests:
               - ResolveEffectiveRunProperties_RunOverride_WinsOverEveryOtherTier
               - ResolveEffectiveRunProperties_ParagraphDefRPrOnly_WinsWhenRunDeclaresNothing
@@ -628,6 +665,8 @@ sections:
               - ResolveEffectiveParagraphProperties_Alignment_NormalizesJustificationToLeft
               - ResolveEffectiveParagraphProperties_FixedLineSpacing_ResolvesPointsToEmu
               - ResolveEffectiveParagraphProperties_PlaceholderLevelStyleOnly_WinsWhenParagraphDeclaresNothing
+              - ResolveEffectiveRunProperties_ThemeFontToken_ResolvesThroughFontScheme
+              - ResolveEffectiveRunProperties_LiteralTypeface_PassesThroughUnchanged
 
           - id: CanvasNetPptx-PptxDocument-TextStylesInheritance
             title: >-
@@ -660,17 +699,33 @@ sections:
               text into whitespace/non-whitespace tokens (preserving multi-space runs as their own
               token, not collapsing them) and greedily packing tokens onto each line, placing a
               single token that alone exceeds the available width alone on its own (overflowing)
-              line rather than looping indefinitely, and shall resolve horizontal alignment (left/
-              center/right, using each line's own margin/indent) against the available width.
+              line rather than looping indefinitely, shall resolve horizontal alignment (left/
+              center/right, using each line's own margin/indent) against the available width, shall
+              force a new line at each preserved <a:br> explicit line-break item (in addition to
+              word-wrap-induced line breaks), and shall select the tallest-run candidate for each
+              line's natural height/baseline by comparing each run's font metrics (ascender,
+              descender, line gap) scaled by that run's own font.UnitsPerEm and its own resolved
+              SizeEmu, rather than by comparing raw, unscaled font-design-unit metrics across runs
+              that may use different fonts and/or sizes.
             justification: |
               Word-wrap is the foundational text-layout behavior every other layout concern
               (vertical anchor, autofit) builds on; an incorrect or infinite-looping wrap algorithm
-              would make every other text-layout feature unusable.
+              would make every other text-layout feature unusable. <a:br/> is DrawingML's explicit
+              line-break element and must force a line boundary distinct from word-wrap's own
+              token-packing decisions, or an author-intended forced break would be silently
+              dropped and its following text would incorrectly run on into the same line. Raw
+              font-design-unit metrics are not directly comparable across runs using different
+              fonts or point sizes (for example a font with an unusually tall em-box can report
+              larger raw ascender/descender/line-gap values despite rendering at a visually smaller
+              size); comparing unscaled values can therefore select the wrong run as "tallest" and
+              produce an incorrect line height/baseline for that line.
             tests:
               - ResolveTextLayout_WordWrap_NarrowWidth_WrapsAtTokenBoundary
               - ResolveTextLayout_WordWrap_SingleTokenWiderThanAvailableWidth_PlacedAloneOnOwnLine
               - ResolveTextLayout_AlignCenter_CentersLineWithinAvailableWidth
               - ResolveTextLayout_AlignRight_RightAlignsLineAgainstAvailableWidth
+              - ResolveTextLayout_RunBreakRun_ForcesSecondLine
+              - ResolveTextLayout_TallestFontComparison_ScalesByUnitsPerEmAndSizeEmu_NotRawFontUnits
 
           - id: CanvasNetPptx-PptxDocument-TextVerticalAnchor
             title: >-
@@ -692,9 +747,13 @@ sections:
             title: >-
               The PptxDocument class shall apply a text body's resolved autofit policy in three
               tiers: no scaling at all for noAutofit, an absent autofit element, or spAutoFit
-              (shape-resize autofit, deliberately not implemented this phase); an explicit
-              normAutofit fontScale/lnSpcReduction pair applied verbatim; and an attribute-less
-              normAutofit running a bounded, deterministic 10%-step shrink loop (at most 9
+              (shape-resize autofit, deliberately not implemented this phase); a normAutofit with
+              one or both of its fontScale/lnSpcReduction attributes present, applying each present
+              attribute's own stored value verbatim and independently, using that attribute's own
+              spec-defined neutral default (fontScale 100%, lnSpcReduction 0%/no reduction) for
+              whichever of the two attributes is absent, rather than requiring both attributes to
+              be present before applying either; and an attribute-less normAutofit (neither
+              attribute present) running a bounded, deterministic 10%-step shrink loop (at most 9
               iterations, floored at 10% scale) that stops at the first scale whose naturally
               laid-out height fits the available height.
             justification: |
@@ -702,34 +761,50 @@ sections:
               without explicit fontScale/lnSpcReduction values (PowerPoint itself computes and
               persists them lazily); a bounded, deterministic shrink loop reproduces the same
               user-visible effect without depending on PowerPoint's own unpublished exact algorithm.
+              The two normAutofit attributes are independently optional per the OOXML schema -
+              PowerPoint may persist only one of the two (for example only a computed fontScale);
+              requiring both before applying either would discard a validly persisted single
+              attribute entirely and fall through to the attribute-less shrink loop instead of
+              honoring the author's/PowerPoint's own already-computed factor.
             tests:
               - ResolveTextLayout_NoAutofit_AppliesNoScalingEvenWhenOverflowing
               - ResolveTextLayout_SpAutoFit_AppliesNoScaling
               - ResolveTextLayout_NormAutofitWithExplicitAttributes_AppliesStoredFactorsVerbatim
               - ResolveTextLayout_NormAutofitAttributeLess_ShrinkLoopConvergesOnFirstFittingScale
+              - ResolveTextLayout_NormAutofitFontScaleOnly_AppliesStoredFontScaleVerbatim
+              - ResolveTextLayout_NormAutofitLnSpcReductionOnly_AppliesStoredReductionWithNeutralFontScale
 
           - id: CanvasNetPptx-PptxDocument-TextRendering
             title: >-
               The PptxDocument class shall paint a resolved text layout's glyphs onto a core
-              Surface by composing each glyph's own unit-to-EMU scale, its resolved baseline
-              origin, and the owning shape's own frame transform into a single glyph-to-surface
-              matrix, re-issuing the glyph's outline through that matrix and filling it with the
-              glyph's resolved color via the core PathFiller (mirroring the PDF renderer's own
-              glyph-painting pattern), skipping a glyph whose outline has no subpaths (for example
-              a whitespace glyph) entirely rather than painting an empty fill, and shall resolve a
-              DrawingML typeface name hint to a concrete TrueTypeFont via the core
-              SystemFontCatalog (always passing serif/fixed-pitch false, since DrawingML never
-              signals either classification), falling back to a bundled font when no installed
-              font matches.
+              Surface by composing each glyph's own unit-to-EMU scale (with a negated Y component,
+              since TrueType glyph outlines use a y-up font coordinate system while CanvasNet's
+              shape-local/surface space is y-down), its resolved baseline origin, and the owning
+              shape's own frame transform into a single glyph-to-surface matrix, re-issuing the
+              glyph's outline through that matrix and filling it with the glyph's resolved color
+              via the core PathFiller (mirroring the PDF renderer's own glyph-painting pattern),
+              skipping a glyph whose outline has no subpaths (for example a whitespace glyph)
+              entirely rather than painting an empty fill, and shall resolve a DrawingML typeface
+              name hint to a concrete TrueTypeFont via the core SystemFontCatalog (always passing
+              serif/fixed-pitch false, since DrawingML never signals either classification),
+              falling back to a bundled font when no installed font matches.
             justification: |
               Painting resolved glyph ink onto a Surface is this phase's terminal, user-visible
               output; reusing the already-verified core PathFiller/SystemFontCatalog building
               blocks (exactly as the PDF renderer already does) avoids a second, divergent
-              glyph-painting/font-resolution implementation for this package.
+              glyph-painting/font-resolution implementation for this package. A positive (rather
+              than negated) Y scale on the glyph-outline transform would paint every glyph upside
+              down and below the baseline instead of right-side-up and above it, since TrueType
+              outline coordinates are y-up but this package's shape-local/surface space is y-down
+              (see core Path.Rectangle's own doc comments for the authoritative convention); a
+              symmetric glyph outline cannot expose this regression class, since flipping it about
+              its own center leaves it visually/structurally identical, so an asymmetric synthetic
+              glyph outline is required to detect it.
             tests:
               - PaintTextLayout_IdentityTransform_PaintsGlyphAtExpectedLocationWithResolvedColor
               - PaintTextLayout_TranslatedShapeTransform_ShiftsPaintedLocation
               - PaintTextLayout_EmptyOutlineGlyph_PaintsNothing
+              - PaintTextLayout_AsymmetricGlyph_PaintsInkAboveBaselineNotBelow
               - ResolveTextFont_AnyFamilyHint_ResolvesNonNullFont
               - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
               - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd

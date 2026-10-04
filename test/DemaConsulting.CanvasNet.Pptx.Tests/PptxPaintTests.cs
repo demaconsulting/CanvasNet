@@ -249,6 +249,26 @@ public class PptxPaintTests
         Assert.Equal("pptx-color-kind", ex.Feature);
     }
 
+    /// <summary>
+    ///     Resolve Color - Srgb Clr Eight Digit Value - Throws Invalid Data Exception (rather than
+    ///     silently accepting an <c>AARRGGBB</c> value and misinterpreting its leading byte as
+    ///     alpha, since OOXML's <c>srgbClr/@val</c> is always exactly six hex digits).
+    /// </summary>
+    [Fact]
+    public void ResolveColor_SrgbClrEightDigitValue_ThrowsInvalidDataException()
+    {
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveColor(SrgbClr("80AABBCC"), BuildTestTheme()));
+    }
+
+    /// <summary>Resolve Color - Sys Clr Eight Digit Last Clr Value - Throws Invalid Data Exception.</summary>
+    [Fact]
+    public void ResolveColor_SysClrEightDigitLastClrValue_ThrowsInvalidDataException()
+    {
+        var element = new XElement(A + "sysClr", new XAttribute("val", "windowText"), new XAttribute("lastClr", "80123456"));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveColor(element, BuildTestTheme()));
+    }
+
     // --- ResolveColor: color-transform chain -----------------------------------------------------
 
     /// <summary>Resolve Color - Alpha - Sets Alpha Channel.</summary>

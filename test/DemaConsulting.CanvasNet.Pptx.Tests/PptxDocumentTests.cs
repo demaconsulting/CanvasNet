@@ -417,6 +417,47 @@ public class PptxDocumentTests
     }
 
     /// <summary>
+    ///     A stream that never ends, always reporting its requested buffer as fully read with
+    ///     zero bytes - simulates a deliberately non-terminating (or simply enormous)
+    ///     caller-supplied input to <see cref="PptxDocument.Open(Stream)"/>, proving the buffering
+    ///     step bounds both the memory and time it can spend reading such a stream rather than
+    ///     looping/allocating without limit.
+    /// </summary>
+    private sealed class InfiniteZeroStream : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            Array.Clear(buffer, offset, count);
+            return count;
+        }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PptxDocument.Open(Stream)"/> rejects a stream exceeding its documented
+    ///     maximum buffered-package size with <see cref="InvalidDataException"/>, rather than
+    ///     buffering a non-terminating (or simply oversized) stream without limit until memory is
+    ///     exhausted.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Open_NonTerminatingOversizedStream_ThrowsInvalidDataException()
+    {
+        // Arrange: a stream that never signals end-of-stream.
+        using var stream = new InfiniteZeroStream();
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => PptxDocument.Open(stream));
+    }
+
+    /// <summary>
     ///     Proves <see cref="PptxDocument.ResolveRelationship"/> follows a relative target path
     ///     including a <c>"../"</c> traversal segment, resolved relative to the source part's own
     ///     directory (not the package root).

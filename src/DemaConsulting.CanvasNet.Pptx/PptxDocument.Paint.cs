@@ -227,12 +227,34 @@ public sealed partial class PptxDocument
             $"Color-definition element '{colorElement.Name.LocalName}' is not supported.");
     }
 
-    /// <summary>Parses a required <c>#RRGGBB</c>/<c>RRGGBB</c> hex color value.</summary>
+    /// <summary>
+    ///     Parses a required <c>#RRGGBB</c>/<c>RRGGBB</c> hex color value, rejecting any value
+    ///     that is not exactly six hexadecimal digits.
+    /// </summary>
+    /// <remarks>
+    ///     OOXML's <c>srgbClr/@val</c> and <c>sysClr/@lastClr</c> are always exactly six hex
+    ///     digits (<c>RRGGBB</c>); an eight-digit <c>AARRGGBB</c> value, which
+    ///     <see cref="Rgba32.Parse(string)"/> would otherwise also accept, misinterpreting its
+    ///     first byte as alpha, must be rejected rather than silently misread - mirroring
+    ///     <c>PptxDocument.Theme.cs</c>'s own <c>ParseSchemeColor</c> six-digit validation for the
+    ///     same class of value.
+    /// </remarks>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="hex"/> (after stripping any leading <c>'#'</c>) is not
+    ///     exactly six hexadecimal digits, or is not valid hexadecimal at all.
+    /// </exception>
     private static Rgba32 ParseHexColor(string hex, string elementName)
     {
+        var digits = hex.StartsWith('#') ? hex[1..] : hex;
+        if (digits.Length != 6)
+        {
+            throw new InvalidDataException(
+                $"An <a:{elementName}> element has a color value '{hex}' that is not exactly six hexadecimal digits (OOXML's RRGGBB form).");
+        }
+
         try
         {
-            return Rgba32.Parse(hex.StartsWith('#') ? hex : "#" + hex);
+            return Rgba32.Parse("#" + digits);
         }
         catch (FormatException ex)
         {

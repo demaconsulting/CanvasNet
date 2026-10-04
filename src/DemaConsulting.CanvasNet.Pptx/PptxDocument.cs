@@ -62,6 +62,23 @@ namespace DemaConsulting.CanvasNet.Pptx;
 public sealed partial class PptxDocument : IDisposable
 {
     /// <summary>
+    ///     The maximum number of bytes <see cref="Open(Stream)"/> will buffer from a caller-
+    ///     supplied stream before rejecting it with <see cref="System.IO.InvalidDataException"/>.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="Open(Stream)"/> buffers its entire input into memory before any ZIP
+    ///     validation occurs (see this type's own remarks); without a bound, a very large, or
+    ///     deliberately non-terminating, caller-supplied stream could exhaust memory or buffer
+    ///     indefinitely before that validation ever runs. 268,435,456 bytes (256 MiB) mirrors the
+    ///     core <see cref="Canvas.Surface.MaxDimension"/>'s own documented "comfortably below
+    ///     <see cref="int.MaxValue"/>" byte-count precedent (<c>8192 * 32768 = 268,435,456</c>) -
+    ///     large enough for any realistic <c>.pptx</c> package (including one carrying embedded
+    ///     video/image media), while remaining small enough to keep worst-case memory use bounded
+    ///     to a small, practical amount for an attacker-controlled input.
+    /// </remarks>
+    private const long MaxPackageBytes = 268_435_456L;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="PptxDocument"/> class by parsing the
     ///     supplied, already fully-buffered package bytes.
     /// </summary>
@@ -130,14 +147,16 @@ public sealed partial class PptxDocument : IDisposable
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when the package cannot be parsed - see the private constructor's remarks for
-    ///     the exact conditions.
+    ///     the exact conditions - or when <paramref name="stream"/> supplies more than
+    ///     <see cref="MaxPackageBytes"/> bytes (see <see cref="MaxPackageBytes"/>'s own remarks
+    ///     for the bound's rationale).
     /// </exception>
     public static PptxDocument Open(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
         using var buffered = new MemoryStream();
-        stream.CopyTo(buffered);
+        CopyBounded(stream, buffered);
         return new PptxDocument(buffered.ToArray());
     }
 
@@ -170,6 +189,36 @@ public sealed partial class PptxDocument : IDisposable
 
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
         return Open(stream);
+    }
+
+    /// <summary>
+    ///     Copies <paramref name="source"/> into <paramref name="destination"/>, reading in fixed-
+    ///     size chunks and rejecting the input the moment the running total exceeds
+    ///     <see cref="MaxPackageBytes"/> - bounding both the worst-case memory this buffering step
+    ///     can consume and the worst-case time it can spend reading a deliberately large or
+    ///     non-terminating <paramref name="source"/>, rather than calling <see cref="Stream.CopyTo(Stream)"/>
+    ///     unconditionally and discovering the problem only after it has already exhausted memory.
+    /// </summary>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown once more than <see cref="MaxPackageBytes"/> bytes have been read from
+    ///     <paramref name="source"/>.
+    /// </exception>
+    private static void CopyBounded(Stream source, MemoryStream destination)
+    {
+        var buffer = new byte[81920];
+        var total = 0L;
+        int read;
+        while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            total += read;
+            if (total > MaxPackageBytes)
+            {
+                throw new InvalidDataException(
+                    $"The package stream exceeds the maximum supported size of {MaxPackageBytes} bytes.");
+            }
+
+            destination.Write(buffer, 0, read);
+        }
     }
 
     /// <summary>

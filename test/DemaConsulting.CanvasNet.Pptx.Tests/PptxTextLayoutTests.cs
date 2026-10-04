@@ -47,6 +47,34 @@ public class PptxTextLayoutTests
         return TrueTypeFont.Load(stream);
     }
 
+    // Synthetic font: UnitsPerEm 1000, ascender 3000, descender -1000, lineGap 0 - a font with a
+    // much taller em-box (raw natural-height metric 4000) than NewFont()'s (1000), used to prove
+    // the per-token "tallest font" comparison in BuildLines scales by UnitsPerEm/SizeEmu before
+    // comparing, rather than comparing raw font-design units directly: a tiny-point-size run
+    // using this font must NOT out-rank a much-larger-point-size run using NewFont() merely
+    // because its raw metrics happen to be numerically bigger.
+    //   .notdef (index 0), advance 0, zero contours.
+    //   'B' (codepoint 66, index 1), advance 400 units, non-empty outline (a filled triangle).
+    private static TrueTypeFont NewTallEmBoxFont()
+    {
+        var notdef = SyntheticFontBuilder.SimpleGlyph();
+        var glyphB = SyntheticFontBuilder.SimpleGlyph([(0, 0, true), (400, 0, true), (200, 3000, true)]);
+        var cmap = SyntheticFontBuilder.CmapFormat4(3, 1, [(66, 1)]);
+
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(2))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(3000, -1000, 0, 2))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 400]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([notdef.Length, glyphB.Length], longFormat: false))
+            .AddTable("glyf", [.. notdef, .. glyphB])
+            .AddTable("cmap", cmap)
+            .Build();
+
+        using var stream = new MemoryStream(data);
+        return TrueTypeFont.Load(stream);
+    }
+
     private static PptxTheme BuildTestTheme() =>
         new(
             new PptxColorScheme(
@@ -145,6 +173,96 @@ public class PptxTextLayoutTests
         Assert.Equal(10, layout.Glyphs.Count);
         Assert.Equal(0f, layout.Glyphs[0].OriginXEmu, 2);
         Assert.Equal(9 * 6350f, layout.Glyphs[9].OriginXEmu, 2);
+    }
+
+    /// <summary>
+    ///     Proves an <c>&lt;a:br/&gt;</c> between two runs forces an explicit second line even
+    ///     though the available width is ample enough to fit both runs' text on a single
+    ///     word-wrapped line - i.e. "A&lt;br/&gt;B" must lay out as two lines, not "AB" on one
+    ///     line, which is the behavior before this fix.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_RunBreakRun_ForcesSecondLine()
+    {
+        var pPr = new XElement(DrawingNs + "pPr");
+        var bodyPr = new XElement(
+            DrawingNs + "bodyPr",
+            new XAttribute("lIns", "0"), new XAttribute("tIns", "0"), new XAttribute("rIns", "0"), new XAttribute("bIns", "0"));
+        var txBody = new XElement(
+            PresentationNs + "txBody",
+            bodyPr,
+            new XElement(
+                DrawingNs + "p",
+                pPr,
+                new XElement(DrawingNs + "r", new XElement(DrawingNs + "rPr", new XAttribute("sz", "100")), new XElement(DrawingNs + "t", "A")),
+                new XElement(DrawingNs + "br"),
+                new XElement(DrawingNs + "r", new XElement(DrawingNs + "rPr", new XAttribute("sz", "100")), new XElement(DrawingNs + "t", "B"))));
+        var textBody = PptxDocument.ParseTextBody(txBody);
+
+        // Available width 50000 easily fits "AB" (12700) on a single word-wrapped line, so two
+        // lines can only come from the explicit break being honored, not from word-wrap.
+        var layout = Layout(textBody, 50000f, 100000f);
+
+        Assert.Equal(2, layout.Glyphs.Count);
+        // Line 1 ("A"): ascent 800/1000*12700 = 10160, at x=0, y=10160.
+        Assert.Equal(0f, layout.Glyphs[0].OriginXEmu, 2);
+        Assert.Equal(10160f, layout.Glyphs[0].OriginYEmu, 2);
+        // Line 2 ("B"): line height = 12700, baseline at x=0, y = 12700 + 10160 = 22860 - not on
+        // the same line as "A" (which a dropped break would have produced at x=6350, y=10160).
+        Assert.Equal(0f, layout.Glyphs[1].OriginXEmu, 2);
+        Assert.Equal(22860f, layout.Glyphs[1].OriginYEmu, 2);
+    }
+
+    /// <summary>
+    ///     Proves the per-token "tallest font" comparison used to pick a line's height/ascent
+    ///     compares each candidate's actual rendered natural height (scaled by its own
+    ///     <c>UnitsPerEm</c>/<c>SizeEmu</c>), not raw font-design units directly - a tiny-point-size
+    ///     run using a font with a much taller em-box must not out-rank a far larger-point-size run
+    ///     using a more modest em-box, which raw-unit comparison would incorrectly do.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_TallestFontComparison_ScalesByUnitsPerEmAndSizeEmu_NotRawFontUnits()
+    {
+        var bodyPr = new XElement(
+            DrawingNs + "bodyPr",
+            new XAttribute("lIns", "0"), new XAttribute("tIns", "0"), new XAttribute("rIns", "0"), new XAttribute("bIns", "0"));
+        var txBody = new XElement(
+            PresentationNs + "txBody",
+            bodyPr,
+            new XElement(
+                DrawingNs + "p",
+                new XElement(DrawingNs + "pPr"),
+                // Run 1: NewFont() (ascender 800/descender -200/UnitsPerEm 1000, raw natural-height
+                // metric 1000) at a large sz=1000 (SizeEmu 127000): actual natural height =
+                // 1000/1000*127000 = 127000 - the correct tallest candidate.
+                new XElement(
+                    DrawingNs + "r",
+                    new XElement(DrawingNs + "rPr", new XAttribute("sz", "1000"), new XElement(DrawingNs + "latin", new XAttribute("typeface", "BigFont"))),
+                    new XElement(DrawingNs + "t", "A")),
+                // Run 2: NewTallEmBoxFont() (ascender 3000/descender -1000/UnitsPerEm 1000, raw
+                // natural-height metric 4000 - numerically bigger than run 1's raw 1000) at a tiny
+                // sz=10 (SizeEmu 1270): actual natural height = 4000/1000*1270 = 5080, far smaller
+                // than run 1's 127000. A raw-unit comparison would incorrectly rank this run
+                // "tallest" (4000 > 1000) and use its own (much smaller) ascent/line-height.
+                new XElement(
+                    DrawingNs + "r",
+                    new XElement(DrawingNs + "rPr", new XAttribute("sz", "10"), new XElement(DrawingNs + "latin", new XAttribute("typeface", "TallEmBoxFont"))),
+                    new XElement(DrawingNs + "t", "B"))));
+        var textBody = PptxDocument.ParseTextBody(txBody);
+
+        var bigFont = NewFont();
+        var tallEmBoxFont = NewTallEmBoxFont();
+        Func<string, bool, bool, TrueTypeFont> fontResolver = (family, _, _) =>
+            family == "TallEmBoxFont" ? tallEmBoxFont : bigFont;
+
+        var layout = PptxDocument.ResolveTextLayout(
+            textBody, new PptxPlaceholderProperties(null, null, BuildTestTheme()), BuildTestTheme(), "body", 500000f, 500000f, fontResolver);
+
+        Assert.Equal(2, layout.Glyphs.Count);
+        // Correct ascent comes from run 1 (the actually-tallest run): 800/1000*127000 = 101600 -
+        // not run 2's 3000/1000*1270 = 3810, which the pre-fix raw-unit comparison would have used.
+        Assert.Equal(101600f, layout.Glyphs[0].OriginYEmu, 2);
+        Assert.Equal(101600f, layout.Glyphs[1].OriginYEmu, 2);
     }
 
     #endregion
@@ -256,6 +374,67 @@ public class PptxTextLayoutTests
         var layout = Layout(textBody, 50000f, 100000f);
 
         Assert.Equal(0.5f, layout.AppliedFontScale, 3);
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;a:normAutofit fontScale="..."/&gt;</c> with only <c>fontScale</c>
+    ///     present (no <c>lnSpcReduction</c>) still applies its stored <c>fontScale</c> verbatim,
+    ///     rather than discarding it and falling through to the attribute-less shrink loop (which,
+    ///     for this ample-height case, would instead converge on an unscaled <c>1.0</c>) - OOXML's
+    ///     <c>fontScale</c>/<c>lnSpcReduction</c> are independently optional, so either one alone
+    ///     must still be honored.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_NormAutofitFontScaleOnly_AppliesStoredFontScaleVerbatim()
+    {
+        var textBody = BuildSingleRunTextBody(
+            "A",
+            """<bodyPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main"><normAutofit fontScale="50000" /></bodyPr>""");
+
+        // Available height is ample for the single unscaled line, so an attribute-less-style
+        // shrink loop would converge on 1.0 instead of honoring the stored fontScale - proving
+        // the 0.5 result below comes from the persisted attribute, not the shrink loop.
+        var layout = Layout(textBody, 50000f, 100000f);
+
+        Assert.Equal(0.5f, layout.AppliedFontScale, 3);
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;a:normAutofit lnSpcReduction="..."/&gt;</c> with only
+    ///     <c>lnSpcReduction</c> present (no <c>fontScale</c>) still applies its stored line-
+    ///     spacing reduction - leaving <c>fontScale</c> at its own neutral default (<c>1.0</c>,
+    ///     unscaled) - rather than discarding the reduction entirely.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_NormAutofitLnSpcReductionOnly_AppliesStoredReductionWithNeutralFontScale()
+    {
+        var bodyPr = new XElement(
+            DrawingNs + "bodyPr",
+            new XAttribute("lIns", "0"), new XAttribute("tIns", "0"), new XAttribute("rIns", "0"), new XAttribute("bIns", "0"),
+            new XElement(DrawingNs + "normAutofit", new XAttribute("lnSpcReduction", "50000")));
+
+        var paragraphs = Enumerable.Range(0, 2)
+            .Select(_ => new XElement(
+                DrawingNs + "p",
+                new XElement(
+                    DrawingNs + "r",
+                    new XElement(DrawingNs + "rPr", new XAttribute("sz", "100")),
+                    new XElement(DrawingNs + "t", "A"))))
+            .ToArray();
+
+        var txBody = new XElement(PresentationNs + "txBody", bodyPr, paragraphs);
+        var textBody = PptxDocument.ParseTextBody(txBody);
+
+        var layout = Layout(textBody, 50000f, 100000f);
+
+        // fontScale stays unscaled (1.0): sz=100 -> SizeEmu 12700, ascent 10160.
+        Assert.Equal(1f, layout.AppliedFontScale, 3);
+        Assert.Equal(2, layout.Glyphs.Count);
+        Assert.Equal(10160f, layout.Glyphs[0].OriginYEmu, 2);
+        // Line height reduced to 50%: naturalHeight 12700 * 0.5 = 6350; line 2 baseline =
+        // 6350 + 10160 = 16510 - not 12700 + 10160 = 22860, which is what an (incorrectly)
+        // discarded lnSpcReduction would have produced.
+        Assert.Equal(16510f, layout.Glyphs[1].OriginYEmu, 2);
     }
 
     /// <summary>

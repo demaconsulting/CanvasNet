@@ -84,17 +84,34 @@ public sealed partial class PptxDocument
 
     /// <summary>
     ///     Parses an <c>&lt;a:p&gt;</c> element into a <see cref="PptxParagraph"/>: its raw,
-    ///     unresolved properties plus its ordered <c>&lt;a:r&gt;</c> runs. An <c>&lt;a:p&gt;</c>
-    ///     with no recognized child produces a valid, empty paragraph (a blank line) - not an
-    ///     error.
+    ///     unresolved properties plus its ordered content items. An <c>&lt;a:p&gt;</c> with no
+    ///     recognized child produces a valid, empty paragraph (a blank line) - not an error.
     /// </summary>
+    /// <remarks>
+    ///     <c>&lt;a:br/&gt;</c> is DrawingML's explicit line-break element: it is preserved as a
+    ///     <see cref="PptxLineBreakItem"/> in document order alongside <c>&lt;a:r&gt;</c> runs
+    ///     (wrapped as <see cref="PptxRunItem"/>), rather than being dropped, so that the layout
+    ///     stage (<c>PptxDocument.TextLayout.cs</c>) can honor it as an explicit line boundary.
+    /// </remarks>
     /// <param name="pElement">The <c>&lt;a:p&gt;</c> element to parse.</param>
     /// <returns>The parsed <see cref="PptxParagraph"/>.</returns>
     internal static PptxParagraph ParseParagraph(XElement pElement)
     {
         var properties = ParseParagraphProperties(pElement.Element(DrawingNamespace + "pPr"));
-        var runs = pElement.Elements(DrawingNamespace + "r").Select(ParseRun).ToList();
-        return new PptxParagraph(properties, runs);
+        var items = new List<PptxParagraphItem>();
+        foreach (var child in pElement.Elements())
+        {
+            if (child.Name == DrawingNamespace + "r")
+            {
+                items.Add(new PptxRunItem(ParseRun(child)));
+            }
+            else if (child.Name == DrawingNamespace + "br")
+            {
+                items.Add(PptxLineBreakItem.Instance);
+            }
+        }
+
+        return new PptxParagraph(properties, items);
     }
 
     /// <summary>

@@ -234,6 +234,36 @@ public class PptxTextTests
         Assert.Equal(0, result.RawProperties.Level);
     }
 
+    /// <summary>
+    ///     Proves an interleaved <c>&lt;a:br/&gt;</c> is preserved as an explicit
+    ///     <see cref="PptxLineBreakItem"/> in document order alongside its surrounding runs -
+    ///     not silently dropped - so the layout stage can later honor it as a forced line
+    ///     boundary.
+    /// </summary>
+    [Fact]
+    public void ParseParagraph_RunBreakRun_PreservesBreakInDocumentOrder()
+    {
+        var p = new XElement(
+            DrawingNs + "p",
+            new XElement(DrawingNs + "r", new XElement(DrawingNs + "t", "A")),
+            new XElement(DrawingNs + "br"),
+            new XElement(DrawingNs + "r", new XElement(DrawingNs + "t", "B")));
+
+        var result = PptxDocument.ParseParagraph(p);
+
+        Assert.Equal(3, result.Items.Count);
+        var firstRun = Assert.IsType<PptxRunItem>(result.Items[0]);
+        Assert.Equal("A", firstRun.Run.Text);
+        Assert.IsType<PptxLineBreakItem>(result.Items[1]);
+        var secondRun = Assert.IsType<PptxRunItem>(result.Items[2]);
+        Assert.Equal("B", secondRun.Run.Text);
+
+        // The run-only convenience accessor still reflects just the two runs, in order.
+        Assert.Equal(2, result.Runs.Count);
+        Assert.Equal("A", result.Runs[0].Text);
+        Assert.Equal("B", result.Runs[1].Text);
+    }
+
     #endregion
 
     #region ParseRun
@@ -272,7 +302,7 @@ public class PptxTextTests
     private static PptxTextRun Run(XElement? rPr, string text = "x") => new(rPr, text);
 
     private static PptxParagraph Paragraph(XElement? pPr, params PptxTextRun[] runs) =>
-        new(PptxDocument.ParseParagraphProperties(pPr), runs);
+        new(PptxDocument.ParseParagraphProperties(pPr), runs.Select(run => (PptxParagraphItem)new PptxRunItem(run)).ToList());
 
     /// <summary>Resolve Effective Run Properties Run Override Wins Over Every Other Tier.</summary>
     [Fact]
@@ -437,6 +467,49 @@ public class PptxTextTests
         var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
 
         Assert.Equal(new Rgba32(255, 0, 0, 255), result.Color);
+    }
+
+    /// <summary>
+    ///     Resolve Effective Run Properties - Theme Font Tokens - Resolve Through The Theme's
+    ///     FontScheme (rather than being passed through as literal, unresolvable family name
+    ///     strings, which would miss the theme's actual font and fall back to the font
+    ///     resolver's own default).
+    /// </summary>
+    [Theory]
+    [InlineData("+mj-lt", "ThemeMajorLatin")]
+    [InlineData("+mn-lt", "ThemeMinorLatin")]
+    [InlineData("+mj-ea", "MajorEA")]
+    [InlineData("+mn-ea", "MinorEA")]
+    [InlineData("+mj-cs", "MajorCS")]
+    [InlineData("+mn-cs", "MinorCS")]
+    public void ResolveEffectiveRunProperties_ThemeFontToken_ResolvesThroughFontScheme(string token, string expectedFamily)
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(DrawingNs + "rPr", new XElement(DrawingNs + "latin", new XAttribute("typeface", token))));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Equal(expectedFamily, result.FontFamily);
+    }
+
+    /// <summary>
+    ///     Resolve Effective Run Properties - Literal Typeface - Passes Through Unchanged (only
+    ///     the reserved <c>+mj-*</c>/<c>+mn-*</c> theme-font tokens are resolved through the
+    ///     theme; every other typeface string is a literal family name).
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_LiteralTypeface_PassesThroughUnchanged()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(DrawingNs + "rPr", new XElement(DrawingNs + "latin", new XAttribute("typeface", "Calibri"))));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Equal("Calibri", result.FontFamily);
     }
 
     #endregion

@@ -62,11 +62,16 @@ actually fail if the implementation is wrong.
 #### CanvasNetPptx-PptxDocument-OpenStream: Open(Stream) Buffers Input and Validates Null Argument
 
 **Tests**: `PptxDocument_Open_WellFormedMinimalPackage_Succeeds`,
-`PptxDocument_Open_NullStream_ThrowsArgumentNullException`
+`PptxDocument_Open_NullStream_ThrowsArgumentNullException`,
+`PptxDocument_Open_NonTerminatingOversizedStream_ThrowsInvalidDataException`
 
 Proves `Open(Stream)` succeeds against a minimal, well-formed, in-memory package (constructed via
-`BuildMinimalValidPackage`, which declares only `[Content_Types].xml` and `_rels/.rels`), and
-proves a null stream throws `ArgumentNullException` before any parsing is attempted.
+`BuildMinimalValidPackage`, which declares only `[Content_Types].xml` and `_rels/.rels`), proves a
+null stream throws `ArgumentNullException` before any parsing is attempted, and proves a
+non-terminating, oversized stream (a synthetic `InfiniteZeroStream` that never reaches end-of-stream
+and would otherwise be copied without bound) throws `InvalidDataException` once more than the
+documented `MaxPackageBytes` (256 MiB) bound has been read, rather than exhausting memory or
+blocking indefinitely.
 
 #### CanvasNetPptx-PptxDocument-OpenPath: Open(string) Validates Null and Empty/Whitespace Path Arguments
 
@@ -408,7 +413,9 @@ through the full slide/layout/master/theme package-load chain, not merely from a
 `ResolveColor_SchemeClrOrdinarySlots_ResolveToMatchingThemeSlot` (a `[Theory]` covering all 12
 ordinary scheme slot names), `ResolveColor_SchemeClrBackgroundTextAliases_MapToExpectedSlot` (a
 `[Theory]` covering `bg1`/`tx1`/`bg2`/`tx2`), `ResolveColor_SchemeClrUnrecognizedSlot_ThrowsInvalidDataException`,
-`ResolveColor_UnsupportedColorKind_ThrowsPptxUnsupportedFeatureException`
+`ResolveColor_UnsupportedColorKind_ThrowsPptxUnsupportedFeatureException`,
+`ResolveColor_SrgbClrEightDigitValue_ThrowsInvalidDataException`,
+`ResolveColor_SysClrEightDigitLastClrValue_ThrowsInvalidDataException`
 
 Proves `<a:srgbClr val="RRGGBB"/>` parses its hex value directly; proves `<a:sysClr .../>`
 resolves via its `lastClr` attribute; proves, for every one of the 12 ordinary
@@ -416,8 +423,12 @@ resolves via its `lastClr` attribute; proves, for every one of the 12 ordinary
 distinctly-colored `PptxColorScheme` (not merely "some" color); proves each of the four
 background/text aliases (`bg1`/`tx1`/`bg2`/`tx2`) resolves to its documented aliased slot
 (`lt1`/`dk1`/`lt2`/`dk2` respectively); proves an unrecognized `<a:schemeClr val="...">` slot name
-throws `InvalidDataException`; and proves an unsupported color-definition element kind (for
-example `<a:hslClr>`) throws `PptxUnsupportedFeatureException`.
+throws `InvalidDataException`; proves an unsupported color-definition element kind (for
+example `<a:hslClr>`) throws `PptxUnsupportedFeatureException`; and proves an 8-digit
+`#AARRGGBB`-style value on either `<a:srgbClr val="...">` or `<a:sysClr lastClr="...">` throws
+`InvalidDataException` rather than being passed to the underlying `Rgba32` hex parser, which would
+otherwise accept the 8-digit form and silently treat its leading byte as alpha, producing a wrong,
+unintended-alpha color instead of failing closed.
 
 #### CanvasNetPptx-PptxDocument-ColorTransforms: lumMod/lumOff/shade/tint/alpha Apply in the Documented Fixed Order
 
@@ -491,12 +502,16 @@ element unparsed; proves `ParseTextBody` resolves an empty paragraph list for a 
 **Tests**: `ParseParagraphProperties_Absent_ResolvesLevelZeroAndNullOptionals`,
 `ParseParagraphProperties_LevelAttribute_ClampsToZeroToEight` (a `[Theory]` covering below-range,
 in-range, and above-range `lvl` values), `ParseParagraphProperties_FullyPopulated_ResolvesEveryField`,
-`ParseRun_NoText_ResolvesEmptyString`, `ParseRun_WithTextAndRPr_ResolvesBoth`
+`ParseRun_NoText_ResolvesEmptyString`, `ParseRun_WithTextAndRPr_ResolvesBoth`,
+`ParseParagraph_RunBreakRun_PreservesBreakInDocumentOrder`
 
 Proves `ParseParagraphProperties` resolves level `0` and every optional field `null` when
 `<a:pPr>` is absent, clamps an out-of-range `lvl` attribute into the documented `[0,8]` range,
-resolves every field when fully populated; and proves `ParseRun` resolves an empty string when
-`<a:t>` is absent and resolves both the raw `<a:rPr>` element and text when both are present.
+resolves every field when fully populated; proves `ParseRun` resolves an empty string when
+`<a:t>` is absent and resolves both the raw `<a:rPr>` element and text when both are present; and
+proves `ParseParagraph`, given a `<a:p>` containing a run, then a `<a:br/>`, then a second run,
+preserves all three as an ordered item list in document order (run, break, run) rather than
+selecting only the `<a:r>` children and silently discarding the `<a:br/>`.
 
 #### CanvasNetPptx-PptxDocument-TextPropertyInheritance: Attribute-Level Run/Paragraph Property Resolution
 
@@ -509,13 +524,20 @@ resolves every field when fully populated; and proves `ParseRun` resolves an emp
 `ResolveEffectiveParagraphProperties_NoneDeclared_ResolvesHardCodedDefaults`,
 `ResolveEffectiveParagraphProperties_Alignment_NormalizesJustificationToLeft` (a `[Theory]`
 covering `just`/`justLow`), `ResolveEffectiveParagraphProperties_FixedLineSpacing_ResolvesPointsToEmu`,
-`ResolveEffectiveParagraphProperties_PlaceholderLevelStyleOnly_WinsWhenParagraphDeclaresNothing`
+`ResolveEffectiveParagraphProperties_PlaceholderLevelStyleOnly_WinsWhenParagraphDeclaresNothing`,
+`ResolveEffectiveRunProperties_ThemeFontToken_ResolvesThroughFontScheme` (a `[Theory]` covering
+all six reserved theme-font tokens: `+mj-lt`/`+mn-lt`, `+mj-ea`/`+mn-ea`, `+mj-cs`/`+mn-cs`),
+`ResolveEffectiveRunProperties_LiteralTypeface_PassesThroughUnchanged`
 
 Proves each inheritance tier (run override, paragraph `defRPr`, placeholder level-indexed
 `lstStyle`, hard-coded default) wins in isolation when every higher-priority tier declares
 nothing, for both run properties (typeface/size/bold/italic/underline/color) and paragraph
 properties (alignment/margin/indent/line-spacing); proves `algn="just"`/`"justLow"` normalizes to
-`"l"`; and proves fixed-point line spacing (`<a:spcPts>`) resolves to the expected EMU value.
+`"l"`; proves fixed-point line spacing (`<a:spcPts>`) resolves to the expected EMU value; proves
+each of the six reserved DrawingML theme-font tokens in `<a:latin typeface="..."/>` resolves
+through the supplied `PptxTheme`'s `FontScheme` (major/minor Latin/EastAsian/ComplexScript font)
+to that scheme's own declared family name rather than the literal token string; and proves an
+ordinary, non-token literal typeface name passes through unresolved/unchanged.
 
 #### CanvasNetPptx-PptxDocument-TextStylesInheritance: Master `<p:txStyles>` Parsing and Bucket Selection
 
@@ -541,12 +563,21 @@ effective run size from the master's own `<p:otherStyle>` rather than `<p:bodySt
 **Tests**: `ResolveTextLayout_WordWrap_NarrowWidth_WrapsAtTokenBoundary`,
 `ResolveTextLayout_WordWrap_SingleTokenWiderThanAvailableWidth_PlacedAloneOnOwnLine`,
 `ResolveTextLayout_AlignCenter_CentersLineWithinAvailableWidth`,
-`ResolveTextLayout_AlignRight_RightAlignsLineAgainstAvailableWidth`
+`ResolveTextLayout_AlignRight_RightAlignsLineAgainstAvailableWidth`,
+`ResolveTextLayout_RunBreakRun_ForcesSecondLine`,
+`ResolveTextLayout_TallestFontComparison_ScalesByUnitsPerEmAndSizeEmu_NotRawFontUnits`
 
 Proves a long run wraps onto multiple lines at the expected token boundary for a narrow
 `widthEmu`; proves a single token that alone exceeds the available width is placed alone on its
-own (overflowing) line rather than looping indefinitely; and proves center/right alignment
-position a line's glyphs at the expected hand-computed X offset within the available width.
+own (overflowing) line rather than looping indefinitely; proves center/right alignment
+position a line's glyphs at the expected hand-computed X offset within the available width;
+proves a paragraph containing a run, a preserved `<a:br/>` line-break item, and a second run lays
+out as two separate lines (the break forces a line boundary independent of word-wrap's own
+token-packing decisions); and proves the per-line "tallest run" selection compares two runs using
+different fonts/sizes by each run's own font metrics scaled by that font's `UnitsPerEm` and the
+run's own resolved `SizeEmu`, so a visually smaller run on a font reporting disproportionately
+large raw font-design-unit metrics is not incorrectly selected over a visually larger run on a
+differently-scaled font.
 
 #### CanvasNetPptx-PptxDocument-TextVerticalAnchor: Vertical Anchor Positioning
 
@@ -562,28 +593,43 @@ first/last glyph `OriginYEmu` at the expected hand-computed offset within the av
 **Tests**: `ResolveTextLayout_NoAutofit_AppliesNoScalingEvenWhenOverflowing`,
 `ResolveTextLayout_SpAutoFit_AppliesNoScaling`,
 `ResolveTextLayout_NormAutofitWithExplicitAttributes_AppliesStoredFactorsVerbatim`,
-`ResolveTextLayout_NormAutofitAttributeLess_ShrinkLoopConvergesOnFirstFittingScale`
+`ResolveTextLayout_NormAutofitAttributeLess_ShrinkLoopConvergesOnFirstFittingScale`,
+`ResolveTextLayout_NormAutofitFontScaleOnly_AppliesStoredFontScaleVerbatim`,
+`ResolveTextLayout_NormAutofitLnSpcReductionOnly_AppliesStoredReductionWithNeutralFontScale`
 
 Proves `<a:noAutofit>`/absent-autofit/`<a:spAutoFit>` all apply no scaling even when the resolved
 text overflows the available height; proves an explicit `<a:normAutofit fontScale="..."
-lnSpcReduction="..."/>` applies the stored factors verbatim; and proves an attribute-less
+lnSpcReduction="..."/>` applies both stored factors verbatim; proves an attribute-less
 `<a:normAutofit/>` on an intentionally overflowing fixture converges, via the bounded 10%-step
-shrink loop, to the first hand-computed scale whose naturally laid-out height fits.
+shrink loop, to the first hand-computed scale whose naturally laid-out height fits; proves a
+`<a:normAutofit fontScale="..."/>` with no `lnSpcReduction` attribute applies the stored
+`fontScale` verbatim while leaving line spacing at its neutral (no-reduction) default rather than
+falling through to the attribute-less shrink loop; and proves a `<a:normAutofit
+lnSpcReduction="..."/>` with no `fontScale` attribute applies the stored line-spacing reduction
+(verified via the resulting glyph Y positions) while leaving `fontScale` at its neutral 100%
+default.
 
 #### CanvasNetPptx-PptxDocument-TextRendering: Glyph Painting and Font Resolution
 
 **Tests**: `PaintTextLayout_IdentityTransform_PaintsGlyphAtExpectedLocationWithResolvedColor`,
 `PaintTextLayout_TranslatedShapeTransform_ShiftsPaintedLocation`,
-`PaintTextLayout_EmptyOutlineGlyph_PaintsNothing`, `ResolveTextFont_AnyFamilyHint_ResolvesNonNullFont`,
+`PaintTextLayout_EmptyOutlineGlyph_PaintsNothing`,
+`PaintTextLayout_AsymmetricGlyph_PaintsInkAboveBaselineNotBelow`,
+`ResolveTextFont_AnyFamilyHint_ResolvesNonNullFont`,
 `CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd`,
 `CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd`
 
 Proves `PaintTextLayout` paints a synthetic filled-square glyph's known ink pixel(s) in the
 resolved color at the expected location under an identity shape-to-surface transform, proves a
 translated shape transform shifts the painted location by the expected offset, proves a glyph
-with an empty outline (no subpaths) paints nothing, and proves `ResolveTextFont` resolves a
-non-null `TrueTypeFont` for an arbitrary family-name hint (falling back to the bundled font); the
-two system-integration tests additionally prove `PaintTextLayout` paints at least one
+with an empty outline (no subpaths) paints nothing, proves a synthetic, deliberately asymmetric
+glyph outline (ink confined to font-space y toward the ascender only, with none at all toward the
+descender - a shape a symmetric square glyph cannot substitute for, since flipping a symmetric
+shape about its own center is visually/structurally identical either way) is painted above the
+baseline and not below it, catching a regression where a positive (rather than negated) Y scale on
+the glyph-outline transform would vertically invert every glyph, and proves `ResolveTextFont`
+resolves a non-null `TrueTypeFont` for an arbitrary family-name hint (falling back to the bundled
+font); the two system-integration tests additionally prove `PaintTextLayout` paints at least one
 non-background pixel end-to-end, from a full in-memory package opened via `PptxDocument.Open`
 through `ResolveTextLayout` to a test `Surface`.
 

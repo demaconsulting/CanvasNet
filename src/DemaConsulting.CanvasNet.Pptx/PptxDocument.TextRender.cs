@@ -43,8 +43,16 @@ public sealed partial class PptxDocument
                 continue;
             }
 
+            // TrueType glyph outlines use a y-up font coordinate system (positive y points toward
+            // the ascender), but CanvasNet's shape-local/surface space is y-down (see
+            // Path.Rectangle's own doc comments for the authoritative convention) - the glyph
+            // scale's Y component must therefore be negative so outline coordinates above the
+            // baseline (positive font-space y) map to ink above OriginYEmu (negative shape-local
+            // y, relative to the baseline), not below it. A positive Y scale here would paint
+            // every glyph upside-down and offset below the baseline instead of above it.
+            var glyphScaleEmu = glyph.SizeEmu / glyph.Font.UnitsPerEm;
             var glyphMatrix =
-                Matrix3x2.CreateScale(glyph.SizeEmu / glyph.Font.UnitsPerEm) *
+                Matrix3x2.CreateScale(glyphScaleEmu, -glyphScaleEmu) *
                 Matrix3x2.CreateTranslation(glyph.OriginXEmu, glyph.OriginYEmu) *
                 shapeToSurfaceTransform;
 

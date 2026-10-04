@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Pptx;
@@ -43,8 +44,48 @@ internal sealed record PptxBodyProperties(
 ///     runs, produced by <see cref="PptxDocument.ParseParagraph"/>.
 /// </summary>
 /// <param name="RawProperties">The paragraph's own raw, unresolved properties.</param>
-/// <param name="Runs">The paragraph's ordered <c>&lt;a:r&gt;</c> runs (an empty paragraph is valid DrawingML - a blank line).</param>
-internal sealed record PptxParagraph(PptxRawParagraphProperties RawProperties, IReadOnlyList<PptxTextRun> Runs);
+/// <param name="Items">
+///     The paragraph's content in document order: each item is either an <c>&lt;a:r&gt;</c> run
+///     (<see cref="PptxRunItem"/>) or an explicit <c>&lt;a:br&gt;</c> line break
+///     (<see cref="PptxLineBreakItem"/>). An empty paragraph is valid DrawingML - a blank line.
+/// </param>
+internal sealed record PptxParagraph(PptxRawParagraphProperties RawProperties, IReadOnlyList<PptxParagraphItem> Items)
+{
+    /// <summary>
+    ///     The paragraph's ordered <c>&lt;a:r&gt;</c> runs only, with any interleaved
+    ///     <c>&lt;a:br&gt;</c> items excluded - a convenience accessor for callers (such as the
+    ///     run-property inheritance resolver) that only need run content/order, not break
+    ///     positions. The returned order always matches <see cref="Items"/>'s run-item order.
+    /// </summary>
+    internal IReadOnlyList<PptxTextRun> Runs { get; } =
+        Items.OfType<PptxRunItem>().Select(item => item.Run).ToList();
+}
+
+/// <summary>
+///     A single item of <see cref="PptxParagraph.Items"/> content, in document order: either a
+///     run (<see cref="PptxRunItem"/>) or an explicit line break (<see cref="PptxLineBreakItem"/>).
+/// </summary>
+internal abstract record PptxParagraphItem
+{
+    private protected PptxParagraphItem()
+    {
+    }
+}
+
+/// <summary>A paragraph content item wrapping a parsed <c>&lt;a:r&gt;</c> run.</summary>
+/// <param name="Run">The wrapped run.</param>
+internal sealed record PptxRunItem(PptxTextRun Run) : PptxParagraphItem;
+
+/// <summary>
+///     A paragraph content item representing an explicit <c>&lt;a:br&gt;</c> line break -
+///     DrawingML's explicit line-break element, which forces a new layout line at this point in
+///     the paragraph regardless of word-wrap, independent of any run text.
+/// </summary>
+internal sealed record PptxLineBreakItem : PptxParagraphItem
+{
+    /// <summary>The single, stateless instance used for every parsed <c>&lt;a:br&gt;</c>.</summary>
+    internal static readonly PptxLineBreakItem Instance = new();
+}
 
 /// <summary>
 ///     A paragraph's own raw, unresolved properties (its <c>&lt;a:pPr&gt;</c> element's
