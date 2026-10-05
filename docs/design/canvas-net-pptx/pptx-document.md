@@ -1642,7 +1642,7 @@ before this phase, unchanged.
   `FormatAutoNumber`'s own remarks for the full list) - each gracefully omits its own bullet glyph
   per-paragraph rather than aborting the render, per the graceful-degradation policy described
   above.
-- **Closed risk (found during visual QA, fixed this cycle)**: `"sldNum"`/`"dt"`/`"ftr"` field
+- **Closed risk (found during visual QA, fixed over two cycles)**: `"sldNum"`/`"dt"`/`"ftr"` field
   placeholder types (slide number, date, and footer) were, for a brief window, susceptible to a
   stray, isolated bullet glyph with no accompanying text whenever a slide master's `bodyStyle`
   declared a bullet for the inherited level - confirmed by independently rendering the
@@ -1652,26 +1652,43 @@ before this phase, unchanged.
   bucket (which commonly declares a list bullet) rather than the bullet-free `otherStyle` bucket
   these types should consult in genuine PowerPoint output - a separate, pre-existing,
   out-of-scope routing defect that also drives font/size/bold/italic/color resolution for these
-  placeholder types and was therefore left unchanged. The fix is a narrow, explicit guard in
-  `ResolveEffectiveBulletProperties` that unconditionally forces `PptxBulletKind.None` whenever
-  `placeholderType` is `"sldNum"`, `"dt"`, or `"ftr"`, matching the fact that PowerPoint's own UI
-  never exposes bullet/list formatting for these field placeholder types. Status: closed, proven
-  by `ResolveEffectiveParagraphProperties_SldNumDtFtrPlaceholderType_SuppressesMasterBodyStyleBullet`
-  and an extended `aiden0z-1-chart-and-complex.pptx` fixture assertion (see "Test coverage" below).
+  placeholder types and was therefore left unchanged. The first-cycle fix was an unconditional
+  early-return guard in `ResolveEffectiveBulletProperties` that forced `PptxBulletKind.None`
+  whenever `placeholderType` was `"sldNum"`, `"dt"`, or `"ftr"` - this closed the common-case
+  defect but, because it short-circuited before the paragraph's own `<a:pPr>` was ever consulted,
+  also incorrectly suppressed a paragraph's own explicit `<a:buChar>`/`<a:buAutoNum>` override on
+  these same placeholder types, a regression caught by a follow-up quality review. The corrected,
+  narrower fix instead applies a **master-tier type exclusion** solely within the TYPE
+  choice-group's own `raw ?? placeholder ?? master ?? default` chain: the master text-style
+  bucket's bullet-type element is skipped for these three placeholder types only, while the
+  paragraph's own `raw.TypeElement` and the placeholder's own level-indexed element are consulted
+  exactly as normal and still win whenever present, matching the fact that an own-paragraph
+  explicit bullet choice always takes precedence over any style-bucket default, regardless of
+  placeholder type, per real OOXML/PowerPoint semantics - while PowerPoint's own UI never exposes
+  bullet/list formatting for these field placeholder types, which is why the master's inherited
+  bucket is excluded rather than the paragraph's own markup. Status: closed, proven by
+  `ResolveEffectiveParagraphProperties_SldNumDtFtrPlaceholderType_SuppressesMasterBodyStyleBullet`
+  (the master-tier exclusion still suppresses an inherited-only bullet) and
+  `ResolveEffectiveParagraphProperties_SldNumDtFtrPlaceholderTypeWithOwnBuChar_StillResolvesOwnBullet`
+  (an own-paragraph explicit override on the same three placeholder types still resolves and
+  wins), plus the pre-existing extended `aiden0z-1-chart-and-complex.pptx` fixture assertion (see
+  "Test coverage" below), which continues to confirm no regression on the original fix.
 
 **Test coverage**: a new `PptxBulletTests.cs` covers raw parsing (all three type choices plus all
 three color/font/size "follow text" vs. explicit modifier choices), inheritance (own-paragraph vs.
 placeholder-level vs. master-level wins for each of the four independent choice-groups, explicit
 `<a:buNone>` suppressing an inherited bullet, the four choice-groups resolving independently of
 each other, `<a:buAutoNum>`'s schema defaults, `<a:buSzPct>`/`<a:buSzPts>` size-modifier
-arithmetic, and `"sldNum"`/`"dt"`/`"ftr"` placeholder types suppressing an inherited master
-`bodyStyle` bullet - the closed-risk regression guard above), `FormatAutoNumber`'s own direct unit
-tests (all eleven supported schemes at representative values, including alphabetic rollover and
-several Roman-numeral edge cases, plus an unsupported scheme returning `null`), and layout-level
-tests via `ResolveTextLayout` (the hanging-indent fix contrasted against its own pre-existing
-non-bulleted-paragraph regression case, auto-number sequencing across consecutive paragraphs, the
-reset/resume behavior across a nested then-returned-to shallower level, `<a:buNone>` suppression,
-and an unsupported auto-number scheme gracefully skipping only its own bullet). `PptxFixturesCorpusTests.cs`'s own
+arithmetic, and `"sldNum"`/`"dt"`/`"ftr"` placeholder types applying the master-tier type
+exclusion described above - both suppressing an inherited-only master `bodyStyle` bullet and
+still resolving an own-paragraph explicit override - the closed-risk regression guards above),
+`FormatAutoNumber`'s own direct unit tests (all eleven supported schemes at representative values,
+including alphabetic rollover and several Roman-numeral edge cases, plus an unsupported scheme
+returning `null`), and layout-level tests via `ResolveTextLayout` (the hanging-indent fix
+contrasted against its own pre-existing non-bulleted-paragraph regression case, auto-number
+sequencing across consecutive paragraphs, the reset/resume behavior across a nested
+then-returned-to shallower level, `<a:buNone>` suppression, and an unsupported auto-number scheme
+gracefully skipping only its own bullet). `PptxFixturesCorpusTests.cs`'s own
 `aiden0z-1-chart-and-complex.pptx` fixture test gained a further pixel-level assertion confirming
 this real file's own "Rectangle 5" shape (two consecutive `<a:buChar char="•">`-bulleted
 paragraphs) actually paints visible ink in its own bullet gutter column, distinct from the

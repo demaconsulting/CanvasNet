@@ -218,6 +218,17 @@ public sealed partial class PptxDocument
     ///     explicit <c>&lt;a:buNone/&gt;</c> winning the type choice-group at whichever tier, or
     ///     the conservative default) short-circuits color/font/size resolution entirely - no
     ///     bullet is painted, so there is nothing for those three choice-groups to resolve.
+    ///     <para>
+    ///         The TYPE choice-group additionally applies a <strong>master-tier type
+    ///         exclusion</strong> for <c>"sldNum"</c>/<c>"dt"</c>/<c>"ftr"</c> placeholder types:
+    ///         the master text-style bucket's own bullet-type element is skipped for these three
+    ///         types only (see <see cref="SelectMasterTextStyle"/>'s own remarks for why this
+    ///         tier is mis-routed for them), while the paragraph's own <c>raw.TypeElement</c> and
+    ///         the placeholder's own level-indexed element are consulted exactly as normal and
+    ///         still win whenever present - an own-paragraph explicit bullet choice always takes
+    ///         precedence over any style-bucket default, regardless of placeholder type, per real
+    ///         OOXML/PowerPoint semantics.
+    ///     </para>
     /// </remarks>
     /// <param name="paragraph">The paragraph being resolved.</param>
     /// <param name="placeholderLevelElement">The placeholder's own level-indexed <c>&lt;a:lvl{N}pPr&gt;</c> element, or <see langword="null"/>.</param>
@@ -234,25 +245,25 @@ public sealed partial class PptxDocument
         string placeholderType,
         PptxEffectiveRunProperties? firstRunProperties)
     {
-        // Field placeholder types ("sldNum"/"dt"/"ftr") never carry list bullets in genuine
-        // PowerPoint output, regardless of what a master's bodyStyle declares - PowerPoint's own
-        // UI does not expose list/bullet formatting for these types at all. This guard is required
+        var raw = paragraph.RawProperties.EffectiveBulletProperties;
+
+        // Field placeholder types ("sldNum"/"dt"/"ftr") never carry an *inherited* list bullet
+        // from the master's bodyStyle in genuine PowerPoint output - PowerPoint's own UI does not
+        // expose list/bullet formatting for these types at all. This exclusion is required
         // because SelectMasterTextStyle (see its own remarks) routes every non-title placeholder
         // type, including these three, to the master's bodyStyle bucket rather than the
         // bullet-free otherStyle bucket - a separate, pre-existing, out-of-scope routing bug left
         // unchanged here (fixing it would also alter font/size/bold/italic/color resolution for
-        // these placeholder types, a materially larger blast radius than this narrow suppression).
-        if (placeholderType is "sldNum" or "dt" or "ftr")
-        {
-            return PptxEffectiveBulletProperties.CreateNone(DefaultTypeface(theme, placeholderType), DefaultFontSizeEmu, theme.ColorScheme.Dark1);
-        }
-
-        var raw = paragraph.RawProperties.EffectiveBulletProperties;
-
+        // these placeholder types, a materially larger blast radius than this narrow exclusion).
+        // The exclusion is scoped to only the master tier of the TYPE choice-group: a paragraph's
+        // own explicit override (`raw.TypeElement`) and the placeholder's own level-indexed
+        // element always take precedence as normal, per real OOXML/PowerPoint semantics, where an
+        // own-paragraph explicit bullet choice always wins over any style-bucket default
+        // regardless of placeholder type.
         var typeElement =
             raw.TypeElement ??
             GetBulletTypeElement(placeholderLevelElement) ??
-            GetBulletTypeElement(masterLevelElement);
+            (placeholderType is "sldNum" or "dt" or "ftr" ? null : GetBulletTypeElement(masterLevelElement));
 
         var (kind, character, autoNumType, autoNumStartAt) = ResolveBulletType(typeElement);
 
@@ -411,10 +422,14 @@ public sealed partial class PptxDocument
     ///     <c>bodyStyle</c> too, even though real PowerPoint masters typically declare these
     ///     types' own bullet-free style in <c>otherStyle</c> instead - a known, pre-existing,
     ///     out-of-scope routing bug left unchanged here (correcting it would also alter
-    ///     font/size/bold/italic/color resolution for these placeholder types). Bullet painting
-    ///     for these three types is instead explicitly suppressed in
-    ///     <see cref="ResolveEffectiveBulletProperties"/>, which short-circuits before this
-    ///     method's <c>bodyStyle</c> selection can contribute a stray bullet.
+    ///     font/size/bold/italic/color resolution for these placeholder types). To compensate,
+    ///     <see cref="ResolveEffectiveBulletProperties"/> applies a master-tier type exclusion
+    ///     for these three types: it skips this method's <c>bodyStyle</c> selection as a
+    ///     contributor to the TYPE choice-group specifically, so it cannot contribute a stray
+    ///     inherited bullet, while still consulting the paragraph's own explicit markup and the
+    ///     placeholder's own level-indexed element exactly as normal - an own-paragraph explicit
+    ///     <c>&lt;a:buChar&gt;</c>/<c>&lt;a:buAutoNum&gt;</c> override on these placeholder types
+    ///     still resolves and wins, as real OOXML/PowerPoint semantics require.
     /// </remarks>
     private static XElement? SelectMasterTextStyle(PptxPlaceholderProperties placeholderProperties, string placeholderType) =>
         placeholderType switch

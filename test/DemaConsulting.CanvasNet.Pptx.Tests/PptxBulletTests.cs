@@ -349,6 +349,38 @@ public class PptxBulletTests
         Assert.Equal(PptxBulletKind.None, result.Bullet!.Kind);
     }
 
+    /// <summary>
+    ///     Proves <c>"sldNum"</c>/<c>"dt"</c>/<c>"ftr"</c> field placeholder types still resolve
+    ///     their own, explicitly-declared <c>&lt;a:buChar&gt;</c> override, even when the same
+    ///     master <c>&lt;p:bodyStyle&gt;</c> bucket used by the preceding suppression test also
+    ///     declares a bullet for the same level - this is the regression guard for the retry-1
+    ///     fix's own over-broad unconditional early-return (an own-paragraph explicit bullet
+    ///     choice must always win over any style-bucket default, regardless of placeholder type,
+    ///     per real OOXML/PowerPoint semantics). The two tests together isolate the corrected
+    ///     behavior: master-tier type exclusion for these three placeholder types, without
+    ///     disturbing the paragraph's own explicit override.
+    /// </summary>
+    [Theory]
+    [InlineData("sldNum")]
+    [InlineData("dt")]
+    [InlineData("ftr")]
+    public void ResolveEffectiveParagraphProperties_SldNumDtFtrPlaceholderTypeWithOwnBuChar_StillResolvesOwnBullet(string placeholderType)
+    {
+        var theme = BuildTestTheme();
+        var pPr = new XElement(DrawingNs + "pPr", new XElement(DrawingNs + "buChar", new XAttribute("char", "*")));
+        var paragraph = Paragraph(pPr, Run(null));
+        var bodyStyle = new XElement(
+            DrawingNs + "bodyStyle",
+            new XElement(DrawingNs + "lvl1pPr", new XElement(DrawingNs + "buChar", new XAttribute("char", "-"))));
+        var masterTextStyles = new PptxMasterTextStyles(null, bodyStyle, null);
+        var placeholderProperties = EmptyPlaceholderProperties(theme, masterTextStyles);
+
+        var result = PptxDocument.ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, placeholderType);
+
+        Assert.Equal(PptxBulletKind.Char, result.Bullet!.Kind);
+        Assert.Equal("*", result.Bullet.Character);
+    }
+
     /// <summary>Proves an absent <c>type</c>/<c>startAt</c> on <c>&lt;a:buAutoNum/&gt;</c> resolves the OOXML schema's own documented defaults.</summary>
     [Fact]
     public void ResolveEffectiveParagraphProperties_BuAutoNumNoAttributes_ResolvesSchemaDefaults()

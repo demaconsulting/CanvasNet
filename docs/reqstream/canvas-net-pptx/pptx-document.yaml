@@ -1427,6 +1427,7 @@ sections:
               - ResolveEffectiveParagraphProperties_BuSzPct_ResolvesFractionOfFirstRunSize
               - ResolveEffectiveParagraphProperties_BuSzPts_ResolvesAbsoluteSizeIndependentOfRunSize
               - ResolveEffectiveParagraphProperties_SldNumDtFtrPlaceholderType_SuppressesMasterBodyStyleBullet
+              - ResolveEffectiveParagraphProperties_SldNumDtFtrPlaceholderTypeWithOwnBuChar_StillResolvesOwnBullet
 
           - id: CanvasNetPptx-PptxDocument-BulletRendering
             title: >-

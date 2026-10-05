@@ -1138,7 +1138,8 @@ the synthetic tests above carry the primary, deliberately-contrasting-color proo
 `ResolveEffectiveParagraphProperties_BuFontTxOrAbsent_FollowsFirstRunFont`,
 `ResolveEffectiveParagraphProperties_BuSzPct_ResolvesFractionOfFirstRunSize`,
 `ResolveEffectiveParagraphProperties_BuSzPts_ResolvesAbsoluteSizeIndependentOfRunSize`,
-`ResolveEffectiveParagraphProperties_SldNumDtFtrPlaceholderType_SuppressesMasterBodyStyleBullet`
+`ResolveEffectiveParagraphProperties_SldNumDtFtrPlaceholderType_SuppressesMasterBodyStyleBullet`,
+`ResolveEffectiveParagraphProperties_SldNumDtFtrPlaceholderTypeWithOwnBuChar_StillResolvesOwnBullet`
 
 Proves raw parsing correctly captures each of the four OOXML bullet choice-groups (type: `buNone`/
 `buAutoNum`/`buChar`; color: `buClrTx`/`buClr`; font: `buFontTx`/`buFont`; size: `buSzTx`/
@@ -1158,12 +1159,19 @@ and their own absent-markup equivalent) resolve to the paragraph's own first run
 color/typeface/size (with a run-less paragraph's color falling back to the theme's `Dark1`), and
 that `buSzPct`/`buSzPts` each correctly compute a relative-fraction-of-run-size versus an
 absolute, run-size-independent size respectively. Proves `"sldNum"`/`"dt"`/`"ftr"` field
-placeholder types resolve no bullet at all even when the same master `bodyStyle` fixture that
-wins a bullet for a `"body"`-typed placeholder is reused unchanged - the regression guard for a
-stray-bullet defect found during visual QA (`SelectMasterTextStyle` routes these three field
-placeholder types to `bodyStyle`, which commonly declares a bullet, rather than the bullet-free
-`otherStyle` these types should consult in genuine PowerPoint output; an explicit guard in
-`ResolveEffectiveBulletProperties` now suppresses bullet painting for these types unconditionally).
+placeholder types resolve no bullet when the same master `bodyStyle` fixture that wins a bullet
+for a `"body"`-typed placeholder is reused unchanged *and the paragraph itself declares no bullet
+markup* - the regression guard for a stray-bullet defect found during visual QA
+(`SelectMasterTextStyle` routes these three field placeholder types to `bodyStyle`, which
+commonly declares a bullet, rather than the bullet-free `otherStyle` these types should consult in
+genuine PowerPoint output; `ResolveEffectiveBulletProperties` now excludes only the master tier's
+contribution to the TYPE choice-group for these three types). Proves, as the companion regression
+guard for a narrower defect introduced and caught across two quality-retry cycles, that the same
+three field placeholder types still resolve their own, explicitly-declared `<a:buChar>` override
+correctly even when that same master `bodyStyle` bullet is present for the same level - an
+own-paragraph explicit bullet choice always wins over any style-bucket default, regardless of
+placeholder type, confirming the master-tier exclusion above is scoped to only the master tier
+and does not disturb the paragraph's own markup.
 
 #### CanvasNetPptx-PptxDocument-BulletRendering: Auto-Number Formatting, Counter Sequencing, and Hanging-Indent Gutter Positioning
 
