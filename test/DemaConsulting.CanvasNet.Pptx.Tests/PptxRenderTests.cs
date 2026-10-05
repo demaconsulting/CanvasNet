@@ -917,6 +917,199 @@ public class PptxRenderTests
         Assert.Equal(new Rgba32(255, 255, 255, 255), surface[10, 10]);
     }
 
+    /// <summary>
+    ///     Proves a <c>&lt;p:pic&gt;</c> declaring <c>&lt;a:prstGeom prst="ellipse"&gt;</c> is
+    ///     clipped to the ellipse: a bounding-box corner (well outside the ellipse) remains the
+    ///     slide's background color, while the shape's own center paints the embedded image's
+    ///     color - this is the confirmed real-world bug (an unclipped full rectangle) this fix
+    ///     resolves.
+    /// </summary>
+    [Fact]
+    public void Render_PictureEllipseGeometry_ClipsImageToEllipticalRegion()
+    {
+        var pngBytes = BuildPngBytes(new Rgba32(10, 20, 30, 255));
+        const string spTreeInnerXml =
+            """
+            <p:pic>
+              <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="ellipse"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:pic>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml, media: ("png", "image/png", pngBytes));
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 20, 20);
+
+        // Well inside the ellipse: the embedded image's own color.
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[10, 10]);
+        // Bounding-box corners, well outside the ellipse: the slide's background color.
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[19, 19]);
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;p:pic&gt;</c> declaring an explicit <c>&lt;a:prstGeom prst="rect"&gt;</c>
+    ///     still paints the full, unclipped bounding-box rectangle - strengthens
+    ///     <see cref="Render_Picture_PaintsEmbeddedImageAtExpectedLocation"/> (which only samples
+    ///     the center) into an explicit no-regression proof by also sampling a bounding-box corner.
+    /// </summary>
+    [Fact]
+    public void Render_PictureRectGeometry_PaintsFullBoundingBoxUnclipped()
+    {
+        var pngBytes = BuildPngBytes(new Rgba32(10, 20, 30, 255));
+        const string spTreeInnerXml =
+            """
+            <p:pic>
+              <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:pic>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml, media: ("png", "image/png", pngBytes));
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 20, 20);
+
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[10, 10]);
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[19, 19]);
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;p:pic&gt;</c> whose <c>&lt;p:spPr&gt;</c> declares no
+    ///     <c>&lt;a:prstGeom&gt;</c>/<c>&lt;a:custGeom&gt;</c> at all still paints the full,
+    ///     unclipped bounding-box rectangle - a defensive, schema-edge-case regression guard (see
+    ///     <see cref="PptxDocument.ResolvePictureClipPath"/>'s own remarks).
+    /// </summary>
+    [Fact]
+    public void Render_PictureNoPrstGeom_PaintsFullBoundingBoxUnclipped()
+    {
+        var pngBytes = BuildPngBytes(new Rgba32(10, 20, 30, 255));
+        const string spTreeInnerXml =
+            """
+            <p:pic>
+              <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+              </p:spPr>
+            </p:pic>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml, media: ("png", "image/png", pngBytes));
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 20, 20);
+
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[10, 10]);
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[19, 19]);
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;p:pic&gt;</c> declaring <c>&lt;a:prstGeom prst="roundRect"&gt;</c> is
+    ///     clipped to the rounded-rectangle outline: a bounding-box corner (outside the rounded
+    ///     corner's radius) remains the slide's background color, while the shape's own center
+    ///     still paints the embedded image's color - the task's required "at least one other
+    ///     common non-rect preset" case.
+    /// </summary>
+    [Fact]
+    public void Render_PictureRoundRectGeometry_ClipsImageCorners()
+    {
+        var pngBytes = BuildPngBytes(new Rgba32(10, 20, 30, 255));
+        const string spTreeInnerXml =
+            """
+            <p:pic>
+              <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="6096000" cy="6096000"/></a:xfrm>
+                <a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:pic>
+            """;
+
+        // A square slide/shape (rather than the usual 4:3 slide) keeps the roundRect preset's own
+        // circular corner arc (radius = min(w,h)/6 in local, pre-transform space) circular in
+        // device space too - avoiding the anisotropic x/y scale a non-square slide would otherwise
+        // apply to that arc, which would make an exact-corner-pixel sample unreliable.
+        using var stream = BuildRenderPackage(
+            spTreeInnerXml, media: ("png", "image/png", pngBytes), slideWidthEmu: 6096000f, slideHeightEmu: 6096000f);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 100, 100);
+
+        // Well inside the rounded rectangle (its own center): the embedded image's own color.
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[50, 50]);
+        // Well inside the excluded corner nook (radius is 100px/6 ~= 16.7px; sampled well short of
+        // the arc itself), outside the rounded corner's own radius: background.
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[2, 2]);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[97, 97]);
+    }
+
+    /// <summary>
+    ///     Not a permanent regression guard (the <c>[Fact]</c> tests above already provide those) -
+    ///     renders the same ellipse-clipped picture end-to-end through the public
+    ///     <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/> API and saves it
+    ///     to an inspectable PNG file (<c>.agent-logs/pptx-picture-ellipse-clip-repro.png</c>) for
+    ///     a human reviewer to open and visually confirm the circular photo-crop effect, mirroring
+    ///     <c>PptxTextLayoutTests.cs</c>'s own <c>GeneratePlusMinusDegreeTofuReproPng</c> precedent.
+    /// </summary>
+    [Fact]
+    public void GeneratePictureEllipseClipReproPng()
+    {
+        var pngBytes = BuildPngBytes(new Rgba32(10, 20, 30, 255));
+        const string spTreeInnerXml =
+            """
+            <p:pic>
+              <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="ellipse"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:pic>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml, media: ("png", "image/png", pngBytes));
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 300, 300);
+
+        var outputDirectory = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", ".agent-logs");
+        outputDirectory = Path.GetFullPath(outputDirectory);
+        Directory.CreateDirectory(outputDirectory);
+        var outputPath = Path.Combine(outputDirectory, "pptx-picture-ellipse-clip-repro.png");
+
+        // Three target-framework test processes may run this test concurrently against the same
+        // shared output path - render to a process-unique temp file first (identical content
+        // regardless of which TFM wins), then best-effort copy it into place, tolerating (rather
+        // than failing on) a transient sharing violation from a sibling process doing the same
+        // thing at the same moment.
+        var tempPath = Path.Combine(outputDirectory, $"{Guid.NewGuid():N}.png.tmp");
+        PngCodec.Save(surface, tempPath);
+        try
+        {
+            File.Copy(tempPath, outputPath, overwrite: true);
+        }
+        catch (IOException)
+        {
+            // A sibling TFM process is writing/has already written the identical content -
+            // nothing further to do here.
+        }
+        finally
+        {
+            File.Delete(tempPath);
+        }
+
+        Assert.True(File.Exists(outputPath));
+    }
+
     // --- Table rendering --------------------------------------------------------------------------
 
     /// <summary>Proves a table's resolved cell fill paints across its own cell rectangle via the graphic frame's own direct <c>&lt;p:xfrm&gt;</c>.</summary>

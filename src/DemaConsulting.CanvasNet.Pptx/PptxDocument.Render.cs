@@ -65,14 +65,18 @@ public sealed partial class PptxDocument
     ///     malformed - propagated unchanged from the Phase 1b-1e resolvers this method dispatches
     ///     to (see <see cref="GetSlide"/>/<see cref="ResolveShapeFrame"/>/
     ///     <see cref="ResolveShapeGeometry"/>/<see cref="ResolvePictureSurface"/>/
-    ///     <see cref="ParseTextBody"/>).
+    ///     <see cref="ParseTextBody"/>) - including a <c>&lt;p:pic&gt;</c>'s own
+    ///     <c>&lt;a:prstGeom&gt;</c>/<c>&lt;a:custGeom&gt;</c> clip geometry, propagated unchanged
+    ///     from <see cref="ResolvePictureClipPath"/> exactly as it already propagates for an
+    ///     auto-shape's own geometry.
     /// </exception>
     /// <exception cref="PptxUnsupportedFeatureException">
     ///     Thrown when a shape declares a well-formed-but-unsupported DrawingML construct -
     ///     propagated unchanged from <see cref="ResolveShapeGeometry"/> (an unsupported
     ///     <c>&lt;a:prstGeom&gt;</c> preset), <see cref="ResolveFill"/> (a pattern/picture fill or
-    ///     a radial/path gradient), or <see cref="ResolvePictureSurface"/> (a linked, non-embedded
-    ///     image, or an unsupported raster image format).
+    ///     a radial/path gradient), <see cref="ResolvePictureSurface"/> (a linked, non-embedded
+    ///     image, or an unsupported raster image format), or <see cref="ResolvePictureClipPath"/>
+    ///     (a <c>&lt;p:pic&gt;</c>'s own unsupported <c>&lt;a:prstGeom&gt;</c> clip preset).
     /// </exception>
     /// <exception cref="ObjectDisposedException">Thrown when this document has been disposed.</exception>
     /// <remarks>
@@ -470,7 +474,10 @@ public sealed partial class PptxDocument
 
     /// <summary>
     ///     Renders a <see cref="PptxPictureShapeNode"/>: decodes and composites its embedded
-    ///     image via the Phase 1e picture pipeline.
+    ///     image via the Phase 1e picture pipeline, clipped to its own resolved
+    ///     <c>&lt;p:spPr&gt;</c>/<c>&lt;a:prstGeom&gt;</c>/<c>&lt;a:custGeom&gt;</c> geometry (see
+    ///     <see cref="ResolvePictureClipPath"/>) when it declares a non-<c>rect</c> preset or a
+    ///     custom geometry - Phase 2 Follow-Up: Picture Preset-Geometry Clipping.
     /// </summary>
     /// <param name="surface">The destination surface to paint onto.</param>
     /// <param name="node">The picture shape-tree node to render.</param>
@@ -503,7 +510,11 @@ public sealed partial class PptxDocument
 
         var image = ResolvePictureSurface(ownerPartPath, blipFillElement);
         var srcRect = ResolveSrcRect(blipFillElement);
-        PaintPicture(surface, image, srcRect, localToSurface, frame.WidthEmu, frame.HeightEmu);
+
+        // spPrElement is guaranteed non-null here: xfrmElement (checked above) is resolved via
+        // spPrElement?.Element(...), so a null xfrmElement would already have returned.
+        var clipPath = ResolvePictureClipPath(spPrElement!, frame.WidthEmu, frame.HeightEmu);
+        PaintPicture(surface, image, srcRect, localToSurface, frame.WidthEmu, frame.HeightEmu, clipPath);
     }
 
     /// <summary>

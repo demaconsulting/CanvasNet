@@ -4,10 +4,11 @@ using System.Text;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore pptx blipfill srcrect embed sppr nvpicpr nvpr cnvpr cnvpicpr srgb hlink folhlink calibri asvg
+// cspell:ignore pptx blipfill srcrect embed sppr nvpicpr nvpr cnvpr cnvpicpr srgb hlink folhlink calibri asvg prst cust
 
 /// <summary>
 ///     Unit-level tests for the Phase 1e picture-shape resolvers and painting primitive
@@ -250,6 +251,160 @@ public class PptxImagesTests
         Assert.Equal(new Rgba32(10, 20, 30, 255), surface[1, 0]);
         // Partially transparent source pixel: exact Porter-Duff "over" blended bytes.
         Assert.Equal(new Rgba32(100, 177, 25, 255), surface[2, 0]);
+    }
+
+    // --- ResolvePictureClipPath ------------------------------------------------------------------
+
+    /// <summary>Proves an explicit <c>&lt;a:prstGeom prst="rect"&gt;</c> resolves to <see langword="null"/> (no clip - equivalent to the full bounding-box rectangle).</summary>
+    [Fact]
+    public void ResolvePictureClipPath_RectPreset_ReturnsNull()
+    {
+        var spPr = new XElement(
+            PresentationNs + "spPr",
+            new XElement(A + "prstGeom", new XAttribute("prst", "rect"), new XElement(A + "avLst")));
+
+        var result = PptxDocument.ResolvePictureClipPath(spPr, 100f, 100f);
+
+        Assert.Null(result);
+    }
+
+    /// <summary>Proves a <c>&lt;p:spPr&gt;</c> with neither <c>&lt;a:prstGeom&gt;</c> nor <c>&lt;a:custGeom&gt;</c> resolves to <see langword="null"/> (no clip, schema-edge-case tolerance).</summary>
+    [Fact]
+    public void ResolvePictureClipPath_NoGeometryElement_ReturnsNull()
+    {
+        var spPr = new XElement(PresentationNs + "spPr");
+
+        var result = PptxDocument.ResolvePictureClipPath(spPr, 100f, 100f);
+
+        Assert.Null(result);
+    }
+
+    /// <summary>Proves a non-<c>rect</c> preset (<c>ellipse</c>) resolves to a non-null <see cref="Path"/>, sized to the shape's own local box.</summary>
+    [Fact]
+    public void ResolvePictureClipPath_EllipsePreset_ReturnsNonNullPath()
+    {
+        var spPr = new XElement(
+            PresentationNs + "spPr",
+            new XElement(A + "prstGeom", new XAttribute("prst", "ellipse"), new XElement(A + "avLst")));
+
+        var result = PptxDocument.ResolvePictureClipPath(spPr, 100f, 100f);
+
+        Assert.NotNull(result);
+        Assert.NotEqual(Path.Empty, result);
+    }
+
+    /// <summary>Proves a second non-<c>rect</c> preset (<c>roundRect</c>) also resolves to a non-null <see cref="Path"/>.</summary>
+    [Fact]
+    public void ResolvePictureClipPath_RoundRectPreset_ReturnsNonNullPath()
+    {
+        var spPr = new XElement(
+            PresentationNs + "spPr",
+            new XElement(A + "prstGeom", new XAttribute("prst", "roundRect"), new XElement(A + "avLst")));
+
+        var result = PptxDocument.ResolvePictureClipPath(spPr, 100f, 100f);
+
+        Assert.NotNull(result);
+    }
+
+    /// <summary>Proves an <c>&lt;a:custGeom&gt;</c> element resolves to a non-null <see cref="Path"/> via the same reused <see cref="PptxDocument.ResolveCustomGeometry"/> resolver auto-shapes already use.</summary>
+    [Fact]
+    public void ResolvePictureClipPath_CustGeom_ReturnsNonNullPath()
+    {
+        var spPr = new XElement(
+            PresentationNs + "spPr",
+            new XElement(
+                A + "custGeom",
+                new XElement(
+                    A + "pathLst",
+                    new XElement(
+                        A + "path",
+                        new XAttribute("w", "100"),
+                        new XAttribute("h", "100"),
+                        new XElement(A + "moveTo", new XElement(A + "pt", new XAttribute("x", "0"), new XAttribute("y", "0"))),
+                        new XElement(A + "lnTo", new XElement(A + "pt", new XAttribute("x", "100"), new XAttribute("y", "0"))),
+                        new XElement(A + "lnTo", new XElement(A + "pt", new XAttribute("x", "100"), new XAttribute("y", "100"))),
+                        new XElement(A + "close")))));
+
+        var result = PptxDocument.ResolvePictureClipPath(spPr, 100f, 100f);
+
+        Assert.NotNull(result);
+        Assert.NotEqual(Path.Empty, result);
+    }
+
+    /// <summary>Proves a <c>&lt;a:prstGeom&gt;</c> with no <c>prst</c> attribute throws <see cref="InvalidDataException"/>, mirroring <see cref="PptxDocument.ResolveShapeGeometry"/>'s identical check.</summary>
+    [Fact]
+    public void ResolvePictureClipPath_PrstGeomMissingPrstAttribute_ThrowsInvalidDataException()
+    {
+        var spPr = new XElement(PresentationNs + "spPr", new XElement(A + "prstGeom"));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolvePictureClipPath(spPr, 100f, 100f));
+    }
+
+    /// <summary>Proves an unsupported preset name propagates <see cref="PptxUnsupportedFeatureException"/> unchanged, exactly as it already propagates for an auto-shape with the same preset.</summary>
+    [Fact]
+    public void ResolvePictureClipPath_UnsupportedPreset_ThrowsPptxUnsupportedFeatureException()
+    {
+        var spPr = new XElement(
+            PresentationNs + "spPr",
+            new XElement(A + "prstGeom", new XAttribute("prst", "not-a-real-preset"), new XElement(A + "avLst")));
+
+        Assert.Throws<PptxUnsupportedFeatureException>(() => PptxDocument.ResolvePictureClipPath(spPr, 100f, 100f));
+    }
+
+    /// <summary>Proves <see cref="PptxDocument.ResolvePictureClipPath"/> rejects a null argument.</summary>
+    [Fact]
+    public void ResolvePictureClipPath_NullSpPrElement_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => PptxDocument.ResolvePictureClipPath(null!, 100f, 100f));
+    }
+
+    // --- PaintPicture clipPath ---------------------------------------------------------------------
+
+    /// <summary>Proves an ellipse clip path leaves a bounding-box corner sample unpainted (background shows through) while the shape's own center is painted with the source image's pixel - the confirmed real-world bug this fix resolves.</summary>
+    [Fact]
+    public void PaintPicture_EllipseClipPath_CornerUnpaintedCenterPainted()
+    {
+        using var image = new Surface(20, 20);
+        for (var y = 0; y < 20; y++)
+        {
+            for (var x = 0; x < 20; x++)
+            {
+                image[x, y] = new Rgba32(10, 20, 30, 255);
+            }
+        }
+
+        using var surface = new Surface(20, 20);
+        var background = new Rgba32(255, 255, 255, 255);
+        for (var y = 0; y < 20; y++)
+        {
+            for (var x = 0; x < 20; x++)
+            {
+                surface[x, y] = background;
+            }
+        }
+
+        var clipPath = PptxPresetGeometry.Build("ellipse", 20f, 20f);
+
+        PptxDocument.PaintPicture(surface, image, srcRect: null, Matrix3x2.Identity, widthEmu: 20f, heightEmu: 20f, clipPath);
+
+        // Well inside the ellipse: image content.
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[10, 10]);
+        // Bounding-box corner, well outside the ellipse: unpainted background.
+        Assert.Equal(background, surface[0, 0]);
+        Assert.Equal(background, surface[19, 19]);
+    }
+
+    /// <summary>Proves a <see langword="null"/> <c>clipPath</c> (the default) continues painting the full unclipped rectangle, a direct regression guard for every pre-existing <see cref="PptxDocument.PaintPicture"/> call in this file.</summary>
+    [Fact]
+    public void PaintPicture_NullClipPath_PaintsFullRectangleUnclipped()
+    {
+        using var image = BuildTwoToneImage(10, 10);
+        using var surface = new Surface(10, 10);
+
+        PptxDocument.PaintPicture(surface, image, srcRect: null, Matrix3x2.Identity, widthEmu: 10f, heightEmu: 10f, clipPath: null);
+
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[9, 9]);
     }
 
     // --- ResolvePictureSurface (needs a real package/relationship-resolution context) -----------

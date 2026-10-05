@@ -3,10 +3,12 @@ using System.Numerics;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Drawing;
+using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore blipfill srcrect pptx embed asvg
+// cspell:ignore blipfill srcrect pptx embed asvg prst cust reimplementation
 
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> picture-shape resolvers and painting primitive
@@ -229,6 +231,67 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>
+    ///     Resolves a <c>&lt;p:pic&gt;</c> picture shape's own <c>&lt;p:spPr&gt;</c> clip geometry -
+    ///     its <c>&lt;a:prstGeom&gt;</c> or <c>&lt;a:custGeom&gt;</c> child - into a
+    ///     <see cref="Path"/> sized to the picture's own local <c>(0,0)</c>-<c>(widthEmu,
+    ///     heightEmu)</c> coordinate space, reusing the exact same preset/custom-geometry dispatch
+    ///     <see cref="ResolveShapeGeometry"/> already uses for an ordinary auto-shape
+    ///     (<see cref="PptxPresetGeometry.Build"/>/<see cref="ResolveCustomGeometry"/>) - this is a
+    ///     thin, picture-specific wrapper around that identical dispatch, not a reimplementation
+    ///     (see <c>pptx-document.md</c>'s "Phase 2 Follow-Up: Picture Preset-Geometry Clipping"
+    ///     design section).
+    /// </summary>
+    /// <param name="spPrElement">The picture's own <c>&lt;p:spPr&gt;</c> element.</param>
+    /// <param name="widthEmu">The picture's own declared width, in EMU (<see cref="PptxShapeFrame.WidthEmu"/>).</param>
+    /// <param name="heightEmu">The picture's own declared height, in EMU (<see cref="PptxShapeFrame.HeightEmu"/>).</param>
+    /// <returns>
+    ///     <see langword="null"/> (meaning "no clip - paint the full bounding-box rectangle",
+    ///     preserving this package's original, pre-fix behavior) when <paramref name="spPrElement"/>
+    ///     declares neither <c>&lt;a:prstGeom&gt;</c> nor <c>&lt;a:custGeom&gt;</c> at all, or when
+    ///     it declares <c>&lt;a:prstGeom prst="rect"&gt;</c> (an explicit full-rectangle preset
+    ///     resolves to the same full bounding-box rectangle a "no clip" paint already produces, so
+    ///     clipping to it would be a pure no-op); otherwise the resolved, shape-local
+    ///     <see cref="Path"/> to clip the picture's painted image to.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="spPrElement"/> is null.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when a present <c>&lt;a:prstGeom&gt;</c> element has no <c>prst</c> attribute -
+    ///     mirrors <see cref="ResolveShapeGeometry"/>'s identical check for an auto-shape.
+    /// </exception>
+    /// <exception cref="PptxUnsupportedFeatureException">
+    ///     Thrown when <c>&lt;a:prstGeom&gt;</c> names a preset this phase does not support - see
+    ///     <see cref="PptxPresetGeometry.Build"/>. Propagated unchanged, exactly as it already
+    ///     propagates for an auto-shape with the same unsupported preset name.
+    /// </exception>
+    /// <remarks>
+    ///     Unlike <see cref="ResolveShapeGeometry"/> (which always resolves some geometry or
+    ///     throws for a shape with neither <c>&lt;a:prstGeom&gt;</c> nor <c>&lt;a:custGeom&gt;</c>
+    ///     at all), this method tolerates "no geometry at all" by returning <see langword="null"/>:
+    ///     a <c>&lt;p:pic&gt;</c>'s <c>&lt;p:spPr&gt;</c> declaring neither element is a
+    ///     schema-valid, historically-unclipped picture, not a malformed document - an auto-shape
+    ///     with no resolvable geometry is instead already skipped entirely upstream in
+    ///     <c>RenderShape</c>, a different (shape-tree-level, not geometry-resolver-level) point
+    ///     of tolerance. <c>&lt;a:custGeom&gt;</c> on a picture is clipped via the same reused
+    ///     <see cref="ResolveCustomGeometry"/> resolver (not scoped out), since it costs no
+    ///     additional implementation beyond this one dispatch branch.
+    /// </remarks>
+    internal static Path? ResolvePictureClipPath(XElement spPrElement, float widthEmu, float heightEmu)
+    {
+        ArgumentNullException.ThrowIfNull(spPrElement);
+
+        var prstGeom = spPrElement.Element(DrawingNamespace + "prstGeom");
+        if (prstGeom is not null)
+        {
+            var prst = (string?)prstGeom.Attribute("prst") ??
+                throw new InvalidDataException("An <a:prstGeom> element has no 'prst' attribute.");
+            return prst == "rect" ? null : PptxPresetGeometry.Build(prst, widthEmu, heightEmu);
+        }
+
+        var custGeom = spPrElement.Element(DrawingNamespace + "custGeom");
+        return custGeom is not null ? ResolveCustomGeometry(custGeom, widthEmu, heightEmu) : null;
+    }
+
+    /// <summary>
     ///     Composites a decoded picture <paramref name="image"/> onto <paramref name="surface"/>,
     ///     mapping its (optionally <paramref name="srcRect"/>-cropped) unit square through a
     ///     <c>CreateScale(widthEmu, heightEmu) * shapeToSurfaceTransform</c> transform and
@@ -261,6 +324,22 @@ public sealed partial class PptxDocument
     /// </param>
     /// <param name="widthEmu">The owning shape's own declared width, in EMU (<see cref="PptxShapeFrame.WidthEmu"/>).</param>
     /// <param name="heightEmu">The owning shape's own declared height, in EMU (<see cref="PptxShapeFrame.HeightEmu"/>).</param>
+    /// <param name="clipPath">
+    ///     The picture's own resolved, shape-local clip geometry (see
+    ///     <see cref="ResolvePictureClipPath"/>), or <see langword="null"/> (the default) to paint
+    ///     the full bounding-box rectangle unclipped - this package's original behavior. When
+    ///     non-null, <paramref name="clipPath"/> is transformed by <paramref name="shapeToSurfaceTransform"/>
+    ///     (the same transform <see cref="ResolvePictureClipPath"/>'s caller already uses to place
+    ///     the picture itself) and filled as an opaque white mask onto a fresh, same-size,
+    ///     transparent <see cref="Surface"/> via <see cref="PathFiller.Fill(Surface, Path, Rgba32, FillRule, float)"/>
+    ///     (reusing the exact same anti-aliased path-fill rasterizer every shape/table fill in
+    ///     this codebase already uses, rather than inventing a new clip primitive); each sampled
+    ///     source pixel's own alpha channel is then scaled by that mask pixel's alpha (<c>0</c>
+    ///     outside the clip geometry, <c>255</c> fully inside it, an anti-aliased in-between value
+    ///     exactly on its edge) before compositing via <see cref="Rgba32.CompositeOver"/> - see
+    ///     <c>pptx-document.md</c>'s "Phase 2 Follow-Up: Picture Preset-Geometry Clipping" design
+    ///     section for the full rationale.
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="surface"/> or <paramref name="image"/> is null.</exception>
     /// <remarks>
     ///     A non-invertible (degenerate, zero-area) composed transform silently paints nothing,
@@ -273,7 +352,8 @@ public sealed partial class PptxDocument
         PptxSrcRect? srcRect,
         Matrix3x2 shapeToSurfaceTransform,
         float widthEmu,
-        float heightEmu)
+        float heightEmu,
+        Path? clipPath = null)
     {
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(image);
@@ -304,6 +384,18 @@ public sealed partial class PptxDocument
         var right = srcRect?.Right ?? 0f;
         var bottom = srcRect?.Bottom ?? 0f;
 
+        // Build the clip-coverage mask (see this method's own <paramref name="clipPath"/> remarks)
+        // once, up front, rather than per-pixel - the same opaque-white-path-fill-onto-a-fresh-
+        // transparent-surface pattern already used by DemaConsulting.CanvasNet.Svg's own
+        // ApplyClipPath, repurposed here as a per-pixel alpha-scaling mask instead of a
+        // post-composite coverage clip.
+        using var clipMask = clipPath is null ? null : new Surface(surface.Width, surface.Height);
+        if (clipPath is not null && clipMask is not null)
+        {
+            var transformedClip = clipPath.Transform(shapeToSurfaceTransform);
+            PathFiller.Fill(clipMask, transformedClip, new Rgba32(255, 255, 255, 255));
+        }
+
         for (var y = startY; y <= endY; y++)
         {
             for (var x = startX; x <= endX; x++)
@@ -317,6 +409,16 @@ public sealed partial class PptxDocument
                     continue;
                 }
 
+                byte maskAlpha = 255;
+                if (clipMask is not null)
+                {
+                    maskAlpha = clipMask[x, y].A;
+                    if (maskAlpha == 0)
+                    {
+                        continue;
+                    }
+                }
+
                 // Remap the unit-square sample point through the srcRect crop: imageU/imageV are
                 // the fraction of the way across the *uncropped* source image this destination
                 // pixel samples from - no (1 - v) flip, per this method's own remarks.
@@ -325,7 +427,14 @@ public sealed partial class PptxDocument
 
                 var column = Math.Clamp((int)MathF.Floor(imageU * image.Width), 0, image.Width - 1);
                 var row = Math.Clamp((int)MathF.Floor(imageV * image.Height), 0, image.Height - 1);
-                surface[x, y] = Rgba32.CompositeOver(surface[x, y], image[column, row]);
+                var sourcePixel = image[column, row];
+                if (maskAlpha != 255)
+                {
+                    var scaledAlpha = (byte)Math.Clamp(MathF.Round(sourcePixel.A * (maskAlpha / 255f)), 0, 255);
+                    sourcePixel = new Rgba32(sourcePixel.R, sourcePixel.G, sourcePixel.B, scaledAlpha);
+                }
+
+                surface[x, y] = Rgba32.CompositeOver(surface[x, y], sourcePixel);
             }
         }
     }
