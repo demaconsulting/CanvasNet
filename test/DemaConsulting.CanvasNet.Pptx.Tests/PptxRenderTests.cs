@@ -1821,6 +1821,25 @@ public class PptxRenderTests
         Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(0, float.PositiveInfinity));
     }
 
+    /// <summary>
+    ///     Proves <see cref="PptxDocument.Render(int, float, PptxRenderOptions?)"/> rejects an
+    ///     extreme-but-finite DPI whose computed pixel width/height would overflow the narrowing
+    ///     cast to <see cref="int"/> or exceed <see cref="Surface.MaxDimension"/>, naming
+    ///     <c>dpi</c> (not <c>width</c>/<c>height</c>) as the offending parameter.
+    /// </summary>
+    [Fact]
+    public void Render_Dpi_ExtremeDpiOverflowsPixelDimensions_ThrowsArgumentOutOfRangeException()
+    {
+        using var stream = BuildRenderPackage(spTreeInnerXml: string.Empty);
+        using var document = PptxDocument.Open(stream);
+
+        var ex1 = Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(0, 100000f));
+        Assert.Equal("dpi", ex1.ParamName);
+
+        var ex2 = Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(0, float.MaxValue));
+        Assert.Equal("dpi", ex2.ParamName);
+    }
+
     /// <summary>Proves <see cref="PptxDocument.Render(int, float, PptxRenderOptions?)"/> rejects a negative slide index.</summary>
     [Fact]
     public void Render_Dpi_NegativeSlideIndex_ThrowsArgumentOutOfRangeException()

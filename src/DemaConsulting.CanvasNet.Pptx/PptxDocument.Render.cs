@@ -184,9 +184,9 @@ public sealed partial class PptxDocument
     /// <exception cref="ArgumentOutOfRangeException">
     ///     Thrown when <paramref name="slideIndex"/> is negative or greater than or equal to
     ///     <see cref="SlideCount"/>, when <paramref name="dpi"/> is not a positive, finite number,
-    ///     or when the computed pixel width/height is outside <see cref="Surface"/>'s own valid
-    ///     dimension range (propagated, unwrapped, from the <see cref="Surface(int, int)"/>
-    ///     constructor).
+    ///     or when the computed pixel width/height is non-finite, non-positive, or exceeds
+    ///     <see cref="Surface.MaxDimension"/> (validated directly in this method, against
+    ///     <paramref name="dpi"/>, before the narrowing cast to <see cref="int"/>).
     /// </exception>
     /// <exception cref="System.IO.InvalidDataException">
     ///     See <see cref="Render(int, int, int, PptxRenderOptions?)"/>.
@@ -214,8 +214,19 @@ public sealed partial class PptxDocument
         }
 
         var scale = dpi / 914400.0;
-        var width = (int)Math.Round(slideSize.WidthEmu * scale, MidpointRounding.AwayFromZero);
-        var height = (int)Math.Round(slideSize.HeightEmu * scale, MidpointRounding.AwayFromZero);
+        var widthPixels = slideSize.WidthEmu * scale;
+        var heightPixels = slideSize.HeightEmu * scale;
+        if (!double.IsFinite(widthPixels) || !double.IsFinite(heightPixels) ||
+            widthPixels <= 0 || heightPixels <= 0 ||
+            widthPixels > Surface.MaxDimension || heightPixels > Surface.MaxDimension)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(dpi), dpi,
+                $"The computed pixel dimensions must be positive and not exceed {Surface.MaxDimension}x{Surface.MaxDimension}.");
+        }
+
+        var width = (int)Math.Round(widthPixels, MidpointRounding.AwayFromZero);
+        var height = (int)Math.Round(heightPixels, MidpointRounding.AwayFromZero);
         return Render(slideIndex, width, height, options);
     }
 

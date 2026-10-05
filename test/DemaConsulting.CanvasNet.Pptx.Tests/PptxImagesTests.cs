@@ -90,6 +90,20 @@ public class PptxImagesTests
         Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveSrcRect(blipFill));
     }
 
+    /// <summary>Proves a non-finite edge attribute value throws <see cref="InvalidDataException"/>.</summary>
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public void ResolveSrcRect_NonFiniteEdgeAttribute_ThrowsInvalidDataException(string nonFiniteValue)
+    {
+        var blipFill = new XElement(
+            PresentationNs + "blipFill",
+            new XElement(A + "srcRect", new XAttribute("l", nonFiniteValue)));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveSrcRect(blipFill));
+    }
+
     /// <summary>Proves <see cref="PptxDocument.ResolveSrcRect"/> rejects a null argument.</summary>
     [Fact]
     public void ResolveSrcRect_NullBlipFillElement_ThrowsArgumentNullException()

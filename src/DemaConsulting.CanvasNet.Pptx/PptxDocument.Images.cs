@@ -227,6 +227,12 @@ public sealed partial class PptxDocument
                 $"An <a:srcRect> element has a non-numeric '{attributeName}' attribute value '{value}'.");
         }
 
+        if (!float.IsFinite(parsed))
+        {
+            throw new InvalidDataException(
+                $"An <a:srcRect> element has a non-finite '{attributeName}' attribute value '{value}'.");
+        }
+
         return parsed / 100000f;
     }
 

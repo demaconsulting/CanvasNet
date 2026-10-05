@@ -46,6 +46,10 @@ public sealed partial class PptxDocument
     /// </summary>
     /// <param name="bodyPrElement">The <c>&lt;a:bodyPr&gt;</c> element to parse, or <see langword="null"/> when absent.</param>
     /// <returns>The parsed <see cref="PptxBodyProperties"/>.</returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="bodyPrElement"/>'s <c>bIns</c> attribute is present but not
+    ///     a valid numeric value.
+    /// </exception>
     internal static PptxBodyProperties ParseBodyProperties(XElement? bodyPrElement)
     {
         if (bodyPrElement is null)
@@ -72,7 +76,18 @@ public sealed partial class PptxDocument
         var insetLeft = (float?)bodyPrElement.Attribute("lIns") ?? DefaultInsetLeftRightEmu;
         var insetTop = (float?)bodyPrElement.Attribute("tIns") ?? DefaultInsetTopBottomEmu;
         var insetRight = (float?)bodyPrElement.Attribute("rIns") ?? DefaultInsetLeftRightEmu;
-        var insetBottom = (float?)bodyPrElement.Attribute("bIns") ?? DefaultInsetTopBottomEmu;
+
+        float insetBottom;
+        try
+        {
+            insetBottom = (float?)bodyPrElement.Attribute("bIns") ?? DefaultInsetTopBottomEmu;
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidDataException(
+                $"An <a:bodyPr> element has a non-numeric 'bIns' attribute value '{(string?)bodyPrElement.Attribute("bIns")}'.",
+                ex);
+        }
 
         var autofitElement =
             bodyPrElement.Element(DrawingNamespace + "noAutofit") ??

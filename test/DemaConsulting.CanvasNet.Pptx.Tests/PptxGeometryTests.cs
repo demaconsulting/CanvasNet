@@ -197,6 +197,42 @@ public class PptxGeometryTests
         Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveShapeFrame(xfrm));
     }
 
+    /// <summary>
+    ///     Resolve Shape Frame - Non Finite Off Attribute - Throws Invalid Data Exception
+    ///     (a non-finite <c>&lt;a:off&gt;</c> value must be rejected just like a non-numeric one).
+    /// </summary>
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public void ResolveShapeFrame_NonFiniteOffAttribute_ThrowsInvalidDataException(string nonFiniteValue)
+    {
+        var xfrm = new XElement(
+            A + "xfrm",
+            new XElement(A + "off", new XAttribute("x", nonFiniteValue), new XAttribute("y", 0)),
+            new XElement(A + "ext", new XAttribute("cx", 100), new XAttribute("cy", 100)));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveShapeFrame(xfrm));
+    }
+
+    /// <summary>
+    ///     Resolve Shape Frame - Non Finite Ext Attribute - Throws Invalid Data Exception
+    ///     (a non-finite <c>&lt;a:ext&gt;</c> value must be rejected just like a non-numeric one).
+    /// </summary>
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public void ResolveShapeFrame_NonFiniteExtAttribute_ThrowsInvalidDataException(string nonFiniteValue)
+    {
+        var xfrm = new XElement(
+            A + "xfrm",
+            new XElement(A + "off", new XAttribute("x", 0), new XAttribute("y", 0)),
+            new XElement(A + "ext", new XAttribute("cx", nonFiniteValue), new XAttribute("cy", 100)));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveShapeFrame(xfrm));
+    }
+
     // --- ResolveGroupChildTransform -------------------------------------------------------------
 
     /// <summary>Resolve Group Child Transform - Identity Child Space - Matches Group Frame Directly.</summary>

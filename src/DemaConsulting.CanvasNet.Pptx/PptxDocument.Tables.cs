@@ -159,7 +159,8 @@ public sealed partial class PptxDocument
     /// <param name="totalColumns">The table's total declared <c>&lt;a:tblGrid&gt;/&lt;a:gridCol&gt;</c> column count, defaulting to <c>1</c>.</param>
     /// <returns>The resolved <see cref="PptxTableCell"/>.</returns>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when a present <c>gridSpan</c>/<c>rowSpan</c> attribute is not a valid integer.
+    ///     Thrown when a present <c>gridSpan</c>/<c>rowSpan</c> attribute is not a valid integer,
+    ///     or is zero or negative.
     /// </exception>
     internal static PptxTableCell ParseTableCell(
         XElement tcElement, PptxTheme theme, float cellWidthEmu, float cellHeightEmu, PptxColorMap? colorMap = null,
@@ -167,7 +168,19 @@ public sealed partial class PptxDocument
         int rowIndex = 0, int totalRows = 1, int columnIndex = 0, int totalColumns = 1)
     {
         var gridSpan = ParseOptionalIntAttribute(tcElement, "gridSpan") ?? 1;
+        if (gridSpan <= 0)
+        {
+            throw new InvalidDataException(
+                $"An <a:tc> element has a non-positive 'gridSpan' attribute value '{gridSpan}'.");
+        }
+
         var rowSpan = ParseOptionalIntAttribute(tcElement, "rowSpan") ?? 1;
+        if (rowSpan <= 0)
+        {
+            throw new InvalidDataException(
+                $"An <a:tc> element has a non-positive 'rowSpan' attribute value '{rowSpan}'.");
+        }
+
         var hMerge = (bool?)tcElement.Attribute("hMerge") ?? false;
         var vMerge = (bool?)tcElement.Attribute("vMerge") ?? false;
 
@@ -364,7 +377,7 @@ public sealed partial class PptxDocument
         return sum;
     }
 
-    /// <summary>Parses a required, numeric float attribute, throwing <see cref="InvalidDataException"/> when missing or non-numeric.</summary>
+    /// <summary>Parses a required, numeric float attribute, throwing <see cref="InvalidDataException"/> when missing, non-numeric, or non-finite.</summary>
     private static float ParseRequiredFloatAttribute(XElement element, string attributeName, string elementDescription)
     {
         var value = (string?)element.Attribute(attributeName) ??
@@ -373,6 +386,11 @@ public sealed partial class PptxDocument
         if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
         {
             throw new InvalidDataException($"A {elementDescription} element has a non-numeric '{attributeName}' attribute value '{value}'.");
+        }
+
+        if (!float.IsFinite(parsed))
+        {
+            throw new InvalidDataException($"A {elementDescription} element has a non-finite '{attributeName}' attribute value '{value}'.");
         }
 
         return parsed;

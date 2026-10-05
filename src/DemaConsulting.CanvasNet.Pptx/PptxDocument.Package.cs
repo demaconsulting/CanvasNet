@@ -240,10 +240,12 @@ public sealed partial class PptxDocument
     /// </summary>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the part is not well-formed XML, its root element is not the OPC
-    ///     relationships namespace's <c>Relationships</c> element, or any
+    ///     relationships namespace's <c>Relationships</c> element, any
     ///     <c>&lt;Relationship&gt;</c> child is missing a required attribute (<c>Id</c>,
-    ///     <c>Type</c>, or <c>Target</c>) - malformed input must fail resolution outright rather
-    ///     than silently skipping the malformed relationship.
+    ///     <c>Type</c>, or <c>Target</c>), or two <c>&lt;Relationship&gt;</c> children declare the
+    ///     same <c>Id</c> - malformed input must fail resolution outright rather than silently
+    ///     skipping the malformed relationship or overwriting the first relationship with the
+    ///     duplicate.
     /// </exception>
     private static IReadOnlyDictionary<string, PackageRelationship> ParseRelationships(ZipArchiveEntry entry)
     {
@@ -269,7 +271,11 @@ public sealed partial class PptxDocument
             var targetMode = (string?)relationshipElement.Attribute("TargetMode");
             var isExternal = string.Equals(targetMode, "External", StringComparison.OrdinalIgnoreCase);
 
-            relationships[id] = new PackageRelationship(target, type, isExternal);
+            if (!relationships.TryAdd(id, new PackageRelationship(target, type, isExternal)))
+            {
+                throw new InvalidDataException(
+                    $"'{entry.FullName}' has a <Relationship> element with a duplicate 'Id' attribute value '{id}'.");
+            }
         }
 
         return relationships;

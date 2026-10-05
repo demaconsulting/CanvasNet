@@ -114,6 +114,17 @@ public class PptxTextTests
         Assert.Equal(40000f, result.InsetBottomEmu);
     }
 
+    /// <summary>Proves a non-numeric <c>bIns</c> attribute throws <see cref="InvalidDataException"/> (with the original <see cref="FormatException"/> preserved as <see cref="Exception.InnerException"/>) rather than letting the raw <see cref="FormatException"/> escape uncaught.</summary>
+    [Fact]
+    public void ParseBodyProperties_NonNumericBIns_ThrowsInvalidDataException()
+    {
+        var bodyPr = new XElement(DrawingNs + "bodyPr", new XAttribute("bIns", "not-a-number"));
+
+        var ex = Assert.Throws<InvalidDataException>(() => PptxDocument.ParseBodyProperties(bodyPr));
+
+        Assert.IsType<FormatException>(ex.InnerException);
+    }
+
     /// <summary>Parse Body Properties Autofit Element Is Retained Unparsed.</summary>
     [Theory]
     [InlineData("noAutofit")]

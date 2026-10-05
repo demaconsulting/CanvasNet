@@ -847,6 +847,31 @@ public class PptxDocumentTests
     }
 
     /// <summary>
+    ///     Proves two <c>&lt;Relationship&gt;</c> elements sharing the same <c>Id</c> throw
+    ///     <see cref="InvalidDataException"/> rather than the second relationship silently
+    ///     overwriting the first in the relationship lookup.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Open_RelationshipDuplicateId_ThrowsInvalidDataException()
+    {
+        // Arrange: two <Relationship> elements sharing Id="rId1" (different Target/Type).
+        const string relsWithDuplicateIdXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml" />
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml" />
+            </Relationships>
+            """;
+        using var stream = BuildPackage(
+            ("[Content_Types].xml", DefaultContentTypesXml),
+            ("_rels/.rels", relsWithDuplicateIdXml));
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => PptxDocument.Open(stream));
+    }
+
+    /// <summary>
     ///     Proves <see cref="PptxDocument.ResolveRelationship"/> throws
     ///     <see cref="InvalidDataException"/> for a relationship declaring
     ///     <c>TargetMode="External"</c>, which this phase does not support.

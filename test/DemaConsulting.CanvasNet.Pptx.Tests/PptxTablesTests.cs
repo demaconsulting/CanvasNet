@@ -255,6 +255,35 @@ public class PptxTablesTests
         Assert.Throws<InvalidDataException>(() => PptxDocument.ParseTable(graphicFrame, BuildTestTheme()));
     }
 
+    /// <summary>Proves a <c>&lt;a:gridCol&gt;</c> with a non-finite <c>w</c> attribute throws <see cref="InvalidDataException"/>.</summary>
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public void ParseTable_NonFiniteColumnWidth_ThrowsInvalidDataException(string nonFiniteValue)
+    {
+        var tbl = new XElement(A + "tbl",
+            new XElement(A + "tblGrid", new XElement(A + "gridCol", new XAttribute("w", nonFiniteValue))));
+        var graphicFrame = BuildGraphicFrame(tbl);
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ParseTable(graphicFrame, BuildTestTheme()));
+    }
+
+    /// <summary>Proves an <c>&lt;a:tr&gt;</c> with a non-finite <c>h</c> attribute throws <see cref="InvalidDataException"/>.</summary>
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public void ParseTable_NonFiniteRowHeight_ThrowsInvalidDataException(string nonFiniteValue)
+    {
+        var tbl = new XElement(A + "tbl",
+            new XElement(A + "tblGrid", new XElement(A + "gridCol", new XAttribute("w", 1000))),
+            new XElement(A + "tr", new XAttribute("h", nonFiniteValue), BuildTc()));
+        var graphicFrame = BuildGraphicFrame(tbl);
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ParseTable(graphicFrame, BuildTestTheme()));
+    }
+
     // --- ParseTableCell --------------------------------------------------------------------------
 
     /// <summary>Proves an absent <c>gridSpan</c>/<c>rowSpan</c>/<c>hMerge</c>/<c>vMerge</c> defaults to span 1, no merge.</summary>
@@ -290,6 +319,28 @@ public class PptxTablesTests
     {
         var tc = BuildTc();
         tc.Add(new XAttribute("gridSpan", "not-a-number"));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ParseTableCell(tc, BuildTestTheme(), 1000f, 500f));
+    }
+
+    /// <summary>Proves a zero or negative <c>gridSpan</c> attribute throws <see cref="InvalidDataException"/>.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void ParseTableCell_NonPositiveGridSpan_ThrowsInvalidDataException(int gridSpan)
+    {
+        var tc = BuildTc(gridSpan: gridSpan);
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ParseTableCell(tc, BuildTestTheme(), 1000f, 500f));
+    }
+
+    /// <summary>Proves a zero or negative <c>rowSpan</c> attribute throws <see cref="InvalidDataException"/>.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void ParseTableCell_NonPositiveRowSpan_ThrowsInvalidDataException(int rowSpan)
+    {
+        var tc = BuildTc(rowSpan: rowSpan);
 
         Assert.Throws<InvalidDataException>(() => PptxDocument.ParseTableCell(tc, BuildTestTheme(), 1000f, 500f));
     }

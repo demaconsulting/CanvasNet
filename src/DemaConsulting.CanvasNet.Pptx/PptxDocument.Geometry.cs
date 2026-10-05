@@ -295,7 +295,7 @@ public sealed partial class PptxDocument
     ///     <c>ReadPercentageChild</c> precedent for the same class of malformed-attribute input.
     /// </summary>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the attribute is missing or not a valid floating-point number.
+    ///     Thrown when the attribute is missing or not a finite floating-point number.
     /// </exception>
     private static float ParseRequiredFloatAttribute(XElement element, string attributeName)
     {
@@ -306,6 +306,12 @@ public sealed partial class PptxDocument
         {
             throw new InvalidDataException(
                 $"An <{element.Name.LocalName}> element has a non-numeric '{attributeName}' attribute value '{value}'.");
+        }
+
+        if (!float.IsFinite(parsed))
+        {
+            throw new InvalidDataException(
+                $"An <{element.Name.LocalName}> element has a non-finite '{attributeName}' attribute value '{value}'.");
         }
 
         return parsed;
