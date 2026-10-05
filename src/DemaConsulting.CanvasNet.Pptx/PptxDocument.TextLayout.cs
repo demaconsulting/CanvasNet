@@ -1,3 +1,4 @@
+using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Fonts;
 
@@ -150,16 +151,16 @@ public sealed partial class PptxDocument
             return font;
         }
 
-        (TrueTypeFont Font, int GlyphIndex) ResolveGlyph(TrueTypeFont primaryFont, char ch, bool bold, bool italic)
+        (TrueTypeFont Font, int GlyphIndex) ResolveGlyph(TrueTypeFont primaryFont, int codepoint, bool bold, bool italic)
         {
-            var glyphIndex = primaryFont.GetGlyphIndex(ch);
-            if (glyphIndex != 0 || char.IsWhiteSpace(ch))
+            var glyphIndex = primaryFont.GetGlyphIndex(codepoint);
+            if (glyphIndex != 0 || Rune.IsWhiteSpace(new Rune(codepoint)))
             {
                 return (primaryFont, glyphIndex);
             }
 
             var fallbackFont = ResolveFallbackFont(bold, italic);
-            var fallbackGlyphIndex = fallbackFont.GetGlyphIndex(ch);
+            var fallbackGlyphIndex = fallbackFont.GetGlyphIndex(codepoint);
             return fallbackGlyphIndex != 0 ? (fallbackFont, fallbackGlyphIndex) : (primaryFont, glyphIndex);
         }
 
@@ -212,7 +213,7 @@ public sealed partial class PptxDocument
         float availableWidth,
         float availableHeight,
         Func<string, bool, bool, TrueTypeFont> resolveFont,
-        Func<TrueTypeFont, char, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
+        Func<TrueTypeFont, int, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
     {
         if (autofitElement is null || autofitElement.Name.LocalName is "noAutofit" or "spAutoFit")
         {
@@ -233,7 +234,7 @@ public sealed partial class PptxDocument
         for (var iteration = 0; iteration < MaxShrinkIterations; iteration++)
         {
             var lines = BuildLines(paragraphs, availableWidth, scale, 1f, resolveFont, resolveGlyph);
-            var totalHeight = lines.Sum(line => line.LineHeightEmu);
+            var totalHeight = lines.Sum(line => line.LineHeightEmu + line.LeadingGapEmu);
             if (totalHeight <= availableHeight || scale <= MinShrinkScale)
             {
                 return (scale, 1f);
@@ -356,6 +357,14 @@ public sealed partial class PptxDocument
     ///     The line's resolved underlined spans (Phase 2 Follow-Up: Underline Rendering),
     ///     positioned relative to the line's own start, same convention as <see cref="Glyphs"/>.
     /// </param>
+    /// <param name="LeadingGapEmu">
+    ///     The extra vertical gap, in EMU, inserted immediately before this line's own box (Phase
+    ///     2 Follow-Up: Paragraph Spacing) - always <c>0</c> except a paragraph's first
+    ///     word-wrapped line when a preceding paragraph exists, where it carries the additive
+    ///     <c>spcAft(previous paragraph) + spcBef(this paragraph)</c> gap. Never applied before a
+    ///     text body's first paragraph nor after its last (see <see cref="BuildLines"/>'s own
+    ///     remarks for the exact additive semantics this field implements).
+    /// </param>
     private sealed record LineBox(
         IReadOnlyList<LineGlyph> Glyphs,
         float LineWidthEmu,
@@ -366,7 +375,8 @@ public sealed partial class PptxDocument
         IReadOnlyList<LineGlyph> BulletGlyphs,
         float BulletWidthEmu,
         float BulletTrailingGapEmu,
-        IReadOnlyList<LineUnderlineSpan> UnderlineSpans);
+        IReadOnlyList<LineUnderlineSpan> UnderlineSpans,
+        float LeadingGapEmu = 0f);
 
     /// <summary>A paragraph with its effective paragraph properties and every run's effective properties resolved up front.</summary>
     private sealed record ResolvedParagraph(
@@ -375,12 +385,15 @@ public sealed partial class PptxDocument
         IReadOnlyList<PptxEffectiveRunProperties> RunProperties);
 
     /// <summary>
-    ///     Computes a resolved token's natural advance width, in EMU, summing each character's
-    ///     font-metric advance - via <paramref name="resolveGlyph"/>, so a character the token's
-    ///     own primary <paramref name="font"/> lacks (and that a bundled fallback font covers)
-    ///     measures using the fallback font's own advance width, not the primary font's glyph-0
-    ///     advance, keeping word-wrap width measurement consistent with what
-    ///     <see cref="BuildLines"/>'s own per-character loop actually paints.
+    ///     Computes a resolved token's natural advance width, in EMU, summing each Unicode scalar
+    ///     value (code point)'s font-metric advance - via <paramref name="resolveGlyph"/>, so a
+    ///     code point the token's own primary <paramref name="font"/> lacks (and that a bundled
+    ///     fallback font covers) measures using the fallback font's own advance width, not the
+    ///     primary font's glyph-0 advance, keeping word-wrap width measurement consistent with
+    ///     what <see cref="BuildLines"/>'s own per-code-point loop actually paints. Enumerating
+    ///     via <c>text.EnumerateRunes()</c> (rather than per-UTF-16 <c>char</c>) ensures a
+    ///     supplementary-plane character (for example an emoji, codepoint above <c>U+FFFF</c>) is
+    ///     measured as a single logical unit, not as two mis-measured surrogate halves.
     /// </summary>
     private static float MeasureTokenWidthEmu(
         string text,
@@ -388,12 +401,12 @@ public sealed partial class PptxDocument
         float sizeEmu,
         bool bold,
         bool italic,
-        Func<TrueTypeFont, char, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
+        Func<TrueTypeFont, int, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
     {
         var total = 0f;
-        foreach (var ch in text)
+        foreach (var rune in text.EnumerateRunes())
         {
-            var (resolvedFont, glyphIndex) = resolveGlyph(font, ch, bold, italic);
+            var (resolvedFont, glyphIndex) = resolveGlyph(font, rune.Value, bold, italic);
             total += resolvedFont.GetAdvanceWidth(glyphIndex) / (float)resolvedFont.UnitsPerEm * sizeEmu;
         }
 
@@ -408,13 +421,22 @@ public sealed partial class PptxDocument
     ///     is placed alone on its own (overflowing) line rather than looping indefinitely - a
     ///     documented overflow policy, not a crash.
     /// </summary>
+    /// <remarks>
+    ///     Phase 2 Follow-Up: Paragraph Spacing - the gap between two adjacent paragraphs is
+    ///     additive (<c>spcAft(paragraph N) + spcBef(paragraph N+1)</c>), applied only between
+    ///     paragraphs - never before a text body's first paragraph nor after its last - via each
+    ///     paragraph's own first line's <see cref="LineBox.LeadingGapEmu"/>. A percentage
+    ///     (<c>spcPct</c>) spacing value resolves against the boundary line's own already-resolved
+    ///     <c>lineHeight</c> (the first line for <c>spcBef</c>, the last line for <c>spcAft</c>) -
+    ///     a documented scoping decision avoiding a second, separately-tracked "natural height".
+    /// </remarks>
     private static List<LineBox> BuildLines(
         IReadOnlyList<ResolvedParagraph> paragraphs,
         float availableWidthEmu,
         float fontScale,
         float lineSpacingFactor,
         Func<string, bool, bool, TrueTypeFont> resolveFont,
-        Func<TrueTypeFont, char, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
+        Func<TrueTypeFont, int, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
     {
         var lines = new List<LineBox>();
 
@@ -423,6 +445,15 @@ public sealed partial class PptxDocument
         // full per-level sequencing/reset state machine this threads across the paragraph loop.
         var counters = new int[MaxParagraphLevel + 1];
         var lastTypes = new string?[MaxParagraphLevel + 1];
+
+        // Phase 2 Follow-Up: Paragraph Spacing - tracks the previous paragraph's own resolved
+        // SpaceAfter and its last line's resolved lineHeight (needed to resolve that SpaceAfter's
+        // own spcPct, if any), so the next paragraph's first line can compute its additive
+        // leading gap. isFirstParagraph suppresses the gap before the text body's very first
+        // paragraph, regardless of any spcBef it declares.
+        var isFirstParagraph = true;
+        var previousSpaceAfter = PptxLineSpacing.None;
+        var previousLastLineHeightEmu = 0f;
 
         foreach (var resolvedParagraph in paragraphs)
         {
@@ -526,9 +557,13 @@ public sealed partial class PptxDocument
                     }
                     else
                     {
-                        foreach (var ch in token.Text)
+                        // Enumerate by Unicode scalar value (Rune), not UTF-16 char, so a
+                        // supplementary-plane character (codepoint above U+FFFF, e.g. an emoji)
+                        // is measured/placed as one logical glyph unit instead of being split
+                        // into two mis-measured surrogate halves.
+                        foreach (var rune in token.Text.EnumerateRunes())
                         {
-                            var (resolvedFont, glyphIndex) = resolveGlyph(token.Font, ch, token.RunProperties.Bold, token.RunProperties.Italic);
+                            var (resolvedFont, glyphIndex) = resolveGlyph(token.Font, rune.Value, token.RunProperties.Bold, token.RunProperties.Italic);
                             var advance = resolvedFont.GetAdvanceWidth(glyphIndex) / (float)resolvedFont.UnitsPerEm * token.RunProperties.SizeEmu;
                             if (!token.IsWhitespace)
                             {
@@ -606,17 +641,51 @@ public sealed partial class PptxDocument
                         : naturalHeight * spacingFactor * lineSpacingFactor;
                 }
 
+                // Phase 2 Follow-Up: Paragraph Spacing - only the paragraph's own first
+                // word-wrapped line carries a leading gap, and only when a preceding paragraph
+                // exists (never before the text body's very first paragraph). The gap is additive:
+                // the preceding paragraph's own SpaceAfter (resolved against its own last line's
+                // lineHeight) plus this paragraph's own SpaceBefore (resolved against this, its
+                // first, line's lineHeight).
+                var leadingGapEmu = 0f;
+                if (i == 0 && !isFirstParagraph)
+                {
+                    leadingGapEmu = ResolveSpacingEmu(previousSpaceAfter, previousLastLineHeightEmu) +
+                        ResolveSpacingEmu(paraProps.EffectiveSpaceBefore, lineHeight);
+                }
+
                 var isFirstLine = i == 0;
                 var bulletGlyphsResult = isFirstLine && hasRuns
                     ? BuildBulletGlyphs(bulletText, paraProps.Bullet, fontScale, resolveFont, resolveGlyph)
                     : new BulletGlyphsResult([], 0f, 0f);
 
-                lines.Add(new LineBox(glyphs, lineWidth, lineHeight, ascent, paraProps, isFirstLine, bulletGlyphsResult.Glyphs, bulletGlyphsResult.WidthEmu, bulletGlyphsResult.TrailingGapEmu, underlineSpans));
+                lines.Add(new LineBox(glyphs, lineWidth, lineHeight, ascent, paraProps, isFirstLine, bulletGlyphsResult.Glyphs, bulletGlyphsResult.WidthEmu, bulletGlyphsResult.TrailingGapEmu, underlineSpans, leadingGapEmu));
+
+                // The paragraph's own last line records its resolved SpaceAfter/lineHeight for
+                // the next paragraph's own leading-gap computation above.
+                if (i == paragraphLines.Count - 1)
+                {
+                    previousSpaceAfter = paraProps.EffectiveSpaceAfter;
+                    previousLastLineHeightEmu = lineHeight;
+                }
             }
+
+            isFirstParagraph = false;
         }
 
         return lines;
     }
+
+    /// <summary>
+    ///     Resolves a paragraph's spacing-before/after (Phase 2 Follow-Up: Paragraph Spacing) into
+    ///     a concrete EMU gap: a fixed value (<c>spcPts</c>) is used verbatim; a percentage
+    ///     (<c>spcPct</c>) resolves against <paramref name="referenceLineHeightEmu"/> - the
+    ///     boundary line's own already-resolved <c>lineHeight</c> (already scaled by any
+    ///     applicable autofit <c>lnSpcReduction</c>), deliberately not a second, unscaled "natural
+    ///     height" (see <see cref="BuildLines"/>'s own remarks for this scoping decision).
+    /// </summary>
+    private static float ResolveSpacingEmu(PptxLineSpacing spacing, float referenceLineHeightEmu) =>
+        spacing.FixedEmu is { } fixedEmu ? fixedEmu : referenceLineHeightEmu * (spacing.Percent ?? 0f);
 
     /// <summary>
     ///     Advances this call's (one shape/text-body's) per-level auto-number counter/last-type
@@ -724,7 +793,7 @@ public sealed partial class PptxDocument
         PptxEffectiveBulletProperties? bullet,
         float fontScale,
         Func<string, bool, bool, TrueTypeFont> resolveFont,
-        Func<TrueTypeFont, char, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
+        Func<TrueTypeFont, int, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
     {
         if (string.IsNullOrEmpty(bulletText) || bullet is null || bullet.Kind == PptxBulletKind.None)
         {
@@ -735,11 +804,14 @@ public sealed partial class PptxDocument
         var sizeEmu = bullet.SizeEmu * fontScale;
         var glyphs = new List<LineGlyph>();
         var cursorX = 0f;
-        foreach (var ch in bulletText)
+        // Enumerate by Unicode scalar value (Rune), not UTF-16 char, so a supplementary-plane
+        // bullet character (e.g. an <a:buChar char="..."/> emoji) is measured/placed as one
+        // logical glyph unit instead of two mis-measured surrogate halves.
+        foreach (var rune in bulletText.EnumerateRunes())
         {
             // Bullets are never bold/italic (see this method's own remarks), so the fallback
             // lookup is always keyed (false, false), matching resolveFont's own call above.
-            var (resolvedFont, glyphIndex) = resolveGlyph(font, ch, false, false);
+            var (resolvedFont, glyphIndex) = resolveGlyph(font, rune.Value, false, false);
             var advance = resolvedFont.GetAdvanceWidth(glyphIndex) / (float)resolvedFont.UnitsPerEm * sizeEmu;
             glyphs.Add(new LineGlyph(resolvedFont, glyphIndex, cursorX, sizeEmu, bullet.Color));
             cursorX += advance;
@@ -794,7 +866,15 @@ public sealed partial class PptxDocument
 
         void Pack(IReadOnlyList<ResolvedToken> unit, float unitWidth)
         {
-            if (currentLine.Count > 0 && currentWidth + unitWidth > availableWidthEmu)
+            // Only a currentLine already carrying at least one visible (non-whitespace) token
+            // counts as "has content" for the wrap decision - a currentLine consisting solely of
+            // a stranded whitespace token (for example the space between two words, where the
+            // following word itself would overflow) must not be flushed as its own, visually
+            // blank, line. Instead the whitespace is carried forward and merged onto the same
+            // line as whatever comes next, matching standard word-processor wrap behavior (the
+            // trailing space before a wrapped word is swallowed at the wrap point).
+            var currentLineHasVisibleContent = currentLine.Any(static t => !t.IsWhitespace);
+            if (currentLineHasVisibleContent && currentWidth + unitWidth > availableWidthEmu)
             {
                 lines.Add(currentLine);
                 currentLine = [];
@@ -871,7 +951,7 @@ public sealed partial class PptxDocument
         float availableWidthEmu,
         float availableHeightEmu)
     {
-        var totalHeight = lines.Sum(line => line.LineHeightEmu);
+        var totalHeight = lines.Sum(line => line.LineHeightEmu + line.LeadingGapEmu);
         var startY = anchor switch
         {
             PptxTextAnchor.Middle => insetTopEmu + MathF.Max(0f, (availableHeightEmu - totalHeight) / 2f),
@@ -896,6 +976,13 @@ public sealed partial class PptxDocument
             var indent = line.IsFirstLineOfParagraph && !hasBullet ? line.ParagraphProperties.IndentEmu : 0f;
             var lineStartX = insetLeftEmu + marginLeft + indent;
 
+            var startX = line.ParagraphProperties.Alignment switch
+            {
+                "ctr" => insetLeftEmu + marginLeft + MathF.Max(0f, (availableWidthEmu - marginLeft - line.LineWidthEmu) / 2f),
+                "r" => insetLeftEmu + MathF.Max(marginLeft, availableWidthEmu - line.LineWidthEmu),
+                _ => lineStartX,
+            };
+
             if (hasBullet)
             {
                 // Gutter-clearance fix: when the paragraph's resolved IndentEmu is zero or not
@@ -909,17 +996,18 @@ public sealed partial class PptxDocument
                 // PowerPoint-like, tab-stop-style gap beyond the bullet's own width for
                 // PptxBulletKind.AutoNum markers only (0 for every other bullet kind - a no-op
                 // there, see the design document's "buAutoNum gutter-clearance minimum gap" note).
+                // The clamp is applied unconditionally, after startX is resolved for whichever
+                // horizontal alignment the paragraph declares (left/center/right) - a bulleted
+                // paragraph's own text must never overlap its bullet regardless of alignment.
                 var bulletGutterXForClamp = insetLeftEmu + marginLeft + line.ParagraphProperties.IndentEmu;
-                lineStartX = MathF.Max(insetLeftEmu + marginLeft, bulletGutterXForClamp + line.BulletWidthEmu + line.BulletTrailingGapEmu);
+                var minTextStartX = bulletGutterXForClamp + line.BulletWidthEmu + line.BulletTrailingGapEmu;
+                startX = MathF.Max(startX, minTextStartX);
             }
 
-            var startX = line.ParagraphProperties.Alignment switch
-            {
-                "ctr" => insetLeftEmu + marginLeft + MathF.Max(0f, (availableWidthEmu - marginLeft - line.LineWidthEmu) / 2f),
-                "r" => insetLeftEmu + MathF.Max(marginLeft, availableWidthEmu - line.LineWidthEmu),
-                _ => lineStartX,
-            };
-
+            // Phase 2 Follow-Up: Paragraph Spacing - the leading gap is "space before the line's
+            // own box": advance runningY past it before computing this line's baseline, so the
+            // gap sits strictly between the previous line's own box and this one.
+            runningY += line.LeadingGapEmu;
             var baselineY = runningY + line.AscentEmu;
 
             foreach (var glyph in line.Glyphs)

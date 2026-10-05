@@ -207,6 +207,22 @@ public sealed partial class PptxDocument
             ParseLineSpacing(masterLevelElement?.Element(DrawingNamespace + "lnSpc")) ??
             PptxLineSpacing.Default;
 
+        // Phase 2 Follow-Up: Paragraph Spacing - spacing-before and spacing-after share the same
+        // percentage/fixed-point shape as line spacing per ECMA-376, so the existing line-spacing
+        // parser is reused verbatim; a paragraph that never declares spacing-before/after at any
+        // tier resolves to the "zero extra gap" sentinel, not the full-line-height default.
+        var spaceBefore =
+            ParseLineSpacing(raw.SpcBeforeElement) ??
+            ParseLineSpacing(placeholderLevelElement?.Element(DrawingNamespace + "spcBef")) ??
+            ParseLineSpacing(masterLevelElement?.Element(DrawingNamespace + "spcBef")) ??
+            PptxLineSpacing.None;
+
+        var spaceAfter =
+            ParseLineSpacing(raw.SpcAfterElement) ??
+            ParseLineSpacing(placeholderLevelElement?.Element(DrawingNamespace + "spcAft")) ??
+            ParseLineSpacing(masterLevelElement?.Element(DrawingNamespace + "spcAft")) ??
+            PptxLineSpacing.None;
+
         var bullet = ResolveEffectiveBulletProperties(
             paragraph,
             placeholderLevelElement,
@@ -216,7 +232,7 @@ public sealed partial class PptxDocument
             firstRunProperties,
             colorMap);
 
-        return new PptxEffectiveParagraphProperties(algn, marL, indent, lineSpacing, bullet);
+        return new PptxEffectiveParagraphProperties(algn, marL, indent, lineSpacing, bullet, spaceBefore, spaceAfter);
     }
 
     /// <summary>

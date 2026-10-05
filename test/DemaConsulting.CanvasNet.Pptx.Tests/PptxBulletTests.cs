@@ -812,6 +812,154 @@ public class PptxBulletTests
     }
 
     /// <summary>
+    ///     Proves the bullet-gutter clamp (Finding 3) also fires for <c>algn="ctr"</c>, not just
+    ///     the default left alignment - previously the clamp was only consulted by the
+    ///     alignment switch's default (<c>"l"</c>) arm, so a centered bulleted paragraph's text
+    ///     could overlap its own bullet.
+    /// </summary>
+    /// <remarks>
+    ///     Same <c>marL="320040" lvl="1"</c> + <c>buAutoNum type="arabicPeriod"</c> setup as
+    ///     <see cref="ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth"/>
+    ///     (<c>minTextStartX = 327660</c>), plus <c>algn="ctr"</c>, laid out at a shape width
+    ///     (326390 = marginLeft + lineWidth(6350)) chosen so the unclamped centered <c>startX</c>
+    ///     collapses to exactly <c>marginLeft</c> (320040) - below <c>minTextStartX</c> - proving
+    ///     the clamp now raises it to 327660 instead of leaving it at the unclamped, overlapping
+    ///     320040.
+    /// </remarks>
+    [Fact]
+    public void ResolveTextLayout_BulletedParagraphCenterAligned_TextClearsBulletWidth()
+    {
+        var textBody = BuildTextBody(
+            ("""<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main" marL="320040" lvl="1" algn="ctr"><buAutoNum type="arabicPeriod"/></pPr>""", "A"));
+
+        var layout = Layout(textBody, 326390f, 500000f);
+
+        Assert.Equal(3, layout.Glyphs.Count);
+
+        // Bullet glyph X is unchanged: still the unclamped gutter (marL+indent = 320040+0).
+        Assert.Equal(320040f, layout.Glyphs[1].OriginXEmu, 2);
+
+        // The run's own text glyph is clamped to the same minTextStartX as the left-aligned
+        // test (327660), not the unclamped centered position (320040), which would overlap the
+        // bullet.
+        Assert.Equal(327660f, layout.Glyphs[0].OriginXEmu, 2);
+    }
+
+    /// <summary>
+    ///     Mirrors
+    ///     <see cref="ResolveTextLayout_BulletedParagraphCenterAligned_TextClearsBulletWidth"/>
+    ///     for <c>algn="r"</c>: the unclamped right-aligned <c>startX</c> also collapses to
+    ///     exactly <c>marginLeft</c> (320040) under the same chosen width, below
+    ///     <c>minTextStartX</c> (327660) - proving the clamp fires for right alignment too.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_BulletedParagraphRightAligned_TextClearsBulletWidth()
+    {
+        var textBody = BuildTextBody(
+            ("""<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main" marL="320040" lvl="1" algn="r"><buAutoNum type="arabicPeriod"/></pPr>""", "A"));
+
+        var layout = Layout(textBody, 326390f, 500000f);
+
+        Assert.Equal(3, layout.Glyphs.Count);
+        Assert.Equal(320040f, layout.Glyphs[1].OriginXEmu, 2);
+        Assert.Equal(327660f, layout.Glyphs[0].OriginXEmu, 2);
+    }
+
+    /// <summary>
+    ///     Pixel-level counterpart to the center-aligned gutter-clamp fix: proves the bullet's own
+    ///     ink and the paragraph's own (now correctly clamped) text ink occupy disjoint X ranges
+    ///     once actually painted to a surface, mirroring
+    ///     <see cref="PaintTextLayout_BulletedParagraphWithZeroIndent_BulletAndTextInkDoNotOverlap"/>
+    ///     but for <c>algn="ctr"</c>.
+    /// </summary>
+    [Fact]
+    public void PaintTextLayout_BulletedParagraphCenterAligned_BulletAndTextInkDoNotOverlap()
+    {
+        // Shape width 335000 is chosen so the unclamped centered startX (320040 + (335000 -
+        // 320040 - 6350) / 2 = 324345) falls below minTextStartX (326390), so the clamp fires,
+        // while still leaving the clamped text's own full glyph width (326390 + 6350 = 332740)
+        // inside the shape's own bounds (not clipped at the right edge).
+        var textBody = BuildTextBody(
+            ("""<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main" marL="320040" lvl="1" algn="ctr"><buChar char="A"/></pPr>""", "A"));
+        var layout = Layout(textBody, 335000f, 100000f);
+
+        const float bulletGutterX = 320040f;
+        const float bulletWidthEmu = 6350f; // 'A' glyph advance at this bullet's resolved font size.
+        var textStartX = bulletGutterX + bulletWidthEmu;
+        Assert.Equal(bulletGutterX, layout.Glyphs[1].OriginXEmu, 2);
+        Assert.Equal(textStartX, layout.Glyphs[0].OriginXEmu, 2);
+
+        using var surface = new Surface(128, 16);
+        var scale = 128f / 335000f;
+        var transform = System.Numerics.Matrix3x2.CreateScale(scale, scale);
+        PptxDocument.PaintTextLayout(surface, layout, transform);
+
+        var bulletColumnMaxPx = (int)MathF.Floor(textStartX * scale);
+        var textColumnMinPx = (int)MathF.Ceiling(textStartX * scale);
+
+        bool AnyInkInColumnRange(int minPxInclusive, int maxPxExclusive)
+        {
+            for (var y = 0; y < surface.Height; y++)
+            {
+                for (var x = Math.Max(0, minPxInclusive); x < Math.Min(surface.Width, maxPxExclusive); x++)
+                {
+                    if (surface[x, y].A > 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        Assert.True(AnyInkInColumnRange(0, bulletColumnMaxPx), "Expected ink in the bullet's own column.");
+        Assert.True(AnyInkInColumnRange(textColumnMinPx, surface.Width), "Expected ink in the text's own (clamped) column.");
+    }
+
+    /// <summary>
+    ///     Proves a supplementary-plane bullet character (Finding 4: surrogate pairs) - a single
+    ///     Unicode scalar value above <c>U+FFFF</c>, requiring a UTF-16 surrogate pair to
+    ///     represent - resolves to exactly one bullet glyph via <c>&lt;a:buChar char="..."/&gt;</c>,
+    ///     not two mis-measured surrogate halves.
+    /// </summary>
+    [Fact]
+    public void BuildBulletGlyphs_SupplementaryPlaneBulletCharacter_EmitsExactlyOneGlyph()
+    {
+        var notdef = SyntheticFontBuilder.SimpleGlyph();
+        var glyphA = SyntheticFontBuilder.SimpleGlyph([(0, 0, true), (500, 0, true), (250, 800, true)]);
+        var glyphEmoji = SyntheticFontBuilder.SimpleGlyph([(0, 0, true), (600, 0, true), (300, 800, true)]);
+        var cmap = SyntheticFontBuilder.CmapFormat12(3, 10, [(0x41, 0x41, 1), (0x1F600, 0x1F600, 2)]);
+
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(3))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 0, 3))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 500, 600]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([notdef.Length, glyphA.Length, glyphEmoji.Length], longFormat: false))
+            .AddTable("glyf", [.. notdef, .. glyphA, .. glyphEmoji])
+            .AddTable("cmap", cmap)
+            .Build();
+
+        using var stream = new MemoryStream(data);
+        var font = TrueTypeFont.Load(stream);
+        var emoji = char.ConvertFromUtf32(0x1F600);
+
+        var textBody = BuildTextBody(
+            ($"""<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main"><buChar char="{emoji}"/></pPr>""", "A"));
+
+        var layout = PptxDocument.ResolveTextLayout(
+            textBody, new PptxPlaceholderProperties(null, null, BuildTestTheme()), BuildTestTheme(), "body",
+            500000f, 500000f, (_, _, _) => font);
+
+        // Run "A" plus exactly one bullet glyph for the supplementary-plane buChar - not two
+        // (which the pre-fix per-char enumeration would have emitted for the surrogate pair).
+        Assert.Equal(2, layout.Glyphs.Count);
+        Assert.Equal(font.GetGlyphIndex(0x1F600), layout.Glyphs[1].GlyphIndex);
+        Assert.NotEqual(0, layout.Glyphs[1].GlyphIndex);
+    }
+
+    /// <summary>
     ///     Pixel-level counterpart to
     ///     <see cref="ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth"/>:
     ///     proves the bullet's own ink and the paragraph's own (now correctly offset) text ink

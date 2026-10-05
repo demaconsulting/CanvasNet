@@ -673,6 +673,77 @@ public class PptxTextTests
         Assert.Equal(-100f, result.IndentEmu);
     }
 
+    /// <summary>
+    ///     Proves a paragraph's own <c>&lt;a:spcBef&gt;</c>/<c>&lt;a:spcAft&gt;</c> fixed
+    ///     (<c>spcPts</c>) spacing resolves to the correct EMU value (Phase 2 Follow-Up:
+    ///     Paragraph Spacing) - previously these elements were parsed into
+    ///     <see cref="PptxRawParagraphProperties"/> but never resolved into the effective
+    ///     paragraph properties at all.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveParagraphProperties_SpcBefSpcAftPoints_ResolvesFixedEmu()
+    {
+        var theme = BuildTestTheme();
+        var pPr = new XElement(
+            DrawingNs + "pPr",
+            new XElement(DrawingNs + "spcBef", new XElement(DrawingNs + "spcPts", new XAttribute("val", "600"))),
+            new XElement(DrawingNs + "spcAft", new XElement(DrawingNs + "spcPts", new XAttribute("val", "600"))));
+        var paragraph = Paragraph(pPr);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, "body");
+
+        Assert.Null(result.EffectiveSpaceBefore.Percent);
+        Assert.Equal(600f * 127f, result.EffectiveSpaceBefore.FixedEmu);
+        Assert.Null(result.EffectiveSpaceAfter.Percent);
+        Assert.Equal(600f * 127f, result.EffectiveSpaceAfter.FixedEmu);
+    }
+
+    /// <summary>
+    ///     Proves a paragraph's own <c>&lt;a:spcBef&gt;</c>/<c>&lt;a:spcAft&gt;</c> percentage
+    ///     (<c>spcPct</c>) spacing resolves to the correct fraction (Phase 2 Follow-Up: Paragraph
+    ///     Spacing).
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveParagraphProperties_SpcBefSpcAftPercent_ResolvesPercent()
+    {
+        var theme = BuildTestTheme();
+        var pPr = new XElement(
+            DrawingNs + "pPr",
+            new XElement(DrawingNs + "spcBef", new XElement(DrawingNs + "spcPct", new XAttribute("val", "50000"))),
+            new XElement(DrawingNs + "spcAft", new XElement(DrawingNs + "spcPct", new XAttribute("val", "50000"))));
+        var paragraph = Paragraph(pPr);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, "body");
+
+        Assert.Equal(0.5f, result.EffectiveSpaceBefore.Percent);
+        Assert.Null(result.EffectiveSpaceBefore.FixedEmu);
+        Assert.Equal(0.5f, result.EffectiveSpaceAfter.Percent);
+        Assert.Null(result.EffectiveSpaceAfter.FixedEmu);
+    }
+
+    /// <summary>
+    ///     Proves a paragraph that never declares <c>&lt;a:spcBef&gt;</c>/<c>&lt;a:spcAft&gt;</c>
+    ///     at any inheritance tier resolves to the "zero extra gap" sentinel, not
+    ///     <c>LineSpacing</c>'s own "100% of line height" default - regression guard for every
+    ///     pre-existing paragraph that never declared spacing.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveParagraphProperties_NoSpcBefSpcAft_ResolvesToNone()
+    {
+        var theme = BuildTestTheme();
+        var paragraph = Paragraph(null);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, "body");
+
+        Assert.Equal(0f, result.EffectiveSpaceBefore.Percent);
+        Assert.Null(result.EffectiveSpaceBefore.FixedEmu);
+        Assert.Equal(0f, result.EffectiveSpaceAfter.Percent);
+        Assert.Null(result.EffectiveSpaceAfter.FixedEmu);
+    }
+
     #endregion
 
     #region GetMaster <p:txStyles> parsing (Phase 1d plumbing)

@@ -133,6 +133,47 @@ public class PptxTextLayoutTests
         return PptxDocument.ParseTextBody(txBody);
     }
 
+    /// <summary>
+    ///     Builds a two-paragraph, single-run-per-paragraph <c>&lt;p:txBody&gt;</c> with a
+    ///     no-inset <c>&lt;a:bodyPr&gt;</c>, each paragraph's own <c>&lt;a:pPr&gt;</c> optionally
+    ///     extended with <paramref name="pPrExtra1"/>/<paramref name="pPrExtra2"/> fragments (same
+    ///     merge convention as <see cref="BuildSingleRunTextBody"/>'s own <c>paragraphExtra</c>),
+    ///     used by the paragraph-spacing (Phase 2 Follow-Up) tests to exercise
+    ///     <c>&lt;a:spcBef&gt;</c>/<c>&lt;a:spcAft&gt;</c> declared on one or both paragraphs.
+    /// </summary>
+    private static PptxTextBody BuildTwoParagraphTextBody(string text1, string? pPrExtra1, string text2, string? pPrExtra2)
+    {
+        XElement BuildPPr(string? extra)
+        {
+            var pPr = new XElement(DrawingNs + "pPr");
+            if (extra is not null)
+            {
+                var parsed = XElement.Parse(extra);
+                pPr.Add(parsed.Attributes());
+                pPr.Add(parsed.Elements());
+            }
+
+            return pPr;
+        }
+
+        var bodyPr = new XElement(
+            DrawingNs + "bodyPr",
+            new XAttribute("lIns", "0"), new XAttribute("tIns", "0"), new XAttribute("rIns", "0"), new XAttribute("bIns", "0"));
+        var txBody = new XElement(
+            PresentationNs + "txBody",
+            bodyPr,
+            new XElement(
+                DrawingNs + "p",
+                BuildPPr(pPrExtra1),
+                new XElement(DrawingNs + "r", new XElement(DrawingNs + "rPr", new XAttribute("sz", "100")), new XElement(DrawingNs + "t", text1))),
+            new XElement(
+                DrawingNs + "p",
+                BuildPPr(pPrExtra2),
+                new XElement(DrawingNs + "r", new XElement(DrawingNs + "rPr", new XAttribute("sz", "100")), new XElement(DrawingNs + "t", text2))));
+
+        return PptxDocument.ParseTextBody(txBody);
+    }
+
     private static PptxTextLayout Layout(PptxTextBody textBody, float widthEmu, float heightEmu) =>
         PptxDocument.ResolveTextLayout(textBody, new PptxPlaceholderProperties(null, null, BuildTestTheme()), BuildTestTheme(), "body", widthEmu, heightEmu, ConstantFontResolver);
 
@@ -439,6 +480,98 @@ public class PptxTextLayoutTests
         Assert.Equal(10160f, layout.Glyphs[1].OriginYEmu, 2);
     }
 
+    /// <summary>
+    ///     Proves a whitespace token that would itself overflow the current line (because the
+    ///     word preceding it already fills the line, and the word following it is also too wide
+    ///     to join) is absorbed into the following line rather than emitted as its own,
+    ///     visually-blank, standalone line.
+    /// </summary>
+    /// <remarks>
+    ///     Trace for <c>"AA AAA"</c> at <c>availableWidthEmu = 12700</c> ('A' advance 6350 EMU at
+    ///     <c>sz="100"</c>, ' ' advance 2540 EMU): token <c>"AA"</c> (width 12700) packs first
+    ///     with an empty <c>currentLine</c> (no overflow check) -&gt; <c>currentLine = ["AA"]</c>.
+    ///     Token <c>" "</c> (width 2540) packs next: <c>currentLine</c> has visible content and
+    ///     <c>12700 + 2540 = 15240 &gt; 12700</c> -&gt; flush <c>["AA"]</c> as line 1,
+    ///     <c>currentLine = [" "]</c>. Token <c>"AAA"</c> (width 19050) packs last: before this
+    ///     fix, <c>currentLine.Count &gt; 0</c> was true (the lone whitespace token counted as
+    ///     "has content"), so <c>["AAA"]</c> would wrap away from the whitespace token first,
+    ///     stranding <c>[" "]</c> as its own blank line 2 and pushing <c>["AAA"]</c> onto line 3.
+    ///     With the fix, <c>currentLine</c> holds only whitespace, so it is not treated as "has
+    ///     content" - <c>"AAA"</c> is merged onto the same line instead, producing exactly 2 lines
+    ///     (<c>["AA"]</c>, <c>[" ", "AAA"]</c>), matching standard word-processor wrap behavior
+    ///     (the trailing space before a wrapped word is swallowed at the wrap point).
+    /// </remarks>
+    [Fact]
+    public void ResolveTextLayout_WordWrap_WhitespaceTokenWouldOverflowAlone_DoesNotEmitWhitespaceOnlyLine()
+    {
+        var textBody = BuildSingleRunTextBody("AA AAA");
+
+        var layout = Layout(textBody, 12700f, 100000f);
+
+        // 5 visible glyphs total (2 for "AA", 3 for "AAA") - the whitespace token itself never
+        // emits a glyph, so glyph count alone cannot distinguish 2 lines from 3; the decisive
+        // signal is the Y position of "AAA"'s own glyphs.
+        Assert.Equal(5, layout.Glyphs.Count);
+
+        // Line 1 ("AA"): ascent 10160, at y = 0 + 10160.
+        Assert.Equal(0f, layout.Glyphs[0].OriginXEmu, 2);
+        Assert.Equal(10160f, layout.Glyphs[0].OriginYEmu, 2);
+        Assert.Equal(6350f, layout.Glyphs[1].OriginXEmu, 2);
+        Assert.Equal(10160f, layout.Glyphs[1].OriginYEmu, 2);
+
+        // Line 2 (" AAA", the leading space carried forward, not its own line): line height
+        // 12700, baseline at 12700 + 10160 = 22860 - exactly 2 lines' worth of vertical offset.
+        // Without the fix, the spurious whitespace-only line would push "AAA" to a third line's
+        // offset instead: 2 * 12700 + 10160 = 35100.
+        Assert.Equal(2540f, layout.Glyphs[2].OriginXEmu, 2);
+        Assert.Equal(22860f, layout.Glyphs[2].OriginYEmu, 2);
+        Assert.Equal(8890f, layout.Glyphs[3].OriginXEmu, 2);
+        Assert.Equal(22860f, layout.Glyphs[3].OriginYEmu, 2);
+        Assert.Equal(15240f, layout.Glyphs[4].OriginXEmu, 2);
+        Assert.Equal(22860f, layout.Glyphs[4].OriginYEmu, 2);
+    }
+
+    /// <summary>
+    ///     Regression guard distinguishing the whitespace-only-line fix (above) from an explicit
+    ///     <c>&lt;a:br/&gt;</c> break: two consecutive explicit breaks still produce a genuinely
+    ///     blank middle line, since explicit breaks bypass <c>Pack</c>'s whitespace-content check
+    ///     entirely (<c>PackTokensIntoLines</c> force-flushes the current line directly on an
+    ///     <c>IsLineBreak</c> token, independent of word-wrap width).
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_WordWrap_ExplicitBreakStillProducesBlankLine_NotAffectedByWhitespaceLineFix()
+    {
+        var pPr = new XElement(DrawingNs + "pPr");
+        var bodyPr = new XElement(
+            DrawingNs + "bodyPr",
+            new XAttribute("lIns", "0"), new XAttribute("tIns", "0"), new XAttribute("rIns", "0"), new XAttribute("bIns", "0"));
+        var txBody = new XElement(
+            PresentationNs + "txBody",
+            bodyPr,
+            new XElement(
+                DrawingNs + "p",
+                pPr,
+                new XElement(DrawingNs + "r", new XElement(DrawingNs + "rPr", new XAttribute("sz", "100")), new XElement(DrawingNs + "t", "A")),
+                new XElement(DrawingNs + "br"),
+                new XElement(DrawingNs + "br"),
+                new XElement(DrawingNs + "r", new XElement(DrawingNs + "rPr", new XAttribute("sz", "100")), new XElement(DrawingNs + "t", "B"))));
+        var textBody = PptxDocument.ParseTextBody(txBody);
+
+        var layout = Layout(textBody, 50000f, 1_000_000f);
+
+        // "A" on line 1, a genuinely blank line 2 (from the second <a:br/>), "B" on line 3 - 3
+        // total lines, unaffected by the whitespace-only-line fix. The blank line has no tokens
+        // of its own, so (pre-existing, unrelated behavior) it falls back to the nominal default
+        // font size's own proportions (18pt => 228600 EMU) rather than this paragraph's own
+        // resolved line height: height = 228600 * 1.2 = 274320. Line 3's baseline is therefore
+        // line1Height (12700) + line2Height (274320) + ascent (10160) = 297180 - not
+        // 2 * 12700 + 10160, which would (incorrectly) assume the blank line shares line 1's own
+        // resolved height.
+        Assert.Equal(2, layout.Glyphs.Count);
+        Assert.Equal(10160f, layout.Glyphs[0].OriginYEmu, 2);
+        Assert.Equal(12700f + 274320f + 10160f, layout.Glyphs[1].OriginYEmu, 2);
+    }
+
     #endregion
 
     #region Horizontal alignment
@@ -508,6 +641,103 @@ public class PptxTextLayoutTests
         var layout = Layout(textBody, 50000f, 100000f);
 
         Assert.Equal(97460f, layout.Glyphs[0].OriginYEmu, 2);
+    }
+
+    #endregion
+
+    #region Paragraph spacing (Phase 2 Follow-Up: Paragraph Spacing)
+
+    /// <summary>
+    ///     Proves a paragraph's own <c>&lt;a:spcAft&gt;</c> and the following paragraph's own
+    ///     <c>&lt;a:spcBef&gt;</c> combine additively into the gap between them - previously
+    ///     neither was ever applied during layout at all.
+    /// </summary>
+    /// <remarks>
+    ///     "A" (paragraph 1) declares <c>spcAft</c> of 100 hundredths-of-point (12700 EMU);
+    ///     "B" (paragraph 2) declares <c>spcBef</c> of 100 hundredths-of-point (12700 EMU).
+    ///     Without the fix, paragraph 2's baseline would sit at
+    ///     <c>lineHeight(para1) + ascent(para2) = 12700 + 10160 = 22860</c>. With the additive fix,
+    ///     it sits an extra <c>12700 + 12700 = 25400</c> EMU lower:
+    ///     <c>12700 + 25400 + 10160 = 48260</c>.
+    /// </remarks>
+    [Fact]
+    public void ResolveTextLayout_TwoParagraphsWithSpcAftAndSpcBef_AddsAdditiveGapBetweenParagraphs()
+    {
+        var textBody = BuildTwoParagraphTextBody(
+            "A",
+            """<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main"><spcAft><spcPts val="100" /></spcAft></pPr>""",
+            "B",
+            """<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main"><spcBef><spcPts val="100" /></spcBef></pPr>""");
+
+        var layout = Layout(textBody, 50000f, 1_000_000f);
+
+        Assert.Equal(2, layout.Glyphs.Count);
+        Assert.Equal(10160f, layout.Glyphs[0].OriginYEmu, 2);
+        Assert.Equal(48260f, layout.Glyphs[1].OriginYEmu, 2);
+    }
+
+    /// <summary>
+    ///     Proves <c>&lt;a:spcAft&gt;</c>/<c>&lt;a:spcBef&gt;</c> declared as a percentage
+    ///     (<c>spcPct</c>) also combines additively, resolved against each boundary line's own
+    ///     resolved <c>lineHeight</c> (12700 EMU for this synthetic font/size).
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_TwoParagraphsWithPercentSpcAftAndSpcBef_AddsAdditiveGapBetweenParagraphs()
+    {
+        // 50% of lineHeight (12700) = 6350 each; combined additive gap = 12700.
+        var textBody = BuildTwoParagraphTextBody(
+            "A",
+            """<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main"><spcAft><spcPct val="50000" /></spcAft></pPr>""",
+            "B",
+            """<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main"><spcBef><spcPct val="50000" /></spcBef></pPr>""");
+
+        var layout = Layout(textBody, 50000f, 1_000_000f);
+
+        Assert.Equal(2, layout.Glyphs.Count);
+        Assert.Equal(10160f, layout.Glyphs[0].OriginYEmu, 2);
+        // 12700 (para1 line height) + 12700 (additive gap) + 10160 (para2 ascent) = 35560.
+        Assert.Equal(35560f, layout.Glyphs[1].OriginYEmu, 2);
+    }
+
+    /// <summary>
+    ///     Regression guard: a single paragraph declaring <c>&lt;a:spcBef&gt;</c> still positions
+    ///     its own (only) line's baseline at the ordinary no-spacing Y - proving <c>spcBef</c> on
+    ///     a text body's very first paragraph is correctly suppressed (the additive gap only
+    ///     applies between paragraphs, never before the first).
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_FirstParagraphSpcBef_DoesNotShiftFirstLineDown()
+    {
+        var textBody = BuildSingleRunTextBody(
+            "A",
+            paragraphExtra: """<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main"><spcBef><spcPts val="100" /></spcBef></pPr>""");
+
+        var layout = Layout(textBody, 50000f, 1_000_000f);
+
+        Assert.Single(layout.Glyphs);
+        Assert.Equal(10160f, layout.Glyphs[0].OriginYEmu, 2);
+    }
+
+    /// <summary>
+    ///     Regression guard pairing with the above: a single paragraph declaring
+    ///     <c>&lt;a:spcAft&gt;</c> does not change <see cref="PptxTextAnchor.Bottom"/>
+    ///     positioning versus the same paragraph without <c>spcAft</c> - proving <c>spcAft</c> on
+    ///     a text body's very last paragraph is correctly suppressed and does not leak into the
+    ///     anchor/autofit total-height calculation.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_LastParagraphSpcAft_DoesNotAffectAnchorPositioning()
+    {
+        var withoutSpacing = BuildSingleRunTextBody("A", """<bodyPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main" anchor="b" />""");
+        var withSpacing = BuildSingleRunTextBody(
+            "A",
+            """<bodyPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main" anchor="b" />""",
+            """<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main"><spcAft><spcPts val="100" /></spcAft></pPr>""");
+
+        var layoutWithoutSpacing = Layout(withoutSpacing, 50000f, 100000f);
+        var layoutWithSpacing = Layout(withSpacing, 50000f, 100000f);
+
+        Assert.Equal(layoutWithoutSpacing.Glyphs[0].OriginYEmu, layoutWithSpacing.Glyphs[0].OriginYEmu, 2);
     }
 
     #endregion
@@ -921,6 +1151,110 @@ public class PptxTextLayoutTests
         }
 
         Assert.True(File.Exists(outputPath));
+    }
+
+    #endregion
+
+    #region Supplementary-plane characters (Finding 4: surrogate pairs)
+
+    // Synthetic font: UnitsPerEm 1000, ascender 800, descender -200, lineGap 0, using a format-12
+    // cmap (not format-4, which is BMP-only) so it can map a supplementary-plane codepoint.
+    //   .notdef (index 0), advance 0, zero contours.
+    //   'A' (codepoint 0x41, index 1), advance 500 units, non-empty outline.
+    //   U+1F600 GRINNING FACE (index 2), advance 600 units, non-empty outline - a
+    //   supplementary-plane codepoint (above U+FFFF), requiring a UTF-16 surrogate pair to
+    //   represent as a .NET string.
+    private static TrueTypeFont NewSupplementaryPlaneFont()
+    {
+        var notdef = SyntheticFontBuilder.SimpleGlyph();
+        var glyphA = SyntheticFontBuilder.SimpleGlyph([(0, 0, true), (500, 0, true), (250, 800, true)]);
+        var glyphEmoji = SyntheticFontBuilder.SimpleGlyph([(0, 0, true), (600, 0, true), (300, 800, true)]);
+        var cmap = SyntheticFontBuilder.CmapFormat12(3, 10, [(0x41, 0x41, 1), (0x1F600, 0x1F600, 2)]);
+
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(3))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 0, 3))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 500, 600]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([notdef.Length, glyphA.Length, glyphEmoji.Length], longFormat: false))
+            .AddTable("glyf", [.. notdef, .. glyphA, .. glyphEmoji])
+            .AddTable("cmap", cmap)
+            .Build();
+
+        using var stream = new MemoryStream(data);
+        return TrueTypeFont.Load(stream);
+    }
+
+    /// <summary>
+    ///     Proves a supplementary-plane character (a 2-<c>char</c> UTF-16 surrogate pair in the
+    ///     .NET string, one Unicode scalar value) is measured/placed as exactly one logical glyph
+    ///     unit - before the fix, enumerating by <c>char</c> would split it into two surrogate
+    ///     halves, each independently resolved (almost certainly to <c>.notdef</c>, since no real
+    ///     <c>cmap</c> subtable maps a lone surrogate value), emitting 2 glyphs instead of 1.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_SupplementaryPlaneCharacter_EmitsExactlyOneGlyph()
+    {
+        var font = NewSupplementaryPlaneFont();
+        var emoji = char.ConvertFromUtf32(0x1F600);
+        var textBody = BuildSingleRunTextBody(emoji);
+
+        var layout = PptxDocument.ResolveTextLayout(
+            textBody, new PptxPlaceholderProperties(null, null, BuildTestTheme()), BuildTestTheme(), "body",
+            500000f, 500000f, (_, _, _) => font);
+
+        Assert.Single(layout.Glyphs);
+        Assert.Equal(font.GetGlyphIndex(0x1F600), layout.Glyphs[0].GlyphIndex);
+        Assert.NotEqual(0, layout.Glyphs[0].GlyphIndex);
+    }
+
+    /// <summary>
+    ///     Proves a supplementary-plane character's word-wrap-affecting measurement
+    ///     (<c>MeasureTokenWidthEmu</c>) also treats it as one logical unit: a following BMP
+    ///     character's own X origin must equal exactly one emoji glyph's own advance width, not
+    ///     double it (the pre-fix defect, from measuring both surrogate halves independently) and
+    ///     not some near-zero <c>.notdef</c>-derived width.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_SupplementaryPlaneCharacter_MeasuresSingleAdvanceWidth()
+    {
+        var font = NewSupplementaryPlaneFont();
+        var emoji = char.ConvertFromUtf32(0x1F600);
+        var textBody = BuildSingleRunTextBody(emoji + "A");
+
+        var layout = PptxDocument.ResolveTextLayout(
+            textBody, new PptxPlaceholderProperties(null, null, BuildTestTheme()), BuildTestTheme(), "body",
+            500000f, 500000f, (_, _, _) => font);
+
+        Assert.Equal(2, layout.Glyphs.Count);
+        // Emoji advance at sz=100 (SizeEmu 12700): 600/1000 * 12700 = 7620 - exactly one emoji
+        // glyph's own advance, not 2x (double-counted surrogate halves) nor ~0 (notdef advance).
+        Assert.Equal(0f, layout.Glyphs[0].OriginXEmu, 2);
+        Assert.Equal(7620f, layout.Glyphs[1].OriginXEmu, 2);
+    }
+
+    /// <summary>
+    ///     Mirrors <see cref="ResolveTextLayout_PlusMinusAlone_ResolvesFallbackGlyph"/>, substituting
+    ///     a supplementary-plane codepoint for <c>'\u00B1'</c>: proves the per-character
+    ///     glyph-coverage fallback path (<c>ResolveGlyph</c>) also operates on whole Unicode scalar
+    ///     values, not surrogate halves - a primary font lacking the codepoint falls back to
+    ///     exactly one glyph from the bundled fallback font, not two independent (and
+    ///     independently-failing) surrogate-half fallback lookups.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_SupplementaryPlaneCharacterMissingFromPrimaryFont_FallsBackCorrectly()
+    {
+        var primaryFont = NewFont(); // Covers only 'A'/' ' - not U+1F600.
+        var fallbackFont = NewSupplementaryPlaneFont();
+        var emoji = char.ConvertFromUtf32(0x1F600);
+        var textBody = BuildSingleRunTextBody(emoji);
+
+        var layout = LayoutWithFallback(textBody, primaryFont, fallbackFont);
+
+        Assert.Single(layout.Glyphs);
+        Assert.Same(fallbackFont, layout.Glyphs[0].Font);
+        Assert.Equal(fallbackFont.GetGlyphIndex(0x1F600), layout.Glyphs[0].GlyphIndex);
+        Assert.NotEqual(0, layout.Glyphs[0].GlyphIndex);
     }
 
     #endregion

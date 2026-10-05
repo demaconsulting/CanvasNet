@@ -78,12 +78,35 @@ internal enum PptxUnderlineStyle
 ///     <see cref="PptxEffectiveBulletProperties.Kind"/> being <see cref="PptxBulletKind.None"/>
 ///     (no bullet painted) by every consumer.
 /// </param>
+/// <param name="SpaceBefore">
+///     The resolved <c>&lt;a:spcBef&gt;</c> paragraph spacing-before (Phase 2 Follow-Up:
+///     Paragraph Spacing), produced by <see cref="PptxDocument.ResolveEffectiveParagraphProperties"/>
+///     walking the same attribute-level chain as every other paragraph property. Defaults to
+///     <see cref="PptxLineSpacing.None"/> (no extra spacing) so pre-existing call sites continue
+///     to compile unchanged. Only applied as an additive gap between adjacent paragraphs - never
+///     before a text body's first paragraph - see <see cref="PptxDocument.BuildLines"/>'s own
+///     remarks for the exact additive semantics.
+/// </param>
+/// <param name="SpaceAfter">
+///     The resolved <c>&lt;a:spcAft&gt;</c> paragraph spacing-after (Phase 2 Follow-Up: Paragraph
+///     Spacing), mirroring <paramref name="SpaceBefore"/> in every respect except which side of
+///     the paragraph it applies to - never applied after a text body's last paragraph.
+/// </param>
 internal sealed record PptxEffectiveParagraphProperties(
     string Alignment,
     float MarginLeftEmu,
     float IndentEmu,
     PptxLineSpacing LineSpacing,
-    PptxEffectiveBulletProperties? Bullet = null);
+    PptxEffectiveBulletProperties? Bullet = null,
+    PptxLineSpacing? SpaceBefore = null,
+    PptxLineSpacing? SpaceAfter = null)
+{
+    /// <summary>The resolved spacing-before, defaulting to <see cref="PptxLineSpacing.None"/> when not supplied.</summary>
+    internal PptxLineSpacing EffectiveSpaceBefore => SpaceBefore ?? PptxLineSpacing.None;
+
+    /// <summary>The resolved spacing-after, defaulting to <see cref="PptxLineSpacing.None"/> when not supplied.</summary>
+    internal PptxLineSpacing EffectiveSpaceAfter => SpaceAfter ?? PptxLineSpacing.None;
+}
 
 /// <summary>
 ///     The discriminator for a paragraph's resolved bullet/numbering type, produced by resolving
@@ -154,4 +177,13 @@ internal sealed record PptxLineSpacing(float? Percent, float? FixedEmu)
 {
     /// <summary>The OOXML schema default line spacing: 100% of a single line's natural height.</summary>
     internal static PptxLineSpacing Default { get; } = new(1.0f, null);
+
+    /// <summary>
+    ///     The "no extra spacing" sentinel (Phase 2 Follow-Up: Paragraph Spacing): 0% of a single
+    ///     line's natural height - distinct from <see cref="Default"/>'s "100% of line height"
+    ///     sentinel, which is meaningless for an unresolved <c>&lt;a:spcBef&gt;</c>/<c>&lt;a:spcAft&gt;</c>
+    ///     (a paragraph that never declares spacing-before/after must contribute zero extra gap,
+    ///     not a full extra line's worth).
+    /// </summary>
+    internal static PptxLineSpacing None { get; } = new(0f, null);
 }
