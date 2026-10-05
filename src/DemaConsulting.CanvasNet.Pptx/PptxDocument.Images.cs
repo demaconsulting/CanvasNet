@@ -240,7 +240,13 @@ public sealed partial class PptxDocument
     ///     (unlike PDF's own y-up image-space convention) this package's shape-local/surface space
     ///     is already y-down (see <c>PaintTextLayout</c>'s own documented y-down convention) -
     ///     image row <c>0</c> is already the image's own top row in this same y-down sense, so no
-    ///     flip is needed to land it at the shape's own top edge.
+    ///     flip is needed to land it at the shape's own top edge. Each sampled source pixel is
+    ///     alpha-blended "over" the existing destination pixel via
+    ///     <see cref="Rgba32.CompositeOver"/> (standard Porter-Duff "over" compositing), exactly
+    ///     matching <c>CompositeImageOntoSurface</c>'s own per-pixel blending - not overwritten
+    ///     outright - so a source pixel with a non-opaque (including fully transparent) alpha
+    ///     channel lets the existing destination content show through correctly instead of being
+    ///     replaced by whatever RGB value happens to be stored alongside that transparent alpha.
     /// </summary>
     /// <param name="surface">The destination surface to paint onto.</param>
     /// <param name="image">The already fully decoded source image (see <see cref="ResolvePictureSurface"/>).</param>
@@ -319,7 +325,7 @@ public sealed partial class PptxDocument
 
                 var column = Math.Clamp((int)MathF.Floor(imageU * image.Width), 0, image.Width - 1);
                 var row = Math.Clamp((int)MathF.Floor(imageV * image.Height), 0, image.Height - 1);
-                surface[x, y] = image[column, row];
+                surface[x, y] = Rgba32.CompositeOver(surface[x, y], image[column, row]);
             }
         }
     }
