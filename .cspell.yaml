@@ -326,6 +326,9 @@ words:
   - autoshape
   - Autoshape
   - autoshapes
+  - Autonumber
+  - srgb
+  - MCMXCIV
 
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:

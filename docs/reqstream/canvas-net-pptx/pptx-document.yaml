@@ -1378,3 +1378,98 @@ sections:
               - Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent
               - Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException
               - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature
+
+          - id: CanvasNetPptx-PptxDocument-BulletProperties
+            title: >-
+              The PptxDocument class shall parse a paragraph's a:buNone/a:buAutoNum/a:buChar
+              bullet-type choice, and its independent a:buClrTx/a:buClr color,
+              a:buFontTx/a:buFont font, and a:buSzTx/a:buSzPct/a:buSzPts size choices, and shall
+              resolve each of these four choice-groups independently through the same
+              placeholder/master attribute-level inheritance chain already established for
+              run/paragraph properties (own paragraph, then placeholder level override, then
+              master level override, then a hard-coded default), with an explicit a:buNone or the
+              complete absence of bullet markup anywhere in the chain resolving to no bullet at
+              all, a:buAutoNum's type/startAt defaulting per the ECMA-376 schema
+              (arabicPeriod/1) when omitted, and the three "follow text" sentinels
+              (a:buClrTx/a:buFontTx/a:buSzTx, and the complete absence of color/font/size markup)
+              resolving to the paragraph's own first run's effective color/typeface/size.
+            justification: |
+              A bulleted or numbered paragraph is one of the most common real-world PPTX
+              constructs, and before this requirement CanvasNetPptx neither parsed nor resolved
+              any bullet markup at all - every such paragraph rendered as plain, unmarked text, a
+              visually obvious gap against a real PowerPoint export. Resolving each of the four
+              independent OOXML choice-groups (type/color/font/size) on its own inheritance chain,
+              rather than resolving one monolithic "bullet properties" object wholesale from
+              whichever single tier wins, is required because a real-world paragraph commonly
+              declares only its own bullet character while deliberately relying on its
+              placeholder/master level style for the bullet's color/font/size (or the reverse) -
+              mirroring exactly how algn/marL/indent/lnSpc are already each resolved independently
+              by ResolveEffectiveParagraphProperties (see
+              CanvasNetPptx-PptxDocument-PlaceholderInheritancePerCategory above), rather than
+              introducing a second, bespoke, coarser-grained inheritance rule specific to bullets.
+            tests:
+              - ParseParagraphProperties_Absent_ResolvesEmptyBulletProperties
+              - ParseBulletProperties_BuNone_CapturesTypeElement
+              - ParseBulletProperties_BuChar_CapturesTypeElement
+              - ParseBulletProperties_BuAutoNum_CapturesTypeElement
+              - ParseBulletProperties_ColorFontSizeModifiers_CapturesEachIndependently
+              - ParseBulletProperties_FollowTextModifiers_CapturesEachIndependently
+              - ResolveEffectiveParagraphProperties_NoBulletMarkupAnywhere_ResolvesNone
+              - ResolveEffectiveParagraphProperties_OwnBuChar_WinsOverEveryOtherTier
+              - ResolveEffectiveParagraphProperties_OwnBuNone_SuppressesInheritedBullet
+              - ResolveEffectiveParagraphProperties_PlaceholderLevelBuAutoNum_WinsWhenParagraphDeclaresNothing
+              - ResolveEffectiveParagraphProperties_MasterBodyStyleBuChar_WinsWhenEverythingAboveIsAbsent
+              - ResolveEffectiveParagraphProperties_BuAutoNumNoAttributes_ResolvesSchemaDefaults
+              - ResolveEffectiveParagraphProperties_OwnTypeOnly_InheritsColorFontSizeIndependently
+              - ResolveEffectiveParagraphProperties_BuClrTxOrAbsent_FollowsFirstRunColor
+              - ResolveEffectiveParagraphProperties_BuClrTxRunLessParagraph_FallsBackToDark1
+              - ResolveEffectiveParagraphProperties_BuFontTxOrAbsent_FollowsFirstRunFont
+              - ResolveEffectiveParagraphProperties_BuSzPct_ResolvesFractionOfFirstRunSize
+              - ResolveEffectiveParagraphProperties_BuSzPts_ResolvesAbsoluteSizeIndependentOfRunSize
+
+          - id: CanvasNetPptx-PptxDocument-BulletRendering
+            title: >-
+              The PptxDocument class's text layout engine shall format an auto-numbered bullet's
+              rendered string for the arabicPeriod, arabicParenR, arabicPlain, alphaLcPeriod,
+              alphaUcPeriod, alphaLcParenR, alphaUcParenR, romanLcPeriod, romanUcPeriod,
+              romanLcParenR, and romanUcParenR ST_TextAutonumberScheme values (gracefully omitting
+              only that one paragraph's bullet glyph, without aborting rendering, for any other
+              scheme value), shall maintain one running counter and last-used-scheme per indent
+              level so consecutive same-level auto-numbered paragraphs sequence correctly and a
+              nested sub-list's own counter resets independently of, and without disturbing, its
+              parent level's own counter, shall paint a resolved bullet glyph at the paragraph's
+              own marL+indent hanging-indent gutter position, and shall position a bulleted
+              paragraph's own first-line run text starting at marL (not marL+indent) whenever that
+              line has a resolved bullet, leaving a non-bulleted paragraph's own first-line
+              indent behavior unchanged.
+            justification: |
+              Formatting and positioning a bullet glyph requires layout-engine support distinct
+              from, and layered on top of, the choice-group parsing/inheritance resolution above:
+              auto-numbering requires per-shape sequence state that single-paragraph property
+              resolution alone cannot provide, and correct gutter positioning requires the
+              paragraph's own text to be deliberately excluded from the indent it would otherwise
+              apply to itself. The latter was found, during this requirement's own implementation,
+              to be a previously-undocumented, closely-related rendering defect: a bulleted
+              paragraph's first-line text was already incorrectly shifted into the
+              hanging-indent gutter reserved for the bullet glyph (treating indent as an
+              additional first-line text indent rather than the gutter width ECMA-376, and every
+              real PowerPoint export, intends) - fixing this alongside adding the bullet glyph
+              itself is necessary, not merely cosmetic, since a bullet glyph painted correctly in
+              the gutter while its own paragraph's text remains shifted into that same gutter would
+              still look wrong relative to a genuine PowerPoint export. An unrecognized
+              auto-number scheme degrades gracefully (omitting only that one bullet) rather than
+              throwing PptxUnsupportedFeatureException, matching this codebase's own established
+              convention for an optional, nullable-returning resolver, since a single unsupported
+              bullet scheme in an otherwise-ordinary real-world deck must never abort rendering of
+              every other slide/shape/paragraph.
+            tests:
+              - FormatAutoNumber_SupportedTypes_FormatsExpectedString
+              - FormatAutoNumber_UnsupportedType_ReturnsNull
+              - ResolveTextLayout_NonBulletedParagraph_FirstLineIndentStillAppliesToTextX
+              - ResolveTextLayout_BulletedParagraph_TextStartsAtMarLGutterHoldsBullet
+              - ResolveTextLayout_BuNone_PaintsNoGlyphBeyondRunText
+              - ResolveTextLayout_ConsecutiveAutoNumParagraphs_SequencesCounterAcrossParagraphs
+              - ResolveTextLayout_NestedThenReturnToShallowerLevel_ResumesShallowerCounterRestartsDeeperLevel
+              - ResolveTextLayout_UnsupportedAutoNumType_SkipsOnlyThatBulletGracefully
+              - PaintTextLayout_BulletedParagraph_PaintsBulletGlyphToSurface
+              - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature

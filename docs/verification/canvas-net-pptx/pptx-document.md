@@ -1118,6 +1118,84 @@ a dramatic visual contrast on its own, since its own `bg1` theme color and its o
 background both already resolve to the same pure white this freeform shape itself is filled, so
 the synthetic tests above carry the primary, deliberately-contrasting-color proof instead.
 
+#### CanvasNetPptx-PptxDocument-BulletProperties: Bullet/Numbering Property Parsing and Choice-Group Inheritance
+
+**Tests**: `ParseParagraphProperties_Absent_ResolvesEmptyBulletProperties`,
+`ParseBulletProperties_BuNone_CapturesTypeElement`,
+`ParseBulletProperties_BuChar_CapturesTypeElement`,
+`ParseBulletProperties_BuAutoNum_CapturesTypeElement`,
+`ParseBulletProperties_ColorFontSizeModifiers_CapturesEachIndependently`,
+`ParseBulletProperties_FollowTextModifiers_CapturesEachIndependently`,
+`ResolveEffectiveParagraphProperties_NoBulletMarkupAnywhere_ResolvesNone`,
+`ResolveEffectiveParagraphProperties_OwnBuChar_WinsOverEveryOtherTier`,
+`ResolveEffectiveParagraphProperties_OwnBuNone_SuppressesInheritedBullet`,
+`ResolveEffectiveParagraphProperties_PlaceholderLevelBuAutoNum_WinsWhenParagraphDeclaresNothing`,
+`ResolveEffectiveParagraphProperties_MasterBodyStyleBuChar_WinsWhenEverythingAboveIsAbsent`,
+`ResolveEffectiveParagraphProperties_BuAutoNumNoAttributes_ResolvesSchemaDefaults`,
+`ResolveEffectiveParagraphProperties_OwnTypeOnly_InheritsColorFontSizeIndependently`,
+`ResolveEffectiveParagraphProperties_BuClrTxOrAbsent_FollowsFirstRunColor`,
+`ResolveEffectiveParagraphProperties_BuClrTxRunLessParagraph_FallsBackToDark1`,
+`ResolveEffectiveParagraphProperties_BuFontTxOrAbsent_FollowsFirstRunFont`,
+`ResolveEffectiveParagraphProperties_BuSzPct_ResolvesFractionOfFirstRunSize`,
+`ResolveEffectiveParagraphProperties_BuSzPts_ResolvesAbsoluteSizeIndependentOfRunSize`
+
+Proves raw parsing correctly captures each of the four OOXML bullet choice-groups (type: `buNone`/
+`buAutoNum`/`buChar`; color: `buClrTx`/`buClr`; font: `buFontTx`/`buFont`; size: `buSzTx`/
+`buSzPct`/`buSzPts`) as its own independent raw element, and that an absent `<a:pPr>` resolves the
+shared `PptxRawBulletProperties.Empty` singleton. Proves the resolver's own four independent
+inheritance chains: the paragraph's own type/color/font/size markup each wins over a placeholder-
+or master-level equivalent; an explicit `<a:buNone>` at the paragraph's own tier suppresses an
+inherited bullet entirely rather than merely failing to add one; a placeholder-level-only and a
+master-`bodyStyle`-level-only bullet each resolve correctly when nothing above declares one; the
+complete absence of bullet markup anywhere resolves the conservative `None` default; and, the
+central inheritance-fidelity proof, that a paragraph may declare only its own bullet *type* while
+independently inheriting color/font/size from the placeholder level style, proving the four
+choice-groups are genuinely resolved independently rather than as one tier-wins-everything object.
+Proves `<a:buAutoNum>`'s own schema defaults (`type="arabicPeriod"`, `startAt="1"`) when both
+attributes are omitted. Proves the three "follow text" sentinels (`buClrTx`/`buFontTx`/`buSzTx`,
+and their own absent-markup equivalent) resolve to the paragraph's own first run's effective
+color/typeface/size (with a run-less paragraph's color falling back to the theme's `Dark1`), and
+that `buSzPct`/`buSzPts` each correctly compute a relative-fraction-of-run-size versus an
+absolute, run-size-independent size respectively.
+
+#### CanvasNetPptx-PptxDocument-BulletRendering: Auto-Number Formatting, Counter Sequencing, and Hanging-Indent Gutter Positioning
+
+**Tests**: `FormatAutoNumber_SupportedTypes_FormatsExpectedString`,
+`FormatAutoNumber_UnsupportedType_ReturnsNull`,
+`ResolveTextLayout_NonBulletedParagraph_FirstLineIndentStillAppliesToTextX`,
+`ResolveTextLayout_BulletedParagraph_TextStartsAtMarLGutterHoldsBullet`,
+`ResolveTextLayout_BuNone_PaintsNoGlyphBeyondRunText`,
+`ResolveTextLayout_ConsecutiveAutoNumParagraphs_SequencesCounterAcrossParagraphs`,
+`ResolveTextLayout_NestedThenReturnToShallowerLevel_ResumesShallowerCounterRestartsDeeperLevel`,
+`ResolveTextLayout_UnsupportedAutoNumType_SkipsOnlyThatBulletGracefully`,
+`PaintTextLayout_BulletedParagraph_PaintsBulletGlyphToSurface`,
+`PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature`
+
+Proves `FormatAutoNumber` formats all eleven supported `ST_TextAutonumberScheme` values at
+representative values (including alphabetic base-26 rollover at value 27 and several Roman-numeral
+edge cases: 4, 9, and 1994), and gracefully returns `null` (not an exception) for an unrecognized
+scheme. Proves, by contrast with its own regression case, the hanging-indent gutter fix: a
+non-bulleted paragraph's first-line text still renders at the pre-existing `marL+indent` position
+exactly as before this feature, while a bulleted paragraph's own first-line text instead renders
+flush at `marL`, with its bullet glyph painted separately at the `marL+indent` gutter - two
+glyphs, at two distinct, independently-verified X positions. Proves an explicit `<a:buNone>`
+paragraph paints no bullet glyph at all (only its own run text), and that the bullet-less
+hanging-indent fix does not apply to it, unlike a resolved bullet. Proves consecutive same-level
+`<a:buAutoNum>` paragraphs sequence their own rendered digit glyph in order (by asserting each
+paragraph's own bullet glyph index, not merely its count), and that returning to a shallower
+indent level after a nested, deeper auto-numbered sub-list resumes the shallower level's own
+counter undisturbed while the (now-closed) deeper level restarts from its own `startAt` the next
+time it is used - the full per-level reset/resume state machine. Proves an unrecognized
+`<a:buAutoNum>` scheme skips painting only that one paragraph's own bullet glyph, with its own run
+text, and the render as a whole, otherwise unaffected - the graceful per-bullet degradation policy.
+Proves a resolved bullet glyph is actually painted to a pixel `Surface`, not merely resolved and
+positioned, via `PaintTextLayout`. Finally, against the real-world `aiden0z-1-chart-and-complex.pptx`
+fixture's own "Rectangle 5" shape (two consecutive `<a:buChar char="•">`-bulleted paragraphs whose
+own `marL+indent` geometry collapses exactly to the shape's own left inset), proves visible ink
+paints in that shape's own bullet-gutter pixel column, strictly left of where any paragraph text
+itself can start, and meaningfully darker than a column sampled just inside that same inset - the
+real-file, end-to-end visual-fidelity proof this feature's acceptance bar requires.
+
 ## Acceptance Criteria
 
 A unit-level test run passes when all scenarios above pass without error or exception beyond

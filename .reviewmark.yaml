@@ -860,6 +860,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pptx/PptxRenderOptions.cs"  # phase 1f unit source (render options)
       - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Render.cs"  # phase 1f unit source (public Render API)
       - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Background.cs"  # phase 2 follow-up (background fill)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Bullets.cs"  # phase 2 follow-up (bullet/numbering formatting)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxGeometryTests.cs"  # phase 1c unit tests (geometry)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxPaintTests.cs"  # phase 1c unit tests (paint)
@@ -872,6 +873,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxSystemIntegrationTests.cs"  # integration tests
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxRenderTests.cs"  # phase 1f unit tests (render API)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxBackgroundTests.cs"  # phase 2 follow-up (background resolver)
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxBulletTests.cs"  # phase 2 follow-up (bullet/numbering tests)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxFixturesCorpusTests.cs"  # fixture conformance tests
 
   # OTS-BuildMark Review (one per OTS item)

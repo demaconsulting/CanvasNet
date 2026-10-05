@@ -687,8 +687,9 @@ The following are explicitly out of scope for Phase 1d, each because it depends 
 yet implemented anywhere in `CanvasNet`, or is a separable refinement with its own, independent
 design cost:
 
-- **Bullets and numbering** (`<a:buChar>`/`<a:buAutoNum>`/`<a:buNone>`) - require a separate glyph/
-  counter-rendering pass distinct from run-text layout; deferred to a later phase.
+- ~~**Bullets and numbering** (`<a:buChar>`/`<a:buAutoNum>`/`<a:buNone>`) - require a separate
+  glyph/counter-rendering pass distinct from run-text layout; deferred to a later phase.~~ (closed
+  by the _Phase 2 Follow-Up: Bullets and Numbering Rendering_ section below.)
 - **Full text justification** (`algn="just"`/`"justLow"`) - requires redistributing inter-word
   spacing per line to reach the line's own right margin exactly; normalized to left-alignment
   this phase (see _Property Inheritance_ above).
@@ -1033,7 +1034,8 @@ cascading beyond transform composition, picture effects/shadows,
 ~~master/layout full shape-tree rendering,~~
 (closed by the _Phase 2 Follow-Up: Master/Layout Decorative Shape Rendering_ section below - a
 still-later pass that independently walks and paints each master's/layout's own non-placeholder
-shapes), bullets/numbering, full text justification, `<a:spAutoFit>` shape-resize autofit,
+shapes), ~~bullets/numbering,~~ (closed by the _Phase 2 Follow-Up: Bullets and Numbering
+Rendering_ section below) full text justification, `<a:spAutoFit>` shape-resize autofit,
 kerning, and text clipping on overflow. None of these is a currently planned phase; any of them
 remaining important is a candidate for a future, corpus-driven hardening pass (`pptx-phase-2`),
 not a scheduled increment of this unit's own design.
@@ -1270,7 +1272,9 @@ parsing). Slide background fill (`<p:bg>`) is no longer on this list - see _Phas
 Slide/Layout/Master Background Fill (`<p:bg>`)_ below, which closed this gap in a later pass.
 Master/layout full shape-tree rendering is likewise no longer on this list - see _Phase 2
 Follow-Up: Master/Layout Decorative Shape Rendering_ below, which closed that gap in a
-still-later pass.
+still-later pass. Bullets and numbering rendering is likewise no longer on this list - see
+_Phase 2 Follow-Up: Bullets and Numbering Rendering_ below, which closed that gap in a still
+later pass.
 
 #### Phase 2 Follow-Up: Corpus Growth to Three Sources
 
@@ -1521,3 +1525,137 @@ Two further regression tests cover the graceful-skip containment fix described a
 `Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException` (a
 slide's own EMF picture shape still hard-fails `Render`, proving the containment is scoped to
 master/layout-owned shapes only).
+
+#### Phase 2 Follow-Up: Bullets and Numbering Rendering
+
+A still-later follow-up pass closed Phase 1d's own longest-standing deferred item (see _Deferred
+to a Later Phase (Phase 1d)_ above): a paragraph's own bullet or number glyph
+(`<a:buChar>`/`<a:buAutoNum>`/`<a:buNone>`, plus the `<a:buFont>`/`<a:buSzPct>`/`<a:buSzPts>`/
+`<a:buClr>`/`<a:buClrTx>` modifiers that style it) was never parsed or painted - a bulleted or
+numbered list rendered as plain, un-marked paragraphs, a visually obvious gap against a real
+PowerPoint export of the same deck.
+
+**Parsing** (`PptxDocument.Text.cs`'s `ParseBulletProperties`): a paragraph's own `<a:pPr>` (or a
+placeholder/master level-override element - see _Resolution_ below) is inspected for four
+_independent_ choice-groups, each captured as its own raw `XElement?` on a new
+`PptxRawBulletProperties` record (`PptxTextBody.cs`): **type** (`<a:buNone>` / `<a:buAutoNum>` /
+`<a:buChar>` - mutually exclusive per ECMA-376's own `EG_TextBulletColor`/`EG_TextBulletTypeface`/
+`EG_TextBulletSizeGroup`/`EG_TextBullet` choice groups), **color** (`<a:buClrTx>` / `<a:buClr>`),
+**font** (`<a:buFontTx>` / `<a:buFont>`), and **size** (`<a:buSzTx>` / `<a:buSzPct>` /
+`<a:buSzPts>`). Capturing each choice-group's winning raw element separately (rather than parsing
+straight to a single resolved value) is what lets resolution treat each group as its own
+independent inheritance chain - see below.
+
+**Resolution** (`PptxDocument.TextInheritance.cs`'s `ResolveEffectiveBulletProperties`): reuses
+this unit's own established attribute-level inheritance pattern (own paragraph -> placeholder
+level element -> master level element -> hard-coded default) _four times_, once per choice-group,
+exactly mirroring how `algn`/`marL`/`indent` are each already resolved independently in
+`ResolveEffectiveParagraphProperties`. This is deliberate and load-bearing: a real-world paragraph
+commonly declares only its own bullet _character_ while relying on its placeholder/master level
+style for the bullet's color/font/size (or vice versa) - resolving bullets as one monolithic
+"whichever tier's whole bullet block wins" object, copied wholesale from a single tier, would
+silently defeat that common partial-override pattern. A `Kind == None` result (explicit
+`<a:buNone>`, or no bullet markup declared anywhere in the chain - the conservative default)
+short-circuits color/font/size resolution entirely, returning `PptxEffectiveBulletProperties.
+CreateNone`.
+
+`<a:buAutoNum>`'s `type` attribute defaults to `"arabicPeriod"` and `startAt` to `1` per ECMA-376's
+own schema defaults, in `ResolveBulletType`. The three "follow text" sentinels - `<a:buClrTx>`,
+`<a:buFontTx>`, `<a:buSzTx>` (and, identically, no color/font/size markup at all) - resolve to the
+paragraph's own _first run's_ already-resolved effective color/typeface/size (falling back to the
+theme's `Dark1`/the placeholder-type default typeface/the hard-coded default font size for a
+run-less paragraph), which required `ResolveEffectiveParagraphProperties` to grow a new, optional
+`firstRunProperties` parameter so its caller (`ResolveTextLayout`) can resolve a paragraph's first
+run's properties before its own paragraph properties, reversing their previous resolution order
+without changing any pre-existing call site's behavior (every pre-existing caller omits the new
+parameter and gets `null`, the previous, bullet-free behavior). `<a:buSzPct val="…">` resolves to
+that `val/100000` fraction of the same "follow text" base size; `<a:buSzPts val="…">` resolves to
+an absolute size (hundredths of a point, the same convention as `<a:rPr sz="…">`), independent of
+the run's own size entirely.
+
+**Auto-number formatting** (new file `PptxDocument.Bullets.cs`'s `FormatAutoNumber`): formats a
+1-based counter value into the bullet string for eleven of ECMA-376's `ST_TextAutonumberScheme`
+values - `arabicPeriod`/`arabicParenR`/`arabicPlain`, `alphaLcPeriod`/`alphaUcPeriod`/
+`alphaLcParenR`/`alphaUcParenR` (base-26, spreadsheet-column-style, so value 27 formats as
+`"aa."`/`"AA."`), and `romanLcPeriod`/`romanUcPeriod`/`romanLcParenR`/`romanUcParenR` (standard
+subtractive-notation Roman numerals). An unrecognized/unimplemented scheme (ECMA-376 defines over
+twenty, including several circled/parenthesized-digit Unicode-glyph schemes with no straightforward
+ASCII-keyboard-font rendering) returns `null` - a deliberate, graceful per-bullet degradation,
+matching this codebase's own established convention for an optional, nullable-returning resolver
+(`GetFontSizeEmu`, `ParseLineSpacing`, and so on) rather than throwing
+`PptxUnsupportedFeatureException` (reserved for a whole-render-aborting unsupported construct):
+only that one paragraph's bullet glyph is silently omitted, its own run text, and every other
+paragraph's bullet, render normally.
+
+**Auto-number counter sequencing** (`PptxDocument.TextLayout.cs`'s `BuildLines`, new private
+`AdvanceBulletCounters`): a small per-call (that is, per-shape/text-body) state machine tracks one
+running counter and one "last scheme used" value per indent level (`0`-`8`, mirroring this unit's
+own existing `MaxParagraphLevel` bound). For each paragraph, in level order: every level _strictly
+deeper_ than the paragraph's own level is reset to zero (closing out any nested list once the
+list returns to a shallower level); a `None` or `Char` bullet resets and clears its own level's
+counter (breaking any numbered run a literal bullet character interrupts); an `AutoNum` bullet
+resets to its own `startAt` the first time that level is used with that particular scheme (or
+after an intervening paragraph at that level used a _different_ scheme, or after any deeper level
+was closed and reused), otherwise increments by one. This reproduces real PowerPoint's own
+behavior for a list that returns to a shallower level after a nested sub-list: the shallower
+level's own sequence resumes where it left off, while the (now-closed) deeper level restarts from
+its own `startAt` the next time a paragraph uses it.
+
+**Hanging-indent fix** (`PptxDocument.TextLayout.cs`'s `PositionLines`): a previously-undocumented,
+closely-related defect, found and fixed alongside the bullet glyph itself because both are needed
+together to be visually indistinguishable from PowerPoint - a bulleted paragraph's first line
+incorrectly placed its own run text at the full `marL + indent` first-line position (the same
+rule a non-bulleted paragraph's first line correctly uses), rather than at `marL`. ECMA-376's own
+convention (and every real PowerPoint export) treats `indent` as the _hanging-indent gutter
+width_ reserved for the bullet glyph alone, not as an additional first-line indent applied to the
+text itself once a bullet occupies that gutter - the bullet glyph paints at `marL + indent` (the
+gutter) while the paragraph's own text, even on its first line, starts flush at `marL`, exactly as
+every other line of that same paragraph already does. This fix is strictly gated on "this line
+has a resolved, non-empty bullet glyph list" (`IsFirstLineOfParagraph && BulletGlyphs.Count > 0`):
+a non-bulleted paragraph's first-line indent continues to apply to its own text exactly as
+before this phase, unchanged.
+
+**Fidelity achieved**:
+
+- `<a:buChar>` literal-character bullets, `<a:buAutoNum>` auto-numbered bullets (eleven common
+  schemes), and explicit `<a:buNone>` suppression all parse, resolve through the full
+  placeholder/master inheritance chain, and paint.
+- Each of the four bullet choice-groups (type/color/font/size) resolves independently, so a
+  paragraph may override only one of the four while inheriting the other three from its
+  placeholder/master level style - the same partial-override fidelity this unit's run/paragraph
+  property resolution already provides.
+- The hanging-indent gutter fix above ensures a bulleted paragraph's own text aligns correctly
+  relative to its bullet glyph, matching PowerPoint's own rendering.
+- An unrecognized `<a:buAutoNum>` scheme gracefully omits only that one paragraph's bullet glyph,
+  never aborting the render.
+
+**Scoped limitations, left as explicit, documented simplifications**:
+
+- Bullet glyphs are never bold or italic (`BuildBulletGlyphs` always resolves its font with
+  `bold: false, italic: false`), regardless of the paragraph's own run formatting - a simplifying,
+  visually minor deviation real PowerPoint itself rarely exercises for bullet glyphs in practice.
+- A bullet glyph is always anchored at the `marL + indent` gutter, independent of the paragraph's
+  own horizontal alignment (`ctr`/`r`) - bullets are not re-justified for centered or
+  right-aligned paragraphs, a real but rare combination in practice (bulleted lists are
+  overwhelmingly left-aligned in real decks).
+- Nine of ECMA-376's twenty-plus `ST_TextAutonumberScheme` values remain unimplemented (see
+  `FormatAutoNumber`'s own remarks for the full list) - each gracefully omits its own bullet glyph
+  per-paragraph rather than aborting the render, per the graceful-degradation policy described
+  above.
+
+**Test coverage**: a new `PptxBulletTests.cs` covers raw parsing (all three type choices plus all
+three color/font/size "follow text" vs. explicit modifier choices), inheritance (own-paragraph vs.
+placeholder-level vs. master-level wins for each of the four independent choice-groups, explicit
+`<a:buNone>` suppressing an inherited bullet, the four choice-groups resolving independently of
+each other, `<a:buAutoNum>`'s schema defaults, and `<a:buSzPct>`/`<a:buSzPts>` size-modifier
+arithmetic), `FormatAutoNumber`'s own direct unit tests (all eleven supported schemes at
+representative values, including alphabetic rollover and several Roman-numeral edge cases, plus
+an unsupported scheme returning `null`), and layout-level tests via `ResolveTextLayout` (the
+hanging-indent fix contrasted against its own pre-existing non-bulleted-paragraph regression case,
+auto-number sequencing across consecutive paragraphs, the reset/resume behavior across a nested
+then-returned-to shallower level, `<a:buNone>` suppression, and an unsupported auto-number scheme
+gracefully skipping only its own bullet). `PptxFixturesCorpusTests.cs`'s own
+`aiden0z-1-chart-and-complex.pptx` fixture test gained a further pixel-level assertion confirming
+this real file's own "Rectangle 5" shape (two consecutive `<a:buChar char="•">`-bulleted
+paragraphs) actually paints visible ink in its own bullet gutter column, distinct from the
+surrounding, un-inked inset.
