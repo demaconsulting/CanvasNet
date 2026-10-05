@@ -561,6 +561,49 @@ public class PptxFixturesCorpusTests
         Assert.True(actual is { R: >= 240, G: >= 240, B: >= 240, A: 255 },
             $"Expected a near-white pixel at ({x}, {y}) (this fixture's own bg1 theme color and master background both resolve to pure white), got R{actual.R} G{actual.G} B{actual.B} A{actual.A}.");
 
+        // Act & Assert (Phase 2 Follow-Up: Bullets and Numbering): "Rectangle 5"
+        // (<a:off x="5322536" y="5031720"/>, <a:ext cx="6030522" cy="1080000"/>,
+        // <a:bodyPr lIns="72000" .../>) declares two consecutive
+        // <a:pPr marL="171450" indent="-171450"><a:buChar char="&#8226;"/></a:pPr> paragraphs -
+        // the real-world hanging-indent bullet idiom this phase targets. Because marL+indent==0,
+        // the bullet-gutter X this phase computes (insetLeft+marL+indent) collapses to exactly
+        // insetLeft (72000 EMU in from the shape's own left edge) - strictly left of where any
+        // paragraph's own text can ever start (insetLeft+marL = 243450 EMU in) - so a dark pixel
+        // found in that narrow gutter column can only be the bullet glyph itself, never run text.
+        // A second sample just inside the shape's own left inset (before the gutter) proves the
+        // gutter ink does not simply extend all the way to the shape's own edge.
+        var shapeOffXEmu = 5322536d;
+        var shapeOffYEmu = 5031720d;
+        var shapeCyEmu = 1080000d;
+        var bulletGutterXEmu = shapeOffXEmu + 72000d;
+        var beforeGutterXEmu = shapeOffXEmu + 20000d;
+        var topYEmu = shapeOffYEmu + 40000d;
+        var bottomYEmu = shapeOffYEmu + shapeCyEmu - 40000d;
+
+        static int ToPixelX(double emu, PptxSlideSize slideSize, int surfaceWidth) =>
+            Math.Clamp((int)(emu / slideSize.WidthEmu * surfaceWidth), 0, surfaceWidth - 1);
+
+        static int ToPixelY(double emu, PptxSlideSize slideSize, int surfaceHeight) =>
+            Math.Clamp((int)(emu / slideSize.HeightEmu * surfaceHeight), 0, surfaceHeight - 1);
+
+        static int Luminance(Rgba32 pixel) => pixel.R + pixel.G + pixel.B;
+
+        var bulletGutterPx = ToPixelX(bulletGutterXEmu, slideSize, surface0.Width);
+        var beforeGutterPx = ToPixelX(beforeGutterXEmu, slideSize, surface0.Width);
+        var topPx = ToPixelY(topYEmu, slideSize, surface0.Height);
+        var bottomPx = ToPixelY(bottomYEmu, slideSize, surface0.Height);
+
+        var darkestInGutter = int.MaxValue;
+        var darkestBeforeGutter = int.MaxValue;
+        for (var py = topPx; py <= bottomPx; py++)
+        {
+            darkestInGutter = Math.Min(darkestInGutter, Luminance(surface0[bulletGutterPx, py]));
+            darkestBeforeGutter = Math.Min(darkestBeforeGutter, Luminance(surface0[beforeGutterPx, py]));
+        }
+
+        Assert.True(darkestInGutter < darkestBeforeGutter - 60,
+            $"Expected the bullet-gutter column (x={bulletGutterPx}) to contain visibly darker ink than the shape's own left-inset column (x={beforeGutterPx}) just to its left: darkestInGutter={darkestInGutter}, darkestBeforeGutter={darkestBeforeGutter}.");
+
         // Act & Assert: slide 1's chart graphic frame throws.
         var exception = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(1, Dpi, Transparent));
         Assert.Equal("pptx-graphic-frame-kind", exception.Feature);
