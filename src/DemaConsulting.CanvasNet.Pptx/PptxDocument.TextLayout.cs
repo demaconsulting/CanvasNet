@@ -286,6 +286,14 @@ public sealed partial class PptxDocument
             var level = Math.Clamp(paragraph.RawProperties.Level, 0, MaxParagraphLevel);
             var bulletText = AdvanceBulletCounters(level, paraProps.Bullet, counters, lastTypes);
 
+            // Phase 2 Follow-Up: Bullets and Numbering - a paragraph with no <a:r> run children
+            // (a blank/spacer paragraph, for example one containing only <a:endParaRPr>) must not
+            // paint a bullet glyph, even though its bullet properties still resolve and its
+            // auto-number counter state must still advance above (PowerPoint itself never shows a
+            // bullet next to an empty line). A run whose text is whitespace-only still counts as
+            // "has a run" here - a documented, accepted minor limitation (see the design doc).
+            var hasRuns = paragraph.Items.Any(item => item is PptxRunItem);
+
             // Build the paragraph's scaled token stream, resolving each run's font once. An
             // <c>&lt;a:br&gt;</c> item becomes a break-marker token that forces a new line in
             // PackTokensIntoLines, preserving its position relative to surrounding runs.
@@ -388,7 +396,7 @@ public sealed partial class PptxDocument
                 }
 
                 var isFirstLine = i == 0;
-                var bulletGlyphs = isFirstLine
+                var bulletGlyphs = isFirstLine && hasRuns
                     ? BuildBulletGlyphs(bulletText, paraProps.Bullet, fontScale, resolveFont)
                     : [];
 

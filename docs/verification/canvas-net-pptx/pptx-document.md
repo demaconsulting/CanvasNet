@@ -1184,6 +1184,9 @@ and does not disturb the paragraph's own markup.
 `ResolveTextLayout_NestedThenReturnToShallowerLevel_ResumesShallowerCounterRestartsDeeperLevel`,
 `ResolveTextLayout_UnsupportedAutoNumType_SkipsOnlyThatBulletGracefully`,
 `PaintTextLayout_BulletedParagraph_PaintsBulletGlyphToSurface`,
+`BuildLines_ParagraphWithBulletPropertiesAndNoRuns_PaintsNoBulletGlyph`,
+`BuildLines_OtherwiseIdenticalParagraphWithOneRun_StillPaintsBulletGlyph`,
+`BuildLines_RunlessAutoNumberParagraph_CounterStillAdvancesForSubsequentParagraph`,
 `PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature`
 
 Proves `FormatAutoNumber` formats all eleven supported `ST_TextAutonumberScheme` values at
@@ -1215,7 +1218,14 @@ fixture's own slide-number placeholder's resolved geometry (inherited by type-ma
 slide master's own "Slide Number Placeholder 5": `off x="11669529" y="6400800"`,
 `ext cx="438912" cy="155448"`), comparing the darkest pixel found there against a same-column
 background baseline row just above it rather than an absolute threshold - the exact real-world
-location and failure mode the stray-bullet defect above was found and closed at.
+location and failure mode the stray-bullet defect above was found and closed at. Finally, proves
+the run-less/spacer-paragraph bullet-suppression fix: a paragraph with resolved `<a:buChar>`
+bullet properties but no `<a:r>` run children (only a synthetic `<a:endParaRPr>`) paints no glyphs
+at all - neither run text nor a bullet glyph; the otherwise-identical paragraph with one run still
+paints both its own run glyph and its bullet glyph (the differential counterpart); and a run-less
+auto-numbered paragraph followed by a same-level paragraph with a run proves the counter still
+advanced past the suppressed paragraph (the second paragraph's bullet renders "2", not "1"),
+confirming only the glyph is suppressed, never the counter state.
 
 #### CanvasNetPptx-PptxDocument-ColorMapResolution: `<p:clrMap>`/`<p:clrMapOvr>` Indirection
 

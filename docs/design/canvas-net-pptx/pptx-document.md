@@ -1700,6 +1700,23 @@ surrounding, un-inked inset, plus a second new assertion confirming no stray bul
 this same fixture's own slide-number placeholder geometry (the exact real-world location the
 closed risk above was found).
 
+**Closed risk (empty/spacer-paragraph bullet suppression)**: `BuildLines` painted a bullet glyph
+for any paragraph whose resolved bullet properties were non-`None`, regardless of whether that
+paragraph had any `<a:r>` run children at all - a run-less (blank/spacer) paragraph that merely
+inherited a list's bullet properties (for example a blank line left between two bulleted items,
+or a trailing blank paragraph closing out a list) rendered a stray, isolated bullet glyph with no
+accompanying text, a visually obvious defect against real PowerPoint output, which never shows a
+bullet next to an empty line. The fix computes `hasRuns = paragraph.Items.Any(item => item is
+PptxRunItem)` once per paragraph (not per line) and gates only the glyph itself -
+`bulletGlyphs = isFirstLine && hasRuns ? BuildBulletGlyphs(...) : []` - deliberately leaving
+`AdvanceBulletCounters`'s own counter-state advancement untouched, so a run-less auto-numbered
+paragraph still consumes its own position in the sequence (matching real PowerPoint's own counter
+semantics) even though nothing is painted for it. **Known, accepted limitation**: a run whose
+text is whitespace-only (for example a single run containing only `" "`) still counts as "has a
+run" under this simpler zero-runs rule, so such a paragraph's bullet still paints - PowerPoint's
+own true rule (zero _non-whitespace-only_ runs) is not resolved by this fix and remains a
+documented, minor gap.
+
 #### Phase 2 Follow-Up: Color Map (`<p:clrMap>`/`<p:clrMapOvr>`) Resolution
 
 A further visual-fidelity defect was found and fixed: `ResolveSchemeColor` (`PptxDocument.

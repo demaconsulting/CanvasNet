@@ -154,6 +154,35 @@ public class PptxBulletTests
     private static PptxTextLayout Layout(PptxTextBody textBody, float widthEmu = 500000f, float heightEmu = 500000f) =>
         PptxDocument.ResolveTextLayout(textBody, new PptxPlaceholderProperties(null, null, BuildTestTheme()), BuildTestTheme(), "body", widthEmu, heightEmu, ConstantFontResolver);
 
+    /// <summary>
+    ///     Builds a <see cref="PptxTextBody"/> from raw <c>&lt;a:pPr&gt;</c> markup strings, each
+    ///     paragraph either with a single run of its own text (when non-null) or with
+    ///     NO <c>&lt;a:r&gt;</c> child at all (when <see langword="null"/> - only a synthetic
+    ///     <c>&lt;a:endParaRPr&gt;</c>, mirroring a real "blank/spacer" paragraph such as
+    ///     PowerPoint's own click-to-add-a-blank-line behavior) - used by the run-less-paragraph
+    ///     bullet-suppression tests (Phase 2 Follow-Up: Bullets and Numbering's empty-paragraph fix).
+    /// </summary>
+    private static PptxTextBody BuildTextBodyRunless(params (string ParagraphPPr, string? RunText)[] paragraphs)
+    {
+        var bodyPr = new XElement(
+            DrawingNs + "bodyPr",
+            new XAttribute("lIns", "0"), new XAttribute("tIns", "0"), new XAttribute("rIns", "0"), new XAttribute("bIns", "0"));
+
+        var pElements = paragraphs.Select(p =>
+            new XElement(
+                DrawingNs + "p",
+                XElement.Parse(p.ParagraphPPr),
+                p.RunText is null
+                    ? new XElement(DrawingNs + "endParaRPr", new XAttribute("sz", "100"))
+                    : new XElement(
+                        DrawingNs + "r",
+                        new XElement(DrawingNs + "rPr", new XAttribute("sz", "100")),
+                        new XElement(DrawingNs + "t", p.RunText))));
+
+        var txBody = new XElement(PresentationNs + "txBody", bodyPr, pElements);
+        return PptxDocument.ParseTextBody(txBody);
+    }
+
     #endregion
 
     #region Raw parsing (PptxDocument.Text.cs)
@@ -662,6 +691,64 @@ public class PptxBulletTests
         Assert.Equal(4, layout.Glyphs[5].GlyphIndex);
         Assert.Equal(4, layout.Glyphs[7].GlyphIndex);
         Assert.Equal(3, layout.Glyphs[9].GlyphIndex);
+    }
+
+    /// <summary>
+    ///     Proves a run-less (blank/spacer) paragraph with resolved <c>&lt;a:buChar/&gt;</c> bullet
+    ///     properties paints NO bullet glyph - the Phase 2 Follow-Up empty-paragraph fix
+    ///     (<c>BuildLines</c>'s <c>hasRuns</c> gate in <c>PptxDocument.TextLayout.cs</c>).
+    /// </summary>
+    [Fact]
+    public void BuildLines_ParagraphWithBulletPropertiesAndNoRuns_PaintsNoBulletGlyph()
+    {
+        var pPr = """<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main"><buChar char="A"/></pPr>""";
+        var textBody = BuildTextBodyRunless((pPr, null));
+
+        var layout = Layout(textBody);
+
+        // No run glyphs and no bullet glyph - a run-less paragraph still occupies a blank line,
+        // but paints nothing.
+        Assert.Empty(layout.Glyphs);
+    }
+
+    /// <summary>
+    ///     Differential counterpart to
+    ///     <see cref="BuildLines_ParagraphWithBulletPropertiesAndNoRuns_PaintsNoBulletGlyph"/>:
+    ///     the otherwise-identical paragraph with one run still paints its bullet glyph.
+    /// </summary>
+    [Fact]
+    public void BuildLines_OtherwiseIdenticalParagraphWithOneRun_StillPaintsBulletGlyph()
+    {
+        var pPr = """<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main"><buChar char="A"/></pPr>""";
+        var textBody = BuildTextBodyRunless((pPr, "A"));
+
+        var layout = Layout(textBody);
+
+        // Run's own "A" glyph plus the bullet's own "A" glyph.
+        Assert.Equal(2, layout.Glyphs.Count);
+    }
+
+    /// <summary>
+    ///     Proves a run-less auto-numbered paragraph's suppressed bullet glyph does NOT disturb
+    ///     the auto-number counter state machine - the counter still advances for it, so a
+    ///     subsequent paragraph at the same level correctly continues the sequence (not restarting
+    ///     at "1") - per the bug report's explicit requirement that only the glyph is suppressed,
+    ///     not the counter advancement.
+    /// </summary>
+    [Fact]
+    public void BuildLines_RunlessAutoNumberParagraph_CounterStillAdvancesForSubsequentParagraph()
+    {
+        var pPr = """<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main"><buAutoNum type="arabicPlain"/></pPr>""";
+        var textBody = BuildTextBodyRunless((pPr, null), (pPr, "A"));
+
+        var layout = Layout(textBody);
+
+        // First paragraph is run-less: no glyphs painted for it at all (counter still advances to
+        // "1" internally, but nothing is painted). Second paragraph: its own run "A" plus a bullet
+        // glyph for "2" (glyph index 4, see NewFont()'s cmap/advance table), proving the counter
+        // advanced past "1" rather than restarting.
+        Assert.Equal(2, layout.Glyphs.Count);
+        Assert.Equal(4, layout.Glyphs[1].GlyphIndex);
     }
 
     /// <summary>

@@ -1451,10 +1451,13 @@ sections:
               level so consecutive same-level auto-numbered paragraphs sequence correctly and a
               nested sub-list's own counter resets independently of, and without disturbing, its
               parent level's own counter, shall paint a resolved bullet glyph at the paragraph's
-              own marL+indent hanging-indent gutter position, and shall position a bulleted
+              own marL+indent hanging-indent gutter position, shall position a bulleted
               paragraph's own first-line run text starting at marL (not marL+indent) whenever that
               line has a resolved bullet, leaving a non-bulleted paragraph's own first-line
-              indent behavior unchanged.
+              indent behavior unchanged, and shall suppress the bullet glyph entirely (while still
+              advancing the auto-number counter state) for a paragraph with no <a:r> run children
+              at all, so a blank/spacer paragraph that merely inherits a list's bullet properties
+              never renders a stray, isolated bullet glyph with no accompanying text.
             justification: |
               Formatting and positioning a bullet glyph requires layout-engine support distinct
               from, and layered on top of, the choice-group parsing/inheritance resolution above:
@@ -1474,7 +1477,15 @@ sections:
               throwing PptxUnsupportedFeatureException, matching this codebase's own established
               convention for an optional, nullable-returning resolver, since a single unsupported
               bullet scheme in an otherwise-ordinary real-world deck must never abort rendering of
-              every other slide/shape/paragraph.
+              every other slide/shape/paragraph. A further visual-fidelity defect was found after
+              this requirement's initial implementation: painting a bullet glyph for any paragraph
+              with resolved, non-None bullet properties - regardless of whether that paragraph had
+              any run content at all - rendered a stray, isolated bullet glyph on a run-less
+              blank/spacer paragraph, something no genuine PowerPoint export ever does. The fix
+              gates only the glyph itself on the paragraph having at least one run, leaving the
+              auto-number counter's own advancement untouched, so a run-less auto-numbered
+              paragraph still consumes its own position in the sequence even though nothing is
+              painted for it - matching real PowerPoint's own counter semantics.
             tests:
               - FormatAutoNumber_SupportedTypes_FormatsExpectedString
               - FormatAutoNumber_UnsupportedType_ReturnsNull
@@ -1485,6 +1496,9 @@ sections:
               - ResolveTextLayout_NestedThenReturnToShallowerLevel_ResumesShallowerCounterRestartsDeeperLevel
               - ResolveTextLayout_UnsupportedAutoNumType_SkipsOnlyThatBulletGracefully
               - PaintTextLayout_BulletedParagraph_PaintsBulletGlyphToSurface
+              - BuildLines_ParagraphWithBulletPropertiesAndNoRuns_PaintsNoBulletGlyph
+              - BuildLines_OtherwiseIdenticalParagraphWithOneRun_StillPaintsBulletGlyph
+              - BuildLines_RunlessAutoNumberParagraph_CounterStillAdvancesForSubsequentParagraph
               - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature
 
           - id: CanvasNetPptx-PptxDocument-ShapeStyleReference
