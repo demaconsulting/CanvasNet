@@ -49,6 +49,10 @@ public sealed partial class PptxDocument
     ///     connector explicitly opting out of a stroke must stay invisible), when the merged width
     ///     is non-positive, or when the merged paint resolves to <see cref="PptxNoFill"/>.
     /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the connector's own <c>&lt;a:ln&gt;</c>'s <c>w</c> attribute is present but
+    ///     not a finite floating-point number - see <see cref="ParseOptionalLineWidthAttribute"/>.
+    /// </exception>
     internal static PptxLineStyle? ResolveConnectorLineStyle(
         XElement spPrElement, XElement? styleElement, PptxTheme theme, PptxColorMap colorMap)
     {
@@ -64,7 +68,7 @@ public sealed partial class PptxDocument
 
         var styleLineStyle = ResolveShapeStyleLineStyle(styleElement, theme, colorMap);
 
-        var ownWidthEmu = (float?)lnElement?.Attribute("w");
+        var ownWidthEmu = ParseOptionalLineWidthAttribute(lnElement);
         var widthEmu = ownWidthEmu is > 0f ? ownWidthEmu.Value : styleLineStyle?.WidthEmu ?? 0f;
         if (widthEmu <= 0f)
         {

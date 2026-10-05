@@ -126,7 +126,8 @@ public sealed partial class PptxDocument
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="gradFillElement"/> has no <c>&lt;a:gsLst&gt;</c>, or
     ///     <c>&lt;a:gsLst&gt;</c> has no <c>&lt;a:gs&gt;</c> children, or a <c>&lt;a:gs&gt;</c> has
-    ///     a missing or non-numeric <c>pos</c> attribute or no color-definition child.
+    ///     a missing, non-numeric, or non-finite <c>pos</c> attribute, or no color-definition
+    ///     child.
     /// </exception>
     /// <exception cref="PptxUnsupportedFeatureException">
     ///     Thrown when <paramref name="gradFillElement"/> declares a path gradient
@@ -157,6 +158,11 @@ public sealed partial class PptxDocument
             if (!float.TryParse(posValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var pos))
             {
                 throw new InvalidDataException($"An <a:gs> element has a non-numeric 'pos' attribute value '{posValue}'.");
+            }
+
+            if (!float.IsFinite(pos))
+            {
+                throw new InvalidDataException($"An <a:gs> element has a non-finite 'pos' attribute value '{posValue}'.");
             }
 
             var colorElement = gs.Elements().FirstOrDefault() ??
@@ -546,6 +552,49 @@ public sealed partial class PptxDocument
     private const float DefaultLineWidthEmu = 0.75f * 12700f;
 
     /// <summary>
+    ///     Parses an <c>&lt;a:ln&gt;</c> element's optional <c>w</c> (width, EMU) attribute,
+    ///     returning <see langword="null"/> when <paramref name="lnElement"/> or its <c>w</c>
+    ///     attribute is absent, shared by every <c>&lt;a:ln w="..."/&gt;</c> call site in this
+    ///     partial class that merges or defaults an explicit line width (<see cref="ResolveLineStyle"/>,
+    ///     <see cref="ResolveShapeLineStyle"/>, and <see cref="ResolveConnectorLineStyle"/>).
+    /// </summary>
+    /// <param name="lnElement">The <c>&lt;a:ln&gt;</c> element to inspect, or <see langword="null"/> when absent.</param>
+    /// <returns>
+    ///     The parsed, finite <c>w</c> attribute value, or <see langword="null"/> when
+    ///     <paramref name="lnElement"/> is <see langword="null"/> or declares no <c>w</c> attribute.
+    /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="lnElement"/>'s <c>w</c> attribute is present but not a
+    ///     finite floating-point number.
+    /// </exception>
+    private static float? ParseOptionalLineWidthAttribute(XElement? lnElement)
+    {
+        var widthAttribute = lnElement?.Attribute("w");
+        if (widthAttribute is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var width = (float?)widthAttribute;
+            if (width is not null && !float.IsFinite(width.Value))
+            {
+                throw new InvalidDataException(
+                    $"An <a:ln> element has a non-finite 'w' attribute value '{(string?)widthAttribute}'.");
+            }
+
+            return width;
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidDataException(
+                $"An <a:ln> element has a non-numeric 'w' attribute value '{(string?)widthAttribute}'.",
+                ex);
+        }
+    }
+
+    /// <summary>
     ///     Resolves an <c>&lt;a:ln&gt;</c> line-properties element into a <see cref="PptxLineStyle"/>.
     /// </summary>
     /// <param name="lnElement">The <c>&lt;a:ln&gt;</c> element, or <see langword="null"/> for "no line properties declared".</param>
@@ -581,6 +630,10 @@ public sealed partial class PptxDocument
     ///     deliberately retain their existing "a present, width-less <c>&lt;a:ln&gt;</c> never
     ///     gains a width from style or default" behavior.
     /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="lnElement"/>'s <c>w</c> attribute is present but not a
+    ///     finite floating-point number - see <see cref="ParseOptionalLineWidthAttribute"/>.
+    /// </exception>
     internal static PptxLineStyle? ResolveLineStyle(
         XElement? lnElement, PptxTheme theme, PptxColorMap? colorMap = null, Rgba32? phClrOverride = null)
     {
@@ -589,9 +642,9 @@ public sealed partial class PptxDocument
             return null;
         }
 
-        var widthAttribute = lnElement.Attribute("w");
+        var ownWidthEmu = ParseOptionalLineWidthAttribute(lnElement);
         float widthEmu;
-        if (widthAttribute is null)
+        if (ownWidthEmu is null)
         {
             // Genuinely absent "w" - fall back to PowerPoint's own observed default stroke width
             // rather than treating this the same as an explicit zero/negative width.
@@ -599,7 +652,7 @@ public sealed partial class PptxDocument
         }
         else
         {
-            widthEmu = (float?)widthAttribute ?? 0f;
+            widthEmu = ownWidthEmu.Value;
             if (widthEmu <= 0f)
             {
                 return null;
@@ -835,6 +888,10 @@ public sealed partial class PptxDocument
     ///     <see cref="ResolveShapeStyleLineStyle"/>'s matching documentation for the full set of
     ///     "no stroke" conditions each delegated-to case produces.
     /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="lnElement"/>'s <c>w</c> attribute is present but not a
+    ///     finite floating-point number - see <see cref="ParseOptionalLineWidthAttribute"/>.
+    /// </exception>
     internal static PptxLineStyle? ResolveShapeLineStyle(
         XElement? lnElement, XElement? styleElement, PptxTheme theme, PptxColorMap? colorMap = null)
     {
@@ -855,7 +912,7 @@ public sealed partial class PptxDocument
         // Case 3: a present <a:ln> with no recognized fill-definition child of its own keeps its
         // own width/dash, but defers only its color to the style <a:lnRef> - never merging width
         // or dash from style, unlike ResolveConnectorLineStyle's broader per-attribute merge.
-        var widthEmu = (float?)lnElement.Attribute("w") ?? 0f;
+        var widthEmu = ParseOptionalLineWidthAttribute(lnElement) ?? 0f;
         if (widthEmu <= 0f)
         {
             return null;

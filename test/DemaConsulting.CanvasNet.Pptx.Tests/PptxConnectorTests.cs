@@ -273,6 +273,31 @@ public class PptxConnectorTests
         Assert.Equal([12700f * 4f, 12700f * 3f], lineStyle.DashArray);
     }
 
+    /// <summary>Proves a non-numeric <c>w</c> attribute on the connector's own <c>&lt;a:ln&gt;</c> throws <see cref="InvalidDataException"/> rather than letting a raw <see cref="FormatException"/> escape uncaught.</summary>
+    [Fact]
+    public void ResolveConnectorLineStyle_OwnLnNonNumericWidth_ThrowsInvalidDataException()
+    {
+        var spPr = BuildSpPr("""<a:ln w="not-a-number"/>""");
+        var theme = BuildThemeWithLnStyleList(ThreeEntryLnStyleList);
+
+        Assert.Throws<InvalidDataException>(
+            () => PptxDocument.ResolveConnectorLineStyle(spPr, null, theme, PptxColorMap.Default));
+    }
+
+    /// <summary>Proves a non-finite (<c>NaN</c>/<c>Infinity</c>/<c>-Infinity</c>) <c>w</c> attribute on the connector's own <c>&lt;a:ln&gt;</c> throws <see cref="InvalidDataException"/>.</summary>
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public void ResolveConnectorLineStyle_OwnLnNonFiniteWidth_ThrowsInvalidDataException(string nonFiniteValue)
+    {
+        var spPr = BuildSpPr($"""<a:ln w="{nonFiniteValue}"/>""");
+        var theme = BuildThemeWithLnStyleList(ThreeEntryLnStyleList);
+
+        Assert.Throws<InvalidDataException>(
+            () => PptxDocument.ResolveConnectorLineStyle(spPr, null, theme, PptxColorMap.Default));
+    }
+
     // --- ResolveArrowhead --------------------------------------------------------------------
 
     /// <summary>A recognized <c>type</c> attribute value on a <c>&lt;a:tailEnd&gt;</c> element resolves to the matching <see cref="PptxArrowheadKind"/>, carrying through its <c>w</c>/<c>len</c> size keys.</summary>

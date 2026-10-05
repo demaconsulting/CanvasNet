@@ -125,6 +125,39 @@ public class PptxTextTests
         Assert.IsType<FormatException>(ex.InnerException);
     }
 
+    /// <summary>Proves a non-numeric <c>lIns</c> attribute throws <see cref="InvalidDataException"/> (with the original <see cref="FormatException"/> preserved as <see cref="Exception.InnerException"/>) rather than letting the raw <see cref="FormatException"/> escape uncaught.</summary>
+    [Fact]
+    public void ParseBodyProperties_NonNumericLIns_ThrowsInvalidDataException()
+    {
+        var bodyPr = new XElement(DrawingNs + "bodyPr", new XAttribute("lIns", "not-a-number"));
+
+        var ex = Assert.Throws<InvalidDataException>(() => PptxDocument.ParseBodyProperties(bodyPr));
+
+        Assert.IsType<FormatException>(ex.InnerException);
+    }
+
+    /// <summary>Proves a non-numeric <c>tIns</c> attribute throws <see cref="InvalidDataException"/> (with the original <see cref="FormatException"/> preserved as <see cref="Exception.InnerException"/>) rather than letting the raw <see cref="FormatException"/> escape uncaught.</summary>
+    [Fact]
+    public void ParseBodyProperties_NonNumericTIns_ThrowsInvalidDataException()
+    {
+        var bodyPr = new XElement(DrawingNs + "bodyPr", new XAttribute("tIns", "not-a-number"));
+
+        var ex = Assert.Throws<InvalidDataException>(() => PptxDocument.ParseBodyProperties(bodyPr));
+
+        Assert.IsType<FormatException>(ex.InnerException);
+    }
+
+    /// <summary>Proves a non-numeric <c>rIns</c> attribute throws <see cref="InvalidDataException"/> (with the original <see cref="FormatException"/> preserved as <see cref="Exception.InnerException"/>) rather than letting the raw <see cref="FormatException"/> escape uncaught.</summary>
+    [Fact]
+    public void ParseBodyProperties_NonNumericRIns_ThrowsInvalidDataException()
+    {
+        var bodyPr = new XElement(DrawingNs + "bodyPr", new XAttribute("rIns", "not-a-number"));
+
+        var ex = Assert.Throws<InvalidDataException>(() => PptxDocument.ParseBodyProperties(bodyPr));
+
+        Assert.IsType<FormatException>(ex.InnerException);
+    }
+
     /// <summary>Parse Body Properties Autofit Element Is Retained Unparsed.</summary>
     [Theory]
     [InlineData("noAutofit")]

@@ -443,6 +443,27 @@ public class PptxPaintTests
         Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveGradientFill(gradFill, BuildTestTheme(), 200, 100));
     }
 
+    /// <summary>
+    ///     Resolve Gradient Fill - Non Finite Gs Pos - Throws Invalid Data Exception (a
+    ///     <c>NaN</c>/<c>Infinity</c>/<c>-Infinity</c> <c>pos</c> value survives
+    ///     <see cref="float.TryParse(string, System.Globalization.NumberStyles, System.IFormatProvider?, out float)"/>
+    ///     but must still be rejected, since <see cref="System.Math.Clamp(float, float, float)"/>
+    ///     would otherwise propagate it unchanged).
+    /// </summary>
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public void ResolveGradientFill_NonFiniteGsPos_ThrowsInvalidDataException(string nonFiniteValue)
+    {
+        var gradFill = new XElement(
+            A + "gradFill",
+            new XElement(A + "gsLst", new XElement(A + "gs", new XAttribute("pos", nonFiniteValue), SrgbClr("FF0000"))),
+            new XElement(A + "lin", new XAttribute("ang", 0)));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveGradientFill(gradFill, BuildTestTheme(), 200, 100));
+    }
+
     // --- ResolveLineStyle --------------------------------------------------------------------------
 
     /// <summary>Resolve Line Style - Null Element - Returns Null.</summary>
@@ -522,6 +543,27 @@ public class PptxPaintTests
         var solid = Assert.IsType<PptxSolidFill>(lineStyle.Paint);
         Assert.Equal(new Rgba32(0x00, 0xFF, 0x00, 255), solid.Color);
         Assert.Null(lineStyle.DashArray);
+    }
+
+    /// <summary>Proves a non-numeric <c>w</c> attribute throws <see cref="InvalidDataException"/> rather than letting a raw <see cref="FormatException"/> escape uncaught.</summary>
+    [Fact]
+    public void ResolveLineStyle_NonNumericWidth_ThrowsInvalidDataException()
+    {
+        var ln = new XElement(A + "ln", new XAttribute("w", "not-a-number"), new XElement(A + "solidFill", SrgbClr("FF0000")));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveLineStyle(ln, BuildTestTheme()));
+    }
+
+    /// <summary>Proves a non-finite (<c>NaN</c>/<c>Infinity</c>/<c>-Infinity</c>) <c>w</c> attribute throws <see cref="InvalidDataException"/>.</summary>
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public void ResolveLineStyle_NonFiniteWidth_ThrowsInvalidDataException(string nonFiniteValue)
+    {
+        var ln = new XElement(A + "ln", new XAttribute("w", nonFiniteValue), new XElement(A + "solidFill", SrgbClr("FF0000")));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveLineStyle(ln, BuildTestTheme()));
     }
 
     /// <summary>Resolve Line Style - Dash Presets - Produce Non Null Dash Array.</summary>
@@ -836,6 +878,29 @@ public class PptxPaintTests
         Assert.Equal(76200f, lineStyle.WidthEmu);
         var solid = Assert.IsType<PptxSolidFill>(lineStyle.Paint);
         Assert.Equal(new Rgba32(0x00, 0xFF, 0x00, 255), solid.Color);
+    }
+
+    /// <summary>Proves a non-numeric <c>w</c> attribute on a case-3 (no fill child) <c>&lt;a:ln&gt;</c> throws <see cref="InvalidDataException"/> rather than letting a raw <see cref="FormatException"/> escape uncaught.</summary>
+    [Fact]
+    public void ResolveShapeLineStyle_LnHasNonNumericWidth_ThrowsInvalidDataException()
+    {
+        var style = new XElement(P + "style", new XElement(A + "lnRef", new XAttribute("idx", "1")));
+        var lnElement = new XElement(A + "ln", new XAttribute("w", "not-a-number"));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveShapeLineStyle(lnElement, style, BuildTestTheme()));
+    }
+
+    /// <summary>Proves a non-finite (<c>NaN</c>/<c>Infinity</c>/<c>-Infinity</c>) <c>w</c> attribute on a case-3 (no fill child) <c>&lt;a:ln&gt;</c> throws <see cref="InvalidDataException"/>.</summary>
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public void ResolveShapeLineStyle_LnHasNonFiniteWidth_ThrowsInvalidDataException(string nonFiniteValue)
+    {
+        var style = new XElement(P + "style", new XElement(A + "lnRef", new XAttribute("idx", "1")));
+        var lnElement = new XElement(A + "ln", new XAttribute("w", nonFiniteValue));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveShapeLineStyle(lnElement, style, BuildTestTheme()));
     }
 
     /// <summary>Resolve Shape Line Style - Ln Has Width And Own Dash But No Fill Child - Keeps Own Dash Array.</summary>
