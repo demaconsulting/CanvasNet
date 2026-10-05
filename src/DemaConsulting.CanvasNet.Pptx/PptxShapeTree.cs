@@ -6,14 +6,15 @@ namespace DemaConsulting.CanvasNet.Pptx;
 // cspell:ignore grpsp pptx sppr
 
 /// <summary>
-///     A single node of a slide's full shape tree (Phase 1e), produced by
-///     <see cref="PptxDocument.ParseShapeTree"/>: a closed hierarchy mirroring every shape kind
-///     this phase recognizes inside a <c>&lt;p:spTree&gt;</c>/<c>&lt;p:grpSp&gt;</c> - a <c>
-///     &lt;p:sp&gt;</c> (<see cref="PptxSpShapeNode"/>), a <c>&lt;p:pic&gt;</c>
-///     (<see cref="PptxPictureShapeNode"/>), a <c>&lt;p:graphicFrame&gt;</c>
-///     (<see cref="PptxGraphicFrameShapeNode"/>), or a nested <c>&lt;p:grpSp&gt;</c>
-///     (<see cref="PptxGroupShapeNode"/>). <c>&lt;p:cxnSp&gt;</c>/<c>&lt;p:contentPart&gt;</c>/
-///     any other element kind are not represented at all - <see cref="PptxDocument.ParseShapeTree"/>
+///     A single node of a slide's full shape tree (Phase 1e, extended by the Phase 2 Follow-Up
+///     connector-rendering work), produced by <see cref="PptxDocument.ParseShapeTree"/>: a closed
+///     hierarchy mirroring every shape kind this phase recognizes inside a
+///     <c>&lt;p:spTree&gt;</c>/<c>&lt;p:grpSp&gt;</c> - a <c>&lt;p:sp&gt;</c>
+///     (<see cref="PptxSpShapeNode"/>), a <c>&lt;p:pic&gt;</c> (<see cref="PptxPictureShapeNode"/>),
+///     a <c>&lt;p:graphicFrame&gt;</c> (<see cref="PptxGraphicFrameShapeNode"/>), a nested
+///     <c>&lt;p:grpSp&gt;</c> (<see cref="PptxGroupShapeNode"/>), or a <c>&lt;p:cxnSp&gt;</c>
+///     connector (<see cref="PptxConnectorShapeNode"/>). <c>&lt;p:contentPart&gt;</c>/any other
+///     element kind are not represented at all - <see cref="PptxDocument.ParseShapeTree"/>
 ///     silently skips them (see its own remarks).
 /// </summary>
 internal abstract record PptxShapeTreeNode
@@ -55,3 +56,11 @@ internal sealed record PptxGraphicFrameShapeNode(XElement GraphicFrameElement, P
 /// </param>
 /// <param name="Children">This group's immediate shape-tree children, in document order.</param>
 internal sealed record PptxGroupShapeNode(XElement GroupElement, Matrix3x2 ChildTransform, IReadOnlyList<PptxShapeTreeNode> Children) : PptxShapeTreeNode;
+
+/// <summary>
+///     A <c>&lt;p:cxnSp&gt;</c> connector shape-tree node (Phase 2 Follow-Up: Connector Shape
+///     Rendering) - a straight/elbow/curved line, typically drawn between two other shapes in a
+///     flowchart or diagram, with no text body and (typically) no fill of its own.
+/// </summary>
+/// <param name="CxnSpElement">The raw <c>&lt;p:cxnSp&gt;</c> element.</param>
+internal sealed record PptxConnectorShapeNode(XElement CxnSpElement) : PptxShapeTreeNode;

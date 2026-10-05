@@ -412,15 +412,20 @@ public class PptxFixturesCorpusTests
     }
 
     /// <summary>
-    ///     Proves both slides of <c>pythonpptx-shp-connector-props.pptx</c> render without error.
-    ///     Slide index 0 contains only a lone <c>&lt;p:cxnSp&gt;</c> connector - connectors are
-    ///     silently skipped and never represented in the parsed shape tree at all (see
-    ///     <c>Render_ConnectorShape_SkippedSilentlyWithoutError</c>) - so slide 0 paints nothing;
-    ///     slide index 1 additionally places a picture alongside its own connector, so slide 1
-    ///     paints the picture while the connector is, again, silently ignored.
+    ///     Proves both slides of <c>pythonpptx-shp-connector-props.pptx</c> render without error
+    ///     and now actually paint their own connector's visible line (Phase 2 Follow-Up:
+    ///     Connector Shape Rendering). Slide index 0 contains only a lone, diagonal
+    ///     <c>&lt;p:cxnSp&gt;</c> connector with a <c>&lt;a:tailEnd type="arrow"/&gt;</c>
+    ///     arrowhead and no own width/fill (relying entirely on its own <c>&lt;p:style&gt;/
+    ///     &lt;a:lnRef idx="2"/&gt;</c> for its visible color/width - see
+    ///     <see cref="PptxDocument.ResolveConnectorLineStyle"/>'s own merge-resolver remarks for
+    ///     why this is a real, representative case, not a contrived one); slide index 1
+    ///     additionally places a picture alongside its own (perfectly horizontal,
+    ///     <c>&lt;a:ext cy="0"/&gt;</c>) connector, so slide 1 paints both the picture and the
+    ///     connector's own line.
     /// </summary>
     [Fact]
-    public void PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsSkippedSilently()
+    public void PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsPaintVisibleLines()
     {
         // Arrange
         using var document = PptxDocument.Open(Fixture("pythonpptx-shp-connector-props.pptx"));
@@ -428,12 +433,13 @@ public class PptxFixturesCorpusTests
         // Assert: slide count
         Assert.Equal(2, document.SlideCount);
 
-        // Act & Assert: slide 0 has only a connector - renders, paints nothing.
+        // Act & Assert: slide 0 has only a connector, now painting its own diagonal line (and
+        // tailEnd arrow), resolved entirely from its own <p:style>/<a:lnRef> fallback.
         using var surface0 = document.Render(0, Dpi, Transparent);
-        Assert.True(surface0.Width > 0);
-        Assert.True(surface0.Height > 0);
+        AssertPaintedSomePixel(surface0);
 
-        // Act & Assert: slide 1 has a picture alongside its own connector - paints the picture.
+        // Act & Assert: slide 1 has a picture alongside its own zero-height connector - both
+        // paint (the picture, and the connector's own now-fixed horizontal line).
         using var surface1 = document.Render(1, Dpi, Transparent);
         AssertPaintedSomePixel(surface1);
     }

@@ -326,12 +326,30 @@ public sealed partial class PptxDocument
                 }
 
                 break;
+
+            case PptxConnectorShapeNode connector:
+                try
+                {
+                    RenderConnector(surface, connector, theme, parentToSurface, colorMap);
+                }
+                catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
+                {
+                    // See the PptxSpShapeNode case's own remarks above. RenderConnector itself
+                    // additionally, and unconditionally (regardless of skipPlaceholderShapes),
+                    // already narrowly contains the one sub-step realistically able to throw this
+                    // same exception type (an exotic/unimplemented connector preset name) to just
+                    // that one connector - see RenderConnector's own remarks - so this outer catch
+                    // exists only for parity with every other node kind's own containment and is
+                    // not expected to ever actually trigger for a connector in practice.
+                }
+
+                break;
         }
 
-        // No default arm: PptxShapeTreeNode is a closed hierarchy over exactly these four
-        // subtypes (see PptxShapeTree.cs's own remarks) - ParseShapeTree already excludes
-        // connectors (<p:cxnSp>) and every other unrecognized element kind before a
-        // PptxShapeTreeNode is ever constructed, so there is no fifth case to handle here.
+        // No default arm: PptxShapeTreeNode is a closed hierarchy over exactly these five
+        // subtypes (see PptxShapeTree.cs's own remarks) - ParseShapeTree already excludes every
+        // other unrecognized element kind before a PptxShapeTreeNode is ever constructed, so
+        // there is no sixth case to handle here.
     }
 
     /// <summary>
@@ -506,5 +524,157 @@ public sealed partial class PptxDocument
         var localToSurface = frame.Transform * parentToSurface;
 
         PaintTable(surface, node.Table, theme, localToSurface, ResolveTextFont, colorMap);
+    }
+
+    /// <summary>
+    ///     Renders a <see cref="PptxConnectorShapeNode"/> (Phase 2 Follow-Up: Connector Shape
+    ///     Rendering): a <c>&lt;p:cxnSp&gt;</c> straight/elbow/curved connector line, typically
+    ///     drawn between two other shapes in a flowchart or diagram, with no text body and
+    ///     (unless it explicitly declares one) no fill of its own.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///     Painting order mirrors <see cref="RenderShape"/>'s own fill-then-stroke order: an
+    ///     explicit fill (rare for a connector, but valid - see hard requirement #4 of the
+    ///     companion planning report) is painted first, then the stroked line outline, then
+    ///     either endpoint's own resolved arrowhead.
+    ///     </para>
+    ///     <para>
+    ///     <b>Exception containment.</b> Only <see cref="ResolveShapeGeometry"/> - the one
+    ///     realistically able to throw a <see cref="PptxUnsupportedFeatureException"/> for a
+    ///     connector (an exotic/unimplemented preset name; see
+    ///     <see cref="PptxPresetGeometry.Build"/>) - is wrapped in its own, narrow,
+    ///     <em>unconditional</em> try/catch here, deliberately returning (skipping just this one
+    ///     connector) regardless of the caller's own <c>skipPlaceholderShapes</c> containment
+    ///     policy. This is a deliberate, connector-specific deviation from every other node kind's
+    ///     policy (which only ever skips gracefully for a master/layout's own decorative shapes,
+    ///     per <see cref="RenderNode"/>'s own remarks): an unsupported connector preset is common
+    ///     enough in real-world decks (this phase supports only the straight/bent/curved
+    ///     connector families - see <see cref="PptxPresetGeometry"/>) that it should degrade to
+    ///     "this one connector is invisible" rather than aborting an entire slide's own rendering,
+    ///     even for a slide's own (non-placeholder) shape tree.
+    ///     </para>
+    /// </remarks>
+    private static void RenderConnector(
+        Surface surface, PptxConnectorShapeNode node, PptxTheme theme, Matrix3x2 parentToSurface, PptxColorMap colorMap)
+    {
+        var spPrElement = node.CxnSpElement.Element(PresentationNamespace + "spPr");
+        var xfrmElement = spPrElement?.Element(DrawingNamespace + "xfrm");
+        if (spPrElement is null || xfrmElement is null)
+        {
+            // No resolvable <a:xfrm> - skip silently rather than throwing, matching RenderShape's
+            // own policy for a shape with no resolvable frame.
+            return;
+        }
+
+        var frame = ResolveShapeFrame(xfrmElement);
+        var localToSurface = frame.Transform * parentToSurface;
+
+        Path geometryPath;
+        try
+        {
+            geometryPath = ResolveShapeGeometry(spPrElement, frame.WidthEmu, frame.HeightEmu);
+        }
+        catch (PptxUnsupportedFeatureException)
+        {
+            // See this method's own remarks: an unsupported connector preset degrades to "this
+            // one connector is invisible", unconditionally, rather than aborting the slide.
+            return;
+        }
+
+        if (geometryPath.Subpaths.Count == 0)
+        {
+            return;
+        }
+
+        // A connector has no fill by default (hard requirement #4) - only paint one when the
+        // shape's own spPr explicitly declares a recognized fill-definition child, exactly like
+        // RenderShape's own "explicit fill-definition child always wins" HasExplicitFillChild
+        // check (a connector has no <p:style>/<a:fillRef> style fallback to consult at all).
+        if (HasExplicitFillChild(spPrElement))
+        {
+            var fill = ResolveFill(spPrElement, theme, frame.WidthEmu, frame.HeightEmu, colorMap: colorMap);
+            var transformedPath = geometryPath.Transform(localToSurface);
+            FillPaint(surface, transformedPath, fill);
+        }
+
+        var styleElement = node.CxnSpElement.Element(PresentationNamespace + "style");
+        var lineStyle = ResolveConnectorLineStyle(spPrElement, styleElement, theme, colorMap);
+        if (lineStyle is null)
+        {
+            return;
+        }
+
+        var strokedOutline = ResolveStrokeOutline(geometryPath, lineStyle).Transform(localToSurface);
+        FillPaint(surface, strokedOutline, lineStyle.Paint);
+
+        var lnElement = spPrElement.Element(DrawingNamespace + "ln");
+        var (startPoint, startTangent, endPoint, endTangent) = ComputeEndpointsAndTangents(geometryPath);
+
+        // headEnd is this connector's own start vertex, oriented pointing backward (away from the
+        // line, continuing past the start in the reverse direction of travel) - see
+        // PptxDocument.Connectors.cs's own remarks for why this mapping (rather than the other,
+        // superficially equally plausible one) matches real PowerPoint-authored connectors.
+        var headEnd = ResolveArrowhead(lnElement, "headEnd");
+        if (headEnd is not null)
+        {
+            PaintArrowhead(surface, headEnd, lineStyle, startPoint, -startTangent, localToSurface);
+        }
+
+        // tailEnd is this connector's own end vertex, oriented pointing forward (continuing past
+        // the end in the same direction of travel).
+        var tailEnd = ResolveArrowhead(lnElement, "tailEnd");
+        if (tailEnd is not null)
+        {
+            PaintArrowhead(surface, tailEnd, lineStyle, endPoint, endTangent, localToSurface);
+        }
+    }
+
+    /// <summary>
+    ///     Builds, orients, positions, and paints a single resolved connector arrowhead.
+    /// </summary>
+    /// <param name="surface">The destination surface to paint onto.</param>
+    /// <param name="style">The resolved arrowhead style to paint.</param>
+    /// <param name="lineStyle">The connector's own resolved line style (supplies the arrowhead's own size-scale basis and, for an open/stroked arrowhead, its paint/width).</param>
+    /// <param name="point">The arrowhead's own tip position, in the connector's local (pre-<paramref name="localToSurface"/>) coordinate space.</param>
+    /// <param name="direction">The direction the arrowhead's own tip points toward, in that same local coordinate space - need not be unit length.</param>
+    /// <param name="localToSurface">The connector's own resolved local-to-surface transform.</param>
+    private static void PaintArrowhead(
+        Surface surface, PptxArrowheadStyle style, PptxLineStyle lineStyle, Vector2 point, Vector2 direction, Matrix3x2 localToSurface)
+    {
+        if (direction == Vector2.Zero)
+        {
+            direction = Vector2.UnitX;
+        }
+
+        var arrowheadPath = PptxArrowheadGeometry.Build(style, lineStyle.WidthEmu);
+        if (arrowheadPath.Subpaths.Count == 0)
+        {
+            return;
+        }
+
+        // Rotating/translating in the connector's own local space (before localToSurface is
+        // applied) - rather than transforming direction/point into surface space first and
+        // rotating there - keeps an arrowhead consistent with any non-uniform scale or flip
+        // localToSurface itself carries, exactly like the connector's own stroked line outline
+        // (also built and transformed in local space; see RenderConnector).
+        var angle = MathF.Atan2(direction.Y, direction.X);
+        var orientToSurface = Matrix3x2.CreateRotation(angle) * Matrix3x2.CreateTranslation(point) * localToSurface;
+        var transformedArrowhead = arrowheadPath.Transform(orientToSurface);
+
+        if (style.Kind == PptxArrowheadKind.Arrow)
+        {
+            // The "arrow" open-chevron kind is stroked with the connector's own line paint/width,
+            // never dashed (an arrowhead should always read as a solid mark, even on a dashed
+            // connector) - built directly from PptxArrowheadGeometry.Build's own open path rather
+            // than ResolveStrokeOutline's usual "closed shape outline" path.
+            var arrowheadLineStyle = lineStyle with { DashArray = null };
+            var strokedArrowhead = ResolveStrokeOutline(arrowheadPath, arrowheadLineStyle).Transform(orientToSurface);
+            FillPaint(surface, strokedArrowhead, lineStyle.Paint);
+        }
+        else
+        {
+            FillPaint(surface, transformedArrowhead, lineStyle.Paint);
+        }
     }
 }

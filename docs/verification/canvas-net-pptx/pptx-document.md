@@ -870,6 +870,7 @@ fill, no border, no text) paints no non-background pixels at all.
 `ParseShapeTree_GraphicFrameTable_ProducesGraphicFrameShapeNodeWithParsedTable`,
 `ParseShapeTree_NoGraphicFrame_NeverInvokesThemeResolver`,
 `ParseShapeTree_UnrecognizedElements_SilentlySkipped`,
+`ParseShapeTree_Connector_ProducesConnectorShapeNode`,
 `ParseShapeTree_Group_ProducesGroupShapeNodeWithDirectSiblingChildren`,
 `ParseShapeTree_NestedGroups_EachResolveOwnChildTransformAndChildren`,
 `ParseShapeTree_GroupMissingXfrm_ThrowsInvalidDataException`,
@@ -885,7 +886,9 @@ element, proves a `<p:graphicFrame>` declaring a table dispatches to a `PptxGrap
 with its table eagerly parsed, proves a shape tree with no `<p:graphicFrame>` at all never invokes
 the supplied `Func<PptxTheme>` theme resolver (confirming the deferred, lazy theme-resolution
 design - see the design doc's own *Shape Tree* subsection), proves unrecognized element kinds
-(`<p:cxnSp>`, `<p:contentPart>`) are silently skipped rather than rejected, proves a `<p:grpSp>`
+(`<p:contentPart>`) are silently skipped rather than rejected, proves a `<p:cxnSp>` dispatches to
+a `PptxConnectorShapeNode` wrapping the raw element (see the *Connector Shape Rendering*
+subsection below), proves a `<p:grpSp>`
 dispatches to a `PptxGroupShapeNode` whose children are its own direct siblings (not wrapped in a
 nested `<p:spTree>`) with its child transform resolved from its own `<a:xfrm>`, proves nested
 `<p:grpSp>` elements each resolve their own child transform and recurse into their own direct
@@ -907,7 +910,6 @@ non-numeric `idx` attribute with `InvalidDataException`.
 `Render_SmallPixelDimensionsAgainstLargeEmuSlideSize_DoesNotTruncateTransformToZero`,
 `Render_TwoOverlappingShapes_LaterShapePaintsOnTopInDocumentOrder`,
 `Render_ShapeWithNoXfrm_SkippedSilently`,
-`Render_ConnectorShape_SkippedSilentlyWithoutError`,
 `Render_NestedGroup_ComposesChildTransformIntoExpectedSurfaceLocation`,
 `Render_DoublyNestedGroups_EachComposeOwnChildTransform`,
 `Render_Picture_PaintsEmbeddedImageAtExpectedLocation`,
@@ -930,7 +932,7 @@ non-numeric `idx` attribute with `InvalidDataException`.
 `PptxDocument_Render_PhInheritPropsFixture_Slide0PaintsSlide1RendersWithoutError`,
 `PptxDocument_Render_PhUnpopulatedPlaceholdersFixture_RendersEverySlideWithoutError`,
 `PptxDocument_Render_TxtFitTextFixture_PaintsVisibleContent`,
-`PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsSkippedSilently`,
+`PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsPaintVisibleLines`,
 `PptxDocument_Render_DmlFillFixture_BothSlidesThrowUnsupportedFillFeature`,
 `PptxDocument_Render_DmlLineFixture_RendersEverySlideWithVisibleContent`,
 `PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature`,
@@ -942,11 +944,10 @@ slide with no shapes at all renders only the cleared background, proves renderin
 far smaller than the slide's own EMU magnitude does not truncate the EMU-to-pixel transform to a
 zero scale factor via integer division, proves two overlapping shapes composite in document order
 (the later shape paints on top of the earlier one), proves a shape with no resolvable `<a:xfrm>`
-is skipped silently rather than throwing, proves a slide containing only a `<p:cxnSp>` connector
-renders without error and paints nothing (connectors are never represented in the parsed shape
-tree at all), proves a shape nested inside a `<p:grpSp>` is painted at the expected surface
-location after composing the group's own child transform with the base transform, proves doubly
-nested groups each compose their own child transform independently through two full levels of
+is skipped silently rather than throwing, proves a shape nested inside a `<p:grpSp>` is painted at
+the expected surface location after composing the group's own child transform with the base
+transform, proves doubly nested groups each compose their own child transform independently
+through two full levels of
 recursion, proves a `<p:pic>` paints its embedded image at the expected surface location, proves
 a `<p:pic>` missing its own `<p:blipFill>` is skipped silently, proves a `<p:graphicFrame>`'s
 table paints a cell's own resolved fill across its cell rectangle, proves a `<p:graphicFrame>`
@@ -1323,6 +1324,80 @@ resolution mechanisms/unimplemented features entirely, not an extension of this 
 and a placeholder shape's own `<p:style>` is never inherited from its matched layout/master
 placeholder - only a shape's own, directly-declared `<p:style>` is consulted.
 
+#### CanvasNetPptx-PptxDocument-ConnectorRendering: `<p:cxnSp>` Connector Shape Rendering
+
+**Tests**: `ParseShapeTree_Connector_ProducesConnectorShapeNode`,
+`PptxPresetGeometry_Build_StraightConnectorPresets_ProducesOpenDiagonal`,
+`PptxPresetGeometry_Build_StraightConnectorWithZeroWidthOrHeight_StillProducesLine`,
+`PptxPresetGeometry_Build_OrdinaryPresetWithZeroHeight_StillDegradesToEmpty`,
+`PptxPresetGeometry_Build_BentConnectorPresets_ReachesEndpointAsOpenPolyline`,
+`PptxPresetGeometry_Build_CurvedConnectorPresets_ReachesEndpoint`,
+`ResolveShapeFrame_StraightConnectorWithFlipCombination_MapsEndpointsCorrectly`,
+`ResolveConnectorLineStyle_OwnLnExplicitNoFill_AlwaysWinsOverStyle`,
+`ResolveConnectorLineStyle_OwnLnHasNoWidth_FallsBackToStyleWidth`,
+`ResolveConnectorLineStyle_OwnLnHasWidthButNoFill_FallsBackToStylePaint`,
+`ResolveConnectorLineStyle_OwnLnHasExplicitWidthAndFill_OwnValuesWin`,
+`ResolveConnectorLineStyle_NoOwnWidthAndNoStyle_ResolvesToNull`,
+`ResolveConnectorLineStyle_OwnLnHasExplicitDash_UsesOwnDashArray`,
+`ResolveArrowhead_RecognizedTypeValue_ResolvesExpectedKind`,
+`ResolveArrowhead_NoLnElement_ReturnsNull`, `ResolveArrowhead_NoMatchingEndElement_ReturnsNull`,
+`ResolveArrowhead_NoneOrUnrecognizedType_ReturnsNull`,
+`ResolveArrowhead_NoWOrLenAttributes_DefaultsToMed`,
+`PptxArrowheadGeometry_Build_FilledKinds_TipAtOriginBodyExtendsBackward`,
+`PptxArrowheadGeometry_Build_Oval_IsClosedAndCenteredNearOrigin`,
+`PptxArrowheadGeometry_Build_Arrow_IsOpenChevron`,
+`PptxArrowheadGeometry_Build_NonPositiveLineWidth_ReturnsEmpty`,
+`PptxArrowheadGeometry_Build_SizeKeys_LargeIsBiggerThanSmall`,
+`ComputeEndpointsAndTangents_HorizontalStraightConnector_TangentsPointAlongPositiveX`,
+`ComputeEndpointsAndTangents_VerticalStraightConnector_TangentsPointAlongPositiveY`,
+`ComputeEndpointsAndTangents_DiagonalStraightConnector_TangentsPointAtFortyFiveDegrees`,
+`ComputeEndpointsAndTangents_BentConnector_FinalSegmentTangentPointsAlongLastDirection`,
+`Render_StraightConnector_PaintsDiagonalLineAtExpectedPixels`,
+`Render_ZeroHeightHorizontalConnector_PaintsLineWithoutDegradingToEmpty`,
+`Render_ConnectorWithTailArrowhead_PaintsArrowheadNearEndpoint`,
+`PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsPaintVisibleLines`
+
+Proves `ParseShapeTree` dispatches a `<p:cxnSp>` to its own `PptxConnectorShapeNode` in the same
+document-order tree walk as every other shape kind (so z-order among siblings, and group-nested
+transform composition, apply identically) - closing the gap where a connector was previously
+never represented in the parsed shape tree at all. Proves `PptxPresetGeometry.Build` resolves
+`line`/`straightConnector1` as a plain open two-point diagonal path across `flipH`/`flipV`/both/
+neither transform combinations, proves a connector preset with a zero width and/or zero height
+still builds its line (the real-world bug fix, confirmed necessary by the
+`pythonpptx-shp-connector-props.pptx` fixture's own zero-height connector) while an ordinary,
+non-connector preset given the same zero-size input still correctly degrades to `Path.Empty`
+(proving the bypass is scoped to connector presets only, not a general relaxation), and proves
+`bentConnectorN`/`curvedConnectorN` elbow geometry reaches both of its own declared endpoints.
+Proves `ResolveConnectorLineStyle`'s per-attribute merge: a connector's own fully-specified
+`<a:ln>` wins outright; an `<a:ln>` declaring neither width nor fill falls back to its sibling
+`<p:style>/<a:lnRef>` for both; an explicit `<a:noFill/>` on the connector's own `<a:ln>` always
+wins over the style reference regardless; a connector's own dash style wins over any style
+fallback; and a connector with neither its own `<a:ln>` nor a `<p:style>/<a:lnRef>` resolves to no
+line style at all. Proves `ResolveArrowhead` resolves each recognized `type` value
+(`triangle`/`stealth`/`diamond`/`oval`/`arrow`) to its matching `PptxArrowheadKind` carrying
+through its `w`/`len` size keys, returns no arrowhead for an absent `<a:ln>`, an absent matching
+`<a:headEnd>`/`<a:tailEnd>` child, or an explicit `none`/unrecognized `type` value, and defaults
+absent `w`/`len` attributes to `"med"`. Proves `PptxArrowheadGeometry.Build` places every filled
+kind's tip at the local origin with its body extending backward, builds `oval` as a closed
+ellipse and `arrow` as an open (not filled) chevron, returns `Path.Empty` for a non-positive line
+width, and scales strictly larger for the `"lg"` size key than for `"sm"`. Proves
+`ComputeEndpointsAndTangents` resolves the correct start/end points and tangent directions for
+horizontal, vertical, diagonal, and bent connector geometries. Finally, proves the fix end-to-end
+at the render/pixel level: a straight connector paints its diagonal line at the expected pixel
+positions; a zero-height connector still paints its horizontal line (the bug-fix proof, now at
+the render level); a connector with a `tailEnd type="triangle"` arrowhead paints ink well outside
+the plain line's own stroke width, flared out just above its tip at the connector's own endpoint;
+and the real `pythonpptx-shp-connector-props.pptx` fixture - whose one connector relies entirely
+on its `<p:style>/<a:lnRef idx="2">` for its own visible color, with no fill/width declared on
+its own bare `<a:ln>` - now paints visible content on both of its slides, where previously only
+slide 0's dimensions were asserted and no pixel content was checked at all. Documented, accepted
+limitations (not separately tested as defects): only `line`/`straightConnector1` and the four
+`bentConnectorN`/four `curvedConnectorN` presets are implemented (any other connector preset name
+degrades to "this one connector paints nothing", not a crash); the arrowhead size-keyword-to-EMU
+mapping is a documented visual approximation, not derived from a published PowerPoint-internal
+constant table; and connection-site (`<a:stCxn>`/`<a:endCxn>`) auto-routing is out of scope - a
+connector always renders at its own last-saved, static `<a:xfrm>` position.
+
 ## Acceptance Criteria
 
 A unit-level test run passes when all scenarios above pass without error or exception beyond
@@ -1363,8 +1438,10 @@ above instead. Not yet covered: a non-placeholder (freeform) shape's own backgro
 `<p:pic>` shape's own `<p:blipFill>`), picture effects/shadows, nested tables, table auto-sizing to
 fit overflowing cell content (each row's resolved height is taken verbatim from its declared
 `<a:tr h="...">` value, with no growth to accommodate overflowing cell content), table
-style/banding (`<a:tableStyleId>`), `<p:cxnSp>` connector shapes, group-level style cascading
+style/banding (`<a:tableStyleId>`), group-level style cascading
 beyond transform composition, radial/path gradients, `<a:avLst>` preset adjustment-value parsing,
 bullets/numbering, full text justification, `<a:spAutoFit>` shape-resize autofit, kerning, and text
-clipping on overflow. None of these is a currently planned phase; any of them remaining important is a candidate for a
-future, corpus-driven hardening pass (`pptx-phase-2`), not a scheduled increment.
+clipping on overflow. (`<p:cxnSp>` connector shapes are now covered by *CanvasNetPptx-PptxDocument-
+ConnectorRendering* below instead.) None of these is a currently planned phase; any of them
+remaining important is a candidate for a future, corpus-driven hardening pass (`pptx-phase-2`),
+not a scheduled increment.

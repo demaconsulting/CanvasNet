@@ -146,6 +146,23 @@ public class PptxGroupsTests
         Assert.Same(pic, node.PicElement);
     }
 
+    /// <summary>Proves a <c>&lt;p:cxnSp&gt;</c> produces a <see cref="PptxConnectorShapeNode"/> wrapping the raw element, dispatched in the same tree walk as every other shape kind (so its document-order position, and therefore z-order among siblings, is preserved).</summary>
+    [Fact]
+    public void ParseShapeTree_Connector_ProducesConnectorShapeNode()
+    {
+        var cxnSp = new XElement(P + "cxnSp",
+            new XElement(P + "nvCxnSpPr", new XElement(P + "cNvPr", new XAttribute("id", 2), new XAttribute("name", "Connector")), new XElement(P + "cNvCxnSpPr"), new XElement(P + "nvPr")),
+            new XElement(P + "spPr"));
+        var spTree = new XElement(P + "spTree", BuildFreeformSp(), cxnSp);
+
+        var nodes = PptxDocument.ParseShapeTree(spTree, ThemeResolver(BuildTestTheme()));
+
+        Assert.Equal(2, nodes.Count);
+        Assert.IsType<PptxSpShapeNode>(nodes[0]);
+        var node = Assert.IsType<PptxConnectorShapeNode>(nodes[1]);
+        Assert.Same(cxnSp, node.CxnSpElement);
+    }
+
     /// <summary>Proves a <c>&lt;p:graphicFrame&gt;</c> declaring a table produces a <see cref="PptxGraphicFrameShapeNode"/> with its table eagerly parsed.</summary>
     [Fact]
     public void ParseShapeTree_GraphicFrameTable_ProducesGraphicFrameShapeNodeWithParsedTable()
@@ -174,12 +191,11 @@ public class PptxGroupsTests
         Assert.False(invoked);
     }
 
-    /// <summary>Proves unrecognized element kinds (<c>&lt;p:cxnSp&gt;</c> and an unknown element) are silently skipped.</summary>
+    /// <summary>Proves an unrecognized element kind (<c>&lt;p:contentPart&gt;</c>) is silently skipped - unlike <c>&lt;p:cxnSp&gt;</c>, which is now recognized and dispatched (see <see cref="ParseShapeTree_Connector_ProducesConnectorShapeNode"/>).</summary>
     [Fact]
     public void ParseShapeTree_UnrecognizedElements_SilentlySkipped()
     {
         var spTree = new XElement(P + "spTree",
-            new XElement(P + "cxnSp"),
             new XElement(P + "contentPart"),
             BuildFreeformSp());
 

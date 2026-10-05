@@ -1139,8 +1139,10 @@ sections:
               table is actually encountered - via the slide's own layout/master/theme relationship
               chain), and a <p:grpSp> to PptxGroupShapeNode (resolving its own child-coordinate-
               space transform via the already-verified Phase 1c ResolveGroupChildTransform and
-              recursing into its own children), silently skipping any other element kind (for
-              example <p:nvGrpSpPr>, <p:grpSpPr>, <p:cxnSp>, or <p:contentPart>), and shall expose
+              recursing into its own children), and a <p:cxnSp> to PptxConnectorShapeNode (wrapping
+              the raw element for a later rendering pass - see CanvasNetPptx-PptxDocument-
+              ConnectorRendering below), silently skipping any other, truly unrecognized element
+              kind (for example <p:nvGrpSpPr>, <p:grpSpPr>, or <p:contentPart>), and shall expose
               the result as PptxSlide.ShapeTree alongside the existing, unchanged
               PptxSlide.Placeholders flat list.
             justification: |
@@ -1161,6 +1163,7 @@ sections:
               - ParseShapeTree_GraphicFrameTable_ProducesGraphicFrameShapeNodeWithParsedTable
               - ParseShapeTree_NoGraphicFrame_NeverInvokesThemeResolver
               - ParseShapeTree_UnrecognizedElements_SilentlySkipped
+              - ParseShapeTree_Connector_ProducesConnectorShapeNode
               - ParseShapeTree_Group_ProducesGroupShapeNodeWithDirectSiblingChildren
               - ParseShapeTree_NestedGroups_EachResolveOwnChildTransformAndChildren
               - ParseShapeTree_GroupMissingXfrm_ThrowsInvalidDataException
@@ -1204,7 +1207,6 @@ sections:
               - Render_SmallPixelDimensionsAgainstLargeEmuSlideSize_DoesNotTruncateTransformToZero
               - Render_TwoOverlappingShapes_LaterShapePaintsOnTopInDocumentOrder
               - Render_ShapeWithNoXfrm_SkippedSilently
-              - Render_ConnectorShape_SkippedSilentlyWithoutError
               - Render_NestedGroup_ComposesChildTransformIntoExpectedSurfaceLocation
               - Render_DoublyNestedGroups_EachComposeOwnChildTransform
               - Render_Picture_PaintsEmbeddedImageAtExpectedLocation
@@ -1227,7 +1229,7 @@ sections:
               - PptxDocument_Render_PhInheritPropsFixture_Slide0PaintsSlide1RendersWithoutError
               - PptxDocument_Render_PhUnpopulatedPlaceholdersFixture_RendersEverySlideWithoutError
               - PptxDocument_Render_TxtFitTextFixture_PaintsVisibleContent
-              - PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsSkippedSilently
+              - PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsPaintVisibleLines
               - PptxDocument_Render_DmlFillFixture_BothSlidesThrowUnsupportedFillFeature
               - PptxDocument_Render_DmlLineFixture_RendersEverySlideWithVisibleContent
               - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature
@@ -1367,10 +1369,11 @@ sections:
               unchanged. A slide only ever walks its own layout's and that layout's own master's
               shape tree (the same slide -> layout -> master relationship already resolved for
               placeholder inheritance and background), never an unrelated layout's or master's
-              shapes. A master/layout shape that itself uses an already-deferred feature (a
-              connector, an unsupported preset geometry, an unsupported raster picture format, and
-              so on) hits the exact same PptxUnsupportedFeatureException boundary a slide-level
-              shape already hits. A regression fix corrected the original implementation, which did
+              shapes. A master/layout shape that itself uses an already-deferred feature (an
+              unsupported preset geometry, a chart/OLE graphic frame, an unsupported raster
+              picture format, and so on) hits the exact same PptxUnsupportedFeatureException
+              boundary a slide-level shape already hits. A regression fix corrected the original
+              implementation, which did
               not contain this exception: without containment, a single already-deferred feature
               used by one decorative master/layout shape aborted rendering for every slide using
               that master/layout - a severe regression versus the pre-existing behavior where
@@ -1553,3 +1556,86 @@ sections:
               - Render_ShapeWithBothExplicitSpPrFillAndStyleFillRef_ExplicitFillWins
               - Render_ShapeWithOnlyStyleLnRefNoExplicitLn_RendersResolvedStrokeColor
               - Render_ShapeWithExplicitLnNoFillAndStyleLnRef_ExplicitLnWins
+
+          - id: CanvasNetPptx-PptxDocument-ConnectorRendering
+            title: >-
+              The PptxDocument class shall dispatch a <p:cxnSp> connector shape to its own
+              PptxConnectorShapeNode in the same document-order shape-tree walk as every other
+              shape kind, resolving its preset connector geometry (line/straightConnector1 as an
+              open two-point diagonal; bentConnector2-5/curvedConnector2-5 as an elbow polyline,
+              optionally corner-rounded; any other, unimplemented preset name failing gracefully
+              for that one shape only, not the whole slide render) even when its own <a:ext>
+              declares a zero width and/or zero height, shall paint its effective stroke by
+              merging its own <a:ln> with its sibling <p:style>/<a:lnRef> fallback independently
+              per attribute (width, paint, dash) rather than as an all-or-nothing choice, shall
+              paint a fill only when the connector's own <p:spPr> explicitly declares one, and
+              shall paint a resolved <a:headEnd>/<a:tailEnd> arrowhead (recognizing
+              triangle/stealth/diamond/oval/arrow type values, sized relative to the connector's
+              own stroke width via its w/len size keywords) oriented along the connector's own
+              line direction at the corresponding endpoint.
+            justification: |
+              A <p:cxnSp> connector shape - the straight/elbow/curved lines PowerPoint draws
+              between other shapes in flowcharts and diagrams - was previously never represented
+              in the parsed shape tree at all, so a slide containing one rendered with that
+              connector simply absent; for a real-world flowchart/diagram slide this is a severe,
+              highly visible fidelity gap, not a gracefully-deferred rare feature. Dispatching
+              <p:cxnSp> through the exact same ParseShapeTree/RenderNode walk every other shape
+              kind already uses (rather than a parallel, connector-specific tree/render path)
+              keeps a connector's z-order among its siblings, and its own group-nested transform
+              composition when nested inside a <p:grpSp>, correct for free, with no special-casing
+              needed anywhere in the walk itself. The preset-geometry zero-size bypass is a
+              targeted, connector-scoped fix: a real-world connector frequently declares a
+              perfectly horizontal or vertical line via a zero-height or zero-width <a:ext> -
+              confirmed in the pythonpptx-shp-connector-props.pptx fixture's own second slide -
+              and PptxPresetGeometry's own pre-existing "non-positive bounding box renders as
+              Path.Empty" guard (correct and unchanged for every other, non-connector preset) would
+              otherwise silently discard such a connector's line entirely. The per-attribute line-
+              style merge (rather than RenderShape's own simpler "any present <a:ln> wins outright
+              over <a:lnRef>" policy) was proven necessary by that same real fixture: its own
+              connector declares a bare <a:ln><a:tailEnd type="arrow"/></a:ln> - no width, no fill
+              - relying entirely on its sibling <p:style>/<a:lnRef> for its actual visible color
+              and width; under the ordinary shape policy this would resolve to an invisible line.
+              A connector paints no fill by default (unlike an ordinary autoshape) because a real
+              connector line is visually just a stroked path with no interior area to fill, and
+              PowerPoint itself only rarely has a user explicitly add one. Arrowhead size-keyword
+              scaling is a documented, reasonable visual approximation relative to the connector's
+              own stroke width, since PowerPoint publishes no normative EMU/pixel table for its own
+              sm/med/lg size keywords. An exotic or future connector preset name this phase does
+              not implement degrades to "this one connector paints nothing" (via a dedicated,
+              unconditional inner try/catch around connector geometry resolution specifically, in
+              addition to the standard skipPlaceholderShapes-gated outer catch every node kind
+              already has) rather than aborting the rest of the slide's own render - satisfying the
+              same graceful, single-shape-scoped degradation policy already established for
+              master/layout decorative shapes, now extended to a slide's own connectors as well.
+            tests:
+              - ParseShapeTree_Connector_ProducesConnectorShapeNode
+              - PptxPresetGeometry_Build_StraightConnectorPresets_ProducesOpenDiagonal
+              - PptxPresetGeometry_Build_StraightConnectorWithZeroWidthOrHeight_StillProducesLine
+              - PptxPresetGeometry_Build_OrdinaryPresetWithZeroHeight_StillDegradesToEmpty
+              - PptxPresetGeometry_Build_BentConnectorPresets_ReachesEndpointAsOpenPolyline
+              - PptxPresetGeometry_Build_CurvedConnectorPresets_ReachesEndpoint
+              - ResolveShapeFrame_StraightConnectorWithFlipCombination_MapsEndpointsCorrectly
+              - ResolveConnectorLineStyle_OwnLnExplicitNoFill_AlwaysWinsOverStyle
+              - ResolveConnectorLineStyle_OwnLnHasNoWidth_FallsBackToStyleWidth
+              - ResolveConnectorLineStyle_OwnLnHasWidthButNoFill_FallsBackToStylePaint
+              - ResolveConnectorLineStyle_OwnLnHasExplicitWidthAndFill_OwnValuesWin
+              - ResolveConnectorLineStyle_NoOwnWidthAndNoStyle_ResolvesToNull
+              - ResolveConnectorLineStyle_OwnLnHasExplicitDash_UsesOwnDashArray
+              - ResolveArrowhead_RecognizedTypeValue_ResolvesExpectedKind
+              - ResolveArrowhead_NoLnElement_ReturnsNull
+              - ResolveArrowhead_NoMatchingEndElement_ReturnsNull
+              - ResolveArrowhead_NoneOrUnrecognizedType_ReturnsNull
+              - ResolveArrowhead_NoWOrLenAttributes_DefaultsToMed
+              - PptxArrowheadGeometry_Build_FilledKinds_TipAtOriginBodyExtendsBackward
+              - PptxArrowheadGeometry_Build_Oval_IsClosedAndCenteredNearOrigin
+              - PptxArrowheadGeometry_Build_Arrow_IsOpenChevron
+              - PptxArrowheadGeometry_Build_NonPositiveLineWidth_ReturnsEmpty
+              - PptxArrowheadGeometry_Build_SizeKeys_LargeIsBiggerThanSmall
+              - ComputeEndpointsAndTangents_HorizontalStraightConnector_TangentsPointAlongPositiveX
+              - ComputeEndpointsAndTangents_VerticalStraightConnector_TangentsPointAlongPositiveY
+              - ComputeEndpointsAndTangents_DiagonalStraightConnector_TangentsPointAtFortyFiveDegrees
+              - ComputeEndpointsAndTangents_BentConnector_FinalSegmentTangentPointsAlongLastDirection
+              - Render_StraightConnector_PaintsDiagonalLineAtExpectedPixels
+              - Render_ZeroHeightHorizontalConnector_PaintsLineWithoutDegradingToEmpty
+              - Render_ConnectorWithTailArrowhead_PaintsArrowheadNearEndpoint
+              - PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsPaintVisibleLines

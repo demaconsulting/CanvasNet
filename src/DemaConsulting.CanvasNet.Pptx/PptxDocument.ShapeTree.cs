@@ -5,9 +5,10 @@ namespace DemaConsulting.CanvasNet.Pptx;
 // cspell:ignore grpsp cxnsp sptree pptx xfrm
 
 /// <summary>
-///     Implements the <see cref="PptxDocument"/> shape-tree walker (Phase 1e): recursively parses a
-///     <c>&lt;p:spTree&gt;</c> (or a <c>&lt;p:grpSp&gt;</c>, whose own shape children are direct
-///     siblings of its <c>&lt;p:nvGrpSpPr&gt;</c>/<c>&lt;p:grpSpPr&gt;</c> rather than a nested
+///     Implements the <see cref="PptxDocument"/> shape-tree walker (Phase 1e, extended by the
+///     Phase 2 Follow-Up connector-rendering work): recursively parses a <c>&lt;p:spTree&gt;</c>
+///     (or a <c>&lt;p:grpSp&gt;</c>, whose own shape children are direct siblings of its
+///     <c>&lt;p:nvGrpSpPr&gt;</c>/<c>&lt;p:grpSpPr&gt;</c> rather than a nested
 ///     <c>&lt;p:spTree&gt;</c>, per ECMA-376's <c>CT_GroupShape</c> content model) into a
 ///     <see cref="PptxShapeTreeNode"/> hierarchy, dispatching each recognized child element kind to
 ///     its own node type and silently skipping anything else.
@@ -26,7 +27,8 @@ public sealed partial class PptxDocument
     ///     <see cref="ResolveGroupChildTransform"/> and recursing into the same group element for
     ///     its own children, since a group's children are direct siblings of its own
     ///     <c>&lt;p:nvGrpSpPr&gt;</c>/<c>&lt;p:grpSpPr&gt;</c>, not wrapped in a nested
-    ///     <c>&lt;p:spTree&gt;</c>).
+    ///     <c>&lt;p:spTree&gt;</c>), and <c>&lt;p:cxnSp&gt;</c> &#8594;
+    ///     <see cref="PptxConnectorShapeNode"/> (Phase 2 Follow-Up: Connector Shape Rendering).
     /// </summary>
     /// <param name="spTreeOrGroupElement">
     ///     The <c>&lt;p:spTree&gt;</c> (slide-level) or <c>&lt;p:grpSp&gt;</c> (nested-group-level)
@@ -43,7 +45,7 @@ public sealed partial class PptxDocument
     /// </param>
     /// <returns>
     ///     The recognized shape-tree nodes, in document order. Unrecognized element kinds (for
-    ///     example <c>&lt;p:nvGrpSpPr&gt;</c>, <c>&lt;p:grpSpPr&gt;</c>, <c>&lt;p:cxnSp&gt;</c>, or
+    ///     example <c>&lt;p:nvGrpSpPr&gt;</c>, <c>&lt;p:grpSpPr&gt;</c>, or
     ///     <c>&lt;p:contentPart&gt;</c>) are silently skipped - a tree-walk tolerance, not a
     ///     fail-closed feature rejection, matching the existing Phase 1b precedent of silently
     ///     excluding non-placeholder shapes from <see cref="PptxSlide.Placeholders"/>.
@@ -84,9 +86,13 @@ public sealed partial class PptxDocument
                 var children = ParseShapeTree(child, themeResolver);
                 nodes.Add(new PptxGroupShapeNode(child, childTransform, children));
             }
+            else if (child.Name == PresentationNamespace + "cxnSp")
+            {
+                nodes.Add(new PptxConnectorShapeNode(child));
+            }
 
-            // Any other element kind (<p:nvGrpSpPr>, <p:grpSpPr>, <p:cxnSp>, <p:contentPart>, or
-            // anything unrecognized) is silently skipped.
+            // Any other element kind (<p:nvGrpSpPr>, <p:grpSpPr>, <p:contentPart>, or anything
+            // unrecognized) is silently skipped.
         }
 
         return nodes;

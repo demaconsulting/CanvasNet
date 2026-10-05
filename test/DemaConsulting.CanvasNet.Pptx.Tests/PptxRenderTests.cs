@@ -8,7 +8,7 @@ namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
 // cspell:ignore pptx sppr nvsppr nvpr cnvpr cnvsppr grpsp nvgrpsppr grpsppr cxnsp nvcxnsppr cnvcxnsppr
 // cspell:ignore nvpicpr nvpr cnvpicpr blipfill srcrect embed graphicframe tbl tblgrid gridcol tcpr srgb
-// cspell:ignore calibri txbox xfrm prst Xfrm hlink Hlink cust
+// cspell:ignore calibri txbox xfrm prst Xfrm hlink Hlink cust pythonpptx
 
 /// <summary>
 ///     Unit-level tests for the Phase 1f public, slide-level rendering API
@@ -631,9 +631,13 @@ public class PptxRenderTests
         Assert.Equal(new Rgba32(255, 255, 255, 255), surface[10, 10]);
     }
 
-    /// <summary>Proves a <c>&lt;p:cxnSp&gt;</c> connector shape (never represented in the parsed shape tree at all) is tolerated - rendering completes without error and paints nothing where the connector would have been.</summary>
+    /// <summary>
+    ///     Proves a <c>&lt;p:cxnSp&gt;</c> straight connector (Phase 2 Follow-Up: Connector Shape
+    ///     Rendering) actually paints a visible diagonal line - the real, positive replacement for
+    ///     the old "connectors are silently skipped" behavior this phase removes.
+    /// </summary>
     [Fact]
-    public void Render_ConnectorShape_SkippedSilentlyWithoutError()
+    public void Render_StraightConnector_PaintsDiagonalLineAtExpectedPixels()
     {
         const string spTreeInnerXml =
             """
@@ -641,23 +645,88 @@ public class PptxRenderTests
               <p:nvCxnSpPr><p:cNvPr id="2" name="Connector"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>
               <p:spPr>
                 <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
-                <a:prstGeom prst="line"><a:avLst/></a:prstGeom>
-                <a:ln><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln>
+                <a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom>
+                <a:ln w="914400"><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln>
               </p:spPr>
             </p:cxnSp>
             """;
         using var stream = BuildRenderPackage(spTreeInnerXml);
         using var document = PptxDocument.Open(stream);
 
-        using var surface = document.Render(0, 20, 20);
+        using var surface = document.Render(0, 100, 100);
 
-        for (var y = 0; y < 20; y++)
-        {
-            for (var x = 0; x < 20; x++)
-            {
-                Assert.Equal(new Rgba32(255, 255, 255, 255), surface[x, y]);
-            }
-        }
+        // The connector's own local geometry runs from (0,0) to (w,h) - its full diagonal, here
+        // coincident with the slide's own full extent - so its midpoint lands at pixel (50,50).
+        // A point well off that diagonal (the top-right corner) must stay unpainted.
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[95, 5]);
+    }
+
+    /// <summary>
+    ///     Proves the zero-height (perfectly horizontal) connector bug fix: a connector whose own
+    ///     <c>&lt;a:ext cy="0"/&gt;</c> (confirmed in the real-world
+    ///     <c>pythonpptx-shp-connector-props.pptx</c> fixture's own second slide) still paints its
+    ///     horizontal line rather than degrading to <see cref="Geometry.Path.Empty"/> under the
+    ///     ordinary preset-geometry "non-positive bounding box" guard.
+    /// </summary>
+    [Fact]
+    public void Render_ZeroHeightHorizontalConnector_PaintsLineWithoutDegradingToEmpty()
+    {
+        const string spTreeInnerXml =
+            """
+            <p:cxnSp>
+              <p:nvCxnSpPr><p:cNvPr id="2" name="Connector"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="1000000" y="3000000"/><a:ext cx="5000000" cy="0"/></a:xfrm>
+                <a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom>
+                <a:ln w="457200"><a:solidFill><a:srgbClr val="0000FF"/></a:solidFill></a:ln>
+              </p:spPr>
+            </p:cxnSp>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 100, 100);
+
+        // 1000000 EMU is roughly 10.9px (x), and 3000000 EMU is roughly 43.8px (y, out of the
+        // slide's 6858000 EMU height), within a 9144000x6858000 slide rendered at 100x100 pixels.
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[33, 43]);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[33, 10]);
+    }
+
+    /// <summary>
+    ///     Proves a connector's own <c>&lt;a:tailEnd type="triangle"/&gt;</c> arrowhead actually
+    ///     paints extra ink beyond the plain stroked line width - the triangle's tip sits at the
+    ///     connector's own end point and its base flares out well past the line's own thickness.
+    /// </summary>
+    [Fact]
+    public void Render_ConnectorWithTailArrowhead_PaintsArrowheadNearEndpoint()
+    {
+        const string spTreeInnerXml =
+            """
+            <p:cxnSp>
+              <p:nvCxnSpPr><p:cNvPr id="2" name="Connector"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="1000000" y="1000000"/><a:ext cx="0" cy="4000000"/></a:xfrm>
+                <a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom>
+                <a:ln w="182880"><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill><a:tailEnd type="triangle" w="lg" len="lg"/></a:ln>
+              </p:spPr>
+            </p:cxnSp>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 200, 200);
+
+        // The connector is a vertical line (cx=0) from (1000000,1000000) to (1000000,5000000) EMU
+        // - rendered at 200x200px against a 9144000x6858000 slide, that is roughly (21.9, 29.2)
+        // to (21.9, 145.8) in pixel space, centered on x=22. A thin (182880 EMU, about 4px) line
+        // alone would never paint more than ~2px either side of that centerline; the "lg" triangle
+        // tailEnd arrowhead flares out much further than that just above its tip at the endpoint
+        // - assert a pixel well off the centerline (x=15, 7px off-center), just above the endpoint
+        // (within the arrowhead's own flared base, not the plain line), is red.
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[15, 122]);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[15, 60]);
     }
 
     /// <summary>

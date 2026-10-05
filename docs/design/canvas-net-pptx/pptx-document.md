@@ -890,10 +890,12 @@ closed `PptxShapeTreeNode` hierarchy (`PptxShapeTree.cs`):
   the already-verified Phase 1c `ResolveGroupChildTransform` (reading its `<p:grpSpPr>/<a:xfrm>`
   element, throwing `InvalidDataException` when absent) and recurses `ParseShapeTree` on the same
   group element for its own children.
-- **Anything else** (`<p:nvGrpSpPr>`, `<p:grpSpPr>`, `<p:cxnSp>`, `<p:contentPart>`, or any other
-  unrecognized element kind) is **silently skipped** - a tree-walk tolerance, not a fail-closed
-  feature rejection, matching the existing Phase 1b precedent of silently excluding
-  non-placeholder shapes from the flat placeholder list.
+- **Anything else** (`<p:nvGrpSpPr>`, `<p:grpSpPr>`, `<p:contentPart>`, or any other unrecognized
+  element kind) is **silently skipped** - a tree-walk tolerance, not a fail-closed feature
+  rejection, matching the existing Phase 1b precedent of silently excluding non-placeholder
+  shapes from the flat placeholder list. (`<p:cxnSp>` is recognized and dispatched to its own
+  `PptxConnectorShapeNode`, not silently skipped - see the _Phase 2 Follow-Up: Connector Shape
+  Rendering_ section below.)
 
 **Deferred, lazy theme resolution**: a `<p:graphicFrame>`'s table needs a `PptxTheme` to resolve
 its cells' fills (see _Table Parsing_ above), but the overwhelming majority of slides declare no
@@ -932,8 +934,8 @@ design cost:
 - **Table style/banding** (`<a:tblPr>`'s `<a:tableStyleId>` and first-row/banded-row styling) -
   only a cell's own explicit `<a:tcPr>` fill/border/text is resolved; any table-style-sheet-driven
   default styling a real presentation would show is not applied.
-- **`<p:cxnSp>` connector shapes** - silently skipped by `ParseShapeTree` (see _Shape Tree_
-  above), not yet represented by any `PptxShapeTreeNode` subtype.
+- ~~`<p:cxnSp>` connector shapes~~ (closed by the _Phase 2 Follow-Up: Connector Shape Rendering_
+  section below).
 - **Master/layout full shape-tree enumeration** - `PptxMaster`/`PptxLayout` still only expose
   their own flat placeholder lists, not a full `ParseShapeTree` result (see _Shape Tree_ above).
 - **Group-level style cascading** - a group's own `<p:grpSpPr>` (for example an inherited line/
@@ -1010,9 +1012,9 @@ color at paint time, not only a table's own cell fills. It then walks the slide'
   1e), using the graphic frame's own direct `<p:xfrm>` child - **not** nested in a `<p:spPr>`
   like an ordinary shape or picture, per ECMA-376's `CT_GraphicalObjectFrame` content model.
 
-A `<p:cxnSp>` connector shape is never represented in the parsed shape tree at all (see _Shape
-Tree_ in the Phase 1e section above) - there is no connector case in `Render`'s own dispatch, and
-none is needed.
+A `<p:cxnSp>` connector shape is now represented in the parsed shape tree as its own
+`PptxConnectorShapeNode`, with a dedicated `RenderConnector` case in `Render`'s own dispatch (see
+the _Phase 2 Follow-Up: Connector Shape Rendering_ section below).
 
 #### Tolerant Skip Policy
 
@@ -1029,7 +1031,8 @@ unimplemented, carried forward unchanged from Phase 1d/1e's own deferred-items l
 ~~a slide's own `<p:bg>` background fill (no parsing support exists anywhere in this codebase),~~
 (closed by the _Phase 2 Follow-Up: Slide/Layout/Master Background Fill_ section below - the single
 highest-visual-impact gap left by this phase),
-`<p:cxnSp>` connector shapes, nested tables, table auto-sizing/banding, group-level style
+~~`<p:cxnSp>` connector shapes,~~ (closed by the _Phase 2 Follow-Up: Connector Shape Rendering_
+section below), nested tables, table auto-sizing/banding, group-level style
 cascading beyond transform composition, picture effects/shadows,
 ~~master/layout full shape-tree rendering,~~
 (closed by the _Phase 2 Follow-Up: Master/Layout Decorative Shape Rendering_ section below - a
@@ -1466,8 +1469,8 @@ color.
 **Already-deferred features throw the same `PptxUnsupportedFeatureException` for a master/layout
 shape as for a slide-level shape, but a master/layout shape's own exception is now caught and
 only that single shape skipped**: a master/layout decorative shape that itself uses a feature
-this codebase does not yet support (a connector, an unsupported preset geometry, an unsupported
-raster picture format, and so on) hits the exact same `PptxUnsupportedFeatureException` boundary
+this codebase does not yet support (an unsupported preset geometry, a chart/OLE graphic frame, an
+unsupported raster picture format, and so on) hits the exact same `PptxUnsupportedFeatureException` boundary
 a slide-level shape already hits, because both now flow through the same `RenderNode` dispatch.
 Unlike a slide-level shape, however, this exception is now caught at the leaf dispatch point
 inside `RenderNode` (gated on the existing `skipPlaceholderShapes` flag, which this fix repurposed
@@ -1890,3 +1893,133 @@ resolved, phClr-substituted style-list color; an explicit `<p:spPr>` fill wins o
 simultaneously-present `<a:fillRef>` on the same shape; a shape with only a `<p:style>/<a:lnRef>`
 (no explicit `<a:ln>`) renders the resolved stroke color; and an explicit `<a:ln><a:noFill/></a:ln>`
 wins over a simultaneously-present `<a:lnRef>` on the same shape.
+
+#### Phase 2 Follow-Up: Connector Shape Rendering (`<p:cxnSp>`)
+
+A `<p:cxnSp>` connector shape - the straight/elbow/curved lines PowerPoint draws between other
+shapes in flowcharts and diagrams - was, until this fix, never represented in the parsed shape
+tree at all (see _Shape Tree_ in the Phase 1e section above): `ParseShapeTree` silently dropped
+every `<p:cxnSp>` it encountered, so a slide containing one rendered with that connector simply
+absent, no error, no visible line. This closes that gap.
+
+**Shape tree** (`PptxShapeTree.cs`/`PptxDocument.ShapeTree.cs`): a new
+`PptxConnectorShapeNode(XElement CxnSpElement) : PptxShapeTreeNode` record, dispatched from
+`ParseShapeTree`'s own `<p:cxnSp>` case alongside the existing `<p:sp>`/`<p:pic>`/
+`<p:graphicFrame>`/`<p:grpSp>` cases - so a connector's position in document order (and therefore
+its z-order among siblings), and its ancestry under a `<p:grpSp>` (and therefore its own group
+transform composition), are handled identically to every other shape kind, with no special-casing
+anywhere in the tree walk itself.
+
+**Preset geometry** (`PptxPresetGeometry.cs`): ten connector-specific preset names - `line`/
+`straightConnector1` (a plain open 2-point diagonal), `bentConnector2`-`bentConnector5` (a
+fixed-proportion "staircase" elbow, alternating horizontal/vertical segments starting
+horizontal, evenly dividing the available width/height across however many segments run in each
+axis), and `curvedConnector2`-`curvedConnector5` (the same elbow vertices rounded via the
+existing `CornerRoundEffect.Apply`, radius `Min(|w|,|h|) * 0.15`, with the true start/end
+vertices never rounded) - are recognized by a new `IsConnectorPreset` check and built by a new
+`BuildConnectorPreset` dispatch. Critically, this check also **bypasses** `Build`'s own
+pre-existing "non-positive bounding box renders as `Path.Empty`" guard for these ten preset names
+only (every other preset keeps that guard unchanged): a real-world connector frequently declares
+a zero-height or zero-width `<a:ext>` (a perfectly horizontal or vertical line), confirmed in the
+`pythonpptx-shp-connector-props.pptx` fixture's own second slide, and such a connector must still
+paint its line rather than silently vanishing. `Ellipse` (previously `private`, used internally
+by `oval`) was changed to `internal` so the new `oval` arrowhead kind (below) could reuse it
+without duplicating ellipse-path-construction logic.
+
+**Arrowheads** (`PptxArrowheadStyle.cs`, new; `PptxArrowheadGeometry.cs`, new): a new
+`PptxArrowheadKind` enum (`None`/`Triangle`/`Stealth`/`Diamond`/`Oval`/`Arrow`) and
+`PptxArrowheadStyle(Kind, WidthKey, LengthKey)` record capture a resolved `<a:headEnd>`/
+`<a:tailEnd>` declaration. `PptxArrowheadGeometry.Build(style, lineWidthEmu)` builds the
+arrowhead's own **local-space** geometry with its tip fixed at the local origin, pointing along
+local +X, body extending toward local -X (the caller orients/translates it later): `Triangle` is
+a 3-point closed polygon; `Stealth` a 4-point closed polygon with a concave notch cut into its
+back edge; `Diamond` a 4-point closed rhombus straddling the origin; `Oval` reuses
+`PptxPresetGeometry.Ellipse`; `Arrow` is an open, stroked (not filled) 2-segment chevron; `None`
+is `Path.Empty`. Sizing is relative to the connector's own stroke width
+(`lineWidthEmu`): half-width = `lineWidthEmu * 1.5 * SizeScale(widthKey)`, length =
+`lineWidthEmu * 3.6 * SizeScale(lengthKey)`, where `SizeScale` maps PowerPoint's own `sm`/`med`/
+`lg` size keywords to `0.75`/`1`/`1.5` respectively (a reasonable, documented approximation of
+PowerPoint's own visual scaling - no normative EMU/pixel table for these keywords is published).
+
+**Line style and arrowhead resolution** (`PptxDocument.Connectors.cs`, new partial class file):
+
+- `ResolveConnectorLineStyle` merges a connector's own `<a:ln>` with its `<p:style>/<a:lnRef>`
+  fallback **per attribute** (width, paint, dash), not as an all-or-nothing choice the way
+  `RenderShape`'s own "any present `<a:ln>` wins outright over `<a:lnRef>`" policy works for
+  ordinary shapes. This divergence is deliberate and was proven necessary by the real
+  `pythonpptx-shp-connector-props.pptx` fixture: its own connector declares a bare
+  `<a:ln><a:tailEnd type="arrow"/></a:ln>` - no width, no fill - relying entirely on its sibling
+  `<p:style>/<a:lnRef idx="2">` for its actual visible color and width. Under the ordinary
+  shape's own policy this would resolve to an invisible line; the per-attribute merge instead
+  reuses the width/paint/dash from the style reference whenever the connector's own `<a:ln>`
+  doesn't itself declare that specific attribute. An explicit `<a:noFill/>` on the connector's
+  own `<a:ln>` always wins outright over the style reference, regardless of any other merging.
+- `ResolveArrowhead` reads a connector's own `<a:headEnd>`/`<a:tailEnd>` child (by element name),
+  recognizing `triangle`/`stealth`/`diamond`/`oval`/`arrow` type values (`none` and any
+  unrecognized value both resolve to no arrowhead at all - not rendered as an unknown/placeholder
+  marker), defaulting an absent `w`/`len` attribute to `"med"`.
+- `ComputeEndpointsAndTangents` walks a resolved connector geometry path's first subpath to
+  extract its start/end points and start/end tangent directions (via the existing
+  `PathCommand.ComputeTangents`), used to orient the arrowhead geometry at each endpoint.
+
+**Render-time wiring** (`PptxDocument.Render.cs`): a new `RenderConnector` method, dispatched
+from `RenderNode`'s switch for `PptxConnectorShapeNode` (with the same `skipPlaceholderShapes`-
+gated outer catch every other node kind already has). Unlike every other node kind, connector
+geometry resolution is **additionally** wrapped in its own unconditional inner try/catch
+(regardless of `skipPlaceholderShapes`): an exotic or future preset name this phase does not
+implement degrades to "this one connector paints nothing" rather than aborting the rest of the
+slide's own render - satisfying this fix's own graceful-degradation requirement without weakening
+the existing, stricter failure behavior for every other shape kind. Painting order is fill (only
+if the connector's own `<p:spPr>` explicitly declares one via `<a:solidFill>`/etc. - connectors
+have no fill by default, unlike an ordinary autoshape, and `RenderConnector` never synthesizes
+one), then stroke (via the merged line style above), then arrowheads. `<a:headEnd>` paints at the
+geometry path's **start** point, oriented along the **negated** outgoing tangent (pointing back
+toward the line's own start, matching PowerPoint's own visual convention that an arrowhead points
+away from the line it terminates); `<a:tailEnd>` paints at the path's **end** point, oriented
+along the incoming tangent (continuing the line's own direction of travel) - this head/tail
+semantic split was confirmed against the real fixture's own `<a:tailEnd type="arrow"/>`
+declaration. `PaintArrowhead` rotates/translates the arrowhead's local-space geometry (tip at
+local origin, pointing +X) to the target point/direction entirely within the connector's own
+local coordinate space, **before** applying `localToSurface` - consistent with how the
+connector's own stroked line outline is built/transformed, so any non-uniform scale or flip
+baked into `localToSurface` (from `flipH`/`flipV`/group nesting) applies identically to both the
+line and its arrowheads. A connector has no text body, so none of `RenderConnector`'s own
+painting steps ever attempt to resolve or paint one.
+
+**Known limitations, left as explicit, documented simplifications**:
+
+- **Only `line`/`straightConnector1` and the four `bentConnectorN`/four `curvedConnectorN`
+  presets are implemented.** Any other connector preset name (for example a custom/exotic one, or
+  one of the less common named connector presets this phase did not prioritize) degrades to "this
+  one connector paints nothing", per the inner-try/catch policy above - not a crash, but also not
+  a visible line.
+- **Arrowhead size-keyword-to-EMU mapping is an approximation**, not derived from any published
+  PowerPoint-internal constant table (none is publicly documented); it was chosen to be visually
+  reasonable relative to the connector's own line width, not pixel-matched against a specific
+  PowerPoint export.
+- **Connection-site (`<a:stCxn>`/`<a:endCxn>`) auto-routing is out of scope.** A connector's
+  endpoints are taken purely from its own resolved `<a:xfrm>`/preset-geometry local space -
+  PowerPoint's own behavior of re-routing a connector's endpoints to track a moved/resized
+  connected shape (via `<a:stCxn idx="N">`/`<a:endCxn idx="N">` referencing the connected shape's
+  own connection-site index) is not implemented; a connector whose source document relies on this
+  live-routing behavior renders at its own last-saved, static `<a:xfrm>` position instead.
+
+**Test coverage**: `PptxConnectorTests.cs` (new) covers preset geometry path resolution for
+`line`/`straightConnector1` (both preset-name aliases) across `flipH`/`flipV`/both/neither
+combinations (via `ResolveShapeFrame` + `Build` + `.Transform`), the zero-width/zero-height
+bug-fix proof (contrasted against an ordinary, non-connector preset still correctly degrading to
+`Path.Empty` under the same zero-size input), bent/curved connector endpoint-reaching proof,
+`ResolveConnectorLineStyle`'s own merge-precedence rules (own-value-wins, style-fallback,
+`noFill`-always-wins), `ResolveArrowhead`'s type/size-key resolution (including the `none`/
+unrecognized/absent-element cases), `PptxArrowheadGeometry.Build`'s per-kind shape/sizing
+properties (tip-at-origin, `lg` larger than `sm`), and `ComputeEndpointsAndTangents`'s tangent
+directions for horizontal/vertical/diagonal/bent connectors. `PptxRenderTests.cs` gained
+end-to-end render-level pixel tests: a straight connector paints its diagonal line at the
+expected pixel positions; a zero-height connector still paints its horizontal line (the bug-fix
+proof, at the render level); and a connector with a `tailEnd type="triangle"` arrowhead paints
+ink well outside the plain line's own stroke width, flared out just above its tip at the
+connector's own endpoint. `PptxFixturesCorpusTests.cs`'s own
+`PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsPaintVisibleLines` test (renamed from
+its prior "connectors skipped silently" name) now asserts both of the fixture's slides paint at
+least one non-background pixel, where previously only slide 0's dimensions were asserted and
+slide 1 was untested.

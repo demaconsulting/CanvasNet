@@ -48,6 +48,20 @@ internal static class PptxPresetGeometry
     /// </exception>
     internal static Path Build(string prst, float w, float h)
     {
+        if (!float.IsFinite(w) || !float.IsFinite(h) || w < 0f || h < 0f)
+        {
+            return Path.Empty;
+        }
+
+        // Connector line presets (Phase 2 Follow-Up: Connector Shape Rendering) are open strokes,
+        // not closed polygon/ellipse fills - unlike every other preset, a straight/elbow/curved
+        // connector is still meaningful with a zero width or height (a horizontal or vertical
+        // line), so they are dispatched before the "positive bounding box" guard below applies.
+        if (IsConnectorPreset(prst))
+        {
+            return BuildConnectorPreset(prst, w, h);
+        }
+
         if (w <= 0f || h <= 0f)
         {
             return Path.Empty;
@@ -89,6 +103,130 @@ internal static class PptxPresetGeometry
         };
     }
 
+    /// <summary>
+    ///     Determines whether <paramref name="prst"/> is one of the connector-only preset names
+    ///     this phase supports (Phase 2 Follow-Up: Connector Shape Rendering) - the straight,
+    ///     elbow ("bent"), and curved connector families.
+    /// </summary>
+    private static bool IsConnectorPreset(string prst) => prst is
+        "line" or "straightConnector1" or
+        "bentConnector2" or "bentConnector3" or "bentConnector4" or "bentConnector5" or
+        "curvedConnector2" or "curvedConnector3" or "curvedConnector4" or "curvedConnector5";
+
+    /// <summary>
+    ///     Builds the open-stroke <see cref="Path"/> for a connector-only preset name (see
+    ///     <see cref="IsConnectorPreset"/>), sized to <c>(0,0)</c>-<c>(w,h)</c> local coordinates.
+    /// </summary>
+    /// <exception cref="PptxUnsupportedFeatureException">
+    ///     Thrown when <paramref name="prst"/> is not actually one of the names
+    ///     <see cref="IsConnectorPreset"/> recognizes - unreachable from <see cref="Build"/> itself
+    ///     (which only calls this method after that same check), kept only so this method remains
+    ///     independently exhaustive.
+    /// </exception>
+    private static Path BuildConnectorPreset(string prst, float w, float h) => prst switch
+    {
+        "line" or "straightConnector1" => StraightConnectorLine(w, h),
+        "bentConnector2" => BentConnector(w, h, 2),
+        "bentConnector3" => BentConnector(w, h, 3),
+        "bentConnector4" => BentConnector(w, h, 4),
+        "bentConnector5" => BentConnector(w, h, 5),
+        "curvedConnector2" => CurvedConnector(w, h, 2),
+        "curvedConnector3" => CurvedConnector(w, h, 3),
+        "curvedConnector4" => CurvedConnector(w, h, 4),
+        "curvedConnector5" => CurvedConnector(w, h, 5),
+        _ => throw new PptxUnsupportedFeatureException(
+            "pptx-preset-geometry",
+            $"Preset geometry '{prst}' is not supported."),
+    };
+
+    /// <summary>
+    ///     Builds an open, single-segment straight diagonal from <c>(0,0)</c> to <c>(w,h)</c> -
+    ///     the <c>line</c>/<c>straightConnector1</c> presets. Unlike every closed preset in this
+    ///     file, the returned <see cref="Path"/> is never <see cref="PathBuilder.Close"/>d: a
+    ///     connector is a visible stroke, not a fillable region.
+    /// </summary>
+    private static Path StraightConnectorLine(float w, float h) =>
+        new PathBuilder().MoveTo(Vector2.Zero).LineTo(new Vector2(w, h)).Build();
+
+    /// <summary>
+    ///     Builds an open, right-angle "elbow" polyline from <c>(0,0)</c> to <c>(w,h)</c> with the
+    ///     given number of straight <paramref name="segments"/> (the <c>bentConnectorN</c>
+    ///     preset's own <c>N</c>) - the <c>bentConnector2</c>-<c>bentConnector5</c> presets.
+    /// </summary>
+    /// <remarks>
+    ///     This phase does not parse a bent/curved connector's own <c>&lt;a:avLst&gt;</c>
+    ///     adjustment values (the actual bend-point positions PowerPoint lets a user drag) - every
+    ///     bend is placed by a single, fixed, documented proportion (an even division of the total
+    ///     horizontal/vertical travel across the alternating horizontal/vertical segments implied
+    ///     by <paramref name="segments"/>), consistent with this file's own "fixed-proportion
+    ///     approximation" philosophy for every other preset's adjustment values.
+    /// </remarks>
+    private static Path BentConnector(float w, float h, int segments) =>
+        BuildOpenPolyline(ComputeElbowVertices(w, h, segments));
+
+    /// <summary>
+    ///     Builds the same fixed-proportion elbow route as <see cref="BentConnector"/>, then
+    ///     softens every interior bend into a tangent circular arc via
+    ///     <see cref="CornerRoundEffect.Apply"/> - the <c>curvedConnector2</c>-<c>curvedConnector5</c>
+    ///     presets. The connector's own two endpoints (the first and last vertex) are never
+    ///     rounded - only interior bend points qualify, matching <see cref="CornerRoundEffect"/>'s
+    ///     own documented scope policy for an open polyline.
+    /// </summary>
+    private static Path CurvedConnector(float w, float h, int segments)
+    {
+        var polyline = BuildOpenPolyline(ComputeElbowVertices(w, h, segments));
+        var radius = MathF.Min(MathF.Abs(w), MathF.Abs(h)) * 0.15f;
+        return CornerRoundEffect.Apply(polyline, radius);
+    }
+
+    /// <summary>
+    ///     Computes the vertices of a fixed-proportion, right-angle elbow route from <c>(0,0)</c>
+    ///     to <c>(w,h)</c> with the given number of alternating horizontal/vertical
+    ///     <paramref name="segments"/> (horizontal first): the total horizontal travel
+    ///     <paramref name="w"/> is divided evenly across however many of the alternating segments
+    ///     are horizontal, and likewise <paramref name="h"/> across however many are vertical, so
+    ///     the route reaches exactly <c>(w,h)</c> regardless of <paramref name="segments"/>.
+    /// </summary>
+    private static Vector2[] ComputeElbowVertices(float w, float h, int segments)
+    {
+        var numHorizontal = (segments + 1) / 2;
+        var numVertical = segments / 2;
+        var stepX = numHorizontal == 0 ? 0f : w / numHorizontal;
+        var stepY = numVertical == 0 ? 0f : h / numVertical;
+
+        var vertices = new Vector2[segments + 1];
+        vertices[0] = Vector2.Zero;
+        var x = 0f;
+        var y = 0f;
+        for (var i = 0; i < segments; i++)
+        {
+            if (i % 2 == 0)
+            {
+                x += stepX;
+            }
+            else
+            {
+                y += stepY;
+            }
+
+            vertices[i + 1] = new Vector2(x, y);
+        }
+
+        return vertices;
+    }
+
+    /// <summary>Builds an open (not <see cref="PathBuilder.Close"/>d) polyline through the given vertices, in order.</summary>
+    private static Path BuildOpenPolyline(Vector2[] vertices)
+    {
+        var builder = new PathBuilder().MoveTo(vertices[0]);
+        for (var i = 1; i < vertices.Length; i++)
+        {
+            builder.LineTo(vertices[i]);
+        }
+
+        return builder.Build();
+    }
+
     /// <summary>Builds a closed polygon from the given vertices, in order.</summary>
     private static Path Polygon(params Vector2[] points)
     {
@@ -115,7 +253,7 @@ internal static class PptxPresetGeometry
     ///     used by <see cref="Donut"/> to cut a hole out of an outer ellipse under the nonzero
     ///     fill rule.
     /// </param>
-    private static Path Ellipse(float cx, float cy, float rx, float ry, bool reversed = false)
+    internal static Path Ellipse(float cx, float cy, float rx, float ry, bool reversed = false)
     {
         const float kappa = 0.5522847498f;
         var ox = rx * kappa;
