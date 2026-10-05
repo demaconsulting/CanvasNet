@@ -1,6 +1,7 @@
 ---
 # cspell:ignore ooxml pptx srgb xfrm prst cust paintable bodyPr pPr rPr txBody txStyles lstStyle
-# cspell:ignore defRPr normAutofit noAutofit spAutoFit lnSpcReduction fontScale
+# cspell:ignore defRPr normAutofit noAutofit spAutoFit lnSpcReduction fontScale grpSp spTree tbl
+# cspell:ignore srcRect tcPr
 #
 # Software System Requirements for CanvasNetPptx
 #
@@ -14,33 +15,42 @@
 # subsystem's Rgba32 type is used to resolve a theme's color scheme. As of Phase 1c, the Geometry
 # subsystem's Path/PathBuilder/PathCommand types, the Drawing subsystem's PathStroker/StrokeStyle
 # and Gradient/LinearGradient/GradientStop types, and Rgba32's color-space math are additionally
-# used to resolve shape geometry, fills, and stroked outlines. As of Phase 1d (this release), the
-# Fonts subsystem's TrueTypeFont/SystemFontCatalog types and the Drawing subsystem's PathFiller
-# type are additionally used to resolve text layout and paint glyph ink onto a core Surface.
+# used to resolve shape geometry, fills, and stroked outlines. As of Phase 1d, the Fonts
+# subsystem's TrueTypeFont/SystemFontCatalog types and the Drawing subsystem's PathFiller type are
+# additionally used to resolve text layout and paint glyph ink onto a core Surface. As of Phase 1e,
+# the Codecs subsystem's PngCodec/JpegCodec/BmpCodec/TiffCodec/GifCodec types are additionally used
+# to decode a picture shape's embedded raster image.
 #
-# CanvasNetPptx is being delivered incrementally. Phase 1a implemented the underlying OOXML
-# (Office Open XML) package layer: opening a .pptx file as a ZIP archive, resolving
-# [Content_Types].xml (default extension mappings and part-specific overrides), and resolving
-# package-level (_rels/.rels) and per-part relationships, including relative-target resolution.
-# Phase 1b added the presentation/theme/master/layout/slide model and a placeholder
-# property-inheritance resolver: parsing ppt/presentation.xml's declared slide size and ordered
-# slide list (exposed as public SlideCount/SlideSize members), resolving each slide master's
-# theme, structurally parsing placeholder shapes, and the verified ECMA-376 placeholder-matching
-# algorithm. Phase 1c added DrawingML shape geometry and paint resolution: resolving a shape's
-# <a:xfrm> transform (position, size, rotation, flip) and a group shape's child coordinate-space
-# composition; resolving <a:prstGeom> preset geometry (approximately 24 common presets) and
-# <a:custGeom> custom path geometry into the core Path type; and resolving <a:solidFill>/
-# <a:gradFill> (linear)/<a:noFill> fills, DrawingML color transforms (lumMod/lumOff/shade/tint/
-# alpha), and <a:ln> stroke outlines via the core PathStroker. Phase 1d (this release) adds
-# DrawingML text body parsing (<p:txBody>/<a:bodyPr>/<a:p>/<a:pPr>/<a:r>/<a:rPr>/<a:t>),
-# attribute-level run/paragraph property inheritance through the placeholder/layout/master
-# (including the master's own <p:txStyles> title/body/other style buckets)/theme chain,
-# word-wrap/alignment/vertical-anchor/autofit text layout, and glyph-ink rendering onto a core
-# Surface. Pattern and picture fills, radial/path gradients, full group-shape rendering semantics
-# beyond transform composition, bullets/numbering, full text justification, spAutoFit shape-resize
-# behavior, kerning, text clipping on overflow, and a full per-slide public Render API remain
-# unimplemented this phase - see docs/design/canvas-net-pptx.md for the full current feature set
-# and its documented, still-unimplemented scope.
+# CanvasNetPptx was delivered incrementally across Phases 1a-1f, each additive to the last. Phase
+# 1a implemented the underlying OOXML (Office Open XML) package layer: opening a .pptx file as a
+# ZIP archive, resolving [Content_Types].xml (default extension mappings and part-specific
+# overrides), and resolving package-level (_rels/.rels) and per-part relationships, including
+# relative-target resolution. Phase 1b added the presentation/theme/master/layout/slide model and
+# a placeholder property-inheritance resolver: parsing ppt/presentation.xml's declared slide size
+# and ordered slide list (exposed as public SlideCount/SlideSize members), resolving each slide
+# master's theme, structurally parsing placeholder shapes, and the verified ECMA-376
+# placeholder-matching algorithm. Phase 1c added DrawingML shape geometry and paint resolution:
+# resolving a shape's <a:xfrm> transform (position, size, rotation, flip) and a group shape's
+# child coordinate-space composition; resolving <a:prstGeom> preset geometry (approximately 24
+# common presets) and <a:custGeom> custom path geometry into the core Path type; and resolving
+# <a:solidFill>/<a:gradFill> (linear)/<a:noFill> fills, DrawingML color transforms (lumMod/lumOff/
+# shade/tint/alpha), and <a:ln> stroke outlines via the core PathStroker. Phase 1d added DrawingML
+# text body parsing (<p:txBody>/<a:bodyPr>/<a:p>/<a:pPr>/<a:r>/<a:rPr>/<a:t>), attribute-level
+# run/paragraph property inheritance through the placeholder/layout/master (including the master's
+# own <p:txStyles> title/body/other style buckets)/theme chain, word-wrap/alignment/vertical-
+# anchor/autofit text layout, and glyph-ink rendering onto a core Surface. Phase 1e added dedicated
+# <p:pic> picture-shape support (content-type dispatch, <a:srcRect> crop-rectangle resolution, and
+# compositing), <a:tbl> table support (structure/cell parsing reusing the Phase 1c/1d fill/border/
+# text-body resolvers, merge-aware cell-rect resolution, and cell fill/border/text painting), and
+# recursive, full shape-tree parsing across a slide's own <p:sp>/<p:pic>/<p:graphicFrame>/<p:grpSp>
+# elements (including nested <p:grpSp> child-transform composition). Phase 1f (this release) added
+# the public, slide-level Render API: a document-order walk of a slide's full shape tree,
+# dispatching each shape/picture/table node to the already-verified Phase 1c/1d/1e resolvers and
+# painters onto a Surface of the requested pixel dimensions. Pattern and picture fills, radial/path
+# gradients, bullets/numbering, full text justification, spAutoFit shape-resize behavior, kerning,
+# text clipping on overflow, nested tables, and table auto-sizing/banding remain unimplemented -
+# see docs/design/canvas-net-pptx.md for the full current feature set and its documented,
+# still-unimplemented scope.
 
 sections:
   - title: CanvasNetPptx Requirements
@@ -225,3 +235,77 @@ sections:
         tests:
           - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
           - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd
+
+      - id: CanvasNetPptx-PictureShapes
+        title: >-
+          The library shall resolve a picture shape's embedded raster image (decoding its content
+          type via the shared image-decoding infrastructure), resolve its declared crop rectangle
+          against the decoded image's own pixel bounds, and composite the resulting, cropped image
+          onto a rendering surface at the shape's own resolved frame.
+        tags: [system]
+        justification: |
+          Embedded images are common in real-world presentations (photographs, logos, diagrams
+          captured as pictures); without resolving and compositing a picture shape's own embedded
+          raster content, a rendered slide containing one would be visibly incomplete.
+        children:
+          - CanvasNetPptx-PptxDocument-PictureDecodeAndCrop
+          - CanvasNetPptx-PptxDocument-PicturePainting
+          - CanvasNetPptx-PptxDocument-PictureGeometryClipping
+          - CanvasNetPptx-PptxDocument-PictureStrokeOutline
+        tests:
+          - CanvasNetPptx_SystemIntegration_Images_PictureDecodesAndRendersEndToEnd
+
+      - id: CanvasNetPptx-TableShapes
+        title: >-
+          The library shall parse a table shape's declared rows, columns, and cells (resolving
+          merged-cell spans into a single merge-aware cell rectangle per cell), and paint each
+          cell's resolved fill, border, and text content onto a rendering surface at that cell's
+          own resolved rectangle.
+        tags: [system]
+        justification: |
+          Tabular data is common in real-world presentations; without resolving a table's own
+          structure and painting each cell's own content at the correct rectangle, a rendered
+          slide containing one would show incorrect or missing tabular content.
+        children:
+          - CanvasNetPptx-PptxDocument-TableParsing
+          - CanvasNetPptx-PptxDocument-TableCellRectResolution
+          - CanvasNetPptx-PptxDocument-TablePainting
+          - CanvasNetPptx-PptxDocument-TableStyleResolution
+        tests:
+          - CanvasNetPptx_SystemIntegration_Tables_GraphicFrameParsesAndRendersCellFillEndToEnd
+
+      - id: CanvasNetPptx-ShapeTreeEnumeration
+        title: >-
+          The library shall recursively enumerate every recognized shape, picture, table, and
+          group element declared in a slide's own shape tree, at any nesting depth, composing each
+          nested group's own child-coordinate-space transform with its ancestors' transforms so
+          every enumerated node's effective position is correct relative to the slide.
+        tags: [system]
+        justification: |
+          Real-world presentations commonly group shapes, including nested groups, to move and
+          resize related content together; without recursively enumerating every nesting level and
+          correctly composing each level's own transform, a rendered slide would omit or
+          mis-position any shape nested inside a group.
+        children:
+          - CanvasNetPptx-PptxDocument-ShapeTree
+          - CanvasNetPptx-PptxDocument-GroupChildTransform
+        tests:
+          - CanvasNetPptx_SystemIntegration_ShapeTree_NestedGroupEnumeratesAndComposesTransformEndToEnd
+
+      - id: CanvasNetPptx-RenderApi
+        title: >-
+          The library shall render a single slide, by index, onto a new surface sized either to
+          caller-supplied pixel dimensions or to the slide's own aspect ratio at a caller-supplied
+          resolution in dots per inch, by walking that slide's full shape tree in document order
+          and dispatching each node to its own resolved paint.
+        tags: [system]
+        justification: |
+          Callers need a single, public entry point that turns a parsed presentation's slide into a
+          concrete, paintable surface without re-implementing the shape-tree walk and per-node-kind
+          dispatch themselves, and must be able to request output sized either in exact pixels or
+          at a target print/display resolution.
+        children:
+          - CanvasNetPptx-PptxDocument-RenderPublicApi
+          - CanvasNetPptx-PptxDocument-SlideRendering
+        tests:
+          - CanvasNetPptx_SystemIntegration_Render_PixelAndDpiOverloadsProduceConsistentOutputEndToEnd

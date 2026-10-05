@@ -88,26 +88,32 @@ software items, specifically:
   _CanvasNetPdf System Design_ (`canvas-net-pdf.md`)
 - **CanvasNetPptx (System)** — A separate, independently-distributed software system providing
   PowerPoint (`.pptx`) presentation-rendering support, containing a single unit, `PptxDocument`.
-  This is an in-progress, multi-phase feature: Phase 1a implemented the underlying OOXML (Office
-  Open XML) package layer — opening a `.pptx` file as a ZIP archive, resolving
-  `[Content_Types].xml`'s default and part-specific override content-type mappings, and resolving
-  package-level and per-part relationships (including relative-target traversal). Phase 1b adds
-  the presentation/theme/master/layout/slide model and a placeholder property-inheritance
-  resolver — parsing `ppt/presentation.xml`'s declared slide size and ordered slide list (exposed
-  as public `SlideCount`/`SlideSize` members), resolving each slide master's theme (color/font
-  scheme), structurally parsing each master/layout/slide's placeholder shapes, and implementing
-  the verified ECMA-376 placeholder-matching algorithm. Phase 1c adds DrawingML shape geometry
-  (position/rotation/flip transform resolution, group child-coordinate-space composition, preset
-  and custom geometry resolution) and paint resolution (solid/gradient fills, line styles).
-  Phase 1d (the current release) adds DrawingML text layout and rendering — structural text
-  parsing, an attribute-level run/paragraph property-inheritance resolver, word-wrap/alignment/
-  vertical-anchor/autofit layout, and glyph-ink text rendering. A full per-slide public `Render`
-  API, non-placeholder (freeform) shape enumeration, bullets/numbering, and text clipping on
-  overflow are not implemented yet — later phases will build on this model. As of Phase 1d,
-  `CanvasNetPptx` depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, and `Fonts`
-  subsystems (for the `Rgba32` color type, path geometry/stroking, and font/glyph resolution used
-  to resolve and render shape/text content) — see _CanvasNetPptx System Design_
-  (`canvas-net-pptx.md`)
+  This feature was delivered incrementally across Phases 1a–1f, each additive to the last: Phase
+  1a implemented the underlying OOXML (Office Open XML) package layer — opening a `.pptx` file as
+  a ZIP archive, resolving `[Content_Types].xml`'s default and part-specific override content-type
+  mappings, and resolving package-level and per-part relationships (including relative-target
+  traversal). Phase 1b added the presentation/theme/master/layout/slide model and a placeholder
+  property-inheritance resolver — parsing `ppt/presentation.xml`'s declared slide size and ordered
+  slide list (exposed as public `SlideCount`/`SlideSize` members), resolving each slide master's
+  theme (color/font scheme), structurally parsing each master/layout/slide's placeholder shapes,
+  and implementing the verified ECMA-376 placeholder-matching algorithm. Phase 1c added DrawingML
+  shape geometry (position/rotation/flip transform resolution, group child-coordinate-space
+  composition, preset and custom geometry resolution) and paint resolution (solid/gradient fills,
+  line styles). Phase 1d added DrawingML text layout and rendering — structural text parsing, an
+  attribute-level run/paragraph property-inheritance resolver, word-wrap/alignment/vertical-
+  anchor/autofit layout, and glyph-ink text rendering. Phase 1e added `<p:pic>` picture-shape
+  decoding/cropping/compositing, `<a:tbl>` table structure/cell-rect/paint resolution, and
+  recursive, full `<p:spTree>` shape-tree parsing (including nested `<p:grpSp>` enumeration).
+  Phase 1f (the current release) added the public, slide-level `Render` API — a document-order
+  walk of a slide's full shape tree dispatching each node to the already-verified Phase 1c/1d/1e
+  resolvers and painters — followed by a Phase 2 Follow-Up adding slide/layout/master `<p:bg>`
+  background-fill resolution ahead of that walk. Pattern/picture background fills, radial/path
+  gradients, bullets/numbering, full text justification, `spAutoFit` shape-resize behavior,
+  kerning, text clipping on overflow, nested tables, and table auto-sizing/banding remain
+  explicitly deferred. `CanvasNetPptx` depends on the `CanvasNet` system's `Canvas`, `Geometry`,
+  `Drawing`, `Fonts`, and `Codecs` subsystems (for the `Rgba32` color type, path geometry/
+  stroking, font/glyph resolution, and image decoding used to resolve and render shape/text/
+  picture content) — see _CanvasNetPptx System Design_ (`canvas-net-pptx.md`)
 
 The following OTS items are also covered:
 

@@ -20,6 +20,10 @@ package CanvasNet {
         expose CanvasNetPdfSystem;
     }
 
+    view CanvasNetPptxView {
+        expose CanvasNetPptxSystem;
+    }
+
     view CanvasView {
         expose Canvas;
     }

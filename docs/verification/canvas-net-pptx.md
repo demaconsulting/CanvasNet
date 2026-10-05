@@ -7,10 +7,16 @@ This document describes the system-level verification strategy for CanvasNetPptx
 ## Verification Approach
 
 The CanvasNetPptx system is verified through system-level integration tests that exercise the
-library as a whole from the perspective of a consumer. Tests instantiate the library using its
-public API and assert on observable outputs, without relying on knowledge of internal
-implementation details. No mocking or stubbing is required at the system level — the entire
-integrated system is exercised as it would be used by a real caller.
+library as a whole from the perspective of a consumer. Most tests drive the library purely
+through its public API (`Open`, `SlideCount`, `SlideSize`, and the `Render` overloads) and assert
+on observable outputs, with no mocking or stubbing required at the system level. A subset of
+tests additionally call internal primitives (`GetSlide`/`GetLayout`/`GetMaster`/`GetTheme`,
+`ResolveShapeFrame`, `ResolveTextLayout`, `PaintTextLayout`, and an injected font resolver) that
+are accessible only via the `InternalsVisibleTo` grant to the
+`DemaConsulting.CanvasNet.Pptx.Tests` project (see the `PptxDocument` project file) - these calls
+exercise a specific phase's resolution pipeline directly, from a real, package-resolved input,
+rather than re-deriving it from hand-built fragments as the unit-level tests do, while still
+proving the feature works end to end through the full package-load path.
 
 System tests reside in `PptxSystemIntegrationTests.cs` within the
 `DemaConsulting.CanvasNet.Pptx.Tests` project.
@@ -122,16 +128,58 @@ presentation package whose one slide contains an ordinary, non-placeholder text 
 (not `<p:bodyStyle>`) when driven through a real, non-placeholder shape resolved from the full
 package-load path.
 
+### Integration: Images Picture Decodes And Renders End To End
+
+**Test**: `CanvasNetPptx_SystemIntegration_Images_PictureDecodesAndRendersEndToEnd`
+
+Exercises end-to-end system behavior for Phase 1e's picture-shape resolution: opens a full
+presentation package whose one slide contains a single `<p:pic>` referencing an embedded,
+single-pixel PNG. Confirms the shape is parsed into the slide's shape tree as a picture node and
+that `Render` decodes and composites the embedded image onto the output surface at the expected
+location, driven entirely through the public `PptxDocument` surface.
+
+### Integration: Tables Graphic Frame Parses And Renders Cell Fill End To End
+
+**Test**: `CanvasNetPptx_SystemIntegration_Tables_GraphicFrameParsesAndRendersCellFillEndToEnd`
+
+Exercises end-to-end system behavior for Phase 1e's table resolution: opens a full presentation
+package whose one slide contains a single `<p:graphicFrame>` declaring an `<a:tbl>` with one
+solid-filled cell. Confirms the shape is parsed into the slide's shape tree with the expected row/
+cell structure and that `Render` paints the cell's resolved fill across its own cell rectangle.
+
+### Integration: Shape Tree Nested Group Enumerates And Composes Transform End To End
+
+**Test**: `CanvasNetPptx_SystemIntegration_ShapeTree_NestedGroupEnumeratesAndComposesTransformEndToEnd`
+
+Exercises end-to-end system behavior for Phase 1e's recursive shape-tree parsing: opens a full
+presentation package whose one slide contains a `<p:grpSp>` nested two levels deep, wrapping a
+single freeform shape. Confirms the full nested structure is recovered in the slide's shape tree
+and that `Render` composes both levels' own child transforms correctly, distinct from the
+single-level-only transform math proven by the Phase 1c group-transform scenario above.
+
+### Integration: Render Pixel And Dpi Overloads Produce Consistent Output End To End
+
+**Test**: `CanvasNetPptx_SystemIntegration_Render_PixelAndDpiOverloadsProduceConsistentOutputEndToEnd`
+
+Exercises end-to-end system behavior for Phase 1f's public rendering API: opens a full
+presentation package whose one slide contains a single full-slide solid-filled shape, then renders
+it through both the explicit pixel-dimension `Render` overload and the DPI-based `Render`
+overload. Confirms both overloads dispatch to the same shape-tree walk and painter pipeline, and
+that the DPI overload's own documented EMU-to-pixel conversion produces the expected surface size.
+
 ## Acceptance Criteria
 
 A system-level test run passes when all scenarios above pass without error or exception beyond
 those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return value
-constitutes a failure. Collectively, these scenarios cover the complete current (through Phase 1d)
-CanvasNetPptx feature set: opening a well-formed OOXML/`.pptx` package, resolving its content-type
-and relationship graph, resolving its declared slide count/size (Phase 1b), resolving DrawingML
-shape geometry and paint - including group child-transform composition (Phase 1c), and resolving
-DrawingML text property inheritance, layout, and rendering (Phase 1d) - plus validating the
-documented argument- and structural-validation contracts. A full per-slide public `Render` API,
-non-placeholder (freeform) shape _enumeration_ from a slide's full `<p:spTree>`, bullets/
-numbering, and text clipping on overflow are not covered because none is implemented yet - later
-phases will extend this document's scenarios as that content is added.
+constitutes a failure. Collectively, these scenarios cover the complete current (through Phase 1f,
+plus its Phase 2 Follow-Up) CanvasNetPptx feature set: opening a well-formed OOXML/`.pptx` package,
+resolving its content-type and relationship graph, resolving its declared slide count/size
+(Phase 1b), resolving DrawingML shape geometry and paint - including group child-transform
+composition (Phase 1c), resolving DrawingML text property inheritance, layout, and rendering
+(Phase 1d), resolving pictures/tables and recursively enumerating a slide's full shape tree
+(Phase 1e), and rendering a full slide through the public `Render` API (Phase 1f) - plus validating
+the documented argument- and structural-validation contracts. Pattern/picture background fills,
+radial/path gradients, bullets/numbering, full text justification, `spAutoFit` shape-resize
+behavior, kerning, text clipping on overflow, nested tables, and table auto-sizing/banding remain
+explicitly deferred - a future, corpus-driven hardening pass will extend this document's scenarios
+as that content is added.

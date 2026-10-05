@@ -6,10 +6,10 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     The <see cref="DemaConsulting.CanvasNet.Pptx"/> namespace provides read access to
 ///     PowerPoint (<c>.pptx</c>) presentation documents via <see cref="PptxDocument"/>: the OOXML
 ///     (Office Open XML) package layer, the presentation/theme/master/layout/slide structural
-///     model, DrawingML shape geometry and paint resolution, and DrawingML text layout and
-///     rendering. This namespace is distributed as the separate
-///     <c>DemaConsulting.CanvasNet.Pptx</c> NuGet package, which references the core
-///     <c>DemaConsulting.CanvasNet</c> package.
+///     model, DrawingML shape geometry and paint resolution, DrawingML text layout and rendering,
+///     picture/table/recursive-shape-tree resolution, and a public, per-slide rendering API. This
+///     namespace is distributed as the separate <c>DemaConsulting.CanvasNet.Pptx</c> NuGet
+///     package, which references the core <c>DemaConsulting.CanvasNet</c> package.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -22,17 +22,27 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         geometry - position/rotation/flip transforms, group child-coordinate-space composition,
 ///         preset and custom geometry resolution - and paint resolution - solid/gradient fills and
 ///         line styles - into the core <c>DemaConsulting.CanvasNet.Drawing</c>/
-///         <c>DemaConsulting.CanvasNet.Canvas</c> types); and Phase 1d (DrawingML text structural
+///         <c>DemaConsulting.CanvasNet.Canvas</c> types); Phase 1d (DrawingML text structural
 ///         parsing, an attribute-level run/paragraph property-inheritance resolver, word-wrap/
 ///         alignment/vertical-anchor/autofit text layout, and glyph-ink text rendering reusing the
 ///         core <see cref="Fonts.TrueTypeFont"/>/<see cref="Fonts.SystemFontCatalog"/>
-///         infrastructure).
+///         infrastructure); Phase 1e (<c>&lt;p:pic&gt;</c> picture-shape decoding/cropping/
+///         compositing, <c>&lt;a:tbl&gt;</c> table structure/cell-rect/paint resolution, and
+///         recursive, full <c>&lt;p:spTree&gt;</c> shape-tree parsing - including nested
+///         <c>&lt;p:grpSp&gt;</c> enumeration - exposed via the internal shape-tree model); and
+///         Phase 1f (the public, slide-level <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>/
+///         <see cref="PptxDocument.Render(int, float, PptxRenderOptions?)"/> rendering API, a
+///         document-order walk of a slide's full shape tree dispatching each node to the already-
+///         verified Phase 1c/1d/1e resolvers and painters). A Phase 2 Follow-Up subsequently added
+///         slide/layout/master <c>&lt;p:bg&gt;</c> background-fill resolution ahead of that
+///         shape-tree walk.
 ///     </para>
 ///     <para>
-///         As of the current release (through Phase 1d), a freeform (non-placeholder) shape's
-///         full <c>&lt;p:spTree&gt;</c> *enumeration*, bullets/numbering, full text justification,
-///         <c>spAutoFit</c> shape-resize behavior, kerning, text clipping on overflow, and a full
-///         per-slide public <c>Render</c> API are explicitly deferred to a later phase - see
+///         As of the current release (through Phase 1f and its Phase 2 Follow-Up), pattern/
+///         picture background fills, radial/path gradients, bullets/numbering, full text
+///         justification, <c>spAutoFit</c> shape-resize behavior, kerning, text clipping on
+///         overflow, connector shape rendering beyond the Phase 2 Follow-Up's own scope, nested
+///         tables, and table auto-sizing/banding remain explicitly deferred - see
 ///         <see cref="PptxDocument"/>'s own remarks for the exact, current scope boundary.
 ///     </para>
 /// </remarks>

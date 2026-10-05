@@ -2,10 +2,13 @@ using System.IO.Compression;
 using System.Text;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
 // cspell:ignore pptx ooxml sppr nvsppr nvpr grpsp spsrc xfrm chOff chExt prstGeom srgbclr schemeclr hlink Calibri prst
+// cspell:ignore pic blipfill nvpicpr cnvpicpr graphicframe nvgraphicframepr cnvgraphicframepr tbl tblgrid gridcol tcpr
+// cspell:ignore nvgrpsppr grpsppr
 
 /// <summary>
 ///     System-level integration tests for the OOXML package layer via the CanvasNet.Pptx
@@ -245,16 +248,22 @@ public class PptxSystemIntegrationTests
     ///     Builds a full, navigable presentation package (presentation -&gt; slide -&gt; layout -&gt;
     ///     master -&gt; theme, each with its own relationships part) whose one slide's <c>&lt;p:spTree&gt;</c>
     ///     content is supplied verbatim by <paramref name="spTreeInnerXml"/> - letting each Phase 1c
-    ///     test describe only the shape(s) relevant to its scenario.
+    ///     test describe only the shape(s) relevant to its scenario. Phase 1e tests additionally
+    ///     supply <paramref name="media"/> (extension, content type, bytes) for a slide-owned
+    ///     <c>&lt;p:pic&gt;</c> referencing <c>r:embed="rId2"</c>, mirroring
+    ///     <see cref="PptxRenderTests"/>'s own <c>BuildRenderPackage</c> media-parameter pattern.
     /// </summary>
-    private static Stream BuildGeometryPaintPackage(string spTreeInnerXml)
+    private static Stream BuildGeometryPaintPackage(
+        string spTreeInnerXml,
+        (string Extension, string ContentType, byte[] Bytes)? media = null)
     {
-        const string contentTypesXml =
-            """
+        var contentTypesXml =
+            $"""
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
             <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
               <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
               <Default Extension="xml" ContentType="application/xml" />
+              {(media is { } m ? $"""<Default Extension="{m.Extension}" ContentType="{m.ContentType}" />""" : string.Empty)}
             </Types>
             """;
 
@@ -293,11 +302,12 @@ public class PptxSystemIntegrationTests
             </p:sld>
             """;
 
-        const string slideRelsXml =
-            """
+        var slideRelsXml =
+            $"""
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
               <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml" />
+              {(media is { } slideMedia ? $"""<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.{slideMedia.Extension}" />""" : string.Empty)}
             </Relationships>
             """;
 
@@ -372,10 +382,33 @@ public class PptxSystemIntegrationTests
             WriteEntry(archive, "ppt/slideMasters/slideMaster1.xml", masterXml);
             WriteEntry(archive, "ppt/slideMasters/_rels/slideMaster1.xml.rels", masterRelsXml);
             WriteEntry(archive, "ppt/theme/theme1.xml", themeXml);
+
+            if (media is { } writtenMedia)
+            {
+                WriteBinaryEntry(archive, $"ppt/media/image1.{writtenMedia.Extension}", writtenMedia.Bytes);
+            }
         }
 
         stream.Position = 0;
         return stream;
+    }
+
+    /// <summary>Writes a raw binary ZIP entry - used by <see cref="BuildGeometryPaintPackage"/> for embedded media.</summary>
+    private static void WriteBinaryEntry(ZipArchive archive, string name, byte[] content)
+    {
+        var entry = archive.CreateEntry(name);
+        using var entryStream = entry.Open();
+        entryStream.Write(content, 0, content.Length);
+    }
+
+    /// <summary>Builds a minimal, valid single-pixel PNG's encoded bytes, via the core <see cref="PngCodec"/> - mirroring <see cref="PptxRenderTests"/>'s own helper.</summary>
+    private static byte[] BuildPngBytes(Rgba32 color)
+    {
+        using var surface = new Surface(1, 1);
+        surface[0, 0] = color;
+        using var buffer = new MemoryStream();
+        PngCodec.Save(surface, buffer);
+        return buffer.ToArray();
     }
 
     /// <summary>
@@ -805,5 +838,202 @@ public class PptxSystemIntegrationTests
 
         // Assert: the master's own otherStyle sz="1200" wins, not bodyStyle's sz="1800".
         Assert.Equal(1200f * 127f, runProperties.SizeEmu);
+    }
+
+    // --- Phase 1e/1f: pictures, tables, shape-tree enumeration, and the public Render API,
+    // exercised end-to-end through the full package-load path -------------------------------
+
+    /// <summary>
+    ///     Opens a full presentation package end-to-end whose one slide contains a single
+    ///     <c>&lt;p:pic&gt;</c> referencing an embedded single-pixel PNG via <c>r:embed="rId2"</c> -
+    ///     proving Phase 1e's picture-shape resolution (content-type dispatch, decode, and
+    ///     y-down compositing) integrates correctly when driven through the public
+    ///     <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/> entry point, not
+    ///     just the unit-level fragments exercised by <see cref="PptxImagesTests"/>. Also confirms
+    ///     the shape is parsed into the slide's own <see cref="PptxSlide.ShapeTree"/> as a
+    ///     <see cref="PptxPictureShapeNode"/>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPptx_SystemIntegration_Images_PictureDecodesAndRendersEndToEnd()
+    {
+        // Arrange
+        var pngBytes = BuildPngBytes(new Rgba32(10, 20, 30, 255));
+        const string spTreeInnerXml =
+            """
+            <p:pic xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+              <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:pic>
+            """;
+        using var stream = BuildGeometryPaintPackage(spTreeInnerXml, media: ("png", "image/png", pngBytes));
+        using var document = PptxDocument.Open(stream);
+
+        // Act
+        var shapeTree = document.GetSlide(0).ShapeTree;
+        using var surface = document.Render(0, 20, 20);
+
+        // Assert
+        var pictureNode = Assert.IsType<PptxPictureShapeNode>(Assert.Single(shapeTree));
+        Assert.Equal("Pic", pictureNode.PicElement.Element(P + "nvPicPr")!.Element(P + "cNvPr")!.Attribute("name")!.Value);
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Opens a full presentation package end-to-end whose one slide contains a single
+    ///     <c>&lt;p:graphicFrame&gt;</c> declaring an <c>&lt;a:tbl&gt;</c> with one solid-filled
+    ///     cell - proving Phase 1e's table parsing (structure/cell parsing, cell-rect resolution)
+    ///     and cell fill painting integrate correctly when driven through the public
+    ///     <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/> entry point, not
+    ///     just the unit-level fragments exercised by <see cref="PptxTablesTests"/>. Also confirms
+    ///     the shape is parsed into the slide's own <see cref="PptxSlide.ShapeTree"/> as a
+    ///     <see cref="PptxGraphicFrameShapeNode"/> carrying the expected table structure.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPptx_SystemIntegration_Tables_GraphicFrameParsesAndRendersCellFillEndToEnd()
+    {
+        // Arrange
+        const string spTreeInnerXml =
+            """
+            <p:graphicFrame>
+              <p:nvGraphicFramePr><p:cNvPr id="2" name="Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+              <p:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></p:xfrm>
+              <a:graphic>
+                <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">
+                  <a:tbl>
+                    <a:tblGrid><a:gridCol w="9144000"/></a:tblGrid>
+                    <a:tr h="6858000">
+                      <a:tc>
+                        <a:tcPr><a:solidFill><a:srgbClr val="00FFFF"/></a:solidFill></a:tcPr>
+                      </a:tc>
+                    </a:tr>
+                  </a:tbl>
+                </a:graphicData>
+              </a:graphic>
+            </p:graphicFrame>
+            """;
+        using var stream = BuildGeometryPaintPackage(spTreeInnerXml);
+        using var document = PptxDocument.Open(stream);
+
+        // Act
+        var shapeTree = document.GetSlide(0).ShapeTree;
+        using var surface = document.Render(0, 50, 50);
+
+        // Assert
+        var tableNode = Assert.IsType<PptxGraphicFrameShapeNode>(Assert.Single(shapeTree));
+        var row = Assert.Single(tableNode.Table.Rows);
+        Assert.Single(row.Cells);
+        Assert.Equal(new Rgba32(0, 255, 255, 255), surface[25, 25]);
+    }
+
+    /// <summary>
+    ///     Opens a full presentation package end-to-end whose one slide contains a
+    ///     <c>&lt;p:grpSp&gt;</c> nested two levels deep (a group whose only child is another
+    ///     group, whose only child is a freeform <c>&lt;p:sp&gt;</c>) - proving Phase 1e's
+    ///     recursive <see cref="PptxDocument.ParseShapeTree"/> both enumerates the full nested
+    ///     structure into <see cref="PptxSlide.ShapeTree"/> and composes each level's own child
+    ///     transform correctly when driven through the public
+    ///     <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/> entry point -
+    ///     distinct from the single-level-only transform math already proven end-to-end by
+    ///     <see cref="CanvasNetPptx_SystemIntegration_GeometryAndPaint_GroupShapeChildTransformComposesEndToEnd"/>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPptx_SystemIntegration_ShapeTree_NestedGroupEnumeratesAndComposesTransformEndToEnd()
+    {
+        // Arrange: the outer group occupies the slide's right half; its inner group fills the
+        // outer group's own child space entirely, and the leaf shape fills the inner group's own
+        // child space entirely - so the leaf should ultimately paint only the slide's right half.
+        const string spTreeInnerXml =
+            """
+            <p:grpSp>
+              <p:nvGrpSpPr><p:cNvPr id="2" name="Outer"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+              <p:grpSpPr>
+                <a:xfrm>
+                  <a:off x="4572000" y="0"/><a:ext cx="4572000" cy="6858000"/>
+                  <a:chOff x="0" y="0"/><a:chExt cx="4572000" cy="6858000"/>
+                </a:xfrm>
+              </p:grpSpPr>
+              <p:grpSp>
+                <p:nvGrpSpPr><p:cNvPr id="3" name="Inner"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+                <p:grpSpPr>
+                  <a:xfrm>
+                    <a:off x="0" y="0"/><a:ext cx="4572000" cy="6858000"/>
+                    <a:chOff x="0" y="0"/><a:chExt cx="4572000" cy="6858000"/>
+                  </a:xfrm>
+                </p:grpSpPr>
+                <p:sp>
+                  <p:nvSpPr><p:cNvPr id="4" name="Leaf"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+                  <p:spPr>
+                    <a:xfrm><a:off x="0" y="0"/><a:ext cx="4572000" cy="6858000"/></a:xfrm>
+                    <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                    <a:solidFill><a:srgbClr val="00FF00"/></a:solidFill>
+                  </p:spPr>
+                </p:sp>
+              </p:grpSp>
+            </p:grpSp>
+            """;
+        using var stream = BuildGeometryPaintPackage(spTreeInnerXml);
+        using var document = PptxDocument.Open(stream);
+
+        // Act
+        var shapeTree = document.GetSlide(0).ShapeTree;
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: shape-tree enumeration recovers both nesting levels and the leaf shape.
+        var outerGroup = Assert.IsType<PptxGroupShapeNode>(Assert.Single(shapeTree));
+        var innerGroup = Assert.IsType<PptxGroupShapeNode>(Assert.Single(outerGroup.Children));
+        Assert.IsType<PptxSpShapeNode>(Assert.Single(innerGroup.Children));
+
+        // Assert: the composed two-level transform places the leaf's fill on the right half only.
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[75, 50]);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[25, 50]);
+    }
+
+    /// <summary>
+    ///     Opens a full presentation package end-to-end whose one slide contains a single,
+    ///     full-slide, solid-filled freeform shape, then renders it through both public Phase 1f
+    ///     <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/> and
+    ///     <see cref="PptxDocument.Render(int, float, PptxRenderOptions?)"/> overloads - the
+    ///     explicit pixel-dimension overload and the DPI-based overload - proving both dispatch to
+    ///     the same underlying shape-tree walk
+    ///     and painter pipeline and that the DPI overload's own documented EMU-to-pixel conversion
+    ///     (<c>dpi / 914400</c>, rounded to the nearest pixel) produces the expected surface size.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPptx_SystemIntegration_Render_PixelAndDpiOverloadsProduceConsistentOutputEndToEnd()
+    {
+        // Arrange
+        const string spTreeInnerXml =
+            """
+            <p:sp>
+              <p:nvSpPr><p:cNvPr id="2" name="Rect"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="FF00FF"/></a:solidFill>
+              </p:spPr>
+            </p:sp>
+            """;
+        using var stream = BuildGeometryPaintPackage(spTreeInnerXml);
+        using var document = PptxDocument.Open(stream);
+
+        // Act: pixel-dimension overload.
+        using var pixelSurface = document.Render(0, 100, 50);
+
+        // Act: DPI overload - a 9144000x6858000 EMU (10"x7.5") slide at 96 DPI resolves to
+        // 960x720 pixels (9144000 / 914400 * 96 = 960; 6858000 / 914400 * 96 = 720).
+        using var dpiSurface = document.Render(0, 96f);
+
+        // Assert
+        Assert.Equal(100, pixelSurface.Width);
+        Assert.Equal(50, pixelSurface.Height);
+        Assert.Equal(new Rgba32(255, 0, 255, 255), pixelSurface[50, 25]);
+
+        Assert.Equal(960, dpiSurface.Width);
+        Assert.Equal(720, dpiSurface.Height);
+        Assert.Equal(new Rgba32(255, 0, 255, 255), dpiSurface[480, 360]);
     }
 }
