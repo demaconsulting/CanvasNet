@@ -1296,7 +1296,16 @@ run.
 `Render_ShapeWithOnlyStyleFillRefNoExplicitSpPrFill_RendersResolvedTintedAccentColor`,
 `Render_ShapeWithBothExplicitSpPrFillAndStyleFillRef_ExplicitFillWins`,
 `Render_ShapeWithOnlyStyleLnRefNoExplicitLn_RendersResolvedStrokeColor`,
-`Render_ShapeWithExplicitLnNoFillAndStyleLnRef_ExplicitLnWins`
+`Render_ShapeWithExplicitLnNoFillAndStyleLnRef_ExplicitLnWins`,
+`ResolveShapeLineStyle_LnElementNull_DefersToStyleLineStyle`,
+`ResolveShapeLineStyle_LnHasExplicitSolidFill_OwnFillWinsOverStyle`,
+`ResolveShapeLineStyle_LnHasExplicitNoFill_ResolvesNullRegardlessOfStyle`,
+`ResolveShapeLineStyle_LnHasWidthButNoFillChild_KeepsOwnWidthUsesStyleColor`,
+`ResolveShapeLineStyle_LnHasWidthAndOwnDashButNoFillChild_KeepsOwnDashArray`,
+`ResolveShapeLineStyle_LnHasWidthButNoFillChildAndNoStyleElement_ResolvesNullDefault`,
+`ResolveShapeLineStyle_LnHasWidthButNoFillChildAndStyleLnRefIdxZero_ResolvesNullDefault`,
+`ResolveShapeLineStyle_LnHasNoWidthAndNoFillChild_ResolvesNullRegardlessOfStyle`,
+`Render_ShapeWithLnWidthOnlyNoFillChildAndStyleLnRef_UsesOwnWidthAndStyleColor`
 
 Proves a shape built from PowerPoint's "Shape Styles" gallery - which declares its fill/line
 purely via `<p:spPr>`'s sibling `<p:style>/<a:fillRef idx="N">`/`<a:lnRef idx="N">`, indexing the
@@ -1312,17 +1321,38 @@ pinning `idx="1"` to `FillStyleList`/`LnStyleList`'s entry `0` - not entry `1`, 
 for the matched style-list entry's own `<a:schemeClr val="phClr"/>` token. Proves an `idx` outside
 `[1,3]`, an `idx` indexing past the end of an empty list, or a missing/non-numeric `idx`
 attribute, each throw `InvalidDataException` rather than being silently clamped or defaulted.
-Finally, proves the fix end-to-end at the render/pixel level: a shape with only a
+Proves the fill side end-to-end at the render/pixel level: a shape with only a
 `<p:style>/<a:fillRef>` (no explicit `<p:spPr>` fill at all) paints the resolved,
 phClr-substituted style-list fill color; an explicit `<p:spPr>` fill on the same shape wins over
-a simultaneously-present `<a:fillRef>`; a shape with only a `<p:style>/<a:lnRef>` (no explicit
-`<a:ln>` at all) paints the resolved stroke color; and an explicit `<a:ln><a:noFill/></a:ln>` on
-the same shape wins over a simultaneously-present `<a:lnRef>` - together the real-world,
-visual-fidelity proof this fix's acceptance bar requires. Documented, accepted limitations (not
-separately tested as defects): `<a:fontRef>` and `<a:effectRef>` are out of scope (different
-resolution mechanisms/unimplemented features entirely, not an extension of this fix's pattern),
-and a placeholder shape's own `<p:style>` is never inherited from its matched layout/master
-placeholder - only a shape's own, directly-declared `<p:style>` is consulted.
+a simultaneously-present `<a:fillRef>`.
+
+For the line side specifically, proves the corrected 4-case precedence implemented by
+`ResolveShapeLineStyle`: (1) an explicit fill-definition child on the shape's own `<a:ln>` (for
+example `<a:solidFill>`) wins outright over a visible style `<a:lnRef>`, resolving to the
+`<a:ln>`'s own color/width; (2) an explicit `<a:ln><a:noFill/></a:ln>` resolves to "no stroke"
+regardless of a visible style `<a:lnRef>`, remaining distinguishable from case 3; (3) a present
+`<a:ln>` declaring a width but no recognized fill-definition child of its own (the exact reported
+construct, `<a:ln w="76200"/>`) keeps its own width and dash verbatim while adopting the style
+`<a:lnRef>`'s own resolved color - and resolves to "no stroke" (not an invented default color)
+when no `<p:style>` element is present at all, and separately when its own `<a:lnRef idx="0"/>`
+resolves to "no line"; and (4) a fully absent `<a:ln>` defers entirely to the style `<a:lnRef>`
+for both width and color (`ResolveShapeLineStyle_LnElementNull_DefersToStyleLineStyle` proves this
+resolves identically to calling `ResolveShapeStyleLineStyle` directly). A further edge-case test
+proves a fill-less, width-less `<a:ln/>` (no `w` attribute at all) still resolves to "no stroke"
+regardless of a visible style `<a:lnRef>` - width is never pulled from style for an ordinary
+shape's own line, unlike `ResolveConnectorLineStyle`'s broader per-attribute merge for connectors.
+Finally, `Render_ShapeWithLnWidthOnlyNoFillChildAndStyleLnRef_UsesOwnWidthAndStyleColor` proves
+case 3 end-to-end at the render/pixel level, reproducing the exact reported construct alongside a
+style `<a:lnRef>` resolving to a deliberately distinct, much wider line-style-list entry: the
+painted stroke is the style's own color, sampled directly on the shape's own edge, and a second
+sample point - outside the shape's own (narrow) stroke band but well inside where the style's own
+(much wider) stroke band would have reached - remains unpainted, proving width is the shape's own
+and never merged in from the style. Together these are the real-world, visual-fidelity proof this
+fix's acceptance bar requires. Documented, accepted limitations (not separately tested as
+defects): `<a:fontRef>` and `<a:effectRef>` are out of scope (different resolution
+mechanisms/unimplemented features entirely, not an extension of this fix's pattern), and a
+placeholder shape's own `<p:style>` is never inherited from its matched layout/master placeholder -
+only a shape's own, directly-declared `<p:style>` is consulted.
 
 #### CanvasNetPptx-PptxDocument-ConnectorRendering: `<p:cxnSp>` Connector Shape Rendering
 

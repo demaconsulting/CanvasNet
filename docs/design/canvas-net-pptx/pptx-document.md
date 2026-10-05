@@ -1861,10 +1861,39 @@ resolution, which is placeholder-aware. This is a deliberate, narrower-scope lim
 `ResolveFill` already collapses "no recognized fill child at all" and "an explicit `<a:noFill/>`"
 to the identical `PptxNoFill.Instance` return value, so that collapsed return value alone cannot
 distinguish "shape explicitly declared no fill, which wins over any style ref" from "shape
-declared nothing at all, so falls back to the style ref". The line side uses the simpler "is
-`<a:ln>` present at all" check (no separate helper needed) - a present `<a:ln>` (even one with no
-recognized fill child of its own) always wins over `<a:lnRef>`; only a fully absent `<a:ln>` falls
-back to it.
+declared nothing at all, so falls back to the style ref".
+
+The line side is resolved by a new `ResolveShapeLineStyle` (`PptxDocument.Paint.cs`), covering
+four cases: (1) an explicit fill-definition child on the shape's own `<a:ln>` (including
+`<a:noFill/>`) wins outright over the style `<a:lnRef>`, reusing the same `HasExplicitFillChild`
+helper and delegating to the existing `ResolveLineStyle` unchanged; (2) is the same check's
+`<a:noFill/>` sub-case, which `ResolveLineStyle` already correctly resolves to "no stroke",
+distinguishing it from case 3 below; (3) a present `<a:ln>` that declares no recognized
+fill-definition child of its own (for example `<a:ln w="76200"/>` - width/dash/cap attributes
+only) keeps its own width and dash from that `<a:ln>` verbatim, but defers only its _color_ to the
+style `<a:lnRef>` via `ResolveShapeStyleLineStyle`, falling back to "no stroke" when the style
+itself supplies no usable color (no `<p:style>` at all, no `<a:lnRef>`, an `<a:lnRef idx="0"/>`,
+or a style entry that itself resolves to `PptxNoFill`); (4) a fully absent `<a:ln>` defers
+entirely to the style `<a:lnRef>` for both width and color, via `ResolveShapeStyleLineStyle`
+unchanged.
+
+Before this fix, the line side used a much simpler, incorrect "is `<a:ln>` present at all" check:
+a present `<a:ln>` - even one with no recognized fill child of its own - always won over
+`<a:lnRef>` in full, silently discarding the style's color and resolving to "no stroke" for case
+3's shapes. This was a genuine visual-fidelity bug: a real-world shape commonly declares an
+`<a:ln>` that carries only width/dash/cap attributes, relying entirely on its `<p:style>/
+<a:lnRef>` for its own visible color - exactly PowerPoint's own "Shape Styles" gallery usage
+pattern for an outline-only style. `ResolveShapeLineStyle`'s case-3 "no style color available ->
+no stroke" default is not a newly invented behavior: it is the exact, pre-existing default every
+other fill-less-line call site in this unit already produces (table-cell borders in
+`PptxDocument.Tables.cs`; `ResolveShapeStyleLineStyle` itself consulting an absent/`idx="0"`
+`<a:lnRef>`), and it mirrors `ResolveConnectorLineStyle`'s own already-shipped paint-fallback
+default (`styleLineStyle?.Paint ?? PptxNoFill.Instance`) for its connector-specific, broader
+per-attribute merge (see "Phase 2 Follow-Up: Connector Shape Rendering" below). `ResolveShapeLineStyle`
+is deliberately **narrower** than `ResolveConnectorLineStyle`: only color ever falls back to
+style - width and dash always come from the shape's own `<a:ln>` whenever it is present at all,
+never merged from style, even when that `<a:ln>` itself declares no `w`/`<a:prstDash>` - connectors
+and ordinary shapes are intentionally documented as having different, scoped merge policies.
 
 **Known limitations, left as explicit, documented simplifications**:
 
@@ -1893,6 +1922,20 @@ resolved, phClr-substituted style-list color; an explicit `<p:spPr>` fill wins o
 simultaneously-present `<a:fillRef>` on the same shape; a shape with only a `<p:style>/<a:lnRef>`
 (no explicit `<a:ln>`) renders the resolved stroke color; and an explicit `<a:ln><a:noFill/></a:ln>`
 wins over a simultaneously-present `<a:lnRef>` on the same shape.
+
+`PptxPaintTests.cs` additionally gained direct `ResolveShapeLineStyle` unit tests for all four
+cases above - a null `<a:ln>` deferring entirely to `ResolveShapeStyleLineStyle`; an explicit
+`<a:solidFill>`/`<a:noFill/>` on the shape's own `<a:ln>` winning outright over a visible style
+`<a:lnRef>`; a fill-less `<a:ln w="76200"/>` keeping its own width and dash while adopting the
+style's own color; and that same fill-less `<a:ln>` resolving to "no stroke" when no
+`<p:style>` element is present at all, and separately when its `<a:lnRef idx="0"/>` resolves to
+"no line" - plus an edge case proving a fill-less, width-less `<a:ln/>` never pulls a width from
+style either. `PptxRenderTests.cs` gained one further end-to-end render-level pixel regression
+test, `Render_ShapeWithLnWidthOnlyNoFillChildAndStyleLnRef_UsesOwnWidthAndStyleColor`, reproducing
+the exact reported construct (`<a:ln w="76200"/>`, no fill child, alongside a `<p:style>/<a:lnRef>`
+resolving to a distinct color) and asserting, at the pixel level, both that the style's own color
+paints the stroke and that the painted band matches the shape's own (narrower) width rather than
+the style's own (much wider) line-style-list entry width.
 
 #### Phase 2 Follow-Up: Connector Shape Rendering (`<p:cxnSp>`)
 

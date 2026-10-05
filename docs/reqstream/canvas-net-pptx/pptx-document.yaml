@@ -1514,9 +1514,12 @@ sections:
               entry count, throwing InvalidDataException), substituting the fillRef/lnRef's own
               color-definition child for the matched style-list entry's own <a:schemeClr
               val="phClr"/> token(s), and shall give priority to an explicit fill-definition child
-              on the shape's own <p:spPr> (or an explicit, even fill-less, <a:ln>) over its
-              corresponding style reference, falling back to the style reference only when the
-              shape declares no explicit fill/line element at all.
+              (on the shape's own <p:spPr>, or on its own <a:ln>, including an explicit
+              <a:noFill/>) over its corresponding style reference. For the line side specifically,
+              a present <a:ln> that declares no recognized fill-definition child of its own keeps
+              its own width/dash but defers only its color to the style <a:lnRef> (falling back to
+              "no stroke" when no style color is available); a fully absent fill/line element
+              defers to the style reference entirely for both width and color.
             justification: |
               A shape styled purely through PowerPoint's own Shape Styles gallery (rather than an
               explicit, user-applied fill/line) declares that choice solely via <p:style>, which
@@ -1528,11 +1531,22 @@ sections:
               exactly 3 entries in each list and no "other half" concept applies here; rejecting an
               out-of-range idx with InvalidDataException (rather than silently clamping it) keeps
               this resolver consistent with every other idx-validating resolver already in this
-              unit. An explicit fill/line element must win over a style reference because real
-              PowerPoint itself allows a user to override an otherwise gallery-styled shape's own
-              fill/line without clearing its <p:style>, so both can legitimately coexist on the
-              same shape - only the absence of any explicit fill/line element signals that the
-              style reference should actually be consulted.
+              unit. An explicit fill-definition child (including <a:noFill/>) must win over a style
+              reference because real PowerPoint itself allows a user to override an otherwise
+              gallery-styled shape's own fill/line without clearing its <p:style>, so both can
+              legitimately coexist on the same shape. However, a real-world shape commonly declares
+              an <a:ln> that carries only width/dash/cap attributes with no recognized
+              fill-definition child at all, relying entirely on its <p:style>/<a:lnRef> for its own
+              visible color - treating such a fill-less <a:ln> as if it had "explicitly won" over
+              the style (the original, buggy policy) silently discarded that color and rendered no
+              stroke at all, the opposite of PowerPoint's own rendering. The line side's resolver
+              therefore keeps the shape's own width/dash (never pulled from style) but defers only
+              its color to the style <a:lnRef>, falling back to "no stroke" when no style color is
+              available - the same pre-existing default every other fill-less-line call site in
+              this unit already produces, and the same default ResolveConnectorLineStyle already
+              establishes as precedent for a connector's own, broader per-attribute merge; no new
+              default color is invented, since OOXML's own schema default for an absent or idx="0"
+              style reference is "no line at all", not a specific color.
             tests:
               - ResolveShapeStyleFill_NullStyleElement_ReturnsNoFill
               - ResolveShapeStyleFill_NoFillRef_ReturnsNoFill
@@ -1556,6 +1570,15 @@ sections:
               - Render_ShapeWithBothExplicitSpPrFillAndStyleFillRef_ExplicitFillWins
               - Render_ShapeWithOnlyStyleLnRefNoExplicitLn_RendersResolvedStrokeColor
               - Render_ShapeWithExplicitLnNoFillAndStyleLnRef_ExplicitLnWins
+              - ResolveShapeLineStyle_LnElementNull_DefersToStyleLineStyle
+              - ResolveShapeLineStyle_LnHasExplicitSolidFill_OwnFillWinsOverStyle
+              - ResolveShapeLineStyle_LnHasExplicitNoFill_ResolvesNullRegardlessOfStyle
+              - ResolveShapeLineStyle_LnHasWidthButNoFillChild_KeepsOwnWidthUsesStyleColor
+              - ResolveShapeLineStyle_LnHasWidthAndOwnDashButNoFillChild_KeepsOwnDashArray
+              - ResolveShapeLineStyle_LnHasWidthButNoFillChildAndNoStyleElement_ResolvesNullDefault
+              - ResolveShapeLineStyle_LnHasWidthButNoFillChildAndStyleLnRefIdxZero_ResolvesNullDefault
+              - ResolveShapeLineStyle_LnHasNoWidthAndNoFillChild_ResolvesNullRegardlessOfStyle
+              - Render_ShapeWithLnWidthOnlyNoFillChildAndStyleLnRef_UsesOwnWidthAndStyleColor
 
           - id: CanvasNetPptx-PptxDocument-ConnectorRendering
             title: >-
