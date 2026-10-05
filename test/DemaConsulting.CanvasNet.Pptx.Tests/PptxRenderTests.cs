@@ -2907,6 +2907,42 @@ public class PptxRenderTests
     }
 
     /// <summary>
+    ///     Regression test (see the companion planning report's parse-time containment fix): a
+    ///     master's own <c>&lt;p:graphicFrame&gt;</c> declaring an unsupported (non-table, chart)
+    ///     kind must not abort <em>parsing</em> that master - which would otherwise abort
+    ///     <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/> for every slide
+    ///     sharing that master - so the slide's own content still renders normally.
+    /// </summary>
+    [Fact]
+    public void Render_MasterGraphicFrameWithUnsupportedKind_SkipsThatShapeAndStillRendersSlideContent()
+    {
+        const string masterShapeTreeXml =
+            """
+            <p:graphicFrame>
+              <p:nvGraphicFramePr><p:cNvPr id="3" name="MasterChart"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+              <p:xfrm><a:off x="0" y="0"/><a:ext cx="1000000" cy="1000000"/></p:xfrm>
+              <a:graphic>
+                <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+                  <a:tbl>
+                    <a:tblGrid><a:gridCol w="1000"/></a:tblGrid>
+                    <a:tr h="1000"><a:tc/></a:tr>
+                  </a:tbl>
+                </a:graphicData>
+              </a:graphic>
+            </p:graphicFrame>
+            """;
+        var slideShapeXml = FullSlideShapeXml("SlideShape", "0000FF");
+        using var stream = BuildRenderPackage(slideShapeXml, masterShapeTreeXml: masterShapeTreeXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 20, 20);
+
+        // The master's own unsupported-kind graphic frame was skipped at parse time - the
+        // slide's own shape still paints over the full slide footprint.
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[10, 10]);
+    }
+
+    /// <summary>
     ///     Regression test (see the companion planning report's bug-fix rationale): a
     ///     <strong>slide's own</strong> (not a master/layout's) <c>&lt;p:pic&gt;</c> referencing an
     ///     unsupported raster format must still hard-fail <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>

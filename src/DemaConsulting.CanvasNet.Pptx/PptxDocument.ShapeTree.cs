@@ -29,6 +29,12 @@ public sealed partial class PptxDocument
     ///     <c>&lt;p:nvGrpSpPr&gt;</c>/<c>&lt;p:grpSpPr&gt;</c>, not wrapped in a nested
     ///     <c>&lt;p:spTree&gt;</c>), and <c>&lt;p:cxnSp&gt;</c> &#8594;
     ///     <see cref="PptxConnectorShapeNode"/> (Phase 2 Follow-Up: Connector Shape Rendering).
+    ///     As of the companion planning report's parse-time containment fix,
+    ///     <paramref name="containUnsupportedGraphicFrames"/> gates whether a
+    ///     <c>&lt;p:graphicFrame&gt;</c> declaring a recognized-but-unsupported (non-table) kind
+    ///     is skipped (master/layout-owned shape trees) or still propagates (a slide's own shape
+    ///     tree), mirroring <c>PptxDocument.Render.cs</c>'s own <c>RenderNode</c>
+    ///     <c>skipPlaceholderShapes</c> render-time convention, extended to parse time.
     /// </summary>
     /// <param name="spTreeOrGroupElement">
     ///     The <c>&lt;p:spTree&gt;</c> (slide-level) or <c>&lt;p:grpSp&gt;</c> (nested-group-level)
@@ -62,6 +68,23 @@ public sealed partial class PptxDocument
     ///     <see langword="null"/> (resolving to <see cref="PptxColorMap.Default"/>) so every
     ///     pre-existing call site keeps compiling and behaving unchanged.
     /// </param>
+    /// <param name="containUnsupportedGraphicFrames">
+    ///     When <see langword="true"/>, a <c>&lt;p:graphicFrame&gt;</c> whose
+    ///     <c>&lt;a:graphicData&gt;</c> declares a recognized-but-unsupported (non-table) kind -
+    ///     a chart, SmartArt, OLE object, etc. - has its <see cref="PptxUnsupportedFeatureException"/>
+    ///     caught and that node silently skipped (its other siblings still parse normally),
+    ///     mirroring <c>PptxDocument.Render.cs</c>'s own <c>RenderNode</c>
+    ///     <c>skipPlaceholderShapes</c>-gated render-time convention. When <see langword="false"/>
+    ///     (the default), the exception propagates unchanged, aborting the rest of this shape
+    ///     tree's parse. <see cref="GetSlide"/> keeps the default <see langword="false"/> (a
+    ///     slide's own unsupported graphic frame must still hard-fail
+    ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/> - see
+    ///     the three protected <c>PptxFixturesCorpusTests.cs</c> slide-level-throw tests);
+    ///     <see cref="GetLayout"/>/<see cref="GetMaster"/> pass <see langword="true"/>, since each
+    ///     is parsed once and cached, shared by every slide using that layout/master - an
+    ///     uncontained exception there would otherwise abort every slide sharing it. Threaded
+    ///     through the recursive <c>&lt;p:grpSp&gt;</c> self-call unchanged.
+    /// </param>
     /// <returns>
     ///     The recognized shape-tree nodes, in document order. Unrecognized element kinds (for
     ///     example <c>&lt;p:nvGrpSpPr&gt;</c>, <c>&lt;p:grpSpPr&gt;</c>, or
@@ -77,11 +100,15 @@ public sealed partial class PptxDocument
     /// </exception>
     /// <exception cref="PptxUnsupportedFeatureException">
     ///     Thrown (via <see cref="ParseTable"/>) when a <c>&lt;p:graphicFrame&gt;</c>'s
-    ///     <c>&lt;a:graphicData&gt;</c> declares a recognized-but-unsupported (non-table) kind.
+    ///     <c>&lt;a:graphicData&gt;</c> declares a recognized-but-unsupported (non-table) kind and
+    ///     <paramref name="containUnsupportedGraphicFrames"/> is <see langword="false"/> (the
+    ///     default). When <paramref name="containUnsupportedGraphicFrames"/> is
+    ///     <see langword="true"/>, this exception is instead caught and the offending node
+    ///     silently skipped.
     /// </exception>
     internal static IReadOnlyList<PptxShapeTreeNode> ParseShapeTree(
         XElement spTreeOrGroupElement, Func<PptxTheme> themeResolver, Func<string, XElement?>? tableStyleResolver = null,
-        Func<PptxColorMap>? colorMapResolver = null)
+        Func<PptxColorMap>? colorMapResolver = null, bool containUnsupportedGraphicFrames = false)
     {
         var nodes = new List<PptxShapeTreeNode>();
 
@@ -97,15 +124,24 @@ public sealed partial class PptxDocument
             }
             else if (child.Name == PresentationNamespace + "graphicFrame")
             {
-                nodes.Add(new PptxGraphicFrameShapeNode(
-                    child, ParseTable(child, themeResolver(), colorMapResolver?.Invoke(), tableStyleResolver)));
+                try
+                {
+                    nodes.Add(new PptxGraphicFrameShapeNode(
+                        child, ParseTable(child, themeResolver(), colorMapResolver?.Invoke(), tableStyleResolver)));
+                }
+                catch (PptxUnsupportedFeatureException) when (containUnsupportedGraphicFrames)
+                {
+                    // A master/layout-owned graphic frame of an unsupported (non-table) kind is
+                    // skipped rather than aborting this entire cached shape tree - see this
+                    // parameter's own XmlDoc remarks.
+                }
             }
             else if (child.Name == PresentationNamespace + "grpSp")
             {
                 var groupXfrm = child.Element(PresentationNamespace + "grpSpPr")?.Element(DrawingNamespace + "xfrm") ??
                     throw new InvalidDataException("A <p:grpSp> element has no <p:grpSpPr>/<a:xfrm> element.");
                 var childTransform = ResolveGroupChildTransform(groupXfrm);
-                var children = ParseShapeTree(child, themeResolver, tableStyleResolver, colorMapResolver);
+                var children = ParseShapeTree(child, themeResolver, tableStyleResolver, colorMapResolver, containUnsupportedGraphicFrames);
                 nodes.Add(new PptxGroupShapeNode(child, childTransform, children));
             }
             else if (child.Name == PresentationNamespace + "cxnSp")

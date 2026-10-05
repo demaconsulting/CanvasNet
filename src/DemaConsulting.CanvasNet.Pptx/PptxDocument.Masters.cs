@@ -33,6 +33,14 @@ public sealed partial class PptxDocument
     ///     its <c>&lt;p:clrMap&gt;</c> element (or any of its required <c>bg1</c>/<c>tx1</c>/
     ///     <c>bg2</c>/<c>tx2</c> attributes) is missing.
     /// </exception>
+    /// <remarks>
+    ///     This master's own shape tree is parsed with <see cref="ParseShapeTree"/>'s
+    ///     <c>containUnsupportedGraphicFrames</c> parameter set to <see langword="true"/>: a
+    ///     <c>&lt;p:graphicFrame&gt;</c> of a recognized-but-unsupported (non-table) kind placed
+    ///     directly on this master's own shape tree is skipped rather than aborting this entire
+    ///     cached parse - which would otherwise fail every slide using this master. A slide's own
+    ///     such graphic frame is unaffected and still hard-fails <see cref="GetSlide"/>.
+    /// </remarks>
     internal PptxMaster GetMaster(string masterPartPath)
     {
         if (_masterCache.TryGetValue(masterPartPath, out var cached))
@@ -70,7 +78,9 @@ public sealed partial class PptxDocument
         // master-owned table's cached fill/border here would be correct for some consuming
         // slides and wrong for others. See ParseTable's own colorMap parameter XmlDoc for the
         // full rationale and GetSlide's own colorMapResolver for the case where this is safe.
-        var shapeTree = ParseShapeTree(spTree, () => GetTheme(themePartPath), tableStyleResolver: TryResolveTableStyle);
+        var shapeTree = ParseShapeTree(
+            spTree, () => GetTheme(themePartPath), tableStyleResolver: TryResolveTableStyle,
+            containUnsupportedGraphicFrames: true);
 
         var master = new PptxMaster(masterPartPath, themePartPath, placeholders, txStyles, background, shapeTree, colorMap);
         _masterCache[masterPartPath] = master;

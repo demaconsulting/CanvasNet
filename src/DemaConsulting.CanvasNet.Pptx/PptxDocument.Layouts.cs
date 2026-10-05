@@ -24,6 +24,14 @@ public sealed partial class PptxDocument
     ///     <c>&lt;p:cSld&gt;/&lt;p:spTree&gt;</c> element is missing, when a placeholder's
     ///     <c>idx</c> attribute is invalid, or when it has no <c>/slideMaster</c> relationship.
     /// </exception>
+    /// <remarks>
+    ///     This layout's own shape tree is parsed with <see cref="ParseShapeTree"/>'s
+    ///     <c>containUnsupportedGraphicFrames</c> parameter set to <see langword="true"/>: a
+    ///     <c>&lt;p:graphicFrame&gt;</c> of a recognized-but-unsupported (non-table) kind placed
+    ///     directly on this layout's own shape tree is skipped rather than aborting this entire
+    ///     cached parse - which would otherwise fail every slide using this layout. A slide's own
+    ///     such graphic frame is unaffected and still hard-fails <see cref="GetSlide"/>.
+    /// </remarks>
     internal PptxLayout GetLayout(string layoutPartPath)
     {
         if (_layoutCache.TryGetValue(layoutPartPath, out var cached))
@@ -58,7 +66,9 @@ public sealed partial class PptxDocument
         // layout-owned table's cached fill/border here would be correct for some consuming
         // slides and wrong for others. See ParseTable's own colorMap parameter XmlDoc for the
         // full rationale and GetSlide's own colorMapResolver for the case where this is safe.
-        var shapeTree = ParseShapeTree(spTree, () => GetTheme(GetMaster(masterPartPath).ThemePartPath), tableStyleResolver: TryResolveTableStyle);
+        var shapeTree = ParseShapeTree(
+            spTree, () => GetTheme(GetMaster(masterPartPath).ThemePartPath), tableStyleResolver: TryResolveTableStyle,
+            containUnsupportedGraphicFrames: true);
 
         var layout = new PptxLayout(layoutPartPath, masterPartPath, placeholders, background, shapeTree, clrMapOvr);
         _layoutCache[layoutPartPath] = layout;

@@ -281,6 +281,61 @@ public class PptxGroupsTests
         Assert.Single(graphicFrameNode.Table.ColumnWidthsEmu);
     }
 
+    // --- ParseShapeTree: containUnsupportedGraphicFrames (companion planning report's fix) -----
+
+    /// <summary>
+    ///     Regression test (see the companion planning report's bug-fix rationale): with
+    ///     <c>containUnsupportedGraphicFrames: true</c> (as passed by <c>GetLayout</c>/
+    ///     <c>GetMaster</c>), an unsupported-kind <c>&lt;p:graphicFrame&gt;</c> (a chart, here)
+    ///     is silently skipped - its own <see cref="PptxUnsupportedFeatureException"/> must not
+    ///     abort the rest of the shape tree - while a sibling freeform shape still parses.
+    /// </summary>
+    [Fact]
+    public void ParseShapeTree_GraphicFrameUnsupportedKindWithContainmentEnabled_SkipsNodeKeepsSiblings()
+    {
+        var spTree = new XElement(P + "spTree", BuildGraphicFrame("/chart"), BuildFreeformSp());
+
+        var nodes = PptxDocument.ParseShapeTree(spTree, ThemeResolver(BuildTestTheme()), containUnsupportedGraphicFrames: true);
+
+        var node = Assert.IsType<PptxSpShapeNode>(Assert.Single(nodes));
+        Assert.Null(node.Placeholder);
+    }
+
+    /// <summary>
+    ///     Regression test: with the default <c>containUnsupportedGraphicFrames: false</c> (as
+    ///     used by <c>GetSlide</c>), an unsupported-kind <c>&lt;p:graphicFrame&gt;</c> still
+    ///     throws <see cref="PptxUnsupportedFeatureException"/>, locking in the slide-level
+    ///     hard-fail behavior proven by <c>PptxFixturesCorpusTests.cs</c>'s own slide-level-throw
+    ///     tests as a guard against this containment ever being widened by accident.
+    /// </summary>
+    [Fact]
+    public void ParseShapeTree_GraphicFrameUnsupportedKindWithContainmentDisabled_StillThrows()
+    {
+        var spTree = new XElement(P + "spTree", BuildGraphicFrame("/chart"), BuildFreeformSp());
+
+        Assert.Throws<PptxUnsupportedFeatureException>(() => PptxDocument.ParseShapeTree(spTree, ThemeResolver(BuildTestTheme())));
+    }
+
+    /// <summary>
+    ///     Proves <c>containUnsupportedGraphicFrames</c> propagates through the recursive
+    ///     <c>&lt;p:grpSp&gt;</c> self-call, mirroring how <c>themeResolver</c>/
+    ///     <c>tableStyleResolver</c>/<c>colorMapResolver</c> are already propagated (see
+    ///     <see cref="ParseShapeTree_GraphicFrameInsideGroup_ParsesTableUsingPropagatedThemeResolver"/>).
+    /// </summary>
+    [Fact]
+    public void ParseShapeTree_GraphicFrameInsideGroupUnsupportedKindWithContainmentEnabled_SkipsNodeKeepsSiblings()
+    {
+        var xfrm = BuildXfrm(0, 0, 100, 100);
+        var grpSp = BuildGrpSp(xfrm, BuildGraphicFrame("/chart"), BuildFreeformSp());
+        var spTree = new XElement(P + "spTree", grpSp);
+
+        var nodes = PptxDocument.ParseShapeTree(spTree, ThemeResolver(BuildTestTheme()), containUnsupportedGraphicFrames: true);
+
+        var group = Assert.IsType<PptxGroupShapeNode>(Assert.Single(nodes));
+        var child = Assert.IsType<PptxSpShapeNode>(Assert.Single(group.Children));
+        Assert.Null(child.Placeholder);
+    }
+
     // --- PptxPlaceholderParser.TryParsePlaceholder ----------------------------------------------
 
     /// <summary>Proves <see cref="PptxPlaceholderParser.TryParsePlaceholder"/> returns null for a freeform shape.</summary>

@@ -34,8 +34,12 @@ public sealed partial class PptxDocument
     ///     when any part along that chain is malformed.
     /// </exception>
     /// <exception cref="PptxUnsupportedFeatureException">
-    ///     Thrown (via <see cref="ParseShapeTree"/>) when a <c>&lt;p:graphicFrame&gt;</c>'s
-    ///     <c>&lt;a:graphicData&gt;</c> declares a recognized-but-unsupported (non-table) kind.
+    ///     Thrown (via <see cref="ParseShapeTree"/>) when this <strong>slide's own</strong>
+    ///     <c>&lt;p:graphicFrame&gt;</c>'s <c>&lt;a:graphicData&gt;</c> declares a
+    ///     recognized-but-unsupported (non-table) kind - <see cref="ParseShapeTree"/> is called
+    ///     here with its default <c>containUnsupportedGraphicFrames: false</c>, so (unlike
+    ///     <see cref="GetLayout"/>/<see cref="GetMaster"/>, which pass <see langword="true"/>)
+    ///     this always propagates rather than being silently skipped.
     /// </exception>
     internal PptxSlide GetSlide(int slideIndex)
     {
