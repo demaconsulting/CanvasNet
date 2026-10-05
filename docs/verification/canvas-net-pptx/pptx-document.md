@@ -1636,7 +1636,8 @@ a later phase.
 `Render_PictureEllipseGeometry_ClipsImageToEllipticalRegion`,
 `Render_PictureRectGeometry_PaintsFullBoundingBoxUnclipped`,
 `Render_PictureNoPrstGeom_PaintsFullBoundingBoxUnclipped`,
-`Render_PictureRoundRectGeometry_ClipsImageCorners`
+`Render_PictureRoundRectGeometry_ClipsImageCorners`,
+`Render_PictureEllipseGeometry_NearSquareRealWorldAspect_ClipsAllFourBoundingBoxCorners`
 
 Proves `ResolvePictureClipPath` returns `null` (meaning "no clip - paint the original unclipped
 full bounding-box rectangle") for a `<p:spPr>` that explicitly declares `<a:prstGeom prst="rect">`
@@ -1668,6 +1669,18 @@ the circular photo-crop effect by eye. Documented, accepted limitation (not sepa
 defect): the clip mask's own anti-aliased edge inherits `PathFiller.Fill`'s default flatten
 tolerance and `PptxPresetGeometry`'s own fixed-segment-count curve approximation - the same
 characteristic every other preset-geometry shape fill in this package already carries.
+`Render_PictureEllipseGeometry_NearSquareRealWorldAspect_ClipsAllFourBoundingBoxCorners` is a
+hardening regression guard, added in response to a bug report claiming a near-square
+(`4678591 x 5053859` EMU), real-world-corpus ellipse rendered with an unclipped rectangular top
+while its bottom clipped correctly: it reproduces the report's own exact shape geometry and 16:9
+slide size, and asserts all four bounding-box corners (not just one diagonal pair) remain
+background, including a point in the bounding box's upper quarter that lies outside the ellipse's
+own curve. Direct investigation (a mask-boundary-trace overlay against the real rendered output)
+found the clip mask is already pixel-correct and fully symmetric on all four sides - no production
+code defect existed; the reported asymmetry was a visual illusion caused by the embedded photo's
+own light background color blending into the slide's background near the ellipse's top edge. This
+test closes the test-coverage gap that allowed that illusion to be mistaken for a defect, without
+any change to `PptxDocument.Images.cs`, `PptxPresetGeometry.cs`, or `PathFiller.cs`.
 
 ## Acceptance Criteria
 

@@ -8,7 +8,7 @@ namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
 // cspell:ignore pptx sppr nvsppr nvpr cnvpr cnvsppr grpsp nvgrpsppr grpsppr cxnsp nvcxnsppr cnvcxnsppr
 // cspell:ignore nvpicpr nvpr cnvpicpr blipfill srcrect embed graphicframe tbl tblgrid gridcol tcpr srgb
-// cspell:ignore calibri txbox xfrm prst Xfrm hlink Hlink cust pythonpptx
+// cspell:ignore calibri txbox xfrm prst Xfrm hlink Hlink cust pythonpptx bbox
 
 /// <summary>
 ///     Unit-level tests for the Phase 1f public, slide-level rendering API
@@ -949,6 +949,101 @@ public class PptxRenderTests
         // Bounding-box corners, well outside the ellipse: the slide's background color.
         Assert.Equal(new Rgba32(255, 255, 255, 255), surface[0, 0]);
         Assert.Equal(new Rgba32(255, 255, 255, 255), surface[19, 19]);
+    }
+
+    /// <summary>
+    ///     Regression guard using the real-world corpus fixture's own exact shape geometry
+    ///     (<c>&lt;a:xfrm&gt;</c>/<c>&lt;a:prstGeom prst="ellipse"&gt;</c>/<c>&lt;a:srcRect&gt;</c>/
+    ///     red <c>&lt;a:ln&gt;</c> transcribed verbatim from the bug report), rendered at the
+    ///     report's own 16:9 slide size (<c>12192000 x 6858000</c> EMU, 1280x720px) - a near-square
+    ///     (<c>4678591 x 5053859</c> EMU, ratio ~0.9256) ellipse that the report claimed rendered
+    ///     with an unclipped rectangular <em>top</em> while the bottom clipped correctly. A direct
+    ///     mask-boundary-trace overlay against the real rendered output (see
+    ///     <c>.agent-logs/planning-picture-ellipse-clip-bug-reverify-7c3e1a.md</c>) proved the clip
+    ///     mask is in fact pixel-correct and fully symmetric on all four sides - the reported
+    ///     asymmetry was a visual illusion caused by the embedded photo's own light background
+    ///     color blending into the slide's background near the ellipse's top edge, not a code
+    ///     defect. This test asserts all four bounding-box corners (not just one diagonal pair, as
+    ///     the pre-existing <see cref="Render_PictureEllipseGeometry_ClipsImageToEllipticalRegion"/>
+    ///     does) remain the slide's background color, including a point in the upper quarter of the
+    ///     bounding box that sits outside the ellipse's own curve (the specific region the bug
+    ///     report claimed was wrongly left unclipped), while the shape's own center still paints
+    ///     the embedded image's color.
+    /// </summary>
+    [Fact]
+    public void Render_PictureEllipseGeometry_NearSquareRealWorldAspect_ClipsAllFourBoundingBoxCorners()
+    {
+        var pngBytes = BuildPngBytes(new Rgba32(10, 20, 30, 255));
+        const string spTreeInnerXml =
+            """
+            <p:pic>
+              <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill>
+                <a:blip r:embed="rId2"/>
+                <a:srcRect l="-4697" t="-3319" r="-3698" b="583"/>
+              </p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="406259" y="1259164"/><a:ext cx="4678591" cy="5053859"/></a:xfrm>
+                <a:prstGeom prst="ellipse"><a:avLst/></a:prstGeom>
+                <a:ln><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln>
+              </p:spPr>
+            </p:pic>
+            """;
+
+        // The report's own 16:9 presentation <p:sldSz>.
+        const float slideWidthEmu = 12192000f;
+        const float slideHeightEmu = 6858000f;
+        const int renderWidthPx = 1280;
+        const int renderHeightPx = 720;
+
+        using var stream = BuildRenderPackage(
+            spTreeInnerXml, media: ("png", "image/png", pngBytes),
+            slideWidthEmu: slideWidthEmu, slideHeightEmu: slideHeightEmu);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, renderWidthPx, renderHeightPx);
+
+        // Compute the shape's own bounding box in device-pixel space algebraically from its EMU
+        // <a:xfrm>, rather than hard-coding magic pixel literals.
+        var scaleX = renderWidthPx / slideWidthEmu;
+        var scaleY = renderHeightPx / slideHeightEmu;
+        const float offXEmu = 406259f;
+        const float offYEmu = 1259164f;
+        const float extCxEmu = 4678591f;
+        const float extCyEmu = 5053859f;
+        var bboxLeft = offXEmu * scaleX;
+        var bboxTop = offYEmu * scaleY;
+        var bboxRight = (offXEmu + extCxEmu) * scaleX;
+        var bboxBottom = (offYEmu + extCyEmu) * scaleY;
+        var centerX = (bboxLeft + bboxRight) / 2f;
+        var centerY = (bboxTop + bboxBottom) / 2f;
+
+        // Sampled a small margin inward from each bounding-box edge, well clear of the clip
+        // mask's own anti-aliased boundary.
+        const float marginPx = 8f;
+        var background = new Rgba32(255, 255, 255, 255);
+        var imageColor = new Rgba32(10, 20, 30, 255);
+
+        // All four bounding-box corners - including both top corners, the specific region the
+        // bug report claimed was wrongly rendered as an unclipped rectangle.
+        Assert.Equal(background, surface[(int)(bboxLeft + marginPx), (int)(bboxTop + marginPx)]);
+        Assert.Equal(background, surface[(int)(bboxRight - marginPx), (int)(bboxTop + marginPx)]);
+        Assert.Equal(background, surface[(int)(bboxLeft + marginPx), (int)(bboxBottom - marginPx)]);
+        Assert.Equal(background, surface[(int)(bboxRight - marginPx), (int)(bboxBottom - marginPx)]);
+
+        // A point in the upper quarter of the bounding box, near its left/right edge (normalized
+        // ellipse-local u ~= 0.9, v ~= -0.7; u^2 + v^2 ~= 1.3 > 1, i.e. geometrically outside the
+        // ellipse's own curve while still inside the bounding box) - the single assertion most
+        // directly aimed at the bug report's literal claim that the top of the shape rendered as
+        // an unclipped rectangle.
+        var halfWidth = (bboxRight - bboxLeft) / 2f;
+        var halfHeight = (bboxBottom - bboxTop) / 2f;
+        var upperOutsidePointX = centerX + 0.9f * halfWidth;
+        var upperOutsidePointY = centerY - 0.7f * halfHeight;
+        Assert.Equal(background, surface[(int)upperOutsidePointX, (int)upperOutsidePointY]);
+
+        // The shape's own center: well inside the ellipse, the embedded image's own color.
+        Assert.Equal(imageColor, surface[(int)centerX, (int)centerY]);
     }
 
     /// <summary>

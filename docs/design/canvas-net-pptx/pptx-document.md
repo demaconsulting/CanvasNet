@@ -2388,4 +2388,11 @@ painted. A non-permanent visual-verification generator (`GeneratePictureEllipseC
 mirroring `PptxTextLayoutTests.cs`'s own `GeneratePlusMinusDegreeTofuReproPng` precedent) renders
 the same ellipse-clipped picture end-to-end and saves it to
 `.agent-logs/pptx-picture-ellipse-clip-repro.png` for a human reviewer to open and visually
-confirm the circular photo-crop effect.
+confirm the circular photo-crop effect. `Render_PictureEllipseGeometry_NearSquareRealWorldAspect_ClipsAllFourBoundingBoxCorners`
+(added later, in response to a bug report alleging an `ellipse`-clipped picture at a near-square,
+real-world corpus aspect ratio rendered with an unclipped rectangular top) adds regression coverage
+sampling all four bounding-box corners rather than one diagonal pair; a direct mask-boundary-trace
+comparison against the real-world document's own rendered output confirmed the clip mask was
+already pixel-correct and fully symmetric on all four sides, so this addition is test-coverage
+hardening only - no change was made to `PptxDocument.Images.cs`, `PptxPresetGeometry.cs`, or
+`PathFiller.cs`.

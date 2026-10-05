@@ -1123,6 +1123,7 @@ sections:
               - Render_PictureRectGeometry_PaintsFullBoundingBoxUnclipped
               - Render_PictureNoPrstGeom_PaintsFullBoundingBoxUnclipped
               - Render_PictureRoundRectGeometry_ClipsImageCorners
+              - Render_PictureEllipseGeometry_NearSquareRealWorldAspect_ClipsAllFourBoundingBoxCorners
 
           - id: CanvasNetPptx-PptxDocument-TableParsing
             title: >-
