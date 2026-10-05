@@ -623,6 +623,42 @@ internal static class StrokeOutliner
         // valid inward offset - instead runs BACKWARDS, because the offset lines were pushed past
         // each other. A single such reversal invalidates the whole ring as a hole (see
         // CreateClosedStrokePolygons).
+        //
+        // The "runs backwards" test below tolerates a bounded amount of backwards projected
+        // length before concluding the ring has genuinely collapsed, and that tolerance must
+        // scale with the contour's own coordinate magnitude, for exactly the same reason
+        // CreateClosedStrokePolygons's areaNearZeroTolerance does (see its remarks): a closed,
+        // curved contour flattened to many short segments - e.g. a PPTX shape's native EMU-space
+        // geometry (coordinates in the hundreds of thousands to millions) tessellated finely
+        // enough that each segment subtends only a tiny turn angle - forces each forced-exact-
+        // intersection point to divide by a correspondingly tiny (near-parallel-offset-lines)
+        // cross-product denominator. That division amplifies the input vertices' own float32
+        // storage quantization noise (itself already proportional to the contour's coordinate
+        // magnitude) by a factor inversely proportional to the tiny per-vertex turn angle,
+        // producing a projected edge length that is measurably, not just infinitesimally,
+        // negative - yet is still pure tessellation-density noise, not a genuine "half-width
+        // exceeds inradius" collapse (the same contour at a coarser tessellation, or an
+        // equivalent coordinate-scale-appropriate flatten tolerance, produces a clearly positive
+        // projected length for the identical geometry). A fixed absolute tolerance
+        // (NearZeroDistance, tuned for small/pixel-scale coordinates) is swamped by that
+        // magnitude-proportional noise and misreads it as a genuine backwards-running edge,
+        // collapsing a perfectly valid thin ring into a solid fill (a false positive). Like
+        // areaNearZeroTolerance, the tolerance here is derived from the contour's own bounding-box
+        // extent (its geometric-mean span, to match the dimension - a length, not an area - being
+        // compared) rather than a global constant, so a tiny contour (where storage noise is
+        // correspondingly tiny) is not given a tolerance so loose it would mask a genuine
+        // half-width-exceeds-inradius collapse (confirmed - see
+        // StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_ProducesNoInvalidHole and
+        // StrokeOutliner_Outline_ClosedSquareHalfWidthNearButBelowInradius_ProducesValidHole),
+        // while a huge contour is not given a tolerance so tight that ordinary float32 noise at
+        // its own scale still triggers a false collapse (confirmed - see
+        // StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedClosedContour_ProducesValidThinRing).
+        // NearZeroDistance remains a floor so a tiny or degenerate contour (bounding-box extent
+        // near zero) still falls back to the original, already-correct absolute behavior.
+        const double relativeCollapseTolerance = 1e-2;
+        var collapseDistanceScale = Math.Sqrt(Math.Max(0.0, RingAreaScale(points)));
+        var collapseTolerance = (float)Math.Max(NearZeroDistance, collapseDistanceScale * relativeCollapseTolerance);
+
         collapsed = false;
         for (var i = 0; i < points.Count; i++)
         {
@@ -635,7 +671,7 @@ internal static class StrokeOutliner
             }
 
             var edgeVector = ring[nextIndex] - ring[currentIndex];
-            if (Vector2.Dot(edgeVector, frames[i].Tangent) <= NearZeroDistance)
+            if (Vector2.Dot(edgeVector, frames[i].Tangent) <= -collapseTolerance)
             {
                 collapsed = true;
                 break;
