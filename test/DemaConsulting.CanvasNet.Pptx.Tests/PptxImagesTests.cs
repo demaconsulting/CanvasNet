@@ -217,6 +217,41 @@ public class PptxImagesTests
             () => PptxDocument.PaintPicture(surface, null!, null, Matrix3x2.Identity, 10f, 10f));
     }
 
+    /// <summary>
+    ///     Regression test for the raw-overwrite alpha-compositing bug: proves
+    ///     <see cref="PptxDocument.PaintPicture"/> now alpha-blends each sampled source pixel
+    ///     "over" the existing destination pixel (standard Porter-Duff "over" compositing) rather
+    ///     than overwriting it outright. Covers a fully transparent source pixel with a
+    ///     non-matching (near-white) stored RGB (background must show through unchanged - this is
+    ///     the exact real-world scenario this bug was confirmed against, a logo PNG with an
+    ///     unassociated-alpha white matte), a fully opaque source pixel (exact replacement), and a
+    ///     partially transparent (anti-aliased) source pixel (exact blended bytes per the
+    ///     documented formula).
+    /// </summary>
+    [Fact]
+    public void PaintPicture_SourceImageWithAlphaChannel_AlphaBlendsOntoExistingBackground()
+    {
+        using var image = new Surface(3, 1);
+        image[0, 0] = new Rgba32(255, 255, 255, 0); // fully transparent, non-matching near-white RGB
+        image[1, 0] = new Rgba32(10, 20, 30, 255); // fully opaque
+        image[2, 0] = new Rgba32(200, 100, 50, 128); // partially transparent (anti-aliased)
+
+        using var surface = new Surface(3, 1);
+        var background = new Rgba32(0, 255, 0, 255); // known solid green background
+        surface[0, 0] = background;
+        surface[1, 0] = background;
+        surface[2, 0] = background;
+
+        PptxDocument.PaintPicture(surface, image, srcRect: null, Matrix3x2.Identity, widthEmu: 3f, heightEmu: 1f);
+
+        // Fully transparent source pixel: background must be completely unchanged.
+        Assert.Equal(background, surface[0, 0]);
+        // Fully opaque source pixel: exact replacement.
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[1, 0]);
+        // Partially transparent source pixel: exact Porter-Duff "over" blended bytes.
+        Assert.Equal(new Rgba32(100, 177, 25, 255), surface[2, 0]);
+    }
+
     // --- ResolvePictureSurface (needs a real package/relationship-resolution context) -----------
 
     private static readonly XNamespace PresentationNs = "http://schemas.openxmlformats.org/presentationml/2006/main";
