@@ -106,11 +106,12 @@ software items, specifically:
   recursive, full `<p:spTree>` shape-tree parsing (including nested `<p:grpSp>` enumeration).
   Phase 1f (the current release) added the public, slide-level `Render` API — a document-order
   walk of a slide's full shape tree dispatching each node to the already-verified Phase 1c/1d/1e
-  resolvers and painters — followed by a Phase 2 Follow-Up adding slide/layout/master `<p:bg>`
-  background-fill resolution ahead of that walk. Pattern/picture background fills, radial/path
-  gradients, bullets/numbering, full text justification, `spAutoFit` shape-resize behavior,
-  kerning, text clipping on overflow, nested tables, and table auto-sizing/banding remain
-  explicitly deferred. `CanvasNetPptx` depends on the `CanvasNet` system's `Canvas`, `Geometry`,
+  resolvers and painters — followed by subsequent Phase 2 Follow-Ups adding slide/layout/master
+  `<p:bg>` background-fill resolution ahead of that walk, `<a:buChar>`/`<a:buAutoNum>`
+  bullet/numbering rendering, and `<p:cxnSp>` connector-shape rendering. Pattern/picture
+  background fills, radial/path gradients, full text justification, `spAutoFit` shape-resize
+  behavior, kerning, text clipping on overflow, nested tables, and table auto-sizing/banding
+  remain explicitly deferred. `CanvasNetPptx` depends on the `CanvasNet` system's `Canvas`, `Geometry`,
   `Drawing`, `Fonts`, and `Codecs` subsystems (for the `Rgba32` color type, path geometry/
   stroking, font/glyph resolution, and image decoding used to resolve and render shape/text/
   picture content) — see _CanvasNetPptx System Design_ (`canvas-net-pptx.md`)

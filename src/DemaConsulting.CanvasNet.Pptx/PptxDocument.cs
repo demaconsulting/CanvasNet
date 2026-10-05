@@ -113,6 +113,36 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         Master Background Fill (&lt;p:bg&gt;)" design section for the full algorithm and
 ///         fidelity boundary.
 ///     </para>
+///     <para>
+///         <strong>Phase 2 Follow-Up: Bullets and Numbering Rendering</strong> closes the gap left
+///         by Phase 1d's own "Bullets/numbering ... are explicitly deferred" boundary above: a
+///         paragraph's <c>&lt;a:buChar&gt;</c> character, <c>&lt;a:buAutoNum&gt;</c> auto-number
+///         marker, or explicit <c>&lt;a:buNone&gt;</c> absence is now parsed
+///         (<c>PptxDocument.Text.cs</c>), resolved through the same four independent
+///         placeholder/layout/master choice-group inheritance chains already established for
+///         other paragraph properties (<c>PptxDocument.TextInheritance.cs</c>'s
+///         <see cref="ResolveEffectiveBulletProperties"/>), formatted into its rendered string for
+///         the eleven most common Latin-numeral auto-number schemes
+///         (<c>PptxDocument.Bullets.cs</c>'s <see cref="FormatAutoNumber"/>), and measured and
+///         painted at the paragraph's own gutter without ever overlapping its text
+///         (<c>PptxDocument.TextLayout.cs</c>) - see <c>pptx-document.md</c>'s "Phase 2 Follow-Up:
+///         Bullets and Numbering Rendering" design section for the full algorithm and fidelity
+///         boundary.
+///     </para>
+///     <para>
+///         <strong>Phase 2 Follow-Up: Connector Shape Rendering</strong> closes the gap left by
+///         Phase 1f's own "<c>&lt;p:cxnSp&gt;</c> connector shapes" deferral above: a
+///         <c>&lt;p:cxnSp&gt;</c> is now parsed into a <see cref="PptxConnectorShapeNode"/>
+///         alongside every other shape-tree node kind (<c>PptxDocument.ShapeTree.cs</c>), and
+///         <see cref="Render(int, int, int, PptxRenderOptions?)"/> paints its resolved
+///         straight/elbow/curved line - merging its own line style with its style-reference
+///         fallback, and orienting an optional stroked or filled arrowhead at either end
+///         (<c>PptxDocument.Connectors.cs</c>/<c>PptxDocument.Render.cs</c>'s
+///         <c>RenderConnector</c>) - see <c>pptx-document.md</c>'s "Phase 2 Follow-Up: Connector
+///         Shape Rendering (&lt;p:cxnSp&gt;)" design section for the full algorithm and fidelity
+///         boundary (an unrecognized connector preset degrades to "this one connector is
+///         invisible" rather than aborting the slide).
+///     </para>
 /// </remarks>
 public sealed partial class PptxDocument : IDisposable
 {

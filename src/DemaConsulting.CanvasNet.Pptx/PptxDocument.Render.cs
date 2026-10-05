@@ -88,13 +88,14 @@ public sealed partial class PptxDocument
     ///         <see cref="ParseShapeTree"/>'s own established "tolerant tree walk" precedent.
     ///     </para>
     ///     <para>
-    ///         A <c>&lt;p:cxnSp&gt;</c> connector shape, a nested table, table auto-sizing/
-    ///         banding, group-level style cascading, and picture effects/shadows are not rendered
-    ///         this phase - see <c>pptx-document.md</c>'s "Full Slide Rendering (Phase 1f)" design
-    ///         section for the complete deferred-items list, and its "Phase 2 Follow-Up: Slide/
-    ///         Layout/Master Background Fill (&lt;p:bg&gt;)" section for the background-fill
-    ///         fidelity achieved (solid and theme-indexed <c>&lt;p:bgRef&gt;</c> fills: full;
-    ///         linear gradient: best-effort; pattern/picture background fill: still deferred).
+    ///         A nested table, table auto-sizing/banding, group-level style cascading, and picture
+    ///         effects/shadows are not rendered this phase - see <c>pptx-document.md</c>'s "Full Slide
+    ///         Rendering (Phase 1f)" design section for the complete deferred-items list, its "Phase 2
+    ///         Follow-Up: Slide/Layout/Master Background Fill (&lt;p:bg&gt;)" section for the
+    ///         background-fill fidelity achieved (solid and theme-indexed <c>&lt;p:bgRef&gt;</c>
+    ///         fills: full; linear gradient: best-effort; pattern/picture background fill: still
+    ///         deferred), and its "Phase 2 Follow-Up: Connector Shape Rendering (&lt;p:cxnSp&gt;)"
+    ///         section for the connector-line rendering since added.
     ///     </para>
     /// </remarks>
     public Surface Render(int slideIndex, int width, int height, PptxRenderOptions? options = null)

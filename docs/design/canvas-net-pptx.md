@@ -79,10 +79,11 @@ placeholder/layout/master/theme inheritance chain, attribute-by-attribute; the r
 word-wrapped, aligned, vertically anchored, and (where a `normAutofit` element is present)
 autofit within the owning shape's own bounding box; and the resulting glyphs are painted onto a
 `Canvas.Surface` via the core `Fonts.TrueTypeFont`/`SystemFontCatalog` and `Drawing.PathFiller`,
-mirroring `CanvasNetPdf`'s own glyph-painting pattern. Bullets/numbering, full text justification,
+mirroring `CanvasNetPdf`'s own glyph-painting pattern. Full text justification,
 `<a:spAutoFit>` shape-resize autofit, kerning, text clipping on overflow, and a full per-slide
 rendering entry point remain explicitly deferred (see _PptxDocument Unit Design_'s "Text Layout
-and Rendering (Phase 1d)" section for the complete supported/deferred boundary). **No non-
+and Rendering (Phase 1d)" section for the complete supported/deferred boundary; bullets/numbering
+were deferred at that time but were later implemented by a Phase 2 Follow-Up). **No non-
 placeholder (freeform) shape _enumeration_ from a slide's full `<p:spTree>`, nor a full per-slide
 public rendering entry point, is implemented yet** - deferred to a later phase.
 

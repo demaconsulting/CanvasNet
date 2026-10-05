@@ -33,15 +33,15 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         Phase 1f (the public, slide-level <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>/
 ///         <see cref="PptxDocument.Render(int, float, PptxRenderOptions?)"/> rendering API, a
 ///         document-order walk of a slide's full shape tree dispatching each node to the already-
-///         verified Phase 1c/1d/1e resolvers and painters). A Phase 2 Follow-Up subsequently added
+///         verified Phase 1c/1d/1e resolvers and painters). Subsequent Phase 2 Follow-Ups added
 ///         slide/layout/master <c>&lt;p:bg&gt;</c> background-fill resolution ahead of that
-///         shape-tree walk.
+///         shape-tree walk, <c>&lt;a:buChar&gt;</c>/<c>&lt;a:buAutoNum&gt;</c> bullet/numbering
+///         rendering, and <c>&lt;p:cxnSp&gt;</c> connector-shape rendering.
 ///     </para>
 ///     <para>
-///         As of the current release (through Phase 1f and its Phase 2 Follow-Up), pattern/
-///         picture background fills, radial/path gradients, bullets/numbering, full text
-///         justification, <c>spAutoFit</c> shape-resize behavior, kerning, text clipping on
-///         overflow, connector shape rendering beyond the Phase 2 Follow-Up's own scope, nested
+///         As of the current release (through Phase 1f and its subsequent Phase 2 Follow-Ups),
+///         pattern/picture background fills, radial/path gradients, full text justification,
+///         <c>spAutoFit</c> shape-resize behavior, kerning, text clipping on overflow, nested
 ///         tables, and table auto-sizing/banding remain explicitly deferred - see
 ///         <see cref="PptxDocument"/>'s own remarks for the exact, current scope boundary.
 ///     </para>

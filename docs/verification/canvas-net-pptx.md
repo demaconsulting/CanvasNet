@@ -172,14 +172,14 @@ that the DPI overload's own documented EMU-to-pixel conversion produces the expe
 A system-level test run passes when all scenarios above pass without error or exception beyond
 those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return value
 constitutes a failure. Collectively, these scenarios cover the complete current (through Phase 1f,
-plus its Phase 2 Follow-Up) CanvasNetPptx feature set: opening a well-formed OOXML/`.pptx` package,
-resolving its content-type and relationship graph, resolving its declared slide count/size
-(Phase 1b), resolving DrawingML shape geometry and paint - including group child-transform
-composition (Phase 1c), resolving DrawingML text property inheritance, layout, and rendering
-(Phase 1d), resolving pictures/tables and recursively enumerating a slide's full shape tree
-(Phase 1e), and rendering a full slide through the public `Render` API (Phase 1f) - plus validating
-the documented argument- and structural-validation contracts. Pattern/picture background fills,
-radial/path gradients, bullets/numbering, full text justification, `spAutoFit` shape-resize
-behavior, kerning, text clipping on overflow, nested tables, and table auto-sizing/banding remain
-explicitly deferred - a future, corpus-driven hardening pass will extend this document's scenarios
-as that content is added.
+plus its subsequent Phase 2 Follow-Ups) CanvasNetPptx feature set: opening a well-formed OOXML/
+`.pptx` package, resolving its content-type and relationship graph, resolving its declared slide
+count/size (Phase 1b), resolving DrawingML shape geometry and paint - including group
+child-transform composition (Phase 1c), resolving DrawingML text property inheritance, layout, and
+rendering (Phase 1d), resolving pictures/tables and recursively enumerating a slide's full shape
+tree (Phase 1e), and rendering a full slide through the public `Render` API (Phase 1f) - plus
+validating the documented argument- and structural-validation contracts. Pattern/picture background
+fills, radial/path gradients, full text justification, `spAutoFit` shape-resize behavior, kerning,
+text clipping on overflow, nested tables, and table auto-sizing/banding remain explicitly deferred;
+a future, corpus-driven hardening pass will extend this document's scenarios as that content is
+added.

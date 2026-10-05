@@ -1873,8 +1873,9 @@ fit overflowing cell content (each row's resolved height is taken verbatim from 
 `<a:tr h="...">` value, with no growth to accommodate overflowing cell content), table
 style/banding (`<a:tableStyleId>`), group-level style cascading
 beyond transform composition, radial/path gradients, `<a:avLst>` preset adjustment-value parsing,
-bullets/numbering, full text justification, `<a:spAutoFit>` shape-resize autofit, kerning, and text
-clipping on overflow. (`<p:cxnSp>` connector shapes are now covered by *CanvasNetPptx-PptxDocument-
-ConnectorRendering* below instead.) None of these is a currently planned phase; any of them
-remaining important is a candidate for a future, corpus-driven hardening pass (`pptx-phase-2`),
-not a scheduled increment.
+full text justification, `<a:spAutoFit>` shape-resize autofit, kerning, and text
+clipping on overflow. (Bullets/numbering are now covered by *CanvasNetPptx-PptxDocument-
+BulletProperties*/*CanvasNetPptx-PptxDocument-BulletRendering* above instead, and `<p:cxnSp>`
+connector shapes are now covered by *CanvasNetPptx-PptxDocument-ConnectorRendering* below
+instead.) None of these is a currently planned phase; any of them remaining important is a
+candidate for a future, corpus-driven hardening pass (`pptx-phase-2`), not a scheduled increment.

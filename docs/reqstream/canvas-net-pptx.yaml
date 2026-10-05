@@ -43,13 +43,15 @@
 # compositing), <a:tbl> table support (structure/cell parsing reusing the Phase 1c/1d fill/border/
 # text-body resolvers, merge-aware cell-rect resolution, and cell fill/border/text painting), and
 # recursive, full shape-tree parsing across a slide's own <p:sp>/<p:pic>/<p:graphicFrame>/<p:grpSp>
-# elements (including nested <p:grpSp> child-transform composition). Phase 1f (this release) added
-# the public, slide-level Render API: a document-order walk of a slide's full shape tree,
-# dispatching each shape/picture/table node to the already-verified Phase 1c/1d/1e resolvers and
-# painters onto a Surface of the requested pixel dimensions. Pattern and picture fills, radial/path
-# gradients, bullets/numbering, full text justification, spAutoFit shape-resize behavior, kerning,
-# text clipping on overflow, nested tables, and table auto-sizing/banding remain unimplemented -
-# see docs/design/canvas-net-pptx.md for the full current feature set and its documented,
+# elements (including nested <p:grpSp> child-transform composition). Phase 1f added the public,
+# slide-level Render API: a document-order walk of a slide's full shape tree, dispatching each
+# shape/picture/table node to the already-verified Phase 1c/1d/1e resolvers and painters onto a
+# Surface of the requested pixel dimensions. Subsequent Phase 2 Follow-Ups added slide/layout/
+# master <p:bg> background-fill resolution ahead of that shape-tree walk, <a:buChar>/<a:buAutoNum>
+# bullet/numbering rendering, and <p:cxnSp> connector-shape rendering. Pattern and picture fills,
+# radial/path gradients, full text justification, spAutoFit shape-resize behavior, kerning, text
+# clipping on overflow, nested tables, and table auto-sizing/banding remain unimplemented - see
+# docs/design/canvas-net-pptx.md for the full current feature set and its documented,
 # still-unimplemented scope.
 
 sections:
