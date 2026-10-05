@@ -106,6 +106,16 @@ internal sealed record PptxLineBreakItem : PptxParagraphItem
 ///     ranking above the placeholder/master level-indexed style in the run-property inheritance
 ///     chain), or <see langword="null"/> when absent.
 /// </param>
+/// <param name="BulletProperties">
+///     The paragraph's own raw, unresolved bullet/numbering markup (the
+///     <c>&lt;a:buNone&gt;</c>/<c>&lt;a:buAutoNum&gt;</c>/<c>&lt;a:buChar&gt;</c> choice element,
+///     plus the independent <c>&lt;a:buClrTx&gt;</c>/<c>&lt;a:buClr&gt;</c>,
+///     <c>&lt;a:buFontTx&gt;</c>/<c>&lt;a:buFont&gt;</c>, and <c>&lt;a:buSzTx&gt;</c>/
+///     <c>&lt;a:buSzPct&gt;</c>/<c>&lt;a:buSzPts&gt;</c> choice elements), resolved against the
+///     inheritance chain in <see cref="PptxDocument.ResolveEffectiveBulletProperties"/> - not
+///     here. Defaults to <see cref="PptxRawBulletProperties.Empty"/> (every field
+///     <see langword="null"/>) so pre-existing call sites continue to compile unchanged.
+/// </param>
 internal sealed record PptxRawParagraphProperties(
     int Level,
     string? Algn,
@@ -114,7 +124,52 @@ internal sealed record PptxRawParagraphProperties(
     XElement? LnSpcElement,
     XElement? SpcBeforeElement,
     XElement? SpcAfterElement,
-    XElement? DefRPrElement);
+    XElement? DefRPrElement,
+    PptxRawBulletProperties? BulletProperties = null)
+{
+    /// <summary>
+    ///     The paragraph's own raw bullet properties, defaulting to
+    ///     <see cref="PptxRawBulletProperties.Empty"/> when <see cref="BulletProperties"/> itself
+    ///     is <see langword="null"/> (every pre-existing call site that omits the parameter
+    ///     entirely).
+    /// </summary>
+    internal PptxRawBulletProperties EffectiveBulletProperties => BulletProperties ?? PptxRawBulletProperties.Empty;
+}
+
+/// <summary>
+///     A paragraph's own raw, unresolved bullet/numbering markup, produced by
+///     <see cref="PptxDocument.ParseBulletProperties"/>. Each field is one member of its own
+///     independent OOXML schema choice-group (at most one of that group's members is present per
+///     <c>&lt;a:pPr&gt;</c>/<c>&lt;a:lvl{N}pPr&gt;</c>); the four groups (type, color, font, size)
+///     are themselves independent of each other, mirroring the per-attribute inheritance
+///     granularity already used for run properties - see
+///     <see cref="PptxDocument.ResolveEffectiveBulletProperties"/>'s remarks.
+/// </summary>
+/// <param name="TypeElement">
+///     The one of <c>&lt;a:buNone&gt;</c>/<c>&lt;a:buAutoNum&gt;</c>/<c>&lt;a:buChar&gt;</c>
+///     present, or <see langword="null"/> when none is declared at this tier.
+/// </param>
+/// <param name="ColorElement">
+///     The <c>&lt;a:buClrTx&gt;</c> or <c>&lt;a:buClr&gt;</c> element present, or
+///     <see langword="null"/> when neither is declared at this tier.
+/// </param>
+/// <param name="FontElement">
+///     The <c>&lt;a:buFontTx&gt;</c> or <c>&lt;a:buFont&gt;</c> element present, or
+///     <see langword="null"/> when neither is declared at this tier.
+/// </param>
+/// <param name="SizeElement">
+///     The <c>&lt;a:buSzTx&gt;</c>, <c>&lt;a:buSzPct&gt;</c>, or <c>&lt;a:buSzPts&gt;</c> element
+///     present, or <see langword="null"/> when none is declared at this tier.
+/// </param>
+internal sealed record PptxRawBulletProperties(
+    XElement? TypeElement,
+    XElement? ColorElement,
+    XElement? FontElement,
+    XElement? SizeElement)
+{
+    /// <summary>The shared, all-<see langword="null"/> instance for a tier that declares no bullet markup at all.</summary>
+    internal static PptxRawBulletProperties Empty { get; } = new(null, null, null, null);
+}
 
 /// <summary>
 ///     A parsed <c>&lt;a:r&gt;</c> run: its own raw, unresolved <c>&lt;a:rPr&gt;</c> element plus

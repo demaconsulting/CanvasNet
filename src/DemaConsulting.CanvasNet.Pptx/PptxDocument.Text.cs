@@ -136,9 +136,27 @@ public sealed partial class PptxDocument
         var spcBefore = pPrElement.Element(DrawingNamespace + "spcBef");
         var spcAfter = pPrElement.Element(DrawingNamespace + "spcAft");
         var defRPr = pPrElement.Element(DrawingNamespace + "defRPr");
+        var bulletProperties = ParseBulletProperties(pPrElement);
 
-        return new PptxRawParagraphProperties(level, algn, marL, indent, lnSpc, spcBefore, spcAfter, defRPr);
+        return new PptxRawParagraphProperties(level, algn, marL, indent, lnSpc, spcBefore, spcAfter, defRPr, bulletProperties);
     }
+
+    /// <summary>
+    ///     Parses an <c>&lt;a:pPr&gt;</c>-shaped element's raw bullet/numbering markup into a
+    ///     <see cref="PptxRawBulletProperties"/>, retaining each of the four independent
+    ///     choice-group elements (type, color, font, size) unresolved - see
+    ///     <see cref="PptxDocument.ResolveEffectiveBulletProperties"/> for inheritance resolution.
+    ///     Also used, with the same element shape, to extract bullet markup from a placeholder/
+    ///     master level-indexed <c>&lt;a:lvl{N}pPr&gt;</c> element.
+    /// </summary>
+    /// <param name="pPrLikeElement">The <c>&lt;a:pPr&gt;</c>/<c>&lt;a:lvl{N}pPr&gt;</c> element to parse.</param>
+    /// <returns>The parsed <see cref="PptxRawBulletProperties"/>.</returns>
+    internal static PptxRawBulletProperties ParseBulletProperties(XElement pPrLikeElement) =>
+        new(
+            GetBulletTypeElement(pPrLikeElement),
+            GetBulletColorElement(pPrLikeElement),
+            GetBulletFontElement(pPrLikeElement),
+            GetBulletSizeElement(pPrLikeElement));
 
     /// <summary>
     ///     Parses an <c>&lt;a:r&gt;</c> element into a <see cref="PptxTextRun"/>: its own raw,

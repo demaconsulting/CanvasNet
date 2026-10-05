@@ -86,10 +86,19 @@ public sealed partial class PptxDocument
         }
 
         var paragraphs = textBody.Paragraphs
-            .Select(paragraph => new ResolvedParagraph(
-                paragraph,
-                ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, placeholderType),
-                paragraph.Runs.Select(run => ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, placeholderType)).ToList()))
+            .Select(paragraph =>
+            {
+                // Run properties are resolved before paragraph properties (reversing the two
+                // Selects' former independence) because bullet resolution needs the paragraph's
+                // own first run's effective properties as its "follow text"
+                // (buClrTx/buFontTx/buSzTx) fallback - see ResolveEffectiveBulletProperties.
+                var runProperties = paragraph.Runs
+                    .Select(run => ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, placeholderType))
+                    .ToList();
+                var firstRunProperties = runProperties.Count > 0 ? runProperties[0] : null;
+                var paragraphProperties = ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, placeholderType, firstRunProperties);
+                return new ResolvedParagraph(paragraph, paragraphProperties, runProperties);
+            })
             .ToList();
 
         var (fontScale, lineSpacingFactor) = ResolveAutofitScale(
@@ -201,13 +210,26 @@ public sealed partial class PptxDocument
     private readonly record struct LineGlyph(TrueTypeFont Font, int GlyphIndex, float XInLineEmu, float SizeEmu, Rgba32 Color);
 
     /// <summary>A single word-wrapped line, ready for alignment/vertical-anchor positioning.</summary>
+    /// <param name="Glyphs">The line's own text glyphs, positioned relative to the line's own start.</param>
+    /// <param name="LineWidthEmu">The line's natural (unaligned) text width, in EMU.</param>
+    /// <param name="LineHeightEmu">The line's resolved height, in EMU.</param>
+    /// <param name="AscentEmu">The line's resolved ascent (baseline offset from the line's top), in EMU.</param>
+    /// <param name="ParagraphProperties">The owning paragraph's resolved effective properties.</param>
+    /// <param name="IsFirstLineOfParagraph">Whether this is the owning paragraph's first word-wrapped line.</param>
+    /// <param name="BulletGlyphs">
+    ///     The paragraph's rendered bullet glyph(s) (Phase 2 Follow-Up: Bullets and Numbering),
+    ///     positioned relative to X=0 (the hanging-indent gutter, not the line's own text start -
+    ///     see <see cref="PositionLines"/>). Always empty except on a bulleted paragraph's own
+    ///     first line (<see cref="IsFirstLineOfParagraph"/>).
+    /// </param>
     private sealed record LineBox(
         IReadOnlyList<LineGlyph> Glyphs,
         float LineWidthEmu,
         float LineHeightEmu,
         float AscentEmu,
         PptxEffectiveParagraphProperties ParagraphProperties,
-        bool IsFirstLineOfParagraph);
+        bool IsFirstLineOfParagraph,
+        IReadOnlyList<LineGlyph> BulletGlyphs);
 
     /// <summary>A paragraph with its effective paragraph properties and every run's effective properties resolved up front.</summary>
     private sealed record ResolvedParagraph(
@@ -245,10 +267,18 @@ public sealed partial class PptxDocument
     {
         var lines = new List<LineBox>();
 
+        // Auto-number counter/last-type state (Phase 2 Follow-Up: Bullets and Numbering),
+        // scoped per-call (one text body/shape) - see AdvanceBulletCounters' own remarks for the
+        // full per-level sequencing/reset state machine this threads across the paragraph loop.
+        var counters = new int[MaxParagraphLevel + 1];
+        var lastTypes = new string?[MaxParagraphLevel + 1];
+
         foreach (var resolvedParagraph in paragraphs)
         {
             var paragraph = resolvedParagraph.Paragraph;
             var paraProps = resolvedParagraph.ParagraphProperties;
+            var level = Math.Clamp(paragraph.RawProperties.Level, 0, MaxParagraphLevel);
+            var bulletText = AdvanceBulletCounters(level, paraProps.Bullet, counters, lastTypes);
 
             // Build the paragraph's scaled token stream, resolving each run's font once. An
             // <c>&lt;a:br&gt;</c> item becomes a break-marker token that forces a new line in
@@ -351,11 +381,113 @@ public sealed partial class PptxDocument
                         : naturalHeight * spacingFactor * lineSpacingFactor;
                 }
 
-                lines.Add(new LineBox(glyphs, lineWidth, lineHeight, ascent, paraProps, i == 0));
+                var isFirstLine = i == 0;
+                var bulletGlyphs = isFirstLine
+                    ? BuildBulletGlyphs(bulletText, paraProps.Bullet, fontScale, resolveFont)
+                    : [];
+
+                lines.Add(new LineBox(glyphs, lineWidth, lineHeight, ascent, paraProps, isFirstLine, bulletGlyphs));
             }
         }
 
         return lines;
+    }
+
+    /// <summary>
+    ///     Advances this call's (one shape/text-body's) per-level auto-number counter/last-type
+    ///     state machine for one paragraph in document order, and returns that paragraph's
+    ///     rendered bullet string (Phase 2 Follow-Up: Bullets and Numbering) - or
+    ///     <see langword="null"/> when the paragraph has no bullet at all, is explicitly
+    ///     <see cref="PptxBulletKind.None"/>, or is an auto-number whose <c>type</c>
+    ///     <see cref="FormatAutoNumber"/> does not recognize (that one bullet is then simply
+    ///     skipped, per this phase's documented graceful-degradation policy - the paragraph's own
+    ///     text still renders normally and the counter state still advances for later
+    ///     paragraphs).
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         For each paragraph, every counter/last-type slot strictly <em>deeper</em> than the
+    ///         paragraph's own level is first zeroed/cleared - this closes out any nested list the
+    ///         document has since left, so a later paragraph that returns to that deeper level
+    ///         starts a fresh numbered run rather than resuming a stale one. The paragraph's own
+    ///         level's slot is then either:
+    ///     </para>
+    ///     <list type="bullet">
+    ///         <item><description>Reset to <c>startAt</c> (and the slot's last-type recorded) when this is the level's first auto-number run, or its <c>type</c> changed from the immediately-preceding paragraph at that same level (a new numbered run starting over).</description></item>
+    ///         <item><description>Incremented by one, continuing the same numbered run.</description></item>
+    ///         <item><description>Zeroed/cleared entirely for a non-auto-number (<see cref="PptxBulletKind.Char"/>/<see cref="PptxBulletKind.None"/>) paragraph, so any later resumption of auto-numbering at that level starts over rather than continuing silently across an intervening non-numbered paragraph.</description></item>
+    ///     </list>
+    /// </remarks>
+    private static string? AdvanceBulletCounters(int level, PptxEffectiveBulletProperties? bullet, int[] counters, string?[] lastTypes)
+    {
+        level = Math.Clamp(level, 0, MaxParagraphLevel);
+        for (var deeper = level + 1; deeper <= MaxParagraphLevel; deeper++)
+        {
+            counters[deeper] = 0;
+            lastTypes[deeper] = null;
+        }
+
+        if (bullet is null || bullet.Kind == PptxBulletKind.None)
+        {
+            counters[level] = 0;
+            lastTypes[level] = null;
+            return null;
+        }
+
+        if (bullet.Kind == PptxBulletKind.Char)
+        {
+            counters[level] = 0;
+            lastTypes[level] = null;
+            return bullet.Character is { Length: > 0 } ? bullet.Character : null;
+        }
+
+        // PptxBulletKind.AutoNum.
+        var autoNumType = bullet.AutoNumType ?? "arabicPeriod";
+        if (lastTypes[level] != autoNumType)
+        {
+            counters[level] = bullet.AutoNumStartAt;
+            lastTypes[level] = autoNumType;
+        }
+        else
+        {
+            counters[level]++;
+        }
+
+        return FormatAutoNumber(counters[level], autoNumType);
+    }
+
+    /// <summary>
+    ///     Tokenizes and measures a paragraph's rendered bullet string (if any) into
+    ///     <see cref="LineGlyph"/>s positioned relative to X=0 - the hanging-indent gutter
+    ///     (<c>marL+indent</c>), not the line's own text start (see
+    ///     <see cref="PositionLines"/>'s separate bullet-gutter-X computation). Bullets are never
+    ///     bold/italic regardless of any adjacent run's own style - a documented simplification
+    ///     (see the design document).
+    /// </summary>
+    private static IReadOnlyList<LineGlyph> BuildBulletGlyphs(
+        string? bulletText,
+        PptxEffectiveBulletProperties? bullet,
+        float fontScale,
+        Func<string, bool, bool, TrueTypeFont> resolveFont)
+    {
+        if (string.IsNullOrEmpty(bulletText) || bullet is null || bullet.Kind == PptxBulletKind.None)
+        {
+            return [];
+        }
+
+        var font = resolveFont(bullet.FontFamily, false, false);
+        var sizeEmu = bullet.SizeEmu * fontScale;
+        var glyphs = new List<LineGlyph>();
+        var cursorX = 0f;
+        foreach (var ch in bulletText)
+        {
+            var glyphIndex = font.GetGlyphIndex(ch);
+            var advance = font.GetAdvanceWidth(glyphIndex) / (float)font.UnitsPerEm * sizeEmu;
+            glyphs.Add(new LineGlyph(font, glyphIndex, cursorX, sizeEmu, bullet.Color));
+            cursorX += advance;
+        }
+
+        return glyphs;
     }
 
     /// <summary>
@@ -478,7 +610,14 @@ public sealed partial class PptxDocument
         foreach (var line in lines)
         {
             var marginLeft = line.ParagraphProperties.MarginLeftEmu;
-            var indent = line.IsFirstLineOfParagraph ? line.ParagraphProperties.IndentEmu : 0f;
+
+            // Hanging-indent fix (Phase 2 Follow-Up: Bullets and Numbering): once a bullet glyph
+            // is painted, it alone occupies the indent gutter (marL+indent) - the paragraph's own
+            // text, even on its first line, starts flush at marL. Without a bullet, "indent" is
+            // applied to the first line's own text-X exactly as before (unaffected, pre-existing
+            // first-line-indent behavior for non-bulleted paragraphs).
+            var hasBullet = line.IsFirstLineOfParagraph && line.BulletGlyphs.Count > 0;
+            var indent = line.IsFirstLineOfParagraph && !hasBullet ? line.ParagraphProperties.IndentEmu : 0f;
             var lineStartX = insetLeftEmu + marginLeft + indent;
 
             var startX = line.ParagraphProperties.Alignment switch
@@ -495,9 +634,22 @@ public sealed partial class PptxDocument
                 glyphs.Add(new PptxGlyphPlacement(glyph.Font, glyph.GlyphIndex, startX + glyph.XInLineEmu, baselineY, glyph.SizeEmu, glyph.Color));
             }
 
+            if (hasBullet)
+            {
+                // The bullet itself is always anchored at the gutter (marL+indent), independent
+                // of the paragraph's own horizontal alignment - a documented, scoped limitation
+                // (see the design document): bullets are not re-justified for ctr/r paragraphs.
+                var bulletGutterX = insetLeftEmu + marginLeft + line.ParagraphProperties.IndentEmu;
+                foreach (var glyph in line.BulletGlyphs)
+                {
+                    glyphs.Add(new PptxGlyphPlacement(glyph.Font, glyph.GlyphIndex, bulletGutterX + glyph.XInLineEmu, baselineY, glyph.SizeEmu, glyph.Color));
+                }
+            }
+
             runningY += line.LineHeightEmu;
         }
 
         return glyphs;
     }
 }
+

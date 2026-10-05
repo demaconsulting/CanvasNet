@@ -143,11 +143,19 @@ public sealed partial class PptxDocument
     /// <param name="paragraph">The paragraph being resolved.</param>
     /// <param name="placeholderProperties">The owning shape's resolved placeholder property chain.</param>
     /// <param name="placeholderType">The owning shape's placeholder type (see <see cref="ResolveEffectiveRunProperties"/>).</param>
+    /// <param name="firstRunProperties">
+    ///     The paragraph's own first run's already-resolved effective properties, or
+    ///     <see langword="null"/> for a paragraph with no runs at all - used only as the
+    ///     "follow text" (<c>buClrTx</c>/<c>buFontTx</c>/<c>buSzTx</c>) bullet-modifier fallback
+    ///     (see <see cref="ResolveEffectiveBulletProperties"/>); every pre-existing call site
+    ///     omits this parameter, leaving its own behavior unchanged.
+    /// </param>
     /// <returns>The resolved <see cref="PptxEffectiveParagraphProperties"/>.</returns>
     internal static PptxEffectiveParagraphProperties ResolveEffectiveParagraphProperties(
         PptxParagraph paragraph,
         PptxPlaceholderProperties placeholderProperties,
-        string placeholderType)
+        string placeholderType,
+        PptxEffectiveRunProperties? firstRunProperties = null)
     {
         var level = paragraph.RawProperties.Level;
         var placeholderLevelElement = GetLevelElement(placeholderProperties.EffectiveTxBodyListStyle, level);
@@ -180,7 +188,201 @@ public sealed partial class PptxDocument
             ParseLineSpacing(masterLevelElement?.Element(DrawingNamespace + "lnSpc")) ??
             PptxLineSpacing.Default;
 
-        return new PptxEffectiveParagraphProperties(algn, marL, indent, lineSpacing);
+        var bullet = ResolveEffectiveBulletProperties(
+            paragraph,
+            placeholderLevelElement,
+            masterLevelElement,
+            placeholderProperties.Theme,
+            placeholderType,
+            firstRunProperties);
+
+        return new PptxEffectiveParagraphProperties(algn, marL, indent, lineSpacing, bullet);
+    }
+
+    /// <summary>
+    ///     Resolves a paragraph's fully-effective bullet/numbering properties, walking four
+    ///     independent choice-group chains (type, color, font, size) - own <c>&lt;a:pPr&gt;</c> ->
+    ///     placeholder level-indexed element -> master level-indexed element -> a conservative,
+    ///     documented hard-coded default - each stopping at the first tier that declares <em>any
+    ///     member of that one choice-group</em>, exactly mirroring this class's own established
+    ///     attribute-level granularity (see this class's remarks). The four groups remain mutually
+    ///     independent of each other: a paragraph may, for example, declare its own bullet
+    ///     character while inheriting its color/font/size from the master.
+    /// </summary>
+    /// <remarks>
+    ///     The type choice-group's hard-coded default is conservative "no bullet"
+    ///     (<see cref="PptxBulletKind.None"/>) - a shape with literally no bullet markup anywhere
+    ///     in its own chain (not even an inherited one) renders no bullet, matching this unit's
+    ///     pre-existing baseline for that specific edge case while fixing every case where bullet
+    ///     markup <em>is</em> present somewhere in the chain. A <c>Kind == None</c> result (an
+    ///     explicit <c>&lt;a:buNone/&gt;</c> winning the type choice-group at whichever tier, or
+    ///     the conservative default) short-circuits color/font/size resolution entirely - no
+    ///     bullet is painted, so there is nothing for those three choice-groups to resolve.
+    /// </remarks>
+    /// <param name="paragraph">The paragraph being resolved.</param>
+    /// <param name="placeholderLevelElement">The placeholder's own level-indexed <c>&lt;a:lvl{N}pPr&gt;</c> element, or <see langword="null"/>.</param>
+    /// <param name="masterLevelElement">The master text-style bucket's own level-indexed <c>&lt;a:lvl{N}pPr&gt;</c> element, or <see langword="null"/>.</param>
+    /// <param name="theme">The resolved theme, used to resolve a <c>&lt;a:buClr&gt;</c> color and the hard-coded default color/font.</param>
+    /// <param name="placeholderType">The owning shape's placeholder type (see <see cref="ResolveEffectiveRunProperties"/>).</param>
+    /// <param name="firstRunProperties">The paragraph's own first run's effective properties, or <see langword="null"/> for a run-less paragraph.</param>
+    /// <returns>The resolved <see cref="PptxEffectiveBulletProperties"/>.</returns>
+    private static PptxEffectiveBulletProperties ResolveEffectiveBulletProperties(
+        PptxParagraph paragraph,
+        XElement? placeholderLevelElement,
+        XElement? masterLevelElement,
+        PptxTheme theme,
+        string placeholderType,
+        PptxEffectiveRunProperties? firstRunProperties)
+    {
+        var raw = paragraph.RawProperties.EffectiveBulletProperties;
+
+        var typeElement =
+            raw.TypeElement ??
+            GetBulletTypeElement(placeholderLevelElement) ??
+            GetBulletTypeElement(masterLevelElement);
+
+        var (kind, character, autoNumType, autoNumStartAt) = ResolveBulletType(typeElement);
+
+        if (kind == PptxBulletKind.None)
+        {
+            return PptxEffectiveBulletProperties.CreateNone(DefaultTypeface(theme, placeholderType), DefaultFontSizeEmu, theme.ColorScheme.Dark1);
+        }
+
+        var colorElement =
+            raw.ColorElement ??
+            GetBulletColorElement(placeholderLevelElement) ??
+            GetBulletColorElement(masterLevelElement);
+
+        var fontElement =
+            raw.FontElement ??
+            GetBulletFontElement(placeholderLevelElement) ??
+            GetBulletFontElement(masterLevelElement);
+
+        var sizeElement =
+            raw.SizeElement ??
+            GetBulletSizeElement(placeholderLevelElement) ??
+            GetBulletSizeElement(masterLevelElement);
+
+        var color = ResolveBulletColor(colorElement, theme, firstRunProperties);
+        var fontFamily = ResolveBulletFont(fontElement, theme, firstRunProperties, placeholderType);
+        var sizeEmu = ResolveBulletSize(sizeElement, firstRunProperties);
+
+        return new PptxEffectiveBulletProperties(kind, character, autoNumType, autoNumStartAt, fontFamily, sizeEmu, color);
+    }
+
+    /// <summary>Resolves a <c>&lt;a:pPr&gt;</c>/<c>&lt;a:lvl{N}pPr&gt;</c>-shaped element's bullet-type choice-group child, if any.</summary>
+    private static XElement? GetBulletTypeElement(XElement? pPrLikeElement) =>
+        pPrLikeElement?.Element(DrawingNamespace + "buNone") ??
+        pPrLikeElement?.Element(DrawingNamespace + "buAutoNum") ??
+        pPrLikeElement?.Element(DrawingNamespace + "buChar");
+
+    /// <summary>Resolves a <c>&lt;a:pPr&gt;</c>/<c>&lt;a:lvl{N}pPr&gt;</c>-shaped element's bullet-color choice-group child, if any.</summary>
+    private static XElement? GetBulletColorElement(XElement? pPrLikeElement) =>
+        pPrLikeElement?.Element(DrawingNamespace + "buClrTx") ??
+        pPrLikeElement?.Element(DrawingNamespace + "buClr");
+
+    /// <summary>Resolves a <c>&lt;a:pPr&gt;</c>/<c>&lt;a:lvl{N}pPr&gt;</c>-shaped element's bullet-font choice-group child, if any.</summary>
+    private static XElement? GetBulletFontElement(XElement? pPrLikeElement) =>
+        pPrLikeElement?.Element(DrawingNamespace + "buFontTx") ??
+        pPrLikeElement?.Element(DrawingNamespace + "buFont");
+
+    /// <summary>Resolves a <c>&lt;a:pPr&gt;</c>/<c>&lt;a:lvl{N}pPr&gt;</c>-shaped element's bullet-size choice-group child, if any.</summary>
+    private static XElement? GetBulletSizeElement(XElement? pPrLikeElement) =>
+        pPrLikeElement?.Element(DrawingNamespace + "buSzTx") ??
+        pPrLikeElement?.Element(DrawingNamespace + "buSzPct") ??
+        pPrLikeElement?.Element(DrawingNamespace + "buSzPts");
+
+    /// <summary>
+    ///     Resolves the one bullet-type choice-group element present (<c>&lt;a:buNone&gt;</c>/
+    ///     <c>&lt;a:buAutoNum&gt;</c>/<c>&lt;a:buChar&gt;</c>) into a
+    ///     <c>(Kind, Character, AutoNumType, AutoNumStartAt)</c> tuple. <c>&lt;a:buAutoNum&gt;</c>'s
+    ///     <c>type</c> attribute defaults to <c>"arabicPeriod"</c> and its <c>startAt</c>
+    ///     attribute defaults to <c>1</c>, both per the OOXML schema's own documented defaults.
+    /// </summary>
+    private static (PptxBulletKind Kind, string? Character, string? AutoNumType, int AutoNumStartAt) ResolveBulletType(XElement? typeElement)
+    {
+        if (typeElement is null || typeElement.Name == DrawingNamespace + "buNone")
+        {
+            return (PptxBulletKind.None, null, null, 1);
+        }
+
+        if (typeElement.Name == DrawingNamespace + "buChar")
+        {
+            var character = (string?)typeElement.Attribute("char") ?? string.Empty;
+            return (PptxBulletKind.Char, character, null, 1);
+        }
+
+        // <a:buAutoNum>.
+        var autoNumType = (string?)typeElement.Attribute("type") ?? "arabicPeriod";
+        var startAt = (int?)typeElement.Attribute("startAt") ?? 1;
+        return (PptxBulletKind.AutoNum, null, autoNumType, startAt);
+    }
+
+    /// <summary>
+    ///     Resolves the bullet-color choice-group's effective color: <c>&lt;a:buClrTx&gt;</c>
+    ///     (or no color markup at all) resolves to the "follow text" sentinel - the paragraph's
+    ///     own first run's effective color, or <see cref="PptxColorScheme.Dark1"/> for a run-less
+    ///     paragraph; <c>&lt;a:buClr&gt;</c> resolves its own wrapped color-definition child via
+    ///     <see cref="ResolveColor"/>, the same color resolver run/paragraph colors already use.
+    /// </summary>
+    private static Rgba32 ResolveBulletColor(XElement? colorElement, PptxTheme theme, PptxEffectiveRunProperties? firstRunProperties)
+    {
+        if (colorElement is null || colorElement.Name == DrawingNamespace + "buClrTx")
+        {
+            return firstRunProperties?.Color ?? theme.ColorScheme.Dark1;
+        }
+
+        var inner = colorElement.Elements().FirstOrDefault();
+        return inner is null ? theme.ColorScheme.Dark1 : ResolveColor(inner, theme);
+    }
+
+    /// <summary>
+    ///     Resolves the bullet-font choice-group's effective family name: <c>&lt;a:buFontTx&gt;</c>
+    ///     (or no font markup at all) resolves to the "follow text" sentinel - the paragraph's own
+    ///     first run's effective family, or the hard-coded default typeface for a run-less
+    ///     paragraph; <c>&lt;a:buFont typeface="..."/&gt;</c> resolves its own <c>typeface</c>
+    ///     attribute directly (the element itself carries the attribute, unlike a run's
+    ///     <c>&lt;a:latin&gt;</c> child), still passing through <see cref="ResolveTypeface"/> so a
+    ///     theme-font token is resolved identically to a run's own typeface.
+    /// </summary>
+    private static string ResolveBulletFont(XElement? fontElement, PptxTheme theme, PptxEffectiveRunProperties? firstRunProperties, string placeholderType)
+    {
+        if (fontElement is null || fontElement.Name == DrawingNamespace + "buFontTx")
+        {
+            return firstRunProperties?.FontFamily ?? DefaultTypeface(theme, placeholderType);
+        }
+
+        var typeface = (string?)fontElement.Attribute("typeface");
+        return ResolveTypeface(typeface, theme) ?? DefaultTypeface(theme, placeholderType);
+    }
+
+    /// <summary>
+    ///     Resolves the bullet-size choice-group's effective size, in EMU: <c>&lt;a:buSzTx&gt;</c>
+    ///     (or no size markup at all) resolves to the "follow text" sentinel - the paragraph's own
+    ///     first run's effective size, or the hard-coded default font size for a run-less
+    ///     paragraph; <c>&lt;a:buSzPct val="..."/&gt;</c> resolves to that <c>val/100000</c>
+    ///     fraction of the same "follow text" base size; <c>&lt;a:buSzPts val="..."/&gt;</c>
+    ///     resolves to an absolute size (hundredths of a point, converted to EMU), independent of
+    ///     the run's own size entirely.
+    /// </summary>
+    private static float ResolveBulletSize(XElement? sizeElement, PptxEffectiveRunProperties? firstRunProperties)
+    {
+        var baseSizeEmu = firstRunProperties?.SizeEmu ?? DefaultFontSizeEmu;
+
+        if (sizeElement is null || sizeElement.Name == DrawingNamespace + "buSzTx")
+        {
+            return baseSizeEmu;
+        }
+
+        if (sizeElement.Name == DrawingNamespace + "buSzPct")
+        {
+            var val = (float?)sizeElement.Attribute("val") ?? 100000f;
+            return baseSizeEmu * (val / 100000f);
+        }
+
+        // <a:buSzPts>: val is hundredths of a point, the same convention as <a:rPr sz="..."/>.
+        var pts = (float?)sizeElement.Attribute("val") ?? 0f;
+        return pts * HundredthsOfPointToEmu;
     }
 
     /// <summary>
