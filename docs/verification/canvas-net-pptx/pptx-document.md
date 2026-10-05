@@ -875,7 +875,9 @@ a recognized raster format throws `PptxUnsupportedFeatureException` carrying the
 `PaintPicture_TranslatedTransform_ShiftsPaintedFootprint`,
 `PaintPicture_DegenerateTransform_PaintsNothing`,
 `PaintPicture_NullSurfaceOrImage_ThrowsArgumentNullException`,
-`PaintPicture_SourceImageWithAlphaChannel_AlphaBlendsOntoExistingBackground`
+`PaintPicture_SourceImageWithAlphaChannel_AlphaBlendsOntoExistingBackground`,
+`PaintPicture_EllipseClipPath_CornerUnpaintedCenterPainted`,
+`PaintPicture_NullClipPath_PaintsFullRectangleUnclipped`
 
 Proves `PaintPicture` paints a decoded image's pixels onto a destination `Surface` unchanged
 (pixel-for-pixel) under an identity shape transform with no crop, proves a deliberately
@@ -891,7 +893,13 @@ by zero, proves `null` `destination`/`image` arguments throw `ArgumentNullExcept
 source pixel is alpha-blended "over" the existing destination pixel - a fully transparent source
 pixel with a non-matching stored RGB leaves the background completely unchanged, a fully opaque
 source pixel exactly replaces it, and a partially transparent source pixel blends to the exact
-expected bytes per the documented Porter-Duff "over" formula.
+expected bytes per the documented Porter-Duff "over" formula. Proves `PaintPicture`'s own new
+optional `clipPath` parameter: an elliptical clip path leaves a bounding-box corner unpainted
+while the shape's own center still paints the image's color, and a `null` clip path (the
+default) continues painting the full rectangle unclipped - a direct regression guard for every
+pre-existing call site above. See also
+"CanvasNetPptx-PptxDocument-PictureGeometryClipping" below for the end-to-end render-level
+clip-resolution coverage.
 
 #### CanvasNetPptx-PptxDocument-TableParsing: Table Structure, Cell Attributes, and Verbatim Fill/Border/Text Reuse
 
@@ -1614,6 +1622,52 @@ defect): underline thickness/offset are computed as a pragmatic, `SizeEmu`-propo
 approximation, not derived from the target font's own OpenType `post` table
 `underlinePosition`/`underlineThickness` fields - true font-metric-derived values are deferred to
 a later phase.
+
+#### CanvasNetPptx-PptxDocument-PictureGeometryClipping: `<p:pic>` Preset/Custom-Geometry Clipping
+
+**Tests**: `ResolvePictureClipPath_RectPreset_ReturnsNull`,
+`ResolvePictureClipPath_NoGeometryElement_ReturnsNull`,
+`ResolvePictureClipPath_EllipsePreset_ReturnsNonNullPath`,
+`ResolvePictureClipPath_RoundRectPreset_ReturnsNonNullPath`,
+`ResolvePictureClipPath_CustGeom_ReturnsNonNullPath`,
+`ResolvePictureClipPath_PrstGeomMissingPrstAttribute_ThrowsInvalidDataException`,
+`ResolvePictureClipPath_UnsupportedPreset_ThrowsPptxUnsupportedFeatureException`,
+`ResolvePictureClipPath_NullSpPrElement_ThrowsArgumentNullException`,
+`Render_PictureEllipseGeometry_ClipsImageToEllipticalRegion`,
+`Render_PictureRectGeometry_PaintsFullBoundingBoxUnclipped`,
+`Render_PictureNoPrstGeom_PaintsFullBoundingBoxUnclipped`,
+`Render_PictureRoundRectGeometry_ClipsImageCorners`
+
+Proves `ResolvePictureClipPath` returns `null` (meaning "no clip - paint the original unclipped
+full bounding-box rectangle") for a `<p:spPr>` that explicitly declares `<a:prstGeom prst="rect">`
+and, separately, for a `<p:spPr>` that declares no `<a:prstGeom>`/`<a:custGeom>` at all -
+deliberately more tolerant than `ResolveShapeGeometry`'s own all-or-nothing auto-shape contract,
+since a geometry-less `<p:pic>` is schema-valid and historically unclipped, not malformed.
+Proves an `ellipse` preset, a `roundRect` preset, and an explicit `<a:custGeom>` each resolve to a
+non-null `Path`, dispatching to the exact same `PptxPresetGeometry.Build`/`ResolveCustomGeometry`
+resolvers an auto-shape's own `ResolveShapeGeometry` already uses - not a second, divergent
+geometry resolver. Proves a `<a:prstGeom>` missing its own `prst` attribute throws
+`InvalidDataException`, an unsupported preset name propagates `PptxUnsupportedFeatureException`
+unchanged, and a `null` `spPrElement` argument throws `ArgumentNullException` - the identical
+fail-closed contract `ResolveShapeGeometry` already carries, applied consistently to pictures.
+
+End-to-end, render-level, proves a `<p:pic>` whose `<p:spPr>` declares `<a:prstGeom prst="ellipse">`
+clips the painted image to the elliptical region described by its own bounding box (a bounding-box
+corner remains unpainted/background while the shape's own center paints the image's content) -
+the confirmed real-world defect this fix closes. Proves, as explicit no-regression guards, that a
+`<p:pic>` with an explicit `<a:prstGeom prst="rect">` and a `<p:pic>` with no `<a:prstGeom>`/
+`<a:custGeom>` at all both continue painting the full bounding-box rectangle unclipped, including
+its own corners - the identical behavior this package always produced before this fix. Proves a
+`<p:pic>` with `<a:prstGeom prst="roundRect">` clips its own bounding-box corners (background
+visible at the rounded-corner arc) while its own center remains fully painted, confirming the fix
+generalizes correctly beyond the single `ellipse` preset to any non-`rect` preset. A
+non-permanent visual-verification generator (`GeneratePictureEllipseClipReproPng`) renders the
+same ellipse-clipped fixture end-to-end through the public `PptxDocument.Render` API and saves it
+to `.agent-logs/pptx-picture-ellipse-clip-repro.png`, allowing a human reviewer to directly confirm
+the circular photo-crop effect by eye. Documented, accepted limitation (not separately tested as a
+defect): the clip mask's own anti-aliased edge inherits `PathFiller.Fill`'s default flatten
+tolerance and `PptxPresetGeometry`'s own fixed-segment-count curve approximation - the same
+characteristic every other preset-geometry shape fill in this package already carries.
 
 ## Acceptance Criteria
 

@@ -1084,6 +1084,45 @@ sections:
               - PaintPicture_DegenerateTransform_PaintsNothing
               - PaintPicture_NullSurfaceOrImage_ThrowsArgumentNullException
               - PaintPicture_SourceImageWithAlphaChannel_AlphaBlendsOntoExistingBackground
+              - PaintPicture_EllipseClipPath_CornerUnpaintedCenterPainted
+              - PaintPicture_NullClipPath_PaintsFullRectangleUnclipped
+
+          - id: CanvasNetPptx-PptxDocument-PictureGeometryClipping
+            title: >-
+              The PptxDocument class shall clip a <p:pic> picture's painted image to the path
+              resolved from its own <p:spPr>/<a:prstGeom> (or <a:custGeom>) geometry, reusing the
+              same preset/custom-geometry resolution already used for auto-shapes, while
+              preserving the original unclipped full-bounding-box-rectangle behavior when
+              <p:spPr> declares no geometry at all or explicitly declares the "rect" preset.
+            justification: |
+              A confirmed real-world corpus fixture ("ERF IWF and Reagent Probe Breadboard Motion
+              System Overview.pptx") contains <p:pic> picture shapes whose own <a:prstGeom>
+              declares a non-rect preset (for example "ellipse"); PowerPoint's own rendering
+              visibly crops the embedded image to that shape, while this package previously
+              painted every picture as a plain, unclipped full rectangle regardless of its own
+              declared geometry, producing a visibly incorrect render against real-world decks.
+              Resolving the clip path via the same PptxPresetGeometry.Build/ResolveCustomGeometry
+              dispatch ResolveShapeGeometry already uses for an auto-shape - rather than a second,
+              divergent geometry resolver - keeps this fix consistent with the package's existing
+              geometry-resolution contract, including its fail-closed behavior for an unsupported
+              preset or a malformed <a:prstGeom> missing its own "prst" attribute. Returning no
+              clip (null) for an absent geometry element or an explicit "rect" preset preserves
+              every pre-existing, already-shipped <p:pic> render unchanged - clipping to a "rect"
+              preset would be a pure no-op, and a geometry-less <p:pic> is schema-valid, not
+              malformed, unlike an auto-shape with no geometry at all.
+            tests:
+              - ResolvePictureClipPath_RectPreset_ReturnsNull
+              - ResolvePictureClipPath_NoGeometryElement_ReturnsNull
+              - ResolvePictureClipPath_EllipsePreset_ReturnsNonNullPath
+              - ResolvePictureClipPath_RoundRectPreset_ReturnsNonNullPath
+              - ResolvePictureClipPath_CustGeom_ReturnsNonNullPath
+              - ResolvePictureClipPath_PrstGeomMissingPrstAttribute_ThrowsInvalidDataException
+              - ResolvePictureClipPath_UnsupportedPreset_ThrowsPptxUnsupportedFeatureException
+              - ResolvePictureClipPath_NullSpPrElement_ThrowsArgumentNullException
+              - Render_PictureEllipseGeometry_ClipsImageToEllipticalRegion
+              - Render_PictureRectGeometry_PaintsFullBoundingBoxUnclipped
+              - Render_PictureNoPrstGeom_PaintsFullBoundingBoxUnclipped
+              - Render_PictureRoundRectGeometry_ClipsImageCorners
 
           - id: CanvasNetPptx-PptxDocument-TableParsing
             title: >-

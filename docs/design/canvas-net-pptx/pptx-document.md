@@ -832,27 +832,30 @@ resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surfac
   defaulting to `0` - no crop on that edge - when its own attribute is absent), or `null` when
   `<a:srcRect>` itself is absent entirely (meaning "no cropping at all" - the full image).
 - **Painting**: `PaintPicture(Surface destination, Surface image, PptxSrcRect? srcRect, Matrix3x2
-  shapeTransform)` composes the crop rectangle's own crop-to-unit-square mapping with
-  `shapeTransform` into a single image-to-surface matrix, inverts it once, and for every
-  destination pixel whose inverse-mapped coordinate falls within `[0,1]x[0,1]` samples the source
-  image with nearest-neighbor filtering (no bilinear/anti-aliased resampling this phase - a
-  documented simplification, consistent with this package's existing "no anti-aliasing yet"
-  posture established by `PaintTextLayout`'s own glyph-ink fill). Each sampled source pixel is
-  alpha-blended "over" the existing destination pixel via the shared internal
-  `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)` helper (standard Porter-Duff "over" alpha
-  compositing - straight/unassociated alpha in and out, `outA = fgA + bgA * (1 - fgA)`, each color
-  channel `outC = (fgC * fgA + bgC * bgA * (1 - fgA)) / outA` when `outA != 0` else `0`,
-  round-half-away-from-zero, clamped to `[0, 255]`) rather than overwritten outright - a fully or
-  partially transparent source pixel therefore lets the existing destination content show through
-  correctly instead of being replaced by whatever RGB value happens to be stored alongside that
-  non-opaque alpha (a real-world-confirmed bug fixed after this phase first shipped: a logo PNG
-  with an unassociated-alpha white matte around its letters previously painted a solid white
-  rectangle instead of a transparent background). This same helper is reused, not duplicated, by
-  `DemaConsulting.CanvasNet.Pdf`'s own `CompositeImageOntoSurface` (see that package's own design
-  documentation) - exposed cross-assembly via this package's own `InternalsVisibleTo` grant from
-  `DemaConsulting.CanvasNet`. A singular (non-invertible)
+  shapeTransform, float widthEmu, float heightEmu, Path? clipPath = null)` composes the crop
+  rectangle's own crop-to-unit-square mapping with `shapeTransform` into a single
+  image-to-surface matrix, inverts it once, and for every destination pixel whose inverse-mapped
+  coordinate falls within `[0,1]x[0,1]` samples the source image with nearest-neighbor filtering
+  (no bilinear/anti-aliased resampling this phase - a documented simplification, consistent with
+  this package's existing "no anti-aliasing yet" posture established by `PaintTextLayout`'s own
+  glyph-ink fill). Each sampled source pixel is alpha-blended "over" the existing destination
+  pixel via the shared internal `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)` helper (standard
+  Porter-Duff "over" alpha compositing - straight/unassociated alpha in and out, `outA = fgA +
+  bgA * (1 - fgA)`, each color channel `outC = (fgC * fgA + bgC * bgA * (1 - fgA)) / outA` when
+  `outA != 0` else `0`, round-half-away-from-zero, clamped to `[0, 255]`) rather than overwritten
+  outright - a fully or partially transparent source pixel therefore lets the existing destination
+  content show through correctly instead of being replaced by whatever RGB value happens to be
+  stored alongside that non-opaque alpha (a real-world-confirmed bug fixed after this phase first
+  shipped: a logo PNG with an unassociated-alpha white matte around its letters previously painted
+  a solid white rectangle instead of a transparent background). This same helper is reused, not
+  duplicated, by `DemaConsulting.CanvasNet.Pdf`'s own `CompositeImageOntoSurface` (see that
+  package's own design documentation) - exposed cross-assembly via this package's own
+  `InternalsVisibleTo` grant from `DemaConsulting.CanvasNet`. A singular (non-invertible)
   `shapeTransform` (for example a zero-area shape frame) paints nothing, rather than throwing or
-  dividing by zero.
+  dividing by zero. The optional `clipPath` parameter (default `null`, preserving the original
+  unclipped behavior) clips the painted image to the picture's own resolved non-rectangular
+  preset/custom geometry - see "Phase 2 Follow-Up: Picture Preset-Geometry Clipping" below for the
+  full rationale.
 
 **Deliberate divergence from the PDF renderer**: `PaintPicture` does **not** apply the `(1 - v)`
 row flip `DemaConsulting.CanvasNet.Pdf`'s own image-painting code applies. PDF's content stream
@@ -2297,3 +2300,92 @@ without throwing. Visual verification (a hand-built, in-memory `.pptx` package c
 single `<a:rPr u="sng"/>` run, rendered end-to-end through the public `PptxDocument.Render` API
 and saved to PNG) confirms a single straight horizontal line appears beneath the rendered word's
 own baseline, spanning its full rendered width, in the same color as the text itself.
+
+#### Phase 2 Follow-Up: Picture Preset-Geometry Clipping (`<a:prstGeom>` on `<p:pic>`)
+
+A real-world corpus fixture ("ERF IWF and Reagent Probe Breadboard Motion System Overview.pptx")
+contains `<p:pic>` picture shapes whose own `<p:spPr>/<a:prstGeom prst="...">` declares a
+non-`rect` preset (for example `ellipse` or `roundRect`) - PowerPoint's own ground-truth rendering
+visibly crops the embedded image to that preset's own shape, while CanvasNet previously painted
+every picture as a plain, unclipped full rectangle regardless of its own declared geometry. Root
+cause: `RenderPicture` (`PptxDocument.Render.cs`) never read a picture's own `<a:prstGeom>`/
+`<a:custGeom>` at all, and `PaintPicture` (`PptxDocument.Images.cs`) had no clip/mask mechanism of
+any kind - every picture's footprint was always its full `(0,0)-(1,1)` unit square mapped through
+`shapeToSurfaceTransform`, with no notion of a non-rectangular outline.
+
+**Fix - reusing, not reimplementing, existing geometry and fill infrastructure**:
+
+- **Clip-path resolution** (`PptxDocument.Images.cs`'s new `ResolvePictureClipPath(XElement
+  spPrElement, float widthEmu, float heightEmu)`): a thin, picture-specific wrapper around the
+  exact same preset/custom-geometry dispatch `ResolveShapeGeometry` already uses for an ordinary
+  auto-shape (`PptxPresetGeometry.Build`/`ResolveCustomGeometry`, both in `PptxDocument.Geometry.cs`)
+  - not a second, divergent geometry resolver. It returns `null` (meaning "no clip - paint the
+    full bounding-box rectangle", this package's original behavior, with zero overhead) when
+  `<p:spPr>` declares neither `<a:prstGeom>` nor `<a:custGeom>` at all (a schema-valid, historically
+  unclipped picture - not a malformed document, unlike `ResolveShapeGeometry`'s own all-or-nothing
+  contract for an auto-shape), or when `<a:prstGeom>` explicitly names the `rect` preset (clipping
+  to a `rect` would be a pure no-op, since that preset's own resolved geometry is already the full
+  bounding-box rectangle a "no clip" paint produces). Otherwise it delegates outright to
+  `PptxPresetGeometry.Build`/`ResolveCustomGeometry` and returns their resolved `Path`, propagating
+  their own `InvalidDataException`/`PptxUnsupportedFeatureException` unchanged - an unsupported
+  preset on a picture fails exactly the same way an unsupported preset on an auto-shape already
+  does, a deliberate, consistent fail-closed posture rather than a silent unclipped fallback.
+- **Clip-to-mask compositing** (`PptxDocument.Images.cs`'s `PaintPicture`, new trailing optional
+  `Path? clipPath = null` parameter): no generic "clip an arbitrary raster draw to a path"
+  primitive exists anywhere in this repository's core Canvas/Drawing API - the actually-reusable
+  primitive is the existing anti-aliased path-fill rasterizer, `Drawing.PathFiller.Fill(Surface,
+  Path, Rgba32, FillRule, float)` (already used by every shape/table fill in this codebase),
+  repurposed as a mask-builder rather than a dedicated clip API, mirroring
+  `DemaConsulting.CanvasNet.Svg`'s own `SvgCodec.ClippingAndMasking.cs`'s `ApplyClipPath` (an
+  opaque-white path fill onto a fresh, fully-transparent `Surface`), with one deliberate
+  difference: instead of post-multiplying an already-fully-painted offscreen buffer's own alpha by
+  that coverage mask (`ApplyClipPath`'s own `ApplyCoverageClip` approach - unsuitable here, since
+  `PaintPicture` composites directly onto the live destination surface pixel-by-pixel, not into an
+  isolated offscreen buffer), `PaintPicture` instead scales each _sampled source pixel's own
+  alpha_ by that same pixel's mask coverage (`0` outside the clip geometry, `255` fully inside it,
+  an anti-aliased in-between value exactly on its edge) immediately before compositing via the
+  existing `Rgba32.CompositeOver` - a zero-pixels-touched early-out skips a destination pixel
+  outright when its own mask coverage is `0`. When `clipPath` is non-null, it is transformed by
+  the same `shapeToSurfaceTransform` the picture itself is already painted through (not the
+  unit-square `CreateScale(widthEmu, heightEmu) * shapeToSurfaceTransform` used for image
+  sampling - `ResolvePictureClipPath`'s own resolved `Path`, exactly like `ResolveShapeGeometry`'s
+  for an auto-shape, is already sized to the shape's own local `(0,0)-(widthEmu,heightEmu)` box).
+- **Wiring** (`PptxDocument.Render.cs`'s `RenderPicture`): resolves `ResolvePictureClipPath` from
+  the picture's own `<p:spPr>` immediately alongside its existing `ResolvePictureSurface`/
+  `ResolveSrcRect` calls, and passes the result as `PaintPicture`'s new trailing argument.
+- **`<a:custGeom>` on a picture is supported, not scoped out**: `ResolveCustomGeometry` is already
+  a fully general, already-tested resolver with no auto-shape-specific assumptions baked in -
+  supporting it for a picture via the same dispatch costs one additional branch, not new geometry
+  machinery, so it is deliberately not deferred to a later phase.
+
+**Known limitations, left as explicit, documented simplifications**:
+
+- The clip mask's own anti-aliased edge inherits `PathFiller.Fill`'s default `flattenTolerance`
+  (`0.25f`) and `PptxPresetGeometry`'s own fixed-segment-count curve approximation - the identical
+  characteristic every other preset-geometry shape fill in this codebase already carries, not a
+  new limitation this fix introduces.
+- A same-size scratch mask `Surface` is allocated per clipped picture paint, rather than a
+  clip-bounds-restricted smaller surface - consistent with `PaintPicture`'s own existing
+  full-bounding-box-footprint iteration style (`Surface`'s documented max-dimension bound keeps
+  worst-case allocation cost small and bounded).
+
+**Test coverage**: `PptxImagesTests.cs` gained `ResolvePictureClipPath` unit tests (`rect` preset
+and absent geometry both resolve to `null`; `ellipse`/`roundRect` presets and `<a:custGeom>` each
+resolve to a non-null `Path`; a `<a:prstGeom>` missing its own `prst` attribute throws
+`InvalidDataException`; an unsupported preset name propagates `PptxUnsupportedFeatureException`
+unchanged; a null argument throws `ArgumentNullException`) and `PaintPicture` clip-path tests (an
+ellipse clip path leaves a bounding-box corner unpainted while the shape's own center paints the
+image's color; a `null` clip path - the default - continues painting the full rectangle
+unclipped, a direct regression guard for every pre-existing `PaintPicture` call in this same
+file). `PptxRenderTests.cs` gained end-to-end render-level pixel tests: a `<p:pic>` with
+`<a:prstGeom prst="ellipse">` clips the image to the elliptical region; one with an explicit
+`<a:prstGeom prst="rect">` still paints the full bounding-box rectangle including its own corner
+(strengthening the existing center-only `Render_Picture_PaintsEmbeddedImageAtExpectedLocation`
+into an explicit no-regression proof); one with no `<a:prstGeom>`/`<a:custGeom>` at all also still
+paints unclipped (a defensive, schema-edge-case regression guard); and one with
+`<a:prstGeom prst="roundRect">` clips its own bounding-box corners while its center remains
+painted. A non-permanent visual-verification generator (`GeneratePictureEllipseClipReproPng`,
+mirroring `PptxTextLayoutTests.cs`'s own `GeneratePlusMinusDegreeTofuReproPng` precedent) renders
+the same ellipse-clipped picture end-to-end and saves it to
+`.agent-logs/pptx-picture-ellipse-clip-repro.png` for a human reviewer to open and visually
+confirm the circular photo-crop effect.
