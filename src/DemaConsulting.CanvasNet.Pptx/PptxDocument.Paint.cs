@@ -899,6 +899,14 @@ public sealed partial class PptxDocument
     /// </summary>
     /// <param name="shapePath">The shape's own local-space geometry (see <see cref="ResolveShapeGeometry"/>).</param>
     /// <param name="lineStyle">The resolved line style to stroke with.</param>
+    /// <param name="localToSurface">
+    ///     The transform that will later be applied to the returned outline (see
+    ///     <c>PptxDocument.Render.cs</c>'s callers) - used only to derive a coordinate-scale-aware
+    ///     <see cref="PathStroker.Stroke"/> <c>flattenTolerance</c> (see
+    ///     <see cref="ResolveFlattenTolerance"/>'s remarks); the returned outline itself remains in
+    ///     <paramref name="shapePath"/>'s own untransformed local coordinate space, exactly as
+    ///     before - the caller still applies this same transform afterward.
+    /// </param>
     /// <returns>
     ///     The stroked outline <see cref="Path"/>, in the same local coordinate space as
     ///     <paramref name="shapePath"/> - a later rendering phase fills it (via
@@ -906,9 +914,62 @@ public sealed partial class PptxDocument
     ///     <see cref="FillRule.NonZero"/>) with <paramref name="lineStyle"/>'s own resolved paint;
     ///     this phase has no rendering surface yet, so only the outline geometry is produced here.
     /// </returns>
-    internal static Path ResolveStrokeOutline(Path shapePath, PptxLineStyle lineStyle)
+    internal static Path ResolveStrokeOutline(Path shapePath, PptxLineStyle lineStyle, Matrix3x2 localToSurface)
     {
         var style = new StrokeStyle(lineStyle.WidthEmu, dashArray: lineStyle.DashArray);
-        return PathStroker.Stroke(shapePath, style);
+        var flattenTolerance = ResolveFlattenTolerance(localToSurface);
+        return PathStroker.Stroke(shapePath, style, flattenTolerance);
+    }
+
+    /// <summary>
+    ///     Derives a <see cref="PathStroker.Stroke"/> <c>flattenTolerance</c>, in
+    ///     <paramref name="localToSurface"/>'s own pre-transform (local, native-EMU) coordinate
+    ///     space, that keeps the EFFECTIVE post-transform flattening deviation close to
+    ///     <see cref="PathStroker.Stroke"/>'s own pixel-tuned default (<c>0.25f</c>, i.e. a quarter
+    ///     device pixel) - regardless of how large a shape's own native coordinate magnitude is.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="ResolveStrokeOutline"/> strokes <c>shapePath</c> in its own local, untransformed
+    ///     coordinate space - a real-world PPTX shape's native EMU coordinates (hundreds of
+    ///     thousands to millions of units) - and only applies <paramref name="localToSurface"/>
+    ///     afterward (see <c>PptxDocument.Render.cs</c>'s callers). Using <c>PathStroker.Stroke</c>'s
+    ///     literal pixel-tuned default <c>flattenTolerance</c> directly against that native EMU
+    ///     magnitude tessellates every curved join/cap and every Bezier-flattened curve segment
+    ///     roughly 200x finer than the shape will ever actually be rendered at (a quarter of one
+    ///     EMU, rather than a quarter of one device pixel) - a severe, unnecessary tessellation
+    ///     performance cost, and (see the regression this fix accompanies) the direct trigger for
+    ///     <see cref="Drawing.StrokeOutliner.Outline"/>'s inner-ring collapse detector to false-
+    ///     positive on a thin, closed, curved stroke (e.g. a noFill ellipse/roundRect with a thin
+    ///     color-only <c>&lt;a:ln&gt;</c>) at this coordinate magnitude and tessellation density.
+    ///     <para>
+    ///     Dividing the library's own <c>0.25f</c> target by <paramref name="localToSurface"/>'s
+    ///     own scale factor keeps the post-transform deviation at that same intended ~0.25 device
+    ///     pixels, independent of the shape's own native coordinate magnitude - exactly like
+    ///     <c>PdfDocument.PaintStroke</c> already achieves by construction (it strokes an
+    ///     already-device-space-baked path, so the untouched <c>0.25f</c> default is already
+    ///     correct there). The LARGER of the transform's own X/Y axis scales is used (rather than,
+    ///     say, their average) so that even a non-uniformly scaled shape's more-magnified axis
+    ///     still stays within the intended device-pixel deviation (the other axis then tessellates
+    ///     somewhat finer than strictly necessary - a negligible, not a correctness, cost).
+    ///     </para>
+    /// </remarks>
+    private static float ResolveFlattenTolerance(Matrix3x2 localToSurface)
+    {
+        const float defaultFlattenTolerance = 0.25f;
+
+        var scaleX = new Vector2(localToSurface.M11, localToSurface.M12).Length();
+        var scaleY = new Vector2(localToSurface.M21, localToSurface.M22).Length();
+        var scale = Math.Max(scaleX, scaleY);
+
+        // A degenerate (zero, negative-impossible-but-defensive, infinite, or NaN) transform scale
+        // - e.g. a shape collapsed to zero size - falls back to the library's own pixel-tuned
+        // default rather than producing a zero/negative/non-finite flattenTolerance that
+        // PathStroker.Stroke itself would reject.
+        if (!float.IsFinite(scale) || scale <= 0f)
+        {
+            return defaultFlattenTolerance;
+        }
+
+        return defaultFlattenTolerance / scale;
     }
 }

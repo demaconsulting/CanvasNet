@@ -2121,6 +2121,120 @@ public class PptxRenderTests
     }
 
     /// <summary>
+    ///     Proves the fix for the reported high-priority real-world regression at the ACTUAL scale
+    ///     a real-world <c>.pptx</c> file uses: a full-size standard slide
+    ///     (<c>9144000x6858000</c> EMU, rendered at <c>960x720</c> - exactly <c>9525</c> EMU/pixel,
+    ///     i.e. PowerPoint's own default <c>&lt;a:ln&gt;</c> width), an ellipse (<c>Oval 10</c> in
+    ///     the originally reported file) with <c>&lt;a:noFill/&gt;</c> and an <c>&lt;a:ln&gt;</c>
+    ///     that declares only a color (no <c>w</c> attribute - PowerPoint's own default width)
+    ///     must render as a thin ring - its own center must remain the slide's background color,
+    ///     NOT the stroke color - rather than a solid-filled disc.
+    /// </summary>
+    /// <remarks>
+    ///     The existing small-slide/200x200px
+    ///     <see cref="Render_EllipseWithNoFillAndLnMissingWidthButRecognizedColor_PaintsDefaultWidthStroke"/>
+    ///     test alone does NOT catch this regression: at that small scale, the ellipse's own
+    ///     native-EMU-space Bezier curve flattens to far fewer tessellation points (its own radius
+    ///     is far smaller in EMU), so the false inner-ring collapse this test guards against never
+    ///     triggers there. Only at a realistic, full-size slide's own EMU magnitude (hundreds of
+    ///     thousands to low millions of EMU) does <c>StrokeOutliner.BuildClosedSide</c>'s inner-ring
+    ///     collapse detector false-positive (before the fix) on the resulting high tessellation
+    ///     density, discarding the inner ring entirely and rendering the whole ellipse interior as
+    ///     solid stroke - the exact defect reported against the real-world file.
+    /// </remarks>
+    [Fact]
+    public void Render_FullSlideScaleEllipseWithNoFillAndLnMissingWidth_RendersThinRingNotSolidDisc()
+    {
+        const string spTreeInnerXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Oval 10"/>
+                <p:cNvSpPr/>
+                <p:nvPr/>
+              </p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="2667000" y="1524000"/><a:ext cx="3810000" cy="3810000"/></a:xfrm>
+                <a:prstGeom prst="ellipse"><a:avLst/></a:prstGeom>
+                <a:noFill/>
+                <a:ln><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln>
+              </p:spPr>
+            </p:sp>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 960, 720);
+
+        // The ellipse spans x/y in [2667000, 6477000] EMU (center 4572000,3429000; radius
+        // 1905000), i.e. pixel columns/rows [280, 680] of 960x720 at this slide's exact 9525
+        // EMU/pixel scale - pixel (480, 360) is therefore the ellipse's own exact center.
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[480, 360]);
+
+        // The ellipse's own top boundary (pixel row 160) must show the stroke's red color, not
+        // the background - proving the ring itself still paints (this is not simply "nothing
+        // rendered at all").
+        var boundaryPixel = surface[480, 160];
+        Assert.True(
+            boundaryPixel.R > 128 && boundaryPixel.G < 128 && boundaryPixel.B < 128,
+            $"Expected a red-dominant boundary stroke pixel, but got {boundaryPixel}.");
+
+        // A corner of the slide, well outside the ellipse's own bounding box, remains the default
+        // opaque-white clear.
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves the same fix applies generally, not only to ellipses: a full-size slide's own
+    ///     <c>roundRect</c> shape with <c>&lt;a:noFill/&gt;</c> and a color-only (default-width)
+    ///     <c>&lt;a:ln&gt;</c> must also render as a thin outline, not a solid-filled shape - the
+    ///     investigation behind this fix confirmed <c>roundRect</c> (enough curved, Bezier-
+    ///     flattened tessellation vertices to trigger the same false inner-ring collapse) is
+    ///     equally affected, while a plain <c>rect</c> (too few vertices - no curves at all) is
+    ///     not.
+    /// </summary>
+    [Fact]
+    public void Render_FullSlideScaleRoundRectWithNoFillAndLnMissingWidth_RendersThinOutlineNotSolidFill()
+    {
+        const string spTreeInnerXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Rounded Rectangle 10"/>
+                <p:cNvSpPr/>
+                <p:nvPr/>
+              </p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="2667000" y="1524000"/><a:ext cx="3810000" cy="3810000"/></a:xfrm>
+                <a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom>
+                <a:noFill/>
+                <a:ln><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln>
+              </p:spPr>
+            </p:sp>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 960, 720);
+
+        // The shape spans x/y in [2667000, 6477000] EMU (280..680px) at this slide's exact 9525
+        // EMU/pixel scale; pixel (480, 360) is comfortably inside its interior, away from the
+        // rounded corners' own geometry, and must remain the background color.
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[480, 360]);
+
+        // The shape's own top edge (pixel row 160, away from either rounded corner) must show the
+        // stroke's red color.
+        var boundaryPixel = surface[480, 160];
+        Assert.True(
+            boundaryPixel.R > 128 && boundaryPixel.G < 128 && boundaryPixel.B < 128,
+            $"Expected a red-dominant boundary stroke pixel, but got {boundaryPixel}.");
+
+        // A corner of the slide, well outside the shape's own bounding box, remains the default
+        // opaque-white clear.
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[5, 5]);
+    }
+
+    /// <summary>
     ///     Proves a master's own non-placeholder <c>&lt;p:pic&gt;</c> paints on a slide using that
     ///     master even when the slide's own shape tree is empty, and that the picture's embedded-
     ///     image relationship resolves against the <strong>master's own</strong> <c>.rels</c> file

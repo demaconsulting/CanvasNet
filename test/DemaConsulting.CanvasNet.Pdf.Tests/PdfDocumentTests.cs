@@ -4567,6 +4567,53 @@ public class PdfDocumentTests
         }
     }
 
+    /// <summary>
+    ///     Regression guard for the stroke-outliner false inner-ring collapse fix shared with
+    ///     <c>DemaConsulting.CanvasNet.Pptx</c> (see the companion planning report): a closed,
+    ///     stroke-only (no fill) circular path built from four cubic Bezier <c>c</c> curves must
+    ///     render as a thin ring - its own center must remain unpainted (the <c>Transparent</c>
+    ///     background), not the stroke color - rather than collapsing to a solid-filled disc.
+    /// </summary>
+    /// <remarks>
+    ///     <c>PdfDocument.PaintStroke</c> strokes an already device-space-baked path (per its own
+    ///     XML doc remarks), so unlike <c>PptxDocument.ResolveStrokeOutline</c> (which
+    ///     strokes shape geometry in native, large-magnitude EMU space before any device
+    ///     transform), a typical PDF content stream's device-space coordinates stay modest - the
+    ///     investigation behind this fix found this makes the shared <c>StrokeOutliner</c> defect
+    ///     unlikely to trigger in practice for PDF. This test still exercises the identical,
+    ///     shared <c>StrokeOutliner.BuildClosedSide</c> code path with a genuinely closed,
+    ///     curved (not merely straight-edged) contour, guarding against any future regression of
+    ///     the underlying fix.
+    /// </remarks>
+    [Fact]
+    public void PdfDocument_PathOps_StrokeOnlyClosedBezierCircle_RendersThinRingNotSolidDisc()
+    {
+        // A closed circle approximated by four cubic Bezier arcs (center 50,50; radius 35; the
+        // standard kappa = 0.5522847498 control-point offset), stroked only (no fill) with a 6
+        // unit-wide line - thick enough to sample reliably, thin enough to leave the circle's own
+        // center well clear of the ring.
+        const string content =
+            "6 w 85 50 m " +
+            "85 69.33 69.33 85 50 85 c " +
+            "30.67 85 15 69.33 15 50 c " +
+            "15 30.67 30.67 15 50 15 c " +
+            "69.33 15 85 30.67 85 50 c " +
+            "h S";
+
+        using var surface = RenderContent(content);
+
+        // The circle's own center (PDF-space (50,50) -> pixel row 100-50=50) remains the
+        // Transparent background - proving the ring's own interior is not filled solid.
+        Assert.Equal(default, surface[50, 50]);
+
+        // The circle's own top boundary (PDF-space (50,85) -> pixel row 100-85=15) is painted
+        // the stroke color - proving the ring itself still paints.
+        Assert.Equal(Black, surface[50, 15]);
+
+        // A corner of the canvas, well outside the circle's own bounding box, remains unpainted.
+        Assert.Equal(default, surface[5, 5]);
+    }
+
     /// <summary>Proves that a malformed operand count for a path-construction operator throws <see cref="InvalidDataException"/>.</summary>
     [Theory]
     [InlineData("m")]

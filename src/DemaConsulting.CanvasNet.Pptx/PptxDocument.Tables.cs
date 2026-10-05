@@ -263,7 +263,7 @@ public sealed partial class PptxDocument
         builder.LineTo(new Vector2(x2Emu, y2Emu));
         var linePath = builder.Build();
 
-        var strokedOutline = ResolveStrokeOutline(linePath, border).Transform(shapeToSurfaceTransform);
+        var strokedOutline = ResolveStrokeOutline(linePath, border, shapeToSurfaceTransform).Transform(shapeToSurfaceTransform);
         FillPaint(surface, strokedOutline, border.Paint);
     }
 

@@ -434,7 +434,7 @@ public sealed partial class PptxDocument
         var lineStyle = ResolveShapeLineStyle(lnElement, styleElement, theme, colorMap);
         if (lineStyle is not null)
         {
-            var strokedOutline = ResolveStrokeOutline(geometryPath, lineStyle).Transform(localToSurface);
+            var strokedOutline = ResolveStrokeOutline(geometryPath, lineStyle, localToSurface).Transform(localToSurface);
             FillPaint(surface, strokedOutline, lineStyle.Paint);
         }
 
@@ -606,7 +606,7 @@ public sealed partial class PptxDocument
             return;
         }
 
-        var strokedOutline = ResolveStrokeOutline(geometryPath, lineStyle).Transform(localToSurface);
+        var strokedOutline = ResolveStrokeOutline(geometryPath, lineStyle, localToSurface).Transform(localToSurface);
         FillPaint(surface, strokedOutline, lineStyle.Paint);
 
         var lnElement = spPrElement.Element(DrawingNamespace + "ln");
@@ -670,7 +670,7 @@ public sealed partial class PptxDocument
             // connector) - built directly from PptxArrowheadGeometry.Build's own open path rather
             // than ResolveStrokeOutline's usual "closed shape outline" path.
             var arrowheadLineStyle = lineStyle with { DashArray = null };
-            var strokedArrowhead = ResolveStrokeOutline(arrowheadPath, arrowheadLineStyle).Transform(orientToSurface);
+            var strokedArrowhead = ResolveStrokeOutline(arrowheadPath, arrowheadLineStyle, orientToSurface).Transform(orientToSurface);
             FillPaint(surface, strokedArrowhead, lineStyle.Paint);
         }
         else

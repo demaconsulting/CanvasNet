@@ -913,7 +913,7 @@ public class PptxPaintTests
         var shapePath = Path.Rectangle(0, 0, 100, 50);
         var lineStyle = new PptxLineStyle(10f, new PptxSolidFill(new Rgba32(0, 0, 0, 255)), null);
 
-        var outline = PptxDocument.ResolveStrokeOutline(shapePath, lineStyle);
+        var outline = PptxDocument.ResolveStrokeOutline(shapePath, lineStyle, System.Numerics.Matrix3x2.Identity);
 
         Assert.NotEmpty(outline.Subpaths);
     }
