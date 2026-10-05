@@ -425,12 +425,13 @@ public sealed partial class PptxDocument
             : ResolveShapeStyleFill(styleElement, theme, frame.WidthEmu, frame.HeightEmu, colorMap);
         FillPaint(surface, transformedPath, fill);
 
-        // A present line-properties element (even with no recognized fill child) always wins
-        // over a style lnRef - only a fully absent line-properties element falls back to it.
+        // An explicit fill-definition child (including <a:noFill/>) on the shape's own <a:ln>
+        // wins outright over a style lnRef. A present <a:ln> with no recognized fill-definition
+        // child of its own keeps its own width/dash but defers only its color to the style
+        // lnRef (falling back to "no stroke" when no style color is available). A fully absent
+        // <a:ln> defers entirely to the style lnRef. See ResolveShapeLineStyle's own remarks.
         var lnElement = spPrElement.Element(DrawingNamespace + "ln");
-        var lineStyle = lnElement is not null
-            ? ResolveLineStyle(lnElement, theme, colorMap)
-            : ResolveShapeStyleLineStyle(styleElement, theme, colorMap);
+        var lineStyle = ResolveShapeLineStyle(lnElement, styleElement, theme, colorMap);
         if (lineStyle is not null)
         {
             var strokedOutline = ResolveStrokeOutline(geometryPath, lineStyle).Transform(localToSurface);

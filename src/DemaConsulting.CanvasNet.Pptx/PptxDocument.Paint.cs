@@ -759,6 +759,90 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>
+    ///     Resolves a shape's effective line style by combining its own <c>&lt;a:ln&gt;</c>
+    ///     (<see cref="RenderShape"/>'s own <c>&lt;p:spPr&gt;/&lt;a:ln&gt;</c> element) with its
+    ///     <c>&lt;p:style&gt;/&lt;a:lnRef&gt;</c> fallback (Phase 2 Follow-Up: Shape Style
+    ///     References), per the corrected 4-case precedence documented on <see cref="RenderShape"/>:
+    ///     an explicit fill-definition child (including <c>&lt;a:noFill/&gt;</c>) on the shape's
+    ///     own <c>&lt;a:ln&gt;</c> wins outright over the style; a present <c>&lt;a:ln&gt;</c>
+    ///     with no recognized fill-definition child of its own keeps its own width/dash but
+    ///     defers only its <em>color</em> to the style <c>&lt;a:lnRef&gt;</c>; a fully absent
+    ///     <c>&lt;a:ln&gt;</c> defers entirely to the style.
+    /// </summary>
+    /// <remarks>
+    ///     This is a deliberately <em>narrower</em> merge than <see cref="ResolveConnectorLineStyle"/>'s
+    ///     own per-attribute (width/paint/dash independently) merge for connector shapes: here,
+    ///     width and dash always come from the shape's own <c>&lt;a:ln&gt;</c> when it is present
+    ///     at all (never pulled from the style, even when the shape's own <c>&lt;a:ln&gt;</c>
+    ///     declares no <c>w</c>/<c>&lt;a:prstDash&gt;</c>) - only the paint/color ever falls back
+    ///     to the style. When the style itself supplies no usable color (no <c>&lt;p:style&gt;</c>
+    ///     at all, no <c>&lt;a:lnRef&gt;</c>, an <c>&lt;a:lnRef idx="0"/&gt;</c>, or a style entry
+    ///     that itself resolves to <see cref="PptxNoFill"/>), the result is "no stroke" - the same
+    ///     default every other fill-less-line call site already produces (see
+    ///     <see cref="ResolveLineStyle"/>'s own remarks), and the same default
+    ///     <see cref="ResolveConnectorLineStyle"/> already establishes as precedent
+    ///     (<c>styleLineStyle?.Paint ?? PptxNoFill.Instance</c>) - no new "default color" is
+    ///     invented, since OOXML's own schema default for an absent/<c>idx="0"</c> style
+    ///     reference is "no line at all", not a specific color.
+    /// </remarks>
+    /// <param name="lnElement">
+    ///     The shape's own <c>&lt;p:spPr&gt;/&lt;a:ln&gt;</c> element, or <see langword="null"/>
+    ///     when the shape declares no <c>&lt;a:ln&gt;</c> at all.
+    /// </param>
+    /// <param name="styleElement">
+    ///     The shape's own sibling <c>&lt;p:style&gt;</c> element (see <see cref="RenderShape"/>),
+    ///     or <see langword="null"/> when the shape declares no <c>&lt;p:style&gt;</c> at all.
+    /// </param>
+    /// <param name="theme">The resolved theme, used to resolve <see cref="PptxTheme.LnStyleList"/> and any <c>&lt;a:schemeClr&gt;</c>.</param>
+    /// <param name="colorMap">
+    ///     The effective color map consulted when a fill declares an <c>&lt;a:schemeClr
+    ///     val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the default) - see
+    ///     <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
+    /// <returns>
+    ///     The resolved <see cref="PptxLineStyle"/>, or <see langword="null"/> meaning "no
+    ///     stroke" - see this method's own remarks and <see cref="ResolveLineStyle"/>/
+    ///     <see cref="ResolveShapeStyleLineStyle"/>'s matching documentation for the full set of
+    ///     "no stroke" conditions each delegated-to case produces.
+    /// </returns>
+    internal static PptxLineStyle? ResolveShapeLineStyle(
+        XElement? lnElement, XElement? styleElement, PptxTheme theme, PptxColorMap? colorMap = null)
+    {
+        // Case 4: a fully absent <a:ln> defers entirely to the style <a:lnRef>.
+        if (lnElement is null)
+        {
+            return ResolveShapeStyleLineStyle(styleElement, theme, colorMap);
+        }
+
+        // Cases 1/2: an explicit fill-definition child (including <a:noFill/>) on the shape's own
+        // <a:ln> always wins outright over the style - ResolveLineStyle already correctly returns
+        // null for an explicit <a:noFill/>, distinguishing it from case 3 below.
+        if (HasExplicitFillChild(lnElement))
+        {
+            return ResolveLineStyle(lnElement, theme, colorMap);
+        }
+
+        // Case 3: a present <a:ln> with no recognized fill-definition child of its own keeps its
+        // own width/dash, but defers only its color to the style <a:lnRef> - never merging width
+        // or dash from style, unlike ResolveConnectorLineStyle's broader per-attribute merge.
+        var widthEmu = (float?)lnElement.Attribute("w") ?? 0f;
+        if (widthEmu <= 0f)
+        {
+            return null;
+        }
+
+        var styleLineStyle = ResolveShapeStyleLineStyle(styleElement, theme, colorMap);
+        var paint = styleLineStyle?.Paint ?? PptxNoFill.Instance;
+        if (paint is PptxNoFill)
+        {
+            return null;
+        }
+
+        var dashArray = ResolveDashArray(lnElement, widthEmu);
+        return new PptxLineStyle(widthEmu, paint, dashArray);
+    }
+
+    /// <summary>
     ///     Parses a shape-style reference element's (<c>&lt;a:fillRef&gt;</c>/<c>&lt;a:lnRef&gt;</c>)
     ///     required <c>idx</c> attribute.
     /// </summary>
