@@ -666,15 +666,21 @@ sections:
               The PptxDocument class shall resolve a shape's <a:ln> stroke element into a
               PptxLineStyle (width in EMU, resolved fill, and an optional dash array derived from
               <a:prstDash val="..."/>), resolving to no stroke (null) when <a:ln> is null, its w
-              attribute is missing or non-positive, or its resolved fill is PptxNoFill, and shall
-              realize a resolved PptxLineStyle against a shape's path into a stroked outline path
-              via the core PathStroker, mirroring the PDF renderer's own StrokeStyle/PathStroker
-              call pattern.
+              attribute is explicitly present and non-positive (a genuinely-absent w instead
+              defaults to the OOXML conventional default stroke width, 9525 EMU / 0.75pt), or its
+              resolved fill is PptxNoFill, and shall realize a resolved PptxLineStyle against a
+              shape's path into a stroked outline path via the core PathStroker, mirroring the PDF
+              renderer's own StrokeStyle/PathStroker call pattern.
             justification: |
               A shape's visible outline is produced by stroking its geometric path with the
               resolved line style, not merely resolving the line style's data in isolation; reusing
               the already-tested core PathStroker exactly as the PDF renderer already does avoids
-              a second, divergent stroking implementation for this package.
+              a second, divergent stroking implementation for this package. A genuinely-absent w
+              attribute must not collapse to the same "no stroke" outcome as an explicit w="0":
+              real-world documents commonly declare an <a:ln> with only a color/fill, relying on
+              PowerPoint's own default stroke weight for an un-set w, and previously rendered with
+              no visible outline at all - a visual-fidelity bug fixed by defaulting a genuinely-
+              absent w to PowerPoint's own observed default stroke width instead.
             tests:
               - ResolveLineStyle_NullElement_ReturnsNull
               - ResolveLineStyle_ZeroWidth_ReturnsNull
@@ -682,6 +688,10 @@ sections:
               - ResolveLineStyle_WidthAndSolidFill_ResolvesWidthAndColor
               - ResolveLineStyle_DashPresets_ProduceNonNullDashArray
               - ResolveLineStyle_SolidPreset_ProducesNullDashArray
+              - ResolveLineStyle_ExplicitZeroWidth_ReturnsNull
+              - ResolveLineStyle_ExplicitNegativeWidth_ReturnsNull
+              - ResolveLineStyle_MissingWidthAttribute_ResolvesDefaultWidth
+              - Render_EllipseWithNoFillAndLnMissingWidthButRecognizedColor_PaintsDefaultWidthStroke
               - ResolveStrokeOutline_RectangleWithSolidLine_ProducesNonEmptyOutline
               - CanvasNetPptx_SystemIntegration_GeometryAndPaint_FreeformShapeResolvesEndToEnd
 

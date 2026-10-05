@@ -542,16 +542,40 @@ throws `InvalidDataException` rather than an unrelated raw `FormatException`.
 `ResolveLineStyle_NoFillLine_ReturnsNull`, `ResolveLineStyle_WidthAndSolidFill_ResolvesWidthAndColor`,
 `ResolveLineStyle_DashPresets_ProduceNonNullDashArray` (a `[Theory]` covering all seven supported
 dash preset names), `ResolveLineStyle_SolidPreset_ProducesNullDashArray`,
+`ResolveLineStyle_ExplicitZeroWidth_ReturnsNull`, `ResolveLineStyle_ExplicitNegativeWidth_ReturnsNull`,
+`ResolveLineStyle_MissingWidthAttribute_ResolvesDefaultWidth`,
+`Render_EllipseWithNoFillAndLnMissingWidthButRecognizedColor_PaintsDefaultWidthStroke`,
 `ResolveStrokeOutline_RectangleWithSolidLine_ProducesNonEmptyOutline`
 
-Proves a `null` `<a:ln>`, a zero/absent width, and an explicit or implicit no-fill line, each
-resolve to `null` (no stroke drawn); proves a positive width with a `<a:solidFill>` resolves a
-`PptxLineStyle` carrying the expected width and color; proves each of the seven supported
-`<a:prstDash val="...">` preset names resolves a non-null, width-proportional dash array; proves
-the common `solid` preset (and, by extension, any unrecognized name) resolves `null` (a solid
-line); and proves `ResolveStrokeOutline` produces a non-empty outline path for a rectangle with a
-solid line, via the core `PathStroker`/`StrokeStyle` machinery reused from the PDF renderer's own
-call pattern.
+Proves a `null` `<a:ln>`, an explicitly-declared zero/non-positive width, and an explicit or
+implicit no-fill line, each resolve to `null` (no stroke drawn); proves a positive width with a
+`<a:solidFill>` resolves a `PptxLineStyle` carrying the expected width and color; proves each of
+the seven supported `<a:prstDash val="...">` preset names resolves a non-null, width-proportional
+dash array; proves the common `solid` preset (and, by extension, any unrecognized name) resolves
+`null` (a solid line); and proves `ResolveStrokeOutline` produces a non-empty outline path for a
+rectangle with a solid line, via the core `PathStroker`/`StrokeStyle` machinery reused from the
+PDF renderer's own call pattern.
+
+**Default-width regression scenarios** (fixing the bug where a genuinely-absent `w` attribute
+collapsed to the same "no stroke" outcome as an explicit `w="0"`):
+
+- `ResolveLineStyle_ExplicitZeroWidth_ReturnsNull` and
+  `ResolveLineStyle_ExplicitNegativeWidth_ReturnsNull` prove an explicitly-present `w="0"` or
+  negative `w` (e.g. `w="-100"`) still resolve to `null` (no stroke) - a regression guard proving
+  OOXML's own "explicit zero/negative width means no stroke" idiom is unaffected by this fix.
+- `ResolveLineStyle_MissingWidthAttribute_ResolvesDefaultWidth` proves an `<a:ln>` with a
+  recognized `<a:solidFill>` but no `w` attribute at all resolves a non-`null` `PptxLineStyle`
+  whose `WidthEmu` is the documented default (`9525` EMU / `0.75`pt) and whose color matches the
+  declared fill.
+- `Render_EllipseWithNoFillAndLnMissingWidthButRecognizedColor_PaintsDefaultWidthStroke` is a
+  render-level regression test reproducing the exact reported real-world pattern (an ellipse shape
+  with `<a:noFill/>` and an `<a:ln><a:solidFill>...</a:solidFill></a:ln>` declaring no `w`
+  attribute): it renders the shape against a small 1"x1" slide (so the sub-pixel-at-normal-scale
+  9525 EMU default width survives as several solid, easily-sampled pixels) and asserts a red stroke
+  pixel appears directly on the ellipse's own boundary, while both its interior and the area well
+  outside its bounding box remain the default opaque-white clear - proving the stroke is now
+  visible, proving `<a:noFill/>` still means no interior fill, and proving the stroke does not
+  spill unexpectedly far beyond its own narrow band.
 
 ### Text Layout and Rendering (Phase 1d) Test Scenarios
 

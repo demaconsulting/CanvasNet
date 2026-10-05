@@ -475,9 +475,33 @@ element into a `PptxLineStyle` (an `internal sealed record` capturing width in E
   _not_ resolve a theme-inherited default line width/style, matching this phase's broader
   decision not to implement placeholder/theme format-scheme property inheritance for shape
   styling);
-- `<a:ln>`'s `w` attribute (width, in EMU) is missing or non-positive; or
+- `<a:ln>`'s `w` attribute (width, in EMU) is _explicitly present_ with a non-positive
+  (`<= 0`) value (covering both `w="0"` and any negative `w` - OOXML's own "explicit zero/negative
+  width means no stroke" idiom); or
 - the resolved fill (typically `<a:solidFill>`, via `ResolveFill`) is `PptxNoFill` (an explicit
   `<a:noFill/>` line, or a line with no recognized fill child).
+
+A `w` attribute that is genuinely _absent_ (as opposed to explicitly zero/negative) instead
+resolves to a documented default stroke width of `9525` EMU (`0.75`pt), provided the `<a:ln>`
+still resolves a recognized (non-`PptxNoFill`) fill. This matches a real-world, commonly seen
+document pattern - an `<a:ln>` that declares only a color/fill (for example
+`<a:ln><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln>`), relying on PowerPoint's own
+default stroke weight for an un-set `w` - which previously rendered with no visible outline at
+all, collapsing to the exact same "no stroke" outcome as an explicit `w="0"`. The `9525` EMU
+(`0.75`pt) value is PowerPoint's own observed default new-shape outline weight; this is an
+**application-level convention**, not a formally declared ECMA-376/ISO-29500 XSD schema default -
+the `CT_LineProperties` schema type declares no `default="..."` for `w` - so the value is
+cross-checked against community/library documentation (for example python-pptx's own documented
+default) and this codebase's own existing `1pt = 12700` EMU conversion, rather than cited as a
+schema default.
+
+This default-width fallback applies **only** to `ResolveLineStyle` itself (and therefore to every
+call site that defers its width/fill decision to it directly - an ordinary shape's own `<a:ln>`
+with a recognized fill, table-cell borders, and a `<p:style>/<a:lnRef>` theme style-list entry). It
+does **not** change `ResolveShapeLineStyle`'s case-3 "fill-less, width-less `<a:ln>`, no
+style-color" behavior, nor `ResolveConnectorLineStyle`'s own per-attribute merge logic - both
+deliberately, separately retain their existing "a present, width-less `<a:ln>` never gains a width
+from style or default" policy, each independently documented and tested below.
 
 **Dash resolution**: `<a:prstDash val="..."/>` resolves a dash array proportional to the line's
 own `widthEmu`, for `dash`/`dashDot`/`dot`/`lgDash`/`lgDashDot`/`sysDash`/`sysDot`; any other
