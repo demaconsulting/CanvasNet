@@ -5,6 +5,7 @@ namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
 // cspell:ignore pptx pythonpptx samplelib groupshape autoshape autoshapes paintable sppr
 // cspell:ignore aiden0z blipfill pattfill custgeom avlst gridcol tblgrid srcrect cxnsp lummod prstdash cmpd thickthin xfrm Xfrm FAFAF
+// cspell:ignore slidenum
 
 /// <summary>
 ///     Fixture-conformance tests that exercise <see cref="PptxDocument"/>'s full public
@@ -603,6 +604,45 @@ public class PptxFixturesCorpusTests
 
         Assert.True(darkestInGutter < darkestBeforeGutter - 60,
             $"Expected the bullet-gutter column (x={bulletGutterPx}) to contain visibly darker ink than the shape's own left-inset column (x={beforeGutterPx}) just to its left: darkestInGutter={darkestInGutter}, darkestBeforeGutter={darkestBeforeGutter}.");
+
+        // Act & Assert (stray-bullet-on-sldNum regression guard - see the companion quality report
+        // this cycle closes): the slide's own "Slide Number Placeholder 3" (<p:ph type="sldNum"
+        // idx="10"/>) has no own geometry, inheriting the slide master's "Slide Number
+        // Placeholder 5" (idx="4") geometry by type-match: <a:off x="11669529" y="6400800"/>,
+        // <a:ext cx="438912" cy="155448"/>, this fixture's slide size cx="12188825" cy="6858000".
+        // Before the fix, this placeholder's paragraph (a bare <a:fld type="slidenum">, no own
+        // bullet markup anywhere in its own chain) wrongly inherited the master's bodyStyle
+        // lvl1pPr's "<a:buChar char=\u2022/>" bullet (SelectMasterTextStyle routes "sldNum" to
+        // bodyStyle instead of the bullet-free otherStyle), painting an isolated bullet dot with
+        // no accompanying text - independently confirmed via a standalone scratch render at 192
+        // DPI (darkest pixel luminance 0 before the fix, 765/pure-background after). A baseline
+        // column just above the placeholder's own bounding box (same slide background, outside any
+        // shape) proves the comparison isn't simply "both happen to be white".
+        const double sldNumOffXEmu = 11669529d;
+        const double sldNumOffYEmu = 6400800d;
+        const double sldNumCxEmu = 438912d;
+        const double sldNumCyEmu = 155448d;
+
+        var sldNumX0 = ToPixelX(sldNumOffXEmu, slideSize, surface0.Width);
+        var sldNumX1 = ToPixelX(sldNumOffXEmu + sldNumCxEmu, slideSize, surface0.Width);
+        var sldNumY0 = ToPixelY(sldNumOffYEmu, slideSize, surface0.Height);
+        var sldNumY1 = ToPixelY(sldNumOffYEmu + sldNumCyEmu, slideSize, surface0.Height);
+        var sldNumBaselineY = ToPixelY(sldNumOffYEmu - sldNumCyEmu, slideSize, surface0.Height);
+
+        var darkestAtSldNum = int.MaxValue;
+        var darkestAtSldNumBaseline = int.MaxValue;
+        for (var px = sldNumX0; px <= sldNumX1; px++)
+        {
+            for (var py = sldNumY0; py <= sldNumY1; py++)
+            {
+                darkestAtSldNum = Math.Min(darkestAtSldNum, Luminance(surface0[px, py]));
+            }
+
+            darkestAtSldNumBaseline = Math.Min(darkestAtSldNumBaseline, Luminance(surface0[px, sldNumBaselineY]));
+        }
+
+        Assert.True(darkestAtSldNum >= darkestAtSldNumBaseline - 60,
+            $"Expected no stray bullet ink at the slide-number placeholder's own geometry (darkest luminance {darkestAtSldNum}), no meaningfully darker than its own background baseline row (darkest luminance {darkestAtSldNumBaseline}).");
 
         // Act & Assert: slide 1's chart graphic frame throws.
         var exception = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(1, Dpi, Transparent));

@@ -1642,20 +1642,39 @@ before this phase, unchanged.
   `FormatAutoNumber`'s own remarks for the full list) - each gracefully omits its own bullet glyph
   per-paragraph rather than aborting the render, per the graceful-degradation policy described
   above.
+- **Closed risk (found during visual QA, fixed this cycle)**: `"sldNum"`/`"dt"`/`"ftr"` field
+  placeholder types (slide number, date, and footer) were, for a brief window, susceptible to a
+  stray, isolated bullet glyph with no accompanying text whenever a slide master's `bodyStyle`
+  declared a bullet for the inherited level - confirmed by independently rendering the
+  `aiden0z-1-chart-and-complex.pptx` corpus fixture, which showed exactly this defect at its own
+  slide-number placeholder's geometry. Root cause: `SelectMasterTextStyle` routes every
+  non-title placeholder type, including these three field types, to the master's `bodyStyle`
+  bucket (which commonly declares a list bullet) rather than the bullet-free `otherStyle` bucket
+  these types should consult in genuine PowerPoint output - a separate, pre-existing,
+  out-of-scope routing defect that also drives font/size/bold/italic/color resolution for these
+  placeholder types and was therefore left unchanged. The fix is a narrow, explicit guard in
+  `ResolveEffectiveBulletProperties` that unconditionally forces `PptxBulletKind.None` whenever
+  `placeholderType` is `"sldNum"`, `"dt"`, or `"ftr"`, matching the fact that PowerPoint's own UI
+  never exposes bullet/list formatting for these field placeholder types. Status: closed, proven
+  by `ResolveEffectiveParagraphProperties_SldNumDtFtrPlaceholderType_SuppressesMasterBodyStyleBullet`
+  and an extended `aiden0z-1-chart-and-complex.pptx` fixture assertion (see "Test coverage" below).
 
 **Test coverage**: a new `PptxBulletTests.cs` covers raw parsing (all three type choices plus all
 three color/font/size "follow text" vs. explicit modifier choices), inheritance (own-paragraph vs.
 placeholder-level vs. master-level wins for each of the four independent choice-groups, explicit
 `<a:buNone>` suppressing an inherited bullet, the four choice-groups resolving independently of
-each other, `<a:buAutoNum>`'s schema defaults, and `<a:buSzPct>`/`<a:buSzPts>` size-modifier
-arithmetic), `FormatAutoNumber`'s own direct unit tests (all eleven supported schemes at
-representative values, including alphabetic rollover and several Roman-numeral edge cases, plus
-an unsupported scheme returning `null`), and layout-level tests via `ResolveTextLayout` (the
-hanging-indent fix contrasted against its own pre-existing non-bulleted-paragraph regression case,
-auto-number sequencing across consecutive paragraphs, the reset/resume behavior across a nested
-then-returned-to shallower level, `<a:buNone>` suppression, and an unsupported auto-number scheme
-gracefully skipping only its own bullet). `PptxFixturesCorpusTests.cs`'s own
+each other, `<a:buAutoNum>`'s schema defaults, `<a:buSzPct>`/`<a:buSzPts>` size-modifier
+arithmetic, and `"sldNum"`/`"dt"`/`"ftr"` placeholder types suppressing an inherited master
+`bodyStyle` bullet - the closed-risk regression guard above), `FormatAutoNumber`'s own direct unit
+tests (all eleven supported schemes at representative values, including alphabetic rollover and
+several Roman-numeral edge cases, plus an unsupported scheme returning `null`), and layout-level
+tests via `ResolveTextLayout` (the hanging-indent fix contrasted against its own pre-existing
+non-bulleted-paragraph regression case, auto-number sequencing across consecutive paragraphs, the
+reset/resume behavior across a nested then-returned-to shallower level, `<a:buNone>` suppression,
+and an unsupported auto-number scheme gracefully skipping only its own bullet). `PptxFixturesCorpusTests.cs`'s own
 `aiden0z-1-chart-and-complex.pptx` fixture test gained a further pixel-level assertion confirming
 this real file's own "Rectangle 5" shape (two consecutive `<a:buChar char="•">`-bulleted
 paragraphs) actually paints visible ink in its own bullet gutter column, distinct from the
-surrounding, un-inked inset.
+surrounding, un-inked inset, plus a second new assertion confirming no stray bullet ink appears at
+this same fixture's own slide-number placeholder geometry (the exact real-world location the
+closed risk above was found).

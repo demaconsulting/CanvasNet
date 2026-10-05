@@ -1137,7 +1137,8 @@ the synthetic tests above carry the primary, deliberately-contrasting-color proo
 `ResolveEffectiveParagraphProperties_BuClrTxRunLessParagraph_FallsBackToDark1`,
 `ResolveEffectiveParagraphProperties_BuFontTxOrAbsent_FollowsFirstRunFont`,
 `ResolveEffectiveParagraphProperties_BuSzPct_ResolvesFractionOfFirstRunSize`,
-`ResolveEffectiveParagraphProperties_BuSzPts_ResolvesAbsoluteSizeIndependentOfRunSize`
+`ResolveEffectiveParagraphProperties_BuSzPts_ResolvesAbsoluteSizeIndependentOfRunSize`,
+`ResolveEffectiveParagraphProperties_SldNumDtFtrPlaceholderType_SuppressesMasterBodyStyleBullet`
 
 Proves raw parsing correctly captures each of the four OOXML bullet choice-groups (type: `buNone`/
 `buAutoNum`/`buChar`; color: `buClrTx`/`buClr`; font: `buFontTx`/`buFont`; size: `buSzTx`/
@@ -1156,7 +1157,13 @@ attributes are omitted. Proves the three "follow text" sentinels (`buClrTx`/`buF
 and their own absent-markup equivalent) resolve to the paragraph's own first run's effective
 color/typeface/size (with a run-less paragraph's color falling back to the theme's `Dark1`), and
 that `buSzPct`/`buSzPts` each correctly compute a relative-fraction-of-run-size versus an
-absolute, run-size-independent size respectively.
+absolute, run-size-independent size respectively. Proves `"sldNum"`/`"dt"`/`"ftr"` field
+placeholder types resolve no bullet at all even when the same master `bodyStyle` fixture that
+wins a bullet for a `"body"`-typed placeholder is reused unchanged - the regression guard for a
+stray-bullet defect found during visual QA (`SelectMasterTextStyle` routes these three field
+placeholder types to `bodyStyle`, which commonly declares a bullet, rather than the bullet-free
+`otherStyle` these types should consult in genuine PowerPoint output; an explicit guard in
+`ResolveEffectiveBulletProperties` now suppresses bullet painting for these types unconditionally).
 
 #### CanvasNetPptx-PptxDocument-BulletRendering: Auto-Number Formatting, Counter Sequencing, and Hanging-Indent Gutter Positioning
 
@@ -1194,7 +1201,13 @@ fixture's own "Rectangle 5" shape (two consecutive `<a:buChar char="•">`-bulle
 own `marL+indent` geometry collapses exactly to the shape's own left inset), proves visible ink
 paints in that shape's own bullet-gutter pixel column, strictly left of where any paragraph text
 itself can start, and meaningfully darker than a column sampled just inside that same inset - the
-real-file, end-to-end visual-fidelity proof this feature's acceptance bar requires.
+real-file, end-to-end visual-fidelity proof this feature's acceptance bar requires. A further
+assertion against this same fixture proves no stray bullet ink appears anywhere within this
+fixture's own slide-number placeholder's resolved geometry (inherited by type-match from the
+slide master's own "Slide Number Placeholder 5": `off x="11669529" y="6400800"`,
+`ext cx="438912" cy="155448"`), comparing the darkest pixel found there against a same-column
+background baseline row just above it rather than an absolute threshold - the exact real-world
+location and failure mode the stray-bullet defect above was found and closed at.
 
 ## Acceptance Criteria
 

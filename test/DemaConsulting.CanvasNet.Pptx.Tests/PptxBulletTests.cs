@@ -322,6 +322,33 @@ public class PptxBulletTests
         Assert.Equal("-", result.Bullet.Character);
     }
 
+    /// <summary>
+    ///     Proves <c>"sldNum"</c>/<c>"dt"</c>/<c>"ftr"</c> field placeholder types never resolve a
+    ///     bullet, even when the master's own <c>&lt;p:bodyStyle&gt;</c> declares one for the same
+    ///     level that the preceding <c>"body"</c>-placeholder-type test proves *does* win a bullet
+    ///     - this is the regression guard for the stray-bullet-on-slide-number defect found during
+    ///     visual QA (<c>SelectMasterTextStyle</c> routes these types to <c>bodyStyle</c> rather
+    ///     than the bullet-free <c>otherStyle</c>).
+    /// </summary>
+    [Theory]
+    [InlineData("sldNum")]
+    [InlineData("dt")]
+    [InlineData("ftr")]
+    public void ResolveEffectiveParagraphProperties_SldNumDtFtrPlaceholderType_SuppressesMasterBodyStyleBullet(string placeholderType)
+    {
+        var theme = BuildTestTheme();
+        var paragraph = Paragraph(null, Run(null));
+        var bodyStyle = new XElement(
+            DrawingNs + "bodyStyle",
+            new XElement(DrawingNs + "lvl1pPr", new XElement(DrawingNs + "buChar", new XAttribute("char", "-"))));
+        var masterTextStyles = new PptxMasterTextStyles(null, bodyStyle, null);
+        var placeholderProperties = EmptyPlaceholderProperties(theme, masterTextStyles);
+
+        var result = PptxDocument.ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, placeholderType);
+
+        Assert.Equal(PptxBulletKind.None, result.Bullet!.Kind);
+    }
+
     /// <summary>Proves an absent <c>type</c>/<c>startAt</c> on <c>&lt;a:buAutoNum/&gt;</c> resolves the OOXML schema's own documented defaults.</summary>
     [Fact]
     public void ResolveEffectiveParagraphProperties_BuAutoNumNoAttributes_ResolvesSchemaDefaults()

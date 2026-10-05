@@ -234,6 +234,19 @@ public sealed partial class PptxDocument
         string placeholderType,
         PptxEffectiveRunProperties? firstRunProperties)
     {
+        // Field placeholder types ("sldNum"/"dt"/"ftr") never carry list bullets in genuine
+        // PowerPoint output, regardless of what a master's bodyStyle declares - PowerPoint's own
+        // UI does not expose list/bullet formatting for these types at all. This guard is required
+        // because SelectMasterTextStyle (see its own remarks) routes every non-title placeholder
+        // type, including these three, to the master's bodyStyle bucket rather than the
+        // bullet-free otherStyle bucket - a separate, pre-existing, out-of-scope routing bug left
+        // unchanged here (fixing it would also alter font/size/bold/italic/color resolution for
+        // these placeholder types, a materially larger blast radius than this narrow suppression).
+        if (placeholderType is "sldNum" or "dt" or "ftr")
+        {
+            return PptxEffectiveBulletProperties.CreateNone(DefaultTypeface(theme, placeholderType), DefaultFontSizeEmu, theme.ColorScheme.Dark1);
+        }
+
         var raw = paragraph.RawProperties.EffectiveBulletProperties;
 
         var typeElement =
@@ -393,6 +406,16 @@ public sealed partial class PptxDocument
     ///     every other type (including <c>"body"</c> and every remapped placeholder type) selects
     ///     <c>bodyStyle</c>.
     /// </summary>
+    /// <remarks>
+    ///     This routes <c>"sldNum"</c>/<c>"dt"</c>/<c>"ftr"</c> field placeholder types to
+    ///     <c>bodyStyle</c> too, even though real PowerPoint masters typically declare these
+    ///     types' own bullet-free style in <c>otherStyle</c> instead - a known, pre-existing,
+    ///     out-of-scope routing bug left unchanged here (correcting it would also alter
+    ///     font/size/bold/italic/color resolution for these placeholder types). Bullet painting
+    ///     for these three types is instead explicitly suppressed in
+    ///     <see cref="ResolveEffectiveBulletProperties"/>, which short-circuits before this
+    ///     method's <c>bodyStyle</c> selection can contribute a stray bullet.
+    /// </remarks>
     private static XElement? SelectMasterTextStyle(PptxPlaceholderProperties placeholderProperties, string placeholderType) =>
         placeholderType switch
         {
