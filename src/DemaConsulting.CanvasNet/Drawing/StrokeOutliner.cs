@@ -626,38 +626,42 @@ internal static class StrokeOutliner
         //
         // The "runs backwards" test below tolerates a bounded amount of backwards projected
         // length before concluding the ring has genuinely collapsed, and that tolerance must
-        // scale with the contour's own coordinate magnitude, for exactly the same reason
-        // CreateClosedStrokePolygons's areaNearZeroTolerance does (see its remarks): a closed,
-        // curved contour flattened to many short segments - e.g. a PPTX shape's native EMU-space
-        // geometry (coordinates in the hundreds of thousands to millions) tessellated finely
-        // enough that each segment subtends only a tiny turn angle - forces each forced-exact-
-        // intersection point to divide by a correspondingly tiny (near-parallel-offset-lines)
-        // cross-product denominator. That division amplifies the input vertices' own float32
-        // storage quantization noise (itself already proportional to the contour's coordinate
-        // magnitude) by a factor inversely proportional to the tiny per-vertex turn angle,
-        // producing a projected edge length that is measurably, not just infinitesimally,
-        // negative - yet is still pure tessellation-density noise, not a genuine "half-width
-        // exceeds inradius" collapse (the same contour at a coarser tessellation, or an
-        // equivalent coordinate-scale-appropriate flatten tolerance, produces a clearly positive
-        // projected length for the identical geometry). A fixed absolute tolerance
-        // (NearZeroDistance, tuned for small/pixel-scale coordinates) is swamped by that
-        // magnitude-proportional noise and misreads it as a genuine backwards-running edge,
-        // collapsing a perfectly valid thin ring into a solid fill (a false positive). Like
-        // areaNearZeroTolerance, the tolerance here is derived from the contour's own bounding-box
-        // extent (its geometric-mean span, to match the dimension - a length, not an area - being
-        // compared) rather than a global constant, so a tiny contour (where storage noise is
-        // correspondingly tiny) is not given a tolerance so loose it would mask a genuine
-        // half-width-exceeds-inradius collapse (confirmed - see
+        // scale with the LOCAL tessellation density of the edge being tested, not with the
+        // contour's overall size. For a contour of true local radius of curvature R tessellated
+        // into N vertices, a forced-exact-intersection inner-ring vertex lands at radius
+        // R' ~= R - h (independent of N - the geometric erosion amount itself is computed
+        // correctly), but the projected length this check actually measures is the CHORD between
+        // two such adjacent vertices, whose length is approximately |R - h| * 2*sin(pi/N) -
+        // i.e. it shrinks proportionally to 1/N purely because finer tessellation produces more,
+        // shorter inner-ring edges, regardless of how far h exceeds the inradius. A single
+        // tolerance computed once from the whole contour's (N-independent) bounding-box span
+        // cannot track this density-dependent shrinkage of the very signal it is compared
+        // against: once N is large enough, the raw chord length falls below that tolerance for a
+        // growing range of genuine over-erosions, not just a "near-exact-inradius" edge case,
+        // silently stopping detection of real collapses (confirmed - see
+        // StrokeOutliner_Outline_SmallCircleRealisticTessellation_HalfWidthJustOverInradius_CollapsesToSolid).
+        //
+        // The fix is to derive the tolerance PER EDGE from that edge's own flattened
+        // source-segment length (Vector2.Distance(points[i], points[next])) rather than from the
+        // whole contour's bounding-box span. The raw chord-length signal - both genuine
+        // over-erosion and float32 storage-quantization noise amplified by the near-parallel-
+        // offset-lines division inherent to resolving each forced exact-intersection point at a
+        // tiny per-vertex turn angle (see CreateClosedStrokePolygons's areaNearZeroTolerance
+        // remarks for the analogous noise-amplification mechanism) - scales with local segment
+        // length/density the same way, so comparing it against a per-edge, local-segment-length-
+        // relative tolerance restores a stable, density-invariant comparison. This preserves both
+        // existing guarantees: a tiny contour (short segments, short tolerance) still correctly
+        // detects a genuine half-width-exceeds-inradius collapse (confirmed - see
         // StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_ProducesNoInvalidHole and
         // StrokeOutliner_Outline_ClosedSquareHalfWidthNearButBelowInradius_ProducesValidHole),
-        // while a huge contour is not given a tolerance so tight that ordinary float32 noise at
-        // its own scale still triggers a false collapse (confirmed - see
-        // StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedClosedContour_ProducesValidThinRing).
-        // NearZeroDistance remains a floor so a tiny or degenerate contour (bounding-box extent
-        // near zero) still falls back to the original, already-correct absolute behavior.
+        // while a huge, finely-tessellated contour (long source segments even at high N, so a
+        // correspondingly generous per-edge tolerance) is not given a tolerance so tight that
+        // ordinary float32 noise at its own scale still triggers a false collapse (confirmed -
+        // see StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedClosedContour_ProducesValidThinRing
+        // and StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedSmallCircleThickStroke_CollapsesToSolid).
+        // NearZeroDistance remains a floor so a tiny or degenerate (near-zero-length) source
+        // segment still falls back to the original, already-correct absolute behavior.
         const double relativeCollapseTolerance = 1e-2;
-        var collapseDistanceScale = Math.Sqrt(Math.Max(0.0, RingAreaScale(points)));
-        var collapseTolerance = (float)Math.Max(NearZeroDistance, collapseDistanceScale * relativeCollapseTolerance);
 
         collapsed = false;
         for (var i = 0; i < points.Count; i++)
@@ -669,6 +673,10 @@ internal static class StrokeOutliner
             {
                 continue;
             }
+
+            var localSegmentLength = Vector2.Distance(points[i], points[next]);
+            var collapseTolerance =
+                (float)Math.Max(NearZeroDistance, localSegmentLength * relativeCollapseTolerance);
 
             var edgeVector = ring[nextIndex] - ring[currentIndex];
             if (Vector2.Dot(edgeVector, frames[i].Tangent) <= -collapseTolerance)

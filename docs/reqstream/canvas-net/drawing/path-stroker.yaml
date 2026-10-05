@@ -75,7 +75,9 @@ sections:
                   original contour's interior, regardless of the contour's coordinate magnitude or
                   tessellation density, so a thin stroke on a curved contour never falsely
                   collapses to a solid fill merely because fine tessellation at large coordinate
-                  magnitude amplifies floating-point noise past a fixed absolute tolerance.
+                  magnitude amplifies floating-point noise past a fixed absolute tolerance, and so a
+                  genuine half-width-exceeds-inradius collapse is still correctly detected at
+                  realistic tessellation densities regardless of the contour's overall size.
                 justification: |
                   A closed stroked outline is visually a ring, not a solid expansion of the
                   entire shape, so the returned path must preserve the hole between the outer and
@@ -84,13 +86,20 @@ sections:
                   example, native PPTX EMU-space geometry) must not have its inner ring falsely
                   discarded by collapse detection tuned only for small/pixel-scale coordinates,
                   while a genuine thick-stroke-exceeds-inradius case must still correctly collapse
-                  to a solid fill.
+                  to a solid fill. The collapse detector's tolerance must also scale with each
+                  edge's own local tessellation density (not merely the contour's overall
+                  coordinate magnitude), since the raw backwards-offset-edge signal it compares
+                  against shrinks proportionally to tessellation density independent of how far the
+                  half-width exceeds the inradius; otherwise a small shape at a realistic
+                  tessellation density stroked only slightly over its own inradius would silently
+                  retain an invalid inner ring instead of collapsing to a solid fill.
                 tests:
                   - PathStroker_Stroke_ClosedRectangle_FillsRingLeavingInteriorAndExteriorUnfilled
                   - StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_ProducesNoInvalidHole
                   - StrokeOutliner_Outline_ClosedSquareHalfWidthNearButBelowInradius_ProducesValidHole
                   - StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedClosedContour_ProducesValidThinRing
                   - StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedSmallCircleThickStroke_CollapsesToSolid
+                  - StrokeOutliner_Outline_SmallCircleRealisticTessellation_HalfWidthJustOverInradius_CollapsesToSolid
 
               - id: CanvasNet-Drawing-PathStroker-DegenerateClosedContours
                 title: >-
