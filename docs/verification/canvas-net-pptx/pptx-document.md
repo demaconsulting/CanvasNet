@@ -1222,7 +1222,7 @@ own-paragraph explicit bullet choice always wins over any style-bucket default, 
 placeholder type, confirming the master-tier exclusion above is scoped to only the master tier
 and does not disturb the paragraph's own markup.
 
-#### CanvasNetPptx-PptxDocument-BulletRendering: Auto-Number Formatting, Counter Sequencing, and Hanging-Indent Gutter Positioning
+#### CanvasNetPptx-PptxDocument-BulletRendering: Auto-Number Formatting, Gutter Positioning, and Minimum Gap
 
 **Tests**: `FormatAutoNumber_SupportedTypes_FormatsExpectedString`,
 `FormatAutoNumber_UnsupportedType_ReturnsNull`,
@@ -1239,7 +1239,9 @@ and does not disturb the paragraph's own markup.
 `PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature`,
 `ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth`,
 `PaintTextLayout_BulletedParagraphWithZeroIndent_BulletAndTextInkDoNotOverlap`,
-`ResolveTextLayout_MasterBuCharDefault_OwnBuAutoNumOverride_PaintsOnlyAutoNumberMarker`
+`ResolveTextLayout_MasterBuCharDefault_OwnBuAutoNumOverride_PaintsOnlyAutoNumberMarker`,
+`ResolveTextLayout_BulletedParagraphWithZeroIndent_AutoNumTwoDigitMarker_TextClearsBulletWidthPlusGap`,
+`PaintTextLayout_BulletedParagraphWithZeroIndent_AutoNumMarker_BulletAndTextHaveVisibleGap`
 
 Proves `FormatAutoNumber` formats all eleven supported `ST_TextAutonumberScheme` values at
 representative values (including alphabetic base-26 rollover at value 27 and several Roman-numeral
@@ -1298,6 +1300,30 @@ set - never two markers. The pre-existing
 `ResolveTextLayout_BulletedParagraph_TextStartsAtMarLGutterHoldsBullet` and
 `ResolveTextLayout_BuNone_PaintsNoGlyphBeyondRunText` tests continue to pass unchanged, confirming
 the fix's clamp is a no-op for the already-correct, sufficiently-negative-indent case.
+
+A follow-up real-world report found that same clamp, while correct for `buChar`, still
+insufficient for `buAutoNum`: CanvasNet rendered an auto-numbered marker immediately touching the
+paragraph's own first word (e.g. `"1.3 custom tip geometries"`), whereas real PowerPoint shows a
+clear, word-space-sized gap after the marker. The updated
+`ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth` now asserts the clamped
+text-start-X includes both the bullet string's own measured width and a `buAutoNum`-only minimum
+trailing gap (one space character's own advance width). The new
+`ResolveTextLayout_BulletedParagraphWithZeroIndent_AutoNumTwoDigitMarker_TextClearsBulletWidthPlusGap`
+proves this gap is additive to a genuinely multi-character marker's own full measured width (using
+`startAt="12"` so the marker renders as `"12."`, three glyphs wide) rather than a fixed constant
+that would understate the clamp for longer markers, and uses a digit-first run text (`"3"`)
+reproducing the exact real-world ambiguous "marker digit immediately followed by the paragraph's
+own digit" pattern. The new
+`PaintTextLayout_BulletedParagraphWithZeroIndent_AutoNumMarker_BulletAndTextHaveVisibleGap` proves
+this at the pixel level: rendered to a `Surface`, there is no ink anywhere at or before the
+pre-fix "touching" boundary, no ink anywhere within the new gap region itself, and real ink only
+once comfortably past the clamped text-start-X - a genuinely blank gap, not merely "no overlap".
+This gap is gated to `PptxBulletKind.AutoNum` only, so the pre-existing
+`ResolveTextLayout_BulletedParagraph_TextStartsAtMarLGutterHoldsBullet`,
+`ResolveTextLayout_BuNone_PaintsNoGlyphBeyondRunText`, and
+`PaintTextLayout_BulletedParagraphWithZeroIndent_BulletAndTextInkDoNotOverlap` (a `buChar` test)
+all continue to pass unmodified, confirming the fix introduces zero regression to the
+already-correct, already-verified `buChar` "touching, zero extra gap" behavior.
 
 #### CanvasNetPptx-PptxDocument-ColorMapResolution: `<p:clrMap>`/`<p:clrMapOvr>` Indirection
 

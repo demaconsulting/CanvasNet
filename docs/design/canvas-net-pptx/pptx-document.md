@@ -1810,6 +1810,39 @@ regression guard confirming the type-precedence hypothesis remains refuted), alo
 pre-existing `ResolveTextLayout_BulletedParagraph_TextStartsAtMarLGutterHoldsBullet` and
 `ResolveTextLayout_BuNone_PaintsNoGlyphBeyondRunText`, both confirmed unaffected.
 
+**Closed risk (`buAutoNum` gutter-clearance minimum gap)**: a follow-up real-world report against
+the same gutter-clearance clamp above found it, while correct for `buChar`, still insufficient for
+`buAutoNum`: CanvasNet rendered an auto-numbered marker immediately touching the paragraph's own
+first word (e.g. `"1.3 custom tip geometries"`, `"2.QO Reagent durable probe (J18604)"`), whereas
+real PowerPoint shows a clear, word-space-sized gap after the marker (e.g. `"1."` then a visible
+gap then `"3 custom tip geometries"` - the `"3"` is the paragraph's own typed first word, not part
+of the marker). Investigation confirmed `BuildBulletGlyphs` already measures a multi-character
+auto-number marker's full string width correctly (refuting a suspected "single-glyph width"
+regression) - the actual gap was the prior fix's own explicitly documented simplification: its
+clamp reserves a "just touching, zero extra padding" minimum uniformly for every bullet kind,
+which the design document above already flagged as not reproducing PowerPoint's own additional
+visual padding. The fix: `BuildBulletGlyphs` now also returns a `BulletGlyphsResult.TrailingGapEmu`
+
+- one space character's own advance width, measured in the bullet's already-resolved font/size -
+but **only** for `PptxBulletKind.AutoNum` (`0` for `Char`/`None`, leaving the already-correct,
+already-verified `buChar` "touching, zero extra gap" behavior unaffected); threaded through a new
+`LineBox.BulletTrailingGapEmu` field, `PositionLines`'s existing clamp now folds it in additively:
+`MathF.Max(marL, bulletGutterX + BulletWidthEmu + BulletTrailingGapEmu)`. This is a best-effort,
+font-metric-derived approximation of PowerPoint's own tab-stop-like spacing, not full OOXML
+`defTabSz`/`tabLst` tab-stop support (a distinct, pre-existing, out-of-scope limitation already
+noted above) - a reasonable, documented simplification, since a single space's advance width
+closely approximates ordinary inter-word spacing without requiring new tab-stop geometry. Status:
+closed, proven by the updated
+`ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth` (exact numeric clamp
+proof, now including the trailing gap term), a new
+`ResolveTextLayout_BulletedParagraphWithZeroIndent_AutoNumTwoDigitMarker_TextClearsBulletWidthPlusGap`
+(proves the gap is additive to a genuinely multi-character marker's own full width - e.g. `"12."`
+- rather than a fixed constant, using a digit-first run text reproducing the exact real-world
+ambiguous pattern), and a new
+`PaintTextLayout_BulletedParagraphWithZeroIndent_AutoNumMarker_BulletAndTextHaveVisibleGap`
+(pixel-level proof of a genuinely blank column range between the marker's own measured-width
+boundary and the clamped text start, stronger than mere non-overlap).
+
 #### Phase 2 Follow-Up: Color Map (`<p:clrMap>`/`<p:clrMapOvr>`) Resolution
 
 A further visual-fidelity defect was found and fixed: `ResolveSchemeColor` (`PptxDocument.

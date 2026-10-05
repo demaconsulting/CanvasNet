@@ -779,9 +779,14 @@ public class PptxBulletTests
     ///     (also <c>320040</c>, since a bulleted first line drops <c>indent</c> entirely) would,
     ///     before the fix, collide exactly. Proves the bullet glyph's own X is unchanged (still
     ///     the unclamped gutter), while the first run-text glyph's X is now clamped to clear the
-    ///     bullet string's own measured width - an exact numeric value derived from this file's
-    ///     own synthetic font metrics (bullet string <c>"1."</c>: '1' advance 300/1000*12700
-    ///     EMU + '.' advance 100/1000*12700 EMU = 5080 EMU total).
+    ///     bullet string's own measured width plus the <c>buAutoNum</c>-only minimum trailing gap
+    ///     - an exact numeric value derived from this file's own synthetic font metrics (bullet
+    ///     string <c>"1."</c>: '1' advance 300/1000*12700 EMU + '.' advance 100/1000*12700 EMU =
+    ///     5080 EMU, plus a minimum trailing gap of one space character's own advance width,
+    ///     200/1000*12700 EMU = 2540 EMU, reserved beyond the marker's own width for
+    ///     <c>buAutoNum</c> bullets specifically, so the marker reads as visibly separated from
+    ///     the paragraph's own text rather than merely touching it - see the design document's
+    ///     "buAutoNum gutter-clearance minimum gap" note).
     /// </summary>
     [Fact]
     public void ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth()
@@ -798,10 +803,12 @@ public class PptxBulletTests
         Assert.Equal(320040f, layout.Glyphs[1].OriginXEmu, 2);
         Assert.Equal(323850f, layout.Glyphs[2].OriginXEmu, 2); // 320040 + '1' advance (3810).
 
-        // The run's own text glyph is clamped to clear the bullet's own measured width
-        // (320040 + 5080 = 325120), rather than sitting at the unclamped marL (320040), which
-        // would collide with the bullet.
-        Assert.Equal(325120f, layout.Glyphs[0].OriginXEmu, 2);
+        // The run's own text glyph is clamped to clear the bullet's own measured width plus the
+        // buAutoNum-only minimum trailing gap (320040 + 5080 + 2540 = 327660), rather than
+        // sitting at the unclamped marL (320040), which would collide with the bullet, or merely
+        // touching the bullet's own width (325120), which (per the bug report) still reads as too
+        // tight for an auto-numbered marker.
+        Assert.Equal(327660f, layout.Glyphs[0].OriginXEmu, 2);
     }
 
     /// <summary>
@@ -860,6 +867,113 @@ public class PptxBulletTests
         }
 
         Assert.True(AnyInkInColumnRange(0, bulletColumnMaxPx), "Expected ink in the bullet's own column.");
+        Assert.True(AnyInkInColumnRange(textColumnMinPx, surface.Width), "Expected ink in the text's own (clamped) column.");
+    }
+
+    /// <summary>
+    ///     Regression test for the real-world <c>buAutoNum</c> "touching, zero extra gap" defect
+    ///     (the user-reported <c>"1.3 custom tip geometries"</c>/<c>"2.QO Reagent durable probe
+    ///     (J18604)"</c> symptom): proves the fix's added minimum trailing gap scales additively
+    ///     with a genuinely multi-character auto-number marker's own full measured width (not a
+    ///     fixed/single-glyph constant), and that it clears a digit-first paragraph first word
+    ///     (reproducing the exact real-world ambiguous "marker digit immediately followed by the
+    ///     paragraph's own digit" pattern) with a real, visible gap rather than merely touching.
+    ///     Uses <c>startAt="12"</c> so the rendered marker is <c>"12."</c> (three glyphs: '1', '2',
+    ///     '.'), wider than the single-digit <c>"1."</c>/<c>"2."</c> markers used elsewhere in this
+    ///     file, and run text <c>"3"</c> (a digit-first word, matching the real-world fixture).
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_BulletedParagraphWithZeroIndent_AutoNumTwoDigitMarker_TextClearsBulletWidthPlusGap()
+    {
+        var textBody = BuildTextBody(
+            ("""<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main" marL="320040" lvl="1"><buAutoNum type="arabicPeriod" startAt="12"/></pPr>""", "3"));
+
+        var layout = Layout(textBody);
+
+        // Run "3", then bullet "1", "2", and ".".
+        Assert.Equal(4, layout.Glyphs.Count);
+
+        // Bullet glyphs are unchanged: still the unclamped gutter (marL+indent = 320040+0),
+        // positioned by the marker's own per-character advances ('1' then '2' then '.').
+        Assert.Equal(320040f, layout.Glyphs[1].OriginXEmu, 2);
+        Assert.Equal(323850f, layout.Glyphs[2].OriginXEmu, 2); // 320040 + '1' advance (3810).
+        Assert.Equal(327660f, layout.Glyphs[3].OriginXEmu, 2); // 320040 + '1'+'2' advances (7620).
+
+        // The marker's own full measured width ('1'+'2'+'.' advances: (300+300+100)/1000*12700 =
+        // 8890 EMU) plus the buAutoNum-only minimum trailing gap (one space character's own
+        // advance, 200/1000*12700 = 2540 EMU) together clamp the run's own text-start-X to
+        // 320040 + 8890 + 2540 = 331470 - proving the gap is additive to the full multi-character
+        // marker's own width, not a fixed constant that would ignore the extra digit.
+        Assert.Equal(331470f, layout.Glyphs[0].OriginXEmu, 2);
+    }
+
+    /// <summary>
+    ///     Pixel-level proof that the <c>buAutoNum</c>-only trailing gap renders as a genuine
+    ///     blank pixel-column range strictly between the marker's own measured-width boundary
+    ///     (where pre-fix behavior would have started the paragraph's own text, "touching" the
+    ///     marker) and the new, further-right clamped text-start-X - a stronger proof than mere
+    ///     non-overlap (see
+    ///     <see cref="PaintTextLayout_BulletedParagraphWithZeroIndent_BulletAndTextInkDoNotOverlap"/>,
+    ///     which remains unchanged and continues to assert zero extra gap for <c>buChar</c>
+    ///     bullets specifically).
+    /// </summary>
+    [Fact]
+    public void PaintTextLayout_BulletedParagraphWithZeroIndent_AutoNumMarker_BulletAndTextHaveVisibleGap()
+    {
+        var textBody = BuildTextBody(
+            ("""<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main" marL="320040" lvl="1"><buAutoNum type="arabicPeriod"/></pPr>""", "A"));
+        var layout = Layout(textBody, 400000f, 100000f);
+
+        // Marker "1.": '1' advance 300/1000*12700 + '.' advance 100/1000*12700 = 5080 EMU. The
+        // pre-fix "touching" boundary would have been bulletGutterX + 5080; the fix instead adds
+        // the buAutoNum-only minimum trailing gap (2540 EMU) before the text may start.
+        const float bulletGutterX = 320040f;
+        const float bulletWidthEmu = 5080f;
+        const float trailingGapEmu = 2540f;
+        const float preFixTouchBoundaryX = bulletGutterX + bulletWidthEmu;
+        const float textStartX = preFixTouchBoundaryX + trailingGapEmu;
+        Assert.Equal(bulletGutterX, layout.Glyphs[1].OriginXEmu, 2);
+        Assert.Equal(textStartX, layout.Glyphs[0].OriginXEmu, 2);
+
+        using var surface = new Surface(800, 200);
+        var scale = 800f / 400000f;
+        var transform = System.Numerics.Matrix3x2.CreateScale(scale, scale);
+        PptxDocument.PaintTextLayout(surface, layout, transform);
+
+        // Mirrors PaintTextLayout_BulletedParagraphWithZeroIndent_BulletAndTextInkDoNotOverlap's
+        // own floor/ceil convention: the single pixel column straddling an exact EMU boundary can
+        // carry genuine partial-coverage anti-aliased ink from the glyph that starts there, so
+        // each region below is checked strictly on its own side of that pixel, never across it.
+        var preFixTouchBoundaryPx = (int)MathF.Floor(preFixTouchBoundaryX * scale);
+        var gapColumnMaxPx = (int)MathF.Floor(textStartX * scale);
+        var textColumnMinPx = (int)MathF.Ceiling(textStartX * scale);
+
+        // Sanity: the gap must be wide enough, at this test's chosen scale, to span at least one
+        // whole pixel column - otherwise the pixel-level assertions below would be vacuous.
+        Assert.True(gapColumnMaxPx > preFixTouchBoundaryPx, "Expected the trailing gap to span at least one pixel column at this scale.");
+
+        bool AnyInkInColumnRange(int minPxInclusive, int maxPxExclusive)
+        {
+            for (var y = 0; y < surface.Height; y++)
+            {
+                for (var x = Math.Max(0, minPxInclusive); x < Math.Min(surface.Width, maxPxExclusive); x++)
+                {
+                    if (surface[x, y].A > 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        // The marker itself (digits/period) is blank ink in this file's synthetic font (see
+        // NewFont's own remarks), so the proof is: no ink anywhere at or before the pre-fix
+        // touching boundary, no ink in the new gap region itself, and real ink once comfortably
+        // past the clamped text-start-X - a genuine blank gap, not merely "no overlap".
+        Assert.False(AnyInkInColumnRange(0, preFixTouchBoundaryPx), "Expected no ink at or before the pre-fix touching boundary.");
+        Assert.False(AnyInkInColumnRange(preFixTouchBoundaryPx, gapColumnMaxPx), "Expected a genuinely blank gap between the marker's own width and the clamped text start.");
         Assert.True(AnyInkInColumnRange(textColumnMinPx, surface.Width), "Expected ink in the text's own (clamped) column.");
     }
 

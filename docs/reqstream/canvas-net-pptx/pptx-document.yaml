@@ -1480,11 +1480,18 @@ sections:
               paragraph's own first-line run text starting at marL (not marL+indent) whenever that
               line has a resolved bullet, clamped so the text never shares an X range with the
               bullet glyph it is painted beside regardless of the paragraph's resolved indent,
-              leaving a non-bulleted paragraph's own first-line indent behavior unchanged, and
-              shall suppress the bullet glyph entirely (while still advancing the auto-number
-              counter state) for a paragraph with no <a:r> run children at all, so a blank/spacer
-              paragraph that merely inherits a list's bullet properties never renders a stray,
-              isolated bullet glyph with no accompanying text.
+              shall additionally reserve a minimum trailing gap - one space character's own
+              advance width, measured in the bullet's own resolved font/size - beyond an
+              auto-numbered marker's own measured width specifically (not for a buChar marker,
+              whose already-correct "touching, zero extra gap" behavior is unaffected), so a
+              multi-character auto-number marker (e.g. "12.") reads as visibly separated from the
+              paragraph's own text rather than merely touching it, matching PowerPoint's own
+              tab-stop-like spacing after a number marker, leaving a non-bulleted paragraph's own
+              first-line indent behavior unchanged, and shall suppress the bullet glyph entirely
+              (while still advancing the auto-number counter state) for a paragraph with no <a:r>
+              run children at all, so a blank/spacer paragraph that merely inherits a list's
+              bullet properties never renders a stray, isolated bullet glyph with no accompanying
+              text.
             justification: |
               Formatting and positioning a bullet glyph requires layout-engine support distinct
               from, and layered on top of, the choice-group parsing/inheritance resolution above:
@@ -1527,7 +1534,19 @@ sections:
               attribute, a plain non-placeholder TextBox, buAutoNum type="arabicPeriod"). The fix
               clamps the bulleted first line's own text-start-X to never fall short of the
               bullet's own gutter position plus its own measured width, a no-op whenever the
-              existing gutter already clears the bullet's own width.
+              existing gutter already clears the bullet's own width. A follow-up real-world report
+              found that same clamp, while correct for buChar, still insufficient for buAutoNum:
+              CanvasNet rendered an auto-numbered marker immediately touching the paragraph's own
+              first word (e.g. "1.3 custom tip geometries"), whereas real PowerPoint shows a
+              clear, word-space-sized gap after the marker. Investigation confirmed
+              BuildBulletGlyphs already measures a multi-character auto-number marker's full
+              string width correctly (refuting a suspected single-glyph-width regression) - the
+              gap was the prior fix's own documented "just touching, zero extra padding"
+              simplification, applied uniformly to every bullet kind. The fix adds a
+              BulletGlyphsResult.TrailingGapEmu - one space character's own advance width,
+              measured in the bullet's own resolved font/size - gated to PptxBulletKind.AutoNum
+              only (zero for Char/None, leaving the already-verified buChar behavior unaffected),
+              folded additively into the existing clamp.
             tests:
               - FormatAutoNumber_SupportedTypes_FormatsExpectedString
               - FormatAutoNumber_UnsupportedType_ReturnsNull
@@ -1545,6 +1564,8 @@ sections:
               - ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth
               - PaintTextLayout_BulletedParagraphWithZeroIndent_BulletAndTextInkDoNotOverlap
               - ResolveTextLayout_MasterBuCharDefault_OwnBuAutoNumOverride_PaintsOnlyAutoNumberMarker
+              - ResolveTextLayout_BulletedParagraphWithZeroIndent_AutoNumTwoDigitMarker_TextClearsBulletWidthPlusGap
+              - PaintTextLayout_BulletedParagraphWithZeroIndent_AutoNumMarker_BulletAndTextHaveVisibleGap
 
           - id: CanvasNetPptx-PptxDocument-ShapeStyleReference
             title: >-

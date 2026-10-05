@@ -234,6 +234,13 @@ public sealed partial class PptxDocument
     ///     guarantee the paragraph's own text never shares an X range with the bullet glyph(s) it
     ///     is painted beside (the gutter-clearance fix).
     /// </param>
+    /// <param name="BulletTrailingGapEmu">
+    ///     The minimum additional gap, in EMU, <see cref="PositionLines"/> reserves beyond
+    ///     <see cref="BulletWidthEmu"/> before the paragraph's own text may start (<c>0</c> for
+    ///     every bullet kind except <see cref="PptxBulletKind.AutoNum"/> - see
+    ///     <see cref="BuildBulletGlyphs"/>'s own remarks for why auto-numbered markers alone need
+    ///     this extra, PowerPoint-like, tab-stop-style separation).
+    /// </param>
     private sealed record LineBox(
         IReadOnlyList<LineGlyph> Glyphs,
         float LineWidthEmu,
@@ -242,7 +249,8 @@ public sealed partial class PptxDocument
         PptxEffectiveParagraphProperties ParagraphProperties,
         bool IsFirstLineOfParagraph,
         IReadOnlyList<LineGlyph> BulletGlyphs,
-        float BulletWidthEmu = 0f);
+        float BulletWidthEmu = 0f,
+        float BulletTrailingGapEmu = 0f);
 
     /// <summary>A paragraph with its effective paragraph properties and every run's effective properties resolved up front.</summary>
     private sealed record ResolvedParagraph(
@@ -405,9 +413,9 @@ public sealed partial class PptxDocument
                 var isFirstLine = i == 0;
                 var bulletGlyphsResult = isFirstLine && hasRuns
                     ? BuildBulletGlyphs(bulletText, paraProps.Bullet, fontScale, resolveFont)
-                    : new BulletGlyphsResult([], 0f);
+                    : new BulletGlyphsResult([], 0f, 0f);
 
-                lines.Add(new LineBox(glyphs, lineWidth, lineHeight, ascent, paraProps, isFirstLine, bulletGlyphsResult.Glyphs, bulletGlyphsResult.WidthEmu));
+                lines.Add(new LineBox(glyphs, lineWidth, lineHeight, ascent, paraProps, isFirstLine, bulletGlyphsResult.Glyphs, bulletGlyphsResult.WidthEmu, bulletGlyphsResult.TrailingGapEmu));
             }
         }
 
@@ -487,7 +495,13 @@ public sealed partial class PptxDocument
     /// </summary>
     /// <param name="Glyphs">The bullet's own positioned glyphs (see <see cref="BuildBulletGlyphs"/>).</param>
     /// <param name="WidthEmu">The bullet string's total measured advance width, in EMU; <c>0</c> when <see cref="Glyphs"/> is empty.</param>
-    private readonly record struct BulletGlyphsResult(IReadOnlyList<LineGlyph> Glyphs, float WidthEmu);
+    /// <param name="TrailingGapEmu">
+    ///     A minimum additional gap, in EMU, <see cref="PositionLines"/> reserves beyond
+    ///     <see cref="WidthEmu"/> before the paragraph's own text may start - <c>0</c> for every
+    ///     bullet kind except <see cref="PptxBulletKind.AutoNum"/> (see
+    ///     <see cref="BuildBulletGlyphs"/>'s own remarks).
+    /// </param>
+    private readonly record struct BulletGlyphsResult(IReadOnlyList<LineGlyph> Glyphs, float WidthEmu, float TrailingGapEmu = 0f);
 
     /// <summary>
     ///     Tokenizes and measures a paragraph's rendered bullet string (if any) into
@@ -497,6 +511,18 @@ public sealed partial class PptxDocument
     ///     bold/italic regardless of any adjacent run's own style - a documented simplification
     ///     (see the design document).
     /// </summary>
+    /// <remarks>
+    ///     For <see cref="PptxBulletKind.AutoNum"/> bullets, the returned
+    ///     <see cref="BulletGlyphsResult.TrailingGapEmu"/> additionally reserves one space
+    ///     character's own advance width, measured in the bullet's already-resolved font/size, as
+    ///     a minimum gap beyond the marker's own measured width - approximating PowerPoint's own
+    ///     visibly wider, tab-stop-like separation after a number marker (e.g. <c>"1."</c>), which
+    ///     the plain gutter-clearance clamp alone (a "just touching" minimum) does not reproduce.
+    ///     This is gated to <see cref="PptxBulletKind.AutoNum"/> only - a <see cref="PptxBulletKind.Char"/>
+    ///     bullet's own already-correct, already-verified "touching, zero extra gap" behavior is
+    ///     unaffected (see the design document's "Closed risk (bullet/text gutter clearance)"
+    ///     note).
+    /// </remarks>
     private static BulletGlyphsResult BuildBulletGlyphs(
         string? bulletText,
         PptxEffectiveBulletProperties? bullet,
@@ -520,7 +546,14 @@ public sealed partial class PptxDocument
             cursorX += advance;
         }
 
-        return new BulletGlyphsResult(glyphs, cursorX);
+        var trailingGapEmu = 0f;
+        if (bullet.Kind == PptxBulletKind.AutoNum)
+        {
+            var spaceGlyphIndex = font.GetGlyphIndex(' ');
+            trailingGapEmu = font.GetAdvanceWidth(spaceGlyphIndex) / (float)font.UnitsPerEm * sizeEmu;
+        }
+
+        return new BulletGlyphsResult(glyphs, cursorX, trailingGapEmu);
     }
 
     /// <summary>
@@ -662,9 +695,12 @@ public sealed partial class PptxDocument
                 // indent attribute - see the design document). Clamp the text's own start X so it
                 // never shares an X range with the bullet - a no-op whenever the existing gutter
                 // already clears the bullet's width (the already-correct, sufficiently-negative-
-                // indent case).
+                // indent case). BulletTrailingGapEmu additionally reserves a minimum
+                // PowerPoint-like, tab-stop-style gap beyond the bullet's own width for
+                // PptxBulletKind.AutoNum markers only (0 for every other bullet kind - a no-op
+                // there, see the design document's "buAutoNum gutter-clearance minimum gap" note).
                 var bulletGutterXForClamp = insetLeftEmu + marginLeft + line.ParagraphProperties.IndentEmu;
-                lineStartX = MathF.Max(insetLeftEmu + marginLeft, bulletGutterXForClamp + line.BulletWidthEmu);
+                lineStartX = MathF.Max(insetLeftEmu + marginLeft, bulletGutterXForClamp + line.BulletWidthEmu + line.BulletTrailingGapEmu);
             }
 
             var startX = line.ParagraphProperties.Alignment switch
