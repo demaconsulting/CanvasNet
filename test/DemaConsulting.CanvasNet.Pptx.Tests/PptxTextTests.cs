@@ -308,6 +308,36 @@ public class PptxTextTests
         Assert.Equal("B", result.Runs[1].Text);
     }
 
+    /// <summary>
+    ///     Proves an <c>&lt;a:fld&gt;</c> auto-text field (e.g. <c>type="slidenum"</c>) is parsed
+    ///     as a run using its cached <c>&lt;a:t&gt;</c> text - not silently dropped - matching how
+    ///     real-world decks embed a slide-number/date placeholder inside a footer text body.
+    /// </summary>
+    [Fact]
+    public void ParseParagraph_FieldRun_IsPreservedUsingCachedText()
+    {
+        var p = new XElement(
+            DrawingNs + "p",
+            new XElement(DrawingNs + "r", new XElement(DrawingNs + "t", "Page ")),
+            new XElement(
+                DrawingNs + "fld",
+                new XAttribute("id", "{12345678-1234-1234-1234-123456789012}"),
+                new XAttribute("type", "slidenum"),
+                new XElement(DrawingNs + "rPr"),
+                new XElement(DrawingNs + "t", "\u2039#\u203a")));
+
+        var result = PptxDocument.ParseParagraph(p);
+
+        Assert.Equal(2, result.Items.Count);
+        var textRun = Assert.IsType<PptxRunItem>(result.Items[0]);
+        Assert.Equal("Page ", textRun.Run.Text);
+        var fieldRun = Assert.IsType<PptxRunItem>(result.Items[1]);
+        Assert.Equal("\u2039#\u203a", fieldRun.Run.Text);
+
+        Assert.Equal(2, result.Runs.Count);
+        Assert.Equal("\u2039#\u203a", result.Runs[1].Text);
+    }
+
     #endregion
 
     #region ParseRun

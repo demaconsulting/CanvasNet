@@ -122,6 +122,10 @@ public sealed partial class PptxDocument
     ///     <see cref="PptxLineBreakItem"/> in document order alongside <c>&lt;a:r&gt;</c> runs
     ///     (wrapped as <see cref="PptxRunItem"/>), rather than being dropped, so that the layout
     ///     stage (<c>PptxDocument.TextLayout.cs</c>) can honor it as an explicit line boundary.
+    ///     <c>&lt;a:fld&gt;</c> (auto-text fields such as <c>type="slidenum"</c> or
+    ///     <c>type="datetime1"</c>) shares <c>&lt;a:r&gt;</c>'s <c>&lt;a:rPr&gt;</c>/<c>&lt;a:t&gt;</c>
+    ///     structure and is parsed the same way, rendering PowerPoint's cached field text since
+    ///     CanvasNet has no live engine to recompute the field's current value.
     /// </remarks>
     /// <param name="pElement">The <c>&lt;a:p&gt;</c> element to parse.</param>
     /// <returns>The parsed <see cref="PptxParagraph"/>.</returns>
@@ -131,8 +135,13 @@ public sealed partial class PptxDocument
         var items = new List<PptxParagraphItem>();
         foreach (var child in pElement.Elements())
         {
-            if (child.Name == DrawingNamespace + "r")
+            if (child.Name == DrawingNamespace + "r" || child.Name == DrawingNamespace + "fld")
             {
+                // <a:fld> (e.g. type="slidenum"/"datetime") carries the same <a:rPr>/<a:t>
+                // shape as <a:r>, but its <a:t> holds PowerPoint's last-computed cached field
+                // value rather than literal authored text. CanvasNet has no live PowerPoint
+                // engine to recompute the field, so (matching how most static OOXML renderers
+                // handle fields) the cached text is rendered as-is.
                 items.Add(new PptxRunItem(ParseRun(child)));
             }
             else if (child.Name == DrawingNamespace + "br")
