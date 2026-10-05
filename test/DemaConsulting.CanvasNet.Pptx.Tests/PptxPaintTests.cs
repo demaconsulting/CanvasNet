@@ -719,6 +719,154 @@ public class PptxPaintTests
         Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveShapeStyleLineStyle(style, BuildTestTheme()));
     }
 
+    // --- ResolveShapeLineStyle: merges a shape's own <a:ln> with its <p:style>/<a:lnRef>
+    // fallback per the corrected 4-case precedence (Phase 2 Follow-Up: Shape Style References) ---
+
+    /// <summary>Resolve Shape Line Style - Ln Element Null - Defers To Style Line Style.</summary>
+    [Fact]
+    public void ResolveShapeLineStyle_LnElementNull_DefersToStyleLineStyle()
+    {
+        var lnStyleList = new List<XElement>
+        {
+            new(A + "ln", new XAttribute("w", 12700), new XElement(A + "solidFill", SrgbClr("111111"))),
+        };
+        var theme = BuildTestTheme(lnStyleList: lnStyleList);
+        var style = new XElement(P + "style", new XElement(A + "lnRef", new XAttribute("idx", "1")));
+
+        var viaNewMethod = PptxDocument.ResolveShapeLineStyle(null, style, theme);
+        var viaStyleOnly = PptxDocument.ResolveShapeStyleLineStyle(style, theme);
+
+        Assert.NotNull(viaNewMethod);
+        Assert.NotNull(viaStyleOnly);
+        Assert.Equal(viaStyleOnly.WidthEmu, viaNewMethod.WidthEmu);
+        Assert.Equal(
+            Assert.IsType<PptxSolidFill>(viaStyleOnly.Paint).Color,
+            Assert.IsType<PptxSolidFill>(viaNewMethod.Paint).Color);
+    }
+
+    /// <summary>Resolve Shape Line Style - Ln Has Explicit Solid Fill - Own Fill Wins Over Style.</summary>
+    [Fact]
+    public void ResolveShapeLineStyle_LnHasExplicitSolidFill_OwnFillWinsOverStyle()
+    {
+        var lnStyleList = new List<XElement>
+        {
+            new(A + "ln", new XAttribute("w", 999999), new XElement(A + "solidFill", SrgbClr("00FF00"))),
+        };
+        var theme = BuildTestTheme(lnStyleList: lnStyleList);
+        var style = new XElement(P + "style", new XElement(A + "lnRef", new XAttribute("idx", "1")));
+        var lnElement = new XElement(A + "ln", new XAttribute("w", 12700), new XElement(A + "solidFill", SrgbClr("FF0000")));
+
+        var lineStyle = PptxDocument.ResolveShapeLineStyle(lnElement, style, theme);
+
+        Assert.NotNull(lineStyle);
+        Assert.Equal(12700f, lineStyle.WidthEmu);
+        var solid = Assert.IsType<PptxSolidFill>(lineStyle.Paint);
+        Assert.Equal(new Rgba32(0xFF, 0x00, 0x00, 255), solid.Color);
+    }
+
+    /// <summary>Resolve Shape Line Style - Ln Has Explicit No Fill - Resolves Null Regardless Of Style.</summary>
+    [Fact]
+    public void ResolveShapeLineStyle_LnHasExplicitNoFill_ResolvesNullRegardlessOfStyle()
+    {
+        var lnStyleList = new List<XElement>
+        {
+            new(A + "ln", new XAttribute("w", 999999), new XElement(A + "solidFill", SrgbClr("00FF00"))),
+        };
+        var theme = BuildTestTheme(lnStyleList: lnStyleList);
+        var style = new XElement(P + "style", new XElement(A + "lnRef", new XAttribute("idx", "1")));
+        var lnElement = new XElement(A + "ln", new XAttribute("w", 12700), new XElement(A + "noFill"));
+
+        var lineStyle = PptxDocument.ResolveShapeLineStyle(lnElement, style, theme);
+
+        Assert.Null(lineStyle);
+    }
+
+    /// <summary>Resolve Shape Line Style - Ln Has Width But No Fill Child - Keeps Own Width Uses Style Color.</summary>
+    [Fact]
+    public void ResolveShapeLineStyle_LnHasWidthButNoFillChild_KeepsOwnWidthUsesStyleColor()
+    {
+        var lnStyleList = new List<XElement>
+        {
+            new(A + "ln", new XAttribute("w", 999999), new XElement(A + "solidFill", SrgbClr("00FF00"))),
+        };
+        var theme = BuildTestTheme(lnStyleList: lnStyleList);
+        var style = new XElement(P + "style", new XElement(A + "lnRef", new XAttribute("idx", "1")));
+        var lnElement = new XElement(A + "ln", new XAttribute("w", 76200));
+
+        var lineStyle = PptxDocument.ResolveShapeLineStyle(lnElement, style, theme);
+
+        Assert.NotNull(lineStyle);
+        Assert.Equal(76200f, lineStyle.WidthEmu);
+        var solid = Assert.IsType<PptxSolidFill>(lineStyle.Paint);
+        Assert.Equal(new Rgba32(0x00, 0xFF, 0x00, 255), solid.Color);
+    }
+
+    /// <summary>Resolve Shape Line Style - Ln Has Width And Own Dash But No Fill Child - Keeps Own Dash Array.</summary>
+    [Fact]
+    public void ResolveShapeLineStyle_LnHasWidthAndOwnDashButNoFillChild_KeepsOwnDashArray()
+    {
+        var lnStyleList = new List<XElement>
+        {
+            new(A + "ln", new XAttribute("w", 999999), new XElement(A + "solidFill", SrgbClr("00FF00"))),
+        };
+        var theme = BuildTestTheme(lnStyleList: lnStyleList);
+        var style = new XElement(P + "style", new XElement(A + "lnRef", new XAttribute("idx", "1")));
+        var lnElement = new XElement(
+            A + "ln", new XAttribute("w", 76200), new XElement(A + "prstDash", new XAttribute("val", "dash")));
+
+        var lineStyle = PptxDocument.ResolveShapeLineStyle(lnElement, style, theme);
+
+        Assert.NotNull(lineStyle);
+        Assert.NotNull(lineStyle.DashArray);
+        Assert.Equal([76200f * 4f, 76200f * 3f], lineStyle.DashArray);
+    }
+
+    /// <summary>
+    ///     Resolve Shape Line Style - Ln Has Width But No Fill Child And No Style Element -
+    ///     Resolves Null Default.
+    /// </summary>
+    [Fact]
+    public void ResolveShapeLineStyle_LnHasWidthButNoFillChildAndNoStyleElement_ResolvesNullDefault()
+    {
+        var lnElement = new XElement(A + "ln", new XAttribute("w", 76200));
+
+        var lineStyle = PptxDocument.ResolveShapeLineStyle(lnElement, null, BuildTestTheme());
+
+        Assert.Null(lineStyle);
+    }
+
+    /// <summary>
+    ///     Resolve Shape Line Style - Ln Has Width But No Fill Child And Style Ln Ref Idx Zero -
+    ///     Resolves Null Default.
+    /// </summary>
+    [Fact]
+    public void ResolveShapeLineStyle_LnHasWidthButNoFillChildAndStyleLnRefIdxZero_ResolvesNullDefault()
+    {
+        var style = new XElement(P + "style", new XElement(A + "lnRef", new XAttribute("idx", "0")));
+        var lnElement = new XElement(A + "ln", new XAttribute("w", 76200));
+
+        var lineStyle = PptxDocument.ResolveShapeLineStyle(lnElement, style, BuildTestTheme());
+
+        Assert.Null(lineStyle);
+    }
+
+    /// <summary>Resolve Shape Line Style - Ln Has No Width And No Fill Child - Resolves Null Regardless Of Style.</summary>
+    [Fact]
+    public void ResolveShapeLineStyle_LnHasNoWidthAndNoFillChild_ResolvesNullRegardlessOfStyle()
+    {
+        var lnStyleList = new List<XElement>
+        {
+            new(A + "ln", new XAttribute("w", 999999), new XElement(A + "solidFill", SrgbClr("00FF00"))),
+        };
+        var theme = BuildTestTheme(lnStyleList: lnStyleList);
+        var style = new XElement(P + "style", new XElement(A + "lnRef", new XAttribute("idx", "1")));
+        var lnElement = new XElement(A + "ln");
+
+        var lineStyle = PptxDocument.ResolveShapeLineStyle(lnElement, style, theme);
+
+        Assert.Null(lineStyle);
+    }
+
     // --- ResolveStrokeOutline: mirrors the PDF renderer's StrokeStyle/PathStroker call pattern ---
 
     /// <summary>Resolve Stroke Outline - Rectangle With Solid Line - Produces Non Empty Outline.</summary>

@@ -2011,6 +2011,44 @@ public class PptxRenderTests
         Assert.Equal(new Rgba32(255, 255, 255, 255), surface[100, 20]);
     }
 
+    /// <summary>
+    ///     Proves the fix for the reported bug: a present <c>&lt;a:ln&gt;</c> that declares a
+    ///     width but no recognized fill-definition child of its own (<c>&lt;a:ln w="76200"/&gt;</c>,
+    ///     the exact reported construct) keeps its own, narrower width but defers its color to the
+    ///     shape's own <c>&lt;p:style&gt;/&lt;a:lnRef&gt;</c> - it no longer silently resolves to
+    ///     "no stroke" (the pre-fix behavior), and it does not merge the style's own, much wider
+    ///     line width either.
+    /// </summary>
+    [Fact]
+    public void Render_ShapeWithLnWidthOnlyNoFillChildAndStyleLnRef_UsesOwnWidthAndStyleColor()
+    {
+        const string lnRefXml = """<a:lnRef idx="1"><a:srgbClr val="FF00FF"/></a:lnRef>""";
+        const string lnStyleListXml =
+            """
+            <a:ln w="900000"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>
+            <a:ln w="100000"><a:solidFill><a:srgbClr val="111111"/></a:solidFill></a:ln>
+            <a:ln w="100000"><a:solidFill><a:srgbClr val="222222"/></a:solidFill></a:ln>
+            """;
+        const string fillRefXml = """<a:fillRef idx="0"/>""";
+        const string explicitLnXml = """<a:ln w="76200"/>""";
+        const string xfrmXml = """<a:xfrm><a:off x="914400" y="685800"/><a:ext cx="7315200" cy="5486400"/></a:xfrm>""";
+        var shapeXml = FullSlideShapeStyleRefXml("StyleLnShape", fillRefXml: fillRefXml, lnRefXml: lnRefXml, explicitLnXml: explicitLnXml, xfrmXml: xfrmXml);
+        using var stream = BuildRenderPackage(shapeXml, themeLnStyleListXml: lnStyleListXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 200, 200);
+
+        // Directly on the shape's own top edge (y=685800 EMU, pixel row 20 of 200), the stroke
+        // paints the style's own magenta color - proving the color fallback fires for a
+        // fill-less-but-present <a:ln>.
+        Assert.Equal(new Rgba32(0xFF, 0x00, 0xFF, 255), surface[100, 20]);
+
+        // At pixel row 25 - outside the shape's own narrow 76200 EMU-wide stroke band, but well
+        // inside where the style's own much wider 900000 EMU stroke would have reached - the
+        // pixel is left as the default opaque-white clear, proving width is the shape's own
+        // (narrow), never merged in from the style (wide).
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[100, 25]);
+    }
 
     /// <summary>
     ///     Proves a master's own non-placeholder <c>&lt;p:pic&gt;</c> paints on a slide using that
