@@ -292,6 +292,70 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>
+    ///     Resolves a <c>&lt;p:pic&gt;</c> picture shape's own <c>&lt;p:spPr&gt;</c> geometry - its
+    ///     <c>&lt;a:prstGeom&gt;</c> or <c>&lt;a:custGeom&gt;</c> child - into a <see cref="Path"/>
+    ///     ALWAYS representing a concrete, closed boundary suitable for stroke-outlining the
+    ///     picture's own <c>&lt;a:ln&gt;</c> (see <c>RenderPicture</c>) - unlike
+    ///     <see cref="ResolvePictureClipPath"/>, which deliberately collapses "no geometry at all"
+    ///     and "explicit <c>&lt;a:prstGeom prst="rect"&gt;</c>" to <see langword="null"/> ("no clip
+    ///     needed", a pure optimization for its own image-content-clipping use case, where a full
+    ///     bounding-box rectangle clip is a no-op). A stroke outline has no equivalent "no-op"
+    ///     shortcut: an implicit/explicit full-rectangle picture with an <c>&lt;a:ln&gt;</c> must
+    ///     still stroke an actual rectangle boundary, exactly as an ordinary <c>&lt;p:sp&gt;</c>
+    ///     auto-shape with an implicit/explicit <c>rect</c> preset already does via
+    ///     <see cref="ResolveShapeGeometry"/> - so this method always returns a real path, reusing
+    ///     the identical preset/custom-geometry dispatch (<see cref="PptxPresetGeometry.Build"/>/
+    ///     <see cref="ResolveCustomGeometry"/>) <see cref="ResolvePictureClipPath"/> itself already
+    ///     reuses, rather than reimplementing it (see <c>pptx-document.md</c>'s "Phase 2 Follow-Up:
+    ///     Picture Own-Stroke Outline Rendering" design section).
+    /// </summary>
+    /// <param name="spPrElement">The picture's own <c>&lt;p:spPr&gt;</c> element.</param>
+    /// <param name="widthEmu">The picture's own declared width, in EMU (<see cref="PptxShapeFrame.WidthEmu"/>).</param>
+    /// <param name="heightEmu">The picture's own declared height, in EMU (<see cref="PptxShapeFrame.HeightEmu"/>).</param>
+    /// <returns>
+    ///     The resolved, shape-local <see cref="Path"/> to stroke: the resolved preset/custom
+    ///     geometry when <paramref name="spPrElement"/> declares either, or the implicit full
+    ///     bounding-box rectangle (<c>PptxPresetGeometry.Build("rect", widthEmu, heightEmu)</c>)
+    ///     when it declares neither - never <see langword="null"/>.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="spPrElement"/> is null.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when a present <c>&lt;a:prstGeom&gt;</c> element has no <c>prst</c> attribute -
+    ///     mirrors <see cref="ResolvePictureClipPath"/>'s/<see cref="ResolveShapeGeometry"/>'s
+    ///     identical check for an auto-shape.
+    /// </exception>
+    /// <exception cref="PptxUnsupportedFeatureException">
+    ///     Thrown when <c>&lt;a:prstGeom&gt;</c> names a preset this phase does not support - see
+    ///     <see cref="PptxPresetGeometry.Build"/>. Propagated unchanged, exactly as it already
+    ///     propagates for an auto-shape or for <see cref="ResolvePictureClipPath"/> with the same
+    ///     unsupported preset name.
+    /// </exception>
+    internal static Path ResolvePictureGeometryPath(XElement spPrElement, float widthEmu, float heightEmu)
+    {
+        ArgumentNullException.ThrowIfNull(spPrElement);
+
+        var prstGeom = spPrElement.Element(DrawingNamespace + "prstGeom");
+        if (prstGeom is not null)
+        {
+            var prst = (string?)prstGeom.Attribute("prst") ??
+                throw new InvalidDataException("An <a:prstGeom> element has no 'prst' attribute.");
+            return PptxPresetGeometry.Build(prst, widthEmu, heightEmu);
+        }
+
+        var custGeom = spPrElement.Element(DrawingNamespace + "custGeom");
+        if (custGeom is not null)
+        {
+            return ResolveCustomGeometry(custGeom, widthEmu, heightEmu);
+        }
+
+        // Neither geometry child is present: an implicit full-rectangle boundary - the same
+        // bounding-box footprint an unclipped picture already paints its image content into -
+        // so an <a:ln> on a geometry-less picture still strokes a complete, closed rectangle
+        // rather than being silently dropped.
+        return PptxPresetGeometry.Build("rect", widthEmu, heightEmu);
+    }
+
+    /// <summary>
     ///     Composites a decoded picture <paramref name="image"/> onto <paramref name="surface"/>,
     ///     mapping its (optionally <paramref name="srcRect"/>-cropped) unit square through a
     ///     <c>CreateScale(widthEmu, heightEmu) * shapeToSurfaceTransform</c> transform and

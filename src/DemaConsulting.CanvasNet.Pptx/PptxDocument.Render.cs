@@ -310,7 +310,7 @@ public sealed partial class PptxDocument
             case PptxPictureShapeNode pic:
                 try
                 {
-                    RenderPicture(surface, pic, ownerPartPath, parentToSurface);
+                    RenderPicture(surface, pic, ownerPartPath, theme, parentToSurface, colorMap);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {
@@ -477,7 +477,12 @@ public sealed partial class PptxDocument
     ///     image via the Phase 1e picture pipeline, clipped to its own resolved
     ///     <c>&lt;p:spPr&gt;</c>/<c>&lt;a:prstGeom&gt;</c>/<c>&lt;a:custGeom&gt;</c> geometry (see
     ///     <see cref="ResolvePictureClipPath"/>) when it declares a non-<c>rect</c> preset or a
-    ///     custom geometry - Phase 2 Follow-Up: Picture Preset-Geometry Clipping.
+    ///     custom geometry - Phase 2 Follow-Up: Picture Preset-Geometry Clipping - and then, on
+    ///     top of the composited image, strokes the picture's own <c>&lt;a:ln&gt;</c> (when
+    ///     present) around its resolved geometry (see <see cref="ResolvePictureGeometryPath"/>) -
+    ///     Phase 2 Follow-Up: Picture Own-Stroke Outline Rendering. Mirrors <see cref="RenderShape"/>'s
+    ///     own fill-then-stroke painting order: the image content paints first, and the stroke
+    ///     frames it on top, matching real-world PowerPoint's own visual stacking.
     /// </summary>
     /// <param name="surface">The destination surface to paint onto.</param>
     /// <param name="node">The picture shape-tree node to render.</param>
@@ -486,8 +491,25 @@ public sealed partial class PptxDocument
     ///     part path) - the <c>&lt;a:blip r:embed="..."/&gt;</c> relationship is scoped to this
     ///     part's own <c>.rels</c> file (see <see cref="ResolvePictureSurface"/>).
     /// </param>
+    /// <param name="theme">
+    ///     The resolved theme, used to resolve the picture's own stroke line style (see
+    ///     <see cref="ResolveShapeLineStyle"/>'s <c>theme</c> parameter) - needed because a
+    ///     <c>&lt;p:pic&gt;</c>'s own <c>&lt;a:ln&gt;</c> can defer its color to a sibling
+    ///     <c>&lt;p:style&gt;/&lt;a:lnRef&gt;</c>, exactly like an ordinary <c>&lt;p:sp&gt;</c>.
+    /// </param>
     /// <param name="parentToSurface">The accumulated transform from this node's own parent space into surface pixel space.</param>
-    private void RenderPicture(Surface surface, PptxPictureShapeNode node, string ownerPartPath, Matrix3x2 parentToSurface)
+    /// <param name="colorMap">
+    ///     The effective color map consulted when the resolved stroke paint declares an
+    ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token - see <see cref="ResolveShapeLineStyle"/>'s
+    ///     matching parameter.
+    /// </param>
+    private void RenderPicture(
+        Surface surface,
+        PptxPictureShapeNode node,
+        string ownerPartPath,
+        PptxTheme theme,
+        Matrix3x2 parentToSurface,
+        PptxColorMap colorMap)
     {
         var spPrElement = node.PicElement.Element(PresentationNamespace + "spPr");
         var xfrmElement = spPrElement?.Element(DrawingNamespace + "xfrm");
@@ -515,6 +537,28 @@ public sealed partial class PptxDocument
         // spPrElement?.Element(...), so a null xfrmElement would already have returned.
         var clipPath = ResolvePictureClipPath(spPrElement!, frame.WidthEmu, frame.HeightEmu);
         PaintPicture(surface, image, srcRect, localToSurface, frame.WidthEmu, frame.HeightEmu, clipPath);
+
+        // The picture's own "Shape Styles" gallery reference (p:style's lnRef), mirroring
+        // RenderShape's identical sibling-element lookup - a <p:pic> can carry a sibling
+        // <p:style> under ECMA-376's CT_Picture schema exactly like a <p:sp>'s CT_Shape.
+        var styleElement = node.PicElement.Element(PresentationNamespace + "style");
+
+        // The picture's own <a:ln>: absent entirely until this fix (the root cause this phase
+        // resolves - see this method's own remarks and the companion planning report). Resolved
+        // via the exact same ResolveShapeLineStyle an ordinary auto-shape already uses - no new
+        // line-style-resolution logic needed.
+        var lnElement = spPrElement!.Element(DrawingNamespace + "ln");
+        var lineStyle = ResolveShapeLineStyle(lnElement, styleElement, theme, colorMap);
+        if (lineStyle is not null)
+        {
+            // Unlike the clip path above (which collapses "no geometry"/"rect" to null - a pure
+            // image-content-clip optimization), the stroke outline always needs a concrete
+            // geometry path - see ResolvePictureGeometryPath's own remarks for why this is a
+            // deliberately separate resolution from clipPath above.
+            var geometryPath = ResolvePictureGeometryPath(spPrElement, frame.WidthEmu, frame.HeightEmu);
+            var strokedOutline = ResolveStrokeOutline(geometryPath, lineStyle, localToSurface).Transform(localToSurface);
+            FillPaint(surface, strokedOutline, lineStyle.Paint);
+        }
     }
 
     /// <summary>

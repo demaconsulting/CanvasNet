@@ -1125,6 +1125,42 @@ sections:
               - Render_PictureRoundRectGeometry_ClipsImageCorners
               - Render_PictureEllipseGeometry_NearSquareRealWorldAspect_ClipsAllFourBoundingBoxCorners
 
+          - id: CanvasNetPptx-PptxDocument-PictureStrokeOutline
+            title: >-
+              The PptxDocument class shall stroke a <p:pic> picture's own <p:spPr>/<a:ln> as a
+              complete, correctly-closed outline around its resolved preset/custom geometry (or
+              the implicit/explicit full bounding-box rectangle when neither is declared), reusing
+              the same line-style resolution and stroke-outline primitives already used for an
+              auto-shape's own <a:ln>.
+            justification: |
+              A confirmed real-world bug report's own <p:pic> fixture declared a red <a:ln> on an
+              ellipse-cropped photo; PowerPoint's own rendering shows a complete red outline
+              framing the cropped photo, while this package's RenderPicture never read or painted
+              ANY <p:pic>'s own <a:ln> at all - 0% of the ellipse's perimeter rendered any stroke
+              color, not merely the partial arc the report described. A prior investigation pass
+              incorrectly concluded the report's entire underlying complaint was "a visual
+              illusion" caused by the embedded photo's own background color, and made no source
+              change; a from-scratch, independently re-verified investigation (direct code
+              inspection plus a freshly rendered repro) proved the missing stroke is a real,
+              100%-of-perimeter defect, unrelated to the image-content clip concern (which remains
+              correctly unaffected - see CanvasNetPptx-PptxDocument-PictureGeometryClipping).
+              Resolving the stroke geometry via a new ResolvePictureGeometryPath helper - which,
+              unlike ResolvePictureClipPath, always returns a concrete path rather than collapsing
+              "no geometry"/"rect" to null - and reusing ResolveShapeLineStyle/ResolveStrokeOutline
+              unchanged (the exact same resolvers RenderShape already uses for an auto-shape's own
+              <a:ln>) keeps this fix consistent with the package's existing line-style-resolution
+              contract, with zero new stroke-resolution logic.
+            tests:
+              - ResolvePictureGeometryPath_RectPreset_ReturnsNonNullRectanglePath
+              - ResolvePictureGeometryPath_NoGeometryElement_ReturnsImplicitRectanglePath
+              - ResolvePictureGeometryPath_EllipsePreset_ReturnsNonNullPath
+              - ResolvePictureGeometryPath_CustGeom_ReturnsNonNullPath
+              - ResolvePictureGeometryPath_PrstGeomMissingPrstAttribute_ThrowsInvalidDataException
+              - ResolvePictureGeometryPath_UnsupportedPreset_ThrowsPptxUnsupportedFeatureException
+              - ResolvePictureGeometryPath_NullSpPrElement_ThrowsArgumentNullException
+              - Render_PictureEllipseGeometry_WithRedLnStroke_RendersCompleteClosedEllipseOutline
+              - Render_PictureNoPrstGeom_WithLnStroke_StrokesRectangleOutline
+
           - id: CanvasNetPptx-PptxDocument-TableParsing
             title: >-
               The PptxDocument class shall parse a <p:graphicFrame>'s <a:graphic>/<a:graphicData>/

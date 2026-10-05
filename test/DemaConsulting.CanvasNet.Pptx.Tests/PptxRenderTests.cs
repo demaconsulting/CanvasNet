@@ -1047,6 +1047,151 @@ public class PptxRenderTests
     }
 
     /// <summary>
+    ///     Proves the real-world bug report's root cause is fixed: a <c>&lt;p:pic&gt;</c>'s own
+    ///     <c>&lt;a:ln&gt;</c> (previously never read or painted at all for any picture - see the
+    ///     companion planning report, <c>.agent-logs/planning-picture-ln-stroke-fix-7f2a4d.md</c>)
+    ///     now strokes a COMPLETE, correctly-closed outline around the picture's own resolved
+    ///     ellipse geometry, using the exact bug-report geometry/stroke transcribed verbatim
+    ///     (same <c>&lt;a:xfrm&gt;</c>/<c>&lt;a:prstGeom prst="ellipse"&gt;</c>/red
+    ///     <c>&lt;a:ln&gt;</c> as <see cref="Render_PictureEllipseGeometry_NearSquareRealWorldAspect_ClipsAllFourBoundingBoxCorners"/>,
+    ///     which remains unchanged and still only proves the separate, already-correct
+    ///     image-content clip). Samples all four of the ellipse's own perimeter midpoints (top/
+    ///     bottom/left/right-center, not just corners) for the stroke's own red color - a defect
+    ///     covering 0% of the perimeter (the confirmed pre-fix state) would fail at all four.
+    /// </summary>
+    [Fact]
+    public void Render_PictureEllipseGeometry_WithRedLnStroke_RendersCompleteClosedEllipseOutline()
+    {
+        var pngBytes = BuildPngBytes(new Rgba32(250, 240, 220, 255));
+        const string spTreeInnerXml =
+            """
+            <p:pic>
+              <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill>
+                <a:blip r:embed="rId2"/>
+                <a:srcRect l="-4697" t="-3319" r="-3698" b="583"/>
+              </p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="406259" y="1259164"/><a:ext cx="4678591" cy="5053859"/></a:xfrm>
+                <a:prstGeom prst="ellipse"><a:avLst/></a:prstGeom>
+                <a:ln><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln>
+              </p:spPr>
+            </p:pic>
+            """;
+
+        // The report's own 16:9 presentation <p:sldSz>.
+        const float slideWidthEmu = 12192000f;
+        const float slideHeightEmu = 6858000f;
+        const int renderWidthPx = 1280;
+        const int renderHeightPx = 720;
+
+        using var stream = BuildRenderPackage(
+            spTreeInnerXml, media: ("png", "image/png", pngBytes),
+            slideWidthEmu: slideWidthEmu, slideHeightEmu: slideHeightEmu);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, renderWidthPx, renderHeightPx);
+
+        // Compute the ellipse's own bounding box, and hence its own four perimeter midpoints, in
+        // device-pixel space algebraically from its EMU <a:xfrm> - mirroring
+        // Render_PictureEllipseGeometry_NearSquareRealWorldAspect_ClipsAllFourBoundingBoxCorners's
+        // own algebraic-bbox pattern.
+        var scaleX = renderWidthPx / slideWidthEmu;
+        var scaleY = renderHeightPx / slideHeightEmu;
+        const float offXEmu = 406259f;
+        const float offYEmu = 1259164f;
+        const float extCxEmu = 4678591f;
+        const float extCyEmu = 5053859f;
+        var bboxLeft = offXEmu * scaleX;
+        var bboxTop = offYEmu * scaleY;
+        var bboxRight = (offXEmu + extCxEmu) * scaleX;
+        var bboxBottom = (offYEmu + extCyEmu) * scaleY;
+        var centerX = (bboxLeft + bboxRight) / 2f;
+        var centerY = (bboxTop + bboxBottom) / 2f;
+
+        // Sampled directly on each perimeter midpoint's own exact geometric edge - the default
+        // (no explicit "w") PowerPoint stroke width (9525 EMU) is only ~1 device pixel wide at
+        // this slide's own ~9525 EMU/pixel scale, so a several-pixel inward margin (as used by
+        // the sibling image-clip corner test, which deliberately avoids the stroke band) would
+        // overshoot the thin band entirely; mirroring
+        // Render_FullSlideScaleEllipseWithNoFillAndLnMissingWidth_RendersThinRingNotSolidDisc's
+        // own zero-margin, exact-boundary-pixel sampling at the same stroke-width/scale ratio.
+        //
+        // A red-dominant check (rather than an exact FF0000 match) tolerates the anti-aliased
+        // blend between the stroke's own red and the picture's pale image color immediately
+        // beneath it - exactly as that same thin-ring <p:sp> regression test already does for the
+        // same reason.
+        AssertRedDominant(surface[(int)centerX, (int)bboxTop], "top-center");
+        AssertRedDominant(surface[(int)centerX, (int)bboxBottom], "bottom-center");
+        AssertRedDominant(surface[(int)bboxLeft, (int)centerY], "left-center");
+        AssertRedDominant(surface[(int)bboxRight, (int)centerY], "right-center");
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PptxDocument.ResolvePictureGeometryPath"/>'s "neither
+    ///     <c>&lt;a:prstGeom&gt;</c> nor <c>&lt;a:custGeom&gt;</c>" fallback (the implicit full
+    ///     rectangle) is actually used for stroking: a <c>&lt;p:pic&gt;</c> with no geometry child
+    ///     at all but a present <c>&lt;a:ln&gt;</c> now strokes a complete rectangle outline around
+    ///     its own bounding box - not nothing, as it did before this fix (when <c>RenderPicture</c>
+    ///     never read <c>&lt;a:ln&gt;</c> at all, regardless of geometry).
+    /// </summary>
+    [Fact]
+    public void Render_PictureNoPrstGeom_WithLnStroke_StrokesRectangleOutline()
+    {
+        var pngBytes = BuildPngBytes(new Rgba32(10, 20, 30, 255));
+        const string spTreeInnerXml =
+            """
+            <p:pic>
+              <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="152400" y="152400"/><a:ext cx="457200" cy="457200"/></a:xfrm>
+                <a:ln><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln>
+              </p:spPr>
+            </p:pic>
+            """;
+
+        // A deliberately small 1"x1" slide (914400x914400 EMU) rendered at 200x200px (scale:
+        // 914400 / 200 = 4572 EMU/pixel), mirroring
+        // Render_EllipseWithNoFillAndLnMissingWidthButRecognizedColor_PaintsDefaultWidthStroke's
+        // own precedent, so the default 9525 EMU stroke width (~2.08px at this scale) survives
+        // anti-aliased rendering as solid, easily-sampled pixels.
+        using var stream = BuildRenderPackage(
+            spTreeInnerXml, media: ("png", "image/png", pngBytes),
+            slideWidthEmu: 914400f, slideHeightEmu: 914400f);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 200, 200);
+
+        // The picture spans x/y in [152400, 609600] EMU (i.e. pixel columns/rows [33.33, 133.33]
+        // of 200 at this slide's 4572 EMU/pixel scale) - its own center is pixel (83, 83).
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[83, 83]);
+
+        // The picture's own top and left edges (pixel row/column 33, its exact geometric
+        // boundary) now show the stroke's own red color - proving the "no geometry at all"
+        // fallback strokes an actual rectangle, not nothing.
+        AssertRedDominant(surface[83, 33], "top edge");
+        AssertRedDominant(surface[33, 83], "left edge");
+
+        // Well outside the picture's own bounding box entirely (a corner of the slide) remains
+        // the default opaque-white clear.
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Asserts <paramref name="pixel"/> is red-dominant (high red, low green/blue channels) -
+    ///     tolerant of anti-aliased blending with whatever color sits immediately beneath the
+    ///     stroke, mirroring <see cref="Render_FullSlideScaleEllipseWithNoFillAndLnMissingWidth_RendersThinRingNotSolidDisc"/>'s
+    ///     own boundary-pixel assertion style.
+    /// </summary>
+    private static void AssertRedDominant(Rgba32 pixel, string label)
+    {
+        Assert.True(
+            pixel.R > 180 && pixel.G < 120 && pixel.B < 120,
+            $"Expected a red-dominant stroke pixel at the {label} position, but got {pixel}.");
+    }
+
+    /// <summary>
     ///     Proves a <c>&lt;p:pic&gt;</c> declaring an explicit <c>&lt;a:prstGeom prst="rect"&gt;</c>
     ///     still paints the full, unclipped bounding-box rectangle - strengthens
     ///     <see cref="Render_Picture_PaintsEmbeddedImageAtExpectedLocation"/> (which only samples

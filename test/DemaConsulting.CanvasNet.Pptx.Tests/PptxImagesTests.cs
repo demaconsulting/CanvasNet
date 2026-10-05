@@ -358,6 +358,102 @@ public class PptxImagesTests
         Assert.Throws<ArgumentNullException>(() => PptxDocument.ResolvePictureClipPath(null!, 100f, 100f));
     }
 
+    // --- ResolvePictureGeometryPath ----------------------------------------------------------
+    //
+    // Unlike ResolvePictureClipPath (which collapses "no geometry" and an explicit "rect" preset
+    // to null, a pure image-content-clip optimization), ResolvePictureGeometryPath always returns
+    // a concrete path - needed so a picture's own <a:ln> stroke outlines a real boundary (an
+    // implicit/explicit rectangle, a preset, or a custom geometry) rather than being silently
+    // dropped. See this method's own remarks in PptxDocument.Images.cs.
+
+    /// <summary>Proves an explicit <c>&lt;a:prstGeom prst="rect"&gt;</c> resolves to a non-null rectangle <see cref="Path"/> - unlike <see cref="PptxDocument.ResolvePictureClipPath"/>'s own "rect collapses to null" behavior.</summary>
+    [Fact]
+    public void ResolvePictureGeometryPath_RectPreset_ReturnsNonNullRectanglePath()
+    {
+        var spPr = new XElement(
+            PresentationNs + "spPr",
+            new XElement(A + "prstGeom", new XAttribute("prst", "rect"), new XElement(A + "avLst")));
+
+        var result = PptxDocument.ResolvePictureGeometryPath(spPr, 100f, 100f);
+
+        Assert.NotEqual(Path.Empty, result);
+    }
+
+    /// <summary>Proves a <c>&lt;p:spPr&gt;</c> with neither <c>&lt;a:prstGeom&gt;</c> nor <c>&lt;a:custGeom&gt;</c> resolves to the implicit full-rectangle fallback - unlike <see cref="PptxDocument.ResolvePictureClipPath"/>'s own "no geometry collapses to null" behavior.</summary>
+    [Fact]
+    public void ResolvePictureGeometryPath_NoGeometryElement_ReturnsImplicitRectanglePath()
+    {
+        var spPr = new XElement(PresentationNs + "spPr");
+
+        var result = PptxDocument.ResolvePictureGeometryPath(spPr, 100f, 100f);
+
+        Assert.NotEqual(Path.Empty, result);
+    }
+
+    /// <summary>Proves a non-<c>rect</c> preset (<c>ellipse</c>) resolves to a non-null <see cref="Path"/>, sized to the shape's own local box.</summary>
+    [Fact]
+    public void ResolvePictureGeometryPath_EllipsePreset_ReturnsNonNullPath()
+    {
+        var spPr = new XElement(
+            PresentationNs + "spPr",
+            new XElement(A + "prstGeom", new XAttribute("prst", "ellipse"), new XElement(A + "avLst")));
+
+        var result = PptxDocument.ResolvePictureGeometryPath(spPr, 100f, 100f);
+
+        Assert.NotEqual(Path.Empty, result);
+    }
+
+    /// <summary>Proves an <c>&lt;a:custGeom&gt;</c> element resolves to a non-null <see cref="Path"/> via the same reused <see cref="PptxDocument.ResolveCustomGeometry"/> resolver auto-shapes already use.</summary>
+    [Fact]
+    public void ResolvePictureGeometryPath_CustGeom_ReturnsNonNullPath()
+    {
+        var spPr = new XElement(
+            PresentationNs + "spPr",
+            new XElement(
+                A + "custGeom",
+                new XElement(
+                    A + "pathLst",
+                    new XElement(
+                        A + "path",
+                        new XAttribute("w", "100"),
+                        new XAttribute("h", "100"),
+                        new XElement(A + "moveTo", new XElement(A + "pt", new XAttribute("x", "0"), new XAttribute("y", "0"))),
+                        new XElement(A + "lnTo", new XElement(A + "pt", new XAttribute("x", "100"), new XAttribute("y", "0"))),
+                        new XElement(A + "lnTo", new XElement(A + "pt", new XAttribute("x", "100"), new XAttribute("y", "100"))),
+                        new XElement(A + "close")))));
+
+        var result = PptxDocument.ResolvePictureGeometryPath(spPr, 100f, 100f);
+
+        Assert.NotEqual(Path.Empty, result);
+    }
+
+    /// <summary>Proves a <c>&lt;a:prstGeom&gt;</c> with no <c>prst</c> attribute throws <see cref="InvalidDataException"/>, mirroring <see cref="PptxDocument.ResolvePictureClipPath"/>'s/<see cref="PptxDocument.ResolveShapeGeometry"/>'s identical check.</summary>
+    [Fact]
+    public void ResolvePictureGeometryPath_PrstGeomMissingPrstAttribute_ThrowsInvalidDataException()
+    {
+        var spPr = new XElement(PresentationNs + "spPr", new XElement(A + "prstGeom"));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolvePictureGeometryPath(spPr, 100f, 100f));
+    }
+
+    /// <summary>Proves an unsupported preset name propagates <see cref="PptxUnsupportedFeatureException"/> unchanged, exactly as it already propagates for an auto-shape/<see cref="PptxDocument.ResolvePictureClipPath"/> with the same preset.</summary>
+    [Fact]
+    public void ResolvePictureGeometryPath_UnsupportedPreset_ThrowsPptxUnsupportedFeatureException()
+    {
+        var spPr = new XElement(
+            PresentationNs + "spPr",
+            new XElement(A + "prstGeom", new XAttribute("prst", "not-a-real-preset"), new XElement(A + "avLst")));
+
+        Assert.Throws<PptxUnsupportedFeatureException>(() => PptxDocument.ResolvePictureGeometryPath(spPr, 100f, 100f));
+    }
+
+    /// <summary>Proves <see cref="PptxDocument.ResolvePictureGeometryPath"/> rejects a null argument.</summary>
+    [Fact]
+    public void ResolvePictureGeometryPath_NullSpPrElement_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => PptxDocument.ResolvePictureGeometryPath(null!, 100f, 100f));
+    }
+
     // --- PaintPicture clipPath ---------------------------------------------------------------------
 
     /// <summary>Proves an ellipse clip path leaves a bounding-box corner sample unpainted (background shows through) while the shape's own center is painted with the source image's pixel - the confirmed real-world bug this fix resolves.</summary>

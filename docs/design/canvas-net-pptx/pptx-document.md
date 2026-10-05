@@ -2391,8 +2391,84 @@ the same ellipse-clipped picture end-to-end and saves it to
 confirm the circular photo-crop effect. `Render_PictureEllipseGeometry_NearSquareRealWorldAspect_ClipsAllFourBoundingBoxCorners`
 (added later, in response to a bug report alleging an `ellipse`-clipped picture at a near-square,
 real-world corpus aspect ratio rendered with an unclipped rectangular top) adds regression coverage
-sampling all four bounding-box corners rather than one diagonal pair; a direct mask-boundary-trace
-comparison against the real-world document's own rendered output confirmed the clip mask was
-already pixel-correct and fully symmetric on all four sides, so this addition is test-coverage
-hardening only - no change was made to `PptxDocument.Images.cs`, `PptxPresetGeometry.cs`, or
-`PathFiller.cs`.
+sampling all four bounding-box corners rather than one diagonal pair. A direct mask-boundary-trace
+comparison against the real-world document's own rendered output confirmed the clip mask itself
+was already pixel-correct and fully symmetric on all four sides - this remains correct and
+unchanged. **A prior investigation pass incorrectly concluded from that same comparison that the
+bug report's own underlying asymmetry complaint was entirely "a visual illusion" with no code
+defect at all, and made no further source change.** That conclusion was wrong: the bug report's
+own fixture additionally declared a red `<a:ln>` on the same `<p:pic>`, and a from-scratch,
+independently re-verified investigation (direct code inspection plus a fresh rendered repro PNG -
+see `.agent-logs/planning-picture-ln-stroke-fix-7f2a4d.md`) proved `RenderPicture` never read or
+painted ANY `<p:pic>`'s own `<a:ln>` stroke at all - 0% of the ellipse's perimeter rendered any
+stroke color, not merely a partial arc. The image-content clip itself (this section, above) was
+correctly re-confirmed unaffected and required no further change; only the separate, previously
+undiagnosed missing-stroke defect was real. See "Phase 2 Follow-Up: Picture Own-Stroke Outline
+Rendering" below for the actual root cause and fix.
+
+#### Phase 2 Follow-Up: Picture Own-Stroke Outline Rendering (`<a:ln>` on `<p:pic>`)
+
+**Root cause**: `RenderPicture` (`PptxDocument.Render.cs`) resolved and painted a `<p:pic>`'s own
+embedded image content (via `ResolvePictureSurface`/`ResolveSrcRect`/`ResolvePictureClipPath`/
+`PaintPicture`, see the preceding section), but never read its own `<p:spPr>/<a:ln>` child at all,
+and never called `ResolveShapeLineStyle`/`ResolveStrokeOutline`/`FillPaint` for a picture node -
+unlike `RenderShape` (`<p:sp>`), `RenderConnector` (`<p:cxnSp>`), and `PaintTableBorder`
+(`PptxDocument.Tables.cs`, for table cell borders), which all already resolve and paint their own
+node kind's stroke via that exact same trio of resolvers. `PptxPictureShapeNode` is a closed,
+separate case in `RenderNode`'s switch that dispatches only to `RenderPicture` - there was no
+secondary pass anywhere else in the codebase that painted a `<p:pic>`'s own stroke. The result: a
+picture declaring an `<a:ln>` (for example a red outline around an `ellipse`-cropped photo) always
+rendered with that stroke entirely absent, regardless of its own resolved geometry - confirmed by
+an isolated, from-scratch visual repro (the bug report's own exact `<p:pic>` XML, rendered and
+visually inspected before this fix: a plain pale ellipse with zero red anywhere on its perimeter).
+
+**Fix - reusing, not reimplementing, existing line-style and stroke infrastructure**:
+
+- **Geometry resolution for stroking, deliberately separate from the clip-path resolver above**
+  (`PptxDocument.Images.cs`'s new `ResolvePictureGeometryPath(XElement spPrElement, float
+  widthEmu, float heightEmu)`): `ResolvePictureClipPath` collapses "no geometry at all" and an
+  explicit `<a:prstGeom prst="rect">` to `null`, a pure optimization valid only for its own
+  image-content-clipping use case (clipping to a full bounding-box rectangle is a no-op). A stroke
+  outline has no equivalent no-op shortcut - an implicit or explicit full-rectangle picture with an
+  `<a:ln>` must still stroke an actual, closed rectangle boundary, exactly as an ordinary `<p:sp>`
+  auto-shape with an implicit/explicit `rect` preset already does via `ResolveShapeGeometry`. So
+  `ResolvePictureGeometryPath` always returns a concrete `Path`: the resolved preset geometry
+  (`PptxPresetGeometry.Build`, with `rect` NOT special-cased to `null`) when `<a:prstGeom>` is
+  present; the resolved custom geometry (`ResolveCustomGeometry`) when `<a:custGeom>` is present;
+  or the implicit full-rectangle boundary (`PptxPresetGeometry.Build("rect", widthEmu, heightEmu)`)
+  when neither is present - reusing the identical dispatch `ResolvePictureClipPath` itself already
+  reuses, not reimplementing it.
+- **Line-style resolution and stroke painting** (`PptxDocument.Render.cs`'s `RenderPicture`, after
+  `PaintPicture`): reads the picture's own `<p:spPr>/<a:ln>` and sibling `<p:style>` (mirroring
+  `RenderShape`'s identical sibling-element lookup pattern), resolves
+  `ResolveShapeLineStyle(lnElement, styleElement, theme, colorMap)` - the exact same resolver
+  `RenderShape` already uses, requiring no new line-style-resolution code - and, when non-null,
+  strokes `ResolvePictureGeometryPath`'s resolved geometry via `ResolveStrokeOutline(...).
+  Transform(localToSurface)` followed by `FillPaint(surface, strokedOutline, lineStyle.Paint)`,
+  mirroring `RenderShape`'s exact fill-then-stroke order (image content first, stroke frames it on
+  top, matching real-world PowerPoint's own visual stacking).
+- **Signature extension**: `RenderPicture` gained `PptxTheme theme` and `PptxColorMap colorMap`
+  parameters, threaded through from its one call site in `RenderNode`'s `case
+  PptxPictureShapeNode pic:`, which already held both values in scope (used by the sibling
+  `RenderShape` call in the same switch).
+- **The image-content clip (`ResolvePictureClipPath`/`PaintPicture`, from the preceding section)
+  was not touched** - it was independently re-verified correct and unaffected by this defect (see
+  this section's own root-cause remarks above); only the missing stroke pass was added.
+
+**Test coverage**: `PptxImagesTests.cs` gained `ResolvePictureGeometryPath` unit tests mirroring
+`ResolvePictureClipPath`'s own test structure (an explicit `rect` preset and absent geometry both
+now resolve to a non-null rectangle `Path`, unlike `ResolvePictureClipPath`'s `null`; `ellipse`
+preset and `<a:custGeom>` each resolve to a non-null `Path`; a `<a:prstGeom>` missing its own
+`prst` attribute throws `InvalidDataException`; an unsupported preset name propagates
+`PptxUnsupportedFeatureException` unchanged; a null argument throws `ArgumentNullException`).
+`PptxRenderTests.cs` gained `Render_PictureEllipseGeometry_WithRedLnStroke_RendersCompleteClosedEllipseOutline`
+(the bug report's own exact geometry/stroke, sampling all four of the ellipse's own perimeter
+midpoints - top/bottom/left/right-center, not just corners - for the stroke's own red color; a
+defect covering 0% of the perimeter would fail at all four) and
+`Render_PictureNoPrstGeom_WithLnStroke_StrokesRectangleOutline` (a picture with no geometry child
+at all but a present `<a:ln>` now strokes a complete rectangle, not nothing). The pre-existing
+`Render_PictureEllipseGeometry_NearSquareRealWorldAspect_ClipsAllFourBoundingBoxCorners` test was
+left unchanged - it remains valid, correct coverage for the separate image-content-clip concern.
+A before/after visual repro (the bug report's own exact geometry, rendered and visually inspected)
+confirmed the fix: before, a plain pale ellipse with no red anywhere on its perimeter; after, a
+complete, correctly-closed red ellipse outline fully framing the same pale ellipse.

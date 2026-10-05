@@ -1676,11 +1676,58 @@ while its bottom clipped correctly: it reproduces the report's own exact shape g
 slide size, and asserts all four bounding-box corners (not just one diagonal pair) remain
 background, including a point in the bounding box's upper quarter that lies outside the ellipse's
 own curve. Direct investigation (a mask-boundary-trace overlay against the real rendered output)
-found the clip mask is already pixel-correct and fully symmetric on all four sides - no production
-code defect existed; the reported asymmetry was a visual illusion caused by the embedded photo's
-own light background color blending into the slide's background near the ellipse's top edge. This
-test closes the test-coverage gap that allowed that illusion to be mistaken for a defect, without
-any change to `PptxDocument.Images.cs`, `PptxPresetGeometry.cs`, or `PathFiller.cs`.
+found the clip mask is already pixel-correct and fully symmetric on all four sides - the
+image-content clip concern itself has no production code defect; this test closes the
+test-coverage gap for that concern. **A prior investigation pass incorrectly concluded from this
+same evidence that the bug report's entire underlying complaint was "a visual illusion" with no
+code defect anywhere.** That broader conclusion was wrong: the report's own fixture also declared
+a red `<a:ln>` on the same `<p:pic>`, and a from-scratch, independently re-verified investigation
+(see `.agent-logs/planning-picture-ln-stroke-fix-7f2a4d.md`) proved `RenderPicture` never read or
+painted a `<p:pic>`'s own `<a:ln>` stroke at all - a real, 100%-of-perimeter-absent defect, fixed
+and verified below under `CanvasNetPptx-PptxDocument-PictureStrokeOutline`. Only the narrower
+image-content-clip conclusion above (no defect in `ResolvePictureClipPath`/`PaintPicture`) remains
+correct.
+
+#### CanvasNetPptx-PptxDocument-PictureStrokeOutline: `<p:pic>` Own `<a:ln>` Stroke Outline Rendering
+
+**Tests**: `ResolvePictureGeometryPath_RectPreset_ReturnsNonNullRectanglePath`,
+`ResolvePictureGeometryPath_NoGeometryElement_ReturnsImplicitRectanglePath`,
+`ResolvePictureGeometryPath_EllipsePreset_ReturnsNonNullPath`,
+`ResolvePictureGeometryPath_CustGeom_ReturnsNonNullPath`,
+`ResolvePictureGeometryPath_PrstGeomMissingPrstAttribute_ThrowsInvalidDataException`,
+`ResolvePictureGeometryPath_UnsupportedPreset_ThrowsPptxUnsupportedFeatureException`,
+`ResolvePictureGeometryPath_NullSpPrElement_ThrowsArgumentNullException`,
+`Render_PictureEllipseGeometry_WithRedLnStroke_RendersCompleteClosedEllipseOutline`,
+`Render_PictureNoPrstGeom_WithLnStroke_StrokesRectangleOutline`
+
+Proves `ResolvePictureGeometryPath` always resolves a concrete, non-null `Path` - unlike
+`ResolvePictureClipPath`'s own "rect"/"no geometry" collapse to `null` - for an explicit
+`<a:prstGeom prst="rect">`, for a `<p:spPr>` with neither `<a:prstGeom>` nor `<a:custGeom>` at all
+(the implicit full-rectangle fallback), for a non-`rect` preset (`ellipse`), and for an explicit
+`<a:custGeom>`, dispatching to the exact same `PptxPresetGeometry.Build`/`ResolveCustomGeometry`
+resolvers `ResolvePictureClipPath`/an auto-shape's own `ResolveShapeGeometry` already use. Proves
+a `<a:prstGeom>` missing its own `prst` attribute throws `InvalidDataException`, an unsupported
+preset name propagates `PptxUnsupportedFeatureException` unchanged, and a `null` `spPrElement`
+argument throws `ArgumentNullException` - the identical fail-closed contract
+`ResolvePictureClipPath`/`ResolveShapeGeometry` already carry.
+
+End-to-end, render-level, proves `RenderPicture` now strokes a `<p:pic>`'s own `<a:ln>` as a
+COMPLETE, correctly-closed outline: `Render_PictureEllipseGeometry_WithRedLnStroke_RendersCompleteClosedEllipseOutline`
+reproduces the original bug report's own exact `<a:xfrm>`/`<a:prstGeom prst="ellipse">`/red
+`<a:ln>` geometry and 16:9 slide size, and samples all four of the ellipse's own perimeter
+midpoints (top/bottom/left/right-center, not just the corners the sibling clip test samples) for
+the stroke's own red-dominant color - a defect covering 0% of the perimeter (the confirmed, now-
+fixed pre-fix state) would fail at all four simultaneously.
+`Render_PictureNoPrstGeom_WithLnStroke_StrokesRectangleOutline` proves the new
+`ResolvePictureGeometryPath` "neither `<a:prstGeom>` nor `<a:custGeom>`" fallback is actually used
+for stroking: a geometry-less picture with a present `<a:ln>` now strokes a complete rectangle
+around its own bounding box, sampling both its top and left edges, rather than silently dropping
+the stroke as it did before this fix (when `RenderPicture` never read `<a:ln>` at all, regardless
+of geometry). A before/after visual repro (the bug report's own exact geometry, rendered end-to-
+end and visually inspected) confirmed the fix directly: before, a plain pale ellipse with
+absolutely no red anywhere on its perimeter; after, a complete, correctly-closed red ellipse
+outline fully framing the same pale ellipse - matching real-world PowerPoint's own expected visual
+stacking (image content painted first, stroke framing it on top).
 
 ## Acceptance Criteria
 
