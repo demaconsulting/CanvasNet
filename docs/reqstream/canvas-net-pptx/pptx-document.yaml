@@ -87,6 +87,23 @@ sections:
               - PptxDocument_Open_ContentTypesDefaultMissingRequiredAttribute_ThrowsInvalidDataException
               - PptxDocument_Open_ContentTypesOverrideMissingRequiredAttribute_ThrowsInvalidDataException
 
+          - id: CanvasNetPptx-PptxDocument-MediaPartSizeValidation
+            title: >-
+              The PptxDocument class shall bound a single part's decompressed byte size (as read
+              by GetPartBytes) to a fixed maximum (256 MiB), enforced incrementally during the
+              copy itself rather than trusting the ZIP entry's declared length, and reject a part
+              whose decompressed content exceeds that bound with InvalidDataException.
+            justification: |
+              A single OPC part's compressed-to-decompressed ratio is entirely attacker-controlled
+              (a "zip bomb") - a small, highly-compressible media part can pass the whole
+              package's own compressed-size bound (MaxPackageBytes) easily while still
+              decompressing to an unbounded size through GetPartBytes, exhausting memory. Bounding
+              decompressed size incrementally during the copy, rather than trusting any declared
+              length, closes this gap without weakening support for any realistic media part.
+            tests:
+              - PptxDocument_GetPartBytes_OversizedDecompressedEntry_ThrowsInvalidDataException
+              - PptxDocument_GetPartBytes_WellFormedPart_ReturnsExactBytes
+
           - id: CanvasNetPptx-PptxDocument-PackageRelationshipsValidation
             title: >-
               The PptxDocument class shall require the package to contain a well-formed

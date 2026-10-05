@@ -808,7 +808,10 @@ resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surfac
 
 - **Relationship resolution**: `<a:blip>`'s `r:embed` attribute (an embedded-image relationship
   ID) is resolved via the existing `ResolveRelationship`/`GetPartBytes` package-layer primitives
-  into the raw media part bytes. One with only `r:link` (an external, non-embedded image
+  into the raw media part bytes. `GetPartBytes` bounds the part's decompressed size to
+  `MaxPartBytes` (256 MiB), rejecting an oversized/zip-bomb-shaped media part with
+  `InvalidDataException` rather than trusting its declared or compressed size. One with only
+  `r:link` (an external, non-embedded image
   reference) throws `PptxUnsupportedFeatureException` (feature token `"pptx-image-link"`) - a
   linked image has no embedded bytes this package can read without performing file-system I/O
   outside the supplied package stream, a well-formed-but-deliberately-unsupported construct, not

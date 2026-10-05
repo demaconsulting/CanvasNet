@@ -803,6 +803,115 @@ public class PptxDocumentTests
     }
 
     /// <summary>
+    ///     Writes <paramref name="totalBytes"/> of all-zero content to a new ZIP entry named
+    ///     <paramref name="name"/> within <paramref name="archive"/>, writing in fixed 64 KiB
+    ///     chunks rather than allocating one large array. All-zero content compresses extremely
+    ///     well, so this produces a genuine zip-bomb shape (a tiny compressed entry that
+    ///     decompresses to many times its own size) suitable for proving
+    ///     <see cref="PptxDocument.GetPartBytes"/> bounds a part's decompressed size rather than
+    ///     trusting its compressed size or declared <see cref="ZipArchiveEntry.Length"/>.
+    /// </summary>
+    private static void WriteOversizedBinaryEntry(ZipArchive archive, string name, long totalBytes)
+    {
+        var entry = archive.CreateEntry(name, CompressionLevel.Optimal);
+        using var entryStream = entry.Open();
+        var chunk = new byte[65536];
+        var remaining = totalBytes;
+        while (remaining > 0)
+        {
+            var writeSize = (int)Math.Min(chunk.Length, remaining);
+            entryStream.Write(chunk, 0, writeSize);
+            remaining -= writeSize;
+        }
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PptxDocument.GetPartBytes"/> rejects a part whose actual decompressed
+    ///     content exceeds the documented maximum decompressed part size (256 MiB) with
+    ///     <see cref="InvalidDataException"/>, rather than trusting the ZIP entry's declared
+    ///     length or materializing an unbounded byte array for an attacker-controlled,
+    ///     highly-compressible media part (a "zip bomb").
+    /// </summary>
+    [Fact]
+    public void PptxDocument_GetPartBytes_OversizedDecompressedEntry_ThrowsInvalidDataException()
+    {
+        // Arrange: a package whose one media part decompresses to one byte over the documented
+        // 268,435,456-byte (256 MiB) bound, despite compressing down to a tiny ZIP entry.
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var (name, content) in new[]
+                     {
+                         ("[Content_Types].xml", DefaultContentTypesXml),
+                         ("_rels/.rels", DefaultPackageRelsXml),
+                         ("ppt/presentation.xml", DefaultPresentationXml),
+                         ("ppt/_rels/presentation.xml.rels", DefaultPresentationRelsXml)
+                     })
+            {
+                var entry = archive.CreateEntry(name);
+                using var entryStream = entry.Open();
+                using var writer = new StreamWriter(entryStream, Encoding.UTF8);
+                writer.Write(content);
+            }
+
+            WriteOversizedBinaryEntry(archive, "ppt/media/bomb.bin", 268_435_457L);
+        }
+
+        stream.Position = 0;
+        using var document = PptxDocument.Open(stream);
+
+        // Act / Assert
+        Assert.Throws<InvalidDataException>(() => document.GetPartBytes("ppt/media/bomb.bin"));
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PptxDocument.GetPartBytes"/> returns a normal-sized binary part's
+    ///     content unchanged, byte-for-byte - a regression safeguard proving the new
+    ///     decompressed-size bound does not disturb ordinary, well within-bound media parts.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_GetPartBytes_WellFormedPart_ReturnsExactBytes()
+    {
+        // Arrange
+        var expectedBytes = new byte[256];
+        for (var i = 0; i < expectedBytes.Length; i++)
+        {
+            expectedBytes[i] = (byte)i;
+        }
+
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var (name, content) in new[]
+                     {
+                         ("[Content_Types].xml", DefaultContentTypesXml),
+                         ("_rels/.rels", DefaultPackageRelsXml),
+                         ("ppt/presentation.xml", DefaultPresentationXml),
+                         ("ppt/_rels/presentation.xml.rels", DefaultPresentationRelsXml)
+                     })
+            {
+                var entry = archive.CreateEntry(name);
+                using var entryStream = entry.Open();
+                using var writer = new StreamWriter(entryStream, Encoding.UTF8);
+                writer.Write(content);
+            }
+
+            var binaryEntry = archive.CreateEntry("ppt/media/image1.bin");
+            using var binaryEntryStream = binaryEntry.Open();
+            binaryEntryStream.Write(expectedBytes, 0, expectedBytes.Length);
+        }
+
+        stream.Position = 0;
+        using var document = PptxDocument.Open(stream);
+
+        // Act
+        var actualBytes = document.GetPartBytes("ppt/media/image1.bin");
+
+        // Assert
+        Assert.Equal(expectedBytes, actualBytes);
+    }
+
+    /// <summary>
     ///     Proves a <c>.rels</c> part with a malformed root element (neither named
     ///     <c>Relationships</c> nor in the relationships namespace) throws
     ///     <see cref="InvalidDataException"/>, rather than silently finding zero

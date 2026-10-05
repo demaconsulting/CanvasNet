@@ -212,7 +212,11 @@ public sealed partial class PptxDocument : IDisposable
         ArgumentNullException.ThrowIfNull(stream);
 
         using var buffered = new MemoryStream();
-        CopyBounded(stream, buffered);
+        CopyBounded(
+            stream,
+            buffered,
+            MaxPackageBytes,
+            $"The package stream exceeds the maximum supported size of {MaxPackageBytes} bytes.");
         return new PptxDocument(buffered.ToArray());
     }
 
@@ -250,16 +254,28 @@ public sealed partial class PptxDocument : IDisposable
     /// <summary>
     ///     Copies <paramref name="source"/> into <paramref name="destination"/>, reading in fixed-
     ///     size chunks and rejecting the input the moment the running total exceeds
-    ///     <see cref="MaxPackageBytes"/> - bounding both the worst-case memory this buffering step
-    ///     can consume and the worst-case time it can spend reading a deliberately large or
-    ///     non-terminating <paramref name="source"/>, rather than calling <see cref="Stream.CopyTo(Stream)"/>
+    ///     <paramref name="maxBytes"/> - bounding both the worst-case memory this copy can consume
+    ///     and the worst-case time it can spend reading a deliberately large or non-terminating
+    ///     <paramref name="source"/>, rather than calling <see cref="Stream.CopyTo(Stream)"/>
     ///     unconditionally and discovering the problem only after it has already exhausted memory.
+    ///     Shared by <see cref="Open(Stream)"/> (bounding the whole buffered package stream) and
+    ///     <see cref="GetPartBytes"/> (bounding a single part's decompressed byte size).
     /// </summary>
+    /// <param name="source">The stream to copy from.</param>
+    /// <param name="destination">The stream to copy into.</param>
+    /// <param name="maxBytes">
+    ///     The maximum number of bytes that may be read from <paramref name="source"/> before this
+    ///     method throws.
+    /// </param>
+    /// <param name="exceededMessage">
+    ///     The message used to construct the <see cref="System.IO.InvalidDataException"/> thrown
+    ///     when <paramref name="maxBytes"/> is exceeded.
+    /// </param>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown once more than <see cref="MaxPackageBytes"/> bytes have been read from
+    ///     Thrown once more than <paramref name="maxBytes"/> bytes have been read from
     ///     <paramref name="source"/>.
     /// </exception>
-    private static void CopyBounded(Stream source, MemoryStream destination)
+    private static void CopyBounded(Stream source, MemoryStream destination, long maxBytes, string exceededMessage)
     {
         var buffer = new byte[81920];
         var total = 0L;
@@ -267,10 +283,9 @@ public sealed partial class PptxDocument : IDisposable
         while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
         {
             total += read;
-            if (total > MaxPackageBytes)
+            if (total > maxBytes)
             {
-                throw new InvalidDataException(
-                    $"The package stream exceeds the maximum supported size of {MaxPackageBytes} bytes.");
+                throw new InvalidDataException(exceededMessage);
             }
 
             destination.Write(buffer, 0, read);

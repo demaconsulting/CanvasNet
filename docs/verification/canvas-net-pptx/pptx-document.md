@@ -111,6 +111,18 @@ with no `Default`/`Override` entries found; and a `Default`/`Override` element m
 required attributes (`Extension`/`ContentType` or `PartName`/`ContentType` respectively) throws
 `InvalidDataException` rather than being silently discarded.
 
+#### CanvasNetPptx-PptxDocument-MediaPartSizeValidation: Oversized Decompressed Part Throws InvalidDataException
+
+**Tests**: `PptxDocument_GetPartBytes_OversizedDecompressedEntry_ThrowsInvalidDataException`,
+`PptxDocument_GetPartBytes_WellFormedPart_ReturnsExactBytes`
+
+Proves `GetPartBytes` rejects a part whose actual decompressed content exceeds the documented
+256 MiB bound with `InvalidDataException`, even when the part's compressed ZIP entry is tiny (a
+"zip bomb" - a highly-compressible, all-zero payload), proving the bound is enforced from bytes
+actually read during the copy rather than from any declared or compressed size. Also proves a
+normal-sized binary part is still returned byte-for-byte unchanged, confirming the new bound does
+not disturb ordinary media-part reads.
+
 #### CanvasNetPptx-PptxDocument-PackageRelationshipsValidation: Missing _rels/.rels Throws InvalidDataException
 
 **Tests**: `PptxDocument_Open_MissingPackageRelationships_ThrowsInvalidDataException`,

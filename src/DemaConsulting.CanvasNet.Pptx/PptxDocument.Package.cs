@@ -37,6 +37,18 @@ public sealed partial class PptxDocument
     /// </summary>
     private const int MaxPartCharacters = 2_000_000;
 
+    /// <summary>
+    ///     The maximum number of decompressed bytes <see cref="GetPartBytes"/> allows a single
+    ///     part's ZIP entry to expand to, bounding the worst-case memory cost of an
+    ///     attacker-controlled, highly inflated media part (a "zip bomb" - for example a few
+    ///     hundred kilobytes of highly-compressible data that decompresses to gigabytes) before it
+    ///     is ever materialized into an in-memory byte array. This is the binary-part counterpart
+    ///     to <see cref="MaxPartCharacters"/>'s XML-part character bound, reusing
+    ///     <see cref="MaxPackageBytes"/>'s own value (256 MiB) since a single part cannot
+    ///     legitimately need to exceed the whole package's own documented bound.
+    /// </summary>
+    private const long MaxPartBytes = MaxPackageBytes;
+
     /// <summary>The XML namespace used by <c>[Content_Types].xml</c>.</summary>
     private static readonly XNamespace ContentTypesNamespace =
         "http://schemas.openxmlformats.org/package/2006/content-types";
@@ -573,15 +585,16 @@ public sealed partial class PptxDocument
     /// <returns>The part's full, raw byte content.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="partPath"/> is null.</exception>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the package does not contain a part named <paramref name="partPath"/>.
+    ///     Thrown when the package does not contain a part named <paramref name="partPath"/>, or
+    ///     when the part's decompressed content exceeds <see cref="MaxPartBytes"/>.
     /// </exception>
     /// <remarks>
-    ///     Unlike <see cref="LoadXmlRoot"/>, no <see cref="MaxPartCharacters"/>-style bound is
-    ///     applied here: a media part's raw byte size is already bounded by this package's own
-    ///     overall package-size safeguard (<see cref="MaxPackageBytes"/>, enforced once for the
-    ///     whole ZIP at <see cref="Open(Stream)"/> time), so no additional, narrower cap is
-    ///     introduced for an individual part - keeping this method a thin, direct read with no
-    ///     new risk surface beyond what <see cref="Open(Stream)"/> already bounds.
+    ///     The part's decompressed byte size is bounded by <see cref="MaxPartBytes"/>, enforced
+    ///     incrementally during the copy itself (never trusting the ZIP entry's own declared
+    ///     <see cref="ZipArchiveEntry.Length"/>) - this guards against a single attacker-controlled
+    ///     part being a "zip bomb" that decompresses far beyond its compressed size, a risk
+    ///     <see cref="MaxPackageBytes"/> alone does not cover since it only bounds the *compressed*
+    ///     bytes read from the caller's input stream at <see cref="Open(Stream)"/> time.
     /// </remarks>
     internal byte[] GetPartBytes(string partPath)
     {
@@ -595,7 +608,11 @@ public sealed partial class PptxDocument
 
         using var entryStream = entry.Open();
         using var buffer = new MemoryStream();
-        entryStream.CopyTo(buffer);
+        CopyBounded(
+            entryStream,
+            buffer,
+            MaxPartBytes,
+            $"The part '{partPath}' exceeds the maximum supported decompressed size of {MaxPartBytes} bytes (the compressed ZIP entry may be a decompression bomb).");
         return buffer.ToArray();
     }
 
