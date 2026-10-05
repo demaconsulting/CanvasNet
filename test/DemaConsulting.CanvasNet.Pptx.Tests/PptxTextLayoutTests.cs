@@ -1,5 +1,7 @@
+using System.Numerics;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
@@ -539,6 +541,286 @@ public class PptxTextLayoutTests
         var layout = Layout(textBody, 50000f, 50000f);
 
         Assert.Equal(0.7f, layout.AppliedFontScale, 2);
+    }
+
+    #endregion
+
+    #region Per-character glyph-coverage fallback
+
+    // Synthetic fallback font: UnitsPerEm 1000, ascender 800, descender -200, lineGap 0.
+    //   .notdef (index 0), advance 0, zero contours.
+    //   U+00B1 PLUS-MINUS SIGN (index 1), advance 400 units, a distinct filled triangle outline.
+    //   U+00B0 DEGREE SIGN (index 2), advance 300 units, a different, distinguishable filled
+    //   triangle outline - every assertion below distinguishes "resolved via the fallback font"
+    //   from "resolved via the primary font" purely by comparing the resolved
+    //   PptxGlyphPlacement.Font reference and GlyphIndex, not by outline shape, so the two
+    //   outlines only need to be non-empty (a real, paintable glyph), not visually distinct.
+    private static TrueTypeFont NewFallbackFontCoveringPlusMinusAndDegree()
+    {
+        var notdef = SyntheticFontBuilder.SimpleGlyph();
+        var glyphPlusMinus = SyntheticFontBuilder.SimpleGlyph([(0, 0, true), (400, 0, true), (200, 800, true)]);
+        var glyphDegree = SyntheticFontBuilder.SimpleGlyph([(0, 0, true), (300, 0, true), (150, 800, true)]);
+        var cmap = SyntheticFontBuilder.CmapFormat4(3, 1, [(0x00B1, 1), (0x00B0, 2)]);
+
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(3))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 0, 3))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 400, 300]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([notdef.Length, glyphPlusMinus.Length, glyphDegree.Length], longFormat: false))
+            .AddTable("glyf", [.. notdef, .. glyphPlusMinus, .. glyphDegree])
+            .AddTable("cmap", cmap)
+            .Build();
+
+        using var stream = new MemoryStream(data);
+        return TrueTypeFont.Load(stream);
+    }
+
+    // Synthetic primary font: identical shape to NewFallbackFontCoveringPlusMinusAndDegree(), but
+    // covering 'A'/' ' (like NewFont()) plus U+00B0 DEGREE SIGN only - deliberately NOT covering
+    // U+00B1 PLUS-MINUS SIGN - used by the literal reported-symptom test (c) below, where the
+    // primary font covers the *second* character of the "±°" pair but not the first.
+    private static TrueTypeFont NewPrimaryFontCoveringDegreeButNotPlusMinus()
+    {
+        var notdef = SyntheticFontBuilder.SimpleGlyph();
+        var glyphA = SyntheticFontBuilder.SimpleGlyph([(0, 0, true), (500, 0, true), (250, 800, true)]);
+        var glyphSpace = SyntheticFontBuilder.SimpleGlyph();
+        var glyphDegree = SyntheticFontBuilder.SimpleGlyph([(0, 0, true), (300, 0, true), (150, 800, true)]);
+        var cmap = SyntheticFontBuilder.CmapFormat4(3, 1, [(65, 1), (32, 2), (0x00B0, 3)]);
+
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(4))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 0, 4))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 500, 200, 300]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([notdef.Length, glyphA.Length, glyphSpace.Length, glyphDegree.Length], longFormat: false))
+            .AddTable("glyf", [.. notdef, .. glyphA, .. glyphSpace, .. glyphDegree])
+            .AddTable("cmap", cmap)
+            .Build();
+
+        using var stream = new MemoryStream(data);
+        return TrueTypeFont.Load(stream);
+    }
+
+    private static PptxTextLayout LayoutWithFallback(
+        PptxTextBody textBody,
+        TrueTypeFont primaryFont,
+        TrueTypeFont fallbackFont,
+        float widthEmu = 500000f,
+        float heightEmu = 500000f) =>
+        PptxDocument.ResolveTextLayout(
+            textBody,
+            new PptxPlaceholderProperties(null, null, BuildTestTheme()),
+            BuildTestTheme(),
+            "body",
+            widthEmu,
+            heightEmu,
+            (_, _, _) => primaryFont,
+            colorMap: null,
+            fallbackFontResolver: (_, _) => fallbackFont);
+
+    /// <summary>
+    ///     Proves the literal two-character tofu-box reproduction: a run's primary font covers
+    ///     neither U+00B1 (PLUS-MINUS SIGN) nor U+00B0 (DEGREE SIGN) that immediately follows it,
+    ///     but the injected bundled fallback font covers both. Both characters must independently
+    ///     resolve to the fallback font with their own correct, non-<c>.notdef</c> glyph index -
+    ///     proving the second character's (U+00B0's) resolution is driven purely by its own
+    ///     coverage check against the fallback font, not "stuck" to or corrupted by the first
+    ///     character's (U+00B1's) own fallback decision (every per-character
+    ///     <c>CmapTable</c>/<c>GetGlyphIndex</c> lookup is already a stateless, pure function of
+    ///     (font, codepoint) alone - see the planning report's refutation of the "sticky
+    ///     fallback" hypothesis - this test additionally proves the new per-character fallback
+    ///     layer built on top of it inherits that same independence).
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_PlusMinusFollowedByDegree_BothNeitherInPrimary_BothIndependentlyResolveFallback()
+    {
+        var primaryFont = NewFont(); // Covers only 'A'/' ' - neither U+00B1 nor U+00B0.
+        var fallbackFont = NewFallbackFontCoveringPlusMinusAndDegree();
+        var textBody = BuildSingleRunTextBody("\u00B1\u00B0");
+
+        var layout = LayoutWithFallback(textBody, primaryFont, fallbackFont);
+
+        Assert.Equal(2, layout.Glyphs.Count);
+
+        var plusMinusGlyph = layout.Glyphs[0];
+        Assert.Same(fallbackFont, plusMinusGlyph.Font);
+        Assert.NotEqual(0, plusMinusGlyph.GlyphIndex);
+        Assert.Equal(fallbackFont.GetGlyphIndex('\u00B1'), plusMinusGlyph.GlyphIndex);
+
+        var degreeGlyph = layout.Glyphs[1];
+        Assert.Same(fallbackFont, degreeGlyph.Font);
+        Assert.NotEqual(0, degreeGlyph.GlyphIndex);
+        Assert.Equal(fallbackFont.GetGlyphIndex('\u00B0'), degreeGlyph.GlyphIndex);
+    }
+
+    /// <summary>
+    ///     Baseline/control isolation test: a run containing only the fallback-triggering
+    ///     character (U+00B1, with no following character) still resolves via the fallback font -
+    ///     proving single-character fallback behavior in isolation, independent of the
+    ///     two-character sequence case above.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_PlusMinusAlone_ResolvesFallbackGlyph()
+    {
+        var primaryFont = NewFont(); // Covers only 'A'/' ' - not U+00B1.
+        var fallbackFont = NewFallbackFontCoveringPlusMinusAndDegree();
+        var textBody = BuildSingleRunTextBody("\u00B1");
+
+        var layout = LayoutWithFallback(textBody, primaryFont, fallbackFont);
+
+        Assert.Single(layout.Glyphs);
+        Assert.Same(fallbackFont, layout.Glyphs[0].Font);
+        Assert.Equal(fallbackFont.GetGlyphIndex('\u00B1'), layout.Glyphs[0].GlyphIndex);
+        Assert.NotEqual(0, layout.Glyphs[0].GlyphIndex);
+    }
+
+    /// <summary>
+    ///     Proves the original bug report's exact scenario: the run's primary font lacks U+00B1
+    ///     (PLUS-MINUS SIGN) but DOES cover the immediately-following U+00B0 (DEGREE SIGN). Both
+    ///     characters must still resolve correctly - U+00B1 via the fallback font, U+00B0 via the
+    ///     primary font - proving the primary font's own, already-correct coverage of the second
+    ///     character is not corrupted or overridden by the first character's fallback
+    ///     substitution. This directly refutes the "sticky fallback" hypothesis for the new
+    ///     per-character fallback layer itself (not just the pre-existing single-font-per-run
+    ///     resolution path the planning report already refuted it for).
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_PlusMinusFollowedByDegree_PrimaryCoversOnlyDegree_DegreeStaysOnPrimaryFont()
+    {
+        var primaryFont = NewPrimaryFontCoveringDegreeButNotPlusMinus();
+        var fallbackFont = NewFallbackFontCoveringPlusMinusAndDegree();
+        var textBody = BuildSingleRunTextBody("\u00B1\u00B0");
+
+        var layout = LayoutWithFallback(textBody, primaryFont, fallbackFont);
+
+        Assert.Equal(2, layout.Glyphs.Count);
+
+        // U+00B1: missing from the primary font - resolves via the fallback font.
+        var plusMinusGlyph = layout.Glyphs[0];
+        Assert.Same(fallbackFont, plusMinusGlyph.Font);
+        Assert.Equal(fallbackFont.GetGlyphIndex('\u00B1'), plusMinusGlyph.GlyphIndex);
+        Assert.NotEqual(0, plusMinusGlyph.GlyphIndex);
+
+        // U+00B0: already covered by the primary font - stays on the primary font, proving the
+        // preceding character's fallback substitution did not "stick"/leak onto this character.
+        var degreeGlyph = layout.Glyphs[1];
+        Assert.Same(primaryFont, degreeGlyph.Font);
+        Assert.Equal(primaryFont.GetGlyphIndex('\u00B0'), degreeGlyph.GlyphIndex);
+        Assert.NotEqual(0, degreeGlyph.GlyphIndex);
+
+        // Baseline check: without any fallback font configured at all (the pre-fix/default
+        // production behavior for a font lacking a fallback resolver), U+00B0 alone still
+        // resolves via the primary font exactly the same way - confirming the primary font's own
+        // coverage of U+00B0 is what resolves it, not an accidental fallback-font side effect.
+        var degreeOnlyBody = BuildSingleRunTextBody("\u00B0");
+        var degreeOnlyLayout = PptxDocument.ResolveTextLayout(
+            degreeOnlyBody,
+            new PptxPlaceholderProperties(null, null, BuildTestTheme()),
+            BuildTestTheme(),
+            "body",
+            500000f,
+            500000f,
+            (_, _, _) => primaryFont);
+        Assert.Single(degreeOnlyLayout.Glyphs);
+        Assert.Same(primaryFont, degreeOnlyLayout.Glyphs[0].Font);
+        Assert.Equal(primaryFont.GetGlyphIndex('\u00B0'), degreeOnlyLayout.Glyphs[0].GlyphIndex);
+    }
+
+    /// <summary>
+    ///     One-off, non-assertion visual repro generator (not part of the permanent regression
+    ///     suite's guarantees - see the three <c>[Fact]</c> tests above for the actual permanent
+    ///     xunit assertions): renders the "±° tofu box" reproduction to an inspectable PNG file
+    ///     under <c>.agent-logs/</c>, so a reviewer can visually confirm the fix. Top row: the
+    ///     broken "before" behavior (primary font alone, no coverage fallback at all) - both
+    ///     characters paint as empty <c>.notdef</c> tofu boxes. Bottom row: the fixed "after"
+    ///     behavior (this change's per-character fallback) - both characters paint their correct,
+    ///     distinct fallback-font glyph shapes.
+    /// </summary>
+    [Fact]
+    public void GeneratePlusMinusDegreeTofuReproPng()
+    {
+        var primaryFont = NewFont(); // Covers only 'A'/' ' - neither U+00B1 nor U+00B0.
+        var fallbackFont = NewFallbackFontCoveringPlusMinusAndDegree();
+
+        var bodyPr = new XElement(
+            DrawingNs + "bodyPr",
+            new XAttribute("lIns", "0"), new XAttribute("tIns", "0"), new XAttribute("rIns", "0"), new XAttribute("bIns", "0"));
+        var txBody = new XElement(
+            PresentationNs + "txBody",
+            bodyPr,
+            new XElement(
+                DrawingNs + "p",
+                new XElement(DrawingNs + "pPr"),
+                new XElement(
+                    DrawingNs + "r",
+                    new XElement(DrawingNs + "rPr", new XAttribute("sz", "7200")),
+                    new XElement(DrawingNs + "t", "\u00B1\u00B0"))));
+        var textBody = PptxDocument.ParseTextBody(txBody);
+
+        const float widthEmu = 900000f;
+        const float heightEmu = 700000f;
+        const float scale = 300f / widthEmu; // -> 300x~233px surface.
+
+        // "Before" layout: the fallback resolver returns the SAME primary font - i.e. no wider-
+        // coverage font is ever consulted, reproducing the pre-fix behavior where a run is
+        // permanently bound to a single resolved font for every character.
+        var beforeLayout = PptxDocument.ResolveTextLayout(
+            textBody,
+            new PptxPlaceholderProperties(null, null, BuildTestTheme()),
+            BuildTestTheme(),
+            "body",
+            widthEmu,
+            heightEmu,
+            (_, _, _) => primaryFont,
+            colorMap: null,
+            fallbackFontResolver: (_, _) => primaryFont);
+
+        // "After" layout: this change's real per-character glyph-coverage fallback, with a
+        // fallback font that actually covers both characters.
+        var afterLayout = LayoutWithFallback(textBody, primaryFont, fallbackFont, widthEmu, heightEmu);
+
+        using var surface = new Surface((int)(widthEmu * scale), (int)(heightEmu * scale * 2));
+        for (var y = 0; y < surface.Height; y++)
+        {
+            var row = surface.GetRowSpan(y);
+            row.Fill(new Rgba32(255, 255, 255, 255));
+        }
+
+        var topTransform = Matrix3x2.CreateScale(scale);
+        PptxDocument.PaintTextLayout(surface, beforeLayout, topTransform);
+
+        var bottomTransform = Matrix3x2.CreateScale(scale) *
+            Matrix3x2.CreateTranslation(0f, heightEmu * scale);
+        PptxDocument.PaintTextLayout(surface, afterLayout, bottomTransform);
+
+        var outputDirectory = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", ".agent-logs");
+        outputDirectory = Path.GetFullPath(outputDirectory);
+        Directory.CreateDirectory(outputDirectory);
+        var outputPath = Path.Combine(outputDirectory, "pptx-degree-tofu-glyph-fallback-repro.png");
+
+        // Three target-framework test processes may run this test concurrently against the
+        // same shared output path - render to a process-unique temp file first (identical
+        // content regardless of which TFM wins), then best-effort copy it into place, tolerating
+        // (rather than failing on) a transient sharing violation from a sibling process doing the
+        // same thing at the same moment.
+        var tempPath = Path.Combine(outputDirectory, $"{Guid.NewGuid():N}.png.tmp");
+        PngCodec.Save(surface, tempPath);
+        try
+        {
+            File.Copy(tempPath, outputPath, overwrite: true);
+        }
+        catch (IOException)
+        {
+            // A sibling TFM process is writing/has already written the identical content -
+            // nothing further to do here.
+        }
+        finally
+        {
+            File.Delete(tempPath);
+        }
+
+        Assert.True(File.Exists(outputPath));
     }
 
     #endregion

@@ -1433,6 +1433,7 @@ silently ignored like the CMap's own PostScript resource-management wrapper keyw
 **Tests**: `PdfDocument_BuildResolvedFont_Standard14NoEmbeddedFont_ResolvesViaFallback`,
 `PdfDocument_BuildResolvedFont_NonStandard14FlagsOnlyUnmatchedFamily_ResolvesViaBundledFallback`,
 `PdfDocument_BuildResolvedFont_SymbolicFlagWithoutEmbeddedFont_ThrowsSymbolicNotEmbeddedException`,
+`PdfDocument_BuildResolvedFont_PrimaryMatchMissesCodepoint_FallsBackToBundledLiberationSans`,
 `CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk`,
 `CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException`
 
@@ -1456,6 +1457,28 @@ operating system), and the other-symbolic-font case asserts the render throws
 `Codecs.UnsupportedImageFeatureException` rather than silently painting an unrelated glyph shape -
 a regression guard proving the new Symbol/ZapfDingbats substitution path did not loosen this
 fail-closed policy for any other symbolic font.
+
+`PdfDocument_BuildResolvedFont_PrimaryMatchMissesCodepoint_FallsBackToBundledLiberationSans`
+proves the ordinary (non-Symbol/non-ZapfDingbats) substitution path's extended 2-element candidate
+list (primary match, then the bundled Liberation fallback) actually resolves a codepoint the
+primary match itself does not cover, rather than painting `.notdef`. Renders two fixtures and
+asserts pixel-identity between them - "any pixel was painted" is deliberately **not** sufficient
+here, since a real/synthetic `.notdef` glyph commonly has its own non-empty (visible box) outline,
+so that weaker assertion would pass even without this fix. The "actual" fixture uses an unmatched
+fixed-pitch family name (deliberately diverting `Fonts.SystemFontCatalog.FindBestMatchCore`'s
+tier-2 generic-family matching to whichever monospace font the host provides) with
+`/Encoding/Differences [1 /uni0237]` mapping code `1` to U+0237 (LATIN SMALL LETTER DOTLESS J) - a
+codepoint present in the bundled `LiberationSans-Regular.ttf` but absent from
+`LiberationMono-Regular.ttf`/`LiberationSerif-Regular.ttf` (confirmed via `fontTools`), so a
+fixed-pitch request's likely system substitute (for example Courier New, itself also missing
+U+0237) must fall through to the bundled Liberation Sans fallback to resolve it at all. The
+"reference" fixture sidesteps `Fonts.SystemFontCatalog.FindBestMatch`'s own host-dependent
+behavior entirely by embedding the bundled `LiberationSans-Regular.ttf` bytes directly as its own
+`/FontFile2` (read via reflection over `Fonts.SystemFontCatalog`'s embedded-resource assembly),
+guaranteeing a deterministic, environment-independent rendering of that exact glyph to compare
+against. This test was deliberately verified (via a temporary `git stash` of the production fix,
+rebuild, and re-run) to fail without the fix and pass with it, confirming it is a meaningful
+regression guard and not a vacuously-passing assertion.
 
 #### CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback: Symbol/ZapfDingbats Resolve via a Bundled Noto Union
 

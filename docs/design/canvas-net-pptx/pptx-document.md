@@ -706,7 +706,16 @@ plus the resolved total block height.
    total resolved block height within `heightEmu` less the body's vertical insets. No clipping is
    applied when the block overflows the available height - text is positioned exactly as
    computed, even past the shape's own box (see _Deferred to a Later Phase (Phase 1d)_ below).
-6. One `PptxGlyphPlacement` is emitted per non-whitespace glyph.
+6. **Per-character glyph-coverage fallback**: for each non-whitespace character, the run's own
+   primary font (resolved once per run - see step 3 above) is tried first
+   (`TrueTypeFont.GetGlyphIndex(ch)`); only when that returns glyph `0` (`.notdef`) is a single
+   bundled fallback font (one per `(bold, italic)` pair, memoized the same way the primary-font
+   cache is) consulted, and that character alone paints from whichever font actually resolved a
+   non-`.notdef` glyph for it. A run is never rebound to the fallback font as a whole - each
+   character's resolution is independent, so a character the primary font _does_ cover is
+   unaffected by a neighboring character's fallback substitution.
+7. One `PptxGlyphPlacement` is emitted per non-whitespace glyph, carrying whichever font (primary
+   or fallback) actually resolved that specific character per step 6.
 
 #### Rendering
 
@@ -728,9 +737,16 @@ name hint to a concrete `TrueTypeFont` via the core `Fonts.SystemFontCatalog.Fin
 classification - unlike the PDF renderer's Standard-14 font concept, DrawingML typeface names are
 a free-form string with no implied serif/fixed-pitch/symbolic classification), falling back to
 `Fonts.SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic)` when
-no installed font matches. This is the default `fontResolver` delegate `ResolveTextLayout` is
-driven with in production use; tests inject their own synthetic resolver for deterministic,
-installed-font-independent assertions.
+no installed font matches. This resolves only a run's **primary** font (one call per distinct
+`(FontFamily, Bold, Italic)` combination, before any character is inspected); it is the default
+`fontResolver` delegate `ResolveTextLayout` is driven with in production use. Per-character
+coverage fallback (when the primary font itself lacks a given codepoint) is a distinct, later
+step living entirely in `PptxDocument.TextLayout.cs` - see _Text Layout_ step 6 above - and is
+driven by a second, independent delegate (`fallbackFontResolver`, defaulting to
+`Fonts.SystemFontCatalog.LoadBundledFallback` with the same `serif: false, fixedPitch: false`
+convention, keyed/cached by `(bold, italic)` only, not by family name, since a fallback font is
+family-agnostic by design). Tests inject their own synthetic resolvers (for either delegate) for
+deterministic, installed-font-independent assertions.
 
 #### Deferred to a Later Phase (Phase 1d)
 
@@ -751,6 +767,13 @@ design cost:
   use each glyph's own unscaled advance width only.
 - **Text clipping on overflow** - an overflowing text block is positioned exactly as computed,
   without being clipped to the shape's own bounding box (see _Text Layout_ above).
+- **Per-character glyph-coverage fallback is a single-tier, single-font mechanism, not a full
+  font-linking/script-itemization pipeline** - a character missing from the primary font falls
+  back to exactly one bundled font (step 6 above); DrawingML's own `<a:ea>` (East Asian) and
+  `<a:cs>` (complex script) typeface overrides, and a genuine multi-font fallback chain keyed by
+  Unicode script/block (as a real font-linking implementation would provide), are not consulted or
+  implemented - a character missing from both the primary font and the single bundled fallback
+  still paints as `.notdef` (unchanged from pre-fix behavior for that residual case).
 
 A full per-slide public `Render` API was deferred to a later phase alongside full group-shape
 semantics and picture/table support, and is now implemented (see _Images, Tables, and Shape Tree

@@ -59,16 +59,24 @@ public sealed partial class PdfDocument
     ///     no meaningful generic-family equivalent; otherwise classifies the font's serif/
     ///     fixed-pitch/bold/italic flavor (via the Standard-14 table, or else
     ///     <c>/FontDescriptor</c> flags/weight/angle/name heuristics), searches the host
-    ///     operating system's installed fonts via <see cref="SystemFontCatalog.FindBestMatch"/>,
-    ///     and falls back to a bundled Liberation Sans/Serif/Mono font
-    ///     (<see cref="SystemFontCatalog.LoadBundledFallback"/>) when no system font matches.
+    ///     operating system's installed fonts via <see cref="SystemFontCatalog.FindBestMatch"/>
+    ///     (falling back to a style-matched bundled Liberation Sans/Serif/Mono font via
+    ///     <see cref="SystemFontCatalog.LoadBundledFallback"/> when no system font matches), and
+    ///     appends a second, always-present, plain (non-serif, non-fixed-pitch, non-bold,
+    ///     non-italic) bundled Liberation Sans candidate - a per-character glyph-coverage
+    ///     fallback, consulted by <see cref="ResolvedSimpleFont.Resolve"/>'s existing first-
+    ///     non-zero-glyph-wins candidate search only when the primary match's own font actually
+    ///     lacks a given codepoint, mirroring <c>PptxDocument.TextLayout.cs</c>'s own
+    ///     per-character fallback for the parallel PPTX text-rendering path.
     /// </summary>
     /// <param name="baseFontName">The font dictionary's <c>/BaseFont</c> name.</param>
     /// <param name="descriptor">The font dictionary's resolved <c>/FontDescriptor</c>.</param>
     /// <returns>
     ///     The ordered, non-empty list of candidate substitute <see cref="Fonts.TrueTypeFont"/>
-    ///     instances - every non-<c>Symbol</c>/<c>ZapfDingbats</c> case returns a single-element
-    ///     list; see <see cref="ResolveSymbolicNotoFallback"/> for the multi-element case.
+    ///     instances - every non-<c>Symbol</c>/<c>ZapfDingbats</c> case now returns a two-element
+    ///     list (primary match, then the generic bundled Liberation Sans coverage fallback); see
+    ///     <see cref="ResolveSymbolicNotoFallback"/> for the (three- or one-element)
+    ///     <c>Symbol</c>/<c>ZapfDingbats</c> case.
     /// </returns>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when <paramref name="descriptor"/>'s <c>/Flags</c> declares <c>Symbolic</c>
@@ -99,12 +107,23 @@ public sealed partial class PdfDocument
         var familyNameHint = StripFontNameDecoration(baseFontName);
 
         var match = SystemFontCatalog.FindBestMatch(familyNameHint, bold, italic, serif, fixedPitch);
-        if (match is { } found)
-        {
-            return [LoadFallbackFontFromDisk(found.FilePath, found.FaceIndex)];
-        }
+        var primary = match is { } found
+            ? LoadFallbackFontFromDisk(found.FilePath, found.FaceIndex)
+            : SystemFontCatalog.LoadBundledFallback(serif, fixedPitch, bold, italic);
 
-        return [SystemFontCatalog.LoadBundledFallback(serif, fixedPitch, bold, italic)];
+        // Per-character glyph-coverage fallback: the primary match above (a system font, or the
+        // style-matched bundled Liberation substitute) is still just one font, picked purely from
+        // the family/flavor classification above, before any character is inspected - it may lack
+        // a specific codepoint a wider-coverage bundled font does cover. A plain
+        // (serif: false, fixedPitch: false, bold: false, italic: false) bundled Liberation Sans is
+        // appended as a second, always-present candidate; ResolvedSimpleFont.Resolve (see
+        // PdfDocument.Fonts.cs) already implements the stateless, first-non-zero-glyph-wins search
+        // across a candidate list this returns to - the same mechanism that already backs the
+        // Symbol/ZapfDingbats branch above. Listing the primary match first preserves existing
+        // behavior for every font whose primary match already has full coverage: the bundled
+        // fallback is only ever consulted on an actual glyph-0 miss.
+        var genericFallback = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+        return [primary, genericFallback];
     }
 
     /// <summary>

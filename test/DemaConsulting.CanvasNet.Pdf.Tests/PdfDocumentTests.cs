@@ -735,6 +735,25 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Reads the raw bytes of a bundled embedded-resource font file (for example
+    ///     <c>"LiberationSans-Regular.ttf"</c>) straight from <c>DemaConsulting.CanvasNet</c>'s own
+    ///     assembly, for use as a test fixture's own real <c>/FontFile2</c> payload - letting a
+    ///     test embed the exact same font bytes <see cref="SystemFontCatalog.LoadBundledFallback"/>
+    ///     would otherwise load, so the test's expectations never depend on which fonts happen to
+    ///     be installed on the host running it.
+    /// </summary>
+    /// <param name="bundledFileName">The bundled font file's name, for example <c>"LiberationSans-Regular.ttf"</c>.</param>
+    private static byte[] ReadBundledFontBytes(string bundledFileName)
+    {
+        var logicalName = $"DemaConsulting.CanvasNet.Fonts.BundledFonts.{bundledFileName}";
+        using var stream = typeof(SystemFontCatalog).Assembly.GetManifestResourceStream(logicalName)
+            ?? throw new InvalidOperationException($"Embedded resource '{logicalName}' not found.");
+        using var memory = new MemoryStream();
+        stream.CopyTo(memory);
+        return memory.ToArray();
+    }
+
+    /// <summary>
     ///     Builds a single glyph's Type 2 charstring bytecode: a filled square outline spanning
     ///     font-design-space <c>(100, 100)</c>-<c>(500, 500)</c> (matching
     ///     <see cref="BuildEmbeddedFontBytes"/>'s own TrueType-outline square glyph, so both
@@ -7383,6 +7402,92 @@ public class PdfDocumentTests
         // Act & Assert: renders without throwing, using the bundled Liberation Sans fallback
         using var surface = RenderPdfBytes(bytes);
         Assert.NotNull(surface);
+    }
+
+    /// <summary>
+    ///     Proves <c>PdfDocument.ResolveFallbackFont</c>'s new per-character
+    ///     glyph-coverage fallback for an ordinary (non-<c>Symbol</c>/<c>ZapfDingbats</c>)
+    ///     non-embedded font: an unmatched, fixed-pitch <c>/BaseFont</c> family's primary
+    ///     candidate (the host's installed monospace substitute, or the bundled
+    ///     <c>LiberationMono-Regular</c> font when none is installed) does not cover U+0237
+    ///     (LATIN SMALL LETTER DOTLESS J, confirmed absent from both
+    ///     <c>LiberationMono-Regular.ttf</c>'s and the host's own <c>Courier New</c>'s <c>cmap</c>
+    ///     via a direct <c>fontTools</c> check performed while authoring this test) - but the
+    ///     always-appended second candidate, plain bundled <c>LiberationSans-Regular</c>, does
+    ///     cover it. A <c>/Differences</c> entry (<c>/uni0237</c>, the Adobe-Glyph-List generic
+    ///     hex-codepoint naming convention) maps character code <c>1</c> directly to U+0237
+    ///     without needing a Standard-14 name. Mirrors <c>PptxDocument.TextLayout.cs</c>'s own
+    ///     per-character fallback regression tests for the parallel PPTX text-rendering path.
+    ///     <para>
+    ///     Rather than merely asserting "some pixel was painted" (which a mismatched primary
+    ///     font's own <c>.notdef</c> glyph could also satisfy, since real-world <c>.notdef</c>
+    ///     glyphs are often a non-empty box outline, not literally empty), this test renders a
+    ///     second, reference fixture that embeds the bundled <c>LiberationSans-Regular.ttf</c>'s
+    ///     own bytes directly as its <c>/FontFile2</c> (bypassing <c>ResolveFallbackFont</c>
+    ///     entirely - embedded fonts always take priority, per
+    ///     <c>PdfDocument_BuildResolvedFont_EmbeddedFontFileTakesPriorityOverFallback</c> above)
+    ///     and asserts the two renders are pixel-identical - proving the fixed-pitch fixture
+    ///     painted U+0237 via the exact same bundled <c>LiberationSans-Regular</c> glyph outline,
+    ///     not its mismatched primary candidate's differently-shaped <c>.notdef</c> box.
+    ///     </para>
+    /// </summary>
+    [Fact]
+    public void PdfDocument_BuildResolvedFont_PrimaryMatchMissesCodepoint_FallsBackToBundledLiberationSans()
+    {
+        // Arrange: an unmatched, fixed-pitch family (/Flags 1 -> FixedPitch bit set, Serif unset)
+        // with /Differences mapping code 1 to U+0237 - a codepoint the resolved primary candidate
+        // lacks but the always-appended generic bundled LiberationSans-Regular candidate covers.
+        var descriptorObj = "<< /Type /FontDescriptor /Flags 1 >>"u8.ToArray();
+        var fontDictObj =
+            "<< /Type /Font /Subtype /TrueType /BaseFont /TotallyUnlikelyFontFamilyXyzzyMono /FirstChar 1 /LastChar 1 /Widths [600] /FontDescriptor 6 0 R /Encoding << /Differences [1 /uni0237] >> >>"u8.ToArray();
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 40 Tf 10 30 Td <01> Tj ET", "/Font << /F1 5 0 R >>",
+            [fontDictObj, descriptorObj]);
+
+        // Arrange a reference fixture: identical content/position/width, but with the bundled
+        // LiberationSans-Regular.ttf's own bytes embedded directly as /FontFile2, so its render is
+        // guaranteed (independent of ResolveFallbackFont/the host's installed fonts) to be exactly
+        // bundled LiberationSans-Regular's own U+0237 glyph outline.
+        var liberationSansBytes = ReadBundledFontBytes("LiberationSans-Regular.ttf");
+        var (referenceResourcesBody, referenceExtraObjects) = BuildSimpleTrueTypeFontResources(
+            liberationSansBytes,
+            fontDictExtra: "/FirstChar 1 /LastChar 1 /Widths [600] /Encoding << /Differences [1 /uni0237] >>");
+
+        var referenceBytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 40 Tf 10 30 Td <01> Tj ET", referenceResourcesBody, referenceExtraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+        using var referenceSurface = RenderPdfBytes(referenceBytes);
+
+        // Assert: some glyph ink was actually painted...
+        var paintedAnyPixel = false;
+        for (var y = 0; y < surface.Height && !paintedAnyPixel; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                if (surface[x, y].A > 0)
+                {
+                    paintedAnyPixel = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(paintedAnyPixel, "Expected U+0237 to paint via the bundled Liberation Sans coverage fallback, not .notdef.");
+
+        // ...and, crucially, it is pixel-identical to the embedded-LiberationSans reference render -
+        // proving the painted ink is U+0237's actual LiberationSans-Regular glyph outline, not the
+        // mismatched primary candidate's own (possibly also non-empty) .notdef box shape.
+        Assert.Equal(referenceSurface.Width, surface.Width);
+        Assert.Equal(referenceSurface.Height, surface.Height);
+        for (var y = 0; y < surface.Height; y++)
+        {
+            Assert.True(
+                surface.GetRowSpanBytes(y).SequenceEqual(referenceSurface.GetRowSpanBytes(y)),
+                $"Row {y} differs from the LiberationSans-direct reference render.");
+        }
     }
 
     /// <summary>

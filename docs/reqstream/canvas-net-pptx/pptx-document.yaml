@@ -958,7 +958,13 @@ sections:
               entirely rather than painting an empty fill, and shall resolve a DrawingML typeface
               name hint to a concrete TrueTypeFont via the core SystemFontCatalog (always passing
               serif/fixed-pitch false, since DrawingML never signals either classification),
-              falling back to a bundled font when no installed font matches.
+              falling back to a bundled font when no installed font matches. Independently of a
+              run's own primary font resolution, each non-whitespace character shall additionally
+              be resolved for per-character glyph coverage: a character missing from its run's
+              primary font (GetGlyphIndex returning .notdef) falls back to a single bundled
+              fallback font (keyed by bold/italic only), with that character alone painting from
+              whichever font actually resolved a non-.notdef glyph for it, independent of any
+              neighboring character's own resolution.
             justification: |
               Painting resolved glyph ink onto a Surface is this phase's terminal, user-visible
               output; reusing the already-verified core PathFiller/SystemFontCatalog building
@@ -970,13 +976,26 @@ sections:
               (see core Path.Rectangle's own doc comments for the authoritative convention); a
               symmetric glyph outline cannot expose this regression class, since flipping it about
               its own center leaves it visually/structurally identical, so an asymmetric synthetic
-              glyph outline is required to detect it.
+              glyph outline is required to detect it. Before per-character glyph-coverage fallback,
+              a run was permanently bound to its single resolved primary font for every character -
+              a reported "tofu box" (missing-glyph) rendering defect for a character immediately
+              following a character requiring a different resolved typeface (for example two
+              distinct DrawingML runs produced by PowerPoint's own "Insert Symbol"/AutoCorrect
+              tagging one inserted character's run with an explicit typeface override) demonstrated
+              this real feature gap, not any form of cross-character state corruption (the cmap
+              glyph lookup is a pure, stateless closure over immutable arrays and a run's resolved
+              font never changes mid-run); resolving each character's coverage independently against
+              a single bundled fallback font closes this gap without introducing a full font-
+              linking/script-itemization pipeline (see the design doc's documented limitation).
             tests:
               - PaintTextLayout_IdentityTransform_PaintsGlyphAtExpectedLocationWithResolvedColor
               - PaintTextLayout_TranslatedShapeTransform_ShiftsPaintedLocation
               - PaintTextLayout_EmptyOutlineGlyph_PaintsNothing
               - PaintTextLayout_AsymmetricGlyph_PaintsInkAboveBaselineNotBelow
               - ResolveTextFont_AnyFamilyHint_ResolvesNonNullFont
+              - ResolveTextLayout_PlusMinusFollowedByDegree_BothNeitherInPrimary_BothIndependentlyResolveFallback
+              - ResolveTextLayout_PlusMinusAlone_ResolvesFallbackGlyph
+              - ResolveTextLayout_PlusMinusFollowedByDegree_PrimaryCoversOnlyDegree_DegreeStaysOnPrimaryFont
               - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
               - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd
 

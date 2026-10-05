@@ -65,16 +65,21 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>
-    ///     Resolves a DrawingML <c>&lt;a:latin typeface="..."/&gt;</c> family name hint to a
-    ///     <see cref="TrueTypeFont"/>: searches the host operating system's installed fonts via
-    ///     <see cref="SystemFontCatalog.FindBestMatch"/> (DrawingML never signals serif/
-    ///     fixed-pitch classification the way PDF's Standard-14/FontDescriptor flags do, so both
-    ///     are always passed as <see langword="false"/>), falling back to a bundled Liberation
-    ///     Sans/Serif font (<see cref="SystemFontCatalog.LoadBundledFallback"/>, also always
-    ///     <c>serif: false, fixedPitch: false</c>) when no system font matches. This is the
-    ///     default <c>fontResolver</c> delegate production callers drive <see cref="ResolveTextLayout"/>
-    ///     with; a test may inject its own delegate instead for deterministic, machine-independent
-    ///     pixel assertions (see <see cref="ResolveTextLayout"/>'s own remarks).
+    ///     Resolves a DrawingML <c>&lt;a:latin typeface="..."/&gt;</c> family name hint to a run's
+    ///     single <em>primary</em> <see cref="TrueTypeFont"/> only: searches the host operating
+    ///     system's installed fonts via <see cref="SystemFontCatalog.FindBestMatch"/> (DrawingML
+    ///     never signals serif/fixed-pitch classification the way PDF's Standard-14/
+    ///     FontDescriptor flags do, so both are always passed as <see langword="false"/>), falling
+    ///     back to a bundled Liberation Sans/Serif font (<see cref="SystemFontCatalog.LoadBundledFallback"/>,
+    ///     also always <c>serif: false, fixedPitch: false</c>) when no system font matches. This
+    ///     is the default <c>fontResolver</c> delegate production callers drive
+    ///     <see cref="ResolveTextLayout"/> with; a test may inject its own delegate instead for
+    ///     deterministic, machine-independent pixel assertions (see <see cref="ResolveTextLayout"/>'s
+    ///     own remarks). It deliberately never inspects a run's actual text/codepoints - a
+    ///     <em>per-character</em> glyph-coverage fallback (consulted only when this primary font
+    ///     turns out to lack a specific, individual character the run's text contains) is a
+    ///     separate concern that lives in <c>PptxDocument.TextLayout.cs</c>'s private
+    ///     <c>ResolveGlyph</c> helper and its own <c>fallbackFontResolver</c> parameter, not here.
     /// </summary>
     /// <param name="familyNameHint">The <c>&lt;a:latin typeface="..."/&gt;</c> family name hint.</param>
     /// <param name="bold">Whether a bold variant is preferred.</param>

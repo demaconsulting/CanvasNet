@@ -65,6 +65,7 @@ words:
   - combinators
   - CSUM
   - Decodability
+  - DOTLESS
   - dequantize
   - dequantizes
   - Deflate
@@ -116,6 +117,7 @@ words:
   - misdecoded
   - nameof
   - nonzero
+  - paintable
   - NOTAFONT
   - NOTAGIF
   - Outliner

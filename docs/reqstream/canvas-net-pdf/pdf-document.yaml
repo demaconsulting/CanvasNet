@@ -1234,7 +1234,15 @@ sections:
               substituted (see CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback for the
               dedicated /BaseFont Symbol/ZapfDingbats substitution path, the sole exception to
               this fail-closed rule), and every resolved fallback TrueTypeFont instance shall be
-              cached by (file path, face index) for the process lifetime.
+              cached by (file path, face index) for the process lifetime. This ordinary (non-
+              Symbol/non-ZapfDingbats) branch shall additionally return a 2-element candidate
+              list - the resolved primary match followed by the bundled Liberation flavor-
+              matched fallback font - reusing the same first-match-wins composite glyph-lookup
+              mechanism ResolvedSimpleFont.Resolve already provides for the Symbol/ZapfDingbats
+              path, so a codepoint missing from the primary match's own coverage falls through to
+              the bundled fallback's glyph for that codepoint instead of painting .notdef, without
+              regressing a fully-covering primary match (consulted first, unaffected when it
+              already covers every codepoint in use).
             justification: |
               A symbol/dingbats font's glyphs are not addressed by any standard Latin-text
               encoding, so silently substituting an unrelated text font for one would render
@@ -1242,11 +1250,19 @@ sections:
               simple font, by contrast, can be reasonably approximated by a same-flavor
               substitute, and resolving a fallback font requires directory-scanning and parsing
               real font files, which must not be repeated for every occurrence of the same
-              substitute font within or across renders.
+              substitute font within or across renders. A single resolved substitute font can
+              itself have incomplete glyph coverage (for example a narrow installed system font
+              standing in for a /BaseFont hint it only partially matches); extending the already-
+              existing, already-tested multi-candidate mechanism (rather than introducing a
+              second, parallel one) closes this residual "tofu box"/missing-glyph gap for the
+              ordinary substitution path at negligible cost, exactly mirroring the parallel
+              per-character glyph-coverage fallback added to CanvasNet.Pptx's text-layout engine
+              for the same underlying feature gap.
             tests:
               - PdfDocument_BuildResolvedFont_Standard14NoEmbeddedFont_ResolvesViaFallback
               - PdfDocument_BuildResolvedFont_NonStandard14FlagsOnlyUnmatchedFamily_ResolvesViaBundledFallback
               - PdfDocument_BuildResolvedFont_SymbolicFlagWithoutEmbeddedFont_ThrowsSymbolicNotEmbeddedException
+              - PdfDocument_BuildResolvedFont_PrimaryMatchMissesCodepoint_FallsBackToBundledLiberationSans
               - CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk
               - CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException
 

@@ -768,6 +768,9 @@ entry for the full investigation).
 `PaintTextLayout_EmptyOutlineGlyph_PaintsNothing`,
 `PaintTextLayout_AsymmetricGlyph_PaintsInkAboveBaselineNotBelow`,
 `ResolveTextFont_AnyFamilyHint_ResolvesNonNullFont`,
+`ResolveTextLayout_PlusMinusFollowedByDegree_BothNeitherInPrimary_BothIndependentlyResolveFallback`,
+`ResolveTextLayout_PlusMinusAlone_ResolvesFallbackGlyph`,
+`ResolveTextLayout_PlusMinusFollowedByDegree_PrimaryCoversOnlyDegree_DegreeStaysOnPrimaryFont`,
 `CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd`,
 `CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd`
 
@@ -784,6 +787,47 @@ resolves a non-null `TrueTypeFont` for an arbitrary family-name hint (falling ba
 font); the two system-integration tests additionally prove `PaintTextLayout` paints at least one
 non-background pixel end-to-end, from a full in-memory package opened via `PptxDocument.Open`
 through `ResolveTextLayout` to a test `Surface`.
+
+The three `ResolveTextLayout_PlusMinus...` tests reproduce the real-world "tofu box" (missing-
+glyph) defect report - a degree sign (U+00B0) immediately following a plus-minus sign (U+00B1)
+rendering as a missing-glyph box - and prove the fix is genuine per-character glyph-coverage
+fallback, not any form of cross-character state leakage. Each injects two synthetic fonts via
+`ResolveTextLayout`'s `fallbackFontResolver` test seam: a **primary** font built with a known,
+deliberately incomplete cmap, and a **fallback** font built to cover whichever codepoint(s) the
+primary font deliberately omits, each codepoint given its own distinct, real (non-empty) glyph
+outline so a resolved glyph index can be asserted exactly, not merely "non-zero by accident."
+
+- `ResolveTextLayout_PlusMinusFollowedByDegree_BothNeitherInPrimary_BothIndependentlyResolveFallback`:
+  primary font covers neither U+00B1 nor U+00B0; both characters independently resolve to the
+  fallback font with their own distinct, correct (non-`.notdef`) glyph indices - proving the
+  second character's resolution is its own independent decision, not aided or corrupted by the
+  first character's own fallback substitution.
+- `ResolveTextLayout_PlusMinusAlone_ResolvesFallbackGlyph`: a baseline/control case isolating
+  single-character fallback behavior (a run containing only the fallback-triggering character,
+  with no following character to interact with).
+- `ResolveTextLayout_PlusMinusFollowedByDegree_PrimaryCoversOnlyDegree_DegreeStaysOnPrimaryFont`:
+  the literal reported-symptom reproduction - the primary font covers U+00B0 but deliberately
+  **not** U+00B1; asserts U+00B1 resolves via the fallback font while the immediately following
+  U+00B0 stays on the **primary** font (its own correct, non-`.notdef` glyph index), proving the
+  preceding character's fallback substitution does not "stick" onto, or otherwise corrupt, the
+  next character's own independent resolution - directly refuting the "sticky fallback"/state-
+  corruption hypothesis the original bug report raised, in favor of the actual, confirmed root
+  cause (no per-character coverage fallback existed at all prior to this change). This test also
+  includes a baseline check: with no `fallbackFontResolver` configured at all (the historical,
+  pre-feature default), U+00B0 alone still resolves via the primary font exactly the same way,
+  confirming the primary font's own coverage - not an accidental fallback-font side effect - is
+  what resolves it.
+
+A one-off, non-permanent visual repro generator,
+`GeneratePlusMinusDegreeTofuReproPng`, additionally renders this same "±°" two-character fixture
+to an inspectable PNG file (`.agent-logs/pptx-degree-tofu-glyph-fallback-repro.png`) for manual
+visual confirmation: its top half paints the pre-fix "before" behavior (a fallback resolver that
+returns the primary font itself, i.e. no wider-coverage font is ever consulted - both characters
+paint as invisible `.notdef` tofu, since the synthetic `.notdef` glyph used throughout this file
+has zero contours), and its bottom half paints the fixed "after" behavior (a real fallback font
+covering both characters - both paint their distinct, non-empty glyph outlines). This generator is
+not part of the permanent regression-test guarantees (the three `[Fact]` tests above already
+provide those); it exists solely to produce an artifact a human reviewer can open and inspect.
 
 #### CanvasNetPptx-PptxDocument-PictureDecodeAndCrop: Picture Decoding, Linking, and Crop-Rectangle Resolution
 

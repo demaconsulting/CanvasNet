@@ -46,6 +46,16 @@ public sealed partial class PptxDocument
     ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the
     ///     default) - see <see cref="ResolveFill"/>'s matching parameter.
     /// </param>
+    /// <param name="fallbackFontResolver">
+    ///     Resolves a <c>(bold, italic)</c> pair to a bundled fallback <see cref="TrueTypeFont"/>,
+    ///     consulted only when a specific character is missing from its run's own primary font
+    ///     (per-character glyph-coverage fallback - see the private <c>ResolveGlyph</c> helper
+    ///     this phase builds from it). Production callers leave this at its default
+    ///     (<see cref="SystemFontCatalog.LoadBundledFallback"/> with the same
+    ///     <c>serif: false, fixedPitch: false</c> convention <see cref="ResolveTextFont"/> already
+    ///     uses); tests may inject a deterministic synthetic fallback font instead, mirroring
+    ///     <paramref name="fontResolver"/>'s own test seam.
+    /// </param>
     /// <returns>The resolved <see cref="PptxTextLayout"/>.</returns>
     internal static PptxTextLayout ResolveTextLayout(
         PptxTextBody textBody,
@@ -55,8 +65,10 @@ public sealed partial class PptxDocument
         float widthEmu,
         float heightEmu,
         Func<string, bool, bool, TrueTypeFont> fontResolver,
-        PptxColorMap? colorMap = null)
+        PptxColorMap? colorMap = null,
+        Func<bool, bool, TrueTypeFont>? fallbackFontResolver = null)
     {
+        fallbackFontResolver ??= static (bold, italic) => SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic);
         var bodyProperties = textBody.Properties;
         var insetLeft = bodyProperties.InsetLeftEmu;
         var insetRight = bodyProperties.InsetRightEmu;
@@ -91,6 +103,42 @@ public sealed partial class PptxDocument
             return font;
         }
 
+        // Per-character glyph-coverage fallback - the tofu-box feature gap. A run is resolved
+        // to exactly one primary font above, but that font may not cover every character the
+        // run's text actually contains. ResolveGlyph below tries the primary font first and,
+        // only on an actual notdef miss for a non-whitespace character, consults a bundled
+        // fallback font, memoized per bold/italic pair the same way as fontCache above. When
+        // the fallback font covers the character, its own font and glyph index win for that one
+        // character only; otherwise the primary font's own notdef glyph is kept, the same "no
+        // candidate matched" convention PDF's simple-font resolver already uses. Whitespace is
+        // deliberately excluded, since a primary font's own missing space glyph is not a visible
+        // tofu box and does not warrant a fallback-font substitution.
+        var fallbackFontCache = new Dictionary<(bool Bold, bool Italic), TrueTypeFont>();
+        TrueTypeFont ResolveFallbackFont(bool bold, bool italic)
+        {
+            var key = (bold, italic);
+            if (!fallbackFontCache.TryGetValue(key, out var font))
+            {
+                font = fallbackFontResolver(bold, italic);
+                fallbackFontCache[key] = font;
+            }
+
+            return font;
+        }
+
+        (TrueTypeFont Font, int GlyphIndex) ResolveGlyph(TrueTypeFont primaryFont, char ch, bool bold, bool italic)
+        {
+            var glyphIndex = primaryFont.GetGlyphIndex(ch);
+            if (glyphIndex != 0 || char.IsWhiteSpace(ch))
+            {
+                return (primaryFont, glyphIndex);
+            }
+
+            var fallbackFont = ResolveFallbackFont(bold, italic);
+            var fallbackGlyphIndex = fallbackFont.GetGlyphIndex(ch);
+            return fallbackGlyphIndex != 0 ? (fallbackFont, fallbackGlyphIndex) : (primaryFont, glyphIndex);
+        }
+
         var paragraphs = textBody.Paragraphs
             .Select(paragraph =>
             {
@@ -112,9 +160,10 @@ public sealed partial class PptxDocument
             paragraphs,
             availableWidth,
             availableHeight,
-            ResolveFont);
+            ResolveFont,
+            ResolveGlyph);
 
-        var lines = BuildLines(paragraphs, availableWidth, fontScale, lineSpacingFactor, ResolveFont);
+        var lines = BuildLines(paragraphs, availableWidth, fontScale, lineSpacingFactor, ResolveFont, ResolveGlyph);
         var glyphs = PositionLines(lines, bodyProperties.Anchor, insetLeft, insetTop, alignmentWidth, availableHeight);
 
         return new PptxTextLayout(glyphs, fontScale);
@@ -138,7 +187,8 @@ public sealed partial class PptxDocument
         IReadOnlyList<ResolvedParagraph> paragraphs,
         float availableWidth,
         float availableHeight,
-        Func<string, bool, bool, TrueTypeFont> resolveFont)
+        Func<string, bool, bool, TrueTypeFont> resolveFont,
+        Func<TrueTypeFont, char, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
     {
         if (autofitElement is null || autofitElement.Name.LocalName is "noAutofit" or "spAutoFit")
         {
@@ -158,7 +208,7 @@ public sealed partial class PptxDocument
         var scale = 1f;
         for (var iteration = 0; iteration < MaxShrinkIterations; iteration++)
         {
-            var lines = BuildLines(paragraphs, availableWidth, scale, 1f, resolveFont);
+            var lines = BuildLines(paragraphs, availableWidth, scale, 1f, resolveFont, resolveGlyph);
             var totalHeight = lines.Sum(line => line.LineHeightEmu);
             if (totalHeight <= availableHeight || scale <= MinShrinkScale)
             {
@@ -258,14 +308,27 @@ public sealed partial class PptxDocument
         PptxEffectiveParagraphProperties ParagraphProperties,
         IReadOnlyList<PptxEffectiveRunProperties> RunProperties);
 
-    /// <summary>Computes a resolved token's natural advance width, in EMU, summing each character's font-metric advance.</summary>
-    private static float MeasureTokenWidthEmu(string text, TrueTypeFont font, float sizeEmu)
+    /// <summary>
+    ///     Computes a resolved token's natural advance width, in EMU, summing each character's
+    ///     font-metric advance - via <paramref name="resolveGlyph"/>, so a character the token's
+    ///     own primary <paramref name="font"/> lacks (and that a bundled fallback font covers)
+    ///     measures using the fallback font's own advance width, not the primary font's glyph-0
+    ///     advance, keeping word-wrap width measurement consistent with what
+    ///     <see cref="BuildLines"/>'s own per-character loop actually paints.
+    /// </summary>
+    private static float MeasureTokenWidthEmu(
+        string text,
+        TrueTypeFont font,
+        float sizeEmu,
+        bool bold,
+        bool italic,
+        Func<TrueTypeFont, char, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
     {
         var total = 0f;
         foreach (var ch in text)
         {
-            var glyphIndex = font.GetGlyphIndex(ch);
-            total += font.GetAdvanceWidth(glyphIndex) / (float)font.UnitsPerEm * sizeEmu;
+            var (resolvedFont, glyphIndex) = resolveGlyph(font, ch, bold, italic);
+            total += resolvedFont.GetAdvanceWidth(glyphIndex) / (float)resolvedFont.UnitsPerEm * sizeEmu;
         }
 
         return total;
@@ -284,7 +347,8 @@ public sealed partial class PptxDocument
         float availableWidthEmu,
         float fontScale,
         float lineSpacingFactor,
-        Func<string, bool, bool, TrueTypeFont> resolveFont)
+        Func<string, bool, bool, TrueTypeFont> resolveFont,
+        Func<TrueTypeFont, char, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
     {
         var lines = new List<LineBox>();
 
@@ -336,7 +400,7 @@ public sealed partial class PptxDocument
                         continue;
                     }
 
-                    var width = MeasureTokenWidthEmu(text, font, scaledSizeEmu);
+                    var width = MeasureTokenWidthEmu(text, font, scaledSizeEmu, runProps.Bold, runProps.Italic, resolveGlyph);
                     tokens.Add(new ResolvedToken(text, isWhitespace, scaledRunProps, font, width));
                 }
             }
@@ -378,11 +442,11 @@ public sealed partial class PptxDocument
 
                     foreach (var ch in token.Text)
                     {
-                        var glyphIndex = token.Font.GetGlyphIndex(ch);
-                        var advance = token.Font.GetAdvanceWidth(glyphIndex) / (float)token.Font.UnitsPerEm * token.RunProperties.SizeEmu;
+                        var (resolvedFont, glyphIndex) = resolveGlyph(token.Font, ch, token.RunProperties.Bold, token.RunProperties.Italic);
+                        var advance = resolvedFont.GetAdvanceWidth(glyphIndex) / (float)resolvedFont.UnitsPerEm * token.RunProperties.SizeEmu;
                         if (!token.IsWhitespace)
                         {
-                            glyphs.Add(new LineGlyph(token.Font, glyphIndex, cursorX, token.RunProperties.SizeEmu, token.RunProperties.Color));
+                            glyphs.Add(new LineGlyph(resolvedFont, glyphIndex, cursorX, token.RunProperties.SizeEmu, token.RunProperties.Color));
                         }
 
                         cursorX += advance;
@@ -412,7 +476,7 @@ public sealed partial class PptxDocument
 
                 var isFirstLine = i == 0;
                 var bulletGlyphsResult = isFirstLine && hasRuns
-                    ? BuildBulletGlyphs(bulletText, paraProps.Bullet, fontScale, resolveFont)
+                    ? BuildBulletGlyphs(bulletText, paraProps.Bullet, fontScale, resolveFont, resolveGlyph)
                     : new BulletGlyphsResult([], 0f, 0f);
 
                 lines.Add(new LineBox(glyphs, lineWidth, lineHeight, ascent, paraProps, isFirstLine, bulletGlyphsResult.Glyphs, bulletGlyphsResult.WidthEmu, bulletGlyphsResult.TrailingGapEmu));
@@ -527,7 +591,8 @@ public sealed partial class PptxDocument
         string? bulletText,
         PptxEffectiveBulletProperties? bullet,
         float fontScale,
-        Func<string, bool, bool, TrueTypeFont> resolveFont)
+        Func<string, bool, bool, TrueTypeFont> resolveFont,
+        Func<TrueTypeFont, char, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
     {
         if (string.IsNullOrEmpty(bulletText) || bullet is null || bullet.Kind == PptxBulletKind.None)
         {
@@ -540,9 +605,11 @@ public sealed partial class PptxDocument
         var cursorX = 0f;
         foreach (var ch in bulletText)
         {
-            var glyphIndex = font.GetGlyphIndex(ch);
-            var advance = font.GetAdvanceWidth(glyphIndex) / (float)font.UnitsPerEm * sizeEmu;
-            glyphs.Add(new LineGlyph(font, glyphIndex, cursorX, sizeEmu, bullet.Color));
+            // Bullets are never bold/italic (see this method's own remarks), so the fallback
+            // lookup is always keyed (false, false), matching resolveFont's own call above.
+            var (resolvedFont, glyphIndex) = resolveGlyph(font, ch, false, false);
+            var advance = resolvedFont.GetAdvanceWidth(glyphIndex) / (float)resolvedFont.UnitsPerEm * sizeEmu;
+            glyphs.Add(new LineGlyph(resolvedFont, glyphIndex, cursorX, sizeEmu, bullet.Color));
             cursorX += advance;
         }
 
