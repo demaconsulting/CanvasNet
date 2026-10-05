@@ -339,6 +339,106 @@ public class PptxTextLayoutTests
         Assert.Equal(18650f + 6350f, layout.Glyphs[1].OriginXEmu, 2);
     }
 
+    /// <summary>
+    ///     Proves a literal U+0009 TAB run character (Phase 2 Follow-Up: Default Tab-Stop
+    ///     Expansion) expands the cursor to the next default tab stop (914400 EMU, 1 inch)
+    ///     rather than measuring/advancing by its (near-zero, <c>.notdef</c>-glyph) font advance:
+    ///     <see cref="NewFont"/>'s synthetic <c>cmap</c> has no entry for U+0009, so the pre-fix
+    ///     behavior (resolving it exactly like any other whitespace character via
+    ///     <c>GetGlyphIndex</c>/<c>GetAdvanceWidth</c>) would place "B" at
+    ///     <c>x = 6350 + 0 = 6350</c> (glyph index 0's <c>hmtx</c> advance is 0) - immediately
+    ///     after "A", jammed together - instead of the correct, PowerPoint-matching
+    ///     <c>x = 914400</c>.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_TabCharacter_ExpandsToNextDefaultTabStop()
+    {
+        // 'A' at sz=100 (SizeEmu 12700): 500/1000*12700 = 6350. The tab following it expands the
+        // cursor from 6350 to the next multiple of 914400 strictly greater than 6350, i.e. exactly
+        // 914400 (floor(6350/914400)+1 = 1) - not a near-zero glyph-advance position. The
+        // available width (2,000,000 EMU) is ample enough that no word-wrap occurs, isolating the
+        // tab-expansion behavior itself from the wrap-decision logic (see the next test).
+        var textBody = BuildSingleRunTextBody("A\tB");
+
+        var layout = Layout(textBody, 2_000_000f, 1_000_000f);
+
+        Assert.Equal(2, layout.Glyphs.Count);
+        Assert.Equal(0f, layout.Glyphs[0].OriginXEmu, 2);
+        Assert.Equal(10160f, layout.Glyphs[0].OriginYEmu, 2);
+        Assert.Equal(914400f, layout.Glyphs[1].OriginXEmu, 2);
+        Assert.Equal(10160f, layout.Glyphs[1].OriginYEmu, 2);
+    }
+
+    /// <summary>
+    ///     Proves <c>PackTokensIntoLines</c>' wrap/fit decision uses the tab's dynamically-
+    ///     computed, position-dependent tab-stop-expanded width - not its static, near-zero
+    ///     glyph-measured <c>ResolvedToken.WidthEmu</c> - when deciding where word-wrap
+    ///     breaks occur.
+    /// </summary>
+    /// <remarks>
+    ///     "AAAA" (width 25400) + tab + "AAAA" (width 25400) at an available width of 920000 EMU:
+    ///     using the tab's true, expanded width (the next 914400-EMU tab stop strictly past
+    ///     25400, i.e. 914400 itself, an 889000 EMU advance) places "AAAA\t" on line 1 at a total
+    ///     width of exactly 914400 (&lt;= 920000, fits), but the second "AAAA" would bring the
+    ///     running width to 914400 + 25400 = 939400 (&gt; 920000) - correctly wrapping it onto a
+    ///     second line. Using the tab's glyph-measured (near-zero, <c>.notdef</c>-advance) width
+    ///     instead - the pre-fix behavior - the combined total of both words plus the tab would
+    ///     be only 25400 + 0 + 25400 = 50800, comfortably under 920000, so the second "AAAA"
+    ///     would incorrectly stay on line 1 instead of wrapping. This test asserts the correct
+    ///     (wrapped) outcome.
+    /// </remarks>
+    [Fact]
+    public void ResolveTextLayout_TabCharacter_WrapDecisionUsesExpandedWidthNotGlyphWidth()
+    {
+        var textBody = BuildSingleRunTextBody("AAAA\tAAAA");
+
+        var layout = Layout(textBody, 920000f, 1_000_000f);
+
+        // 8 visible 'A' glyphs total (the tab itself never emits a glyph) - 4 on each line.
+        Assert.Equal(8, layout.Glyphs.Count);
+
+        // Line 1 ("AAAA" then tab, which wraps the second "AAAA" away): ascent 10160.
+        Assert.Equal(0f, layout.Glyphs[0].OriginXEmu, 2);
+        Assert.Equal(6350f, layout.Glyphs[1].OriginXEmu, 2);
+        Assert.Equal(12700f, layout.Glyphs[2].OriginXEmu, 2);
+        Assert.Equal(19050f, layout.Glyphs[3].OriginXEmu, 2);
+        Assert.Equal(10160f, layout.Glyphs[0].OriginYEmu, 2);
+
+        // Line 2 (the second "AAAA", correctly wrapped): line height 12700, baseline at
+        // 12700 + 10160 = 22860 - restarting at x=0, not continuing on line 1 at x=914400+.
+        Assert.Equal(0f, layout.Glyphs[4].OriginXEmu, 2);
+        Assert.Equal(6350f, layout.Glyphs[5].OriginXEmu, 2);
+        Assert.Equal(12700f, layout.Glyphs[6].OriginXEmu, 2);
+        Assert.Equal(19050f, layout.Glyphs[7].OriginXEmu, 2);
+        Assert.Equal(22860f, layout.Glyphs[4].OriginYEmu, 2);
+    }
+
+    /// <summary>
+    ///     Proves two adjacent tab characters each independently advance to their own next tab
+    ///     stop, computed from the cursor position <i>after</i> the previous tab's own expansion
+    ///     - not both from the pre-first-tab position - and that a tab landing exactly on an
+    ///     already-aligned tab-stop boundary still advances by a full, non-zero interval (never a
+    ///     zero-width result), per <see cref="PptxDocument"/>'s <c>GetNextTabStopEmu</c> contract.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_MultipleTabCharacters_EachAdvancesToItsOwnNextTabStop()
+    {
+        // 'A' at sz=100: 6350. First tab: next stop strictly past 6350 is 914400 (one interval).
+        // Second tab starts exactly on that 914400 boundary - its own next stop must still be a
+        // full interval further on (1828800), never 914400 itself (a zero-width advance). "B"
+        // then lands at 1828800 + 0 = 1828800, not at a near-zero position after two collapsed
+        // tabs.
+        var textBody = BuildSingleRunTextBody("A\t\tB");
+
+        var layout = Layout(textBody, 3_000_000f, 1_000_000f);
+
+        Assert.Equal(2, layout.Glyphs.Count);
+        Assert.Equal(0f, layout.Glyphs[0].OriginXEmu, 2);
+        Assert.Equal(10160f, layout.Glyphs[0].OriginYEmu, 2);
+        Assert.Equal(1828800f, layout.Glyphs[1].OriginXEmu, 2);
+        Assert.Equal(10160f, layout.Glyphs[1].OriginYEmu, 2);
+    }
+
     #endregion
 
     #region Horizontal alignment

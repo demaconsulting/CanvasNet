@@ -830,6 +830,31 @@ covering both characters - both paint their distinct, non-empty glyph outlines).
 not part of the permanent regression-test guarantees (the three `[Fact]` tests above already
 provide those); it exists solely to produce an artifact a human reviewer can open and inspect.
 
+#### CanvasNetPptx-PptxDocument-TabStopExpansion: Default Tab-Stop Expansion
+
+**Tests**: `ResolveTextLayout_TabCharacter_ExpandsToNextDefaultTabStop`,
+`ResolveTextLayout_TabCharacter_WrapDecisionUsesExpandedWidthNotGlyphWidth`,
+`ResolveTextLayout_MultipleTabCharacters_EachAdvancesToItsOwnNextTabStop`
+
+Proves a literal U+0009 TAB run character expands the rendered cursor to the exact next
+914400-EMU (1 inch) default tab stop - not the near-zero position a `.notdef`-glyph font advance
+would otherwise produce for a character most fonts' own `cmap` does not cover - using a run
+containing `"A\tB"` and asserting the glyph following the tab lands at the exact hand-computed
+`914400` EMU X coordinate. Proves `PackTokensIntoLines`'s wrap/fit decision uses this same
+dynamically-computed, tab-stop-expanded width (not the tab token's static, near-zero
+glyph-measured width) when deciding where word-wrap breaks occur: a run containing two words
+separated by an early tab, sized so the glyph-measured near-zero tab width would (incorrectly)
+keep both words on one line (combined width 50800 EMU, comfortably under the chosen 920000 EMU
+available width) while the true, tab-stop-expanded width (bringing the running width to 939400
+EMU) correctly wraps the second word onto its own line - asserting the correct (wrapped) 2-line
+outcome with hand-computed glyph X/Y coordinates for both lines. Proves two adjacent tab
+characters each independently advance to their own next tab stop, computed from the cursor
+position after the previous tab's own expansion (not both from the pre-first-tab position) - a
+run containing `"A\t\tB"` where the second tab starts exactly on an already-aligned tab-stop
+boundary (`914400`) still advances by a full, non-zero interval (landing at `1828800`, never
+collapsing to a zero-width advance), confirming the "always advance by at least a minimal amount"
+tab semantics `GetNextTabStopEmu` implements.
+
 #### CanvasNetPptx-PptxDocument-PictureDecodeAndCrop: Picture Decoding, Linking, and Crop-Rectangle Resolution
 
 **Tests**: `ResolveSrcRect_NoSrcRectElement_ReturnsNull`,

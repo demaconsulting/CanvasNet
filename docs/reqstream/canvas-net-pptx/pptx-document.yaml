@@ -1922,3 +1922,49 @@ sections:
               - PaintTextLayout_NoUnderlineSegments_PaintsNoExtraInk
               - PaintTextLayout_DoubleUnderlineSegment_DoesNotThrowAndPaintsInk
               - PaintTextLayout_OtherUnderlineSegment_DoesNotThrowAndPaintsInk
+
+          - id: CanvasNetPptx-PptxDocument-TabStopExpansion
+            title: >-
+              The PptxDocument class shall expand a literal U+0009 TAB character within a run's
+              text to the next default OOXML tab stop (a fixed 914400 EMU, 1 inch, interval) when
+              word-wrapping and rendering a text body's lines, isolating each tab character as its
+              own single-character token (never merged with adjacent whitespace of another kind,
+              nor with another adjacent tab), computing its effective width dynamically from the
+              current running horizontal position at that point in the line - both for the
+              word-wrap fit/overflow decision and for the rendered cursor position - rather than
+              measuring it via the run's own font glyph metrics, and shall always advance the
+              cursor by at least a minimal, non-zero amount even when it already sits exactly on a
+              tab-stop boundary.
+            justification: |
+              A real-world corpus fixture ("ERF IWF Breadboard Peer Review.pptx", slide 9
+              "Requirements", the single highest-divergence slide in a full 73-slide pixel-diff
+              pass) contains 19 paragraphs whose "numbers" are literal typed digits separated from
+              their sentence text by a literal tab character, not a buAutoNum bullet. Tokenize/
+              MeasureTokenWidthEmu/BuildLines previously treated a tab exactly like any other
+              whitespace character, resolving it via the shared ResolveGlyph helper against the
+              run's own primary font; most fonts have no cmap entry for U+0009, so this resolved to
+              glyph index 0 (.notdef), whose advance width is typically 0 or near-zero, jamming the
+              numbered-list text together instead of PowerPoint's wide, consistent column-like gap,
+              and silently corrupting word-wrap width calculations for any line containing a tab.
+              This was previously flagged as a distinct, pre-existing, out-of-scope defect in the
+              Bullets and Numbering follow-up and deferred to a separate unit of work. The chosen
+              914400 EMU default interval is confirmed two independent ways: the corpus file's own
+              slide master <p:txStyles> and the presentation's own <p:defaultTextStyle> both
+              declare defTabSz="914400" on every list level, and independent ground-truth pixel
+              measurement of the rendered slide (three different bullet-number widths - "1", "2",
+              "10") each showed the following sentence text starting within 1px of the position a
+              single 914400-EMU tab-stop expansion predicts. Computing a tab's width dynamically
+              from the current position (rather than a fixed, precomputed advance) is required
+              because a tab stop's effective width is inherently position-dependent - the same tab
+              character expands by a different amount depending on how much text precedes it on
+              the line - and the word-wrap fit decision must use this same expanded width (not the
+              near-zero glyph-measured width) or an early tab in a long line would silently
+              under-count the line's true occupied width and mis-place the wrap point. Explicit
+              <a:tabLst> tab-stop support remains out of scope: no slide in the investigated corpus
+              (slide 9, its layout, or its master) declares <a:tabLst> anywhere, so
+              default-interval-only expansion fully resolves the observed defect without requiring
+              new tabLst parsing/inheritance infrastructure.
+            tests:
+              - ResolveTextLayout_TabCharacter_ExpandsToNextDefaultTabStop
+              - ResolveTextLayout_TabCharacter_WrapDecisionUsesExpandedWidthNotGlyphWidth
+              - ResolveTextLayout_MultipleTabCharacters_EachAdvancesToItsOwnNextTabStop

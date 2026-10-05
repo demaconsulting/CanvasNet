@@ -24,6 +24,30 @@ public sealed partial class PptxDocument
     private const float MinShrinkScale = 0.1f;
 
     /// <summary>
+    ///     The default OOXML tab-stop interval, in EMU (914400 EMU = 1 inch), consulted when a
+    ///     run's literal text contains a U+0009 TAB character (Phase 2 Follow-Up: Default
+    ///     Tab-Stop Expansion). Confirmed against a real-world corpus file
+    ///     ("ERF IWF Breadboard Peer Review.pptx", slide 9): both its slide master's
+    ///     <c>&lt;p:txStyles&gt;</c> and the presentation's own <c>&lt;p:defaultTextStyle&gt;</c>
+    ///     declare <c>defTabSz="914400"</c> on every list level, and independent ground-truth
+    ///     pixel measurement of the rendered slide (three different bullet-number widths) matched
+    ///     this value's predicted tab-stop column to within 1px. Explicit <c>&lt;a:tabLst&gt;</c>
+    ///     tab stops are deliberately out of scope - see the design doc's matching follow-up note.
+    /// </summary>
+    private const float DefaultTabStopEmu = 914400f;
+
+    /// <summary>
+    ///     Returns the next default tab stop strictly greater than <paramref name="currentXEmu"/>,
+    ///     i.e. the smallest multiple of <paramref name="tabStopEmu"/> that exceeds
+    ///     <paramref name="currentXEmu"/> - standard tab semantics, guaranteeing a tab always
+    ///     advances the cursor by at least a minimal, non-zero amount even when
+    ///     <paramref name="currentXEmu"/> already sits exactly on a stop boundary (a tab never
+    ///     produces a zero-width advance).
+    /// </summary>
+    private static float GetNextTabStopEmu(float currentXEmu, float tabStopEmu) =>
+        (MathF.Floor(currentXEmu / tabStopEmu) + 1f) * tabStopEmu;
+
+    /// <summary>
     ///     Resolves a text body's full layout: every run/paragraph's effective properties, word-
     ///     wrapped into lines bounded by <paramref name="widthEmu"/>, positioned per the body's
     ///     horizontal alignment/vertical anchor, and scaled per its autofit policy.
@@ -221,21 +245,35 @@ public sealed partial class PptxDocument
         return (scale, 1f);
     }
 
-    /// <summary>Tokenizes run text into whitespace/non-whitespace runs, preserving every consecutive-whitespace token's own advance width.</summary>
-    private static List<(string Text, bool IsWhitespace)> Tokenize(string text)
+    /// <summary>
+    ///     Tokenizes run text into whitespace/non-whitespace runs, preserving every consecutive-
+    ///     whitespace token's own advance width. A literal U+0009 TAB character (Phase 2
+    ///     Follow-Up: Default Tab-Stop Expansion) is always isolated as its own single-character
+    ///     token - never merged with adjacent whitespace of another kind, nor with another
+    ///     adjacent tab - since its effective wrap/render width depends on its own position in the
+    ///     line (see <see cref="GetNextTabStopEmu"/>), not a fixed, pre-computable glyph advance.
+    /// </summary>
+    private static List<(string Text, bool IsWhitespace, bool IsTab)> Tokenize(string text)
     {
-        var tokens = new List<(string Text, bool IsWhitespace)>();
+        var tokens = new List<(string Text, bool IsWhitespace, bool IsTab)>();
         var start = 0;
         while (start < text.Length)
         {
+            if (text[start] == '\t')
+            {
+                tokens.Add((text[start..(start + 1)], true, true));
+                start++;
+                continue;
+            }
+
             var isWhitespace = char.IsWhiteSpace(text[start]);
             var end = start + 1;
-            while (end < text.Length && char.IsWhiteSpace(text[end]) == isWhitespace)
+            while (end < text.Length && text[end] != '\t' && char.IsWhiteSpace(text[end]) == isWhitespace)
             {
                 end++;
             }
 
-            tokens.Add((text[start..end], isWhitespace));
+            tokens.Add((text[start..end], isWhitespace, false));
             start = end;
         }
 
@@ -254,13 +292,23 @@ public sealed partial class PptxDocument
     ///     added to a line's glyph content - <see cref="PackTokensIntoLines"/> instead consumes
     ///     it to force a new line boundary at this point in the paragraph's token stream.
     /// </param>
+    /// <param name="IsTab">
+    ///     When <see langword="true"/>, this token represents a single literal U+0009 TAB run
+    ///     character (Phase 2 Follow-Up: Default Tab-Stop Expansion) rather than an ordinary
+    ///     glyph-measured word/whitespace token: its <see cref="WidthEmu"/> is unused (always
+    ///     <c>0</c>, since a tab's true width depends on its own position in the line, not a
+    ///     fixed advance) - both <see cref="PackTokensIntoLines"/> and <see cref="BuildLines"/>'s
+    ///     own per-line loop instead compute its effective width dynamically via
+    ///     <see cref="GetNextTabStopEmu"/> from the current running X position at that point.
+    /// </param>
     private readonly record struct ResolvedToken(
         string Text,
         bool IsWhitespace,
         PptxEffectiveRunProperties RunProperties,
         TrueTypeFont Font,
         float WidthEmu,
-        bool IsLineBreak = false);
+        bool IsLineBreak = false,
+        bool IsTab = false);
 
     /// <summary>A single laid-out glyph, positioned relative to its own line's start (alignment/margin not yet applied).</summary>
     private readonly record struct LineGlyph(TrueTypeFont Font, int GlyphIndex, float XInLineEmu, float SizeEmu, Rgba32 Color);
@@ -411,15 +459,20 @@ public sealed partial class PptxDocument
                 var font = resolveFont(runProps.FontFamily, runProps.Bold, runProps.Italic);
                 var scaledRunProps = runProps with { SizeEmu = scaledSizeEmu };
 
-                foreach (var (text, isWhitespace) in Tokenize(run.Text))
+                foreach (var (text, isWhitespace, isTab) in Tokenize(run.Text))
                 {
                     if (text.Length == 0)
                     {
                         continue;
                     }
 
-                    var width = MeasureTokenWidthEmu(text, font, scaledSizeEmu, runProps.Bold, runProps.Italic, resolveGlyph);
-                    tokens.Add(new ResolvedToken(text, isWhitespace, scaledRunProps, font, width));
+                    // A tab token's true width depends on its own position in the line - skip the
+                    // (otherwise-misleading, font-glyph-based) measurement entirely rather than
+                    // looking up a near-zero/.notdef glyph advance for it (see GetNextTabStopEmu).
+                    var width = isTab
+                        ? 0f
+                        : MeasureTokenWidthEmu(text, font, scaledSizeEmu, runProps.Bold, runProps.Italic, resolveGlyph);
+                    tokens.Add(new ResolvedToken(text, isWhitespace, scaledRunProps, font, width, IsTab: isTab));
                 }
             }
 
@@ -439,7 +492,6 @@ public sealed partial class PptxDocument
                 var underlineSpans = new List<LineUnderlineSpan>();
                 LineUnderlineSpan? pendingUnderlineSpan = null;
                 var cursorX = 0f;
-                var lineWidth = 0f;
                 TrueTypeFont? tallestFont = null;
                 var tallestSize = 0f;
                 var tallestNaturalHeight = -1f;
@@ -462,16 +514,29 @@ public sealed partial class PptxDocument
                         tallestSize = token.RunProperties.SizeEmu;
                     }
 
-                    foreach (var ch in token.Text)
+                    if (token.IsTab)
                     {
-                        var (resolvedFont, glyphIndex) = resolveGlyph(token.Font, ch, token.RunProperties.Bold, token.RunProperties.Italic);
-                        var advance = resolvedFont.GetAdvanceWidth(glyphIndex) / (float)resolvedFont.UnitsPerEm * token.RunProperties.SizeEmu;
-                        if (!token.IsWhitespace)
+                        // Phase 2 Follow-Up: Default Tab-Stop Expansion - expand the cursor to
+                        // the next default tab stop instead of resolving a (near-zero,
+                        // .notdef-glyph) font advance for the literal U+0009 TAB character; no
+                        // glyph is emitted (mirroring the pre-existing IsWhitespace glyph-
+                        // emission guard below for every other whitespace token kind). Explicit
+                        // <a:tabLst> tab stops are out of scope - see the design doc note.
+                        cursorX = GetNextTabStopEmu(cursorX, DefaultTabStopEmu);
+                    }
+                    else
+                    {
+                        foreach (var ch in token.Text)
                         {
-                            glyphs.Add(new LineGlyph(resolvedFont, glyphIndex, cursorX, token.RunProperties.SizeEmu, token.RunProperties.Color));
-                        }
+                            var (resolvedFont, glyphIndex) = resolveGlyph(token.Font, ch, token.RunProperties.Bold, token.RunProperties.Italic);
+                            var advance = resolvedFont.GetAdvanceWidth(glyphIndex) / (float)resolvedFont.UnitsPerEm * token.RunProperties.SizeEmu;
+                            if (!token.IsWhitespace)
+                            {
+                                glyphs.Add(new LineGlyph(resolvedFont, glyphIndex, cursorX, token.RunProperties.SizeEmu, token.RunProperties.Color));
+                            }
 
-                        cursorX += advance;
+                            cursorX += advance;
+                        }
                     }
 
                     var tokenEndX = cursorX;
@@ -509,9 +574,13 @@ public sealed partial class PptxDocument
 
                         pendingUnderlineSpan = null;
                     }
-
-                    lineWidth += token.WidthEmu;
                 }
+
+                // The line's natural width is the cursor's own final accumulated position -
+                // authoritative for every token kind (including a tab, whose WidthEmu is unused -
+                // see ResolvedToken.IsTab), so a single post-loop read replaces a separate,
+                // now-inconsistent-for-tabs running accumulator.
+                var lineWidth = cursorX;
 
                 if (pendingUnderlineSpan is { } finalSpan)
                 {
@@ -752,7 +821,16 @@ public sealed partial class PptxDocument
             if (token.IsWhitespace)
             {
                 FlushPendingGroup();
-                Pack([token], token.WidthEmu);
+
+                // A tab token's effective width for the wrap/fit decision depends on its own
+                // position in the line (Phase 2 Follow-Up: Default Tab-Stop Expansion) - compute
+                // it dynamically from the running currentWidth at this point, rather than using
+                // the token's static (unused, 0) WidthEmu, so an early tab's expanded width is
+                // correctly accounted for when deciding where word-wrap breaks occur.
+                var width = token.IsTab
+                    ? GetNextTabStopEmu(currentWidth, DefaultTabStopEmu) - currentWidth
+                    : token.WidthEmu;
+                Pack([token], width);
                 continue;
             }
 

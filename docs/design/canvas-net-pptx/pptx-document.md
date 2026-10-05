@@ -1830,7 +1830,8 @@ slide was found, on inspection, to not involve `buAutoNum` at all - its "numbers
 typed digits separated from the following word by a literal tab character, and this unit's
 `Tokenize`/`MeasureTokenWidthEmu` treat a tab as ordinary collapsible whitespace with no OOXML
 tab-stop (`defTabSz`/`tabLst`) expansion; this is a distinct, pre-existing, out-of-scope defect
-(tab-stop support), flagged for a separate unit of work rather than folded into this fix. Status:
+(tab-stop support), flagged for a separate unit of work rather than folded into this fix (closed by
+the _Phase 2 Follow-Up: Default Tab-Stop Expansion_ section below). Status:
 closed, proven by `ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth` (exact
 numeric clamp proof), `PaintTextLayout_BulletedParagraphWithZeroIndent_BulletAndTextInkDoNotOverlap`
 (pixel-level disjoint-ink proof), and
@@ -2577,3 +2578,82 @@ fill/borders, while the cell's remaining, non-overridden edges still fall back t
 interior column boundaries resolve against the style's own `insideV` edge rather than its `left`/
 `right` edges, while the table's two true outer-boundary edges still resolve against `left`/
 `right`).
+
+#### Phase 2 Follow-Up: Default Tab-Stop Expansion
+
+**Bug**: a literal U+0009 TAB character inside a run's text (e.g. a typed `"1\tReference fluid
+evaporation..."` run, the pattern a real-world "numbered list" paragraph actually uses when it is
+not a `buAutoNum` bullet at all) was measured by this unit's `Tokenize`/`MeasureTokenWidthEmu`/
+`BuildLines` exactly like any other whitespace character - resolved via the shared `ResolveGlyph`
+helper and measured by its primary font's own `cmap`/`GetAdvanceWidth`. Most fonts have no `cmap`
+entry for U+0009, so this resolved to glyph index `0` (`.notdef`), whose advance width is
+typically `0` or near-zero - producing a near-zero gap instead of PowerPoint's wide, tab-stop-sized
+gap, jamming the numbered-list text together and corrupting word-wrap width calculations for any
+line containing a tab. This was previously flagged, but explicitly deferred as out of scope, in
+the "Bullets and Numbering Rendering" follow-up above (`"its 'numbers' are literal typed digits
+separated from the following word by a literal tab character... a distinct, pre-existing,
+out-of-scope defect (tab-stop support)"`) - this follow-up closes that deferred item.
+
+**Root cause confirmation and chosen default interval**: a real-world corpus file ("ERF IWF
+Breadboard Peer Review.pptx", slide 9, the single highest-divergence slide in a full 73-slide
+pixel-diff pass) contains 19 literal tab characters, each between a literal digit run and its
+sentence text, with no `<a:tabLst>` anywhere in the slide, its layout, or its master. Both the
+slide master's `<p:txStyles>` and the presentation's own `<p:defaultTextStyle>` declare
+`defTabSz="914400"` (exactly 1 inch) on every list level. Independent ground-truth pixel
+measurement of the rendered slide (three different bullet-number widths - "1", "2", "10") each
+showed the sentence text starting within 1px of the position a single 914400-EMU tab-stop
+expansion predicts, confirming both the root cause and the chosen interval from two independent
+sources.
+
+**Fix - a tab becomes a position-dependent, dynamically-expanding token, not a glyph-measured
+one**: `PptxDocument.TextLayout.cs` gained a `DefaultTabStopEmu = 914400f` constant and a
+`GetNextTabStopEmu(currentXEmu, tabStopEmu)` helper implementing standard tab semantics - the
+smallest multiple of `tabStopEmu` strictly greater than `currentXEmu`, guaranteeing a tab always
+advances by at least a minimal, non-zero amount even when already exactly on a stop boundary.
+`Tokenize` now always isolates a `'\t'` character as its own single-character token - never merged
+with adjacent whitespace of another kind, nor with another adjacent tab - since a tab's effective
+width is never a fixed, pre-computable glyph advance. `ResolvedToken` gained a matching `IsTab`
+flag (mirroring the existing `IsLineBreak` flag's convention); a tab token's `WidthEmu` is left
+unused (`0`) rather than glyph-measured, since its true width depends entirely on where it falls in
+the line.
+
+Because a tab's width is position-dependent, it must be computed twice, from two different running
+positions, and the two computations must stay formula-identical: `PackTokensIntoLines`'s
+wrap/fit-decision loop computes a tab token's effective width as
+`GetNextTabStopEmu(currentWidth, DefaultTabStopEmu) - currentWidth`, read from its own running
+`currentWidth` position at that point in the token stream - this is what makes the wrap decision
+correctly reflect the tab's true, expanded width rather than its near-zero glyph-measured width,
+so an early tab in a long line no longer silently under-counts the line's true occupied width and
+mis-places the wrap point. `BuildLines`'s own per-line rendering loop special-cases an `IsTab`
+token: instead of resolving a glyph/advance via `resolveGlyph`/`GetAdvanceWidth` (already skipped
+for every whitespace-kind token's own glyph-emission guard), it computes
+`cursorX = GetNextTabStopEmu(cursorX, DefaultTabStopEmu)` directly, expanding the cursor to the
+next tab stop with no glyph painted. The line's own natural width (`LineBox.LineWidthEmu`) is now
+taken as a single `lineWidth = cursorX` read once after the per-token loop completes, rather than a
+separate `lineWidth += token.WidthEmu` running accumulator - `cursorX`'s own per-character
+accumulation is already the authoritative total for every other token kind, so this removes a
+redundant, now-inconsistent-for-tabs duplicate computation rather than introducing a new one.
+
+**Explicitly out of scope**: full OOXML `<a:tabLst>` explicit tab-stop support (per-paragraph,
+per-level, multiple named tab stops with alignment/leader options) remains unimplemented - no
+slide in the investigated corpus (slide 9, its layout, or its master) declares `<a:tabLst>`
+anywhere, so default-interval-only expansion fully resolves the observed defect, and there is
+currently no `tabLst` parsing/inheritance infrastructure anywhere in
+`PptxDocument.TextInheritance.cs`/`PptxEffectiveTextProperties.cs` to build on. An explicit
+`<a:tabLst>` paragraph simply continues to fall back to this same default-interval behavior today,
+no regression - a reasonable, documented simplification, flagged as a still-open, separate,
+future unit of work rather than folded into this fix.
+
+**Test coverage**: `PptxTextLayoutTests.cs` gained
+`ResolveTextLayout_TabCharacter_ExpandsToNextDefaultTabStop` (a run containing `"A\tB"` proves the
+glyph after the tab lands at the exact `914400`-EMU tab-stop X coordinate, not the near-zero
+position a `.notdef` glyph advance would produce),
+`ResolveTextLayout_TabCharacter_WrapDecisionUsesExpandedWidthNotGlyphWidth` (a long run with an
+early tab, sized so the glyph-measured near-zero tab width would keep both words on one line but
+the true, tab-stop-expanded width correctly wraps the second word onto a new line, proving
+`PackTokensIntoLines` uses the dynamically-computed expanded width for its fit decision, not the
+static, unused `ResolvedToken.WidthEmu`), and
+`ResolveTextLayout_MultipleTabCharacters_EachAdvancesToItsOwnNextTabStop` (a run containing
+`"A\t\tB"` proves the second tab's expansion is computed from the cursor position after the first
+tab's own expansion - including correctly advancing by a full interval, never zero, when the
+second tab starts exactly on an already-aligned tab-stop boundary).
