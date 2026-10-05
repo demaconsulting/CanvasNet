@@ -63,6 +63,13 @@ public sealed partial class PptxDocument
         // The master's theme is already eagerly resolved above (themePartPath), so there is no
         // added laziness concern in also eagerly resolving it here for the shape tree's own
         // <p:graphicFrame> tables (see ParseShapeTree's themeResolver parameter).
+        //
+        // colorMapResolver is intentionally omitted: this master's own _masterCache entry is
+        // shared by every slide using it (keyed by part path, not by slide), each of which may
+        // declare its own distinct <p:clrMapOvr> - baking any single color map into a
+        // master-owned table's cached fill/border here would be correct for some consuming
+        // slides and wrong for others. See ParseTable's own colorMap parameter XmlDoc for the
+        // full rationale and GetSlide's own colorMapResolver for the case where this is safe.
         var shapeTree = ParseShapeTree(spTree, () => GetTheme(themePartPath), tableStyleResolver: TryResolveTableStyle);
 
         var master = new PptxMaster(masterPartPath, themePartPath, placeholders, txStyles, background, shapeTree, colorMap);

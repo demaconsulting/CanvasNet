@@ -77,7 +77,19 @@ public sealed partial class PptxDocument
             var layout = GetLayout(layoutPartPath);
             var master = GetMaster(layout.MasterPartPath);
             return GetTheme(master.ThemePartPath);
-        }, tableStyleResolver: TryResolveTableStyle);
+        }, tableStyleResolver: TryResolveTableStyle,
+        colorMapResolver: () =>
+        {
+            // Safe to compute lazily (mirroring themeResolver's own laziness) because
+            // _slideCache is keyed 1:1 by slide index: this slide's own effective color map is
+            // always the same deterministic value for every future consumer of this cached
+            // PptxSlide - unlike GetLayout's/GetMaster's own shared caches, which are reused by
+            // every slide through that layout/master and therefore intentionally left without a
+            // colorMapResolver (see ParseTable's own colorMap parameter XmlDoc).
+            var layout = GetLayout(layoutPartPath);
+            var master = GetMaster(layout.MasterPartPath);
+            return ResolveEffectiveColorMap(clrMapOvr, layout.ClrMapOvr, master.ColorMap);
+        });
 
         var slide = new PptxSlide(slidePartPath, layoutPartPath, placeholders, shapeTree, background, clrMapOvr);
         _slideCache[slideIndex] = slide;

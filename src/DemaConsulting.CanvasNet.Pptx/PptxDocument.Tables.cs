@@ -36,15 +36,22 @@ public sealed partial class PptxDocument
     /// <param name="colorMap">
     ///     The effective color map consulted when a cell's own fill/border declares an
     ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the
-    ///     default, resolving to <see cref="PptxColorMap.Default"/>). <strong>Known
-    ///     limitation:</strong> a table's shape tree is parsed once at master/layout/slide
-    ///     <em>load</em> time (cached), independent of which slide's own effective
-    ///     <c>&lt;p:clrMapOvr&gt;</c> is in effect at <em>render</em> time - no caller currently
-    ///     supplies a real per-slide value here, so a table cell's own <c>bg1</c>/<c>tx1</c>
-    ///     scheme color always resolves against <see cref="PptxColorMap.Default"/> regardless of
-    ///     any slide/layout <c>&lt;p:clrMapOvr&gt;</c> in effect. Fixing this fully would require
-    ///     restructuring table shape-tree parsing from parse-time to render-time, a materially
-    ///     larger, separately-scoped change.
+    ///     default, resolving to <see cref="PptxColorMap.Default"/>). <see cref="GetSlide"/>
+    ///     supplies this slide's own true effective color map (see
+    ///     <see cref="ResolveEffectiveColorMap"/>) for slide-owned tables - its cache is keyed
+    ///     1:1 by slide index, so there is no other consumer that could ever observe a different
+    ///     value for the same cached table. <strong>Known limitation (master/layout-owned tables
+    ///     only):</strong> a table placed directly on a master or layout's own shape tree (rather
+    ///     than a slide's) is parsed once at master/layout <em>load</em> time and cached, shared
+    ///     by every slide that uses that master/layout - because each such slide may have its own
+    ///     distinct <c>&lt;p:clrMapOvr&gt;</c>, no single color map could be baked in without risk
+    ///     of being wrong for some consuming slide, so <see cref="PptxDocument.GetLayout"/>/
+    ///     <see cref="PptxDocument.GetMaster"/> intentionally omit this parameter and a
+    ///     master/layout-owned table's own <c>bg1</c>/<c>tx1</c> scheme color always resolves
+    ///     against <see cref="PptxColorMap.Default"/> regardless of any slide's
+    ///     <c>&lt;p:clrMapOvr&gt;</c>. Fixing this residual case would require restructuring
+    ///     table shape-tree parsing from parse-time to render-time, a materially larger,
+    ///     separately-scoped change.
     /// </param>
     /// <param name="tableStyleResolver">
     ///     Lazily invoked, when <c>&lt;a:tbl&gt;/&lt;a:tblPr&gt;</c> declares a non-empty
@@ -112,18 +119,33 @@ public sealed partial class PptxDocument
         var totalRows = trElements.Count;
         var totalColumns = columnWidthsEmu.Count;
 
+        // Precomputed up front (rather than parsed once per row inside the loop below) so a
+        // rowSpan-N cell's own dimension peek (below) can look ahead into rows not yet built.
+        var rowHeightsEmu = trElements
+            .Select(tr => ParseRequiredFloatAttribute(tr, "h", "<a:tr>"))
+            .ToList();
+
         var rows = new List<PptxTableRow>(totalRows);
         for (var rowIndex = 0; rowIndex < totalRows; rowIndex++)
         {
             var tr = trElements[rowIndex];
-            var heightEmu = ParseRequiredFloatAttribute(tr, "h", "<a:tr>");
+            var heightEmu = rowHeightsEmu[rowIndex];
             var cells = new List<PptxTableCell>();
             var columnIndex = 0;
             foreach (var tc in tr.Elements(DrawingNamespace + "tc"))
             {
-                var cellWidthEmu = SumColumnWidths(columnWidthsEmu, columnIndex, 1);
+                // Peeked here - ahead of ParseTableCell's own authoritative parse/validation of
+                // the same attributes - purely so a merged cell's gradient fill (if any) can be
+                // sized against its true summed GridSpan/RowSpan dimensions instead of only its
+                // first column/row's own span-1 dimensions. A non-positive peeked value safely
+                // sums to zero width/height here (SumConsecutive's own clamp) - ParseTableCell
+                // still performs the single authoritative validation and throws for that case.
+                var peekedGridSpan = ParseOptionalIntAttribute(tc, "gridSpan") ?? 1;
+                var peekedRowSpan = ParseOptionalIntAttribute(tc, "rowSpan") ?? 1;
+                var cellWidthEmu = SumConsecutive(columnWidthsEmu, columnIndex, peekedGridSpan);
+                var cellHeightEmu = SumConsecutive(rowHeightsEmu, rowIndex, peekedRowSpan);
                 var cell = ParseTableCell(
-                    tc, theme, cellWidthEmu, heightEmu, colorMap,
+                    tc, theme, cellWidthEmu, cellHeightEmu, colorMap,
                     matchedTblStyle, bandRowEnabled, firstRowEnabled, rowIndex, totalRows, columnIndex, totalColumns);
                 cells.Add(cell);
                 columnIndex++;
@@ -140,8 +162,18 @@ public sealed partial class PptxDocument
     /// </summary>
     /// <param name="tcElement">The <c>&lt;a:tc&gt;</c> element.</param>
     /// <param name="theme">The resolved theme, used to resolve the cell's own fill/border colors.</param>
-    /// <param name="cellWidthEmu">The cell's own (unmerged, single-column) width, in EMU - needed to position a gradient fill.</param>
-    /// <param name="cellHeightEmu">The cell's own (unmerged, single-row) height, in EMU - needed to position a gradient fill.</param>
+    /// <param name="cellWidthEmu">
+    ///     The cell's own merged width, in EMU - needed to position a gradient fill. Already
+    ///     summed across the cell's own declared <c>gridSpan</c> consecutive columns by
+    ///     <see cref="ParseTable"/>'s own dimension peek, so a merged cell's gradient is sized
+    ///     against its true spanned width, not only its first column's own width.
+    /// </param>
+    /// <param name="cellHeightEmu">
+    ///     The cell's own merged height, in EMU - needed to position a gradient fill. Already
+    ///     summed across the cell's own declared <c>rowSpan</c> consecutive rows by
+    ///     <see cref="ParseTable"/>'s own dimension peek, so a merged cell's gradient is sized
+    ///     against its true spanned height, not only its first row's own height.
+    /// </param>
     /// <param name="colorMap">The effective color map - see <see cref="ParseTable"/>'s matching parameter, including its documented limitation.</param>
     /// <param name="matchedTblStyle">
     ///     The table's own resolved <c>&lt;a:tblStyle&gt;</c> (see <see cref="ParseTable"/>'s
@@ -200,6 +232,21 @@ public sealed partial class PptxDocument
     ///     Resolves every non-merge-continuation cell in <paramref name="table"/> to its final,
     ///     merge-aware, shape-local rectangle.
     /// </summary>
+    /// <remarks>
+    ///     A conformant producer (PowerPoint itself) always follows a <c>gridSpan="N"</c>
+    ///     governing cell with exactly <c>(N-1)</c> <c>hMerge</c> continuation <c>&lt;a:tc&gt;</c>
+    ///     placeholders - but the DrawingML schema does not actually guarantee this: a
+    ///     <c>&lt;a:tr&gt;</c>'s <c>&lt;a:tc&gt;</c> children are declared
+    ///     <c>minOccurs="0" maxOccurs="unbounded"</c> with no cross-element constraint tying their
+    ///     count to a governing cell's own <c>gridSpan</c>. This method therefore defensively
+    ///     compensates (rather than assumes) for a malformed row that omits some or all of a
+    ///     governing cell's own placeholder continuations: it counts how many of the immediately
+    ///     following cells are themselves real <c>hMerge</c> continuations, and advances past any
+    ///     shortfall itself, so a later, unrelated cell in that same row still lands at its
+    ///     correct absolute column instead of silently overlapping the governing cell's own
+    ///     merged region. For a well-formed row (the common, real-world case), the shortfall is
+    ///     always zero and this method's behavior is unchanged.
+    /// </remarks>
     /// <param name="table">The parsed table.</param>
     /// <returns>
     ///     The resolved rectangles, in row-major document order. A cell with
@@ -218,14 +265,18 @@ public sealed partial class PptxDocument
             var row = table.Rows[rowIndex];
             var xEmu = 0f;
             var columnIndex = 0;
-            foreach (var cell in row.Cells)
+
+            // Index-based (rather than a foreach) so a governing cell can look ahead at its own
+            // immediately-following siblings to count their real hMerge continuations - see this
+            // method's own <remarks/> for why that lookahead is necessary.
+            for (var cellIndex = 0; cellIndex < row.Cells.Count; cellIndex++)
             {
+                var cell = row.Cells[cellIndex];
+
                 // Each <a:tc> entry (real or hMerge/vMerge continuation) represents exactly one
-                // physical grid column, regardless of the cell's own GridSpan - a gridSpan="N"
-                // cell is followed by (N-1) separate hMerge continuation <a:tc> entries, each its
-                // own single-column-wide placeholder (per ECMA-376's table content model). xEmu
-                // must therefore always advance by this single column's own width, never by the
-                // governing cell's full (GridSpan-summed) merged width, or a merged cell's
+                // physical grid column, regardless of the cell's own GridSpan. xEmu therefore
+                // always advances by this single column's own width per loop iteration, never by
+                // the governing cell's full (GridSpan-summed) merged width, or a merged cell's
                 // trailing continuation entries would double-count the columns the governing
                 // cell's own merged rectangle already spans.
                 var columnWidthEmu = columnIndex < table.ColumnWidthsEmu.Count ? table.ColumnWidthsEmu[columnIndex] : 0f;
@@ -234,6 +285,26 @@ public sealed partial class PptxDocument
                     var cellWidthEmu = SumColumnWidths(table.ColumnWidthsEmu, columnIndex, cell.GridSpan);
                     var cellHeightEmu = SumRowHeights(table.Rows, rowIndex, cell.RowSpan);
                     results.Add(new PptxResolvedTableCell(xEmu, yEmu, cellWidthEmu, cellHeightEmu, cell));
+
+                    // Count how many of the immediately-following cells are themselves real
+                    // HMerge continuations of this governing cell (bounded by the expected count
+                    // and the row's remaining length), then compensate for any shortfall - see
+                    // this method's own <remarks/>.
+                    var expectedContinuations = cell.GridSpan - 1;
+                    var actualContinuations = 0;
+                    while (actualContinuations < expectedContinuations &&
+                           cellIndex + 1 + actualContinuations < row.Cells.Count &&
+                           row.Cells[cellIndex + 1 + actualContinuations].HMerge)
+                    {
+                        actualContinuations++;
+                    }
+
+                    var missingContinuations = expectedContinuations - actualContinuations;
+                    if (missingContinuations > 0)
+                    {
+                        xEmu += SumColumnWidths(table.ColumnWidthsEmu, columnIndex + 1, missingContinuations);
+                        columnIndex += missingContinuations;
+                    }
                 }
 
                 xEmu += columnWidthEmu;
@@ -281,7 +352,7 @@ public sealed partial class PptxDocument
         {
             var cellRectPath = Path.Rectangle(resolvedCell.XEmu, resolvedCell.YEmu, resolvedCell.WidthEmu, resolvedCell.HeightEmu)
                 .Transform(shapeToSurfaceTransform);
-            FillPaint(surface, cellRectPath, resolvedCell.Cell.Fill);
+            FillPaint(surface, cellRectPath, resolvedCell.Cell.Fill, shapeToSurfaceTransform);
 
             PaintCellBorder(surface, resolvedCell.Cell.LeftBorder, shapeToSurfaceTransform,
                 resolvedCell.XEmu, resolvedCell.YEmu, resolvedCell.XEmu, resolvedCell.YEmu + resolvedCell.HeightEmu);
@@ -328,7 +399,7 @@ public sealed partial class PptxDocument
         var linePath = builder.Build();
 
         var strokedOutline = ResolveStrokeOutline(linePath, border, shapeToSurfaceTransform).Transform(shapeToSurfaceTransform);
-        FillPaint(surface, strokedOutline, border.Paint);
+        FillPaint(surface, strokedOutline, border.Paint, shapeToSurfaceTransform);
     }
 
     /// <summary>
@@ -337,7 +408,61 @@ public sealed partial class PptxDocument
     ///     <see cref="PathFiller.Fill(Surface, Path, Gradient, FillRule, float)"/> overload, or
     ///     no-op for <see cref="PptxNoFill"/>.
     /// </summary>
-    private static void FillPaint(Surface surface, Path path, PptxPaint paint)
+    /// <remarks>
+    ///     This overload is retained, unchanged, for every pre-existing non-table call site in
+    ///     this shared partial class (<c>PptxDocument.Render.cs</c>'s own shape/background/border
+    ///     fills) - it composes no transform into a <see cref="PptxGradientFill"/>'s own
+    ///     <see cref="Gradient"/> before filling, which is a pre-existing, codebase-wide
+    ///     correctness gap shared identically by every one of those call sites (see the 4-
+    ///     parameter <see cref="FillPaint(Surface, Path, PptxPaint, Matrix3x2)"/> overload's own
+    ///     <c>&lt;remarks/&gt;</c> for the full rationale and why only this file's own two table
+    ///     call sites - <see cref="PaintTable"/>/<see cref="PaintCellBorder"/> - compose it
+    ///     today).
+    /// </remarks>
+    private static void FillPaint(Surface surface, Path path, PptxPaint paint) =>
+        FillPaint(surface, path, paint, Matrix3x2.Identity);
+
+    /// <summary>
+    ///     Fills <paramref name="path"/> onto <paramref name="surface"/> with <paramref name="paint"/>,
+    ///     composing <paramref name="shapeToSurfaceTransform"/> into a <see cref="PptxGradientFill"/>'s
+    ///     own <see cref="Gradient"/> first so its coordinate space matches <paramref name="path"/>'s own.
+    /// </summary>
+    /// <remarks>
+    ///     <paramref name="path"/> is already transformed into surface pixel space (see
+    ///     <see cref="PathFiller.Fill(Surface, Path, Gradient, FillRule, float)"/>'s own XmlDoc:
+    ///     it has no <c>transform</c> parameter of its own and interprets <paramref name="path"/>
+    ///     directly as surface-pixel-space coordinates). A <see cref="PptxGradientFill"/>'s own
+    ///     <see cref="Gradient"/> is built in the shape's local EMU space (see
+    ///     <see cref="ResolveGradientFill"/>) with its own <see cref="Gradient.Transform"/> left
+    ///     at the default identity, so it must be composed with the same
+    ///     <paramref name="shapeToSurfaceTransform"/> applied to <paramref name="path"/> - via
+    ///     <see cref="Gradient.WithTransform"/> - before filling, or the gradient would be
+    ///     evaluated against untransformed local-space coordinates while the path it fills is in
+    ///     surface space, mismatching their coordinate spaces (matching the only existing
+    ///     transform-composition precedent in the codebase,
+    ///     <c>Rendering.Canvas.cs</c>'s own <c>paint.WithTransform(_current)</c>). Used today only
+    ///     by this file's own two table call sites (<see cref="PaintTable"/>'s cell-fill call and
+    ///     <see cref="PaintCellBorder"/>'s stroked-border call), both of which already have
+    ///     <paramref name="shapeToSurfaceTransform"/> in scope - the identical gap in every other
+    ///     shape-fill call site (<c>PptxDocument.Render.cs</c>'s <c>RenderShape</c>/
+    ///     <c>RenderPicture</c>/<c>RenderConnector</c>, <c>PptxDocument.Background.cs</c>) is a
+    ///     separate, pre-existing, cross-cutting issue affecting every shape kind, not unique to
+    ///     tables, and is intentionally left as its own separately-scoped follow-up rather than
+    ///     bundled into this table-specific fix - see the 3-parameter
+    ///     <see cref="FillPaint(Surface, Path, PptxPaint)"/> overload those call sites keep using
+    ///     unchanged.
+    /// </remarks>
+    /// <param name="surface">The surface to fill onto.</param>
+    /// <param name="path">The already-surface-space-transformed path to fill.</param>
+    /// <param name="paint">The resolved paint to fill with.</param>
+    /// <param name="shapeToSurfaceTransform">
+    ///     The same transform already applied to <paramref name="path"/> - composed into a
+    ///     <see cref="PptxGradientFill"/>'s own <see cref="Gradient"/> (via
+    ///     <see cref="Gradient.WithTransform"/>) before filling, so the gradient's own
+    ///     coordinate space matches the path it fills. Unused for <see cref="PptxSolidFill"/>/
+    ///     <see cref="PptxNoFill"/>, which have no coordinate-space-dependent state.
+    /// </param>
+    private static void FillPaint(Surface surface, Path path, PptxPaint paint, Matrix3x2 shapeToSurfaceTransform)
     {
         switch (paint)
         {
@@ -346,19 +471,29 @@ public sealed partial class PptxDocument
                 break;
 
             case PptxGradientFill gradientFill:
-                PathFiller.Fill(surface, path, gradientFill.Gradient);
+                PathFiller.Fill(surface, path, gradientFill.Gradient.WithTransform(shapeToSurfaceTransform));
                 break;
         }
     }
 
     /// <summary>Sums <paramref name="count"/> consecutive column widths starting at <paramref name="startIndex"/>, clamped to the available column count.</summary>
-    private static float SumColumnWidths(IReadOnlyList<float> columnWidthsEmu, int startIndex, int count)
+    private static float SumColumnWidths(IReadOnlyList<float> columnWidthsEmu, int startIndex, int count) =>
+        SumConsecutive(columnWidthsEmu, startIndex, count);
+
+    /// <summary>
+    ///     Sums <paramref name="count"/> consecutive values starting at <paramref name="startIndex"/>,
+    ///     clamped to <paramref name="valuesEmu"/>'s own available element count - the shared
+    ///     summation core behind <see cref="SumColumnWidths"/> and <see cref="ParseTable"/>'s own
+    ///     row-height dimension peek (both need the identical sum-and-clamp behavior, once for
+    ///     column widths, once for row heights).
+    /// </summary>
+    private static float SumConsecutive(IReadOnlyList<float> valuesEmu, int startIndex, int count)
     {
         var sum = 0f;
-        var endIndex = Math.Min(startIndex + count, columnWidthsEmu.Count);
+        var endIndex = Math.Min(startIndex + count, valuesEmu.Count);
         for (var i = startIndex; i < endIndex; i++)
         {
-            sum += columnWidthsEmu[i];
+            sum += valuesEmu[i];
         }
 
         return sum;

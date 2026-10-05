@@ -51,6 +51,17 @@ public sealed partial class PptxDocument
     ///     self-call unchanged. Defaults to <see langword="null"/> ("no table style available") so
     ///     every pre-existing call site keeps compiling and behaving unchanged.
     /// </param>
+    /// <param name="colorMapResolver">
+    ///     Lazily invoked (via <see cref="ParseTable"/>'s own <c>colorMap</c> parameter) only when
+    ///     a <c>&lt;p:graphicFrame&gt;</c> table is actually encountered, to resolve the effective
+    ///     <see cref="PptxColorMap"/> a cell's own fill/border scheme-color token should be
+    ///     resolved against - see <see cref="ParseTable"/>'s own <c>colorMap</c> parameter and its
+    ///     documented residual (master/layout-owned-table-only) limitation. Threaded through the
+    ///     recursive <c>&lt;p:grpSp&gt;</c> self-call unchanged, mirroring
+    ///     <paramref name="tableStyleResolver"/>'s own threading pattern. Defaults to
+    ///     <see langword="null"/> (resolving to <see cref="PptxColorMap.Default"/>) so every
+    ///     pre-existing call site keeps compiling and behaving unchanged.
+    /// </param>
     /// <returns>
     ///     The recognized shape-tree nodes, in document order. Unrecognized element kinds (for
     ///     example <c>&lt;p:nvGrpSpPr&gt;</c>, <c>&lt;p:grpSpPr&gt;</c>, or
@@ -69,7 +80,8 @@ public sealed partial class PptxDocument
     ///     <c>&lt;a:graphicData&gt;</c> declares a recognized-but-unsupported (non-table) kind.
     /// </exception>
     internal static IReadOnlyList<PptxShapeTreeNode> ParseShapeTree(
-        XElement spTreeOrGroupElement, Func<PptxTheme> themeResolver, Func<string, XElement?>? tableStyleResolver = null)
+        XElement spTreeOrGroupElement, Func<PptxTheme> themeResolver, Func<string, XElement?>? tableStyleResolver = null,
+        Func<PptxColorMap>? colorMapResolver = null)
     {
         var nodes = new List<PptxShapeTreeNode>();
 
@@ -85,14 +97,15 @@ public sealed partial class PptxDocument
             }
             else if (child.Name == PresentationNamespace + "graphicFrame")
             {
-                nodes.Add(new PptxGraphicFrameShapeNode(child, ParseTable(child, themeResolver(), tableStyleResolver: tableStyleResolver)));
+                nodes.Add(new PptxGraphicFrameShapeNode(
+                    child, ParseTable(child, themeResolver(), colorMapResolver?.Invoke(), tableStyleResolver)));
             }
             else if (child.Name == PresentationNamespace + "grpSp")
             {
                 var groupXfrm = child.Element(PresentationNamespace + "grpSpPr")?.Element(DrawingNamespace + "xfrm") ??
                     throw new InvalidDataException("A <p:grpSp> element has no <p:grpSpPr>/<a:xfrm> element.");
                 var childTransform = ResolveGroupChildTransform(groupXfrm);
-                var children = ParseShapeTree(child, themeResolver, tableStyleResolver);
+                var children = ParseShapeTree(child, themeResolver, tableStyleResolver, colorMapResolver);
                 nodes.Add(new PptxGroupShapeNode(child, childTransform, children));
             }
             else if (child.Name == PresentationNamespace + "cxnSp")

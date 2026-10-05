@@ -952,7 +952,9 @@ clip-resolution coverage.
 `ParseTableCell_NonNumericGridSpan_ThrowsInvalidDataException`,
 `ParseTableCell_TcPrWithFillAndBorders_ResolvesFillAndBorders`,
 `ParseTableCell_NoTxBody_TextBodyIsNull`,
-`ParseTableCell_WithTxBody_ParsesTextBody`
+`ParseTableCell_WithTxBody_ParsesTextBody`,
+`ParseTable_GridSpanCellWithGradientFill_UsesMergedWidth`,
+`ParseTable_RowSpanCellWithGradientFill_UsesMergedHeight`
 
 Proves `ParseTable` parses a well-formed `<a:tbl>`'s column widths, row heights, and cell
 structure into a `PptxTable`; proves a missing `<a:graphicData>` throws
@@ -965,14 +967,21 @@ attribute correctly when present, proves a non-numeric `gridSpan` throws `Invali
 proves a cell's `<a:tcPr>` fill/border elements resolve via the already-verified Phase 1c
 `ResolveFill`/`ResolveLineStyle` resolvers, and proves a cell's `<a:txBody>` presence/absence
 resolves its `PptxTableCell.TextBody` field correctly (`null` when absent, a parsed
-`PptxTextBody` via the already-verified Phase 1d `ParseTextBody` when present).
+`PptxTextBody` via the already-verified Phase 1d `ParseTextBody` when present). Proves (Review
+Follow-Up) that `ParseTable` sizes a `gridSpan="2"` cell's gradient fill against its true summed
+two-column width - not only its first column's own width, as an un-merge-aware sizing would
+produce - by comparing the merged cell's own resolved `LinearGradient`'s `End.X - Start.X` extent
+against an equivalent `gridSpan="1"` cell's own extent; proves the same for a `rowSpan="2"`
+cell's gradient height, comparing against the row-heights list `ParseTable` now precomputes up
+front (`rowHeightsEmu`) via the new `SumConsecutive` helper.
 
 #### CanvasNetPptx-PptxDocument-TableCellRectResolution: Merge-Aware Cell-Rect Computation
 
 **Tests**: `ResolveCellRects_SimpleGrid_ComputesCumulativeOffsets`,
 `ResolveCellRects_MergeContinuationCells_AreSkipped`,
 `ResolveCellRects_HorizontalMerge_ComputesSpannedWidth`,
-`ResolveCellRects_VerticalMerge_ComputesSpannedHeight`
+`ResolveCellRects_VerticalMerge_ComputesSpannedHeight`,
+`ResolveCellRects_GridSpanMissingHMergePlaceholder_CompensatesColumnAdvance`
 
 Proves `ResolveCellRects` computes each cell's own cumulative `X`/`Y` offset correctly across a
 simple, unmerged grid; proves a merge-continuation cell (`hMerge`/`vMerge` set) contributes no
@@ -984,21 +993,34 @@ full spanned width instead of by each physical `<a:tc>` entry's own single-colum
 diagnosed and fixed in `ResolveCellRects` before this test was declared passing - see the design
 doc's own *Cell-Rect Resolution* subsection for the full root-cause explanation); and proves a
 vertically-merged cell's resolved rectangle height equals the sum of its spanned rows' own
-heights.
+heights. Proves (Review Follow-Up) that a malformed row - a `gridSpan="2"` governing cell
+immediately followed by a different, independent cell with no `hMerge` continuation placeholder
+at all (a structure the schema's own `minOccurs="0"` on `<a:tc>` permits) - no longer corrupts
+the following cell's computed column offset: `ResolveCellRects` now counts the actually-present
+`hMerge` continuations following a governing cell and defensively advances both `xEmu` and
+`columnIndex` past any shortfall, so the governing cell's own merged rectangle is unaffected and
+the following, unrelated cell lands at its correct, non-overlapping column offset.
 
 #### CanvasNetPptx-PptxDocument-TablePainting: Cell Fill, Border, and Text Painting
 
 **Tests**: `PaintTable_SolidFilledCell_PaintsFillColorAcrossCellRectangle`,
 `PaintTable_CellWithTopBorder_PaintsStrokedLineAtTopEdge`,
 `PaintTable_CellWithText_PaintsGlyphInkInsideCellRectangle`,
-`PaintTable_EmptyCell_PaintsNothing`
+`PaintTable_EmptyCell_PaintsNothing`,
+`PaintTable_GradientFilledCellUnderNonIdentityTransform_PositionsGradientInSurfaceSpace`
 
 Proves `PaintTable` paints a solid-filled cell's resolved color across its own rectangle, proves a
 cell with a resolved top border paints a stroked line at the cell's own top edge, proves a cell's
 text content paints glyph ink somewhere inside the cell's own rectangle (via a cell sized/scaled
 and inset-zeroed so a default-size glyph reliably lands within the test surface - mirroring Phase
 1d's own `ResolveTextLayout`/`PaintTextLayout` test conventions), and proves an empty cell (no
-fill, no border, no text) paints no non-background pixels at all.
+fill, no border, no text) paints no non-background pixels at all. Proves (Review Follow-Up) that
+`PaintTable`/`PaintCellBorder` compose a non-identity `shapeToSurfaceTransform` into a
+gradient-filled cell's own `Gradient` before filling (via `FillPaint`'s new four-parameter
+overload): a gradient-filled cell painted through a 2x-scale `shapeToSurfaceTransform` samples the
+first stop's color near the surface-space-mapped start of the ramp and the last stop's color near
+its mapped end, proving the ramp follows the shape into surface space rather than staying fixed in
+untransformed local-EMU coordinates.
 
 #### CanvasNetPptx-PptxDocument-TableStyleResolution: `<a:tableStyleId>` Table-Style/Banding Resolution
 
@@ -1463,7 +1485,8 @@ already-correct, already-verified `buChar` "touching, zero extra gap" behavior.
 `ResolveEffectiveColorMap_SlideAndLayoutMasterClrMapping_FallsThroughToMasterColorMap`,
 `ResolveEffectiveColorMap_OverrideClrMappingMissingRequiredAttribute_ThrowsInvalidDataException`,
 `Render_SlideClrMapOvrInvertsBg1_SchemeClrFillResolvesToOverriddenSlotNotHardcodedAlias`,
-`Render_NoClrMapOvr_SchemeClrFillResolvesToMasterColorMapDefault`
+`Render_NoClrMapOvr_SchemeClrFillResolvesToMasterColorMapDefault`,
+`GetSlide_TableCellSchemeColorFillWithSlideClrMapOvr_UsesEffectiveColorMapNotDefault`
 
 Proves `bg1`/`tx1`/`bg2`/`tx2` scheme-color resolution consults the slide master's own
 `<p:clrMap>` (and any layout/slide `<p:clrMapOvr>`) rather than a hard-coded `Light1`/`Dark1`/
@@ -1487,12 +1510,21 @@ Finally, proves the fix end-to-end at the render/pixel level: a slide-level `<p:
 <a:overrideClrMapping bg1="dk1" .../>` makes a shape filled with `<a:schemeClr val="bg1"/>`
 actually paint the theme's `Dark1` pixel color, not the previously hard-coded `Light1`, while a
 companion test confirms the pre-existing, no-override baseline still renders `Light1` unchanged -
-the real-world, visual-fidelity proof this fix's acceptance bar requires. A documented, accepted
-limitation (not separately tested as a defect): a table cell's own fill/border color is resolved
-once, eagerly, at parse time and therefore always effectively uses the default color map
-regardless of any real override in effect, while a table cell's own text color is resolved at
+the real-world, visual-fidelity proof this fix's acceptance bar requires. Proves (Review
+Follow-Up), at the `GetSlide` integration level, that a table cell's own fill color is no longer
+always resolved against the default color map for a slide-owned table: a slide declaring a
+`<p:clrMapOvr>/<a:overrideClrMapping bg1="dk1" .../>` and a table cell filled with
+`<a:schemeClr val="bg1"/>` resolves that cell's fill to the theme's `Dark1` color via `GetSlide`
+itself (not a direct `ParseTable` call bypassing the real inheritance chain), proving `GetSlide`'s
+new lazy `colorMapResolver` is correctly threaded through `ParseShapeTree` into `ParseTable`. A
+narrower, documented, accepted residual limitation remains for a **master- or layout-owned**
+table only (not separately tested as a defect, since `GetMaster`/`GetLayout`'s own part caches are
+shared across every consuming slide and cannot soundly bake in any one slide's effective color
+map): such a table cell's own fill/border color is still resolved once, eagerly, at parse time,
+and therefore still always effectively uses the default color map regardless of any real override
+in effect for a particular consuming slide, while a table cell's own text color is resolved at
 paint time and correctly reflects the real, per-render effective color map like any other text
-run.
+run, for tables owned by any tier.
 
 #### CanvasNetPptx-PptxDocument-ShapeStyleReference: `<p:style>` `fillRef`/`lnRef` Shape-Style Resolution
 

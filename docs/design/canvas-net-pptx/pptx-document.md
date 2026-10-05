@@ -916,11 +916,11 @@ cell with neither `hMerge` nor `vMerge` set) into a `PptxResolvedTableCell` carr
 EMU-space rectangle (`X`, `Y`, `Width`, `Height`), by walking each row's `<a:tc>` entries in
 document order while accumulating a running column offset.
 
-**Merge-continuation column-advancement rule**: per ECMA-376's table content model, each `<a:tc>`
-XML entry - whether a real cell or an `hMerge`/`vMerge` continuation placeholder - represents
-exactly **one physical grid column**; a `gridSpan="N"` cell is followed by `(N-1)` separate
-continuation `<a:tc>` entries, each itself a single-column-wide placeholder. The per-iteration
-running column offset therefore always advances by that **single column's own width**
+**Merge-continuation column-advancement rule**: each `<a:tc>` XML entry - whether a real cell or
+an `hMerge`/`vMerge` continuation placeholder - represents (in the common, well-formed case) one
+physical grid column; a `gridSpan="N"` cell is typically followed by `(N-1)` separate continuation
+`<a:tc>` entries, each itself a single-column-wide placeholder. The per-iteration running column
+offset therefore normally advances by that **single column's own width**
 (`table.ColumnWidthsEmu[columnIndex]`), **never** by the governing cell's own full merged-span
 width - only the surviving (non-continuation) cell's own stored rectangle width uses the full
 merged-span sum (`SumColumnWidths(..., cell.GridSpan)`). Advancing by the merged width instead
@@ -928,6 +928,23 @@ would double-count the columns already covered by that cell's own trailing conti
 corrupting every subsequent cell's computed left edge in the same row - a defect caught and fixed
 during this phase's own test-driven implementation (see `ResolveCellRects_HorizontalMerge_
 ComputesSpannedWidth`).
+
+**Corrected invariant - a schema-permitted gap, not a guarantee (Review Follow-Up)**: the
+preceding paragraph's original wording overstated ECMA-376's own actual guarantee. `CT_TableRow`
+declares its `tc` children as `minOccurs="0" maxOccurs="unbounded"` - the schema does **not**
+require a `gridSpan="N"` cell's `(N-1)` continuation placeholders to actually be present in the
+XML at all; a producer could omit them (or emit fewer than expected), and a conformant consumer
+must still render something sensible rather than corrupting every later cell's position in the
+row. `ResolveCellRects` now walks each row by index and, for every governing (non-continuation)
+cell, counts how many of the actually-present following entries are its own `hMerge`
+continuations (bounded by the cell's own declared `GridSpan - 1`); any shortfall between that
+actual count and the expected count is compensated defensively - both the running `xEmu` offset
+and `columnIndex` are advanced past the missing placeholders' own column widths before resuming
+the per-iteration loop - so a malformed row can no longer cause a later, unrelated cell to overlap
+the governing cell's own merged region. This mirrors the file's existing clamp-don't-throw
+convention elsewhere in this unit: a structurally-sparse row degrades to a best-effort, visually
+sensible layout rather than throwing (see
+`ResolveCellRects_GridSpanMissingHMergePlaceholder_CompensatesColumnAdvance`).
 
 #### Table Painting
 
@@ -1938,14 +1955,36 @@ and have no external or test call sites that bypass `Render` itself.
 
 **Scoped limitation, left as an explicit, documented simplification**: a table cell's own fill
 and border colors (`ParseTableCell`, `PptxDocument.Tables.cs`) are resolved once, eagerly, at
-parse/load time - before any per-slide effective color map is known - and therefore always
-effectively use `PptxColorMap.Default`, regardless of any real `<p:clrMapOvr>` in effect for that
-slide. A table cell's own **text**, by contrast, is not baked at parse time: `PaintTable` calls
-`ResolveTextLayout` for each cell's text at paint time, so cell text color correctly resolves
-through the real, per-render effective color map like any other text run. Fixing the fill/border
-eager-resolution limitation would require re-architecting table parsing to defer color resolution
-to paint time (mirroring how every other shape already works) - out of scope for this fix, and
-left as a known, documented gap.
+parse/load time - before any per-slide effective color map is known in the general case - so a
+cell's `<a:schemeClr>`-referenced colors could always effectively use `PptxColorMap.Default`,
+regardless of any real `<p:clrMapOvr>` in effect for that slide. A table cell's own **text**, by
+contrast, is not baked at parse time: `PaintTable` calls `ResolveTextLayout` for each cell's text
+at paint time, so cell text color correctly resolves through the real, per-render effective color
+map like any other text run.
+
+**Narrowed by Review Follow-Up, for slide-owned tables only**: `GetSlide`'s own slide cache
+(`_slideCache`, `PptxDocument.Slides.cs`) is keyed 1:1 by slide index - a cached `PptxSlide`'s own
+`ShapeTree` is never consumed by any other slide - so it is sound for `GetSlide` to supply
+`ParseShapeTree` a lazy `Func<PptxColorMap> colorMapResolver` computing
+`ResolveEffectiveColorMap(clrMapOvr, layout.ClrMapOvr, master.ColorMap)` from that slide's own,
+already-in-scope inheritance chain. `ParseShapeTree` (`PptxDocument.ShapeTree.cs`) threads the new,
+optional `colorMapResolver` parameter through its recursive `<p:grpSp>` self-call and invokes it
+lazily - only when a `<p:graphicFrame>` table is actually found - passing the resolved
+`PptxColorMap` into `ParseTable`'s own `colorMap` parameter, so a slide-owned table's cell fills
+now correctly resolve `<a:schemeClr>` references against that slide's real effective color map,
+not always `PptxColorMap.Default`.
+
+`GetMaster`/`GetLayout`'s own part caches, by contrast, are keyed by part path and shared across
+every slide that references that master/layout - each of which may have its own, different
+`<p:clrMapOvr>` - so a single cached master/layout `ShapeTree` cannot soundly bake in any one
+particular slide's effective color map. `PptxDocument.Masters.cs`/`PptxDocument.Layouts.cs`
+therefore intentionally omit `colorMapResolver` at their own `ParseShapeTree` call sites, each with
+an inline comment explaining why; a **master- or layout-owned table's** own `<a:schemeClr>`-filled
+cells remain the one residual, narrower case of this limitation - still effectively
+`PptxColorMap.Default`-resolved - left as an explicitly documented, architecturally-larger
+follow-up (it would require per-consuming-slide cache keys or fully deferring color resolution to
+paint time, mirroring how cell text already works, rather than this fix's narrower, safe
+per-slide-cache threading).
 
 **Test coverage**: `PptxPaintTests.cs` gained direct `ResolveSchemeColor`/`ResolveColor` unit
 tests proving the default (identity) map's `tx1` -> `Dark1` behavior is preserved, a non-identity
@@ -2660,3 +2699,78 @@ static, unused `ResolvedToken.WidthEmu`), and
 `"A\t\tB"` proves the second tab's expansion is computed from the cursor position after the first
 tab's own expansion - including correctly advancing by a full interval, never zero, when the
 second tab starts exactly on an already-aligned tab-stop boundary).
+
+#### Review Follow-Up: Table Gradient Sizing, Gradient Transform Composition, and ColorMap Threading
+
+A focused code-review pass surfaced three true-positive defects in `PptxDocument.Tables.cs` and
+its immediately collaborating files, all touching the same gridSpan/rowSpan/colorMap code paths
+and fixed together.
+
+**1. Merged-cell gradient sizing (`ParseTable`)**: `ParseTable` previously called
+`ParseTableCell(tcElement, theme, columnWidthEmu, rowHeightEmu, ...)` using only the cell's own
+single column's width and single row's height - always a span-1 size, regardless of the cell's own
+declared `gridSpan`/`rowSpan`. A cell's gradient fill (`ResolveGradientFill`, `PptxDocument.
+Paint.cs`) builds its `Start`/`End` stop positions directly from the `widthEmu`/`heightEmu` it is
+given, so a merged cell's gradient was always sized against its first column/row alone - visibly
+too narrow/short, with the gradient's own end stop landing partway across the merged cell's true
+rectangle instead of at its far edge. **Fix**: `ParseTable` now precomputes a `rowHeightsEmu` list
+once, up front, before its per-row loop (replacing the previous once-per-row inline parse); for
+each `<a:tc>`, it peeks the cell's own `gridSpan`/`rowSpan` attributes (via the existing
+`ParseOptionalIntAttribute` helper) _before_ calling `ParseTableCell`, and passes a merged
+(summed) `cellWidthEmu`/`cellHeightEmu` computed via a new `SumConsecutive(IReadOnlyList<float>
+valuesEmu, int startIndex, int count)` private helper - a generalization of the pre-existing
+`SumColumnWidths`, which now delegates to it as a one-line wrapper, reused here for the new
+row-height peek as well. This peek is a sizing hint only, not a validation step: `ParseTableCell`
+still independently re-parses and authoritatively validates the same `gridSpan`/`rowSpan`
+attributes (throwing `InvalidDataException` for a non-positive value), so a malformed value can
+never silently bypass that check via the peek.
+
+**2. Gradient transform composition (`FillPaint`)**: every other transform-sensitive paint
+operation in this unit composes the shape's own local-to-surface transform into whatever it paints
+before filling; a gradient fill's own `Gradient`, however, was always filled with its `Transform`
+left at the default `Matrix3x2.Identity`, regardless of any non-identity `shapeToSurfaceTransform`
+in scope - the one precedent for this kind of composition elsewhere in the codebase is
+`Rendering/Canvas.cs`'s own `paint.WithTransform(_current)` call. For an ordinary (non-rotated,
+non-skewed, 1 EMU-per-pixel) shape this defect is invisible, since the identity transform is a
+no-op; it becomes visible for a rotated/scaled/skewed shape (or, for a table, any non-identity
+`shapeToSurfaceTransform` the table itself is painted through), where the gradient's own ramp
+stays fixed in the shape's local coordinate space instead of following the shape into surface
+space. **Fix, scoped to table cells only**: `FillPaint` (a single, shared private method also
+called from eight-plus non-table sites in `PptxDocument.Render.cs`) gained a second, four-
+parameter overload - `FillPaint(Surface, Path, PptxPaint, Matrix3x2 shapeToSurfaceTransform)` -
+that composes `gradientFill.Gradient.WithTransform(shapeToSurfaceTransform)` before filling; the
+pre-existing three-parameter overload is **unchanged** and now simply delegates to the new one
+with `Matrix3x2.Identity`, preserving every pre-existing (non-table) call site's exact current
+behavior bit-for-bit. `PaintTable`'s cell-fill call and `PaintCellBorder`'s stroked-border call
+(both of which already have `shapeToSurfaceTransform` in scope) now use the new four-argument
+overload. **Explicitly out of scope**: the identical gap exists at every one of `FillPaint`'s
+other (non-table) call sites in `PptxDocument.Render.cs` - an ordinary shape's own gradient fill
+is, today, filled exactly as before this fix, still without transform composition. This is a real,
+visually-observable gap for a rotated/skewed shape with a gradient fill, but it is not
+table-specific, is already fully pre-existing (not introduced or worsened by this fix), and
+closing it for every non-table call site is a separable, independently-scoped follow-up left
+explicitly for a future unit of work, not folded into this table-focused fix.
+
+**3. ColorMap threading for slide-owned tables (`ParseShapeTree`/`GetSlide`)**: see the "Color Map
+(`<p:clrMap>`/`<p:clrMapOvr>`) Resolution" follow-up above - its own "Scoped limitation" text has
+been updated in place to describe this fix (an optional `Func<PptxColorMap>? colorMapResolver`
+parameter added to `ParseShapeTree`, invoked lazily only for a `<p:graphicFrame>` table and
+threaded through its own recursive `<p:grpSp>` call; `GetSlide` supplies a lazy resolver computing
+that slide's own real `ResolveEffectiveColorMap(...)`, safe because `_slideCache` is keyed 1:1 per
+slide; `GetMaster`/`GetLayout`'s own shared caches are intentionally left unchanged, narrowing - not
+eliminating - the pre-existing known limitation to master/layout-owned tables only).
+
+**Test coverage**: `PptxTablesTests.cs` gained
+`ResolveCellRects_GridSpanMissingHMergePlaceholder_CompensatesColumnAdvance` (see "Cell-Rect
+Resolution" above), `ParseTable_GridSpanCellWithGradientFill_UsesMergedWidth` and
+`ParseTable_RowSpanCellWithGradientFill_UsesMergedHeight` (each comparing a merged cell's own
+resolved gradient extent against an equivalent span-1 cell's, proving the merged cell's own
+gradient spans its true summed dimension), and
+`PaintTable_GradientFilledCellUnderNonIdentityTransform_PositionsGradientInSurfaceSpace` (a
+gradient-filled cell painted through a 2x-scale `shapeToSurfaceTransform` samples the correct
+stop colors at the surface-space-mapped ends of the ramp). `PptxColorMapTests.cs` gained
+`GetSlide_TableCellSchemeColorFillWithSlideClrMapOvr_UsesEffectiveColorMapNotDefault`, an
+integration-style test proving `GetSlide` itself (not a direct `ParseTable` call) threads a real
+slide's effective color map - computed from a `<p:clrMapOvr>` overriding `bg1="dk1"` - into a
+table cell's `<a:schemeClr val="bg1"/>` fill resolution, which resolves to the theme's `dk1` color
+rather than the default `lt1`.

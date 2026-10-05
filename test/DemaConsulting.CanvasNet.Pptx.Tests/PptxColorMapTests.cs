@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using System.Xml.Linq;
+using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
@@ -350,5 +351,76 @@ public class PptxColorMapTests
         var malformed = new XElement(P + "clrMapOvr", new XElement(A + "overrideClrMapping", new XAttribute("bg1", "dk1")));
 
         Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveEffectiveColorMap(malformed, null, PptxColorMap.Default));
+    }
+
+    // --- GetSlide: colorMapResolver threading into table cell fill resolution -----------------
+
+    /// <summary>Builds a single-cell <c>&lt;p:graphicFrame&gt;</c> table whose cell's own fill is <c>&lt;a:solidFill&gt;&lt;a:schemeClr val="bg1"/&gt;&lt;/a:solidFill&gt;</c>.</summary>
+    private static XElement BuildSchemeColorTableGraphicFrame() =>
+        new(
+            P + "graphicFrame",
+            new XElement(
+                A + "graphic",
+                new XElement(
+                    A + "graphicData",
+                    new XAttribute("uri", "http://schemas.openxmlformats.org/drawingml/2006/table"),
+                    new XElement(
+                        A + "tbl",
+                        new XElement(A + "tblGrid", new XElement(A + "gridCol", new XAttribute("w", 1000))),
+                        new XElement(
+                            A + "tr",
+                            new XAttribute("h", 1000),
+                            new XElement(
+                                A + "tc",
+                                new XElement(
+                                    A + "tcPr",
+                                    new XElement(A + "solidFill", new XElement(A + "schemeClr", new XAttribute("val", "bg1"))))))))));
+
+    /// <summary>Builds a <c>&lt;p:sld&gt;</c> part's content whose <c>&lt;p:spTree&gt;</c> contains a single scheme-color-filled table, with an optional raw <c>&lt;p:clrMapOvr&gt;</c> child.</summary>
+    private static string BuildSlideXmlWithSchemeColorTable(XElement? clrMapOvr = null)
+    {
+        var root = new XElement(
+            P + "sld",
+            new XElement(P + "cSld", new XElement(P + "spTree", BuildSchemeColorTableGraphicFrame())));
+        if (clrMapOvr is not null)
+        {
+            root.Add(clrMapOvr);
+        }
+
+        return root.ToString();
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PptxDocument.GetSlide"/> threads this slide's own real effective
+    ///     color map (see <see cref="PptxDocument.ResolveEffectiveColorMap"/>) into
+    ///     <see cref="PptxDocument.ParseTable"/>, instead of silently defaulting to
+    ///     <see cref="PptxColorMap.Default"/> as before this fix: a table cell's own
+    ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c> fill resolves against the theme color the
+    ///     slide's own <c>&lt;p:clrMapOvr&gt;</c> override maps <c>bg1</c> to (<c>dk1</c>, the
+    ///     theme's <c>101010</c> color), not the one <see cref="PptxColorMap.Default"/>'s
+    ///     unoverridden <c>bg1</c>-&gt;<c>lt1</c> mapping would have produced (the theme's
+    ///     <c>F0F0F0</c> color).
+    /// </summary>
+    [Fact]
+    public void GetSlide_TableCellSchemeColorFillWithSlideClrMapOvr_UsesEffectiveColorMapNotDefault()
+    {
+        using var stream = BuildPackage(
+            [
+                .. MinimalOpenableEntries(),
+                ("ppt/slides/slide1.xml", BuildSlideXmlWithSchemeColorTable(OverrideClrMapOvr("dk1", "lt1", "dk2", "lt2"))),
+                ("ppt/slides/_rels/slide1.xml.rels", SlideRelsXml),
+                ("ppt/slideLayouts/slideLayout1.xml", BuildLayoutXml()),
+                ("ppt/slideLayouts/_rels/slideLayout1.xml.rels", LayoutRelsXml),
+                ("ppt/slideMasters/slideMaster1.xml", BuildMasterXml()),
+                ("ppt/slideMasters/_rels/slideMaster1.xml.rels", MasterRelsXml),
+                ("ppt/theme/theme1.xml", ThemeXml),
+            ]);
+        using var document = PptxDocument.Open(stream);
+
+        var slide = document.GetSlide(0);
+
+        var graphicFrameNode = Assert.IsType<PptxGraphicFrameShapeNode>(Assert.Single(slide.ShapeTree));
+        var cellFill = Assert.IsType<PptxSolidFill>(graphicFrameNode.Table.Rows[0].Cells[0].Fill);
+        Assert.Equal(new Rgba32(0x10, 0x10, 0x10, 255), cellFill.Color);
     }
 }

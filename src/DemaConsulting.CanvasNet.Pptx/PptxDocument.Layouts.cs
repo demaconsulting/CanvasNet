@@ -51,6 +51,13 @@ public sealed partial class PptxDocument
         // own master's theme. Resolving the master -> theme relationship chain is deferred into
         // this lambda (mirroring GetSlide's own lazy theme resolver) so layouts with no tables at
         // all never require it to be walked.
+        //
+        // colorMapResolver is intentionally omitted: this layout's own _layoutCache entry is
+        // shared by every slide using it (keyed by part path, not by slide), each of which may
+        // declare its own distinct <p:clrMapOvr> - baking any single color map into a
+        // layout-owned table's cached fill/border here would be correct for some consuming
+        // slides and wrong for others. See ParseTable's own colorMap parameter XmlDoc for the
+        // full rationale and GetSlide's own colorMapResolver for the case where this is safe.
         var shapeTree = ParseShapeTree(spTree, () => GetTheme(GetMaster(masterPartPath).ThemePartPath), tableStyleResolver: TryResolveTableStyle);
 
         var layout = new PptxLayout(layoutPartPath, masterPartPath, placeholders, background, shapeTree, clrMapOvr);

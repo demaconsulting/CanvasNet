@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
@@ -284,6 +285,73 @@ public class PptxTablesTests
         Assert.Throws<InvalidDataException>(() => PptxDocument.ParseTable(graphicFrame, BuildTestTheme()));
     }
 
+    /// <summary>Builds an <c>&lt;a:tcPr&gt;</c> wrapping a linear <c>&lt;a:gradFill&gt;</c> at the given 60000ths-of-a-degree angle, matching <see cref="PptxPaintTests"/>'s own <c>ResolveGradientFill</c> fixtures.</summary>
+    private static XElement BuildGradFillTcPr(int angle60000ths) =>
+        new(A + "tcPr",
+            new XElement(
+                A + "gradFill",
+                new XElement(
+                    A + "gsLst",
+                    new XElement(A + "gs", new XAttribute("pos", 0), new XElement(A + "srgbClr", new XAttribute("val", "FF0000"))),
+                    new XElement(A + "gs", new XAttribute("pos", 100000), new XElement(A + "srgbClr", new XAttribute("val", "0000FF")))),
+                new XElement(A + "lin", new XAttribute("ang", angle60000ths))));
+
+    /// <summary>
+    ///     Proves <see cref="PptxDocument.ParseTable"/> sizes a <c>gridSpan="2"</c> cell's
+    ///     gradient fill against its true summed two-column width, not only its first column's
+    ///     own width - <c>ParseTable</c>'s internal <c>ParseTableCell</c> call previously received
+    ///     always-span-1 dimensions, so a merged cell's gradient was built too narrow.
+    /// </summary>
+    [Fact]
+    public void ParseTable_GridSpanCellWithGradientFill_UsesMergedWidth()
+    {
+        // A horizontal (ang=0) gradient's End.X - Start.X span equals the cell's own widthEmu
+        // (see ResolveGradientFill's own center +/- direction * extent construction).
+        var mergedTbl = BuildTbl([1000f, 1500f], BuildTr(500f, BuildTc(gridSpan: 2, tcPr: BuildGradFillTcPr(0))));
+        var mergedTable = PptxDocument.ParseTable(BuildGraphicFrame(mergedTbl), BuildTestTheme());
+        var mergedFill = Assert.IsType<PptxGradientFill>(mergedTable.Rows[0].Cells[0].Fill);
+        var mergedGradient = Assert.IsType<LinearGradient>(mergedFill.Gradient);
+
+        var unmergedTbl = BuildTbl([1000f], BuildTr(500f, BuildTc(tcPr: BuildGradFillTcPr(0))));
+        var unmergedTable = PptxDocument.ParseTable(BuildGraphicFrame(unmergedTbl), BuildTestTheme());
+        var unmergedFill = Assert.IsType<PptxGradientFill>(unmergedTable.Rows[0].Cells[0].Fill);
+        var unmergedGradient = Assert.IsType<LinearGradient>(unmergedFill.Gradient);
+
+        // The merged (gridSpan=2) cell's own gradient spans the summed two-column width (2500),
+        // not the single-column width (1000) an un-merge-aware sizing would have produced.
+        Assert.InRange(mergedGradient.End.X - mergedGradient.Start.X, 2499f, 2501f);
+        Assert.InRange(unmergedGradient.End.X - unmergedGradient.Start.X, 999f, 1001f);
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PptxDocument.ParseTable"/> sizes a <c>rowSpan="2"</c> cell's gradient
+    ///     fill against its true summed two-row height (looked ahead via the precomputed
+    ///     <c>rowHeightsEmu</c> list), not only its own declared row's height.
+    /// </summary>
+    [Fact]
+    public void ParseTable_RowSpanCellWithGradientFill_UsesMergedHeight()
+    {
+        // A vertical (ang=5400000, i.e. 90 degrees) gradient's End.Y - Start.Y span equals the
+        // cell's own heightEmu.
+        var mergedTbl = BuildTbl(
+            [1000f],
+            BuildTr(400f, BuildTc(rowSpan: 2, tcPr: BuildGradFillTcPr(5400000))),
+            BuildTr(700f, BuildTc(vMerge: true)));
+        var mergedTable = PptxDocument.ParseTable(BuildGraphicFrame(mergedTbl), BuildTestTheme());
+        var mergedFill = Assert.IsType<PptxGradientFill>(mergedTable.Rows[0].Cells[0].Fill);
+        var mergedGradient = Assert.IsType<LinearGradient>(mergedFill.Gradient);
+
+        var unmergedTbl = BuildTbl([1000f], BuildTr(400f, BuildTc(tcPr: BuildGradFillTcPr(5400000))));
+        var unmergedTable = PptxDocument.ParseTable(BuildGraphicFrame(unmergedTbl), BuildTestTheme());
+        var unmergedFill = Assert.IsType<PptxGradientFill>(unmergedTable.Rows[0].Cells[0].Fill);
+        var unmergedGradient = Assert.IsType<LinearGradient>(unmergedFill.Gradient);
+
+        // The merged (rowSpan=2) cell's own gradient spans the summed two-row height (1100), not
+        // the single-row height (400) an un-merge-aware sizing would have produced.
+        Assert.InRange(mergedGradient.End.Y - mergedGradient.Start.Y, 1099f, 1101f);
+        Assert.InRange(unmergedGradient.End.Y - unmergedGradient.Start.Y, 399f, 401f);
+    }
+
     // --- ParseTableCell --------------------------------------------------------------------------
 
     /// <summary>Proves an absent <c>gridSpan</c>/<c>rowSpan</c>/<c>hMerge</c>/<c>vMerge</c> defaults to span 1, no merge.</summary>
@@ -472,6 +540,37 @@ public class PptxTablesTests
         Assert.Equal(1100f, rect.HeightEmu); // 500 + 600
     }
 
+    /// <summary>
+    ///     Proves <see cref="PptxDocument.ResolveCellRects"/> defensively compensates when a
+    ///     <c>gridSpan="2"</c> governing cell is followed immediately by a different, independent
+    ///     cell rather than its own <c>hMerge</c> continuation placeholder (the schema - see this
+    ///     method's own <c>&lt;remarks/&gt;</c> - does not guarantee the placeholder's presence).
+    ///     The governing cell's own rect is unaffected, and the following independent cell's
+    ///     <c>XEmu</c> lands at the correct compensated column offset (column 2's own width,
+    ///     3000), not overlapping the governing cell's merged region (columns 0-1, width 3000).
+    /// </summary>
+    [Fact]
+    public void ResolveCellRects_GridSpanMissingHMergePlaceholder_CompensatesColumnAdvance()
+    {
+        var table = new PptxTable(
+            [1000f, 2000f, 3000f],
+            [
+                new PptxTableRow(500f,
+                [
+                    new PptxTableCell(2, 1, false, false, PptxNoFill.Instance, null, null, null, null, null),
+                    // No hMerge continuation placeholder for the gridSpan=2 cell's second column -
+                    // a different, independent governing cell follows immediately instead.
+                    new PptxTableCell(1, 1, false, false, PptxNoFill.Instance, null, null, null, null, null),
+                ]),
+            ]);
+
+        var rects = PptxDocument.ResolveCellRects(table);
+
+        Assert.Equal(2, rects.Count);
+        Assert.Equal((0f, 3000f), (rects[0].XEmu, rects[0].WidthEmu)); // columns 0-1 (1000 + 2000), unchanged
+        Assert.Equal((3000f, 3000f), (rects[1].XEmu, rects[1].WidthEmu)); // column 2, compensated past the missing placeholder
+    }
+
     // --- PaintTable --------------------------------------------------------------------------------
 
     private static readonly Func<string, bool, bool, TrueTypeFont> ConstantFontResolver = (_, _, _) => NewFont();
@@ -512,6 +611,40 @@ public class PptxTablesTests
         PptxDocument.PaintTable(surface, table, BuildTestTheme(), Matrix3x2.Identity, ConstantFontResolver);
 
         Assert.Equal(new Rgba32(10, 20, 30, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PptxDocument.PaintTable"/> composes a non-identity
+    ///     <c>shapeToSurfaceTransform</c> into a gradient-filled cell's own
+    ///     <see cref="Gradient"/> before filling, so the gradient ramp is positioned/scaled in
+    ///     surface space rather than left in untransformed local-EMU space (see
+    ///     <c>PptxDocument.Tables.cs</c>'s own <c>FillPaint</c> overload's XmlDoc).
+    /// </summary>
+    [Fact]
+    public void PaintTable_GradientFilledCellUnderNonIdentityTransform_PositionsGradientInSurfaceSpace()
+    {
+        // A local-space 100x100 cell with a horizontal (ang=0) red -> blue gradient. A 2x scale
+        // transform maps the cell onto a 200x200 region of the surface.
+        var tcElement = BuildTc(tcPr: BuildGradFillTcPr(0));
+        var cell = PptxDocument.ParseTableCell(tcElement, BuildTestTheme(), 100f, 100f);
+        var table = new PptxTable([100f], [new PptxTableRow(100f, [cell])]);
+
+        using var surface = new Surface(200, 200);
+
+        PptxDocument.PaintTable(surface, table, BuildTestTheme(), Matrix3x2.CreateScale(2f), ConstantFontResolver);
+
+        // Sampled comfortably inside each end of the surface-space-mapped gradient ramp (local
+        // x=0 -> surface x=0, local x=100 -> surface x=200): the near-start pixel should be
+        // dominated by the first stop's color (red), the near-end pixel by the last stop's color
+        // (blue). If the gradient's own Transform were left at the default identity (the pre-fix
+        // behavior), the gradient would instead be evaluated directly against these surface-pixel
+        // coordinates in the gradient's own un-scaled local-space terms, producing the wrong
+        // color at both samples.
+        var nearStart = surface[5, 100];
+        var nearEnd = surface[195, 100];
+
+        Assert.True(nearStart.R > nearStart.B, $"Expected a red-dominant pixel near the gradient's start, got {nearStart}.");
+        Assert.True(nearEnd.B > nearEnd.R, $"Expected a blue-dominant pixel near the gradient's end, got {nearEnd}.");
     }
 
     /// <summary>Proves a cell's resolved border paints a stroked line at the cell's own edge.</summary>
