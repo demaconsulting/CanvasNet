@@ -433,15 +433,18 @@ public class PptxTextTests
         Assert.Equal(18f * 12700f, bodyResult.SizeEmu);
         Assert.False(bodyResult.Bold);
         Assert.False(bodyResult.Italic);
-        Assert.False(bodyResult.Underline);
+        Assert.Equal(PptxUnderlineStyle.None, bodyResult.UnderlineStyle);
         Assert.Equal(theme.ColorScheme.Dark1, bodyResult.Color);
     }
 
-    /// <summary>Resolve Effective Run Properties Underline Attribute Resolves Expected Boolean.</summary>
+    /// <summary>Resolve Effective Run Properties Underline Attribute Resolves Expected Style.</summary>
     [Theory]
-    [InlineData("sng", true)]
-    [InlineData("none", false)]
-    public void ResolveEffectiveRunProperties_UnderlineAttribute_ResolvesExpectedBoolean(string u, bool expected)
+    [InlineData("sng", "Single")]
+    [InlineData("none", "None")]
+    [InlineData("dbl", "Double")]
+    [InlineData("wavy", "Other")]
+    [InlineData("heavy", "Other")]
+    public void ResolveEffectiveRunProperties_UnderlineAttribute_ResolvesExpectedStyle(string u, string expectedStyleName)
     {
         var theme = BuildTestTheme();
         var run = Run(new XElement(DrawingNs + "rPr", new XAttribute("u", u)));
@@ -450,7 +453,63 @@ public class PptxTextTests
 
         var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
 
-        Assert.Equal(expected, result.Underline);
+        Assert.Equal(expectedStyleName, result.UnderlineStyle.ToString());
+    }
+
+    /// <summary>Resolve Effective Run Properties - Explicit uFill Overrides The Run's Own Text Color.</summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_ExplicitUFill_OverridesTextColor()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XAttribute("u", "sng"),
+            new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "FF0000"))),
+            new XElement(
+                DrawingNs + "uFill",
+                new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "00FF00"))))));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Equal(new Rgba32(255, 0, 0, 255), result.Color);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), result.UnderlineColor);
+    }
+
+    /// <summary>Resolve Effective Run Properties - No uFill/uFillTx - Defaults Underline Color To The Run's Own Text Color.</summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_NoUnderlineFillMarkup_DefaultsUnderlineColorToTextColor()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XAttribute("u", "sng"),
+            new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "FF0000")))));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Equal(new Rgba32(255, 0, 0, 255), result.UnderlineColor);
+    }
+
+    /// <summary>Resolve Effective Run Properties - Explicit uFillTx - Also Defaults Underline Color To The Run's Own Text Color (not "no color").</summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_ExplicitUFillTx_DefaultsUnderlineColorToTextColor()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XAttribute("u", "sng"),
+            new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "FF0000"))),
+            new XElement(DrawingNs + "uFillTx")));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Equal(new Rgba32(255, 0, 0, 255), result.UnderlineColor);
     }
 
     /// <summary>Resolve Effective Run Properties Run Solid Fill Srgb Clr Resolves Explicit Color.</summary>

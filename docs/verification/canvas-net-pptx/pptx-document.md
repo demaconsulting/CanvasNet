@@ -1569,6 +1569,52 @@ mapping is a documented visual approximation, not derived from a published Power
 constant table; and connection-site (`<a:stCxn>`/`<a:endCxn>`) auto-routing is out of scope - a
 connector always renders at its own last-saved, static `<a:xfrm>` position.
 
+#### CanvasNetPptx-PptxDocument-UnderlineRendering: `<a:rPr u="…">` Underline Style/Color Resolution and Rendering
+
+**Tests**: `ResolveEffectiveRunProperties_NoneDeclared_ResolvesHardCodedDefaults`,
+`ResolveEffectiveRunProperties_UnderlineAttribute_ResolvesExpectedStyle`,
+`ResolveEffectiveRunProperties_ExplicitUFill_OverridesTextColor`,
+`ResolveEffectiveRunProperties_NoUnderlineFillMarkup_DefaultsUnderlineColorToTextColor`,
+`ResolveEffectiveRunProperties_ExplicitUFillTx_DefaultsUnderlineColorToTextColor`,
+`ResolveTextLayout_UnderlinedRun_EmitsOneSegmentSpanningRunWidth`,
+`ResolveTextLayout_NonUnderlinedRun_EmitsNoSegment`,
+`ResolveTextLayout_TwoRunsOnlyFirstUnderlined_EmitsExactlyOneSegment`,
+`ResolveTextLayout_UnderlinedRunWithInteriorSpace_SpanCoversSpace`,
+`PaintTextLayout_SingleUnderlineSegment_PaintsStrokeBelowBaselineAtExpectedPositionAndColor`,
+`PaintTextLayout_NoUnderlineSegments_PaintsNoExtraInk`,
+`PaintTextLayout_DoubleUnderlineSegment_DoesNotThrowAndPaintsInk`,
+`PaintTextLayout_OtherUnderlineSegment_DoesNotThrowAndPaintsInk`
+
+Proves `ResolveEffectiveRunProperties` resolves a run with no underline markup declared anywhere
+in its own inheritance chain to the hard-coded default `PptxUnderlineStyle.None` (closing the
+regression where an underlined run previously rendered with no underline at all), and proves its
+own `u` attribute resolution: `"sng"` resolves to `Single`, `"none"` resolves to `None`, `"dbl"`
+resolves to `Double`, and both a recognized-but-less-common variant (`"wavy"`) and an entirely
+unrecognized value (`"heavy"`) both resolve to `Other` - proving every ECMA-376 variant this phase
+does not render distinctly still resolves to a defined, intentional single-solid-line rendering
+rather than crashing or silently dropping the underline again. Proves the underline's own color
+resolves independently of the run's own text-fill color: an explicit `<a:uFill>/<a:solidFill>`
+overrides the text color; no `<a:uFill>` child at all defaults the underline color to the run's
+own already-resolved text color; and an explicit `<a:uFillTx/>` (the "inherit text color" marker)
+also defaults to the text color, proving it is not misinterpreted as "no color". Proves
+`ResolveTextLayout` emits exactly one `PptxUnderlineSegment` spanning an underlined run's own
+measured glyph width, with `SizeEmu`/`Color` matching that run's own resolved properties; proves
+a non-underlined run emits no segment at all; proves that when only the first of two runs on one
+line is underlined, exactly one segment is emitted, spanning only that first run's own width (the
+span correctly flushes at the run boundary rather than bridging into the second, non-underlined
+run); and proves a single underlined run containing an interior space emits one segment spanning
+the full run width including that interior space (the span does not stop at the first word).
+Finally, proves `PaintTextLayout` paints a visible, solid-filled stroke below the baseline at the
+segment's own expected position and color for a `Single`-style segment (with no ink painted above
+the baseline or outside the segment's own horizontal range), proves a layout with no underline
+segments at all paints no extra ink anywhere (a regression guard against a null/default
+`Underlines` list throwing or painting unexpectedly), and proves both `Double`- and `Other`-style
+segments paint without throwing. Documented, accepted limitation (not separately tested as a
+defect): underline thickness/offset are computed as a pragmatic, `SizeEmu`-proportional
+approximation, not derived from the target font's own OpenType `post` table
+`underlinePosition`/`underlineThickness` fields - true font-metric-derived values are deferred to
+a later phase.
+
 ## Acceptance Criteria
 
 A unit-level test run passes when all scenarios above pass without error or exception beyond

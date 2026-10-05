@@ -198,4 +198,76 @@ public class PptxTextRenderTests
         Assert.NotNull(font);
         Assert.True(font.UnitsPerEm > 0);
     }
+
+    #region Underlines (Phase 2 Follow-Up: Underline Rendering)
+
+    /// <summary>Proves a <see cref="PptxUnderlineStyle.Single"/> segment paints a visible stroke below the baseline at the expected position/color, and leaves a pixel above the baseline untouched.</summary>
+    [Fact]
+    public void PaintTextLayout_SingleUnderlineSegment_PaintsStrokeBelowBaselineAtExpectedPositionAndColor()
+    {
+        var color = new Rgba32(200, 30, 40, 255);
+        var segment = new PptxUnderlineSegment(StartXEmu: 10f, EndXEmu: 90f, BaselineYEmu: 50f, SizeEmu: 100f, PptxUnderlineStyle.Single, color);
+        var layout = new PptxTextLayout([], 1f, [segment]);
+
+        using var surface = new Surface(100, 100);
+
+        PptxDocument.PaintTextLayout(surface, layout, Matrix3x2.Identity);
+
+        // thicknessEmu = 100*0.05 = 5; offsetEmu = 100*0.08 = 8 -> stroke occupies y in [58,63).
+        Assert.Equal(color, surface[50, 60]);
+        // A pixel above the baseline (y=50, the baseline itself) must remain untouched.
+        Assert.Equal(default, surface[50, 45]);
+        // Outside the segment's own X range must remain untouched too.
+        Assert.Equal(default, surface[5, 60]);
+    }
+
+    /// <summary>Proves an empty <see cref="PptxTextLayout.Underlines"/> list paints no extra ink at all (regression guard).</summary>
+    [Fact]
+    public void PaintTextLayout_NoUnderlineSegments_PaintsNoExtraInk()
+    {
+        var layout = new PptxTextLayout([], 1f);
+        using var surface = new Surface(100, 100);
+
+        PptxDocument.PaintTextLayout(surface, layout, Matrix3x2.Identity);
+
+        for (var y = 0; y < 100; y++)
+        {
+            for (var x = 0; x < 100; x++)
+            {
+                Assert.Equal(default, surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>Proves a <see cref="PptxUnderlineStyle.Double"/> segment paints without throwing and produces visible ink.</summary>
+    [Fact]
+    public void PaintTextLayout_DoubleUnderlineSegment_DoesNotThrowAndPaintsInk()
+    {
+        var color = new Rgba32(10, 100, 200, 255);
+        var segment = new PptxUnderlineSegment(StartXEmu: 10f, EndXEmu: 90f, BaselineYEmu: 50f, SizeEmu: 100f, PptxUnderlineStyle.Double, color);
+        var layout = new PptxTextLayout([], 1f, [segment]);
+        using var surface = new Surface(100, 100);
+
+        var exception = Record.Exception(() => PptxDocument.PaintTextLayout(surface, layout, Matrix3x2.Identity));
+
+        Assert.Null(exception);
+        Assert.Equal(color, surface[50, 58]);
+    }
+
+    /// <summary>Proves a <see cref="PptxUnderlineStyle.Other"/> segment paints without throwing and produces visible ink (exactly one solid rectangle, same as <see cref="PptxUnderlineStyle.Single"/>).</summary>
+    [Fact]
+    public void PaintTextLayout_OtherUnderlineSegment_DoesNotThrowAndPaintsInk()
+    {
+        var color = new Rgba32(50, 150, 60, 255);
+        var segment = new PptxUnderlineSegment(StartXEmu: 10f, EndXEmu: 90f, BaselineYEmu: 50f, SizeEmu: 100f, PptxUnderlineStyle.Other, color);
+        var layout = new PptxTextLayout([], 1f, [segment]);
+        using var surface = new Surface(100, 100);
+
+        var exception = Record.Exception(() => PptxDocument.PaintTextLayout(surface, layout, Matrix3x2.Identity));
+
+        Assert.Null(exception);
+        Assert.Equal(color, surface[50, 60]);
+    }
+
+    #endregion
 }

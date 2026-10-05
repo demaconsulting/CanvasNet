@@ -2212,3 +2212,88 @@ connector's own endpoint. `PptxFixturesCorpusTests.cs`'s own
 its prior "connectors skipped silently" name) now asserts both of the fixture's slides paint at
 least one non-background pixel, where previously only slide 0's dimensions were asserted and
 slide 1 was untested.
+
+#### Phase 2 Follow-Up: Underline Rendering (`<a:rPr u="…">`)
+
+A real-world corpus fixture ("ERF IWF Breadboard Motion System Overview.pptx", slide 23
+"Configurations") contains text runs declaring `<a:rPr u="sng"/>` that PowerPoint's own
+ground-truth rendering shows with a visible single underline, while CanvasNet rendered no
+underline at all. Root cause: `GetUnderline` (in `PptxDocument.TextInheritance.cs`) parsed the
+`u` attribute into a boolean `PptxEffectiveRunProperties.Underline`, but nothing downstream (text
+layout or paint) ever consumed it - it was silently dropped before reaching `PptxTextLayout`/
+`PaintTextLayout`. This closes that gap.
+
+**Style model** (`PptxEffectiveTextProperties.cs`): a new `PptxUnderlineStyle` enum -
+`None`/`Single`/`Double`/`Other` - replaces the prior boolean. Every ECMA-376 `u` value other than
+`none`/`sng`/`dbl` (`heavy`, `dotted`, `dottedHeavy`, `dash`, `dashHeavy`, `dashLong`,
+`dashLongHeavy`, `dotDash`, `dotDashHeavy`, `dotDotDash`, `dotDotDashHeavy`, `wavy`, `wavyHeavy`,
+`wavyDbl`), plus any unrecognized string value, resolves to `Other` and is rendered as a single
+solid line - a documented simplification rather than a distinct visual rendering per variant.
+`PptxEffectiveRunProperties.Underline` is replaced by `UnderlineStyle` (`PptxUnderlineStyle`), and
+a new `UnderlineColor` (`Rgba32`) is added alongside it.
+
+**Inheritance resolution** (`PptxDocument.TextInheritance.cs`): `GetUnderline` is replaced by
+`GetUnderlineStyle(XElement?)`, returning `PptxUnderlineStyle?` (`null` when the element declares
+no `u` attribute at all, so the existing four-tier run/paragraph-defRPr/lstStyle-level/
+master-txStyles inheritance chain keeps falling through exactly as it does for every other text
+property); `"none"` resolves to `None`, `"sng"` to `Single`, `"dbl"` to `Double`, and every other
+recognized/unrecognized non-empty value to `Other`. A new `GetUnderlineColor(XElement?, PptxTheme,
+PptxColorMap?)` resolves a run's own underline color: it returns `null` (meaning "inherit, keep
+searching the chain") whenever no `<a:uFill>` child element exists at all - this single condition
+also covers the explicit `<a:uFillTx/>` marker ("use the text's own fill"), since `<a:uFillTx/>`
+is a sibling element name, not a child of `<a:uFill>`; otherwise it resolves `<a:uFill>/
+<a:solidFill>`'s color child via the same `ResolveColor` helper `GetRunColor` already uses.
+`ResolveEffectiveRunProperties` gains two four-tier inheritance chains, mirroring the pattern used
+for every other property: `GetUnderlineStyle(...) ?? ... ?? PptxUnderlineStyle.None` for the
+style, and `GetUnderlineColor(...) ?? ... ?? color` for the color, where `color` is the run's own
+already-resolved text-fill color computed earlier in the same method - so a run with no `<a:uFill>`
+anywhere in its own inheritance chain renders its underline in its own text color, matching
+PowerPoint's own default behavior.
+
+**Per-run span construction** (`PptxDocument.TextLayout.cs`): a new `LineUnderlineSpan(StartXEmu,
+EndXEmu, RunProperties)` record struct accumulates one contiguous underline span per underlined
+run as `BuildLines` walks a line's own tokens: each token's `tokenStartX`/`tokenEndX` (the cursor
+position immediately before/after that token's own characters are advanced - exactly where its
+glyphs are emitted) extends a pending span when the token's own `RunProperties` is the same run
+instance (via `ReferenceEquals`, reliable because `BuildLines` creates one scaled `RunProperties`
+instance per run and reuses it across every token belonging to that run) as the span currently
+being accumulated; a token belonging to a different run, or one whose own `UnderlineStyle` is
+`None`, flushes any pending span and either starts a new one or clears it. This means a single
+run's own interior whitespace remains part of its own contiguous span (the span is never broken
+at a word boundary within one run), while an underline never bridges two separate runs even when
+both happen to be underlined - matching PowerPoint's own visual behavior. `PositionLines`
+converts each flushed `LineUnderlineSpan` into a `PptxUnderlineSegment` (`StartXEmu`, `EndXEmu`,
+`BaselineYEmu`, `SizeEmu`, `Style`, `Color`) once the line's own final `startX`/`baselineY` are
+known, threading an accumulating list of these segments alongside the existing glyph list all the
+way to `ResolveTextLayout`'s own final `new PptxTextLayout(glyphs, fontScale, underlines)` call.
+
+**Painting** (`PptxDocument.TextRender.cs`): `PaintTextLayout` iterates `layout.Underlines` after
+its own existing glyph-painting loop. For each segment, `thicknessEmu = segment.SizeEmu *
+UnderlineThicknessRatio` and `offsetEmu = segment.SizeEmu * UnderlineOffsetRatio` (two new named
+`const float` fields, `0.05f`/`0.08f`) compute a pragmatic, `SizeEmu`-proportional approximation
+of the underline's own thickness and vertical offset below the baseline - this phase does not
+parse the target font's own OpenType `post` table `underlinePosition`/`underlineThickness`
+fields, a documented limitation; true font-metric-derived values are deferred to a later phase.
+A rectangle spanning `[StartXEmu, BaselineYEmu + offsetEmu]` to `[EndXEmu, BaselineYEmu +
+offsetEmu + thicknessEmu]`, built directly in shape-local, y-down space (no glyph-space Y-flip,
+unlike glyph outlines which are authored in a y-up font coordinate space), is transformed through
+`shapeToSurfaceTransform` and filled with the segment's own resolved color. A `Double`-style
+segment paints two such rectangles, each half as thick, separated by a gap proportional to
+`SizeEmu` (a third new constant, `DoubleUnderlineGapRatio = 0.06f`); every other non-`None` style
+(`Single`, `Other`, or any unrecognized value) paints exactly one rectangle - this painting step
+never throws regardless of style value.
+
+**Test coverage**: `PptxTextTests.cs` covers the style resolution theory (`sng`/`none`/`dbl`/
+`wavy`/`heavy`) and the underline-color inheritance rules (explicit `<a:uFill>` override, default-
+to-text-color with no fill markup, default-to-text-color with explicit `<a:uFillTx/>`).
+`PptxTextLayoutTests.cs` covers per-run span construction: a single underlined run emits one
+segment spanning its own measured width; a non-underlined run emits none; of two runs on one
+line, only the first underlined, exactly one segment is emitted bounded to that first run; and a
+single underlined run with an interior space emits one segment spanning that space too.
+`PptxTextRenderTests.cs` covers painting: a `Single`-style segment paints a visible stroke below
+the baseline at the expected position/color with no ink above the baseline; a layout with no
+segments paints no extra ink (a regression guard); and `Double`/`Other`-style segments paint
+without throwing. Visual verification (a hand-built, in-memory `.pptx` package containing a
+single `<a:rPr u="sng"/>` run, rendered end-to-end through the public `PptxDocument.Render` API
+and saved to PNG) confirms a single straight horizontal line appears beneath the rendered word's
+own baseline, spanning its full rendered width, in the same color as the text itself.

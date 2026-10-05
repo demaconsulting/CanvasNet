@@ -164,9 +164,9 @@ public sealed partial class PptxDocument
             ResolveGlyph);
 
         var lines = BuildLines(paragraphs, availableWidth, fontScale, lineSpacingFactor, ResolveFont, ResolveGlyph);
-        var glyphs = PositionLines(lines, bodyProperties.Anchor, insetLeft, insetTop, alignmentWidth, availableHeight);
+        var (glyphs, underlines) = PositionLines(lines, bodyProperties.Anchor, insetLeft, insetTop, alignmentWidth, availableHeight);
 
-        return new PptxTextLayout(glyphs, fontScale);
+        return new PptxTextLayout(glyphs, fontScale, underlines);
     }
 
     /// <summary>
@@ -265,6 +265,19 @@ public sealed partial class PptxDocument
     /// <summary>A single laid-out glyph, positioned relative to its own line's start (alignment/margin not yet applied).</summary>
     private readonly record struct LineGlyph(TrueTypeFont Font, int GlyphIndex, float XInLineEmu, float SizeEmu, Rgba32 Color);
 
+    /// <summary>
+    ///     A single contiguous underlined span on one line (Phase 2 Follow-Up: Underline
+    ///     Rendering), positioned relative to the line's own start (alignment/margin not yet
+    ///     applied) - mirrors <see cref="LineGlyph"/>'s own convention.
+    /// </summary>
+    /// <param name="StartXEmu">The span's start X, relative to the line's own start, in EMU.</param>
+    /// <param name="EndXEmu">The span's end X, relative to the line's own start, in EMU.</param>
+    /// <param name="RunProperties">
+    ///     The underlined run's own resolved effective properties, supplying the style/color/size
+    ///     <see cref="PositionLines"/> carries into the final <see cref="PptxUnderlineSegment"/>.
+    /// </param>
+    private readonly record struct LineUnderlineSpan(float StartXEmu, float EndXEmu, PptxEffectiveRunProperties RunProperties);
+
     /// <summary>A single word-wrapped line, ready for alignment/vertical-anchor positioning.</summary>
     /// <param name="Glyphs">The line's own text glyphs, positioned relative to the line's own start.</param>
     /// <param name="LineWidthEmu">The line's natural (unaligned) text width, in EMU.</param>
@@ -291,6 +304,10 @@ public sealed partial class PptxDocument
     ///     <see cref="BuildBulletGlyphs"/>'s own remarks for why auto-numbered markers alone need
     ///     this extra, PowerPoint-like, tab-stop-style separation).
     /// </param>
+    /// <param name="UnderlineSpans">
+    ///     The line's resolved underlined spans (Phase 2 Follow-Up: Underline Rendering),
+    ///     positioned relative to the line's own start, same convention as <see cref="Glyphs"/>.
+    /// </param>
     private sealed record LineBox(
         IReadOnlyList<LineGlyph> Glyphs,
         float LineWidthEmu,
@@ -299,8 +316,9 @@ public sealed partial class PptxDocument
         PptxEffectiveParagraphProperties ParagraphProperties,
         bool IsFirstLineOfParagraph,
         IReadOnlyList<LineGlyph> BulletGlyphs,
-        float BulletWidthEmu = 0f,
-        float BulletTrailingGapEmu = 0f);
+        float BulletWidthEmu,
+        float BulletTrailingGapEmu,
+        IReadOnlyList<LineUnderlineSpan> UnderlineSpans);
 
     /// <summary>A paragraph with its effective paragraph properties and every run's effective properties resolved up front.</summary>
     private sealed record ResolvedParagraph(
@@ -418,6 +436,8 @@ public sealed partial class PptxDocument
             {
                 var lineTokens = paragraphLines[i];
                 var glyphs = new List<LineGlyph>();
+                var underlineSpans = new List<LineUnderlineSpan>();
+                LineUnderlineSpan? pendingUnderlineSpan = null;
                 var cursorX = 0f;
                 var lineWidth = 0f;
                 TrueTypeFont? tallestFont = null;
@@ -426,6 +446,8 @@ public sealed partial class PptxDocument
 
                 foreach (var token in lineTokens)
                 {
+                    var tokenStartX = cursorX;
+
                     // Compare each candidate's actual rendered natural height (its raw font-design-
                     // unit metrics scaled by its own UnitsPerEm and SizeEmu), not raw font-design
                     // units directly - otherwise a small-font run using a font with a tall em-box
@@ -452,7 +474,48 @@ public sealed partial class PptxDocument
                         cursorX += advance;
                     }
 
+                    var tokenEndX = cursorX;
+
+                    // Phase 2 Follow-Up: Underline Rendering - accumulate contiguous underlined
+                    // tokens belonging to the same run instance into a single span, so the span
+                    // covers interior whitespace within one run (not just individual words) and
+                    // flushes exactly at a run boundary (including a transition to a
+                    // non-underlined run). RunProperties is reused, by reference, across every
+                    // token of a single run (see BuildLines' own per-run loop above) and survives
+                    // PackTokensIntoLines unchanged, so ReferenceEquals reliably detects "same
+                    // run" here.
+                    if (token.RunProperties.UnderlineStyle != PptxUnderlineStyle.None)
+                    {
+                        if (pendingUnderlineSpan is { } pending && ReferenceEquals(pending.RunProperties, token.RunProperties))
+                        {
+                            pendingUnderlineSpan = pending with { EndXEmu = tokenEndX };
+                        }
+                        else
+                        {
+                            if (pendingUnderlineSpan is { } toFlush)
+                            {
+                                underlineSpans.Add(toFlush);
+                            }
+
+                            pendingUnderlineSpan = new LineUnderlineSpan(tokenStartX, tokenEndX, token.RunProperties);
+                        }
+                    }
+                    else
+                    {
+                        if (pendingUnderlineSpan is { } toFlush)
+                        {
+                            underlineSpans.Add(toFlush);
+                        }
+
+                        pendingUnderlineSpan = null;
+                    }
+
                     lineWidth += token.WidthEmu;
+                }
+
+                if (pendingUnderlineSpan is { } finalSpan)
+                {
+                    underlineSpans.Add(finalSpan);
                 }
 
                 float lineHeight;
@@ -479,7 +542,7 @@ public sealed partial class PptxDocument
                     ? BuildBulletGlyphs(bulletText, paraProps.Bullet, fontScale, resolveFont, resolveGlyph)
                     : new BulletGlyphsResult([], 0f, 0f);
 
-                lines.Add(new LineBox(glyphs, lineWidth, lineHeight, ascent, paraProps, isFirstLine, bulletGlyphsResult.Glyphs, bulletGlyphsResult.WidthEmu, bulletGlyphsResult.TrailingGapEmu));
+                lines.Add(new LineBox(glyphs, lineWidth, lineHeight, ascent, paraProps, isFirstLine, bulletGlyphsResult.Glyphs, bulletGlyphsResult.WidthEmu, bulletGlyphsResult.TrailingGapEmu, underlineSpans));
             }
         }
 
@@ -717,11 +780,12 @@ public sealed partial class PptxDocument
     /// <summary>
     ///     Positions every <see cref="LineBox"/> vertically (per <paramref name="anchor"/>) and
     ///     horizontally (per each line's own paragraph alignment/margin/indent), emitting the
-    ///     final, shape-local-space <see cref="PptxGlyphPlacement"/> stream. No clipping is
-    ///     applied - overflowing text (under <c>noAutofit</c>/<c>spAutoFit</c>) is positioned
-    ///     exactly as computed, even past the shape's own box, a documented limitation.
+    ///     final, shape-local-space <see cref="PptxGlyphPlacement"/> and
+    ///     <see cref="PptxUnderlineSegment"/> streams. No clipping is applied - overflowing text
+    ///     (under <c>noAutofit</c>/<c>spAutoFit</c>) is positioned exactly as computed, even past
+    ///     the shape's own box, a documented limitation.
     /// </summary>
-    private static List<PptxGlyphPlacement> PositionLines(
+    private static (List<PptxGlyphPlacement> Glyphs, List<PptxUnderlineSegment> Underlines) PositionLines(
         IReadOnlyList<LineBox> lines,
         PptxTextAnchor anchor,
         float insetLeftEmu,
@@ -738,6 +802,7 @@ public sealed partial class PptxDocument
         };
 
         var glyphs = new List<PptxGlyphPlacement>();
+        var underlines = new List<PptxUnderlineSegment>();
         var runningY = startY;
 
         foreach (var line in lines)
@@ -784,6 +849,17 @@ public sealed partial class PptxDocument
                 glyphs.Add(new PptxGlyphPlacement(glyph.Font, glyph.GlyphIndex, startX + glyph.XInLineEmu, baselineY, glyph.SizeEmu, glyph.Color));
             }
 
+            foreach (var span in line.UnderlineSpans)
+            {
+                underlines.Add(new PptxUnderlineSegment(
+                    startX + span.StartXEmu,
+                    startX + span.EndXEmu,
+                    baselineY,
+                    span.RunProperties.SizeEmu,
+                    span.RunProperties.UnderlineStyle,
+                    span.RunProperties.UnderlineColor));
+            }
+
             if (hasBullet)
             {
                 // The bullet itself is always anchored at the gutter (marL+indent), independent
@@ -799,7 +875,7 @@ public sealed partial class PptxDocument
             runningY += line.LineHeightEmu;
         }
 
-        return glyphs;
+        return (glyphs, underlines);
     }
 }
 

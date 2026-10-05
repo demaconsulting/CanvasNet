@@ -4,7 +4,7 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore defrpr lnspc spcpct spcpts lststyle txstyles sng pptx
+// cspell:ignore defrpr lnspc spcpct spcpts lststyle txstyles sng pptx ufill ufilltx
 
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> run/paragraph property-inheritance resolver
@@ -122,13 +122,6 @@ public sealed partial class PptxDocument
             GetBoolAttribute(masterLevelDefRPr, "i") ??
             false;
 
-        var underline =
-            GetUnderline(runRPr) ??
-            GetUnderline(paragraphDefRPr) ??
-            GetUnderline(placeholderLevelDefRPr) ??
-            GetUnderline(masterLevelDefRPr) ??
-            false;
-
         var color =
             GetRunColor(runRPr, theme, colorMap) ??
             GetRunColor(paragraphDefRPr, theme, colorMap) ??
@@ -136,7 +129,21 @@ public sealed partial class PptxDocument
             GetRunColor(masterLevelDefRPr, theme, colorMap) ??
             theme.ColorScheme.Dark1;
 
-        return new PptxEffectiveRunProperties(typeface, sizeEmu, bold, italic, underline, color);
+        var underlineStyle =
+            GetUnderlineStyle(runRPr) ??
+            GetUnderlineStyle(paragraphDefRPr) ??
+            GetUnderlineStyle(placeholderLevelDefRPr) ??
+            GetUnderlineStyle(masterLevelDefRPr) ??
+            PptxUnderlineStyle.None;
+
+        var underlineColor =
+            GetUnderlineColor(runRPr, theme, colorMap) ??
+            GetUnderlineColor(paragraphDefRPr, theme, colorMap) ??
+            GetUnderlineColor(placeholderLevelDefRPr, theme, colorMap) ??
+            GetUnderlineColor(masterLevelDefRPr, theme, colorMap) ??
+            color;
+
+        return new PptxEffectiveRunProperties(typeface, sizeEmu, bold, italic, underlineStyle, underlineColor, color);
     }
 
     /// <summary>
@@ -533,14 +540,46 @@ public sealed partial class PptxDocument
 
     /// <summary>
     ///     Resolves an <c>&lt;a:rPr&gt;</c>/<c>&lt;a:defRPr&gt;</c>-shaped element's <c>u</c>
-    ///     (underline) attribute to a boolean: any value other than absent/<c>"none"</c> is
-    ///     treated as underlined - the specific underline style (single/double/wavy/etc.) is a
-    ///     documented simplification, not distinguished further this phase.
+    ///     (underline) attribute to a <see cref="PptxUnderlineStyle"/>: absent resolves to
+    ///     <see langword="null"/> (so the attribute-level inheritance chain keeps falling through
+    ///     to a shallower tier); <c>"none"</c> resolves to <see cref="PptxUnderlineStyle.None"/>;
+    ///     <c>"sng"</c> resolves to <see cref="PptxUnderlineStyle.Single"/>; <c>"dbl"</c> resolves
+    ///     to <see cref="PptxUnderlineStyle.Double"/>; every other recognized/unrecognized
+    ///     non-empty value resolves to <see cref="PptxUnderlineStyle.Other"/> - see that enum's
+    ///     own remarks for the full ECMA-376 variant mapping.
     /// </summary>
-    private static bool? GetUnderline(XElement? rPrLikeElement)
+    private static PptxUnderlineStyle? GetUnderlineStyle(XElement? rPrLikeElement)
     {
         var value = (string?)rPrLikeElement?.Attribute("u");
-        return value is null ? null : value != "none";
+        return value switch
+        {
+            null => null,
+            "none" => PptxUnderlineStyle.None,
+            "sng" => PptxUnderlineStyle.Single,
+            "dbl" => PptxUnderlineStyle.Double,
+            _ => PptxUnderlineStyle.Other,
+        };
+    }
+
+    /// <summary>
+    ///     Resolves an <c>&lt;a:rPr&gt;</c>/<c>&lt;a:defRPr&gt;</c>-shaped element's underline-fill
+    ///     choice group (<c>&lt;a:uFillTx&gt;</c>/<c>&lt;a:uFill&gt;</c>): <c>&lt;a:uFillTx/&gt;</c>
+    ///     (or no underline-fill markup at all) resolves to <see langword="null"/> - "inherit/keep
+    ///     searching the chain, defaulting to the run's own text color" - identically, since
+    ///     neither variant locally declares an explicit underline color;
+    ///     <c>&lt;a:uFill&gt;/&lt;a:solidFill&gt;</c> resolves its own wrapped color-definition
+    ///     child via <see cref="ResolveColor"/>, the same color resolver run colors already use.
+    /// </summary>
+    private static Rgba32? GetUnderlineColor(XElement? rPrLikeElement, PptxTheme theme, PptxColorMap? colorMap = null)
+    {
+        var uFill = rPrLikeElement?.Element(DrawingNamespace + "uFill");
+        if (uFill is null)
+        {
+            return null;
+        }
+
+        var colorElement = uFill.Element(DrawingNamespace + "solidFill")?.Elements().FirstOrDefault();
+        return colorElement is null ? null : ResolveColor(colorElement, theme, colorMap: colorMap);
     }
 
     /// <summary>Resolves an <c>&lt;a:rPr&gt;</c>/<c>&lt;a:defRPr&gt;</c>-shaped element's <c>&lt;a:solidFill&gt;</c> color child, if any.</summary>

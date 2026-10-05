@@ -20,6 +20,29 @@ namespace DemaConsulting.CanvasNet.Pptx;
 public sealed partial class PptxDocument
 {
     /// <summary>
+    ///     The painted underline stroke's thickness, as a fraction of the underlined run's own
+    ///     <see cref="PptxUnderlineSegment.SizeEmu"/> (Phase 2 Follow-Up: Underline Rendering).
+    ///     This is a pragmatic, <c>SizeEmu</c>-proportional approximation - the OpenType
+    ///     <c>post</c> table's own <c>underlineThickness</c> value is not parsed this phase, a
+    ///     documented limitation (see the design document's "Phase 2 Follow-Up: Underline
+    ///     Rendering" section).
+    /// </summary>
+    private const float UnderlineThicknessRatio = 0.05f;
+
+    /// <summary>
+    ///     The painted underline stroke's offset below the baseline, as a fraction of the
+    ///     underlined run's own <see cref="PptxUnderlineSegment.SizeEmu"/> (Phase 2 Follow-Up:
+    ///     Underline Rendering). This is a pragmatic, <c>SizeEmu</c>-proportional approximation -
+    ///     the OpenType <c>post</c> table's own <c>underlinePosition</c> value is not parsed this
+    ///     phase, a documented limitation (see the design document's "Phase 2 Follow-Up:
+    ///     Underline Rendering" section).
+    /// </summary>
+    private const float UnderlineOffsetRatio = 0.08f;
+
+    /// <summary>The additional gap, as a fraction of <see cref="PptxUnderlineSegment.SizeEmu"/>, between a double underline's two painted lines.</summary>
+    private const float DoubleUnderlineGapRatio = 0.06f;
+
+    /// <summary>
     ///     Paints every glyph in <paramref name="layout"/> onto <paramref name="surface"/>,
     ///     composing each glyph's own <c>1/UnitsPerEm</c> outline scale, its resolved size, its
     ///     shape-local baseline origin, and <paramref name="shapeToSurfaceTransform"/> (the
@@ -28,7 +51,14 @@ public sealed partial class PptxDocument
     ///     A glyph whose outline has no subpaths (a space or control character - though
     ///     <see cref="ResolveTextLayout"/> already omits whitespace glyphs from
     ///     <see cref="PptxTextLayout.Glyphs"/>, a defensive, resolver-agnostic check) is skipped
-    ///     entirely rather than painting an empty fill.
+    ///     entirely rather than painting an empty fill. After every glyph is painted, every
+    ///     <see cref="PptxTextLayout.Underlines"/> segment (Phase 2 Follow-Up: Underline
+    ///     Rendering) is painted as one or two thin filled rectangles (see
+    ///     <see cref="UnderlineThicknessRatio"/>/<see cref="UnderlineOffsetRatio"/>'s own remarks
+    ///     for the documented thickness/offset approximation) - <see cref="PptxUnderlineStyle.Double"/>
+    ///     paints two thinner, gapped rectangles; every other non-<see cref="PptxUnderlineStyle.None"/>
+    ///     style (<see cref="PptxUnderlineStyle.Single"/>/<see cref="PptxUnderlineStyle.Other"/>)
+    ///     paints exactly one - never throwing for an unrecognized style.
     /// </summary>
     /// <param name="surface">The surface to paint onto.</param>
     /// <param name="layout">The resolved text layout to paint.</param>
@@ -62,6 +92,52 @@ public sealed partial class PptxDocument
 
             PathFiller.Fill(surface, path, glyph.Color, FillRule.NonZero);
         }
+
+        foreach (var segment in layout.Underlines)
+        {
+            PaintUnderlineSegment(surface, segment, shapeToSurfaceTransform);
+        }
+    }
+
+    /// <summary>
+    ///     Paints one <see cref="PptxUnderlineSegment"/> (Phase 2 Follow-Up: Underline Rendering)
+    ///     as one or two thin, axis-aligned, shape-local rectangles (built via
+    ///     <see cref="Path.Rectangle"/>, matching every other shape-local rectangle fill in this
+    ///     assembly - for example <c>PptxDocument.Tables.cs</c>'s own cell-rectangle fills),
+    ///     transformed through <paramref name="shapeToSurfaceTransform"/> only (no glyph-space
+    ///     Y-flip - unlike a glyph outline, a rectangle built directly in shape-local, already
+    ///     y-down space needs no sign flip to orient correctly).
+    /// </summary>
+    private static void PaintUnderlineSegment(Surface surface, PptxUnderlineSegment segment, Matrix3x2 shapeToSurfaceTransform)
+    {
+        var widthEmu = segment.EndXEmu - segment.StartXEmu;
+        if (widthEmu <= 0f)
+        {
+            return;
+        }
+
+        var thicknessEmu = segment.SizeEmu * UnderlineThicknessRatio;
+        var offsetEmu = segment.SizeEmu * UnderlineOffsetRatio;
+
+        if (segment.Style == PptxUnderlineStyle.Double)
+        {
+            var lineThicknessEmu = thicknessEmu / 2f;
+            var gapEmu = segment.SizeEmu * DoubleUnderlineGapRatio;
+            FillUnderlineRectangle(surface, segment, shapeToSurfaceTransform, widthEmu, segment.BaselineYEmu + offsetEmu, lineThicknessEmu);
+            FillUnderlineRectangle(surface, segment, shapeToSurfaceTransform, widthEmu, segment.BaselineYEmu + offsetEmu + lineThicknessEmu + gapEmu, lineThicknessEmu);
+            return;
+        }
+
+        // Single/Other/any unrecognized style: exactly one solid rectangle - never throw.
+        FillUnderlineRectangle(surface, segment, shapeToSurfaceTransform, widthEmu, segment.BaselineYEmu + offsetEmu, thicknessEmu);
+    }
+
+    /// <summary>Fills one underline rectangle spanning <paramref name="widthEmu"/> starting at <paramref name="topYEmu"/>, <paramref name="heightEmu"/> tall.</summary>
+    private static void FillUnderlineRectangle(
+        Surface surface, PptxUnderlineSegment segment, Matrix3x2 shapeToSurfaceTransform, float widthEmu, float topYEmu, float heightEmu)
+    {
+        var rectanglePath = Path.Rectangle(segment.StartXEmu, topYEmu, widthEmu, heightEmu).Transform(shapeToSurfaceTransform);
+        PathFiller.Fill(surface, rectanglePath, segment.Color, FillRule.NonZero);
     }
 
     /// <summary>

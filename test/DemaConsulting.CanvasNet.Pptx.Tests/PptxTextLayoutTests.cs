@@ -824,4 +824,117 @@ public class PptxTextLayoutTests
     }
 
     #endregion
+
+    #region Underlines (Phase 2 Follow-Up: Underline Rendering)
+
+    /// <summary>Proves an underlined run emits exactly one <see cref="PptxUnderlineSegment"/> spanning the run's own measured width, with matching color/size.</summary>
+    [Fact]
+    public void ResolveTextLayout_UnderlinedRun_EmitsOneSegmentSpanningRunWidth()
+    {
+        var pPr = new XElement(DrawingNs + "pPr");
+        var bodyPr = new XElement(
+            DrawingNs + "bodyPr",
+            new XAttribute("lIns", "0"), new XAttribute("tIns", "0"), new XAttribute("rIns", "0"), new XAttribute("bIns", "0"));
+        var txBody = new XElement(
+            PresentationNs + "txBody",
+            bodyPr,
+            new XElement(
+                DrawingNs + "p",
+                pPr,
+                new XElement(
+                    DrawingNs + "r",
+                    new XElement(DrawingNs + "rPr", new XAttribute("sz", "100"), new XAttribute("u", "sng")),
+                    new XElement(DrawingNs + "t", "A"))));
+        var textBody = PptxDocument.ParseTextBody(txBody);
+
+        var layout = Layout(textBody, 50000f, 100000f);
+
+        // "A" at sz=100 -> SizeEmu 12700; width = 500/1000*12700 = 6350.
+        var segment = Assert.Single(layout.Underlines);
+        Assert.Equal(0f, segment.StartXEmu, 2);
+        Assert.Equal(6350f, segment.EndXEmu, 2);
+        Assert.Equal(12700f, segment.SizeEmu, 2);
+        Assert.Equal(PptxUnderlineStyle.Single, segment.Style);
+        Assert.Equal(layout.Glyphs[0].Color, segment.Color);
+    }
+
+    /// <summary>Proves a non-underlined run emits no underline segment at all.</summary>
+    [Fact]
+    public void ResolveTextLayout_NonUnderlinedRun_EmitsNoSegment()
+    {
+        var textBody = BuildSingleRunTextBody("A");
+
+        var layout = Layout(textBody, 50000f, 100000f);
+
+        Assert.Empty(layout.Underlines);
+    }
+
+    /// <summary>
+    ///     Proves that, of two runs on one line, only the first underlined, exactly one segment
+    ///     is emitted (the span flushes at the run boundary rather than extending into the
+    ///     second, non-underlined run).
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_TwoRunsOnlyFirstUnderlined_EmitsExactlyOneSegment()
+    {
+        var pPr = new XElement(DrawingNs + "pPr");
+        var bodyPr = new XElement(
+            DrawingNs + "bodyPr",
+            new XAttribute("lIns", "0"), new XAttribute("tIns", "0"), new XAttribute("rIns", "0"), new XAttribute("bIns", "0"));
+        var txBody = new XElement(
+            PresentationNs + "txBody",
+            bodyPr,
+            new XElement(
+                DrawingNs + "p",
+                pPr,
+                new XElement(
+                    DrawingNs + "r",
+                    new XElement(DrawingNs + "rPr", new XAttribute("sz", "100"), new XAttribute("u", "sng")),
+                    new XElement(DrawingNs + "t", "A")),
+                new XElement(
+                    DrawingNs + "r",
+                    new XElement(DrawingNs + "rPr", new XAttribute("sz", "100")),
+                    new XElement(DrawingNs + "t", "A"))));
+        var textBody = PptxDocument.ParseTextBody(txBody);
+
+        var layout = Layout(textBody, 50000f, 100000f);
+
+        var segment = Assert.Single(layout.Underlines);
+        Assert.Equal(0f, segment.StartXEmu, 2);
+        Assert.Equal(6350f, segment.EndXEmu, 2);
+    }
+
+    /// <summary>
+    ///     Proves a single underlined run with interior whitespace (for example "A A") has its
+    ///     underline span cover the interior space too, rather than stopping at the first word -
+    ///     the span is a property of the run, not of each individual word-wrap token.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_UnderlinedRunWithInteriorSpace_SpanCoversSpace()
+    {
+        var pPr = new XElement(DrawingNs + "pPr");
+        var bodyPr = new XElement(
+            DrawingNs + "bodyPr",
+            new XAttribute("lIns", "0"), new XAttribute("tIns", "0"), new XAttribute("rIns", "0"), new XAttribute("bIns", "0"));
+        var txBody = new XElement(
+            PresentationNs + "txBody",
+            bodyPr,
+            new XElement(
+                DrawingNs + "p",
+                pPr,
+                new XElement(
+                    DrawingNs + "r",
+                    new XElement(DrawingNs + "rPr", new XAttribute("sz", "100"), new XAttribute("u", "sng")),
+                    new XElement(DrawingNs + "t", "A A"))));
+        var textBody = PptxDocument.ParseTextBody(txBody);
+
+        // "A A" at sz=100 -> SizeEmu 12700: 'A' 6350 + ' ' 2540 + 'A' 6350 = 15240 total width.
+        var layout = Layout(textBody, 50000f, 100000f);
+
+        var segment = Assert.Single(layout.Underlines);
+        Assert.Equal(0f, segment.StartXEmu, 2);
+        Assert.Equal(15240f, segment.EndXEmu, 2);
+    }
+
+    #endregion
 }

@@ -1744,3 +1744,61 @@ sections:
               - Render_ZeroHeightHorizontalConnector_PaintsLineWithoutDegradingToEmpty
               - Render_ConnectorWithTailArrowhead_PaintsArrowheadNearEndpoint
               - PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsPaintVisibleLines
+
+          - id: CanvasNetPptx-PptxDocument-UnderlineRendering
+            title: >-
+              The PptxDocument class shall resolve a text run's effective <a:rPr u="..."> value
+              into one of four underline styles (none/single/double/other, where every ECMA-376
+              variant other than none/sng/dbl - heavy, dotted, dottedHeavy, dash, dashHeavy,
+              dashLong, dashLongHeavy, dotDash, dotDashHeavy, dotDotDash, dotDotDashHeavy, wavy,
+              wavyHeavy, wavyDbl, and any unrecognized value - maps to other), following the same
+              four-tier run/paragraph-defRPr/lstStyle-level/master-txStyles inheritance chain as
+              every other text property, shall resolve the underline's own color independently
+              from an explicit <a:uFill>/<a:solidFill> child when present, defaulting to the
+              run's own already-resolved text-fill color whenever no <a:uFill> child exists
+              (including when an explicit <a:uFillTx/> is present), and shall paint a visible,
+              solid-filled rectangle beneath each underlined run spanning its own measured glyph
+              width (continuous across interior spaces within one run, and not merged across a
+              run boundary even when both runs are underlined), positioned and sized proportional
+              to the run's own font size, with a double-underline style painting two thinner,
+              gapped rectangles instead of one.
+            justification: |
+              A real-world corpus fixture ("ERF IWF Breadboard Motion System Overview.pptx",
+              slide 23 "Configurations") contains text runs declaring <a:rPr u="sng"/> that
+              PowerPoint's own ground-truth rendering shows with a visible single underline, while
+              CanvasNet rendered no underline at all: GetUnderline parsed the u attribute into a
+              boolean PptxEffectiveRunProperties.Underline, but nothing downstream (layout or
+              paint) ever consumed it, silently dropping an explicitly-authored, visible text
+              decoration. Modeling the resolved value as a style enum (rather than restoring the
+              prior boolean) lets every other ECMA-376 u variant resolve to a defined, intentional
+              behavior (a single solid line, documented as a pragmatic simplification) instead of
+              either crashing on an unrecognized value or silently dropping it exactly as before.
+              Resolving the underline's own color independently of the run's text color (rather
+              than always matching the text color outright) is required because PowerPoint itself
+              allows an author to declare a differently-colored underline via <a:uFill>; defaulting
+              to the run's own text color whenever no <a:uFill> child exists (including the
+              explicit "inherit text color" marker <a:uFillTx/>) matches PowerPoint's own default
+              behavior for a run that does not override its underline color. Building one
+              contiguous span per underlined run (not merged across a run boundary, but continuous
+              across an interior space within the same run) matches PowerPoint's own visual
+              behavior: an underline never bridges a run boundary even when both runs happen to
+              be underlined, but a single run's own interior whitespace is visibly underlined, not
+              skipped. Deriving thickness/offset as a documented, SizeEmu-proportional
+              approximation (rather than parsing the OpenType post table's own
+              underlinePosition/underlineThickness fields) is an explicit, pragmatic
+              simplification for this phase - true font-metric-derived values are deferred to a
+              later phase.
+            tests:
+              - ResolveEffectiveRunProperties_NoneDeclared_ResolvesHardCodedDefaults
+              - ResolveEffectiveRunProperties_UnderlineAttribute_ResolvesExpectedStyle
+              - ResolveEffectiveRunProperties_ExplicitUFill_OverridesTextColor
+              - ResolveEffectiveRunProperties_NoUnderlineFillMarkup_DefaultsUnderlineColorToTextColor
+              - ResolveEffectiveRunProperties_ExplicitUFillTx_DefaultsUnderlineColorToTextColor
+              - ResolveTextLayout_UnderlinedRun_EmitsOneSegmentSpanningRunWidth
+              - ResolveTextLayout_NonUnderlinedRun_EmitsNoSegment
+              - ResolveTextLayout_TwoRunsOnlyFirstUnderlined_EmitsExactlyOneSegment
+              - ResolveTextLayout_UnderlinedRunWithInteriorSpace_SpanCoversSpace
+              - PaintTextLayout_SingleUnderlineSegment_PaintsStrokeBelowBaselineAtExpectedPositionAndColor
+              - PaintTextLayout_NoUnderlineSegments_PaintsNoExtraInk
+              - PaintTextLayout_DoubleUnderlineSegment_DoesNotThrowAndPaintsInk
+              - PaintTextLayout_OtherUnderlineSegment_DoesNotThrowAndPaintsInk

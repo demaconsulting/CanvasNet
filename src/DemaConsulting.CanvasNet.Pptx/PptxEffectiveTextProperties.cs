@@ -12,15 +12,50 @@ namespace DemaConsulting.CanvasNet.Pptx;
 /// <param name="SizeEmu">The resolved font size, in EMU (already scaled by any applicable autofit <c>fontScale</c>).</param>
 /// <param name="Bold">Whether the run is resolved bold.</param>
 /// <param name="Italic">Whether the run is resolved italic.</param>
-/// <param name="Underline">Whether the run is resolved underlined.</param>
+/// <param name="UnderlineStyle">The run's resolved underline style (Phase 2 Follow-Up: Underline Rendering).</param>
+/// <param name="UnderlineColor">
+///     The run's resolved underline ink color (Phase 2 Follow-Up: Underline Rendering) - only
+///     meaningful when <paramref name="UnderlineStyle"/> is not <see cref="PptxUnderlineStyle.None"/>.
+/// </param>
 /// <param name="Color">The run's resolved color.</param>
 internal sealed record PptxEffectiveRunProperties(
     string FontFamily,
     float SizeEmu,
     bool Bold,
     bool Italic,
-    bool Underline,
+    PptxUnderlineStyle UnderlineStyle,
+    Rgba32 UnderlineColor,
     Rgba32 Color);
+
+/// <summary>
+///     The discriminator for a run's resolved <c>&lt;a:rPr u="..."/&gt;</c> underline style
+///     (Phase 2 Follow-Up: Underline Rendering), produced by
+///     <see cref="PptxDocument.GetUnderlineStyle"/>.
+/// </summary>
+/// <remarks>
+///     ECMA-376 §20.1.10.84 defines many more <c>u</c> values than CanvasNet distinguishes for
+///     painting: <c>heavy</c>, <c>dotted</c>, <c>dottedHeavy</c>, <c>dash</c>, <c>dashHeavy</c>,
+///     <c>dashLong</c>, <c>dashLongHeavy</c>, <c>dotDash</c>, <c>dotDashHeavy</c>,
+///     <c>dotDotDash</c>, <c>dotDotDashHeavy</c>, <c>wavy</c>, <c>wavyHeavy</c>, <c>wavyDbl</c>,
+///     and any other unrecognized non-empty string, all map to <see cref="Other"/> and are
+///     painted as a single solid line identical to <see cref="Single"/> - a documented
+///     simplification (true dotted/dashed/wavy stroke patterns are a separable, deferred
+///     refinement; see the design document's "Phase 2 Follow-Up: Underline Rendering" section).
+/// </remarks>
+internal enum PptxUnderlineStyle
+{
+    /// <summary>No underline is painted (an explicit <c>&lt;a:rPr u="none"/&gt;</c>, or the OOXML schema default when the attribute is absent at every inheritance tier).</summary>
+    None,
+
+    /// <summary>A single solid underline (<c>&lt;a:rPr u="sng"/&gt;</c>).</summary>
+    Single,
+
+    /// <summary>A double solid underline (<c>&lt;a:rPr u="dbl"/&gt;</c>), painted as two thinner, gapped lines.</summary>
+    Double,
+
+    /// <summary>Every other recognized/unrecognized non-<c>"none"</c> <c>u</c> value - see this enum's own remarks.</summary>
+    Other,
+}
 
 /// <summary>
 ///     A paragraph's fully-resolved, effective properties (Phase 1d), produced by

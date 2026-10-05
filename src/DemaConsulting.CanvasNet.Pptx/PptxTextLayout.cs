@@ -19,7 +19,42 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     read verbatim from <c>&lt;a:normAutofit fontScale="..."/&gt;</c>, computed by the bounded
 ///     shrink loop, or left at <c>1.0</c>.
 /// </param>
-internal sealed record PptxTextLayout(IReadOnlyList<PptxGlyphPlacement> Glyphs, float AppliedFontScale);
+/// <param name="Underlines">
+///     Every underline segment to paint (Phase 2 Follow-Up: Underline Rendering), in reading
+///     order, already positioned in the same shape-local coordinate space as
+///     <paramref name="Glyphs"/>. Defaults to an empty list so every pre-existing direct
+///     construction call site (for example in tests) keeps compiling unchanged.
+/// </param>
+internal sealed record PptxTextLayout(
+    IReadOnlyList<PptxGlyphPlacement> Glyphs,
+    float AppliedFontScale,
+    IReadOnlyList<PptxUnderlineSegment> Underlines)
+{
+    /// <summary>Convenience constructor for direct-construction call sites that predate underline support (defaults to no underline segments).</summary>
+    internal PptxTextLayout(IReadOnlyList<PptxGlyphPlacement> Glyphs, float AppliedFontScale)
+        : this(Glyphs, AppliedFontScale, Array.Empty<PptxUnderlineSegment>())
+    {
+    }
+}
+
+/// <summary>
+///     A single resolved, positioned underline segment ready for
+///     <see cref="PptxDocument.PaintTextLayout"/> to paint (Phase 2 Follow-Up: Underline
+///     Rendering), spanning one contiguous run of underlined tokens on a single line.
+/// </summary>
+/// <param name="StartXEmu">The segment's start X, in EMU, in the owning shape's own local coordinate space.</param>
+/// <param name="EndXEmu">The segment's end X, in EMU, in the owning shape's own local coordinate space.</param>
+/// <param name="BaselineYEmu">The owning line's baseline Y, in EMU, in the owning shape's own local coordinate space.</param>
+/// <param name="SizeEmu">The underlined run's resolved (already autofit-scaled) font size, in EMU - used to derive the painted stroke's thickness/offset (see <see cref="PptxDocument.PaintTextLayout"/>).</param>
+/// <param name="Style">The resolved underline style.</param>
+/// <param name="Color">The resolved underline ink color.</param>
+internal readonly record struct PptxUnderlineSegment(
+    float StartXEmu,
+    float EndXEmu,
+    float BaselineYEmu,
+    float SizeEmu,
+    PptxUnderlineStyle Style,
+    Rgba32 Color);
 
 /// <summary>A single resolved, positioned glyph ready for <see cref="PptxDocument.PaintTextLayout"/> to paint.</summary>
 /// <param name="Font">The resolved <see cref="TrueTypeFont"/> supplying this glyph's outline.</param>
