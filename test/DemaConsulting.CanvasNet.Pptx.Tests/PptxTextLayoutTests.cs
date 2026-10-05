@@ -380,7 +380,7 @@ public class PptxTextLayoutTests
     ///     using the tab's true, expanded width (the next 914400-EMU tab stop strictly past
     ///     25400, i.e. 914400 itself, an 889000 EMU advance) places "AAAA\t" on line 1 at a total
     ///     width of exactly 914400 (&lt;= 920000, fits), but the second "AAAA" would bring the
-    ///     running width to 914400 + 25400 = 939400 (&gt; 920000) - correctly wrapping it onto a
+    ///     running width to 914400 + 25400 = 939800 (&gt; 920000) - correctly wrapping it onto a
     ///     second line. Using the tab's glyph-measured (near-zero, <c>.notdef</c>-advance) width
     ///     instead - the pre-fix behavior - the combined total of both words plus the tab would
     ///     be only 25400 + 0 + 25400 = 50800, comfortably under 920000, so the second "AAAA"
