@@ -1771,6 +1771,45 @@ run" under this simpler zero-runs rule, so such a paragraph's bullet still paint
 own true rule (zero _non-whitespace-only_ runs) is not resolved by this fix and remains a
 documented, minor gap.
 
+**Closed risk (bullet/text gutter clearance)**: a further, visually similar defect was reported
+against real-world content - a `buAutoNum` paragraph appeared to render its auto-number marker
+stacked/overlapping its own first word, as if two markers had painted on top of each other.
+Investigation (direct code inspection plus numeric probes against the actual pipeline, since
+reverted) refuted both of the plausible duplicate-paint/type-precedence hypotheses: there is
+exactly one bullet-glyph-painting call site, and the TYPE choice-group's own `raw ?? placeholder
+?? master` chain never merges across bullet kinds - a paragraph's own `<a:buAutoNum>` fully
+supersedes an inherited master `<a:buChar>` default, never painting both. The actual root cause
+was a **bullet-gutter/text-start-X collision** in `PositionLines`: when a bulleted paragraph's
+resolved `IndentEmu` was zero (or not negative enough to clear the bullet glyph's own rendered
+width), the bullet glyph and the paragraph's own first-line text were painted at the same (or an
+overlapping) X coordinate - a positioning defect, not a bullet-type defect, equally capable of
+affecting `buChar` and `buAutoNum` bullets alike. Confirmed numerically on a real-world slide's
+exact attribute set (`marL="320040"`, `lvl="1"`, no `indent` attribute, a plain non-placeholder
+`<p:sp>` TextBox contributing no indent from any placeholder/master tier, `<a:buAutoNum
+type="arabicPeriod"/>`): the bullet glyph and the paragraph's own first run glyph resolved to the
+identical X coordinate. The fix: `BuildBulletGlyphs` now also returns the bullet string's own
+total measured advance width (already computed internally as its running cursor position, simply
+surfaced), threaded through a new `LineBox.BulletWidthEmu` field; `PositionLines` then clamps the
+bulleted first line's own text-start-X to `MathF.Max(marL, bulletGutterX + BulletWidthEmu)`,
+guaranteeing the bullet and the paragraph's own text never share an X range. This clamp is a
+no-op whenever the existing gutter already clears the bullet's own width (the already-correct,
+sufficiently-negative-indent case), so it introduces no regression there; it does not attempt to
+reproduce any additional visual padding PowerPoint's own renderer may add beyond the bullet's own
+measured width, a minor, acceptable, documented simplification. Separately, and **not fixed
+here**: a visually similar "number squished against text" symptom observed on another real-world
+slide was found, on inspection, to not involve `buAutoNum` at all - its "numbers" are literal
+typed digits separated from the following word by a literal tab character, and this unit's
+`Tokenize`/`MeasureTokenWidthEmu` treat a tab as ordinary collapsible whitespace with no OOXML
+tab-stop (`defTabSz`/`tabLst`) expansion; this is a distinct, pre-existing, out-of-scope defect
+(tab-stop support), flagged for a separate unit of work rather than folded into this fix. Status:
+closed, proven by `ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth` (exact
+numeric clamp proof), `PaintTextLayout_BulletedParagraphWithZeroIndent_BulletAndTextInkDoNotOverlap`
+(pixel-level disjoint-ink proof), and
+`ResolveTextLayout_MasterBuCharDefault_OwnBuAutoNumOverride_PaintsOnlyAutoNumberMarker` (permanent
+regression guard confirming the type-precedence hypothesis remains refuted), alongside the
+pre-existing `ResolveTextLayout_BulletedParagraph_TextStartsAtMarLGutterHoldsBullet` and
+`ResolveTextLayout_BuNone_PaintsNoGlyphBeyondRunText`, both confirmed unaffected.
+
 #### Phase 2 Follow-Up: Color Map (`<p:clrMap>`/`<p:clrMapOvr>`) Resolution
 
 A further visual-fidelity defect was found and fixed: `ResolveSchemeColor` (`PptxDocument.

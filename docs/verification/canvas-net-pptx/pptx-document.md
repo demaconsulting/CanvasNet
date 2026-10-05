@@ -1236,7 +1236,10 @@ and does not disturb the paragraph's own markup.
 `BuildLines_ParagraphWithBulletPropertiesAndNoRuns_PaintsNoBulletGlyph`,
 `BuildLines_OtherwiseIdenticalParagraphWithOneRun_StillPaintsBulletGlyph`,
 `BuildLines_RunlessAutoNumberParagraph_CounterStillAdvancesForSubsequentParagraph`,
-`PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature`
+`PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature`,
+`ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth`,
+`PaintTextLayout_BulletedParagraphWithZeroIndent_BulletAndTextInkDoNotOverlap`,
+`ResolveTextLayout_MasterBuCharDefault_OwnBuAutoNumOverride_PaintsOnlyAutoNumberMarker`
 
 Proves `FormatAutoNumber` formats all eleven supported `ST_TextAutonumberScheme` values at
 representative values (including alphabetic base-26 rollover at value 27 and several Roman-numeral
@@ -1274,7 +1277,27 @@ at all - neither run text nor a bullet glyph; the otherwise-identical paragraph 
 paints both its own run glyph and its bullet glyph (the differential counterpart); and a run-less
 auto-numbered paragraph followed by a same-level paragraph with a run proves the counter still
 advanced past the suppressed paragraph (the second paragraph's bullet renders "2", not "1"),
-confirming only the glyph is suppressed, never the counter state.
+confirming only the glyph is suppressed, never the counter state. Proves the bullet-gutter/
+text-start-X collision fix: `ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth`
+reproduces a real-world slide's exact attribute set (`marL="320040"`, `lvl="1"`, no `indent`
+attribute, `<a:buAutoNum type="arabicPeriod"/>`, no placeholder/master tier contributing an
+indent) and asserts, with exact numeric values, that the bullet glyph's own X is unchanged (still
+the unclamped gutter) while the paragraph's own first run-text glyph's X is now clamped to clear
+the bullet string's own measured width - directly disproving the pre-fix collision
+(`bulletGlyphX == textGlyphX`) this defect was confirmed to produce.
+`PaintTextLayout_BulletedParagraphWithZeroIndent_BulletAndTextInkDoNotOverlap` proves this at the
+pixel level: rendered to a `Surface`, the bullet's own ink and the paragraph's own (now correctly
+offset) text ink occupy disjoint X-pixel columns, with no shared range. Finally,
+`ResolveTextLayout_MasterBuCharDefault_OwnBuAutoNumOverride_PaintsOnlyAutoNumberMarker` is the
+permanent regression guard for the duplicate-paint/type-precedence-merge hypothesis this defect's
+investigation refuted: with a master `<p:bodyStyle>` level declaring a default `<a:buChar>` and
+the slide paragraph's own `<a:pPr>` declaring `<a:buAutoNum>`, the resolved bullet is exactly
+`AutoNum` with a `null` `Character` (the master's `buChar` fully superseded, not merged), and the
+full `ResolveTextLayout` pipeline emits exactly one run-glyph set plus exactly one bullet-glyph
+set - never two markers. The pre-existing
+`ResolveTextLayout_BulletedParagraph_TextStartsAtMarLGutterHoldsBullet` and
+`ResolveTextLayout_BuNone_PaintsNoGlyphBeyondRunText` tests continue to pass unchanged, confirming
+the fix's clamp is a no-op for the already-correct, sufficiently-negative-indent case.
 
 #### CanvasNetPptx-PptxDocument-ColorMapResolution: `<p:clrMap>`/`<p:clrMapOvr>` Indirection
 

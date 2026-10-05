@@ -1478,11 +1478,13 @@ sections:
               parent level's own counter, shall paint a resolved bullet glyph at the paragraph's
               own marL+indent hanging-indent gutter position, shall position a bulleted
               paragraph's own first-line run text starting at marL (not marL+indent) whenever that
-              line has a resolved bullet, leaving a non-bulleted paragraph's own first-line
-              indent behavior unchanged, and shall suppress the bullet glyph entirely (while still
-              advancing the auto-number counter state) for a paragraph with no <a:r> run children
-              at all, so a blank/spacer paragraph that merely inherits a list's bullet properties
-              never renders a stray, isolated bullet glyph with no accompanying text.
+              line has a resolved bullet, clamped so the text never shares an X range with the
+              bullet glyph it is painted beside regardless of the paragraph's resolved indent,
+              leaving a non-bulleted paragraph's own first-line indent behavior unchanged, and
+              shall suppress the bullet glyph entirely (while still advancing the auto-number
+              counter state) for a paragraph with no <a:r> run children at all, so a blank/spacer
+              paragraph that merely inherits a list's bullet properties never renders a stray,
+              isolated bullet glyph with no accompanying text.
             justification: |
               Formatting and positioning a bullet glyph requires layout-engine support distinct
               from, and layered on top of, the choice-group parsing/inheritance resolution above:
@@ -1510,7 +1512,22 @@ sections:
               gates only the glyph itself on the paragraph having at least one run, leaving the
               auto-number counter's own advancement untouched, so a run-less auto-numbered
               paragraph still consumes its own position in the sequence even though nothing is
-              painted for it - matching real PowerPoint's own counter semantics.
+              painted for it - matching real PowerPoint's own counter semantics. A further bug was
+              found against real-world content, reported as a buAutoNum marker appearing to render
+              stacked/overlapping its own paragraph's first word: investigation (direct code
+              inspection plus temporary numeric probes) refuted the plausible duplicate-paint and
+              type-precedence-merge hypotheses - there is exactly one bullet-glyph-painting call
+              site, and a paragraph's own buAutoNum fully supersedes an inherited master buChar
+              default, never merging the two - and instead confirmed a bullet-gutter/text-start-X
+              collision in PositionLines: when a bulleted paragraph's resolved IndentEmu was zero
+              or not negative enough to clear the bullet glyph's own rendered width, the bullet
+              and the paragraph's own first-line text painted at the same, or an overlapping, X
+              coordinate - a positioning defect affecting buChar and buAutoNum bullets alike,
+              confirmed numerically on a real-world slide (marL="320040", lvl="1", no indent
+              attribute, a plain non-placeholder TextBox, buAutoNum type="arabicPeriod"). The fix
+              clamps the bulleted first line's own text-start-X to never fall short of the
+              bullet's own gutter position plus its own measured width, a no-op whenever the
+              existing gutter already clears the bullet's own width.
             tests:
               - FormatAutoNumber_SupportedTypes_FormatsExpectedString
               - FormatAutoNumber_UnsupportedType_ReturnsNull
@@ -1525,6 +1542,9 @@ sections:
               - BuildLines_OtherwiseIdenticalParagraphWithOneRun_StillPaintsBulletGlyph
               - BuildLines_RunlessAutoNumberParagraph_CounterStillAdvancesForSubsequentParagraph
               - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature
+              - ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth
+              - PaintTextLayout_BulletedParagraphWithZeroIndent_BulletAndTextInkDoNotOverlap
+              - ResolveTextLayout_MasterBuCharDefault_OwnBuAutoNumOverride_PaintsOnlyAutoNumberMarker
 
           - id: CanvasNetPptx-PptxDocument-ShapeStyleReference
             title: >-
