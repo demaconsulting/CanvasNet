@@ -769,6 +769,140 @@ public class PptxBulletTests
         Assert.Single(layout.Glyphs);
     }
 
+    /// <summary>
+    ///     Regression test for the bullet-gutter/text-start-X collision defect (confirmed on a
+    ///     real-world slide: <c>marL="320040"</c>, <c>lvl="1"</c>, no <c>indent</c> attribute,
+    ///     <c>&lt;a:buAutoNum type="arabicPeriod"/&gt;</c>, no placeholder/master tier
+    ///     contributing an indent - see the design document's "Bullet/text gutter clearance"
+    ///     note). With <c>IndentEmu</c> resolving to <c>0</c>, the bullet gutter
+    ///     (<c>marL+indent=320040</c>) and the paragraph's own unclamped text-start-X
+    ///     (also <c>320040</c>, since a bulleted first line drops <c>indent</c> entirely) would,
+    ///     before the fix, collide exactly. Proves the bullet glyph's own X is unchanged (still
+    ///     the unclamped gutter), while the first run-text glyph's X is now clamped to clear the
+    ///     bullet string's own measured width - an exact numeric value derived from this file's
+    ///     own synthetic font metrics (bullet string <c>"1."</c>: '1' advance 300/1000*12700
+    ///     EMU + '.' advance 100/1000*12700 EMU = 5080 EMU total).
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth()
+    {
+        var textBody = BuildTextBody(
+            ("""<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main" marL="320040" lvl="1"><buAutoNum type="arabicPeriod"/></pPr>""", "A"));
+
+        var layout = Layout(textBody);
+
+        // Run "A", then bullet "1" and ".".
+        Assert.Equal(3, layout.Glyphs.Count);
+
+        // Bullet glyph X is unchanged: still the unclamped gutter (marL+indent = 320040+0).
+        Assert.Equal(320040f, layout.Glyphs[1].OriginXEmu, 2);
+        Assert.Equal(323850f, layout.Glyphs[2].OriginXEmu, 2); // 320040 + '1' advance (3810).
+
+        // The run's own text glyph is clamped to clear the bullet's own measured width
+        // (320040 + 5080 = 325120), rather than sitting at the unclamped marL (320040), which
+        // would collide with the bullet.
+        Assert.Equal(325120f, layout.Glyphs[0].OriginXEmu, 2);
+    }
+
+    /// <summary>
+    ///     Pixel-level counterpart to
+    ///     <see cref="ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth"/>:
+    ///     proves the bullet's own ink and the paragraph's own (now correctly offset) text ink
+    ///     occupy disjoint X ranges once actually painted to a surface - not merely resolved. Uses
+    ///     <c>&lt;a:buChar char="A"/&gt;</c> rather than the exact <c>buAutoNum</c> slide-23
+    ///     fixture so the bullet glyph has real (non-blank) ink to sample in this file's synthetic
+    ///     font (see <see cref="NewFont"/>'s own remarks: only glyph index 1, mapped to 'A', has a
+    ///     visible outline - the auto-number digits/period are zero-contour placeholders) - the
+    ///     underlying gutter-clearance defect is identical for <c>buChar</c> and <c>buAutoNum</c>
+    ///     bullets alike (it is purely a function of resolved indent versus bullet width, never
+    ///     the bullet's type - see the design document), so this remains a faithful pixel-level
+    ///     proof of the same fix.
+    /// </summary>
+    [Fact]
+    public void PaintTextLayout_BulletedParagraphWithZeroIndent_BulletAndTextInkDoNotOverlap()
+    {
+        var textBody = BuildTextBody(
+            ("""<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main" marL="320040" lvl="1"><buChar char="A"/></pPr>""", "A"));
+        var layout = Layout(textBody, 400000f, 100000f);
+
+        // Bullet "A" gutter X is the resolved marL+indent (320040 EMU); its measured width is the
+        // 'A' glyph's advance scaled to the bullet's font size (6350 EMU); the clamped text start
+        // X is their sum (326390 EMU) - touching, not overlapping, the bullet's own span. This is
+        // the geometric proof the two glyphs' spans never share an X range.
+        const float bulletGutterX = 320040f;
+        const float bulletWidthEmu = 6350f;
+        const float textStartX = bulletGutterX + bulletWidthEmu;
+        Assert.Equal(bulletGutterX, layout.Glyphs[1].OriginXEmu, 2);
+        Assert.Equal(textStartX, layout.Glyphs[0].OriginXEmu, 2);
+
+        using var surface = new Surface(64, 16);
+        var scale = 64f / 400000f;
+        var transform = System.Numerics.Matrix3x2.CreateScale(scale, scale);
+        PptxDocument.PaintTextLayout(surface, layout, transform);
+
+        var bulletColumnMaxPx = (int)MathF.Floor(textStartX * scale);
+        var textColumnMinPx = (int)MathF.Ceiling(textStartX * scale);
+
+        bool AnyInkInColumnRange(int minPxInclusive, int maxPxExclusive)
+        {
+            for (var y = 0; y < surface.Height; y++)
+            {
+                for (var x = Math.Max(0, minPxInclusive); x < Math.Min(surface.Width, maxPxExclusive); x++)
+                {
+                    if (surface[x, y].A > 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        Assert.True(AnyInkInColumnRange(0, bulletColumnMaxPx), "Expected ink in the bullet's own column.");
+        Assert.True(AnyInkInColumnRange(textColumnMinPx, surface.Width), "Expected ink in the text's own (clamped) column.");
+    }
+
+    /// <summary>
+    ///     Permanent regression test (promoted from a planning-pass investigation probe) for the
+    ///     task's explicit "layout/master declares a default <c>buChar</c> at a list level; the
+    ///     slide's own paragraph at that level declares <c>buAutoNum</c>; assert only the
+    ///     auto-number marker renders" scenario. Proves the master <c>&lt;p:bodyStyle&gt;</c>
+    ///     level's own <c>&lt;a:buChar/&gt;</c> default is fully superseded (not merged) by the
+    ///     paragraph's own <c>&lt;a:buAutoNum/&gt;</c>, and that the full
+    ///     <see cref="PptxDocument.ResolveTextLayout"/> pipeline emits exactly one run-glyph set
+    ///     plus exactly one bullet-glyph set - never two overlapping markers.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_MasterBuCharDefault_OwnBuAutoNumOverride_PaintsOnlyAutoNumberMarker()
+    {
+        var theme = BuildTestTheme();
+        var bodyStyle = new XElement(
+            DrawingNs + "bodyStyle",
+            new XElement(DrawingNs + "lvl1pPr", new XElement(DrawingNs + "buChar", new XAttribute("char", "\u2022"))));
+        var masterTextStyles = new PptxMasterTextStyles(null, bodyStyle, null);
+        var placeholderProperties = new PptxPlaceholderProperties(null, null, theme, masterTextStyles);
+
+        var pPrXml = """<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main"><buAutoNum type="arabicPeriod"/></pPr>""";
+        var pPrElement = XElement.Parse(pPrXml);
+
+        // Resolved bullet properties: the master's own buChar default is fully superseded, not
+        // merged, by the paragraph's own buAutoNum.
+        var paragraph = Paragraph(pPrElement, Run(null, "A"));
+        var resolvedBullet = PptxDocument.ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, "body");
+        Assert.Equal(PptxBulletKind.AutoNum, resolvedBullet.Bullet!.Kind);
+        Assert.Null(resolvedBullet.Bullet.Character);
+
+        // Full pipeline: exactly one run glyph ("A") plus exactly one bullet-glyph set (the
+        // auto-number "1." - two glyphs, '1' then '.') - never a second, master-buChar marker.
+        var textBody = BuildTextBody((pPrXml, "A"));
+        var layout = PptxDocument.ResolveTextLayout(textBody, placeholderProperties, theme, "body", 500000f, 500000f, ConstantFontResolver);
+
+        Assert.Equal(3, layout.Glyphs.Count);
+        Assert.Equal(3, layout.Glyphs[1].GlyphIndex); // '1' (see NewFont()'s cmap/advance table).
+        Assert.Equal(6, layout.Glyphs[2].GlyphIndex); // '.' (see NewFont()'s cmap/advance table).
+    }
+
     #endregion
 
     #region End-to-end pixel painting

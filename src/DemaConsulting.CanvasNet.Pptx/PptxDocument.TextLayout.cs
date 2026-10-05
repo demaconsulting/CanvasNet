@@ -228,6 +228,12 @@ public sealed partial class PptxDocument
     ///     see <see cref="PositionLines"/>). Always empty except on a bulleted paragraph's own
     ///     first line (<see cref="IsFirstLineOfParagraph"/>).
     /// </param>
+    /// <param name="BulletWidthEmu">
+    ///     The bullet string's own total measured advance width, in EMU (<c>0</c> when
+    ///     <see cref="BulletGlyphs"/> is empty) - consulted by <see cref="PositionLines"/> to
+    ///     guarantee the paragraph's own text never shares an X range with the bullet glyph(s) it
+    ///     is painted beside (the gutter-clearance fix).
+    /// </param>
     private sealed record LineBox(
         IReadOnlyList<LineGlyph> Glyphs,
         float LineWidthEmu,
@@ -235,7 +241,8 @@ public sealed partial class PptxDocument
         float AscentEmu,
         PptxEffectiveParagraphProperties ParagraphProperties,
         bool IsFirstLineOfParagraph,
-        IReadOnlyList<LineGlyph> BulletGlyphs);
+        IReadOnlyList<LineGlyph> BulletGlyphs,
+        float BulletWidthEmu = 0f);
 
     /// <summary>A paragraph with its effective paragraph properties and every run's effective properties resolved up front.</summary>
     private sealed record ResolvedParagraph(
@@ -396,11 +403,11 @@ public sealed partial class PptxDocument
                 }
 
                 var isFirstLine = i == 0;
-                var bulletGlyphs = isFirstLine && hasRuns
+                var bulletGlyphsResult = isFirstLine && hasRuns
                     ? BuildBulletGlyphs(bulletText, paraProps.Bullet, fontScale, resolveFont)
-                    : [];
+                    : new BulletGlyphsResult([], 0f);
 
-                lines.Add(new LineBox(glyphs, lineWidth, lineHeight, ascent, paraProps, isFirstLine, bulletGlyphs));
+                lines.Add(new LineBox(glyphs, lineWidth, lineHeight, ascent, paraProps, isFirstLine, bulletGlyphsResult.Glyphs, bulletGlyphsResult.WidthEmu));
             }
         }
 
@@ -471,6 +478,18 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>
+    ///     The result of measuring a paragraph's rendered bullet string (see
+    ///     <see cref="BuildBulletGlyphs"/>): the bullet's own positioned glyphs plus the bullet
+    ///     string's total measured advance width - the latter is what <see cref="PositionLines"/>
+    ///     needs to guarantee the paragraph's own text never shares an X range with the bullet
+    ///     glyph(s) it is painted beside (the gutter-clearance fix; see the design document's
+    ///     "Bullet/text gutter clearance" note).
+    /// </summary>
+    /// <param name="Glyphs">The bullet's own positioned glyphs (see <see cref="BuildBulletGlyphs"/>).</param>
+    /// <param name="WidthEmu">The bullet string's total measured advance width, in EMU; <c>0</c> when <see cref="Glyphs"/> is empty.</param>
+    private readonly record struct BulletGlyphsResult(IReadOnlyList<LineGlyph> Glyphs, float WidthEmu);
+
+    /// <summary>
     ///     Tokenizes and measures a paragraph's rendered bullet string (if any) into
     ///     <see cref="LineGlyph"/>s positioned relative to X=0 - the hanging-indent gutter
     ///     (<c>marL+indent</c>), not the line's own text start (see
@@ -478,7 +497,7 @@ public sealed partial class PptxDocument
     ///     bold/italic regardless of any adjacent run's own style - a documented simplification
     ///     (see the design document).
     /// </summary>
-    private static IReadOnlyList<LineGlyph> BuildBulletGlyphs(
+    private static BulletGlyphsResult BuildBulletGlyphs(
         string? bulletText,
         PptxEffectiveBulletProperties? bullet,
         float fontScale,
@@ -486,7 +505,7 @@ public sealed partial class PptxDocument
     {
         if (string.IsNullOrEmpty(bulletText) || bullet is null || bullet.Kind == PptxBulletKind.None)
         {
-            return [];
+            return new BulletGlyphsResult([], 0f);
         }
 
         var font = resolveFont(bullet.FontFamily, false, false);
@@ -501,7 +520,7 @@ public sealed partial class PptxDocument
             cursorX += advance;
         }
 
-        return glyphs;
+        return new BulletGlyphsResult(glyphs, cursorX);
     }
 
     /// <summary>
@@ -633,6 +652,20 @@ public sealed partial class PptxDocument
             var hasBullet = line.IsFirstLineOfParagraph && line.BulletGlyphs.Count > 0;
             var indent = line.IsFirstLineOfParagraph && !hasBullet ? line.ParagraphProperties.IndentEmu : 0f;
             var lineStartX = insetLeftEmu + marginLeft + indent;
+
+            if (hasBullet)
+            {
+                // Gutter-clearance fix: when the paragraph's resolved IndentEmu is zero or not
+                // negative enough to clear the bullet glyph's own rendered width, the unclamped
+                // text-start-X above would sit at or past the bullet's own gutter, overlapping it
+                // (confirmed on a real-world buAutoNum paragraph with marL="320040", lvl="1", no
+                // indent attribute - see the design document). Clamp the text's own start X so it
+                // never shares an X range with the bullet - a no-op whenever the existing gutter
+                // already clears the bullet's width (the already-correct, sufficiently-negative-
+                // indent case).
+                var bulletGutterXForClamp = insetLeftEmu + marginLeft + line.ParagraphProperties.IndentEmu;
+                lineStartX = MathF.Max(insetLeftEmu + marginLeft, bulletGutterXForClamp + line.BulletWidthEmu);
+            }
 
             var startX = line.ParagraphProperties.Alignment switch
             {
