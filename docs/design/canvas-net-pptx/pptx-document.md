@@ -1695,3 +1695,88 @@ paragraphs) actually paints visible ink in its own bullet gutter column, distinc
 surrounding, un-inked inset, plus a second new assertion confirming no stray bullet ink appears at
 this same fixture's own slide-number placeholder geometry (the exact real-world location the
 closed risk above was found).
+
+#### Phase 2 Follow-Up: Color Map (`<p:clrMap>`/`<p:clrMapOvr>`) Resolution
+
+A further visual-fidelity defect was found and fixed: `ResolveSchemeColor` (`PptxDocument.
+Paint.cs`) hard-coded `bg1` -> `Light1`, `tx1` -> `Dark1`, `bg2` -> `Light2`, `tx2` -> `Dark2`,
+entirely ignoring the slide master's own required `<p:clrMap>` and any layout/slide `<p:clrMapOvr>`
+override - per ECMA-376, these four aliases are an **indirection**, not a fixed mapping: a slide
+master's own `<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" .../>` (the identity mapping,
+true of the overwhelming majority of real-world themes) happens to agree with the previous
+hard-coded behavior, but a master, layout, or slide that declares a non-identity map - most
+commonly a "dark" layout/master variant that inverts `bg1`/`tx1` to `dk1`/`lt1` - was rendered
+with every `bg1`/`tx1`/`bg2`/`tx2` scheme color silently wrong.
+
+**Data model** (`PptxTheme.cs`): a new `PptxColorMap(string Bg1, string Tx1, string Bg2, string
+Tx2)` record captures a resolved `<p:clrMap>`/effective `<p:clrMapOvr>`'s own four indirection
+targets (each one of the theme's twelve canonical slot names, in practice always one of
+`dk1`/`lt1`/`dk2`/`lt2`), with a `Default` static instance holding the identity mapping -
+deliberately omitting `accentN`/`hlink`/`folHlink`, which a real-world `<p:clrMap>` always maps to
+themselves.
+
+**Parsing**: `<p:clrMap>` is a **required** child of `<p:sldMaster>` per ECMA-376's own schema;
+`GetMaster` (`PptxDocument.Masters.cs`) now parses it via a new `ParseColorMap` helper, throwing
+`InvalidDataException` if the element or any of its four required attributes is missing, and
+exposes the result as a new `PptxMaster.ColorMap` property (an optional trailing constructor
+parameter defaulting to `PptxColorMap.Default`, so every pre-existing positional
+`new PptxMaster(...)` test call site keeps compiling unchanged). `<p:clrMapOvr>` is optional on
+both `<p:sldLayout>` and `<p:sld>`; `GetLayout`/`GetSlide` (`PptxDocument.Layouts.cs`/
+`PptxDocument.Slides.cs`) capture its raw, unparsed `XElement?` as `PptxLayout.ClrMapOvr`/
+`PptxSlide.ClrMapOvr` respectively - deferred, unparsed, because a `<p:clrMapOvr>` can wrap either
+an `<a:overrideClrMapping .../>` (an actual override) or an `<a:masterClrMapping/>` (an explicit
+"no override at this tier" marker), and only the resolver (below) needs to distinguish them.
+
+**Resolution** (`PptxDocument.Theme.cs`'s new `ResolveEffectiveColorMap`): implements the
+documented slide -> layout -> master fallback chain - a slide's own `<p:clrMapOvr>` wins if it
+wraps `<a:overrideClrMapping>`; otherwise the layout's own `<p:clrMapOvr>` wins under the same
+condition; otherwise the master's own parsed `<p:clrMap>` applies. A `<p:clrMapOvr>` wrapping
+`<a:masterClrMapping/>` at either tier is treated as "no override at this tier" and falls through
+to the next tier, exactly matching real PowerPoint's own semantics for that marker.
+
+**Threading**: an optional `PptxColorMap? colorMap = null` parameter (defaulting via
+`colorMap ??= PptxColorMap.Default` at the top of each method body) was threaded through every
+color-resolving entry point this unit already has - `ResolveFill`/`ResolveGradientFill`/
+`ResolveColor`/`ResolveBaseColor`/`ResolveLineStyle` (`PptxDocument.Paint.cs`),
+`ResolveSlideBackgroundFill`/`ResolveBackgroundElement`/`ResolveBackgroundStyleReference`
+(`PptxDocument.Background.cs`), `ResolveEffectiveRunProperties`/`GetRunColor`/
+`ResolveEffectiveParagraphProperties`/`ResolveBulletColor` (`PptxDocument.TextInheritance.cs`),
+and `ResolveTextLayout` (`PptxDocument.TextLayout.cs`). `ResolveSchemeColor` itself was rewritten
+so `bg1`/`tx1`/`bg2`/`tx2` first indirect through `colorMap.Bg1`/`.Tx1`/`.Bg2`/`.Tx2` to their own
+target slot name, then resolve that target through a new, non-recursive `ResolveNamedSlot` helper
+(the same switch as before, minus the `bg`/`tx` aliasing arms, so a non-identity map can never
+recurse back through another alias) - every other slot (`accent1`-`accent6`/`hlink`/`folHlink`/
+`dk1`/`lt1`/`dk2`/`lt2`/`phClr`) is unaffected.
+
+**Render-time wiring** (`PptxDocument.Render.cs`): the public `Render` method computes
+`ResolveEffectiveColorMap(slide.ClrMapOvr, layout.ClrMapOvr, master.ColorMap)` exactly once per
+render call, then threads the result as a new **required** parameter through the private
+`RenderNode`/`RenderShape`/`RenderGraphicFrame` helpers and into every nested
+`ResolveSlideBackgroundFill`/`ResolveFill`/`ResolveLineStyle`/`ResolveTextLayout`/`PaintTable`
+call - safe to make required (rather than optional) since these helpers are `private`/`internal`
+and have no external or test call sites that bypass `Render` itself.
+
+**Scoped limitation, left as an explicit, documented simplification**: a table cell's own fill
+and border colors (`ParseTableCell`, `PptxDocument.Tables.cs`) are resolved once, eagerly, at
+parse/load time - before any per-slide effective color map is known - and therefore always
+effectively use `PptxColorMap.Default`, regardless of any real `<p:clrMapOvr>` in effect for that
+slide. A table cell's own **text**, by contrast, is not baked at parse time: `PaintTable` calls
+`ResolveTextLayout` for each cell's text at paint time, so cell text color correctly resolves
+through the real, per-render effective color map like any other text run. Fixing the fill/border
+eager-resolution limitation would require re-architecting table parsing to defer color resolution
+to paint time (mirroring how every other shape already works) - out of scope for this fix, and
+left as a known, documented gap.
+
+**Test coverage**: `PptxPaintTests.cs` gained direct `ResolveSchemeColor`/`ResolveColor` unit
+tests proving the default (identity) map's `tx1` -> `Dark1` behavior is preserved, a non-identity
+map correctly redirects `tx1` to an overridden slot, and the indirection is applied before any
+`<a:lumMod>`/`<a:lumOff>`-style color transform. A new `PptxColorMapTests.cs` covers
+`GetMaster`'s required `<p:clrMap>` parsing (including the `InvalidDataException` thrown when
+absent), `GetLayout`/`GetSlide`'s optional `<p:clrMapOvr>` parsing, and `ResolveEffectiveColorMap`'s
+full slide -> layout -> master fallback chain, including both `<a:masterClrMapping/>`
+fall-through cases and the `InvalidDataException` thrown for a malformed
+`<a:overrideClrMapping>` missing a required attribute. `PptxRenderTests.cs` gained an end-to-end
+render-level pixel test confirming a slide-level `<p:clrMapOvr>/<a:overrideClrMapping bg1="dk1"
+.../>` makes an `<a:schemeClr val="bg1"/>`-filled shape actually paint the theme's `Dark1` pixel
+color rather than the previously hard-coded `Light1`, alongside a companion test confirming the
+pre-existing, no-override baseline behavior is unchanged.

@@ -111,8 +111,10 @@ public sealed partial class PptxDocument
 
         var baseTransform = Matrix3x2.CreateScale(width / (float)SlideSize.WidthEmu, height / (float)SlideSize.HeightEmu);
 
+        var colorMap = ResolveEffectiveColorMap(slide.ClrMapOvr, layout.ClrMapOvr, master.ColorMap);
+
         var backgroundFill = ResolveSlideBackgroundFill(
-            slide.Background, layout.Background, master.Background, theme, SlideSize.WidthEmu, SlideSize.HeightEmu);
+            slide.Background, layout.Background, master.Background, theme, SlideSize.WidthEmu, SlideSize.HeightEmu, colorMap);
         if (backgroundFill is not null)
         {
             var backgroundPath = Path.Rectangle(0, 0, SlideSize.WidthEmu, SlideSize.HeightEmu).Transform(baseTransform);
@@ -130,17 +132,17 @@ public sealed partial class PptxDocument
         // non-placeholder siblings are.
         foreach (var node in master.ShapeTree)
         {
-            RenderNode(surface, node, master.PartPath, layout, master, theme, baseTransform, skipPlaceholderShapes: true);
+            RenderNode(surface, node, master.PartPath, layout, master, theme, baseTransform, colorMap, skipPlaceholderShapes: true);
         }
 
         foreach (var node in layout.ShapeTree)
         {
-            RenderNode(surface, node, layout.PartPath, layout, master, theme, baseTransform, skipPlaceholderShapes: true);
+            RenderNode(surface, node, layout.PartPath, layout, master, theme, baseTransform, colorMap, skipPlaceholderShapes: true);
         }
 
         foreach (var node in slide.ShapeTree)
         {
-            RenderNode(surface, node, slide.PartPath, layout, master, theme, baseTransform);
+            RenderNode(surface, node, slide.PartPath, layout, master, theme, baseTransform, colorMap);
         }
 
         return surface;
@@ -230,6 +232,12 @@ public sealed partial class PptxDocument
     /// <param name="master">The slide's own resolved master, consulted for placeholder-property inheritance.</param>
     /// <param name="theme">The slide's own resolved theme, consulted for color/font resolution.</param>
     /// <param name="parentToSurface">The accumulated transform from this node's own parent space into surface pixel space.</param>
+    /// <param name="colorMap">
+    ///     The slide's own effective color map (see <see cref="ResolveEffectiveColorMap"/>),
+    ///     computed once in <see cref="Render(int, int, int, PptxRenderOptions?)"/> and threaded
+    ///     unchanged through every recursive call - consulted whenever a resolved fill/line/text
+    ///     color declares an <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token.
+    /// </param>
     /// <param name="skipPlaceholderShapes">
     ///     When <see langword="true"/> (the master/layout decorative-shape walks in
     ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/>), a <see cref="PptxSpShapeNode"/>
@@ -259,6 +267,7 @@ public sealed partial class PptxDocument
         PptxMaster master,
         PptxTheme theme,
         Matrix3x2 parentToSurface,
+        PptxColorMap colorMap,
         bool skipPlaceholderShapes = false)
     {
         switch (node)
@@ -267,7 +276,7 @@ public sealed partial class PptxDocument
                 var childToSurface = group.ChildTransform * parentToSurface;
                 foreach (var child in group.Children)
                 {
-                    RenderNode(surface, child, ownerPartPath, layout, master, theme, childToSurface, skipPlaceholderShapes);
+                    RenderNode(surface, child, ownerPartPath, layout, master, theme, childToSurface, colorMap, skipPlaceholderShapes);
                 }
 
                 break;
@@ -280,7 +289,7 @@ public sealed partial class PptxDocument
 
                 try
                 {
-                    RenderShape(surface, sp, layout, master, theme, parentToSurface);
+                    RenderShape(surface, sp, layout, master, theme, parentToSurface, colorMap);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {
@@ -309,7 +318,7 @@ public sealed partial class PptxDocument
             case PptxGraphicFrameShapeNode graphicFrame:
                 try
                 {
-                    RenderGraphicFrame(surface, graphicFrame, theme, parentToSurface);
+                    RenderGraphicFrame(surface, graphicFrame, theme, parentToSurface, colorMap);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {
@@ -336,7 +345,8 @@ public sealed partial class PptxDocument
         PptxLayout layout,
         PptxMaster master,
         PptxTheme theme,
-        Matrix3x2 parentToSurface)
+        Matrix3x2 parentToSurface,
+        PptxColorMap colorMap)
     {
         XElement? spPrElement;
         XElement? xfrmElement;
@@ -382,10 +392,10 @@ public sealed partial class PptxDocument
         var geometryPath = ResolveShapeGeometry(geometrySpPrElement, frame.WidthEmu, frame.HeightEmu);
         var transformedPath = geometryPath.Transform(localToSurface);
 
-        var fill = ResolveFill(spPrElement, theme, frame.WidthEmu, frame.HeightEmu);
+        var fill = ResolveFill(spPrElement, theme, frame.WidthEmu, frame.HeightEmu, colorMap: colorMap);
         FillPaint(surface, transformedPath, fill);
 
-        var lineStyle = ResolveLineStyle(spPrElement.Element(DrawingNamespace + "ln"), theme);
+        var lineStyle = ResolveLineStyle(spPrElement.Element(DrawingNamespace + "ln"), theme, colorMap);
         if (lineStyle is not null)
         {
             var strokedOutline = ResolveStrokeOutline(geometryPath, lineStyle).Transform(localToSurface);
@@ -400,7 +410,7 @@ public sealed partial class PptxDocument
         {
             var textBody = ParseTextBody(txBodyElement);
             var layoutResult = ResolveTextLayout(
-                textBody, placeholderProperties, theme, placeholderType, frame.WidthEmu, frame.HeightEmu, ResolveTextFont);
+                textBody, placeholderProperties, theme, placeholderType, frame.WidthEmu, frame.HeightEmu, ResolveTextFont, colorMap);
             PaintTextLayout(surface, layoutResult, localToSurface);
         }
     }
@@ -447,7 +457,8 @@ public sealed partial class PptxDocument
     ///     Renders a <see cref="PptxGraphicFrameShapeNode"/> (a table): paints its already-parsed
     ///     <see cref="PptxGraphicFrameShapeNode.Table"/> via the Phase 1e table pipeline.
     /// </summary>
-    private static void RenderGraphicFrame(Surface surface, PptxGraphicFrameShapeNode node, PptxTheme theme, Matrix3x2 parentToSurface)
+    private static void RenderGraphicFrame(
+        Surface surface, PptxGraphicFrameShapeNode node, PptxTheme theme, Matrix3x2 parentToSurface, PptxColorMap colorMap)
     {
         // Per ECMA-376's CT_GraphicalObjectFrame, a <p:graphicFrame>'s own position is a direct
         // <p:xfrm> child - not wrapped in a <p:spPr>, unlike an ordinary shape or picture.
@@ -460,6 +471,6 @@ public sealed partial class PptxDocument
         var frame = ResolveShapeFrame(xfrmElement);
         var localToSurface = frame.Transform * parentToSurface;
 
-        PaintTable(surface, node.Table, theme, localToSurface, ResolveTextFont);
+        PaintTable(surface, node.Table, theme, localToSurface, ResolveTextFont, colorMap);
     }
 }

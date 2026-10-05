@@ -581,8 +581,12 @@ sections:
               lastClr attribute, and <a:schemeClr val="..."/> by looking the named slot up in the
               supplied PptxTheme's color scheme (reusing the existing PptxTheme/PptxColorScheme
               resolver rather than re-resolving the theme), including the bg1/tx1/bg2/tx2
-              background/text aliases mapped to their corresponding dk/lt scheme slots; an
-              unrecognized schemeClr slot name throws InvalidDataException, any other,
+              background/text aliases, which are first mapped through the effective
+              <p:clrMap>/<p:clrMapOvr> color map (the slide master's own required <p:clrMap>,
+              overridden if present by the slide's own or otherwise the slide layout's own
+              <p:clrMapOvr>) to their own mapped slot name before that slot is looked up in the
+              theme's color scheme - never a fixed bg1->Light1/tx1->Dark1/bg2->Light2/tx2->Dark2
+              mapping; an unrecognized schemeClr slot name throws InvalidDataException, any other,
               unsupported color-definition element kind throws PptxUnsupportedFeatureException
               (feature token "pptx-color-kind"), and an srgbClr/sysClr hex value whose length
               (after stripping an optional leading '#') is not exactly six hex digits - for
@@ -591,7 +595,14 @@ sections:
             justification: |
               Scheme color resolution must build directly on Phase 1b's already-verified
               PptxTheme/PptxColorScheme resolver rather than duplicating its 12-slot lookup table,
-              so both phases stay in sync automatically if that table ever changes. OOXML's
+              so both phases stay in sync automatically if that table ever changes. Per ECMA-376,
+              bg1/tx1/bg2/tx2 are themselves an indirection, not a fixed mapping: a slide master's
+              own <p:clrMap> is required and may map them to any of the theme's dk1/lt1/dk2/lt2
+              slots, and a slide layout or slide may further override that mapping via its own
+              <p:clrMapOvr> - a non-identity map (most commonly a "dark" layout/master variant)
+              was previously rendered with every bg1/tx1/bg2/tx2 scheme color silently wrong
+              because the mapping was hard-coded rather than consulted, so this indirection step
+              must happen before, not instead of, the existing theme-slot lookup. OOXML's
               srgbClr/sysClr val attribute is specified as exactly six RGB hex digits; the
               underlying Rgba32 hex parser also accepts an 8-digit  # AARRGGBB form and would
               silently treat the first byte as alpha for a malformed 8-digit value, so the

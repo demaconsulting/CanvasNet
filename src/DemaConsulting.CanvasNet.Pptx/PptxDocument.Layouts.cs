@@ -45,6 +45,7 @@ public sealed partial class PptxDocument
         var placeholders = PptxPlaceholderParser.ParsePlaceholderShapes(spTree);
         var masterPartPath = ResolveRelationshipByType(layoutPartPath, "/slideMaster");
         var background = cSld.Element(PresentationNamespace + "bg");
+        var clrMapOvr = root.Element(PresentationNamespace + "clrMapOvr");
 
         // The shape tree's <p:graphicFrame> tables resolve their cell fills against the layout's
         // own master's theme. Resolving the master -> theme relationship chain is deferred into
@@ -52,7 +53,7 @@ public sealed partial class PptxDocument
         // all never require it to be walked.
         var shapeTree = ParseShapeTree(spTree, () => GetTheme(GetMaster(masterPartPath).ThemePartPath));
 
-        var layout = new PptxLayout(layoutPartPath, masterPartPath, placeholders, background, shapeTree);
+        var layout = new PptxLayout(layoutPartPath, masterPartPath, placeholders, background, shapeTree, clrMapOvr);
         _layoutCache[layoutPartPath] = layout;
         return layout;
     }

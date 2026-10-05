@@ -76,6 +76,40 @@ internal sealed record PptxColorScheme(
     Rgba32 FollowedHyperlink);
 
 /// <summary>
+///     A resolved <c>&lt;p:clrMap&gt;</c>/effective <c>&lt;p:clrMapOvr&gt;</c>'s own
+///     <c>bg1</c>/<c>tx1</c>/<c>bg2</c>/<c>tx2</c> indirection targets - each one of the theme's
+///     twelve canonical <see cref="PptxColorScheme"/> slot names (in practice always one of
+///     <c>"dk1"</c>/<c>"lt1"</c>/<c>"dk2"</c>/<c>"lt2"</c>). A slide master's <c>&lt;p:clrMap
+///     bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" .../&gt;</c> (the overwhelming majority of
+/// real-world themes) maps each alias to its own slot of the same name (no redirection) -
+///     <see cref="Default"/> - while a non-identity map (for example a dark/inverted layout)
+///     redirects <c>bg1</c>/<c>tx1</c> to <c>dk1</c>/<c>lt1</c> instead. See
+///     <see cref="PptxDocument.ResolveEffectiveColorMap"/> for how the effective, per-slide value
+///     is resolved from the slide -&gt; layout -&gt; master <c>&lt;p:clrMapOvr&gt;</c>/
+///     <c>&lt;p:clrMap&gt;</c> chain, and <see cref="PptxDocument.ResolveSchemeColor"/> for how it
+///     is consulted when resolving an <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token.
+///     <c>accentN</c>/<c>hlink</c>/<c>folHlink</c> attributes are deliberately not carried here -
+///     per the companion planning report's documented simplification, a real-world
+///     <c>&lt;p:clrMap&gt;</c> always maps those six to themselves, so only the four
+/// background/text slots are ever meaningfully redirected.
+/// </summary>
+/// <param name="Bg1">The <c>bg1</c> attribute's target slot name.</param>
+/// <param name="Tx1">The <c>tx1</c> attribute's target slot name.</param>
+/// <param name="Bg2">The <c>bg2</c> attribute's target slot name.</param>
+/// <param name="Tx2">The <c>tx2</c> attribute's target slot name.</param>
+internal sealed record PptxColorMap(string Bg1, string Tx1, string Bg2, string Tx2)
+{
+    /// <summary>
+    ///     The identity color map (<c>bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2"</c>) - the
+    ///     overwhelming majority of real-world themes, and this unit's own pre-existing hardcoded
+    ///     behavior before <c>&lt;p:clrMap&gt;</c>/<c>&lt;p:clrMapOvr&gt;</c> were consulted at
+    ///     all. Used as every pre-existing call site's implicit default so none of them observe a
+    ///     behavior change.
+    /// </summary>
+    public static PptxColorMap Default { get; } = new("lt1", "dk1", "lt2", "dk2");
+}
+
+/// <summary>
 ///     A theme's font scheme (<c>&lt;a:fontScheme&gt;</c>): the major (heading) and minor (body)
 ///     typeface collections.
 /// </summary>

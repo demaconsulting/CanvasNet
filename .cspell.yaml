@@ -329,6 +329,11 @@ words:
   - Autonumber
   - srgb
   - MCMXCIV
+  - hlink
+  - Hlink
+  - clrmap
+  - clrmapovr
+  - colormap
 
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:

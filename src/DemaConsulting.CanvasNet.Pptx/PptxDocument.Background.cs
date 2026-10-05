@@ -48,6 +48,11 @@ public sealed partial class PptxDocument
     /// <param name="theme">The resolved theme, used to resolve any <c>&lt;a:schemeClr&gt;</c> and, for a <c>&lt;p:bgRef&gt;</c>, its <see cref="PptxTheme.BgFillStyleList"/>.</param>
     /// <param name="widthEmu">The slide's own declared width, in EMU (needed to position a gradient background fill).</param>
     /// <param name="heightEmu">The slide's own declared height, in EMU (needed to position a gradient background fill).</param>
+    /// <param name="colorMap">
+    ///     The effective color map consulted when the resolved background declares an
+    ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the
+    ///     default) - see <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
     /// <returns>
     ///     The resolved <see cref="PptxPaint"/>, or <see langword="null"/> when none of
     ///     <paramref name="slideBackground"/>/<paramref name="layoutBackground"/>/
@@ -75,10 +80,11 @@ public sealed partial class PptxDocument
         XElement? masterBackground,
         PptxTheme theme,
         float widthEmu,
-        float heightEmu)
+        float heightEmu,
+        PptxColorMap? colorMap = null)
     {
         var background = slideBackground ?? layoutBackground ?? masterBackground;
-        return background is null ? null : ResolveBackgroundElement(background, theme, widthEmu, heightEmu);
+        return background is null ? null : ResolveBackgroundElement(background, theme, widthEmu, heightEmu, colorMap);
     }
 
     /// <summary>
@@ -88,7 +94,8 @@ public sealed partial class PptxDocument
     ///     <see cref="ResolveBackgroundStyleReference"/>).
     /// </summary>
     /// <exception cref="InvalidDataException">Thrown when neither child is present.</exception>
-    private static PptxPaint ResolveBackgroundElement(XElement backgroundElement, PptxTheme theme, float widthEmu, float heightEmu)
+    private static PptxPaint ResolveBackgroundElement(
+        XElement backgroundElement, PptxTheme theme, float widthEmu, float heightEmu, PptxColorMap? colorMap = null)
     {
         var bgPr = backgroundElement.Element(PresentationNamespace + "bgPr");
         if (bgPr is not null)
@@ -96,13 +103,13 @@ public sealed partial class PptxDocument
             // <p:bgPr> directly contains its fill-definition child (<a:noFill>/<a:solidFill>/
             // <a:gradFill>/<a:pattFill>/<a:blipFill>), same as <p:spPr> - ResolveFill's existing
             // child-dispatch logic applies unchanged.
-            return ResolveFill(bgPr, theme, widthEmu, heightEmu);
+            return ResolveFill(bgPr, theme, widthEmu, heightEmu, colorMap: colorMap);
         }
 
         var bgRef = backgroundElement.Element(PresentationNamespace + "bgRef");
         if (bgRef is not null)
         {
-            return ResolveBackgroundStyleReference(bgRef, theme, widthEmu, heightEmu);
+            return ResolveBackgroundStyleReference(bgRef, theme, widthEmu, heightEmu, colorMap);
         }
 
         throw new InvalidDataException("A <p:bg> element has neither <p:bgPr> nor <p:bgRef>.");
@@ -129,7 +136,8 @@ public sealed partial class PptxDocument
     ///     Thrown when <c>idx</c> is in the 1-999 range (feature token
     ///     <c>"pptx-bg-fill-style-ref"</c>).
     /// </exception>
-    private static PptxPaint ResolveBackgroundStyleReference(XElement bgRefElement, PptxTheme theme, float widthEmu, float heightEmu)
+    private static PptxPaint ResolveBackgroundStyleReference(
+        XElement bgRefElement, PptxTheme theme, float widthEmu, float heightEmu, PptxColorMap? colorMap = null)
     {
         var idxValue = (string?)bgRefElement.Attribute("idx") ??
             throw new InvalidDataException("A <p:bgRef> element has no 'idx' attribute.");
@@ -164,7 +172,7 @@ public sealed partial class PptxDocument
         // val="phClr"/> token(s) - resolved with no override of its own, since this color IS the
         // base phClr value, not itself parameterized by a further override.
         var colorElement = bgRefElement.Elements().FirstOrDefault();
-        var phClrOverride = colorElement is null ? (Rgba32?)null : ResolveColor(colorElement, theme);
+        var phClrOverride = colorElement is null ? (Rgba32?)null : ResolveColor(colorElement, theme, colorMap: colorMap);
 
         // theme.BgFillStyleList's entries are themselves fill-definition elements (e.g.
         // <a:solidFill>), not a parent containing one - wrap in a synthetic parent so
@@ -172,6 +180,6 @@ public sealed partial class PptxDocument
         // (adding an XElement that already has a parent clones it, leaving the theme's own tree
         // untouched).
         var syntheticFillParent = new XElement("pptxSyntheticBgFillParent", styleEntry);
-        return ResolveFill(syntheticFillParent, theme, widthEmu, heightEmu, phClrOverride);
+        return ResolveFill(syntheticFillParent, theme, widthEmu, heightEmu, phClrOverride, colorMap);
     }
 }

@@ -9,7 +9,10 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     <c>ppt/slideMasters/slideMasterN.xml</c>, resolving its <c>/theme</c> relationship and
 ///     enumerating its placeholder shapes. As of Phase 1d, also parses the master root's own
 ///     <c>&lt;p:txStyles&gt;</c> child (a sibling of <c>&lt;p:cSld&gt;</c>, not nested inside it)
-///     into a <see cref="PptxMasterTextStyles"/>. Lazy and cached by resolved part path.
+///     into a <see cref="PptxMasterTextStyles"/>. As of the <c>&lt;p:clrMap&gt;</c>/
+///     <c>&lt;p:clrMapOvr&gt;</c> color-map fix, also parses the master root's own required
+///     <c>&lt;p:clrMap&gt;</c> child into a <see cref="PptxColorMap"/>. Lazy and cached by
+///     resolved part path.
 /// </summary>
 public sealed partial class PptxDocument
 {
@@ -26,7 +29,9 @@ public sealed partial class PptxDocument
     ///     Thrown when the master part is missing or not well-formed XML, when its root element is
     ///     not a PresentationML <c>&lt;p:sldMaster&gt;</c> element, when its
     ///     <c>&lt;p:cSld&gt;/&lt;p:spTree&gt;</c> element is missing, when a placeholder's
-    ///     <c>idx</c> attribute is invalid, or when it has no <c>/theme</c> relationship.
+    ///     <c>idx</c> attribute is invalid, when it has no <c>/theme</c> relationship, or when
+    ///     its <c>&lt;p:clrMap&gt;</c> element (or any of its required <c>bg1</c>/<c>tx1</c>/
+    ///     <c>bg2</c>/<c>tx2</c> attributes) is missing.
     /// </exception>
     internal PptxMaster GetMaster(string masterPartPath)
     {
@@ -51,14 +56,46 @@ public sealed partial class PptxDocument
         var txStyles = ParseMasterTextStyles(root.Element(PresentationNamespace + "txStyles"));
         var background = cSld.Element(PresentationNamespace + "bg");
 
+        var clrMapElement = root.Element(PresentationNamespace + "clrMap") ??
+            throw new InvalidDataException($"Slide master '{masterPartPath}' has no <p:clrMap> element.");
+        var colorMap = ParseColorMap(clrMapElement, masterPartPath);
+
         // The master's theme is already eagerly resolved above (themePartPath), so there is no
         // added laziness concern in also eagerly resolving it here for the shape tree's own
         // <p:graphicFrame> tables (see ParseShapeTree's themeResolver parameter).
         var shapeTree = ParseShapeTree(spTree, () => GetTheme(themePartPath));
 
-        var master = new PptxMaster(masterPartPath, themePartPath, placeholders, txStyles, background, shapeTree);
+        var master = new PptxMaster(masterPartPath, themePartPath, placeholders, txStyles, background, shapeTree, colorMap);
         _masterCache[masterPartPath] = master;
         return master;
+    }
+
+    /// <summary>
+    ///     Parses a slide master's required <c>&lt;p:clrMap bg1="..." tx1="..." bg2="..."
+    ///     tx2="..." accent1="accent1" .../&gt;</c> element (a sibling of <c>&lt;p:cSld&gt;</c>)
+    ///     into a <see cref="PptxColorMap"/>, reading only its <c>bg1</c>/<c>tx1</c>/<c>bg2</c>/
+    ///     <c>tx2</c> attributes - its <c>accentN</c>/<c>hlink</c>/<c>folHlink</c> attributes are
+    ///     read-and-ignored per <see cref="PptxColorMap"/>'s own documented simplification (a
+    ///     real-world <c>&lt;p:clrMap&gt;</c> always maps those six to themselves).
+    /// </summary>
+    /// <param name="clrMapElement">The master's <c>&lt;p:clrMap&gt;</c> element.</param>
+    /// <param name="masterPartPath">The master's own resolved part path, used only for exception messages.</param>
+    /// <returns>The parsed <see cref="PptxColorMap"/>.</returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when any of <c>&lt;p:clrMap&gt;</c>'s required <c>bg1</c>/<c>tx1</c>/<c>bg2</c>/
+    ///     <c>tx2</c> attributes is missing (all four are schema-required on <c>&lt;p:sldMaster&gt;</c>).
+    /// </exception>
+    private static PptxColorMap ParseColorMap(XElement clrMapElement, string masterPartPath)
+    {
+        string RequiredAttribute(string name) =>
+            (string?)clrMapElement.Attribute(name) ??
+            throw new InvalidDataException($"Slide master '{masterPartPath}' <p:clrMap> element has no '{name}' attribute.");
+
+        return new PptxColorMap(
+            RequiredAttribute("bg1"),
+            RequiredAttribute("tx1"),
+            RequiredAttribute("bg2"),
+            RequiredAttribute("tx2"));
     }
 
     /// <summary>

@@ -202,6 +202,7 @@ public class PptxDocumentTests
               </p:sp>
             </p:spTree>
           </p:cSld>
+          <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2"/>
         </p:sldMaster>
         """;
 

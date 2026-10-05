@@ -62,6 +62,67 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>
+    ///     Resolves the effective <see cref="PptxColorMap"/> for a single slide: the slide's own
+    ///     <c>&lt;p:clrMapOvr&gt;</c> when it wraps an <c>&lt;a:overrideClrMapping&gt;</c>, else
+    ///     its layout's own <c>&lt;p:clrMapOvr&gt;</c> when it wraps an
+    ///     <c>&lt;a:overrideClrMapping&gt;</c>, else <paramref name="masterColorMap"/> unchanged.
+    /// </summary>
+    /// <remarks>
+    ///     A <c>&lt;p:clrMapOvr&gt;</c> wrapping <c>&lt;a:masterClrMapping/&gt;</c> (rather than
+    ///     <c>&lt;a:overrideClrMapping&gt;</c>) is an explicit, schema-defined sentinel meaning
+    ///     "this tier declares no override" - it must fall through to the next tier exactly as if
+    ///     <c>&lt;p:clrMapOvr&gt;</c> were absent entirely, not be misread as "override with an
+    ///     empty map".
+    /// </remarks>
+    /// <param name="slideClrMapOvr">The slide's own <see cref="PptxSlide.ClrMapOvr"/>, or <see langword="null"/>.</param>
+    /// <param name="layoutClrMapOvr">The slide's layout's own <see cref="PptxLayout.ClrMapOvr"/>, or <see langword="null"/>.</param>
+    /// <param name="masterColorMap">That layout's master's own <see cref="PptxMaster.ColorMap"/> - the final fallback.</param>
+    /// <returns>The effective <see cref="PptxColorMap"/> to use when resolving this slide's <c>bg1</c>/<c>tx1</c>/<c>bg2</c>/<c>tx2</c> scheme colors.</returns>
+    internal static PptxColorMap ResolveEffectiveColorMap(
+        XElement? slideClrMapOvr, XElement? layoutClrMapOvr, PptxColorMap masterColorMap) =>
+        TryParseOverrideClrMapping(slideClrMapOvr) ??
+        TryParseOverrideClrMapping(layoutClrMapOvr) ??
+        masterColorMap;
+
+    /// <summary>
+    ///     Parses a single <c>&lt;p:clrMapOvr&gt;</c> element's <c>&lt;a:overrideClrMapping
+    ///     bg1="..." tx1="..." bg2="..." tx2="..." .../&gt;</c> child into a
+    ///     <see cref="PptxColorMap"/>, reading only its <c>bg1</c>/<c>tx1</c>/<c>bg2</c>/<c>tx2</c>
+    ///     attributes (see <see cref="PptxColorMap"/>'s own remarks for why <c>accentN</c>/
+    ///     <c>hlink</c>/<c>folHlink</c> are not carried).
+    /// </summary>
+    /// <param name="clrMapOvrElement">The <c>&lt;p:clrMapOvr&gt;</c> element, or <see langword="null"/>.</param>
+    /// <returns>
+    ///     The parsed <see cref="PptxColorMap"/>, or <see langword="null"/> when
+    ///     <paramref name="clrMapOvrElement"/> is itself <see langword="null"/>, declares no
+    ///     recognized child at all, or wraps <c>&lt;a:masterClrMapping/&gt;</c> (the "no override
+    ///     at this tier" sentinel - see <see cref="ResolveEffectiveColorMap"/>'s remarks).
+    /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="clrMapOvrElement"/> wraps an
+    ///     <c>&lt;a:overrideClrMapping&gt;</c> missing any of its required <c>bg1</c>/<c>tx1</c>/
+    ///     <c>bg2</c>/<c>tx2</c> attributes.
+    /// </exception>
+    private static PptxColorMap? TryParseOverrideClrMapping(XElement? clrMapOvrElement)
+    {
+        var overrideElement = clrMapOvrElement?.Element(DrawingNamespace + "overrideClrMapping");
+        if (overrideElement is null)
+        {
+            return null;
+        }
+
+        string RequiredAttribute(string name) =>
+            (string?)overrideElement.Attribute(name) ??
+            throw new InvalidDataException($"A <p:clrMapOvr>/<a:overrideClrMapping> element has no '{name}' attribute.");
+
+        return new PptxColorMap(
+            RequiredAttribute("bg1"),
+            RequiredAttribute("tx1"),
+            RequiredAttribute("bg2"),
+            RequiredAttribute("tx2"));
+    }
+
+    /// <summary>
     ///     Parses a theme's optional <c>&lt;a:fmtScheme&gt;/&lt;a:bgFillStyleLst&gt;</c> element
     ///     into its raw, unparsed fill-definition child elements, in document order.
     /// </summary>

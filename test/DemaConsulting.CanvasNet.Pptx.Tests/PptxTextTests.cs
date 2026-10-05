@@ -667,6 +667,7 @@ public class PptxTextTests
               <p:cSld>
                 <p:spTree />
               </p:cSld>
+              <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2"/>
               <p:txStyles>
                 <p:titleStyle><a:lvl1pPr/></p:titleStyle>
                 <p:bodyStyle><a:lvl1pPr/></p:bodyStyle>

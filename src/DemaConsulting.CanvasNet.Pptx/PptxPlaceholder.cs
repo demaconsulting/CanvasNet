@@ -66,14 +66,26 @@ internal sealed record PptxPlaceholder(string Type, uint Idx, XElement ShapeElem
 ///     <c>skipPlaceholderShapes</c> mechanism). Defaults to <c>Array.Empty&lt;PptxShapeTreeNode&gt;()</c>
 ///     so pre-existing 4-argument call sites continue to compile unchanged.
 /// </param>
+/// <param name="ColorMap">
+///     The master's own required <c>&lt;p:clrMap&gt;</c> element (a sibling of <c>&lt;p:cSld&gt;</c>),
+///     parsed into a <see cref="PptxColorMap"/> - the final fallback tier of the slide -&gt;
+///     layout -&gt; master <c>&lt;p:clrMapOvr&gt;</c>/<c>&lt;p:clrMap&gt;</c> resolution chain
+///     (see <see cref="PptxDocument.ResolveEffectiveColorMap"/>). Defaults to
+///     <see cref="PptxColorMap.Default"/> so pre-existing positional call sites continue to
+///     compile unchanged.
+/// </param>
 internal sealed record PptxMaster(
     string PartPath,
     string ThemePartPath,
     IReadOnlyList<PptxPlaceholder> Placeholders,
     PptxMasterTextStyles TxStyles,
     XElement? Background = null,
-    IReadOnlyList<PptxShapeTreeNode>? ShapeTree = null)
+    IReadOnlyList<PptxShapeTreeNode>? ShapeTree = null,
+    PptxColorMap? ColorMap = null)
 {
+    /// <summary>The master's own resolved color map - see the constructor parameter's own remarks.</summary>
+    public PptxColorMap ColorMap { get; init; } = ColorMap ?? PptxColorMap.Default;
+
     /// <summary>The master's full recursive shape tree - see the constructor parameter's own remarks.</summary>
     public IReadOnlyList<PptxShapeTreeNode> ShapeTree { get; init; } = ShapeTree ?? Array.Empty<PptxShapeTreeNode>();
 }
@@ -110,12 +122,22 @@ internal sealed record PptxMasterTextStyles(XElement? TitleStyle, XElement? Body
 ///     <c>skipPlaceholderShapes</c> mechanism). Defaults to <c>Array.Empty&lt;PptxShapeTreeNode&gt;()</c>
 ///     so pre-existing 4-argument call sites continue to compile unchanged.
 /// </param>
+/// <param name="ClrMapOvr">
+///     The layout's own optional <c>&lt;p:clrMapOvr&gt;</c> element (a sibling of
+///     <c>&lt;p:cSld&gt;</c>), retained raw/unparsed (mirrors <see cref="Background"/>'s own
+///     "retain raw, resolve lazily" convention) - resolution requires slide -&gt; layout tier
+///     fallback logic, not a layout-local decision, so it is deferred to render time (see
+///     <see cref="PptxDocument.ResolveEffectiveColorMap"/>). <see langword="null"/> when the
+///     layout declares no <c>&lt;p:clrMapOvr&gt;</c> at all (the middle tier falls through to the
+///     master's own <see cref="PptxMaster.ColorMap"/>).
+/// </param>
 internal sealed record PptxLayout(
     string PartPath,
     string MasterPartPath,
     IReadOnlyList<PptxPlaceholder> Placeholders,
     XElement? Background = null,
-    IReadOnlyList<PptxShapeTreeNode>? ShapeTree = null)
+    IReadOnlyList<PptxShapeTreeNode>? ShapeTree = null,
+    XElement? ClrMapOvr = null)
 {
     /// <summary>The layout's full recursive shape tree - see the constructor parameter's own remarks.</summary>
     public IReadOnlyList<PptxShapeTreeNode> ShapeTree { get; init; } = ShapeTree ?? Array.Empty<PptxShapeTreeNode>();
@@ -147,12 +169,21 @@ internal sealed record PptxLayout(
 ///     of the slide -&gt; layout -&gt; master background-fill resolution chain (see
 ///     <see cref="PptxDocument.ResolveSlideBackgroundFill"/>).
 /// </param>
+/// <param name="ClrMapOvr">
+///     The slide's own optional <c>&lt;p:clrMapOvr&gt;</c> element (a sibling of
+///     <c>&lt;p:cSld&gt;</c>), retained raw/unparsed - the highest-priority tier of the slide
+///     -&gt; layout -&gt; master <c>&lt;p:clrMapOvr&gt;</c>/<c>&lt;p:clrMap&gt;</c> resolution
+///     chain (see <see cref="PptxDocument.ResolveEffectiveColorMap"/>). <see langword="null"/>
+///     when the slide declares no <c>&lt;p:clrMapOvr&gt;</c> at all.
+/// </param>
 internal sealed record PptxSlide(
     string PartPath,
     string LayoutPartPath,
     IReadOnlyList<PptxPlaceholder> Placeholders,
     IReadOnlyList<PptxShapeTreeNode> ShapeTree,
-    XElement? Background = null);
+    XElement? Background = null,
+    XElement? ClrMapOvr = null);
+
 
 /// <summary>
 ///     Shared placeholder-shape structural parser, used identically by the master/layout/slide

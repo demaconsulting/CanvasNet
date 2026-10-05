@@ -1217,6 +1217,53 @@ slide master's own "Slide Number Placeholder 5": `off x="11669529" y="6400800"`,
 background baseline row just above it rather than an absolute threshold - the exact real-world
 location and failure mode the stray-bullet defect above was found and closed at.
 
+#### CanvasNetPptx-PptxDocument-ColorMapResolution: `<p:clrMap>`/`<p:clrMapOvr>` Indirection
+
+**Tests**: `ResolveSchemeColor_DefaultColorMap_Tx1ResolvesToDark1`,
+`ResolveSchemeColor_NonIdentityColorMap_Tx1ResolvesToOverriddenSlot`,
+`ResolveColor_SchemeClrWithNonIdentityColorMap_AppliesIndirectionBeforeTransforms`,
+`GetMaster_ParsesRequiredClrMap`, `GetMaster_MissingClrMap_ThrowsInvalidDataException`,
+`GetLayout_ParsesOptionalClrMapOvr_DefaultsToNullWhenAbsent`,
+`GetLayout_ParsesOptionalClrMapOvr_RetainsElementWhenPresent`,
+`GetSlide_ParsesOptionalClrMapOvr_DefaultsToNullWhenAbsent`,
+`ResolveEffectiveColorMap_NoOverridesAnywhere_ReturnsMasterColorMap`,
+`ResolveEffectiveColorMap_LayoutOverrideClrMapping_ReturnsLayoutOverride`,
+`ResolveEffectiveColorMap_SlideOverrideClrMapping_ReturnsSlideOverrideEvenWhenLayoutAlsoOverrides`,
+`ResolveEffectiveColorMap_SlideMasterClrMapping_FallsThroughToLayoutOverride`,
+`ResolveEffectiveColorMap_SlideAndLayoutMasterClrMapping_FallsThroughToMasterColorMap`,
+`ResolveEffectiveColorMap_OverrideClrMappingMissingRequiredAttribute_ThrowsInvalidDataException`,
+`Render_SlideClrMapOvrInvertsBg1_SchemeClrFillResolvesToOverriddenSlotNotHardcodedAlias`,
+`Render_NoClrMapOvr_SchemeClrFillResolvesToMasterColorMapDefault`
+
+Proves `bg1`/`tx1`/`bg2`/`tx2` scheme-color resolution consults the slide master's own
+`<p:clrMap>` (and any layout/slide `<p:clrMapOvr>`) rather than a hard-coded `Light1`/`Dark1`/
+`Light2`/`Dark2` mapping: the default, identity color map still resolves `tx1` to `Dark1`
+(preserving this unit's pre-existing baseline behavior), while a non-identity color map
+redirects `tx1` to whatever slot it names instead, with the indirection applied before any
+`<a:lumMod>`/`<a:lumOff>`-style color transform is layered on top. Proves `GetMaster` parses a
+slide master's own required `<p:clrMap>` into `PptxMaster.ColorMap`, throwing
+`InvalidDataException` when the element (or any of its four required attributes) is missing - a
+genuine ECMA-376 schema violation, not a tolerable omission. Proves `GetLayout`/`GetSlide` each
+parse an optional `<p:clrMapOvr>` into `PptxLayout.ClrMapOvr`/`PptxSlide.ClrMapOvr` as a raw,
+unparsed element when present, and `null` when absent. Proves `ResolveEffectiveColorMap`'s full
+slide -> layout -> master fallback chain: with no override anywhere, the master's own color map
+applies; a layout-level `<a:overrideClrMapping>` wins over the master; a slide-level
+`<a:overrideClrMapping>` wins over both the layout and the master even when the layout also
+declares an override; an `<a:masterClrMapping/>` marker at the slide tier falls through to the
+layout's own override; and the same marker at both the slide and layout tiers falls all the way
+through to the master's own color map. Proves a malformed `<a:overrideClrMapping>` missing a
+required attribute throws `InvalidDataException` rather than silently substituting a default.
+Finally, proves the fix end-to-end at the render/pixel level: a slide-level `<p:clrMapOvr>/
+<a:overrideClrMapping bg1="dk1" .../>` makes a shape filled with `<a:schemeClr val="bg1"/>`
+actually paint the theme's `Dark1` pixel color, not the previously hard-coded `Light1`, while a
+companion test confirms the pre-existing, no-override baseline still renders `Light1` unchanged -
+the real-world, visual-fidelity proof this fix's acceptance bar requires. A documented, accepted
+limitation (not separately tested as a defect): a table cell's own fill/border color is resolved
+once, eagerly, at parse time and therefore always effectively uses the default color map
+regardless of any real override in effect, while a table cell's own text color is resolved at
+paint time and correctly reflects the real, per-render effective color map like any other text
+run.
+
 ## Acceptance Criteria
 
 A unit-level test run passes when all scenarios above pass without error or exception beyond

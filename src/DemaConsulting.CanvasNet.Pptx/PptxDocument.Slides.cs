@@ -65,6 +65,7 @@ public sealed partial class PptxDocument
         var placeholders = PptxPlaceholderParser.ParsePlaceholderShapes(spTree);
         var layoutPartPath = ResolveRelationshipByType(slidePartPath, "/slideLayout");
         var background = cSld.Element(PresentationNamespace + "bg");
+        var clrMapOvr = root.Element(PresentationNamespace + "clrMapOvr");
 
         // The shape tree's <p:graphicFrame> tables resolve their cell fills against the slide's
         // own theme (see ParseTable's theme parameter). Resolving the layout -> master -> theme
@@ -78,7 +79,7 @@ public sealed partial class PptxDocument
             return GetTheme(master.ThemePartPath);
         });
 
-        var slide = new PptxSlide(slidePartPath, layoutPartPath, placeholders, shapeTree, background);
+        var slide = new PptxSlide(slidePartPath, layoutPartPath, placeholders, shapeTree, background, clrMapOvr);
         _slideCache[slideIndex] = slide;
         return slide;
     }

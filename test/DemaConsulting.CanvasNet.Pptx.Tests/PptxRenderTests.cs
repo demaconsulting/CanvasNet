@@ -71,6 +71,13 @@ public class PptxRenderTests
     ///     declares a <c>&lt;p:pic&gt;</c> referencing <c>r:embed="rId2"</c>. See
     ///     <paramref name="masterMedia"/>'s own remarks.
     /// </param>
+    /// <param name="slideClrMapOvrXml">
+    ///     The slide's own raw <c>&lt;p:clrMapOvr&gt;</c> inner content (an <c>&lt;a:overrideClrMapping
+    ///     .../&gt;</c> or <c>&lt;a:masterClrMapping/&gt;</c> element), or empty (the default) to
+    ///     omit <c>&lt;p:clrMapOvr&gt;</c> from the slide entirely - used by the
+    ///     <c>&lt;p:clrMap&gt;</c>/<c>&lt;p:clrMapOvr&gt;</c> color-map fix's own render-level
+    ///     regression test.
+    /// </param>
     private static Stream BuildRenderPackage(
         string spTreeInnerXml,
         string masterTxStylesXml = "",
@@ -82,7 +89,8 @@ public class PptxRenderTests
         string themeBgFillStyleListXml = "",
         string masterShapeTreeXml = "",
         (string Extension, string ContentType, byte[] Bytes)? masterMedia = null,
-        (string Extension, string ContentType, byte[] Bytes)? layoutMedia = null)
+        (string Extension, string ContentType, byte[] Bytes)? layoutMedia = null,
+        string slideClrMapOvrXml = "")
     {
         // Distinct <Default Extension=".../> content-type entries, one per distinct extension
         // across all three possible media owners (slide/layout/master), avoiding a duplicate
@@ -137,6 +145,7 @@ public class PptxRenderTests
                   {spTreeInnerXml}
                 </p:spTree>
               </p:cSld>
+              {(slideClrMapOvrXml.Length > 0 ? $"""<p:clrMapOvr>{slideClrMapOvrXml}</p:clrMapOvr>""" : string.Empty)}
             </p:sld>
             """;
 
@@ -175,6 +184,7 @@ public class PptxRenderTests
                 {(masterBackgroundXml.Length > 0 ? $"""<p:bg>{masterBackgroundXml}</p:bg>""" : string.Empty)}
                 <p:spTree>{masterShapeTreeXml}</p:spTree>
               </p:cSld>
+              <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2"/>
               <p:txStyles>{masterTxStylesXml}</p:txStyles>
             </p:sldMaster>
             """;
@@ -1647,6 +1657,7 @@ public class PptxRenderTests
               <p:cSld>
                 <p:spTree/>
               </p:cSld>
+              <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2"/>
               <p:txStyles/>
             </p:sldMaster>
             """;
@@ -1725,6 +1736,63 @@ public class PptxRenderTests
           </p:spPr>
         </p:sp>
         """;
+
+    /// <summary>A full-slide-sized freeform shape with a solid fill resolving an <c>&lt;a:schemeClr val="..."/&gt;</c> scheme-color slot name.</summary>
+    private static string FullSlideShapeSchemeClrXml(string name, string schemeVal) =>
+        $"""
+        <p:sp>
+          <p:nvSpPr>
+            <p:cNvPr id="2" name="{name}"/>
+            <p:cNvSpPr/>
+            <p:nvPr/>
+          </p:nvSpPr>
+          <p:spPr>
+            <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+            <a:solidFill><a:schemeClr val="{schemeVal}"/></a:solidFill>
+          </p:spPr>
+        </p:sp>
+        """;
+
+    /// <summary>
+    ///     Proves a slide's own <c>&lt;p:clrMapOvr&gt;/&lt;a:overrideClrMapping&gt;</c> is
+    ///     consulted when resolving a shape's <c>&lt;a:schemeClr val="bg1"/&gt;</c> fill: without
+    ///     the fix, <c>bg1</c> is hardcoded to the theme's <c>Light1</c> slot regardless of any
+    ///     slide-level override; with the fix, an inverted color map (<c>bg1 -&gt; dk1</c>) makes
+    ///     the same shape resolve to the theme's <c>Dark1</c> slot instead.
+    /// </summary>
+    [Fact]
+    public void Render_SlideClrMapOvrInvertsBg1_SchemeClrFillResolvesToOverriddenSlotNotHardcodedAlias()
+    {
+        var shapeXml = FullSlideShapeSchemeClrXml("Bg1Shape", "bg1");
+        const string invertedClrMapOvr = """<a:overrideClrMapping bg1="dk1" tx1="lt1" bg2="dk2" tx2="lt2"/>""";
+        using var stream = BuildRenderPackage(shapeXml, slideClrMapOvrXml: invertedClrMapOvr);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 20, 20);
+
+        // The test theme's Dark1 slot is 101010 (see BuildRenderPackage's own themeXml) - without
+        // the clrMap/clrMapOvr fix, this would instead sample Light1 (F0F0F0).
+        Assert.Equal(new Rgba32(0x10, 0x10, 0x10, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that, absent any <c>&lt;p:clrMapOvr&gt;</c>, a shape's <c>&lt;a:schemeClr
+    ///     val="bg1"/&gt;</c> fill still resolves through the master's own (identity) <c>&lt;p:clrMap&gt;</c>
+    ///     to <c>Light1</c>, preserving this unit's pre-existing baseline behavior.
+    /// </summary>
+    [Fact]
+    public void Render_NoClrMapOvr_SchemeClrFillResolvesToMasterColorMapDefault()
+    {
+        var shapeXml = FullSlideShapeSchemeClrXml("Bg1Shape", "bg1");
+        using var stream = BuildRenderPackage(shapeXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 20, 20);
+
+        Assert.Equal(new Rgba32(0xF0, 0xF0, 0xF0, 255), surface[10, 10]);
+    }
+
 
     /// <summary>
     ///     Proves a master's own non-placeholder <c>&lt;p:pic&gt;</c> paints on a slide using that

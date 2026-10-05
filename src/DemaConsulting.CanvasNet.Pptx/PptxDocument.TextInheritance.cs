@@ -72,13 +72,19 @@ public sealed partial class PptxDocument
     ///     for a non-placeholder shape - used to select the default typeface (title vs. body theme
     ///     font) and the master <c>&lt;p:txStyles&gt;</c> bucket (see <see cref="SelectMasterTextStyle"/>).
     /// </param>
+    /// <param name="colorMap">
+    ///     The effective color map consulted when a run's color resolves an <c>&lt;a:schemeClr
+    ///     val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the default) - see
+    ///     <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
     /// <returns>The resolved <see cref="PptxEffectiveRunProperties"/>.</returns>
     internal static PptxEffectiveRunProperties ResolveEffectiveRunProperties(
         PptxTextRun run,
         PptxParagraph paragraph,
         PptxPlaceholderProperties placeholderProperties,
         PptxTheme theme,
-        string placeholderType)
+        string placeholderType,
+        PptxColorMap? colorMap = null)
     {
         var level = paragraph.RawProperties.Level;
         var placeholderLevelDefRPr = GetLevelDefRPr(placeholderProperties.EffectiveTxBodyListStyle, level);
@@ -124,10 +130,10 @@ public sealed partial class PptxDocument
             false;
 
         var color =
-            GetRunColor(runRPr, theme) ??
-            GetRunColor(paragraphDefRPr, theme) ??
-            GetRunColor(placeholderLevelDefRPr, theme) ??
-            GetRunColor(masterLevelDefRPr, theme) ??
+            GetRunColor(runRPr, theme, colorMap) ??
+            GetRunColor(paragraphDefRPr, theme, colorMap) ??
+            GetRunColor(placeholderLevelDefRPr, theme, colorMap) ??
+            GetRunColor(masterLevelDefRPr, theme, colorMap) ??
             theme.ColorScheme.Dark1;
 
         return new PptxEffectiveRunProperties(typeface, sizeEmu, bold, italic, underline, color);
@@ -150,12 +156,18 @@ public sealed partial class PptxDocument
     ///     (see <see cref="ResolveEffectiveBulletProperties"/>); every pre-existing call site
     ///     omits this parameter, leaving its own behavior unchanged.
     /// </param>
+    /// <param name="colorMap">
+    ///     The effective color map consulted when the bullet's own color resolves an
+    ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the
+    ///     default) - see <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
     /// <returns>The resolved <see cref="PptxEffectiveParagraphProperties"/>.</returns>
     internal static PptxEffectiveParagraphProperties ResolveEffectiveParagraphProperties(
         PptxParagraph paragraph,
         PptxPlaceholderProperties placeholderProperties,
         string placeholderType,
-        PptxEffectiveRunProperties? firstRunProperties = null)
+        PptxEffectiveRunProperties? firstRunProperties = null,
+        PptxColorMap? colorMap = null)
     {
         var level = paragraph.RawProperties.Level;
         var placeholderLevelElement = GetLevelElement(placeholderProperties.EffectiveTxBodyListStyle, level);
@@ -194,7 +206,8 @@ public sealed partial class PptxDocument
             masterLevelElement,
             placeholderProperties.Theme,
             placeholderType,
-            firstRunProperties);
+            firstRunProperties,
+            colorMap);
 
         return new PptxEffectiveParagraphProperties(algn, marL, indent, lineSpacing, bullet);
     }
@@ -236,6 +249,12 @@ public sealed partial class PptxDocument
     /// <param name="theme">The resolved theme, used to resolve a <c>&lt;a:buClr&gt;</c> color and the hard-coded default color/font.</param>
     /// <param name="placeholderType">The owning shape's placeholder type (see <see cref="ResolveEffectiveRunProperties"/>).</param>
     /// <param name="firstRunProperties">The paragraph's own first run's effective properties, or <see langword="null"/> for a run-less paragraph.</param>
+    /// <param name="colorMap">
+    ///     The effective color map consulted when the resolved <c>&lt;a:buClr&gt;</c> color
+    ///     resolves an <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or
+    ///     <see langword="null"/> (the default) - see <see cref="ResolveFill"/>'s matching
+    ///     parameter.
+    /// </param>
     /// <returns>The resolved <see cref="PptxEffectiveBulletProperties"/>.</returns>
     private static PptxEffectiveBulletProperties ResolveEffectiveBulletProperties(
         PptxParagraph paragraph,
@@ -243,7 +262,8 @@ public sealed partial class PptxDocument
         XElement? masterLevelElement,
         PptxTheme theme,
         string placeholderType,
-        PptxEffectiveRunProperties? firstRunProperties)
+        PptxEffectiveRunProperties? firstRunProperties,
+        PptxColorMap? colorMap = null)
     {
         var raw = paragraph.RawProperties.EffectiveBulletProperties;
 
@@ -287,7 +307,7 @@ public sealed partial class PptxDocument
             GetBulletSizeElement(placeholderLevelElement) ??
             GetBulletSizeElement(masterLevelElement);
 
-        var color = ResolveBulletColor(colorElement, theme, firstRunProperties);
+        var color = ResolveBulletColor(colorElement, theme, firstRunProperties, colorMap);
         var fontFamily = ResolveBulletFont(fontElement, theme, firstRunProperties, placeholderType);
         var sizeEmu = ResolveBulletSize(sizeElement, firstRunProperties);
 
@@ -349,7 +369,8 @@ public sealed partial class PptxDocument
     ///     paragraph; <c>&lt;a:buClr&gt;</c> resolves its own wrapped color-definition child via
     ///     <see cref="ResolveColor"/>, the same color resolver run/paragraph colors already use.
     /// </summary>
-    private static Rgba32 ResolveBulletColor(XElement? colorElement, PptxTheme theme, PptxEffectiveRunProperties? firstRunProperties)
+    private static Rgba32 ResolveBulletColor(
+        XElement? colorElement, PptxTheme theme, PptxEffectiveRunProperties? firstRunProperties, PptxColorMap? colorMap = null)
     {
         if (colorElement is null || colorElement.Name == DrawingNamespace + "buClrTx")
         {
@@ -357,7 +378,7 @@ public sealed partial class PptxDocument
         }
 
         var inner = colorElement.Elements().FirstOrDefault();
-        return inner is null ? theme.ColorScheme.Dark1 : ResolveColor(inner, theme);
+        return inner is null ? theme.ColorScheme.Dark1 : ResolveColor(inner, theme, colorMap: colorMap);
     }
 
     /// <summary>
@@ -523,10 +544,10 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>Resolves an <c>&lt;a:rPr&gt;</c>/<c>&lt;a:defRPr&gt;</c>-shaped element's <c>&lt;a:solidFill&gt;</c> color child, if any.</summary>
-    private static Rgba32? GetRunColor(XElement? rPrLikeElement, PptxTheme theme)
+    private static Rgba32? GetRunColor(XElement? rPrLikeElement, PptxTheme theme, PptxColorMap? colorMap = null)
     {
         var colorElement = rPrLikeElement?.Element(DrawingNamespace + "solidFill")?.Elements().FirstOrDefault();
-        return colorElement is null ? null : ResolveColor(colorElement, theme);
+        return colorElement is null ? null : ResolveColor(colorElement, theme, colorMap: colorMap);
     }
 
     /// <summary>

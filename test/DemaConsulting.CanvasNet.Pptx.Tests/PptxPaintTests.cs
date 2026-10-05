@@ -239,6 +239,46 @@ public class PptxPaintTests
         Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveColor(SchemeClr("notARealSlot"), BuildTestTheme()));
     }
 
+    // --- ResolveSchemeColor / ResolveColor: <p:clrMap>/<p:clrMapOvr> indirection ----------------
+
+    /// <summary>Resolve Scheme Color - Default Color Map - Tx1 Resolves To Dark1.</summary>
+    [Fact]
+    public void ResolveSchemeColor_DefaultColorMap_Tx1ResolvesToDark1()
+    {
+        var theme = BuildTestTheme();
+
+        var color = PptxDocument.ResolveSchemeColor("tx1", theme.ColorScheme, PptxColorMap.Default);
+
+        Assert.Equal(theme.ColorScheme.Dark1, color);
+    }
+
+    /// <summary>Resolve Scheme Color - Non Identity Color Map - Tx1 Resolves To Overridden Slot.</summary>
+    [Fact]
+    public void ResolveSchemeColor_NonIdentityColorMap_Tx1ResolvesToOverriddenSlot()
+    {
+        var theme = BuildTestTheme();
+        var colorMap = new PptxColorMap(Bg1: "dk1", Tx1: "lt1", Bg2: "dk2", Tx2: "lt2");
+
+        var color = PptxDocument.ResolveSchemeColor("tx1", theme.ColorScheme, colorMap);
+
+        Assert.Equal(theme.ColorScheme.Light1, color);
+    }
+
+    /// <summary>Resolve Color - Scheme Clr With Non Identity Color Map - Applies Indirection Before Transforms.</summary>
+    [Fact]
+    public void ResolveColor_SchemeClrWithNonIdentityColorMap_AppliesIndirectionBeforeTransforms()
+    {
+        var theme = BuildTestTheme();
+        var colorMap = new PptxColorMap(Bg1: "dk1", Tx1: "lt1", Bg2: "dk2", Tx2: "lt2");
+
+        var color = PptxDocument.ResolveColor(SchemeClr("tx1", Transform("shade", 50000)), theme, colorMap: colorMap);
+
+        var expectedBase = theme.ColorScheme.Light1;
+        var expectedShaded = PptxDocument.ResolveColor(SrgbClr($"{expectedBase.R:X2}{expectedBase.G:X2}{expectedBase.B:X2}", Transform("shade", 50000)), theme);
+
+        Assert.Equal(expectedShaded, color);
+    }
+
     /// <summary>Resolve Color - Unsupported Color Kind - Throws Pptx Unsupported Feature Exception.</summary>
     [Fact]
     public void ResolveColor_UnsupportedColorKind_ThrowsPptxUnsupportedFeatureException()

@@ -29,6 +29,19 @@ public sealed partial class PptxDocument
     /// </summary>
     /// <param name="graphicFrameElement">The <c>&lt;p:graphicFrame&gt;</c> element.</param>
     /// <param name="theme">The resolved theme, used to resolve each cell's own fill/border colors.</param>
+    /// <param name="colorMap">
+    ///     The effective color map consulted when a cell's own fill/border declares an
+    ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the
+    ///     default, resolving to <see cref="PptxColorMap.Default"/>). <strong>Known
+    ///     limitation:</strong> a table's shape tree is parsed once at master/layout/slide
+    ///     <em>load</em> time (cached), independent of which slide's own effective
+    ///     <c>&lt;p:clrMapOvr&gt;</c> is in effect at <em>render</em> time - no caller currently
+    ///     supplies a real per-slide value here, so a table cell's own <c>bg1</c>/<c>tx1</c>
+    ///     scheme color always resolves against <see cref="PptxColorMap.Default"/> regardless of
+    ///     any slide/layout <c>&lt;p:clrMapOvr&gt;</c> in effect. Fixing this fully would require
+    ///     restructuring table shape-tree parsing from parse-time to render-time, a materially
+    ///     larger, separately-scoped change.
+    /// </param>
     /// <returns>The resolved <see cref="PptxTable"/>.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="graphicFrameElement"/> has no <c>&lt;a:graphic&gt;/
@@ -42,7 +55,7 @@ public sealed partial class PptxDocument
     ///     <c>uri</c> attribute does not end in <c>"/table"</c> - a chart, SmartArt, OLE object,
     ///     or other non-table graphic-frame kind, all out of scope this phase.
     /// </exception>
-    internal static PptxTable ParseTable(XElement graphicFrameElement, PptxTheme theme)
+    internal static PptxTable ParseTable(XElement graphicFrameElement, PptxTheme theme, PptxColorMap? colorMap = null)
     {
         var graphicData = graphicFrameElement.Element(DrawingNamespace + "graphic")?.Element(DrawingNamespace + "graphicData") ??
             throw new InvalidDataException("A <p:graphicFrame> element has no <a:graphic>/<a:graphicData> child.");
@@ -74,7 +87,7 @@ public sealed partial class PptxDocument
                 foreach (var tc in tr.Elements(DrawingNamespace + "tc"))
                 {
                     var cellWidthEmu = SumColumnWidths(columnWidthsEmu, columnIndex, 1);
-                    var cell = ParseTableCell(tc, theme, cellWidthEmu, heightEmu);
+                    var cell = ParseTableCell(tc, theme, cellWidthEmu, heightEmu, colorMap);
                     cells.Add(cell);
                     columnIndex++;
                 }
@@ -93,11 +106,13 @@ public sealed partial class PptxDocument
     /// <param name="theme">The resolved theme, used to resolve the cell's own fill/border colors.</param>
     /// <param name="cellWidthEmu">The cell's own (unmerged, single-column) width, in EMU - needed to position a gradient fill.</param>
     /// <param name="cellHeightEmu">The cell's own (unmerged, single-row) height, in EMU - needed to position a gradient fill.</param>
+    /// <param name="colorMap">The effective color map - see <see cref="ParseTable"/>'s matching parameter, including its documented limitation.</param>
     /// <returns>The resolved <see cref="PptxTableCell"/>.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when a present <c>gridSpan</c>/<c>rowSpan</c> attribute is not a valid integer.
     /// </exception>
-    internal static PptxTableCell ParseTableCell(XElement tcElement, PptxTheme theme, float cellWidthEmu, float cellHeightEmu)
+    internal static PptxTableCell ParseTableCell(
+        XElement tcElement, PptxTheme theme, float cellWidthEmu, float cellHeightEmu, PptxColorMap? colorMap = null)
     {
         var gridSpan = ParseOptionalIntAttribute(tcElement, "gridSpan") ?? 1;
         var rowSpan = ParseOptionalIntAttribute(tcElement, "rowSpan") ?? 1;
@@ -105,11 +120,11 @@ public sealed partial class PptxDocument
         var vMerge = (bool?)tcElement.Attribute("vMerge") ?? false;
 
         var tcPr = tcElement.Element(DrawingNamespace + "tcPr");
-        var fill = ResolveFill(tcPr, theme, cellWidthEmu, cellHeightEmu);
-        var leftBorder = ResolveLineStyle(tcPr?.Element(DrawingNamespace + "lnL"), theme);
-        var rightBorder = ResolveLineStyle(tcPr?.Element(DrawingNamespace + "lnR"), theme);
-        var topBorder = ResolveLineStyle(tcPr?.Element(DrawingNamespace + "lnT"), theme);
-        var bottomBorder = ResolveLineStyle(tcPr?.Element(DrawingNamespace + "lnB"), theme);
+        var fill = ResolveFill(tcPr, theme, cellWidthEmu, cellHeightEmu, colorMap: colorMap);
+        var leftBorder = ResolveLineStyle(tcPr?.Element(DrawingNamespace + "lnL"), theme, colorMap);
+        var rightBorder = ResolveLineStyle(tcPr?.Element(DrawingNamespace + "lnR"), theme, colorMap);
+        var topBorder = ResolveLineStyle(tcPr?.Element(DrawingNamespace + "lnT"), theme, colorMap);
+        var bottomBorder = ResolveLineStyle(tcPr?.Element(DrawingNamespace + "lnB"), theme, colorMap);
 
         var txBody = tcElement.Element(DrawingNamespace + "txBody");
         var textBody = txBody is null ? null : ParseTextBody(txBody);
@@ -181,12 +196,22 @@ public sealed partial class PptxDocument
     ///     <see cref="PptxShapeFrame.Transform"/>, or a further group-composed transform).
     /// </param>
     /// <param name="fontResolver">The font resolver delegate passed through to <see cref="ResolveTextLayout"/> for each cell's own text content.</param>
+    /// <param name="colorMap">
+    ///     The effective color map consulted when a cell's own text run/bullet color resolves an
+    ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the
+    ///     default, resolving to <see cref="PptxColorMap.Default"/>). Unlike a cell's own
+    ///     fill/border colors (see <see cref="ParseTableCell"/>'s matching parameter and its
+    ///     documented limitation), a cell's text is re-resolved here at paint time - not cached at
+    ///     parse time - so this parameter <em>does</em> see the slide's true effective color map
+    ///     when supplied by a render-time caller.
+    /// </param>
     internal static void PaintTable(
         Surface surface,
         PptxTable table,
         PptxTheme theme,
         Matrix3x2 shapeToSurfaceTransform,
-        Func<string, bool, bool, TrueTypeFont> fontResolver)
+        Func<string, bool, bool, TrueTypeFont> fontResolver,
+        PptxColorMap? colorMap = null)
     {
         foreach (var resolvedCell in ResolveCellRects(table))
         {
@@ -208,7 +233,7 @@ public sealed partial class PptxDocument
                 var placeholderProperties = new PptxPlaceholderProperties(null, null, theme);
                 var layout = ResolveTextLayout(
                     textBody, placeholderProperties, theme, string.Empty,
-                    resolvedCell.WidthEmu, resolvedCell.HeightEmu, fontResolver);
+                    resolvedCell.WidthEmu, resolvedCell.HeightEmu, fontResolver, colorMap);
 
                 var cellLocalToSurface = Matrix3x2.CreateTranslation(resolvedCell.XEmu, resolvedCell.YEmu) * shapeToSurfaceTransform;
                 PaintTextLayout(surface, layout, cellLocalToSurface);

@@ -41,6 +41,11 @@ public sealed partial class PptxDocument
     ///     <see cref="SystemFontCatalog.LoadBundledFallback"/> directly) for deterministic,
     ///     machine-independent pixel assertions.
     /// </param>
+    /// <param name="colorMap">
+    ///     The effective color map consulted when a run/bullet color resolves an
+    ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the
+    ///     default) - see <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
     /// <returns>The resolved <see cref="PptxTextLayout"/>.</returns>
     internal static PptxTextLayout ResolveTextLayout(
         PptxTextBody textBody,
@@ -49,7 +54,8 @@ public sealed partial class PptxDocument
         string placeholderType,
         float widthEmu,
         float heightEmu,
-        Func<string, bool, bool, TrueTypeFont> fontResolver)
+        Func<string, bool, bool, TrueTypeFont> fontResolver,
+        PptxColorMap? colorMap = null)
     {
         var bodyProperties = textBody.Properties;
         var insetLeft = bodyProperties.InsetLeftEmu;
@@ -93,10 +99,10 @@ public sealed partial class PptxDocument
                 // own first run's effective properties as its "follow text"
                 // (buClrTx/buFontTx/buSzTx) fallback - see ResolveEffectiveBulletProperties.
                 var runProperties = paragraph.Runs
-                    .Select(run => ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, placeholderType))
+                    .Select(run => ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, placeholderType, colorMap))
                     .ToList();
                 var firstRunProperties = runProperties.Count > 0 ? runProperties[0] : null;
-                var paragraphProperties = ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, placeholderType, firstRunProperties);
+                var paragraphProperties = ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, placeholderType, firstRunProperties, colorMap);
                 return new ResolvedParagraph(paragraph, paragraphProperties, runProperties);
             })
             .ToList();

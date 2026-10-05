@@ -320,6 +320,7 @@ public class PptxSystemIntegrationTests
             """
             <p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
               <p:cSld><p:spTree/></p:cSld>
+              <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2"/>
             </p:sldMaster>
             """;
 
@@ -605,6 +606,7 @@ public class PptxSystemIntegrationTests
             $"""
             <p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
               <p:cSld><p:spTree/></p:cSld>
+              <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2"/>
               <p:txStyles>{masterTxStylesXml}</p:txStyles>
             </p:sldMaster>
             """;
