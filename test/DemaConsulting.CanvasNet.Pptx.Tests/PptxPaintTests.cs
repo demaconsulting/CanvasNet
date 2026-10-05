@@ -463,6 +463,43 @@ public class PptxPaintTests
         Assert.Null(PptxDocument.ResolveLineStyle(ln, BuildTestTheme()));
     }
 
+    /// <summary>Resolve Line Style - Explicit Zero Width - Returns Null (regression guard).</summary>
+    [Fact]
+    public void ResolveLineStyle_ExplicitZeroWidth_ReturnsNull()
+    {
+        var ln = new XElement(A + "ln", new XAttribute("w", 0), new XElement(A + "solidFill", SrgbClr("FF0000")));
+
+        Assert.Null(PptxDocument.ResolveLineStyle(ln, BuildTestTheme()));
+    }
+
+    /// <summary>Resolve Line Style - Explicit Negative Width - Returns Null (regression guard).</summary>
+    [Fact]
+    public void ResolveLineStyle_ExplicitNegativeWidth_ReturnsNull()
+    {
+        var ln = new XElement(A + "ln", new XAttribute("w", -100), new XElement(A + "solidFill", SrgbClr("FF0000")));
+
+        Assert.Null(PptxDocument.ResolveLineStyle(ln, BuildTestTheme()));
+    }
+
+    /// <summary>
+    ///     Resolve Line Style - Missing Width Attribute - Resolves Default Width. A genuinely
+    ///     absent <c>w</c> attribute (as opposed to an explicit <c>w="0"</c>) must resolve to
+    ///     PowerPoint's own observed default stroke width (9525 EMU / 0.75pt) rather than "no
+    ///     stroke", matching real-world documents whose <c>&lt;a:ln&gt;</c> declares only a color.
+    /// </summary>
+    [Fact]
+    public void ResolveLineStyle_MissingWidthAttribute_ResolvesDefaultWidth()
+    {
+        var ln = new XElement(A + "ln", new XElement(A + "solidFill", SrgbClr("FF0000")));
+
+        var lineStyle = PptxDocument.ResolveLineStyle(ln, BuildTestTheme());
+
+        Assert.NotNull(lineStyle);
+        Assert.Equal(9525f, lineStyle.WidthEmu);
+        var solid = Assert.IsType<PptxSolidFill>(lineStyle.Paint);
+        Assert.Equal(new Rgba32(0xFF, 0x00, 0x00, 255), solid.Color);
+    }
+
     /// <summary>Resolve Line Style - No Fill Line - Returns Null.</summary>
     [Fact]
     public void ResolveLineStyle_NoFillLine_ReturnsNull()

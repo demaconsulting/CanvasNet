@@ -87,6 +87,17 @@ public class PptxRenderTests
     ///     The theme's own <c>&lt;a:fmtScheme&gt;/&lt;a:lnStyleLst&gt;</c> inner content, or empty
     ///     (the default) to omit it - used by a <c>&lt;p:style&gt;/&lt;a:lnRef&gt;</c>-based test.
     /// </param>
+    /// <param name="slideWidthEmu">
+    ///     The presentation's own <c>&lt;p:sldSz cx="..."/&gt;</c> width, in EMU, or
+    ///     <c>9144000</c> (the default - a standard 10" 4:3 slide width) - used by the default-
+    ///     line-width render regression test to shrink the slide so a sub-pixel-at-the-default-
+    ///     scale 9525 EMU stroke still renders as several solid pixels wide.
+    /// </param>
+    /// <param name="slideHeightEmu">
+    ///     The presentation's own <c>&lt;p:sldSz cy="..."/&gt;</c> height, in EMU, or
+    ///     <c>6858000</c> (the default - a standard 7.5" 4:3 slide height) - see
+    ///     <paramref name="slideWidthEmu"/>'s own remarks.
+    /// </param>
     private static Stream BuildRenderPackage(
         string spTreeInnerXml,
         string masterTxStylesXml = "",
@@ -101,7 +112,9 @@ public class PptxRenderTests
         (string Extension, string ContentType, byte[] Bytes)? layoutMedia = null,
         string slideClrMapOvrXml = "",
         string themeFillStyleListXml = "",
-        string themeLnStyleListXml = "")
+        string themeLnStyleListXml = "",
+        float slideWidthEmu = 9144000f,
+        float slideHeightEmu = 6858000f)
     {
         // Distinct <Default Extension=".../> content-type entries, one per distinct extension
         // across all three possible media owners (slide/layout/master), avoiding a duplicate
@@ -131,10 +144,10 @@ public class PptxRenderTests
             </Relationships>
             """;
 
-        const string presentationXml =
-            """
+        var presentationXml =
+            $"""
             <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-              <p:sldSz cx="9144000" cy="6858000"/>
+              <p:sldSz cx="{slideWidthEmu:F0}" cy="{slideHeightEmu:F0}"/>
               <p:sldIdLst><p:sldId id="256" r:id="rId2"/></p:sldIdLst>
             </p:presentation>
             """;
@@ -2048,6 +2061,63 @@ public class PptxRenderTests
         // pixel is left as the default opaque-white clear, proving width is the shape's own
         // (narrow), never merged in from the style (wide).
         Assert.Equal(new Rgba32(255, 255, 255, 255), surface[100, 25]);
+    }
+
+    /// <summary>
+    ///     Proves the fix for the reported real-world bug: an ellipse shape with
+    ///     <c>&lt;a:noFill/&gt;</c> and an <c>&lt;a:ln&gt;</c> that declares only a color (no
+    ///     <c>w</c> attribute at all - the exact reported construct) now paints a visible stroke
+    ///     at PowerPoint's own default stroke width, instead of rendering completely invisibly
+    ///     (the pre-fix behavior, since an absent <c>w</c> used to collapse to the same "no
+    ///     stroke" outcome as an explicit <c>w="0"</c>).
+    /// </summary>
+    /// <remarks>
+    ///     Rendered against a deliberately small 1"x1" slide (914400x914400 EMU) at 200x200px
+    ///     (scale: <c>914400 / 200 = 4572</c> EMU/pixel) so the new 9525 EMU default stroke width
+    ///     (<c>~2.08</c>px at this scale) survives anti-aliased rendering as solid, easily-sampled
+    ///     pixels - at the full 9144000 EMU slide width used by every other render test in this
+    ///     class, 9525 EMU would be sub-pixel (<c>~0.21</c>px) and not reliably sampled.
+    /// </remarks>
+    [Fact]
+    public void Render_EllipseWithNoFillAndLnMissingWidthButRecognizedColor_PaintsDefaultWidthStroke()
+    {
+        const string spTreeInnerXml =
+            """
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="2" name="Oval 10"/>
+                <p:cNvSpPr/>
+                <p:nvPr/>
+              </p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="152400" y="152400"/><a:ext cx="609600" cy="609600"/></a:xfrm>
+                <a:prstGeom prst="ellipse"><a:avLst/></a:prstGeom>
+                <a:noFill/>
+                <a:ln><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln>
+              </p:spPr>
+            </p:sp>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml, slideWidthEmu: 914400f, slideHeightEmu: 914400f);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 200, 200);
+
+        // The ellipse spans x/y in [152400, 762000] EMU (center 457200,457200; radius 304800),
+        // i.e. pixel columns/rows [33.33, 166.67] of 200 at this slide's 4572 EMU/pixel scale.
+        // Sampled directly on the ellipse's own top-edge stroke band (pixel column 100 = the
+        // ellipse's horizontal center; pixel row 33 = the ellipse's own top boundary) - a solid
+        // red stroke pixel proves the default 9525 EMU width now paints visibly.
+        Assert.Equal(new Rgba32(0xFF, 0x00, 0x00, 255), surface[100, 33]);
+
+        // Sampled well inside the ellipse's interior (its own center) - still the default opaque-
+        // white clear, proving <a:noFill/> still means no interior fill; this width-only fix does
+        // not affect fill resolution at all.
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[100, 100]);
+
+        // Sampled well outside the ellipse's own bounding box entirely (a corner of the slide) -
+        // also the default opaque-white clear, proving the stroke did not spill far beyond its own
+        // narrow (~2px) band.
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[5, 5]);
     }
 
     /// <summary>
