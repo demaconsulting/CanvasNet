@@ -1274,7 +1274,11 @@ Master/layout full shape-tree rendering is likewise no longer on this list - see
 Follow-Up: Master/Layout Decorative Shape Rendering_ below, which closed that gap in a
 still-later pass. Bullets and numbering rendering is likewise no longer on this list - see
 _Phase 2 Follow-Up: Bullets and Numbering Rendering_ below, which closed that gap in a still
-later pass.
+later pass. The shape-style-matrix (`<p:style>`'s `fillRef`/`lnRef`) fill/line resolution noted
+above as an "already-correct deferred-feature boundary" has since been superseded: it was in fact
+a genuine, unimplemented gap (the matrix reference was parsed by nothing at all, rather than
+gracefully deferred) - see _Phase 2 Follow-Up: Shape Style References (`<p:style>`)_ below, which
+closed it in a still-later pass.
 
 #### Phase 2 Follow-Up: Corpus Growth to Three Sources
 
@@ -1780,3 +1784,92 @@ render-level pixel test confirming a slide-level `<p:clrMapOvr>/<a:overrideClrMa
 .../>` makes an `<a:schemeClr val="bg1"/>`-filled shape actually paint the theme's `Dark1` pixel
 color rather than the previously hard-coded `Light1`, alongside a companion test confirming the
 pre-existing, no-override baseline behavior is unchanged.
+
+#### Phase 2 Follow-Up: Shape Style References (`<p:style>`)
+
+A further visual-fidelity gap was closed: a shape built from PowerPoint's own "Shape Styles"
+gallery (the ribbon gallery that applies a theme-coordinated fill/line/effect/font combination to
+a shape without the user ever touching an explicit `<a:solidFill>`/`<a:ln>`) declares that choice
+purely via `<p:spPr>`'s sibling `<p:style>` element - `<a:fillRef idx="N">`/`<a:lnRef idx="N">`
+indexing the theme's own `<a:fmtScheme>/<a:fillStyleLst>`/`<a:lnStyleLst>`, each entry's own
+`<a:schemeClr val="phClr"/>` tokens substituted with the ref's own declared color child. Before
+this fix, `<p:style>` was parsed by nothing in this unit at all, so a gallery-styled shape with no
+explicit `<p:spPr>` fill/line silently rendered with no fill and no stroke whatsoever.
+
+**Data model** (`PptxTheme.cs`): two new `IReadOnlyList<XElement> FillStyleList`/
+`IReadOnlyList<XElement> LnStyleList` properties, each an optional trailing constructor parameter
+defaulting to `[]`, mirroring the existing `BgFillStyleList` property exactly (so every
+pre-existing positional `new PptxTheme(...)` call site keeps compiling unchanged).
+
+**Parsing** (`PptxDocument.Theme.cs`): new `ParseFillStyleList`/`ParseLnStyleList` private helpers,
+parallel to the existing `ParseBgFillStyleList`, read `<a:fmtScheme>/<a:fillStyleLst>` and
+`<a:fmtScheme>/<a:lnStyleLst>` respectively into their raw, unparsed child elements in document
+order, each tolerant of an absent `<a:fmtScheme>` or absent list (returns `[]`). Wired into
+`GetTheme`'s `new PptxTheme(...)` construction alongside the existing `bgFillStyleList`.
+
+**Resolution** (`PptxDocument.Paint.cs`): two new internal resolvers, `ResolveShapeStyleFill`
+and `ResolveShapeStyleLineStyle`, reuse the exact phClr-substitution pattern
+`ResolveBackgroundStyleReference` (`PptxDocument.Background.cs`) already establishes for
+`<p:bgRef>` - resolve the ref's own single color-definition child (when present) via
+`ResolveColor`, then pass it as a `phClrOverride` into the matched style-list entry's own
+resolution. Unlike `<p:bgRef>`, which indexes `BgFillStyleList` with a `+1000`/`+1001` offset
+matrix (a background-specific "other half"), ordinary `<a:fillRef>`/`<a:lnRef>` index
+`FillStyleList`/`LnStyleList` **directly, 1-based, with no offset**: `idx="0"` means "none"
+(`PptxNoFill.Instance`/`null` respectively); `idx` in `[1,3]` maps to `list[idx-1]`; any other
+value - including an `idx` that would index past a theme's own (always-3-entry, or in a
+synthetic/test theme, possibly empty) list - throws `InvalidDataException` rather than being
+silently clamped, since a real theme's `<a:fillStyleLst>`/`<a:lnStyleLst>` always declares exactly
+3 entries. A shared private `ParseStyleRefIdx` helper parses the required `idx` attribute,
+throwing `InvalidDataException` for a missing or non-numeric value (a `PptxDocument.Paint.cs`-
+local analog to the inline `idx`-parsing logic `ResolveBackgroundStyleReference` already has -
+not refactored, per this fix's minimum-necessary-change scope). `FillStyleList`'s entries are
+themselves fill-definition elements (e.g. `<a:solidFill>`), so `ResolveShapeStyleFill` wraps the
+matched entry in a synthetic parent element before calling the existing `ResolveFill` (mirroring
+`ResolveBackgroundStyleReference`'s own synthetic-wrapper precedent exactly); `LnStyleList`'s
+entries are already `<a:ln>`-shaped, so `ResolveShapeStyleLineStyle` instead feeds the matched
+entry directly into a new optional `phClrOverride` parameter added to the existing
+`ResolveLineStyle` (threaded into its own internal `ResolveFill` call), with every pre-existing
+call site remaining source-compatible since the new parameter is optional and appended last.
+
+**Render-time wiring** (`PptxDocument.Render.cs`'s `RenderShape`): a shape's own `<p:style>` is
+read directly from the slide shape's own element (`node.ShapeElement`) - **never** inherited from
+a layout/master placeholder, unlike this same method's `<a:xfrm>`/geometry/fill-position
+resolution, which is placeholder-aware. This is a deliberate, narrower-scope limitation (see
+"Known limitations" below). An explicit fill-definition child on `<p:spPr>` (`<a:noFill>`/
+`<a:solidFill>`/`<a:gradFill>`/`<a:pattFill>`/`<a:blipFill>`, detected by a new
+`HasExplicitFillChild` helper) always wins over a style `<a:fillRef>` - needed because
+`ResolveFill` already collapses "no recognized fill child at all" and "an explicit `<a:noFill/>`"
+to the identical `PptxNoFill.Instance` return value, so that collapsed return value alone cannot
+distinguish "shape explicitly declared no fill, which wins over any style ref" from "shape
+declared nothing at all, so falls back to the style ref". The line side uses the simpler "is
+`<a:ln>` present at all" check (no separate helper needed) - a present `<a:ln>` (even one with no
+recognized fill child of its own) always wins over `<a:lnRef>`; only a fully absent `<a:ln>` falls
+back to it.
+
+**Known limitations, left as explicit, documented simplifications**:
+
+- **`<a:fontRef>` is out of scope.** Unlike `<a:fillRef>`/`<a:lnRef>`, its own `idx` is one of
+  `major`/`minor`/`none` (selecting the theme's font scheme, not a style-list position) - a
+  different resolution mechanism entirely, not merely an extension of this fix's pattern.
+- **`<a:effectRef>` is out of scope.** This unit does not resolve shape effects (shadows, glows,
+  etc.) at all yet, independent of this fix.
+- **Placeholder-inherited `<p:style>` is out of scope.** A placeholder shape that declares no
+  `<p:style>` of its own does not inherit one from its matched layout/master placeholder - only
+  the slide shape's own, directly-declared `<p:style>` is consulted. Fixing this would require
+  extending `PptxPlaceholderProperties`'s existing per-tier inheritance resolution to a fifth
+  property, mirroring `EffectiveSpPr`/`EffectiveXfrmElement`/`EffectiveGeometrySpPr` - deferred as
+  a candidate follow-up, not required by the reported symptom (a non-placeholder shape using the
+  Shape Styles gallery).
+
+**Test coverage**: `PptxPaintTests.cs` gained direct `ResolveShapeStyleFill`/
+`ResolveShapeStyleLineStyle` unit tests covering a null/style-ref-less styleElement, `idx="0"`
+("none"), the no-offset pin (`idx="1"` resolves list entry `0`, not `1` and not a `+1000`-offset
+entry), `phClr` substitution from the ref's own color child, and `InvalidDataException` for an
+out-of-range or missing/non-numeric `idx`. `PptxBackgroundTests.cs` gained `GetTheme` parsing
+tests for `FillStyleList`/`LnStyleList` (empty-by-default absent any `<a:fmtScheme>`/list, and
+parsed in document order when present). `PptxRenderTests.cs` gained end-to-end render-level pixel
+tests: a shape with only a `<p:style>/<a:fillRef>` (no explicit `<p:spPr>` fill) renders the
+resolved, phClr-substituted style-list color; an explicit `<p:spPr>` fill wins over a
+simultaneously-present `<a:fillRef>` on the same shape; a shape with only a `<p:style>/<a:lnRef>`
+(no explicit `<a:ln>`) renders the resolved stroke color; and an explicit `<a:ln><a:noFill/></a:ln>`
+wins over a simultaneously-present `<a:lnRef>` on the same shape.

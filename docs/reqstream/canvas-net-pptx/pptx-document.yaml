@@ -1486,3 +1486,56 @@ sections:
               - ResolveTextLayout_UnsupportedAutoNumType_SkipsOnlyThatBulletGracefully
               - PaintTextLayout_BulletedParagraph_PaintsBulletGlyphToSurface
               - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature
+
+          - id: CanvasNetPptx-PptxDocument-ShapeStyleReference
+            title: >-
+              The PptxDocument class shall resolve a shape's own <p:style>/<a:fillRef idx="N"/>
+              and <a:lnRef idx="N"/> shape-style references - as produced by PowerPoint's "Shape
+              Styles" gallery - into a concrete fill/line style, indexing the theme's own
+              <a:fmtScheme>/<a:fillStyleLst>/<a:lnStyleLst> directly, 1-based, with no offset
+              (idx="0" meaning "none"; idx outside [1,3], or indexing past either list's own
+              entry count, throwing InvalidDataException), substituting the fillRef/lnRef's own
+              color-definition child for the matched style-list entry's own <a:schemeClr
+              val="phClr"/> token(s), and shall give priority to an explicit fill-definition child
+              on the shape's own <p:spPr> (or an explicit, even fill-less, <a:ln>) over its
+              corresponding style reference, falling back to the style reference only when the
+              shape declares no explicit fill/line element at all.
+            justification: |
+              A shape styled purely through PowerPoint's own Shape Styles gallery (rather than an
+              explicit, user-applied fill/line) declares that choice solely via <p:style>, which
+              this unit previously parsed nowhere at all - such a shape silently rendered with no
+              fill and no stroke whatsoever, a genuine visual-fidelity defect rather than a
+              gracefully-deferred feature boundary. Unlike <p:bgRef>'s own background-specific
+              +1000/+1001 offset matrix into bgFillStyleLst, an ordinary fillRef/lnRef indexes
+              fillStyleLst/lnStyleLst directly, since a real theme's own fmtScheme always declares
+              exactly 3 entries in each list and no "other half" concept applies here; rejecting an
+              out-of-range idx with InvalidDataException (rather than silently clamping it) keeps
+              this resolver consistent with every other idx-validating resolver already in this
+              unit. An explicit fill/line element must win over a style reference because real
+              PowerPoint itself allows a user to override an otherwise gallery-styled shape's own
+              fill/line without clearing its <p:style>, so both can legitimately coexist on the
+              same shape - only the absence of any explicit fill/line element signals that the
+              style reference should actually be consulted.
+            tests:
+              - ResolveShapeStyleFill_NullStyleElement_ReturnsNoFill
+              - ResolveShapeStyleFill_NoFillRef_ReturnsNoFill
+              - ResolveShapeStyleFill_IdxZero_ReturnsNoFill
+              - ResolveShapeStyleFill_FillRefIdxOne_ResolvesFillStyleListEntryZeroNoOffset
+              - ResolveShapeStyleFill_FillRefWithSchemeClrPhClr_SubstitutesFillRefOwnColor
+              - ResolveShapeStyleFill_IdxOutOfRange_ThrowsInvalidDataException
+              - ResolveShapeStyleFill_IdxPastEndOfEmptyFillStyleList_ThrowsInvalidDataException
+              - ResolveShapeStyleFill_FillRefWithNoIdxAttribute_ThrowsInvalidDataException
+              - ResolveShapeStyleLineStyle_NullStyleElement_ReturnsNull
+              - ResolveShapeStyleLineStyle_NoLnRef_ReturnsNull
+              - ResolveShapeStyleLineStyle_IdxZero_ReturnsNull
+              - ResolveShapeStyleLineStyle_LnRefIdxOne_ResolvesLnStyleListEntryZeroNoOffset
+              - ResolveShapeStyleLineStyle_LnRefWithSchemeClrPhClr_SubstitutesLnRefOwnColor
+              - ResolveShapeStyleLineStyle_IdxOutOfRange_ThrowsInvalidDataException
+              - ResolveShapeStyleLineStyle_LnRefWithNoIdxAttribute_ThrowsInvalidDataException
+              - GetTheme_NoFmtScheme_FillStyleListAndLnStyleListDefaultToEmpty
+              - GetTheme_FmtSchemeWithNoFillStyleLstOrLnStyleLst_BothDefaultToEmpty
+              - GetTheme_FmtSchemeWithFillStyleLstAndLnStyleLst_ParsesEntriesInDocumentOrder
+              - Render_ShapeWithOnlyStyleFillRefNoExplicitSpPrFill_RendersResolvedTintedAccentColor
+              - Render_ShapeWithBothExplicitSpPrFillAndStyleFillRef_ExplicitFillWins
+              - Render_ShapeWithOnlyStyleLnRefNoExplicitLn_RendersResolvedStrokeColor
+              - Render_ShapeWithExplicitLnNoFillAndStyleLnRef_ExplicitLnWins

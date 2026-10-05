@@ -55,8 +55,10 @@ public sealed partial class PptxDocument
         var fontScheme = ParseFontScheme(fontSchemeElement, themePartPath);
 
         var bgFillStyleList = ParseBgFillStyleList(themeElements);
+        var fillStyleList = ParseFillStyleList(themeElements);
+        var lnStyleList = ParseLnStyleList(themeElements);
 
-        var theme = new PptxTheme(colorScheme, fontScheme, bgFillStyleList);
+        var theme = new PptxTheme(colorScheme, fontScheme, bgFillStyleList, fillStyleList, lnStyleList);
         _themeCache[themePartPath] = theme;
         return theme;
     }
@@ -138,6 +140,42 @@ public sealed partial class PptxDocument
         var bgFillStyleLst = themeElementsElement.Element(DrawingNamespace + "fmtScheme")?
             .Element(DrawingNamespace + "bgFillStyleLst");
         return bgFillStyleLst is null ? [] : bgFillStyleLst.Elements().ToList();
+    }
+
+    /// <summary>
+    ///     Parses a theme's optional <c>&lt;a:fmtScheme&gt;/&lt;a:fillStyleLst&gt;</c> element
+    ///     into its raw, unparsed fill-definition child elements, in document order - consulted
+    ///     by a shape's own <c>&lt;p:style&gt;/&lt;a:fillRef&gt;</c> (see
+    ///     <see cref="ResolveShapeStyleFill"/>).
+    /// </summary>
+    /// <param name="themeElementsElement">The theme's <c>&lt;a:themeElements&gt;</c> element.</param>
+    /// <returns>
+    ///     The <c>&lt;a:fillStyleLst&gt;</c>'s children, or an empty list when the theme declares
+    ///     no <c>&lt;a:fmtScheme&gt;</c> or no <c>&lt;a:fillStyleLst&gt;</c> at all.
+    /// </returns>
+    private static IReadOnlyList<XElement> ParseFillStyleList(XElement themeElementsElement)
+    {
+        var fillStyleLst = themeElementsElement.Element(DrawingNamespace + "fmtScheme")?
+            .Element(DrawingNamespace + "fillStyleLst");
+        return fillStyleLst is null ? [] : fillStyleLst.Elements().ToList();
+    }
+
+    /// <summary>
+    ///     Parses a theme's optional <c>&lt;a:fmtScheme&gt;/&lt;a:lnStyleLst&gt;</c> element into
+    ///     its raw, unparsed <c>&lt;a:ln&gt;</c> line-properties child elements, in document order
+    ///     - consulted by a shape's own <c>&lt;p:style&gt;/&lt;a:lnRef&gt;</c> (see
+    ///     <see cref="ResolveShapeStyleLineStyle"/>).
+    /// </summary>
+    /// <param name="themeElementsElement">The theme's <c>&lt;a:themeElements&gt;</c> element.</param>
+    /// <returns>
+    ///     The <c>&lt;a:lnStyleLst&gt;</c>'s children, or an empty list when the theme declares no
+    ///     <c>&lt;a:fmtScheme&gt;</c> or no <c>&lt;a:lnStyleLst&gt;</c> at all.
+    /// </returns>
+    private static IReadOnlyList<XElement> ParseLnStyleList(XElement themeElementsElement)
+    {
+        var lnStyleLst = themeElementsElement.Element(DrawingNamespace + "fmtScheme")?
+            .Element(DrawingNamespace + "lnStyleLst");
+        return lnStyleLst is null ? [] : lnStyleLst.Elements().ToList();
     }
 
     /// <summary>Parses all 12 named slots of <c>&lt;a:clrScheme&gt;</c> into a <see cref="PptxColorScheme"/>.</summary>

@@ -1264,6 +1264,55 @@ regardless of any real override in effect, while a table cell's own text color i
 paint time and correctly reflects the real, per-render effective color map like any other text
 run.
 
+#### CanvasNetPptx-PptxDocument-ShapeStyleReference: `<p:style>` `fillRef`/`lnRef` Shape-Style Resolution
+
+**Tests**: `ResolveShapeStyleFill_NullStyleElement_ReturnsNoFill`,
+`ResolveShapeStyleFill_NoFillRef_ReturnsNoFill`, `ResolveShapeStyleFill_IdxZero_ReturnsNoFill`,
+`ResolveShapeStyleFill_FillRefIdxOne_ResolvesFillStyleListEntryZeroNoOffset`,
+`ResolveShapeStyleFill_FillRefWithSchemeClrPhClr_SubstitutesFillRefOwnColor`,
+`ResolveShapeStyleFill_IdxOutOfRange_ThrowsInvalidDataException`,
+`ResolveShapeStyleFill_IdxPastEndOfEmptyFillStyleList_ThrowsInvalidDataException`,
+`ResolveShapeStyleFill_FillRefWithNoIdxAttribute_ThrowsInvalidDataException`,
+`ResolveShapeStyleLineStyle_NullStyleElement_ReturnsNull`,
+`ResolveShapeStyleLineStyle_NoLnRef_ReturnsNull`, `ResolveShapeStyleLineStyle_IdxZero_ReturnsNull`,
+`ResolveShapeStyleLineStyle_LnRefIdxOne_ResolvesLnStyleListEntryZeroNoOffset`,
+`ResolveShapeStyleLineStyle_LnRefWithSchemeClrPhClr_SubstitutesLnRefOwnColor`,
+`ResolveShapeStyleLineStyle_IdxOutOfRange_ThrowsInvalidDataException`,
+`ResolveShapeStyleLineStyle_LnRefWithNoIdxAttribute_ThrowsInvalidDataException`,
+`GetTheme_NoFmtScheme_FillStyleListAndLnStyleListDefaultToEmpty`,
+`GetTheme_FmtSchemeWithNoFillStyleLstOrLnStyleLst_BothDefaultToEmpty`,
+`GetTheme_FmtSchemeWithFillStyleLstAndLnStyleLst_ParsesEntriesInDocumentOrder`,
+`Render_ShapeWithOnlyStyleFillRefNoExplicitSpPrFill_RendersResolvedTintedAccentColor`,
+`Render_ShapeWithBothExplicitSpPrFillAndStyleFillRef_ExplicitFillWins`,
+`Render_ShapeWithOnlyStyleLnRefNoExplicitLn_RendersResolvedStrokeColor`,
+`Render_ShapeWithExplicitLnNoFillAndStyleLnRef_ExplicitLnWins`
+
+Proves a shape built from PowerPoint's "Shape Styles" gallery - which declares its fill/line
+purely via `<p:spPr>`'s sibling `<p:style>/<a:fillRef idx="N">`/`<a:lnRef idx="N">`, indexing the
+theme's own `<a:fmtScheme>/<a:fillStyleLst>`/`<a:lnStyleLst>` - resolves its fill/line correctly,
+where it previously rendered with neither at all. Proves `GetTheme` parses
+`<a:fmtScheme>/<a:fillStyleLst>`/`<a:lnStyleLst>` into `PptxTheme.FillStyleList`/`LnStyleList`,
+defaulting to an empty list when either (or the whole `<a:fmtScheme>`) is absent, and preserving
+document order when present. Proves `ResolveShapeStyleFill`/`ResolveShapeStyleLineStyle` return
+"no fill"/`null` (respectively) for a `null` style element, an absent `fillRef`/`lnRef`, or an
+explicit `idx="0"` (the schema-defined "none" sentinel). Proves the no-offset indexing directly,
+pinning `idx="1"` to `FillStyleList`/`LnStyleList`'s entry `0` - not entry `1`, and not a
+`<p:bgRef>`-style `+1000`-offset entry. Proves the ref's own color-definition child substitutes
+for the matched style-list entry's own `<a:schemeClr val="phClr"/>` token. Proves an `idx` outside
+`[1,3]`, an `idx` indexing past the end of an empty list, or a missing/non-numeric `idx`
+attribute, each throw `InvalidDataException` rather than being silently clamped or defaulted.
+Finally, proves the fix end-to-end at the render/pixel level: a shape with only a
+`<p:style>/<a:fillRef>` (no explicit `<p:spPr>` fill at all) paints the resolved,
+phClr-substituted style-list fill color; an explicit `<p:spPr>` fill on the same shape wins over
+a simultaneously-present `<a:fillRef>`; a shape with only a `<p:style>/<a:lnRef>` (no explicit
+`<a:ln>` at all) paints the resolved stroke color; and an explicit `<a:ln><a:noFill/></a:ln>` on
+the same shape wins over a simultaneously-present `<a:lnRef>` - together the real-world,
+visual-fidelity proof this fix's acceptance bar requires. Documented, accepted limitations (not
+separately tested as defects): `<a:fontRef>` and `<a:effectRef>` are out of scope (different
+resolution mechanisms/unimplemented features entirely, not an extension of this fix's pattern),
+and a placeholder shape's own `<p:style>` is never inherited from its matched layout/master
+placeholder - only a shape's own, directly-declared `<p:style>` is consulted.
+
 ## Acceptance Criteria
 
 A unit-level test run passes when all scenarios above pass without error or exception beyond

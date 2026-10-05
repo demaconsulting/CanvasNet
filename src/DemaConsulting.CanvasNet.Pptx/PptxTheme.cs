@@ -27,10 +27,24 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     majority of themes/slides never reference <c>&lt;p:bgRef&gt;</c>, so this content is
 ///     parsed lazily/defensively rather than required.
 /// </param>
+/// <param name="FillStyleList">
+///     The theme's <c>&lt;a:fmtScheme&gt;/&lt;a:fillStyleLst&gt;</c> entries - consulted by a
+///     shape's own <c>&lt;p:style&gt;/&lt;a:fillRef idx="..."/&gt;</c> (see
+///     <see cref="PptxDocument.ResolveShapeStyleFill"/>). Defaults to an empty list when the
+///     theme declares no <c>&lt;a:fmtScheme&gt;</c>/<c>&lt;a:fillStyleLst&gt;</c> at all.
+/// </param>
+/// <param name="LnStyleList">
+///     The theme's <c>&lt;a:fmtScheme&gt;/&lt;a:lnStyleLst&gt;</c> entries - consulted by a
+///     shape's own <c>&lt;p:style&gt;/&lt;a:lnRef idx="..."/&gt;</c> (see
+///     <see cref="PptxDocument.ResolveShapeStyleLineStyle"/>). Defaults to an empty list when
+///     the theme declares no <c>&lt;a:fmtScheme&gt;</c>/<c>&lt;a:lnStyleLst&gt;</c> at all.
+/// </param>
 internal sealed record PptxTheme(
     PptxColorScheme ColorScheme,
     PptxFontScheme FontScheme,
-    IReadOnlyList<XElement>? BgFillStyleList = null)
+    IReadOnlyList<XElement>? BgFillStyleList = null,
+    IReadOnlyList<XElement>? FillStyleList = null,
+    IReadOnlyList<XElement>? LnStyleList = null)
 {
     /// <summary>
     ///     The theme's <c>&lt;a:fmtScheme&gt;/&lt;a:bgFillStyleLst&gt;</c> entries, normalized to
@@ -40,6 +54,28 @@ internal sealed record PptxTheme(
     ///     format-scheme style list" rather than being required to pass an empty list explicitly.
     /// </summary>
     public IReadOnlyList<XElement> BgFillStyleList { get; init; } = BgFillStyleList ?? [];
+
+    /// <summary>
+    ///     The theme's <c>&lt;a:fmtScheme&gt;/&lt;a:fillStyleLst&gt;</c> entries - each a raw,
+    ///     unparsed fill-definition element (<c>&lt;a:solidFill&gt;</c>/<c>&lt;a:gradFill&gt;</c>/
+    ///     <c>&lt;a:pattFill&gt;</c>/<c>&lt;a:blipFill&gt;</c>), in document order, consulted by a
+    ///     shape's own <c>&lt;p:style&gt;/&lt;a:fillRef idx="..."/&gt;</c> (see
+    ///     <see cref="PptxDocument.ResolveShapeStyleFill"/>) - indexed directly, 1-based, with no
+    ///     offset (unlike <see cref="BgFillStyleList"/>'s own <c>&lt;p:bgRef&gt;</c> 1001-offset
+    ///     convention). Defaults to an empty list when the theme declares no
+    ///     <c>&lt;a:fmtScheme&gt;</c>/<c>&lt;a:fillStyleLst&gt;</c> at all.
+    /// </summary>
+    public IReadOnlyList<XElement> FillStyleList { get; init; } = FillStyleList ?? [];
+
+    /// <summary>
+    ///     The theme's <c>&lt;a:fmtScheme&gt;/&lt;a:lnStyleLst&gt;</c> entries - each a raw,
+    ///     unparsed <c>&lt;a:ln&gt;</c> line-properties element, in document order, consulted by a
+    ///     shape's own <c>&lt;p:style&gt;/&lt;a:lnRef idx="..."/&gt;</c> (see
+    ///     <see cref="PptxDocument.ResolveShapeStyleLineStyle"/>) - indexed directly, 1-based,
+    ///     with no offset. Defaults to an empty list when the theme declares no
+    ///     <c>&lt;a:fmtScheme&gt;</c>/<c>&lt;a:lnStyleLst&gt;</c> at all.
+    /// </summary>
+    public IReadOnlyList<XElement> LnStyleList { get; init; } = LnStyleList ?? [];
 }
 
 /// <summary>

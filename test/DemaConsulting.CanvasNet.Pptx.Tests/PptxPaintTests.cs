@@ -19,9 +19,11 @@ namespace DemaConsulting.CanvasNet.Pptx.Tests;
 public class PptxPaintTests
 {
     private static readonly XNamespace A = "http://schemas.openxmlformats.org/drawingml/2006/main";
+    private static readonly XNamespace P = "http://schemas.openxmlformats.org/presentationml/2006/main";
 
     /// <summary>Builds an arbitrary, fully-populated test <see cref="PptxTheme"/>, with each color-scheme slot a distinct, recognizable value.</summary>
-    private static PptxTheme BuildTestTheme() =>
+    private static PptxTheme BuildTestTheme(
+        IReadOnlyList<XElement>? fillStyleList = null, IReadOnlyList<XElement>? lnStyleList = null) =>
         new(
             new PptxColorScheme(
                 Dark1: new Rgba32(0x10, 0x10, 0x10, 255),
@@ -38,7 +40,9 @@ public class PptxPaintTests
                 FollowedHyperlink: new Rgba32(0x0A, 0x0B, 0x0C, 255)),
             new PptxFontScheme(
                 new PptxFontCollection("MajorLatin", "MajorEA", "MajorCS"),
-                new PptxFontCollection("MinorLatin", "MinorEA", "MinorCS")));
+                new PptxFontCollection("MinorLatin", "MinorEA", "MinorCS")),
+            FillStyleList: fillStyleList,
+            LnStyleList: lnStyleList);
 
     /// <summary>Srgb Clr.</summary>
     private static XElement SrgbClr(string hex, params XElement[] transforms) =>
@@ -521,6 +525,198 @@ public class PptxPaintTests
 
         Assert.NotNull(lineStyle);
         Assert.Null(lineStyle.DashArray);
+    }
+
+    // --- ResolveShapeStyleFill: <p:style>/<a:fillRef> shape-style reference (Phase 2 Follow-Up) ---
+
+    /// <summary>Resolve Shape Style Fill - Null Style Element - Returns No Fill.</summary>
+    [Fact]
+    public void ResolveShapeStyleFill_NullStyleElement_ReturnsNoFill()
+    {
+        var paint = PptxDocument.ResolveShapeStyleFill(null, BuildTestTheme(), 100, 100);
+
+        Assert.Same(PptxNoFill.Instance, paint);
+    }
+
+    /// <summary>Resolve Shape Style Fill - No Fill Ref - Returns No Fill.</summary>
+    [Fact]
+    public void ResolveShapeStyleFill_NoFillRef_ReturnsNoFill()
+    {
+        var style = new XElement(P + "style");
+
+        var paint = PptxDocument.ResolveShapeStyleFill(style, BuildTestTheme(), 100, 100);
+
+        Assert.Same(PptxNoFill.Instance, paint);
+    }
+
+    /// <summary>Resolve Shape Style Fill - Idx Zero - Returns No Fill.</summary>
+    [Fact]
+    public void ResolveShapeStyleFill_IdxZero_ReturnsNoFill()
+    {
+        var style = new XElement(P + "style", new XElement(A + "fillRef", new XAttribute("idx", "0"), SrgbClr("FF00FF")));
+
+        var paint = PptxDocument.ResolveShapeStyleFill(style, BuildTestTheme(), 100, 100);
+
+        Assert.Same(PptxNoFill.Instance, paint);
+    }
+
+    /// <summary>
+    ///     Pins the no-offset behavior directly: <c>idx="1"</c> must resolve
+    ///     <see cref="PptxTheme.FillStyleList"/>'s entry 0 (not entry 1, and not a
+    ///     <c>&lt;p:bgRef&gt;</c>-style 1000-offset entry).
+    /// </summary>
+    [Fact]
+    public void ResolveShapeStyleFill_FillRefIdxOne_ResolvesFillStyleListEntryZeroNoOffset()
+    {
+        var fillStyleList = new List<XElement>
+        {
+            new(A + "solidFill", SrgbClr("111111")),
+            new(A + "solidFill", SrgbClr("222222")),
+            new(A + "solidFill", SrgbClr("333333")),
+        };
+        var theme = BuildTestTheme(fillStyleList: fillStyleList);
+        var style = new XElement(P + "style", new XElement(A + "fillRef", new XAttribute("idx", "1")));
+
+        var paint = PptxDocument.ResolveShapeStyleFill(style, theme, 100, 100);
+
+        var solid = Assert.IsType<PptxSolidFill>(paint);
+        Assert.Equal(new Rgba32(0x11, 0x11, 0x11, 255), solid.Color);
+    }
+
+    /// <summary>Resolve Shape Style Fill - Fill Ref With Scheme Clr Ph Clr - Substitutes Fill Ref Own Color.</summary>
+    [Fact]
+    public void ResolveShapeStyleFill_FillRefWithSchemeClrPhClr_SubstitutesFillRefOwnColor()
+    {
+        var fillStyleList = new List<XElement> { new(A + "solidFill", SchemeClr("phClr")) };
+        var theme = BuildTestTheme(fillStyleList: fillStyleList);
+        var style = new XElement(P + "style", new XElement(A + "fillRef", new XAttribute("idx", "1"), SrgbClr("AA00AA")));
+
+        var paint = PptxDocument.ResolveShapeStyleFill(style, theme, 100, 100);
+
+        var solid = Assert.IsType<PptxSolidFill>(paint);
+        Assert.Equal(new Rgba32(0xAA, 0x00, 0xAA, 255), solid.Color);
+    }
+
+    /// <summary>Resolve Shape Style Fill - Idx Out Of Range - Throws Invalid Data Exception.</summary>
+    [Theory]
+    [InlineData("4")]
+    [InlineData("1000")]
+    public void ResolveShapeStyleFill_IdxOutOfRange_ThrowsInvalidDataException(string idx)
+    {
+        var fillStyleList = new List<XElement>
+        {
+            new(A + "solidFill", SrgbClr("111111")),
+            new(A + "solidFill", SrgbClr("222222")),
+            new(A + "solidFill", SrgbClr("333333")),
+        };
+        var theme = BuildTestTheme(fillStyleList: fillStyleList);
+        var style = new XElement(P + "style", new XElement(A + "fillRef", new XAttribute("idx", idx)));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveShapeStyleFill(style, theme, 100, 100));
+    }
+
+    /// <summary>Resolve Shape Style Fill - Idx Past End Of Empty Fill Style List - Throws Invalid Data Exception.</summary>
+    [Fact]
+    public void ResolveShapeStyleFill_IdxPastEndOfEmptyFillStyleList_ThrowsInvalidDataException()
+    {
+        var style = new XElement(P + "style", new XElement(A + "fillRef", new XAttribute("idx", "1")));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveShapeStyleFill(style, BuildTestTheme(), 100, 100));
+    }
+
+    /// <summary>Resolve Shape Style Fill - Fill Ref With No Idx Attribute - Throws Invalid Data Exception.</summary>
+    [Fact]
+    public void ResolveShapeStyleFill_FillRefWithNoIdxAttribute_ThrowsInvalidDataException()
+    {
+        var style = new XElement(P + "style", new XElement(A + "fillRef", SrgbClr("FF00FF")));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveShapeStyleFill(style, BuildTestTheme(), 100, 100));
+    }
+
+    // --- ResolveShapeStyleLineStyle: <p:style>/<a:lnRef> shape-style reference (Phase 2 Follow-Up)
+
+    /// <summary>Resolve Shape Style Line Style - Null Style Element - Returns Null.</summary>
+    [Fact]
+    public void ResolveShapeStyleLineStyle_NullStyleElement_ReturnsNull()
+    {
+        var lineStyle = PptxDocument.ResolveShapeStyleLineStyle(null, BuildTestTheme());
+
+        Assert.Null(lineStyle);
+    }
+
+    /// <summary>Resolve Shape Style Line Style - No Ln Ref - Returns Null.</summary>
+    [Fact]
+    public void ResolveShapeStyleLineStyle_NoLnRef_ReturnsNull()
+    {
+        var style = new XElement(P + "style");
+
+        Assert.Null(PptxDocument.ResolveShapeStyleLineStyle(style, BuildTestTheme()));
+    }
+
+    /// <summary>Resolve Shape Style Line Style - Idx Zero - Returns Null.</summary>
+    [Fact]
+    public void ResolveShapeStyleLineStyle_IdxZero_ReturnsNull()
+    {
+        var style = new XElement(P + "style", new XElement(A + "lnRef", new XAttribute("idx", "0"), SrgbClr("FF00FF")));
+
+        Assert.Null(PptxDocument.ResolveShapeStyleLineStyle(style, BuildTestTheme()));
+    }
+
+    /// <summary>Resolve Shape Style Line Style - Ln Ref Idx One - Resolves Ln Style List Entry Zero No Offset.</summary>
+    [Fact]
+    public void ResolveShapeStyleLineStyle_LnRefIdxOne_ResolvesLnStyleListEntryZeroNoOffset()
+    {
+        var lnStyleList = new List<XElement>
+        {
+            new(A + "ln", new XAttribute("w", 12700), new XElement(A + "solidFill", SrgbClr("111111"))),
+            new(A + "ln", new XAttribute("w", 25400), new XElement(A + "solidFill", SrgbClr("222222"))),
+            new(A + "ln", new XAttribute("w", 38100), new XElement(A + "solidFill", SrgbClr("333333"))),
+        };
+        var theme = BuildTestTheme(lnStyleList: lnStyleList);
+        var style = new XElement(P + "style", new XElement(A + "lnRef", new XAttribute("idx", "1")));
+
+        var lineStyle = PptxDocument.ResolveShapeStyleLineStyle(style, theme);
+
+        Assert.NotNull(lineStyle);
+        Assert.Equal(12700f, lineStyle.WidthEmu);
+        var solid = Assert.IsType<PptxSolidFill>(lineStyle.Paint);
+        Assert.Equal(new Rgba32(0x11, 0x11, 0x11, 255), solid.Color);
+    }
+
+    /// <summary>Resolve Shape Style Line Style - Ln Ref With Scheme Clr Ph Clr - Substitutes Ln Ref Own Color.</summary>
+    [Fact]
+    public void ResolveShapeStyleLineStyle_LnRefWithSchemeClrPhClr_SubstitutesLnRefOwnColor()
+    {
+        var lnStyleList = new List<XElement>
+        {
+            new(A + "ln", new XAttribute("w", 12700), new XElement(A + "solidFill", SchemeClr("phClr"))),
+        };
+        var theme = BuildTestTheme(lnStyleList: lnStyleList);
+        var style = new XElement(P + "style", new XElement(A + "lnRef", new XAttribute("idx", "1"), SrgbClr("AA00AA")));
+
+        var lineStyle = PptxDocument.ResolveShapeStyleLineStyle(style, theme);
+
+        Assert.NotNull(lineStyle);
+        var solid = Assert.IsType<PptxSolidFill>(lineStyle.Paint);
+        Assert.Equal(new Rgba32(0xAA, 0x00, 0xAA, 255), solid.Color);
+    }
+
+    /// <summary>Resolve Shape Style Line Style - Idx Out Of Range - Throws Invalid Data Exception.</summary>
+    [Fact]
+    public void ResolveShapeStyleLineStyle_IdxOutOfRange_ThrowsInvalidDataException()
+    {
+        var style = new XElement(P + "style", new XElement(A + "lnRef", new XAttribute("idx", "4")));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveShapeStyleLineStyle(style, BuildTestTheme()));
+    }
+
+    /// <summary>Resolve Shape Style Line Style - Ln Ref With No Idx Attribute - Throws Invalid Data Exception.</summary>
+    [Fact]
+    public void ResolveShapeStyleLineStyle_LnRefWithNoIdxAttribute_ThrowsInvalidDataException()
+    {
+        var style = new XElement(P + "style", new XElement(A + "lnRef", SrgbClr("FF00FF")));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveShapeStyleLineStyle(style, BuildTestTheme()));
     }
 
     // --- ResolveStrokeOutline: mirrors the PDF renderer's StrokeStyle/PathStroker call pattern ---

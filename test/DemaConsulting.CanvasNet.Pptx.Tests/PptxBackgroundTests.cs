@@ -324,6 +324,69 @@ public class PptxBackgroundTests
         Assert.Equal(A + "solidFill", theme.BgFillStyleList[1].Name);
     }
 
+    // --- GetTheme: <a:fmtScheme>/<a:fillStyleLst> and <a:lnStyleLst> parsing (Phase 2 Follow-Up) --
+
+    /// <summary>Get Theme - No Fmt Scheme - Fill Style List And Ln Style List Default To Empty.</summary>
+    [Fact]
+    public void GetTheme_NoFmtScheme_FillStyleListAndLnStyleListDefaultToEmpty()
+    {
+        using var stream = BuildThemeOnlyPackage(fmtSchemeXml: string.Empty);
+        using var document = PptxDocument.Open(stream);
+
+        var theme = document.GetTheme("ppt/theme/theme1.xml");
+
+        Assert.Empty(theme.FillStyleList);
+        Assert.Empty(theme.LnStyleList);
+    }
+
+    /// <summary>Get Theme - Fmt Scheme With No Fill Style Lst Or Ln Style Lst - Both Default To Empty.</summary>
+    [Fact]
+    public void GetTheme_FmtSchemeWithNoFillStyleLstOrLnStyleLst_BothDefaultToEmpty()
+    {
+        using var stream = BuildThemeOnlyPackage(fmtSchemeXml: """<a:fmtScheme name="Test"><a:bgFillStyleLst/></a:fmtScheme>""");
+        using var document = PptxDocument.Open(stream);
+
+        var theme = document.GetTheme("ppt/theme/theme1.xml");
+
+        Assert.Empty(theme.FillStyleList);
+        Assert.Empty(theme.LnStyleList);
+    }
+
+    /// <summary>Get Theme - Fmt Scheme With Fill Style Lst And Ln Style Lst - Parses Entries In Document Order.</summary>
+    [Fact]
+    public void GetTheme_FmtSchemeWithFillStyleLstAndLnStyleLst_ParsesEntriesInDocumentOrder()
+    {
+        const string fmtSchemeXml =
+            """
+            <a:fmtScheme name="Test">
+              <a:fillStyleLst>
+                <a:solidFill><a:schemeClr val="phClr"/></a:solidFill>
+                <a:gradFill><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"/></a:gs></a:gsLst></a:gradFill>
+                <a:gradFill><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"/></a:gs></a:gsLst></a:gradFill>
+              </a:fillStyleLst>
+              <a:lnStyleLst>
+                <a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>
+                <a:ln w="12700"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>
+                <a:ln w="19050"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>
+              </a:lnStyleLst>
+            </a:fmtScheme>
+            """;
+        using var stream = BuildThemeOnlyPackage(fmtSchemeXml);
+        using var document = PptxDocument.Open(stream);
+
+        var theme = document.GetTheme("ppt/theme/theme1.xml");
+
+        Assert.Equal(3, theme.FillStyleList.Count);
+        Assert.Equal(A + "solidFill", theme.FillStyleList[0].Name);
+        Assert.Equal(A + "gradFill", theme.FillStyleList[1].Name);
+        Assert.Equal(A + "gradFill", theme.FillStyleList[2].Name);
+
+        Assert.Equal(3, theme.LnStyleList.Count);
+        Assert.Equal("6350", (string?)theme.LnStyleList[0].Attribute("w"));
+        Assert.Equal("12700", (string?)theme.LnStyleList[1].Attribute("w"));
+        Assert.Equal("19050", (string?)theme.LnStyleList[2].Attribute("w"));
+    }
+
     /// <summary>Builds a minimal, navigable presentation package whose single slide master's theme declares the given <c>&lt;a:fmtScheme&gt;</c> inner XML (or none, when empty).</summary>
     private static Stream BuildThemeOnlyPackage(string fmtSchemeXml)
     {

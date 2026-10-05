@@ -544,6 +544,15 @@ public sealed partial class PptxDocument
     ///     val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the default) - see
     ///     <see cref="ResolveFill"/>'s matching parameter.
     /// </param>
+    /// <param name="phClrOverride">
+    ///     The concrete color to substitute for an <c>&lt;a:schemeClr val="phClr"/&gt;</c> token
+    ///     in the line's fill, or <see langword="null"/> (the default) - see
+    ///     <see cref="ResolveFill"/>'s matching parameter. Supplied by
+    ///     <see cref="ResolveShapeStyleLineStyle"/> when resolving a <c>&lt;p:style&gt;/
+    ///     &lt;a:lnRef&gt;</c>'s own theme format-scheme line-style entry, which is always
+    ///     <c>phClr</c>-templated; every other, pre-existing call site omits this parameter,
+    ///     leaving its behavior unchanged.
+    /// </param>
     /// <returns>
     ///     The resolved <see cref="PptxLineStyle"/>, or <see langword="null"/> meaning "no
     ///     stroke": when <paramref name="lnElement"/> is <see langword="null"/>, declares no
@@ -553,7 +562,8 @@ public sealed partial class PptxDocument
     ///     (including an explicit <c>&lt;a:noFill/&gt;</c>, or no recognized fill-definition child
     ///     at all).
     /// </returns>
-    internal static PptxLineStyle? ResolveLineStyle(XElement? lnElement, PptxTheme theme, PptxColorMap? colorMap = null)
+    internal static PptxLineStyle? ResolveLineStyle(
+        XElement? lnElement, PptxTheme theme, PptxColorMap? colorMap = null, Rgba32? phClrOverride = null)
     {
         if (lnElement is null)
         {
@@ -569,7 +579,7 @@ public sealed partial class PptxDocument
         // A line's fill carries no shape width/height of its own to position a gradient against -
         // gradient-filled lines are not meaningfully positionable this phase, so 1x1 is used as a
         // neutral placeholder extent (only reachable if a document declares <a:ln><a:gradFill>).
-        var paint = ResolveFill(lnElement, theme, 1f, 1f, colorMap: colorMap);
+        var paint = ResolveFill(lnElement, theme, 1f, 1f, phClrOverride, colorMap);
         if (paint is PptxNoFill)
         {
             return null;
@@ -608,6 +618,163 @@ public sealed partial class PptxDocument
             "sysDot" => [widthEmu, widthEmu * 2f],
             _ => null,
         };
+    }
+
+    /// <summary>
+    ///     Resolves a shape's own <c>&lt;p:style&gt;/&lt;a:fillRef idx="..."/&gt;</c> shape-style
+    ///     reference (Phase 2 Follow-Up) into a concrete <see cref="PptxPaint"/>: maps <c>idx</c>
+    ///     directly, 1-based, into the theme's <see cref="PptxTheme.FillStyleList"/> (unlike
+    ///     <c>&lt;p:bgRef&gt;</c>'s own <c>&lt;a:bgFillStyleLst&gt;</c> 1001-offset convention -
+    ///     an ordinary <c>fillRef</c>/<c>lnRef</c> indexes its own style list with no offset at
+    ///     all), substituting <c>&lt;a:fillRef&gt;</c>'s own single color-definition child
+    ///     (resolved via the existing <see cref="ResolveColor"/>) for every <c>&lt;a:schemeClr
+    ///     val="phClr"/&gt;</c> token the matched style-list entry declares - reusing the exact
+    ///     phClr-substitution pattern <see cref="ResolveBackgroundStyleReference"/> already
+    ///     establishes for <c>&lt;p:bgRef&gt;</c>.
+    /// </summary>
+    /// <param name="styleElement">
+    ///     The shape's own sibling <c>&lt;p:style&gt;</c> element (see <see cref="RenderShape"/>),
+    ///     or <see langword="null"/> when the shape declares no <c>&lt;p:style&gt;</c> at all.
+    /// </param>
+    /// <param name="theme">The resolved theme, used to resolve <see cref="PptxTheme.FillStyleList"/> and any <c>&lt;a:schemeClr&gt;</c>.</param>
+    /// <param name="widthEmu">The owning shape's own declared width, in EMU (needed to position a gradient fill).</param>
+    /// <param name="heightEmu">The owning shape's own declared height, in EMU (needed to position a gradient fill).</param>
+    /// <param name="colorMap">
+    ///     The effective color map consulted when the matched style-list entry declares an
+    ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the
+    ///     default) - see <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
+    /// <returns>
+    ///     The resolved <see cref="PptxPaint"/>, or <see cref="PptxNoFill.Instance"/> when
+    ///     <paramref name="styleElement"/> is <see langword="null"/>, declares no
+    ///     <c>&lt;a:fillRef&gt;</c> at all, or declares a <c>&lt;a:fillRef idx="0"/&gt;</c>
+    ///     (the schema-defined "no fill" sentinel).
+    /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <c>&lt;a:fillRef&gt;</c>'s <c>idx</c> attribute is missing, not a valid
+    ///     non-negative integer, or outside <c>[0,3]</c> (a real theme's
+    ///     <c>&lt;a:fillStyleLst&gt;</c> always declares exactly 3 entries, so any larger value,
+    ///     or a value indexing past the end of (or into an empty) <see cref="PptxTheme.FillStyleList"/>,
+    ///     is rejected rather than silently clamped).
+    /// </exception>
+    internal static PptxPaint ResolveShapeStyleFill(
+        XElement? styleElement, PptxTheme theme, float widthEmu, float heightEmu, PptxColorMap? colorMap = null)
+    {
+        colorMap ??= PptxColorMap.Default;
+
+        var fillRef = styleElement?.Element(DrawingNamespace + "fillRef");
+        if (fillRef is null)
+        {
+            return PptxNoFill.Instance;
+        }
+
+        var idx = ParseStyleRefIdx(fillRef, "fillRef");
+        if (idx == 0)
+        {
+            return PptxNoFill.Instance;
+        }
+
+        if (idx is < 1 or > 3 || idx - 1 >= theme.FillStyleList.Count)
+        {
+            throw new InvalidDataException(
+                $"A <p:style>/<a:fillRef idx=\"{idx}\"> indexes outside the theme's <a:fillStyleLst> (which has {theme.FillStyleList.Count} entries, expected exactly 3).");
+        }
+
+        var styleEntry = theme.FillStyleList[(int)(idx - 1)];
+
+        // <a:fillRef>'s own single color-definition child (when present) supplies the concrete
+        // phClr substitution value for the matched style-list entry's own <a:schemeClr
+        // val="phClr"/> token(s) - same pattern as ResolveBackgroundStyleReference's own <p:bgRef>
+        // resolution.
+        var colorElement = fillRef.Elements().FirstOrDefault();
+        var phClrOverride = colorElement is null ? (Rgba32?)null : ResolveColor(colorElement, theme, colorMap: colorMap);
+
+        // theme.FillStyleList's entries are themselves fill-definition elements (e.g.
+        // <a:solidFill>), not a parent containing one - wrap in a synthetic parent so
+        // ResolveFill's existing "look up a direct named child" dispatch logic applies unchanged.
+        var syntheticFillParent = new XElement("pptxSyntheticStyleFillParent", styleEntry);
+        return ResolveFill(syntheticFillParent, theme, widthEmu, heightEmu, phClrOverride, colorMap);
+    }
+
+    /// <summary>
+    ///     Resolves a shape's own <c>&lt;p:style&gt;/&lt;a:lnRef idx="..."/&gt;</c> shape-style
+    ///     reference (Phase 2 Follow-Up) into a concrete <see cref="PptxLineStyle"/>: maps
+    ///     <c>idx</c> directly, 1-based, into the theme's <see cref="PptxTheme.LnStyleList"/> -
+    ///     each entry is itself an already <c>&lt;a:ln&gt;</c>-shaped element, so it is fed
+    ///     directly to the existing <see cref="ResolveLineStyle"/> after substituting
+    ///     <c>&lt;a:lnRef&gt;</c>'s own single color-definition child as that entry's
+    ///     <c>phClr</c> override (same pattern as <see cref="ResolveShapeStyleFill"/>).
+    /// </summary>
+    /// <param name="styleElement">
+    ///     The shape's own sibling <c>&lt;p:style&gt;</c> element (see <see cref="RenderShape"/>),
+    ///     or <see langword="null"/> when the shape declares no <c>&lt;p:style&gt;</c> at all.
+    /// </param>
+    /// <param name="theme">The resolved theme, used to resolve <see cref="PptxTheme.LnStyleList"/> and any <c>&lt;a:schemeClr&gt;</c>.</param>
+    /// <param name="colorMap">
+    ///     The effective color map consulted when the matched style-list entry's fill declares an
+    ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the
+    ///     default) - see <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
+    /// <returns>
+    ///     The resolved <see cref="PptxLineStyle"/>, or <see langword="null"/> meaning "no
+    ///     stroke": when <paramref name="styleElement"/> is <see langword="null"/>, declares no
+    ///     <c>&lt;a:lnRef&gt;</c> at all, declares a <c>&lt;a:lnRef idx="0"/&gt;</c> (the
+    ///     schema-defined "no line" sentinel), or the matched style-list entry itself resolves to
+    ///     "no stroke" per <see cref="ResolveLineStyle"/>'s own rules.
+    /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <c>&lt;a:lnRef&gt;</c>'s <c>idx</c> attribute is missing, not a valid
+    ///     non-negative integer, or outside <c>[0,3]</c> - see
+    ///     <see cref="ResolveShapeStyleFill"/>'s matching exception documentation.
+    /// </exception>
+    internal static PptxLineStyle? ResolveShapeStyleLineStyle(
+        XElement? styleElement, PptxTheme theme, PptxColorMap? colorMap = null)
+    {
+        colorMap ??= PptxColorMap.Default;
+
+        var lnRef = styleElement?.Element(DrawingNamespace + "lnRef");
+        if (lnRef is null)
+        {
+            return null;
+        }
+
+        var idx = ParseStyleRefIdx(lnRef, "lnRef");
+        if (idx == 0)
+        {
+            return null;
+        }
+
+        if (idx is < 1 or > 3 || idx - 1 >= theme.LnStyleList.Count)
+        {
+            throw new InvalidDataException(
+                $"A <p:style>/<a:lnRef idx=\"{idx}\"> indexes outside the theme's <a:lnStyleLst> (which has {theme.LnStyleList.Count} entries, expected exactly 3).");
+        }
+
+        var styleEntry = theme.LnStyleList[(int)(idx - 1)];
+
+        var colorElement = lnRef.Elements().FirstOrDefault();
+        var phClrOverride = colorElement is null ? (Rgba32?)null : ResolveColor(colorElement, theme, colorMap: colorMap);
+
+        return ResolveLineStyle(styleEntry, theme, colorMap, phClrOverride);
+    }
+
+    /// <summary>
+    ///     Parses a shape-style reference element's (<c>&lt;a:fillRef&gt;</c>/<c>&lt;a:lnRef&gt;</c>)
+    ///     required <c>idx</c> attribute.
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <c>idx</c> is missing or not a valid non-negative integer.
+    /// </exception>
+    private static uint ParseStyleRefIdx(XElement refElement, string refElementName)
+    {
+        var idxValue = (string?)refElement.Attribute("idx") ??
+            throw new InvalidDataException($"A <a:{refElementName}> element has no 'idx' attribute.");
+        if (!uint.TryParse(idxValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var idx))
+        {
+            throw new InvalidDataException($"A <a:{refElementName}> element has a non-numeric 'idx' attribute value '{idxValue}'.");
+        }
+
+        return idx;
     }
 
     /// <summary>

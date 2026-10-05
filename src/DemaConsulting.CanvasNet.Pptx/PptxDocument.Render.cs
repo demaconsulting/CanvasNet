@@ -5,7 +5,7 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore xfrm grpsppr sppr pptx prst cust unrenderable
+// cspell:ignore xfrm grpsppr sppr pptx prst cust unrenderable patt
 
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> public, slide-level rendering API (Phase 1f):
@@ -392,10 +392,27 @@ public sealed partial class PptxDocument
         var geometryPath = ResolveShapeGeometry(geometrySpPrElement, frame.WidthEmu, frame.HeightEmu);
         var transformedPath = geometryPath.Transform(localToSurface);
 
-        var fill = ResolveFill(spPrElement, theme, frame.WidthEmu, frame.HeightEmu, colorMap: colorMap);
+        // A shape's own "Shape Styles" gallery reference (p:style's fillRef/lnRef) is always read
+        // from the slide shape's own element, never inherited from its layout/master placeholder,
+        // unlike the fill-position/xfrm/geometry resolution above. This is a documented,
+        // narrower-scope limitation - see pptx-document.md's "Phase 2 Follow-Up: Shape Style
+        // References" design section.
+        var styleElement = node.ShapeElement.Element(PresentationNamespace + "style");
+
+        // An explicit fill-definition child on spPr always wins over a style fillRef
+        // (ResolveFill's own "nothing at all" and "explicit noFill" cases are otherwise
+        // indistinguishable from its return value alone).
+        var fill = HasExplicitFillChild(spPrElement)
+            ? ResolveFill(spPrElement, theme, frame.WidthEmu, frame.HeightEmu, colorMap: colorMap)
+            : ResolveShapeStyleFill(styleElement, theme, frame.WidthEmu, frame.HeightEmu, colorMap);
         FillPaint(surface, transformedPath, fill);
 
-        var lineStyle = ResolveLineStyle(spPrElement.Element(DrawingNamespace + "ln"), theme, colorMap);
+        // A present line-properties element (even with no recognized fill child) always wins
+        // over a style lnRef - only a fully absent line-properties element falls back to it.
+        var lnElement = spPrElement.Element(DrawingNamespace + "ln");
+        var lineStyle = lnElement is not null
+            ? ResolveLineStyle(lnElement, theme, colorMap)
+            : ResolveShapeStyleLineStyle(styleElement, theme, colorMap);
         if (lineStyle is not null)
         {
             var strokedOutline = ResolveStrokeOutline(geometryPath, lineStyle).Transform(localToSurface);
@@ -414,6 +431,23 @@ public sealed partial class PptxDocument
             PaintTextLayout(surface, layoutResult, localToSurface);
         }
     }
+
+    /// <summary>
+    ///     Determines whether <paramref name="fillParentElement"/> declares an explicit
+    ///     fill-definition child (<c>&lt;a:noFill&gt;</c>/<c>&lt;a:solidFill&gt;</c>/
+    ///     <c>&lt;a:gradFill&gt;</c>/<c>&lt;a:pattFill&gt;</c>/<c>&lt;a:blipFill&gt;</c>) at all -
+    ///     needed because <see cref="ResolveFill"/> itself collapses "explicit <c>&lt;a:noFill/&gt;</c>"
+    ///     and "no recognized fill-definition child at all" to the same <see cref="PptxNoFill.Instance"/>
+    ///     return value, so that return value alone cannot distinguish "this shape explicitly wins
+    ///     over its own <c>&lt;p:style&gt;/&lt;a:fillRef&gt;</c>" from "this shape falls back to
+    ///     it" (see <see cref="RenderShape"/>).
+    /// </summary>
+    private static bool HasExplicitFillChild(XElement fillParentElement) =>
+        fillParentElement.Element(DrawingNamespace + "noFill") is not null ||
+        fillParentElement.Element(DrawingNamespace + "solidFill") is not null ||
+        fillParentElement.Element(DrawingNamespace + "gradFill") is not null ||
+        fillParentElement.Element(DrawingNamespace + "pattFill") is not null ||
+        fillParentElement.Element(DrawingNamespace + "blipFill") is not null;
 
     /// <summary>
     ///     Renders a <see cref="PptxPictureShapeNode"/>: decodes and composites its embedded

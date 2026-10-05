@@ -78,6 +78,15 @@ public class PptxRenderTests
     ///     <c>&lt;p:clrMap&gt;</c>/<c>&lt;p:clrMapOvr&gt;</c> color-map fix's own render-level
     ///     regression test.
     /// </param>
+    /// <param name="themeFillStyleListXml">
+    ///     The theme's own <c>&lt;a:fmtScheme&gt;/&lt;a:fillStyleLst&gt;</c> inner content, or
+    ///     empty (the default) to omit it - used by a <c>&lt;p:style&gt;/&lt;a:fillRef&gt;</c>-based
+    ///     test (Phase 2 Follow-Up shape style references).
+    /// </param>
+    /// <param name="themeLnStyleListXml">
+    ///     The theme's own <c>&lt;a:fmtScheme&gt;/&lt;a:lnStyleLst&gt;</c> inner content, or empty
+    ///     (the default) to omit it - used by a <c>&lt;p:style&gt;/&lt;a:lnRef&gt;</c>-based test.
+    /// </param>
     private static Stream BuildRenderPackage(
         string spTreeInnerXml,
         string masterTxStylesXml = "",
@@ -90,7 +99,9 @@ public class PptxRenderTests
         string masterShapeTreeXml = "",
         (string Extension, string ContentType, byte[] Bytes)? masterMedia = null,
         (string Extension, string ContentType, byte[] Bytes)? layoutMedia = null,
-        string slideClrMapOvrXml = "")
+        string slideClrMapOvrXml = "",
+        string themeFillStyleListXml = "",
+        string themeLnStyleListXml = "")
     {
         // Distinct <Default Extension=".../> content-type entries, one per distinct extension
         // across all three possible media owners (slide/layout/master), avoiding a duplicate
@@ -198,6 +209,19 @@ public class PptxRenderTests
             </Relationships>
             """;
 
+        var fillStyleLstXml = themeFillStyleListXml.Length > 0 ? $"<a:fillStyleLst>{themeFillStyleListXml}</a:fillStyleLst>" : string.Empty;
+        var lnStyleLstXml = themeLnStyleListXml.Length > 0 ? $"<a:lnStyleLst>{themeLnStyleListXml}</a:lnStyleLst>" : string.Empty;
+        var bgFillStyleLstXml = themeBgFillStyleListXml.Length > 0 ? $"<a:bgFillStyleLst>{themeBgFillStyleListXml}</a:bgFillStyleLst>" : string.Empty;
+        var fmtSchemeXml = themeBgFillStyleListXml.Length > 0 || themeFillStyleListXml.Length > 0 || themeLnStyleListXml.Length > 0
+            ? $"""
+              <a:fmtScheme name="TestFormat">
+                {fillStyleLstXml}
+                {lnStyleLstXml}
+                {bgFillStyleLstXml}
+              </a:fmtScheme>
+              """
+            : string.Empty;
+
         var themeXml =
             $$"""
             <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="TestTheme">
@@ -220,7 +244,7 @@ public class PptxRenderTests
                   <a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>
                   <a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>
                 </a:fontScheme>
-                {{(themeBgFillStyleListXml.Length > 0 ? $"""<a:fmtScheme name="TestFormat"><a:bgFillStyleLst>{themeBgFillStyleListXml}</a:bgFillStyleLst></a:fmtScheme>""" : string.Empty)}}
+                {{fmtSchemeXml}}
               </a:themeElements>
             </a:theme>
             """;
@@ -1791,6 +1815,131 @@ public class PptxRenderTests
         using var surface = document.Render(0, 20, 20);
 
         Assert.Equal(new Rgba32(0xF0, 0xF0, 0xF0, 255), surface[10, 10]);
+    }
+
+    /// <summary>A full-slide-sized freeform shape with a <c>&lt;p:style&gt;</c> declaring the given <c>&lt;a:fillRef&gt;</c>/<c>&lt;a:lnRef&gt;</c> inner XML, and optionally an explicit <c>&lt;a:solidFill&gt;</c>/<c>&lt;a:ln&gt;</c> of its own.</summary>
+    private static string FullSlideShapeStyleRefXml(
+        string name, string fillRefXml = "", string lnRefXml = "", string? explicitFillHexColor = null, string explicitLnXml = "",
+        string xfrmXml = """<a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>""") =>
+        $"""
+        <p:sp>
+          <p:nvSpPr>
+            <p:cNvPr id="2" name="{name}"/>
+            <p:cNvSpPr/>
+            <p:nvPr/>
+          </p:nvSpPr>
+          <p:spPr>
+            {xfrmXml}
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+            {(explicitFillHexColor is not null ? $"""<a:solidFill><a:srgbClr val="{explicitFillHexColor}"/></a:solidFill>""" : string.Empty)}
+            {explicitLnXml}
+          </p:spPr>
+          <p:style>
+            {fillRefXml}
+            {lnRefXml}
+          </p:style>
+        </p:sp>
+        """;
+
+    /// <summary>
+    ///     Proves a shape declaring only a <c>&lt;p:style&gt;/&lt;a:fillRef idx="1"/&gt;</c> shape-style
+    ///     reference (no explicit <c>&lt;p:spPr&gt;</c> fill at all) resolves its fill entirely from
+    ///     the theme's <c>&lt;a:fmtScheme&gt;/&lt;a:fillStyleLst&gt;</c>, substituting the
+    ///     <c>&lt;a:fillRef&gt;</c>'s own color child for the matched entry's <c>phClr</c> token -
+    ///     the direct regression test for the customer-reported "Shape Styles gallery" symptom.
+    /// </summary>
+    [Fact]
+    public void Render_ShapeWithOnlyStyleFillRefNoExplicitSpPrFill_RendersResolvedTintedAccentColor()
+    {
+        const string fillRefXml = """<a:fillRef idx="1"><a:srgbClr val="FF00FF"/></a:fillRef>""";
+        const string fillStyleListXml = """<a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:srgbClr val="111111"/></a:solidFill><a:solidFill><a:srgbClr val="222222"/></a:solidFill>""";
+        var shapeXml = FullSlideShapeStyleRefXml("StyleFillShape", fillRefXml: fillRefXml);
+        using var stream = BuildRenderPackage(shapeXml, themeFillStyleListXml: fillStyleListXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 20, 20);
+
+        Assert.Equal(new Rgba32(0xFF, 0x00, 0xFF, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves an explicit <c>&lt;a:solidFill&gt;</c> on a shape's own <c>&lt;p:spPr&gt;</c>
+    ///     always wins over its own <c>&lt;p:style&gt;/&lt;a:fillRef&gt;</c>, even when both are
+    ///     present on the same shape.
+    /// </summary>
+    [Fact]
+    public void Render_ShapeWithBothExplicitSpPrFillAndStyleFillRef_ExplicitFillWins()
+    {
+        const string fillRefXml = """<a:fillRef idx="1"><a:srgbClr val="FF00FF"/></a:fillRef>""";
+        const string fillStyleListXml = """<a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:srgbClr val="111111"/></a:solidFill><a:solidFill><a:srgbClr val="222222"/></a:solidFill>""";
+        var shapeXml = FullSlideShapeStyleRefXml("StyleFillShape", fillRefXml: fillRefXml, explicitFillHexColor: "00FF00");
+        using var stream = BuildRenderPackage(shapeXml, themeFillStyleListXml: fillStyleListXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 20, 20);
+
+        Assert.Equal(new Rgba32(0x00, 0xFF, 0x00, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves a shape declaring only a <c>&lt;p:style&gt;/&lt;a:lnRef idx="1"/&gt;</c> shape-style
+    ///     reference (no explicit <c>&lt;a:ln&gt;</c> at all) resolves its stroke entirely from the
+    ///     theme's <c>&lt;a:fmtScheme&gt;/&lt;a:lnStyleLst&gt;</c>, substituting the
+    ///     <c>&lt;a:lnRef&gt;</c>'s own color child for the matched entry's <c>phClr</c> token.
+    /// </summary>
+    [Fact]
+    public void Render_ShapeWithOnlyStyleLnRefNoExplicitLn_RendersResolvedStrokeColor()
+    {
+        const string lnRefXml = """<a:lnRef idx="1"><a:srgbClr val="FF00FF"/></a:lnRef>""";
+        const string lnStyleListXml =
+            """
+            <a:ln w="900000"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>
+            <a:ln w="100000"><a:solidFill><a:srgbClr val="111111"/></a:solidFill></a:ln>
+            <a:ln w="100000"><a:solidFill><a:srgbClr val="222222"/></a:solidFill></a:ln>
+            """;
+        const string fillRefXml = """<a:fillRef idx="0"/>""";
+        const string xfrmXml = """<a:xfrm><a:off x="914400" y="685800"/><a:ext cx="7315200" cy="5486400"/></a:xfrm>""";
+        var shapeXml = FullSlideShapeStyleRefXml("StyleLnShape", fillRefXml: fillRefXml, lnRefXml: lnRefXml, xfrmXml: xfrmXml);
+        using var stream = BuildRenderPackage(shapeXml, themeLnStyleListXml: lnStyleListXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 200, 200);
+
+        // The lnRef-resolved stroke (900000 EMU wide, centered on the shape's inset top edge at
+        // y=685800 EMU, i.e. pixel row 20 of 200) is thick enough to fully cover several pixel
+        // rows either side of its centerline - sampled well away from any corner so only this one
+        // edge's stroke band (not an adjacent edge's) can contribute to the sampled pixel.
+        Assert.Equal(new Rgba32(0xFF, 0x00, 0xFF, 255), surface[100, 20]);
+    }
+
+    /// <summary>
+    ///     Proves a present <c>&lt;a:ln&gt;</c> (even with no recognized fill child of its own)
+    ///     always wins over a shape's own <c>&lt;p:style&gt;/&lt;a:lnRef&gt;</c> - only a fully
+    ///     absent <c>&lt;a:ln&gt;</c> falls back to it.
+    /// </summary>
+    [Fact]
+    public void Render_ShapeWithExplicitLnNoFillAndStyleLnRef_ExplicitLnWins()
+    {
+        const string lnRefXml = """<a:lnRef idx="1"><a:srgbClr val="FF00FF"/></a:lnRef>""";
+        const string lnStyleListXml =
+            """
+            <a:ln w="900000"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>
+            <a:ln w="100000"><a:solidFill><a:srgbClr val="111111"/></a:solidFill></a:ln>
+            <a:ln w="100000"><a:solidFill><a:srgbClr val="222222"/></a:solidFill></a:ln>
+            """;
+        const string fillRefXml = """<a:fillRef idx="0"/>""";
+        const string explicitLnXml = """<a:ln w="900000"><a:noFill/></a:ln>""";
+        const string xfrmXml = """<a:xfrm><a:off x="914400" y="685800"/><a:ext cx="7315200" cy="5486400"/></a:xfrm>""";
+        var shapeXml = FullSlideShapeStyleRefXml("StyleLnShape", fillRefXml: fillRefXml, lnRefXml: lnRefXml, explicitLnXml: explicitLnXml, xfrmXml: xfrmXml);
+        using var stream = BuildRenderPackage(shapeXml, themeLnStyleListXml: lnStyleListXml);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 200, 200);
+
+        // The explicit <a:ln><a:noFill/></a:ln> wins - no stroke paints, leaving the default
+        // opaque-white clear at the same pixel the lnRef's own stroke would otherwise have
+        // fully covered (see the sibling fact above).
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[100, 20]);
     }
 
 
