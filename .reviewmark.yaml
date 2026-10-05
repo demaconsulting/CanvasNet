@@ -874,6 +874,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxRenderTests.cs"  # phase 1f unit tests (render API)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxBackgroundTests.cs"  # phase 2 follow-up (background resolver)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxBulletTests.cs"  # phase 2 follow-up (bullet/numbering tests)
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxColorMapTests.cs"  # phase 2 follow-up (color map tests)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxFixturesCorpusTests.cs"  # fixture conformance tests
 
   # OTS-BuildMark Review (one per OTS item)
