@@ -535,6 +535,25 @@ its own distinguishable `Feature` token.
   rule. Every path-painting operator, including `n`, always clears the current path afterward
   (`_pathBuilder.Clear()`); the surrounding graphics state is entirely unaffected by that clear,
   so a subsequent path in the same content stream still sees the same CTM/stroke style/color.
+  - **Shared `StrokeOutliner` false-collapse investigation (regression fix note).** A separate
+    investigation into a PPTX rendering regression (a `<a:noFill/>` shape's thin stroke outline
+    rendering as a solid-filled interior instead of a thin ring) traced the root cause to the
+    shared core `Drawing.StrokeOutliner`'s inner-ring collapse detector, which used a fixed
+    absolute tolerance that false-positives when stroking a closed, curved contour tessellated
+    finely relative to its own large coordinate magnitude (see
+    `docs/design/canvas-net/drawing/path-stroker.md`'s "Inner-ring collapse" section). `PaintStroke`
+    above shares this exact `Drawing.PathStroker.Stroke`/`StrokeOutliner` code path, so the
+    investigation confirmed the same underlying defect is reproducible here too, with plain
+    large-magnitude device-space coordinates independent of PPTX/EMU. In practice, `PaintStroke`
+    strokes `path` _after_ it is already device-space-baked (unlike the PPTX caller that was
+    stroking in native, pre-transform EMU space) and typical PDF device-space coordinates stay at
+    a modest, page/pixel scale, so this defect was judged unlikely to manifest for ordinary PDF
+    documents - no `PdfDocument` source change was required. The shared `StrokeOutliner` tolerance
+    fix itself was still made (hardening every caller, including this one, against unusually large
+    pages/zoom levels), and a dedicated regression test,
+    `PdfDocumentTests.PdfDocument_PathOps_StrokeOnlyClosedBezierCircle_RendersThinRingNotSolidDisc`,
+    confirms a stroke-only, unfilled closed Bezier-curve circle continues to render as a ring
+    (not a solid disc) through this exact code path.
 - **Device color operators (`PdfDocument.Color.cs`, added in Phase 3; color-space model replaced
   in Phase 14)** — a private, immutable `PdfColorSpace` class (nested `Family` enum:
   `DeviceGray`/`DeviceRGB`/`DeviceCMYK`/`Indexed`, with shared `DeviceGray`/`DeviceRGB`/

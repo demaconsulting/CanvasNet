@@ -670,7 +670,10 @@ sections:
               defaults to the OOXML conventional default stroke width, 9525 EMU / 0.75pt), or its
               resolved fill is PptxNoFill, and shall realize a resolved PptxLineStyle against a
               shape's path into a stroked outline path via the core PathStroker, mirroring the PDF
-              renderer's own StrokeStyle/PathStroker call pattern.
+              renderer's own StrokeStyle/PathStroker call pattern, using a flatten tolerance scaled
+              to the shape's own local-to-surface transform so curved geometry at native,
+              large-magnitude PPTX EMU coordinates is neither over-tessellated nor falsely
+              collapsed to a solid fill.
             justification: |
               A shape's visible outline is produced by stroking its geometric path with the
               resolved line style, not merely resolving the line style's data in isolation; reusing
@@ -680,7 +683,14 @@ sections:
               real-world documents commonly declare an <a:ln> with only a color/fill, relying on
               PowerPoint's own default stroke weight for an un-set w, and previously rendered with
               no visible outline at all - a visual-fidelity bug fixed by defaulting a genuinely-
-              absent w to PowerPoint's own observed default stroke width instead.
+              absent w to PowerPoint's own observed default stroke width instead. Separately, a
+              curved preset geometry (ellipse, roundRect) stroked at a full-size slide's own native
+              EMU coordinate magnitude, using the core stroker's pixel-tuned default flatten
+              tolerance, over-tessellated by roughly 200x and falsely triggered the shared
+              StrokeOutliner's inner-ring collapse detector (see the Drawing subsystem's own
+              PathStroker requirements), rendering a noFill shape's thin outline as a solid-filled
+              interior instead of a ring - a confirmed real-world regression fixed by deriving the
+              flatten tolerance from the shape's own rendering scale instead.
             tests:
               - ResolveLineStyle_NullElement_ReturnsNull
               - ResolveLineStyle_ZeroWidth_ReturnsNull
@@ -693,6 +703,8 @@ sections:
               - ResolveLineStyle_MissingWidthAttribute_ResolvesDefaultWidth
               - Render_EllipseWithNoFillAndLnMissingWidthButRecognizedColor_PaintsDefaultWidthStroke
               - ResolveStrokeOutline_RectangleWithSolidLine_ProducesNonEmptyOutline
+              - Render_FullSlideScaleEllipseWithNoFillAndLnMissingWidth_RendersThinRingNotSolidDisc
+              - Render_FullSlideScaleRoundRectWithNoFillAndLnMissingWidth_RendersThinOutlineNotSolidFill
               - CanvasNetPptx_SystemIntegration_GeometryAndPaint_FreeformShapeResolvesEndToEnd
 
           - id: CanvasNetPptx-PptxDocument-TextBodyParsing

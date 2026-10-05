@@ -664,7 +664,8 @@ Renders a bare `l` with no preceding `m`/`re`, asserting `InvalidDataException`.
 `PdfDocument_PathOps_FillEvenOdd_PaintsExpectedPixels`, `PdfDocument_PathOps_Stroke_PaintsExpectedPixels`,
 `PdfDocument_PathOps_CloseAndFillAndStroke_PaintsExpectedPixels`,
 `PdfDocument_PathOps_NoOp_DiscardsPathWithoutPainting`,
-`PdfDocument_PathOps_PaintOperator_ClearsPathButPreservesGraphicsState`
+`PdfDocument_PathOps_PaintOperator_ClearsPathButPreservesGraphicsState`,
+`PdfDocument_PathOps_StrokeOnlyClosedBezierCircle_RendersThinRingNotSolidDisc`
 
 Renders a filled rectangle (`f`), asserting an interior pixel is opaque black and an exterior
 pixel remains transparent. Renders two nested, same-winding rectangles (`f*`), asserting the outer
@@ -677,6 +678,18 @@ rectangle followed by `n`, asserting the entire surface remains fully transparen
 rectangles filled under the same scaled `cm`, asserting the second path's fill lands only in its
 own expected region - proving the first path was cleared after its own `f` rather than
 accumulating into the second, while the surrounding CTM was preserved across the clear.
+
+`PdfDocument_PathOps_StrokeOnlyClosedBezierCircle_RendersThinRingNotSolidDisc` is a shared-library
+regression guard (see `../canvas-net/drawing/path-stroker.md`'s "Inner-ring collapse" section and
+`../../design/canvas-net-pdf/pdf-document.md`'s "Shared `StrokeOutliner` false-collapse
+investigation" note): it strokes-only (no fill) a closed circular path built from four cubic
+`c` Bezier curves, asserting the circle's own center pixel remains the (transparent) background -
+proving the ring's own interior is not filled solid - while a pixel on the circle's own boundary is
+opaque black, proving the ring itself still paints. This exercises the exact `PaintStroke` ->
+`Drawing.PathStroker.Stroke` -> `Drawing.StrokeOutliner` code path shared with `PptxDocument`,
+guarding PDF against the false inner-ring-collapse regression even though PDF's own
+stroke-after-transform architecture made it unlikely to manifest for typical PDF device-space
+coordinate magnitudes.
 
 #### CanvasNetPdf-PdfDocument-Dispose: Dispose Is Idempotent
 

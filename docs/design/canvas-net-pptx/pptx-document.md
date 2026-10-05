@@ -511,14 +511,41 @@ preset renders as a solid line rather than throwing) distinct from preset-geomet
 philosophy, chosen because a solid line where a dashed one was intended is still a usable, visible
 stroke, unlike an entirely unresolved shape.
 
-**Realizing a stroke outline**: `ResolveStrokeOutline(Path shapePath, PptxLineStyle lineStyle)`
-mirrors the PDF renderer's own stroke-operator call pattern exactly: it constructs a core
-`StrokeStyle(lineStyle.WidthEmu, dashArray: lineStyle.DashArray)` and calls the core
-`PathStroker.Stroke(shapePath, style)` static entry point, producing the stroked outline path a
-later rendering phase fills (via `PathFiller.Fill(..., FillRule.NonZero)`) with
-`lineStyle.Paint`'s resolved color - reusing the exact same, already-tested stroking machinery the
-PDF renderer uses, rather than a second, divergent implementation for this package. This phase has
-no rendering surface yet, so only the outline geometry is produced here.
+**Realizing a stroke outline**: `ResolveStrokeOutline(Path shapePath, PptxLineStyle lineStyle,
+Matrix3x2 localToSurface)` mirrors the PDF renderer's own stroke-operator call pattern exactly: it
+constructs a core `StrokeStyle(lineStyle.WidthEmu, dashArray: lineStyle.DashArray)` and calls the
+core `PathStroker.Stroke(shapePath, style, flattenTolerance)` static entry point, producing the
+stroked outline path a later rendering phase fills (via `PathFiller.Fill(...,
+FillRule.NonZero)`) with `lineStyle.Paint`'s resolved color - reusing the exact same, already-tested
+stroking machinery the PDF renderer uses, rather than a second, divergent implementation for this
+package. This phase has no rendering surface yet, so only the outline geometry is produced here.
+
+- **Scale-aware flatten tolerance (regression fix).** Unlike `PdfDocument.PaintStroke`, which
+  strokes an already device-space-baked path, `ResolveStrokeOutline` strokes `shapePath` in the
+  shape's own native, pre-transform local coordinate space (PPTX's own EMU units - typically
+  hundreds of thousands to millions per shape), with the caller applying `localToSurface` only
+  afterward. Calling `PathStroker.Stroke` with its library default `flattenTolerance: 0.25f`
+  against that native EMU-space geometry produced a confirmed regression: a curved shape (for
+  example an `ellipse` or `roundRect` preset geometry) flattened to roughly 200x more tessellation
+  points than its eventual rendered pixel scale ever needed (around 8,000 points for a typical
+  slide-scale ellipse, versus the ~40 actually needed), which in turn triggered a false-positive
+  inner-ring collapse in the shared `StrokeOutliner` (see
+  `docs/design/canvas-net/drawing/path-stroker.md`'s "Inner-ring collapse" section) - rendering a
+  `<a:noFill/>` shape's thin `<a:ln>` outline as a solid-filled interior instead of a thin ring.
+  `ResolveStrokeOutline` now derives its own `flattenTolerance` from `localToSurface`'s own scale
+  (the larger of its two row-vector lengths, a conservative choice ensuring the more-magnified
+  axis still stays within the intended deviation), via a private `ResolveFlattenTolerance` helper
+  that returns `0.25f / scale` - keeping the _effective_, post-transform flattening deviation at
+  the library's intended ~0.25 device-pixel target regardless of the shape's own native EMU
+  magnitude, falling back to the unscaled `0.25f` default when the transform's scale is
+  non-finite or non-positive (for example, a degenerate zero-size shape). This both resolves the
+  false-collapse regression and incidentally fixes a ~200x stroke-tessellation performance cost
+  that affected every stroked PPTX shape, not only the reported bug. The shared `StrokeOutliner`
+  tolerance fix above was still made and is the primary defense (it does not depend on this
+  caller choosing a sane `flattenTolerance`); this change is a secondary, scale-appropriate
+  hardening of the specific caller that originally triggered it. See
+  `PptxRenderTests.Render_FullSlideScaleEllipseWithNoFillAndLnMissingWidth_RendersThinRingNotSolidDisc`
+  and `PptxRenderTests.Render_FullSlideScaleRoundRectWithNoFillAndLnMissingWidth_RendersThinOutlineNotSolidFill`.
 
 #### Deferred to a Later Phase
 

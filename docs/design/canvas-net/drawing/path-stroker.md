@@ -163,6 +163,38 @@ instances directly. Every emitted polygon becomes one closed subpath in the resu
   otherwise become the hole, omits that ring entirely rather than emitting it as a hole - matching
   what a true geometric erosion of the contour by that half-width would produce (an empty inner
   boundary) and leaving the whole interior filled as solid stroke.
+  - **Scale-relative false-positive tolerance (regression fix).** The backwards-edge test
+    tolerates a bounded amount of backwards-projected length before concluding a ring has
+    genuinely collapsed, and that tolerance is derived from the contour's own bounding-box extent
+    (its geometric-mean span, `sqrt(RingAreaScale(points))` - a length, matching the dimension
+    being compared), the same pattern already used by `CreateClosedStrokePolygons`'s sibling
+    `areaNearZeroTolerance` check, floored at the original fixed `NearZeroDistance` for tiny or
+    degenerate contours. This replaced an earlier fixed absolute tolerance
+    (`NearZeroDistance = 1e-6f`, tuned for small/pixel-scale coordinates) that produced a confirmed
+    false-positive regression: a closed, curved contour flattened to many short segments at large
+    coordinate magnitude - for example a PPTX shape's native EMU-space geometry (coordinates in
+    the hundreds of thousands to millions), tessellated finely enough that each segment subtends
+    only a tiny turn angle - forces each forced-exact-intersection point to divide by a
+    correspondingly tiny (near-parallel-offset-lines) cross-product denominator. That division
+    amplifies the input vertices' own float32 storage-quantization noise (itself already
+    proportional to the contour's coordinate magnitude) by a factor inversely proportional to the
+    tiny per-vertex turn angle, producing a projected edge length that is measurably, not just
+    infinitesimally, negative - yet is still pure tessellation-density noise, not a genuine
+    "half-width exceeds inradius" collapse (the same contour at a coarser tessellation, or an
+    equivalent coordinate-scale-appropriate flatten tolerance, produces a clearly positive
+    projected length for the identical geometry). The fixed absolute tolerance was swamped by that
+    magnitude-proportional noise and misread it as a genuine backwards-running edge, collapsing a
+    perfectly valid thin ring (for example, a `noFill` ellipse's thin `<a:ln>` outline) into a
+    solid fill. Promoting the line-intersection arithmetic to `double` precision alone does *not*
+    fix this (confirmed by direct experimentation): the noise already exists in the float32-stored
+    flattened vertices themselves, before the intersection division even runs, so more precision
+    in the division does not recover information already lost. Increasing arithmetic precision in
+    the division does not change the magnitude-relative nature of the fix required. Both the
+    original genuine-collapse case (a thick stroke whose half-width truly exceeds a small shape's
+    inradius) and the new false-positive-at-scale case are covered by dedicated unit tests - see
+    `StrokeOutlinerTests.StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_ProducesNoInvalidHole`
+    and
+    `StrokeOutlinerTests.StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedClosedContour_ProducesValidThinRing`.
 - **Degenerate subpaths.** A single point (or a path collapsed to one effective point after
   duplicate-vertex simplification) renders as a cap-shaped mark: round creates a full circle,
   square creates an axis-aligned width-by-width square, and butt creates nothing. This same

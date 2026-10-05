@@ -545,7 +545,9 @@ dash preset names), `ResolveLineStyle_SolidPreset_ProducesNullDashArray`,
 `ResolveLineStyle_ExplicitZeroWidth_ReturnsNull`, `ResolveLineStyle_ExplicitNegativeWidth_ReturnsNull`,
 `ResolveLineStyle_MissingWidthAttribute_ResolvesDefaultWidth`,
 `Render_EllipseWithNoFillAndLnMissingWidthButRecognizedColor_PaintsDefaultWidthStroke`,
-`ResolveStrokeOutline_RectangleWithSolidLine_ProducesNonEmptyOutline`
+`ResolveStrokeOutline_RectangleWithSolidLine_ProducesNonEmptyOutline`,
+`Render_FullSlideScaleEllipseWithNoFillAndLnMissingWidth_RendersThinRingNotSolidDisc`,
+`Render_FullSlideScaleRoundRectWithNoFillAndLnMissingWidth_RendersThinOutlineNotSolidFill`
 
 Proves a `null` `<a:ln>`, an explicitly-declared zero/non-positive width, and an explicit or
 implicit no-fill line, each resolve to `null` (no stroke drawn); proves a positive width with a
@@ -576,6 +578,28 @@ collapsed to the same "no stroke" outcome as an explicit `w="0"`):
   outside its bounding box remain the default opaque-white clear - proving the stroke is now
   visible, proving `<a:noFill/>` still means no interior fill, and proving the stroke does not
   spill unexpectedly far beyond its own narrow band.
+
+**Full-slide-scale "solid disc" regression scenarios** (fixing a second, deeper bug: the same
+small-slide test above does not catch a regression that only manifests at a realistic, full-size
+slide's own native EMU coordinate magnitude, where a curved shape's stroke outline falsely
+collapsed to a solid fill - see `../../design/canvas-net/drawing/path-stroker.md`'s "Inner-ring
+collapse" section and `../../design/canvas-net-pptx/pptx-document.md`'s "Realizing a stroke
+outline" section for the full root-cause/fix explanation):
+
+- `Render_FullSlideScaleEllipseWithNoFillAndLnMissingWidth_RendersThinRingNotSolidDisc` renders an
+  `ellipse`, `<a:noFill/>`, color-only (default-width) `<a:ln>` shape against a standard full-size
+  slide (`9144000x6858000` EMU rendered at `960x720` - exactly `9525` EMU/pixel, matching
+  PowerPoint's own default stroke width) and asserts the ellipse's own exact center pixel remains
+  the background color (proving the interior is **not** filled solid), a pixel on the ellipse's
+  own top boundary is red-dominant (proving the ring itself still paints), and a pixel outside the
+  ellipse's bounding box remains the background color. This test was confirmed, by direct
+  before/after comparison against the unfixed code, to fail (center rendered the stroke color) in
+  the pre-fix state and pass post-fix.
+- `Render_FullSlideScaleRoundRectWithNoFillAndLnMissingWidth_RendersThinOutlineNotSolidFill` is the
+  equivalent test for a `roundRect` preset geometry at the same full-slide scale, proving the fix
+  is general to curved/Bezier-flattened closed geometry and not an ellipse-only special case (a
+  plain `rect`, with no curved segments, was confirmed unaffected and does not need an equivalent
+  test).
 
 ### Text Layout and Rendering (Phase 1d) Test Scenarios
 
