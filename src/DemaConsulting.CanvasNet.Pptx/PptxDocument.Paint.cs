@@ -535,6 +535,17 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>
+    ///     The conventional default stroke width PowerPoint applies to an <c>&lt;a:ln&gt;</c> that
+    ///     declares a fill but omits its own <c>w</c> attribute entirely: <c>0.75</c>pt
+    ///     (<c>0.75 * 12700</c> EMU). This is an <em>application-level convention</em> observed in
+    ///     PowerPoint's own default new-shape border weight - the ECMA-376/ISO-29500
+    ///     <c>CT_LineProperties</c> schema does not declare a formal XSD <c>default="..."</c> for
+    ///     <c>w</c>, so this value is cross-checked against community/library documentation (for
+    ///     example python-pptx's own documented default) rather than cited as a schema default.
+    /// </summary>
+    private const float DefaultLineWidthEmu = 0.75f * 12700f;
+
+    /// <summary>
     ///     Resolves an <c>&lt;a:ln&gt;</c> line-properties element into a <see cref="PptxLineStyle"/>.
     /// </summary>
     /// <param name="lnElement">The <c>&lt;a:ln&gt;</c> element, or <see langword="null"/> for "no line properties declared".</param>
@@ -555,12 +566,20 @@ public sealed partial class PptxDocument
     /// </param>
     /// <returns>
     ///     The resolved <see cref="PptxLineStyle"/>, or <see langword="null"/> meaning "no
-    ///     stroke": when <paramref name="lnElement"/> is <see langword="null"/>, declares no
-    ///     <c>w</c> attribute or a non-positive one (a deliberate simplification - this phase does
-    ///     not resolve a missing width from the shape's format-scheme-inherited default line
-    ///     style; see the design document), or its resolved fill is <see cref="PptxNoFill"/>
-    ///     (including an explicit <c>&lt;a:noFill/&gt;</c>, or no recognized fill-definition child
-    ///     at all).
+    ///     stroke": when <paramref name="lnElement"/> is <see langword="null"/>, its resolved fill
+    ///     is <see cref="PptxNoFill"/> (including an explicit <c>&lt;a:noFill/&gt;</c>, or no
+    ///     recognized fill-definition child at all), or its <c>w</c> attribute is <em>explicitly
+    ///     present</em> with a non-positive (<c>&lt;= 0</c>) value. A <c>w</c> attribute that is
+    ///     genuinely <em>absent</em> (as opposed to explicitly zero/negative) instead resolves to
+    ///     <see cref="DefaultLineWidthEmu"/>, PowerPoint's own observed default stroke weight -
+    ///     this mirrors real-world documents that declare only a line color/fill and rely on
+    ///     PowerPoint's own default width, which must not render invisibly. See the design
+    ///     document's "Stroke/Line Style Resolution" section for the full rationale; this
+    ///     default-width fallback applies only to this method, not to
+    ///     <see cref="ResolveShapeLineStyle"/>'s case-3 branch or
+    ///     <see cref="ResolveConnectorLineStyle"/>'s own width-merge logic, both of which
+    ///     deliberately retain their existing "a present, width-less <c>&lt;a:ln&gt;</c> never
+    ///     gains a width from style or default" behavior.
     /// </returns>
     internal static PptxLineStyle? ResolveLineStyle(
         XElement? lnElement, PptxTheme theme, PptxColorMap? colorMap = null, Rgba32? phClrOverride = null)
@@ -570,10 +589,21 @@ public sealed partial class PptxDocument
             return null;
         }
 
-        var widthEmu = (float?)lnElement.Attribute("w") ?? 0f;
-        if (widthEmu <= 0f)
+        var widthAttribute = lnElement.Attribute("w");
+        float widthEmu;
+        if (widthAttribute is null)
         {
-            return null;
+            // Genuinely absent "w" - fall back to PowerPoint's own observed default stroke width
+            // rather than treating this the same as an explicit zero/negative width.
+            widthEmu = DefaultLineWidthEmu;
+        }
+        else
+        {
+            widthEmu = (float?)widthAttribute ?? 0f;
+            if (widthEmu <= 0f)
+            {
+                return null;
+            }
         }
 
         // A line's fill carries no shape width/height of its own to position a gradient against -

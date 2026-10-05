@@ -11,9 +11,11 @@ namespace DemaConsulting.CanvasNet.Pptx;
 /// <param name="WidthEmu">
 ///     The line's width (<c>&lt;a:ln w="..."/&gt;</c>), in EMU. Always a finite value greater than
 ///     zero - <see cref="PptxDocument.ResolveLineStyle"/> never produces a
-///     <see cref="PptxLineStyle"/> for a zero/absent width or an explicit
-///     <c>&lt;a:noFill/&gt;</c> line (both resolve to <see langword="null"/> instead, meaning "no
-///     stroke" - see that method's remarks).
+///     <see cref="PptxLineStyle"/> for a zero/negative <em>explicitly-declared</em> width or an
+///     explicit <c>&lt;a:noFill/&gt;</c> line (both resolve to <see langword="null"/> instead,
+///     meaning "no stroke"); a genuinely <em>absent</em> width instead defaults to
+///     <see cref="PptxDocument.ResolveLineStyle"/>'s documented default stroke width - see that
+///     method's remarks.
 /// </param>
 /// <param name="Paint">
 ///     The line's resolved paint (an <c>&lt;a:ln&gt;</c>'s own <c>&lt;a:solidFill&gt;</c>/
