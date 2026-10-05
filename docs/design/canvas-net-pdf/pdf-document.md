@@ -650,7 +650,16 @@ its own distinguishable `Feature` token.
   image.Height)`, since image sample row `0` is the _top_ of the unit square per the PDF
   specification's image-space convention, the opposite of user-space's y-up convention) — no
   bilinear interpolation, a documented Phase 3 simplification consistent with Phase 2's own
-  stroke-width simplification precedent.
+  stroke-width simplification precedent. Each sampled source pixel is alpha-blended "over" the
+  existing destination pixel via the shared internal `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)`
+  helper (standard Porter-Duff "over" alpha compositing — straight/unassociated alpha in and out,
+  `outA = fgA + bgA * (1 - fgA)`, each color channel `outC = (fgC * fgA + bgC * bgA * (1 - fgA)) /
+  outA` when `outA != 0` else `0`, round-half-away-from-zero, clamped to `[0, 255]`) rather than
+  overwritten outright — a documented fix (every decoded PDF image XObject is currently always
+  fully opaque per the `/SMask`/`/Mask` limitation noted above, so this matters only for a future
+  phase that decodes a non-opaque alpha channel, or for this same helper's shared reuse by
+  `DemaConsulting.CanvasNet.Pptx`'s own `PaintPicture`, which does sample genuinely non-opaque
+  source pixels today — see that package's own design documentation).
 - **CCITT Group 4 fax decoding (`PdfDocument.CcittFax.cs`, added in Phase 15)** — a from-scratch
   ITU-T T.6 decoder, implementing two-dimensional MMR coding only (`/K` must be negative;
   non-negative `/K`, i.e. Group 3, and `/EndOfLine true` are rejected up front by the top-level

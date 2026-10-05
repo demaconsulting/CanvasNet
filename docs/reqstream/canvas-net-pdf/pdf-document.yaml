@@ -771,7 +771,9 @@ sections:
               XObject, decoding a bare /Filter /DCTDecode image via Codecs.JpegCodec.Load or
               interpreting raw DeviceGray/DeviceRGB/DeviceCMYK 8-bit samples, and compositing the
               decoded image onto the destination surface through the current transformation
-              matrix (nearest-neighbor sampling, treating every image as fully opaque); an
+              matrix (nearest-neighbor sampling, treating every image as fully opaque, and
+              alpha-blending each sampled source pixel over the existing destination pixel via
+              standard Porter-Duff "over" compositing rather than overwriting it outright); an
               unsupported /ColorSpace or an unsupported /BitsPerComponent shall throw
               UnsupportedImageFeatureException rather than being silently skipped or
               mis-rendered, and a malformed operand count/type or an undeclared XObject name
@@ -781,6 +783,12 @@ sections:
               them decoded and correctly positioned, and need every explicitly out-of-scope
               construct (unsupported color spaces/bit depths) to fail closed with a
               distinguishable exception rather than being silently skipped or mis-rendered.
+              Alpha-blending (rather than raw-overwriting) a sampled source pixel over the
+              existing destination pixel is required so a source pixel with a non-opaque alpha
+              channel lets existing destination content show through correctly instead of being
+              replaced by whatever RGB value happens to be stored alongside that non-opaque
+              alpha - the same shared compositing helper DemaConsulting.CanvasNet.Pptx's own
+              PaintPicture reuses.
             tests:
               - PdfDocument_Images_DoOperator_DeviceGrayFlateDecode_PlacesExpectedPixels
               - PdfDocument_Images_DoOperator_DeviceRgbFlateDecode_PlacesExpectedPixels
@@ -788,6 +796,7 @@ sections:
               - PdfDocument_Images_DoOperator_DctDecodeJpeg_PlacesExpectedPixels
               - PdfDocument_Images_UnsupportedBitsPerComponent_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException
+              - CompositeImageOntoSurface_SourceImageWithAlphaChannel_AlphaBlendsOntoExistingBackground
 
           - id: CanvasNetPdf-PdfDocument-FormXObjects
             title: >-

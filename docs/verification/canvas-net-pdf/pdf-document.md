@@ -64,6 +64,14 @@ end-to-end rather than only the empty-password shortcut.
 
 Unit tests reside in `PdfDocumentTests.cs` within the `DemaConsulting.CanvasNet.Pdf.Tests`
 project; encryption-specific tests reside in the sibling `PdfDocumentEncryptionTests.cs`.
+The private `CompositeImageOntoSurface` image-alpha-compositing regression test resides in its
+own sibling `PdfDocumentImageCompositingTests.cs`, which invokes that private method directly via
+reflection against a `PdfDocument` instance created with
+`System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject` (bypassing its private
+constructor, which requires a real, parseable PDF byte buffer) since `CompositeImageOntoSurface`
+only reads/writes the instance's own `_surface` field, which the test sets directly - the same
+reflection-based internals-testing approach `PdfDocumentSymbolicEncodingTests.cs` already
+established for a private static field.
 
 ### Test Environment
 
@@ -948,7 +956,8 @@ bits before each row, rather than the implementation coincidentally tolerating z
 `PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Images_DoOperator_UndefinedXObjectName_ThrowsInvalidDataException`,
 `PdfDocument_Images_DoOperator_MalformedOperandCount_ThrowsInvalidDataException`,
-`CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels`
+`CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels`,
+`CompositeImageOntoSurface_SourceImageWithAlphaChannel_AlphaBlendsOntoExistingBackground`
 
 Places a small, raw 8-bit `DeviceGray`/`DeviceRGB`/`DeviceCMYK` `FlateDecode` image XObject via
 `cm`/`Do`, asserting the four composited device pixels match the image's four known source
@@ -965,7 +974,15 @@ renders `Do` with a malformed operand count/type, asserting `InvalidDataExceptio
 The end-to-end system-integration test independently proves the same `Do` compositing against a
 real, hand-authored fixture, asserting specific composited pixel colors at specific coordinates
 matching the fixture's known 2x2 source image, and a pixel outside the placed image's
-device-space footprint remains transparent.
+device-space footprint remains transparent. A dedicated regression test (regression guard for a
+confirmed real-world raw-overwrite alpha-compositing bug, invoking the private
+`CompositeImageOntoSurface` method directly via reflection, since every image XObject this
+package currently decodes is always fully opaque and so cannot exercise non-opaque sampling
+end-to-end) proves each sampled source pixel is alpha-blended "over" the existing destination
+pixel - a fully transparent source pixel with a non-matching stored RGB leaves the background
+completely unchanged, a fully opaque source pixel exactly replaces it, and a partially
+transparent source pixel blends to the exact expected bytes per the documented Porter-Duff "over"
+formula.
 
 #### CanvasNetPdf-PdfDocument-FormXObjects: Do Executes Nested Form XObject Content Streams
 

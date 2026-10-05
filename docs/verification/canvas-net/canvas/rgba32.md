@@ -1,7 +1,7 @@
 ### Rgba32 Unit Verification Design
 
-The `Rgba32` `Parse` and `TryParse` methods are verified by
-`test/DemaConsulting.CanvasNet.Tests/Canvas/Rgba32Tests.cs`.
+The `Rgba32` `Parse`/`TryParse` methods and the internal single-pixel `CompositeOver` helper are
+verified by `test/DemaConsulting.CanvasNet.Tests/Canvas/Rgba32Tests.cs`.
 
 ### Verification Approach
 
@@ -20,6 +20,12 @@ The `Rgba32` `Parse` and `TryParse` methods are verified by
   non-hex-character message includes the actual offending character.
 - **TryParse**: valid, invalid, and null inputs all behave per contract, with `result` set to
   `default` on failure.
+- **CompositeOver** (internal, shared single-pixel Porter-Duff "over" helper): a fully
+  transparent foreground leaves the background unchanged; a fully opaque foreground exactly
+  replaces it; a partially transparent foreground over an opaque background, and both background
+  and foreground partially transparent, each blend to exact expected bytes computed
+  independently per the documented formula; both fully transparent composite to the zeroed
+  degenerate result rather than a `NaN`.
 
 ### Test Environment
 
@@ -77,6 +83,25 @@ actual offending character.
 
 Verifies valid, invalid, and `null` inputs all behave per contract, with `result` set to
 `default` on failure.
+
+#### CanvasNet-Canvas-Rgba32-CompositeOver: Shared Single-Pixel Porter-Duff "Over" Alpha Compositing
+
+**Tests**: `Rgba32_CompositeOver_FullyTransparentForeground_ReturnsBackgroundUnchanged`,
+`Rgba32_CompositeOver_FullyOpaqueForeground_ReturnsForegroundExactly`,
+`Rgba32_CompositeOver_PartiallyTransparentForegroundOverOpaqueBackground_BlendsExactly`,
+`Rgba32_CompositeOver_BothBackgroundAndForegroundPartiallyTransparent_BlendsExactly`,
+`Rgba32_CompositeOver_BothBackgroundAndForegroundFullyTransparent_ReturnsZeroedResult`
+
+Proves the internal single-pixel `CompositeOver(Rgba32, Rgba32)` helper - reused cross-assembly
+by `DemaConsulting.CanvasNet.Pptx`'s `PaintPicture` and `DemaConsulting.CanvasNet.Pdf`'s
+`CompositeImageOntoSurface` - implements the documented Porter-Duff "over" formula: a fully
+transparent foreground (`alpha == 0`) leaves the background pixel completely unchanged,
+regardless of the (irrelevant) RGB stored alongside that zero alpha; a fully opaque foreground
+(`alpha == 255`) exactly replaces the background pixel; a partially transparent foreground
+composited over a fully opaque background, and two partially transparent pixels composited
+together, each blend to exact expected bytes computed independently via the documented formula
+with round-half-away-from-zero; and two fully transparent pixels composite to the fully
+transparent, zeroed-color degenerate result rather than a division-by-zero `NaN`.
 
 ### Traceability
 

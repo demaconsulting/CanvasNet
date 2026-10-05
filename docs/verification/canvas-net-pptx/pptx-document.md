@@ -782,7 +782,8 @@ a recognized raster format throws `PptxUnsupportedFeatureException` carrying the
 `PaintPicture_WithSrcRectCroppingLeftHalf_SamplesOnlyRightHalf`,
 `PaintPicture_TranslatedTransform_ShiftsPaintedFootprint`,
 `PaintPicture_DegenerateTransform_PaintsNothing`,
-`PaintPicture_NullSurfaceOrImage_ThrowsArgumentNullException`
+`PaintPicture_NullSurfaceOrImage_ThrowsArgumentNullException`,
+`PaintPicture_SourceImageWithAlphaChannel_AlphaBlendsOntoExistingBackground`
 
 Proves `PaintPicture` paints a decoded image's pixels onto a destination `Surface` unchanged
 (pixel-for-pixel) under an identity shape transform with no crop, proves a deliberately
@@ -793,7 +794,12 @@ the same top-down order as the source - **not** vertically flipped, the delibera
 cropping away the left half samples only the image's own right half, proves a translated shape
 transform shifts the painted footprint by the expected offset, proves a singular (non-invertible,
 for example zero-scale) shape transform paints no pixels at all rather than throwing or dividing
-by zero, and proves `null` `destination`/`image` arguments throw `ArgumentNullException`.
+by zero, proves `null` `destination`/`image` arguments throw `ArgumentNullException`, and proves
+(regression guard for a confirmed real-world raw-overwrite alpha-compositing bug) each sampled
+source pixel is alpha-blended "over" the existing destination pixel - a fully transparent source
+pixel with a non-matching stored RGB leaves the background completely unchanged, a fully opaque
+source pixel exactly replaces it, and a partially transparent source pixel blends to the exact
+expected bytes per the documented Porter-Duff "over" formula.
 
 #### CanvasNetPptx-PptxDocument-TableParsing: Table Structure, Cell Attributes, and Verbatim Fill/Border/Text Reuse
 

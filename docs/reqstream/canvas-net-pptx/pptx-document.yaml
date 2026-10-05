@@ -1002,11 +1002,13 @@ sections:
               Surface by composing the picture's own crop-rectangle-to-unit-square mapping with
               the shape's resolved frame transform into a single image-to-surface matrix, sampling
               the source image with nearest-neighbor filtering for each destination pixel whose
-              inverse-mapped source coordinate falls within the image bounds, and painting no
-              pixels at all when the composed transform is singular (non-invertible), without
-              applying any Y-axis flip to the sampled image (unlike a y-up rendering target such as
-              PDF, this package's surface space is already y-down, matching the image's own
-              top-down pixel row order).
+              inverse-mapped source coordinate falls within the image bounds, alpha-blending each
+              sampled source pixel over the existing destination pixel via standard Porter-Duff
+              "over" compositing (rather than overwriting it outright), and painting no pixels at
+              all when the composed transform is singular (non-invertible), without applying any
+              Y-axis flip to the sampled image (unlike a y-up rendering target such as PDF, this
+              package's surface space is already y-down, matching the image's own top-down pixel
+              row order).
             justification: |
               Nearest-neighbor sampling composed through a single matrix keeps picture painting
               consistent with this package's existing shape-transform/geometry conventions (see
@@ -1016,6 +1018,12 @@ sections:
               behavior; explicitly omitting the (1-v) row flip that an equivalent y-up target would
               require is a deliberate, documented divergence from the PDF renderer's own pattern,
               not an oversight - applying it here would paint every picture upside down.
+              Alpha-blending (rather than raw-overwriting) a sampled source pixel over the existing
+              destination pixel is required because a source pixel with a non-opaque (including
+              fully transparent) alpha channel must let existing destination content show through
+              correctly; a confirmed real-world logo image with an unassociated-alpha white matte
+              previously painted a solid white rectangle instead of a transparent background
+              before this was fixed.
             tests:
               - PaintPicture_IdentityTransformNoCrop_PaintsImagePixelsUnflipped
               - PaintPicture_TopBottomAsymmetricImage_PaintsWithoutVerticalFlip
@@ -1023,6 +1031,7 @@ sections:
               - PaintPicture_TranslatedTransform_ShiftsPaintedFootprint
               - PaintPicture_DegenerateTransform_PaintsNothing
               - PaintPicture_NullSurfaceOrImage_ThrowsArgumentNullException
+              - PaintPicture_SourceImageWithAlphaChannel_AlphaBlendsOntoExistingBackground
 
           - id: CanvasNetPptx-PptxDocument-TableParsing
             title: >-

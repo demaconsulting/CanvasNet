@@ -762,7 +762,20 @@ resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surfac
   destination pixel whose inverse-mapped coordinate falls within `[0,1]x[0,1]` samples the source
   image with nearest-neighbor filtering (no bilinear/anti-aliased resampling this phase - a
   documented simplification, consistent with this package's existing "no anti-aliasing yet"
-  posture established by `PaintTextLayout`'s own glyph-ink fill). A singular (non-invertible)
+  posture established by `PaintTextLayout`'s own glyph-ink fill). Each sampled source pixel is
+  alpha-blended "over" the existing destination pixel via the shared internal
+  `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)` helper (standard Porter-Duff "over" alpha
+  compositing - straight/unassociated alpha in and out, `outA = fgA + bgA * (1 - fgA)`, each color
+  channel `outC = (fgC * fgA + bgC * bgA * (1 - fgA)) / outA` when `outA != 0` else `0`,
+  round-half-away-from-zero, clamped to `[0, 255]`) rather than overwritten outright - a fully or
+  partially transparent source pixel therefore lets the existing destination content show through
+  correctly instead of being replaced by whatever RGB value happens to be stored alongside that
+  non-opaque alpha (a real-world-confirmed bug fixed after this phase first shipped: a logo PNG
+  with an unassociated-alpha white matte around its letters previously painted a solid white
+  rectangle instead of a transparent background). This same helper is reused, not duplicated, by
+  `DemaConsulting.CanvasNet.Pdf`'s own `CompositeImageOntoSurface` (see that package's own design
+  documentation) - exposed cross-assembly via this package's own `InternalsVisibleTo` grant from
+  `DemaConsulting.CanvasNet`. A singular (non-invertible)
   `shapeTransform` (for example a zero-area shape frame) paints nothing, rather than throwing or
   dividing by zero.
 
@@ -773,7 +786,8 @@ flipping its sampled V coordinate; this package's shape-local/surface space is a
 (matching every other transform in this unit - see _Shape Frame Transform_ above), so the image's
 own top-down row order already matches the surface's own row order with no flip needed. Applying
 the PDF renderer's flip here, by copy-paste habit, would paint every picture upside down - this
-is a deliberate, documented decision, not an oversight.
+is a deliberate, documented decision, not an oversight. Both renderers' per-pixel alpha-blending
+behavior is otherwise identical (see above).
 
 #### Table Parsing
 
