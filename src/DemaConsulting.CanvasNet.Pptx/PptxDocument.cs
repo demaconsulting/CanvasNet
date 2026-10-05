@@ -1,3 +1,5 @@
+using System.Xml.Linq;
+
 namespace DemaConsulting.CanvasNet.Pptx;
 
 // cspell:ignore xfrm prst cust pptx patt
@@ -153,6 +155,7 @@ public sealed partial class PptxDocument : IDisposable
         _overrideContentTypes = new Dictionary<string, string>(StringComparer.Ordinal);
         _relationshipCache = new Dictionary<string, IReadOnlyDictionary<string, PackageRelationship>>(StringComparer.Ordinal);
         _themeCache = new Dictionary<string, PptxTheme>(StringComparer.Ordinal);
+        _tableStylesCache = new Dictionary<string, IReadOnlyDictionary<string, XElement>>(StringComparer.Ordinal);
         _masterCache = new Dictionary<string, PptxMaster>(StringComparer.Ordinal);
         _layoutCache = new Dictionary<string, PptxLayout>(StringComparer.Ordinal);
         _slideCache = new Dictionary<int, PptxSlide>();

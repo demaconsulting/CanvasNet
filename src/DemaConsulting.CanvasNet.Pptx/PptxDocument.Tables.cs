@@ -10,6 +10,7 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 namespace DemaConsulting.CanvasNet.Pptx;
 
 // cspell:ignore tbl tblgrid gridcol hmerge vmerge gridspan rowspan tcpr lnl lnr lnt lnb pptx graphicframe
+// cspell:ignore tblpr tblstyleid bandrow firstrow
 
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> table resolvers and painting primitive
@@ -18,8 +19,11 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     resolving each cell's final, merge-aware rectangle (<see cref="ResolveCellRects"/>), and
 ///     painting the whole table - fill, borders, and cell text - onto a <see cref="Surface"/>
 ///     (<see cref="PaintTable"/>) - see <c>pptx-document.md</c>'s "Tables (Phase 1e)" design
-///     section for the full merge/rect-resolution algorithm and documented deferrals (auto-sizing
-///     to fit overflowing content, nested tables, table styles/banding).
+///     section for the full merge/rect-resolution algorithm, documented deferrals (auto-sizing to
+///     fit overflowing content, nested tables), and the "Phase 2 Follow-Up: Table Style/Banding
+///     Resolution" section for the <c>&lt;a:tableStyleId&gt;</c>/<c>wholeTbl</c>/<c>band1H</c>/
+///     <c>band2H</c>/<c>firstRow</c> cascade implemented by <c>PptxDocument.TableStyles.cs</c>'s
+///     <see cref="ResolveTableCellStyle"/>.
 /// </summary>
 public sealed partial class PptxDocument
 {
@@ -42,6 +46,17 @@ public sealed partial class PptxDocument
     ///     restructuring table shape-tree parsing from parse-time to render-time, a materially
     ///     larger, separately-scoped change.
     /// </param>
+    /// <param name="tableStyleResolver">
+    ///     Lazily invoked, when <c>&lt;a:tbl&gt;/&lt;a:tblPr&gt;</c> declares a non-empty
+    ///     <c>&lt;a:tableStyleId&gt;</c>, to resolve that id against <c>ppt/tableStyles.xml</c>
+    ///     (see <see cref="TryResolveTableStyle"/>) - threaded the same way
+    ///     <see cref="ParseShapeTree"/>'s own <c>themeResolver</c> parameter is, defaulting to
+    ///     <see langword="null"/> ("no table style available") so every pre-existing call site
+    ///     keeps compiling and behaving unchanged. A <see langword="null"/> result (from the
+    ///     resolver itself, or from this parameter being <see langword="null"/>) means every cell
+    ///     falls back to today's pre-existing cell-only fill/border resolution - see
+    ///     <see cref="ResolveTableCellStyle"/>'s own <c>matchedTblStyle is null</c> fallback.
+    /// </param>
     /// <returns>The resolved <see cref="PptxTable"/>.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="graphicFrameElement"/> has no <c>&lt;a:graphic&gt;/
@@ -55,7 +70,9 @@ public sealed partial class PptxDocument
     ///     <c>uri</c> attribute does not end in <c>"/table"</c> - a chart, SmartArt, OLE object,
     ///     or other non-table graphic-frame kind, all out of scope this phase.
     /// </exception>
-    internal static PptxTable ParseTable(XElement graphicFrameElement, PptxTheme theme, PptxColorMap? colorMap = null)
+    internal static PptxTable ParseTable(
+        XElement graphicFrameElement, PptxTheme theme, PptxColorMap? colorMap = null,
+        Func<string, XElement?>? tableStyleResolver = null)
     {
         var graphicData = graphicFrameElement.Element(DrawingNamespace + "graphic")?.Element(DrawingNamespace + "graphicData") ??
             throw new InvalidDataException("A <p:graphicFrame> element has no <a:graphic>/<a:graphicData> child.");
@@ -78,23 +95,42 @@ public sealed partial class PptxDocument
             .Select(gridCol => ParseRequiredFloatAttribute(gridCol, "w", "<a:gridCol>"))
             .ToList();
 
-        var rows = tbl.Elements(DrawingNamespace + "tr")
-            .Select(tr =>
-            {
-                var heightEmu = ParseRequiredFloatAttribute(tr, "h", "<a:tr>");
-                var cells = new List<PptxTableCell>();
-                var columnIndex = 0;
-                foreach (var tc in tr.Elements(DrawingNamespace + "tc"))
-                {
-                    var cellWidthEmu = SumColumnWidths(columnWidthsEmu, columnIndex, 1);
-                    var cell = ParseTableCell(tc, theme, cellWidthEmu, heightEmu, colorMap);
-                    cells.Add(cell);
-                    columnIndex++;
-                }
+        // <a:tblPr>'s tableStyleId/firstRow/bandRow - parsed once per table, then threaded through
+        // every cell so ParseTableCell can consult ResolveTableCellStyle's precedence cascade.
+        // Absent/empty is tolerated throughout: a table with no <a:tblPr> at all, or one with no
+        // <a:tableStyleId>, degrades to exactly today's pre-existing cell-only behavior.
+        var tblPr = tbl.Element(DrawingNamespace + "tblPr");
+        var tableStyleId = (string?)tblPr?.Element(DrawingNamespace + "tableStyleId");
+        var firstRowEnabled = (bool?)tblPr?.Attribute("firstRow") ?? false;
+        var bandRowEnabled = (bool?)tblPr?.Attribute("bandRow") ?? false;
+        var matchedTblStyle = string.IsNullOrEmpty(tableStyleId) ? null : tableStyleResolver?.Invoke(tableStyleId);
 
-                return new PptxTableRow(heightEmu, cells);
-            })
-            .ToList();
+        // Materialized eagerly (rather than the previous lazy .Select(...) chain) so each cell's
+        // own rowIndex/totalRows context is known before the per-row loop runs - needed by
+        // ResolveTableCellStyle's own band-row-parity and outer-edge-detection logic.
+        var trElements = tbl.Elements(DrawingNamespace + "tr").ToList();
+        var totalRows = trElements.Count;
+        var totalColumns = columnWidthsEmu.Count;
+
+        var rows = new List<PptxTableRow>(totalRows);
+        for (var rowIndex = 0; rowIndex < totalRows; rowIndex++)
+        {
+            var tr = trElements[rowIndex];
+            var heightEmu = ParseRequiredFloatAttribute(tr, "h", "<a:tr>");
+            var cells = new List<PptxTableCell>();
+            var columnIndex = 0;
+            foreach (var tc in tr.Elements(DrawingNamespace + "tc"))
+            {
+                var cellWidthEmu = SumColumnWidths(columnWidthsEmu, columnIndex, 1);
+                var cell = ParseTableCell(
+                    tc, theme, cellWidthEmu, heightEmu, colorMap,
+                    matchedTblStyle, bandRowEnabled, firstRowEnabled, rowIndex, totalRows, columnIndex, totalColumns);
+                cells.Add(cell);
+                columnIndex++;
+            }
+
+            rows.Add(new PptxTableRow(heightEmu, cells));
+        }
 
         return new PptxTable(columnWidthsEmu, rows);
     }
@@ -107,12 +143,28 @@ public sealed partial class PptxDocument
     /// <param name="cellWidthEmu">The cell's own (unmerged, single-column) width, in EMU - needed to position a gradient fill.</param>
     /// <param name="cellHeightEmu">The cell's own (unmerged, single-row) height, in EMU - needed to position a gradient fill.</param>
     /// <param name="colorMap">The effective color map - see <see cref="ParseTable"/>'s matching parameter, including its documented limitation.</param>
+    /// <param name="matchedTblStyle">
+    ///     The table's own resolved <c>&lt;a:tblStyle&gt;</c> (see <see cref="ParseTable"/>'s
+    ///     <c>tableStyleResolver</c> parameter and <see cref="TryResolveTableStyle"/>), or
+    ///     <see langword="null"/> (the default) for "no table style available" - every call site
+    ///     predating this parameter keeps compiling and behaving identically, since a
+    ///     <see langword="null"/> value degrades <see cref="ResolveTableCellStyle"/>'s own cascade
+    ///     to exactly this method's pre-existing cell-only fill/border resolution.
+    /// </param>
+    /// <param name="bandRowEnabled">The table's own <c>&lt;a:tblPr bandRow="1"&gt;</c> attribute, defaulting to <see langword="false"/>.</param>
+    /// <param name="firstRowEnabled">The table's own <c>&lt;a:tblPr firstRow="1"&gt;</c> attribute, defaulting to <see langword="false"/>.</param>
+    /// <param name="rowIndex">The cell's zero-based row index within the table, defaulting to <c>0</c>.</param>
+    /// <param name="totalRows">The table's total declared <c>&lt;a:tr&gt;</c> row count, defaulting to <c>1</c>.</param>
+    /// <param name="columnIndex">The cell's zero-based starting grid-column index, defaulting to <c>0</c>.</param>
+    /// <param name="totalColumns">The table's total declared <c>&lt;a:tblGrid&gt;/&lt;a:gridCol&gt;</c> column count, defaulting to <c>1</c>.</param>
     /// <returns>The resolved <see cref="PptxTableCell"/>.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when a present <c>gridSpan</c>/<c>rowSpan</c> attribute is not a valid integer.
     /// </exception>
     internal static PptxTableCell ParseTableCell(
-        XElement tcElement, PptxTheme theme, float cellWidthEmu, float cellHeightEmu, PptxColorMap? colorMap = null)
+        XElement tcElement, PptxTheme theme, float cellWidthEmu, float cellHeightEmu, PptxColorMap? colorMap = null,
+        XElement? matchedTblStyle = null, bool bandRowEnabled = false, bool firstRowEnabled = false,
+        int rowIndex = 0, int totalRows = 1, int columnIndex = 0, int totalColumns = 1)
     {
         var gridSpan = ParseOptionalIntAttribute(tcElement, "gridSpan") ?? 1;
         var rowSpan = ParseOptionalIntAttribute(tcElement, "rowSpan") ?? 1;
@@ -120,11 +172,10 @@ public sealed partial class PptxDocument
         var vMerge = (bool?)tcElement.Attribute("vMerge") ?? false;
 
         var tcPr = tcElement.Element(DrawingNamespace + "tcPr");
-        var fill = ResolveFill(tcPr, theme, cellWidthEmu, cellHeightEmu, colorMap: colorMap);
-        var leftBorder = ResolveLineStyle(tcPr?.Element(DrawingNamespace + "lnL"), theme, colorMap);
-        var rightBorder = ResolveLineStyle(tcPr?.Element(DrawingNamespace + "lnR"), theme, colorMap);
-        var topBorder = ResolveLineStyle(tcPr?.Element(DrawingNamespace + "lnT"), theme, colorMap);
-        var bottomBorder = ResolveLineStyle(tcPr?.Element(DrawingNamespace + "lnB"), theme, colorMap);
+        var (fill, leftBorder, rightBorder, topBorder, bottomBorder) = ResolveTableCellStyle(
+            tcPr, matchedTblStyle, bandRowEnabled, firstRowEnabled,
+            rowIndex, totalRows, columnIndex, gridSpan, rowSpan, totalColumns,
+            cellWidthEmu, cellHeightEmu, theme, colorMap);
 
         var txBody = tcElement.Element(DrawingNamespace + "txBody");
         var textBody = txBody is null ? null : ParseTextBody(txBody);

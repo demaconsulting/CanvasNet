@@ -11,6 +11,8 @@
 <!-- cspell:ignore graphicFrame graphicData contentPart unrenderable -->
 <!-- cspell:ignore autoshape pythonpptx groupshape paintable aiden0z aiden unnamespaced reparenting FAFAF -->
 <!-- cspell:ignore bgRef bgFillStyleLst phClr fmtScheme asvg -->
+<!-- cspell:ignore tblStyle tblStyleLst wholeTbl tcStyle tcBdr insideH insideV bandRow firstRow -->
+<!-- cspell:ignore band1H band2H gridlines -->
 `PptxDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pptx` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pptx`), which references the core `DemaConsulting.CanvasNet`
 package.
@@ -1008,9 +1010,10 @@ design cost:
   rectangle purely from the table's own declared column widths/row heights; a cell whose text
   content overflows its own declared row height is not given additional vertical space (beyond
   the row height the table itself declares) the way PowerPoint's own auto-grow-row behavior does.
-- **Table style/banding** (`<a:tblPr>`'s `<a:tableStyleId>` and first-row/banded-row styling) -
-  only a cell's own explicit `<a:tcPr>` fill/border/text is resolved; any table-style-sheet-driven
-  default styling a real presentation would show is not applied.
+- ~~**Table style/banding** (`<a:tblPr>`'s `<a:tableStyleId>` and first-row/banded-row
+  styling)~~ (closed by the _Phase 2 Follow-Up: Table Style/Banding Resolution_ section below -
+  `firstCol`/`lastCol`/`lastRow`/corner-cell style parts, column banding (`band1V`/`band2V`), and
+  table-style-driven font color remain deferred, as documented in that section).
 - ~~`<p:cxnSp>` connector shapes~~ (closed by the _Phase 2 Follow-Up: Connector Shape Rendering_
   section below).
 - **Master/layout full shape-tree enumeration** - `PptxMaster`/`PptxLayout` still only expose
@@ -2472,3 +2475,105 @@ left unchanged - it remains valid, correct coverage for the separate image-conte
 A before/after visual repro (the bug report's own exact geometry, rendered and visually inspected)
 confirmed the fix: before, a plain pale ellipse with no red anywhere on its perimeter; after, a
 complete, correctly-closed red ellipse outline fully framing the same pale ellipse.
+
+#### Phase 2 Follow-Up: Table Style/Banding Resolution (`<a:tableStyleId>`)
+
+**Bug**: a `<a:tbl>` whose `<a:tblPr>` declares `<a:tableStyleId>{GUID}</a:tableStyleId>`
+(optionally with `firstRow="1"`/`bandRow="1"`) renders in real PowerPoint with a shaded header
+row, alternating banded row fills, and style-defined cell borders, driven by the presentation
+package's own `ppt/tableStyles.xml` part. `ParseTable`/`ParseTableCell` (Phase 1e, above) never
+resolved `<a:tableStyleId>` against that part at all - every cell's fill/border came from its own
+`<a:tcPr>` only, so a table declaring a style but no per-cell overrides (the common case for a
+plain data table) rendered as a bare, mostly-invisible grid of thin border lines with no shading
+at all, a visibly incorrect rendering confirmed against a real-world ground-truth PowerPoint COM
+export (`.agent-logs/planning-table-style-apply-7f3a2c.md`).
+
+**Fix - a new resolver unit, threaded through unchanged parsing/rendering call sites**:
+
+- **`PptxDocument.TableStyles.cs`** (new file) implements the table-style lookup and the core
+  precedence cascade:
+  - `TryResolveTableStyle(string styleId)` resolves `styleId` against the presentation part's own
+    `/tableStyles` relationship (via a new, non-throwing `TryResolveRelationshipByType` sibling of
+    the existing, throwing `ResolveRelationshipByType` in `PptxDocument.Package.cs`) and the
+    resulting `ppt/tableStyles.xml` part's `<a:tblStyleLst>/<a:tblStyle styleId="...">` children -
+    tolerating every cause of "not found" (no `/tableStyles` relationship at all, a missing or
+    not-well-formed `ppt/tableStyles.xml`, or no matching `styleId`) by returning `null`, mirroring
+    `PptxDocument.Theme.cs`'s own `ParseBgFillStyleList`/`ParseFillStyleList`/`ParseLnStyleList`
+    leniency precedent for optional, rarely-consulted style-sheet content - a table-style-sheet
+    must never fail an otherwise well-formed table parse closed.
+  - `GetTableStyles(string tableStylesPartPath)` parses and caches (`_tableStylesCache`, keyed by
+    part path) the part's full `styleId -> <a:tblStyle>` lookup on first access, the same
+    lazy-parse-then-cache shape every other auxiliary-part resolver in this unit already uses.
+  - `ResolveTableCellStyle(...)` implements the precedence cascade itself: a cell's own explicit
+    `<a:tcPr>` fill/border always wins outright - the same "explicit always wins over
+    style/theme fallback" pattern `ResolveShapeLineStyle` already established for shape-stroke
+    resolution, mirrored here rather than reinvented; otherwise the matched `<a:tblStyle>`'s
+    `<a:firstRow>` tier (only for the header row, when `<a:tblPr firstRow="1">`) wins over its
+    `<a:band1H>`/`<a:band2H>` banding tier (only when `<a:tblPr bandRow="1">`), which in turn wins
+    over its `<a:wholeTbl>` base tier - the only non-null tier applied when neither `firstRow` nor
+    `bandRow` select a higher tier for a given cell. A tier missing its own `<a:fill>` (for
+    example a style whose `<a:band2H>` declares borders but no fill) falls through to the next
+    lower tier's fill, not to "no fill" - confirmed against the ground-truth render, where an
+    unfilled band tier visibly shows the table's base shading, not a transparent gap.
+  - **Row-parity convention** (confirmed against the real-world ground-truth render): a styled
+    header row (`firstRow="1"`, row index `0`) is excluded from band-row counting entirely, and
+    `<a:band1H>` is applied to the first row after the header, alternating with `<a:band2H>`
+    thereafter (`bandRowIndex = firstRowEnabled ? rowIndex - 1 : rowIndex`; even `bandRowIndex`
+    selects `band1H`, odd selects `band2H`) - the same convention ECMA-376 itself documents for a
+    styled, banded table.
+  - **Border edge-name mapping**: each tier's own `<a:tcStyle>/<a:tcBdr>` declares up to six named
+    edges (`left`/`right`/`top`/`bottom`/`insideH`/`insideV`, each itself wrapping a nested
+    `<a:ln>`). A cell edge on the table's own true outer boundary (determined structurally from
+    the cell's own column/row index, span, and the table's total column/row counts) consults the
+    literal edge name; every interior edge instead consults `insideV` (left/right) or `insideH`
+    (top/bottom) - required so a style that visually differentiates its outer frame from its
+    interior gridlines (unlike the one available real-file fixture, whose style uses an identical
+    line for all six edges) renders correctly.
+  - **Color resolution is entirely delegated, not reimplemented**: a tier's `<a:fill>` is resolved
+    via the existing `ResolveFill`, and a tier's border `<a:ln>` via the existing
+    `ResolveLineStyle` - both already resolve `<a:schemeClr>` against the supplied theme/color
+    map, so a table style's own `schemeClr`-templated colors (the common case for a theme-matched
+    style) resolve correctly with zero new color-resolution code.
+- **`PptxDocument.Tables.cs`**: `ParseTable` gained a new, optional `tableStyleResolver` parameter
+  (`Func<string, XElement?>?`, defaulting to `null`) and now parses `<a:tbl>/<a:tblPr>`'s
+  `tableStyleId`/`firstRow`/`bandRow`, resolving the matched `<a:tblStyle>` once per table (not
+  once per cell) when a non-empty `<a:tableStyleId>` is present. Row materialization changed from
+  a lazy `.Select(...)` chain to an eagerly-indexed list, needed so each cell's own `rowIndex`/
+  `totalRows` context (required by the row-parity and outer-edge logic above) is known before the
+  per-row loop runs. `ParseTableCell` gained matching new optional parameters (`matchedTblStyle`,
+  `bandRowEnabled`, `firstRowEnabled`, `rowIndex`, `totalRows`, `columnIndex`, `totalColumns`, each
+  defaulted) and now delegates its fill/border resolution to `ResolveTableCellStyle` instead of
+  calling `ResolveFill`/`ResolveLineStyle` directly - every pre-existing call site (including every
+  pre-existing unit test) keeps compiling and behaving identically, since omitting the new
+  parameters degrades the cascade to exactly this method's own pre-existing cell-only behavior.
+- **Signature threading**: `ParseShapeTree` (`PptxDocument.ShapeTree.cs`) gained the same optional
+  `tableStyleResolver` parameter, threaded to its own recursive self-call and to `ParseTable`;
+  `PptxDocument.Masters.cs`/`PptxDocument.Layouts.cs`/`PptxDocument.Slides.cs`'s own
+  `ParseShapeTree` call sites now each pass `tableStyleResolver: TryResolveTableStyle`.
+
+**Explicitly deferred** (fall back to the `<a:wholeTbl>` tier, or to no special treatment, exactly
+as if no table style were matched): `firstCol`/`lastCol`/`lastRow`/corner-cell (`neCell`/`nwCell`/
+`seCell`/`swCell`) style parts; column banding (`band1V`/`band2V`, gated on `<a:tblPr
+bandCol="1">`); and table-style-driven font color (`<a:tcTxStyle>`) - a cell's own text-run font
+color resolution is entirely unchanged. Each is a separable, independently-scoped refinement with
+no bearing on the primary header-row/row-banding defect this fix addresses.
+
+**Test coverage**: `PptxTablesTests.cs` gained
+`ParseTable_FirstRowTblPrWithMatchingTableStyle_HeaderRowCellUsesFirstRowStyleFill` (a matched
+style's `<a:firstRow>` tier fill applies to the header row, falling back to `<a:wholeTbl>` for the
+data row),
+`ParseTable_BandRowTblPrWithMatchingTableStyle_AlternatesBand1HAndBand2HFillStartingAfterHeaderRow`
+(a five-row, header-plus-banded table alternates `band1H`/`band2H` starting immediately after the
+header row, with an unfilled `band2H` tier falling through to `wholeTbl`),
+`ParseTable_TblPrWithNoTableStyleId_FallsBackToPlainCellOnlyBorderAndNoFill` and
+`ParseTable_TblPrWithUnresolvableTableStyleId_FallsBackToPlainCellOnlyBorderAndNoFillWithoutThrowing`
+(no `<a:tableStyleId>` at all never even invokes the resolver delegate; an unresolvable one
+resolves via a resolver returning `null`; both degrade to today's pre-existing plain, style-less
+cell-only rendering without throwing),
+`ParseTableCell_TcPrExplicitFillAndBorder_OverridesTableStyleFillAndBorder` (a cell's own explicit
+`<a:tcPr>` fill and a single explicit border edge take final precedence over a matched style's own
+fill/borders, while the cell's remaining, non-overridden edges still fall back to the style), and
+`ParseTableCell_InteriorColumnBorder_UsesInsideVNotLeftRightTcBdrEdge` (a three-column table's
+interior column boundaries resolve against the style's own `insideV` edge rather than its `left`/
+`right` edges, while the table's two true outer-boundary edges still resolve against `left`/
+`right`).

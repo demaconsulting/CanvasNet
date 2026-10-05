@@ -63,7 +63,7 @@ public sealed partial class PptxDocument
         // The master's theme is already eagerly resolved above (themePartPath), so there is no
         // added laziness concern in also eagerly resolving it here for the shape tree's own
         // <p:graphicFrame> tables (see ParseShapeTree's themeResolver parameter).
-        var shapeTree = ParseShapeTree(spTree, () => GetTheme(themePartPath));
+        var shapeTree = ParseShapeTree(spTree, () => GetTheme(themePartPath), tableStyleResolver: TryResolveTableStyle);
 
         var master = new PptxMaster(masterPartPath, themePartPath, placeholders, txStyles, background, shapeTree, colorMap);
         _masterCache[masterPartPath] = master;

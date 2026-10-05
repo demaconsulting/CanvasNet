@@ -484,6 +484,52 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>
+    ///     Non-throwing sibling of <see cref="ResolveRelationshipByType"/>: resolves the target
+    ///     part path of the single relationship of <paramref name="sourcePartPath"/> whose
+    ///     <c>Type</c> attribute ends with <paramref name="relationshipTypeSuffix"/>, returning
+    ///     <see langword="null"/> instead of throwing when no such relationship exists. Used for
+    ///     navigations to an optional, auxiliary part (for example <c>ppt/tableStyles.xml</c>, via
+    ///     <see cref="TryResolveTableStyle"/>) whose absence must degrade gracefully rather than
+    ///     fail the whole parse closed, unlike <see cref="ResolveRelationshipByType"/>'s own
+    ///     fail-closed behavior for a required navigation.
+    /// </summary>
+    /// <param name="sourcePartPath">The source part's path, or empty string for the package root.</param>
+    /// <param name="relationshipTypeSuffix">
+    ///     The relationship Type URI suffix to match, compared with an ordinal, case-sensitive
+    ///     <see cref="string.EndsWith(string, StringComparison)"/> - see
+    ///     <see cref="ResolveRelationshipByType"/>'s matching parameter.
+    /// </param>
+    /// <returns>
+    ///     The resolved target part path, with no leading slash, or <see langword="null"/> when no
+    ///     non-external relationship of <paramref name="sourcePartPath"/> has a <c>Type</c> ending
+    ///     with <paramref name="relationshipTypeSuffix"/> (including when <paramref name="sourcePartPath"/>
+    ///     has no relationships at all).
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="sourcePartPath"/> or <paramref name="relationshipTypeSuffix"/>
+    ///     is null.
+    /// </exception>
+    internal string? TryResolveRelationshipByType(string sourcePartPath, string relationshipTypeSuffix)
+    {
+        ArgumentNullException.ThrowIfNull(sourcePartPath);
+        ArgumentNullException.ThrowIfNull(relationshipTypeSuffix);
+
+        var normalizedSource = NormalizePartPath(sourcePartPath);
+        var relationships = GetRelationships(normalizedSource);
+
+        foreach (var relationship in relationships.Values)
+        {
+            if (!relationship.IsExternal &&
+                relationship.Type.EndsWith(relationshipTypeSuffix, StringComparison.Ordinal))
+            {
+                return ResolveRelativeTarget(normalizedSource, relationship.Target);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     ///     Loads and returns the root XML element of the part at <paramref name="partPath"/>,
     ///     wrapping a missing part or malformed XML in <see cref="InvalidDataException"/>. Shared
     ///     by every Phase 1b presentation-specific parser (Presentation/Theme/Masters/Layouts/

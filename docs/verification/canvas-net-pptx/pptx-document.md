@@ -7,6 +7,7 @@
 <!-- cspell:ignore grpSpPr cxnSp graphicFrame tableStyleId spTree contentPart -->
 <!-- cspell:ignore pythonpptx Autoshape groupshape aiden0z Aiden aiden reparents FAFAF -->
 <!-- cspell:ignore bgRef bgFillStyleLst phClr fmtScheme asvg -->
+<!-- cspell:ignore tblStyle wholeTbl tcStyle tcBdr insideH insideV bandRow firstRow band1H band2H -->
 This document describes the unit-level verification strategy for the `PptxDocument` class.
 
 `PptxDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pptx` NuGet package
@@ -961,6 +962,38 @@ text content paints glyph ink somewhere inside the cell's own rectangle (via a c
 and inset-zeroed so a default-size glyph reliably lands within the test surface - mirroring Phase
 1d's own `ResolveTextLayout`/`PaintTextLayout` test conventions), and proves an empty cell (no
 fill, no border, no text) paints no non-background pixels at all.
+
+#### CanvasNetPptx-PptxDocument-TableStyleResolution: `<a:tableStyleId>` Table-Style/Banding Resolution
+
+**Tests**: `ParseTable_FirstRowTblPrWithMatchingTableStyle_HeaderRowCellUsesFirstRowStyleFill`,
+`ParseTable_BandRowTblPrWithMatchingTableStyle_AlternatesBand1HAndBand2HFillStartingAfterHeaderRow`,
+`ParseTable_TblPrWithNoTableStyleId_FallsBackToPlainCellOnlyBorderAndNoFill`,
+`ParseTable_TblPrWithUnresolvableTableStyleId_FallsBackToPlainCellOnlyBorderAndNoFillWithoutThrowing`,
+`ParseTableCell_TcPrExplicitFillAndBorder_OverridesTableStyleFillAndBorder`,
+`ParseTableCell_InteriorColumnBorder_UsesInsideVNotLeftRightTcBdrEdge`
+
+Proves a table whose `<a:tblPr>` declares a `<a:tableStyleId>` that resolves to a matched
+`<a:tblStyle>`, with `firstRow="1"`, renders its header row (row index `0`) cell using that
+style's own `<a:firstRow>` tier fill, while a non-header row falls back to the style's
+`<a:wholeTbl>` base-tier fill. Proves a five-row table with both `firstRow="1"` and `bandRow="1"`
+renders its header row via `<a:firstRow>` and alternates `<a:band1H>`/`<a:band2H>` fills across
+the remaining rows starting immediately after the header row (confirming the row-parity
+convention - a styled header row excluded from band-row counting entirely), and proves a band
+tier declaring no `<a:fill>` at all (here, `<a:band2H>`) falls through to the `<a:wholeTbl>` base
+fill rather than rendering "no fill". Proves a table whose `<a:tblPr>` declares no
+`<a:tableStyleId>` at all never even invokes the supplied table-style resolver delegate (asserted
+via a resolver that throws if invoked), and proves a table whose `<a:tableStyleId>` does not
+resolve to any known `<a:tblStyle>` (the resolver returns `null`) likewise falls back to today's
+pre-existing plain, style-less cell-only fill/border resolution, in both cases without throwing.
+Proves a cell's own explicit `<a:tcPr>` fill and a single explicit border edge (`<a:lnT>`) take
+final precedence over a matched table style's own fill/borders (mirroring
+`ResolveShapeLineStyle`'s established "explicit always wins" precedence pattern), while the
+cell's remaining, non-overridden border edges still fall back to the matched style's own
+`<a:wholeTbl>` tier. Proves a three-column table's interior column boundaries resolve against the
+matched style's own `<a:tcBdr>/<a:insideV>` edge rather than its `left`/`right` edges, while the
+table's two true outer-boundary edges (the first cell's own left edge, the last cell's own right
+edge) still resolve against `left`/`right` - confirming the structural outer-vs-interior edge-name
+mapping independently of the `firstRow`/`bandRow` *styling* flags exercised by the preceding tests.
 
 #### CanvasNetPptx-PptxDocument-ShapeTree: Recursive Shape-Tree Parsing and Deferred Theme Resolution
 

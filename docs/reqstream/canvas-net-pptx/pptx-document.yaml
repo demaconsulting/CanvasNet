@@ -5,6 +5,7 @@
 # cspell:ignore rPr txBody txStyles lstStyle defRPr ctrTitle lIns tIns rIns bIns algn marL lnSpc
 # cspell:ignore spcBef spcAft justLow lnSpcReduction fontScale lvl ordinally mistargeted unrenderable
 # cspell:ignore pythonpptx Autoshape aiden0z Aiden aiden misrendered bgRef bgFillStyleLst phClr
+# cspell:ignore tblStyle wholeTbl tcStyle tcBdr insideH insideV bandRow firstRow band1H band2H
 #
 # These requirements describe the design-level behavior of the PptxDocument unit.
 #
@@ -1243,6 +1244,49 @@ sections:
               - PaintTable_CellWithTopBorder_PaintsStrokedLineAtTopEdge
               - PaintTable_CellWithText_PaintsGlyphInkInsideCellRectangle
               - PaintTable_EmptyCell_PaintsNothing
+
+          - id: CanvasNetPptx-PptxDocument-TableStyleResolution
+            title: >-
+              The PptxDocument class shall resolve a <a:tbl>/<a:tblPr>'s <a:tableStyleId> against
+              the presentation package's own ppt/tableStyles.xml part (tolerating every cause of
+              "not found" - no /tableStyles relationship, a missing/malformed part, or no matching
+              styleId - by falling back to today's plain, style-less cell-only rendering without
+              throwing) and shall apply the matched <a:tblStyle>'s <a:wholeTbl> base tier to every
+              cell, its <a:band1H>/<a:band2H> tiers alternating by non-header row parity when
+              <a:tblPr bandRow="1"> (a tier missing its own <a:fill> falling through to the next
+              lower tier rather than to "no fill"), and its <a:firstRow> tier overriding both for
+              the header row when <a:tblPr firstRow="1">, with a cell's own explicit <a:tcPr>
+              fill/border always taking final precedence over every style tier, reusing the
+              existing ResolveFill/ResolveLineStyle resolvers for every style-tier color (including
+              schemeClr) unchanged.
+            justification: |
+              A confirmed real-world corpus fixture ("ERF IWF and Reagent Probe Breadboard Motion
+              System Overview.pptx", slide 23) declares a <a:tbl> with <a:tblPr firstRow="1"
+              bandRow="1"><a:tableStyleId>{GUID}</a:tableStyleId></a:tblPr>; PowerPoint's own
+              rendering shows a shaded header row, alternating banded row fills, and style-defined
+              cell borders, while this package's Phase 1e TableParsing never resolved
+              <a:tableStyleId> at all, rendering only a bare, mostly-invisible grid of thin border
+              lines with no shading - a visibly incorrect render confirmed against a real-world
+              ground-truth PowerPoint COM export. The row-parity convention (a styled header row
+              excluded from band-row counting; <a:band1H> applied to the first row after the
+              header, alternating with <a:band2H> thereafter) was confirmed against that same
+              ground-truth render and matches ECMA-376's own documented convention for a styled,
+              banded table. Mirroring ResolveShapeLineStyle's own established "explicit always wins
+              over style/theme fallback" precedence pattern, rather than inventing a divergent one
+              solely for tables, and reusing ResolveFill/ResolveLineStyle verbatim for every
+              style-tier color keeps this fix consistent with the package's existing
+              fill/line-style-resolution contract, with zero new color-resolution logic.
+              firstCol/lastCol/lastRow/corner-cell style parts, column banding (band1V/band2V),
+              and table-style-driven font color remain explicitly deferred - each a separable,
+              independently-scoped refinement with no bearing on the primary header-row/row-banding
+              defect this fix addresses.
+            tests:
+              - ParseTable_FirstRowTblPrWithMatchingTableStyle_HeaderRowCellUsesFirstRowStyleFill
+              - ParseTable_BandRowTblPrWithMatchingTableStyle_AlternatesBand1HAndBand2HFillStartingAfterHeaderRow
+              - ParseTable_TblPrWithNoTableStyleId_FallsBackToPlainCellOnlyBorderAndNoFill
+              - ParseTable_TblPrWithUnresolvableTableStyleId_FallsBackToPlainCellOnlyBorderAndNoFillWithoutThrowing
+              - ParseTableCell_TcPrExplicitFillAndBorder_OverridesTableStyleFillAndBorder
+              - ParseTableCell_InteriorColumnBorder_UsesInsideVNotLeftRightTcBdrEdge
 
           - id: CanvasNetPptx-PptxDocument-ShapeTree
             title: >-

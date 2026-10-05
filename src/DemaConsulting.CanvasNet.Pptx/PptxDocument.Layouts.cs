@@ -51,7 +51,7 @@ public sealed partial class PptxDocument
         // own master's theme. Resolving the master -> theme relationship chain is deferred into
         // this lambda (mirroring GetSlide's own lazy theme resolver) so layouts with no tables at
         // all never require it to be walked.
-        var shapeTree = ParseShapeTree(spTree, () => GetTheme(GetMaster(masterPartPath).ThemePartPath));
+        var shapeTree = ParseShapeTree(spTree, () => GetTheme(GetMaster(masterPartPath).ThemePartPath), tableStyleResolver: TryResolveTableStyle);
 
         var layout = new PptxLayout(layoutPartPath, masterPartPath, placeholders, background, shapeTree, clrMapOvr);
         _layoutCache[layoutPartPath] = layout;

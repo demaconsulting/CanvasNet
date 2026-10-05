@@ -7,6 +7,7 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
 // cspell:ignore pptx tbl tblgrid gridcol hmerge vmerge gridspan rowspan tcpr lnl lnr lnt lnb txbody unitsperem srgb
+// cspell:ignore tblpr tblstyle tblstyleid tcstyle tcbdr wholetbl bandrow firstrow insideh insidev
 
 /// <summary>
 ///     Unit-level tests for the Phase 1e table resolvers and painting primitive
@@ -91,6 +92,95 @@ public class PptxTablesTests
         new(A + "txBody",
             new XElement(A + "bodyPr", new XAttribute("lIns", 0), new XAttribute("tIns", 0), new XAttribute("rIns", 0), new XAttribute("bIns", 0)),
             new XElement(A + "p", new XElement(A + "r", new XElement(A + "rPr", new XAttribute("sz", 100)), new XElement(A + "t", text))));
+
+    /// <summary>Builds an <c>&lt;a:tblPr&gt;</c> element declaring the given <c>tableStyleId</c>/<c>firstRow</c>/<c>bandRow</c>.</summary>
+    private static XElement BuildTblPr(string? tableStyleId = null, bool? firstRow = null, bool? bandRow = null)
+    {
+        var tblPr = new XElement(A + "tblPr");
+        if (firstRow is not null)
+        {
+            tblPr.Add(new XAttribute("firstRow", firstRow.Value ? "1" : "0"));
+        }
+
+        if (bandRow is not null)
+        {
+            tblPr.Add(new XAttribute("bandRow", bandRow.Value ? "1" : "0"));
+        }
+
+        if (tableStyleId is not null)
+        {
+            tblPr.Add(new XElement(A + "tableStyleId", tableStyleId));
+        }
+
+        return tblPr;
+    }
+
+    /// <summary>Builds an <c>&lt;a:tbl&gt;</c> carrying an explicit <c>&lt;a:tblPr&gt;</c> (unlike <see cref="BuildTbl"/>, which omits one).</summary>
+    private static XElement BuildTblWithPr(XElement tblPr, IReadOnlyList<float> columnWidths, params XElement[] rows) =>
+        new(A + "tbl",
+            tblPr,
+            new XElement(A + "tblGrid", columnWidths.Select(w => new XElement(A + "gridCol", new XAttribute("w", w)))),
+            rows);
+
+    /// <summary>Builds an <c>&lt;a:fill&gt;</c> (a direct <c>&lt;a:solidFill&gt;</c>/<c>&lt;a:srgbClr&gt;</c> wrapper), matching the shape <see cref="PptxDocument.ResolveTableCellStyle"/> passes to the existing <see cref="PptxDocument.ResolveFill"/>.</summary>
+    private static XElement BuildFillElement(string colorHex) =>
+        new(A + "fill", new XElement(A + "solidFill", new XElement(A + "srgbClr", new XAttribute("val", colorHex))));
+
+    /// <summary>Builds a single named <c>&lt;a:tcBdr&gt;</c> edge (for example <c>"left"</c>/<c>"insideV"</c>), wrapping an <c>&lt;a:ln&gt;</c> of the given width/color.</summary>
+    private static XElement BuildTcBdrEdge(string edgeName, float widthEmu, string colorHex) =>
+        new(A + edgeName,
+            new XElement(A + "ln", new XAttribute("w", widthEmu),
+                new XElement(A + "solidFill", new XElement(A + "srgbClr", new XAttribute("val", colorHex)))));
+
+    /// <summary>Builds a single <c>&lt;a:tcPr&gt;</c>-level line edge (for example <c>"lnL"</c>/<c>"lnT"</c>) - unlike <see cref="BuildTcBdrEdge"/>'s style-tier edges, this is itself the line element (no nested <c>&lt;a:ln&gt;</c>), matching <c>CT_TableCellProperties</c>'s schema.</summary>
+    private static XElement BuildTcPrLineEdge(string edgeName, float widthEmu, string colorHex) =>
+        new(A + edgeName, new XAttribute("w", widthEmu),
+            new XElement(A + "solidFill", new XElement(A + "srgbClr", new XAttribute("val", colorHex))));
+
+    /// <summary>Builds an <c>&lt;a:tcStyle&gt;</c> (a table style tier's cell-style payload) from an optional fill and zero or more <c>&lt;a:tcBdr&gt;</c> edges.</summary>
+    private static XElement BuildTcStyle(XElement? fill = null, params XElement[] tcBdrEdges)
+    {
+        var tcStyle = new XElement(A + "tcStyle");
+        if (tcBdrEdges.Length > 0)
+        {
+            tcStyle.Add(new XElement(A + "tcBdr", tcBdrEdges));
+        }
+
+        if (fill is not null)
+        {
+            tcStyle.Add(fill);
+        }
+
+        return tcStyle;
+    }
+
+    /// <summary>Builds an <c>&lt;a:tblStyle styleId="..."&gt;</c> from its optional <c>wholeTbl</c>/<c>band1H</c>/<c>band2H</c>/<c>firstRow</c> tiers (each itself an <see cref="BuildTcStyle"/>-built <c>&lt;a:tcStyle&gt;</c>, wrapped here in its own tier element).</summary>
+    private static XElement BuildTblStyle(
+        string styleId, XElement? wholeTbl = null, XElement? band1H = null, XElement? band2H = null, XElement? firstRow = null)
+    {
+        var tblStyle = new XElement(A + "tblStyle", new XAttribute("styleId", styleId));
+        if (wholeTbl is not null)
+        {
+            tblStyle.Add(new XElement(A + "wholeTbl", wholeTbl));
+        }
+
+        if (band1H is not null)
+        {
+            tblStyle.Add(new XElement(A + "band1H", band1H));
+        }
+
+        if (band2H is not null)
+        {
+            tblStyle.Add(new XElement(A + "band2H", band2H));
+        }
+
+        if (firstRow is not null)
+        {
+            tblStyle.Add(new XElement(A + "firstRow", firstRow));
+        }
+
+        return tblStyle;
+    }
 
     // --- ParseTable ------------------------------------------------------------------------------
 
@@ -424,6 +514,217 @@ public class PptxTablesTests
         }
 
         Assert.True(anyInk);
+    }
+
+    // --- Table style resolution (Phase 2 Follow-Up: Table Style/Banding Resolution) --------------
+
+    /// <summary>
+    ///     Proves (a): a table with a matching <c>&lt;a:tableStyleId&gt;</c> and
+    ///     <c>&lt;a:tblPr firstRow="1"&gt;</c> renders its header row (row 0) cell using the
+    ///     matched style's <c>&lt;a:firstRow&gt;</c> tier fill, while a non-header row falls back
+    ///     to the style's <c>&lt;a:wholeTbl&gt;</c> base-tier fill.
+    /// </summary>
+    [Fact]
+    public void ParseTable_FirstRowTblPrWithMatchingTableStyle_HeaderRowCellUsesFirstRowStyleFill()
+    {
+        var tblStyle = BuildTblStyle(
+            "styleA",
+            wholeTbl: BuildTcStyle(BuildFillElement("111111")),
+            firstRow: BuildTcStyle(BuildFillElement("222222")));
+
+        var tbl = BuildTblWithPr(
+            BuildTblPr(tableStyleId: "styleA", firstRow: true),
+            [1000f],
+            BuildTr(500f, BuildTc()),
+            BuildTr(500f, BuildTc()));
+        var graphicFrame = BuildGraphicFrame(tbl);
+
+        var table = PptxDocument.ParseTable(
+            graphicFrame, BuildTestTheme(), tableStyleResolver: id => id == "styleA" ? tblStyle : null);
+
+        var headerFill = Assert.IsType<PptxSolidFill>(table.Rows[0].Cells[0].Fill);
+        Assert.Equal(new Rgba32(0x22, 0x22, 0x22, 255), headerFill.Color);
+
+        var dataFill = Assert.IsType<PptxSolidFill>(table.Rows[1].Cells[0].Fill);
+        Assert.Equal(new Rgba32(0x11, 0x11, 0x11, 255), dataFill.Color);
+    }
+
+    /// <summary>
+    ///     Proves (b): with a matching style and <c>&lt;a:tblPr firstRow="1" bandRow="1"&gt;</c>,
+    ///     the header row uses <c>&lt;a:firstRow&gt;</c>'s fill and the remaining (non-header)
+    ///     rows alternate <c>&lt;a:band1H&gt;</c>/<c>&lt;a:band2H&gt;</c> starting immediately
+    ///     after the header row - with a band tier declaring no <c>&lt;a:fill&gt;</c> at all (here,
+    ///     <c>band2H</c>) falling through to the <c>&lt;a:wholeTbl&gt;</c> base fill rather than
+    ///     "no fill".
+    /// </summary>
+    [Fact]
+    public void ParseTable_BandRowTblPrWithMatchingTableStyle_AlternatesBand1HAndBand2HFillStartingAfterHeaderRow()
+    {
+        var tblStyle = BuildTblStyle(
+            "styleB",
+            wholeTbl: BuildTcStyle(BuildFillElement("AAAAAA")),
+            band1H: BuildTcStyle(BuildFillElement("BBBBBB")),
+            band2H: BuildTcStyle(), // deliberately no <a:fill> - must fall through to wholeTbl
+            firstRow: BuildTcStyle(BuildFillElement("CCCCCC")));
+
+        var tbl = BuildTblWithPr(
+            BuildTblPr(tableStyleId: "styleB", firstRow: true, bandRow: true),
+            [1000f],
+            BuildTr(500f, BuildTc()),
+            BuildTr(500f, BuildTc()),
+            BuildTr(500f, BuildTc()),
+            BuildTr(500f, BuildTc()),
+            BuildTr(500f, BuildTc()));
+        var graphicFrame = BuildGraphicFrame(tbl);
+
+        var table = PptxDocument.ParseTable(
+            graphicFrame, BuildTestTheme(), tableStyleResolver: id => id == "styleB" ? tblStyle : null);
+
+        Assert.Equal(new Rgba32(0xCC, 0xCC, 0xCC, 255), Assert.IsType<PptxSolidFill>(table.Rows[0].Cells[0].Fill).Color); // header (firstRow)
+        Assert.Equal(new Rgba32(0xBB, 0xBB, 0xBB, 255), Assert.IsType<PptxSolidFill>(table.Rows[1].Cells[0].Fill).Color); // band1H
+        Assert.Equal(new Rgba32(0xAA, 0xAA, 0xAA, 255), Assert.IsType<PptxSolidFill>(table.Rows[2].Cells[0].Fill).Color); // band2H -> wholeTbl
+        Assert.Equal(new Rgba32(0xBB, 0xBB, 0xBB, 255), Assert.IsType<PptxSolidFill>(table.Rows[3].Cells[0].Fill).Color); // band1H
+        Assert.Equal(new Rgba32(0xAA, 0xAA, 0xAA, 255), Assert.IsType<PptxSolidFill>(table.Rows[4].Cells[0].Fill).Color); // band2H -> wholeTbl
+    }
+
+    /// <summary>
+    ///     Proves (c), case 1: a table whose <c>&lt;a:tblPr&gt;</c> declares no
+    ///     <c>&lt;a:tableStyleId&gt;</c> at all never even invokes the table-style resolver
+    ///     delegate, and falls back to today's plain, style-less cell-only fill/border resolution.
+    /// </summary>
+    [Fact]
+    public void ParseTable_TblPrWithNoTableStyleId_FallsBackToPlainCellOnlyBorderAndNoFill()
+    {
+        var tcPr = new XElement(
+            A + "tcPr",
+            BuildTcPrLineEdge("lnL", 100f, "FF0000"),
+            BuildFillElement("00FF00").Elements().First()); // <a:solidFill> direct child of <a:tcPr>, matching existing tcPr convention
+
+        var tbl = BuildTblWithPr(
+            BuildTblPr(firstRow: true, bandRow: true), // no tableStyleId
+            [1000f],
+            BuildTr(500f, BuildTc(tcPr: tcPr)));
+        var graphicFrame = BuildGraphicFrame(tbl);
+
+        var table = PptxDocument.ParseTable(
+            graphicFrame, BuildTestTheme(),
+            tableStyleResolver: _ => throw new InvalidOperationException("Resolver must not be invoked with no tableStyleId."));
+
+        var cell = table.Rows[0].Cells[0];
+        var fill = Assert.IsType<PptxSolidFill>(cell.Fill);
+        Assert.Equal(new Rgba32(0x00, 0xFF, 0x00, 255), fill.Color);
+        Assert.NotNull(cell.LeftBorder);
+        Assert.Null(cell.RightBorder);
+    }
+
+    /// <summary>
+    ///     Proves (c), case 2: a table whose <c>&lt;a:tableStyleId&gt;</c> does not resolve to any
+    ///     known <c>&lt;a:tblStyle&gt;</c> (the resolver returns <see langword="null"/>) falls back
+    ///     to the same plain, style-less cell-only fill/border resolution, without throwing.
+    /// </summary>
+    [Fact]
+    public void ParseTable_TblPrWithUnresolvableTableStyleId_FallsBackToPlainCellOnlyBorderAndNoFillWithoutThrowing()
+    {
+        var tcPr = new XElement(A + "tcPr", BuildTcPrLineEdge("lnT", 150f, "0000FF"));
+
+        var tbl = BuildTblWithPr(
+            BuildTblPr(tableStyleId: "{NO-SUCH-STYLE}", firstRow: true, bandRow: true),
+            [1000f],
+            BuildTr(500f, BuildTc(tcPr: tcPr)));
+        var graphicFrame = BuildGraphicFrame(tbl);
+
+        var table = PptxDocument.ParseTable(graphicFrame, BuildTestTheme(), tableStyleResolver: _ => null);
+
+        var cell = table.Rows[0].Cells[0];
+        Assert.IsType<PptxNoFill>(cell.Fill);
+        Assert.NotNull(cell.TopBorder);
+        Assert.Null(cell.LeftBorder);
+    }
+
+    /// <summary>
+    ///     Proves (d): a cell's own explicit <c>&lt;a:tcPr&gt;</c> fill and a single explicit
+    ///     border edge (<c>&lt;a:lnT&gt;</c>) take final precedence over the matched table style's
+    ///     fill/borders, while the cell's remaining (non-overridden) border edges still fall back
+    ///     to the matched style's own <c>&lt;a:wholeTbl&gt;</c> tier.
+    /// </summary>
+    [Fact]
+    public void ParseTableCell_TcPrExplicitFillAndBorder_OverridesTableStyleFillAndBorder()
+    {
+        var tblStyle = BuildTblStyle(
+            "styleD",
+            wholeTbl: BuildTcStyle(
+                BuildFillElement("111111"),
+                BuildTcBdrEdge("left", 50f, "AAAAAA"),
+                BuildTcBdrEdge("right", 50f, "AAAAAA"),
+                BuildTcBdrEdge("top", 50f, "AAAAAA"),
+                BuildTcBdrEdge("bottom", 50f, "AAAAAA")));
+
+        var tcPr = new XElement(
+            A + "tcPr",
+            BuildTcPrLineEdge("lnT", 999f, "FF00FF"),
+            BuildFillElement("FFFFFF").Elements().First());
+
+        var tbl = BuildTblWithPr(
+            BuildTblPr(tableStyleId: "styleD"),
+            [1000f],
+            BuildTr(500f, BuildTc(tcPr: tcPr)));
+        var graphicFrame = BuildGraphicFrame(tbl);
+
+        var table = PptxDocument.ParseTable(
+            graphicFrame, BuildTestTheme(), tableStyleResolver: id => id == "styleD" ? tblStyle : null);
+
+        var cell = table.Rows[0].Cells[0];
+        var fill = Assert.IsType<PptxSolidFill>(cell.Fill);
+        Assert.Equal(new Rgba32(0xFF, 0xFF, 0xFF, 255), fill.Color);
+
+        Assert.NotNull(cell.TopBorder);
+        Assert.Equal(999f, cell.TopBorder.WidthEmu);
+
+        Assert.NotNull(cell.LeftBorder);
+        Assert.Equal(50f, cell.LeftBorder.WidthEmu); // falls back to the style's own wholeTbl tier
+        Assert.NotNull(cell.RightBorder);
+        Assert.Equal(50f, cell.RightBorder.WidthEmu);
+        Assert.NotNull(cell.BottomBorder);
+        Assert.Equal(50f, cell.BottomBorder.WidthEmu);
+    }
+
+    /// <summary>
+    ///     Proves (recommended 5th case): an interior column boundary resolves against the style's
+    ///     <c>&lt;a:tcBdr&gt;/&lt;a:insideV&gt;</c> edge rather than its <c>left</c>/<c>right</c>
+    ///     edges, while the table's two true outer-boundary edges (the first cell's own left edge,
+    ///     the last cell's own right edge) still resolve against <c>left</c>/<c>right</c>.
+    /// </summary>
+    [Fact]
+    public void ParseTableCell_InteriorColumnBorder_UsesInsideVNotLeftRightTcBdrEdge()
+    {
+        var tblStyle = BuildTblStyle(
+            "styleE",
+            wholeTbl: BuildTcStyle(
+                null,
+                BuildTcBdrEdge("left", 10f, "111111"),
+                BuildTcBdrEdge("right", 20f, "222222"),
+                BuildTcBdrEdge("insideV", 30f, "333333")));
+
+        var tbl = BuildTblWithPr(
+            BuildTblPr(tableStyleId: "styleE"),
+            [1000f, 1000f, 1000f],
+            BuildTr(500f, BuildTc(), BuildTc(), BuildTc()));
+        var graphicFrame = BuildGraphicFrame(tbl);
+
+        var table = PptxDocument.ParseTable(
+            graphicFrame, BuildTestTheme(), tableStyleResolver: id => id == "styleE" ? tblStyle : null);
+
+        var firstCell = table.Rows[0].Cells[0];
+        Assert.Equal(10f, firstCell.LeftBorder!.WidthEmu); // true outer edge
+        Assert.Equal(30f, firstCell.RightBorder!.WidthEmu); // interior edge
+
+        var middleCell = table.Rows[0].Cells[1];
+        Assert.Equal(30f, middleCell.LeftBorder!.WidthEmu); // interior edge
+        Assert.Equal(30f, middleCell.RightBorder!.WidthEmu); // interior edge
+
+        var lastCell = table.Rows[0].Cells[2];
+        Assert.Equal(30f, lastCell.LeftBorder!.WidthEmu); // interior edge
+        Assert.Equal(20f, lastCell.RightBorder!.WidthEmu); // true outer edge
     }
 
     /// <summary>Proves a no-fill, no-border, no-text cell paints nothing at all.</summary>
