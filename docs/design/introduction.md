@@ -115,6 +115,17 @@ software items, specifically:
   `Drawing`, `Fonts`, and `Codecs` subsystems (for the `Rgba32` color type, path geometry/
   stroking, font/glyph resolution, and image decoding used to resolve and render shape/text/
   picture content) — see _CanvasNetPptx System Design_ (`canvas-net-pptx.md`)
+- **CanvasNetCharts (System)** — A separate, independently-distributed software system providing
+  chart support, being delivered incrementally. Phase 1 (the current release) ships a single
+  subsystem, `ChartModel`, containing a single unit, `ChartDocument`: the public, immutable,
+  validating chart data model (`Chart`/`ChartSeries`/`ChartAxis`/`ChartLegend`/`ChartTitle`/
+  `ChartType`) and the `ChartBuilder` fluent construction API — no pixel rendering and no OOXML
+  `chart1.xml` parsing yet. Phase 2 adds a `ChartRenderer` unit that paints a `Chart` onto a core
+  `Surface`. Phase 3 adds an OOXML `chart1.xml` parser unit. Phase 4 integrates chart rendering
+  into `CanvasNetPptx`'s own slide rendering. `CanvasNetCharts` depends on this `CanvasNet`
+  system's `Canvas` subsystem only (for the `Rgba32` color type) as of Phase 1, and must never
+  reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, or `CanvasNetVsdx` — see
+  _CanvasNetCharts System Design_ (`canvas-net-charts.md`)
 
 The following OTS items are also covered:
 

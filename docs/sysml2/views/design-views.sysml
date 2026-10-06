@@ -24,6 +24,14 @@ package CanvasNet {
         expose CanvasNetPptxSystem;
     }
 
+    view CanvasNetChartsView {
+        expose CanvasNetChartsSystem;
+    }
+
+    view ChartModelView {
+        expose ChartModel;
+    }
+
     view CanvasView {
         expose Canvas;
     }

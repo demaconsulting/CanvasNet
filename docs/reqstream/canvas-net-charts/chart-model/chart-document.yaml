@@ -1,0 +1,298 @@
+---
+# Software Unit Requirements for ChartDocument
+#
+# These requirements describe the design-level behavior of the ChartDocument unit: the
+# Chart/ChartSeries/ChartAxis/ChartLegend/ChartTitle/ChartType model types and the ChartBuilder
+# fluent construction API, all in the DemaConsulting.CanvasNet.Charts namespace.
+
+sections:
+  - title: CanvasNetCharts Requirements
+    sections:
+      - title: ChartModel Requirements
+        sections:
+          - title: ChartDocument Requirements
+            requirements:
+              - id: CanvasNetCharts-ChartModel-ChartDocument-ChartConstruction
+                title: >-
+                  The Chart class shall construct from a ChartType, a non-empty, non-null-containing
+                  series collection, and optional category axis, value axis, legend, title, and
+                  color palette, exposing each as a read-only property.
+                justification: |
+                  Chart is the root aggregate of the data model; every later consumer needs a
+                  single, fully validated, read-only view of a chart's complete configuration.
+                tests:
+                  - Constructor_MinimalMembers_SetsRequiredAndLeavesOptionalsUnset
+                  - Constructor_AllMembers_SetsAllMembers
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-ChartTypeValidation
+                title: >-
+                  The Chart class shall reject a ChartType value that is not a defined member of
+                  the enumeration with ArgumentOutOfRangeException.
+                justification: |
+                  An undefined chart kind has no meaningful rendering behavior and must fail at
+                  construction rather than propagate to a later rendering phase.
+                tests:
+                  - Constructor_UndefinedType_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-SeriesCollectionValidation
+                title: >-
+                  The Chart class shall reject a null series argument with ArgumentNullException, an
+                  empty series collection with ArgumentException, and a series collection
+                  containing a null entry with ArgumentException.
+                justification: |
+                  A chart with zero series or a missing series entry cannot be meaningfully
+                  rendered and must be rejected before it reaches any later rendering phase.
+                tests:
+                  - Constructor_NullSeries_ThrowsArgumentNullException
+                  - Constructor_EmptySeries_ThrowsArgumentException
+                  - Constructor_NullSeriesEntry_ThrowsArgumentException
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-CategoryLengthValidation
+                title: >-
+                  The Chart class shall, for ChartType.Bar, ChartType.Column, ChartType.Line, and
+                  ChartType.Area, when a category axis with non-null Labels is supplied, reject a
+                  series whose Values count does not exactly equal the category axis's label count
+                  with ArgumentException, and shall not apply this check for ChartType.Pie,
+                  ChartType.Doughnut, a null category axis, or a category axis with null Labels.
+                justification: |
+                  A category-based chart type plots each series value against the matching
+                  category label by position; a length mismatch would silently misalign data when
+                  later rendered.
+                tests:
+                  - Constructor_CategoryBasedTypeWithMatchingLength_Succeeds
+                  - Constructor_CategoryBasedTypeWithMismatchedLength_ThrowsArgumentException
+                  - Constructor_ProportionalType_IsExemptFromLengthCheck
+                  - Constructor_CategoryAxisWithNoLabels_DoesNotTriggerLengthCheck
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-ColorPaletteValidation
+                title: >-
+                  The Chart class shall reject a non-null, empty color palette argument with
+                  ArgumentException.
+                justification: |
+                  An explicitly supplied but empty color palette cannot provide any color and
+                  indicates a caller mistake that should fail immediately rather than silently
+                  fall back to a renderer default.
+                tests:
+                  - Constructor_EmptyColorPalette_ThrowsArgumentException
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-SeriesValidation
+                title: >-
+                  The ChartSeries class shall construct from a non-null, non-empty/whitespace-only
+                  name and a non-null, non-empty, all-finite values collection, with an optional
+                  per-point color collection, an optional per-point label collection, and an
+                  optional series-level color, exposing each as a read-only property.
+                justification: |
+                  Each series needs its own validated name and data points, independent of the
+                  Chart that will eventually contain it, so series-level invariants cannot be
+                  bypassed by constructing a series outside a Chart.
+                tests:
+                  - Constructor_NameAndValuesOnly_SetsMembersAndLeavesOptionalsUnset
+                  - Constructor_AllMembers_SetsAllMembers
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-SeriesNameValidation
+                title: >-
+                  The ChartSeries class shall reject a null name argument with
+                  ArgumentNullException, and an empty or whitespace-only name argument with
+                  ArgumentException.
+                justification: |
+                  A series with a blank name cannot be meaningfully labeled on a legend or tooltip
+                  and must be rejected before it reaches any later rendering phase.
+                tests:
+                  - Constructor_NullName_ThrowsArgumentNullException
+                  - Constructor_EmptyOrWhitespaceName_ThrowsArgumentException
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-ValuesValidation
+                title: >-
+                  The ChartSeries class shall reject a null values argument with
+                  ArgumentNullException, an empty values collection with ArgumentException, and a
+                  values collection containing a non-finite (NaN or infinite) entry with
+                  ArgumentException.
+                justification: |
+                  A series with no data points or a non-finite value cannot be meaningfully
+                  plotted and must be rejected before it reaches any later rendering phase.
+                tests:
+                  - Constructor_NullValues_ThrowsArgumentNullException
+                  - Constructor_EmptyValues_ThrowsArgumentException
+                  - Constructor_NonFiniteValueEntry_ThrowsArgumentException
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-PerPointCollectionValidation
+                title: >-
+                  The ChartSeries class shall reject a non-null per-point color collection whose
+                  count does not exactly equal the values count with ArgumentException, and a
+                  non-null per-point label collection whose count does not exactly equal the
+                  values count, or that contains a null entry, with ArgumentException.
+                justification: |
+                  A per-point override collection whose length does not match the series' own
+                  value count, or that contains a null label, cannot be unambiguously paired with
+                  a specific data point.
+                tests:
+                  - Constructor_PointColorsCountMismatch_ThrowsArgumentException
+                  - Constructor_PointLabelsCountMismatch_ThrowsArgumentException
+                  - Constructor_NullPointLabelEntry_ThrowsArgumentException
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-AxisValidation
+                title: >-
+                  The ChartAxis class shall construct from an optional ordered label collection, an
+                  optional finite minimum, an optional finite maximum, an optional finite,
+                  strictly positive tick interval, and an optional non-empty/whitespace-only
+                  title, exposing each as a read-only property, and used for either a category
+                  axis (via Labels) or a value axis (via Minimum/Maximum/TickInterval), or both.
+                justification: |
+                  A single axis type covering both category and value axis use keeps the model
+                  simple while still supporting a chart that needs both kinds of axis.
+                tests:
+                  - Constructor_LabelsOnly_SetsLabelsAndLeavesRangeUnset
+                  - Constructor_ValueRangeOnly_SetsRangeAndLeavesLabelsUnset
+                  - Constructor_LabelsAndRangeAndTitle_SetsAllMembers
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-AxisLabelValidation
+                title: >-
+                  The ChartAxis class shall reject a labels collection containing a null entry with
+                  ArgumentException, while accepting an empty-string label entry as a legitimate
+                  blank category label.
+                justification: |
+                  A null label has no meaningful text to render, while an empty string is a
+                  legitimate, intentionally blank category label a caller may supply.
+                tests:
+                  - Constructor_EmptyStringLabel_IsAccepted
+                  - Constructor_NullLabelEntry_ThrowsArgumentException
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-AxisRangeValidation
+                title: >-
+                  The ChartAxis class shall reject a non-finite minimum or maximum with
+                  ArgumentOutOfRangeException, a minimum not strictly less than the maximum when
+                  both are supplied with ArgumentOutOfRangeException, and a non-finite or
+                  non-positive tick interval with ArgumentOutOfRangeException.
+                justification: |
+                  An inverted, zero-width, non-finite, or non-positively-spaced value-axis range
+                  cannot be meaningfully rendered and must be rejected before it reaches any later
+                  rendering phase.
+                tests:
+                  - Constructor_NonFiniteMinimum_ThrowsArgumentOutOfRangeException
+                  - Constructor_NonFiniteMaximum_ThrowsArgumentOutOfRangeException
+                  - Constructor_MinimumEqualToMaximum_ThrowsArgumentOutOfRangeException
+                  - Constructor_MinimumGreaterThanMaximum_ThrowsArgumentOutOfRangeException
+                  - Constructor_InvalidTickInterval_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-AxisTitleValidation
+                title: >-
+                  The ChartAxis class shall reject an empty or whitespace-only title argument with
+                  ArgumentException.
+                justification: |
+                  An axis title with no visible text indicates a caller mistake and should fail
+                  rather than silently render as blank.
+                tests:
+                  - Constructor_WhitespaceTitle_ThrowsArgumentException
+                  - Constructor_EmptyTitle_ThrowsArgumentException
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-LegendValidation
+                title: >-
+                  The ChartLegend class shall construct from an optional ChartLegendPosition
+                  (defaulting to Right) and an optional visibility flag (defaulting to true),
+                  exposing each as a read-only property, and reject an undefined
+                  ChartLegendPosition value with ArgumentOutOfRangeException.
+                justification: |
+                  A legend's placement must be one of a known, finite set of positions a renderer
+                  understands how to lay out.
+                tests:
+                  - Constructor_Defaults_IsVisibleAndRightPositioned
+                  - Constructor_EachDefinedPosition_IsAccepted
+                  - Constructor_IsVisibleFalse_IsStored
+                  - Constructor_UndefinedPosition_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-TitleValidation
+                title: >-
+                  The ChartTitle class shall construct from non-null, non-empty, non-whitespace-only
+                  text and an optional finite, strictly positive font-size hint, exposing each as a
+                  read-only property, and reject a null text argument with
+                  ArgumentNullException, an empty or whitespace-only text argument with
+                  ArgumentException, and a non-finite or non-positive font size with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  A title with blank text or a non-positive font size cannot be meaningfully
+                  rendered and must be rejected before it reaches any later rendering phase.
+                tests:
+                  - Constructor_TextOnly_SetsTextAndLeavesFontSizeUnset
+                  - Constructor_TextAndFontSize_SetsBothMembers
+                  - Constructor_NullText_ThrowsArgumentNullException
+                  - Constructor_EmptyText_ThrowsArgumentException
+                  - Constructor_WhitespaceText_ThrowsArgumentException
+                  - Constructor_InvalidFontSize_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-DefensiveCopies
+                title: >-
+                  The Chart, ChartSeries, and ChartAxis classes shall copy every caller-supplied
+                  collection argument into an independent, immutable snapshot at construction
+                  time, such that a subsequent mutation of the caller's original collection has no
+                  observable effect on the constructed instance's exposed property.
+                justification: |
+                  Exposing a caller-supplied collection directly, or a shallow wrapper over it,
+                  would let a caller mutate state the model type's constructor already validated,
+                  breaking the immutability guarantee later phases rely on.
+                tests:
+                  - Constructor_MutatingOriginalSeriesList_DoesNotAffectStoredSnapshot
+                  - Constructor_MutatingOriginalColorPaletteList_DoesNotAffectStoredSnapshot
+                  - Constructor_MutatingOriginalValuesList_DoesNotAffectStoredSnapshot
+                  - Constructor_MutatingOriginalPointColorsList_DoesNotAffectStoredSnapshot
+                  - Constructor_MutatingOriginalPointLabelsList_DoesNotAffectStoredSnapshot
+                  - Constructor_MutatingOriginalLabelsList_DoesNotAffectStoredSnapshot
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-BuilderFluentChaining
+                title: >-
+                  The ChartBuilder class shall return the same instance (this) from OfType,
+                  AddSeries, WithCategoryAxis, WithValueAxis, WithLegend, WithTitle, and
+                  WithColorPalette, enabling fluent method chaining, and shall preserve the order
+                  series were added in via AddSeries.
+                justification: |
+                  Chaining every configuration call onto the previous one, in the order the
+                  caller wrote them, is ChartBuilder's defining usability characteristic.
+                tests:
+                  - FluentMethods_EachReturnSameBuilderInstance
+                  - Build_WithMultipleSeriesAddedViaChartSeriesOverload_PreservesOrder
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-BuilderDelegatesValidation
+                title: >-
+                  The ChartBuilder class shall perform no independent data-shape validation beyond
+                  reporting an incomplete configuration from Build; every other invalid argument
+                  passed to AddSeries, WithCategoryAxis, WithValueAxis, WithLegend, WithTitle, or
+                  WithColorPalette, or to Build itself, shall surface the identical exception the
+                  corresponding model constructor throws.
+                justification: |
+                  A single source of truth for each validation rule, enforced by the model
+                  constructors ChartBuilder itself calls, prevents ChartBuilder's own rules from
+                  drifting out of sync with the model's rules over time.
+                tests:
+                  - AddSeries_InvalidName_PropagatesChartSeriesConstructorException
+                  - AddSeries_NullChartSeries_PropagatesArgumentNullException
+                  - WithCategoryAxis_NullChartAxis_PropagatesArgumentNullException
+                  - WithValueAxis_NullChartAxis_PropagatesArgumentNullException
+                  - WithValueAxis_InvalidRange_PropagatesChartAxisConstructorException
+                  - WithLegend_NullChartLegend_PropagatesArgumentNullException
+                  - WithTitle_WhitespaceText_PropagatesChartTitleConstructorException
+                  - WithColorPalette_Null_ThrowsArgumentNullException
+                  - Build_SeriesLengthMismatchedWithCategoryAxis_PropagatesChartConstructorException
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-BuilderIncompleteBuildFails
+                title: >-
+                  The ChartBuilder class shall throw InvalidOperationException from Build when
+                  OfType was never called, and shall throw InvalidOperationException from Build
+                  when no series was added via AddSeries.
+                justification: |
+                  Build must not silently default an unset chart type or an empty series list;
+                  failing closed surfaces the omission to the caller immediately.
+                tests:
+                  - Build_TypeNeverSet_ThrowsInvalidOperationException
+                  - Build_NoSeriesAdded_ThrowsInvalidOperationException
+
+              - id: CanvasNetCharts-ChartModel-ChartDocument-TypeEnumeration
+                title: >-
+                  The ChartType enumeration shall define exactly the Bar, Column, Line, Pie,
+                  Doughnut, and Area members for Phase 1, each fully documented.
+                justification: |
+                  Later phases (rendering, OOXML parsing) dispatch on ChartType; its Phase 1
+                  member set must be fixed and well-documented so those phases know exactly which
+                  chart kinds to support.
+                tests:
+                  - AllV1Members_AreDefined
+                  - UndefinedValue_IsNotDefined
+                  - UndefinedValue_RejectedByChartConstructor

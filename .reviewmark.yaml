@@ -881,6 +881,79 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxConnectorTests.cs"  # phase 2 follow-up (connector unit tests)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxFixturesCorpusTests.cs"  # fixture conformance tests
 
+  # CanvasNetCharts-Architecture Review (one per system)
+  - id: CanvasNetCharts-Architecture
+    title: Review that CanvasNetCharts Architecture Satisfies Requirements
+    context:
+      - "README.md"
+      - "docs/user_guide/**/*.md"
+    paths:
+      - "docs/reqstream/canvas-net-charts.yaml"                        # system requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-charts.md"                            # system design
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-charts.md"                      # system verification
+
+  # CanvasNetCharts-Design Review (one per system)
+  - id: CanvasNetCharts-Design
+    title: Review that CanvasNetCharts Design is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-charts.yaml"
+    paths:
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-charts.md"                            # system design
+      - "docs/design/canvas-net-charts/**/*.md"                       # all system design documents
+
+  # CanvasNetCharts-Verification Review (one per system)
+  - id: CanvasNetCharts-Verification
+    title: Review that CanvasNetCharts Verification is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-charts.yaml"
+    paths:
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-charts.md"                      # system verification
+      - "docs/verification/canvas-net-charts/**/*.md"                 # all verification documents
+
+  # CanvasNetCharts-AllRequirements Review (one per system)
+  - id: CanvasNetCharts-AllRequirements
+    title: Review that All CanvasNetCharts Requirements are Complete
+    context:
+      - "docs/design/canvas-net-charts.md"
+      - "docs/reqstream/canvas-net-charts.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-charts/**/*.yaml"                  # all requirements files
+
+  # CanvasNetCharts-ChartDocument Review (one per unit)
+  - id: CanvasNetCharts-ChartDocument
+    title: Review that CanvasNetCharts ChartDocument Implementation is Correct
+    context:
+      - "docs/design/canvas-net-charts.md"
+      - "docs/reqstream/canvas-net-charts.yaml"
+      - "docs/design/canvas-net-charts/chart-model.md"
+      - "docs/reqstream/canvas-net-charts/chart-model.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-charts/chart-model/chart-document.yaml"  # unit requirements
+      - "docs/design/canvas-net-charts/chart-model/chart-document.md"       # unit design
+      - "docs/verification/canvas-net-charts/chart-model/chart-document.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-charts/chart-model/chart-document.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Charts/DemaConsulting.CanvasNet.Charts.csproj"  # unit project file
+      - "src/DemaConsulting.CanvasNet.Charts/NamespaceDoc.cs"         # Charts namespace documentation
+      - "src/DemaConsulting.CanvasNet.Charts/ChartType.cs"            # unit source (chart kind enum)
+      - "src/DemaConsulting.CanvasNet.Charts/ChartAxis.cs"            # unit source (axis model)
+      - "src/DemaConsulting.CanvasNet.Charts/ChartLegend.cs"          # unit source (legend model)
+      - "src/DemaConsulting.CanvasNet.Charts/ChartTitle.cs"           # unit source (title model)
+      - "src/DemaConsulting.CanvasNet.Charts/ChartSeries.cs"          # unit source (series model)
+      - "src/DemaConsulting.CanvasNet.Charts/Chart.cs"                # unit source (root aggregate)
+      - "src/DemaConsulting.CanvasNet.Charts/ChartBuilder.cs"         # unit source (fluent builder)
+      - "test/DemaConsulting.CanvasNet.Charts.Tests/DemaConsulting.CanvasNet.Charts.Tests.csproj"  # unit test project file
+      - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartTypeTests.cs"     # unit tests
+      - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartAxisTests.cs"     # unit tests
+      - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartLegendTests.cs"   # unit tests
+      - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartTitleTests.cs"    # unit tests
+      - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartSeriesTests.cs"   # unit tests
+      - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartTests.cs"         # unit tests
+      - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartBuilderTests.cs"  # unit tests
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality

@@ -1,0 +1,74 @@
+---
+# Software System Requirements for CanvasNetCharts
+#
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Charts
+# package (namespace DemaConsulting.CanvasNet.Charts) from the perspective of its consumers, without
+# specifying implementation details.
+#
+# CanvasNetCharts is an independent software system, distributed as its own NuGet package,
+# depending on the core CanvasNet system (docs/reqstream/canvas-net.yaml) for its Canvas subsystem's
+# Rgba32 color type only - see docs/design/canvas-net-charts.md's Dependencies section for details.
+#
+# CanvasNetCharts is being delivered incrementally. Phase 1 (these requirements) ships the public,
+# immutable chart data model (Chart/ChartSeries/ChartAxis/ChartLegend/ChartTitle/ChartType) and the
+# ChartBuilder ergonomic construction API - no pixel rendering and no OOXML chart1.xml parsing yet.
+# Phase 2 adds a ChartRenderer that paints a Chart onto a core Surface. Phase 3 adds an OOXML
+# chart1.xml parser that produces a Chart from an embedded PowerPoint chart part. Phase 4 integrates
+# chart rendering into PptxDocument's slide rendering. These later-phase requirements will be added
+# to this file (and new per-unit files) when each phase lands, mirroring canvas-net-pptx.yaml's own
+# per-phase header-comment convention.
+
+sections:
+  - title: Chart Model API
+    requirements:
+      - id: CanvasNetCharts-Lib-ChartModel
+        title: >-
+          The library shall provide an immutable, validating data model (Chart, ChartSeries,
+          ChartAxis, ChartLegend, ChartTitle, and the ChartType enumeration) describing a chart's
+          kind, data series, optional category/value axes, optional legend, optional title, and an
+          optional default color palette, rejecting any invalid construction argument (a null
+          required argument, an empty or whitespace-only name/title, a non-finite numeric value, a
+          series/category-axis length mismatch, or similar) at construction time rather than
+          silently coercing it, and defensively copying every caller-supplied collection so that
+          mutating the caller's original collection after construction has no effect on the
+          constructed instance.
+        tags: [system]
+        justification: |
+          Later phases (a renderer and an OOXML chart1.xml parser) both need a single, already
+          validated, immutable in-memory representation of "what chart to draw" that cannot be
+          mutated out from under them after construction, and that fails closed on invalid data
+          rather than propagating it into rendering or serialization logic.
+        children:
+          - CanvasNetCharts-ChartModel-ChartConstruction
+          - CanvasNetCharts-ChartModel-SeriesAxisConsistency
+          - CanvasNetCharts-ChartModel-SeriesValidation
+          - CanvasNetCharts-ChartModel-AxisValidation
+          - CanvasNetCharts-ChartModel-LegendValidation
+          - CanvasNetCharts-ChartModel-TitleValidation
+          - CanvasNetCharts-ChartModel-DefensiveCopies
+          - CanvasNetCharts-ChartModel-TypeEnumeration
+        tests:
+          - Constructor_AllMembers_SetsAllMembers
+          - Constructor_MutatingOriginalSeriesList_DoesNotAffectStoredSnapshot
+
+      - id: CanvasNetCharts-Lib-ChartBuilder
+        title: >-
+          The library shall provide a fluent ChartBuilder API for constructing a Chart, where every
+          chainable method either stores already-valid caller state or delegates construction of a
+          model type to that type's own validating constructor (never duplicating a validation
+          rule), and where calling Build before a chart type and at least one series have been
+          configured throws InvalidOperationException with a message identifying what is missing.
+        tags: [system]
+        justification: |
+          Constructing a Chart's full constructor argument list directly is verbose for the common
+          case; callers need a more ergonomic, discoverable, step-by-step way to assemble one
+          without the builder itself becoming a second, divergent place where validation rules
+          could drift from the model's own rules.
+        children:
+          - CanvasNetCharts-ChartModel-BuilderFluentChaining
+          - CanvasNetCharts-ChartModel-BuilderDelegatesValidation
+          - CanvasNetCharts-ChartModel-BuilderIncompleteBuildFails
+        tests:
+          - Build_FullConfiguration_ProducesChartRoundTrippingBuilderInputs
+          - Build_TypeNeverSet_ThrowsInvalidOperationException
+          - Build_NoSeriesAdded_ThrowsInvalidOperationException
