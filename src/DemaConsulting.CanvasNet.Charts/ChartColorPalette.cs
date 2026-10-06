@@ -37,7 +37,7 @@ public static class ChartColorPalette
     ///     available for a given series/point index. See this type's own remarks for the
     ///     resolution order and index-wrapping behavior.
     /// </summary>
-    public static readonly IReadOnlyList<Rgba32> Default =
+    public static readonly IReadOnlyList<Rgba32> Default = Array.AsReadOnly(
     [
         new Rgba32(0x1F, 0x77, 0xB4, 255), // blue
         new Rgba32(0xFF, 0x7F, 0x0E, 255), // orange
@@ -49,5 +49,5 @@ public static class ChartColorPalette
         new Rgba32(0x7F, 0x7F, 0x7F, 255), // gray
         new Rgba32(0xBC, 0xBD, 0x22, 255), // olive
         new Rgba32(0x17, 0xBE, 0xCF, 255), // cyan
-    ];
+    ]);
 }

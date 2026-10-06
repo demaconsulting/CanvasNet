@@ -401,15 +401,22 @@ public static partial class ChartRenderer
             }
         }
 
-        var padding = (max - min) * 0.05d;
+        // Guard against overflow for extreme-but-finite bounds (e.g. [-double.MaxValue,
+        // double.MaxValue]): both the range itself and min-padding/max+padding can overflow to
+        // +/-Infinity, which would otherwise propagate into ValueToPixel as NaN. Fall back to a
+        // zero padding, and/or clamp to the nearest finite double, whenever that would occur.
+        var range = max - min;
+        var padding = double.IsFinite(range) ? range * 0.05d : 0d;
         if (!hasExplicitMin)
         {
-            min -= padding;
+            var paddedMin = min - padding;
+            min = double.IsFinite(paddedMin) ? paddedMin : double.MinValue;
         }
 
         if (!hasExplicitMax)
         {
-            max += padding;
+            var paddedMax = max + padding;
+            max = double.IsFinite(paddedMax) ? paddedMax : double.MaxValue;
         }
 
         return (min, max);

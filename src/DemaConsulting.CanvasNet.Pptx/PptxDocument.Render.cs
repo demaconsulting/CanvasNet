@@ -109,53 +109,65 @@ public sealed partial class PptxDocument
         }
 
         var surface = new Surface(width, height);
-        surface.Clear((options ?? PptxRenderOptions.Default).BackgroundColor);
-
-        var slide = GetSlide(slideIndex);
-        var layout = GetLayout(slide.LayoutPartPath);
-        var master = GetMaster(layout.MasterPartPath);
-        var theme = GetTheme(master.ThemePartPath);
-
-        var baseTransform = Matrix3x2.CreateScale(width / (float)SlideSize.WidthEmu, height / (float)SlideSize.HeightEmu);
-
-        var colorMap = ResolveEffectiveColorMap(slide.ClrMapOvr, layout.ClrMapOvr, master.ColorMap);
-
-        var backgroundFill = ResolveSlideBackgroundFill(
-            slide.Background, layout.Background, master.Background, theme, SlideSize.WidthEmu, SlideSize.HeightEmu, colorMap,
-            blip => ResolvePictureSurface(slide.PartPath, blip),
-            blip => ResolvePictureSurface(layout.PartPath, blip),
-            blip => ResolvePictureSurface(master.PartPath, blip));
-        if (backgroundFill is not null)
+        try
         {
-            var backgroundPath = Path.Rectangle(0, 0, SlideSize.WidthEmu, SlideSize.HeightEmu).Transform(baseTransform);
-            FillPaintComposingLocalTransform(surface, backgroundPath, backgroundFill, baseTransform);
-        }
+            surface.Clear((options ?? PptxRenderOptions.Default).BackgroundColor);
 
-        // Phase 2 Follow-Up: paint the master's, then the layout's, own non-placeholder
-        // decorative shapes (pictures, autoshapes, groups, freeform shapes) before the slide's
-        // own shape tree, so paint order becomes background -> master decoration -> layout
-        // decoration -> slide content (each later tier painting on top of the earlier ones). Each
-        // walk's own owner part path (not the slide's) is threaded through so a master/layout-
-        // owned <p:pic>'s embedded-image relationship resolves against its own .rels file, not
-        // the slide's. skipPlaceholderShapes: true means a master/layout's own placeholder shapes
-        // (its "Click to edit..." prompt content) are never painted directly - only their
-        // non-placeholder siblings are.
-        foreach (var node in master.ShapeTree)
+            var slide = GetSlide(slideIndex);
+            var layout = GetLayout(slide.LayoutPartPath);
+            var master = GetMaster(layout.MasterPartPath);
+            var theme = GetTheme(master.ThemePartPath);
+
+            var baseTransform = Matrix3x2.CreateScale(width / (float)SlideSize.WidthEmu, height / (float)SlideSize.HeightEmu);
+
+            var colorMap = ResolveEffectiveColorMap(slide.ClrMapOvr, layout.ClrMapOvr, master.ColorMap);
+
+            var backgroundFill = ResolveSlideBackgroundFill(
+                slide.Background, layout.Background, master.Background, theme, SlideSize.WidthEmu, SlideSize.HeightEmu, colorMap,
+                blip => ResolvePictureSurface(slide.PartPath, blip),
+                blip => ResolvePictureSurface(layout.PartPath, blip),
+                blip => ResolvePictureSurface(master.PartPath, blip));
+            if (backgroundFill is not null)
+            {
+                var backgroundPath = Path.Rectangle(0, 0, SlideSize.WidthEmu, SlideSize.HeightEmu).Transform(baseTransform);
+                FillPaintComposingLocalTransform(surface, backgroundPath, backgroundFill, baseTransform);
+            }
+
+            // Phase 2 Follow-Up: paint the master's, then the layout's, own non-placeholder
+            // decorative shapes (pictures, autoshapes, groups, freeform shapes) before the slide's
+            // own shape tree, so paint order becomes background -> master decoration -> layout
+            // decoration -> slide content (each later tier painting on top of the earlier ones). Each
+            // walk's own owner part path (not the slide's) is threaded through so a master/layout-
+            // owned <p:pic>'s embedded-image relationship resolves against its own .rels file, not
+            // the slide's. skipPlaceholderShapes: true means a master/layout's own placeholder shapes
+            // (its "Click to edit..." prompt content) are never painted directly - only their
+            // non-placeholder siblings are.
+            foreach (var node in master.ShapeTree)
+            {
+                RenderNode(surface, node, master.PartPath, layout, master, theme, baseTransform, colorMap, skipPlaceholderShapes: true);
+            }
+
+            foreach (var node in layout.ShapeTree)
+            {
+                RenderNode(surface, node, layout.PartPath, layout, master, theme, baseTransform, colorMap, skipPlaceholderShapes: true);
+            }
+
+            foreach (var node in slide.ShapeTree)
+            {
+                RenderNode(surface, node, slide.PartPath, layout, master, theme, baseTransform, colorMap);
+            }
+
+            return surface;
+        }
+        catch
         {
-            RenderNode(surface, node, master.PartPath, layout, master, theme, baseTransform, colorMap, skipPlaceholderShapes: true);
+            // Dispose the partially-rendered surface only on the exceptional path - a failure
+            // part-way through the slide/layout/master/shape walk must not leak the (potentially
+            // large) pixel buffer until the next GC. The surface is still returned, undisposed, on
+            // the normal successful-return path above since ownership transfers to the caller.
+            surface.Dispose();
+            throw;
         }
-
-        foreach (var node in layout.ShapeTree)
-        {
-            RenderNode(surface, node, layout.PartPath, layout, master, theme, baseTransform, colorMap, skipPlaceholderShapes: true);
-        }
-
-        foreach (var node in slide.ShapeTree)
-        {
-            RenderNode(surface, node, slide.PartPath, layout, master, theme, baseTransform, colorMap);
-        }
-
-        return surface;
     }
 
     /// <summary>

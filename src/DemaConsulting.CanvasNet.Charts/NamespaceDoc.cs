@@ -51,12 +51,14 @@ namespace DemaConsulting.CanvasNet.Charts;
 ///     (<see cref="DemaConsulting.CanvasNet.Charts.OpenXml.OpenXmlChartParser"/>, in the nested
 ///     <see cref="DemaConsulting.CanvasNet.Charts.OpenXml"/> namespace) that produces a
 ///     <see cref="Chart"/> directly from a raw <c>c:chartSpace</c>/<c>c:chart</c>
-///     <see cref="System.Xml.Linq.XElement"/>/<see cref="System.Xml.Linq.XDocument"/>; integrating
-///     chart parsing/rendering into a host document format (such as
-///     <c>DemaConsulting.CanvasNet.Pptx</c>, which must still first locate and open the relevant
-///     <c>chart1.xml</c> OPC part before handing its content to
-///     <see cref="DemaConsulting.CanvasNet.Charts.OpenXml.OpenXmlChartParser"/>) is not yet
-///     implemented.
+///     <see cref="System.Xml.Linq.XElement"/>/<see cref="System.Xml.Linq.XDocument"/>. Chart
+///     parsing/rendering is already integrated into a host document format:
+///     <c>DemaConsulting.CanvasNet.Pptx</c> locates and opens the relevant <c>chart1.xml</c>
+///     OPC part for a slide's <c>&lt;p:graphicFrame&gt;</c>, hands its content to
+///     <see cref="DemaConsulting.CanvasNet.Charts.OpenXml.OpenXmlChartParser"/>, and renders the
+///     resulting <see cref="Chart"/> via <see cref="ChartRenderer"/> - see that package's
+///     <c>PptxDocument.Charts.cs</c> (chart-part location/parsing) and its
+///     <c>RenderGraphicFrame</c> rendering dispatch.
 ///     </para>
 /// </remarks>
 /// <example>

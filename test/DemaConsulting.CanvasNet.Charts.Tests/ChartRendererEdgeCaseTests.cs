@@ -177,6 +177,27 @@ public class ChartRendererEdgeCaseTests
         Assert.Equal(300, surface.Height);
     }
 
+    /// <summary>
+    ///     Proves a value-axis range auto-derived from extreme-but-finite series values (for
+    ///     example, [-double.MaxValue, double.MaxValue]) renders successfully instead of the
+    ///     range-padding arithmetic overflowing to infinite/NaN bounds (which previously produced
+    ///     meaningless coordinates and caused the renderer to silently fail to draw).
+    /// </summary>
+    [Fact]
+    public void Render_Column_ExtremeFiniteValues_RendersSuccessfullyWithoutOverflow()
+    {
+        // Arrange
+        var series = new ChartSeries("S1", [-double.MaxValue, double.MaxValue], color: Red);
+        var chart = new Chart(ChartType.Column, [series], new ChartAxis(["Neg", "Pos"]));
+
+        // Act
+        using var surface = ChartRenderer.Render(chart, 400, 300);
+
+        // Assert
+        Assert.Equal(400, surface.Width);
+        Assert.Equal(300, surface.Height);
+    }
+
     /// <summary>Proves many series (enough to overflow a legend band) renders without error, the legend degrading by omission rather than throwing or overlapping the plot area.</summary>
     [Fact]
     public void Render_ManySeries_LegendDegradesByOmissionWithoutError()

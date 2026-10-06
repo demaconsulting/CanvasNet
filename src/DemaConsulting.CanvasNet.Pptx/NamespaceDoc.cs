@@ -40,10 +40,12 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     </para>
 ///     <para>
 ///         As of the current release (through Phase 1f and its subsequent Phase 2 Follow-Ups),
-///         pattern/picture background fills, radial/path gradients, full text justification,
-///         <c>spAutoFit</c> shape-resize behavior, kerning, text clipping on overflow, nested
-///         tables, and table auto-sizing/banding remain explicitly deferred - see
-///         <see cref="PptxDocument"/>'s own remarks for the exact, current scope boundary.
+///         slide/layout/master pattern and picture background fills are now resolved and painted
+///         (see <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>'s own
+///         remarks for the exact fidelity achieved). Radial/path gradients, full text
+///         justification, <c>spAutoFit</c> shape-resize behavior, kerning, text clipping on
+///         overflow, nested tables, and table auto-sizing/banding remain explicitly deferred -
+///         see <see cref="PptxDocument"/>'s own remarks for the exact, current scope boundary.
 ///     </para>
 /// </remarks>
 internal static class NamespaceDoc
