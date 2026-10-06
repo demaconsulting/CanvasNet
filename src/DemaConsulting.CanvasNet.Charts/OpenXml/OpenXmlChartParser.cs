@@ -282,8 +282,9 @@ public static class OpenXmlChartParser
     private static (ChartType Type, XElement Element) ClassifyPlotArea(XElement plotArea)
     {
         var candidates = plotArea.Elements()
-            .Where(e => SupportedChartTypeClassifiers.ContainsKey(e.Name.LocalName) ||
-                        UnsupportedChartTypeFeatureTokens.ContainsKey(e.Name.LocalName))
+            .Where(e => e.Name.Namespace == ChartNs &&
+                        (SupportedChartTypeClassifiers.ContainsKey(e.Name.LocalName) ||
+                         UnsupportedChartTypeFeatureTokens.ContainsKey(e.Name.LocalName)))
             .ToList();
 
         switch (candidates.Count)

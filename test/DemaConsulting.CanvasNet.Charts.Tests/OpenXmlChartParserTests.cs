@@ -891,6 +891,28 @@ public class OpenXmlChartParserTests
         Assert.Equal("charts-openxml-no-chart-type", exception.Feature);
     }
 
+    /// <summary>
+    ///     Proves a chart-type-named element (for example <c>barChart</c>) in a foreign namespace
+    ///     is not misclassified as a <c>c:barChart</c> merely because its local name matches -
+    ///     it must be rejected as unrecognized, even when it carries <c>c:ser</c> children.
+    /// </summary>
+    [Fact]
+    public void Parse_ForeignNamespaceChartTypeElement_ThrowsWithNoChartTypeFeatureToken()
+    {
+        // Arrange
+        XNamespace foreign = "urn:example:not-a-chart-namespace";
+        var foreignBarChart = new XElement(foreign + "barChart", Ser("S1", [1.0, 2.0], ["A", "B"]));
+        var chartElement = new XElement(C + "chart",
+            new XElement(C + "autoTitleDeleted", new XAttribute("val", 1)),
+            new XElement(C + "plotArea", new XElement(C + "layout"), foreignBarChart));
+
+        // Act
+        var exception = Assert.Throws<ChartUnsupportedFeatureException>(() => OpenXmlChartParser.Parse(chartElement));
+
+        // Assert
+        Assert.Equal("charts-openxml-no-chart-type", exception.Feature);
+    }
+
     #endregion
 
     #region Real-fixture-derived end-to-end test
