@@ -42,6 +42,21 @@ public static class OpenXmlChartParser
     private static readonly XNamespace DrawingNs = "http://schemas.openxmlformats.org/drawingml/2006/main";
 
     /// <summary>
+    ///     The maximum <c>c:ptCount</c> value <see cref="ParseNumCache"/>/<see cref="ParseStrCache"/>
+    ///     will allocate a dense array for, chosen to match Excel's own maximum worksheet row
+    ///     count (2^20 = 1,048,576) - the practical upper bound on how many cached points a
+    ///     genuine chart backed by real worksheet data could ever declare.
+    /// </summary>
+    /// <remarks>
+    ///     <c>c:ptCount</c> is read directly from the untrusted chart part with no inherent upper
+    ///     bound of its own; without this cap, a crafted/corrupted value (for example
+    ///     <c>2000000000</c>) would drive an attacker-controlled <c>new double[ptCount]</c>/
+    ///     <c>new string[ptCount]</c> allocation - up to ~16 GB per series - causing an
+    ///     <see cref="OutOfMemoryException"/> rather than a clean, fail-closed rejection.
+    /// </remarks>
+    private const int MaxCachedPointCount = 1_048_576;
+
+    /// <summary>
     ///     The local names of every ECMA-376-defined plot-area chart-type element this parser
     ///     supports, mapped to a function that classifies the element's own <see cref="ChartType"/>.
     /// </summary>
@@ -510,9 +525,19 @@ public static class OpenXmlChartParser
     /// </summary>
     /// <param name="numCache">The <c>c:numCache</c> element.</param>
     /// <returns>The dense, <c>c:ptCount</c>-sized values array.</returns>
+    /// <exception cref="ChartUnsupportedFeatureException">
+    ///     Thrown when <c>c:ptCount</c> exceeds <see cref="MaxCachedPointCount"/>.
+    /// </exception>
     private static double[] ParseNumCache(XElement numCache)
     {
         var ptCount = Math.Max(0, (int?)numCache.Element(ChartNs + "ptCount")?.Attribute("val") ?? 0);
+        if (ptCount > MaxCachedPointCount)
+        {
+            throw new ChartUnsupportedFeatureException(
+                "charts-openxml-point-count-too-large",
+                $"c:numCache declares c:ptCount={ptCount}, which exceeds the maximum supported cached point count of {MaxCachedPointCount}.");
+        }
+
         var values = new double[ptCount];
         foreach (var pt in numCache.Elements(ChartNs + "pt"))
         {
@@ -537,9 +562,19 @@ public static class OpenXmlChartParser
     /// </summary>
     /// <param name="strCache">The <c>c:strCache</c> element.</param>
     /// <returns>The dense, <c>c:ptCount</c>-sized labels array.</returns>
+    /// <exception cref="ChartUnsupportedFeatureException">
+    ///     Thrown when <c>c:ptCount</c> exceeds <see cref="MaxCachedPointCount"/>.
+    /// </exception>
     private static string[] ParseStrCache(XElement strCache)
     {
         var ptCount = Math.Max(0, (int?)strCache.Element(ChartNs + "ptCount")?.Attribute("val") ?? 0);
+        if (ptCount > MaxCachedPointCount)
+        {
+            throw new ChartUnsupportedFeatureException(
+                "charts-openxml-point-count-too-large",
+                $"c:strCache declares c:ptCount={ptCount}, which exceeds the maximum supported cached point count of {MaxCachedPointCount}.");
+        }
+
         var values = new string[ptCount];
         Array.Fill(values, string.Empty);
         foreach (var pt in strCache.Elements(ChartNs + "pt"))

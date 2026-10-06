@@ -643,6 +643,71 @@ public class OpenXmlChartParserTests
 
     #endregion
 
+    #region Oversized-c:ptCount rejection
+
+    /// <summary>
+    ///     Proves a <c>c:numCache</c> declaring a <c>c:ptCount</c> far larger than any genuine
+    ///     worksheet-backed chart could have is rejected before a dense array is allocated,
+    ///     rather than attempting a multi-gigabyte allocation / crashing with
+    ///     <see cref="OutOfMemoryException"/>.
+    /// </summary>
+    [Fact]
+    public void Parse_NumCacheWithExcessivePtCount_ThrowsWithPointCountTooLargeFeatureToken()
+    {
+        // Arrange
+        var val = new XElement(C + "val",
+            new XElement(C + "numRef",
+                new XElement(C + "f", "Sheet1!$B$2:$B$5"),
+                new XElement(C + "numCache",
+                    new XElement(C + "formatCode", "General"),
+                    new XElement(C + "ptCount", new XAttribute("val", 2_000_000_000)))));
+        var ser = new XElement(C + "ser",
+            new XElement(C + "idx", new XAttribute("val", 0)),
+            new XElement(C + "order", new XAttribute("val", 0)),
+            Tx("S1"),
+            Cat("A", "B"),
+            val);
+        var barChart = new XElement(C + "barChart", ser);
+        var chartElement = Chart(barChart);
+
+        // Act
+        var exception = Assert.Throws<ChartUnsupportedFeatureException>(() => OpenXmlChartParser.Parse(chartElement));
+
+        // Assert
+        Assert.Equal("charts-openxml-point-count-too-large", exception.Feature);
+    }
+
+    /// <summary>
+    ///     Proves the same oversized-<c>c:ptCount</c> rejection applies to a <c>c:strCache</c>
+    ///     (for example a string-labeled category axis), not just <c>c:numCache</c>.
+    /// </summary>
+    [Fact]
+    public void Parse_CatStrCacheWithExcessivePtCount_ThrowsWithPointCountTooLargeFeatureToken()
+    {
+        // Arrange
+        var cat = new XElement(C + "cat",
+            new XElement(C + "strRef",
+                new XElement(C + "f", "Sheet1!$A$2:$A$5"),
+                new XElement(C + "strCache",
+                    new XElement(C + "ptCount", new XAttribute("val", 2_000_000_000)))));
+        var ser = new XElement(C + "ser",
+            new XElement(C + "idx", new XAttribute("val", 0)),
+            new XElement(C + "order", new XAttribute("val", 0)),
+            Tx("S1"),
+            cat,
+            Val(1.0, 2.0));
+        var barChart = new XElement(C + "barChart", ser);
+        var chartElement = Chart(barChart);
+
+        // Act
+        var exception = Assert.Throws<ChartUnsupportedFeatureException>(() => OpenXmlChartParser.Parse(chartElement));
+
+        // Assert
+        Assert.Equal("charts-openxml-point-count-too-large", exception.Feature);
+    }
+
+    #endregion
+
     #region Unsupported-type / combo / empty-plot-area rejection
 
     /// <summary>Proves every recognized-but-unimplemented chart-type element is rejected with its documented feature token.</summary>
