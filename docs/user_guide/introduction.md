@@ -1998,6 +1998,54 @@ public sealed class ChartRenderOptions
 Passing `null` (or omitting the `options` parameter entirely) to either `ChartRenderer.Render`
 overload uses `ChartRenderOptions.Default`.
 
+### OpenXmlChartParser
+
+`OpenXmlChartParser` is distributed in the same `DemaConsulting.CanvasNet.Charts` package as
+`Chart`, in the `DemaConsulting.CanvasNet.Charts.OpenXml` namespace. It is a public static entry
+point that parses a raw ECMA-376 DrawingML-Charts `c:chartSpace` (or bare `c:chart`)
+`System.Xml.Linq` element into a validated `Chart`, directly consumable by `ChartRenderer.Render`
+with no further adaptation. It is format-agnostic: it has no knowledge of OPC/ZIP packaging or
+any host document format (for example, PresentationML/`.pptx`) - a caller is responsible for
+first locating and opening the relevant `chart#.xml` part and handing this parser only the
+resulting XML content.
+
+```csharp
+public static class OpenXmlChartParser
+{
+    public static Chart Parse(XDocument chartDocument);
+    public static Chart Parse(XElement chartSpaceOrChartElement);
+}
+```
+
+`OpenXmlChartParser` reads only cached values (`c:numCache`/`c:strCache`) - it never recomputes a
+value from a sibling `c:f` formula - and supports `c:barChart` (bar/column, classified by
+`c:barDir`), `c:lineChart`, `c:pieChart`, `c:doughnutChart`, and `c:areaChart`, extracting series
+names/categories/values, the chart title, axis titles/range, and legend presence/position.
+
+#### Exceptions
+
+- `ArgumentNullException`: Thrown when `chartDocument`/`chartSpaceOrChartElement` is null.
+- `ArgumentException`: Thrown for a document with no root element, an element that is neither a
+  `c:chart` element nor one containing one, or a `c:chart` with no `c:plotArea` child.
+- `ChartUnsupportedFeatureException`: Thrown - carrying a short, stable `Feature` token - for a
+  recognized-but-unimplemented chart kind (radar, bubble, scatter, stock, surface, 3-D, or "of
+  pie"), a combo chart (more than one recognized chart-type element in one plot area), a plot
+  area with no recognized chart-type element at all, or a series whose value has no cached
+  `c:numCache`.
+
+```csharp
+public class ChartUnsupportedFeatureException : IOException
+{
+    public ChartUnsupportedFeatureException();
+    public ChartUnsupportedFeatureException(string message);
+    public ChartUnsupportedFeatureException(string message, Exception innerException);
+    public ChartUnsupportedFeatureException(string feature, string message);
+    public ChartUnsupportedFeatureException(string feature, string message, Exception innerException);
+
+    public string Feature { get; } // default: string.Empty
+}
+```
+
 # Examples
 
 ## Example 1: Surface Pixel Access
@@ -2380,6 +2428,60 @@ var chart = new ChartBuilder()
 // Render it onto a new 400x300 surface using every rendering default.
 using var chartSurface = ChartRenderer.Render(chart, 400, 300);
 Console.WriteLine($"{chartSurface.Width}x{chartSurface.Height}"); // Output: 400x300
+```
+
+## Example 15: Parsing and Rendering an OOXML Chart
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Charts;
+using DemaConsulting.CanvasNet.Charts.OpenXml;
+using System.Xml.Linq;
+
+// Parse a c:chartSpace/c:chart XML document (for example, a chart1.xml OPC part a host
+// document-format library has already located and opened). This hand-authored fragment mirrors
+// the shape a real PowerPoint chart part's bar chart would carry.
+var chartDocument = XDocument.Parse("""
+    <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
+                  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+      <c:chart>
+        <c:plotArea>
+          <c:barChart>
+            <c:barDir val="col"/>
+            <c:ser>
+              <c:tx><c:v>Revenue</c:v></c:tx>
+              <c:cat>
+                <c:strRef>
+                  <c:strCache>
+                    <c:ptCount val="2"/>
+                    <c:pt idx="0"><c:v>Q1</c:v></c:pt>
+                    <c:pt idx="1"><c:v>Q2</c:v></c:pt>
+                  </c:strCache>
+                </c:strRef>
+              </c:cat>
+              <c:val>
+                <c:numRef>
+                  <c:numCache>
+                    <c:ptCount val="2"/>
+                    <c:pt idx="0"><c:v>4.0</c:v></c:pt>
+                    <c:pt idx="1"><c:v>9.0</c:v></c:pt>
+                  </c:numCache>
+                </c:numRef>
+              </c:val>
+            </c:ser>
+          </c:barChart>
+        </c:plotArea>
+        <c:legend><c:legendPos val="b"/></c:legend>
+      </c:chart>
+    </c:chartSpace>
+    """);
+var parsedChart = OpenXmlChartParser.Parse(chartDocument);
+Console.WriteLine(parsedChart.Type); // Output: Column
+
+// The parsed Chart is directly consumable by ChartRenderer, exactly like a Chart built via
+// ChartBuilder.
+using var parsedChartSurface = ChartRenderer.Render(parsedChart, 400, 300);
+Console.WriteLine($"{parsedChartSurface.Width}x{parsedChartSurface.Height}"); // Output: 400x300
 ```
 
 ## Rendering (transform-aware Canvas, text, and shapes)

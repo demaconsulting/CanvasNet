@@ -49,6 +49,8 @@ includes:
   - docs/reqstream/canvas-net-charts.yaml
   - docs/reqstream/canvas-net-charts/chart-model.yaml
   - docs/reqstream/canvas-net-charts/chart-model/chart-document.yaml
+  - docs/reqstream/canvas-net-charts/open-xml-chart.yaml
+  - docs/reqstream/canvas-net-charts/open-xml-chart/open-xml-chart-parser.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml
   - docs/reqstream/ots/buildmark.yaml

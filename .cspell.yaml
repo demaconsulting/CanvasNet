@@ -336,6 +336,12 @@ words:
   - clrmap
   - clrmapovr
   - colormap
+  - openxml
+  - textless
+  - aiden
+  - misrouting
+  - parameterless
+  - Lbls
 
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:

@@ -43,6 +43,10 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
   legend, title, and data labels) via a fluent builder and paint it onto a surface with documented
   default styling and a categorical color palette (ships as the separate
   `DemaConsulting.CanvasNet.Charts` package)
+- 📈 **OOXML Chart Parsing** - Parse a raw ECMA-376 DrawingML-Charts `c:chartSpace`/`c:chart` XML
+  element (for example, a `chart1.xml` OPC part) into a validated chart, reading only cached
+  values, with no OPC/ZIP packaging or host document-format knowledge (ships as part of the same
+  `DemaConsulting.CanvasNet.Charts` package)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
@@ -197,6 +201,24 @@ var chart = new ChartBuilder()
 
 // Render it onto a new surface using every rendering default
 using var chartSurface = ChartRenderer.Render(chart, 400, 300);
+```
+
+Parsing a raw OOXML chart part and rendering it:
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Charts;
+using DemaConsulting.CanvasNet.Charts.OpenXml;
+using System.Xml.Linq;
+
+// Parse a c:chartSpace/c:chart XML document (for example, a chart1.xml OPC part a host
+// document-format library - such as a future CanvasNetPptx - has already located and opened)
+var chartDocument = XDocument.Load("chart1.xml");
+var parsedChart = OpenXmlChartParser.Parse(chartDocument);
+
+// The parsed Chart is directly consumable by ChartRenderer, exactly like a Chart built via
+// ChartBuilder
+using var parsedChartSurface = ChartRenderer.Render(parsedChart, 400, 300);
 ```
 
 Filling a vector path onto a surface:

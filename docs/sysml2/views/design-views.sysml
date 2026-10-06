@@ -32,6 +32,10 @@ package CanvasNet {
         expose ChartModel;
     }
 
+    view OpenXmlChartView {
+        expose OpenXmlChart;
+    }
+
     view CanvasView {
         expose Canvas;
     }

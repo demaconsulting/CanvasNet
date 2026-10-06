@@ -979,6 +979,25 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartRendererAxisLegendTitleTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartRendererEdgeCaseTests.cs"  # unit tests
 
+  # CanvasNetCharts-OpenXmlChartParser Review (one per unit)
+  - id: CanvasNetCharts-OpenXmlChartParser
+    title: Review that CanvasNetCharts OpenXmlChartParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-charts.md"
+      - "docs/reqstream/canvas-net-charts.yaml"
+      - "docs/design/canvas-net-charts/open-xml-chart.md"
+      - "docs/reqstream/canvas-net-charts/open-xml-chart.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-charts/open-xml-chart/open-xml-chart-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-charts/open-xml-chart/open-xml-chart-parser.md"       # unit design
+      - "docs/verification/canvas-net-charts/open-xml-chart/open-xml-chart-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-charts/open-xml-chart/open-xml-chart-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Charts/OpenXml/NamespaceDoc.cs"   # OpenXml namespace documentation
+      - "src/DemaConsulting.CanvasNet.Charts/OpenXml/OpenXmlChartParser.cs"  # unit source (parser entry point)
+      - "src/DemaConsulting.CanvasNet.Charts/OpenXml/ChartUnsupportedFeatureException.cs"  # unit source (exception)
+      - "test/DemaConsulting.CanvasNet.Charts.Tests/OpenXmlChartParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Charts.Tests/OpenXmlChartFixtures/README.md"  # fixture provenance
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality

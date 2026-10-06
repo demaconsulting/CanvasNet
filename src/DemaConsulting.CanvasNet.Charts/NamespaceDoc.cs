@@ -47,9 +47,16 @@ namespace DemaConsulting.CanvasNet.Charts;
 ///     </para>
 ///     <para>
 ///     As of this release, this namespace provides the data model, builder, and renderer
-///     described above; parsing an OOXML <c>chart1.xml</c> part into a <see cref="Chart"/>, and
-///     integrating chart rendering into a host document format (such as
-///     <c>DemaConsulting.CanvasNet.Pptx</c>), are not yet implemented.
+///     described above, plus a format-agnostic OOXML parser
+///     (<see cref="DemaConsulting.CanvasNet.Charts.OpenXml.OpenXmlChartParser"/>, in the nested
+///     <see cref="DemaConsulting.CanvasNet.Charts.OpenXml"/> namespace) that produces a
+///     <see cref="Chart"/> directly from a raw <c>c:chartSpace</c>/<c>c:chart</c>
+///     <see cref="System.Xml.Linq.XElement"/>/<see cref="System.Xml.Linq.XDocument"/>; integrating
+///     chart parsing/rendering into a host document format (such as
+///     <c>DemaConsulting.CanvasNet.Pptx</c>, which must still first locate and open the relevant
+///     <c>chart1.xml</c> OPC part before handing its content to
+///     <see cref="DemaConsulting.CanvasNet.Charts.OpenXml.OpenXmlChartParser"/>) is not yet
+///     implemented.
 ///     </para>
 /// </remarks>
 /// <example>

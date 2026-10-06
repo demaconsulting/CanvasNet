@@ -12,12 +12,14 @@
 #
 # CanvasNetCharts is being delivered incrementally. Phase 1 shipped the public, immutable chart
 # data model (Chart/ChartSeries/ChartAxis/ChartLegend/ChartTitle/ChartType) and the ChartBuilder
-# ergonomic construction API. Phase 2 (these requirements) adds a ChartRenderer that paints a
-# Chart onto a core Surface - no OOXML chart1.xml parsing yet. Phase 3 adds an OOXML chart1.xml
-# parser that produces a Chart from an embedded PowerPoint chart part. Phase 4 integrates chart
-# rendering into PptxDocument's slide rendering. These later-phase requirements will be added to
-# this file (and new per-unit files) when each phase lands, mirroring canvas-net-pptx.yaml's own
-# per-phase header-comment convention.
+# ergonomic construction API. Phase 2 added a ChartRenderer that paints a Chart onto a core
+# Surface. Phase 3 (these requirements) adds a format-agnostic OpenXmlChartParser that produces a
+# Chart directly from a raw c:chartSpace/c:chart XElement/XDocument, reading only cached values -
+# it has no OPC/ZIP packaging knowledge and no dependency on any host document-format package.
+# Phase 4 will integrate locating/opening a chart1.xml OPC part and invoking this parser into
+# PptxDocument's own slide rendering. These later-phase requirements will be added to this file
+# (and new per-unit files) when each phase lands, mirroring canvas-net-pptx.yaml's own per-phase
+# header-comment convention.
 
 sections:
   - title: Chart Model API
@@ -119,3 +121,39 @@ sections:
           - Render_CustomBackgroundColor_ClearsToThatColor
           - Render_SeriesWithoutExplicitColor_ResolvesToDefaultPaletteInOrder
           - Render_ChartColorPaletteOverride_TakesPriorityOverDefaultPalette
+
+  - title: OpenXML Chart Parsing API
+    requirements:
+      - id: CanvasNetCharts-Lib-OpenXmlChartParser
+        title: >-
+          The library shall provide a format-agnostic OpenXmlChartParser that parses a raw ECMA-376
+          DrawingML-Charts c:chartSpace (or bare c:chart) XElement/XDocument into a validated Chart,
+          reading only cached values (never recomputing from a c:f formula), supporting
+          barChart (bar/column, classified by barDir), lineChart, pieChart, doughnutChart, and
+          areaChart, extracting series names/categories/values, chart/axis titles, and legend
+          presence/position, and throwing a dedicated ChartUnsupportedFeatureException - carrying
+          a short, stable Feature token - for a recognized-but-unimplemented chart kind (radar,
+          bubble, scatter, stock, surface, 3-D, or "of pie"), a combo chart, a plot area with no
+          recognized chart-type element, or a series with no cached value.
+        tags: [system]
+        justification: |
+          Before chart rendering can be integrated into any host document format (such as
+          PptxDocument in a later phase), there must be a single, well-tested, format-agnostic
+          component that turns a real chart1.xml part's XML content into the already-validated
+          Chart the Phase 2 renderer consumes, without taking on any packaging- or host-format-
+          specific knowledge that would make it unusable by a future non-PowerPoint host.
+        children:
+          - CanvasNetCharts-OpenXmlChart-ChartTypeClassification
+          - CanvasNetCharts-OpenXmlChart-SeriesDataExtraction
+          - CanvasNetCharts-OpenXmlChart-DecorationExtraction
+          - CanvasNetCharts-OpenXmlChart-UnsupportedFeatureRejection
+        tests:
+          - Parse_BarChartWithBarDirection_ClassifiesAsBar
+          - Parse_LineChart_ClassifiesAsLine
+          - Parse_PieChart_ClassifiesAsPieWithPointLabels
+          - Parse_DoughnutChart_ClassifiesAsDoughnut
+          - Parse_AreaChart_ClassifiesAsArea
+          - Parse_RealFixtureBarChartExcerpt_ParsesExpectedShape
+          - Parse_SeriesWithUncachedValues_ThrowsWithUncachedValuesFeatureToken
+          - Parse_ComboChart_ThrowsWithComboChartFeatureToken
+          - Parse_EmptyPlotArea_ThrowsWithNoChartTypeFeatureToken

@@ -11,8 +11,8 @@ CanvasNetCharts is a .NET library providing chart support, distributed as its ow
 but depending on, the core `CanvasNet` system (its own separate package,
 `DemaConsulting.CanvasNet`) — see the Dependencies section below.
 
-`CanvasNetCharts` is being delivered incrementally. As of this release (Phase 2), the system
-consists of a single subsystem:
+`CanvasNetCharts` is being delivered incrementally. As of this release (Phase 3), the system
+consists of two subsystems:
 
 - **ChartModel** (folder `src/DemaConsulting.CanvasNet.Charts/`, flat — no further nesting): a
   public, immutable, validating chart data model (`Chart`/`ChartSeries`/`ChartAxis`/
@@ -21,6 +21,12 @@ consists of a single subsystem:
   `Chart` onto a core `CanvasNet.Canvas.Surface`, contained in two implemented units,
   `ChartDocument` and `ChartRenderer`. See _ChartModel Subsystem Design_
   (`canvas-net-charts/chart-model.md`).
+- **OpenXmlChart** (folder `src/DemaConsulting.CanvasNet.Charts/OpenXml/`): a format-agnostic
+  `OpenXmlChartParser` that produces a `Chart` directly from a raw ECMA-376 DrawingML-Charts
+  `c:chartSpace`/`c:chart` `System.Xml.Linq` element, reading only cached values, plus the
+  `ChartUnsupportedFeatureException` it throws for a recognized-but-unimplemented chart kind or
+  data shape, contained in one unit, `OpenXmlChartParser`. See _OpenXmlChart Subsystem Design_
+  (`canvas-net-charts/open-xml-chart.md`).
 
 No Subsystem tier would normally be needed for a system containing only one or two units
 (compare `CanvasNetSvg`'s `SvgCodec`, which has no interposed subsystem — see _CanvasNetSvg
@@ -30,16 +36,17 @@ re-model of the system's tier structure partway through its incremental delivery
 `ChartRenderer` was added as a second unit within the existing `ChartModel` subsystem — rather
 than under a new subsystem, as originally anticipated in Phase 1 — because it shares the same
 single flat source folder and the same `ChartModel` Purpose statement ("what chart to draw" and
-"how to draw it" are two facets of the same data-model-plus-rendering whole); Phase 3's OOXML
-`chart1.xml` parser remains expected to land under a new subsystem, since it introduces a
-genuinely distinct concern (untrusted-input parsing).
+"how to draw it" are two facets of the same data-model-plus-rendering whole). Phase 3's
+`OpenXmlChartParser`, by contrast, genuinely is a distinct concern (untrusted-input XML parsing,
+in its own `OpenXml/` sub-folder, with no dependency in either direction on `ChartRenderer`'s own
+implementation), so it was given its own `OpenXmlChart` subsystem as originally anticipated.
 
-Not yet implemented, landing in later phases:
+Not yet implemented, landing in a later phase:
 
-- **OOXML chart1.xml parser** (Phase 3) — produces a `Chart` from an embedded PowerPoint chart
-  part
-- `CanvasNetPptx` integration (Phase 4) — wires chart rendering into `CanvasNetPptx`'s own slide
-  rendering, so a `<p:graphicFrame>` containing a chart reference renders its chart content
+- `CanvasNetPptx` integration (Phase 4) — locates and opens a `chart1.xml` OPC part and hands its
+  content to `OpenXmlChartParser`, then renders the resulting `Chart` via `ChartRenderer`, wiring
+  both into `CanvasNetPptx`'s own slide rendering so a `<p:graphicFrame>` containing a chart
+  reference renders its chart content instead of throwing
 
 ## External Interfaces
 
@@ -74,6 +81,12 @@ namespace:
 - **`ChartColorPalette`**: A fixed, documented 10-entry categorical color palette, used by
   `ChartRenderer` when neither `Chart.ColorPalette` nor `ChartRenderOptions.ColorPalette` supplies
   one, resolved by index with wraparound.
+- **`OpenXmlChartParser`** (namespace `DemaConsulting.CanvasNet.Charts.OpenXml`): A public static
+  entry point that parses a raw `c:chartSpace`/`c:chart` `System.Xml.Linq.XElement` or
+  `XDocument` into a validated `Chart`, via `Parse(XDocument)`/`Parse(XElement)`.
+- **`ChartUnsupportedFeatureException`** (namespace `DemaConsulting.CanvasNet.Charts.OpenXml`): An
+  `IOException`-derived exception, carrying a short, stable `Feature` token, thrown by
+  `OpenXmlChartParser` for a recognized-but-unimplemented chart kind or data shape.
 
 <!-- markdownlint-disable MD013 -->
 | Interface | Direction | Format | Constraints |
@@ -81,12 +94,15 @@ namespace:
 | `Chart` constructor | Inbound | Method call / `Chart` instance | At least one non-null series; see _ChartModel Subsystem Design_ |
 | `ChartBuilder.Build()` | Inbound/Outbound | Method call / `Chart` return | A chart type and at least one series must be configured first |
 | `ChartRenderer.Render(...)` | Inbound/Outbound | Method call / `Surface` return | `chart` must not be null; pixel/physical dimensions must be positive and within `Surface`'s supported range |
+| `OpenXmlChartParser.Parse(...)` | Inbound/Outbound | Method call / `Chart` return | `chartDocument`/`chartSpaceOrChartElement` must not be null; must resolve to a `c:chart` with a `c:plotArea` |
 <!-- markdownlint-enable MD013 -->
 
 See _ChartModel Subsystem Design_ (`canvas-net-charts/chart-model.md`), _ChartDocument Unit
-Design_ (`canvas-net-charts/chart-model/chart-document.md`), and _ChartRenderer Unit Design_
-(`canvas-net-charts/chart-model/chart-renderer.md`) for every type's complete constructor
-parameter and exception detail.
+Design_ (`canvas-net-charts/chart-model/chart-document.md`), _ChartRenderer Unit Design_
+(`canvas-net-charts/chart-model/chart-renderer.md`), _OpenXmlChart Subsystem Design_
+(`canvas-net-charts/open-xml-chart.md`), and _OpenXmlChartParser Unit Design_
+(`canvas-net-charts/open-xml-chart/open-xml-chart-parser.md`) for every type's complete
+constructor parameter and exception detail.
 
 ## Dependencies
 
@@ -121,16 +137,30 @@ WeasyPrint, xUnit) — see _OTS Integration Design_ (`docs/design/ots.md`).
 
 ## Risk Control Measures
 
-Construction-time validation is the sole risk control measure for this system as of this release:
-every `ChartModel` subsystem type validates its complete set of constructor arguments eagerly
-and fails closed (via `ArgumentException`/`ArgumentNullException`/`ArgumentOutOfRangeException`)
-rather than silently coercing, clamping, or accepting invalid data — see
-_ChartModel Subsystem Design_ (`canvas-net-charts/chart-model.md`) for the complete set of
-validation rules. No untrusted-input parsing exists yet: `CanvasNetCharts` does not yet read any
-file format or externally-authored document (that risk surface is introduced by Phase 3's OOXML
-`chart1.xml` parser, and its own risk control measures will be documented when that phase lands,
-following `CanvasNetSvg`'s own precedent for untrusted-XML parsing — see _CanvasNetSvg System
-Design_, `canvas-net-svg.md`, Risk Control Measures).
+Construction-time validation remains the primary risk control measure: every `ChartModel`
+subsystem type validates its complete set of constructor arguments eagerly and fails closed (via
+`ArgumentException`/`ArgumentNullException`/`ArgumentOutOfRangeException`) rather than silently
+coercing, clamping, or accepting invalid data — see _ChartModel Subsystem Design_
+(`canvas-net-charts/chart-model.md`) for the complete set of validation rules; `OpenXmlChartParser`
+ultimately calls these same constructors, so it inherits this same risk control rather than
+duplicating it.
+
+Phase 3 introduces this system's first untrusted-input parsing surface: `OpenXmlChartParser`
+reads a `c:chartSpace`/`c:chart` XML element that, in a real deployment, would originate from an
+externally-authored document (for example, a PowerPoint file a `CanvasNetPptx` caller opened).
+Its risk control measures are: reading only cached values (`c:numCache`/`c:strCache`), never
+recomputing from a `c:f` formula, so no spreadsheet-formula-evaluation attack surface exists at
+all; classifying the plot area's chart-type element against a fixed, closed lookup table before
+any series parsing is attempted, rejecting an unrecognized or combo shape immediately via
+`ChartUnsupportedFeatureException`; and delegating every data-shape invariant (non-empty series,
+finite values, matching category/value counts) to the `ChartModel` subsystem's own constructors,
+so a malformed cached value surfaces the identical, already-reviewed exception a directly
+constructed `Chart` would throw, rather than a second, parser-specific validation path that could
+drift out of sync. `OpenXmlChartParser` performs no XML entity expansion of its own (no `DTD`
+processing is attempted; `System.Xml.Linq`'s own default `XDocument.Load`/`Parse` behavior does
+not resolve external entities), so it carries no XXE risk either, consistent with
+`CanvasNetSvg`'s own precedent for untrusted-XML parsing — see _CanvasNetSvg System Design_,
+`canvas-net-svg.md`, Risk Control Measures.
 
 ## Data Flow
 
@@ -167,6 +197,26 @@ themselves.
    and dispatches per `Chart.Type` to paint bars/columns/lines/areas or pie/doughnut wedges, plus
    axes (for category-based types), a legend, a title, and any opt-in per-point data labels
 4. **Output**: A new `Surface` containing the rendered chart, which the caller owns and disposes
+
+**OOXML `c:chartSpace`/`c:chart` XML → validated `Chart` path (added in Phase 3):**
+
+1. **Input**: A `System.Xml.Linq.XDocument` or `XElement` carrying a `c:chartSpace` (or bare
+   `c:chart`) element, typically loaded directly from a `chart#.xml` part's content by a future
+   caller such as `CanvasNetPptx`
+2. **Validation**: `OpenXmlChartParser.Parse` throws `ArgumentNullException` for a null document/
+   element, and `ArgumentException` for a document with no root, an element with no `c:chart`
+   child (and that is not itself one), or a `c:chart` with no `c:plotArea`; the plot area's
+   chart-type element is then classified against a fixed supported/unsupported lookup table,
+   throwing `ChartUnsupportedFeatureException` for zero, more than one, or a single
+   recognized-but-unimplemented match
+3. **Processing**: Each `c:ser` is parsed into a `ChartSeries` (cached name from `c:tx`, cached
+   values from `c:val/c:numCache`, cached categories from `c:cat` routed to the shared category
+   axis or to per-series point labels depending on the classified `ChartType`); the chart title,
+   legend, and category/value axis titles/range are extracted from their own cached text/scaling
+   elements; every extracted value is finally handed to `Chart`'s own constructor, which performs
+   the identical cross-member validation a directly constructed `Chart` would
+4. **Output**: A new, fully validated, immutable `Chart` instance, directly consumable by
+   `ChartRenderer.Render`
 
 ## Design Constraints
 

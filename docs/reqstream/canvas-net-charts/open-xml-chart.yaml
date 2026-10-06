@@ -1,0 +1,115 @@
+---
+# Software Subsystem Requirements for OpenXmlChart
+#
+# These requirements decompose the CanvasNetCharts system's Phase 3 parsing responsibility into
+# the OpenXmlChart subsystem: a format-agnostic parser that turns a raw ECMA-376 DrawingML-Charts
+# c:chartSpace/c:chart XElement/XDocument into a validated ChartModel Chart. Each requirement here
+# links down to the OpenXmlChartParser unit requirements that implement it.
+
+sections:
+  - title: CanvasNetCharts Requirements
+    sections:
+      - title: OpenXmlChart Requirements
+        requirements:
+          - id: CanvasNetCharts-OpenXmlChart-ChartTypeClassification
+            title: >-
+              The OpenXmlChart subsystem shall classify a plot area's single recognized chart-type
+              element into the corresponding ChartType (Bar or Column for barChart, by its barDir
+              value; Line for lineChart; Pie for pieChart; Doughnut for doughnutChart; Area for
+              areaChart).
+            justification: |
+              Every other extraction step (series/category/value mapping, category-axis vs.
+              point-label routing) depends on first knowing which ChartModel ChartType the chart
+              being parsed maps to.
+            children:
+              - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-BarChartClassification
+              - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-OtherChartTypeClassification
+            tests:
+              - Parse_BarChartWithBarDirection_ClassifiesAsBar
+              - Parse_BarChartWithColumnDirection_ClassifiesAsColumn
+              - Parse_BarChartWithNoBarDirection_DefaultsToColumn
+              - Parse_LineChart_ClassifiesAsLine
+              - Parse_AreaChart_ClassifiesAsArea
+              - Parse_PieChart_ClassifiesAsPieWithPointLabels
+              - Parse_DoughnutChart_ClassifiesAsDoughnut
+
+          - id: CanvasNetCharts-OpenXmlChart-SeriesDataExtraction
+            title: >-
+              The OpenXmlChart subsystem shall extract each c:ser element's cached series name
+              (from c:tx, defaulting to a 1-based "Series N" name when absent), cached values
+              (from c:val's c:numCache, honoring c:ptCount/sparse c:pt gaps as 0.0), and cached
+              categories (from c:cat's c:strCache or c:numCache, the latter converted to
+              invariant-culture strings), routing categories to the chart's shared category axis
+              for a category-based ChartType and to each series' own point labels otherwise.
+            justification: |
+              A chart's actual plotted data - its series names, values, and categories - is the
+              one thing a parser must extract correctly for the resulting Chart to be
+              meaningful; silently misrouting or miscounting any of these would silently corrupt
+              every later rendering.
+            children:
+              - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-SeriesNameExtraction
+              - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-ValueExtraction
+              - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-CategoryExtraction
+            tests:
+              - Parse_SeriesWithCachedName_ExtractsName
+              - Parse_SeriesWithNoTx_DefaultsToSeriesIndexName
+              - Parse_SeriesWithLiteralTxValue_ExtractsName
+              - Parse_NumericCategories_ConvertsToInvariantCultureStrings
+              - Parse_SparseNumCache_MissingIndexDefaultsToZero
+              - Parse_MultipleSeries_ParsesAllInOrder
+              - Parse_CategoryBasedChart_ExtractsCategoryAxisLabels
+
+          - id: CanvasNetCharts-OpenXmlChart-DecorationExtraction
+            title: >-
+              The OpenXmlChart subsystem shall extract a chart's cached title text (from c:title's
+              c:tx, mapping an absent or textless title to null), legend presence and position
+              (from c:legend/c:legendPos, mapping each of OOXML's defined positions to the nearest
+              ChartModel ChartLegendPosition and defaulting to Right), and category/value axis
+              titles and value-axis range (from c:catAx/c:valAx's own c:title/c:scaling/
+              c:majorUnit).
+            justification: |
+              A chart's decorative elements (title, legend, axis titles/range) are each optional
+              in OOXML but, when present, must be faithfully carried into the ChartModel shape the
+              Phase 2 renderer already knows how to paint.
+            children:
+              - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-TitleExtraction
+              - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-LegendExtraction
+              - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-AxisExtraction
+            tests:
+              - Parse_TitleWithCachedText_ExtractsTitle
+              - Parse_TitleWithRichText_ConcatenatesRuns
+              - Parse_TitlePresentWithNoTx_MapsToNullTitle
+              - Parse_NoTitleElement_MapsToNullTitle
+              - Parse_NoLegendElement_MapsToNullLegend
+              - Parse_LegendPosition_MapsToExpectedChartLegendPosition
+              - Parse_LegendWithNoPosition_DefaultsToRight
+              - Parse_CatAxTitle_ExtractsCategoryAxisTitle
+              - Parse_ValAx_ExtractsRangeAndTitle
+              - Parse_NoValAx_MapsToNullValueAxis
+
+          - id: CanvasNetCharts-OpenXmlChart-UnsupportedFeatureRejection
+            title: >-
+              The OpenXmlChart subsystem shall throw ChartUnsupportedFeatureException - carrying a
+              short, stable Feature token - when a plot area contains no recognized chart-type
+              element, more than one recognized chart-type element (a combo chart), a single
+              recognized-but-unimplemented chart-type element (radar, scatter, bubble, stock,
+              surface, 3-D, or "of pie"), or a series whose c:val has no cached c:numCache.
+            justification: |
+              A caller must be able to distinguish, via a stable, machine-matchable token, exactly
+              which recognized-but-out-of-scope feature caused a parse to fail, rather than
+              receiving only a generic or malformed-XML-shaped exception.
+            children:
+              - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-UnsupportedChartTypeRejection
+              - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-ComboChartRejection
+              - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-UncachedValuesRejection
+              - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-ArgumentValidation
+            tests:
+              - Parse_UnsupportedChartType_ThrowsWithExpectedFeatureToken
+              - Parse_ComboChart_ThrowsWithComboChartFeatureToken
+              - Parse_EmptyPlotArea_ThrowsWithNoChartTypeFeatureToken
+              - Parse_SeriesWithUncachedValues_ThrowsWithUncachedValuesFeatureToken
+              - Parse_NullDocument_ThrowsArgumentNullException
+              - Parse_NullElement_ThrowsArgumentNullException
+              - Parse_DocumentWithNoRoot_ThrowsArgumentException
+              - Parse_ElementWithNoChartChild_ThrowsArgumentException
+              - Parse_ChartWithNoPlotArea_ThrowsArgumentException
