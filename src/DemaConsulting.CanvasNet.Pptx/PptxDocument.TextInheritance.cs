@@ -659,8 +659,8 @@ public sealed partial class PptxDocument
     ///     mirroring <c>PptxDocument.Geometry.cs</c>'s <c>ParseRequiredFloatAttribute</c> guarded-
     ///     parse convention, adapted to operate directly on an already-null-propagated
     ///     <see cref="XAttribute"/> (several call sites in this file resolve the owning element
-    ///     nullably, e.g. <c>placeholderLevelElement?.Attribute("marL")</c>, before this helper is
-    ///     ever reached).
+    ///     as nullable, e.g. <c>placeholderLevelElement?.Attribute("marL")</c>, before this helper
+    ///     is ever reached).
     /// </summary>
     /// <param name="attribute">The attribute to parse, or <see langword="null"/>.</param>
     /// <returns>

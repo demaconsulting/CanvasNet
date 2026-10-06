@@ -1087,7 +1087,7 @@ public class PptxRenderTests
     ///     Regression test for the group-shape-nesting-depth safety limit (see the companion
     ///     code-review finding's bug-fix rationale): a crafted slide whose <c>&lt;p:grpSp&gt;</c>
     ///     chain is nested one level beyond the documented maximum (100) throws
-    ///     <see cref="InvalidDataException"/> - not an uncatchable <see cref="StackOverflowException"/>
+    ///     <see cref="InvalidDataException"/> - not an unrecoverable <see cref="StackOverflowException"/>
     ///     - when opened/rendered through the full public <see cref="PptxDocument"/> pipeline.
     /// </summary>
     [Fact]

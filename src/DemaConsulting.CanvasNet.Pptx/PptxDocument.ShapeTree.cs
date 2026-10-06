@@ -30,8 +30,8 @@ public sealed partial class PptxDocument
     ///     (<c>OpenXmlChartParser.MaxCachedPointCount</c>) caps, group-shape nesting depth has no
     ///     bound of its own: a crafted <c>.pptx</c> easily fits thousands of nested
     ///     <c>&lt;p:grpSp&gt;</c> elements within the existing ~2,000,000-character XML-part cap,
-    ///     which - left unchecked - drives an uncatchable <see cref="StackOverflowException"/>
-    ///     that crashes the process rather than a clean, fail-closed rejection.
+    ///     which - left unchecked - drives a <see cref="StackOverflowException"/> that cannot be
+    ///     caught, crashing the process rather than a clean, fail-closed rejection.
     /// </summary>
     private const int MaxGroupShapeNestingDepth = 100;
 
