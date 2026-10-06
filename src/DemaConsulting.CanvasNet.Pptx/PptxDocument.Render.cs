@@ -23,23 +23,6 @@ namespace DemaConsulting.CanvasNet.Pptx;
 public sealed partial class PptxDocument
 {
     /// <summary>
-    ///     The render-time-only picture <see cref="Surface"/>s decoded so far by the single,
-    ///     currently-executing <see cref="Render(int, int, int, PptxRenderOptions?)"/> call (via
-    ///     <see cref="ResolveAndTrackPictureSurface"/>), or <see langword="null"/> when no
-    ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/> call is in progress.
-    /// </summary>
-    /// <remarks>
-    ///     Unlike the table-cell <c>&lt;a:blipFill&gt;</c> path (see
-    ///     <see cref="ResolveAndOwnPictureSurface"/>), every picture resolved through this field
-    ///     (slide/layout/master background fills, shape/connector fills, and the direct
-    ///     <c>&lt;p:pic&gt;</c> picture-shape case) is created fresh within, and painted fully by
-    ///     the end of, that one call - never stored in a cached slide/layout/master shape tree -
-    ///     so it is always safe to dispose every entry once that call's <c>finally</c> block runs,
-    ///     rather than leaking it until the next GC.
-    /// </remarks>
-    private List<Surface>? _currentRenderImages;
-
-    /// <summary>
     ///     Renders the specified slide into a new <see cref="Surface"/> of the given dimensions,
     ///     walking the slide's full shape tree (<see cref="PptxSlide.ShapeTree"/>) in document
     ///     order and painting each recognized shape kind (see the <see cref="PptxDocument"/>
@@ -126,8 +109,19 @@ public sealed partial class PptxDocument
         }
 
         var surface = new Surface(width, height);
+
+        // Render-time-only picture Surfaces decoded by this single call (via
+        // ResolveAndTrackPictureSurface - background/shape/connector fills, and the direct
+        // <p:pic> picture-shape case) are tracked in this call-local list, threaded explicitly
+        // through every recursive RenderNode/RenderShape/RenderPicture/RenderConnector call rather
+        // than a shared instance field - a field would be silently corrupted (and disposed images
+        // used-after-dispose, or leaked entirely) by two Render calls on the same PptxDocument
+        // racing concurrently on separate threads. Unlike the table-cell <a:blipFill> path (see
+        // ResolveAndOwnPictureSurface), every picture in this list is created fresh within, and
+        // painted fully by the end of, this one call - never stored in a cached slide/layout/
+        // master shape tree - so it is always safe to dispose every entry in the finally block
+        // below.
         var renderImages = new List<Surface>();
-        _currentRenderImages = renderImages;
         try
         {
             surface.Clear((options ?? PptxRenderOptions.Default).BackgroundColor);
@@ -143,9 +137,9 @@ public sealed partial class PptxDocument
 
             var backgroundFill = ResolveSlideBackgroundFill(
                 slide.Background, layout.Background, master.Background, theme, SlideSize.WidthEmu, SlideSize.HeightEmu, colorMap,
-                blip => ResolveAndTrackPictureSurface(slide.PartPath, blip),
-                blip => ResolveAndTrackPictureSurface(layout.PartPath, blip),
-                blip => ResolveAndTrackPictureSurface(master.PartPath, blip));
+                blip => ResolveAndTrackPictureSurface(slide.PartPath, blip, renderImages),
+                blip => ResolveAndTrackPictureSurface(layout.PartPath, blip, renderImages),
+                blip => ResolveAndTrackPictureSurface(master.PartPath, blip, renderImages));
             if (backgroundFill is not null)
             {
                 var backgroundPath = Path.Rectangle(0, 0, SlideSize.WidthEmu, SlideSize.HeightEmu).Transform(baseTransform);
@@ -163,17 +157,17 @@ public sealed partial class PptxDocument
             // non-placeholder siblings are.
             foreach (var node in master.ShapeTree)
             {
-                RenderNode(surface, node, master.PartPath, layout, master, theme, baseTransform, colorMap, skipPlaceholderShapes: true);
+                RenderNode(surface, node, master.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, skipPlaceholderShapes: true);
             }
 
             foreach (var node in layout.ShapeTree)
             {
-                RenderNode(surface, node, layout.PartPath, layout, master, theme, baseTransform, colorMap, skipPlaceholderShapes: true);
+                RenderNode(surface, node, layout.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, skipPlaceholderShapes: true);
             }
 
             foreach (var node in slide.ShapeTree)
             {
-                RenderNode(surface, node, slide.PartPath, layout, master, theme, baseTransform, colorMap);
+                RenderNode(surface, node, slide.PartPath, layout, master, theme, baseTransform, colorMap, renderImages);
             }
 
             return surface;
@@ -203,8 +197,6 @@ public sealed partial class PptxDocument
             {
                 image.Dispose();
             }
-
-            _currentRenderImages = null;
         }
     }
 
@@ -309,6 +301,12 @@ public sealed partial class PptxDocument
     ///     unchanged through every recursive call - consulted whenever a resolved fill/line/text
     ///     color declares an <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token.
     /// </param>
+    /// <param name="renderImages">
+    ///     The calling <see cref="Render(int, int, int, PptxRenderOptions?)"/> call's own
+    ///     call-local picture-tracking list, threaded unchanged through every recursive call and
+    ///     into <see cref="RenderShape"/>/<see cref="RenderPicture"/>/<see cref="RenderConnector"/>
+    ///     - see <see cref="ResolveAndTrackPictureSurface"/>.
+    /// </param>
     /// <param name="skipPlaceholderShapes">
     ///     When <see langword="true"/> (the master/layout decorative-shape walks in
     ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/>), a <see cref="PptxSpShapeNode"/>
@@ -356,6 +354,7 @@ public sealed partial class PptxDocument
         PptxTheme theme,
         Matrix3x2 parentToSurface,
         PptxColorMap colorMap,
+        List<Surface> renderImages,
         bool skipPlaceholderShapes = false,
         int depth = 0)
     {
@@ -371,7 +370,7 @@ public sealed partial class PptxDocument
                 var childToSurface = group.ChildTransform * parentToSurface;
                 foreach (var child in group.Children)
                 {
-                    RenderNode(surface, child, ownerPartPath, layout, master, theme, childToSurface, colorMap, skipPlaceholderShapes, depth + 1);
+                    RenderNode(surface, child, ownerPartPath, layout, master, theme, childToSurface, colorMap, renderImages, skipPlaceholderShapes, depth + 1);
                 }
 
                 break;
@@ -384,7 +383,7 @@ public sealed partial class PptxDocument
 
                 try
                 {
-                    RenderShape(surface, sp, ownerPartPath, layout, master, theme, parentToSurface, colorMap);
+                    RenderShape(surface, sp, ownerPartPath, layout, master, theme, parentToSurface, colorMap, renderImages);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {
@@ -401,7 +400,7 @@ public sealed partial class PptxDocument
             case PptxPictureShapeNode pic:
                 try
                 {
-                    RenderPicture(surface, pic, ownerPartPath, theme, parentToSurface, colorMap);
+                    RenderPicture(surface, pic, ownerPartPath, theme, parentToSurface, colorMap, renderImages);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {
@@ -425,7 +424,7 @@ public sealed partial class PptxDocument
             case PptxConnectorShapeNode connector:
                 try
                 {
-                    RenderConnector(surface, connector, ownerPartPath, theme, parentToSurface, colorMap);
+                    RenderConnector(surface, connector, ownerPartPath, theme, parentToSurface, colorMap, renderImages);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {
@@ -460,9 +459,10 @@ public sealed partial class PptxDocument
         PptxMaster master,
         PptxTheme theme,
         Matrix3x2 parentToSurface,
-        PptxColorMap colorMap)
+        PptxColorMap colorMap,
+        List<Surface> renderImages)
     {
-        Surface ResolveBlipImage(XElement blip) => ResolveAndTrackPictureSurface(ownerPartPath, blip);
+        Surface ResolveBlipImage(XElement blip) => ResolveAndTrackPictureSurface(ownerPartPath, blip, renderImages);
 
         XElement? spPrElement;
         XElement? xfrmElement;
@@ -568,17 +568,24 @@ public sealed partial class PptxDocument
 
     /// <summary>
     ///     Resolves a picture surface exactly like <see cref="ResolvePictureSurface"/>, then
-    ///     records the decoded <see cref="Surface"/> in <see cref="_currentRenderImages"/> so the
+    ///     records the decoded <see cref="Surface"/> in <paramref name="renderImages"/> so the
     ///     currently-executing <see cref="Render(int, int, int, PptxRenderOptions?)"/> call
     ///     disposes it once painting completes.
     /// </summary>
     /// <param name="ownerPartPath">See <see cref="ResolvePictureSurface"/>.</param>
     /// <param name="blipFillElement">See <see cref="ResolvePictureSurface"/>.</param>
+    /// <param name="renderImages">
+    ///     The calling <see cref="Render(int, int, int, PptxRenderOptions?)"/> call's own
+    ///     call-local tracking list - threaded explicitly through the render call chain, rather
+    ///     than read from a shared instance field, so two concurrent
+    ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/> calls on the same
+    ///     <see cref="PptxDocument"/> each dispose only the images they themselves decoded.
+    /// </param>
     /// <returns>See <see cref="ResolvePictureSurface"/>.</returns>
-    private Surface ResolveAndTrackPictureSurface(string ownerPartPath, XElement blipFillElement)
+    private Surface ResolveAndTrackPictureSurface(string ownerPartPath, XElement blipFillElement, List<Surface> renderImages)
     {
         var surface = ResolvePictureSurface(ownerPartPath, blipFillElement);
-        _currentRenderImages?.Add(surface);
+        renderImages.Add(surface);
         return surface;
     }
 
@@ -613,13 +620,18 @@ public sealed partial class PptxDocument
     ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token - see <see cref="ResolveShapeLineStyle"/>'s
     ///     matching parameter.
     /// </param>
+    /// <param name="renderImages">
+    ///     The calling <see cref="Render(int, int, int, PptxRenderOptions?)"/> call's own
+    ///     call-local picture-tracking list - see <see cref="ResolveAndTrackPictureSurface"/>.
+    /// </param>
     private void RenderPicture(
         Surface surface,
         PptxPictureShapeNode node,
         string ownerPartPath,
         PptxTheme theme,
         Matrix3x2 parentToSurface,
-        PptxColorMap colorMap)
+        PptxColorMap colorMap,
+        List<Surface> renderImages)
     {
         var spPrElement = node.PicElement.Element(PresentationNamespace + "spPr");
         var xfrmElement = spPrElement?.Element(DrawingNamespace + "xfrm");
@@ -640,7 +652,7 @@ public sealed partial class PptxDocument
         var frame = ResolveShapeFrame(xfrmElement);
         var localToSurface = frame.Transform * parentToSurface;
 
-        var image = ResolveAndTrackPictureSurface(ownerPartPath, blipFillElement);
+        var image = ResolveAndTrackPictureSurface(ownerPartPath, blipFillElement, renderImages);
         var srcRect = ResolveSrcRect(blipFillElement);
 
         // spPrElement is guaranteed non-null here: xfrmElement (checked above) is resolved via
@@ -772,9 +784,9 @@ public sealed partial class PptxDocument
     /// </remarks>
     private void RenderConnector(
         Surface surface, PptxConnectorShapeNode node, string ownerPartPath, PptxTheme theme, Matrix3x2 parentToSurface,
-        PptxColorMap colorMap)
+        PptxColorMap colorMap, List<Surface> renderImages)
     {
-        Surface ResolveBlipImage(XElement blip) => ResolveAndTrackPictureSurface(ownerPartPath, blip);
+        Surface ResolveBlipImage(XElement blip) => ResolveAndTrackPictureSurface(ownerPartPath, blip, renderImages);
 
         var spPrElement = node.CxnSpElement.Element(PresentationNamespace + "spPr");
         var xfrmElement = spPrElement?.Element(DrawingNamespace + "xfrm");

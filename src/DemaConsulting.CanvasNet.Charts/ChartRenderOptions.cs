@@ -85,5 +85,18 @@ public sealed class ChartRenderOptions
     ///     <see cref="ChartColorPalette.Default"/>), since an empty sequence can resolve no
     ///     color at all.
     /// </summary>
-    public IReadOnlyList<Rgba32>? ColorPalette { get; init; }
+    public IReadOnlyList<Rgba32>? ColorPalette
+    {
+        get => _colorPalette;
+        init => _colorPalette = value is null ? null : [.. value];
+    }
+
+    /// <summary>
+    ///     The backing field for <see cref="ColorPalette"/>. A defensive copy is made in the
+    ///     <see langword="init"/> accessor above so a caller mutating the list/array they passed
+    ///     in (or reusing a single mutable list across several <see cref="ChartRenderOptions"/>
+    ///     instances) after construction cannot retroactively change palette resolution for an
+    ///     already-constructed, supposedly-immutable options instance.
+    /// </summary>
+    private readonly IReadOnlyList<Rgba32>? _colorPalette;
 }

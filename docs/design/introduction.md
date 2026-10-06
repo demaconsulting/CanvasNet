@@ -117,7 +117,9 @@ software items, specifically:
   `CanvasNetPptx` depends on the `CanvasNet` system's `Canvas`, `Geometry`,
   `Drawing`, `Fonts`, and `Codecs` subsystems (for the `Rgba32` color type, path geometry/
   stroking, font/glyph resolution, and image decoding used to resolve and render shape/text/
-  picture content) — see _CanvasNetPptx System Design_ (`canvas-net-pptx.md`)
+  picture content), and on the `CanvasNetCharts` system (for parsing and rendering embedded
+  `<p:graphicFrame>` charts — see `OpenXmlChartParser`/`ChartRenderer` below) — see
+  _CanvasNetPptx System Design_ (`canvas-net-pptx.md`)
 - **CanvasNetCharts (System)** — A separate, independently-distributed software system providing
   chart support, containing two subsystems: `ChartModel`, containing a single unit,
   `ChartDocument` — the public, immutable, validating chart data model (`Chart`/`ChartSeries`/

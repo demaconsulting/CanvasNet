@@ -47,6 +47,9 @@ constituent software items, specifically:
   `ChartModel`, containing the `ChartDocument` and `ChartRenderer` units, and `OpenXmlChart`,
   containing the `OpenXmlChartParser` unit — see _CanvasNetCharts System Verification_
   (`canvas-net-charts.md`)
+- **CanvasNetPptx (System)** — A separate, independently-distributed software system providing
+  PowerPoint (`.pptx`) presentation-rendering support, containing a single unit,
+  `PptxDocument` — see _CanvasNetPptx System Verification_ (`canvas-net-pptx.md`)
 
 The following OTS items are also covered:
 

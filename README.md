@@ -115,6 +115,19 @@ Or via Package Manager Console:
 Install-Package DemaConsulting.CanvasNet.Charts
 ```
 
+PowerPoint (`.pptx`) document parsing and rendering requires the separate
+`DemaConsulting.CanvasNet.Pptx` package:
+
+```bash
+dotnet add package DemaConsulting.CanvasNet.Pptx
+```
+
+Or via Package Manager Console:
+
+```powershell
+Install-Package DemaConsulting.CanvasNet.Pptx
+```
+
 ## Usage
 
 ```csharp

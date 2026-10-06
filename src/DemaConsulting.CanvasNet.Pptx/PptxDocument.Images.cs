@@ -128,7 +128,8 @@ public sealed partial class PptxDocument
     ///     and therefore reused across every subsequent <see cref="Render(int, int, int, PptxRenderOptions?)"/>
     ///     call, rather than being created fresh (and disposable) within a single call - see
     ///     <c>Render(int, int, int, PptxRenderOptions?)</c>'s own render-time picture resolution,
-    ///     which instead uses the per-call tracking in <see cref="_currentRenderImages"/>.
+    ///     which instead tracks each resolved image in a call-local list threaded through that one
+    ///     call (see <c>ResolveAndTrackPictureSurface</c>).
     /// </remarks>
     /// <param name="ownerPartPath">See <see cref="ResolvePictureSurface"/>.</param>
     /// <param name="blipFillElement">See <see cref="ResolvePictureSurface"/>.</param>
