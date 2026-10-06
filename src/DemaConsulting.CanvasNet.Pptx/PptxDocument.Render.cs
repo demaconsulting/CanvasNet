@@ -23,6 +23,23 @@ namespace DemaConsulting.CanvasNet.Pptx;
 public sealed partial class PptxDocument
 {
     /// <summary>
+    ///     The render-time-only picture <see cref="Surface"/>s decoded so far by the single,
+    ///     currently-executing <see cref="Render(int, int, int, PptxRenderOptions?)"/> call (via
+    ///     <see cref="ResolveAndTrackPictureSurface"/>), or <see langword="null"/> when no
+    ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/> call is in progress.
+    /// </summary>
+    /// <remarks>
+    ///     Unlike the table-cell <c>&lt;a:blipFill&gt;</c> path (see
+    ///     <see cref="ResolveAndOwnPictureSurface"/>), every picture resolved through this field
+    ///     (slide/layout/master background fills, shape/connector fills, and the direct
+    ///     <c>&lt;p:pic&gt;</c> picture-shape case) is created fresh within, and painted fully by
+    ///     the end of, that one call - never stored in a cached slide/layout/master shape tree -
+    ///     so it is always safe to dispose every entry once that call's <c>finally</c> block runs,
+    ///     rather than leaking it until the next GC.
+    /// </remarks>
+    private List<Surface>? _currentRenderImages;
+
+    /// <summary>
     ///     Renders the specified slide into a new <see cref="Surface"/> of the given dimensions,
     ///     walking the slide's full shape tree (<see cref="PptxSlide.ShapeTree"/>) in document
     ///     order and painting each recognized shape kind (see the <see cref="PptxDocument"/>
@@ -109,6 +126,8 @@ public sealed partial class PptxDocument
         }
 
         var surface = new Surface(width, height);
+        var renderImages = new List<Surface>();
+        _currentRenderImages = renderImages;
         try
         {
             surface.Clear((options ?? PptxRenderOptions.Default).BackgroundColor);
@@ -124,9 +143,9 @@ public sealed partial class PptxDocument
 
             var backgroundFill = ResolveSlideBackgroundFill(
                 slide.Background, layout.Background, master.Background, theme, SlideSize.WidthEmu, SlideSize.HeightEmu, colorMap,
-                blip => ResolvePictureSurface(slide.PartPath, blip),
-                blip => ResolvePictureSurface(layout.PartPath, blip),
-                blip => ResolvePictureSurface(master.PartPath, blip));
+                blip => ResolveAndTrackPictureSurface(slide.PartPath, blip),
+                blip => ResolveAndTrackPictureSurface(layout.PartPath, blip),
+                blip => ResolveAndTrackPictureSurface(master.PartPath, blip));
             if (backgroundFill is not null)
             {
                 var backgroundPath = Path.Rectangle(0, 0, SlideSize.WidthEmu, SlideSize.HeightEmu).Transform(baseTransform);
@@ -167,6 +186,25 @@ public sealed partial class PptxDocument
             // the normal successful-return path above since ownership transfers to the caller.
             surface.Dispose();
             throw;
+        }
+        finally
+        {
+            // Every picture Surface decoded by ResolveAndTrackPictureSurface during this single
+            // call (background/shape/connector fills, and the direct <p:pic> picture-shape case)
+            // is render-time-only - already fully painted onto surface above (or never reached, on
+            // the exceptional path) and never stored anywhere the caller or a cached slide/layout/
+            // master shape tree can reach it afterward - so it is always safe, and necessary, to
+            // dispose each one here rather than leaking it until the next GC. This is distinct
+            // from the <a:tcPr>/<a:blipFill> table-cell picture path (see
+            // ResolveAndOwnPictureSurface), whose resolved Surfaces are cached inside the
+            // master/layout/slide's own cached shape tree and reused by later Render calls, so
+            // those are instead owned and disposed by Dispose.
+            foreach (var image in renderImages)
+            {
+                image.Dispose();
+            }
+
+            _currentRenderImages = null;
         }
     }
 
@@ -424,7 +462,7 @@ public sealed partial class PptxDocument
         Matrix3x2 parentToSurface,
         PptxColorMap colorMap)
     {
-        Surface ResolveBlipImage(XElement blip) => ResolvePictureSurface(ownerPartPath, blip);
+        Surface ResolveBlipImage(XElement blip) => ResolveAndTrackPictureSurface(ownerPartPath, blip);
 
         XElement? spPrElement;
         XElement? xfrmElement;
@@ -529,6 +567,22 @@ public sealed partial class PptxDocument
         fillParentElement.Element(DrawingNamespace + "blipFill") is not null;
 
     /// <summary>
+    ///     Resolves a picture surface exactly like <see cref="ResolvePictureSurface"/>, then
+    ///     records the decoded <see cref="Surface"/> in <see cref="_currentRenderImages"/> so the
+    ///     currently-executing <see cref="Render(int, int, int, PptxRenderOptions?)"/> call
+    ///     disposes it once painting completes.
+    /// </summary>
+    /// <param name="ownerPartPath">See <see cref="ResolvePictureSurface"/>.</param>
+    /// <param name="blipFillElement">See <see cref="ResolvePictureSurface"/>.</param>
+    /// <returns>See <see cref="ResolvePictureSurface"/>.</returns>
+    private Surface ResolveAndTrackPictureSurface(string ownerPartPath, XElement blipFillElement)
+    {
+        var surface = ResolvePictureSurface(ownerPartPath, blipFillElement);
+        _currentRenderImages?.Add(surface);
+        return surface;
+    }
+
+    /// <summary>
     ///     Renders a <see cref="PptxPictureShapeNode"/>: decodes and composites its embedded
     ///     image via the Phase 1e picture pipeline, clipped to its own resolved
     ///     <c>&lt;p:spPr&gt;</c>/<c>&lt;a:prstGeom&gt;</c>/<c>&lt;a:custGeom&gt;</c> geometry (see
@@ -586,7 +640,7 @@ public sealed partial class PptxDocument
         var frame = ResolveShapeFrame(xfrmElement);
         var localToSurface = frame.Transform * parentToSurface;
 
-        var image = ResolvePictureSurface(ownerPartPath, blipFillElement);
+        var image = ResolveAndTrackPictureSurface(ownerPartPath, blipFillElement);
         var srcRect = ResolveSrcRect(blipFillElement);
 
         // spPrElement is guaranteed non-null here: xfrmElement (checked above) is resolved via
@@ -720,7 +774,7 @@ public sealed partial class PptxDocument
         Surface surface, PptxConnectorShapeNode node, string ownerPartPath, PptxTheme theme, Matrix3x2 parentToSurface,
         PptxColorMap colorMap)
     {
-        Surface ResolveBlipImage(XElement blip) => ResolvePictureSurface(ownerPartPath, blip);
+        Surface ResolveBlipImage(XElement blip) => ResolveAndTrackPictureSurface(ownerPartPath, blip);
 
         var spPrElement = node.CxnSpElement.Element(PresentationNamespace + "spPr");
         var xfrmElement = spPrElement?.Element(DrawingNamespace + "xfrm");

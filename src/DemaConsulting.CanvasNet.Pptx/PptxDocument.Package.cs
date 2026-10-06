@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Xml;
 using System.Xml.Linq;
+using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
@@ -98,6 +99,15 @@ public sealed partial class PptxDocument
     ///     Set once <see cref="Dispose"/> has been called.
     /// </summary>
     private bool _disposed;
+
+    /// <summary>
+    ///     The decoded picture <see cref="Surface"/>s owned by this document - populated only by
+    ///     <see cref="ResolveAndOwnPictureSurface"/> (table-cell <c>&lt;a:blipFill&gt;</c> images,
+    ///     resolved once at parse time and cached inside a master/layout/slide's own cached shape
+    ///     tree, so they outlive any single <see cref="Render(int, int, int, PptxRenderOptions?)"/>
+    ///     call and must instead be disposed here, by <see cref="Dispose"/>).
+    /// </summary>
+    private readonly List<Surface> _ownedImageSurfaces = [];
 
     /// <summary>
     ///     A single parsed <c>&lt;Relationship&gt;</c> element from a <c>.rels</c> part.

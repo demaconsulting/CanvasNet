@@ -338,7 +338,35 @@ public static partial class ChartRenderer
     private static float ValueToPixel(double value, double min, double max, float origin, float extent)
     {
         var clamped = Math.Clamp(value, min, max);
-        return origin + (float)((clamped - min) / (max - min)) * extent;
+        return origin + (float)SafeRatio(clamped, min, max) * extent;
+    }
+
+    /// <summary>
+    ///     Computes <c>(value - min) / (max - min)</c>, guarding against the case where
+    ///     <paramref name="min"/>/<paramref name="max"/> are individually finite but extreme
+    ///     enough (for example <c>[-double.MaxValue, double.MaxValue]</c>) that <c>max - min</c>
+    ///     - and potentially <c>value - min</c> too - overflows to <see cref="double.PositiveInfinity"/>,
+    ///     which would otherwise produce <c>Infinity / Infinity = NaN</c> instead of a meaningful
+    ///     fraction.
+    /// </summary>
+    /// <param name="value">The already-clamped data value (<c>min &lt;= value &lt;= max</c>).</param>
+    /// <param name="min">The value-axis minimum.</param>
+    /// <param name="max">The value-axis maximum. Must be strictly greater than <paramref name="min"/>.</param>
+    /// <returns>The fraction of the way <paramref name="value"/> lies between <paramref name="min"/> and <paramref name="max"/>.</returns>
+    private static double SafeRatio(double value, double min, double max)
+    {
+        var range = max - min;
+        if (double.IsFinite(range) && range != 0d)
+        {
+            return (value - min) / range;
+        }
+
+        // range overflowed: halve each operand before subtracting, so the intermediate
+        // differences stay within double's finite range (max/2 - min/2 can never overflow when
+        // max and min are themselves finite), trading a little precision for a finite,
+        // meaningful fraction instead of NaN.
+        var halfRange = max / 2d - min / 2d;
+        return halfRange == 0d ? 0d : (value / 2d - min / 2d) / halfRange;
     }
 
     /// <summary>

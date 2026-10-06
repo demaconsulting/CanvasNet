@@ -1633,6 +1633,82 @@ public class PptxRenderTests
         Assert.Equal(new Rgba32(0, 255, 255, 255), surface[25, 25]);
     }
 
+    /// <summary>
+    ///     Proves a table cell's own <c>&lt;a:blipFill&gt;</c> picture fill - resolved once at parse
+    ///     time (cached inside the slide's shape tree, via <c>ParseTable</c>) rather than freshly
+    ///     per <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/> call - still
+    ///     paints correctly across two separate <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>
+    ///     calls on the same slide, proving the cached, decoded picture <see cref="Surface"/> is
+    ///     not disposed after the first call (see <c>PptxDocument.ResolveAndOwnPictureSurface</c>'s
+    ///     own remarks for why this one picture-fill path is owned by the document rather than the
+    ///     single render call that happens to trigger its first resolution).
+    /// </summary>
+    [Fact]
+    public void Render_TableCellPictureFill_PaintsCorrectlyAcrossRepeatedRenderCalls()
+    {
+        var pngBytes = BuildPngBytes(new Rgba32(40, 50, 60, 255));
+        const string spTreeInnerXml =
+            """
+            <p:graphicFrame>
+              <p:nvGraphicFramePr><p:cNvPr id="2" name="Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+              <p:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></p:xfrm>
+              <a:graphic>
+                <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">
+                  <a:tbl>
+                    <a:tblGrid><a:gridCol w="9144000"/></a:tblGrid>
+                    <a:tr h="6858000">
+                      <a:tc>
+                        <a:tcPr><a:blipFill><a:blip r:embed="rId2"/></a:blipFill></a:tcPr>
+                      </a:tc>
+                    </a:tr>
+                  </a:tbl>
+                </a:graphicData>
+              </a:graphic>
+            </p:graphicFrame>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml, media: ("png", "image/png", pngBytes));
+        using var document = PptxDocument.Open(stream);
+
+        using var firstSurface = document.Render(0, 50, 50);
+        using var secondSurface = document.Render(0, 50, 50);
+
+        Assert.Equal(new Rgba32(40, 50, 60, 255), firstSurface[25, 25]);
+        Assert.Equal(new Rgba32(40, 50, 60, 255), secondSurface[25, 25]);
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;p:pic&gt;</c>'s own render-time-only decoded picture <see cref="Surface"/>
+    ///     (resolved fresh every call, rather than cached - see <c>PptxDocument.ResolveAndTrackPictureSurface</c>'s
+    ///     own remarks) still paints correctly across two separate
+    ///     <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/> calls on the same
+    ///     slide, proving disposing each call's own tracked picture surfaces at the end of that
+    ///     call does not affect a later, independent call.
+    /// </summary>
+    [Fact]
+    public void Render_Picture_PaintsCorrectlyAcrossRepeatedRenderCalls()
+    {
+        var pngBytes = BuildPngBytes(new Rgba32(10, 20, 30, 255));
+        const string spTreeInnerXml =
+            """
+            <p:pic>
+              <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:pic>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml, media: ("png", "image/png", pngBytes));
+        using var document = PptxDocument.Open(stream);
+
+        using var firstSurface = document.Render(0, 20, 20);
+        using var secondSurface = document.Render(0, 20, 20);
+
+        Assert.Equal(new Rgba32(10, 20, 30, 255), firstSurface[10, 10]);
+        Assert.Equal(new Rgba32(10, 20, 30, 255), secondSurface[10, 10]);
+    }
+
     /// <summary>Proves a <c>&lt;p:graphicFrame&gt;</c> missing its own direct <c>&lt;p:xfrm&gt;</c> is skipped silently rather than throwing.</summary>
     [Fact]
     public void Render_GraphicFrameMissingXfrm_SkippedSilently()

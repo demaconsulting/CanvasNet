@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
@@ -324,14 +325,20 @@ public sealed partial class PptxDocument : IDisposable
 
     /// <summary>
     ///     Releases the resources held by this <see cref="PptxDocument"/> (the underlying ZIP
-    ///     archive and its backing buffer). Calling this method more than once has no effect
-    ///     beyond the first call.
+    ///     archive, its backing buffer, and every cached table-cell picture <see cref="Surface"/>
+    ///     this document decoded and owns - see <see cref="_ownedImageSurfaces"/>). Calling this
+    ///     method more than once has no effect beyond the first call.
     /// </summary>
     public void Dispose()
     {
         if (_disposed)
         {
             return;
+        }
+
+        foreach (var surface in _ownedImageSurfaces)
+        {
+            surface.Dispose();
         }
 
         _archive.Dispose();

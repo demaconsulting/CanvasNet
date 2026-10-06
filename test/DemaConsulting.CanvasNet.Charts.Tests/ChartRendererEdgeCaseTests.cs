@@ -181,7 +181,9 @@ public class ChartRendererEdgeCaseTests
     ///     Proves a value-axis range auto-derived from extreme-but-finite series values (for
     ///     example, [-double.MaxValue, double.MaxValue]) renders successfully instead of the
     ///     range-padding arithmetic overflowing to infinite/NaN bounds (which previously produced
-    ///     meaningless coordinates and caused the renderer to silently fail to draw).
+    ///     meaningless coordinates and caused the renderer to silently fail to draw), and the
+    ///     plotted data remains visible (non-background pixels are actually painted) rather than
+    ///     collapsing to NaN coordinates that paint nothing.
     /// </summary>
     [Fact]
     public void Render_Column_ExtremeFiniteValues_RendersSuccessfullyWithoutOverflow()
@@ -196,6 +198,28 @@ public class ChartRendererEdgeCaseTests
         // Assert
         Assert.Equal(400, surface.Width);
         Assert.Equal(300, surface.Height);
+        Assert.True(CountNonBackgroundPixels(surface, White) > 0);
+    }
+
+    /// <summary>Counts how many pixels in <paramref name="surface"/> differ from <paramref name="background"/>.</summary>
+    /// <param name="surface">The surface to scan.</param>
+    /// <param name="background">The known cleared background color.</param>
+    /// <returns>The count of non-background pixels.</returns>
+    private static int CountNonBackgroundPixels(Surface surface, Rgba32 background)
+    {
+        var count = 0;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                if (!surface[x, y].Equals(background))
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
     }
 
     /// <summary>Proves many series (enough to overflow a legend band) renders without error, the legend degrading by omission rather than throwing or overlapping the plot area.</summary>

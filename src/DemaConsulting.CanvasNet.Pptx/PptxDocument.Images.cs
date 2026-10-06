@@ -116,6 +116,31 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>
+    ///     Resolves a picture surface exactly like <see cref="ResolvePictureSurface"/>, then
+    ///     records the decoded <see cref="Surface"/> in <see cref="_ownedImageSurfaces"/> so it is
+    ///     disposed by <see cref="Dispose"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Used only by the table-cell <c>&lt;a:blipFill&gt;</c> resolution path threaded through
+    ///     <c>ParseShapeTree</c>/<c>ParseTable</c> at <c>GetMaster</c>/<c>GetLayout</c>/
+    ///     <c>GetSlide</c> parse time - the one picture-fill path whose resolved
+    ///     <see cref="Surface"/> is cached inside a master/layout/slide's own cached shape tree
+    ///     and therefore reused across every subsequent <see cref="Render(int, int, int, PptxRenderOptions?)"/>
+    ///     call, rather than being created fresh (and disposable) within a single call - see
+    ///     <c>Render(int, int, int, PptxRenderOptions?)</c>'s own render-time picture resolution,
+    ///     which instead uses the per-call tracking in <see cref="_currentRenderImages"/>.
+    /// </remarks>
+    /// <param name="ownerPartPath">See <see cref="ResolvePictureSurface"/>.</param>
+    /// <param name="blipFillElement">See <see cref="ResolvePictureSurface"/>.</param>
+    /// <returns>See <see cref="ResolvePictureSurface"/>.</returns>
+    private Surface ResolveAndOwnPictureSurface(string ownerPartPath, XElement blipFillElement)
+    {
+        var surface = ResolvePictureSurface(ownerPartPath, blipFillElement);
+        _ownedImageSurfaces.Add(surface);
+        return surface;
+    }
+
+    /// <summary>
     ///     Maps a media part's resolved OPC content type to the matching sibling raster codec's
     ///     own <c>Load(Stream)</c> entry point - pure dispatch, mirroring
     ///     <c>DemaConsulting.CanvasNet.Svg</c>'s <c>SvgCodec.Image.cs</c>'s own

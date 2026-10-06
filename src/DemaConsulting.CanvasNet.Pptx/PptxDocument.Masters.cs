@@ -80,7 +80,7 @@ public sealed partial class PptxDocument
         // full rationale and GetSlide's own colorMapResolver for the case where this is safe.
         var shapeTree = ParseShapeTree(
             spTree, () => GetTheme(themePartPath), tableStyleResolver: TryResolveTableStyle,
-            containUnsupportedGraphicFrames: true, resolveBlipImage: blip => ResolvePictureSurface(masterPartPath, blip),
+            containUnsupportedGraphicFrames: true, resolveBlipImage: blip => ResolveAndOwnPictureSurface(masterPartPath, blip),
             resolveChartPart: id => LoadPartXmlRoot(ResolveRelationship(masterPartPath, id)));
 
         var master = new PptxMaster(masterPartPath, themePartPath, placeholders, txStyles, background, shapeTree, colorMap);
