@@ -425,6 +425,65 @@ public class PptxBulletTests
         Assert.Equal(1, result.Bullet.AutoNumStartAt);
     }
 
+    /// <summary>
+    ///     Proves a non-numeric <c>&lt;a:buAutoNum startAt="..."/&gt;</c> is rejected with
+    ///     <see cref="InvalidDataException"/> rather than letting the explicit <c>(int?)</c>
+    ///     cast's raw <see cref="FormatException"/> propagate uncaught.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveParagraphProperties_BuAutoNumNonNumericStartAt_ThrowsInvalidDataException()
+    {
+        var theme = BuildTestTheme();
+        var pPr = new XElement(
+            DrawingNs + "pPr",
+            new XElement(DrawingNs + "buAutoNum", new XAttribute("startAt", "not-a-number")));
+        var paragraph = Paragraph(pPr, Run(null));
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        Assert.Throws<InvalidDataException>(
+            () => PptxDocument.ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, "body"));
+    }
+
+    /// <summary>
+    ///     Proves a non-numeric <c>&lt;a:buSzPct val="..."/&gt;</c> is rejected with
+    ///     <see cref="InvalidDataException"/> rather than letting the explicit <c>(float?)</c>
+    ///     cast's raw <see cref="FormatException"/> propagate uncaught.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveParagraphProperties_BuSzPctNonNumericVal_ThrowsInvalidDataException()
+    {
+        var theme = BuildTestTheme();
+        var pPr = new XElement(
+            DrawingNs + "pPr",
+            new XElement(DrawingNs + "buChar", new XAttribute("char", "*")),
+            new XElement(DrawingNs + "buSzPct", new XAttribute("val", "not-a-number")));
+        var paragraph = Paragraph(pPr, Run(null));
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        Assert.Throws<InvalidDataException>(
+            () => PptxDocument.ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, "body"));
+    }
+
+    /// <summary>
+    ///     Proves a non-numeric <c>&lt;a:buSzPts val="..."/&gt;</c> is rejected with
+    ///     <see cref="InvalidDataException"/> rather than letting the explicit <c>(float?)</c>
+    ///     cast's raw <see cref="FormatException"/> propagate uncaught.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveParagraphProperties_BuSzPtsNonNumericVal_ThrowsInvalidDataException()
+    {
+        var theme = BuildTestTheme();
+        var pPr = new XElement(
+            DrawingNs + "pPr",
+            new XElement(DrawingNs + "buChar", new XAttribute("char", "*")),
+            new XElement(DrawingNs + "buSzPts", new XAttribute("val", "not-a-number")));
+        var paragraph = Paragraph(pPr, Run(null));
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        Assert.Throws<InvalidDataException>(
+            () => PptxDocument.ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, "body"));
+    }
+
     #endregion
 
     #region Inheritance - color/font/size choice-groups are independent of each other and of the type choice-group

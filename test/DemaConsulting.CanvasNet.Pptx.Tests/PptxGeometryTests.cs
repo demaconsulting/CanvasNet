@@ -506,6 +506,71 @@ public class PptxGeometryTests
         Assert.Empty(path.Subpaths);
     }
 
+    /// <summary>
+    ///     Proves an <c>&lt;a:path&gt;</c>'s non-numeric <c>w</c> attribute is rejected with
+    ///     <see cref="InvalidDataException"/> rather than letting the explicit <c>(float?)</c>
+    ///     cast's raw <see cref="FormatException"/> propagate uncaught.
+    /// </summary>
+    [Fact]
+    public void ResolveCustomGeometry_NonNumericPathW_ThrowsInvalidDataException()
+    {
+        var custGeom = new XElement(
+            A + "custGeom",
+            new XElement(
+                A + "pathLst",
+                new XElement(
+                    A + "path",
+                    new XAttribute("w", "not-a-number"), new XAttribute("h", 50),
+                    new XElement(A + "moveTo", new XElement(A + "pt", new XAttribute("x", 0), new XAttribute("y", 0))))));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveCustomGeometry(custGeom, 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves an <c>&lt;a:pt&gt;</c>'s non-numeric <c>x</c> attribute is rejected with
+    ///     <see cref="InvalidDataException"/> rather than letting the explicit <c>(float?)</c>
+    ///     cast's raw <see cref="FormatException"/> propagate uncaught - the "commonly attacker-
+    ///     reachable" custom-geometry point-coordinate path.
+    /// </summary>
+    [Fact]
+    public void ResolveCustomGeometry_NonNumericPointX_ThrowsInvalidDataException()
+    {
+        var custGeom = new XElement(
+            A + "custGeom",
+            new XElement(
+                A + "pathLst",
+                new XElement(
+                    A + "path",
+                    new XAttribute("w", 50), new XAttribute("h", 50),
+                    new XElement(
+                        A + "moveTo",
+                        new XElement(A + "pt", new XAttribute("x", "not-a-number"), new XAttribute("y", 0))))));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveCustomGeometry(custGeom, 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves an <c>&lt;a:pt&gt;</c>'s overflowing (non-finite) <c>y</c> attribute is rejected
+    ///     with <see cref="InvalidDataException"/> rather than silently producing a non-finite
+    ///     coordinate.
+    /// </summary>
+    [Fact]
+    public void ResolveCustomGeometry_OverflowingPointY_ThrowsInvalidDataException()
+    {
+        var custGeom = new XElement(
+            A + "custGeom",
+            new XElement(
+                A + "pathLst",
+                new XElement(
+                    A + "path",
+                    new XAttribute("w", 50), new XAttribute("h", 50),
+                    new XElement(
+                        A + "moveTo",
+                        new XElement(A + "pt", new XAttribute("x", 0), new XAttribute("y", "1e400"))))));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveCustomGeometry(custGeom, 100, 100));
+    }
+
     // --- PptxPresetGeometry: each supported preset produces non-empty, correctly-bounded geometry ---
 
     /// <summary>Pptx Preset Geometry - Build - Each Supported Preset - Produces Path Within Declared Bounds.</summary>

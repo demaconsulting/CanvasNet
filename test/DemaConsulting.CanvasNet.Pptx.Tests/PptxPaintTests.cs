@@ -668,6 +668,39 @@ public class PptxPaintTests
         Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveGradientFill(gradFill, BuildTestTheme(), 200, 100));
     }
 
+    /// <summary>
+    ///     Proves an <c>&lt;a:lin&gt;</c>'s non-numeric <c>ang</c> attribute is rejected with
+    ///     <see cref="InvalidDataException"/> rather than letting the explicit <c>(int?)</c>
+    ///     cast's raw <see cref="FormatException"/> propagate uncaught.
+    /// </summary>
+    [Fact]
+    public void ResolveGradientFill_NonNumericLinAng_ThrowsInvalidDataException()
+    {
+        var gradFill = new XElement(
+            A + "gradFill",
+            new XElement(A + "gsLst", new XElement(A + "gs", new XAttribute("pos", 0), SrgbClr("FF0000"))),
+            new XElement(A + "lin", new XAttribute("ang", "not-a-number")));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveGradientFill(gradFill, BuildTestTheme(), 200, 100));
+    }
+
+    /// <summary>
+    ///     Proves an <c>&lt;a:lin&gt;</c>'s overflowing (out-of-<see cref="int"/>-range)
+    ///     <c>ang</c> attribute is rejected with <see cref="InvalidDataException"/> rather than
+    ///     letting the explicit <c>(int?)</c> cast's raw <see cref="OverflowException"/>
+    ///     propagate uncaught.
+    /// </summary>
+    [Fact]
+    public void ResolveGradientFill_OverflowingLinAng_ThrowsInvalidDataException()
+    {
+        var gradFill = new XElement(
+            A + "gradFill",
+            new XElement(A + "gsLst", new XElement(A + "gs", new XAttribute("pos", 0), SrgbClr("FF0000"))),
+            new XElement(A + "lin", new XAttribute("ang", "99999999999")));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveGradientFill(gradFill, BuildTestTheme(), 200, 100));
+    }
+
     // --- ResolveLineStyle --------------------------------------------------------------------------
 
     /// <summary>Resolve Line Style - Null Element - Returns Null.</summary>

@@ -873,6 +873,38 @@ public class PptxTextLayoutTests
         Assert.Equal(0.7f, layout.AppliedFontScale, 2);
     }
 
+    /// <summary>
+    ///     Proves a <c>&lt;a:normAutofit fontScale="..."/&gt;</c> with a non-numeric
+    ///     <c>fontScale</c> attribute is rejected with <see cref="InvalidDataException"/> rather
+    ///     than letting the explicit <c>(float?)</c> cast's raw <see cref="FormatException"/>
+    ///     propagate uncaught.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_NormAutofitNonNumericFontScale_ThrowsInvalidDataException()
+    {
+        var textBody = BuildSingleRunTextBody(
+            "A",
+            """<bodyPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main"><normAutofit fontScale="not-a-number" /></bodyPr>""");
+
+        Assert.Throws<InvalidDataException>(() => Layout(textBody, 50000f, 100000f));
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;a:normAutofit lnSpcReduction="..."/&gt;</c> with a non-numeric
+    ///     <c>lnSpcReduction</c> attribute is rejected with <see cref="InvalidDataException"/>
+    ///     rather than letting the explicit <c>(float?)</c> cast's raw <see cref="FormatException"/>
+    ///     propagate uncaught.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_NormAutofitNonNumericLnSpcReduction_ThrowsInvalidDataException()
+    {
+        var textBody = BuildSingleRunTextBody(
+            "A",
+            """<bodyPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main"><normAutofit lnSpcReduction="not-a-number" /></bodyPr>""");
+
+        Assert.Throws<InvalidDataException>(() => Layout(textBody, 50000f, 100000f));
+    }
+
     #endregion
 
     #region Per-character glyph-coverage fallback

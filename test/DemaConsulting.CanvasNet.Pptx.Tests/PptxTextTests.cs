@@ -398,6 +398,23 @@ public class PptxTextTests
         Assert.True(result.Bold);
     }
 
+    /// <summary>
+    ///     Proves a run's non-numeric <c>&lt;a:rPr sz="..."/&gt;</c> is rejected with
+    ///     <see cref="InvalidDataException"/> rather than letting the explicit <c>(float?)</c>
+    ///     cast's raw <see cref="FormatException"/> propagate uncaught.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_NonNumericSize_ThrowsInvalidDataException()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(DrawingNs + "rPr", new XAttribute("sz", "not-a-number")));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        Assert.Throws<InvalidDataException>(
+            () => PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body"));
+    }
+
     /// <summary>Resolve Effective Run Properties Paragraph Def R Pr Only Wins When Run Declares Nothing.</summary>
     [Fact]
     public void ResolveEffectiveRunProperties_ParagraphDefRPrOnly_WinsWhenRunDeclaresNothing()
@@ -734,6 +751,45 @@ public class PptxTextTests
 
         Assert.Equal("ctr", result.Alignment);
         Assert.Equal(-100f, result.IndentEmu);
+    }
+
+    /// <summary>
+    ///     Proves a placeholder level style's non-numeric <c>marL</c> is rejected with
+    ///     <see cref="InvalidDataException"/> rather than letting the explicit <c>(float?)</c>
+    ///     cast's raw <see cref="FormatException"/> propagate uncaught.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveParagraphProperties_PlaceholderLevelNonNumericMarL_ThrowsInvalidDataException()
+    {
+        var theme = BuildTestTheme();
+        var paragraph = Paragraph(null);
+        var lstStyle = new XElement(
+            DrawingNs + "lstStyle",
+            new XElement(DrawingNs + "lvl1pPr", new XAttribute("marL", "not-a-number")));
+        var placeholderProperties = new PptxPlaceholderProperties(null, lstStyle, theme);
+
+        Assert.Throws<InvalidDataException>(
+            () => PptxDocument.ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, "body"));
+    }
+
+    /// <summary>
+    ///     Proves a master level style's non-numeric <c>indent</c> is rejected with
+    ///     <see cref="InvalidDataException"/> rather than letting the explicit <c>(float?)</c>
+    ///     cast's raw <see cref="FormatException"/> propagate uncaught.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveParagraphProperties_MasterLevelNonNumericIndent_ThrowsInvalidDataException()
+    {
+        var theme = BuildTestTheme();
+        var paragraph = Paragraph(null);
+        var bodyStyle = new XElement(
+            DrawingNs + "bodyStyle",
+            new XElement(DrawingNs + "lvl1pPr", new XAttribute("indent", "not-a-number")));
+        var masterTextStyles = new PptxMasterTextStyles(null, bodyStyle, null);
+        var placeholderProperties = EmptyPlaceholderProperties(theme, masterTextStyles);
+
+        Assert.Throws<InvalidDataException>(
+            () => PptxDocument.ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, "body"));
     }
 
     /// <summary>
