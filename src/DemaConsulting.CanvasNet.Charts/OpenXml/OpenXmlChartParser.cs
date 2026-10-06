@@ -360,9 +360,9 @@ public static class OpenXmlChartParser
         }
 
         var scaling = valAx.Element(ChartNs + "scaling");
-        var minimum = (float?)scaling?.Element(ChartNs + "min")?.Attribute("val");
-        var maximum = (float?)scaling?.Element(ChartNs + "max")?.Attribute("val");
-        var tickInterval = (float?)valAx.Element(ChartNs + "majorUnit")?.Attribute("val");
+        var minimum = ParseNullableFloat(scaling?.Element(ChartNs + "min")?.Attribute("val"));
+        var maximum = ParseNullableFloat(scaling?.Element(ChartNs + "max")?.Attribute("val"));
+        var tickInterval = ParseNullableFloat(valAx.Element(ChartNs + "majorUnit")?.Attribute("val"));
         var title = GetAxisTitleText(valAx);
 
         return minimum is null && maximum is null && tickInterval is null && title is null
@@ -530,7 +530,7 @@ public static class OpenXmlChartParser
     /// </exception>
     private static double[] ParseNumCache(XElement numCache)
     {
-        var ptCount = Math.Max(0, (int?)numCache.Element(ChartNs + "ptCount")?.Attribute("val") ?? 0);
+        var ptCount = Math.Max(0, ParseNullableInt(numCache.Element(ChartNs + "ptCount")?.Attribute("val")) ?? 0);
         if (ptCount > MaxCachedPointCount)
         {
             throw new ChartUnsupportedFeatureException(
@@ -541,13 +541,13 @@ public static class OpenXmlChartParser
         var values = new double[ptCount];
         foreach (var pt in numCache.Elements(ChartNs + "pt"))
         {
-            var idx = (int?)pt.Attribute("idx") ?? -1;
+            var idx = ParseNullableInt(pt.Attribute("idx")) ?? -1;
             if (idx < 0 || idx >= ptCount)
             {
                 continue;
             }
 
-            values[idx] = (double?)pt.Element(ChartNs + "v") ?? 0d;
+            values[idx] = ParseNullableDouble(pt.Element(ChartNs + "v")) ?? 0d;
         }
 
         return values;
@@ -567,7 +567,7 @@ public static class OpenXmlChartParser
     /// </exception>
     private static string[] ParseStrCache(XElement strCache)
     {
-        var ptCount = Math.Max(0, (int?)strCache.Element(ChartNs + "ptCount")?.Attribute("val") ?? 0);
+        var ptCount = Math.Max(0, ParseNullableInt(strCache.Element(ChartNs + "ptCount")?.Attribute("val")) ?? 0);
         if (ptCount > MaxCachedPointCount)
         {
             throw new ChartUnsupportedFeatureException(
@@ -579,7 +579,7 @@ public static class OpenXmlChartParser
         Array.Fill(values, string.Empty);
         foreach (var pt in strCache.Elements(ChartNs + "pt"))
         {
-            var idx = (int?)pt.Attribute("idx") ?? -1;
+            var idx = ParseNullableInt(pt.Attribute("idx")) ?? -1;
             if (idx < 0 || idx >= ptCount)
             {
                 continue;
@@ -610,8 +610,120 @@ public static class OpenXmlChartParser
     /// <returns>The cached text, or <see langword="null"/> when no <c>c:pt</c> entry exists.</returns>
     private static string? GetFirstStrCacheValue(XElement strCache)
     {
-        var pt = strCache.Elements(ChartNs + "pt").FirstOrDefault(p => (int?)p.Attribute("idx") == 0)
+        var pt = strCache.Elements(ChartNs + "pt").FirstOrDefault(p => ParseNullableInt(p.Attribute("idx")) == 0)
                  ?? strCache.Elements(ChartNs + "pt").FirstOrDefault();
         return (string?)pt?.Element(ChartNs + "v");
+    }
+
+    /// <summary>
+    ///     Parses <paramref name="attribute"/>'s value as an <see cref="int"/>, the same way the
+    ///     explicit <c>(int?)</c> cast operator does, but rejects a present-but-malformed
+    ///     (non-numeric or out-of-<see cref="int"/>-range) value with
+    ///     <see cref="ChartUnsupportedFeatureException"/> instead of letting the cast operator's
+    ///     raw <see cref="FormatException"/>/<see cref="OverflowException"/> propagate uncaught -
+    ///     mirroring <c>PptxDocument.Geometry.cs</c>'s <c>ParseRequiredFloatAttribute</c>
+    ///     guarded-parse convention, adapted to this parser's own
+    ///     <see cref="ChartUnsupportedFeatureException"/> fail-closed idiom (see this type's own
+    ///     remarks for why: <c>PptxDocument.Charts.cs</c>'s <c>ParseChart</c> only catches this
+    ///     specific exception type around the parser call).
+    /// </summary>
+    /// <param name="attribute">The attribute to parse, or <see langword="null"/>.</param>
+    /// <returns>
+    ///     The parsed value, or <see langword="null"/> when <paramref name="attribute"/> is
+    ///     <see langword="null"/>.
+    /// </returns>
+    /// <exception cref="ChartUnsupportedFeatureException">
+    ///     Thrown when <paramref name="attribute"/> is present but its value is not a
+    ///     well-formed, in-range <see cref="int"/>.
+    /// </exception>
+    private static int? ParseNullableInt(XAttribute? attribute)
+    {
+        if (attribute is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return (int)attribute;
+        }
+        catch (Exception ex) when (ex is FormatException or OverflowException)
+        {
+            throw new ChartUnsupportedFeatureException(
+                "charts-openxml-malformed-numeric-value",
+                $"Attribute '{attribute.Name}' has a malformed integer value '{attribute.Value}'.");
+        }
+    }
+
+    /// <summary>
+    ///     Parses <paramref name="attribute"/>'s value as a <see cref="float"/>, the same way the
+    ///     explicit <c>(float?)</c> cast operator does, but rejects a present-but-malformed
+    ///     (non-numeric or out-of-<see cref="float"/>-range) value with
+    ///     <see cref="ChartUnsupportedFeatureException"/> instead of letting the cast operator's
+    ///     raw <see cref="FormatException"/>/<see cref="OverflowException"/> propagate uncaught -
+    ///     see <see cref="ParseNullableInt"/>'s own remarks for the full rationale.
+    /// </summary>
+    /// <param name="attribute">The attribute to parse, or <see langword="null"/>.</param>
+    /// <returns>
+    ///     The parsed value, or <see langword="null"/> when <paramref name="attribute"/> is
+    ///     <see langword="null"/>.
+    /// </returns>
+    /// <exception cref="ChartUnsupportedFeatureException">
+    ///     Thrown when <paramref name="attribute"/> is present but its value is not a
+    ///     well-formed, in-range <see cref="float"/>.
+    /// </exception>
+    private static float? ParseNullableFloat(XAttribute? attribute)
+    {
+        if (attribute is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return (float)attribute;
+        }
+        catch (Exception ex) when (ex is FormatException or OverflowException)
+        {
+            throw new ChartUnsupportedFeatureException(
+                "charts-openxml-malformed-numeric-value",
+                $"Attribute '{attribute.Name}' has a malformed numeric value '{attribute.Value}'.");
+        }
+    }
+
+    /// <summary>
+    ///     Parses <paramref name="element"/>'s cached text as a <see cref="double"/>, the same
+    ///     way the explicit <c>(double?)</c> cast operator does, but rejects a present-but-
+    ///     malformed (non-numeric or out-of-<see cref="double"/>-range) value with
+    ///     <see cref="ChartUnsupportedFeatureException"/> instead of letting the cast operator's
+    ///     raw <see cref="FormatException"/>/<see cref="OverflowException"/> propagate uncaught -
+    ///     see <see cref="ParseNullableInt"/>'s own remarks for the full rationale.
+    /// </summary>
+    /// <param name="element">The element to parse (for example a <c>c:v</c> cache entry), or <see langword="null"/>.</param>
+    /// <returns>
+    ///     The parsed value, or <see langword="null"/> when <paramref name="element"/> is
+    ///     <see langword="null"/>.
+    /// </returns>
+    /// <exception cref="ChartUnsupportedFeatureException">
+    ///     Thrown when <paramref name="element"/> is present but its cached text is not a
+    ///     well-formed, in-range <see cref="double"/>.
+    /// </exception>
+    private static double? ParseNullableDouble(XElement? element)
+    {
+        if (element is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return (double)element;
+        }
+        catch (Exception ex) when (ex is FormatException or OverflowException)
+        {
+            throw new ChartUnsupportedFeatureException(
+                "charts-openxml-malformed-numeric-value",
+                $"Element '{element.Name}' has a malformed numeric value '{element.Value}'.");
+        }
     }
 }
