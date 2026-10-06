@@ -1,3 +1,4 @@
+using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
 
@@ -14,13 +15,14 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     A deliberately <b>closed</b> type hierarchy, mirroring <see cref="Gradient"/>'s own
 ///     documented rationale: <see cref="PptxPaint"/>'s constructor is
 ///     <see langword="private protected"/>, so only <see cref="PptxNoFill"/>,
-///     <see cref="PptxSolidFill"/>, and <see cref="PptxGradientFill"/> - all declared in this same
-///     file/assembly - may derive from it. A later rendering phase that consumes
-///     <see cref="PptxPaint"/> pattern-matches exhaustively on exactly these three subtypes.
+///     <see cref="PptxSolidFill"/>, <see cref="PptxGradientFill"/>, and <see cref="PptxImageFill"/> -
+///     all declared in this same file/assembly - may derive from it. A later rendering phase that
+///     consumes <see cref="PptxPaint"/> pattern-matches exhaustively on exactly these four
+///     subtypes.
 /// </remarks>
 internal abstract record PptxPaint
 {
-    /// <summary>Restricts this hierarchy to the three subtypes declared in this file - see this type's remarks.</summary>
+    /// <summary>Restricts this hierarchy to the four subtypes declared in this file - see this type's remarks.</summary>
     private protected PptxPaint()
     {
     }
@@ -56,3 +58,31 @@ internal sealed record PptxSolidFill(Rgba32 Color) : PptxPaint;
 ///     this phase), already positioned in the owning shape's own local geometry coordinate space.
 /// </param>
 internal sealed record PptxGradientFill(Gradient Gradient) : PptxPaint;
+
+/// <summary>
+///     The resolved paint for an <c>&lt;a:blipFill&gt;</c> element used as a shape/paragraph
+///     <em>fill</em> (as distinct from a <c>&lt;p:pic&gt;</c> picture <em>shape</em>, which is
+///     resolved by the separate <see cref="PptxDocument.ResolvePictureSurface"/>/
+///     <see cref="PptxDocument.PaintPicture"/> pipeline) - a decoded raster image, repeated
+///     (<c>&lt;a:tile&gt;</c>) or stretched (<c>&lt;a:stretch&gt;</c>, optionally cropped by
+///     <c>&lt;a:fillRect&gt;</c>) across the owning shape's own fill region. See
+///     <see cref="PptxDocument.ResolveImageFillTransform"/> for how <see cref="ImageToLocalTransform"/>
+///     is derived from either sub-element.
+/// </summary>
+/// <param name="Image">
+///     The fully decoded raster image (see <see cref="PptxDocument.ResolvePictureSurface"/>, reused
+///     unchanged for this fill-context <c>&lt;a:blipFill&gt;</c>, which is structurally identical
+///     to a <c>&lt;p:pic&gt;</c>'s own <c>&lt;p:blipFill&gt;</c>). Not owned/disposed by this
+///     record - the resolving <see cref="PptxDocument"/> instance remains responsible for its own
+///     decoded-image lifetime, mirroring <see cref="Drawing.TilePaint"/>'s own documented
+///     non-ownership convention.
+/// </param>
+/// <param name="ImageToLocalTransform">
+///     The transform mapping <see cref="Image"/>'s own pixel-space coordinates (pattern space,
+///     with <c>(0,0)</c> at its top-left corner) into the owning shape's local EMU coordinate
+///     space (the same space <see cref="PptxDocument.ResolveShapeGeometry"/>'s own returned
+///     <see cref="Geometry.Path"/> is expressed in) - composed with a caller's own
+///     shape-to-surface transform at fill time, mirroring <see cref="PptxGradientFill"/>'s own
+///     <see cref="Gradient.WithTransform"/> composition pattern.
+/// </param>
+internal sealed record PptxImageFill(Surface Image, Matrix3x2 ImageToLocalTransform) : PptxPaint;

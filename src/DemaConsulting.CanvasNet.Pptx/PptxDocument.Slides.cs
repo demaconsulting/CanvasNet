@@ -93,7 +93,7 @@ public sealed partial class PptxDocument
             var layout = GetLayout(layoutPartPath);
             var master = GetMaster(layout.MasterPartPath);
             return ResolveEffectiveColorMap(clrMapOvr, layout.ClrMapOvr, master.ColorMap);
-        });
+        }, resolveBlipImage: blip => ResolvePictureSurface(slidePartPath, blip));
 
         var slide = new PptxSlide(slidePartPath, layoutPartPath, placeholders, shapeTree, background, clrMapOvr);
         _slideCache[slideIndex] = slide;

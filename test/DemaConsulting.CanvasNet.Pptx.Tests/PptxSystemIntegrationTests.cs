@@ -884,6 +884,59 @@ public class PptxSystemIntegrationTests
 
     /// <summary>
     ///     Opens a full presentation package end-to-end whose one slide contains a single
+    ///     ordinary <c>&lt;p:sp&gt;</c> (not a <c>&lt;p:pic&gt;</c> picture shape) whose
+    ///     <c>&lt;p:spPr&gt;</c> uses a picture as its own shape fill via
+    ///     <c>&lt;a:blipFill&gt;&lt;a:blip r:embed="rId2"/&gt;&lt;a:tile tx="0" ty="0" sx="100000"
+    ///     sy="100000"/&gt;&lt;/a:blipFill&gt;</c> - the common-case <c>&lt;a:tile&gt;</c> construct
+    ///     exercised by the real <c>pythonpptx-dml-fill.pptx</c> fixture (see
+    ///     <see cref="PptxFixturesCorpusTests"/>) - proving the new picture-fill support
+    ///     (<c>PptxPaint.cs</c>'s <see cref="PptxImageFill"/>, <c>PptxDocument.Paint.cs</c>'s
+    ///     <c>ResolveFill</c>, and <c>PptxDocument.Tables.cs</c>'s <c>FillPaint</c>
+    ///     <see cref="PptxImageFill"/> branch) integrates correctly end-to-end through the public
+    ///     <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/> entry point, with a
+    ///     pixel-level sanity check that the filled shape's own region actually painted something
+    ///     distinguishable from the untouched background. Unlike that real fixture's own slide 0
+    ///     (which cannot complete a full render without throwing, because it also contains an
+    ///     unrelated, out-of-scope <c>&lt;a:pattFill&gt;</c> shape later in the same shape tree),
+    ///     this minimal, purpose-built single-shape package renders to completion without
+    ///     exception, satisfying the "end-to-end, no exception" requirement this feature's test
+    ///     plan calls for.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPptx_SystemIntegration_Images_TileBlipFillShapeDecodesAndRendersEndToEnd()
+    {
+        // Arrange
+        var pngBytes = BuildPngBytes(new Rgba32(10, 20, 30, 255));
+        const string spTreeInnerXml =
+            """
+            <p:sp xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+              <p:nvSpPr><p:cNvPr id="2" name="TiledShape"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:blipFill>
+                  <a:blip r:embed="rId2"/>
+                  <a:tile tx="0" ty="0" sx="100000" sy="100000" flip="none" algn="tl"/>
+                </a:blipFill>
+              </p:spPr>
+            </p:sp>
+            """;
+        using var stream = BuildGeometryPaintPackage(spTreeInnerXml, media: ("png", "image/png", pngBytes));
+        using var document = PptxDocument.Open(stream);
+
+        // Act
+        var shapeTree = document.GetSlide(0).ShapeTree;
+        using var surface = document.Render(0, 20, 20);
+
+        // Assert: the shape tree parsed a non-picture shape node (not a <p:pic> picture shape),
+        // and the whole slide rendered to completion without throwing, with the shape's own
+        // region painted with the tiled image content (not left as transparent background).
+        Assert.IsType<PptxSpShapeNode>(Assert.Single(shapeTree));
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Opens a full presentation package end-to-end whose one slide contains a single
     ///     <c>&lt;p:graphicFrame&gt;</c> declaring an <c>&lt;a:tbl&gt;</c> with one solid-filled
     ///     cell - proving Phase 1e's table parsing (structure/cell parsing, cell-rect resolution)
     ///     and cell fill painting integrate correctly when driven through the public

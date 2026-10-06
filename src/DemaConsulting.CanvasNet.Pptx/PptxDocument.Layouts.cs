@@ -68,7 +68,7 @@ public sealed partial class PptxDocument
         // full rationale and GetSlide's own colorMapResolver for the case where this is safe.
         var shapeTree = ParseShapeTree(
             spTree, () => GetTheme(GetMaster(masterPartPath).ThemePartPath), tableStyleResolver: TryResolveTableStyle,
-            containUnsupportedGraphicFrames: true);
+            containUnsupportedGraphicFrames: true, resolveBlipImage: blip => ResolvePictureSurface(layoutPartPath, blip));
 
         var layout = new PptxLayout(layoutPartPath, masterPartPath, placeholders, background, shapeTree, clrMapOvr);
         _layoutCache[layoutPartPath] = layout;

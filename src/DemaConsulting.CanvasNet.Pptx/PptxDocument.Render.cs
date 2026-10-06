@@ -73,7 +73,7 @@ public sealed partial class PptxDocument
     /// <exception cref="PptxUnsupportedFeatureException">
     ///     Thrown when a shape declares a well-formed-but-unsupported DrawingML construct -
     ///     propagated unchanged from <see cref="ResolveShapeGeometry"/> (an unsupported
-    ///     <c>&lt;a:prstGeom&gt;</c> preset), <see cref="ResolveFill"/> (a pattern/picture fill or
+    ///     <c>&lt;a:prstGeom&gt;</c> preset), <see cref="ResolveFill"/> (a pattern fill or
     ///     a radial/path gradient), <see cref="ResolvePictureSurface"/> (a linked, non-embedded
     ///     image, or an unsupported raster image format), or <see cref="ResolvePictureClipPath"/>
     ///     (a <c>&lt;p:pic&gt;</c>'s own unsupported <c>&lt;a:prstGeom&gt;</c> clip preset).
@@ -93,8 +93,8 @@ public sealed partial class PptxDocument
     ///         Rendering (Phase 1f)" design section for the complete deferred-items list, its "Phase 2
     ///         Follow-Up: Slide/Layout/Master Background Fill (&lt;p:bg&gt;)" section for the
     ///         background-fill fidelity achieved (solid and theme-indexed <c>&lt;p:bgRef&gt;</c>
-    ///         fills: full; linear gradient: best-effort; pattern/picture background fill: still
-    ///         deferred), and its "Phase 2 Follow-Up: Connector Shape Rendering (&lt;p:cxnSp&gt;)"
+    ///         fills: full; linear gradient: best-effort; picture background fill: full; pattern
+    ///         background fill: still deferred), and its "Phase 2 Follow-Up: Connector Shape Rendering (&lt;p:cxnSp&gt;)"
     ///         section for the connector-line rendering since added.
     ///     </para>
     /// </remarks>
@@ -119,7 +119,10 @@ public sealed partial class PptxDocument
         var colorMap = ResolveEffectiveColorMap(slide.ClrMapOvr, layout.ClrMapOvr, master.ColorMap);
 
         var backgroundFill = ResolveSlideBackgroundFill(
-            slide.Background, layout.Background, master.Background, theme, SlideSize.WidthEmu, SlideSize.HeightEmu, colorMap);
+            slide.Background, layout.Background, master.Background, theme, SlideSize.WidthEmu, SlideSize.HeightEmu, colorMap,
+            blip => ResolvePictureSurface(slide.PartPath, blip),
+            blip => ResolvePictureSurface(layout.PartPath, blip),
+            blip => ResolvePictureSurface(master.PartPath, blip));
         if (backgroundFill is not null)
         {
             var backgroundPath = Path.Rectangle(0, 0, SlideSize.WidthEmu, SlideSize.HeightEmu).Transform(baseTransform);
@@ -305,7 +308,7 @@ public sealed partial class PptxDocument
 
                 try
                 {
-                    RenderShape(surface, sp, layout, master, theme, parentToSurface, colorMap);
+                    RenderShape(surface, sp, ownerPartPath, layout, master, theme, parentToSurface, colorMap);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {
@@ -346,7 +349,7 @@ public sealed partial class PptxDocument
             case PptxConnectorShapeNode connector:
                 try
                 {
-                    RenderConnector(surface, connector, theme, parentToSurface, colorMap);
+                    RenderConnector(surface, connector, ownerPartPath, theme, parentToSurface, colorMap);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {
@@ -373,15 +376,18 @@ public sealed partial class PptxDocument
     ///     its geometry/fill/stroke via the Phase 1c pipeline and, when it declares a
     ///     <c>&lt;p:txBody&gt;</c>, its text via the Phase 1d pipeline.
     /// </summary>
-    private static void RenderShape(
+    private void RenderShape(
         Surface surface,
         PptxSpShapeNode node,
+        string ownerPartPath,
         PptxLayout layout,
         PptxMaster master,
         PptxTheme theme,
         Matrix3x2 parentToSurface,
         PptxColorMap colorMap)
     {
+        Surface ResolveBlipImage(XElement blip) => ResolvePictureSurface(ownerPartPath, blip);
+
         XElement? spPrElement;
         XElement? xfrmElement;
         XElement? geometrySpPrElement;
@@ -437,8 +443,8 @@ public sealed partial class PptxDocument
         // (ResolveFill's own "nothing at all" and "explicit noFill" cases are otherwise
         // indistinguishable from its return value alone).
         var fill = HasExplicitFillChild(spPrElement)
-            ? ResolveFill(spPrElement, theme, frame.WidthEmu, frame.HeightEmu, colorMap: colorMap)
-            : ResolveShapeStyleFill(styleElement, theme, frame.WidthEmu, frame.HeightEmu, colorMap);
+            ? ResolveFill(spPrElement, theme, frame.WidthEmu, frame.HeightEmu, colorMap: colorMap, resolveBlipImage: ResolveBlipImage)
+            : ResolveShapeStyleFill(styleElement, theme, frame.WidthEmu, frame.HeightEmu, colorMap, ResolveBlipImage);
         FillPaint(surface, transformedPath, fill);
 
         // An explicit fill-definition child (including <a:noFill/>) on the shape's own <a:ln>
@@ -447,7 +453,7 @@ public sealed partial class PptxDocument
         // lnRef (falling back to "no stroke" when no style color is available). A fully absent
         // <a:ln> defers entirely to the style lnRef. See ResolveShapeLineStyle's own remarks.
         var lnElement = spPrElement.Element(DrawingNamespace + "ln");
-        var lineStyle = ResolveShapeLineStyle(lnElement, styleElement, theme, colorMap);
+        var lineStyle = ResolveShapeLineStyle(lnElement, styleElement, theme, colorMap, ResolveBlipImage);
         if (lineStyle is not null)
         {
             var strokedOutline = ResolveStrokeOutline(geometryPath, lineStyle, localToSurface).Transform(localToSurface);
@@ -623,9 +629,12 @@ public sealed partial class PptxDocument
     ///     even for a slide's own (non-placeholder) shape tree.
     ///     </para>
     /// </remarks>
-    private static void RenderConnector(
-        Surface surface, PptxConnectorShapeNode node, PptxTheme theme, Matrix3x2 parentToSurface, PptxColorMap colorMap)
+    private void RenderConnector(
+        Surface surface, PptxConnectorShapeNode node, string ownerPartPath, PptxTheme theme, Matrix3x2 parentToSurface,
+        PptxColorMap colorMap)
     {
+        Surface ResolveBlipImage(XElement blip) => ResolvePictureSurface(ownerPartPath, blip);
+
         var spPrElement = node.CxnSpElement.Element(PresentationNamespace + "spPr");
         var xfrmElement = spPrElement?.Element(DrawingNamespace + "xfrm");
         if (spPrElement is null || xfrmElement is null)
@@ -661,13 +670,13 @@ public sealed partial class PptxDocument
         // check (a connector has no <p:style>/<a:fillRef> style fallback to consult at all).
         if (HasExplicitFillChild(spPrElement))
         {
-            var fill = ResolveFill(spPrElement, theme, frame.WidthEmu, frame.HeightEmu, colorMap: colorMap);
+            var fill = ResolveFill(spPrElement, theme, frame.WidthEmu, frame.HeightEmu, colorMap: colorMap, resolveBlipImage: ResolveBlipImage);
             var transformedPath = geometryPath.Transform(localToSurface);
             FillPaint(surface, transformedPath, fill);
         }
 
         var styleElement = node.CxnSpElement.Element(PresentationNamespace + "style");
-        var lineStyle = ResolveConnectorLineStyle(spPrElement, styleElement, theme, colorMap);
+        var lineStyle = ResolveConnectorLineStyle(spPrElement, styleElement, theme, colorMap, ResolveBlipImage);
         if (lineStyle is null)
         {
             return;

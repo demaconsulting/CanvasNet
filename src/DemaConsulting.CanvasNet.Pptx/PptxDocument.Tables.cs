@@ -64,6 +64,10 @@ public sealed partial class PptxDocument
     ///     falls back to today's pre-existing cell-only fill/border resolution - see
     ///     <see cref="ResolveTableCellStyle"/>'s own <c>matchedTblStyle is null</c> fallback.
     /// </param>
+    /// <param name="resolveBlipImage">
+    ///     Threaded unchanged into every cell's own <see cref="ParseTableCell"/> call - see
+    ///     <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
     /// <returns>The resolved <see cref="PptxTable"/>.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="graphicFrameElement"/> has no <c>&lt;a:graphic&gt;/
@@ -79,7 +83,7 @@ public sealed partial class PptxDocument
     /// </exception>
     internal static PptxTable ParseTable(
         XElement graphicFrameElement, PptxTheme theme, PptxColorMap? colorMap = null,
-        Func<string, XElement?>? tableStyleResolver = null)
+        Func<string, XElement?>? tableStyleResolver = null, Func<XElement, Surface>? resolveBlipImage = null)
     {
         var graphicData = graphicFrameElement.Element(DrawingNamespace + "graphic")?.Element(DrawingNamespace + "graphicData") ??
             throw new InvalidDataException("A <p:graphicFrame> element has no <a:graphic>/<a:graphicData> child.");
@@ -146,7 +150,8 @@ public sealed partial class PptxDocument
                 var cellHeightEmu = SumConsecutive(rowHeightsEmu, rowIndex, peekedRowSpan);
                 var cell = ParseTableCell(
                     tc, theme, cellWidthEmu, cellHeightEmu, colorMap,
-                    matchedTblStyle, bandRowEnabled, firstRowEnabled, rowIndex, totalRows, columnIndex, totalColumns);
+                    matchedTblStyle, bandRowEnabled, firstRowEnabled, rowIndex, totalRows, columnIndex, totalColumns,
+                    resolveBlipImage);
                 cells.Add(cell);
                 columnIndex++;
             }
@@ -189,6 +194,10 @@ public sealed partial class PptxDocument
     /// <param name="totalRows">The table's total declared <c>&lt;a:tr&gt;</c> row count, defaulting to <c>1</c>.</param>
     /// <param name="columnIndex">The cell's zero-based starting grid-column index, defaulting to <c>0</c>.</param>
     /// <param name="totalColumns">The table's total declared <c>&lt;a:tblGrid&gt;/&lt;a:gridCol&gt;</c> column count, defaulting to <c>1</c>.</param>
+    /// <param name="resolveBlipImage">
+    ///     Threaded unchanged into this method's own <see cref="ResolveTableCellStyle"/> call -
+    ///     see <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
     /// <returns>The resolved <see cref="PptxTableCell"/>.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when a present <c>gridSpan</c>/<c>rowSpan</c> attribute is not a valid integer,
@@ -197,7 +206,8 @@ public sealed partial class PptxDocument
     internal static PptxTableCell ParseTableCell(
         XElement tcElement, PptxTheme theme, float cellWidthEmu, float cellHeightEmu, PptxColorMap? colorMap = null,
         XElement? matchedTblStyle = null, bool bandRowEnabled = false, bool firstRowEnabled = false,
-        int rowIndex = 0, int totalRows = 1, int columnIndex = 0, int totalColumns = 1)
+        int rowIndex = 0, int totalRows = 1, int columnIndex = 0, int totalColumns = 1,
+        Func<XElement, Surface>? resolveBlipImage = null)
     {
         var gridSpan = ParseOptionalIntAttribute(tcElement, "gridSpan") ?? 1;
         if (gridSpan <= 0)
@@ -220,7 +230,7 @@ public sealed partial class PptxDocument
         var (fill, leftBorder, rightBorder, topBorder, bottomBorder) = ResolveTableCellStyle(
             tcPr, matchedTblStyle, bandRowEnabled, firstRowEnabled,
             rowIndex, totalRows, columnIndex, gridSpan, rowSpan, totalColumns,
-            cellWidthEmu, cellHeightEmu, theme, colorMap);
+            cellWidthEmu, cellHeightEmu, theme, colorMap, resolveBlipImage);
 
         var txBody = tcElement.Element(DrawingNamespace + "txBody");
         var textBody = txBody is null ? null : ParseTextBody(txBody);
@@ -472,6 +482,13 @@ public sealed partial class PptxDocument
 
             case PptxGradientFill gradientFill:
                 PathFiller.Fill(surface, path, gradientFill.Gradient.WithTransform(shapeToSurfaceTransform));
+                break;
+
+            case PptxImageFill imageFill:
+                var tilePaint = new TilePaint(
+                    imageFill.Image, imageFill.ImageToLocalTransform, imageFill.Image.Width, imageFill.Image.Height)
+                    .WithTransform(shapeToSurfaceTransform);
+                PathFiller.Fill(surface, path, tilePaint);
                 break;
         }
     }

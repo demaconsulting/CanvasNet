@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
@@ -20,6 +21,7 @@ public class PptxPaintTests
 {
     private static readonly XNamespace A = "http://schemas.openxmlformats.org/drawingml/2006/main";
     private static readonly XNamespace P = "http://schemas.openxmlformats.org/presentationml/2006/main";
+    private static readonly XNamespace R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
     /// <summary>Builds an arbitrary, fully-populated test <see cref="PptxTheme"/>, with each color-scheme slot a distinct, recognizable value.</summary>
     private static PptxTheme BuildTestTheme(
@@ -152,6 +154,114 @@ public class PptxPaintTests
 
         var ex = Assert.Throws<PptxUnsupportedFeatureException>(() => PptxDocument.ResolveFill(spPr, BuildTestTheme(), 100, 100));
         Assert.Equal("pptx-picture-fill", ex.Feature);
+    }
+
+    /// <summary>
+    ///     Proves that, once a <c>resolveBlipImage</c>-shaped resolver is supplied (see
+    ///     <see cref="PptxDocument.ResolveFill"/>'s own remarks), a minimal
+    ///     <c>&lt;a:blipFill&gt;&lt;a:blip r:embed="rId1"/&gt;&lt;a:stretch/&gt;&lt;/a:blipFill&gt;</c>
+    ///     no longer throws and instead resolves to a <see cref="PptxImageFill"/> wrapping the
+    ///     resolver's own decoded <see cref="Surface"/> - the regression this whole feature exists
+    ///     to fix (see <see cref="ResolveFill_PictureFill_ThrowsPptxUnsupportedFeatureException"/>
+    ///     for the still-unchanged "no resolver supplied" fallback behavior).
+    /// </summary>
+    [Fact]
+    public void ResolveFill_BlipFillWithResolver_ReturnsPptxImageFill()
+    {
+        using var image = new Surface(4, 4);
+        var blip = new XElement(A + "blip", new XAttribute(R + "embed", "rId1"));
+        var spPr = new XElement(
+            A + "spPr",
+            new XElement(A + "blipFill", blip, new XElement(A + "stretch")));
+
+        var paint = PptxDocument.ResolveFill(
+            spPr, BuildTestTheme(), 100, 100, resolveBlipImage: resolvedBlip =>
+            {
+                Assert.Same(blip, resolvedBlip.Element(A + "blip"));
+                return image;
+            });
+
+        var imageFill = Assert.IsType<PptxImageFill>(paint);
+        Assert.Same(image, imageFill.Image);
+    }
+
+    // --- ResolveImageFillTransform: <a:tile>/<a:stretch> transform derivations ------------------
+
+    /// <summary>
+    ///     Pins down <see cref="PptxDocument.ResolveImageFillTransform"/>'s own <c>&lt;a:tile&gt;</c>
+    ///     derivation with a non-trivial (non-default, non-100%) <c>tx</c>/<c>ty</c>/<c>sx</c>/<c>sy</c>
+    ///     combination - the mandatory case for this package's own <c>pythonpptx-dml-fill.pptx</c>
+    ///     fixture (see the design document) - independent of that real fixture's own trivial
+    ///     (<c>tx="0" ty="0" sx="100000" sy="100000"</c>, i.e. unscaled/untranslated) values.
+    /// </summary>
+    [Fact]
+    public void ResolveImageFillTransform_TileWithNonTrivialOffsetAndScale_AppliesBothToEachAxis()
+    {
+        using var image = new Surface(10, 20);
+        var tile = new XElement(
+            A + "tile",
+            new XAttribute("tx", "914400"), // 1 inch
+            new XAttribute("ty", "457200"), // 0.5 inch
+            new XAttribute("sx", "50000"), // 50%
+            new XAttribute("sy", "200000")); // 200%
+        var blipFill = new XElement(A + "blipFill", tile);
+
+        var transform = PptxDocument.ResolveImageFillTransform(blipFill, image, widthEmu: 1000, heightEmu: 1000);
+
+        // 96-DPI EMU-per-pixel is 9525; sx/sy scale that per-axis, tx/ty translate directly.
+        Assert.Equal(0.5f * 9525f, transform.M11, 2);
+        Assert.Equal(0f, transform.M12, 2);
+        Assert.Equal(0f, transform.M21, 2);
+        Assert.Equal(2f * 9525f, transform.M22, 2);
+        Assert.Equal(914400f, transform.M31, 2);
+        Assert.Equal(457200f, transform.M32, 2);
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;a:stretch&gt;</c>'s nested <c>&lt;a:fillRect&gt;</c> insets crop the
+    ///     image before the remaining span is stretched to fill the owning shape, by pinning the
+    ///     exact resulting scale/translation for a non-trivial (non-zero, non-degenerate) set of
+    ///     edges.
+    /// </summary>
+    [Fact]
+    public void ResolveImageFillTransform_StretchWithFillRectInsets_CropsBeforeStretching()
+    {
+        using var image = new Surface(100, 50);
+        var fillRect = new XElement(
+            A + "fillRect", new XAttribute("l", "10000"), new XAttribute("r", "10000")); // 10% each side
+        var blipFill = new XElement(A + "blipFill", new XElement(A + "stretch", fillRect));
+
+        var transform = PptxDocument.ResolveImageFillTransform(blipFill, image, widthEmu: 200, heightEmu: 100);
+
+        // hSpan = 1 - 0.1 - 0.1 = 0.8; stretchScaleX = 200 / (0.8 * 100) = 2.5; translateX = -0.1*200/0.8 = -25.
+        Assert.Equal(2.5f, transform.M11, 3);
+        Assert.Equal(-25f, transform.M31, 3);
+        // No top/bottom inset: vSpan = 1, stretchScaleY = 100 / (1 * 50) = 2; translateY = 0.
+        Assert.Equal(2f, transform.M22, 3);
+        Assert.Equal(0f, transform.M32, 3);
+    }
+
+    /// <summary>
+    ///     Proves a degenerate <c>&lt;a:fillRect&gt;</c> (left+right edges summing to <c>100%</c>
+    ///     or more) falls back to an uncropped full stretch on that axis, rather than producing a
+    ///     non-finite or divide-by-zero transform - see <see cref="PptxDocument.ResolveImageFillTransform"/>'s
+    ///     own remarks.
+    /// </summary>
+    [Fact]
+    public void ResolveImageFillTransform_DegenerateFillRect_FallsBackToFullStretch()
+    {
+        using var image = new Surface(100, 50);
+        var fillRect = new XElement(
+            A + "fillRect", new XAttribute("l", "60000"), new XAttribute("r", "50000")); // sums to 110%
+        var blipFill = new XElement(A + "blipFill", new XElement(A + "stretch", fillRect));
+
+        var transform = PptxDocument.ResolveImageFillTransform(blipFill, image, widthEmu: 200, heightEmu: 100);
+
+        // Falls back to left=0, hSpan=1: stretchScaleX = 200 / (1 * 100) = 2; translateX = 0.
+        Assert.Equal(2f, transform.M11, 3);
+        Assert.Equal(0f, transform.M31, 3);
+        Assert.True(float.IsFinite(transform.M11));
+        Assert.True(float.IsFinite(transform.M31));
     }
 
     // --- ResolveColor: base color kinds ----------------------------------------------------------

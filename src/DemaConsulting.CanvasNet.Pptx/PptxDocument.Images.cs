@@ -8,7 +8,7 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore blipfill srcrect pptx embed asvg prst cust reimplementation
+// cspell:ignore blipfill srcrect pptx embed asvg prst cust reimplementation fillrect
 
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> picture-shape resolvers and painting primitive
@@ -17,11 +17,12 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     <c>&lt;a:srcRect&gt;</c> crop (<see cref="ResolveSrcRect"/>), and compositing the decoded
 ///     image onto a destination <see cref="Surface"/> (<see cref="PaintPicture"/>) - see
 ///     <c>pptx-document.md</c>'s "Images (Phase 1e)" design section for the full dispatch and
-///     compositing rationale. Only a dedicated <c>&lt;p:pic&gt;</c> picture <em>shape</em> is in
-///     scope this phase - an ordinary shape's own <em>background</em> picture fill
-///     (<c>&lt;p:spPr&gt;/&lt;a:blipFill&gt;</c>, resolved via <see cref="ResolveFill"/>) remains
-///     a deliberately separate, still-unsupported case (see <c>PptxDocument.Paint.cs</c>'s
-///     <c>FillResolution</c> requirement, unchanged this phase).
+///     compositing rationale. <see cref="ResolvePictureSurface"/> is reused, unchanged, by
+///     <c>PptxDocument.Paint.cs</c>'s <see cref="ResolveFill"/> to decode an ordinary shape's own
+///     <em>background</em> picture fill (<c>&lt;p:spPr&gt;/&lt;a:blipFill&gt;</c>) too - see this
+///     file's own <see cref="ResolveImageFillTransform"/>, which resolves that fill-context
+///     <c>&lt;a:blipFill&gt;</c>'s own <c>&lt;a:stretch&gt;</c>/<c>&lt;a:tile&gt;</c> region
+///     mapping into a <see cref="PptxImageFill"/>.
 /// </summary>
 public sealed partial class PptxDocument
 {
@@ -234,6 +235,153 @@ public sealed partial class PptxDocument
         }
 
         return parsed / 100000f;
+    }
+
+    /// <summary>
+    ///     The OOXML/DrawingML EMU-per-pixel constant for a raster image sampled at its own native
+    ///     96-DPI pixel size (914400 EMU per inch / 96 pixels per inch) - the scale an
+    ///     <c>&lt;a:tile&gt;</c>'s <c>100000</c> (100%) <c>sx</c>/<c>sy</c> maps a decoded image's
+    ///     pixel dimensions to in the owning shape's own local EMU space.
+    /// </summary>
+    private const float EmuPerPixelAt96Dpi = 9525f;
+
+    /// <summary>
+    ///     Resolves a fill-context <c>&lt;a:blipFill&gt;</c>'s own <c>&lt;a:stretch&gt;</c>
+    ///     (optionally cropped by a nested <c>&lt;a:fillRect&gt;</c>) or <c>&lt;a:tile&gt;</c>
+    ///     region mapping into a <see cref="Matrix3x2"/> that maps <paramref name="image"/>'s own
+    ///     pixel-space coordinates into the owning shape's local EMU coordinate space - the
+    ///     <see cref="PptxImageFill.ImageToLocalTransform"/> value <see cref="ResolveFill"/>
+    ///     stores on the <see cref="PptxImageFill"/> it returns.
+    /// </summary>
+    /// <param name="blipFillElement">The shape fill's own <c>&lt;a:blipFill&gt;</c> element.</param>
+    /// <param name="image">The already-decoded raster image (see <see cref="ResolvePictureSurface"/>).</param>
+    /// <param name="widthEmu">The owning shape's own declared width, in EMU.</param>
+    /// <param name="heightEmu">The owning shape's own declared height, in EMU.</param>
+    /// <returns>
+    ///     The resolved image-pixel-space-to-local-EMU-space transform - see this method's own
+    ///     remarks for the <c>&lt;a:tile&gt;</c>/<c>&lt;a:stretch&gt;</c> derivations.
+    /// </returns>
+    /// <remarks>
+    ///     <para>
+    ///         <strong><c>&lt;a:tile&gt;</c></strong> (consulted first when present - this is the
+    ///         load-bearing case for this package's own <c>pythonpptx-dml-fill.pptx</c> fixture):
+    ///         its <c>tx</c>/<c>ty</c> attributes are EMU offsets and its <c>sx</c>/<c>sy</c>
+    ///         attributes are 1/100000-of-a-percent scale factors (each defaulting to
+    ///         <c>100000</c>, 100%, per the OOXML schema default) applied to <paramref name="image"/>'s
+    ///         own native 96-DPI pixel size (<see cref="EmuPerPixelAt96Dpi"/>). This package's own
+    ///         <c>&lt;a:flip&gt;</c>/<c>&lt;a:algn&gt;</c> refinements are not resolved (a
+    ///         documented scope reduction - see the design document) - every tile repeats from the
+    ///         shape's own local origin, unflipped.
+    ///     </para>
+    ///     <para>
+    ///         <strong><c>&lt;a:stretch&gt;</c></strong> (consulted when no <c>&lt;a:tile&gt;</c>
+    ///         is present - including when neither element is present at all, the OOXML schema
+    ///         default for an otherwise-unqualified <c>&lt;a:blipFill&gt;</c>, treated identically
+    ///         to an empty <c>&lt;a:stretch/&gt;</c>): its optional nested <c>&lt;a:fillRect
+    ///         l="..." t="..." r="..." b="..."/&gt;</c> crops the image, each edge a
+    ///         1/100000-of-a-percent fraction of the image's own width/height (parsed with
+    ///         <see cref="ParseSrcRectEdge"/>'s identical convention, defaulting each absent edge
+    ///         to <c>0</c>); the remaining cropped span is then linearly stretched to exactly fill
+    ///         <paramref name="widthEmu"/> x <paramref name="heightEmu"/>. A degenerate crop (the
+    ///         left+right, or top+bottom, edges summing to <c>100%</c> or more) falls back to an
+    ///         uncropped full stretch on that axis, rather than producing a non-finite or
+    ///         divide-by-zero transform.
+    ///     </para>
+    /// </remarks>
+    internal static Matrix3x2 ResolveImageFillTransform(XElement blipFillElement, Surface image, float widthEmu, float heightEmu)
+    {
+        var tile = blipFillElement.Element(DrawingNamespace + "tile");
+        if (tile is not null)
+        {
+            var tx = ParseOptionalFloatAttribute(tile, "tx") ?? 0f;
+            var ty = ParseOptionalFloatAttribute(tile, "ty") ?? 0f;
+            var sx = ParseTilePercentAttribute(tile, "sx");
+            var sy = ParseTilePercentAttribute(tile, "sy");
+
+            var scaleX = sx * EmuPerPixelAt96Dpi;
+            var scaleY = sy * EmuPerPixelAt96Dpi;
+            return new Matrix3x2(scaleX, 0f, 0f, scaleY, tx, ty);
+        }
+
+        var fillRect = blipFillElement.Element(DrawingNamespace + "stretch")?.Element(DrawingNamespace + "fillRect");
+        var left = fillRect is null ? 0f : ParseSrcRectEdge(fillRect, "l");
+        var top = fillRect is null ? 0f : ParseSrcRectEdge(fillRect, "t");
+        var right = fillRect is null ? 0f : ParseSrcRectEdge(fillRect, "r");
+        var bottom = fillRect is null ? 0f : ParseSrcRectEdge(fillRect, "b");
+
+        var hSpan = 1f - left - right;
+        if (!float.IsFinite(hSpan) || hSpan <= 0f)
+        {
+            left = 0f;
+            hSpan = 1f;
+        }
+
+        var vSpan = 1f - top - bottom;
+        if (!float.IsFinite(vSpan) || vSpan <= 0f)
+        {
+            top = 0f;
+            vSpan = 1f;
+        }
+
+        var stretchScaleX = widthEmu / (hSpan * image.Width);
+        var stretchScaleY = heightEmu / (vSpan * image.Height);
+        var translateX = -left * widthEmu / hSpan;
+        var translateY = -top * heightEmu / vSpan;
+        return new Matrix3x2(stretchScaleX, 0f, 0f, stretchScaleY, translateX, translateY);
+    }
+
+    /// <summary>
+    ///     Parses an <c>&lt;a:tile&gt;</c> element's optional <c>sx</c>/<c>sy</c> 1/100000-of-a-
+    ///     percent scale attribute into a <c>[0,+inf)</c>-scaled fraction, defensively falling back
+    ///     to <c>1f</c> (100%) when the attribute is absent, non-numeric, non-finite, or
+    ///     non-positive - a malformed or degenerate tile scale must not silently produce a
+    ///     zero-sized or non-finite <see cref="Drawing.TilePaint"/> step.
+    /// </summary>
+    private static float ParseTilePercentAttribute(XElement tileElement, string attributeName)
+    {
+        var value = (string?)tileElement.Attribute(attributeName);
+        if (value is null)
+        {
+            return 1f;
+        }
+
+        if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) ||
+            !float.IsFinite(parsed) || parsed <= 0f)
+        {
+            return 1f;
+        }
+
+        return parsed / 100000f;
+    }
+
+    /// <summary>
+    ///     Parses an <c>&lt;a:tile&gt;</c> element's optional <c>tx</c>/<c>ty</c> EMU-offset
+    ///     attribute, returning <see langword="null"/> when absent.
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the attribute is present but not a valid, finite number.
+    /// </exception>
+    private static float? ParseOptionalFloatAttribute(XElement element, string attributeName)
+    {
+        var value = (string?)element.Attribute(attributeName);
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+        {
+            throw new InvalidDataException(
+                $"An <a:tile> element has a non-numeric '{attributeName}' attribute value '{value}'.");
+        }
+
+        if (!float.IsFinite(parsed))
+        {
+            throw new InvalidDataException(
+                $"An <a:tile> element has a non-finite '{attributeName}' attribute value '{value}'.");
+        }
+
+        return parsed;
     }
 
     /// <summary>

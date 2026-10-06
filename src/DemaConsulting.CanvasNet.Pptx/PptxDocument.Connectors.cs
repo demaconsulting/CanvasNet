@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Xml.Linq;
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
@@ -42,6 +43,11 @@ public sealed partial class PptxDocument
     /// <param name="styleElement">The connector's own sibling <c>&lt;p:style&gt;</c> element, or <see langword="null"/>.</param>
     /// <param name="theme">The resolved theme, used to resolve <see cref="PptxTheme.LnStyleList"/> and any <c>&lt;a:schemeClr&gt;</c>.</param>
     /// <param name="colorMap">The slide's own effective color map - see <see cref="ResolveFill"/>'s matching parameter.</param>
+    /// <param name="resolveBlipImage">
+    ///     Threaded unchanged into this method's own <see cref="ResolveFill"/>/
+    ///     <see cref="ResolveShapeStyleLineStyle"/> calls - see <see cref="ResolveFill"/>'s
+    ///     matching parameter.
+    /// </param>
     /// <returns>
     ///     The resolved, merged <see cref="PptxLineStyle"/>, or <see langword="null"/> meaning "no
     ///     stroke": when the connector's own <c>&lt;a:ln&gt;</c> declares an explicit
@@ -54,7 +60,8 @@ public sealed partial class PptxDocument
     ///     not a finite floating-point number - see <see cref="ParseOptionalLineWidthAttribute"/>.
     /// </exception>
     internal static PptxLineStyle? ResolveConnectorLineStyle(
-        XElement spPrElement, XElement? styleElement, PptxTheme theme, PptxColorMap colorMap)
+        XElement spPrElement, XElement? styleElement, PptxTheme theme, PptxColorMap colorMap,
+        Func<XElement, Surface>? resolveBlipImage = null)
     {
         var lnElement = spPrElement.Element(DrawingNamespace + "ln");
 
@@ -66,7 +73,7 @@ public sealed partial class PptxDocument
             return null;
         }
 
-        var styleLineStyle = ResolveShapeStyleLineStyle(styleElement, theme, colorMap);
+        var styleLineStyle = ResolveShapeStyleLineStyle(styleElement, theme, colorMap, resolveBlipImage);
 
         var ownWidthEmu = ParseOptionalLineWidthAttribute(lnElement);
         var widthEmu = ownWidthEmu is > 0f ? ownWidthEmu.Value : styleLineStyle?.WidthEmu ?? 0f;
@@ -76,7 +83,7 @@ public sealed partial class PptxDocument
         }
 
         var paint = lnElement is not null && HasExplicitFillChild(lnElement)
-            ? ResolveFill(lnElement, theme, 1f, 1f, colorMap: colorMap)
+            ? ResolveFill(lnElement, theme, 1f, 1f, colorMap: colorMap, resolveBlipImage: resolveBlipImage)
             : styleLineStyle?.Paint ?? PptxNoFill.Instance;
         if (paint is PptxNoFill)
         {

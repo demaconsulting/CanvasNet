@@ -445,18 +445,46 @@ public class PptxFixturesCorpusTests
     }
 
     /// <summary>
-    ///     Proves both slides of <c>pythonpptx-dml-fill.pptx</c> each throw
-    ///     <see cref="PptxUnsupportedFeatureException"/> for a documented, already-implemented
-    ///     deferred-fill construct: slide index 0 places a <c>&lt;a:blipFill&gt;</c> directly
-    ///     inside an ordinary shape's own <c>&lt;p:spPr&gt;</c> (a picture used as a shape
-    ///     background, feature token <c>"pptx-picture-fill"</c>), and slide index 1 places a
-    ///     <c>&lt;a:pattFill&gt;</c> the same way (a pattern fill, feature token
-    ///     <c>"pptx-pattern-fill"</c>). Both exception tokens are already implemented by
-    ///     <c>ResolveFill</c>; this is the only fixture in this corpus exercising either path
-    ///     against a real file.
+    ///     Proves slide 0 of <c>pythonpptx-dml-fill.pptx</c> - which places six shapes in document
+    ///     order (inherited fill, explicit <c>&lt;a:noFill/&gt;</c>, solid RGB fill, a real embedded
+    ///     <c>&lt;a:blipFill&gt;&lt;a:blip r:embed="..."/&gt;&lt;a:tile tx="0" ty="0" sx="100000"
+    ///     sy="100000"/&gt;&lt;/a:blipFill&gt;</c> picture fill, a linear gradient fill, and finally
+    ///     an <c>&lt;a:pattFill&gt;</c> pattern fill - on this <em>same</em> slide - no longer fails
+    ///     on the picture-fill shape. Before this feature, rendering slide 0 threw
+    ///     <c>"pptx-picture-fill"</c> as soon as the shape-tree walk reached the fourth
+    ///     (blip/tile-filled) shape; now that picture fill is supported (see
+    ///     <c>PptxPaint.cs</c>'s <see cref="PptxImageFill"/> and <c>PptxDocument.Paint.cs</c>'s
+    ///     <c>ResolveFill</c>), that shape resolves and paints successfully, and the walk instead
+    ///     proceeds to the sixth (and last) shape's still out-of-scope <c>&lt;a:pattFill&gt;</c>,
+    ///     which now raises <c>"pptx-pattern-fill"</c> instead - itself proof the picture fill is no
+    ///     longer the blocker. A genuine, full end-to-end "renders without throwing" assertion for
+    ///     an <c>&lt;a:blipFill&gt;</c>/<c>&lt;a:tile&gt;</c> shape fill (this slide cannot satisfy
+    ///     that, since it also contains an unrelated, out-of-scope pattern-filled shape) lives in
+    ///     <see cref="PptxSystemIntegrationTests.CanvasNetPptx_SystemIntegration_Images_TileBlipFillShapeDecodesAndRendersEndToEnd"/>
+    ///     instead, against a minimal, purpose-built single-shape package.
     /// </summary>
     [Fact]
-    public void PptxDocument_Render_DmlFillFixture_BothSlidesThrowUnsupportedFillFeature()
+    public void PptxDocument_Render_DmlFillFixture_Slide0PictureFillNoLongerBlocksRenderingOnlyPatternFillThrows()
+    {
+        // Arrange
+        using var document = PptxDocument.Open(Fixture("pythonpptx-dml-fill.pptx"));
+
+        // Act & Assert: the walk now gets past the blip/tile picture-fill shape and only fails on
+        // the still out-of-scope pattern-fill shape later in the same slide's shape tree.
+        var exception = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(0, Dpi, Transparent));
+        Assert.Equal("pptx-pattern-fill", exception.Feature);
+    }
+
+    /// <summary>
+    ///     Proves slide 1 of <c>pythonpptx-dml-fill.pptx</c> still throws
+    ///     <see cref="PptxUnsupportedFeatureException"/> for a documented, already-implemented
+    ///     deferred-fill construct: an ordinary shape's own <c>&lt;p:spPr&gt;</c> using
+    ///     <c>&lt;a:pattFill&gt;</c> (a pattern fill, feature token <c>"pptx-pattern-fill"</c>) -
+    ///     out of scope for the picture-fill (<c>&lt;a:blipFill&gt;</c>) support added alongside
+    ///     this test (see <see cref="PptxDocument_Render_DmlFillFixture_Slide0PictureFillNoLongerBlocksRenderingOnlyPatternFillThrows"/>).
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Render_DmlFillFixture_Slide1PatternFillThrowsUnsupportedFillFeature()
     {
         // Arrange
         using var document = PptxDocument.Open(Fixture("pythonpptx-dml-fill.pptx"));
@@ -464,13 +492,9 @@ public class PptxFixturesCorpusTests
         // Assert: slide count
         Assert.Equal(2, document.SlideCount);
 
-        // Act & Assert: slide 0's shape-background picture fill throws.
-        var exception0 = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(0, Dpi, Transparent));
-        Assert.Equal("pptx-picture-fill", exception0.Feature);
-
         // Act & Assert: slide 1's shape-background pattern fill throws.
-        var exception1 = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(1, Dpi, Transparent));
-        Assert.Equal("pptx-pattern-fill", exception1.Feature);
+        var exception = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(1, Dpi, Transparent));
+        Assert.Equal("pptx-pattern-fill", exception.Feature);
     }
 
     /// <summary>

@@ -573,15 +573,17 @@ sections:
               The PptxDocument class shall resolve a shape's fill from its <p:spPr> into a closed
               PptxPaint value: an explicit <a:noFill>, no recognized fill child element, or a null
               <p:spPr> all resolve to PptxNoFill; <a:solidFill> resolves to a PptxSolidFill via
-              color resolution; <a:gradFill> resolves to a PptxGradientFill; and <a:pattFill>/
-              <a:blipFill> are rejected with PptxUnsupportedFeatureException (feature tokens
-              "pptx-pattern-fill"/"pptx-picture-fill" respectively) rather than being silently
-              misinterpreted as unfilled or solid-filled.
+              color resolution; <a:gradFill> resolves to a PptxGradientFill; <a:blipFill> resolves
+              to a PptxImageFill (see CanvasNetPptx-PptxDocument-PictureFillResolution below) when
+              a blip-image resolver is supplied, or is rejected with
+              PptxUnsupportedFeatureException (feature token "pptx-picture-fill") when it is not;
+              and <a:pattFill> is rejected with PptxUnsupportedFeatureException (feature token
+              "pptx-pattern-fill") rather than being silently misinterpreted as unfilled or
+              solid-filled.
             justification: |
-              Pattern and picture fills require image-decoding and tiling machinery out of scope
-              for this phase; rejecting them explicitly, rather than silently falling back to
-              PptxNoFill, lets a caller distinguish "genuinely unfilled" from "fill kind not yet
-              supported".
+              Pattern fill requires tiling machinery out of scope for this phase; rejecting it
+              explicitly, rather than silently falling back to PptxNoFill, lets a caller
+              distinguish "genuinely unfilled" from "fill kind not yet supported".
             tests:
               - ResolveFill_NullParent_ReturnsNoFill
               - ResolveFill_ExplicitNoFill_ReturnsNoFill
@@ -591,6 +593,43 @@ sections:
               - ResolveFill_GradFillLinear_ReturnsResolvedGradientFill
               - ResolveFill_PatternFill_ThrowsPptxUnsupportedFeatureException
               - ResolveFill_PictureFill_ThrowsPptxUnsupportedFeatureException
+
+          - id: CanvasNetPptx-PptxDocument-PictureFillResolution
+            title: >-
+              The PptxDocument class shall resolve a shape/paragraph fill's <a:blipFill> (used as a
+              fill-definition child, distinct from a <p:pic> picture shape's own <p:blipFill>)
+              into a PptxImageFill wrapping the decoded raster image (reusing the existing
+              blip-decoding/relationship-resolution logic unchanged) and an image-pixel-space-to-
+              local-EMU-space transform derived from the <a:blipFill>'s own <a:tile> (consulted
+              first when present, mapping the image's own native 96-DPI pixel size through the
+              tile's tx/ty EMU offsets and sx/sy percentage scale factors) or <a:stretch>
+              (optionally cropped by a nested <a:fillRect>'s l/t/r/b percentage insets before being
+              stretched to exactly fill the shape, with a degenerate crop - edges summing to 100%
+              or more on an axis - falling back to an uncropped full stretch on that axis); every
+              FillPaint-style switch over PptxPaint values (shape fills, table-cell fills,
+              line/stroke fills, slide background fills, and connector fills) paints a resolved
+              PptxImageFill via a TilePaint constructed from its Image/ImageToLocalTransform,
+              composed with the same shape-to-surface transform already applied to
+              PptxGradientFill. A linked-only (<a:blip r:link>, no r:embed) or Microsoft
+              SVG-only-fallback blip behaves identically to how the pre-existing <p:pic> picture-
+              shape decoding already handles those cases (unchanged exception behavior).
+            justification: |
+              <a:blipFill> used as a shape/paragraph fill (for example a rounded-rectangle "photo
+              frame" autoshape) is a common real-world DrawingML construct - the Python-pptx test
+              corpus's own pythonpptx-dml-fill.pptx fixture exercises the <a:tile> variant
+              specifically - and rejecting it outright (the prior CanvasNetPptx-PptxDocument-
+              FillResolution behavior) left such shapes unrenderable even though the same decoding
+              machinery already used for <p:pic> picture shapes is directly reusable for it.
+              Implementing both <a:stretch> and <a:tile> uniformly through one PptxImageFill/
+              TilePaint pair (rather than two bespoke code paths) keeps the painting side identical
+              to PptxGradientFill's own established shape-to-surface composition pattern.
+            tests:
+              - ResolveFill_BlipFillWithResolver_ReturnsPptxImageFill
+              - ResolveImageFillTransform_TileWithNonTrivialOffsetAndScale_AppliesBothToEachAxis
+              - ResolveImageFillTransform_StretchWithFillRectInsets_CropsBeforeStretching
+              - ResolveImageFillTransform_DegenerateFillRect_FallsBackToFullStretch
+              - PptxDocument_Render_DmlFillFixture_Slide0PictureFillNoLongerBlocksRenderingOnlyPatternFillThrows
+              - CanvasNetPptx_SystemIntegration_Images_TileBlipFillShapeDecodesAndRendersEndToEnd
 
           - id: CanvasNetPptx-PptxDocument-ColorResolution
             title: >-

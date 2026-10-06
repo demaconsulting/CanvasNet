@@ -53,6 +53,21 @@ public sealed partial class PptxDocument
     ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the
     ///     default) - see <see cref="ResolveFill"/>'s matching parameter.
     /// </param>
+    /// <param name="slideResolveBlipImage">
+    ///     Passed through to <see cref="ResolveFill"/> only when <paramref name="slideBackground"/>
+    ///     is the tier that wins (the slide's own <c>&lt;p:bg&gt;</c> declares an
+    ///     <c>&lt;a:blipFill&gt;</c>) - a blip's <c>r:embed</c> relationship is scoped to its own
+    ///     owning part (the slide part, in this case), so each tier needs its own resolver bound
+    ///     to its own part's path. See <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
+    /// <param name="layoutResolveBlipImage">
+    ///     The layout-tier counterpart of <paramref name="slideResolveBlipImage"/>, passed through
+    ///     only when <paramref name="layoutBackground"/> is the tier that wins.
+    /// </param>
+    /// <param name="masterResolveBlipImage">
+    ///     The master-tier counterpart of <paramref name="slideResolveBlipImage"/>, passed through
+    ///     only when <paramref name="masterBackground"/> is the tier that wins.
+    /// </param>
     /// <returns>
     ///     The resolved <see cref="PptxPaint"/>, or <see langword="null"/> when none of
     ///     <paramref name="slideBackground"/>/<paramref name="layoutBackground"/>/
@@ -72,7 +87,7 @@ public sealed partial class PptxDocument
     ///     Thrown when a <c>&lt;p:bgRef idx&gt;</c> is in the 1-999 range (the rare,
     ///     not-used-for-backgrounds-in-practice <c>&lt;a:fillStyleLst&gt;</c> half of the style
     ///     matrix - feature token <c>"pptx-bg-fill-style-ref"</c>), or propagated unchanged from
-    ///     <see cref="ResolveFill"/> (a pattern/picture fill or a radial/path gradient).
+    ///     <see cref="ResolveFill"/> (a pattern fill, or a radial/path gradient).
     /// </exception>
     internal static PptxPaint? ResolveSlideBackgroundFill(
         XElement? slideBackground,
@@ -81,10 +96,32 @@ public sealed partial class PptxDocument
         PptxTheme theme,
         float widthEmu,
         float heightEmu,
-        PptxColorMap? colorMap = null)
+        PptxColorMap? colorMap = null,
+        Func<XElement, Surface>? slideResolveBlipImage = null,
+        Func<XElement, Surface>? layoutResolveBlipImage = null,
+        Func<XElement, Surface>? masterResolveBlipImage = null)
     {
         var background = slideBackground ?? layoutBackground ?? masterBackground;
-        return background is null ? null : ResolveBackgroundElement(background, theme, widthEmu, heightEmu, colorMap);
+        if (background is null)
+        {
+            return null;
+        }
+
+        Func<XElement, Surface>? resolveBlipImage;
+        if (ReferenceEquals(background, slideBackground))
+        {
+            resolveBlipImage = slideResolveBlipImage;
+        }
+        else if (ReferenceEquals(background, layoutBackground))
+        {
+            resolveBlipImage = layoutResolveBlipImage;
+        }
+        else
+        {
+            resolveBlipImage = masterResolveBlipImage;
+        }
+
+        return ResolveBackgroundElement(background, theme, widthEmu, heightEmu, colorMap, resolveBlipImage);
     }
 
     /// <summary>
@@ -95,7 +132,8 @@ public sealed partial class PptxDocument
     /// </summary>
     /// <exception cref="InvalidDataException">Thrown when neither child is present.</exception>
     private static PptxPaint ResolveBackgroundElement(
-        XElement backgroundElement, PptxTheme theme, float widthEmu, float heightEmu, PptxColorMap? colorMap = null)
+        XElement backgroundElement, PptxTheme theme, float widthEmu, float heightEmu, PptxColorMap? colorMap = null,
+        Func<XElement, Surface>? resolveBlipImage = null)
     {
         var bgPr = backgroundElement.Element(PresentationNamespace + "bgPr");
         if (bgPr is not null)
@@ -103,13 +141,13 @@ public sealed partial class PptxDocument
             // <p:bgPr> directly contains its fill-definition child (<a:noFill>/<a:solidFill>/
             // <a:gradFill>/<a:pattFill>/<a:blipFill>), same as <p:spPr> - ResolveFill's existing
             // child-dispatch logic applies unchanged.
-            return ResolveFill(bgPr, theme, widthEmu, heightEmu, colorMap: colorMap);
+            return ResolveFill(bgPr, theme, widthEmu, heightEmu, colorMap: colorMap, resolveBlipImage: resolveBlipImage);
         }
 
         var bgRef = backgroundElement.Element(PresentationNamespace + "bgRef");
         if (bgRef is not null)
         {
-            return ResolveBackgroundStyleReference(bgRef, theme, widthEmu, heightEmu, colorMap);
+            return ResolveBackgroundStyleReference(bgRef, theme, widthEmu, heightEmu, colorMap, resolveBlipImage);
         }
 
         throw new InvalidDataException("A <p:bg> element has neither <p:bgPr> nor <p:bgRef>.");
@@ -137,7 +175,8 @@ public sealed partial class PptxDocument
     ///     <c>"pptx-bg-fill-style-ref"</c>).
     /// </exception>
     private static PptxPaint ResolveBackgroundStyleReference(
-        XElement bgRefElement, PptxTheme theme, float widthEmu, float heightEmu, PptxColorMap? colorMap = null)
+        XElement bgRefElement, PptxTheme theme, float widthEmu, float heightEmu, PptxColorMap? colorMap = null,
+        Func<XElement, Surface>? resolveBlipImage = null)
     {
         var idxValue = (string?)bgRefElement.Attribute("idx") ??
             throw new InvalidDataException("A <p:bgRef> element has no 'idx' attribute.");
@@ -180,6 +219,6 @@ public sealed partial class PptxDocument
         // (adding an XElement that already has a parent clones it, leaving the theme's own tree
         // untouched).
         var syntheticFillParent = new XElement("pptxSyntheticBgFillParent", styleEntry);
-        return ResolveFill(syntheticFillParent, theme, widthEmu, heightEmu, phClrOverride, colorMap);
+        return ResolveFill(syntheticFillParent, theme, widthEmu, heightEmu, phClrOverride, colorMap, resolveBlipImage);
     }
 }

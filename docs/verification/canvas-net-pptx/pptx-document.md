@@ -474,7 +474,7 @@ proves a `<a:path w= h=>` declaring a coordinate space different from the shape'
 resolves to exactly `(widthEmu, heightEmu)`, not the path's own raw `w`/`h` value); and proves a
 `<a:custGeom>` with no `<a:pathLst>` resolves to `Path.Empty` rather than throwing.
 
-#### CanvasNetPptx-PptxDocument-FillResolution: noFill/solidFill/gradFill Resolve, pattFill/blipFill Fail Closed
+#### CanvasNetPptx-PptxDocument-FillResolution: noFill/solidFill/gradFill Resolve, pattFill Fails Closed, blipFill Resolves or Fails Closed
 
 **Tests**: `ResolveFill_NullParent_ReturnsNoFill`, `ResolveFill_ExplicitNoFill_ReturnsNoFill`,
 `ResolveFill_NoRecognizedFillChild_ReturnsNoFill`,
@@ -490,11 +490,41 @@ child, all three resolve to `PptxNoFill.Instance`; proves `<a:solidFill><a:srgbC
 `<a:solidFill><a:schemeClr .../>` both resolve to the expected `PptxSolidFill` (the latter
 resolving its color through the supplied `PptxTheme`, not merely parsing the slot name); proves
 `<a:gradFill>` with a linear direction resolves to a `PptxGradientFill` wrapping the expected
-gradient stops; and proves `<a:pattFill>`/`<a:blipFill>` each throw
-`PptxUnsupportedFeatureException` rather than silently resolving to an incorrect fill. The
-end-to-end system test additionally proves a real shape's fill resolves correctly when reached
-through the full slide/layout/master/theme package-load chain, not merely from a hand-built
-`XElement` fragment.
+gradient stops; proves `<a:pattFill>` throws `PptxUnsupportedFeatureException` rather than
+silently resolving to an incorrect fill; and proves `<a:blipFill>` still throws
+`PptxUnsupportedFeatureException` (feature token `"pptx-picture-fill"`) when no blip-image
+resolver is supplied, its pre-existing fallback behavior, now narrowed to document that specific
+"no resolver supplied" case rather than picture fill being unsupported outright - see
+`CanvasNetPptx-PptxDocument-PictureFillResolution` below for the resolver-supplied, fully
+supported case. The end-to-end system test additionally proves a real shape's fill resolves
+correctly when reached through the full slide/layout/master/theme package-load chain, not merely
+from a hand-built `XElement` fragment.
+
+#### CanvasNetPptx-PptxDocument-PictureFillResolution: blipFill Resolves to a Tiled/Stretched PptxImageFill
+
+**Tests**: `ResolveFill_BlipFillWithResolver_ReturnsPptxImageFill`,
+`ResolveImageFillTransform_TileWithNonTrivialOffsetAndScale_AppliesBothToEachAxis`,
+`ResolveImageFillTransform_StretchWithFillRectInsets_CropsBeforeStretching`,
+`ResolveImageFillTransform_DegenerateFillRect_FallsBackToFullStretch`,
+`PptxDocument_Render_DmlFillFixture_Slide0PictureFillNoLongerBlocksRenderingOnlyPatternFillThrows`,
+`CanvasNetPptx_SystemIntegration_Images_TileBlipFillShapeDecodesAndRendersEndToEnd`
+
+Proves a minimal `<a:blipFill><a:blip r:embed="..."/><a:stretch/></a:blipFill>`, given a fake
+`resolveBlipImage` delegate, resolves to a `PptxImageFill` wrapping that delegate's own returned
+`Surface` (rather than throwing, the regression this feature fixes); pins down
+`ResolveImageFillTransform`'s own `<a:tile>` derivation with a non-trivial, non-default `tx`/
+`ty`/`sx`/`sy` combination (independent of the real fixture's own trivial `100%`/`0`-offset
+values); pins down `<a:stretch>`'s own `<a:fillRect>` inset-cropping math, and its degenerate-crop
+(edges summing to `100%` or more) fallback-to-full-stretch behavior, guarding against a
+non-finite or divide-by-zero transform. The real-fixture test proves `pythonpptx-dml-fill.pptx`'s
+slide 0 - which places a real, embedded `<a:blipFill>`/`<a:tile>` picture-filled shape alongside
+an unrelated, out-of-scope pattern-filled shape on the very same slide - no longer fails on the
+picture-fill shape specifically (the render now proceeds past it and only fails later, on the
+still-deferred pattern fill); the system-integration test proves a genuine, full end-to-end
+render of a minimal, purpose-built single-shape package (an ordinary `<p:sp>`, not a `<p:pic>`,
+whose own `<a:blipFill>`/`<a:tile>` shape fill is the slide's only content) completes without
+exception, with a pixel-level sanity check that the filled shape's own region painted the
+embedded image's content rather than being left as untouched background.
 
 #### CanvasNetPptx-PptxDocument-ColorResolution: srgbClr/sysClr/schemeClr Resolve to the Expected Rgba32 Value
 
@@ -1125,7 +1155,8 @@ non-numeric `idx` attribute with `InvalidDataException`.
 `PptxDocument_Render_PhUnpopulatedPlaceholdersFixture_RendersEverySlideWithoutError`,
 `PptxDocument_Render_TxtFitTextFixture_PaintsVisibleContent`,
 `PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsPaintVisibleLines`,
-`PptxDocument_Render_DmlFillFixture_BothSlidesThrowUnsupportedFillFeature`,
+`PptxDocument_Render_DmlFillFixture_Slide0PictureFillNoLongerBlocksRenderingOnlyPatternFillThrows`,
+`PptxDocument_Render_DmlFillFixture_Slide1PatternFillThrowsUnsupportedFillFeature`,
 `PptxDocument_Render_DmlLineFixture_RendersEverySlideWithVisibleContent`,
 `PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature`,
 `PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentBackgroundNotPainted`,
@@ -1162,10 +1193,15 @@ real files rather than merely hand-authored packages, that a chart/SmartArt-bear
 `aiden0z-1-chart-and-complex.pptx` slide 1), that a group shape whose every child shape
 relies solely on an unresolved `<p:style>` shape-style-matrix reference for its fill (an
 out-of-scope construct, see `pptx-document.md`'s Phase 1c deferred-items list) renders without
-error despite painting no visible ink (`pythonpptx-shp-groupshape.pptx`), and that a
-shape-background picture fill and a shape-background pattern fill each throw their own documented
-`PptxUnsupportedFeatureException` feature token (`pythonpptx-dml-fill.pptx`, feature tokens
-`pptx-picture-fill`/`pptx-pattern-fill`). A slide's own `<p:bg>` background fill is covered by
+error despite painting no visible ink (`pythonpptx-shp-groupshape.pptx`), and that
+`pythonpptx-dml-fill.pptx`'s slide 0 - which places a real, embedded `<a:blipFill>`/`<a:tile>`
+picture-filled shape alongside an unrelated, still out-of-scope pattern-filled shape on the very
+same slide - no longer fails on the picture-fill shape itself (picture fill is now fully
+supported, see `CanvasNetPptx-PptxDocument-PictureFillResolution` above); the render instead
+proceeds past that shape and only fails later, on the shape-background pattern fill, throwing its
+own documented `PptxUnsupportedFeatureException` feature token (`pptx-pattern-fill`) from
+`pythonpptx-dml-fill.pptx`'s slide 1 (a pattern-fill-only slide) unchanged. A slide's own
+`<p:bg>` background fill is covered by
 `CanvasNetPptx-PptxDocument-SlideBackgroundFill` below instead, including both of these same real
 fixtures' own now-painted backgrounds.
 
@@ -1867,8 +1903,9 @@ Phase 1f, the planned PPTX 1.0 feature set is complete. A slide's own `<p:bg>` b
 covered by *CanvasNetPptx-PptxDocument-SlideBackgroundFill* above instead, and master/layout
 decorative shape rendering is covered by *CanvasNetPptx-PptxDocument-MasterLayoutShapeRendering*
 above instead. Not yet covered: a non-placeholder (freeform) shape's own background fill via
-`<a:blipFill>`/`<a:pattFill>` inside `<p:spPr>` (picture/pattern fill remain scoped to a dedicated
-`<p:pic>` shape's own `<p:blipFill>`), picture effects/shadows, nested tables, table auto-sizing to
+`<a:pattFill>` inside `<p:spPr>` (pattern fill remains scoped to a dedicated, not-yet-assigned
+backlog item; picture fill, `<a:blipFill>` inside `<p:spPr>`, is now covered - see
+`CanvasNetPptx-PptxDocument-PictureFillResolution` above), picture effects/shadows, nested tables, table auto-sizing to
 fit overflowing cell content (each row's resolved height is taken verbatim from its declared
 `<a:tr h="...">` value, with no growth to accommodate overflowing cell content), table
 style/banding (`<a:tableStyleId>`), group-level style cascading

@@ -22,8 +22,9 @@ public sealed partial class PptxDocument
 {
     /// <summary>
     ///     Resolves a shape's fill: the single recognized fill-definition child
-    ///     (<c>&lt;a:noFill&gt;</c>/<c>&lt;a:solidFill&gt;</c>/<c>&lt;a:gradFill&gt;</c>) of
-    ///     <paramref name="fillParentElement"/>, into a concrete <see cref="PptxPaint"/>.
+    ///     (<c>&lt;a:noFill&gt;</c>/<c>&lt;a:solidFill&gt;</c>/<c>&lt;a:gradFill&gt;</c>/
+    ///     <c>&lt;a:blipFill&gt;</c>) of <paramref name="fillParentElement"/>, into a concrete
+    ///     <see cref="PptxPaint"/>.
     /// </summary>
     /// <param name="fillParentElement">
     ///     The element that may directly contain a fill-definition child - typically a shape's
@@ -49,21 +50,38 @@ public sealed partial class PptxDocument
     ///     to preserve this unit's pre-existing hardcoded bg/tx aliasing - see
     ///     <see cref="ResolveSchemeColor"/>'s remarks.
     /// </param>
+    /// <param name="resolveBlipImage">
+    ///     Lazily invoked, only when <paramref name="fillParentElement"/> declares an
+    ///     <c>&lt;a:blipFill&gt;</c> child, to decode that element's own <c>&lt;a:blip&gt;</c>
+    ///     relationship into a concrete <see cref="Surface"/> - typically a closure over
+    ///     <see cref="ResolvePictureSurface"/>, bound to the owning part's own path (an
+    ///     <c>&lt;a:blipFill&gt;</c>'s <c>r:embed</c> relationship is part-scoped, so this method,
+    ///     which has no owning-part context of its own, cannot resolve it directly). Defaults to
+    ///     <see langword="null"/> ("no resolver available"), preserving this method's pre-existing
+    ///     behavior (throwing <see cref="PptxUnsupportedFeatureException"/>) for every call site
+    ///     that does not supply one - see this method's own <c>&lt;exception&gt;</c> documentation.
+    /// </param>
     /// <returns>
     ///     The resolved <see cref="PptxPaint"/> - <see cref="PptxNoFill.Instance"/> when
     ///     <paramref name="fillParentElement"/> is <see langword="null"/>, declares an explicit
     ///     <c>&lt;a:noFill/&gt;</c>, or declares no recognized fill-definition child at all (a
     ///     deliberate simplification: this phase does not resolve fill inheritance from a
-    ///     placeholder/layout/master/theme format scheme - see the design document).
+    ///     placeholder/layout/master/theme format scheme - see the design document); a resolved
+    ///     <see cref="PptxImageFill"/> when it declares an <c>&lt;a:blipFill&gt;</c> and
+    ///     <paramref name="resolveBlipImage"/> is supplied (non-<see langword="null"/>).
     /// </returns>
     /// <exception cref="PptxUnsupportedFeatureException">
     ///     Thrown when the recognized fill-definition child is <c>&lt;a:pattFill&gt;</c> (pattern
-    ///     fill) or <c>&lt;a:blipFill&gt;</c> (picture fill) - both deferred to a later phase (see
-    ///     the design document's rationale).
+    ///     fill - deferred to a later phase, see the design document's rationale), or when it is
+    ///     <c>&lt;a:blipFill&gt;</c> (picture fill) and <paramref name="resolveBlipImage"/> is
+    ///     <see langword="null"/> (no resolver supplied); otherwise propagated unchanged from
+    ///     <paramref name="resolveBlipImage"/> itself - see <see cref="ResolvePictureSurface"/>'s
+    ///     own <c>&lt;exception&gt;</c> documentation for every cause (a linked, non-embedded
+    ///     image; an SVG-only fallback blip; or an unsupported raster image format).
     /// </exception>
     internal static PptxPaint ResolveFill(
         XElement? fillParentElement, PptxTheme theme, float widthEmu, float heightEmu, Rgba32? phClrOverride = null,
-        PptxColorMap? colorMap = null)
+        PptxColorMap? colorMap = null, Func<XElement, Surface>? resolveBlipImage = null)
     {
         colorMap ??= PptxColorMap.Default;
 
@@ -96,9 +114,17 @@ public sealed partial class PptxDocument
             throw new PptxUnsupportedFeatureException("pptx-pattern-fill", "Pattern fill (<a:pattFill>) is not supported.");
         }
 
-        if (fillParentElement.Element(DrawingNamespace + "blipFill") is not null)
+        var blipFill = fillParentElement.Element(DrawingNamespace + "blipFill");
+        if (blipFill is not null)
         {
-            throw new PptxUnsupportedFeatureException("pptx-picture-fill", "Picture fill (<a:blipFill>) is not supported.");
+            if (resolveBlipImage is null)
+            {
+                throw new PptxUnsupportedFeatureException("pptx-picture-fill", "Picture fill (<a:blipFill>) is not supported.");
+            }
+
+            var image = resolveBlipImage(blipFill);
+            var transform = ResolveImageFillTransform(blipFill, image, widthEmu, heightEmu);
+            return new PptxImageFill(image, transform);
         }
 
         return PptxNoFill.Instance;
@@ -630,12 +656,17 @@ public sealed partial class PptxDocument
     ///     deliberately retain their existing "a present, width-less <c>&lt;a:ln&gt;</c> never
     ///     gains a width from style or default" behavior.
     /// </returns>
+    /// <param name="resolveBlipImage">
+    ///     Threaded unchanged into this method's own <see cref="ResolveFill"/> call - see
+    ///     <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="lnElement"/>'s <c>w</c> attribute is present but not a
     ///     finite floating-point number - see <see cref="ParseOptionalLineWidthAttribute"/>.
     /// </exception>
     internal static PptxLineStyle? ResolveLineStyle(
-        XElement? lnElement, PptxTheme theme, PptxColorMap? colorMap = null, Rgba32? phClrOverride = null)
+        XElement? lnElement, PptxTheme theme, PptxColorMap? colorMap = null, Rgba32? phClrOverride = null,
+        Func<XElement, Surface>? resolveBlipImage = null)
     {
         if (lnElement is null)
         {
@@ -662,7 +693,7 @@ public sealed partial class PptxDocument
         // A line's fill carries no shape width/height of its own to position a gradient against -
         // gradient-filled lines are not meaningfully positionable this phase, so 1x1 is used as a
         // neutral placeholder extent (only reachable if a document declares <a:ln><a:gradFill>).
-        var paint = ResolveFill(lnElement, theme, 1f, 1f, phClrOverride, colorMap);
+        var paint = ResolveFill(lnElement, theme, 1f, 1f, phClrOverride, colorMap, resolveBlipImage);
         if (paint is PptxNoFill)
         {
             return null;
@@ -727,6 +758,10 @@ public sealed partial class PptxDocument
     ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the
     ///     default) - see <see cref="ResolveFill"/>'s matching parameter.
     /// </param>
+    /// <param name="resolveBlipImage">
+    ///     Threaded unchanged into this method's own <see cref="ResolveFill"/> call - see
+    ///     <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
     /// <returns>
     ///     The resolved <see cref="PptxPaint"/>, or <see cref="PptxNoFill.Instance"/> when
     ///     <paramref name="styleElement"/> is <see langword="null"/>, declares no
@@ -741,7 +776,8 @@ public sealed partial class PptxDocument
     ///     is rejected rather than silently clamped).
     /// </exception>
     internal static PptxPaint ResolveShapeStyleFill(
-        XElement? styleElement, PptxTheme theme, float widthEmu, float heightEmu, PptxColorMap? colorMap = null)
+        XElement? styleElement, PptxTheme theme, float widthEmu, float heightEmu, PptxColorMap? colorMap = null,
+        Func<XElement, Surface>? resolveBlipImage = null)
     {
         colorMap ??= PptxColorMap.Default;
 
@@ -776,7 +812,7 @@ public sealed partial class PptxDocument
         // <a:solidFill>), not a parent containing one - wrap in a synthetic parent so
         // ResolveFill's existing "look up a direct named child" dispatch logic applies unchanged.
         var syntheticFillParent = new XElement("pptxSyntheticStyleFillParent", styleEntry);
-        return ResolveFill(syntheticFillParent, theme, widthEmu, heightEmu, phClrOverride, colorMap);
+        return ResolveFill(syntheticFillParent, theme, widthEmu, heightEmu, phClrOverride, colorMap, resolveBlipImage);
     }
 
     /// <summary>
@@ -798,6 +834,10 @@ public sealed partial class PptxDocument
     ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the
     ///     default) - see <see cref="ResolveFill"/>'s matching parameter.
     /// </param>
+    /// <param name="resolveBlipImage">
+    ///     Threaded unchanged into this method's own <see cref="ResolveLineStyle"/> call - see
+    ///     <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
     /// <returns>
     ///     The resolved <see cref="PptxLineStyle"/>, or <see langword="null"/> meaning "no
     ///     stroke": when <paramref name="styleElement"/> is <see langword="null"/>, declares no
@@ -811,7 +851,8 @@ public sealed partial class PptxDocument
     ///     <see cref="ResolveShapeStyleFill"/>'s matching exception documentation.
     /// </exception>
     internal static PptxLineStyle? ResolveShapeStyleLineStyle(
-        XElement? styleElement, PptxTheme theme, PptxColorMap? colorMap = null)
+        XElement? styleElement, PptxTheme theme, PptxColorMap? colorMap = null,
+        Func<XElement, Surface>? resolveBlipImage = null)
     {
         colorMap ??= PptxColorMap.Default;
 
@@ -838,7 +879,7 @@ public sealed partial class PptxDocument
         var colorElement = lnRef.Elements().FirstOrDefault();
         var phClrOverride = colorElement is null ? (Rgba32?)null : ResolveColor(colorElement, theme, colorMap: colorMap);
 
-        return ResolveLineStyle(styleEntry, theme, colorMap, phClrOverride);
+        return ResolveLineStyle(styleEntry, theme, colorMap, phClrOverride, resolveBlipImage);
     }
 
     /// <summary>
@@ -882,6 +923,11 @@ public sealed partial class PptxDocument
     ///     val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the default) - see
     ///     <see cref="ResolveFill"/>'s matching parameter.
     /// </param>
+    /// <param name="resolveBlipImage">
+    ///     Threaded unchanged into this method's own <see cref="ResolveLineStyle"/>/
+    ///     <see cref="ResolveShapeStyleLineStyle"/> calls - see <see cref="ResolveFill"/>'s
+    ///     matching parameter.
+    /// </param>
     /// <returns>
     ///     The resolved <see cref="PptxLineStyle"/>, or <see langword="null"/> meaning "no
     ///     stroke" - see this method's own remarks and <see cref="ResolveLineStyle"/>/
@@ -893,12 +939,13 @@ public sealed partial class PptxDocument
     ///     finite floating-point number - see <see cref="ParseOptionalLineWidthAttribute"/>.
     /// </exception>
     internal static PptxLineStyle? ResolveShapeLineStyle(
-        XElement? lnElement, XElement? styleElement, PptxTheme theme, PptxColorMap? colorMap = null)
+        XElement? lnElement, XElement? styleElement, PptxTheme theme, PptxColorMap? colorMap = null,
+        Func<XElement, Surface>? resolveBlipImage = null)
     {
         // Case 4: a fully absent <a:ln> defers entirely to the style <a:lnRef>.
         if (lnElement is null)
         {
-            return ResolveShapeStyleLineStyle(styleElement, theme, colorMap);
+            return ResolveShapeStyleLineStyle(styleElement, theme, colorMap, resolveBlipImage);
         }
 
         // Cases 1/2: an explicit fill-definition child (including <a:noFill/>) on the shape's own
@@ -906,7 +953,7 @@ public sealed partial class PptxDocument
         // null for an explicit <a:noFill/>, distinguishing it from case 3 below.
         if (HasExplicitFillChild(lnElement))
         {
-            return ResolveLineStyle(lnElement, theme, colorMap);
+            return ResolveLineStyle(lnElement, theme, colorMap, resolveBlipImage: resolveBlipImage);
         }
 
         // Case 3: a present <a:ln> with no recognized fill-definition child of its own keeps its
@@ -918,7 +965,7 @@ public sealed partial class PptxDocument
             return null;
         }
 
-        var styleLineStyle = ResolveShapeStyleLineStyle(styleElement, theme, colorMap);
+        var styleLineStyle = ResolveShapeStyleLineStyle(styleElement, theme, colorMap, resolveBlipImage);
         var paint = styleLineStyle?.Paint ?? PptxNoFill.Instance;
         if (paint is PptxNoFill)
         {

@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
@@ -149,6 +150,10 @@ public sealed partial class PptxDocument
     /// <param name="cellHeightEmu">The cell's own (unmerged, single-row) height, in EMU - needed to position a gradient fill.</param>
     /// <param name="theme">The resolved theme, used to resolve any <c>&lt;a:schemeClr&gt;</c> in a style tier's fill/border.</param>
     /// <param name="colorMap">The effective color map - see <see cref="ParseTable"/>'s matching parameter.</param>
+    /// <param name="resolveBlipImage">
+    ///     Threaded unchanged into this method's own <see cref="ResolveTableCellFill"/> call - see
+    ///     <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
     /// <returns>
     ///     The resolved fill and four border edges, in the same shape <see cref="ParseTableCell"/>
     ///     already stores on <see cref="PptxTableCell"/>.
@@ -168,7 +173,8 @@ public sealed partial class PptxDocument
             float cellWidthEmu,
             float cellHeightEmu,
             PptxTheme theme,
-            PptxColorMap? colorMap)
+            PptxColorMap? colorMap,
+            Func<XElement, Surface>? resolveBlipImage = null)
     {
         var isHeaderRow = firstRowEnabled && rowIndex == 0;
 
@@ -190,7 +196,7 @@ public sealed partial class PptxDocument
         // edge's own tier walk below.
         var tiers = new[] { firstRowTcStyle, bandTcStyle, wholeTcStyle };
 
-        var fill = ResolveTableCellFill(tcPrElement, tiers, cellWidthEmu, cellHeightEmu, theme, colorMap);
+        var fill = ResolveTableCellFill(tcPrElement, tiers, cellWidthEmu, cellHeightEmu, theme, colorMap, resolveBlipImage);
 
         var isFirstColumn = columnIndex == 0;
         var isLastColumn = columnIndex + gridSpan >= totalColumns;
@@ -215,11 +221,11 @@ public sealed partial class PptxDocument
     /// </summary>
     private static PptxPaint ResolveTableCellFill(
         XElement? tcPrElement, IReadOnlyList<XElement?> tiers, float cellWidthEmu, float cellHeightEmu,
-        PptxTheme theme, PptxColorMap? colorMap)
+        PptxTheme theme, PptxColorMap? colorMap, Func<XElement, Surface>? resolveBlipImage = null)
     {
         if (tcPrElement is not null && HasExplicitFillChild(tcPrElement))
         {
-            return ResolveFill(tcPrElement, theme, cellWidthEmu, cellHeightEmu, colorMap: colorMap);
+            return ResolveFill(tcPrElement, theme, cellWidthEmu, cellHeightEmu, colorMap: colorMap, resolveBlipImage: resolveBlipImage);
         }
 
         foreach (var tier in tiers)
@@ -227,7 +233,7 @@ public sealed partial class PptxDocument
             var fillElement = tier?.Element(DrawingNamespace + "fill");
             if (fillElement is not null)
             {
-                return ResolveFill(fillElement, theme, cellWidthEmu, cellHeightEmu, colorMap: colorMap);
+                return ResolveFill(fillElement, theme, cellWidthEmu, cellHeightEmu, colorMap: colorMap, resolveBlipImage: resolveBlipImage);
             }
         }
 

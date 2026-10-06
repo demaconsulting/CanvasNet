@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
@@ -106,9 +107,14 @@ public sealed partial class PptxDocument
     ///     <see langword="true"/>, this exception is instead caught and the offending node
     ///     silently skipped.
     /// </exception>
+    /// <param name="resolveBlipImage">
+    ///     Threaded unchanged into <see cref="ParseTable"/> and the recursive
+    ///     <c>&lt;p:grpSp&gt;</c> self-call - see <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
     internal static IReadOnlyList<PptxShapeTreeNode> ParseShapeTree(
         XElement spTreeOrGroupElement, Func<PptxTheme> themeResolver, Func<string, XElement?>? tableStyleResolver = null,
-        Func<PptxColorMap>? colorMapResolver = null, bool containUnsupportedGraphicFrames = false)
+        Func<PptxColorMap>? colorMapResolver = null, bool containUnsupportedGraphicFrames = false,
+        Func<XElement, Surface>? resolveBlipImage = null)
     {
         var nodes = new List<PptxShapeTreeNode>();
 
@@ -127,7 +133,7 @@ public sealed partial class PptxDocument
                 try
                 {
                     nodes.Add(new PptxGraphicFrameShapeNode(
-                        child, ParseTable(child, themeResolver(), colorMapResolver?.Invoke(), tableStyleResolver)));
+                        child, ParseTable(child, themeResolver(), colorMapResolver?.Invoke(), tableStyleResolver, resolveBlipImage)));
                 }
                 catch (PptxUnsupportedFeatureException) when (containUnsupportedGraphicFrames)
                 {
@@ -141,7 +147,9 @@ public sealed partial class PptxDocument
                 var groupXfrm = child.Element(PresentationNamespace + "grpSpPr")?.Element(DrawingNamespace + "xfrm") ??
                     throw new InvalidDataException("A <p:grpSp> element has no <p:grpSpPr>/<a:xfrm> element.");
                 var childTransform = ResolveGroupChildTransform(groupXfrm);
-                var children = ParseShapeTree(child, themeResolver, tableStyleResolver, colorMapResolver, containUnsupportedGraphicFrames);
+                var children = ParseShapeTree(
+                    child, themeResolver, tableStyleResolver, colorMapResolver, containUnsupportedGraphicFrames,
+                    resolveBlipImage);
                 nodes.Add(new PptxGroupShapeNode(child, childTransform, children));
             }
             else if (child.Name == PresentationNamespace + "cxnSp")
