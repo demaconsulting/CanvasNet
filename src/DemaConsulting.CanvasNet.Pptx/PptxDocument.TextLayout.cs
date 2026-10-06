@@ -207,6 +207,11 @@ public sealed partial class PptxDocument
     ///     at the 10% floor, whichever comes first.
     /// </summary>
     /// <returns>A <c>(FontScale, LineSpacingFactor)</c> pair, each <c>1.0</c> meaning "unscaled".</returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="autofitElement"/>'s <c>fontScale</c>/<c>lnSpcReduction</c>
+    ///     attribute is present but not a well-formed, finite <see cref="float"/> - see
+    ///     <c>PptxDocument.TextInheritance.cs</c>'s <c>ParseNullableFloatAttribute</c>.
+    /// </exception>
     private static (float FontScale, float LineSpacingFactor) ResolveAutofitScale(
         System.Xml.Linq.XElement? autofitElement,
         IReadOnlyList<ResolvedParagraph> paragraphs,
@@ -220,8 +225,8 @@ public sealed partial class PptxDocument
             return (1f, 1f);
         }
 
-        var fontScaleAttribute = (float?)autofitElement.Attribute("fontScale");
-        var lnSpcReductionAttribute = (float?)autofitElement.Attribute("lnSpcReduction");
+        var fontScaleAttribute = ParseNullableFloatAttribute(autofitElement.Attribute("fontScale"));
+        var lnSpcReductionAttribute = ParseNullableFloatAttribute(autofitElement.Attribute("lnSpcReduction"));
         if (fontScaleAttribute is { } || lnSpcReductionAttribute is { })
         {
             var fontScale = fontScaleAttribute is { } storedFontScale ? storedFontScale / 100000f : 1f;

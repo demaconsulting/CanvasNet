@@ -191,14 +191,14 @@ public sealed partial class PptxDocument
 
         var marL =
             raw.MarLEmu ??
-            (float?)placeholderLevelElement?.Attribute("marL") ??
-            (float?)masterLevelElement?.Attribute("marL") ??
+            ParseNullableFloatAttribute(placeholderLevelElement?.Attribute("marL")) ??
+            ParseNullableFloatAttribute(masterLevelElement?.Attribute("marL")) ??
             0f;
 
         var indent =
             raw.IndentEmu ??
-            (float?)placeholderLevelElement?.Attribute("indent") ??
-            (float?)masterLevelElement?.Attribute("indent") ??
+            ParseNullableFloatAttribute(placeholderLevelElement?.Attribute("indent")) ??
+            ParseNullableFloatAttribute(masterLevelElement?.Attribute("indent")) ??
             0f;
 
         var lineSpacing =
@@ -381,7 +381,7 @@ public sealed partial class PptxDocument
 
         // <a:buAutoNum>.
         var autoNumType = (string?)typeElement.Attribute("type") ?? "arabicPeriod";
-        var startAt = (int?)typeElement.Attribute("startAt") ?? 1;
+        var startAt = ParseOptionalIntAttribute(typeElement, "startAt") ?? 1;
         return (PptxBulletKind.AutoNum, null, autoNumType, startAt);
     }
 
@@ -444,12 +444,12 @@ public sealed partial class PptxDocument
 
         if (sizeElement.Name == DrawingNamespace + "buSzPct")
         {
-            var val = (float?)sizeElement.Attribute("val") ?? 100000f;
+            var val = ParseNullableFloatAttribute(sizeElement.Attribute("val")) ?? 100000f;
             return baseSizeEmu * (val / 100000f);
         }
 
         // <a:buSzPts>: val is hundredths of a point, the same convention as <a:rPr sz="..."/>.
-        var pts = (float?)sizeElement.Attribute("val") ?? 0f;
+        var pts = ParseNullableFloatAttribute(sizeElement.Attribute("val")) ?? 0f;
         return pts * HundredthsOfPointToEmu;
     }
 
@@ -534,7 +534,7 @@ public sealed partial class PptxDocument
     /// </summary>
     private static float? GetFontSizeEmu(XElement? rPrLikeElement)
     {
-        var sz = (float?)rPrLikeElement?.Attribute("sz");
+        var sz = ParseNullableFloatAttribute(rPrLikeElement?.Attribute("sz"));
         return sz is { } value ? value * HundredthsOfPointToEmu : null;
     }
 
@@ -636,17 +636,60 @@ public sealed partial class PptxDocument
         var spcPct = lnSpcElement.Element(DrawingNamespace + "spcPct");
         if (spcPct is not null)
         {
-            var val = (float?)spcPct.Attribute("val") ?? 100000f;
+            var val = ParseNullableFloatAttribute(spcPct.Attribute("val")) ?? 100000f;
             return new PptxLineSpacing(val / 100000f, null);
         }
 
         var spcPts = lnSpcElement.Element(DrawingNamespace + "spcPts");
         if (spcPts is not null)
         {
-            var val = (float?)spcPts.Attribute("val") ?? 0f;
+            var val = ParseNullableFloatAttribute(spcPts.Attribute("val")) ?? 0f;
             return new PptxLineSpacing(null, val * SpcPtsToEmu);
         }
 
         return null;
+    }
+
+    /// <summary>
+    ///     Parses <paramref name="attribute"/>'s value as an invariant-culture, finite
+    ///     <see cref="float"/>, the same way the explicit <c>(float?)</c> cast operator does, but
+    ///     rejects a present-but-malformed (non-numeric, out-of-range, or non-finite) value with
+    ///     <see cref="InvalidDataException"/> instead of letting the cast operator's raw
+    ///     <see cref="FormatException"/>/<see cref="OverflowException"/> propagate uncaught -
+    ///     mirroring <c>PptxDocument.Geometry.cs</c>'s <c>ParseRequiredFloatAttribute</c> guarded-
+    ///     parse convention, adapted to operate directly on an already-null-propagated
+    ///     <see cref="XAttribute"/> (several call sites in this file resolve the owning element
+    ///     nullably, e.g. <c>placeholderLevelElement?.Attribute("marL")</c>, before this helper is
+    ///     ever reached).
+    /// </summary>
+    /// <param name="attribute">The attribute to parse, or <see langword="null"/>.</param>
+    /// <returns>
+    ///     The parsed, finite value, or <see langword="null"/> when <paramref name="attribute"/>
+    ///     is <see langword="null"/>.
+    /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="attribute"/> is present but its value is not a well-formed,
+    ///     finite <see cref="float"/>.
+    /// </exception>
+    private static float? ParseNullableFloatAttribute(XAttribute? attribute)
+    {
+        if (attribute is null)
+        {
+            return null;
+        }
+
+        if (!float.TryParse(attribute.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+        {
+            throw new InvalidDataException(
+                $"Attribute '{attribute.Name}' has a non-numeric value '{attribute.Value}'.");
+        }
+
+        if (!float.IsFinite(parsed))
+        {
+            throw new InvalidDataException(
+                $"Attribute '{attribute.Name}' has a non-finite value '{attribute.Value}'.");
+        }
+
+        return parsed;
     }
 }

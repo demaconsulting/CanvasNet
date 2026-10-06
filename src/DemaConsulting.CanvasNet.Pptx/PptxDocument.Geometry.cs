@@ -189,18 +189,26 @@ public sealed partial class PptxDocument
         return builder.Build();
     }
 
-    /// <summary>Appends one <c>&lt;a:path&gt;</c> element's commands to <paramref name="builder"/>, scaled to the shape's actual size.</summary>
+    /// <summary>
+    ///     Appends one <c>&lt;a:path&gt;</c> element's commands to <paramref name="builder"/>,
+    ///     scaled to the shape's actual size.
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="pathElement"/>'s own <c>w</c>/<c>h</c> attribute, or any
+    ///     <c>&lt;a:pt&gt;</c> child's <c>x</c>/<c>y</c> attribute, is present but non-numeric -
+    ///     see <see cref="ParseOptionalFloatAttribute(XElement, string, float)"/>.
+    /// </exception>
     private static void AppendCustomPath(PathBuilder builder, XElement pathElement, float widthEmu, float heightEmu)
     {
-        var pathW = (float?)pathElement.Attribute("w") ?? widthEmu;
-        var pathH = (float?)pathElement.Attribute("h") ?? heightEmu;
+        var pathW = ParseOptionalFloatAttribute(pathElement, "w", widthEmu);
+        var pathH = ParseOptionalFloatAttribute(pathElement, "h", heightEmu);
         var scaleX = pathW == 0f ? 1f : widthEmu / pathW;
         var scaleY = pathH == 0f ? 1f : heightEmu / pathH;
 
         Vector2 Scale(XElement ptElement)
         {
-            var x = (float?)ptElement.Attribute("x") ?? 0f;
-            var y = (float?)ptElement.Attribute("y") ?? 0f;
+            var x = ParseOptionalFloatAttribute(ptElement, "x", 0f);
+            var y = ParseOptionalFloatAttribute(ptElement, "y", 0f);
             return new Vector2(x * scaleX, y * scaleY);
         }
 
@@ -301,6 +309,45 @@ public sealed partial class PptxDocument
     {
         var value = (string?)element.Attribute(attributeName) ??
             throw new InvalidDataException($"An <{element.Name.LocalName}> element has no '{attributeName}' attribute.");
+
+        if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+        {
+            throw new InvalidDataException(
+                $"An <{element.Name.LocalName}> element has a non-numeric '{attributeName}' attribute value '{value}'.");
+        }
+
+        if (!float.IsFinite(parsed))
+        {
+            throw new InvalidDataException(
+                $"An <{element.Name.LocalName}> element has a non-finite '{attributeName}' attribute value '{value}'.");
+        }
+
+        return parsed;
+    }
+
+    /// <summary>
+    ///     Parses <paramref name="element"/>'s <paramref name="attributeName"/> attribute as an
+    ///     invariant-culture floating-point value, falling back to <paramref name="defaultValue"/>
+    ///     when the attribute itself is absent, but failing closed with
+    ///     <see cref="InvalidDataException"/> (not a silent default) whenever the attribute IS
+    ///     present with a non-numeric/non-finite value - used by <c>AppendCustomPath</c>'s own
+    ///     schema-optional <c>&lt;a:path&gt;</c> <c>w</c>/<c>h</c> and <c>&lt;a:pt&gt;</c> <c>x</c>/
+    ///     <c>y</c> attributes, each of which previously read via an explicit <c>(float?)</c>
+    ///     cast whose raw <see cref="FormatException"/>/<see cref="OverflowException"/> would
+    ///     otherwise propagate uncaught for a crafted/corrupted custom-geometry path - mirroring
+    ///     this file's own <see cref="ParseRequiredFloatAttribute(XElement, string)"/> precedent
+    ///     for the always-required case.
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the attribute is present but not a finite floating-point number.
+    /// </exception>
+    private static float ParseOptionalFloatAttribute(XElement element, string attributeName, float defaultValue)
+    {
+        var value = (string?)element.Attribute(attributeName);
+        if (value is null)
+        {
+            return defaultValue;
+        }
 
         if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
         {

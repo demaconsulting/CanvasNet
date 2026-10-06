@@ -319,7 +319,7 @@ public sealed partial class PptxDocument
                 "Only a linear gradient (<a:lin>) is supported; radial/path gradients (<a:path>) are not.");
         }
 
-        var ang60000ths = (int?)lin.Attribute("ang") ?? 0;
+        var ang60000ths = ParseOptionalIntAttribute(lin, "ang") ?? 0;
         var angleRadians = ang60000ths / 60000f * (MathF.PI / 180f);
         var direction = new Vector2(MathF.Cos(angleRadians), MathF.Sin(angleRadians));
         var extent = (MathF.Abs(direction.X) * widthEmu + MathF.Abs(direction.Y) * heightEmu) / 2f;
