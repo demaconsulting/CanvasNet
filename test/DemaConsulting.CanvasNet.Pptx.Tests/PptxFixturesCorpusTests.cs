@@ -85,6 +85,73 @@ public class PptxFixturesCorpusTests
     }
 
     /// <summary>
+    ///     Proves both <paramref name="first"/> and <paramref name="second"/> appear somewhere
+    ///     within the pixel rectangle <c>[x0, x1) x [y0, y1)</c> of <paramref name="surface"/> -
+    ///     used to prove a pattern-fill tile genuinely paints real foreground/background variation
+    ///     rather than a flat fill, by sampling a strip well inside a pattern-filled shape's own
+    ///     rounded-rectangle bounds (away from its stroke, rounded corners, and centered text) so
+    ///     only the tile's own two colors are expected to appear.
+    /// </summary>
+    private static void AssertRegionContainsBothColors(
+        Surface surface,
+        int x0,
+        int y0,
+        int x1,
+        int y1,
+        Rgba32 first,
+        Rgba32 second)
+    {
+        var sawFirst = false;
+        var sawSecond = false;
+        for (var y = y0; y < y1; y++)
+        {
+            for (var x = x0; x < x1; x++)
+            {
+                var pixel = surface[x, y];
+                if (pixel == first)
+                {
+                    sawFirst = true;
+                }
+                else if (pixel == second)
+                {
+                    sawSecond = true;
+                }
+            }
+        }
+
+        Assert.True(sawFirst, $"Expected color {first} to appear within [{x0},{y0})-[{x1},{y1}).");
+        Assert.True(sawSecond, $"Expected color {second} to appear within [{x0},{y0})-[{x1},{y1}).");
+    }
+
+    /// <summary>
+    ///     Proves <paramref name="surface"/> is fully opaque pure white (no color override at all)
+    ///     throughout the pixel rectangle <c>[x0, x1) x [y0, y1)</c> - used to prove a bare,
+    ///     attribute-less <c>&lt;a:pattFill/&gt;</c> (no <c>prst</c> at all) resolves to
+    ///     <see cref="PptxNoFill"/> rather than falling back to the shape's own
+    ///     <c>&lt;p:style&gt;/&lt;a:fillRef&gt;</c> (which, for this fixture shape, resolves to a
+    ///     visibly non-white accent1 gradient/solid - see the fixture's own
+    ///     <c>fillRef idx="3"</c>). The slide's own background renders fully opaque white (not
+    ///     literally transparent - see this test's own remarks), so "no override fill painted"
+    ///     is proven by the shape's own interior matching that same opaque white, not by a
+    ///     literal zero-alpha pixel. The sampled strip is chosen well inside the shape's own
+    ///     bounds, away from its stroke and its own centered text, so only the shape's own fill
+    ///     (or lack of it) could plausibly affect these pixels.
+    /// </summary>
+    private static void AssertRegionIsUnfilledWhite(Surface surface, int x0, int y0, int x1, int y1)
+    {
+        var white = new Rgba32(255, 255, 255, 255);
+        for (var y = y0; y < y1; y++)
+        {
+            for (var x = x0; x < x1; x++)
+            {
+                Assert.True(
+                    surface[x, y] == white,
+                    $"Expected unfilled pure-white pixel at ({x},{y}), found {surface[x, y]}.");
+            }
+        }
+    }
+
+    /// <summary>
     ///     Proves <c>pythonpptx-sld-blank.pptx</c> and <c>samplelib-sample-blank.pptx</c> - one
     ///     truly empty slide each, from two independent real-world sources - open, report exactly
     ///     one slide at a sane (positive) declared size, and render without error. Unlike every
@@ -449,42 +516,64 @@ public class PptxFixturesCorpusTests
     ///     order (inherited fill, explicit <c>&lt;a:noFill/&gt;</c>, solid RGB fill, a real embedded
     ///     <c>&lt;a:blipFill&gt;&lt;a:blip r:embed="..."/&gt;&lt;a:tile tx="0" ty="0" sx="100000"
     ///     sy="100000"/&gt;&lt;/a:blipFill&gt;</c> picture fill, a linear gradient fill, and finally
-    ///     an <c>&lt;a:pattFill&gt;</c> pattern fill - on this <em>same</em> slide - no longer fails
-    ///     on the picture-fill shape. Before this feature, rendering slide 0 threw
-    ///     <c>"pptx-picture-fill"</c> as soon as the shape-tree walk reached the fourth
-    ///     (blip/tile-filled) shape; now that picture fill is supported (see
-    ///     <c>PptxPaint.cs</c>'s <see cref="PptxImageFill"/> and <c>PptxDocument.Paint.cs</c>'s
-    ///     <c>ResolveFill</c>), that shape resolves and paints successfully, and the walk instead
-    ///     proceeds to the sixth (and last) shape's still out-of-scope <c>&lt;a:pattFill&gt;</c>,
-    ///     which now raises <c>"pptx-pattern-fill"</c> instead - itself proof the picture fill is no
-    ///     longer the blocker. A genuine, full end-to-end "renders without throwing" assertion for
-    ///     an <c>&lt;a:blipFill&gt;</c>/<c>&lt;a:tile&gt;</c> shape fill (this slide cannot satisfy
-    ///     that, since it also contains an unrelated, out-of-scope pattern-filled shape) lives in
+    ///     an <c>&lt;a:pattFill prst="divot"&gt;</c> pattern fill - on this <em>same</em> slide -
+    ///     now renders completely without throwing. Before picture-fill support, rendering slide 0
+    ///     threw <c>"pptx-picture-fill"</c> as soon as the shape-tree walk reached the fourth
+    ///     (blip/tile-filled) shape; after picture-fill support, it threw <c>"pptx-pattern-fill"</c>
+    ///     instead, once the walk reached the sixth (and last, divot-pattern-filled) shape. Now
+    ///     that pattern fill is also supported (see <c>PptxPaint.cs</c>'s
+    ///     <see cref="PptxPatternFill"/> and <c>PptxDocument.Paint.cs</c>'s <c>ResolveFill</c>),
+    ///     every shape on this slide resolves and paints successfully - proven here by sampling a
+    ///     strip well inside the divot shape's own bounds and asserting both its resolved
+    ///     foreground (<c>srgbClr val="2CB731"</c>) and background (<c>prstClr val="white"</c>)
+    ///     colors actually appear, confirming real tile variation rather than a flat/degenerate
+    ///     fill. A genuine, full end-to-end "renders without throwing" assertion for an
+    ///     <c>&lt;a:blipFill&gt;</c>/<c>&lt;a:tile&gt;</c> shape fill (this slide cannot isolate
+    ///     that alone, since it also contains other shapes) lives in
     ///     <see cref="PptxSystemIntegrationTests.CanvasNetPptx_SystemIntegration_Images_TileBlipFillShapeDecodesAndRendersEndToEnd"/>
     ///     instead, against a minimal, purpose-built single-shape package.
     /// </summary>
     [Fact]
-    public void PptxDocument_Render_DmlFillFixture_Slide0PictureFillNoLongerBlocksRenderingOnlyPatternFillThrows()
+    public void PptxDocument_Render_DmlFillFixture_Slide0RendersPictureAndPatternFillShapesWithoutThrowing()
     {
         // Arrange
         using var document = PptxDocument.Open(Fixture("pythonpptx-dml-fill.pptx"));
 
-        // Act & Assert: the walk now gets past the blip/tile picture-fill shape and only fails on
-        // the still out-of-scope pattern-fill shape later in the same slide's shape tree.
-        var exception = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(0, Dpi, Transparent));
-        Assert.Equal("pptx-pattern-fill", exception.Feature);
+        // Act: the walk now gets past both the blip/tile picture-fill shape and the
+        // divot-pattern-filled shape without throwing.
+        using var surface = document.Render(0, Dpi, Transparent);
+
+        // Assert: real content was painted somewhere on the slide.
+        AssertPaintedSomePixel(surface);
+
+        // Assert: the last shape ("Rounded Rectangle 9", off (457200,1836780), ext
+        // (1368245,914400) EMU - see PptxFixtures\README.md's dml-fill.pptx provenance notes)
+        // genuinely paints both its resolved divot foreground and background colors - not a flat
+        // fill - sampled well inside its rounded-rectangle bounds, away from its stroke, rounded
+        // corners, and centered text.
+        var divotFg = new Rgba32(0x2C, 0xB7, 0x31, 255);
+        var divotBg = new Rgba32(0xFF, 0xFF, 0xFF, 255);
+        AssertRegionContainsBothColors(surface, 68, 213, 171, 233, divotFg, divotBg);
+        AssertRegionContainsBothColors(surface, 68, 249, 171, 269, divotFg, divotBg);
     }
 
     /// <summary>
-    ///     Proves slide 1 of <c>pythonpptx-dml-fill.pptx</c> still throws
-    ///     <see cref="PptxUnsupportedFeatureException"/> for a documented, already-implemented
-    ///     deferred-fill construct: an ordinary shape's own <c>&lt;p:spPr&gt;</c> using
-    ///     <c>&lt;a:pattFill&gt;</c> (a pattern fill, feature token <c>"pptx-pattern-fill"</c>) -
-    ///     out of scope for the picture-fill (<c>&lt;a:blipFill&gt;</c>) support added alongside
-    ///     this test (see <see cref="PptxDocument_Render_DmlFillFixture_Slide0PictureFillNoLongerBlocksRenderingOnlyPatternFillThrows"/>).
+    ///     Proves slide 1 of <c>pythonpptx-dml-fill.pptx</c> - three shapes: a bare, attribute-less
+    ///     <c>&lt;a:pattFill/&gt;</c> (no <c>prst</c> at all), a <c>prst="divot"</c> pattern fill,
+    ///     and a <c>prst="wave"</c> pattern fill - renders completely without throwing, now that
+    ///     pattern fill is supported (feature token <c>"pptx-pattern-fill"</c> no longer applies to
+    ///     either covered preset in this fixture). The bare <c>&lt;a:pattFill/&gt;</c> shape (named
+    ///     "autoshape with inherited fill" in its own text run, but in fact resolving to
+    ///     <see cref="PptxNoFill"/> rather than its own style's <c>&lt;a:fillRef idx="3"&gt;</c> -
+    ///     a deliberate, documented design decision; see the planning report's own Assumption 3)
+    ///     is proven to paint no fill-color override of its own: the slide's own background
+    ///     renders fully opaque white (not literally transparent), so its sampled interior (away
+    ///     from its own stroke and centered text) is proven to remain that same unfilled white
+    ///     rather than painting its style's own fillRef accent1 fill. The two named-preset shapes
+    ///     are each proven to paint both their resolved foreground and background colors.
     /// </summary>
     [Fact]
-    public void PptxDocument_Render_DmlFillFixture_Slide1PatternFillThrowsUnsupportedFillFeature()
+    public void PptxDocument_Render_DmlFillFixture_Slide1PatternFillShapesRenderAndBareFillIsTransparent()
     {
         // Arrange
         using var document = PptxDocument.Open(Fixture("pythonpptx-dml-fill.pptx"));
@@ -492,9 +581,30 @@ public class PptxFixturesCorpusTests
         // Assert: slide count
         Assert.Equal(2, document.SlideCount);
 
-        // Act & Assert: slide 1's shape-background pattern fill throws.
-        var exception = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(1, Dpi, Transparent));
-        Assert.Equal("pptx-pattern-fill", exception.Feature);
+        // Act: slide 1 renders completely without throwing.
+        using var surface = document.Render(1, Dpi, Transparent);
+
+        // Assert: "Rounded Rectangle 1" (off (457200,457200), ext (1368245,914400) EMU) has a
+        // bare <a:pattFill/> with no prst attribute at all, resolving to PptxNoFill - its interior
+        // (sampled away from its own stroke and centered text) remains unfilled white, not
+        // falling back to its style's fillRef accent1 fill.
+        AssertRegionIsUnfilledWhite(surface, 65, 58, 175, 76);
+        AssertRegionIsUnfilledWhite(surface, 65, 128, 175, 140);
+
+        // Assert: "Rounded Rectangle 2" (off (2291174,457200), ext (1368245,914400) EMU) has
+        // prst="divot" with the same fg/bg colors as slide 0's divot shape, and genuinely paints
+        // both.
+        var divotFg = new Rgba32(0x2C, 0xB7, 0x31, 255);
+        var divotBg = new Rgba32(0xFF, 0xFF, 0xFF, 255);
+        AssertRegionContainsBothColors(surface, 260, 68, 363, 88, divotFg, divotBg);
+        AssertRegionContainsBothColors(surface, 260, 104, 363, 124, divotFg, divotBg);
+
+        // Assert: "Rounded Rectangle 3" (off (4114800,457200), ext (1368245,914400) EMU) has
+        // prst="wave" with its own distinct fg/bg colors, and genuinely paints both.
+        var waveFg = new Rgba32(0xC0, 0x50, 0x4D, 255);
+        var waveBg = new Rgba32(0xFF, 0xFF, 0xFF, 255);
+        AssertRegionContainsBothColors(surface, 452, 68, 555, 88, waveFg, waveBg);
+        AssertRegionContainsBothColors(surface, 452, 104, 555, 124, waveFg, waveBg);
     }
 
     /// <summary>

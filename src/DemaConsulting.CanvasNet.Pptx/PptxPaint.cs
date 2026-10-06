@@ -15,14 +15,14 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     A deliberately <b>closed</b> type hierarchy, mirroring <see cref="Gradient"/>'s own
 ///     documented rationale: <see cref="PptxPaint"/>'s constructor is
 ///     <see langword="private protected"/>, so only <see cref="PptxNoFill"/>,
-///     <see cref="PptxSolidFill"/>, <see cref="PptxGradientFill"/>, and <see cref="PptxImageFill"/> -
-///     all declared in this same file/assembly - may derive from it. A later rendering phase that
-///     consumes <see cref="PptxPaint"/> pattern-matches exhaustively on exactly these four
-///     subtypes.
+///     <see cref="PptxSolidFill"/>, <see cref="PptxGradientFill"/>, <see cref="PptxImageFill"/>,
+///     and <see cref="PptxPatternFill"/> - all declared in this same file/assembly - may derive
+///     from it. A later rendering phase that consumes <see cref="PptxPaint"/> pattern-matches
+///     exhaustively on exactly these five subtypes.
 /// </remarks>
 internal abstract record PptxPaint
 {
-    /// <summary>Restricts this hierarchy to the four subtypes declared in this file - see this type's remarks.</summary>
+    /// <summary>Restricts this hierarchy to the five subtypes declared in this file - see this type's remarks.</summary>
     private protected PptxPaint()
     {
     }
@@ -86,3 +86,153 @@ internal sealed record PptxGradientFill(Gradient Gradient) : PptxPaint;
 ///     <see cref="Gradient.WithTransform"/> composition pattern.
 /// </param>
 internal sealed record PptxImageFill(Surface Image, Matrix3x2 ImageToLocalTransform) : PptxPaint;
+
+/// <summary>
+///     The ECMA-376 <c>ST_PresetPatternVal</c> preset-pattern names this project resolves (as
+///     distinct from throwing <see cref="PptxUnsupportedFeatureException"/>) for an
+///     <c>&lt;a:pattFill prst="..."/&gt;</c> element - see <see cref="PptxDocument.ResolveFill"/>.
+/// </summary>
+/// <remarks>
+///     <para>
+///     <b>Covered (30 of the 54 named <c>ST_PresetPatternVal</c> values)</b>: the two preset names
+///     the project's own <c>pythonpptx-dml-fill.pptx</c> fixture requires
+///     (<see cref="Divot"/>, <see cref="Wave"/>); the horizontal/vertical stripe family
+///     (<see cref="Horz"/>, <see cref="Vert"/>, <see cref="LtHorz"/>, <see cref="LtVert"/>,
+///     <see cref="DkHorz"/>, <see cref="DkVert"/>); the diagonal-stripe family
+///     (<see cref="DnDiag"/>, <see cref="UpDiag"/>, <see cref="LtDnDiag"/>,
+///     <see cref="LtUpDiag"/>, <see cref="DkDnDiag"/>, <see cref="DkUpDiag"/>,
+///     <see cref="WdDnDiag"/>, <see cref="WdUpDiag"/>); the cross-hatch family
+///     (<see cref="Cross"/>, <see cref="DiagCross"/>); and the percentage/dot-density family
+///     (<see cref="Pct5"/>, <see cref="Pct10"/>, <see cref="Pct20"/>, <see cref="Pct25"/>,
+///     <see cref="Pct30"/>, <see cref="Pct40"/>, <see cref="Pct50"/>, <see cref="Pct60"/>,
+///     <see cref="Pct70"/>, <see cref="Pct75"/>, <see cref="Pct80"/>, <see cref="Pct90"/>).
+///     </para>
+///     <para>
+///     <b>Explicitly deferred (the remaining 24 names)</b>, each still throwing
+///     <see cref="PptxUnsupportedFeatureException"/> (feature token <c>"pptx-pattern-fill"</c>)
+///     from <see cref="PptxDocument.ResolveFill"/>: <c>narHorz</c>, <c>narVert</c>,
+///     <c>dashHorz</c>, <c>dashVert</c>, <c>dashDnDiag</c>, <c>dashUpDiag</c>, <c>diagBrick</c>,
+///     <c>horzBrick</c>, <c>plaid</c>, <c>sphere</c>, <c>weave</c>, <c>shingle</c>, <c>trellis</c>,
+///     <c>zigZag</c>, <c>dotGrid</c>, <c>dotDmnd</c>, <c>openDmnd</c>, <c>solidDmnd</c>,
+///     <c>smCheck</c>, <c>lgCheck</c>, <c>smGrid</c>, <c>lgGrid</c>, <c>smConfetti</c>,
+///     <c>lgConfetti</c>.
+///     </para>
+///     <para>
+///     A separate, non-named edge case - an <c>&lt;a:pattFill&gt;</c> with no <c>prst</c>
+///     attribute at all (non-conformant per ECMA-376, but present in the real
+///     <c>pythonpptx-dml-fill.pptx</c> fixture) - is not a member of this enum at all: it resolves
+///     to <see cref="PptxNoFill.Instance"/> directly, never reaching
+///     <see cref="PptxPatternFill"/> - see <see cref="PptxDocument.ResolveFill"/>'s remarks.
+///     </para>
+/// </remarks>
+internal enum PptxPresetPattern
+{
+    /// <summary><c>prst="horz"</c>: equal-width alternating horizontal stripes.</summary>
+    Horz,
+
+    /// <summary><c>prst="vert"</c>: equal-width alternating vertical stripes.</summary>
+    Vert,
+
+    /// <summary><c>prst="ltHorz"</c>: thin, sparse horizontal stripes (mostly background).</summary>
+    LtHorz,
+
+    /// <summary><c>prst="ltVert"</c>: thin, sparse vertical stripes (mostly background).</summary>
+    LtVert,
+
+    /// <summary><c>prst="dkHorz"</c>: thick, dense horizontal stripes (mostly foreground).</summary>
+    DkHorz,
+
+    /// <summary><c>prst="dkVert"</c>: thick, dense vertical stripes (mostly foreground).</summary>
+    DkVert,
+
+    /// <summary><c>prst="dnDiag"</c>: equal-width alternating diagonal stripes, falling left-to-right.</summary>
+    DnDiag,
+
+    /// <summary><c>prst="upDiag"</c>: equal-width alternating diagonal stripes, rising left-to-right.</summary>
+    UpDiag,
+
+    /// <summary><c>prst="ltDnDiag"</c>: thin, sparse falling diagonal stripes.</summary>
+    LtDnDiag,
+
+    /// <summary><c>prst="ltUpDiag"</c>: thin, sparse rising diagonal stripes.</summary>
+    LtUpDiag,
+
+    /// <summary><c>prst="dkDnDiag"</c>: thick, dense falling diagonal stripes.</summary>
+    DkDnDiag,
+
+    /// <summary><c>prst="dkUpDiag"</c>: thick, dense rising diagonal stripes.</summary>
+    DkUpDiag,
+
+    /// <summary><c>prst="wdDnDiag"</c>: wide falling diagonal bands.</summary>
+    WdDnDiag,
+
+    /// <summary><c>prst="wdUpDiag"</c>: wide rising diagonal bands.</summary>
+    WdUpDiag,
+
+    /// <summary><c>prst="cross"</c>: a horizontal/vertical cross-hatch grid.</summary>
+    Cross,
+
+    /// <summary><c>prst="diagCross"</c>: a diagonal cross-hatch grid.</summary>
+    DiagCross,
+
+    /// <summary><c>prst="pct5"</c>: an approximately 5%-density dot fill.</summary>
+    Pct5,
+
+    /// <summary><c>prst="pct10"</c>: an approximately 10%-density dot fill.</summary>
+    Pct10,
+
+    /// <summary><c>prst="pct20"</c>: an approximately 20%-density dot fill.</summary>
+    Pct20,
+
+    /// <summary><c>prst="pct25"</c>: an approximately 25%-density dot fill.</summary>
+    Pct25,
+
+    /// <summary><c>prst="pct30"</c>: an approximately 30%-density dot fill.</summary>
+    Pct30,
+
+    /// <summary><c>prst="pct40"</c>: an approximately 40%-density dot fill.</summary>
+    Pct40,
+
+    /// <summary><c>prst="pct50"</c>: an approximately 50%-density dot fill.</summary>
+    Pct50,
+
+    /// <summary><c>prst="pct60"</c>: an approximately 60%-density dot fill.</summary>
+    Pct60,
+
+    /// <summary><c>prst="pct70"</c>: an approximately 70%-density dot fill.</summary>
+    Pct70,
+
+    /// <summary><c>prst="pct75"</c>: an approximately 75%-density dot fill.</summary>
+    Pct75,
+
+    /// <summary><c>prst="pct80"</c>: an approximately 80%-density dot fill.</summary>
+    Pct80,
+
+    /// <summary><c>prst="pct90"</c>: an approximately 90%-density dot fill.</summary>
+    Pct90,
+
+    /// <summary><c>prst="divot"</c>: small diamond-shaped dots, fixture-mandatory (see this enum's remarks).</summary>
+    Divot,
+
+    /// <summary><c>prst="wave"</c>: a wavy horizontal line, fixture-mandatory (see this enum's remarks).</summary>
+    Wave,
+}
+
+/// <summary>
+///     The resolved paint for an <c>&lt;a:pattFill prst="..."/&gt;</c> element naming a covered
+///     <see cref="PptxPresetPattern"/>: a procedurally synthesized repeating tile (see
+///     <see cref="PptxPatternTileRenderer"/>) alternating <see cref="Foreground"/>/
+///     <see cref="Background"/> per the named preset's own pixel rule.
+/// </summary>
+/// <param name="Preset">The resolved, covered preset-pattern name.</param>
+/// <param name="Foreground">
+///     The pattern's resolved foreground color (the <c>&lt;a:fgClr&gt;</c> child's own
+///     color-definition element, via <see cref="PptxDocument.ResolveColor"/>; black when
+///     <c>&lt;a:fgClr&gt;</c> is absent - see <see cref="PptxDocument.ResolveFill"/>'s remarks).
+/// </param>
+/// <param name="Background">
+///     The pattern's resolved background color (the <c>&lt;a:bgClr&gt;</c> child's own
+///     color-definition element, via <see cref="PptxDocument.ResolveColor"/>; white when
+///     <c>&lt;a:bgClr&gt;</c> is absent - see <see cref="PptxDocument.ResolveFill"/>'s remarks).
+/// </param>
+internal sealed record PptxPatternFill(PptxPresetPattern Preset, Rgba32 Foreground, Rgba32 Background) : PptxPaint;

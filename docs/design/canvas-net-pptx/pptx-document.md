@@ -438,14 +438,11 @@ shape's fill from its `<p:spPr>` (or lack thereof) into one of three closed `Ppt
   `<a:blipFill>` when a blip-image resolver is supplied by the caller - see _Picture Fill
   (`<a:blipFill>`) as a Shape/Paragraph Fill_ below (a Phase 2 follow-up to this phase's own,
   originally fail-closed, posture).
-- **`<a:pattFill>`** (pattern fill) **as an ordinary shape's own background fill** (under
-  `<p:spPr>`, as distinct from a dedicated `<p:pic>` picture shape - see
-  _Images, Tables, and Shape Tree (Phase 1e)_ below): rejected with
-  `PptxUnsupportedFeatureException` (feature token `"pptx-pattern-fill"`) - implementing it as a
-  shape's own _background_ requires tiling machinery still out of scope, and resolving it to
-  `PptxNoFill` would silently drop a fill a real presentation shows, which this phase's
-  fail-closed philosophy for unsupported-but-declared features rejects in favor of a
-  caller-visible, distinguishable exception. Remains deferred to a later phase.
+- **`PptxPatternFill(PptxPresetPattern Preset, Rgba32 Foreground, Rgba32 Background)`**: resolved
+  from `<a:pattFill prst="..."/>` for a covered preset-pattern name - see _Pattern Fill
+  (`<a:pattFill>`) (Phase 2 Follow-Up)_ below (a later Phase 2 follow-up to this phase's own,
+  originally fail-closed, posture). An uncovered `prst` still throws
+  `PptxUnsupportedFeatureException` (feature token `"pptx-pattern-fill"`).
 
 #### Gradient Fill
 
@@ -557,12 +554,6 @@ package. This phase has no rendering surface yet, so only the outline geometry i
 The following are explicitly out of scope for Phase 1c, each because it depends on machinery not
 yet implemented anywhere in `CanvasNet` (not merely unimplemented in this package):
 
-- **Pattern fill** (`<a:pattFill>`) **as an ordinary shape's own background fill** - requires
-  tiling machinery still out of scope; remains deferred to a later phase. (Picture fill,
-  `<a:blipFill>`, as an ordinary shape's own background fill was originally deferred alongside
-  pattern fill for this same reason, but is now implemented - see _Picture Fill (`<a:blipFill>`)
-  as a Shape/Paragraph Fill_ below. Phase 1e separately implements a dedicated `<p:pic>` picture
-  _shape_, which is a distinct construct - see _Images, Tables, and Shape Tree (Phase 1e)_ below.)
 - **Radial/path gradients** - require a core `RadialGradient`/path-gradient paint type this
   package can reuse; deferred to a later phase.
 - **`<a:avLst>` adjustment-value parsing** for preset geometries - deferred to a later phase; see
@@ -804,10 +795,10 @@ document format.
 rendering. An ordinary shape's own _background_ fill as a picture or pattern
 (`<a:blipFill>`/`<a:pattFill>` under `<p:spPr>`/`ResolveFill`, as distinct from a `<p:pic>` shape)
 remains out of scope this phase and continues to be rejected by `ResolveFill` exactly as Phase 1c
-left it (see _Fill Resolution_ above) - this phase does not touch `ResolveFill` at all. (Picture
-fill specifically is implemented in a later Phase 2 follow-up - see _Picture Fill
-(`<a:blipFill>`) as a Shape/Paragraph Fill_ below - which does reuse this phase's own picture
-decoding directly, unchanged.)
+left it (see _Fill Resolution_ above) - this phase does not touch `ResolveFill` at all. (Both are
+implemented in later Phase 2 follow-ups - see _Picture Fill (`<a:blipFill>`) as a Shape/Paragraph
+Fill_ and _Pattern Fill (`<a:pattFill>`) (Phase 2 Follow-Up)_ below - which reuse this phase's own
+picture decoding/color resolution directly, unchanged.)
 
 #### Picture Decoding, Cropping, and Painting
 
@@ -887,8 +878,9 @@ implemented `<a:blipFill>` used as a fill-definition child (an ordinary shape's 
 table-cell `<a:tcPr>`, line/stroke `<a:ln>`, slide/layout/master background `<p:bgPr>`, and
 connector style fills - everywhere `ResolveFill`/`ResolveLineStyle` are consulted), as distinct
 from the `<p:pic>` picture _shape_ this phase (Phase 1e) already implements above. Pattern fill
-(`<a:pattFill>`) remains separately, deliberately out of scope - see _Fill Resolution_'s own
-"Deferred to a Later Phase" note.
+(`<a:pattFill>`) remained separately out of scope at the time of this follow-up - see
+_Pattern Fill (`<a:pattFill>`) (Phase 2 Follow-Up)_ below for the later follow-up that covers it,
+for a documented preset subset.
 
 - **`PptxImageFill(Surface Image, Matrix3x2 ImageToLocalTransform)`** (`PptxPaint.cs`) is the new
   closed `PptxPaint` subtype `ResolveFill` returns for a resolvable `<a:blipFill>` - `Image` is
@@ -961,17 +953,136 @@ from the `<p:pic>` picture _shape_ this phase (Phase 1e) already implements abov
 - **Pythonpptx-DML-Fill Fixture**: this package's own `pythonpptx-dml-fill.pptx` fixture's slide 0
   places six shapes in document order - an inherited fill, an explicit `<a:noFill/>`, a solid RGB
   fill, a real embedded `<a:blipFill>`/`<a:tile tx="0" ty="0" sx="100000" sy="100000"/>` picture
-  fill, a linear gradient fill, and finally an `<a:pattFill>` pattern fill, on this _same_ slide.
-  Before this follow-up, rendering that slide threw `"pptx-picture-fill"` as soon as the walk
-  reached the fourth shape; now it instead proceeds past that shape (which resolves and paints
-  correctly) and throws `"pptx-pattern-fill"` from the sixth, still out-of-scope shape instead -
-  itself proof the picture fill is no longer the blocker, even though the slide as a whole still
-  cannot complete a full render (an unrelated, out-of-scope pattern-filled shape coexists on the
-  very same slide). A genuine, full end-to-end "renders without throwing, with a pixel-level
-  sanity check" proof instead uses a minimal, purpose-built single-shape package (mirroring this
-  phase's own `PptxSystemIntegrationTests`-style package-building helpers), since no single real
-  fixture shape-tree in this corpus isolates an `<a:blipFill>`/`<a:tile>` shape without an
-  unrelated, out-of-scope construct alongside it.
+  fill, a linear gradient fill, and finally an `<a:pattFill prst="divot"/>` pattern fill, on this
+  _same_ slide. Before the picture-fill follow-up, rendering that slide threw `"pptx-picture-fill"`
+  as soon as the walk reached the fourth shape; the picture-fill follow-up made it proceed past
+  that shape and instead throw `"pptx-pattern-fill"` from the sixth shape. **Update (pattern-fill
+  follow-up)**: `divot` is now a covered preset (see _Pattern Fill (`<a:pattFill>`) (Phase 2
+  Follow-Up)_ below), so this fixture's slide 0 now renders completely, end-to-end, without
+  throwing at all - see that section's own "Pythonpptx-DML-Fill Fixture" note for the full detail,
+  including slide 1's own three additional pattern-fill shapes. A genuine, full end-to-end
+  "renders without throwing, with a pixel-level sanity check" proof of picture fill specifically
+  instead uses a minimal, purpose-built single-shape package (mirroring this phase's own
+  `PptxSystemIntegrationTests`-style package-building helpers), since no single real fixture
+  shape-tree in this corpus isolates an `<a:blipFill>`/`<a:tile>` shape without another,
+  independently-interesting construct alongside it.
+
+#### Pattern Fill (`<a:pattFill>`) (Phase 2 Follow-Up)
+
+A later Phase 2 follow-up (after the picture-fill follow-up above) lifted this package's own
+original fail-closed posture for `<a:pattFill>` used as a fill-definition child, for a documented
+subset of the 54 named ECMA-376 `ST_PresetPatternVal` preset-pattern values - the remaining names
+still throw `PptxUnsupportedFeatureException` (feature token `"pptx-pattern-fill"`), exactly as
+before this follow-up, rather than attempting the full preset table. Unlike picture fill, no new
+resolver parameter is threaded through `ResolveFill`'s own call sites - every covered preset is
+synthesized procedurally from its own resolved foreground/background colors, with no
+image/relationship resolution of any kind.
+
+- **`PptxPatternFill(PptxPresetPattern Preset, Rgba32 Foreground, Rgba32 Background)`**
+  (`PptxPaint.cs`) is the new closed `PptxPaint` subtype `ResolveFill` returns for a covered
+  `<a:pattFill prst="..."/>`. `PptxPresetPattern` (also `PptxPaint.cs`) is a plain enum naming
+  exactly the 30 of 54 covered preset values - see that enum's own `<remarks/>` for the full
+  covered/deferred lists, reproduced here: **covered** - the horizontal/vertical stripe family
+  (`horz`, `vert`, `ltHorz`, `ltVert`, `dkHorz`, `dkVert`), the diagonal-stripe family (`dnDiag`,
+  `upDiag`, `ltDnDiag`, `ltUpDiag`, `dkDnDiag`, `dkUpDiag`, `wdDnDiag`, `wdUpDiag`), the
+  cross-hatch family (`cross`, `diagCross`), the percentage/dot-density family (`pct5`, `pct10`,
+  `pct20`, `pct25`, `pct30`, `pct40`, `pct50`, `pct60`, `pct70`, `pct75`, `pct80`, `pct90`), and
+  the two fixture-mandatory names (`divot`, `wave`); **explicitly deferred** (still throwing) -
+  `narHorz`, `narVert`, `dashHorz`, `dashVert`, `dashDnDiag`, `dashUpDiag`, `diagBrick`,
+  `horzBrick`, `plaid`, `sphere`, `weave`, `shingle`, `trellis`, `zigZag`, `dotGrid`, `dotDmnd`,
+  `openDmnd`, `solidDmnd`, `smCheck`, `lgCheck`, `smGrid`, `lgGrid`, `smConfetti`, `lgConfetti`.
+- **A non-conformant, attribute-less `<a:pattFill/>` (no `prst` at all)** - observed in this
+  package's own real `pythonpptx-dml-fill.pptx` fixture (slide 1's first shape, whose own text run
+  reads "autoshape with inherited fill") - is not a member of `PptxPresetPattern` at all:
+  `ResolveFill` resolves it directly to `PptxNoFill.Instance`, the same "no override" value a
+  shape with no fill-definition child at all would resolve to, rather than either falling back to
+  the shape's own `<p:style>/<a:fillRef>` (its text run's own name notwithstanding - a deliberate
+  design decision, not an attempt to honor that name) or throwing. Resolving it to `PptxNoFill`
+  keeps this edge case consistent with every other "absent/unrecognized fill" case `ResolveFill`
+  already resolves to `PptxNoFill` (see _Fill Resolution_ above), rather than inventing new,
+  divergent handling for one non-conformant attribute-less element.
+- **Foreground/background color resolution**: `<a:fgClr>`/`<a:bgClr>`'s own single
+  color-definition child is resolved via the existing `ResolveColor` helper - the same one
+  `<a:solidFill>` already uses - defaulting to black/white respectively when either child is
+  altogether absent. This package's own fixture's `bgClr` values use `<a:prstClr val="white"/>`,
+  which required a narrowly-scoped companion fix (below) to `ResolveColor`'s own color-kind
+  dispatch, which previously threw for every `<a:prstClr>` unconditionally.
+- **`<a:prstClr>` companion fix (narrowly scoped)**: `ResolveColor`'s private
+  `ResolveBaseColor` helper gained a case for `<a:prstClr val="..."/>`, resolving only `"white"`
+  (`Rgba32(255,255,255,255)`) and `"black"` (`Rgba32(0,0,0,255)`) - the two names this package's
+  own real fixture corpus requires - to their standard RGB values. Every other preset-color name
+  (ECMA-376's own `ST_PresetColorVal` names the full OOXML preset-color table beyond these two)
+  still throws `PptxUnsupportedFeatureException` (feature token `"pptx-color-kind"`), narrowed
+  rather than removed - this is a deliberately minimal fix, not an attempt at the full ~140-name
+  preset-color table.
+- **Tile synthesis**: `PptxPatternTileRenderer.RenderTile(PptxPresetPattern preset, Rgba32
+  foreground, Rgba32 background)` (new file `PptxPatternTileRenderer.cs`) procedurally synthesizes
+  a small (8x8-pixel) repeating-tile `Surface` per covered preset, painting each pixel foreground
+  or background per that preset's own geometric rule (for example, `horz`/`vert` alternate
+  whole rows/columns; `dnDiag`/`upDiag` follow a `(x +/- y) mod period` diagonal rule; the `pctNN`
+  family thresholds a per-pixel density test scaled to approximate the named percentage, not
+  pixel-perfect to PowerPoint's own exact dot placement; `divot`/`wave` approximate their own named
+  shapes closely enough to visually read as that pattern at tile scale). See that class's own
+  `<remarks/>` for the complete per-preset rule list.
+- **Painting, and a shape/connector/stroke/arrowhead transform-composition fix**: `FillPaint`'s
+  existing switch (`PptxDocument.Tables.cs`) gained a `case PptxPatternFill` branch synthesizing a
+  tile via the above, building a `TilePaint` from it (mirroring `PptxImageFill`'s own branch's
+  transform-composition math exactly), and filling via the existing
+  `PathFiller.Fill(Surface, Path, TilePaint, FillRule, float)` overload. Doing so exposed a real,
+  pre-existing gap in `PptxDocument.Render.cs`'s own `RenderShape`/`RenderPicture`/
+  `RenderConnector`/`PaintArrowhead`: each called the 3-parameter `FillPaint(Surface, Path,
+  PptxPaint)` overload for its own shape/connector fill and stroke-outline/arrowhead paint (unlike
+  `PaintTable`/`PaintCellBorder`'s own table-specific calls, which already compose the real
+  `shapeToSurfaceTransform`), which composes `Matrix3x2.Identity` into any `TilePaint`/`Gradient`'s
+  own transform instead of the shape's own local-to-surface transform - already documented (see
+  the 4-parameter `FillPaint` overload's own `<remarks/>`) as a pre-existing, codebase-wide gap
+  affecting every paint kind identically at those call sites, deliberately left as "a
+  separately-scoped follow-up" rather than fixed there. For a pattern fill's own small, fixed-size
+  repeat tile, this gap is not cosmetic: since a surface pixel coordinate divided by the fill's
+  own ~1/9525 EMU-per-pixel scale is always tiny relative to an 8-pixel tile step, every sampled
+  pixel across the _entire_ render surface (not just the one shape) collapses onto the same
+  single tile cell unless the shape's own position and scale are composed in first - flattening
+  the pattern to a single solid color (gradient/picture fill at these same call sites share the
+  identical gap, but it remains cosmetically invisible for a gradient spanning a shape's own
+  bounds, and picture fill's own existing test happens to position its shape at the origin).
+  Rather than generalizing a fix for every paint kind at these call sites (out of this follow-up's
+  own scope, and risking a behavior change to already-established gradient/picture-fill rendering
+  output), a narrowly-scoped `FillPaintComposingLocalTransform(Surface, Path, PptxPaint, Matrix3x2
+  localToSurface)` helper composes the real local-to-surface transform (via the 4-parameter
+  `FillPaint` overload) only when `paint is PptxPatternFill`, delegating to the unchanged
+  3-parameter overload for every other paint kind.
+
+  `<a:ln>` (line/stroke) fills share the exact same shared `ResolveFill` resolver used for shape
+  fills (`ResolveLineStyle`, `PptxDocument.Paint.cs`, calls it identically for an `<a:ln>`
+  element's own fill-definition child) - so a covered-preset `<a:ln><a:pattFill prst="horz">
+  ...</a:pattFill></a:ln>` line/stroke fill is equally resolvable, and was therefore equally
+  subject to this same transform-composition gap. This is now fixed too: `RenderShape`'s,
+  `RenderPicture`'s, and `RenderConnector`'s own stroke-outline `FillPaint` calls, and
+  `PaintArrowhead`'s two arrowhead-paint calls, all now use `FillPaintComposingLocalTransform`
+  instead of the 3-parameter overload directly - the shape/picture/connector calls pass their own
+  `localToSurface`; `PaintArrowhead`'s two calls pass its own already-computed `orientToSurface`
+  (the arrowhead's own rotated/translated local-to-surface composition), not the connector's plain
+  `localToSurface`, since an arrowhead's own local origin is itself offset/rotated relative to the
+  connector (see `PaintArrowhead`'s own remarks). Every one of these call sites is now covered for
+  `PptxPatternFill`, exactly like the pre-existing shape/connector _fill_ call sites.
+
+  The slide/layout/master background fill (`PptxDocument.Render.cs`'s own `Render` method) is now
+  also covered: `ResolveFill` is shared there too, so a background `<p:bgPr>` pattern fill is
+  equally resolvable, and the background rectangle's own local origin coincides with the slide's
+  own EMU origin, so the slide's own EMU-to-pixel `baseTransform` (already computed and in scope
+  at that call site, and already applied to the background path itself) plays exactly the same
+  role as a shape's own local-to-surface transform elsewhere. The background-fill call now uses
+  `FillPaintComposingLocalTransform(surface, backgroundPath, backgroundFill, baseTransform)`
+  instead of the 3-parameter overload directly - no remaining call site in production code calls
+  the 3-parameter overload directly any more.
+- **Pythonpptx-DML-Fill Fixture**: slide 0's sixth shape (see the _Picture Fill_ section's own
+  "Pythonpptx-DML-Fill Fixture" note above) is a `prst="divot"` pattern fill, now covered - the
+  slide renders completely, end-to-end, without throwing. Slide 1 adds three more shapes
+  exercising pattern fill specifically: a non-conformant, attribute-less `<a:pattFill/>` (resolves
+  to `PptxNoFill`, see above), a `prst="divot"` shape, and a `prst="wave"` shape (both with
+  `<a:fgClr><a:srgbClr .../></a:fgClr>`/`<a:bgClr><a:prstClr val="white"/></a:bgClr>`) - both
+  genuinely paint a visible mix of their own foreground and background colors once rendered,
+  proven by `PptxFixturesCorpusTests.cs`'s own pixel-sampling assertions.
 
 #### Table Parsing
 
@@ -1118,13 +1229,6 @@ The following are explicitly out of scope for Phase 1e, each because it depends 
 yet implemented anywhere in `CanvasNet`, or is a separable refinement with its own, independent
 design cost:
 
-- **An ordinary shape's own background fill as a pattern** (`<a:pattFill>` under
-  `<p:spPr>`/`ResolveFill`, as distinct from a dedicated `<p:pic>` shape, which this phase does
-  implement) - requires tiling machinery; `ResolveFill` is untouched this phase and continues to
-  reject it with `PptxUnsupportedFeatureException` exactly as Phase 1c left it. (Picture fill,
-  `<a:blipFill>` under `<p:spPr>`, was originally deferred here alongside pattern fill for the
-  same reason, but is now implemented by a later Phase 2 follow-up - see _Picture Fill
-  (`<a:blipFill>`) as a Shape/Paragraph Fill_ above.)
 - **Picture effects/shadows** - `<p:pic>`'s own `<p:spPr>/<a:effectLst>` is not consulted; only
   the picture's own pixels are painted.
 - **Nested tables** - a table cell's own `<a:txBody>` is painted as plain text only; a cell
@@ -1510,10 +1614,11 @@ Phase 2 pass established.
   first to exercise either exception token against a real file; no source change was needed then.
   **Update (Phase 2 follow-up)**: picture fill (`<a:blipFill>`) is now implemented - see _Picture
   Fill (`<a:blipFill>`) as a Shape/Paragraph Fill_ above - so this fixture's own slide 0 no longer
-  throws `pptx-picture-fill`; it instead reaches, and still throws, `pptx-pattern-fill` from a
-  later, still out-of-scope pattern-filled shape on that same slide (see that section's own
-  "Pythonpptx-DML-Fill Fixture" note for the full detail). Pattern fill itself remains unchanged
-  and out of scope.
+  throws `pptx-picture-fill`; at that point it instead reached, and still threw,
+  `pptx-pattern-fill` from a later pattern-filled shape on that same slide. **Update (pattern-fill
+  follow-up)**: that shape's own preset (`divot`) is now covered too - see _Pattern Fill
+  (`<a:pattFill>`) (Phase 2 Follow-Up)_ above - so this fixture's slide 0 now renders completely,
+  end-to-end, without throwing at all.
 - `aiden0z-table-stale-frame.pptx`'s single table graphic frame declares a `<p:xfrm>` extent that
   does not match the sum of its own `<a:gridCol>` widths - a real-world "stale frame size"
   authoring artifact. Confirmed, by direct code reading of `PptxDocument.Tables.cs`, that column/
@@ -1609,11 +1714,22 @@ compatible change - every pre-existing call site continues to compile and behave
   or master, selected per the winning background tier, since an embedded blip's own relationship
   is part-scoped to its owning part) - see _Picture Fill (`<a:blipFill>`) as a Shape/Paragraph
   Fill_ above.
-- **Pattern background fills remain explicitly deferred** - `<a:pattFill>` inside a `<p:bgPr>`
-  throws `PptxUnsupportedFeatureException` (feature token `pptx-pattern-fill`), inherited
-  unchanged from `ResolveFill`'s own pre-existing boundary (see _Deferred to a Later Phase (Phase
-  1c)_ above) - no new background-specific handling was added for it, and none is currently
-  planned.
+- **Pattern background fills**: a covered preset now resolves and paints exactly like any other
+  shape's own `<a:pattFill>` (`ResolveFill` is shared, un-specialized, across every fill context -
+  see _Pattern Fill (`<a:pattFill>`) (Phase 2 Follow-Up)_ above); an uncovered preset still throws
+  exactly as before. This background call site (`PptxDocument.Render.cs`'s own slide-background
+  paint) is now also covered by the shape/connector-specific transform-composition fix documented
+  in that same section: it uses `FillPaintComposingLocalTransform`, passing the slide's own
+  EMU-to-pixel `baseTransform` as the composed local-to-surface transform - the background
+  rectangle's own local origin coincides with the slide's EMU origin, so `baseTransform` plays
+  exactly the same role here that a shape's own resolved local-to-surface transform plays
+  elsewhere. Before this fix, the background fill's own `FillPaint` call composed the identity
+  transform instead, collapsing a pattern-filled background onto a single flat color across the
+  entire slide (the same collapse-to-one-texel defect originally fixed for shape/connector
+  strokes). `Render_SlideLevelPatternFillBackground_PaintsCorrectlyTransformedStripesNotFlatColor`
+  (`PptxRenderTests.cs`) now exercises this combination end-to-end, proving the background
+  genuinely tiles (both the resolved foreground and background colors appear) rather than
+  collapsing to a single color.
 
 **Real-file regression coverage**: both `pythonpptx-sld-background.pptx` and
 `aiden0z-image-crop-css-reset.pptx`'s own fixture-corpus tests, previously honestly titled/worded

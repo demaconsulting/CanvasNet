@@ -94,7 +94,8 @@ public sealed partial class PptxDocument
     ///         Follow-Up: Slide/Layout/Master Background Fill (&lt;p:bg&gt;)" section for the
     ///         background-fill fidelity achieved (solid and theme-indexed <c>&lt;p:bgRef&gt;</c>
     ///         fills: full; linear gradient: best-effort; picture background fill: full; pattern
-    ///         background fill: still deferred), and its "Phase 2 Follow-Up: Connector Shape Rendering (&lt;p:cxnSp&gt;)"
+    ///         background fill: full for a covered preset subset, since <c>ResolveFill</c> is
+    ///         shared across every fill context), and its "Phase 2 Follow-Up: Connector Shape Rendering (&lt;p:cxnSp&gt;)"
     ///         section for the connector-line rendering since added.
     ///     </para>
     /// </remarks>
@@ -126,7 +127,7 @@ public sealed partial class PptxDocument
         if (backgroundFill is not null)
         {
             var backgroundPath = Path.Rectangle(0, 0, SlideSize.WidthEmu, SlideSize.HeightEmu).Transform(baseTransform);
-            FillPaint(surface, backgroundPath, backgroundFill);
+            FillPaintComposingLocalTransform(surface, backgroundPath, backgroundFill, baseTransform);
         }
 
         // Phase 2 Follow-Up: paint the master's, then the layout's, own non-placeholder
@@ -445,7 +446,7 @@ public sealed partial class PptxDocument
         var fill = HasExplicitFillChild(spPrElement)
             ? ResolveFill(spPrElement, theme, frame.WidthEmu, frame.HeightEmu, colorMap: colorMap, resolveBlipImage: ResolveBlipImage)
             : ResolveShapeStyleFill(styleElement, theme, frame.WidthEmu, frame.HeightEmu, colorMap, ResolveBlipImage);
-        FillPaint(surface, transformedPath, fill);
+        FillPaintComposingLocalTransform(surface, transformedPath, fill, localToSurface);
 
         // An explicit fill-definition child (including <a:noFill/>) on the shape's own <a:ln>
         // wins outright over a style lnRef. A present <a:ln> with no recognized fill-definition
@@ -457,7 +458,7 @@ public sealed partial class PptxDocument
         if (lineStyle is not null)
         {
             var strokedOutline = ResolveStrokeOutline(geometryPath, lineStyle, localToSurface).Transform(localToSurface);
-            FillPaint(surface, strokedOutline, lineStyle.Paint);
+            FillPaintComposingLocalTransform(surface, strokedOutline, lineStyle.Paint, localToSurface);
         }
 
         // A placeholder's own text content is always read from the slide-level shape element
@@ -575,7 +576,7 @@ public sealed partial class PptxDocument
             // deliberately separate resolution from clipPath above.
             var geometryPath = ResolvePictureGeometryPath(spPrElement, frame.WidthEmu, frame.HeightEmu);
             var strokedOutline = ResolveStrokeOutline(geometryPath, lineStyle, localToSurface).Transform(localToSurface);
-            FillPaint(surface, strokedOutline, lineStyle.Paint);
+            FillPaintComposingLocalTransform(surface, strokedOutline, lineStyle.Paint, localToSurface);
         }
     }
 
@@ -672,7 +673,7 @@ public sealed partial class PptxDocument
         {
             var fill = ResolveFill(spPrElement, theme, frame.WidthEmu, frame.HeightEmu, colorMap: colorMap, resolveBlipImage: ResolveBlipImage);
             var transformedPath = geometryPath.Transform(localToSurface);
-            FillPaint(surface, transformedPath, fill);
+            FillPaintComposingLocalTransform(surface, transformedPath, fill, localToSurface);
         }
 
         var styleElement = node.CxnSpElement.Element(PresentationNamespace + "style");
@@ -683,7 +684,7 @@ public sealed partial class PptxDocument
         }
 
         var strokedOutline = ResolveStrokeOutline(geometryPath, lineStyle, localToSurface).Transform(localToSurface);
-        FillPaint(surface, strokedOutline, lineStyle.Paint);
+        FillPaintComposingLocalTransform(surface, strokedOutline, lineStyle.Paint, localToSurface);
 
         var lnElement = spPrElement.Element(DrawingNamespace + "ln");
         var (startPoint, startTangent, endPoint, endTangent) = ComputeEndpointsAndTangents(geometryPath);
@@ -747,11 +748,11 @@ public sealed partial class PptxDocument
             // than ResolveStrokeOutline's usual "closed shape outline" path.
             var arrowheadLineStyle = lineStyle with { DashArray = null };
             var strokedArrowhead = ResolveStrokeOutline(arrowheadPath, arrowheadLineStyle, orientToSurface).Transform(orientToSurface);
-            FillPaint(surface, strokedArrowhead, lineStyle.Paint);
+            FillPaintComposingLocalTransform(surface, strokedArrowhead, lineStyle.Paint, orientToSurface);
         }
         else
         {
-            FillPaint(surface, transformedArrowhead, lineStyle.Paint);
+            FillPaintComposingLocalTransform(surface, transformedArrowhead, lineStyle.Paint, orientToSurface);
         }
     }
 }

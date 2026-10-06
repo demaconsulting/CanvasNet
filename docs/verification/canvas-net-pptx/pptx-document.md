@@ -474,15 +474,16 @@ proves a `<a:path w= h=>` declaring a coordinate space different from the shape'
 resolves to exactly `(widthEmu, heightEmu)`, not the path's own raw `w`/`h` value); and proves a
 `<a:custGeom>` with no `<a:pathLst>` resolves to `Path.Empty` rather than throwing.
 
-#### CanvasNetPptx-PptxDocument-FillResolution: noFill/solidFill/gradFill Resolve, pattFill Fails Closed, blipFill Resolves or Fails Closed
+#### CanvasNetPptx-PptxDocument-FillResolution: noFill/solidFill/gradFill Resolve, pattFill Resolves for a Covered Preset or Fails Closed, blipFill Resolves or Fails Closed
 
 **Tests**: `ResolveFill_NullParent_ReturnsNoFill`, `ResolveFill_ExplicitNoFill_ReturnsNoFill`,
 `ResolveFill_NoRecognizedFillChild_ReturnsNoFill`,
 `ResolveFill_SolidFillSrgbClr_ReturnsResolvedSolidFill`,
 `ResolveFill_SolidFillSchemeClr_ResolvesThroughTheme`,
 `ResolveFill_GradFillLinear_ReturnsResolvedGradientFill`,
-`ResolveFill_PatternFill_ThrowsPptxUnsupportedFeatureException`,
+`ResolveFill_PatternFillUnsupportedPreset_ThrowsPptxUnsupportedFeatureException`,
 `ResolveFill_PictureFill_ThrowsPptxUnsupportedFeatureException`,
+`ResolveFill_BarePatternFillWithNoPrstAttribute_ReturnsNoFill`,
 `CanvasNetPptx_SystemIntegration_GeometryAndPaint_FreeformShapeResolvesEndToEnd`
 
 Proves a `null` fill parent, an explicit `<a:noFill/>`, and a `<p:spPr>` with no recognized fill
@@ -490,9 +491,12 @@ child, all three resolve to `PptxNoFill.Instance`; proves `<a:solidFill><a:srgbC
 `<a:solidFill><a:schemeClr .../>` both resolve to the expected `PptxSolidFill` (the latter
 resolving its color through the supplied `PptxTheme`, not merely parsing the slot name); proves
 `<a:gradFill>` with a linear direction resolves to a `PptxGradientFill` wrapping the expected
-gradient stops; proves `<a:pattFill>` throws `PptxUnsupportedFeatureException` rather than
-silently resolving to an incorrect fill; and proves `<a:blipFill>` still throws
-`PptxUnsupportedFeatureException` (feature token `"pptx-picture-fill"`) when no blip-image
+gradient stops; proves `<a:pattFill prst="...">` naming an uncovered preset throws
+`PptxUnsupportedFeatureException` rather than silently resolving to an incorrect fill (a covered
+preset's own resolution is proven by `CanvasNetPptx-PptxDocument-PatternFillResolution` below);
+proves a non-conformant, attribute-less `<a:pattFill/>` with no `prst` at all resolves to
+`PptxNoFill` instead of either resolving a preset or throwing; and proves `<a:blipFill>` still
+throws `PptxUnsupportedFeatureException` (feature token `"pptx-picture-fill"`) when no blip-image
 resolver is supplied, its pre-existing fallback behavior, now narrowed to document that specific
 "no resolver supplied" case rather than picture fill being unsupported outright - see
 `CanvasNetPptx-PptxDocument-PictureFillResolution` below for the resolver-supplied, fully
@@ -506,7 +510,7 @@ from a hand-built `XElement` fragment.
 `ResolveImageFillTransform_TileWithNonTrivialOffsetAndScale_AppliesBothToEachAxis`,
 `ResolveImageFillTransform_StretchWithFillRectInsets_CropsBeforeStretching`,
 `ResolveImageFillTransform_DegenerateFillRect_FallsBackToFullStretch`,
-`PptxDocument_Render_DmlFillFixture_Slide0PictureFillNoLongerBlocksRenderingOnlyPatternFillThrows`,
+`PptxDocument_Render_DmlFillFixture_Slide0RendersPictureAndPatternFillShapesWithoutThrowing`,
 `CanvasNetPptx_SystemIntegration_Images_TileBlipFillShapeDecodesAndRendersEndToEnd`
 
 Proves a minimal `<a:blipFill><a:blip r:embed="..."/><a:stretch/></a:blipFill>`, given a fake
@@ -517,16 +521,77 @@ Proves a minimal `<a:blipFill><a:blip r:embed="..."/><a:stretch/></a:blipFill>`,
 values); pins down `<a:stretch>`'s own `<a:fillRect>` inset-cropping math, and its degenerate-crop
 (edges summing to `100%` or more) fallback-to-full-stretch behavior, guarding against a
 non-finite or divide-by-zero transform. The real-fixture test proves `pythonpptx-dml-fill.pptx`'s
-slide 0 - which places a real, embedded `<a:blipFill>`/`<a:tile>` picture-filled shape alongside
-an unrelated, out-of-scope pattern-filled shape on the very same slide - no longer fails on the
-picture-fill shape specifically (the render now proceeds past it and only fails later, on the
-still-deferred pattern fill); the system-integration test proves a genuine, full end-to-end
-render of a minimal, purpose-built single-shape package (an ordinary `<p:sp>`, not a `<p:pic>`,
-whose own `<a:blipFill>`/`<a:tile>` shape fill is the slide's only content) completes without
-exception, with a pixel-level sanity check that the filled shape's own region painted the
-embedded image's content rather than being left as untouched background.
+slide 0 - which places a real, embedded `<a:blipFill>`/`<a:tile>` picture-filled shape alongside a
+`<a:pattFill prst="divot"/>` pattern-filled shape, now also covered (see
+`CanvasNetPptx-PptxDocument-PatternFillResolution` below) - renders completely end-to-end, with
+neither shape throwing; the system-integration test proves a genuine, full end-to-end render of a
+minimal, purpose-built single-shape package (an ordinary `<p:sp>`, not a `<p:pic>`, whose own
+`<a:blipFill>`/`<a:tile>` shape fill is the slide's only content) completes without exception,
+with a pixel-level sanity check that the filled shape's own region painted the embedded image's
+content rather than being left as untouched background.
 
-#### CanvasNetPptx-PptxDocument-ColorResolution: srgbClr/sysClr/schemeClr Resolve to the Expected Rgba32 Value
+#### CanvasNetPptx-PptxDocument-PatternFillResolution: pattFill Resolves a Covered Preset to a Procedurally-Synthesized Tile
+
+**Tests**: `ResolveFill_PatternFillCoveredPreset_ReturnsPptxPatternFill`,
+`ResolveFill_PatternFillMissingFgBgClr_DefaultsToBlackOnWhite`,
+`ResolveFill_PatternFillUnsupportedPreset_ThrowsPptxUnsupportedFeatureException`,
+`ResolveFill_BarePatternFillWithNoPrstAttribute_ReturnsNoFill`,
+`ResolveLineStyle_PatternFillCoveredPreset_ReturnsLineStyleWithPptxPatternFill`,
+`RenderTile_Horz_AlternatesFullRows`, `RenderTile_Vert_AlternatesFullColumns`,
+`RenderTile_LtHorz_SparseThinRows`, `RenderTile_DkHorz_DominantRows`,
+`RenderTile_LtVert_SparseThinColumns`, `RenderTile_DkVert_DominantColumns`,
+`RenderTile_DnDiag_FollowsXPlusYModuloRule`, `RenderTile_UpDiag_FollowsXMinusYModuloRule`,
+`RenderTile_WdDnDiag_ProducesWideBands`, `RenderTile_Cross_FgAtHorizontalOrVerticalLines`,
+`RenderTile_DiagCross_FgAtEitherDiagonal`, `RenderTile_PercentageFamily_BothColorsPresent` (a
+`[Theory]` covering the `pct5`...`pct90` family), `RenderTile_PercentageFamily_FgPixelCountIncreasesWithPercent`,
+`RenderTile_Divot_BothColorsPresent`, `RenderTile_Wave_BothColorsPresent`,
+`RenderTile_EveryCoveredPreset_ProducesTileSizeSquareSurface` (a `[Theory]` covering all 30
+covered presets), `PptxDocument_Render_DmlFillFixture_Slide0RendersPictureAndPatternFillShapesWithoutThrowing`,
+`PptxDocument_Render_DmlFillFixture_Slide1PatternFillShapesRenderAndBareFillIsTransparent`,
+`Render_ShapeWithPatternFillStroke_PaintsCorrectlyTransformedStripesNotFlatColor`,
+`Render_ConnectorWithPatternFillStroke_PaintsCorrectlyTransformedStripesNotFlatColor`,
+`Render_SlideLevelPatternFillBackground_PaintsCorrectlyTransformedStripesNotFlatColor`
+
+Proves `<a:pattFill prst="horz">` (a representative covered preset), with explicit `<a:fgClr>`/
+`<a:bgClr>` children, resolves to a `PptxPatternFill` wrapping the expected preset/foreground/
+background; proves an absent `<a:fgClr>`/`<a:bgClr>` defaults to black-on-white; proves an
+uncovered preset name (for example `zigZag`) still throws `PptxUnsupportedFeatureException`
+(feature token `"pptx-pattern-fill"`); proves a non-conformant, attribute-less `<a:pattFill/>`
+resolves to `PptxNoFill` rather than a named preset; proves `ResolveLineStyle` resolves an
+`<a:ln><a:pattFill>...</a:pattFill></a:ln>` (a line/stroke fill) identically to a shape fill,
+since both share the same `ResolveFill` resolver. Each `RenderTile_*` test directly exercises
+`PptxPatternTileRenderer.RenderTile` (bypassing `ResolveFill` entirely) and asserts its
+synthesized tile's own per-pixel rule: horizontal/vertical-stripe presets alternate whole
+rows/columns at the documented density; diagonal presets follow an `(x +/- y) mod period` rule;
+the percentage family's foreground pixel count strictly increases as the named percentage
+increases (proving genuine density scaling, not a fixed ratio); `divot`/`wave` each paint both
+colors; and every covered preset produces a tile exactly `PptxPatternTileRenderer`'s own declared
+tile size, square. The two real-fixture tests prove `pythonpptx-dml-fill.pptx` renders completely,
+end-to-end, without throwing on either slide: slide 0's `prst="divot"` shape (alongside the
+picture-fill shape covered above) and slide 1's three pattern-fill shapes (a non-conformant,
+attribute-less `<a:pattFill/>` - proven to remain an unfilled, un-overridden white rather than
+falling back to its own `<p:style>/<a:fillRef>` - plus a `prst="divot"` and a `prst="wave"` shape,
+each proven to paint a genuine mix of its own resolved foreground and background colors by
+sampling pixels inside its own bounds, not a flat single color). Proving real pixel variation
+(rather than merely "did not throw") required a companion fix to a real, pre-existing
+transform-composition gap - see `PptxDocument.Tables.cs`'s own `FillPaintComposingLocalTransform`
+XmlDoc remarks, and the design doc's own *Pattern Fill (`<a:pattFill>`) (Phase 2 Follow-Up)*
+section, for the full detail: without it, every pattern-filled shape/connector fill, stroke
+outline, or arrowhead not positioned at the surface's own origin would have rendered as a single
+flat color instead of a repeating tile. The two `Render_*PatternFillStroke_*` tests prove this
+same fix for `<a:ln>`-based line/stroke pattern fills specifically: an off-origin shape's and
+connector's own pattern-filled stroke each paint a genuine alternating foreground/background
+stripe band, not a single flat color - each test is proven to fail against the pre-fix code
+(only the foreground color would ever appear in the sampled band).
+`Render_SlideLevelPatternFillBackground_PaintsCorrectlyTransformedStripesNotFlatColor` proves the
+identical fix for the slide/layout/master background-fill call site itself: a pattern-filled
+`<p:bg><p:bgPr><a:pattFill>` slide background now composes the slide's own EMU-to-pixel
+`baseTransform` into the synthesized tile's transform via `FillPaintComposingLocalTransform`,
+so the background genuinely tiles (both resolved colors appear across the sampled region) rather
+than collapsing to a single flat color - this test is likewise proven to fail against the pre-fix
+code, where the background-fill call site still passed the identity transform.
+
+#### CanvasNetPptx-PptxDocument-ColorResolution: srgbClr/sysClr/schemeClr/prstClr Resolve to the Expected Rgba32 Value
 
 **Tests**: `ResolveColor_SrgbClr_ParsesHexDirectly`, `ResolveColor_SysClr_UsesLastClrAttribute`,
 `ResolveColor_SchemeClrOrdinarySlots_ResolveToMatchingThemeSlot` (a `[Theory]` covering all 12
@@ -534,7 +599,10 @@ ordinary scheme slot names), `ResolveColor_SchemeClrBackgroundTextAliases_MapToE
 `[Theory]` covering `bg1`/`tx1`/`bg2`/`tx2`), `ResolveColor_SchemeClrUnrecognizedSlot_ThrowsInvalidDataException`,
 `ResolveColor_UnsupportedColorKind_ThrowsPptxUnsupportedFeatureException`,
 `ResolveColor_SrgbClrEightDigitValue_ThrowsInvalidDataException`,
-`ResolveColor_SysClrEightDigitLastClrValue_ThrowsInvalidDataException`
+`ResolveColor_SysClrEightDigitLastClrValue_ThrowsInvalidDataException`,
+`ResolveColor_PrstClrWhite_ReturnsWhite`, `ResolveColor_PrstClrBlack_ReturnsBlack`,
+`ResolveColor_PrstClrUnsupportedName_ThrowsPptxUnsupportedFeatureException`,
+`ResolveColor_PrstClrMissingValAttribute_ThrowsInvalidDataException`
 
 Proves `<a:srgbClr val="RRGGBB"/>` parses its hex value directly; proves `<a:sysClr .../>`
 resolves via its `lastClr` attribute; proves, for every one of the 12 ordinary
@@ -547,7 +615,14 @@ example `<a:hslClr>`) throws `PptxUnsupportedFeatureException`; and proves an 8-
 `#AARRGGBB`-style value on either `<a:srgbClr val="...">` or `<a:sysClr lastClr="...">` throws
 `InvalidDataException` rather than being passed to the underlying `Rgba32` hex parser, which would
 otherwise accept the 8-digit form and silently treat its leading byte as alpha, producing a wrong,
-unintended-alpha color instead of failing closed.
+unintended-alpha color instead of failing closed. Proves `<a:prstClr val="white"/>` and
+`<a:prstClr val="black"/>` - the two ECMA-376 `ST_PresetColorVal` names this package resolves, a
+narrowly-scoped companion fix needed by pattern fill's own `bgClr` (see
+`CanvasNetPptx-PptxDocument-PatternFillResolution` above) - resolve to their standard RGB values;
+proves any other preset-color name (for example `red`) still throws
+`PptxUnsupportedFeatureException` (feature token `"pptx-color-kind"`), narrowed rather than
+removed; and proves a `<a:prstClr>` missing its own required `val` attribute throws
+`InvalidDataException`.
 
 #### CanvasNetPptx-PptxDocument-ColorTransforms: lumMod/lumOff/shade/tint/alpha Apply in the Documented Fixed Order
 
@@ -1194,13 +1269,16 @@ real files rather than merely hand-authored packages, that a chart/SmartArt-bear
 relies solely on an unresolved `<p:style>` shape-style-matrix reference for its fill (an
 out-of-scope construct, see `pptx-document.md`'s Phase 1c deferred-items list) renders without
 error despite painting no visible ink (`pythonpptx-shp-groupshape.pptx`), and that
-`pythonpptx-dml-fill.pptx`'s slide 0 - which places a real, embedded `<a:blipFill>`/`<a:tile>`
-picture-filled shape alongside an unrelated, still out-of-scope pattern-filled shape on the very
-same slide - no longer fails on the picture-fill shape itself (picture fill is now fully
-supported, see `CanvasNetPptx-PptxDocument-PictureFillResolution` above); the render instead
-proceeds past that shape and only fails later, on the shape-background pattern fill, throwing its
-own documented `PptxUnsupportedFeatureException` feature token (`pptx-pattern-fill`) from
-`pythonpptx-dml-fill.pptx`'s slide 1 (a pattern-fill-only slide) unchanged. A slide's own
+`pythonpptx-dml-fill.pptx`'s slide 0 and slide 1 - which between them place a real, embedded
+`<a:blipFill>`/`<a:tile>` picture-filled shape, a non-conformant attribute-less `<a:pattFill/>`,
+and three named-preset `<a:pattFill prst="...">` pattern-filled shapes (`divot` x2, `wave`) -
+all now render completely, end-to-end, without throwing at all: picture fill is fully supported
+(see `CanvasNetPptx-PptxDocument-PictureFillResolution` above) and pattern fill is supported for
+a documented covered-preset subset, including every preset this fixture itself declares (see
+`CanvasNetPptx-PptxDocument-PatternFillResolution` above) - this fixture no longer exercises the
+`"pptx-pattern-fill"` exception token at all; that token is still proven directly, against an
+uncovered preset, by `ResolveFill_PatternFillUnsupportedPreset_ThrowsPptxUnsupportedFeatureException`
+above instead. A slide's own
 `<p:bg>` background fill is covered by
 `CanvasNetPptx-PptxDocument-SlideBackgroundFill` below instead, including both of these same real
 fixtures' own now-painted backgrounds.
@@ -1902,10 +1980,7 @@ overload (Phase 1f: see the *Full Slide Rendering (Phase 1f) Test Scenarios* sec
 Phase 1f, the planned PPTX 1.0 feature set is complete. A slide's own `<p:bg>` background fill is
 covered by *CanvasNetPptx-PptxDocument-SlideBackgroundFill* above instead, and master/layout
 decorative shape rendering is covered by *CanvasNetPptx-PptxDocument-MasterLayoutShapeRendering*
-above instead. Not yet covered: a non-placeholder (freeform) shape's own background fill via
-`<a:pattFill>` inside `<p:spPr>` (pattern fill remains scoped to a dedicated, not-yet-assigned
-backlog item; picture fill, `<a:blipFill>` inside `<p:spPr>`, is now covered - see
-`CanvasNetPptx-PptxDocument-PictureFillResolution` above), picture effects/shadows, nested tables, table auto-sizing to
+above instead. Not yet covered: picture effects/shadows, nested tables, table auto-sizing to
 fit overflowing cell content (each row's resolved height is taken verbatim from its declared
 `<a:tr h="...">` value, with no growth to accommodate overflowing cell content), table
 style/banding (`<a:tableStyleId>`), group-level style cascading

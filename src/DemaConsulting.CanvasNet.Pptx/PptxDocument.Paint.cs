@@ -23,8 +23,8 @@ public sealed partial class PptxDocument
     /// <summary>
     ///     Resolves a shape's fill: the single recognized fill-definition child
     ///     (<c>&lt;a:noFill&gt;</c>/<c>&lt;a:solidFill&gt;</c>/<c>&lt;a:gradFill&gt;</c>/
-    ///     <c>&lt;a:blipFill&gt;</c>) of <paramref name="fillParentElement"/>, into a concrete
-    ///     <see cref="PptxPaint"/>.
+    ///     <c>&lt;a:pattFill&gt;</c>/<c>&lt;a:blipFill&gt;</c>) of <paramref name="fillParentElement"/>,
+    ///     into a concrete <see cref="PptxPaint"/>.
     /// </summary>
     /// <param name="fillParentElement">
     ///     The element that may directly contain a fill-definition child - typically a shape's
@@ -64,20 +64,28 @@ public sealed partial class PptxDocument
     /// <returns>
     ///     The resolved <see cref="PptxPaint"/> - <see cref="PptxNoFill.Instance"/> when
     ///     <paramref name="fillParentElement"/> is <see langword="null"/>, declares an explicit
-    ///     <c>&lt;a:noFill/&gt;</c>, or declares no recognized fill-definition child at all (a
+    ///     <c>&lt;a:noFill/&gt;</c>, declares no recognized fill-definition child at all (a
     ///     deliberate simplification: this phase does not resolve fill inheritance from a
-    ///     placeholder/layout/master/theme format scheme - see the design document); a resolved
-    ///     <see cref="PptxImageFill"/> when it declares an <c>&lt;a:blipFill&gt;</c> and
-    ///     <paramref name="resolveBlipImage"/> is supplied (non-<see langword="null"/>).
+    ///     placeholder/layout/master/theme format scheme - see the design document), or declares a
+    ///     non-conformant, attribute-less <c>&lt;a:pattFill/&gt;</c> with no <c>prst</c> attribute
+    ///     (observed in the project's own real <c>pythonpptx-dml-fill.pptx</c> fixture - treated
+    ///     as "no override", not a named preset); a resolved <see cref="PptxPatternFill"/> when it
+    ///     declares an <c>&lt;a:pattFill prst="..."/&gt;</c> naming a covered
+    ///     <see cref="PptxPresetPattern"/> (see that enum's own remarks for the full covered/
+    ///     deferred preset-name boundary); a resolved <see cref="PptxImageFill"/> when it declares
+    ///     an <c>&lt;a:blipFill&gt;</c> and <paramref name="resolveBlipImage"/> is supplied
+    ///     (non-<see langword="null"/>).
     /// </returns>
     /// <exception cref="PptxUnsupportedFeatureException">
-    ///     Thrown when the recognized fill-definition child is <c>&lt;a:pattFill&gt;</c> (pattern
-    ///     fill - deferred to a later phase, see the design document's rationale), or when it is
-    ///     <c>&lt;a:blipFill&gt;</c> (picture fill) and <paramref name="resolveBlipImage"/> is
-    ///     <see langword="null"/> (no resolver supplied); otherwise propagated unchanged from
-    ///     <paramref name="resolveBlipImage"/> itself - see <see cref="ResolvePictureSurface"/>'s
-    ///     own <c>&lt;exception&gt;</c> documentation for every cause (a linked, non-embedded
-    ///     image; an SVG-only fallback blip; or an unsupported raster image format).
+    ///     Thrown when the recognized fill-definition child is <c>&lt;a:pattFill prst="..."/&gt;</c>
+    ///     naming a preset not covered by <see cref="PptxPresetPattern"/> (pattern fill - every
+    ///     other preset name is deferred to a later phase, see the design document's rationale and
+    ///     that enum's own remarks), or when it is <c>&lt;a:blipFill&gt;</c> (picture fill) and
+    ///     <paramref name="resolveBlipImage"/> is <see langword="null"/> (no resolver supplied);
+    ///     otherwise propagated unchanged from <paramref name="resolveBlipImage"/> itself - see
+    ///     <see cref="ResolvePictureSurface"/>'s own <c>&lt;exception&gt;</c> documentation for
+    ///     every cause (a linked, non-embedded image; an SVG-only fallback blip; or an unsupported
+    ///     raster image format).
     /// </exception>
     internal static PptxPaint ResolveFill(
         XElement? fillParentElement, PptxTheme theme, float widthEmu, float heightEmu, Rgba32? phClrOverride = null,
@@ -109,9 +117,10 @@ public sealed partial class PptxDocument
             return ResolveGradientFill(gradFill, theme, widthEmu, heightEmu, phClrOverride, colorMap);
         }
 
-        if (fillParentElement.Element(DrawingNamespace + "pattFill") is not null)
+        var pattFill = fillParentElement.Element(DrawingNamespace + "pattFill");
+        if (pattFill is not null)
         {
-            throw new PptxUnsupportedFeatureException("pptx-pattern-fill", "Pattern fill (<a:pattFill>) is not supported.");
+            return ResolvePatternFill(pattFill, theme, phClrOverride, colorMap);
         }
 
         var blipFill = fillParentElement.Element(DrawingNamespace + "blipFill");
@@ -128,6 +137,112 @@ public sealed partial class PptxDocument
         }
 
         return PptxNoFill.Instance;
+    }
+
+    /// <summary>
+    ///     Resolves an <c>&lt;a:pattFill&gt;</c> element into either <see cref="PptxNoFill.Instance"/>
+    ///     (a non-conformant, attribute-less <c>&lt;a:pattFill/&gt;</c> with no <c>prst</c>
+    ///     attribute - see <see cref="ResolveFill"/>'s own remarks) or a resolved
+    ///     <see cref="PptxPatternFill"/> for a covered <see cref="PptxPresetPattern"/>.
+    /// </summary>
+    /// <param name="pattFillElement">The <c>&lt;a:pattFill&gt;</c> element.</param>
+    /// <param name="theme">The resolved theme, used to resolve the <c>&lt;a:fgClr&gt;</c>/<c>&lt;a:bgClr&gt;</c> colors.</param>
+    /// <param name="phClrOverride">
+    ///     The concrete color to substitute for an <c>&lt;a:schemeClr val="phClr"/&gt;</c> token
+    ///     in either color, or <see langword="null"/> (the default) - see <see cref="ResolveFill"/>'s
+    ///     matching parameter.
+    /// </param>
+    /// <param name="colorMap">
+    ///     The effective color map consulted when either color declares an <c>&lt;a:schemeClr
+    ///     val="bg1"/&gt;</c>-shaped token - see <see cref="ResolveFill"/>'s matching parameter.
+    /// </param>
+    /// <returns>
+    ///     <see cref="PptxNoFill.Instance"/> when <paramref name="pattFillElement"/> has no
+    ///     <c>prst</c> attribute; otherwise a resolved <see cref="PptxPatternFill"/>, defaulting an
+    ///     absent <c>&lt;a:fgClr&gt;</c> to black and an absent <c>&lt;a:bgClr&gt;</c> to white
+    ///     (both a documented, OOXML-adjacent convention - every real-world preset fill this
+    ///     project has encountered declares both explicitly).
+    /// </returns>
+    /// <exception cref="PptxUnsupportedFeatureException">
+    ///     Thrown when <c>prst</c> names a preset not covered by <see cref="PptxPresetPattern"/>
+    ///     (feature token <c>"pptx-pattern-fill"</c>) - see that enum's own remarks for the full
+    ///     covered/deferred preset-name boundary.
+    /// </exception>
+    private static PptxPaint ResolvePatternFill(
+        XElement pattFillElement, PptxTheme theme, Rgba32? phClrOverride, PptxColorMap? colorMap)
+    {
+        var prst = (string?)pattFillElement.Attribute("prst");
+        if (prst is null)
+        {
+            // Non-conformant, attribute-less <a:pattFill/> (observed in the project's own real
+            // pythonpptx-dml-fill.pptx fixture) - treated as "no override", not a named preset.
+            return PptxNoFill.Instance;
+        }
+
+        if (!TryResolvePresetPattern(prst, out var preset))
+        {
+            throw new PptxUnsupportedFeatureException(
+                "pptx-pattern-fill", $"Pattern fill preset '{prst}' is not supported.");
+        }
+
+        var fgColorElement = pattFillElement.Element(DrawingNamespace + "fgClr")?.Elements().FirstOrDefault();
+        var bgColorElement = pattFillElement.Element(DrawingNamespace + "bgClr")?.Elements().FirstOrDefault();
+        var foreground = fgColorElement is null
+            ? new Rgba32(0, 0, 0, 255)
+            : ResolveColor(fgColorElement, theme, phClrOverride, colorMap);
+        var background = bgColorElement is null
+            ? new Rgba32(255, 255, 255, 255)
+            : ResolveColor(bgColorElement, theme, phClrOverride, colorMap);
+
+        return new PptxPatternFill(preset, foreground, background);
+    }
+
+    /// <summary>
+    ///     Maps an <c>&lt;a:pattFill prst="..."/&gt;</c> attribute value to its matching
+    ///     <see cref="PptxPresetPattern"/>, when covered - see that enum's own remarks for the
+    ///     full covered/deferred preset-name boundary.
+    /// </summary>
+    /// <param name="prst">The <c>prst</c> attribute's string value (an ECMA-376 <c>ST_PresetPatternVal</c> name).</param>
+    /// <param name="preset">The resolved <see cref="PptxPresetPattern"/>, when this method returns <see langword="true"/>.</param>
+    /// <returns><see langword="true"/> when <paramref name="prst"/> names a covered preset; otherwise <see langword="false"/>.</returns>
+    private static bool TryResolvePresetPattern(string prst, out PptxPresetPattern preset)
+    {
+        switch (prst)
+        {
+            case "horz": preset = PptxPresetPattern.Horz; return true;
+            case "vert": preset = PptxPresetPattern.Vert; return true;
+            case "ltHorz": preset = PptxPresetPattern.LtHorz; return true;
+            case "ltVert": preset = PptxPresetPattern.LtVert; return true;
+            case "dkHorz": preset = PptxPresetPattern.DkHorz; return true;
+            case "dkVert": preset = PptxPresetPattern.DkVert; return true;
+            case "dnDiag": preset = PptxPresetPattern.DnDiag; return true;
+            case "upDiag": preset = PptxPresetPattern.UpDiag; return true;
+            case "ltDnDiag": preset = PptxPresetPattern.LtDnDiag; return true;
+            case "ltUpDiag": preset = PptxPresetPattern.LtUpDiag; return true;
+            case "dkDnDiag": preset = PptxPresetPattern.DkDnDiag; return true;
+            case "dkUpDiag": preset = PptxPresetPattern.DkUpDiag; return true;
+            case "wdDnDiag": preset = PptxPresetPattern.WdDnDiag; return true;
+            case "wdUpDiag": preset = PptxPresetPattern.WdUpDiag; return true;
+            case "cross": preset = PptxPresetPattern.Cross; return true;
+            case "diagCross": preset = PptxPresetPattern.DiagCross; return true;
+            case "pct5": preset = PptxPresetPattern.Pct5; return true;
+            case "pct10": preset = PptxPresetPattern.Pct10; return true;
+            case "pct20": preset = PptxPresetPattern.Pct20; return true;
+            case "pct25": preset = PptxPresetPattern.Pct25; return true;
+            case "pct30": preset = PptxPresetPattern.Pct30; return true;
+            case "pct40": preset = PptxPresetPattern.Pct40; return true;
+            case "pct50": preset = PptxPresetPattern.Pct50; return true;
+            case "pct60": preset = PptxPresetPattern.Pct60; return true;
+            case "pct70": preset = PptxPresetPattern.Pct70; return true;
+            case "pct75": preset = PptxPresetPattern.Pct75; return true;
+            case "pct80": preset = PptxPresetPattern.Pct80; return true;
+            case "pct90": preset = PptxPresetPattern.Pct90; return true;
+            case "divot": preset = PptxPresetPattern.Divot; return true;
+            case "wave": preset = PptxPresetPattern.Wave; return true;
+            default:
+                preset = default;
+                return false;
+        }
     }
 
     /// <summary>
@@ -216,8 +331,9 @@ public sealed partial class PptxDocument
 
     /// <summary>
     ///     Resolves a single color-definition element
-    ///     (<c>&lt;a:srgbClr&gt;</c>/<c>&lt;a:sysClr&gt;</c>/<c>&lt;a:schemeClr&gt;</c>) and its
-    ///     child color-transform chain into a concrete <see cref="Rgba32"/> value.
+    ///     (<c>&lt;a:srgbClr&gt;</c>/<c>&lt;a:sysClr&gt;</c>/<c>&lt;a:schemeClr&gt;</c>/
+    ///     <c>&lt;a:prstClr&gt;</c>) and its child color-transform chain into a concrete
+    ///     <see cref="Rgba32"/> value.
     /// </summary>
     /// <remarks>
     ///     <para>
@@ -265,15 +381,20 @@ public sealed partial class PptxDocument
     /// <returns>The resolved, fully color-transformed <see cref="Rgba32"/> value.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="colorElement"/> is an <c>&lt;a:srgbClr&gt;</c>/
-    ///     <c>&lt;a:sysClr&gt;</c>/<c>&lt;a:schemeClr&gt;</c> missing its required <c>val</c>
-    ///     attribute (or, for <c>&lt;a:sysClr&gt;</c>, missing <c>lastClr</c>), has an invalid hex
-    ///     value, or names an unrecognized <c>&lt;a:schemeClr val="..."/&gt;</c> slot.
+    ///     <c>&lt;a:sysClr&gt;</c>/<c>&lt;a:schemeClr&gt;</c>/<c>&lt;a:prstClr&gt;</c> missing its
+    ///     required <c>val</c> attribute (or, for <c>&lt;a:sysClr&gt;</c>, missing
+    ///     <c>lastClr</c>), has an invalid hex value, or names an unrecognized
+    ///     <c>&lt;a:schemeClr val="..."/&gt;</c> slot.
     /// </exception>
     /// <exception cref="PptxUnsupportedFeatureException">
     ///     Thrown when <paramref name="colorElement"/> is a color-definition kind other than
-    ///     <c>&lt;a:srgbClr&gt;</c>/<c>&lt;a:sysClr&gt;</c>/<c>&lt;a:schemeClr&gt;</c> (for example
-    ///     <c>&lt;a:scrgbClr&gt;</c>/<c>&lt;a:hslClr&gt;</c>/<c>&lt;a:prstClr&gt;</c>) - deferred
-    ///     to a later phase (feature token <c>"pptx-color-kind"</c>).
+    ///     <c>&lt;a:srgbClr&gt;</c>/<c>&lt;a:sysClr&gt;</c>/<c>&lt;a:schemeClr&gt;</c>/
+    ///     <c>&lt;a:prstClr&gt;</c> (for example <c>&lt;a:scrgbClr&gt;</c>/<c>&lt;a:hslClr&gt;</c>)
+    ///     - deferred to a later phase (feature token <c>"pptx-color-kind"</c>); also thrown when
+    ///     <paramref name="colorElement"/> is an <c>&lt;a:prstClr val="..."/&gt;</c> naming an
+    ///     <c>ST_PresetColorVal</c> other than the two names this project resolves (<c>white</c>/
+    ///     <c>black</c> - see <see cref="ResolveBaseColor"/>'s own remarks for the narrowly-scoped
+    ///     rationale), with the same feature token.
     /// </exception>
     internal static Rgba32 ResolveColor(
         XElement colorElement, PptxTheme theme, Rgba32? phClrOverride = null, PptxColorMap? colorMap = null)
@@ -282,7 +403,22 @@ public sealed partial class PptxDocument
         return ApplyColorTransforms(baseColor, colorElement);
     }
 
-    /// <summary>Resolves a color-definition element's own base color, before any color-transform chain is applied.</summary>
+    /// <summary>
+    ///     Resolves a color-definition element's own base color, before any color-transform chain
+    ///     is applied.
+    /// </summary>
+    /// <remarks>
+    ///     <c>&lt;a:prstClr val="..."/&gt;</c> (an ECMA-376 <c>ST_PresetColorVal</c> named color -
+    ///     over 140 X11/SVG-keyword-style names in the full schema) resolves only its two names
+    ///     actually required by this project's own real-world fixture corpus today (<c>white</c>
+    ///     and <c>black</c>) - a deliberately minimal, narrowly-scoped companion fix to pattern
+    ///     fill (<see cref="PptxPatternFill"/>) support, whose own <c>&lt;a:bgClr&gt;</c> always
+    ///     uses <c>&lt;a:prstClr val="white"/&gt;</c> in that fixture. Every other preset-color
+    ///     name throws the same narrowed <see cref="PptxUnsupportedFeatureException"/> (feature
+    ///     token <c>"pptx-color-kind"</c>) every other unsupported color-definition kind already
+    ///     throws - not a full <c>ST_PresetColorVal</c> table, which remains explicitly out of
+    ///     scope.
+    /// </remarks>
     private static Rgba32 ResolveBaseColor(
         XElement colorElement, PptxTheme theme, Rgba32? phClrOverride = null, PptxColorMap? colorMap = null)
     {
@@ -310,6 +446,19 @@ public sealed partial class PptxDocument
             }
 
             return ResolveSchemeColor(val, theme.ColorScheme, colorMap ?? PptxColorMap.Default);
+        }
+
+        if (colorElement.Name == DrawingNamespace + "prstClr")
+        {
+            var val = (string?)colorElement.Attribute("val") ??
+                throw new InvalidDataException("An <a:prstClr> element has no 'val' attribute.");
+            return val switch
+            {
+                "white" => new Rgba32(255, 255, 255, 255),
+                "black" => new Rgba32(0, 0, 0, 255),
+                _ => throw new PptxUnsupportedFeatureException(
+                    "pptx-color-kind", $"Preset color '{val}' is not supported."),
+            };
         }
 
         throw new PptxUnsupportedFeatureException(

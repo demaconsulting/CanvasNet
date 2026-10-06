@@ -419,15 +419,23 @@ public sealed partial class PptxDocument
     ///     no-op for <see cref="PptxNoFill"/>.
     /// </summary>
     /// <remarks>
-    ///     This overload is retained, unchanged, for every pre-existing non-table call site in
-    ///     this shared partial class (<c>PptxDocument.Render.cs</c>'s own shape/background/border
-    ///     fills) - it composes no transform into a <see cref="PptxGradientFill"/>'s own
+    ///     This overload now has no remaining direct production call site in this shared partial
+    ///     class - every production call site, including the slide/layout/master background fill
+    ///     in <c>PptxDocument.Render.cs</c>'s own <c>Render</c> method, routes through
+    ///     <see cref="FillPaintComposingLocalTransform"/> instead. This overload remains in use
+    ///     only as <see cref="FillPaintComposingLocalTransform"/>'s own internal delegation target
+    ///     for every non-<see cref="PptxPatternFill"/> paint kind (via the 4-parameter
+    ///     <see cref="FillPaint(Surface, Path, PptxPaint, Matrix3x2)"/> overload it itself
+    ///     delegates to with an identity transform) and as this file's own two table call sites'
+    ///     ultimate fallback. It composes no transform into a <see cref="PptxGradientFill"/>'s own
     ///     <see cref="Gradient"/> before filling, which is a pre-existing, codebase-wide
-    ///     correctness gap shared identically by every one of those call sites (see the 4-
-    ///     parameter <see cref="FillPaint(Surface, Path, PptxPaint, Matrix3x2)"/> overload's own
-    ///     <c>&lt;remarks/&gt;</c> for the full rationale and why only this file's own two table
-    ///     call sites - <see cref="PaintTable"/>/<see cref="PaintCellBorder"/> - compose it
-    ///     today).
+    ///     correctness gap shared identically by every call site that still reaches this overload
+    ///     (see the 4-parameter <see cref="FillPaint(Surface, Path, PptxPaint, Matrix3x2)"/>
+    ///     overload's own <c>&lt;remarks/&gt;</c> for the full rationale). For
+    ///     <see cref="PptxPatternFill"/> specifically, every shape/picture/connector fill, stroke
+    ///     outline, arrowhead paint, and slide/layout/master background fill call site now instead
+    ///     uses <see cref="FillPaintComposingLocalTransform"/>, which composes the real local
+    ///     transform via the 4-parameter overload - see that method's own remarks.
     /// </remarks>
     private static void FillPaint(Surface surface, Path path, PptxPaint paint) =>
         FillPaint(surface, path, paint, Matrix3x2.Identity);
@@ -450,17 +458,26 @@ public sealed partial class PptxDocument
     ///     evaluated against untransformed local-space coordinates while the path it fills is in
     ///     surface space, mismatching their coordinate spaces (matching the only existing
     ///     transform-composition precedent in the codebase,
-    ///     <c>Rendering.Canvas.cs</c>'s own <c>paint.WithTransform(_current)</c>). Used today only
-    ///     by this file's own two table call sites (<see cref="PaintTable"/>'s cell-fill call and
+    ///     <c>Rendering.Canvas.cs</c>'s own <c>paint.WithTransform(_current)</c>). Used directly by
+    ///     this file's own two table call sites (<see cref="PaintTable"/>'s cell-fill call and
     ///     <see cref="PaintCellBorder"/>'s stroked-border call), both of which already have
-    ///     <paramref name="shapeToSurfaceTransform"/> in scope - the identical gap in every other
-    ///     shape-fill call site (<c>PptxDocument.Render.cs</c>'s <c>RenderShape</c>/
-    ///     <c>RenderPicture</c>/<c>RenderConnector</c>, <c>PptxDocument.Background.cs</c>) is a
-    ///     separate, pre-existing, cross-cutting issue affecting every shape kind, not unique to
-    ///     tables, and is intentionally left as its own separately-scoped follow-up rather than
-    ///     bundled into this table-specific fix - see the 3-parameter
+    ///     <paramref name="shapeToSurfaceTransform"/> in scope, and indirectly - for
+    ///     <see cref="PptxPatternFill"/> only - by every call site that instead goes through
+    ///     <see cref="FillPaintComposingLocalTransform"/> (shape/picture/connector fills and
+    ///     stroke outlines, and arrowhead paint in <c>PptxDocument.Render.cs</c>). The identical
+    ///     gap for a <see cref="PptxGradientFill"/>/<see cref="PptxImageFill"/> at those same
+    ///     call sites remains a separate, pre-existing, cross-cutting issue - see the 3-parameter
     ///     <see cref="FillPaint(Surface, Path, PptxPaint)"/> overload those call sites keep using
-    ///     unchanged.
+    ///     unchanged for every non-pattern-fill paint kind. The slide/layout/master background
+    ///     fill (<c>PptxDocument.Render.cs</c>'s own <c>Render</c> method) is now also covered for
+    ///     <see cref="PptxPatternFill"/> via <see cref="FillPaintComposingLocalTransform"/>,
+    ///     passing the slide's own EMU-to-pixel <c>baseTransform</c> as its local-to-surface
+    ///     transform - the background rectangle's own local origin coincides with the slide's EMU
+    ///     origin, so <c>baseTransform</c> plays exactly the same role for the background that a
+    ///     shape's own resolved local-to-surface transform plays elsewhere. The identical gap for
+    ///     a <see cref="PptxGradientFill"/>/<see cref="PptxImageFill"/> background fill's own
+    ///     coordinate-space composition remains a separate, pre-existing, out-of-scope issue this
+    ///     fix does not address.
     /// </remarks>
     /// <param name="surface">The surface to fill onto.</param>
     /// <param name="path">The already-surface-space-transformed path to fill.</param>
@@ -490,7 +507,83 @@ public sealed partial class PptxDocument
                     .WithTransform(shapeToSurfaceTransform);
                 PathFiller.Fill(surface, path, tilePaint);
                 break;
+
+            case PptxPatternFill patternFill:
+                using (var tileSurface = PptxPatternTileRenderer.RenderTile(
+                    patternFill.Preset, patternFill.Foreground, patternFill.Background))
+                {
+                    var patternTransform = Matrix3x2.CreateScale(EmuPerPixelAt96Dpi);
+                    var patternTilePaint = new TilePaint(
+                        tileSurface, patternTransform, tileSurface.Width, tileSurface.Height)
+                        .WithTransform(shapeToSurfaceTransform);
+                    PathFiller.Fill(surface, path, patternTilePaint);
+                }
+
+                break;
         }
+    }
+
+    /// <summary>
+    ///     Fills <paramref name="path"/> onto <paramref name="surface"/> with <paramref name="paint"/>,
+    ///     exactly like the 3-parameter <see cref="FillPaint(Surface, Path, PptxPaint)"/> overload
+    ///     for every paint kind except <see cref="PptxPatternFill"/> - for a pattern fill,
+    ///     <paramref name="localToSurface"/> is composed into its synthesized tile's own
+    ///     <see cref="TilePaint.Transform"/> (via the 4-parameter
+    ///     <see cref="FillPaint(Surface, Path, PptxPaint, Matrix3x2)"/> overload), so its repeat
+    ///     tile is positioned at the shape/connector/line/arrowhead's own local origin instead of
+    ///     the surface's.
+    /// </summary>
+    /// <remarks>
+    ///     This is a narrow, pattern-fill-specific carve-out from the 3-parameter overload's own
+    ///     pre-existing, codebase-wide "every non-table call site composes no transform" gap (see
+    ///     that overload's own <c>&lt;remarks/&gt;</c>) - deliberately scoped to
+    ///     <see cref="PptxPatternFill"/> alone, so every other paint kind (including
+    ///     <see cref="PptxGradientFill"/>/<see cref="PptxImageFill"/>) keeps its exact existing
+    ///     behavior at every call site, unchanged by pattern-fill support. Without this, a
+    ///     pattern fill's small repeat tile would, like every other
+    ///     <see cref="TilePaint"/>/<see cref="Gradient"/> use at these call sites today, be
+    ///     evaluated against the identity transform instead of the shape's own position - for any
+    ///     shape not at the surface's own origin, every sampled pixel would collapse onto the
+    ///     same single tile pixel (since the tile's own pattern-space coordinates would be
+    ///     addressed directly by absolute surface-pixel coordinates, not by coordinates relative
+    ///     to the shape), defeating the entire feature for any realistically-positioned shape.
+    ///     This was originally fixed, and this helper originally named, for only the
+    ///     shape/connector <em>fill</em> call sites (<c>RenderShape</c>'s shape fill,
+    ///     <c>RenderConnector</c>'s explicit fill); it has since been generalized, unchanged in
+    ///     its own dispatch logic, to every <c>PptxDocument.Render.cs</c> call site that paints a
+    ///     resolved <see cref="PptxPaint"/> with a known local-to-surface transform in scope -
+    ///     <c>RenderShape</c>/<c>RenderPicture</c>/<c>RenderConnector</c>'s stroke-outline fills,
+    ///     and <c>PaintArrowhead</c>'s two arrowhead-paint calls (passing its own
+    ///     <c>orientToSurface</c>, not the connector's <c>localToSurface</c>, since an arrowhead's
+    ///     own local origin is rotated/translated relative to the connector - see
+    ///     <c>PaintArrowhead</c>'s own remarks), and the slide/layout/master background fill in
+    ///     <c>PptxDocument.Render.cs</c>'s own <c>Render</c> method (passing its own
+    ///     <c>baseTransform</c> - the slide's EMU-to-pixel scale - since the background
+    ///     rectangle's own local origin coincides with the slide's EMU origin, making
+    ///     <c>baseTransform</c> play exactly the same role here as a shape's own local-to-surface
+    ///     transform elsewhere). Fixing this for pattern fill specifically (rather than
+    ///     generalizing the underlying gap's own fix to every paint kind at every call site) keeps
+    ///     this feature's own footprint minimal and avoids any risk of altering already-established
+    ///     gradient/picture-fill rendering output.
+    /// </remarks>
+    /// <param name="surface">The surface to fill onto.</param>
+    /// <param name="path">The already-surface-space-transformed path to fill.</param>
+    /// <param name="paint">The resolved paint to fill with.</param>
+    /// <param name="localToSurface">
+    ///     The shape/connector/line/arrowhead's own resolved local-to-surface transform - composed
+    ///     into a <see cref="PptxPatternFill"/>'s synthesized tile paint only; every other paint
+    ///     kind is filled exactly as the 3-parameter <see cref="FillPaint(Surface, Path, PptxPaint)"/>
+    ///     overload would.
+    /// </param>
+    private static void FillPaintComposingLocalTransform(Surface surface, Path path, PptxPaint paint, Matrix3x2 localToSurface)
+    {
+        if (paint is PptxPatternFill)
+        {
+            FillPaint(surface, path, paint, localToSurface);
+            return;
+        }
+
+        FillPaint(surface, path, paint);
     }
 
     /// <summary>Sums <paramref name="count"/> consecutive column widths starting at <paramref name="startIndex"/>, clamped to the available column count.</summary>

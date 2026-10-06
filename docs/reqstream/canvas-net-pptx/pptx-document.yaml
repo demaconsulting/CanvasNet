@@ -577,13 +577,17 @@ sections:
               to a PptxImageFill (see CanvasNetPptx-PptxDocument-PictureFillResolution below) when
               a blip-image resolver is supplied, or is rejected with
               PptxUnsupportedFeatureException (feature token "pptx-picture-fill") when it is not;
-              and <a:pattFill> is rejected with PptxUnsupportedFeatureException (feature token
-              "pptx-pattern-fill") rather than being silently misinterpreted as unfilled or
-              solid-filled.
+              and <a:pattFill prst="..."/> naming a covered preset resolves to a PptxPatternFill
+              (see CanvasNetPptx-PptxDocument-PatternFillResolution below), an uncovered prst is
+              rejected with PptxUnsupportedFeatureException (feature token "pptx-pattern-fill"),
+              and a non-conformant, attribute-less <a:pattFill/> with no prst at all resolves to
+              PptxNoFill rather than either of those.
             justification: |
-              Pattern fill requires tiling machinery out of scope for this phase; rejecting it
-              explicitly, rather than silently falling back to PptxNoFill, lets a caller
-              distinguish "genuinely unfilled" from "fill kind not yet supported".
+              Pattern fill is now resolved for a documented preset subset (the remainder still
+              requires tiling/procedural machinery this project does not yet implement for every
+              named ECMA-376 ST_PresetPatternVal value); rejecting an uncovered preset explicitly,
+              rather than silently falling back to PptxNoFill, lets a caller distinguish
+              "genuinely unfilled" from "fill kind not yet supported".
             tests:
               - ResolveFill_NullParent_ReturnsNoFill
               - ResolveFill_ExplicitNoFill_ReturnsNoFill
@@ -591,8 +595,9 @@ sections:
               - ResolveFill_SolidFillSrgbClr_ReturnsResolvedSolidFill
               - ResolveFill_SolidFillSchemeClr_ResolvesThroughTheme
               - ResolveFill_GradFillLinear_ReturnsResolvedGradientFill
-              - ResolveFill_PatternFill_ThrowsPptxUnsupportedFeatureException
+              - ResolveFill_PatternFillUnsupportedPreset_ThrowsPptxUnsupportedFeatureException
               - ResolveFill_PictureFill_ThrowsPptxUnsupportedFeatureException
+              - ResolveFill_BarePatternFillWithNoPrstAttribute_ReturnsNoFill
 
           - id: CanvasNetPptx-PptxDocument-PictureFillResolution
             title: >-
@@ -628,14 +633,81 @@ sections:
               - ResolveImageFillTransform_TileWithNonTrivialOffsetAndScale_AppliesBothToEachAxis
               - ResolveImageFillTransform_StretchWithFillRectInsets_CropsBeforeStretching
               - ResolveImageFillTransform_DegenerateFillRect_FallsBackToFullStretch
-              - PptxDocument_Render_DmlFillFixture_Slide0PictureFillNoLongerBlocksRenderingOnlyPatternFillThrows
+              - PptxDocument_Render_DmlFillFixture_Slide0RendersPictureAndPatternFillShapesWithoutThrowing
               - CanvasNetPptx_SystemIntegration_Images_TileBlipFillShapeDecodesAndRendersEndToEnd
+
+          - id: CanvasNetPptx-PptxDocument-PatternFillResolution
+            title: >-
+              The PptxDocument class shall resolve a shape/paragraph fill's <a:pattFill prst="..."/>
+              naming a covered ECMA-376 ST_PresetPatternVal preset (30 of the 54 named values -
+              the horizontal/vertical stripe, diagonal-stripe, cross-hatch, and percentage/dot-
+              density families, plus the two fixture-mandatory divot/wave presets) into a
+              PptxPatternFill wrapping the preset name and its resolved fgClr/bgClr colors
+              (defaulting to black/white respectively when either child is absent), resolved via
+              the same ResolveColor helper <a:solidFill> already uses; every FillPaint-style
+              switch over PptxPaint values that handles a PptxPatternFill synthesizes a small
+              procedural repeating tile (via PptxPatternTileRenderer, one covered pixel rule per
+              preset) and paints it as a TilePaint, composed with the shape/connector/line/
+              arrowhead's own local-to-surface transform (PptxDocument.Render.cs's own
+              RenderShape/RenderPicture/RenderConnector fill and stroke-outline call sites, and
+              PaintArrowhead's own two arrowhead-paint call sites, all route through a shared
+              FillPaintComposingLocalTransform helper for this purpose, narrowly scoped to
+              PptxPatternFill alone, to compose that transform correctly - see its own remarks for
+              the pre-existing, codebase-wide transform-composition gap this narrowly addresses).
+              A line/stroke fill's own <a:ln><a:pattFill .../></a:ln> shares the identical
+              ResolveFill resolver used for shape fills, so it is equally resolvable and equally
+              covered by this same transform-composition fix. An uncovered preset is rejected with
+              PptxUnsupportedFeatureException (feature token "pptx-pattern-fill"); a
+              non-conformant, attribute-less <a:pattFill/> with no prst at all resolves to
+              PptxNoFill instead (see CanvasNetPptx-PptxDocument-FillResolution above). The
+              slide/layout/master background fill is now also covered by this same
+              transform-composition fix: PptxDocument.Render.cs's own Render method composes the
+              slide's own EMU-to-pixel baseTransform into the background fill's synthesized tile
+              via the same FillPaintComposingLocalTransform helper.
+            justification: |
+              <a:pattFill> used as a shape's own background fill (for example a diagonal-stripe or
+              dot-density "texture" autoshape) is a common real-world DrawingML construct - the
+              Python-pptx test corpus's own pythonpptx-dml-fill.pptx fixture exercises both the
+              divot and wave presets specifically - and rejecting every preset outright (the prior
+              CanvasNetPptx-PptxDocument-FillResolution behavior) left such shapes unrenderable
+              even though a procedural tile-synthesis rule is straightforward for a large, common
+              preset subset. Implementing all 54 named presets pixel-perfectly to PowerPoint's own
+              rendering is out of this project's scope; a documented, narrower covered subset (with
+              the remainder still rejected explicitly, not silently misinterpreted) keeps this
+              feature's own footprint bounded while unblocking the real fixture.
+            tests:
+              - ResolveFill_PatternFillCoveredPreset_ReturnsPptxPatternFill
+              - ResolveFill_PatternFillMissingFgBgClr_DefaultsToBlackOnWhite
+              - ResolveFill_PatternFillUnsupportedPreset_ThrowsPptxUnsupportedFeatureException
+              - ResolveFill_BarePatternFillWithNoPrstAttribute_ReturnsNoFill
+              - RenderTile_Horz_AlternatesFullRows
+              - RenderTile_Vert_AlternatesFullColumns
+              - RenderTile_LtHorz_SparseThinRows
+              - RenderTile_DkHorz_DominantRows
+              - RenderTile_LtVert_SparseThinColumns
+              - RenderTile_DkVert_DominantColumns
+              - RenderTile_DnDiag_FollowsXPlusYModuloRule
+              - RenderTile_UpDiag_FollowsXMinusYModuloRule
+              - RenderTile_WdDnDiag_ProducesWideBands
+              - RenderTile_Cross_FgAtHorizontalOrVerticalLines
+              - RenderTile_DiagCross_FgAtEitherDiagonal
+              - RenderTile_PercentageFamily_BothColorsPresent
+              - RenderTile_PercentageFamily_FgPixelCountIncreasesWithPercent
+              - RenderTile_Divot_BothColorsPresent
+              - RenderTile_Wave_BothColorsPresent
+              - RenderTile_EveryCoveredPreset_ProducesTileSizeSquareSurface
+              - PptxDocument_Render_DmlFillFixture_Slide0RendersPictureAndPatternFillShapesWithoutThrowing
+              - PptxDocument_Render_DmlFillFixture_Slide1PatternFillShapesRenderAndBareFillIsTransparent
+              - ResolveLineStyle_PatternFillCoveredPreset_ReturnsLineStyleWithPptxPatternFill
+              - Render_ShapeWithPatternFillStroke_PaintsCorrectlyTransformedStripesNotFlatColor
+              - Render_ConnectorWithPatternFillStroke_PaintsCorrectlyTransformedStripesNotFlatColor
+              - Render_SlideLevelPatternFillBackground_PaintsCorrectlyTransformedStripesNotFlatColor
 
           - id: CanvasNetPptx-PptxDocument-ColorResolution
             title: >-
               The PptxDocument class shall resolve a DrawingML color-definition element to a
               concrete Rgba32 value: <a:srgbClr val="RRGGBB"/> directly, <a:sysClr .../> via its
-              lastClr attribute, and <a:schemeClr val="..."/> by looking the named slot up in the
+              lastClr attribute, <a:schemeClr val="..."/> by looking the named slot up in the
               supplied PptxTheme's color scheme (reusing the existing PptxTheme/PptxColorScheme
               resolver rather than re-resolving the theme), including the bg1/tx1/bg2/tx2
               background/text aliases, which are first mapped through the effective
@@ -643,12 +715,15 @@ sections:
               overridden if present by the slide's own or otherwise the slide layout's own
               <p:clrMapOvr>) to their own mapped slot name before that slot is looked up in the
               theme's color scheme - never a fixed bg1->Light1/tx1->Dark1/bg2->Light2/tx2->Dark2
-              mapping; an unrecognized schemeClr slot name throws InvalidDataException, any other,
-              unsupported color-definition element kind throws PptxUnsupportedFeatureException
-              (feature token "pptx-color-kind"), and an srgbClr/sysClr hex value whose length
-              (after stripping an optional leading '#') is not exactly six hex digits - for
-              example an 8-digit  # AARRGGBB-style value - throws InvalidDataException rather than
-              being passed to the underlying hex parser.
+              mapping; and <a:prstClr val="white"/>/<a:prstClr val="black"/> to their standard RGB
+              values (the only two ECMA-376 ST_PresetColorVal names this package resolves). An
+              unrecognized schemeClr slot name throws InvalidDataException, any other,
+              unsupported color-definition element kind (including every ST_PresetColorVal name
+              other than white/black) throws PptxUnsupportedFeatureException (feature token
+              "pptx-color-kind"), and an srgbClr/sysClr hex value whose length (after stripping an
+              optional leading '#') is not exactly six hex digits - for example an 8-digit  #
+              AARRGGBB-style value - throws InvalidDataException rather than being passed to the
+              underlying hex parser.
             justification: |
               Scheme color resolution must build directly on Phase 1b's already-verified
               PptxTheme/PptxColorScheme resolver rather than duplicating its 12-slot lookup table,
@@ -664,7 +739,10 @@ sections:
               underlying Rgba32 hex parser also accepts an 8-digit  # AARRGGBB form and would
               silently treat the first byte as alpha for a malformed 8-digit value, so the
               six-digit form must be enforced before parsing to fail closed rather than silently
-              produce a wrong, unintended-alpha color.
+              produce a wrong, unintended-alpha color. <a:prstClr> support is deliberately narrowed
+              to white/black (the only two names this package's own real fixture corpus - a
+              pattern fill's own bgClr - requires), rather than implementing the full ~140-name
+              ECMA-376 preset-color table, to keep this companion fix minimally scoped.
             tests:
               - ResolveColor_SrgbClr_ParsesHexDirectly
               - ResolveColor_SysClr_UsesLastClrAttribute
@@ -674,6 +752,10 @@ sections:
               - ResolveColor_UnsupportedColorKind_ThrowsPptxUnsupportedFeatureException
               - ResolveColor_SrgbClrEightDigitValue_ThrowsInvalidDataException
               - ResolveColor_SysClrEightDigitLastClrValue_ThrowsInvalidDataException
+              - ResolveColor_PrstClrWhite_ReturnsWhite
+              - ResolveColor_PrstClrBlack_ReturnsBlack
+              - ResolveColor_PrstClrUnsupportedName_ThrowsPptxUnsupportedFeatureException
+              - ResolveColor_PrstClrMissingValAttribute_ThrowsInvalidDataException
 
           - id: CanvasNetPptx-PptxDocument-ColorTransforms
             title: >-

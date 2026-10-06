@@ -54,6 +54,10 @@ public class PptxPaintTests
     private static XElement SchemeClr(string val, params XElement[] transforms) =>
         new(A + "schemeClr", new XAttribute("val", val), transforms);
 
+    /// <summary>Prst Clr.</summary>
+    private static XElement PrstClr(string val, params XElement[] transforms) =>
+        new(A + "prstClr", new XAttribute("val", val), transforms);
+
     /// <summary>Transform.</summary>
     private static XElement Transform(string name, int val100000ths) =>
         new(A + name, new XAttribute("val", val100000ths));
@@ -137,13 +141,67 @@ public class PptxPaintTests
     }
 
     /// <summary>Resolve Fill - Pattern Fill - Throws Pptx Unsupported Feature Exception.</summary>
+    /// <summary>
+    ///     Resolve Fill - Bare Pattern Fill With No Prst Attribute - Returns No Fill.
+    /// </summary>
+    /// <remarks>
+    ///     A non-conformant, attribute-less <c>&lt;a:pattFill/&gt;</c> (no <c>prst</c> attribute)
+    ///     - observed in the project's own real <c>pythonpptx-dml-fill.pptx</c> fixture - is
+    ///     treated as "no override", not a named preset; see <see cref="PptxDocument.ResolveFill"/>'s
+    ///     own remarks.
+    /// </remarks>
     [Fact]
-    public void ResolveFill_PatternFill_ThrowsPptxUnsupportedFeatureException()
+    public void ResolveFill_BarePatternFillWithNoPrstAttribute_ReturnsNoFill()
     {
         var spPr = new XElement(A + "spPr", new XElement(A + "pattFill"));
 
+        var paint = PptxDocument.ResolveFill(spPr, BuildTestTheme(), 100, 100);
+
+        Assert.Same(PptxNoFill.Instance, paint);
+    }
+
+    /// <summary>Resolve Fill - Pattern Fill Unsupported Preset - Throws Pptx Unsupported Feature Exception.</summary>
+    [Fact]
+    public void ResolveFill_PatternFillUnsupportedPreset_ThrowsPptxUnsupportedFeatureException()
+    {
+        var spPr = new XElement(A + "spPr", new XElement(A + "pattFill", new XAttribute("prst", "zigZag")));
+
         var ex = Assert.Throws<PptxUnsupportedFeatureException>(() => PptxDocument.ResolveFill(spPr, BuildTestTheme(), 100, 100));
         Assert.Equal("pptx-pattern-fill", ex.Feature);
+        Assert.Contains("zigZag", ex.Message);
+    }
+
+    /// <summary>Resolve Fill - Pattern Fill Covered Preset - Returns Resolved Pattern Fill.</summary>
+    [Fact]
+    public void ResolveFill_PatternFillCoveredPreset_ReturnsPptxPatternFill()
+    {
+        var pattFill = new XElement(
+            A + "pattFill",
+            new XAttribute("prst", "divot"),
+            new XElement(A + "fgClr", SrgbClr("2CB731")),
+            new XElement(A + "bgClr", PrstClr("white")));
+        var spPr = new XElement(A + "spPr", pattFill);
+
+        var paint = PptxDocument.ResolveFill(spPr, BuildTestTheme(), 100, 100);
+
+        var pattern = Assert.IsType<PptxPatternFill>(paint);
+        Assert.Equal(PptxPresetPattern.Divot, pattern.Preset);
+        Assert.Equal(new Rgba32(0x2C, 0xB7, 0x31, 255), pattern.Foreground);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), pattern.Background);
+    }
+
+    /// <summary>Resolve Fill - Pattern Fill Missing Fg Bg Clr - Defaults To Black On White.</summary>
+    [Fact]
+    public void ResolveFill_PatternFillMissingFgBgClr_DefaultsToBlackOnWhite()
+    {
+        var spPr = new XElement(A + "spPr", new XElement(A + "pattFill", new XAttribute("prst", "horz")));
+
+        var paint = PptxDocument.ResolveFill(spPr, BuildTestTheme(), 100, 100);
+
+        var pattern = Assert.IsType<PptxPatternFill>(paint);
+        Assert.Equal(PptxPresetPattern.Horz, pattern.Preset);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), pattern.Foreground);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), pattern.Background);
     }
 
     /// <summary>Resolve Fill - Picture Fill - Throws Pptx Unsupported Feature Exception.</summary>
@@ -403,6 +461,42 @@ public class PptxPaintTests
         Assert.Equal("pptx-color-kind", ex.Feature);
     }
 
+    /// <summary>Resolve Color - Prst Clr White - Returns White.</summary>
+    [Fact]
+    public void ResolveColor_PrstClrWhite_ReturnsWhite()
+    {
+        var color = PptxDocument.ResolveColor(PrstClr("white"), BuildTestTheme());
+
+        Assert.Equal(new Rgba32(255, 255, 255, 255), color);
+    }
+
+    /// <summary>Resolve Color - Prst Clr Black - Returns Black.</summary>
+    [Fact]
+    public void ResolveColor_PrstClrBlack_ReturnsBlack()
+    {
+        var color = PptxDocument.ResolveColor(PrstClr("black"), BuildTestTheme());
+
+        Assert.Equal(new Rgba32(0, 0, 0, 255), color);
+    }
+
+    /// <summary>Resolve Color - Prst Clr Unsupported Name - Throws Pptx Unsupported Feature Exception.</summary>
+    [Fact]
+    public void ResolveColor_PrstClrUnsupportedName_ThrowsPptxUnsupportedFeatureException()
+    {
+        var ex = Assert.Throws<PptxUnsupportedFeatureException>(() => PptxDocument.ResolveColor(PrstClr("aliceBlue"), BuildTestTheme()));
+        Assert.Equal("pptx-color-kind", ex.Feature);
+        Assert.Contains("aliceBlue", ex.Message);
+    }
+
+    /// <summary>Resolve Color - Prst Clr Missing Val Attribute - Throws Invalid Data Exception.</summary>
+    [Fact]
+    public void ResolveColor_PrstClrMissingValAttribute_ThrowsInvalidDataException()
+    {
+        var element = new XElement(A + "prstClr");
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ResolveColor(element, BuildTestTheme()));
+    }
+
     /// <summary>
     ///     Resolve Color - Srgb Clr Eight Digit Value - Throws Invalid Data Exception (rather than
     ///     silently accepting an <c>AARRGGBB</c> value and misinterpreting its leading byte as
@@ -653,6 +747,38 @@ public class PptxPaintTests
         var solid = Assert.IsType<PptxSolidFill>(lineStyle.Paint);
         Assert.Equal(new Rgba32(0x00, 0xFF, 0x00, 255), solid.Color);
         Assert.Null(lineStyle.DashArray);
+    }
+
+    /// <summary>
+    ///     Resolve Line Style - Pattern Fill Covered Preset - Returns Line Style With Pptx Pattern
+    ///     Fill. Proves <see cref="PptxDocument.ResolveLineStyle"/> resolves an
+    ///     <c>&lt;a:ln&gt;&lt;a:pattFill&gt;...&lt;/a:pattFill&gt;&lt;/a:ln&gt;</c> (a line/stroke
+    ///     fill, as legitimately permitted by ECMA-376's <c>CT_LineProperties</c>) to a
+    ///     <see cref="PptxLineStyle"/> wrapping a <see cref="PptxPatternFill"/> with the expected
+    ///     preset/colors - the same shared <see cref="PptxDocument.ResolveFill"/> resolver used for
+    ///     shape fills (see <see cref="ResolveFill_PatternFillCoveredPreset_ReturnsPptxPatternFill"/>)
+    ///     is reached for a line's own fill-definition child too, so pattern fill is equally
+    ///     resolvable (and, after the companion render-level transform-composition fix, equally
+    ///     renderable) in a line/stroke context - it is not "not applicable" there.
+    /// </summary>
+    [Fact]
+    public void ResolveLineStyle_PatternFillCoveredPreset_ReturnsLineStyleWithPptxPatternFill()
+    {
+        var pattFill = new XElement(
+            A + "pattFill",
+            new XAttribute("prst", "horz"),
+            new XElement(A + "fgClr", SrgbClr("2CB731")),
+            new XElement(A + "bgClr", SrgbClr("C0504D")));
+        var ln = new XElement(A + "ln", new XAttribute("w", 28575), pattFill);
+
+        var lineStyle = PptxDocument.ResolveLineStyle(ln, BuildTestTheme());
+
+        Assert.NotNull(lineStyle);
+        Assert.Equal(28575f, lineStyle.WidthEmu);
+        var pattern = Assert.IsType<PptxPatternFill>(lineStyle.Paint);
+        Assert.Equal(PptxPresetPattern.Horz, pattern.Preset);
+        Assert.Equal(new Rgba32(0x2C, 0xB7, 0x31, 255), pattern.Foreground);
+        Assert.Equal(new Rgba32(0xC0, 0x50, 0x4D, 255), pattern.Background);
     }
 
     /// <summary>Proves a non-numeric <c>w</c> attribute throws <see cref="InvalidDataException"/> rather than letting a raw <see cref="FormatException"/> escape uncaught.</summary>
@@ -1091,5 +1217,344 @@ public class PptxPaintTests
         var outline = PptxDocument.ResolveStrokeOutline(shapePath, lineStyle, System.Numerics.Matrix3x2.Identity);
 
         Assert.NotEmpty(outline.Subpaths);
+    }
+
+    // --- PptxPatternTileRenderer.RenderTile: per-preset tile-synthesis unit tests ----------------
+
+    /// <summary>An arbitrary, distinct foreground test color.</summary>
+    private static readonly Rgba32 Fg = new(0x2C, 0xB7, 0x31, 255);
+
+    /// <summary>An arbitrary, distinct background test color.</summary>
+    private static readonly Rgba32 Bg = new(0xFF, 0xFF, 0xFF, 255);
+
+    /// <summary>Asserts every pixel of <paramref name="surface"/> is either <see cref="Fg"/> or <see cref="Bg"/>, and that both colors actually appear.</summary>
+    private static void AssertOnlyFgAndBgPresent(Surface surface)
+    {
+        var sawFg = false;
+        var sawBg = false;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                var pixel = surface[x, y];
+                if (pixel == Fg)
+                {
+                    sawFg = true;
+                }
+                else if (pixel == Bg)
+                {
+                    sawBg = true;
+                }
+                else
+                {
+                    Assert.Fail($"Unexpected pixel color {pixel} at ({x},{y}); expected only Fg/Bg.");
+                }
+            }
+        }
+
+        Assert.True(sawFg, "Expected at least one foreground-colored pixel.");
+        Assert.True(sawBg, "Expected at least one background-colored pixel.");
+    }
+
+    /// <summary>Render Tile - Horz - Alternates Full Rows.</summary>
+    [Fact]
+    public void RenderTile_Horz_AlternatesFullRows()
+    {
+        using var tile = PptxPatternTileRenderer.RenderTile(PptxPresetPattern.Horz, Fg, Bg);
+
+        for (var y = 0; y < tile.Height; y++)
+        {
+            var expected = y % 2 == 0 ? Fg : Bg;
+            for (var x = 0; x < tile.Width; x++)
+            {
+                Assert.Equal(expected, tile[x, y]);
+            }
+        }
+
+        AssertOnlyFgAndBgPresent(tile);
+    }
+
+    /// <summary>Render Tile - Vert - Alternates Full Columns.</summary>
+    [Fact]
+    public void RenderTile_Vert_AlternatesFullColumns()
+    {
+        using var tile = PptxPatternTileRenderer.RenderTile(PptxPresetPattern.Vert, Fg, Bg);
+
+        for (var x = 0; x < tile.Width; x++)
+        {
+            var expected = x % 2 == 0 ? Fg : Bg;
+            for (var y = 0; y < tile.Height; y++)
+            {
+                Assert.Equal(expected, tile[x, y]);
+            }
+        }
+
+        AssertOnlyFgAndBgPresent(tile);
+    }
+
+    /// <summary>Render Tile - Lt Horz - Sparse Thin Rows.</summary>
+    [Fact]
+    public void RenderTile_LtHorz_SparseThinRows()
+    {
+        using var tile = PptxPatternTileRenderer.RenderTile(PptxPresetPattern.LtHorz, Fg, Bg);
+
+        for (var y = 0; y < tile.Height; y++)
+        {
+            var expected = y % 4 == 0 ? Fg : Bg;
+            Assert.Equal(expected, tile[0, y]);
+        }
+
+        AssertOnlyFgAndBgPresent(tile);
+    }
+
+    /// <summary>Render Tile - Dk Horz - Dominant Rows.</summary>
+    [Fact]
+    public void RenderTile_DkHorz_DominantRows()
+    {
+        using var tile = PptxPatternTileRenderer.RenderTile(PptxPresetPattern.DkHorz, Fg, Bg);
+
+        for (var y = 0; y < tile.Height; y++)
+        {
+            var expected = y % 4 != 0 ? Fg : Bg;
+            Assert.Equal(expected, tile[0, y]);
+        }
+
+        AssertOnlyFgAndBgPresent(tile);
+    }
+
+    /// <summary>Render Tile - Lt Vert - Sparse Thin Columns.</summary>
+    [Fact]
+    public void RenderTile_LtVert_SparseThinColumns()
+    {
+        using var tile = PptxPatternTileRenderer.RenderTile(PptxPresetPattern.LtVert, Fg, Bg);
+
+        for (var x = 0; x < tile.Width; x++)
+        {
+            var expected = x % 4 == 0 ? Fg : Bg;
+            Assert.Equal(expected, tile[x, 0]);
+        }
+
+        AssertOnlyFgAndBgPresent(tile);
+    }
+
+    /// <summary>Render Tile - Dk Vert - Dominant Columns.</summary>
+    [Fact]
+    public void RenderTile_DkVert_DominantColumns()
+    {
+        using var tile = PptxPatternTileRenderer.RenderTile(PptxPresetPattern.DkVert, Fg, Bg);
+
+        for (var x = 0; x < tile.Width; x++)
+        {
+            var expected = x % 4 != 0 ? Fg : Bg;
+            Assert.Equal(expected, tile[x, 0]);
+        }
+
+        AssertOnlyFgAndBgPresent(tile);
+    }
+
+    /// <summary>Render Tile - Dn Diag - Follows X Plus Y Modulo Rule.</summary>
+    [Fact]
+    public void RenderTile_DnDiag_FollowsXPlusYModuloRule()
+    {
+        using var tile = PptxPatternTileRenderer.RenderTile(PptxPresetPattern.DnDiag, Fg, Bg);
+
+        for (var y = 0; y < tile.Height; y++)
+        {
+            for (var x = 0; x < tile.Width; x++)
+            {
+                var expected = (x + y) % 4 == 0 ? Fg : Bg;
+                Assert.Equal(expected, tile[x, y]);
+            }
+        }
+
+        AssertOnlyFgAndBgPresent(tile);
+    }
+
+    /// <summary>Render Tile - Up Diag - Follows X Minus Y Modulo Rule.</summary>
+    [Fact]
+    public void RenderTile_UpDiag_FollowsXMinusYModuloRule()
+    {
+        using var tile = PptxPatternTileRenderer.RenderTile(PptxPresetPattern.UpDiag, Fg, Bg);
+
+        for (var y = 0; y < tile.Height; y++)
+        {
+            for (var x = 0; x < tile.Width; x++)
+            {
+                var expected = (x - y + PptxPatternTileRenderer.TileSize) % 4 == 0 ? Fg : Bg;
+                Assert.Equal(expected, tile[x, y]);
+            }
+        }
+
+        AssertOnlyFgAndBgPresent(tile);
+    }
+
+    /// <summary>Render Tile - Wd Dn Diag - Produces Wide Bands.</summary>
+    [Fact]
+    public void RenderTile_WdDnDiag_ProducesWideBands()
+    {
+        using var tile = PptxPatternTileRenderer.RenderTile(PptxPresetPattern.WdDnDiag, Fg, Bg);
+
+        for (var y = 0; y < tile.Height; y++)
+        {
+            for (var x = 0; x < tile.Width; x++)
+            {
+                var expected = (x + y) % 8 < 4 ? Fg : Bg;
+                Assert.Equal(expected, tile[x, y]);
+            }
+        }
+
+        AssertOnlyFgAndBgPresent(tile);
+    }
+
+    /// <summary>Render Tile - Cross - Fg At Horizontal Or Vertical Lines.</summary>
+    [Fact]
+    public void RenderTile_Cross_FgAtHorizontalOrVerticalLines()
+    {
+        using var tile = PptxPatternTileRenderer.RenderTile(PptxPresetPattern.Cross, Fg, Bg);
+
+        for (var y = 0; y < tile.Height; y++)
+        {
+            for (var x = 0; x < tile.Width; x++)
+            {
+                var expected = y % 4 == 0 || x % 4 == 0 ? Fg : Bg;
+                Assert.Equal(expected, tile[x, y]);
+            }
+        }
+
+        AssertOnlyFgAndBgPresent(tile);
+    }
+
+    /// <summary>Render Tile - Diag Cross - Fg At Either Diagonal.</summary>
+    [Fact]
+    public void RenderTile_DiagCross_FgAtEitherDiagonal()
+    {
+        using var tile = PptxPatternTileRenderer.RenderTile(PptxPresetPattern.DiagCross, Fg, Bg);
+
+        for (var y = 0; y < tile.Height; y++)
+        {
+            for (var x = 0; x < tile.Width; x++)
+            {
+                var expected = (x + y) % 4 == 0 || (x - y + PptxPatternTileRenderer.TileSize) % 4 == 0 ? Fg : Bg;
+                Assert.Equal(expected, tile[x, y]);
+            }
+        }
+
+        AssertOnlyFgAndBgPresent(tile);
+    }
+
+    /// <summary>Render Tile - Percentage Family - Density Increases Monotonically With Percent.</summary>
+    [Theory]
+    [InlineData("pct5")]
+    [InlineData("pct10")]
+    [InlineData("pct20")]
+    [InlineData("pct25")]
+    [InlineData("pct30")]
+    [InlineData("pct40")]
+    [InlineData("pct50")]
+    [InlineData("pct60")]
+    [InlineData("pct70")]
+    [InlineData("pct75")]
+    [InlineData("pct80")]
+    [InlineData("pct90")]
+    public void RenderTile_PercentageFamily_BothColorsPresent(string prst)
+    {
+        using var tile = PptxPatternTileRenderer.RenderTile(ParsePresetName(prst), Fg, Bg);
+
+        AssertOnlyFgAndBgPresent(tile);
+    }
+
+    /// <summary>Render Tile - Percentage Family - Fg Pixel Count Increases With Percent.</summary>
+    [Fact]
+    public void RenderTile_PercentageFamily_FgPixelCountIncreasesWithPercent()
+    {
+        int CountFg(PptxPresetPattern preset)
+        {
+            using var tile = PptxPatternTileRenderer.RenderTile(preset, Fg, Bg);
+            var count = 0;
+            for (var y = 0; y < tile.Height; y++)
+            {
+                for (var x = 0; x < tile.Width; x++)
+                {
+                    if (tile[x, y] == Fg)
+                    {
+                        count++;
+                    }
+                }
+            }
+
+            return count;
+        }
+
+        var counts = new[]
+        {
+            CountFg(PptxPresetPattern.Pct5), CountFg(PptxPresetPattern.Pct10), CountFg(PptxPresetPattern.Pct25),
+            CountFg(PptxPresetPattern.Pct50), CountFg(PptxPresetPattern.Pct75), CountFg(PptxPresetPattern.Pct90),
+        };
+
+        for (var i = 1; i < counts.Length; i++)
+        {
+            Assert.True(
+                counts[i] >= counts[i - 1],
+                $"Expected non-decreasing foreground pixel density; counts were [{string.Join(", ", counts)}].");
+        }
+    }
+
+    /// <summary>Render Tile - Divot - Both Colors Present.</summary>
+    [Fact]
+    public void RenderTile_Divot_BothColorsPresent()
+    {
+        using var tile = PptxPatternTileRenderer.RenderTile(PptxPresetPattern.Divot, Fg, Bg);
+
+        AssertOnlyFgAndBgPresent(tile);
+    }
+
+    /// <summary>Render Tile - Wave - Both Colors Present.</summary>
+    [Fact]
+    public void RenderTile_Wave_BothColorsPresent()
+    {
+        using var tile = PptxPatternTileRenderer.RenderTile(PptxPresetPattern.Wave, Fg, Bg);
+
+        AssertOnlyFgAndBgPresent(tile);
+    }
+
+    /// <summary>Render Tile - Every Covered Preset - Produces Exactly Tile Size Square Surface.</summary>
+    [Theory]
+    [InlineData("horz")]
+    [InlineData("vert")]
+    [InlineData("ltHorz")]
+    [InlineData("ltVert")]
+    [InlineData("dkHorz")]
+    [InlineData("dkVert")]
+    [InlineData("dnDiag")]
+    [InlineData("upDiag")]
+    [InlineData("ltDnDiag")]
+    [InlineData("ltUpDiag")]
+    [InlineData("dkDnDiag")]
+    [InlineData("dkUpDiag")]
+    [InlineData("wdDnDiag")]
+    [InlineData("wdUpDiag")]
+    [InlineData("cross")]
+    [InlineData("diagCross")]
+    [InlineData("divot")]
+    [InlineData("wave")]
+    public void RenderTile_EveryCoveredPreset_ProducesTileSizeSquareSurface(string prst)
+    {
+        using var tile = PptxPatternTileRenderer.RenderTile(ParsePresetName(prst), Fg, Bg);
+
+        Assert.Equal(PptxPatternTileRenderer.TileSize, tile.Width);
+        Assert.Equal(PptxPatternTileRenderer.TileSize, tile.Height);
+    }
+
+    /// <summary>
+    ///     Maps an <c>ST_PresetPatternVal</c> <c>prst</c> name to its <see cref="PptxPresetPattern"/>
+    ///     via a real, minimal <c>&lt;a:pattFill&gt;</c>/<see cref="PptxDocument.ResolveFill"/>
+    ///     round trip - avoiding a second, independent (and possibly divergent) string-to-enum
+    ///     mapping table duplicated purely for test parameterization.
+    /// </summary>
+    private static PptxPresetPattern ParsePresetName(string prst)
+    {
+        var spPr = new XElement(A + "spPr", new XElement(A + "pattFill", new XAttribute("prst", prst)));
+        var paint = PptxDocument.ResolveFill(spPr, BuildTestTheme(), 100, 100);
+        return Assert.IsType<PptxPatternFill>(paint).Preset;
     }
 }

@@ -59,7 +59,7 @@ Three independent sources are represented:
 | `pythonpptx-ph-unpopulated-placeholders.pptx` | Nine slides, each empty, inherited placeholder of a distinct type. |
 | `pythonpptx-txt-fit-text.pptx` | A single slide with `wrap="none"` + `<a:spAutoFit/>` real paragraph text. |
 | `pythonpptx-shp-connector-props.pptx` | Two slides; a lone `<p:cxnSp>` connector (silently skipped) plus a picture. |
-| `pythonpptx-dml-fill.pptx` | Two slides exercising shape-background picture-fill and pattern-fill (both throw). |
+| `pythonpptx-dml-fill.pptx` | Two slides exercising shape-background picture-fill and pattern-fill (both now render; an uncovered pattern preset would still throw). |
 | `pythonpptx-dml-line.pptx` | Four slides of explicit `<a:solidFill>`/`<a:ln>` stroke variety (width/dash/color). |
 | `aiden0z-1-chart-and-complex.pptx` | Two slides: org-chart (connectors/custGeom/avLst) plus a chart slide (throws). |
 | `aiden0z-image-crop-css-reset.pptx` | One slide: `<p:bg>` fill, four pictures with distinct `<a:srcRect>` crops. |

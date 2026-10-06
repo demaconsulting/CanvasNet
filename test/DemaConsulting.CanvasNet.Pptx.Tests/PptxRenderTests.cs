@@ -8,7 +8,7 @@ namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
 // cspell:ignore pptx sppr nvsppr nvpr cnvpr cnvsppr grpsp nvgrpsppr grpsppr cxnsp nvcxnsppr cnvcxnsppr
 // cspell:ignore nvpicpr nvpr cnvpicpr blipfill srcrect embed graphicframe tbl tblgrid gridcol tcpr srgb
-// cspell:ignore calibri txbox xfrm prst Xfrm hlink Hlink cust pythonpptx bbox
+// cspell:ignore calibri txbox xfrm prst Xfrm hlink Hlink cust pythonpptx bbox patt fgclr bgclr
 
 /// <summary>
 ///     Unit-level tests for the Phase 1f public, slide-level rendering API
@@ -740,6 +740,184 @@ public class PptxRenderTests
         // (within the arrowhead's own flared base, not the plain line), is red.
         Assert.Equal(new Rgba32(255, 0, 0, 255), surface[15, 122]);
         Assert.Equal(new Rgba32(255, 255, 255, 255), surface[15, 60]);
+    }
+
+    /// <summary>
+    ///     Scans <paramref name="surface"/>'s own <c>[x0,x1) x [y0,y1)</c> rectangle for the
+    ///     presence of both <paramref name="first"/> and <paramref name="second"/> pixel colors,
+    ///     mirroring <c>PptxFixturesCorpusTests</c>'s own identically-named helper (kept as a
+    ///     separate, private copy here since the two test classes do not share a common base type).
+    /// </summary>
+    private static void AssertRegionContainsBothColors(Surface surface, int x0, int y0, int x1, int y1, Rgba32 first, Rgba32 second)
+    {
+        var sawFirst = false;
+        var sawSecond = false;
+        for (var y = y0; y < y1; y++)
+        {
+            for (var x = x0; x < x1; x++)
+            {
+                var pixel = surface[x, y];
+                if (pixel == first)
+                {
+                    sawFirst = true;
+                }
+                else if (pixel == second)
+                {
+                    sawSecond = true;
+                }
+            }
+        }
+
+        Assert.True(sawFirst, $"Expected to find color {first} somewhere in region ({x0},{y0})-({x1},{y1}), but did not.");
+        Assert.True(sawSecond, $"Expected to find color {second} somewhere in region ({x0},{y0})-({x1},{y1}), but did not.");
+    }
+
+    /// <summary>
+    ///     Proves the fix for the line/stroke-fill transform-composition gap this quality-retry
+    ///     exists to close: a shape positioned away from the render surface's own origin, with
+    ///     <c>&lt;a:noFill/&gt;</c> shape fill and a thick <c>&lt;a:ln&gt;&lt;a:pattFill
+    ///     prst="horz"&gt;...&lt;/a:pattFill&gt;&lt;/a:ln&gt;</c> stroke, must paint a genuine,
+    ///     correctly-positioned alternating foreground/background stripe pattern along its stroke
+    ///     band - not a single flat color.
+    /// </summary>
+    /// <remarks>
+    ///     Rendered against a deliberately small 1"x1" slide (914400x914400 EMU) at 288x288px -
+    ///     exactly <c>3175</c> EMU/pixel, chosen so the pattern tile's own fixed <c>8x8</c>-pixel,
+    ///     <c>9525</c>-EMU-per-tile-pixel size (<see cref="PptxPatternTileRenderer.TileSize"/>)
+    ///     maps to an exact <c>3</c> surface pixels per tile pixel (<c>9525 / 3175 = 3</c>), giving
+    ///     a clean, exactly-reproducible <c>24</c>-surface-pixel vertical repeat period for the
+    ///     <c>horz</c> preset's alternating rows. Before this fix, <c>RenderShape</c>'s
+    ///     stroke-outline <c>FillPaint</c> call composed <see cref="System.Numerics.Matrix3x2.Identity"/>
+    ///     instead of the shape's own local-to-surface transform into the pattern tile's own
+    ///     <see cref="Drawing.TilePaint.Transform"/> - with no transform composed at all (missing
+    ///     both the shape's own position <em>and</em> the slide's own EMU-to-pixel scale), the
+    ///     pattern tile's addressed texel barely moves across this small render surface, so the
+    ///     entire stroke band collapses onto a single tile pixel's color (here, the foreground
+    ///     color, since tile pixel (0,0) is foreground for <c>horz</c>) - this test's "both colors
+    ///     present" assertion would have failed against that pre-fix behavior (only the foreground
+    ///     color would ever appear), and passes only once the real transform is composed.
+    /// </remarks>
+    [Fact]
+    public void Render_ShapeWithPatternFillStroke_PaintsCorrectlyTransformedStripesNotFlatColor()
+    {
+        const string spTreeInnerXml =
+            """
+            <p:sp>
+              <p:nvSpPr><p:cNvPr id="2" name="PatternStrokeRect"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="152400" y="152400"/><a:ext cx="609600" cy="457200"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:noFill/>
+                <a:ln w="228600">
+                  <a:pattFill prst="horz">
+                    <a:fgClr><a:srgbClr val="2CB731"/></a:fgClr>
+                    <a:bgClr><a:srgbClr val="C0504D"/></a:bgClr>
+                  </a:pattFill>
+                </a:ln>
+              </p:spPr>
+            </p:sp>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml, slideWidthEmu: 914400f, slideHeightEmu: 914400f);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 288, 288);
+
+        var fg = new Rgba32(0x2C, 0xB7, 0x31, 255);
+        var bg = new Rgba32(0xC0, 0x50, 0x4D, 255);
+
+        // The rectangle's own top edge sits at pixel row 48 (152400 / 3175); its 228600-EMU-wide
+        // (72px) stroke is centered on that edge, spanning roughly rows [12,84]. Sampling that
+        // whole band at a column well inside the shape's own left/right extent (x=144, the
+        // rectangle's own horizontal center) proves both the resolved foreground and background
+        // colors genuinely alternate across the band, rather than the band collapsing to a single
+        // flat color (the pre-fix identity-transform bug).
+        AssertRegionContainsBothColors(surface, 140, 12, 148, 84, fg, bg);
+    }
+
+    /// <summary>
+    ///     Proves the identical fix for a <c>&lt;p:cxnSp&gt;</c> connector's own stroke: a
+    ///     horizontal connector positioned away from the render surface's own origin, with a
+    ///     thick <c>&lt;a:ln&gt;&lt;a:pattFill prst="horz"&gt;...&lt;/a:pattFill&gt;&lt;/a:ln&gt;</c>
+    ///     stroke, must paint a genuine alternating stripe pattern across its own stroke band - not
+    ///     a single flat color. Mirrors
+    ///     <see cref="Render_ShapeWithPatternFillStroke_PaintsCorrectlyTransformedStripesNotFlatColor"/>'s
+    ///     own rationale and EMU/pixel scale choice, applied to <c>RenderConnector</c>'s own
+    ///     stroke-outline <c>FillPaint</c> call site instead of <c>RenderShape</c>'s.
+    /// </summary>
+    [Fact]
+    public void Render_ConnectorWithPatternFillStroke_PaintsCorrectlyTransformedStripesNotFlatColor()
+    {
+        const string spTreeInnerXml =
+            """
+            <p:cxnSp>
+              <p:nvCxnSpPr><p:cNvPr id="2" name="PatternStrokeConnector"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="76200" y="304800"/><a:ext cx="609600" cy="0"/></a:xfrm>
+                <a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom>
+                <a:ln w="228600">
+                  <a:pattFill prst="horz">
+                    <a:fgClr><a:srgbClr val="2CB731"/></a:fgClr>
+                    <a:bgClr><a:srgbClr val="C0504D"/></a:bgClr>
+                  </a:pattFill>
+                </a:ln>
+              </p:spPr>
+            </p:cxnSp>
+            """;
+        using var stream = BuildRenderPackage(spTreeInnerXml, slideWidthEmu: 914400f, slideHeightEmu: 914400f);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 288, 288);
+
+        var fg = new Rgba32(0x2C, 0xB7, 0x31, 255);
+        var bg = new Rgba32(0xC0, 0x50, 0x4D, 255);
+
+        // The connector's own horizontal line sits at pixel row 96 (304800 / 3175); its
+        // 228600-EMU-wide (72px) stroke is centered on that line, spanning roughly rows [60,132].
+        // Sampling that whole band at a column well inside the connector's own horizontal extent
+        // (x=120, inside [24,216]) proves both colors genuinely alternate across the band.
+        AssertRegionContainsBothColors(surface, 116, 60, 124, 132, fg, bg);
+    }
+
+    /// <summary>
+    ///     Proves the slide-level background-fill transform-composition fix: a slide's own
+    ///     <c>&lt;p:bg&gt;&lt;p:bgPr&gt;&lt;a:pattFill prst="horz"&gt;...&lt;/a:pattFill&gt;&lt;/p:bgPr&gt;&lt;/p:bg&gt;</c>
+    ///     background must paint a genuine, correctly-scaled alternating foreground/background
+    ///     stripe pattern across the slide - not a single flat color.
+    /// </summary>
+    /// <remarks>
+    ///     Mirrors <see cref="Render_ShapeWithPatternFillStroke_PaintsCorrectlyTransformedStripesNotFlatColor"/>'s
+    ///     own rationale and EMU/pixel scale choice (a 1"x1", <c>914400x914400</c> EMU slide
+    ///     rendered at <c>288x288</c> px, giving exactly <c>3175</c> EMU/pixel and an exact
+    ///     <c>3</c> surface pixels per <c>8x8</c>-pixel pattern tile pixel, i.e. a clean
+    ///     <c>24</c>-surface-pixel vertical repeat period for the <c>horz</c> preset), applied to
+    ///     the slide-level background-fill call site (<c>PptxDocument.Render.cs</c>'s own
+    ///     <c>Render</c> method) instead of a shape/connector's own stroke. Before this fix, the
+    ///     background fill's own <c>FillPaint</c> call composed <see cref="System.Numerics.Matrix3x2.Identity"/>
+    ///     instead of the slide's own EMU-to-pixel <c>baseTransform</c> into the pattern tile's
+    ///     own <see cref="Drawing.TilePaint.Transform"/>, so the entire slide collapsed onto a
+    ///     single tile pixel's color - this test's "both colors present" assertion would have
+    ///     failed against that pre-fix behavior (only the foreground color would ever appear), and
+    ///     passes only once the real transform is composed.
+    /// </remarks>
+    [Fact]
+    public void Render_SlideLevelPatternFillBackground_PaintsCorrectlyTransformedStripesNotFlatColor()
+    {
+        const string patternBgPrXml =
+            """<p:bgPr><a:pattFill prst="horz"><a:fgClr><a:srgbClr val="2CB731"/></a:fgClr><a:bgClr><a:srgbClr val="C0504D"/></a:bgClr></a:pattFill><a:effectLst/></p:bgPr>""";
+        using var stream = BuildRenderPackage(
+            spTreeInnerXml: string.Empty, slideBackgroundXml: patternBgPrXml,
+            slideWidthEmu: 914400f, slideHeightEmu: 914400f);
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 288, 288);
+
+        var fg = new Rgba32(0x2C, 0xB7, 0x31, 255);
+        var bg = new Rgba32(0xC0, 0x50, 0x4D, 255);
+
+        // Sample two full 24px repeat periods (rows [0,48)) across the full slide width to prove
+        // both the resolved foreground and background colors genuinely alternate, rather than the
+        // whole slide collapsing to a single flat color (the pre-fix identity-transform bug).
+        AssertRegionContainsBothColors(surface, 0, 0, 288, 48, fg, bg);
     }
 
     /// <summary>
