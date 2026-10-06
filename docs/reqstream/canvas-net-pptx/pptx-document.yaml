@@ -429,7 +429,7 @@ sections:
               run/paragraph properties.
             tests:
               - Render_PlaceholderShapeWithEmptySpPr_InheritsXfrmAndGeometryFromLayout
-              - PptxDocument_Render_SamplelibSamplePresentationFixture_Slide4ThrowsUnsupportedFeatureOthersPaintContent
+              - PptxDocument_Render_SamplelibSamplePresentationFixture_EverySlidePaintsContent
 
           - id: CanvasNetPptx-PptxDocument-TxBodyListStyleLevelInheritance
             title: >-
@@ -930,7 +930,7 @@ sections:
               - ResolveEffectiveRunProperties_ParagraphDefRPrOnly_WinsWhenRunDeclaresNothing
               - ResolveEffectiveRunProperties_PlaceholderLevelStyleOnly_WinsWhenRunAndParagraphDeclareNothing
               - ResolveEffectiveRunProperties_NoneDeclared_ResolvesHardCodedDefaults
-              - ResolveEffectiveRunProperties_UnderlineAttribute_ResolvesExpectedBoolean
+              - ResolveEffectiveRunProperties_UnderlineAttribute_ResolvesExpectedStyle
               - ResolveEffectiveRunProperties_RunSolidFillSrgbClr_ResolvesExplicitColor
               - ResolveEffectiveParagraphProperties_NoneDeclared_ResolvesHardCodedDefaults
               - ResolveEffectiveParagraphProperties_Alignment_NormalizesJustificationToLeft
@@ -1568,15 +1568,16 @@ sections:
               - PptxDocument_Render_TxtFontPropsFixture_RendersEverySlideWithVisibleContent
               - PptxDocument_Render_TxtTextFrameFixture_RendersEverySlideWithVisibleContent
               - PptxDocument_Render_ShpShapesFixture_Slide0ThrowsUnsupportedFeatureSlide1PaintsContent
-              - PptxDocument_Render_SamplelibSamplePresentationFixture_Slide4ThrowsUnsupportedFeatureOthersPaintContent
+              - PptxDocument_Render_SamplelibSamplePresentationFixture_EverySlidePaintsContent
               - PptxDocument_Render_SldBackgroundFixture_RendersAndPaintsSlideBackgroundFill
               - PptxDocument_Render_PhInheritPropsFixture_Slide0PaintsSlide1RendersWithoutError
               - PptxDocument_Render_PhUnpopulatedPlaceholdersFixture_RendersEverySlideWithoutError
               - PptxDocument_Render_TxtFitTextFixture_PaintsVisibleContent
               - PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsPaintVisibleLines
-              - PptxDocument_Render_DmlFillFixture_BothSlidesThrowUnsupportedFillFeature
+              - PptxDocument_Render_DmlFillFixture_Slide0RendersPictureAndPatternFillShapesWithoutThrowing
+              - PptxDocument_Render_DmlFillFixture_Slide1PatternFillShapesRenderAndBareFillIsTransparent
               - PptxDocument_Render_DmlLineFixture_RendersEverySlideWithVisibleContent
-              - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature
+              - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0AndSlide1PaintContent
               - PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentAndBackgroundFill
               - PptxDocument_Render_Aiden0zTableStaleFrameFixture_PaintsVisibleContentDespiteFrameSizeMismatch
 
@@ -1735,7 +1736,7 @@ sections:
               - Render_LayoutPlaceholderShape_DoesNotRenderItsOwnPromptContent
               - Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent
               - Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException
-              - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature
+              - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0AndSlide1PaintContent
 
           - id: CanvasNetPptx-PptxDocument-BulletProperties
             title: >-
@@ -1882,7 +1883,7 @@ sections:
               - BuildLines_ParagraphWithBulletPropertiesAndNoRuns_PaintsNoBulletGlyph
               - BuildLines_OtherwiseIdenticalParagraphWithOneRun_StillPaintsBulletGlyph
               - BuildLines_RunlessAutoNumberParagraph_CounterStillAdvancesForSubsequentParagraph
-              - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature
+              - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0AndSlide1PaintContent
               - ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth
               - PaintTextLayout_BulletedParagraphWithZeroIndent_BulletAndTextInkDoNotOverlap
               - ResolveTextLayout_MasterBuCharDefault_OwnBuAutoNumOverride_PaintsOnlyAutoNumberMarker

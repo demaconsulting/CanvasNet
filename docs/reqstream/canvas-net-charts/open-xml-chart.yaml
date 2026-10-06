@@ -103,6 +103,7 @@ sections:
               - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-ComboChartRejection
               - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-UncachedValuesRejection
               - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-ArgumentValidation
+              - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-ChartUnsupportedFeatureException
             tests:
               - Parse_UnsupportedChartType_ThrowsWithExpectedFeatureToken
               - Parse_ComboChart_ThrowsWithComboChartFeatureToken
@@ -113,3 +114,24 @@ sections:
               - Parse_DocumentWithNoRoot_ThrowsArgumentException
               - Parse_ElementWithNoChartChild_ThrowsArgumentException
               - Parse_ChartWithNoPlotArea_ThrowsArgumentException
+
+          - id: CanvasNetCharts-OpenXmlChart-EndToEndValidation
+            title: >-
+              The OpenXmlChart subsystem's parsed output shall be proven consumable, without any
+              further adaptation, by ChartRenderer.Render for every supported ChartType, and shall
+              be proven to correctly parse a trimmed, styling-stripped excerpt derived from a
+              real-world chart1.xml part into the exact expected Chart shape, with that parsed
+              Chart also rendering successfully.
+            justification: |
+              Data-shape assertions against synthetic, hand-authored fixtures alone cannot prove
+              this parser's output is actually usable by the Phase 2 renderer, nor that it
+              correctly handles a genuine PowerPoint-authored chart1.xml part's real-world shape;
+              both must be proven end-to-end, for every supported chart kind and at least one real
+              fixture, not merely assumed from passing unit-level assertions.
+            children:
+              - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-RealFixtureEndToEnd
+              - CanvasNetCharts-OpenXmlChart-OpenXmlChartParser-RenderRoundTrip
+            tests:
+              - Parse_RealFixtureBarChartExcerpt_ParsesExpectedShape
+              - Parse_ThenRender_RealFixtureBarChartExcerpt_ProducesCorrectlySizedSurface
+              - Parse_ThenRender_EveryChartType_ProducesCorrectlySizedSurface

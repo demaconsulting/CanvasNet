@@ -78,6 +78,9 @@ sections:
           - CanvasNetPptx-PptxDocument-ZipValidation
           - CanvasNetPptx-PptxDocument-ContentTypesValidation
           - CanvasNetPptx-PptxDocument-PackageRelationshipsValidation
+          - CanvasNetPptx-PptxDocument-MediaPartSizeValidation
+          - CanvasNetPptx-PptxDocument-CaseSensitivePartNames
+          - CanvasNetPptx-PptxDocument-Dispose
         tests:
           - CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage
           - CanvasNetPptx_SystemIntegration_PptxOpenValidationNull_NullStreamThrowsArgumentNullException
@@ -177,6 +180,9 @@ sections:
           - CanvasNetPptx-PptxDocument-PlaceholderInheritanceIdxMatch
           - CanvasNetPptx-PptxDocument-PlaceholderInheritanceTypeMatch
           - CanvasNetPptx-PptxDocument-PlaceholderInheritancePerCategory
+          - CanvasNetPptx-PptxDocument-EffectivePlaceholderTypeForTextStyle
+          - CanvasNetPptx-PptxDocument-PlaceholderXfrmGeometryInheritance
+          - CanvasNetPptx-PptxDocument-TxBodyListStyleLevelInheritance
         tests:
           - CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage
 
@@ -208,6 +214,9 @@ sections:
           - CanvasNetPptx-PptxDocument-ColorTransforms
           - CanvasNetPptx-PptxDocument-GradientFill
           - CanvasNetPptx-PptxDocument-LineStyleResolution
+          - CanvasNetPptx-PptxDocument-PictureFillResolution
+          - CanvasNetPptx-PptxDocument-PatternFillResolution
+          - CanvasNetPptx-PptxDocument-ShapeStyleReference
         tests:
           - CanvasNetPptx_SystemIntegration_GeometryAndPaint_FreeformShapeResolvesEndToEnd
           - CanvasNetPptx_SystemIntegration_GeometryAndPaint_GroupShapeChildTransformComposesEndToEnd
@@ -237,6 +246,9 @@ sections:
           - CanvasNetPptx-PptxDocument-TextVerticalAnchor
           - CanvasNetPptx-PptxDocument-TextAutofit
           - CanvasNetPptx-PptxDocument-TextRendering
+          - CanvasNetPptx-PptxDocument-TextAlignmentWidthUnderWrapNone
+          - CanvasNetPptx-PptxDocument-UnderlineRendering
+          - CanvasNetPptx-PptxDocument-TabStopExpansion
         tests:
           - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
           - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd
@@ -296,6 +308,88 @@ sections:
           - CanvasNetPptx-PptxDocument-GroupChildTransform
         tests:
           - CanvasNetPptx_SystemIntegration_ShapeTree_NestedGroupEnumeratesAndComposesTransformEndToEnd
+
+      - id: CanvasNetPptx-SlideBackgroundFill
+        title: >-
+          The library shall resolve and paint a slide's own, or (falling back in order) its
+          layout's or its master's own, declared background fill across the full slide ahead of
+          that slide's own shape-tree walk, reusing the existing DrawingML fill-resolution
+          pipeline (solid, linear-gradient, and theme-indexed background-fill-list references).
+        tags: [system]
+        justification: |
+          A branded, non-white background fill is a highly visible real-world presentation
+          feature; without resolving and painting it, a rendered slide would always show a plain,
+          uniform background regardless of what the file itself declares.
+        children:
+          - CanvasNetPptx-PptxDocument-SlideBackgroundFill
+        tests:
+          - PptxDocument_Render_SldBackgroundFixture_RendersAndPaintsSlideBackgroundFill
+
+      - id: CanvasNetPptx-MasterLayoutShapeRendering
+        title: >-
+          The library shall render a slide's own master's and own layout's non-placeholder shapes
+          back-to-front in document order - master shapes first, then layout shapes, then the
+          slide's own shapes on top - immediately after painting the resolved background, using
+          the same per-shape-type paint dispatch a slide-level shape already uses, while never
+          rendering a master's or layout's own placeholder shapes directly.
+        tags: [system]
+        justification: |
+          Real-world presentations frequently place decoration (a logo, a rule, a watermark)
+          directly on a slide master's or layout's own shape tree, outside any placeholder;
+          without rendering these, a rendered slide would omit visible, authored content.
+        children:
+          - CanvasNetPptx-PptxDocument-MasterLayoutShapeRendering
+        tests:
+          - Render_MasterNonPlaceholderPicture_PaintsOnEverySlideUsingThatMasterResolvingOwnRels
+
+      - id: CanvasNetPptx-BulletsAndNumbering
+        title: >-
+          The library shall parse and resolve a paragraph's bullet/numbering properties (type,
+          color, font, and size, each independently inherited through the placeholder/master
+          chain) and shall format, sequence, and paint the resulting bullet or auto-number glyph
+          alongside its paragraph's own text.
+        tags: [system]
+        justification: |
+          A bulleted or numbered paragraph is one of the most common real-world PPTX constructs;
+          without parsing, resolving, and painting bullet/numbering markup, such paragraphs would
+          render as plain, unmarked text, a visually obvious gap against a real PowerPoint export.
+        children:
+          - CanvasNetPptx-PptxDocument-BulletProperties
+          - CanvasNetPptx-PptxDocument-BulletRendering
+        tests:
+          - PptxDocument_Render_PhInheritPropsFixture_Slide0PaintsSlide1RendersWithoutError
+
+      - id: CanvasNetPptx-ConnectorShapes
+        title: >-
+          The library shall dispatch a connector shape to its own shape-tree node in the same
+          document-order walk as every other shape kind, resolving its preset connector geometry,
+          its per-attribute stroke style (merging its own line properties with its sibling shape-
+          style reference), and its resolved arrowhead markers.
+        tags: [system]
+        justification: |
+          A connector shape - the straight/elbow/curved lines PowerPoint draws between other
+          shapes in flowcharts and diagrams - is a common real-world construct; without resolving
+          and painting it, a slide containing one would render with that connector entirely
+          absent, a severe fidelity gap for diagram-heavy content.
+        children:
+          - CanvasNetPptx-PptxDocument-ConnectorRendering
+        tests:
+          - PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsPaintVisibleLines
+
+      - id: CanvasNetPptx-ChartGraphicFrames
+        title: >-
+          The library shall resolve a graphic frame declaring a chart by delegating to the
+          sibling DemaConsulting.CanvasNet.Charts package's parser and renderer, compositing the
+          resulting chart onto the slide surface at the graphic frame's own resolved frame.
+        tags: [system]
+        justification: |
+          A graphic frame may declare a chart rather than a table; without resolving and
+          rendering it via the already-verified Charts package, no presentation containing a
+          chart could ever render past that slide.
+        children:
+          - CanvasNetPptx-PptxDocument-ChartGraphicFrames
+        tests:
+          - Render_ChartOnlySlide_PaintsVisibleContent
 
       - id: CanvasNetPptx-RenderApi
         title: >-

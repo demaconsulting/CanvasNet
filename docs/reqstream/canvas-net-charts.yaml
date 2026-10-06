@@ -147,6 +147,7 @@ sections:
           - CanvasNetCharts-OpenXmlChart-SeriesDataExtraction
           - CanvasNetCharts-OpenXmlChart-DecorationExtraction
           - CanvasNetCharts-OpenXmlChart-UnsupportedFeatureRejection
+          - CanvasNetCharts-OpenXmlChart-EndToEndValidation
         tests:
           - Parse_BarChartWithBarDirection_ClassifiesAsBar
           - Parse_LineChart_ClassifiesAsLine
