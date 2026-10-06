@@ -5072,6 +5072,36 @@ public class PdfDocumentTests
         Assert.Equal("pdf-colorspace-Pattern", exception.Feature);
     }
 
+    /// <summary>
+    ///     Proves that <c>/CS0 cs</c> naming a nested <c>[/Pattern /Pattern]</c> array (a
+    ///     <c>/Pattern</c> color space whose own declared base is itself another <c>/Pattern</c>
+    ///     color space) declared in <c>/Resources/ColorSpace</c> throws
+    ///     <see cref="UnsupportedImageFeatureException"/> with feature
+    ///     <c>pdf-colorspace-Pattern-nested</c> - not a raw/undocumented
+    ///     <see cref="InvalidOperationException"/> (the previously documented "unreachable"
+    ///     fail-closed backstop in <c>ComponentCount</c>'s own <c>Family.Pattern</c> arm).
+    ///     Rejecting this nesting proactively at <c>cs</c>-operator time (inside
+    ///     <c>ResolvePatternColorSpace</c>), rather than only when <c>ComponentCount</c> is later
+    ///     reached for an uncolored tiling pattern, both fails closed earlier and follows this
+    ///     unit's established "well-formed but unsupported PDF feature"
+    ///     <see cref="UnsupportedImageFeatureException"/> contract consistently.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Color_PatternColorSpace_NestedPatternBase_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange: a /Pattern color space array whose own 2nd element is itself a /Pattern array.
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs",
+            "/ColorSpace << /CS0 [/Pattern /Pattern] >>",
+            []);
+
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal("pdf-colorspace-Pattern-nested", exception.Feature);
+    }
+
     /// <summary>Proves that <c>/P1 scn</c> (colored pattern operand, name alone, no base space) resolves a declared pattern successfully.</summary>
     [Fact]
     public void PdfDocument_Color_Scn_ColoredPatternOperand_NameAlone_ResolvesPattern()
@@ -5552,6 +5582,37 @@ public class PdfDocumentTests
         Assert.Equal(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 25]);
         Assert.Equal(new Canvas.Rgba32(10, 10, 10, 255), surface[25, 75]);
         Assert.Equal(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 75]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>FlateDecode</c>+TIFF-predictor (<c>/Predictor 2</c>) stream whose
+    ///     decoded length is not an exact multiple of the row stride (<c>rowBytes</c>) throws
+    ///     <see cref="InvalidDataException"/> rather than silently truncating the incomplete
+    ///     trailing row via integer-division - the same validation
+    ///     <see cref="PdfDocument_Images_FlateDecodePngFixedPredictor_LengthNotMultipleOfRowStride_ThrowsInvalidDataException"/>
+    ///     already proves for the sibling PNG predictor path.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Images_FlateDecodeTiffPredictor_LengthNotMultipleOfRowStride_ThrowsInvalidDataException()
+    {
+        // Arrange: rowBytes is 2 (1 colors * 8 bits * 2 columns / 8), but only 3 bytes of decoded
+        // payload are supplied for a 2x2 image (needs 4) - not a multiple of the stride.
+        var compressed = ZlibCompress([10, 20, 30]);
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 "
+            + "/Filter /FlateDecode /DecodeParms << /Predictor 2 /Colors 1 /BitsPerComponent 8 /Columns 2 >>",
+            compressed);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 
     /// <summary>
@@ -10419,6 +10480,44 @@ public class PdfDocumentTests
         Assert.True(surface[50, 50].R < surface[95, 50].R);
     }
 
+    /// <summary>
+    ///     Proves that <see cref="PdfDocument"/> reads the shading dictionary's own <c>/Domain</c>
+    ///     entry (PDF 32000-1 §8.7.4.5.3) when present, instead of always assuming the default
+    ///     <c>[0, 1]</c> - a non-default <c>/Domain</c> must shift which portion of the axial
+    ///     gradient's own color ramp is sampled at a given position along <c>/Coords</c>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Patterns_ShadingPattern_NonDefaultDomain_RespectsDomainBoundsWhenSampling()
+    {
+        // Arrange: axis from (0,0) to (100,0), /Domain [0.2 0.8], linear black -> white function.
+        // With the correct (non-default) /Domain, t=0.2 (near x=2) must map to domain value 0.2
+        // (not 0.0) and t=0.8 (near x=97) must map to domain value 0.8 (not 1.0) - i.e. the
+        // sampled color at both ends is noticeably less extreme than it would be under the
+        // (buggy) always-[0,1] behavior.
+        var patternDict = "<< /PatternType 2 /Shading 6 0 R >>"u8.ToArray();
+        var shadingDict = "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Domain [0.2 0.8] /Function 7 0 R >>"u8.ToArray();
+        var functionStream = BuildStreamObjectBody(
+            "/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P1 scn 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternDict, shadingDict, functionStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: near x=2 (t~0.02 along /Coords), the correct sampled domain value is
+        // ~0.2 + 0.02*(0.8-0.2) ~= 0.212 -> R ~= 54; under the old always-[0,1] bug it would be
+        // near-black (R close to 0). Near x=97 (t~0.97), correct domain value is
+        // ~0.2 + 0.97*0.6 ~= 0.782 -> R ~= 199; under the old bug it would be near-white (R close
+        // to 255). Generous ranges absorb anti-aliasing/rounding while still distinguishing
+        // correct-domain sampling from the old hardcoded-[0,1] behavior.
+        Assert.InRange(surface[2, 50].R, 40, 70);
+        Assert.InRange(surface[97, 50].R, 185, 215);
+    }
+
     /// <summary>Proves that an unsupported <c>/ShadingType</c> (<c>1</c> or <c>4</c>) throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-shading-type-{n}</c>.</summary>
     [Theory]
     [InlineData(1)]
@@ -10591,6 +10690,42 @@ public class PdfDocumentTests
             [patternStream]);
 
         // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>
+    ///     Proves that when a tiling pattern cell's own content stream execution throws partway
+    ///     through (here, an undeclared <c>/XObject</c> reference inside the cell content), the
+    ///     exception still propagates cleanly (the already-allocated tile surface
+    ///     is disposed along that path inside <c>RenderTilingPatternCell</c>, rather than leaked).
+    /// </summary>
+    /// <remarks>
+    ///     <c>DemaConsulting.CanvasNet.Canvas.Surface</c> currently holds only managed memory (no finalizer, no
+    ///     unmanaged handle) - it is forward-compatible <see cref="IDisposable"/> scaffolding per
+    ///     its own doc comments, so there is presently no CLR-observable native/unmanaged
+    ///     resource for a dedicated leak-detection test to assert against; the GC would reclaim
+    ///     an undisposed instance regardless. This test instead confirms there is no regression
+    ///     in the exception-propagation behavior itself (no secondary exception, no hang, no
+    ///     corrupted shared state) when the fix's new <c>try</c>/<c>catch</c>/<c>Dispose</c> path
+    ///     is exercised.
+    /// </remarks>
+    [Fact]
+    public void PdfDocument_Patterns_TilingPattern_CellExecutionThrows_PropagatesCleanly()
+    {
+        // Arrange: pattern /P1's own content stream references an undeclared XObject, which
+        // throws partway through RenderTilingPatternCell's nested ExecuteOperators call.
+        var patternStream = BuildStreamObjectBody(
+            "/PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 10 10] /XStep 10 /YStep 10",
+            "/NoSuchXObj Do"u8.ToArray());
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P1 scn 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternStream]);
+
+        // Act & Assert: propagates cleanly as InvalidDataException, with no secondary/different
+        // exception obscuring it (which an unhandled Dispose-path failure could otherwise cause).
         Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 

@@ -27,8 +27,8 @@ public sealed partial class PdfDocument
     /// </summary>
     /// <param name="patternDict">The already-resolved <c>/PatternType 2</c> pattern dictionary.</param>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <c>/Shading</c>, <c>/ColorSpace</c>, <c>/Function</c>, or <c>/Coords</c> is
-    ///     missing or malformed, or propagated from <see cref="ReadOptionalMatrix"/>/
+    ///     Thrown when <c>/Shading</c>, <c>/ColorSpace</c>, <c>/Function</c>, <c>/Domain</c>, or
+    ///     <c>/Coords</c> is missing or malformed, or propagated from <see cref="ReadOptionalMatrix"/>/
     ///     <see cref="ResolveFunctionOrFunctionArray"/> for their own documented malformed-input
     ///     cases.
     /// </exception>
@@ -69,7 +69,16 @@ public sealed partial class PdfDocument
 
         var functionEntry = shading.Get("Function")
             ?? throw new InvalidDataException("/Shading is missing required /Function.");
-        var (domain, evaluate) = ResolveFunctionOrFunctionArray(functionEntry);
+        var (_, evaluate) = ResolveFunctionOrFunctionArray(functionEntry);
+
+        // The shading's own /Domain (PDF 32000-1 §8.7.4.5.3, default [0, 1]) parametrizes
+        // position along the /Coords geometry; it is distinct from - and must not be confused
+        // with - the /Function's own /Domain (which only clips/validates the function's input).
+        var domain = ResolveOptionalNumberArray(shading, "Domain") ?? [0.0, 1.0];
+        if (domain.Length != 2)
+        {
+            throw new InvalidDataException("/Shading /Domain must have exactly 2 elements.");
+        }
 
         var coords = RequireNumberArray(shading, "Coords");
         var expectedCoordCount = shadingType == 2 ? 4 : 6;

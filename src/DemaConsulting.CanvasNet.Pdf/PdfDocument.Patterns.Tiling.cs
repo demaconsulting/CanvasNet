@@ -107,7 +107,9 @@ public sealed partial class PdfDocument
     ///     by the existing <see cref="MaxFormNestingDepth"/>), and calling
     ///     <see cref="ExecuteOperators"/> against the pattern's own decoded content bytes -
     ///     structurally identical to <see cref="OpDrawFormXObject"/>, restoring every swapped
-    ///     field in a <c>finally</c> block.
+    ///     field in a <c>finally</c> block. If cell execution or recoloring throws, the
+    ///     already-allocated <c>tileSurface</c> is disposed before the exception propagates (no
+    ///     <see cref="TilePaint"/> is ever constructed on that path, so nothing else owns it).
     /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the current nesting depth already equals <see cref="MaxFormNestingDepth"/>,
@@ -142,64 +144,72 @@ public sealed partial class PdfDocument
 
         var tileSurface = new Surface(tileWidth, tileHeight);
 
-        // Maps pattern-space BBox-local coordinates (the same coordinates the pattern's own
-        // content stream draws in) onto the tile surface's own pixel space: translate the BBox's
-        // lower-left corner to the origin, then scale by the tile surface's pixels-per-pattern-
-        // space-unit ratio - independently in X/Y, matching the independent X/Y tile sizing
-        // above. Deliberately never flips Y (unlike the page's own baseCtm): TilePaintEvaluator's
-        // own sampling math (wrappedY -> ty) performs no flip either, so both sides of the
-        // pattern-space <-> tile-pixel-space mapping must agree on the same (unflipped)
-        // convention.
-        var cellTransform =
-            Matrix3x2.CreateTranslation(-(float)pattern.BBox![0], -(float)pattern.BBox[1]) *
-            Matrix3x2.CreateScale(tileWidth / xStepAbs, tileHeight / yStepAbs);
-
-        var savedSurface = _surface;
-        var savedResources = _resources;
-        var savedGs = _gs;
-        var savedGsStack = _gsStack;
-        var savedPathBuilder = _pathBuilder;
-        var savedCurrentPoint = _currentPoint;
-        var savedSubpathStart = _subpathStart;
-        var savedHasOpenSubpath = _hasOpenSubpath;
-        _formNestingDepth++;
         try
         {
-            _surface = tileSurface;
-            _resources = pattern.Resources;
-            _gs = new GraphicsState { CurrentTransform = cellTransform };
-            _gsStack = new Stack<GraphicsState>();
+            // Maps pattern-space BBox-local coordinates (the same coordinates the pattern's own
+            // content stream draws in) onto the tile surface's own pixel space: translate the BBox's
+            // lower-left corner to the origin, then scale by the tile surface's pixels-per-pattern-
+            // space-unit ratio - independently in X/Y, matching the independent X/Y tile sizing
+            // above. Deliberately never flips Y (unlike the page's own baseCtm): TilePaintEvaluator's
+            // own sampling math (wrappedY -> ty) performs no flip either, so both sides of the
+            // pattern-space <-> tile-pixel-space mapping must agree on the same (unflipped)
+            // convention.
+            var cellTransform =
+                Matrix3x2.CreateTranslation(-(float)pattern.BBox![0], -(float)pattern.BBox[1]) *
+                Matrix3x2.CreateScale(tileWidth / xStepAbs, tileHeight / yStepAbs);
 
-            // The outer path-painting operator ('f'/'S'/etc.) that led here may already have
-            // called _pathBuilder.Build() without yet calling _pathBuilder.Clear() (that clear
-            // only happens after PaintCurrentPath's fill/stroke branches return) - so, unlike
-            // OpDrawFormXObject (which is only ever invoked via 'Do', never mid-path-paint), this
-            // nested ExecuteOperators call must not reuse the live outer path-builder state: a
-            // fresh one is substituted for the duration of the tile's own content stream, and the
-            // original is restored afterward, so the tile's own 're'/'m'/'l'/... operators cannot
-            // corrupt the host's own in-flight path.
-            _pathBuilder = new PathBuilder();
-            _currentPoint = default;
-            _subpathStart = default;
-            _hasOpenSubpath = false;
-            ExecuteOperators(pattern.ContentBytes!);
-        }
-        finally
-        {
-            _formNestingDepth--;
-            _surface = savedSurface;
-            _resources = savedResources;
-            _gs = savedGs;
-            _gsStack = savedGsStack;
-            _pathBuilder = savedPathBuilder;
-            _currentPoint = savedCurrentPoint;
-            _subpathStart = savedSubpathStart;
-            _hasOpenSubpath = savedHasOpenSubpath;
-        }
+            var savedSurface = _surface;
+            var savedResources = _resources;
+            var savedGs = _gs;
+            var savedGsStack = _gsStack;
+            var savedPathBuilder = _pathBuilder;
+            var savedCurrentPoint = _currentPoint;
+            var savedSubpathStart = _subpathStart;
+            var savedHasOpenSubpath = _hasOpenSubpath;
+            _formNestingDepth++;
+            try
+            {
+                _surface = tileSurface;
+                _resources = pattern.Resources;
+                _gs = new GraphicsState { CurrentTransform = cellTransform };
+                _gsStack = new Stack<GraphicsState>();
 
-        if (pattern.PaintType == 2 && tint is { } tintColor)
+                // The outer path-painting operator ('f'/'S'/etc.) that led here may already have
+                // called _pathBuilder.Build() without yet calling _pathBuilder.Clear() (that clear
+                // only happens after PaintCurrentPath's fill/stroke branches return) - so, unlike
+                // OpDrawFormXObject (which is only ever invoked via 'Do', never mid-path-paint), this
+                // nested ExecuteOperators call must not reuse the live outer path-builder state: a
+                // fresh one is substituted for the duration of the tile's own content stream, and the
+                // original is restored afterward, so the tile's own 're'/'m'/'l'/... operators cannot
+                // corrupt the host's own in-flight path.
+                _pathBuilder = new PathBuilder();
+                _currentPoint = default;
+                _subpathStart = default;
+                _hasOpenSubpath = false;
+                ExecuteOperators(pattern.ContentBytes!);
+            }
+            finally
+            {
+                _formNestingDepth--;
+                _surface = savedSurface;
+                _resources = savedResources;
+                _gs = savedGs;
+                _gsStack = savedGsStack;
+                _pathBuilder = savedPathBuilder;
+                _currentPoint = savedCurrentPoint;
+                _subpathStart = savedSubpathStart;
+                _hasOpenSubpath = savedHasOpenSubpath;
+            }
+
+            if (pattern.PaintType == 2 && tint is { } tintColor)
+            {
+                RecolorTileSurface(tileSurface, tintColor);
+            }
+        }
+        catch
         {
-            RecolorTileSurface(tileSurface, tintColor);
+            tileSurface.Dispose();
+            throw;
         }
 
         return new TilePaint(tileSurface, patternToDevice, pattern.XStep, pattern.YStep);
