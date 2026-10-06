@@ -708,6 +708,127 @@ public class OpenXmlChartParserTests
 
     #endregion
 
+    #region Malformed-numeric-value rejection
+
+    /// <summary>
+    ///     Proves a <c>c:numCache</c> declaring a non-numeric <c>c:ptCount</c> is rejected with
+    ///     <see cref="ChartUnsupportedFeatureException"/> rather than letting the explicit
+    ///     <c>(int?)</c> cast's raw <see cref="FormatException"/> propagate uncaught.
+    /// </summary>
+    [Fact]
+    public void Parse_NumCacheWithNonNumericPtCount_ThrowsWithMalformedNumericValueFeatureToken()
+    {
+        // Arrange
+        var val = new XElement(C + "val",
+            new XElement(C + "numRef",
+                new XElement(C + "f", "Sheet1!$B$2:$B$5"),
+                new XElement(C + "numCache",
+                    new XElement(C + "formatCode", "General"),
+                    new XElement(C + "ptCount", new XAttribute("val", "not-a-number")))));
+        var ser = new XElement(C + "ser",
+            new XElement(C + "idx", new XAttribute("val", 0)),
+            new XElement(C + "order", new XAttribute("val", 0)),
+            Tx("S1"),
+            Cat("A", "B"),
+            val);
+        var barChart = new XElement(C + "barChart", ser);
+        var chartElement = Chart(barChart);
+
+        // Act
+        var exception = Assert.Throws<ChartUnsupportedFeatureException>(() => OpenXmlChartParser.Parse(chartElement));
+
+        // Assert
+        Assert.Equal("charts-openxml-malformed-numeric-value", exception.Feature);
+    }
+
+    /// <summary>
+    ///     Proves a <c>c:pt</c>'s overflowing (out-of-<see cref="int"/>-range) <c>idx</c>
+    ///     attribute is rejected with <see cref="ChartUnsupportedFeatureException"/> rather than
+    ///     letting the explicit <c>(int?)</c> cast's raw <see cref="OverflowException"/>
+    ///     propagate uncaught.
+    /// </summary>
+    [Fact]
+    public void Parse_PtWithOverflowingIdx_ThrowsWithMalformedNumericValueFeatureToken()
+    {
+        // Arrange
+        var numCache = new XElement(C + "numCache",
+            new XElement(C + "formatCode", "General"),
+            new XElement(C + "ptCount", new XAttribute("val", 2)),
+            new XElement(C + "pt", new XAttribute("idx", "99999999999"), new XElement(C + "v", 1.0)));
+        var val = new XElement(C + "val",
+            new XElement(C + "numRef", new XElement(C + "f", "Sheet1!$B$2:$B$5"), numCache));
+        var ser = new XElement(C + "ser",
+            new XElement(C + "idx", new XAttribute("val", 0)),
+            new XElement(C + "order", new XAttribute("val", 0)),
+            Tx("S1"),
+            Cat("A", "B"),
+            val);
+        var barChart = new XElement(C + "barChart", ser);
+        var chartElement = Chart(barChart);
+
+        // Act
+        var exception = Assert.Throws<ChartUnsupportedFeatureException>(() => OpenXmlChartParser.Parse(chartElement));
+
+        // Assert
+        Assert.Equal("charts-openxml-malformed-numeric-value", exception.Feature);
+    }
+
+    /// <summary>
+    ///     Proves a <c>c:numCache</c>'s <c>c:pt/c:v</c> cached value being non-numeric is rejected
+    ///     with <see cref="ChartUnsupportedFeatureException"/> rather than letting the explicit
+    ///     <c>(double?)</c> cast's raw <see cref="FormatException"/> propagate uncaught.
+    /// </summary>
+    [Fact]
+    public void Parse_NumCacheWithNonNumericV_ThrowsWithMalformedNumericValueFeatureToken()
+    {
+        // Arrange
+        var numCache = new XElement(C + "numCache",
+            new XElement(C + "formatCode", "General"),
+            new XElement(C + "ptCount", new XAttribute("val", 1)),
+            new XElement(C + "pt", new XAttribute("idx", 0), new XElement(C + "v", "not-a-number")));
+        var val = new XElement(C + "val",
+            new XElement(C + "numRef", new XElement(C + "f", "Sheet1!$B$2:$B$5"), numCache));
+        var ser = new XElement(C + "ser",
+            new XElement(C + "idx", new XAttribute("val", 0)),
+            new XElement(C + "order", new XAttribute("val", 0)),
+            Tx("S1"),
+            Cat("A"),
+            val);
+        var barChart = new XElement(C + "barChart", ser);
+        var chartElement = Chart(barChart);
+
+        // Act
+        var exception = Assert.Throws<ChartUnsupportedFeatureException>(() => OpenXmlChartParser.Parse(chartElement));
+
+        // Assert
+        Assert.Equal("charts-openxml-malformed-numeric-value", exception.Feature);
+    }
+
+    /// <summary>
+    ///     Proves a <c>c:valAx/c:scaling/c:min</c>'s non-numeric <c>val</c> attribute is rejected
+    ///     with <see cref="ChartUnsupportedFeatureException"/> rather than letting the explicit
+    ///     <c>(float?)</c> cast's raw <see cref="FormatException"/> propagate uncaught.
+    /// </summary>
+    [Fact]
+    public void Parse_ValAxScalingWithNonNumericMin_ThrowsWithMalformedNumericValueFeatureToken()
+    {
+        // Arrange
+        var barChart = new XElement(C + "barChart", Ser("S1", [1.0, 2.0], ["A", "B"]));
+        var valAx = new XElement(C + "valAx",
+            new XElement(C + "scaling", new XElement(C + "min", new XAttribute("val", "not-a-number"))));
+        var chartElement = new XElement(C + "chart",
+            new XElement(C + "autoTitleDeleted", new XAttribute("val", 1)),
+            new XElement(C + "plotArea", new XElement(C + "layout"), barChart, valAx));
+
+        // Act
+        var exception = Assert.Throws<ChartUnsupportedFeatureException>(() => OpenXmlChartParser.Parse(chartElement));
+
+        // Assert
+        Assert.Equal("charts-openxml-malformed-numeric-value", exception.Feature);
+    }
+
+    #endregion
+
     #region Unsupported-type / combo / empty-plot-area rejection
 
     /// <summary>Proves every recognized-but-unimplemented chart-type element is rejected with its documented feature token.</summary>
