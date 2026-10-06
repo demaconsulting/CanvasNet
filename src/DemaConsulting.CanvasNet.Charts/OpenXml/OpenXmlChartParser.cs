@@ -57,6 +57,53 @@ public static class OpenXmlChartParser
     private const int MaxCachedPointCount = 1_048_576;
 
     /// <summary>
+    ///     The maximum total number of cached points <see cref="ParseNumCache"/>/
+    ///     <see cref="ParseStrCache"/> will allocate dense arrays for, summed across every
+    ///     <c>c:numCache</c>/<c>c:strCache</c> parsed while parsing one chart (one <see cref="CachePointBudget"/>
+    ///     per <see cref="Parse(XElement)"/> call).
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="MaxCachedPointCount"/> alone only bounds a single series' own cache, not the
+    ///     chart as a whole: a chart with many series can each declare a cache at or near
+    ///     <see cref="MaxCachedPointCount"/> while the chart XML itself stays small, so the
+    ///     per-series cap does not bound total allocation. This cumulative budget - four times
+    ///     <see cref="MaxCachedPointCount"/>, comfortably covering a real multi-series worksheet
+    ///     while still rejecting a pathological many-series crafted chart - closes that gap.
+    /// </remarks>
+    private const int MaxTotalCachedPointCount = 4 * MaxCachedPointCount;
+
+    /// <summary>
+    ///     A simple mutable counter tracking the cumulative cached-point allocation budget
+    ///     remaining for one <see cref="Parse(XElement)"/> call, shared by reference across every
+    ///     <see cref="ParseNumCache"/>/<see cref="ParseStrCache"/> call made while parsing that one
+    ///     chart - see <see cref="MaxTotalCachedPointCount"/>.
+    /// </summary>
+    private sealed class CachePointBudget
+    {
+        private int _remaining = MaxTotalCachedPointCount;
+
+        /// <summary>
+        ///     Deducts <paramref name="ptCount"/> from the remaining budget.
+        /// </summary>
+        /// <param name="ptCount">The number of points about to be allocated.</param>
+        /// <param name="elementName">The cache element's name (<c>"c:numCache"</c> or <c>"c:strCache"</c>), used in the thrown message.</param>
+        /// <exception cref="ChartUnsupportedFeatureException">
+        ///     Thrown when <paramref name="ptCount"/> exceeds the remaining budget.
+        /// </exception>
+        public void Consume(int ptCount, string elementName)
+        {
+            if (ptCount > _remaining)
+            {
+                throw new ChartUnsupportedFeatureException(
+                    "charts-openxml-point-count-too-large",
+                    $"This chart's cumulative cached point count exceeds the maximum supported total of {MaxTotalCachedPointCount} (rejected while parsing a {elementName} declaring c:ptCount={ptCount}).");
+            }
+
+            _remaining -= ptCount;
+        }
+    }
+
+    /// <summary>
     ///     The local names of every ECMA-376-defined plot-area chart-type element this parser
     ///     supports, mapped to a function that classifies the element's own <see cref="ChartType"/>.
     /// </summary>
@@ -193,15 +240,16 @@ public static class OpenXmlChartParser
         var (type, chartTypeElement) = ClassifyPlotArea(plotArea);
         var isCategoryBased = IsCategoryBased(type);
 
+        var budget = new CachePointBudget();
         var seriesElements = chartTypeElement.Elements(ChartNs + "ser").ToList();
         var series = new List<ChartSeries>(seriesElements.Count);
         for (var i = 0; i < seriesElements.Count; i++)
         {
-            series.Add(ParseSeries(seriesElements[i], i, isCategoryBased));
+            series.Add(ParseSeries(seriesElements[i], i, isCategoryBased, budget));
         }
 
         var categoryAxis = isCategoryBased
-            ? BuildCategoryAxis(seriesElements, plotArea)
+            ? BuildCategoryAxis(seriesElements, plotArea, budget)
             : null;
         var valueAxis = ParseValueAxis(plotArea);
         var title = ParseTitle(chartElement.Element(ChartNs + "title"));
@@ -285,12 +333,13 @@ public static class OpenXmlChartParser
     ///     <see langword="false"/> for a value-based type (Pie/Doughnut), whose categories become
     ///     this series' own <see cref="ChartSeries.PointLabels"/>.
     /// </param>
+    /// <param name="budget">The chart-wide cumulative cached-point budget - see <see cref="MaxTotalCachedPointCount"/>.</param>
     /// <returns>The parsed, validated <see cref="ChartSeries"/>.</returns>
     /// <exception cref="ChartUnsupportedFeatureException">
     ///     Thrown when the series' <c>c:val</c> has no cached <c>c:numCache</c> values (feature
     ///     token <c>"charts-openxml-uncached-values</c>).
     /// </exception>
-    private static ChartSeries ParseSeries(XElement ser, int index, bool isCategoryBased)
+    private static ChartSeries ParseSeries(XElement ser, int index, bool isCategoryBased, CachePointBudget budget)
     {
         var name = GetTxText(ser.Element(ChartNs + "tx")) ?? $"Series {index + 1}";
 
@@ -302,12 +351,12 @@ public static class OpenXmlChartParser
                 $"Series '{name}' has no cached c:numCache values; only cached values are supported.");
         }
 
-        var values = ParseNumCache(numCache);
+        var values = ParseNumCache(numCache, budget);
 
         string[]? pointLabels = null;
         if (!isCategoryBased)
         {
-            pointLabels = ParseCategoryLabels(ser.Element(ChartNs + "cat"));
+            pointLabels = ParseCategoryLabels(ser.Element(ChartNs + "cat"), budget);
         }
 
         return new ChartSeries(name, values, pointLabels: pointLabels);
@@ -319,6 +368,7 @@ public static class OpenXmlChartParser
     /// </summary>
     /// <param name="seriesElements">The chart-type element's <c>c:ser</c> children, in order.</param>
     /// <param name="plotArea">The <c>c:plotArea</c> element (consulted for <c>c:catAx</c>'s title).</param>
+    /// <param name="budget">The chart-wide cumulative cached-point budget - see <see cref="MaxTotalCachedPointCount"/>.</param>
     /// <returns>
     ///     A <see cref="ChartAxis"/> populated from whichever of the first series' categories and
     ///     the category axis title are present, or <see langword="null"/> when neither is present.
@@ -332,10 +382,10 @@ public static class OpenXmlChartParser
     ///     <see cref="ArgumentException"/> when its mismatched <see cref="ChartSeries.Values"/>
     ///     count is checked against this axis's label count.
     /// </remarks>
-    private static ChartAxis? BuildCategoryAxis(IReadOnlyList<XElement> seriesElements, XElement plotArea)
+    private static ChartAxis? BuildCategoryAxis(IReadOnlyList<XElement> seriesElements, XElement plotArea, CachePointBudget budget)
     {
         var labels = seriesElements.Count > 0
-            ? ParseCategoryLabels(seriesElements[0].Element(ChartNs + "cat"))
+            ? ParseCategoryLabels(seriesElements[0].Element(ChartNs + "cat"), budget)
             : null;
         var title = GetAxisTitleText(plotArea.Element(ChartNs + "catAx"));
 
@@ -495,6 +545,7 @@ public static class OpenXmlChartParser
     ///     formatted via <see cref="CultureInfo.InvariantCulture"/>).
     /// </summary>
     /// <param name="cat">The <c>c:cat</c> element, or <see langword="null"/>.</param>
+    /// <param name="budget">The chart-wide cumulative cached-point budget - see <see cref="MaxTotalCachedPointCount"/>.</param>
     /// <returns>
     ///     The cached category labels, or <see langword="null"/> when <paramref name="cat"/> is
     ///     <see langword="null"/>, or uses a schema-legal shape this parser does not recognize
@@ -502,7 +553,7 @@ public static class OpenXmlChartParser
     ///     deliberate, documented defensive fallback (no categories, rather than a thrown
     ///     exception) for a chart kind/data shape otherwise fully supported.
     /// </returns>
-    private static string[]? ParseCategoryLabels(XElement? cat)
+    private static string[]? ParseCategoryLabels(XElement? cat, CachePointBudget budget)
     {
         if (cat is null)
         {
@@ -512,11 +563,11 @@ public static class OpenXmlChartParser
         var strCache = cat.Element(ChartNs + "strRef")?.Element(ChartNs + "strCache");
         if (strCache is not null)
         {
-            return ParseStrCache(strCache);
+            return ParseStrCache(strCache, budget);
         }
 
         var numCache = cat.Element(ChartNs + "numRef")?.Element(ChartNs + "numCache");
-        return numCache is not null ? ParseNumCacheAsStrings(numCache) : null;
+        return numCache is not null ? ParseNumCacheAsStrings(numCache, budget) : null;
     }
 
     /// <summary>
@@ -524,11 +575,13 @@ public static class OpenXmlChartParser
     ///     by its own <c>c:ptCount</c> and honoring sparse <c>c:pt</c> gaps as <c>0.0</c>.
     /// </summary>
     /// <param name="numCache">The <c>c:numCache</c> element.</param>
+    /// <param name="budget">The chart-wide cumulative cached-point budget - see <see cref="MaxTotalCachedPointCount"/>.</param>
     /// <returns>The dense, <c>c:ptCount</c>-sized values array.</returns>
     /// <exception cref="ChartUnsupportedFeatureException">
-    ///     Thrown when <c>c:ptCount</c> exceeds <see cref="MaxCachedPointCount"/>.
+    ///     Thrown when <c>c:ptCount</c> exceeds <see cref="MaxCachedPointCount"/>, or when it
+    ///     would exceed <paramref name="budget"/>'s remaining <see cref="MaxTotalCachedPointCount"/>.
     /// </exception>
-    private static double[] ParseNumCache(XElement numCache)
+    private static double[] ParseNumCache(XElement numCache, CachePointBudget budget)
     {
         var ptCount = Math.Max(0, ParseNullableInt(numCache.Element(ChartNs + "ptCount")?.Attribute("val")) ?? 0);
         if (ptCount > MaxCachedPointCount)
@@ -537,6 +590,8 @@ public static class OpenXmlChartParser
                 "charts-openxml-point-count-too-large",
                 $"c:numCache declares c:ptCount={ptCount}, which exceeds the maximum supported cached point count of {MaxCachedPointCount}.");
         }
+
+        budget.Consume(ptCount, "c:numCache");
 
         var values = new double[ptCount];
         foreach (var pt in numCache.Elements(ChartNs + "pt"))
@@ -561,11 +616,13 @@ public static class OpenXmlChartParser
     ///     convention).
     /// </summary>
     /// <param name="strCache">The <c>c:strCache</c> element.</param>
+    /// <param name="budget">The chart-wide cumulative cached-point budget - see <see cref="MaxTotalCachedPointCount"/>.</param>
     /// <returns>The dense, <c>c:ptCount</c>-sized labels array.</returns>
     /// <exception cref="ChartUnsupportedFeatureException">
-    ///     Thrown when <c>c:ptCount</c> exceeds <see cref="MaxCachedPointCount"/>.
+    ///     Thrown when <c>c:ptCount</c> exceeds <see cref="MaxCachedPointCount"/>, or when it
+    ///     would exceed <paramref name="budget"/>'s remaining <see cref="MaxTotalCachedPointCount"/>.
     /// </exception>
-    private static string[] ParseStrCache(XElement strCache)
+    private static string[] ParseStrCache(XElement strCache, CachePointBudget budget)
     {
         var ptCount = Math.Max(0, ParseNullableInt(strCache.Element(ChartNs + "ptCount")?.Attribute("val")) ?? 0);
         if (ptCount > MaxCachedPointCount)
@@ -574,6 +631,8 @@ public static class OpenXmlChartParser
                 "charts-openxml-point-count-too-large",
                 $"c:strCache declares c:ptCount={ptCount}, which exceeds the maximum supported cached point count of {MaxCachedPointCount}.");
         }
+
+        budget.Consume(ptCount, "c:strCache");
 
         var values = new string[ptCount];
         Array.Fill(values, string.Empty);
@@ -597,9 +656,10 @@ public static class OpenXmlChartParser
     ///     labels.
     /// </summary>
     /// <param name="numCache">The <c>c:numCache</c> element.</param>
+    /// <param name="budget">The chart-wide cumulative cached-point budget - see <see cref="MaxTotalCachedPointCount"/>.</param>
     /// <returns>The dense, <c>c:ptCount</c>-sized labels array.</returns>
-    private static string[] ParseNumCacheAsStrings(XElement numCache) =>
-        [.. ParseNumCache(numCache).Select(static v => v.ToString(CultureInfo.InvariantCulture))];
+    private static string[] ParseNumCacheAsStrings(XElement numCache, CachePointBudget budget) =>
+        [.. ParseNumCache(numCache, budget).Select(static v => v.ToString(CultureInfo.InvariantCulture))];
 
     /// <summary>
     ///     Gets a <c>c:strCache</c> element's cached text for index <c>0</c> (the conventional

@@ -88,7 +88,7 @@ public static partial class ChartRenderer
         }
 
         var seriesCount = chart.Series.Count;
-        var zero = Math.Clamp(0f, min, max);
+        var zero = Math.Clamp(0d, min, max);
 
         for (var c = 0; c < categoryCount; c++)
         {
@@ -100,7 +100,7 @@ public static partial class ChartRenderer
                     continue;
                 }
 
-                var value = (float)series.Values[c];
+                var value = series.Values[c];
                 var color = ResolveSeriesColor(chart, options, series, s);
 
                 if (isHorizontal)
@@ -189,7 +189,7 @@ public static partial class ChartRenderer
             for (var c = 0; c < series.Values.Count; c++)
             {
                 var x = inner.Left + (c + 0.5f) * bandWidth;
-                var y = inner.Bottom - ValueToPixel((float)series.Values[c], min, max, 0f, inner.Height);
+                var y = inner.Bottom - ValueToPixel(series.Values[c], min, max, 0f, inner.Height);
                 if (previous is { } prevPoint)
                 {
                     StrokeLineSegment(canvas, prevPoint, new Vector2(x, y), color);
@@ -244,7 +244,7 @@ public static partial class ChartRenderer
         }
 
         var bandWidth = inner.Width / categoryCount;
-        var zeroY = inner.Bottom - ValueToPixel(Math.Clamp(0f, min, max), min, max, 0f, inner.Height);
+        var zeroY = inner.Bottom - ValueToPixel(Math.Clamp(0d, min, max), min, max, 0f, inner.Height);
 
         for (var s = 0; s < chart.Series.Count; s++)
         {
@@ -261,7 +261,7 @@ public static partial class ChartRenderer
             for (var c = 0; c < series.Values.Count; c++)
             {
                 var x = inner.Left + (c + 0.5f) * bandWidth;
-                var y = inner.Bottom - ValueToPixel((float)series.Values[c], min, max, 0f, inner.Height);
+                var y = inner.Bottom - ValueToPixel(series.Values[c], min, max, 0f, inner.Height);
                 points[c] = new Vector2(x, y);
             }
 
@@ -335,10 +335,10 @@ public static partial class ChartRenderer
     /// <param name="origin">The pixel coordinate corresponding to <paramref name="min"/>.</param>
     /// <param name="extent">The pixel distance spanning the full [<paramref name="min"/>, <paramref name="max"/>] range.</param>
     /// <returns>The mapped pixel coordinate.</returns>
-    private static float ValueToPixel(float value, float min, float max, float origin, float extent)
+    private static float ValueToPixel(double value, double min, double max, float origin, float extent)
     {
         var clamped = Math.Clamp(value, min, max);
-        return origin + (clamped - min) / (max - min) * extent;
+        return origin + (float)((clamped - min) / (max - min)) * extent;
     }
 
     /// <summary>
@@ -350,7 +350,7 @@ public static partial class ChartRenderer
     /// </summary>
     /// <param name="chart">The chart to compute a value range for.</param>
     /// <returns>The resolved (min, max) pair, always satisfying <c>max &gt; min</c>.</returns>
-    private static (float Min, float Max) ComputeValueRange(Chart chart)
+    private static (double Min, double Max) ComputeValueRange(Chart chart)
     {
         var hasExplicitMin = chart.ValueAxis?.Minimum is not null;
         var hasExplicitMax = chart.ValueAxis?.Maximum is not null;
@@ -366,19 +366,19 @@ public static partial class ChartRenderer
             }
         }
 
-        var min = hasExplicitMin ? chart.ValueAxis!.Minimum!.Value : (float)dataMin;
-        var max = hasExplicitMax ? chart.ValueAxis!.Maximum!.Value : (float)dataMax;
+        var min = hasExplicitMin ? chart.ValueAxis!.Minimum!.Value : dataMin;
+        var max = hasExplicitMax ? chart.ValueAxis!.Maximum!.Value : dataMax;
 
         // Force a zero baseline into any auto-derived bound, so a mix of positive and negative
         // values is always visually anchored to zero rather than an arbitrary data-only range.
         if (!hasExplicitMin)
         {
-            min = MathF.Min(0f, min);
+            min = Math.Min(0d, min);
         }
 
         if (!hasExplicitMax)
         {
-            max = MathF.Max(0f, max);
+            max = Math.Max(0d, max);
         }
 
         // Degenerate guard: every value (and the forced zero baseline) resolved to the same
@@ -389,19 +389,19 @@ public static partial class ChartRenderer
         {
             if (!hasExplicitMax)
             {
-                max = min + 1f;
+                max = min + 1d;
             }
             else if (!hasExplicitMin)
             {
-                min = max - 1f;
+                min = max - 1d;
             }
             else
             {
-                max = min + 1f;
+                max = min + 1d;
             }
         }
 
-        var padding = (max - min) * 0.05f;
+        var padding = (max - min) * 0.05d;
         if (!hasExplicitMin)
         {
             min -= padding;
@@ -428,35 +428,35 @@ public static partial class ChartRenderer
     ///     candidate chosen, so a pathologically large or tiny range cannot drive the gridline
     ///     loop in <see cref="ComputeValueTicks"/> into an unbounded iteration count.
     /// </remarks>
-    private static float ComputeNiceInterval(float min, float max)
+    private static double ComputeNiceInterval(double min, double max)
     {
         const int targetTicks = 5;
         const int maxTicks = 100;
 
         var range = max - min;
-        if (!float.IsFinite(range) || range <= 0f)
+        if (!double.IsFinite(range) || range <= 0d)
         {
-            return 1f;
+            return 1d;
         }
 
         var rawStep = range / targetTicks;
-        var magnitude = MathF.Pow(10f, MathF.Floor(MathF.Log10(rawStep)));
+        var magnitude = Math.Pow(10d, Math.Floor(Math.Log10(rawStep)));
         var normalized = rawStep / magnitude;
         var niceFraction = normalized switch
         {
-            <= 1f => 1f,
-            <= 2f => 2f,
-            <= 5f => 5f,
-            _ => 10f,
+            <= 1d => 1d,
+            <= 2d => 2d,
+            <= 5d => 5d,
+            _ => 10d,
         };
 
         var interval = niceFraction * magnitude;
-        if (!float.IsFinite(interval) || interval <= 0f || range / interval > maxTicks)
+        if (!double.IsFinite(interval) || interval <= 0d || range / interval > maxTicks)
         {
             interval = range / maxTicks;
         }
 
-        return !float.IsFinite(interval) || interval <= 0f ? range : interval;
+        return !double.IsFinite(interval) || interval <= 0d ? range : interval;
     }
 
     /// <summary>
@@ -468,12 +468,12 @@ public static partial class ChartRenderer
     /// <param name="min">The value-axis minimum.</param>
     /// <param name="max">The value-axis maximum.</param>
     /// <returns>An ascending list of tick values, starting at <paramref name="min"/>, capped at 100 entries.</returns>
-    private static List<float> ComputeValueTicks(Chart chart, float min, float max)
+    private static List<double> ComputeValueTicks(Chart chart, double min, double max)
     {
         const int maxTicks = 100;
 
         var interval = chart.ValueAxis?.TickInterval ?? ComputeNiceInterval(min, max);
-        if (!float.IsFinite(interval) || interval <= 0f)
+        if (!double.IsFinite(interval) || interval <= 0d)
         {
             interval = ComputeNiceInterval(min, max);
         }
@@ -486,10 +486,10 @@ public static partial class ChartRenderer
             interval = (max - min) / maxTicks;
         }
 
-        var ticks = new List<float>();
+        var ticks = new List<double>();
         var value = min;
         var count = 0;
-        while (value <= max + interval * 0.001f && count < maxTicks)
+        while (value <= max + interval * 0.001d && count < maxTicks)
         {
             ticks.Add(value);
             value += interval;
@@ -509,7 +509,7 @@ public static partial class ChartRenderer
     /// </summary>
     /// <param name="value">The tick value to format.</param>
     /// <returns>The formatted tick label.</returns>
-    private static string FormatTickValue(float value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+    private static string FormatTickValue(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
 
     /// <summary>
     ///     Determines the number of category slots a category-based chart has: the category
@@ -605,7 +605,7 @@ public static partial class ChartRenderer
     /// <param name="hasValueAxis">Receives whether the left value-axis band was actually reserved.</param>
     /// <returns>The inner data rectangle, after reserving whichever bands fit.</returns>
     private static Rect ComputeVerticalFrame(
-        Chart chart, Rect plotRect, ChartRenderOptions options, TrueTypeFont font, List<float> ticks,
+        Chart chart, Rect plotRect, ChartRenderOptions options, TrueTypeFont font, List<double> ticks,
         out bool hasCategoryAxis, out bool hasValueAxis)
     {
         var maxTickLabelWidth = 0f;
@@ -651,7 +651,7 @@ public static partial class ChartRenderer
     /// <param name="hasValueAxis">Receives whether the bottom value-axis band was actually reserved.</param>
     /// <returns>The inner data rectangle, after reserving whichever bands fit.</returns>
     private static Rect ComputeHorizontalFrame(
-        Chart chart, Rect plotRect, ChartRenderOptions options, TrueTypeFont font, List<float> ticks,
+        Chart chart, Rect plotRect, ChartRenderOptions options, TrueTypeFont font, List<double> ticks,
         out bool hasCategoryAxis, out bool hasValueAxis)
     {
         _ = ticks;
@@ -693,7 +693,7 @@ public static partial class ChartRenderer
     /// <param name="options">The effective render options.</param>
     /// <param name="font">The resolved text font.</param>
     /// <param name="isHorizontal"><see langword="true"/> for Bar's horizontal (bottom) value axis; <see langword="false"/> for a vertical (left) value axis.</param>
-    private static void PaintValueAxis(RenderCanvas canvas, Rect inner, float min, float max, List<float> ticks, ChartRenderOptions options, TrueTypeFont font, bool isHorizontal)
+    private static void PaintValueAxis(RenderCanvas canvas, Rect inner, double min, double max, List<double> ticks, ChartRenderOptions options, TrueTypeFont font, bool isHorizontal)
     {
         foreach (var tick in ticks)
         {
