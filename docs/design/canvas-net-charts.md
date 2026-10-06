@@ -124,8 +124,9 @@ constructor parameter and exception detail.
 `DemaConsulting.CanvasNet.Vsdx`.** This is a hard architectural constraint, not a Phase 1-specific
 limitation: `CanvasNetCharts` is designed to be a reusable chart library any consumer of the core
 `CanvasNet` system can use directly, independent of any specific document format. `CanvasNetPptx`
-is instead expected to depend on `CanvasNetCharts` in Phase 4 (the opposite direction), the same
-way it already depends on the core `CanvasNet` system — never the other way around.
+depends on `CanvasNetCharts` as of its own Phase 4 (the opposite direction), the same way it
+already depends on the core `CanvasNet` system — never the other way around; see
+`docs/design/canvas-net-pptx.md`'s own Dependencies section for that integration's details.
 
 This is an ordinary, same-repository, system-to-system dependency: both `CanvasNet` and
 `CanvasNetCharts` are produced by this repository, so it is neither an OTS Software Item (not a

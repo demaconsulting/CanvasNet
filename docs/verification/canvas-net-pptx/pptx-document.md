@@ -1159,6 +1159,65 @@ table's two true outer-boundary edges (the first cell's own left edge, the last 
 edge) still resolve against `left`/`right` - confirming the structural outer-vs-interior edge-name
 mapping independently of the `firstRow`/`bandRow` *styling* flags exercised by the preceding tests.
 
+#### CanvasNetPptx-PptxDocument-ChartGraphicFrames: Chart Graphic Frame Dispatch, Resolution, Exception Wrapping, and Rendering
+
+**Tests**: `ParseShapeTree_GraphicFrameWithSupportedChart_DispatchesToChartNode`,
+`ParseShapeTree_GraphicFrameWithTable_StillDispatchesToTableNode`,
+`ParseShapeTree_GraphicFrameWithRadarChart_ThrowsPptxUnsupportedFeatureExceptionWithWrappedFeatureToken`,
+`ParseChart_ChartElementWithNoRelationshipId_ThrowsInvalidDataException`,
+`ParseChart_GraphicDataWithNoChartChild_ThrowsInvalidDataException`,
+`Render_ChartOnlySlide_PaintsVisibleContent`,
+`PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0AndSlide1PaintContent`,
+`PptxDocument_Render_SamplelibSamplePresentationFixture_EverySlidePaintsContent`,
+`PptxDocument_Render_PythonPptxChartLineFixture_RendersSuccessfully`,
+`PptxDocument_Render_PythonPptxChartUnsupportedRadarFixture_ThrowsPptxUnsupportedFeatureException`,
+`PptxDocument_Render_ShpShapesFixture_Chart2NodeHasNonNullChart`
+
+Proves `ParseShapeTree` dispatches a `<p:graphicFrame>` declaring a supported chart kind (bar,
+line, pie, and area, each via its own `[InlineData]` case) to a `PptxGraphicFrameShapeNode` whose
+`Chart` is non-null and whose `Table` is `null`, via the new `ParseChart`/`OpenXmlChartParser`
+integration; proves a `<p:graphicFrame>` declaring a table still dispatches to `ParseTable`
+exactly as before (`Table` non-null, `Chart` null) - a sanity check that chart dispatch does not
+regress the pre-existing table path. Proves a chart declaring a recognized-but-unsupported kind
+(radar) throws `PptxUnsupportedFeatureException` whose `Feature` is the wrapped
+`ChartUnsupportedFeatureException`'s own `Feature` value prefixed with `"pptx-chart-"` (here,
+`"pptx-chart-charts-openxml-radar-chart"`). Proves `ParseChart` itself throws
+`InvalidDataException` for an `<a:graphicData>` with no `<c:chart>` child, and separately for a
+`<c:chart>` element with no `r:id` attribute - each a malformed, not merely unsupported, chart
+graphic frame. Proves a synthetic, fully in-memory chart-only slide package renders through the
+public `Render` API and paints at least one non-transparent pixel, proving the chart-compositing
+branch (`ChartRenderer.Render` + the existing `PaintPicture` primitive) works end-to-end, not just
+at the dispatch/parse level. Proves three real-world corpus fixtures now render their own
+chart-bearing slides successfully where they previously threw
+(`aiden0z-1-chart-and-complex.pptx` slide index 1, `samplelib-sample-presentation.pptx` slide
+index 4 - now folded into every slide of that fixture rendering - and the new, locally-generated
+`pythonpptx-chart-line.pptx`), and that the new, locally-generated
+`pythonpptx-chart-unsupported-radar.pptx` throws `PptxUnsupportedFeatureException` with the
+expected wrapped radar feature token. Proves, via a dedicated isolation test that parses
+`pythonpptx-shp-shapes.pptx` slide index 0's own shape tree directly with
+`containUnsupportedGraphicFrames: true` (isolating "Chart 2" from its unsupported sibling
+"Diagram 7" SmartArt graphic frame, and supplying this slide's own real layout/master/theme chain
+as its `themeResolver` since the same shape tree also contains a real "Table 1" table graphic
+frame whose own `ParseTable` call needs a real theme), that "Chart 2" alone resolves to a
+non-null `Chart`/null `Table` node - confirming directly, not assuming, that this slide's
+whole-`Render` call still throws `PptxUnsupportedFeatureException` solely because of "Diagram 7",
+not because of "Chart 2" (see the corpus-level scenario below for the containing, uncontained
+slide-level assertion).
+
+**Note on the originally-anticipated "master/layout-owned chart gracefully skipped" scenario**:
+this phase's planning anticipated documenting a `containUnsupportedGraphicFrames: true` scenario
+specifically for a master/layout-owned *chart* with an unsupported feature. Since charts are now
+a supported graphic-frame kind in general (not a deferred one), that scenario no longer applies as
+originally envisioned; the pre-existing `Render_MasterGraphicFrameWithUnsupportedKind_
+SkipsThatShapeAndStillRendersSlideContent` test (in `PptxRenderTests.cs`), which proves a master-
+owned graphic frame of *any* unsupported kind is gracefully skipped (not propagated) while the
+rest of the slide still renders, was adapted this phase to use a diagram-kind (SmartArt) stand-in
+graphic frame in place of its original chart-kind one, since a `.../chart`-suffixed URI now
+dispatches to the real `ParseChart` rather than remaining a generic "any unsupported kind"
+stand-in - preserving this test's original intent (a master-owned, genuinely-unsupported-kind
+graphic frame is gracefully skipped under `containUnsupportedGraphicFrames: true`) without
+colliding with the new chart dispatch.
+
 #### CanvasNetPptx-PptxDocument-ShapeTree: Recursive Shape-Tree Parsing and Deferred Theme Resolution
 
 **Tests**: `ParseShapeTree_FreeformShape_ProducesSpShapeNodeWithNullPlaceholder`,

@@ -52,7 +52,10 @@
 # radial/path gradients, full text justification, spAutoFit shape-resize behavior, kerning, text
 # clipping on overflow, nested tables, and table auto-sizing/banding remain unimplemented - see
 # docs/design/canvas-net-pptx.md for the full current feature set and its documented,
-# still-unimplemented scope.
+# still-unimplemented scope. As of Phase 4, a <p:graphicFrame> declaring a chart graphic-data kind
+# is resolved and rendered by delegating to the sibling CanvasNetCharts system's
+# OpenXmlChartParser/ChartRenderer, rather than always throwing PptxUnsupportedFeatureException;
+# SmartArt/diagram and OLE-object graphic frames remain unsupported.
 
 sections:
   - title: CanvasNetPptx Requirements

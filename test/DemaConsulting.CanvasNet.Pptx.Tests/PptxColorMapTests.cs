@@ -420,6 +420,7 @@ public class PptxColorMapTests
         var slide = document.GetSlide(0);
 
         var graphicFrameNode = Assert.IsType<PptxGraphicFrameShapeNode>(Assert.Single(slide.ShapeTree));
+        Assert.NotNull(graphicFrameNode.Table);
         var cellFill = Assert.IsType<PptxSolidFill>(graphicFrameNode.Table.Rows[0].Cells[0].Fill);
         Assert.Equal(new Rgba32(0x10, 0x10, 0x10, 255), cellFill.Color);
     }

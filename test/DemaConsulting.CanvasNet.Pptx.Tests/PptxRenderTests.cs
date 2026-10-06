@@ -3086,8 +3086,9 @@ public class PptxRenderTests
 
     /// <summary>
     ///     Regression test (see the companion planning report's parse-time containment fix): a
-    ///     master's own <c>&lt;p:graphicFrame&gt;</c> declaring an unsupported (non-table, chart)
-    ///     kind must not abort <em>parsing</em> that master - which would otherwise abort
+    ///     master's own <c>&lt;p:graphicFrame&gt;</c> declaring an unsupported (non-table,
+    ///     non-chart - here a SmartArt/diagram graphic-frame kind) kind must not abort
+    ///     <em>parsing</em> that master - which would otherwise abort
     ///     <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/> for every slide
     ///     sharing that master - so the slide's own content still renders normally.
     /// </summary>
@@ -3097,10 +3098,10 @@ public class PptxRenderTests
         const string masterShapeTreeXml =
             """
             <p:graphicFrame>
-              <p:nvGraphicFramePr><p:cNvPr id="3" name="MasterChart"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+              <p:nvGraphicFramePr><p:cNvPr id="3" name="MasterDiagram"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
               <p:xfrm><a:off x="0" y="0"/><a:ext cx="1000000" cy="1000000"/></p:xfrm>
               <a:graphic>
-                <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+                <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram">
                   <a:tbl>
                     <a:tblGrid><a:gridCol w="1000"/></a:tblGrid>
                     <a:tr h="1000"><a:tc/></a:tr>

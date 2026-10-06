@@ -182,4 +182,7 @@ validating the documented argument- and structural-validation contracts. Pattern
 fills, radial/path gradients, full text justification, `spAutoFit` shape-resize behavior, kerning,
 text clipping on overflow, nested tables, and table auto-sizing/banding remain explicitly deferred;
 a future, corpus-driven hardening pass will extend this document's scenarios as that content is
-added.
+added. As of Phase 4, a `<p:graphicFrame>` declaring a chart renders successfully by delegating to
+the sibling `CanvasNetCharts` system - see _PptxDocument Unit Verification Design_
+(`canvas-net-pptx/pptx-document.md`) for the unit-level chart-graphic-frame scenarios; SmartArt/
+diagram and OLE-object graphic frames remain unsupported.

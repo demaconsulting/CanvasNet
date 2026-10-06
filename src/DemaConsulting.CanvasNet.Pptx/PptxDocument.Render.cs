@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Charts;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx;
@@ -581,8 +582,16 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>
-    ///     Renders a <see cref="PptxGraphicFrameShapeNode"/> (a table): paints its already-parsed
-    ///     <see cref="PptxGraphicFrameShapeNode.Table"/> via the Phase 1e table pipeline.
+    ///     Renders a <see cref="PptxGraphicFrameShapeNode"/> (a table or, as of Phase 4, a chart):
+    ///     paints its already-parsed <see cref="PptxGraphicFrameShapeNode.Table"/> via the
+    ///     Phase 1e table pipeline, or its already-parsed <see cref="PptxGraphicFrameShapeNode.Chart"/>
+    ///     by rendering it onto its own, dedicated <see cref="Surface"/> (sized via
+    ///     <see cref="ResolveGraphicFramePixelSize"/>) with <see cref="ChartRenderer.Render(Chart, int, int, ChartRenderOptions?)"/>
+    ///     and compositing that surface onto <paramref name="surface"/> with the exact same
+    ///     <see cref="PaintPicture"/> primitive <see cref="RenderPicture"/> already uses for a
+    ///     <c>&lt;p:pic&gt;</c> - no new compositing code, only a small pixel-size-derivation
+    ///     helper, since a chart (unlike a picture) has no source image of its own whose pixel
+    ///     dimensions could be reused directly.
     /// </summary>
     private static void RenderGraphicFrame(
         Surface surface, PptxGraphicFrameShapeNode node, PptxTheme theme, Matrix3x2 parentToSurface, PptxColorMap colorMap)
@@ -598,7 +607,48 @@ public sealed partial class PptxDocument
         var frame = ResolveShapeFrame(xfrmElement);
         var localToSurface = frame.Transform * parentToSurface;
 
-        PaintTable(surface, node.Table, theme, localToSurface, ResolveTextFont, colorMap);
+        if (node.Table is not null)
+        {
+            PaintTable(surface, node.Table, theme, localToSurface, ResolveTextFont, colorMap);
+        }
+        else if (node.Chart is not null)
+        {
+            var (pixelWidth, pixelHeight) = ResolveGraphicFramePixelSize(frame, localToSurface);
+            using var chartSurface = ChartRenderer.Render(node.Chart, pixelWidth, pixelHeight);
+            PaintPicture(surface, chartSurface, srcRect: null, localToSurface, frame.WidthEmu, frame.HeightEmu);
+        }
+    }
+
+    /// <summary>
+    ///     Derives the pixel dimensions a <c>&lt;p:graphicFrame&gt;</c> chart should be rendered at
+    ///     (Phase 4), so <see cref="ChartRenderer.Render(Chart, int, int, ChartRenderOptions?)"/>
+    ///     produces a <see cref="Surface"/> whose own pixel size roughly matches the graphic
+    ///     frame's own on-slide footprint - mirroring <see cref="PaintPicture"/>'s own corner-
+    ///     transform technique for computing a destination bounding box, reused here only to pick
+    ///     a render resolution (<see cref="PaintPicture"/> itself is still the method that
+    ///     actually composites the rendered chart onto the destination surface).
+    /// </summary>
+    /// <param name="frame">The graphic frame's own resolved local frame (width/height in EMU).</param>
+    /// <param name="localToSurface">The transform mapping the frame's own local space into surface pixel space.</param>
+    /// <returns>
+    ///     The chart's own render width/height, in pixels, each clamped to
+    ///     <c>[1, <see cref="Surface.MaxDimension"/>]</c> so a degenerate (zero/negative) or
+    ///     excessively large transformed footprint can never produce an invalid
+    ///     <see cref="Surface"/> size.
+    /// </returns>
+    private static (int Width, int Height) ResolveGraphicFramePixelSize(PptxShapeFrame frame, Matrix3x2 localToSurface)
+    {
+        var unitToSurface = Matrix3x2.CreateScale(frame.WidthEmu, frame.HeightEmu) * localToSurface;
+        var corner00 = Vector2.Transform(new Vector2(0, 0), unitToSurface);
+        var corner10 = Vector2.Transform(new Vector2(1, 0), unitToSurface);
+        var corner01 = Vector2.Transform(new Vector2(0, 1), unitToSurface);
+
+        var width = (int)MathF.Round(Vector2.Distance(corner00, corner10));
+        var height = (int)MathF.Round(Vector2.Distance(corner00, corner01));
+
+        return (
+            Math.Clamp(width, 1, Surface.MaxDimension),
+            Math.Clamp(height, 1, Surface.MaxDimension));
     }
 
     /// <summary>

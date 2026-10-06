@@ -977,6 +977,7 @@ public class PptxSystemIntegrationTests
 
         // Assert
         var tableNode = Assert.IsType<PptxGraphicFrameShapeNode>(Assert.Single(shapeTree));
+        Assert.NotNull(tableNode.Table);
         var row = Assert.Single(tableNode.Table.Rows);
         Assert.Single(row.Cells);
         Assert.Equal(new Rgba32(0, 255, 255, 255), surface[25, 25]);

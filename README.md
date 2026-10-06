@@ -212,7 +212,7 @@ using DemaConsulting.CanvasNet.Charts.OpenXml;
 using System.Xml.Linq;
 
 // Parse a c:chartSpace/c:chart XML document (for example, a chart1.xml OPC part a host
-// document-format library - such as a future CanvasNetPptx - has already located and opened)
+// document-format library - such as CanvasNetPptx - has already located and opened)
 var chartDocument = XDocument.Load("chart1.xml");
 var parsedChart = OpenXmlChartParser.Parse(chartDocument);
 

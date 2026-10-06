@@ -145,7 +145,17 @@ subsystems** - `Geometry.Path`/`PathBuilder` to build and compose resolved shape
 `Fonts.TrueTypeFont`/`SystemFontCatalog` to resolve a DrawingML typeface name hint to a concrete
 font and extract its glyph outlines - and the core `Drawing.PathFiller`/`Canvas.Surface` types to
 paint resolved glyph ink onto a rendering surface, mirroring `CanvasNetPdf`'s own
-font-resolution/glyph-painting pattern. The package layer itself still relies
+font-resolution/glyph-painting pattern. **As of Phase 4, `CanvasNetPptx` additionally depends on
+the sibling `CanvasNetCharts` system** (its own separate package,
+`DemaConsulting.CanvasNet.Charts`) - specifically `DemaConsulting.CanvasNet.Charts.OpenXml`'s
+`OpenXmlChartParser`, to parse a `<p:graphicFrame>`'s referenced `chart#.xml` OPC part into a
+`Chart`, and `DemaConsulting.CanvasNet.Charts`'s `ChartRenderer`, to render that `Chart` onto a
+dedicated `Surface` before compositing it onto the slide via the existing `PaintPicture`
+primitive - see `docs/design/canvas-net-pptx/pptx-document.md`'s "Chart Graphic Frames (Phase 4)"
+design section for the full integration. This dependency is strictly one-directional:
+`CanvasNetCharts` must never reference `CanvasNetPptx` (see `docs/design/canvas-net-charts.md`'s
+own Dependencies section), so `CanvasNetPptx` depends on `CanvasNetCharts` exactly as it already
+depends on the core `CanvasNet` system, never the reverse. The package layer itself still relies
 solely on the .NET base class library's `System.IO.Compression.ZipArchive` (reading
 the `.pptx` ZIP container) and `System.Xml.Linq.XDocument`/`XElement` (parsing
 `[Content_Types].xml`, each `.rels` part, and, as of Phase 1b, every presentation/theme/master/
@@ -160,7 +170,11 @@ first uses the referenced subsystem (for example `CanvasNetPdf`'s `Fonts` depend
 only at its own Phase 4, not at Phase 1). Added this phase (Phase 1d), mirroring that same
 precedent: `dependency usesFonts from CanvasNetPptxSystem to Fonts;`. No other `CanvasNet`
 subsystem (`Codecs`) is used yet; a future phase that implements picture fill may add a further
-`dependency` edge at that time.
+`dependency` edge at that time. Added at Phase 4 (this release), mirroring that same per-phase
+pattern but targeting a sibling _system_ rather than a `CanvasNet` subsystem:
+`dependency usesCharts from CanvasNetPptxSystem to CanvasNetCharts;` - the SysML2 edge for the
+new, one-directional `ProjectReference` from `DemaConsulting.CanvasNet.Pptx.csproj` to
+`DemaConsulting.CanvasNet.Charts.csproj` described above.
 
 This is an ordinary, same-repository, system-to-system dependency: both `CanvasNet` and
 `CanvasNetPptx` are produced by this repository, so it is neither an OTS Software Item (not a

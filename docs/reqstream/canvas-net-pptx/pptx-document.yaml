@@ -1426,6 +1426,51 @@ sections:
               - ParseTableCell_TcPrExplicitFillAndBorder_OverridesTableStyleFillAndBorder
               - ParseTableCell_InteriorColumnBorder_UsesInsideVNotLeftRightTcBdrEdge
 
+          - id: CanvasNetPptx-PptxDocument-ChartGraphicFrames
+            title: >-
+              The PptxDocument class shall resolve a <p:graphicFrame>'s <a:graphic>/<a:graphicData>
+              whose uri ends in "/chart" by resolving its <c:chart r:id> relationship to the
+              referenced chart part, parsing that part via the sibling
+              DemaConsulting.CanvasNet.Charts package's OpenXmlChartParser.Parse, and - when
+              actually rendering the slide - rendering/compositing the resulting Chart via
+              DemaConsulting.CanvasNet.Charts.ChartRenderer onto the slide surface at the graphic
+              frame's own resolved frame, reusing the existing picture-compositing primitive
+              exactly as a <p:pic> composites its own decoded image, while rejecting a missing
+              <c:chart r:id> attribute or any other malformed chart part with InvalidDataException
+              and wrapping any ChartUnsupportedFeatureException raised while parsing a
+              recognized-but-unsupported chart construct as a PptxUnsupportedFeatureException whose
+              own Feature token is "pptx-chart-" followed by the wrapped exception's own Feature
+              value.
+            justification: |
+              A <p:graphicFrame> may declare a chart rather than a table; before this phase, every
+              chart graphic-data kind fell through TableParsing's own "not a table"
+              PptxUnsupportedFeatureException path, so no presentation containing a chart could
+              ever render past that slide. DemaConsulting.CanvasNet.Charts (Phases 1-3) already
+              independently verified chart-model construction, OOXML-chart parsing, and pixel
+              rendering; this requirement's own responsibility is purely resolving the chart
+              part's relationship and invoking that already-verified parser/renderer, not
+              re-implementing chart parsing or rendering. Prefixing the wrapped feature token with
+              "pptx-chart-" keeps a chart-specific deferred-feature token distinguishable, in
+              CanvasNetPptx's own exception contract, from every other "pptx-*" feature token this
+              package already raises, while still surfacing the Charts package's own, more specific
+              Feature value (for example "charts-openxml-radar-chart") rather than discarding it.
+              This dependency is strictly one-directional - DemaConsulting.CanvasNet.Charts must
+              never reference DemaConsulting.CanvasNet.Pptx (see docs/design/canvas-net-charts.md's
+              Dependencies section) - so CanvasNetPptx depends on CanvasNetCharts exactly as it
+              already depends on the core CanvasNet system, never the reverse.
+            tests:
+              - ParseShapeTree_GraphicFrameWithSupportedChart_DispatchesToChartNode
+              - ParseShapeTree_GraphicFrameWithTable_StillDispatchesToTableNode
+              - ParseShapeTree_GraphicFrameWithRadarChart_ThrowsPptxUnsupportedFeatureExceptionWithWrappedFeatureToken
+              - ParseChart_ChartElementWithNoRelationshipId_ThrowsInvalidDataException
+              - ParseChart_GraphicDataWithNoChartChild_ThrowsInvalidDataException
+              - Render_ChartOnlySlide_PaintsVisibleContent
+              - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0AndSlide1PaintContent
+              - PptxDocument_Render_SamplelibSamplePresentationFixture_EverySlidePaintsContent
+              - PptxDocument_Render_PythonPptxChartLineFixture_RendersSuccessfully
+              - PptxDocument_Render_PythonPptxChartUnsupportedRadarFixture_ThrowsPptxUnsupportedFeatureException
+              - PptxDocument_Render_ShpShapesFixture_Chart2NodeHasNonNullChart
+
           - id: CanvasNetPptx-PptxDocument-ShapeTree
             title: >-
               The PptxDocument class shall recursively parse a <p:spTree> (or, for a nested group,

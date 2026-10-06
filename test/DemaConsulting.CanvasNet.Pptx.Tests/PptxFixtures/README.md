@@ -45,9 +45,9 @@ Three independent sources are represented:
 | File | Exercises |
 | ------ | ----------- |
 | `samplelib-sample-blank.pptx` | A single blank slide from an independent, non-`python-pptx` authoring tool. |
-| `samplelib-sample-presentation.pptx` | Eight slides: text/autoshapes, a table (slide 3), a chart (slide 4, throws). |
+| `samplelib-sample-presentation.pptx` | Eight slides: text/autoshapes, a table (slide 3), a chart (slide 4, renders). |
 | `pythonpptx-sld-blank.pptx` | A single blank slide (`python-pptx`'s own `sld-blank.pptx`). |
-| `pythonpptx-shp-shapes.pptx` | Slide 0: table/chart/SmartArt (throws). Slide 1: connectors, nested group, GIF. |
+| `pythonpptx-shp-shapes.pptx` | Slide 0: table/chart (renders)/SmartArt (SmartArt alone still throws). Slide 1: connectors, nested group, GIF. |
 | `pythonpptx-shp-groupshape.pptx` | A `<p:grpSp>` group with nested/`avLst` autoshapes - group-transform coverage. |
 | `pythonpptx-shp-picture.pptx` | Two slides placing an embedded raster picture - picture decode/composite coverage. |
 | `pythonpptx-shp-autoshape-props.pptx` | A single autoshape with an `avLst` handle - preset-geometry coverage. |
@@ -61,9 +61,11 @@ Three independent sources are represented:
 | `pythonpptx-shp-connector-props.pptx` | Two slides; a lone `<p:cxnSp>` connector (silently skipped) plus a picture. |
 | `pythonpptx-dml-fill.pptx` | Two slides exercising shape-background picture-fill and pattern-fill (both now render; an uncovered pattern preset would still throw). |
 | `pythonpptx-dml-line.pptx` | Four slides of explicit `<a:solidFill>`/`<a:ln>` stroke variety (width/dash/color). |
-| `aiden0z-1-chart-and-complex.pptx` | Two slides: org-chart (connectors/custGeom/avLst) plus a chart slide (throws). |
+| `aiden0z-1-chart-and-complex.pptx` | Two slides: org-chart (connectors/custGeom/avLst) plus a chart slide (renders). |
 | `aiden0z-image-crop-css-reset.pptx` | One slide: `<p:bg>` fill, four pictures with distinct `<a:srcRect>` crops. |
 | `aiden0z-table-stale-frame.pptx` | A single slide; table frame's declared extent mismatches its own column widths. |
+| `pythonpptx-chart-line.pptx` | A single slide with one `XL_CHART_TYPE.LINE_MARKERS` line chart (renders) - Phase 4's own supported-chart fixture (see "Locally-Generated Chart Fixtures" below). |
+| `pythonpptx-chart-unsupported-radar.pptx` | A single slide with one `XL_CHART_TYPE.RADAR` radar chart (throws `PptxUnsupportedFeatureException`, feature token `"pptx-chart-charts-openxml-radar-chart"`) - Phase 4's own deferred-chart-kind fixture (see "Locally-Generated Chart Fixtures" below). |
 
 ## Exact `python-pptx` Source URLs
 
@@ -144,25 +146,56 @@ the following reasons:
   font-embedding differentiator is not observable to CanvasNet (no custom font-embedding support exists), so keeping
   both adds nothing.
 
+## Locally-Generated Chart Fixtures (Phase 4)
+
+Unlike every other file in this folder, `pythonpptx-chart-line.pptx` and
+`pythonpptx-chart-unsupported-radar.pptx` are **not** files taken unmodified from an upstream
+source. Phase 4 (chart-graphic-frame rendering) needed one small, supported chart fixture and one
+small, deliberately-unsupported chart fixture, and no file already in `python-pptx`'s own
+`features/steps/test_files/` upstream corpus declares a chart at all. Both files were instead
+generated locally using the `python-pptx` **library** itself (not one of its own fixture files) -
+`pythonpptx-chart-line.pptx` via `Presentation().slides[0].shapes.add_chart(XL_CHART_TYPE.LINE_MARKERS, ...)`
+(two series, "Revenue"/"Cost", over three categories, "Q1"/"Q2"/"Q3"), and
+`pythonpptx-chart-unsupported-radar.pptx` identically except for `XL_CHART_TYPE.RADAR` in place of
+`XL_CHART_TYPE.LINE_MARKERS`. The two throwaway generator scripts (`_gen_chart_line.py`/
+`_gen_chart_radar.py`, kept in this folder purely for reproducibility - they are not part of this
+project's build) must be run as two **separate** Python process invocations: `python-pptx`'s own
+internal default-template handling corrupts a package's ZIP (duplicate part names) when two
+`Presentation()` objects are instantiated in the same process and both saved, a quirk discovered
+while authoring these fixtures. Both generated files were verified, before use, by unzipping and
+inspecting their own `ppt/charts/chart1.xml` part directly (confirming well-formed
+`c:chartSpace`/`c:lineChart`/`c:radarChart` structure with cached `c:numCache`/`c:strCache` values)
+and by loading each through `OpenXmlChartParser.Parse` and `PptxDocument.Open`/`Render` directly.
+
 ## A Note on What This Corpus Can - and Cannot - Prove
 
-Two slides in this corpus declare a chart (and, in one case, also a SmartArt/diagram)
-`<p:graphicFrame>`: `pythonpptx-shp-shapes.pptx` slide index 0, and
-`samplelib-sample-presentation.pptx` slide index 4. Charts, SmartArt diagrams, and OLE objects are
-explicitly out of scope for this project (see `pptx-document.md`'s Phase 1e/1c deferred-items
-lists) - `ParseTable`'s own `<a:graphicData>` `uri` check throws `PptxUnsupportedFeatureException`
-(feature token `"pptx-graphic-frame-kind"`) for any graphic-frame kind that is not a table, *before*
-attempting to read any chart-specific or diagram-specific XML shape. The corpus test for these two
-specific slide indices therefore asserts that `Render` throws this documented exception type, not
-that it renders successfully - this is the **already-graceful, already-designed** behavior for a
-recognized-but-unsupported construct, not a bug this phase introduces or works around.
+As of Phase 4, `PptxDocument` renders a chart `<p:graphicFrame>` by delegating to
+`DemaConsulting.CanvasNet.Charts` (see `PptxDocument.Charts.cs`'s `ParseChart`) rather than
+unconditionally throwing `PptxUnsupportedFeatureException` for every chart. Three slides in this
+corpus declare a chart `<p:graphicFrame>`: `pythonpptx-shp-shapes.pptx` slide index 0,
+`samplelib-sample-presentation.pptx` slide index 4, and `aiden0z-1-chart-and-complex.pptx` slide
+index 1 (plus the two Phase-4-authored fixtures documented above) - all five now render that
+chart successfully. A SmartArt/diagram `<p:graphicFrame>` remains explicitly out of scope (see
+`pptx-document.md`'s deferred-items lists): `pythonpptx-shp-shapes.pptx` slide index 0 also
+declares a SmartArt/diagram graphic frame ("Diagram 7") alongside its own chart ("Chart 2") and a
+real table ("Table 1") - that slide's whole-`Render` call still throws
+`PptxUnsupportedFeatureException` (feature token `"pptx-graphic-frame-kind"`), but now because of
+"Diagram 7" alone, confirmed directly (not assumed) by a dedicated, narrower isolation test proving
+"Chart 2" itself parses to a non-null chart node. `ParseTable`'s own `<a:graphicData>` `uri` check
+still throws that same exception for any graphic-frame kind that is neither a table nor a chart,
+*before* attempting to read any diagram-specific XML shape - the same already-graceful,
+already-designed behavior for a recognized-but-unsupported construct this project has always had,
+now narrower in scope (diagrams/OLE objects only, not charts).
 
-This smoke test corpus can prove that the whole slide-level `Render` call surfaces a clean,
-documented exception for these two real-world chart-bearing slides, and that every other slide in
-every other fixture renders without an ungraceful crash and paints at least one real pixel. It
-cannot, by itself, prove that `PptxDocument` would behave identically against every other possible
-real-world chart/diagram encoding variant in the wild (different graphic-frame `uri` casing, a
-chart embedded without an accompanying table-shaped sibling, or an OLE object rather than a chart) -
-only that these two specific, genuinely-authored real files exercise the documented path cleanly.
-Nor can a corpus this size (twenty files, three sources) claim to be statistically representative of
+This smoke test corpus can prove that the whole slide-level `Render` call renders a chart
+successfully for five real-world (if, for two of them, locally-authored) chart-bearing slides, that
+a SmartArt/diagram graphic frame still surfaces a clean, documented exception, and that every other
+slide in every other fixture renders without an ungraceful crash and paints at least one real
+pixel. It cannot, by itself, prove that `PptxDocument` would behave identically against every other
+possible real-world chart/diagram encoding variant in the wild (different graphic-frame `uri`
+casing, every one of the ~24 still-deferred OOXML chart presets/features documented in
+`OpenXmlChartParser`'s own XML docs, or an OLE object rather than a chart or diagram) - only that
+these specific, genuinely-authored (or, for the two Phase 4 fixtures, library-generated) real files
+exercise the documented path cleanly. Nor can a corpus this size (twenty-two files, three upstream
+sources plus two locally-generated fixtures) claim to be statistically representative of
 "real-world PPTX documents" in general - it is a targeted, honest sample, not an exhaustive one.

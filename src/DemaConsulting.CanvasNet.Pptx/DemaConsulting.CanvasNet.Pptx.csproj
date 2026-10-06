@@ -68,6 +68,7 @@
   <!-- Project References -->
   <ItemGroup>
     <ProjectReference Include="..\DemaConsulting.CanvasNet\DemaConsulting.CanvasNet.csproj" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Charts\DemaConsulting.CanvasNet.Charts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

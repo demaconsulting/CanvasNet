@@ -23,16 +23,20 @@ namespace DemaConsulting.CanvasNet.Pptx.Tests;
 ///     <see cref="PptxTablesTests"/>, <see cref="PptxGroupsTests"/>).
 /// </summary>
 /// <remarks>
-///     Two specific slides in this corpus declare a chart (and, in one case, also a SmartArt/
-///     diagram) <c>&lt;p:graphicFrame&gt;</c> - a construct explicitly out of scope for this
-///     project (see <c>pptx-document.md</c>'s deferred-items lists). <see cref="PptxDocument"/>'s
-///     own <c>ParseTable</c> resolver already throws <see cref="PptxUnsupportedFeatureException"/>
-///     (feature token <c>"pptx-graphic-frame-kind"</c>) for any non-table graphic-frame kind
-///     before attempting to read any chart/diagram-specific XML - this is the established,
-///     already-graceful convention for a recognized-but-unsupported construct, confirmed here
-///     against real files rather than merely predicted from static code reading (see
-///     <c>PptxFixtures\README.md</c>'s own "what this corpus can - and cannot - prove" section for
-///     the exact honesty boundary of that claim).
+///     As of Phase 4, <see cref="PptxDocument"/> renders a chart <c>&lt;p:graphicFrame&gt;</c>
+///     by delegating to <c>DemaConsulting.CanvasNet.Charts</c> (see <see cref="PptxDocument.ParseChart"/>/
+///     <c>PptxDocument.Charts.cs</c>) - two of this corpus's fixtures that previously threw
+///     <see cref="PptxUnsupportedFeatureException"/> purely because of their own chart content
+///     now render that chart successfully (see the Aiden0z and samplelib tests below). A
+///     SmartArt/diagram <c>&lt;p:graphicFrame&gt;</c> remains explicitly out of scope (see
+///     <c>pptx-document.md</c>'s deferred-items lists): <see cref="PptxDocument"/>'s own
+///     <c>ParseTable</c> resolver still throws <see cref="PptxUnsupportedFeatureException"/>
+///     (feature token <c>"pptx-graphic-frame-kind"</c>) for any non-table, non-chart
+///     graphic-frame kind before attempting to read any diagram-specific XML - this is the
+///     established, already-graceful convention for a recognized-but-unsupported construct,
+///     confirmed here against real files rather than merely predicted from static code reading
+///     (see <c>PptxFixtures\README.md</c>'s own "what this corpus can - and cannot - prove"
+///     section for the exact honesty boundary of that claim).
 /// </remarks>
 public class PptxFixturesCorpusTests
 {
@@ -321,11 +325,15 @@ public class PptxFixturesCorpusTests
     /// <summary>
     ///     Proves <c>pythonpptx-shp-shapes.pptx</c>'s richest, two-slide mix of real-world
     ///     constructs behaves exactly as the corpus README documents: slide index 0 (a real
-    ///     <c>&lt;a:tbl&gt;</c> table graphic frame alongside a chart and a SmartArt/diagram
-    ///     graphic frame) throws <see cref="PptxUnsupportedFeatureException"/> - the already-
-    ///     graceful, already-designed "unsupported graphic-frame kind" path - while slide index 1
-    ///     (connectors, a nested group, several <c>avLst</c>-bearing autoshapes, and a GIF image)
-    ///     renders cleanly and paints visible content.
+    ///     <c>&lt;a:tbl&gt;</c> table graphic frame, "Chart 2" - a chart graphic frame now
+    ///     rendered successfully by Phase 4, see
+    ///     <see cref="PptxDocument_Render_ShpShapesFixture_Chart2NodeHasNonNullChart"/> below -
+    ///     and "Diagram 7", a SmartArt/diagram graphic frame still explicitly out of scope)
+    ///     throws <see cref="PptxUnsupportedFeatureException"/> - the already-graceful,
+    ///     already-designed "unsupported graphic-frame kind" path, triggered by "Diagram 7"
+    ///     alone (confirmed, not assumed - see the dedicated isolation test referenced above)
+    ///     while slide index 1 (connectors, a nested group, several <c>avLst</c>-bearing
+    ///     autoshapes, and a GIF image) renders cleanly and paints visible content.
     /// </summary>
     [Fact]
     public void PptxDocument_Render_ShpShapesFixture_Slide0ThrowsUnsupportedFeatureSlide1PaintsContent()
@@ -336,9 +344,11 @@ public class PptxFixturesCorpusTests
         // Assert: slide count
         Assert.Equal(2, document.SlideCount);
 
-        // Act & Assert: slide 0's chart/diagram graphic frame is a recognized-but-unsupported
-        // construct - the whole slide's Render call throws, rather than silently skipping or
-        // crashing ungracefully.
+        // Act & Assert: slide 0's "Diagram 7" SmartArt/diagram graphic frame is a
+        // recognized-but-unsupported construct - the whole slide's Render call throws, rather
+        // than silently skipping or crashing ungracefully. "Chart 2" (the slide's own chart
+        // graphic frame) no longer contributes to this throw as of Phase 4 - see the dedicated
+        // isolation test below, which proves this directly rather than by elimination.
         var exception = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(0, Dpi, Transparent));
         Assert.Equal("pptx-graphic-frame-kind", exception.Feature);
 
@@ -348,14 +358,65 @@ public class PptxFixturesCorpusTests
     }
 
     /// <summary>
-    ///     Proves <c>samplelib-sample-presentation.pptx</c> (an eight-slide, independently-
-    ///     sourced real-world deck) behaves exactly as the corpus README documents: slide index 4
-    ///     (a chart graphic frame) throws <see cref="PptxUnsupportedFeatureException"/>, while
-    ///     every other slide (0-3 and 5-7, including slide 3's own real <c>&lt;a:tbl&gt;</c>
-    ///     table) renders cleanly and paints visible content.
+    ///     Proves, narrowly and directly (Phase 4), that <c>pythonpptx-shp-shapes.pptx</c>
+    ///     slide index 0's own "Chart 2" graphic frame - sitting alongside "Table 1" and the
+    ///     still-unsupported "Diagram 7" in the very same shape tree (see the test above) -
+    ///     parses to a <see cref="PptxGraphicFrameShapeNode"/> with a non-null
+    ///     <see cref="PptxGraphicFrameShapeNode.Chart"/> (and a null
+    ///     <see cref="PptxGraphicFrameShapeNode.Table"/>), isolating "Chart 2" itself from
+    ///     "Diagram 7" - the sibling frame that still throws
+    ///     <see cref="PptxUnsupportedFeatureException"/> and is the one actually responsible for
+    ///     the whole-slide throw proven above, not "Chart 2".
     /// </summary>
     [Fact]
-    public void PptxDocument_Render_SamplelibSamplePresentationFixture_Slide4ThrowsUnsupportedFeatureOthersPaintContent()
+    public void PptxDocument_Render_ShpShapesFixture_Chart2NodeHasNonNullChart()
+    {
+        // Arrange
+        using var document = PptxDocument.Open(Fixture("pythonpptx-shp-shapes.pptx"));
+        const string slidePartPath = "ppt/slides/slide1.xml";
+        var root = document.LoadPartXmlRoot(slidePartPath);
+        var spTree = root.Element(P + "cSld")!.Element(P + "spTree")!;
+        var layoutPartPath = document.ResolveRelationshipByType(slidePartPath, "/slideLayout");
+
+        // Act: containUnsupportedGraphicFrames: true isolates "Chart 2" from its sibling
+        // "Diagram 7" SmartArt graphic frame - which would otherwise still propagate its own
+        // PptxUnsupportedFeatureException and abort this parse entirely (see the slide-level
+        // test above, which instead exercises the real, uncontained
+        // containUnsupportedGraphicFrames: false path that a full Render call actually takes).
+        // themeResolver resolves this slide's own real layout -> master -> theme chain (needed
+        // because this slide tree also contains "Table 1", a real table graphic frame).
+        var nodes = PptxDocument.ParseShapeTree(
+            spTree,
+            themeResolver: () =>
+            {
+                var layout = document.GetLayout(layoutPartPath);
+                var master = document.GetMaster(layout.MasterPartPath);
+                return document.GetTheme(master.ThemePartPath);
+            },
+            containUnsupportedGraphicFrames: true,
+            resolveChartPart: id => document.LoadPartXmlRoot(document.ResolveRelationship(slidePartPath, id)));
+
+        var chart2 = nodes
+            .OfType<PptxGraphicFrameShapeNode>()
+            .SingleOrDefault(node => node.GraphicFrameElement
+                .Descendants(P + "cNvPr")
+                .Any(cNvPr => (string?)cNvPr.Attribute("name") == "Chart 2"));
+
+        // Assert
+        Assert.NotNull(chart2);
+        Assert.NotNull(chart2.Chart);
+        Assert.Null(chart2.Table);
+    }
+
+    /// <summary>
+    ///     Proves <c>samplelib-sample-presentation.pptx</c> (an eight-slide, independently-
+    ///     sourced real-world deck) renders every slide cleanly and paints visible content,
+    ///     including slide index 4's own chart graphic frame (rendered successfully as of
+    ///     Phase 4 - see <c>PptxFixtures\README.md</c>'s own corrected provenance notes) and
+    ///     slide index 3's own real <c>&lt;a:tbl&gt;</c> table.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Render_SamplelibSamplePresentationFixture_EverySlidePaintsContent()
     {
         // Arrange
         using var document = PptxDocument.Open(Fixture("samplelib-sample-presentation.pptx"));
@@ -363,16 +424,9 @@ public class PptxFixturesCorpusTests
         // Assert: slide count
         Assert.Equal(8, document.SlideCount);
 
-        // Act & Assert: every slide except index 4 renders cleanly and paints visible content.
+        // Act & Assert: every slide renders cleanly and paints visible content.
         for (var slideIndex = 0; slideIndex < document.SlideCount; slideIndex++)
         {
-            if (slideIndex == 4)
-            {
-                var exception = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(slideIndex, Dpi, Transparent));
-                Assert.Equal("pptx-graphic-frame-kind", exception.Feature);
-                continue;
-            }
-
             using var surface = document.Render(slideIndex, Dpi, Transparent);
             AssertPaintedSomePixel(surface);
         }
@@ -636,9 +690,10 @@ public class PptxFixturesCorpusTests
     ///     (58 shapes, 17 connectors, a <c>&lt;a:custGeom&gt;</c> freeform, and 11 <c>avLst</c>
     ///     adjustment overrides across varied preset geometries) that renders cleanly and paints
     ///     visible content with no chart graphic frame of its own, while slide index 1 declares a
-    ///     chart graphic frame and throws <see cref="PptxUnsupportedFeatureException"/> - the
-    ///     same already-graceful, already-designed "unsupported graphic-frame kind" path proven
-    ///     elsewhere in this corpus against the <c>python-pptx</c>/<c>samplelib.com</c> fixtures.
+    ///     chart graphic frame and, as of Phase 4, renders it successfully instead of throwing -
+    ///     <see cref="PptxDocument"/> now delegates a chart graphic frame to
+    ///     <c>DemaConsulting.CanvasNet.Charts</c> rather than unconditionally refusing every
+    ///     non-table graphic-frame kind.
     /// </summary>
     /// <remarks>
     ///     Slide index 0 uses <c>ppt/slideLayouts/slideLayout1.xml</c>, which (per the companion
@@ -658,7 +713,7 @@ public class PptxFixturesCorpusTests
     ///     produce (this fixture's own background is pure white too).
     /// </remarks>
     [Fact]
-    public void PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature()
+    public void PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0AndSlide1PaintContent()
     {
         // Arrange
         using var document = PptxDocument.Open(Fixture("aiden0z-1-chart-and-complex.pptx"));
@@ -784,9 +839,9 @@ public class PptxFixturesCorpusTests
         Assert.True(darkestAtSldNum >= darkestAtSldNumBaseline - 60,
             $"Expected no stray bullet ink at the slide-number placeholder's own geometry (darkest luminance {darkestAtSldNum}), no meaningfully darker than its own background baseline row (darkest luminance {darkestAtSldNumBaseline}).");
 
-        // Act & Assert: slide 1's chart graphic frame throws.
-        var exception = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(1, Dpi, Transparent));
-        Assert.Equal("pptx-graphic-frame-kind", exception.Feature);
+        // Act & Assert: slide 1's chart graphic frame now renders successfully (Phase 4).
+        using var surface1 = document.Render(1, Dpi, Transparent);
+        AssertPaintedSomePixel(surface1);
     }
 
     /// <summary>
@@ -832,5 +887,48 @@ public class PptxFixturesCorpusTests
         Assert.Equal(1, document.SlideCount);
         using var surface = document.Render(0, Dpi, Transparent);
         AssertPaintedSomePixel(surface);
+    }
+
+    /// <summary>
+    ///     Proves <c>pythonpptx-chart-line.pptx</c> (Phase 4's own new fixture - a single
+    ///     <c>python-pptx</c>-generated <c>XL_CHART_TYPE.LINE_MARKERS</c> line chart, see
+    ///     <c>PptxFixtures\README.md</c> for provenance) renders successfully and paints visible
+    ///     content - a real-world (if synthetically generated), end-to-end regression proof for
+    ///     Phase 4's chart-graphic-frame rendering, complementing <see cref="PptxChartsTests"/>'s
+    ///     own hand-authored synthetic-package tests.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Render_PythonPptxChartLineFixture_RendersSuccessfully()
+    {
+        // Arrange & Act
+        using var document = PptxDocument.Open(Fixture("pythonpptx-chart-line.pptx"));
+
+        // Assert
+        Assert.Equal(1, document.SlideCount);
+        using var surface = document.Render(0, Dpi, Transparent);
+        AssertPaintedSomePixel(surface);
+    }
+
+    /// <summary>
+    ///     Proves <c>pythonpptx-chart-unsupported-radar.pptx</c> (Phase 4's own new fixture - a
+    ///     single <c>python-pptx</c>-generated <c>XL_CHART_TYPE.RADAR</c> radar chart, see
+    ///     <c>PptxFixtures\README.md</c> for provenance) throws
+    ///     <see cref="PptxUnsupportedFeatureException"/> with feature token
+    ///     <c>"pptx-chart-charts-openxml-radar-chart"</c> - a real-world (if synthetically
+    ///     generated) regression proof that <see cref="PptxDocument.ParseChart"/>'s
+    ///     <c>"pptx-chart-" + ex.Feature</c> wrapping convention (see
+    ///     <c>PptxDocument.Charts.cs</c>) is exercised against an actual OPC chart part, not just
+    ///     hand-authored XML fragments.
+    /// </summary>
+    [Fact]
+    public void PptxDocument_Render_PythonPptxChartUnsupportedRadarFixture_ThrowsPptxUnsupportedFeatureException()
+    {
+        // Arrange
+        using var document = PptxDocument.Open(Fixture("pythonpptx-chart-unsupported-radar.pptx"));
+
+        // Act & Assert
+        Assert.Equal(1, document.SlideCount);
+        var exception = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(0, Dpi, Transparent));
+        Assert.Equal("pptx-chart-charts-openxml-radar-chart", exception.Feature);
     }
 }

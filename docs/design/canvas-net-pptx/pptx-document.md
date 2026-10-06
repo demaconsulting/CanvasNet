@@ -1092,9 +1092,14 @@ image/relationship resolution of any kind.
 - **Graphic-frame kind dispatch**: a `<a:graphicData>` whose `uri` attribute does not end in
   `"/table"` throws `PptxUnsupportedFeatureException` (feature token
   `"pptx-graphic-frame-kind"`) - a `<p:graphicFrame>` can declare other graphic data kinds (for
-  example an embedded chart or OLE object), each a well-formed-but-deliberately-unsupported
-  construct this phase does not implement. A missing `<a:graphicData>`/`<a:tbl>` throws
-  `InvalidDataException` (structurally malformed).
+  example an embedded OLE object), each a well-formed-but-deliberately-unsupported construct
+  `ParseTable` itself does not implement. A missing `<a:graphicData>`/`<a:tbl>` throws
+  `InvalidDataException` (structurally malformed). **`ParseTable` itself is unchanged as of
+  Phase 4**: a chart-kind `<a:graphicData>` (`uri` ending in `"/chart"`) is dispatched to the new
+  `ParseChart` by `ParseShapeTree` _before_ `ParseTable` is ever called for that graphic frame -
+  see _Chart Graphic Frames (Phase 4 — delegation to `CanvasNetCharts`)_ below - so `ParseTable`
+  only ever sees a chart-kind `<a:graphicData>` if a caller invokes it directly, bypassing
+  `ParseShapeTree`'s own dispatch.
 - **Column grid**: `<a:tblGrid>/<a:gridCol>` elements resolve `PptxTable.ColumnWidthsEmu` (each
   `w` attribute, in EMU); a missing `<a:tblGrid>` or a non-numeric `w` throws
   `InvalidDataException`.
@@ -1196,7 +1201,9 @@ closed `PptxShapeTreeNode` hierarchy (`PptxShapeTree.cs`):
   table's own eager `ParseTable` - decoding image bytes eagerly for every picture in a shape tree
   that might never be rendered would be wasteful, whereas a table's own structural parse is cheap
   pure-XML work).
-- **`<p:graphicFrame>` → `PptxGraphicFrameShapeNode`**: eagerly parses its table via `ParseTable`.
+- **`<p:graphicFrame>` → `PptxGraphicFrameShapeNode`**: eagerly parses its table via `ParseTable`,
+  or, as of Phase 4, its chart via `ParseChart` when its `<a:graphicData>` `uri` ends in
+  `"/chart"` - see _Chart Graphic Frames (Phase 4 — delegation to `CanvasNetCharts`)_ below.
 - **`<p:grpSp>` → `PptxGroupShapeNode`**: resolves its own child-coordinate-space transform via
   the already-verified Phase 1c `ResolveGroupChildTransform` (reading its `<p:grpSpPr>/<a:xfrm>`
   element, throwing `InvalidDataException` when absent) and recurses `ParseShapeTree` on the same
@@ -1371,13 +1378,18 @@ exact wording of both statements. Two additional staged candidates
 (`pythonpptx-minimal.pptx`/`pythonpptx-mst-placeholders.pptx`) were excluded: both declare zero
 slides, so neither can exercise `Render` at all.
 
-**Methodology**: `PptxFixturesCorpusTests.cs` opens each of the ten fixtures, asserts a sane
-(positive) slide count and slide size, and then, for every slide, either renders it against a
-transparent background and asserts at least one non-transparent pixel was painted somewhere
-(proving real content, not a vacuously-true all-background render), or - for the two slides known
-in advance to declare chart/SmartArt `<p:graphicFrame>` content - asserts the render instead
-throws `PptxUnsupportedFeatureException`, since charts/diagrams remain an explicitly deferred
-feature (see the Phase 1e deferred-items list above).
+**Methodology (at the time of this pass)**: `PptxFixturesCorpusTests.cs` opens each of the ten
+fixtures, asserts a sane (positive) slide count and slide size, and then, for every slide, either
+renders it against a transparent background and asserts at least one non-transparent pixel was
+painted somewhere (proving real content, not a vacuously-true all-background render), or - for the
+two slides known in advance to declare chart/SmartArt `<p:graphicFrame>` content - asserts the
+render instead throws `PptxUnsupportedFeatureException`, since charts/diagrams remain an
+explicitly deferred feature (see the Phase 1e deferred-items list above). **This chart-specific
+half of the methodology no longer reflects current behavior**: as of Phase 4, a chart
+`<p:graphicFrame>` renders successfully (see _Chart Graphic Frames (Phase 4 — delegation to
+`CanvasNetCharts`)_ below) - only a SmartArt/diagram or OLE-object graphic frame still throws
+`PptxUnsupportedFeatureException`; `PptxFixturesCorpusTests.cs`'s own assertions for these two
+fixtures were updated accordingly in that later phase.
 
 **What was found**: running the full corpus surfaced three ungraceful results, one of which was
 an already-correct, merely-undocumented behavior and two of which were genuine, in-scope bugs.
@@ -1584,8 +1596,12 @@ Master/layout full shape-tree rendering is likewise no longer on this list - see
 Follow-Up: Master/Layout Decorative Shape Rendering_ below, which closed that gap in a
 still-later pass. Bullets and numbering rendering is likewise no longer on this list - see
 _Phase 2 Follow-Up: Bullets and Numbering Rendering_ below, which closed that gap in a still
-later pass. The shape-style-matrix (`<p:style>`'s `fillRef`/`lnRef`) fill/line resolution noted
-above as an "already-correct deferred-feature boundary" has since been superseded: it was in fact
+later pass. Chart graphic frames are likewise no longer on this list - see _Chart Graphic Frames
+(Phase 4 — delegation to `CanvasNetCharts`)_ below, added in a still-later phase that delegates
+chart rendering to the sibling `CanvasNetCharts` system; SmartArt/diagram and OLE-object graphic
+frames remain deferred. The shape-style-matrix (`<p:style>`'s `fillRef`/`lnRef`) fill/line
+resolution noted above as an "already-correct deferred-feature boundary" has since been
+superseded: it was in fact
 a genuine, unimplemented gap (the matrix reference was parsed by nothing at all, rather than
 gracefully deferred) - see _Phase 2 Follow-Up: Shape Style References (`<p:style>`)_ below, which
 closed it in a still-later pass.
@@ -3005,3 +3021,106 @@ integration-style test proving `GetSlide` itself (not a direct `ParseTable` call
 slide's effective color map - computed from a `<p:clrMapOvr>` overriding `bg1="dk1"` - into a
 table cell's `<a:schemeClr val="bg1"/>` fill resolution, which resolves to the theme's `dk1` color
 rather than the default `lt1`.
+
+#### Chart Graphic Frames (Phase 4 — delegation to `CanvasNetCharts`)
+
+Before this phase, every `<p:graphicFrame>` declaring a chart (`<a:graphicData>` whose `uri`
+attribute ends in `"/chart"`) fell through `ParseTable`'s own graphic-frame-kind dispatch (see
+_Table Parsing_ above) and always threw `PptxUnsupportedFeatureException` (feature token
+`"pptx-graphic-frame-kind"`) - no presentation containing a chart could ever render past that
+slide. The sibling `DemaConsulting.CanvasNet.Charts` system (its own separate NuGet package,
+`CanvasNetCharts`) had, by its own Phases 1-3, already independently implemented and verified a
+chart data model, OOXML-chart (DrawingML-Charts) parsing (`OpenXmlChartParser`), and pixel
+rendering (`ChartRenderer`). This phase's own job is purely integration: resolve a chart graphic
+frame's relationship, invoke `CanvasNetCharts`'s already-verified parser, and composite its
+already-verified renderer's output onto the slide surface - no chart-model, chart-parsing, or
+chart-rendering logic is re-implemented here, and `DemaConsulting.CanvasNet.Charts` itself is not
+modified by this phase at all (see `docs/design/canvas-net-charts.md`'s "Dependencies" section -
+`CanvasNetCharts` must never reference `CanvasNetPptx`; this integration is a one-directional
+`ProjectReference` from `DemaConsulting.CanvasNet.Pptx.csproj` to
+`DemaConsulting.CanvasNet.Charts.csproj` only).
+
+**Dispatch (`PptxDocument.ShapeTree.cs`)**: `ParseShapeTree` inspects a `<p:graphicFrame>`'s own
+`<a:graphicData>` `uri` attribute _before_ either `ParseTable` or the new `ParseChart` is called -
+a chart-kind `uri` (ending in `"/chart"`), when a non-null `resolveChartPart` delegate was
+supplied, dispatches to `ParseChart` and records the result as
+`PptxGraphicFrameShapeNode(GraphicFrameElement, Table: null, Chart: <parsed Chart>)`; every other
+kind (including a chart-kind `uri` when `resolveChartPart` is `null` - an owning part that chose
+not to supply chart support, see below) falls through to the pre-existing `ParseTable` call,
+recorded as `PptxGraphicFrameShapeNode(GraphicFrameElement, Table: <parsed table>, Chart: null)`.
+`PptxGraphicFrameShapeNode`'s own `Table` and `Chart` properties are therefore each independently
+nullable (a behavior-visible change from before this phase, when `Table` was never null for any
+graphic frame node) and mutually exclusive - exactly one is non-null for any graphic frame node
+`ParseShapeTree` actually produces. `ParseTable` itself is **not modified** by this phase (see the
+corrected _Table Parsing_ note above) - the chart/table decision is made entirely by
+`ParseShapeTree`'s own dispatch, before either parser is invoked.
+
+**`ParseChart` (new `PptxDocument.Charts.cs`)**: resolves the graphic frame's own
+`<a:graphicData>/<c:chart r:id="...">` relationship reference (throwing `InvalidDataException`
+for a missing `<c:chart>` child or a missing `r:id` attribute - a malformed, not merely
+unsupported, chart graphic frame) via a caller-supplied `Func<string, XElement> resolveChartPart`
+delegate (mirroring `ParseTable`'s own `theme`-via-delegate pattern for lazy, per-owning-part
+resolution), loads the referenced `chart#.xml` part, and parses it via
+`OpenXmlChartParser.Parse(XElement)`. Any `ChartUnsupportedFeatureException` thrown by that parser
+for a recognized-but-unsupported chart construct (for example a radar chart - see
+`OpenXmlChartParser`'s own remarks for the complete supported/deferred chart-kind boundary) is
+caught and re-thrown as a `PptxUnsupportedFeatureException` whose own `Feature` token is
+`"pptx-chart-"` followed by the wrapped exception's own `Feature` value (for example
+`"pptx-chart-charts-openxml-radar-chart"`) - this keeps a chart-specific deferred-feature token
+distinguishable, in `CanvasNetPptx`'s own exception contract, from every other `"pptx-*"` feature
+token this package already raises, while still surfacing `CanvasNetCharts`'s own, more specific
+`Feature` value rather than discarding it.
+
+**`resolveChartPart` threading (`PptxDocument.Slides.cs`/`.Layouts.cs`/`.Masters.cs`)**: each of
+`GetSlide`/`GetLayout`/`GetMaster` supplies its own `resolveChartPart` closure to
+`ParseShapeTree`, bound to that owning part's own path - typically
+`id => LoadPartXmlRoot(ResolveRelationship(ownPartPath, id))` - exactly mirroring the existing
+`themeResolver`/`colorMapResolver` closure-binding pattern already established for tables, so a
+chart relationship id is always resolved relative to the slide/layout/master part that actually
+declared it, never the package root.
+
+**Rendering (`PptxDocument.Render.cs`)**: `RenderGraphicFrame` paints a node's already-parsed
+`Table` via the pre-existing Phase 1e table pipeline, unchanged, or, when `Chart` is non-null
+instead, renders that `Chart` onto its own, dedicated `Surface` via
+`ChartRenderer.Render(Chart, int, int, ChartRenderOptions?)` - sized via a small new
+`ResolveGraphicFramePixelSize` helper that derives a pixel width/height from the graphic frame's
+own resolved on-slide footprint (transforming its unit-square corners through
+`localToSurface` and measuring the resulting pixel distances, each clamped to
+`[1, Surface.MaxDimension]` so a degenerate or excessively large footprint can never request an
+invalid `Surface` size) - and composites the resulting chart surface onto the slide surface via
+the exact same `PaintPicture` primitive `RenderPicture` already uses for a `<p:pic>`'s own decoded
+image. No new compositing code was written: a rendered chart is, from `PaintPicture`'s own
+perspective, indistinguishable from any other source `Surface` being composited at a resolved
+frame - only the small pixel-size-derivation helper above is new, needed because a chart (unlike a
+picture) has no source image of its own whose pixel dimensions could be reused directly.
+
+**The `pythonpptx-shp-shapes.pptx` slide-0 SmartArt-coexistence nuance**: this corpus fixture's
+own slide index 0 declares three sibling `<p:graphicFrame>` elements in document order - "Table 1"
+(a real table), "Chart 2" (a real, supported line-ish chart), and "Diagram 7" (a SmartArt/diagram
+graphic frame, still unsupported - SmartArt and OLE-object graphic frames remain explicitly out of
+scope for this phase). Before this phase, that slide's whole-`Render` call threw
+`PptxUnsupportedFeatureException` because of "Chart 2" (the first unsupported kind `ParseTable`
+encountered); as of this phase, "Chart 2" resolves and would render successfully, but the same
+slide's whole-`Render` call **still** throws `PptxUnsupportedFeatureException` - now because of
+"Diagram 7" alone, confirmed directly (not assumed) by a dedicated, narrower isolation test
+(`PptxDocument_Render_ShpShapesFixture_Chart2NodeHasNonNullChart`) that parses this slide's own
+shape tree with `containUnsupportedGraphicFrames: true` to isolate "Chart 2" from its unsupported
+sibling and proves it alone resolves to a non-null `Chart`/null `Table` node. This is the same
+already-graceful, already-designed "contain one unsupported sibling, still fail the whole
+uncontained slide `Render`" behavior this phase inherits unchanged from Phase 1e/1f - narrower in
+scope (diagrams/OLE objects only, not charts) rather than new in kind.
+
+**Test coverage**: `PptxChartsTests.cs` (new) covers `ParseShapeTree`'s own chart-vs-table
+dispatch (bar/line/pie/area chart kinds, plus a table-still-dispatches-to-`ParseTable` sanity
+check), the radar-chart deferred-feature wrap-to-`PptxUnsupportedFeatureException` path, two
+malformed-`<c:chart>` cases (no `<c:chart>` child; no `r:id` attribute) via a direct `ParseChart`
+call, and a synthetic, fully in-memory chart-only slide package proving an end-to-end `Render`
+call paints visible, non-transparent pixels. `PptxFixturesCorpusTests.cs` gained two new real-
+world-chart-fixture facts (`pythonpptx-chart-line.pptx` renders successfully;
+`pythonpptx-chart-unsupported-radar.pptx` throws `PptxUnsupportedFeatureException` with `Feature`
+`"pptx-chart-charts-openxml-radar-chart"`) and had its three pre-existing chart-fixture assertions
+flipped or corrected: `aiden0z-1-chart-and-complex.pptx` and
+`samplelib-sample-presentation.pptx` now assert every slide renders successfully (their own chart
+slides no longer throw), and `pythonpptx-shp-shapes.pptx` slide 0's existing throw-assertion test
+had only its doc comment corrected (the throw is still asserted, now attributed to "Diagram 7",
+not "Chart 2") alongside the new, narrower "Chart 2"-isolation fact above.

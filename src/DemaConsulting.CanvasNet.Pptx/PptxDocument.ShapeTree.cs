@@ -7,7 +7,8 @@ namespace DemaConsulting.CanvasNet.Pptx;
 
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> shape-tree walker (Phase 1e, extended by the
-///     Phase 2 Follow-Up connector-rendering work): recursively parses a <c>&lt;p:spTree&gt;</c>
+///     Phase 2 Follow-Up connector-rendering work and Phase 4's chart-graphic-frame dispatch):
+///     recursively parses a <c>&lt;p:spTree&gt;</c>
 ///     (or a <c>&lt;p:grpSp&gt;</c>, whose own shape children are direct siblings of its
 ///     <c>&lt;p:nvGrpSpPr&gt;</c>/<c>&lt;p:grpSpPr&gt;</c> rather than a nested
 ///     <c>&lt;p:spTree&gt;</c>, per ECMA-376's <c>CT_GroupShape</c> content model) into a
@@ -22,8 +23,13 @@ public sealed partial class PptxDocument
     ///     <c>&lt;p:sp&gt;</c> &#8594; <see cref="PptxSpShapeNode"/> (via
     ///     <see cref="PptxPlaceholderParser.TryParsePlaceholder"/>), <c>&lt;p:pic&gt;</c> &#8594;
     ///     <see cref="PptxPictureShapeNode"/>, <c>&lt;p:graphicFrame&gt;</c> &#8594;
-    ///     <see cref="PptxGraphicFrameShapeNode"/> (eagerly parsing its table via
-    ///     <see cref="ParseTable"/>), and <c>&lt;p:grpSp&gt;</c> &#8594;
+    ///     <see cref="PptxGraphicFrameShapeNode"/> (eagerly parsing its <c>&lt;a:graphicData&gt;</c>'s
+    ///     own <c>uri</c> attribute: a chart kind, when <paramref name="resolveChartPart"/> is
+    ///     non-null, is dispatched to <see cref="ParseChart"/> (Phase 4); every other kind,
+    ///     including a chart when <paramref name="resolveChartPart"/> is <see langword="null"/>,
+    ///     is dispatched to the pre-existing <see cref="ParseTable"/>, which itself still throws
+    ///     <see cref="PptxUnsupportedFeatureException"/> for any non-table kind), and
+    ///     <c>&lt;p:grpSp&gt;</c> &#8594;
     ///     <see cref="PptxGroupShapeNode"/> (resolving its child transform via
     ///     <see cref="ResolveGroupChildTransform"/> and recursing into the same group element for
     ///     its own children, since a group's children are direct siblings of its own
@@ -32,7 +38,8 @@ public sealed partial class PptxDocument
     ///     <see cref="PptxConnectorShapeNode"/> (Phase 2 Follow-Up: Connector Shape Rendering).
     ///     As of the companion planning report's parse-time containment fix,
     ///     <paramref name="containUnsupportedGraphicFrames"/> gates whether a
-    ///     <c>&lt;p:graphicFrame&gt;</c> declaring a recognized-but-unsupported (non-table) kind
+    ///     <c>&lt;p:graphicFrame&gt;</c> declaring a recognized-but-unsupported (non-table,
+    ///     non-chart, or recognized-but-unsupported chart) kind
     ///     is skipped (master/layout-owned shape trees) or still propagates (a slide's own shape
     ///     tree), mirroring <c>PptxDocument.Render.cs</c>'s own <c>RenderNode</c>
     ///     <c>skipPlaceholderShapes</c> render-time convention, extended to parse time.
@@ -95,26 +102,40 @@ public sealed partial class PptxDocument
     /// </returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when a <c>&lt;p:grpSp&gt;</c> element has no <c>&lt;p:grpSpPr&gt;/&lt;a:xfrm&gt;</c>
-    ///     element, or (via <see cref="ParseTable"/> or <see cref="ResolveGroupChildTransform"/>)
-    ///     when a <c>&lt;p:graphicFrame&gt;</c>'s table or a <c>&lt;p:grpSp&gt;</c>'s own transform
-    ///     is otherwise malformed.
+    ///     element, or (via <see cref="ParseTable"/>, <see cref="ParseChart"/>, or
+    ///     <see cref="ResolveGroupChildTransform"/>) when a <c>&lt;p:graphicFrame&gt;</c>'s table
+    ///     or chart, or a <c>&lt;p:grpSp&gt;</c>'s own transform, is otherwise malformed.
     /// </exception>
     /// <exception cref="PptxUnsupportedFeatureException">
-    ///     Thrown (via <see cref="ParseTable"/>) when a <c>&lt;p:graphicFrame&gt;</c>'s
-    ///     <c>&lt;a:graphicData&gt;</c> declares a recognized-but-unsupported (non-table) kind and
-    ///     <paramref name="containUnsupportedGraphicFrames"/> is <see langword="false"/> (the
-    ///     default). When <paramref name="containUnsupportedGraphicFrames"/> is
-    ///     <see langword="true"/>, this exception is instead caught and the offending node
+    ///     Thrown (via <see cref="ParseTable"/> or, for a chart, via <see cref="ParseChart"/>)
+    ///     when a <c>&lt;p:graphicFrame&gt;</c>'s <c>&lt;a:graphicData&gt;</c> declares a
+    ///     recognized-but-unsupported kind (a non-table kind for <see cref="ParseTable"/>; a
+    ///     recognized-but-unsupported chart kind, such as a radar chart, for
+    ///     <see cref="ParseChart"/>) and <paramref name="containUnsupportedGraphicFrames"/> is
+    ///     <see langword="false"/> (the default). When <paramref name="containUnsupportedGraphicFrames"/>
+    ///     is <see langword="true"/>, this exception is instead caught and the offending node
     ///     silently skipped.
     /// </exception>
     /// <param name="resolveBlipImage">
     ///     Threaded unchanged into <see cref="ParseTable"/> and the recursive
     ///     <c>&lt;p:grpSp&gt;</c> self-call - see <see cref="ResolveFill"/>'s matching parameter.
     /// </param>
+    /// <param name="resolveChartPart">
+    ///     Resolves a <c>&lt;c:chart&gt;</c> element's own <c>r:id</c> relationship, scoped to the
+    ///     owning slide/layout/master part, to that chart part's root <see cref="XElement"/> -
+    ///     see <see cref="ParseChart"/>'s matching parameter. When a <c>&lt;p:graphicFrame&gt;</c>'s
+    ///     <c>&lt;a:graphicData&gt;</c> declares a chart (its <c>uri</c> attribute ends in
+    ///     <c>"/chart"</c>) and this parameter is non-null, <see cref="ParseChart"/> is called
+    ///     instead of <see cref="ParseTable"/>. Defaults to <see langword="null"/> (Phase 4's own
+    ///     graceful-degradation safety net): a <see langword="null"/> resolver falls back to
+    ///     today's pre-existing <see cref="ParseTable"/> call for every <c>&lt;p:graphicFrame&gt;</c>,
+    ///     preserving every pre-existing call site's exact behavior unchanged. Threaded through
+    ///     the recursive <c>&lt;p:grpSp&gt;</c> self-call unchanged.
+    /// </param>
     internal static IReadOnlyList<PptxShapeTreeNode> ParseShapeTree(
         XElement spTreeOrGroupElement, Func<PptxTheme> themeResolver, Func<string, XElement?>? tableStyleResolver = null,
         Func<PptxColorMap>? colorMapResolver = null, bool containUnsupportedGraphicFrames = false,
-        Func<XElement, Surface>? resolveBlipImage = null)
+        Func<XElement, Surface>? resolveBlipImage = null, Func<string, XElement>? resolveChartPart = null)
     {
         var nodes = new List<PptxShapeTreeNode>();
 
@@ -132,14 +153,23 @@ public sealed partial class PptxDocument
             {
                 try
                 {
-                    nodes.Add(new PptxGraphicFrameShapeNode(
-                        child, ParseTable(child, themeResolver(), colorMapResolver?.Invoke(), tableStyleResolver, resolveBlipImage)));
+                    var graphicData = child.Element(DrawingNamespace + "graphic")?.Element(DrawingNamespace + "graphicData");
+                    var uri = (string?)graphicData?.Attribute("uri") ?? string.Empty;
+                    if (resolveChartPart is not null && graphicData is not null && uri.EndsWith("/chart", StringComparison.Ordinal))
+                    {
+                        nodes.Add(new PptxGraphicFrameShapeNode(child, Table: null, Chart: ParseChart(graphicData, resolveChartPart)));
+                    }
+                    else
+                    {
+                        nodes.Add(new PptxGraphicFrameShapeNode(
+                            child, ParseTable(child, themeResolver(), colorMapResolver?.Invoke(), tableStyleResolver, resolveBlipImage), Chart: null));
+                    }
                 }
                 catch (PptxUnsupportedFeatureException) when (containUnsupportedGraphicFrames)
                 {
-                    // A master/layout-owned graphic frame of an unsupported (non-table) kind is
-                    // skipped rather than aborting this entire cached shape tree - see this
-                    // parameter's own XmlDoc remarks.
+                    // A master/layout-owned graphic frame of an unsupported (non-table, non-chart,
+                    // or recognized-but-unsupported chart) kind is skipped rather than aborting
+                    // this entire cached shape tree - see this parameter's own XmlDoc remarks.
                 }
             }
             else if (child.Name == PresentationNamespace + "grpSp")
@@ -149,7 +179,7 @@ public sealed partial class PptxDocument
                 var childTransform = ResolveGroupChildTransform(groupXfrm);
                 var children = ParseShapeTree(
                     child, themeResolver, tableStyleResolver, colorMapResolver, containUnsupportedGraphicFrames,
-                    resolveBlipImage);
+                    resolveBlipImage, resolveChartPart);
                 nodes.Add(new PptxGroupShapeNode(child, childTransform, children));
             }
             else if (child.Name == PresentationNamespace + "cxnSp")

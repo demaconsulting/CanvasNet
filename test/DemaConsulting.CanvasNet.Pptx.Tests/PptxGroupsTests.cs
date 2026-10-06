@@ -172,6 +172,7 @@ public class PptxGroupsTests
         var nodes = PptxDocument.ParseShapeTree(spTree, ThemeResolver(BuildTestTheme()));
 
         var node = Assert.IsType<PptxGraphicFrameShapeNode>(Assert.Single(nodes));
+        Assert.NotNull(node.Table);
         Assert.Single(node.Table.ColumnWidthsEmu);
     }
 
@@ -278,6 +279,7 @@ public class PptxGroupsTests
 
         var group = Assert.IsType<PptxGroupShapeNode>(Assert.Single(nodes));
         var graphicFrameNode = Assert.IsType<PptxGraphicFrameShapeNode>(Assert.Single(group.Children));
+        Assert.NotNull(graphicFrameNode.Table);
         Assert.Single(graphicFrameNode.Table.ColumnWidthsEmu);
     }
 

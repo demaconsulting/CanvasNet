@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Xml.Linq;
+using DemaConsulting.CanvasNet.Charts;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
@@ -41,10 +42,24 @@ internal sealed record PptxSpShapeNode(XElement ShapeElement, PptxPlaceholder? P
 /// <param name="PicElement">The raw <c>&lt;p:pic&gt;</c> element.</param>
 internal sealed record PptxPictureShapeNode(XElement PicElement) : PptxShapeTreeNode;
 
-/// <summary>A <c>&lt;p:graphicFrame&gt;</c> shape-tree node declaring a table.</summary>
+/// <summary>
+///     A <c>&lt;p:graphicFrame&gt;</c> shape-tree node declaring either a table or a chart -
+///     exactly one of <see cref="Table"/>/<see cref="Chart"/> is non-null, never both and never
+///     neither, by construction (see <see cref="PptxDocument.ParseShapeTree"/>'s own
+///     table-vs-chart dispatch).
+/// </summary>
 /// <param name="GraphicFrameElement">The raw <c>&lt;p:graphicFrame&gt;</c> element.</param>
-/// <param name="Table">The eagerly-parsed <see cref="PptxTable"/> (see <see cref="PptxDocument.ParseTable"/>).</param>
-internal sealed record PptxGraphicFrameShapeNode(XElement GraphicFrameElement, PptxTable Table) : PptxShapeTreeNode;
+/// <param name="Table">
+///     The eagerly-parsed <see cref="PptxTable"/> (see <see cref="PptxDocument.ParseTable"/>), or
+///     <see langword="null"/> when this node is a chart (<see cref="Chart"/> is non-null
+///     instead).
+/// </param>
+/// <param name="Chart">
+///     The eagerly-parsed <see cref="Charts.Chart"/> (Phase 4; see
+///     <see cref="PptxDocument.ParseChart"/>), or <see langword="null"/> when this node is a
+///     table (<see cref="Table"/> is non-null instead).
+/// </param>
+internal sealed record PptxGraphicFrameShapeNode(XElement GraphicFrameElement, PptxTable? Table, Chart? Chart) : PptxShapeTreeNode;
 
 /// <summary>A <c>&lt;p:grpSp&gt;</c> group shape-tree node, recursively carrying its own children.</summary>
 /// <param name="GroupElement">The raw <c>&lt;p:grpSp&gt;</c> element.</param>
