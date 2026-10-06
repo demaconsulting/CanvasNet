@@ -1047,6 +1047,78 @@ public class PptxRenderTests
         Assert.Equal(new Rgba32(255, 255, 255, 255), surface[2, 2]);
     }
 
+    /// <summary>Builds a string of <paramref name="depth"/> nested <c>&lt;p:grpSp&gt;</c> levels, each a 1-to-1 identity transform, wrapping an innermost freeform <c>&lt;p:sp&gt;</c> leaf.</summary>
+    private static string BuildNestedGroupShapeTreeXml(int depth)
+    {
+        const string leaf =
+            """
+            <p:sp>
+              <p:nvSpPr><p:cNvPr id="999" name="Leaf"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>
+              </p:spPr>
+            </p:sp>
+            """;
+
+        var xml = leaf;
+        for (var i = 0; i < depth; i++)
+        {
+            xml =
+                $"""
+                <p:grpSp>
+                  <p:nvGrpSpPr><p:cNvPr id="{i + 2}" name="Group{i}"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+                  <p:grpSpPr>
+                    <a:xfrm>
+                      <a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/>
+                      <a:chOff x="0" y="0"/><a:chExt cx="9144000" cy="6858000"/>
+                    </a:xfrm>
+                  </p:grpSpPr>
+                  {xml}
+                </p:grpSp>
+                """;
+        }
+
+        return xml;
+    }
+
+    /// <summary>
+    ///     Regression test for the group-shape-nesting-depth safety limit (see the companion
+    ///     code-review finding's bug-fix rationale): a crafted slide whose <c>&lt;p:grpSp&gt;</c>
+    ///     chain is nested one level beyond the documented maximum (100) throws
+    ///     <see cref="InvalidDataException"/> - not an uncatchable <see cref="StackOverflowException"/>
+    ///     - when opened/rendered through the full public <see cref="PptxDocument"/> pipeline.
+    /// </summary>
+    [Fact]
+    public void Render_GroupNestingExceedsMaxDepth_ThrowsInvalidDataException()
+    {
+        using var stream = BuildRenderPackage(BuildNestedGroupShapeTreeXml(101));
+
+        Assert.Throws<InvalidDataException>(() =>
+        {
+            using var document = PptxDocument.Open(stream);
+            using var surface = document.Render(0, 100, 100);
+        });
+    }
+
+    /// <summary>
+    ///     Proves a slide whose <c>&lt;p:grpSp&gt;</c> chain is nested exactly at the documented
+    ///     maximum depth (100 levels) still renders correctly (no regression at the boundary) -
+    ///     each identity-transform group composes to the full slide, so the innermost red leaf
+    ///     shape still paints the full surface.
+    /// </summary>
+    [Fact]
+    public void Render_GroupNestingAtMaxDepth_RendersCorrectly()
+    {
+        using var stream = BuildRenderPackage(BuildNestedGroupShapeTreeXml(100));
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 100, 100);
+
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
     // --- Picture rendering -----------------------------------------------------------------------
 
     /// <summary>Proves a <c>&lt;p:pic&gt;</c> decodes and composites its embedded image onto the surface at the expected location.</summary>

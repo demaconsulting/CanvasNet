@@ -18,6 +18,24 @@ namespace DemaConsulting.CanvasNet.Pptx;
 public sealed partial class PptxDocument
 {
     /// <summary>
+    ///     The maximum number of nested <c>&lt;p:grpSp&gt;</c> levels <see cref="ParseShapeTree"/>
+    ///     (and, mirroring it at render time, <c>PptxDocument.Render.cs</c>'s own
+    ///     <c>RenderNode</c>) will recurse into before failing closed, bounding the worst-case
+    ///     call-stack depth a single, attacker-controlled shape tree can drive. 100 levels is far
+    ///     beyond any legitimate PowerPoint-authored group nesting (real decks rarely nest more
+    ///     than a handful of groups deep; PowerPoint's own UI makes deeper nesting increasingly
+    ///     impractical to construct by hand), while still leaving comfortable headroom below the
+    ///     default platform stack size - unlike the ZIP-entry-size (<see cref="MaxPartBytes"/>),
+    ///     XML-character-count (<see cref="MaxPartCharacters"/>), and chart cached-point-count
+    ///     (<c>OpenXmlChartParser.MaxCachedPointCount</c>) caps, group-shape nesting depth has no
+    ///     bound of its own: a crafted <c>.pptx</c> easily fits thousands of nested
+    ///     <c>&lt;p:grpSp&gt;</c> elements within the existing ~2,000,000-character XML-part cap,
+    ///     which - left unchecked - drives an uncatchable <see cref="StackOverflowException"/>
+    ///     that crashes the process rather than a clean, fail-closed rejection.
+    /// </summary>
+    private const int MaxGroupShapeNestingDepth = 100;
+
+    /// <summary>
     ///     Walks <paramref name="spTreeOrGroupElement"/>'s immediate children in document order,
     ///     dispatching each recognized shape element to its own <see cref="PptxShapeTreeNode"/>:
     ///     <c>&lt;p:sp&gt;</c> &#8594; <see cref="PptxSpShapeNode"/> (via
@@ -104,7 +122,9 @@ public sealed partial class PptxDocument
     ///     Thrown when a <c>&lt;p:grpSp&gt;</c> element has no <c>&lt;p:grpSpPr&gt;/&lt;a:xfrm&gt;</c>
     ///     element, or (via <see cref="ParseTable"/>, <see cref="ParseChart"/>, or
     ///     <see cref="ResolveGroupChildTransform"/>) when a <c>&lt;p:graphicFrame&gt;</c>'s table
-    ///     or chart, or a <c>&lt;p:grpSp&gt;</c>'s own transform, is otherwise malformed.
+    ///     or chart, or a <c>&lt;p:grpSp&gt;</c>'s own transform, is otherwise malformed; or when a
+    ///     <c>&lt;p:grpSp&gt;</c> is nested more than <see cref="MaxGroupShapeNestingDepth"/>
+    ///     levels deep.
     /// </exception>
     /// <exception cref="PptxUnsupportedFeatureException">
     ///     Thrown (via <see cref="ParseTable"/> or, for a chart, via <see cref="ParseChart"/>)
@@ -132,10 +152,20 @@ public sealed partial class PptxDocument
     ///     preserving every pre-existing call site's exact behavior unchanged. Threaded through
     ///     the recursive <c>&lt;p:grpSp&gt;</c> self-call unchanged.
     /// </param>
+    /// <param name="depth">
+    ///     The number of <c>&lt;p:grpSp&gt;</c> levels already entered to reach
+    ///     <paramref name="spTreeOrGroupElement"/> (<c>0</c> for the slide/layout/master's own
+    ///     top-level <c>&lt;p:spTree&gt;</c>, the default for every pre-existing call site).
+    ///     Incremented on the recursive <c>&lt;p:grpSp&gt;</c> self-call; once it would exceed
+    ///     <see cref="MaxGroupShapeNestingDepth"/>, that nested group's own children are not
+    ///     walked and an <see cref="InvalidDataException"/> is thrown instead - see
+    ///     <see cref="MaxGroupShapeNestingDepth"/>'s own remarks for why this bound exists.
+    /// </param>
     internal static IReadOnlyList<PptxShapeTreeNode> ParseShapeTree(
         XElement spTreeOrGroupElement, Func<PptxTheme> themeResolver, Func<string, XElement?>? tableStyleResolver = null,
         Func<PptxColorMap>? colorMapResolver = null, bool containUnsupportedGraphicFrames = false,
-        Func<XElement, Surface>? resolveBlipImage = null, Func<string, XElement>? resolveChartPart = null)
+        Func<XElement, Surface>? resolveBlipImage = null, Func<string, XElement>? resolveChartPart = null,
+        int depth = 0)
     {
         var nodes = new List<PptxShapeTreeNode>();
 
@@ -174,12 +204,18 @@ public sealed partial class PptxDocument
             }
             else if (child.Name == PresentationNamespace + "grpSp")
             {
+                if (depth >= MaxGroupShapeNestingDepth)
+                {
+                    throw new InvalidDataException(
+                        $"A <p:grpSp> element is nested beyond the maximum supported depth of {MaxGroupShapeNestingDepth} levels.");
+                }
+
                 var groupXfrm = child.Element(PresentationNamespace + "grpSpPr")?.Element(DrawingNamespace + "xfrm") ??
                     throw new InvalidDataException("A <p:grpSp> element has no <p:grpSpPr>/<a:xfrm> element.");
                 var childTransform = ResolveGroupChildTransform(groupXfrm);
                 var children = ParseShapeTree(
                     child, themeResolver, tableStyleResolver, colorMapResolver, containUnsupportedGraphicFrames,
-                    resolveBlipImage, resolveChartPart);
+                    resolveBlipImage, resolveChartPart, depth + 1);
                 nodes.Add(new PptxGroupShapeNode(child, childTransform, children));
             }
             else if (child.Name == PresentationNamespace + "cxnSp")

@@ -280,6 +280,23 @@ public sealed partial class PptxDocument
     ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/> exactly as before this
     ///     containment was added.
     /// </param>
+    /// <param name="depth">
+    ///     The number of <see cref="PptxGroupShapeNode"/> levels already entered to reach
+    ///     <paramref name="node"/> (<c>0</c> for a slide/layout/master's own top-level shape-tree
+    ///     walk, the default for every pre-existing call site). Incremented on the recursive
+    ///     <see cref="PptxGroupShapeNode"/> self-call; once it would exceed
+    ///     <see cref="MaxGroupShapeNestingDepth"/>, that group's own children are not walked and an
+    ///     <see cref="InvalidDataException"/> is thrown instead. Mirrors <see cref="ParseShapeTree"/>'s
+    ///     own identical <c>depth</c> parameter/cap - see <see cref="MaxGroupShapeNestingDepth"/>'s
+    ///     own remarks for why this bound exists independently at render time: a shape tree is
+    ///     parsed once (<see cref="GetLayout"/>/<see cref="GetMaster"/> cache theirs) but may be
+    ///     rendered many times, so this walker must not rely solely on the parser's own cap having
+    ///     run first.
+    /// </param>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when a <see cref="PptxGroupShapeNode"/> is nested more than
+    ///     <see cref="MaxGroupShapeNestingDepth"/> levels deep.
+    /// </exception>
     private void RenderNode(
         Surface surface,
         PptxShapeTreeNode node,
@@ -289,15 +306,22 @@ public sealed partial class PptxDocument
         PptxTheme theme,
         Matrix3x2 parentToSurface,
         PptxColorMap colorMap,
-        bool skipPlaceholderShapes = false)
+        bool skipPlaceholderShapes = false,
+        int depth = 0)
     {
         switch (node)
         {
             case PptxGroupShapeNode group:
+                if (depth >= MaxGroupShapeNestingDepth)
+                {
+                    throw new InvalidDataException(
+                        $"A group shape is nested beyond the maximum supported depth of {MaxGroupShapeNestingDepth} levels.");
+                }
+
                 var childToSurface = group.ChildTransform * parentToSurface;
                 foreach (var child in group.Children)
                 {
-                    RenderNode(surface, child, ownerPartPath, layout, master, theme, childToSurface, colorMap, skipPlaceholderShapes);
+                    RenderNode(surface, child, ownerPartPath, layout, master, theme, childToSurface, colorMap, skipPlaceholderShapes, depth + 1);
                 }
 
                 break;

@@ -283,6 +283,53 @@ public class PptxGroupsTests
         Assert.Single(graphicFrameNode.Table.ColumnWidthsEmu);
     }
 
+    /// <summary>Builds a chain of <paramref name="depth"/> nested <c>&lt;p:grpSp&gt;</c> elements, each wrapping the next, with <paramref name="leaf"/> as the innermost element's own child.</summary>
+    private static XElement BuildNestedGroupChain(int depth, XElement leaf)
+    {
+        var current = leaf;
+        for (var i = 0; i < depth; i++)
+        {
+            current = BuildGrpSp(BuildXfrm(0, 0, 100, 100), current);
+        }
+
+        return current;
+    }
+
+    /// <summary>
+    ///     Regression test for the group-shape-nesting-depth safety limit (see the companion
+    ///     code-review finding's bug-fix rationale): a <c>&lt;p:grpSp&gt;</c> chain nested one
+    ///     level beyond <c>PptxDocument.MaxGroupShapeNestingDepth</c> (100) throws
+    ///     <see cref="InvalidDataException"/> rather than overflowing the call stack.
+    /// </summary>
+    [Fact]
+    public void ParseShapeTree_GroupNestingExceedsMaxDepth_ThrowsInvalidDataException()
+    {
+        var spTree = new XElement(P + "spTree", BuildNestedGroupChain(101, BuildFreeformSp()));
+
+        Assert.Throws<InvalidDataException>(() => PptxDocument.ParseShapeTree(spTree, ThemeResolver(BuildTestTheme())));
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;p:grpSp&gt;</c> chain nested exactly at the documented maximum depth
+    ///     (100 levels) still parses successfully - the boundary case guarding against the depth
+    ///     cap ever being tightened by accident.
+    /// </summary>
+    [Fact]
+    public void ParseShapeTree_GroupNestingAtMaxDepth_ParsesSuccessfully()
+    {
+        var spTree = new XElement(P + "spTree", BuildNestedGroupChain(100, BuildFreeformSp()));
+
+        var nodes = PptxDocument.ParseShapeTree(spTree, ThemeResolver(BuildTestTheme()));
+
+        var group = Assert.IsType<PptxGroupShapeNode>(Assert.Single(nodes));
+        for (var i = 0; i < 99; i++)
+        {
+            group = Assert.IsType<PptxGroupShapeNode>(Assert.Single(group.Children));
+        }
+
+        Assert.IsType<PptxSpShapeNode>(Assert.Single(group.Children));
+    }
+
     // --- ParseShapeTree: containUnsupportedGraphicFrames (companion planning report's fix) -----
 
     /// <summary>
