@@ -42,9 +42,9 @@ constraint - must never reference `CanvasNetPptx`, `CanvasNetPdf`, `CanvasNetSvg
 ### Callers
 
 `OpenXmlChartParser` is a public API entry point, invoked directly by consumers of the
-`DemaConsulting.CanvasNet.Charts` package (and, in a later phase, expected to be invoked by
-`CanvasNetPptx`'s own chart-rendering integration, after that package first locates and opens the
-relevant `chart#.xml` OPC part). No unit within the `OpenXmlChart` subsystem is called by any
-other subsystem of `CanvasNetCharts` as of this release; `OpenXmlChartParser` itself calls
-`ChartModel`'s `ChartDocument` unit, the one intra-system subsystem-to-subsystem call
-`OpenXmlChart` contains.
+`DemaConsulting.CanvasNet.Charts` package, and is also invoked by `CanvasNetPptx`'s own
+chart-rendering integration (`PptxDocument.Charts.cs`), which locates and opens the relevant
+`chart#.xml` OPC part before handing its content to `OpenXmlChartParser`. No unit within the
+`OpenXmlChart` subsystem is called by any other subsystem of `CanvasNetCharts` itself as of this
+release; `OpenXmlChartParser` itself calls `ChartModel`'s `ChartDocument` unit, the one
+intra-system subsystem-to-subsystem call `OpenXmlChart` contains.

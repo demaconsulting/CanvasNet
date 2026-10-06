@@ -131,8 +131,10 @@ software items, specifically:
   stock, surface, 3-D, "of pie", and multi-chart-type ("combo") OOXML charts remain explicitly
   deferred (see _OpenXmlChartParser Unit Design_ (`open-xml-chart-parser.md`) for the complete
   supported/deferred boundary). `CanvasNetCharts` depends on this `CanvasNet`
-  system's `Canvas` subsystem only (for the `Rgba32` color type), and must never
-  reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, or `CanvasNetVsdx` — see
+  system's `Canvas`, `Drawing`, `Geometry`, `Fonts`, and `Rendering` subsystems (for the `Rgba32`
+  color type and pixel buffer, path filling/stroking and tile-paint primitives, transforms and
+  rectangles, TrueType text layout/metrics, and the bundled Liberation Sans fallback font), and
+  must never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, or `CanvasNetVsdx` — see
   _CanvasNetCharts System Design_ (`canvas-net-charts.md`)
 
 The following OTS items are also covered:
