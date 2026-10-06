@@ -39,6 +39,10 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
   TrueType text to a surface, automatically substituting a matching system font (or a bundled
   Liberation Sans/Serif/Mono font) for text using a non-embedded font (ships as the separate
   `DemaConsulting.CanvasNet.Pdf` package)
+- 📊 **Chart Rendering** - Build a validated Bar/Column/Line/Area/Pie/Doughnut chart (with axes,
+  legend, title, and data labels) via a fluent builder and paint it onto a surface with documented
+  default styling and a categorical color palette (ships as the separate
+  `DemaConsulting.CanvasNet.Charts` package)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
@@ -90,6 +94,18 @@ Or via Package Manager Console:
 
 ```powershell
 Install-Package DemaConsulting.CanvasNet.Pdf
+```
+
+Chart rendering requires the separate `DemaConsulting.CanvasNet.Charts` package:
+
+```bash
+dotnet add package DemaConsulting.CanvasNet.Charts
+```
+
+Or via Package Manager Console:
+
+```powershell
+Install-Package DemaConsulting.CanvasNet.Charts
 ```
 
 ## Usage
@@ -161,6 +177,26 @@ if (!info.CanDecode)
 
 // Now safe to decode fully
 using var safeSurface = PngCodec.Load("untrusted.png");
+```
+
+Building and rendering a chart:
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Charts;
+
+// Build a validated Chart fluently
+var chart = new ChartBuilder()
+    .OfType(ChartType.Column)
+    .WithCategoryAxis(["Q1", "Q2"])
+    .WithValueAxis(minimum: 0f, maximum: 10f)
+    .AddSeries("Revenue", [4.0, 9.0], color: new Rgba32(31, 119, 180, 255))
+    .WithTitle("Quarterly Revenue")
+    .WithLegend(ChartLegendPosition.Bottom)
+    .Build();
+
+// Render it onto a new surface using every rendering default
+using var chartSurface = ChartRenderer.Render(chart, 400, 300);
 ```
 
 Filling a vector path onto a surface:

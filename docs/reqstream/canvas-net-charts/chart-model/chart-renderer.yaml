@@ -1,0 +1,249 @@
+---
+# Software Unit Requirements for ChartRenderer
+#
+# These requirements describe the design-level behavior of the ChartRenderer unit: the public
+# pixel-rendering entry point (plus ChartRenderOptions and ChartColorPalette) that paints a
+# validated Chart onto a core CanvasNet Surface, all in the DemaConsulting.CanvasNet.Charts
+# namespace.
+
+sections:
+  - title: CanvasNetCharts Requirements
+    sections:
+      - title: ChartModel Requirements
+        sections:
+          - title: ChartRenderer Requirements
+            requirements:
+              - id: CanvasNetCharts-ChartModel-ChartRenderer-PixelRender
+                title: >-
+                  The ChartRenderer class shall render a Chart onto a new Surface of a
+                  caller-specified pixel width and height, rejecting a null chart with
+                  ArgumentNullException and an out-of-range width or height by propagating
+                  Surface's own ArgumentOutOfRangeException.
+                justification: |
+                  A pixel-dimensioned Render overload is the simplest, most direct entry point for
+                  a caller that already knows the exact output size it needs (for example, a fixed
+                  thumbnail), and must fail predictably on invalid input rather than silently
+                  clamping it.
+                tests:
+                  - Render_PixelOverloadNullChart_ThrowsArgumentNullException
+                  - Render_PixelOverloadInvalidSize_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNetCharts-ChartModel-ChartRenderer-DpiRender
+                title: >-
+                  The ChartRenderer class shall render a Chart onto a new Surface sized from a
+                  caller-specified physical width, height, and DPI (pixel dimensions computed as
+                  round(inches * dpi)), rejecting a null chart with ArgumentNullException, a
+                  non-finite or non-positive width, height, or dpi with
+                  ArgumentOutOfRangeException, and a computed pixel dimension exceeding Surface's
+                  own maximum with ArgumentOutOfRangeException.
+                justification: |
+                  A physical-size, DPI-driven overload mirrors how other core CanvasNet document
+                  renderers (for example PdfDocument.Render) let a caller reason in print-oriented
+                  units rather than raw pixels, even though a Chart itself carries no intrinsic
+                  physical page size of its own.
+                tests:
+                  - Render_DpiOverloadNullChart_ThrowsArgumentNullException
+                  - Render_DpiOverloadInvalidInputs_ThrowsArgumentOutOfRangeException
+                  - Render_DpiOverloadExceedsMaxDimension_ThrowsArgumentOutOfRangeException
+                  - Render_DpiOverload_ComputesExpectedPixelDimensions
+
+              - id: CanvasNetCharts-ChartModel-ChartRenderer-ChartTypeDispatch
+                title: >-
+                  The ChartRenderer class shall render every defined ChartType value (Bar, Column,
+                  Line, Area, Pie, Doughnut) to a correctly sized Surface, dispatching each to its
+                  dedicated painter.
+                justification: |
+                  Every chart kind the data model defines must have a working, exercised
+                  rendering path; an unimplemented or incorrectly dispatched chart type would
+                  silently fail to paint.
+                tests:
+                  - Render_EveryChartType_ProducesCorrectlySizedSurface
+                  - Render_Bar_FullScaleBarPaintsInteriorPixel
+                  - Render_Column_FullScaleBarPaintsInteriorPixel
+                  - Render_Line_StrokesVisibleSegmentBetweenPoints
+                  - Render_Area_FillsRegionAndStrokesTopEdge
+
+              - id: CanvasNetCharts-ChartModel-ChartRenderer-PieDoughnutWedgeLayout
+                title: >-
+                  The ChartRenderer class shall render a Pie or Doughnut chart's single series as
+                  wedges whose angular extent is proportional to each point's share of the series
+                  total, including a single-category (100%-share) series rendering as one
+                  full-circle wedge rather than an invisible, degenerate zero-length arc, and a
+                  Doughnut's inner radius remaining unpainted (the background shows through the
+                  hole).
+                justification: |
+                  A naive, unsplit 360-degree arc whose start and end points coincide is a
+                  zero-length no-op in the underlying arc-to-bezier conversion; a single-category
+                  Pie/Doughnut (an entirely plausible, simple real-world chart) must still render
+                  visibly instead of silently vanishing.
+                tests:
+                  - Render_Pie_SingleCategory_FillsEntireCircleWithoutDegenerateArc
+                  - Render_Pie_TwoEqualCategories_SplitsIntoRightAndLeftWedges
+                  - Render_Doughnut_SingleCategory_FillsRingAndLeavesHoleUnpainted
+
+              - id: CanvasNetCharts-ChartModel-ChartRenderer-DefaultStyling
+                title: >-
+                  The ChartRenderer class shall clear its target Surface to
+                  ChartRenderOptions.BackgroundColor (an opaque white default, overridable
+                  including to fully transparent) before painting any chart content, and shall
+                  resolve each series' or point's color, when unspecified, from Chart.ColorPalette,
+                  then ChartRenderOptions.ColorPalette, then ChartColorPalette.Default, in that
+                  order, wrapping by index via modulo.
+                justification: |
+                  A caller who supplies neither explicit series/point colors nor a color palette
+                  must still receive a legible, distinguishable, fully deterministic default
+                  rendering; the color-resolution precedence order must be well-defined so results
+                  do not depend on incidental construction order.
+                tests:
+                  - Render_CustomBackgroundColor_ClearsToThatColor
+                  - Render_TransparentBackgroundColor_ClearsToTransparent
+                  - Render_SeriesWithoutExplicitColor_ResolvesToDefaultPaletteInOrder
+                  - Render_ChartColorPaletteOverride_TakesPriorityOverDefaultPalette
+                  - Render_OptionsColorPaletteOverride_UsedWhenChartSuppliesNone
+
+              - id: CanvasNetCharts-ChartModel-ChartRenderer-TitleRendering
+                title: >-
+                  The ChartRenderer class shall, when Chart.Title is supplied, paint its text
+                  centered within a reserved title band above the plot area, reducing the plot
+                  area's available height accordingly, and shall reserve no title band at all when
+                  Chart.Title is null.
+                justification: |
+                  A title is a common, expected piece of chart decoration; it must be visible, and
+                  must not overlap or be overlapped by the plot area's own content.
+                tests:
+                  - Render_WithTitle_PaintsContentInTitleBand
+                  - Render_WithTitle_PushesPlotContentDownComparedToNoTitle
+
+              - id: CanvasNetCharts-ChartModel-ChartRenderer-LegendRendering
+                title: >-
+                  The ChartRenderer class shall, when Chart.Legend is supplied, visible, and
+                  positioned Top, Bottom, Left, or Right, paint one color-swatch-and-label entry
+                  per series (for category-based chart types) or per point (for Pie/Doughnut)
+                  within a reserved legend band on the corresponding side of the plot area,
+                  reducing the plot area's available size accordingly, and shall reserve no legend
+                  band at all when Chart.Legend is null, not visible, or positioned None.
+                justification: |
+                  A legend lets a viewer map each series/point's color back to its name; its
+                  position must be respected, and its absence must not reserve wasted plot-area
+                  space.
+                tests:
+                  - Render_LegendTop_PaintsSwatchesInTopBand
+                  - Render_LegendBottom_PaintsSwatchesInBottomBand
+                  - Render_LegendLeft_PaintsSwatchesInLeftBand
+                  - Render_LegendRight_PaintsSwatchesInRightBand
+                  - Render_LegendRight_NarrowsPlotAreaComparedToNoLegend
+                  - Render_LegendPositionNone_RendersSuccessfullyWithoutLegendBand
+                  - Render_LegendNotVisible_RendersSuccessfullyWithoutLegendBand
+
+              - id: CanvasNetCharts-ChartModel-ChartRenderer-LegendOverflowByOmission
+                title: >-
+                  The ChartRenderer class shall, when a legend has more entries than fit within
+                  its reserved band, omit any entry that would start beyond the band's available
+                  extent, rather than overflowing into the plot area, writing off-surface, or
+                  throwing an exception.
+                justification: |
+                  A chart with an unusually large series/point count must still render
+                  successfully and legibly; silently dropping the entries that do not fit is
+                  preferable to corrupting the rest of the rendered output.
+                tests:
+                  - Render_ManySeries_LegendDegradesByOmissionWithoutError
+
+              - id: CanvasNetCharts-ChartModel-ChartRenderer-AxisRendering
+                title: >-
+                  The ChartRenderer class shall, for Bar, Column, Line, and Area chart types, paint
+                  value-axis gridlines, tick marks, and tick labels, and category-axis tick marks
+                  and tick labels, within the plot area's reserved axis margins.
+                justification: |
+                  Axis gridlines and labels give a viewer the scale and category identity needed
+                  to read a category-based chart's data points meaningfully, not merely view
+                  uncalibrated shapes.
+                tests:
+                  - Render_WithAxes_PaintsNonBackgroundContentInReservedMargins
+
+              - id: CanvasNetCharts-ChartModel-ChartRenderer-NegativeValueHandling
+                title: >-
+                  The ChartRenderer class shall, for Bar, Column, Line, and Area chart types whose
+                  series values span both negative and positive numbers, paint bars extending both
+                  above/below (Column) or left/right (Bar) of a zero baseline, and paint Line/Area
+                  content successfully crossing that baseline, rather than clipping or throwing.
+                justification: |
+                  Real-world category data (for example, profit/loss by quarter) routinely
+                  includes negative values; a renderer that assumed an all-positive value range
+                  would silently misrender or crash on such data.
+                tests:
+                  - Render_Column_NegativeAndPositiveValues_PaintsBothAboveAndBelowZeroBaseline
+                  - Render_Bar_NegativeAndPositiveValues_PaintsBothLeftAndRightOfZeroBaseline
+                  - Render_Line_NegativeAndPositiveValues_RendersSuccessfully
+                  - Render_Area_NegativeAndPositiveValues_RendersSuccessfully
+
+              - id: CanvasNetCharts-ChartModel-ChartRenderer-DataLabelRendering
+                title: >-
+                  The ChartRenderer class shall, for a series whose ChartSeries.PointLabels is
+                  supplied, paint each point's label text near that point, and shall paint no
+                  label text at all for a series whose PointLabels is null.
+                justification: |
+                  Data labels are an opt-in decoration (not every chart needs every value spelled
+                  out on top of its shapes); the renderer must honor that opt-in/opt-out choice
+                  precisely per series.
+                tests:
+                  - Render_PointWithDataLabel_PaintsVisibleTextNearPoint
+                  - Render_PointWithoutDataLabel_RendersDeterministicallyWithNoLabelArtifacts
+
+              - id: CanvasNetCharts-ChartModel-ChartRenderer-SinglePointSeries
+                title: >-
+                  The ChartRenderer class shall render a Bar, Column, Line, Area, Pie, or Doughnut
+                  chart whose single series contains exactly one data point successfully, without
+                  exception.
+                justification: |
+                  A one-point series (or a one-category Pie/Doughnut) is a legitimate minimal
+                  chart a caller may construct; it must not be treated as a degenerate error case.
+                tests:
+                  - Render_Bar_SingleDataPoint_RendersSuccessfully
+                  - Render_Column_SingleDataPoint_RendersSuccessfully
+                  - Render_Line_SingleDataPoint_RendersSuccessfully
+                  - Render_Area_SingleDataPoint_RendersSuccessfully
+                  - Render_Pie_SingleValue_RendersFullCircleWedge
+                  - Render_Doughnut_SingleValue_RendersFullCircleWedge
+
+              - id: CanvasNetCharts-ChartModel-ChartRenderer-LongLabelTruncation
+                title: >-
+                  The ChartRenderer class shall truncate a category-axis label or legend entry
+                  label that does not fit within its allotted band's measured width, rather than
+                  overflowing into an adjacent region or throwing an exception.
+                justification: |
+                  A real-world chart's category or series names are caller-supplied, arbitrary-
+                  length text; an unusually long label must degrade gracefully rather than corrupt
+                  the surrounding layout.
+                tests:
+                  - Render_VeryLongCategoryLabel_RendersSuccessfullyWithoutOverflow
+                  - Render_VeryLongLegendLabel_RendersSuccessfullyWithoutOverflow
+
+              - id: CanvasNetCharts-ChartModel-ChartRenderer-RenderTargetSizeExtremes
+                title: >-
+                  The ChartRenderer class shall render every ChartType successfully at the
+                  smallest possible 1x1 pixel target, at a handful of other minimal target sizes
+                  up to roughly 10x10 pixels (defensively skipping title/legend/axis bands once
+                  reserving them would leave a non-positive plot area), and at the largest
+                  (8192x8192) Surface-supported target, in every case without throwing an
+                  exception.
+                justification: |
+                  A render target's size is entirely caller-controlled and may be arbitrarily
+                  small or at the library's own documented maximum; every painter must check its
+                  own target rectangle's size before building any path rather than assuming a
+                  "reasonable" minimum size.
+                tests:
+                  - Render_OnePixelByOnePixelTarget_RendersSuccessfullyForEveryChartType
+                  - Render_VerySmallRenderTargets_RenderSuccessfully
+                  - Render_MaximumDimensionRenderTarget_RendersSuccessfully
+
+              - id: CanvasNetCharts-ChartModel-ChartRenderer-ManySeriesGroupedLayout
+                title: >-
+                  The ChartRenderer class shall, for a grouped Bar/Column chart with a large
+                  practical series count, narrow each series' bar width within its shared category
+                  band rather than letting bars overlap one another or throwing an exception.
+                justification: |
+                  A category-based chart's number of series is caller-controlled and may be large;
+                  the per-category bar group must degrade by narrowing, remaining visually
+                  distinguishable, instead of producing an unreadable overlapping result.
+                tests:
+                  - Render_ManySeriesGroupedColumn_NarrowsBarsRatherThanOverlapping

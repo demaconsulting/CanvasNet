@@ -954,6 +954,31 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartTests.cs"         # unit tests
       - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartBuilderTests.cs"  # unit tests
 
+  # CanvasNetCharts-ChartRenderer Review (one per unit)
+  - id: CanvasNetCharts-ChartRenderer
+    title: Review that CanvasNetCharts ChartRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-charts.md"
+      - "docs/reqstream/canvas-net-charts.yaml"
+      - "docs/design/canvas-net-charts/chart-model.md"
+      - "docs/reqstream/canvas-net-charts/chart-model.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-charts/chart-model/chart-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-charts/chart-model/chart-renderer.md"       # unit design
+      - "docs/verification/canvas-net-charts/chart-model/chart-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-charts/chart-model/chart-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Charts/ChartColorPalette.cs"      # unit source (default palette)
+      - "src/DemaConsulting.CanvasNet.Charts/ChartRenderOptions.cs"     # unit source (render options)
+      - "src/DemaConsulting.CanvasNet.Charts/ChartRenderer.cs"          # unit source (entry point)
+      - "src/DemaConsulting.CanvasNet.Charts/ChartRenderer.Layout.cs"   # unit source (layout computation)
+      - "src/DemaConsulting.CanvasNet.Charts/ChartRenderer.CategoryChart.cs"  # unit source (Bar/Column/Line/Area painters)
+      - "src/DemaConsulting.CanvasNet.Charts/ChartRenderer.PieChart.cs"  # unit source (Pie/Doughnut painter)
+      - "src/DemaConsulting.CanvasNet.Charts/ChartRenderer.Legend.cs"   # unit source (legend painter)
+      - "src/DemaConsulting.CanvasNet.Charts/ChartRenderer.Title.cs"    # unit source (title painter)
+      - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartRendererTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartRendererAxisLegendTitleTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartRendererEdgeCaseTests.cs"  # unit tests
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality

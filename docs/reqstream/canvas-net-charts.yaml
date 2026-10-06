@@ -6,16 +6,17 @@
 # specifying implementation details.
 #
 # CanvasNetCharts is an independent software system, distributed as its own NuGet package,
-# depending on the core CanvasNet system (docs/reqstream/canvas-net.yaml) for its Canvas subsystem's
-# Rgba32 color type only - see docs/design/canvas-net-charts.md's Dependencies section for details.
+# depending on the core CanvasNet system (docs/reqstream/canvas-net.yaml) for its Canvas
+# subsystem's Rgba32/Surface units and, as of Phase 2, its Drawing/Geometry/Fonts/Rendering
+# subsystems - see docs/design/canvas-net-charts.md's Dependencies section for details.
 #
-# CanvasNetCharts is being delivered incrementally. Phase 1 (these requirements) ships the public,
-# immutable chart data model (Chart/ChartSeries/ChartAxis/ChartLegend/ChartTitle/ChartType) and the
-# ChartBuilder ergonomic construction API - no pixel rendering and no OOXML chart1.xml parsing yet.
-# Phase 2 adds a ChartRenderer that paints a Chart onto a core Surface. Phase 3 adds an OOXML
-# chart1.xml parser that produces a Chart from an embedded PowerPoint chart part. Phase 4 integrates
-# chart rendering into PptxDocument's slide rendering. These later-phase requirements will be added
-# to this file (and new per-unit files) when each phase lands, mirroring canvas-net-pptx.yaml's own
+# CanvasNetCharts is being delivered incrementally. Phase 1 shipped the public, immutable chart
+# data model (Chart/ChartSeries/ChartAxis/ChartLegend/ChartTitle/ChartType) and the ChartBuilder
+# ergonomic construction API. Phase 2 (these requirements) adds a ChartRenderer that paints a
+# Chart onto a core Surface - no OOXML chart1.xml parsing yet. Phase 3 adds an OOXML chart1.xml
+# parser that produces a Chart from an embedded PowerPoint chart part. Phase 4 integrates chart
+# rendering into PptxDocument's slide rendering. These later-phase requirements will be added to
+# this file (and new per-unit files) when each phase lands, mirroring canvas-net-pptx.yaml's own
 # per-phase header-comment convention.
 
 sections:
@@ -72,3 +73,49 @@ sections:
           - Build_FullConfiguration_ProducesChartRoundTrippingBuilderInputs
           - Build_TypeNeverSet_ThrowsInvalidOperationException
           - Build_NoSeriesAdded_ThrowsInvalidOperationException
+
+  - title: Chart Rendering API
+    requirements:
+      - id: CanvasNetCharts-Lib-ChartRenderer
+        title: >-
+          The library shall render a validated Chart onto a new core CanvasNet Surface, via a
+          caller-specified pixel width/height or a caller-specified physical width/height/DPI,
+          dispatching every defined ChartType to a dedicated painter that also paints axes (for
+          category-based types), a legend, a title, and opt-in per-point data labels, failing
+          closed with a documented exception on a null chart or invalid dimensions, and otherwise
+          degrading gracefully (never throwing) for an extreme render-target size, a legend
+          overflowing its band, an over-long label, or a single-category Pie/Doughnut's
+          full-circle wedge.
+        tags: [system]
+        justification: |
+          A validated Chart is only useful once a consumer can turn it into visible pixels; this
+          is the one externally visible capability Phase 2 adds, and it must behave predictably
+          across every chart kind, decoration, and data shape the Phase 1 model itself supports.
+        children:
+          - CanvasNetCharts-ChartModel-ChartRendering
+        tests:
+          - Render_EveryChartType_ProducesCorrectlySizedSurface
+          - Render_PixelOverloadNullChart_ThrowsArgumentNullException
+          - Render_DpiOverload_ComputesExpectedPixelDimensions
+          - Render_ManySeriesGroupedColumn_NarrowsBarsRatherThanOverlapping
+
+      - id: CanvasNetCharts-Lib-ChartRenderOptions
+        title: >-
+          The library shall provide a ChartRenderOptions settings bag (background color, an
+          optional font override, per-element default font sizes, and an optional color-palette
+          override) with a Default singleton, applied by ChartRenderer whenever a caller omits the
+          corresponding render option, series/point color, or chart-level color palette, resolving
+          colors via Chart.ColorPalette, then ChartRenderOptions.ColorPalette, then a documented
+          10-entry default color palette, in that fixed order.
+        tags: [system]
+        justification: |
+          A caller who supplies only the minimal Chart data (no colors, no render options) must
+          still receive a legible, fully deterministic, well-styled rendering rather than an error
+          or an arbitrary/undocumented appearance; a caller who does want control over styling
+          needs a single, extensible, documented settings surface to do so.
+        children:
+          - CanvasNetCharts-ChartModel-ChartRenderingDefaults
+        tests:
+          - Render_CustomBackgroundColor_ClearsToThatColor
+          - Render_SeriesWithoutExplicitColor_ResolvesToDefaultPaletteInOrder
+          - Render_ChartColorPaletteOverride_TakesPriorityOverDefaultPalette

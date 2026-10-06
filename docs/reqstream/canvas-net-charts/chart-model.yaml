@@ -215,6 +215,64 @@ sections:
               - WithColorPalette_Null_ThrowsArgumentNullException
               - Build_SeriesLengthMismatchedWithCategoryAxis_PropagatesChartConstructorException
 
+          - id: CanvasNetCharts-ChartModel-ChartRendering
+            title: >-
+              The ChartModel subsystem shall render a validated Chart onto a core CanvasNet
+              Surface, for a caller-specified pixel size or a caller-specified physical size and
+              DPI, dispatching every defined ChartType (Bar, Column, Line, Area, Pie, Doughnut) to
+              a dedicated painter that also paints axes (for category-based types), a legend (at
+              any position), a title, and opt-in per-point data labels, correctly handling
+              negative values, a single-category Pie/Doughnut's full-circle wedge, and a large
+              series/point count's legend/bar-group layout.
+            justification: |
+              A validated Chart is only useful once it can actually be turned into visible pixels;
+              this is the ChartModel subsystem's rendering responsibility, exercised end-to-end for
+              every chart kind, decoration, and data shape the model itself supports.
+            children:
+              - CanvasNetCharts-ChartModel-ChartRenderer-PixelRender
+              - CanvasNetCharts-ChartModel-ChartRenderer-DpiRender
+              - CanvasNetCharts-ChartModel-ChartRenderer-ChartTypeDispatch
+              - CanvasNetCharts-ChartModel-ChartRenderer-PieDoughnutWedgeLayout
+              - CanvasNetCharts-ChartModel-ChartRenderer-TitleRendering
+              - CanvasNetCharts-ChartModel-ChartRenderer-LegendRendering
+              - CanvasNetCharts-ChartModel-ChartRenderer-LegendOverflowByOmission
+              - CanvasNetCharts-ChartModel-ChartRenderer-AxisRendering
+              - CanvasNetCharts-ChartModel-ChartRenderer-NegativeValueHandling
+              - CanvasNetCharts-ChartModel-ChartRenderer-DataLabelRendering
+              - CanvasNetCharts-ChartModel-ChartRenderer-SinglePointSeries
+              - CanvasNetCharts-ChartModel-ChartRenderer-LongLabelTruncation
+              - CanvasNetCharts-ChartModel-ChartRenderer-RenderTargetSizeExtremes
+              - CanvasNetCharts-ChartModel-ChartRenderer-ManySeriesGroupedLayout
+            tests:
+              - Render_EveryChartType_ProducesCorrectlySizedSurface
+              - Render_WithTitle_PaintsContentInTitleBand
+              - Render_LegendTop_PaintsSwatchesInTopBand
+              - Render_WithAxes_PaintsNonBackgroundContentInReservedMargins
+              - Render_PointWithDataLabel_PaintsVisibleTextNearPoint
+              - Render_Column_NegativeAndPositiveValues_PaintsBothAboveAndBelowZeroBaseline
+              - Render_Pie_SingleCategory_FillsEntireCircleWithoutDegenerateArc
+              - Render_VerySmallRenderTargets_RenderSuccessfully
+              - Render_ManySeriesGroupedColumn_NarrowsBarsRatherThanOverlapping
+
+          - id: CanvasNetCharts-ChartModel-ChartRenderingDefaults
+            title: >-
+              The ChartModel subsystem shall apply documented default rendering styling (an opaque
+              white background, the bundled fallback font, and a documented 10-entry default color
+              palette) whenever a caller omits the corresponding render option, series/point
+              color, or chart-level color palette, resolving colors in a fixed, documented
+              precedence order.
+            justification: |
+              A caller who supplies only the minimal Chart data (no colors, no render options)
+              must still receive a legible, fully deterministic, well-styled rendering rather than
+              an error or an arbitrary/undocumented appearance.
+            children:
+              - CanvasNetCharts-ChartModel-ChartRenderer-DefaultStyling
+            tests:
+              - Render_CustomBackgroundColor_ClearsToThatColor
+              - Render_SeriesWithoutExplicitColor_ResolvesToDefaultPaletteInOrder
+              - Render_ChartColorPaletteOverride_TakesPriorityOverDefaultPalette
+              - Render_OptionsColorPaletteOverride_UsedWhenChartSuppliesNone
+
           - id: CanvasNetCharts-ChartModel-BuilderIncompleteBuildFails
             title: >-
               The ChartModel subsystem's ChartBuilder shall throw InvalidOperationException from

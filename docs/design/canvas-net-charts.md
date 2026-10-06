@@ -11,27 +11,31 @@ CanvasNetCharts is a .NET library providing chart support, distributed as its ow
 but depending on, the core `CanvasNet` system (its own separate package,
 `DemaConsulting.CanvasNet`) — see the Dependencies section below.
 
-`CanvasNetCharts` is being delivered incrementally. As of this release (Phase 1), the system
+`CanvasNetCharts` is being delivered incrementally. As of this release (Phase 2), the system
 consists of a single subsystem:
 
 - **ChartModel** (folder `src/DemaConsulting.CanvasNet.Charts/`, flat — no further nesting): a
   public, immutable, validating chart data model (`Chart`/`ChartSeries`/`ChartAxis`/
-  `ChartLegend`/`ChartTitle`/`ChartType`) and the `ChartBuilder` fluent construction API,
-  contained in a single implemented unit, `ChartDocument`. See
-  _ChartModel Subsystem Design_ (`canvas-net-charts/chart-model.md`).
+  `ChartLegend`/`ChartTitle`/`ChartType`), the `ChartBuilder` fluent construction API, and a
+  pixel-rendering engine (`ChartRenderer`/`ChartRenderOptions`/`ChartColorPalette`) that paints a
+  `Chart` onto a core `CanvasNet.Canvas.Surface`, contained in two implemented units,
+  `ChartDocument` and `ChartRenderer`. See _ChartModel Subsystem Design_
+  (`canvas-net-charts/chart-model.md`).
 
-No Subsystem tier would normally be needed for a system containing only one unit (compare
-`CanvasNetSvg`'s `SvgCodec`, which has no interposed subsystem — see _CanvasNetSvg System
-Design_, `canvas-net-svg.md`). A `ChartModel` subsystem is nonetheless introduced here, ahead of
-`CanvasNetCharts` containing more than one unit, because Phase 2 is already planned to add a
-second unit (`ChartRenderer`, under a new `ChartRendering` subsystem) and Phase 3 a third
-(an OOXML `chart1.xml` parser, under a new `ChartInterchange` subsystem); modeling `ChartModel`
-as a subsystem from Phase 1 onward avoids a disruptive re-model of the system's tier structure
-partway through its incremental delivery.
+No Subsystem tier would normally be needed for a system containing only one or two units
+(compare `CanvasNetSvg`'s `SvgCodec`, which has no interposed subsystem — see _CanvasNetSvg
+System Design_, `canvas-net-svg.md`). A `ChartModel` subsystem was nonetheless introduced from
+Phase 1 onward, ahead of `CanvasNetCharts` containing more than one unit, to avoid a disruptive
+re-model of the system's tier structure partway through its incremental delivery. Phase 2's
+`ChartRenderer` was added as a second unit within the existing `ChartModel` subsystem — rather
+than under a new subsystem, as originally anticipated in Phase 1 — because it shares the same
+single flat source folder and the same `ChartModel` Purpose statement ("what chart to draw" and
+"how to draw it" are two facets of the same data-model-plus-rendering whole); Phase 3's OOXML
+`chart1.xml` parser remains expected to land under a new subsystem, since it introduces a
+genuinely distinct concern (untrusted-input parsing).
 
 Not yet implemented, landing in later phases:
 
-- **ChartRenderer** (Phase 2) — paints a `Chart` onto a core `CanvasNet.Canvas.Surface`
 - **OOXML chart1.xml parser** (Phase 3) — produces a `Chart` from an embedded PowerPoint chart
   part
 - `CanvasNetPptx` integration (Phase 4) — wires chart rendering into `CanvasNetPptx`'s own slide
@@ -60,17 +64,29 @@ namespace:
   `Right`, `None`.
 - **`ChartBuilder`**: A fluent, mutable-until-`Build` API for constructing a `Chart` ergonomically,
   delegating all data-shape validation to the model types' own constructors.
+- **`ChartRenderer`**: A public static entry point that paints a `Chart` onto a new
+  `CanvasNet.Canvas.Surface`, via `Render(Chart, int, int, ChartRenderOptions?)` (direct pixel
+  dimensions) or `Render(Chart, float, float, float, ChartRenderOptions?)` (physical
+  width/height/DPI).
+- **`ChartRenderOptions`**: An immutable options bag for `ChartRenderer.Render` — background
+  color, an optional font override, per-element default font sizes, and an optional color
+  palette override — with a `Default` singleton, mirroring `PptxRenderOptions`'s own shape.
+- **`ChartColorPalette`**: A fixed, documented 10-entry categorical color palette, used by
+  `ChartRenderer` when neither `Chart.ColorPalette` nor `ChartRenderOptions.ColorPalette` supplies
+  one, resolved by index with wraparound.
 
 <!-- markdownlint-disable MD013 -->
 | Interface | Direction | Format | Constraints |
 | ------------------------ | ---------------- | -------------------------- | --------------------------------------------------------------- |
 | `Chart` constructor | Inbound | Method call / `Chart` instance | At least one non-null series; see _ChartModel Subsystem Design_ |
 | `ChartBuilder.Build()` | Inbound/Outbound | Method call / `Chart` return | A chart type and at least one series must be configured first |
+| `ChartRenderer.Render(...)` | Inbound/Outbound | Method call / `Surface` return | `chart` must not be null; pixel/physical dimensions must be positive and within `Surface`'s supported range |
 <!-- markdownlint-enable MD013 -->
 
-See _ChartModel Subsystem Design_ (`canvas-net-charts/chart-model.md`) and
-_ChartDocument Unit Design_ (`canvas-net-charts/chart-model/chart-document.md`) for every type's
-complete constructor parameter and exception detail.
+See _ChartModel Subsystem Design_ (`canvas-net-charts/chart-model.md`), _ChartDocument Unit
+Design_ (`canvas-net-charts/chart-model/chart-document.md`), and _ChartRenderer Unit Design_
+(`canvas-net-charts/chart-model/chart-renderer.md`) for every type's complete constructor
+parameter and exception detail.
 
 ## Dependencies
 
@@ -78,14 +94,14 @@ complete constructor parameter and exception detail.
 `DemaConsulting.CanvasNet`, referenced via a project reference from
 `src/DemaConsulting.CanvasNet.Charts/DemaConsulting.CanvasNet.Charts.csproj`), specifically:
 
-- The `Canvas` subsystem's `Rgba32` unit — representing a series/point/palette color
-
-As of this release (Phase 1), `CanvasNetCharts` depends on no other subsystem of `CanvasNet`: it
-has no pixel buffer to construct or paint onto yet (no `Surface` dependency), no path geometry to
-build (no `Geometry` dependency), no rasterization to perform (no `Drawing` dependency), and no
-text to lay out (no `Fonts` dependency). Phase 2's `ChartRenderer` is expected to add the
-`Canvas.Surface`, `Geometry`, `Drawing`, and `Fonts` subsystem dependencies that an actual
-rendering unit requires.
+- The `Canvas` subsystem's `Rgba32` and `Surface` units — representing a series/point/palette
+  color and the pixel buffer `ChartRenderer` paints onto and returns
+- The `Drawing` subsystem — path filling/stroking and tile-paint primitives `ChartRenderer` uses
+  to paint bars/columns/lines/areas/wedges/axes/legend/title
+- The `Geometry` subsystem — transforms and rectangles used throughout layout and painting
+- The `Fonts` subsystem — TrueType text layout/metrics, used to measure and draw every text label
+- The `Rendering` subsystem — the bundled Liberation Sans fallback font used when
+  `ChartRenderOptions.Font` is not supplied
 
 **`CanvasNetCharts` must never reference `DemaConsulting.CanvasNet.Pptx`,
 `DemaConsulting.CanvasNet.Pdf`, `DemaConsulting.CanvasNet.Svg`, or a future
@@ -138,14 +154,26 @@ A caller may equivalently construct a `Chart` (and its constituent `ChartSeries`
 behavior, since `ChartBuilder` enforces no rule the model constructors do not already enforce
 themselves.
 
+**`Chart` → rendered `Surface` path (added in Phase 2):**
+
+1. **Input**: A validated `Chart` instance, caller-chosen pixel (or physical width/height/DPI)
+   dimensions, and an optional `ChartRenderOptions`
+2. **Validation**: `ChartRenderer.Render` throws `ArgumentNullException` when `chart` is null, and
+   `ArgumentOutOfRangeException` when the requested (or DPI-computed) pixel dimensions are not
+   positive/finite or exceed `Surface.MaxDimension`
+3. **Processing**: `ChartRenderer` computes a title/legend/plot-area layout (skipping a band that
+   would not fit the render target), resolves every series'/point's color (`Chart.ColorPalette`,
+   then `ChartRenderOptions.ColorPalette`, then `ChartColorPalette.Default`, wrapping by index),
+   and dispatches per `Chart.Type` to paint bars/columns/lines/areas or pie/doughnut wedges, plus
+   axes (for category-based types), a legend, a title, and any opt-in per-point data labels
+4. **Output**: A new `Surface` containing the rendered chart, which the caller owns and disposes
+
 ## Design Constraints
 
 - **Simplicity**: Minimal functionality kept easy to understand and extend
 - **Compliance**: All functionality must be traceable to requirements
 - **Quality**: Zero warnings, full test coverage, complete documentation
 - **Portability**: Compatible across supported .NET platforms
-- **No rendering yet**: `CanvasNetCharts` provides no pixel output as of this release (see
-  Architecture above)
 - **Dependency direction**: `CanvasNetCharts` must never reference `CanvasNetPptx`,
   `CanvasNetPdf`, `CanvasNetSvg`, or a future `CanvasNetVsdx` (see Dependencies above)
 
