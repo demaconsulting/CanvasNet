@@ -91,8 +91,8 @@ has no knowledge of, and no dependency on, OPC/ZIP packaging or any host documen
 #### Callers
 
 `OpenXmlChartParser` is a public API entry point, invoked directly by consumers of the
-`DemaConsulting.CanvasNet.Charts` package (and, in a later phase, expected to be invoked by
-`CanvasNetPptx`'s own chart-rendering integration, after that package first locates and opens the
-relevant `chart#.xml` OPC part and hands this unit only the resulting XML content). It calls
+`DemaConsulting.CanvasNet.Charts` package, and is invoked by `CanvasNetPptx`'s own
+chart-rendering integration (`PptxDocument.Charts.cs`), which locates and opens the relevant
+`chart#.xml` OPC part and hands this unit only the resulting XML content. It calls
 `ChartModel`'s `ChartDocument` unit (`Chart`, `ChartSeries`, `ChartAxis`, `ChartLegend`,
 `ChartTitle` constructors) as its own final step.

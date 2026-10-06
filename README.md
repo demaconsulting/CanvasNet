@@ -46,7 +46,10 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 📈 **OOXML Chart Parsing** - Parse a raw ECMA-376 DrawingML-Charts `c:chartSpace`/`c:chart` XML
   element (for example, a `chart1.xml` OPC part) into a validated chart, reading only cached
   values, with no OPC/ZIP packaging or host document-format knowledge (ships as part of the same
-  `DemaConsulting.CanvasNet.Charts` package)
+  `DemaConsulting.CanvasNet.Charts` package). When rendering a `.pptx` presentation via the
+  separate `DemaConsulting.CanvasNet.Pptx` package's `PptxDocument.Render`, an embedded
+  `<p:graphicFrame>` chart is automatically parsed and painted using this same package, with no
+  extra caller code required.
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines

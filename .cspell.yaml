@@ -98,6 +98,19 @@ words:
   - gAMA
   - Grayscale
   - grayscale
+  - gridline
+  - gridlines
+  - horz
+  - Horz
+  - Dmnd
+  - patt
+  - pythonpptx
+  - slidenum
+  - xfrm
+  - drawingml
+  - Calibri
+  - unoverridden
+  - subtable
   - IDAT
   - IDCT
   - IEND
@@ -115,6 +128,7 @@ words:
   - mcus
   - microarchitecture
   - misdecoded
+  - misrender
   - nameof
   - nonzero
   - paintable

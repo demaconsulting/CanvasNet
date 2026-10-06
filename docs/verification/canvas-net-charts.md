@@ -4,7 +4,7 @@ This document describes the system-level verification strategy for CanvasNetChar
 
 ## Verification Approach
 
-As of this release (Phase 3), `CanvasNetCharts` contains two subsystems: `ChartModel`
+`CanvasNetCharts` contains two subsystems: `ChartModel`
 (containing `ChartDocument` and `ChartRenderer`) and `OpenXmlChart` (containing
 `OpenXmlChartParser`). Every `ChartRenderer` test necessarily exercises both `ChartModel` units
 together: each test builds its input `Chart` via `ChartBuilder` (or the model constructors
@@ -15,8 +15,9 @@ core `CanvasNet` system's subsystems — see _CanvasNetSvg System Verification_,
 `canvas-net-svg.md`). Several of `OpenXmlChartParser`'s own tests additionally feed its parsed
 `Chart` output directly into `ChartRenderer.Render`, providing the one cross-subsystem
 integration this release's two subsystems share, within that same unit-level test suite. System-
-level verification for this release is therefore provided entirely by `ChartDocument`'s,
-`ChartRenderer`'s, and `OpenXmlChartParser`'s own comprehensive unit-level test suites — see
+level verification within `CanvasNetCharts` itself is therefore provided entirely by
+`ChartDocument`'s, `ChartRenderer`'s, and `OpenXmlChartParser`'s own comprehensive unit-level test
+suites — see
 _ChartDocument Unit Verification_ (`canvas-net-charts/chart-model/chart-document.md`),
 _ChartRenderer Unit Verification_ (`canvas-net-charts/chart-model/chart-renderer.md`), and
 _OpenXmlChartParser Unit Verification_
@@ -24,11 +25,12 @@ _OpenXmlChartParser Unit Verification_
 type's constructor and every `ChartRenderer.Render`/`OpenXmlChartParser.Parse` overload directly
 through their own public API, with no mocking or stubbing required.
 
-A dedicated system-level integration test suite remains expected in a later phase, once
-`CanvasNetPptx` integration (Phase 4) exists: at that point, a system test can exercise the
-complete pipeline from an opened PPTX chart part, through `OpenXmlChartParser.Parse`, to a
-rendered `Surface`, the same way `CanvasNetPptx`'s own system tests exercise its multi-phase
-pipeline end to end.
+System-level, cross-system integration coverage — exercising the complete pipeline from an opened
+PPTX chart part, through `OpenXmlChartParser.Parse`, to a rendered and composited `Surface` — is
+provided by `CanvasNetPptx`'s own `PptxChartsTests.cs` and fixture-corpus tests, which open a real
+`<p:graphicFrame>`-referenced `chart#.xml` OPC part and exercise the full pipeline end to end; see
+_CanvasNetPptx System Verification_ (`canvas-net-pptx.md`) for that integration's own verification
+design.
 
 ## Test Environment
 

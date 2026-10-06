@@ -13,9 +13,9 @@ The `OpenXmlChart` subsystem provides a single, format-agnostic capability: turn
 DrawingML-Charts `c:chartSpace`/`c:chart` `System.Xml.Linq` element into the validated `Chart`
 the `ChartModel` subsystem's `ChartRenderer` already knows how to paint. It is deliberately
 format-agnostic — it has no knowledge of OPC/ZIP packaging, part relationships, or any specific
-host document format (PresentationML/`.pptx`, SpreadsheetML/`.xlsx`, or a future `.vsdx`) — so a
-future `CanvasNetPptx` integration (Phase 4) is responsible for first locating and opening the
-relevant `chart#.xml` part and handing this subsystem only the resulting XML content. This
+host document format (PresentationML/`.pptx`, SpreadsheetML/`.xlsx`, or a future `.vsdx`) — the
+`CanvasNetPptx` integration is responsible for locating and opening the relevant `chart#.xml`
+part and handing this subsystem only the resulting XML content. This
 boundary is what keeps `OpenXmlChartParser` reusable by any future document-format library that
 embeds an OOXML chart part, not coupled to one specific host format. `OpenXmlChartParser` reads
 only cached values (`c:numCache`/`c:strCache`) and never recomputes from a `c:f` formula, mirroring

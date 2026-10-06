@@ -47,7 +47,7 @@ Three independent sources are represented:
 | `samplelib-sample-blank.pptx` | A single blank slide from an independent, non-`python-pptx` authoring tool. |
 | `samplelib-sample-presentation.pptx` | Eight slides: text/autoshapes, a table (slide 3), a chart (slide 4, renders). |
 | `pythonpptx-sld-blank.pptx` | A single blank slide (`python-pptx`'s own `sld-blank.pptx`). |
-| `pythonpptx-shp-shapes.pptx` | Slide 0: table/chart (renders)/SmartArt (SmartArt alone still throws). Slide 1: connectors, nested group, GIF. |
+| `pythonpptx-shp-shapes.pptx` | Slide 0: table/chart (renders)/SmartArt (throws). Slide 1: connectors, group, GIF. |
 | `pythonpptx-shp-groupshape.pptx` | A `<p:grpSp>` group with nested/`avLst` autoshapes - group-transform coverage. |
 | `pythonpptx-shp-picture.pptx` | Two slides placing an embedded raster picture - picture decode/composite coverage. |
 | `pythonpptx-shp-autoshape-props.pptx` | A single autoshape with an `avLst` handle - preset-geometry coverage. |
@@ -59,13 +59,13 @@ Three independent sources are represented:
 | `pythonpptx-ph-unpopulated-placeholders.pptx` | Nine slides, each empty, inherited placeholder of a distinct type. |
 | `pythonpptx-txt-fit-text.pptx` | A single slide with `wrap="none"` + `<a:spAutoFit/>` real paragraph text. |
 | `pythonpptx-shp-connector-props.pptx` | Two slides; a lone `<p:cxnSp>` connector (silently skipped) plus a picture. |
-| `pythonpptx-dml-fill.pptx` | Two slides exercising shape-background picture-fill and pattern-fill (both now render; an uncovered pattern preset would still throw). |
+| `pythonpptx-dml-fill.pptx` | Two slides exercising shape-background picture-fill and pattern-fill (both now render). |
 | `pythonpptx-dml-line.pptx` | Four slides of explicit `<a:solidFill>`/`<a:ln>` stroke variety (width/dash/color). |
 | `aiden0z-1-chart-and-complex.pptx` | Two slides: org-chart (connectors/custGeom/avLst) plus a chart slide (renders). |
 | `aiden0z-image-crop-css-reset.pptx` | One slide: `<p:bg>` fill, four pictures with distinct `<a:srcRect>` crops. |
 | `aiden0z-table-stale-frame.pptx` | A single slide; table frame's declared extent mismatches its own column widths. |
-| `pythonpptx-chart-line.pptx` | A single slide with one `XL_CHART_TYPE.LINE_MARKERS` line chart (renders) - Phase 4's own supported-chart fixture (see "Locally-Generated Chart Fixtures" below). |
-| `pythonpptx-chart-unsupported-radar.pptx` | A single slide with one `XL_CHART_TYPE.RADAR` radar chart (throws `PptxUnsupportedFeatureException`, feature token `"pptx-chart-charts-openxml-radar-chart"`) - Phase 4's own deferred-chart-kind fixture (see "Locally-Generated Chart Fixtures" below). |
+| `pythonpptx-chart-line.pptx` | A single slide, one line chart (renders) - Phase 4's supported-chart fixture. |
+| `pythonpptx-chart-unsupported-radar.pptx` | A single slide, one radar chart (throws, unsupported) - deferred. |
 
 ## Exact `python-pptx` Source URLs
 

@@ -80,7 +80,7 @@ renders a single-category `Doughnut` chart and samples a pixel in the ring and a
 central hole, asserting the ring pixel is non-background and the hole pixel remains the
 background color.
 
-##### CanvasNetCharts-ChartModel-ChartRenderer-DefaultStyling: ChartRenderer Applies Documented Default Styling and Color Resolution
+##### CanvasNetCharts-ChartModel-ChartRenderer-DefaultStyling: ChartRenderer Applies Default Styling and Colors
 
 **Tests**: `ChartRendererTests.Render_CustomBackgroundColor_ClearsToThatColor`,
 `ChartRendererTests.Render_TransparentBackgroundColor_ClearsToTransparent`,
@@ -125,7 +125,7 @@ renders with a `Right` legend and asserts the plot area is measurably narrower t
 chart with no legend; renders with `Position: None` and with `IsVisible: false`, asserting
 successful rendering with no legend band reserved in either case.
 
-##### CanvasNetCharts-ChartModel-ChartRenderer-LegendOverflowByOmission: ChartRenderer Degrades a Legend by Omission When It Overflows
+##### CanvasNetCharts-ChartModel-ChartRenderer-LegendOverflowByOmission: ChartRenderer Omits Entries On Legend Overflow
 
 **Test**: `ChartRendererEdgeCaseTests.Render_ManySeries_LegendDegradesByOmissionWithoutError`
 

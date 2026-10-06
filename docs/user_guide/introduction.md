@@ -2046,6 +2046,11 @@ public class ChartUnsupportedFeatureException : IOException
 }
 ```
 
+When rendering a `.pptx` presentation via the separate `DemaConsulting.CanvasNet.Pptx` package's
+`PptxDocument.Render`, an embedded `<p:graphicFrame>` chart is automatically located, parsed via
+`OpenXmlChartParser`, rendered via `ChartRenderer`, and composited onto the slide - no extra
+caller code is required beyond calling `PptxDocument.Render` itself.
+
 # Examples
 
 ## Example 1: Surface Pixel Access

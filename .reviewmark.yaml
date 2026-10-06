@@ -864,8 +864,8 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pptx/PptxArrowheadStyle.cs"  # phase 2 follow-up (connector arrowhead model)
       - "src/DemaConsulting.CanvasNet.Pptx/PptxArrowheadGeometry.cs"  # phase 2 follow-up (arrowhead geometry)
       - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Connectors.cs"  # phase 2 follow-up (connector resolution)
-      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Charts.cs"  # phase 4 unit source (chart graphic frame integration)
-      - "src/DemaConsulting.CanvasNet.Pptx/DemaConsulting.CanvasNet.Pptx.csproj"  # unit project file (added phase 4: ProjectReference to CanvasNetCharts)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Charts.cs"  # phase 4 unit source (chart frame integration)
+      - "src/DemaConsulting.CanvasNet.Pptx/DemaConsulting.CanvasNet.Pptx.csproj"  # project file (phase 4: Charts ref)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxGeometryTests.cs"  # phase 1c unit tests (geometry)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxPaintTests.cs"  # phase 1c unit tests (paint)
@@ -881,7 +881,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxBulletTests.cs"  # phase 2 follow-up (bullet/numbering tests)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxColorMapTests.cs"  # phase 2 follow-up (color map tests)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxConnectorTests.cs"  # phase 2 follow-up (connector unit tests)
-      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxChartsTests.cs"  # phase 4 unit tests (chart graphic frame integration)
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxChartsTests.cs"  # phase 4 unit tests (chart frame integration)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxFixturesCorpusTests.cs"  # fixture conformance tests
 
   # CanvasNetCharts-Architecture Review (one per system)
@@ -948,7 +948,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Charts/ChartSeries.cs"          # unit source (series model)
       - "src/DemaConsulting.CanvasNet.Charts/Chart.cs"                # unit source (root aggregate)
       - "src/DemaConsulting.CanvasNet.Charts/ChartBuilder.cs"         # unit source (fluent builder)
-      - "test/DemaConsulting.CanvasNet.Charts.Tests/DemaConsulting.CanvasNet.Charts.Tests.csproj"  # unit test project file
+      - "test/DemaConsulting.CanvasNet.Charts.Tests/DemaConsulting.CanvasNet.Charts.Tests.csproj"  # unit test project
       - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartTypeTests.cs"     # unit tests
       - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartAxisTests.cs"     # unit tests
       - "test/DemaConsulting.CanvasNet.Charts.Tests/ChartLegendTests.cs"   # unit tests
@@ -974,7 +974,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Charts/ChartRenderOptions.cs"     # unit source (render options)
       - "src/DemaConsulting.CanvasNet.Charts/ChartRenderer.cs"          # unit source (entry point)
       - "src/DemaConsulting.CanvasNet.Charts/ChartRenderer.Layout.cs"   # unit source (layout computation)
-      - "src/DemaConsulting.CanvasNet.Charts/ChartRenderer.CategoryChart.cs"  # unit source (Bar/Column/Line/Area painters)
+      - "src/DemaConsulting.CanvasNet.Charts/ChartRenderer.CategoryChart.cs"  # unit source (Bar/Col/Line/Area painters)
       - "src/DemaConsulting.CanvasNet.Charts/ChartRenderer.PieChart.cs"  # unit source (Pie/Doughnut painter)
       - "src/DemaConsulting.CanvasNet.Charts/ChartRenderer.Legend.cs"   # unit source (legend painter)
       - "src/DemaConsulting.CanvasNet.Charts/ChartRenderer.Title.cs"    # unit source (title painter)

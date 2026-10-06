@@ -474,7 +474,7 @@ proves a `<a:path w= h=>` declaring a coordinate space different from the shape'
 resolves to exactly `(widthEmu, heightEmu)`, not the path's own raw `w`/`h` value); and proves a
 `<a:custGeom>` with no `<a:pathLst>` resolves to `Path.Empty` rather than throwing.
 
-#### CanvasNetPptx-PptxDocument-FillResolution: noFill/solidFill/gradFill Resolve, pattFill Resolves for a Covered Preset or Fails Closed, blipFill Resolves or Fails Closed
+#### CanvasNetPptx-PptxDocument-FillResolution: noFill/solidFill/gradFill/pattFill/blipFill Resolve or Fail Closed
 
 **Tests**: `ResolveFill_NullParent_ReturnsNoFill`, `ResolveFill_ExplicitNoFill_ReturnsNoFill`,
 `ResolveFill_NoRecognizedFillChild_ReturnsNoFill`,
@@ -530,7 +530,7 @@ minimal, purpose-built single-shape package (an ordinary `<p:sp>`, not a `<p:pic
 with a pixel-level sanity check that the filled shape's own region painted the embedded image's
 content rather than being left as untouched background.
 
-#### CanvasNetPptx-PptxDocument-PatternFillResolution: pattFill Resolves a Covered Preset to a Procedurally-Synthesized Tile
+#### CanvasNetPptx-PptxDocument-PatternFillResolution: pattFill Resolves a Covered Preset to a Synthesized Tile
 
 **Tests**: `ResolveFill_PatternFillCoveredPreset_ReturnsPptxPatternFill`,
 `ResolveFill_PatternFillMissingFgBgClr_DefaultsToBlackOnWhite`,

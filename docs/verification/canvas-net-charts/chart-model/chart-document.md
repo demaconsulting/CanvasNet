@@ -157,7 +157,7 @@ and `NaN`/`PositiveInfinity`). Asserts `ArgumentOutOfRangeException` for every c
 Constructs a `ChartAxis` with a whitespace-only title and an empty title. Asserts
 `ArgumentException` for both cases.
 
-##### CanvasNetCharts-ChartModel-ChartDocument-LegendValidation: ChartLegend Constructs With Defaults and Rejects an Undefined Position
+##### CanvasNetCharts-ChartModel-ChartDocument-LegendValidation: ChartLegend Applies Defaults, Rejects Undefined State
 
 **Tests**: `ChartLegendTests.Constructor_Defaults_IsVisibleAndRightPositioned`,
 `ChartLegendTests.Constructor_EachDefinedPosition_IsAccepted`,
@@ -208,7 +208,7 @@ Calls every `ChartBuilder` fluent method and asserts (`Assert.Same`) each return
 builder instance; separately adds two series via the pre-built `ChartSeries` overload of
 `AddSeries` and asserts `Build()`'s resulting `Chart.Series` preserves insertion order.
 
-##### CanvasNetCharts-ChartModel-ChartDocument-BuilderDelegatesValidation: ChartBuilder Propagates Model Constructor Exceptions Unchanged
+##### CanvasNetCharts-ChartModel-ChartDocument-BuilderDelegatesValidation: ChartBuilder Forwards Constructor Exceptions
 
 **Tests**: `ChartBuilderTests.AddSeries_InvalidName_PropagatesChartSeriesConstructorException`,
 `ChartBuilderTests.AddSeries_NullChartSeries_PropagatesArgumentNullException`,
@@ -227,7 +227,7 @@ configuration that produces a series/category-axis length mismatch only once `Bu
 `Chart`'s own constructor). Asserts each surfaces the identical exception type the corresponding
 model constructor documents.
 
-##### CanvasNetCharts-ChartModel-ChartDocument-BuilderIncompleteBuildFails: ChartBuilder.Build Fails Closed on Incomplete Configuration
+##### CanvasNetCharts-ChartModel-ChartDocument-BuilderIncompleteBuildFails: ChartBuilder.Build Fails on Incomplete Input
 
 **Tests**: `ChartBuilderTests.Build_TypeNeverSet_ThrowsInvalidOperationException`,
 `ChartBuilderTests.Build_NoSeriesAdded_ThrowsInvalidOperationException`

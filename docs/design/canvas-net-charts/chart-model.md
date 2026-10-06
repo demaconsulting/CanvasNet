@@ -11,16 +11,15 @@ immutable, validating chart data model and the `ChartBuilder` fluent constructio
 ### Purpose
 
 The `ChartModel` subsystem provides both the in-memory representation of "what chart to draw"
-(`ChartDocument`) and, as of Phase 2, "how to draw it" (`ChartRenderer`) — the complete set of
-chart functionality a future OOXML `chart1.xml` parser (Phase 3) and `CanvasNetPptx` integration
-(Phase 4) will consume. `ChartDocument` owns the complete set of data-shape validation rules —
-non-empty series, finite numeric values, count-matched point colors/labels, consistent
-series/category-axis lengths, and well-ordered axis ranges — so that both `ChartRenderer` and a
-future OOXML parser can trust every `Chart` instance they receive without re-validating it
-themselves. `ChartRenderer` owns every pixel-rendering decision — layout, default styling,
-color-palette resolution, and graceful degradation for extreme render-target sizes or legend
-overflow — so that a future OOXML parser and `CanvasNetPptx` integration need not duplicate any
-of that logic.
+(`ChartDocument`) and "how to draw it" (`ChartRenderer`) — the complete set of chart functionality
+the `OpenXmlChart` subsystem's `chart1.xml` parser and the `CanvasNetPptx` integration both
+consume. `ChartDocument` owns the complete set of data-shape validation rules — non-empty series,
+finite numeric values, count-matched point colors/labels, consistent series/category-axis
+lengths, and well-ordered axis ranges — so that both `ChartRenderer` and the OOXML parser can
+trust every `Chart` instance they receive without re-validating it themselves. `ChartRenderer`
+owns every pixel-rendering decision — layout, default styling, color-palette resolution, and
+graceful degradation for extreme render-target sizes or legend overflow — so that the OOXML
+parser and `CanvasNetPptx` integration need not duplicate any of that logic.
 
 ### Units
 

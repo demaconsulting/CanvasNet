@@ -11,8 +11,7 @@ CanvasNetCharts is a .NET library providing chart support, distributed as its ow
 but depending on, the core `CanvasNet` system (its own separate package,
 `DemaConsulting.CanvasNet`) — see the Dependencies section below.
 
-`CanvasNetCharts` is being delivered incrementally. As of this release (Phase 3), the system
-consists of two subsystems:
+`CanvasNetCharts` consists of two subsystems:
 
 - **ChartModel** (folder `src/DemaConsulting.CanvasNet.Charts/`, flat — no further nesting): a
   public, immutable, validating chart data model (`Chart`/`ChartSeries`/`ChartAxis`/
@@ -41,12 +40,11 @@ single flat source folder and the same `ChartModel` Purpose statement ("what cha
 in its own `OpenXml/` sub-folder, with no dependency in either direction on `ChartRenderer`'s own
 implementation), so it was given its own `OpenXmlChart` subsystem as originally anticipated.
 
-Not yet implemented, landing in a later phase:
-
-- `CanvasNetPptx` integration (Phase 4) — locates and opens a `chart1.xml` OPC part and hands its
-  content to `OpenXmlChartParser`, then renders the resulting `Chart` via `ChartRenderer`, wiring
-  both into `CanvasNetPptx`'s own slide rendering so a `<p:graphicFrame>` containing a chart
-  reference renders its chart content instead of throwing
+`CanvasNetPptx` integrates both subsystems into its own slide rendering: it locates and opens a
+`chart1.xml` OPC part and hands its content to `OpenXmlChartParser`, then renders the resulting
+`Chart` via `ChartRenderer`, so that a `<p:graphicFrame>` containing a chart reference renders its
+chart content instead of throwing — see _CanvasNetPptx System Design_ (`canvas-net-pptx.md`) for
+that integration's own detail.
 
 ## External Interfaces
 
