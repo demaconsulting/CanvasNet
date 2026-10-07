@@ -825,6 +825,29 @@ public class PptxImagesTests
         Assert.Throws<InvalidDataException>(() => document.ResolvePictureSurface(slidePartPath, BuildSvgOnlyBlipFill(svgEmbedId: null)));
     }
 
+    /// <summary>
+    ///     Proves a well-formed SVG-only blip whose own <c>viewBox</c> declares intrinsic
+    ///     dimensions exceeding <see cref="Surface.MaxDimension"/> is still decoded - not rejected
+    ///     outright - but its resolved <see cref="Surface"/> is clamped to
+    ///     <see cref="Surface.MaxDimension"/> on both axes, exercising
+    ///     <c>ResolveSvgOnlyPictureSurface</c>'s own <c>Math.Clamp(..., 1, Surface.MaxDimension)</c>
+    ///     safety policy - a regression guard against this clamp silently being removed while an
+    ///     oversized SVG would otherwise reach <c>SvgCodec.Load</c> unclamped.
+    /// </summary>
+    [Fact]
+    public void ResolvePictureSurface_SvgOnlyBlipExceedsMaxDimension_ClampsSurfaceToMaxDimensionOnBothAxes()
+    {
+        var svgBytes = BuildSvgBytes(Surface.MaxDimension + 1000, Surface.MaxDimension + 2000);
+        var (package, slidePartPath) = BuildMinimalImagePackage("svg", "image/svg+xml", svgBytes);
+        using var stream = package;
+        using var document = PptxDocument.Open(stream);
+
+        var surface = document.ResolvePictureSurface(slidePartPath, BuildSvgOnlyBlipFill("rId2"));
+
+        Assert.Equal(Surface.MaxDimension, surface.Width);
+        Assert.Equal(Surface.MaxDimension, surface.Height);
+    }
+
     /// <summary>Proves an unrecognized media content type (for example an EMF vector picture) throws <see cref="PptxUnsupportedFeatureException"/> with feature token <c>"pptx-image-format"</c>.</summary>
     [Fact]
     public void ResolvePictureSurface_UnsupportedContentType_ThrowsPptxUnsupportedFeatureExceptionWithImageFormatToken()
