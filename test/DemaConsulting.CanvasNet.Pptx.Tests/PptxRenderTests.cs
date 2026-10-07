@@ -921,6 +921,28 @@ public class PptxRenderTests
     }
 
     /// <summary>
+    ///     Proves a slide's own <c>&lt;p:bg&gt;&lt;p:bgPr&gt;&lt;a:blipFill&gt;</c> picture
+    ///     background fill is resolved and painted across the full slide (not rejected as
+    ///     unsupported) - <c>ResolveSlideBackgroundFill</c> threads each tier's own
+    ///     <c>resolveBlipImage</c> callback into the shared <c>ResolveFill</c> pipeline
+    ///     exactly like every other fill context.
+    /// </summary>
+    [Fact]
+    public void Render_SlideLevelPictureFillBackground_PaintsEmbeddedImageAcrossFullSlide()
+    {
+        var pngBytes = BuildPngBytes(new Rgba32(10, 20, 30, 255));
+        const string pictureBgPrXml = """<p:bgPr><a:blipFill><a:blip r:embed="rId2"/></a:blipFill><a:effectLst/></p:bgPr>""";
+        using var stream = BuildRenderPackage(
+            spTreeInnerXml: string.Empty, slideBackgroundXml: pictureBgPrXml,
+            media: ("png", "image/png", pngBytes));
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 20, 20);
+
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[10, 10]);
+    }
+
+    /// <summary>
     ///     Proves the real-world-corpus crash is fixed: a shape using
     ///     <c>&lt;a:prstGeom prst="curvedUpArrow"/&gt;</c> (previously unsupported, throwing
     ///     <see cref="PptxUnsupportedFeatureException"/> for the entire slide) renders without
