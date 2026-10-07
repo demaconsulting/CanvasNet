@@ -1,6 +1,6 @@
 # Introduction
 
-<!-- cspell:ignore glyf sfnt cmap loca hmtx hhea codepoint Zapf Noto -->
+<!-- cspell:ignore glyf sfnt cmap loca hmtx hhea codepoint Zapf Noto Visio visio -->
 
 This document provides the detailed design for CanvasNet, a .NET library
 providing a canvas-based drawing and rendering API.

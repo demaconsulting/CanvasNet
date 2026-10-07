@@ -1,7 +1,7 @@
 # System Design
 
 <!-- cspell:ignore vsdx Visio VisioML xfrm stencil stencils glueable NURBS nurbs -->
-<!-- cspell:ignore shapesheet ShapeSheet rrggbb -->
+<!-- cspell:ignore shapesheet ShapeSheet rrggbb slnx -->
 
 This document provides the system-level design for CanvasNetVsdx.
 
