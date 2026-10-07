@@ -2770,6 +2770,157 @@ A before/after visual repro (the bug report's own exact geometry, rendered and v
 confirmed the fix: before, a plain pale ellipse with no red anywhere on its perimeter; after, a
 complete, correctly-closed red ellipse outline fully framing the same pale ellipse.
 
+#### Phase 2 Follow-Up: Run Text Outline Rendering (`<a:ln>` on `<a:rPr>`/`<a:defRPr>`)
+
+A user-reported real-world corpus fixture ("ERF IWF Breadboard Peer Review.pptx", slide 3
+"Objective") contains two large numbered-badge runs whose own `<a:rPr>` declares `<a:ln
+w="9525"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:ln>` (a solid purple stroke)
+alongside a `<a:solidFill>` of `<a:srgbClr val="70AD47"><a:tint val="1000"/></a:srgbClr>` - a
+~1%-tint, near-white fill - deliberately constructing PowerPoint's "hollow outlined numeral"
+effect, where the stroke is the only visible ink. CanvasNet rendered these numerals as nearly
+invisible near-white shapes: `PptxEffectiveRunProperties`/`PaintTextLayout` resolved and painted
+only a run's own `<a:solidFill>` fill color, with no concept at all of a run's own `<a:ln>` (as
+distinct from a shape's `<p:spPr>/<a:ln>`, which strokes the shape's geometry, not its text) - an
+undocumented gap until this investigation (triggered by, but distinct from, a separately-reported
+font-fallback suspicion that this investigation disproved: both this fixture's and a second
+real-world fixture's own theme fonts were confirmed, by direct test, to resolve correctly).
+
+**Scope**: solid-color-only, mirroring the pre-existing run fill color's own scope (`Color` is
+`Rgba32`, not a general `PptxPaint`) - a run `<a:ln>` that declares a `<a:blipFill>` picture-fill
+line paint is short-circuited before `ResolveLineStyle` is ever called (see the picture-fill
+correction below), and one that resolves to "no stroke" or to a gradient/pattern paint (see
+`ResolveLineStyle`'s own documented cases) is treated as "no outline for this run" - but, per the
+explicit-cancellation tier-selection correction below, none of these cases fall through to a
+shallower tier once the first tier declaring an `<a:ln>` at all has been selected; tier selection
+and tier resolution are two separate steps, and only the former walks the attribute-level
+inheritance chain. The companion `<a:effectLst><a:glow>` PowerPoint also applies to
+this fixture's same badges remains out of scope, consistent with this unit's already-documented
+`<a:effectRef>` shape-effects deferral - only the `<a:ln>` stroke itself is implemented.
+
+**Model/inheritance** (`PptxEffectiveTextProperties.cs`/`PptxDocument.TextInheritance.cs`):
+`PptxEffectiveRunProperties` gains three trailing optional fields, `OutlineWidthEmu` (`float?`,
+`null` meaning "no outline"), `OutlineColor` (`Rgba32`, meaningful only when `OutlineWidthEmu` is
+non-null), and `OutlineDashArray` (`IReadOnlyList<float>?`, meaningful only when `OutlineWidthEmu`
+is non-null - see the dash-array correction below) - all optional, so this record's one existing
+construction call site needed no other change. A `GetRunOutline(XElement?, PptxTheme,
+PptxColorMap?)` reuses `ResolveLineStyle` (the exact resolver `RenderShape`/`RenderPicture`/
+`RenderConnector` already use for shape/picture/connector strokes) against an already-selected
+`<a:ln>` element, returning `(WidthEmu, Color, DashArray)` only when `ResolveLineStyle` resolves a
+stroke whose paint is a plain `PptxSolidFill`.
+
+**Correction - explicit-cancellation tier selection (a post-merge code-review finding)**: the
+original implementation chained `GetRunOutline(rPrLikeElement, ...)` itself across the four tiers
+with `??` (`GetRunOutline(runRPr) ?? GetRunOutline(paragraphDefRPr) ?? ...`), exactly like every
+other run attribute's own chain - but unlike every other attribute, `GetRunOutline`'s own `null`
+result is ambiguous between two completely different situations: "this tier's `rPrLikeElement` has
+no `<a:ln>` child at all" (the ordinary "undeclared here, keep searching a shallower tier" case
+every other attribute's chain correctly handles) and "this tier's `<a:ln>` is present but
+explicitly resolves to no stroke" (for example `<a:ln><a:noFill/></a:ln>`, or an explicit
+non-positive `w`, or a non-solid-fill line paint) - a deliberate cancellation that must stop the
+chain outright, not fall through to a shallower tier's own outline. The original `??`-chain-over-
+`GetRunOutline`'s-own-return-value could not distinguish these two cases, so a run that explicitly
+cancelled its own outline (for example inheriting a near-white fill but an explicit
+`<a:ln><a:noFill/></a:ln>` to suppress a paragraph-level stroke) incorrectly inherited the
+paragraph/placeholder/master tier's own outline instead of painting none at all. The fix splits
+tier selection from tier resolution into two distinct steps: first, a plain `??` chain over each
+tier's own raw `rPrLikeElement?.Element(DrawingNamespace + "ln")` picks the first tier whose
+`<a:ln>` child is present at all, regardless of what it resolves to (mirroring exactly how
+`GetTypeface`/`GetFontSizeEmu`/every other attribute's own tier-selection already behaves, since
+those helpers return the raw parsed value, not a doubly-overloaded "absent-or-cancelled" `null`);
+second, that single, already-selected `<a:ln>` element is resolved exactly once via `GetRunOutline`
+(now taking the `<a:ln>` element directly, not an `rPrLikeElement` to search within). Because tier
+selection happens entirely before resolution, a run's own explicit cancellation is now honored
+correctly - the chain never even looks at the paragraph/placeholder/master tiers once the run's
+own `<a:ln>` is selected, whatever it resolves to. `GetRunOutline`'s own XmlDoc previously
+documented the old, buggy fallthrough as a deliberate, accepted simplification ("a document relying
+on that explicit-cancellation nuance is not expected in practice") - that remark has been removed
+now that the behavior it excused is implemented correctly.
+
+**Layout plumbing** (`PptxTextLayout.cs`/`PptxDocument.TextLayout.cs`): `LineGlyph` and
+`PptxGlyphPlacement` each gain the same trailing optional `OutlineWidthEmu`/`OutlineColor`/
+`OutlineDashArray` triple (pre-existing direct-construction call sites, including tests, keep
+compiling unchanged); `BuildLines` additionally autofit-scales both `OutlineWidthEmu` and every
+element of `OutlineDashArray` by the same `fontScale` factor applied to `SizeEmu`, so a
+shrunk-to-fit outline - and its own dash pattern - stays proportional to its own shrunk text (a
+dash array is itself a set of lengths in EMU, exactly like the outline width it is drawn with, so
+it is scaled identically rather than left at its pre-shrink scale).
+
+**Correction - dash-array threading (a second post-merge code-review finding)**: the original
+implementation hard-coded `DashArray: null` on the ad hoc `PptxLineStyle` `PaintTextLayout`
+constructed for a glyph's own outline stroke, even though `ResolveLineStyle` - the very resolver
+`GetRunOutline` reuses - already resolves a run's `<a:ln>/<a:prstDash val="..."/>` into a proper
+`DashArray` for a shape's own geometry outline. The result was silent: a dashed run-level text
+outline rendered as solid, with no error or warning, simply because the resolved dash array was
+discarded three layers downstream of where it was correctly computed. The fix threads the resolved
+dash array, unmodified in shape, through every layer this feature already threads
+`OutlineWidthEmu`/`OutlineColor` through -
+`PptxEffectiveRunProperties.OutlineDashArray` -> `LineGlyph.OutlineDashArray` ->
+`PptxGlyphPlacement.OutlineDashArray` -> `PaintTextLayout`'s own `PptxLineStyle(outlineWidthEmu,
+new PptxSolidFill(glyph.OutlineColor), glyph.OutlineDashArray)` - so a dashed run-level outline now
+renders dashed exactly like a shape's own dashed geometry outline already does, with the same
+autofit `fontScale` scaling applied along the way.
+
+**Correction - picture-fill run outline short-circuit (a third post-merge code-review finding)**:
+`GetRunOutline` delegated straight to `ResolveLineStyle` with no `resolveBlipImage` delegate
+supplied. For a run-level `<a:ln><a:blipFill>...</a:blipFill></a:ln>`, `ResolveLineStyle`'s own
+`ResolveFill` call throws `PptxUnsupportedFeatureException("pptx-picture-fill", ...)` rather than
+returning a non-solid `PptxPaint`; the exception propagated out of `GetRunOutline` and aborted
+rendering the entire slide over a single run's out-of-scope stroke paint. The initial fix added an
+explicit guard checking only for a `<a:blipFill>` child of the selected `<a:ln>` element -
+superseded by the broader guard documented immediately below, which also covers `<a:gradFill>`/
+`<a:pattFill>`.
+
+**Correction - short-circuit every non-`solidFill` run outline paint (a fourth post-merge
+code-review finding)**: the picture-fill-only guard above was itself incomplete. `ResolveFill`
+resolves a _supported_ `<a:gradFill>`/`<a:pattFill>` variant successfully to a non-solid
+`PptxPaint`, which `GetRunOutline`'s own `is { Paint: PptxSolidFill }` pattern match already
+discards harmlessly as "no outline" - but an _unsupported_ variant (a path/no-direction gradient,
+or a pattern preset outside `PptxPresetPattern`'s covered set) still throws
+`PptxUnsupportedFeatureException` out of `ResolveFill`, exactly like the picture-fill case the
+third correction above fixed. The guard in `GetRunOutline` now checks for any of `<a:gradFill>`,
+`<a:pattFill>`, or `<a:blipFill>` as a direct child of the selected `<a:ln>` element and returns
+`null` immediately for all three, before `ResolveLineStyle` is ever called - consistent with this
+feature's documented solid-color-only scope, and without needing to care whether the specific
+gradient/pattern variant happens to be one `ResolveFill` would have resolved successfully or
+rejected (every non-`solidFill` run outline paint is out of scope regardless, so the two cases are
+treated identically up front rather than relying on the post-resolution pattern match to catch only
+the subset that happens not to throw).
+
+**Painting** (`PptxDocument.TextRender.cs`): `PaintTextLayout`'s glyph matrix is now built in two
+stages instead of one - a `localGlyphMatrix` (scale + baseline-origin translation only, no
+`shapeToSurfaceTransform`) builds the glyph's outline in shape-local EMU space, which is then
+`.Transform(shapeToSurfaceTransform)`-ed for the existing fill paint (mathematically identical to
+the prior single-step composed matrix, by matrix-multiplication associativity - the pre-existing
+fill-painting tests needed no changes and continue to pass unmodified). When a glyph's own
+`OutlineWidthEmu` is non-null, its `localGlyphMatrix`-built path is additionally stroked via
+`ResolveStrokeOutline` (constructing an ad hoc single-use `PptxLineStyle(OutlineWidthEmu, new
+PptxSolidFill(OutlineColor), OutlineDashArray)`) before being transformed and filled with
+`OutlineColor` - mirroring `RenderShape`'s own fill-then-stroke pattern, and, by stroking in
+local/native-EMU space before transforming (exactly like every existing shape/picture/connector
+stroke), correctly picking up `ResolveFlattenTolerance`'s coordinate-scale-aware tessellation.
+
+**Test coverage**: `PptxTextTests.cs` gained `ResolveEffectiveRunProperties_RunLn_
+ResolvesOutlineWidthAndColor` (a run-level `<a:ln>` resolves both fields),
+`ResolveEffectiveRunProperties_NoLnDeclared_OutlineWidthEmuIsNull` (absent at every tier, a
+regression guard that the chain still defaults to "no outline"),
+`ResolveEffectiveRunProperties_RunLnExplicitNoFill_CancelsParagraphOutlineInheritance` and
+`ResolveEffectiveRunProperties_RunLnExplicitZeroWidth_CancelsParagraphOutlineInheritance` (a run's
+own explicit `<a:noFill/>`/zero-width `<a:ln>` correctly suppresses a paragraph-level outline
+instead of inheriting it - the Finding 1 regression guards), and
+`ResolveEffectiveRunProperties_RunLnWithPrstDash_ResolvesMatchingOutlineDashArray` (a run-level
+`<a:prstDash val="dash"/>` resolves an `OutlineDashArray` matching the same values
+`ResolveLineStyle` produces for an identically-configured shape outline - the Finding 2 regression
+guard). `PptxTextRenderTests.cs` gained `PaintTextLayout_GlyphWithOutline_
+PaintsOutlineStrokeAroundInterior` (a synthetic square glyph with a near-white fill and a
+strongly-colored outline: the interior samples the fill color, the path edge samples the outline
+color, and the exterior remains untouched) and `PaintTextLayout_GlyphWithDashedOutline_
+PaintsOutlineWithGaps` (the same geometry with a `[10,10]`-unit dash array: sampling along the
+edge's own stroke band proves the stroke is no longer painted continuously - some samples are the
+outline color, some are untouched gaps). A before/after visual repro (the bug report's own
+fixture, slide 3, rendered end-to-end through the public `PptxDocument.Render` API and saved to
+PNG) confirmed the original fix: before, the two numeral badges appeared as near-invisible pale
+shapes; after, both render as clearly visible purple-outlined hollow numerals.
+
 #### Phase 2 Follow-Up: Table Style/Banding Resolution (`<a:tableStyleId>`)
 
 **Bug**: a `<a:tbl>` whose `<a:tblPr>` declares `<a:tableStyleId>{GUID}</a:tableStyleId>`

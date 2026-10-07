@@ -874,6 +874,60 @@ public class PptxTextLayoutTests
     }
 
     /// <summary>
+    ///     Proves a run-level <c>&lt;a:ln&gt;</c> text outline's <c>OutlineWidthEmu</c> and
+    ///     <c>OutlineDashArray</c> survive <see cref="PptxDocument.ResolveTextLayout"/>'s own
+    ///     autofit shrink loop (<c>BuildLines</c>) scaled by the same non-unit <c>fontScale</c>
+    ///     applied to <c>SizeEmu</c> - a regression guard distinct from the direct-construction
+    ///     <see cref="PptxTextRenderTests"/> (which never exercise <c>BuildLines</c> at all) and
+    ///     the pre-shrink <see cref="PptxTextTests"/> inheritance tests (which stop before layout
+    ///     ever runs), so neither suite would catch a regression that stopped copying
+    ///     <c>OutlineWidthEmu</c>/<c>OutlineDashArray</c> into a glyph placement, or stopped
+    ///     scaling either by <c>fontScale</c>, inside <c>BuildLines</c> itself. Reuses the same
+    ///     five-single-line-paragraph/50000 EMU available-height shape as the shrink-loop test
+    ///     above, which converges on <c>fontScale == 0.7</c>, with every run additionally
+    ///     declaring <c>&lt;a:ln w="9525"&gt;</c> (a solid accent-colored stroke with a
+    ///     <c>&lt;a:prstDash val="dash"/&gt;</c> pattern).
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_NormAutofitShrinkWithRunOutline_ScalesOutlineWidthAndDashArrayByFontScale()
+    {
+        var bodyPr = new XElement(
+            DrawingNs + "bodyPr",
+            new XAttribute("lIns", "0"), new XAttribute("tIns", "0"), new XAttribute("rIns", "0"), new XAttribute("bIns", "0"),
+            new XElement(DrawingNs + "normAutofit"));
+
+        var ln = new XElement(
+            DrawingNs + "ln",
+            new XAttribute("w", "9525"),
+            new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "FF00FF"))),
+            new XElement(DrawingNs + "prstDash", new XAttribute("val", "dash")));
+
+        var paragraphs = Enumerable.Range(0, 5)
+            .Select(_ => new XElement(
+                DrawingNs + "p",
+                new XElement(
+                    DrawingNs + "r",
+                    new XElement(DrawingNs + "rPr", new XAttribute("sz", "100"), new XElement(ln)),
+                    new XElement(DrawingNs + "t", "A"))))
+            .ToArray();
+
+        var txBody = new XElement(PresentationNs + "txBody", bodyPr, paragraphs);
+        var textBody = PptxDocument.ParseTextBody(txBody);
+
+        var layout = Layout(textBody, 50000f, 50000f);
+
+        Assert.Equal(0.7f, layout.AppliedFontScale, 2);
+        var glyph = layout.Glyphs[0];
+        Assert.NotNull(glyph.OutlineWidthEmu);
+        Assert.Equal(9525f * 0.7f, glyph.OutlineWidthEmu.Value, 2);
+        Assert.NotNull(glyph.OutlineDashArray);
+        Assert.Equal(new Rgba32(0xFF, 0x00, 0xFF, 0xFF), glyph.OutlineColor);
+        Assert.Equal(2, glyph.OutlineDashArray.Count);
+        Assert.Equal(9525f * 4f * 0.7f, glyph.OutlineDashArray[0], 2);
+        Assert.Equal(9525f * 3f * 0.7f, glyph.OutlineDashArray[1], 2);
+    }
+
+    /// <summary>
     ///     Proves a <c>&lt;a:normAutofit fontScale="..."/&gt;</c> with a non-numeric
     ///     <c>fontScale</c> attribute is rejected with <see cref="InvalidDataException"/> rather
     ///     than letting the explicit <c>(float?)</c> cast's raw <see cref="FormatException"/>

@@ -620,6 +620,233 @@ public class PptxTextTests
     }
 
     /// <summary>
+    ///     Resolve Effective Run Properties - a run-level <c>&lt;a:ln&gt;</c> (Phase 2 Follow-Up:
+    ///     Run Text Outline) resolves <see cref="PptxEffectiveRunProperties.OutlineWidthEmu"/>/
+    ///     <see cref="PptxEffectiveRunProperties.OutlineColor"/>, reproducing the real-world
+    ///     "hollow outlined numeral" markup (a near-invisible fill paired with a solid-colored
+    ///     stroke) that originally surfaced this gap.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_RunLn_ResolvesOutlineWidthAndColor()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "FFFFFF"))),
+            new XElement(
+                DrawingNs + "ln",
+                new XAttribute("w", "19050"),
+                new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "7030A0"))))));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Equal(19050f, result.OutlineWidthEmu);
+        Assert.Equal(new Rgba32(0x70, 0x30, 0xA0, 255), result.OutlineColor);
+    }
+
+    /// <summary>Resolve Effective Run Properties - No <c>&lt;a:ln&gt;</c> declared at any inheritance tier - OutlineWidthEmu stays <see langword="null"/> (no outline painted).</summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_NoLnDeclared_OutlineWidthEmuIsNull()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "FF0000")))));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Null(result.OutlineWidthEmu);
+    }
+
+    /// <summary>
+    ///     Resolve Effective Run Properties - a run's own explicit <c>&lt;a:ln&gt;&lt;a:noFill/&gt;
+    ///     &lt;/a:ln&gt;</c> cancellation must win outright over a shallower tier's own declared
+    ///     outline (regression test for the tier-selection bug: "resolves to null" at the run's own
+    ///     tier used to be indistinguishable from "undeclared here", incorrectly letting the
+    ///     paragraph-level outline leak through).
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_RunLnExplicitNoFill_CancelsParagraphOutlineInheritance()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XElement(DrawingNs + "ln", new XElement(DrawingNs + "noFill"))));
+        var paragraphDefRPr = new XElement(
+            DrawingNs + "defRPr",
+            new XElement(
+                DrawingNs + "ln",
+                new XAttribute("w", "19050"),
+                new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "7030A0")))));
+        var paragraph = Paragraph(new XElement(DrawingNs + "pPr", paragraphDefRPr), run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Null(result.OutlineWidthEmu);
+    }
+
+    /// <summary>
+    ///     Resolve Effective Run Properties - a run's own explicit non-positive <c>w</c> (an
+    ///     explicit zero-width <c>&lt;a:ln&gt;</c>) must likewise cancel a shallower tier's own
+    ///     declared outline, exactly like an explicit <c>&lt;a:noFill/&gt;</c> line does.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_RunLnExplicitZeroWidth_CancelsParagraphOutlineInheritance()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XElement(
+                DrawingNs + "ln",
+                new XAttribute("w", "0"),
+                new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "7030A0"))))));
+        var paragraphDefRPr = new XElement(
+            DrawingNs + "defRPr",
+            new XElement(
+                DrawingNs + "ln",
+                new XAttribute("w", "19050"),
+                new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "7030A0")))));
+        var paragraph = Paragraph(new XElement(DrawingNs + "pPr", paragraphDefRPr), run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Null(result.OutlineWidthEmu);
+    }
+
+    /// <summary>
+    ///     Resolve Effective Run Properties - a run-level <c>&lt;a:ln&gt;</c> declaring
+    ///     <c>&lt;a:prstDash val="dash"/&gt;</c> (Phase 2 Follow-Up: Run Text Outline Dash
+    ///     Threading) resolves a non-null <see cref="PptxEffectiveRunProperties.OutlineDashArray"/>
+    ///     matching the exact same dash-array values <see cref="PptxDocument.ResolveLineStyle"/>
+    ///     already produces for a shape outline declaring the same preset at the same width -
+    ///     proving the dash array is no longer silently discarded.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_RunLnWithPrstDash_ResolvesMatchingOutlineDashArray()
+    {
+        var theme = BuildTestTheme();
+        var lnElement = new XElement(
+            DrawingNs + "ln",
+            new XAttribute("w", "19050"),
+            new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "7030A0"))),
+            new XElement(DrawingNs + "prstDash", new XAttribute("val", "dash")));
+        var run = Run(new XElement(DrawingNs + "rPr", new XElement(lnElement)));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+        var expectedLineStyle = PptxDocument.ResolveLineStyle(lnElement, theme);
+
+        Assert.Equal(19050f, result.OutlineWidthEmu);
+        Assert.NotNull(result.OutlineDashArray);
+        Assert.Equal(expectedLineStyle!.DashArray, result.OutlineDashArray);
+    }
+
+    /// <summary>
+    ///     Resolve Effective Run Properties - a run-level <c>&lt;a:ln&gt;</c> declaring a
+    ///     <c>&lt;a:blipFill&gt;</c> picture-fill line paint (out of scope - this unit's run
+    ///     outline color is solid-only, see this feature's design-doc scope note) resolves to "no
+    ///     outline" instead of propagating <see cref="PptxUnsupportedFeatureException"/> -
+    ///     regression test for a post-merge code-review finding: <c>GetRunOutline</c> previously
+    ///     called <see cref="PptxDocument.ResolveLineStyle"/> with no <c>resolveBlipImage</c>
+    ///     delegate, so a run-level picture-fill outline's own <see cref="PptxDocument.ResolveFill"/>
+    ///     call threw instead of degrading gracefully the way a gradient/pattern line paint
+    ///     already does, aborting rendering of the entire slide over a single unsupported run's
+    ///     stroke paint.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_RunLnWithBlipFill_ResolvesNoOutlineInsteadOfThrowing()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XElement(
+                DrawingNs + "ln",
+                new XAttribute("w", "19050"),
+                new XElement(
+                    DrawingNs + "blipFill",
+                    new XElement(
+                        DrawingNs + "blip",
+                        new XAttribute(
+                            XNamespace.Get("http://schemas.openxmlformats.org/officeDocument/2006/relationships") + "embed",
+                            "rId1"))))));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Null(result.OutlineWidthEmu);
+    }
+
+    /// <summary>
+    ///     Resolve Effective Run Properties - a run-level <c>&lt;a:ln&gt;</c> declaring an
+    ///     <c>&lt;a:gradFill&gt;</c> path gradient (one of the specific gradient/pattern variants
+    ///     <see cref="PptxDocument.ResolveFill"/> itself rejects with
+    ///     <see cref="PptxUnsupportedFeatureException"/>) resolves to "no outline" instead of
+    ///     propagating that exception - regression test for a second post-merge code-review
+    ///     finding: the first blip-fill-only short-circuit guard still let
+    ///     <see cref="PptxDocument.ResolveLineStyle"/> call through to <c>ResolveFill</c> for every
+    ///     other non-<c>solidFill</c> paint, so an out-of-scope gradient/pattern run outline could
+    ///     likewise abort rendering of the whole slide depending on which specific variant it used.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_RunLnWithUnsupportedPathGradFill_ResolvesNoOutlineInsteadOfThrowing()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XElement(
+                DrawingNs + "ln",
+                new XAttribute("w", "19050"),
+                new XElement(
+                    DrawingNs + "gradFill",
+                    new XElement(
+                        DrawingNs + "gsLst",
+                        new XElement(
+                        DrawingNs + "gs",
+                        new XAttribute("pos", "0"),
+                        new XElement(DrawingNs + "srgbClr", new XAttribute("val", "FF0000")))),
+                    new XElement(DrawingNs + "path")))));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Null(result.OutlineWidthEmu);
+    }
+
+    /// <summary>
+    ///     Resolve Effective Run Properties - a run-level <c>&lt;a:ln&gt;</c> declaring an
+    ///     <c>&lt;a:pattFill prst="..."/&gt;</c> naming a preset outside <see cref="PptxPresetPattern"/>'s
+    ///     covered set resolves to "no outline" instead of propagating
+    ///     <see cref="PptxUnsupportedFeatureException"/> - the pattern-fill counterpart to the
+    ///     path-gradient regression test above.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_RunLnWithUnsupportedPattFill_ResolvesNoOutlineInsteadOfThrowing()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XElement(
+                DrawingNs + "ln",
+                new XAttribute("w", "19050"),
+                new XElement(DrawingNs + "pattFill", new XAttribute("prst", "notARealPreset")))));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Null(result.OutlineWidthEmu);
+    }
+
+    /// <summary>
     ///     Resolve Effective Run Properties - Theme Font Tokens - Resolve Through The Theme's
     ///     FontScheme (rather than being passed through as literal, unresolvable family name
     ///     strings, which would miss the theme's actual font and fall back to the font

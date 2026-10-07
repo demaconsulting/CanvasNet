@@ -189,6 +189,77 @@ public class PptxTextRenderTests
         Assert.Equal(default, surface[25, 112]);
     }
 
+    /// <summary>
+    ///     Proves a glyph with a non-null <see cref="PptxGlyphPlacement.OutlineWidthEmu"/> (Phase
+    ///     2 Follow-Up: Run Text Outline) is stroked with <see cref="PptxGlyphPlacement.OutlineColor"/>
+    ///     straddling its own path edge, in addition to its own interior fill - reproducing the
+    ///     real-world "hollow outlined numeral" effect (a near-invisible fill paired with a
+    ///     strongly-colored <c>&lt;a:ln&gt;</c> stroke) that originally surfaced this gap.
+    /// </summary>
+    [Fact]
+    public void PaintTextLayout_GlyphWithOutline_PaintsOutlineStrokeAroundInterior()
+    {
+        // Same geometry as PaintTextLayout_IdentityTransform_PaintsGlyphAtExpectedLocationWithResolvedColor:
+        // font-unit square [100,900]x[100,900], SizeEmu 100 -> scale 0.1, Origin (5,95) -> surface
+        // square [15,95]x[5,85] (identity transform, so shape-local EMU == surface pixels here).
+        var font = NewFilledSquareFont();
+        var glyphIndex = font.GetGlyphIndex('A');
+        var fillColor = new Rgba32(254, 254, 254, 255);
+        var outlineColor = new Rgba32(120, 30, 170, 255);
+        var glyph = new PptxGlyphPlacement(
+            font, glyphIndex, OriginXEmu: 5f, OriginYEmu: 95f, SizeEmu: 100f, fillColor,
+            OutlineWidthEmu: 4f, outlineColor);
+        var layout = new PptxTextLayout([glyph], AppliedFontScale: 1f);
+
+        using var surface = new Surface(100, 100);
+
+        PptxDocument.PaintTextLayout(surface, layout, Matrix3x2.Identity);
+
+        // Comfortably inside the square (away from every edge): the fill color, not the outline.
+        Assert.Equal(fillColor, surface[50, 50]);
+        // Straddling the square's left edge (x=15, +/- the 4-EMU stroke's half-width): the outline color.
+        Assert.Equal(outlineColor, surface[15, 50]);
+        // Comfortably outside the square and its stroke: untouched.
+        Assert.Equal(default, surface[2, 2]);
+    }
+
+    /// <summary>
+    ///     Proves a glyph with a non-null <see cref="PptxGlyphPlacement.OutlineDashArray"/> (Phase
+    ///     2 Follow-Up: Run Text Outline Dash Threading) is stroked with visible gaps along its own
+    ///     edge, instead of silently degrading to a solid stroke - regression test for the bug
+    ///     where <c>PaintTextLayout</c> hard-coded <c>DashArray: null</c> on the ad hoc
+    ///     <see cref="PptxLineStyle"/> it built for a glyph's outline, discarding whatever dash
+    ///     pattern a run-level <c>&lt;a:ln&gt;&lt;a:prstDash&gt;</c> had already resolved.
+    /// </summary>
+    [Fact]
+    public void PaintTextLayout_GlyphWithDashedOutline_PaintsOutlineWithGaps()
+    {
+        // Same geometry as PaintTextLayout_GlyphWithOutline_PaintsOutlineStrokeAroundInterior.
+        var font = NewFilledSquareFont();
+        var glyphIndex = font.GetGlyphIndex('A');
+        var fillColor = new Rgba32(254, 254, 254, 255);
+        var outlineColor = new Rgba32(120, 30, 170, 255);
+        IReadOnlyList<float> dashArray = [10f, 10f];
+        var glyph = new PptxGlyphPlacement(
+            font, glyphIndex, OriginXEmu: 5f, OriginYEmu: 95f, SizeEmu: 100f, fillColor,
+            OutlineWidthEmu: 4f, outlineColor, dashArray);
+        var layout = new PptxTextLayout([glyph], AppliedFontScale: 1f);
+
+        using var surface = new Surface(100, 100);
+
+        PptxDocument.PaintTextLayout(surface, layout, Matrix3x2.Identity);
+
+        // Sample across the top edge's own stroke band (y=3, inside the 4-EMU stroke's
+        // half-width, just above the square's filled interior) for the square's full x extent
+        // (x in [16,94]): with a [10,10]-unit dash cycle over an 80-unit edge, a dashed stroke
+        // must leave some of these samples untouched (a gap - still painted outlineColor by a
+        // solid stroke, since DashArray: null paints every sample along the edge) while still
+        // painting others with the outline color.
+        var samples = Enumerable.Range(16, 79).Select(x => surface[x, 3]).ToList();
+        Assert.Contains(outlineColor, samples);
+        Assert.Contains((Rgba32)default, samples);
+    }
+
     /// <summary>Proves <see cref="PptxDocument.ResolveTextFont"/> falls back to the bundled font when the family hint does not match any resolvable system font criterion and no installed font happens to be returned as a generic-family fallback (bundled fallback is always reachable regardless).</summary>
     [Fact]
     public void ResolveTextFont_AnyFamilyHint_ResolvesNonNullFont()

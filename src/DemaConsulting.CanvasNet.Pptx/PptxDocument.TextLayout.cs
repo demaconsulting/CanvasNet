@@ -317,7 +317,15 @@ public sealed partial class PptxDocument
         bool IsTab = false);
 
     /// <summary>A single laid-out glyph, positioned relative to its own line's start (alignment/margin not yet applied).</summary>
-    private readonly record struct LineGlyph(TrueTypeFont Font, int GlyphIndex, float XInLineEmu, float SizeEmu, Rgba32 Color);
+    private readonly record struct LineGlyph(
+        TrueTypeFont Font,
+        int GlyphIndex,
+        float XInLineEmu,
+        float SizeEmu,
+        Rgba32 Color,
+        float? OutlineWidthEmu = null,
+        Rgba32 OutlineColor = default,
+        IReadOnlyList<float>? OutlineDashArray = null);
 
     /// <summary>
     ///     A single contiguous underlined span on one line (Phase 2 Follow-Up: Underline
@@ -493,7 +501,16 @@ public sealed partial class PptxDocument
                 runIndex++;
                 var scaledSizeEmu = runProps.SizeEmu * fontScale;
                 var font = resolveFont(runProps.FontFamily, runProps.Bold, runProps.Italic);
-                var scaledRunProps = runProps with { SizeEmu = scaledSizeEmu };
+                var scaledRunProps = runProps with
+                {
+                    SizeEmu = scaledSizeEmu,
+                    OutlineWidthEmu = runProps.OutlineWidthEmu is { } outlineWidthEmu ? outlineWidthEmu * fontScale : null,
+                    // A dash array is itself a set of lengths in EMU (dash/gap segment lengths),
+                    // so each element is scaled by the same fontScale factor as OutlineWidthEmu -
+                    // otherwise a shrunk-to-fit outline's dash pattern would stay at its
+                    // pre-shrink scale, visually disproportionate to the now-thinner stroke.
+                    OutlineDashArray = runProps.OutlineDashArray?.Select(dash => dash * fontScale).ToArray(),
+                };
 
                 foreach (var (text, isWhitespace, isTab) in Tokenize(run.Text))
                 {
@@ -572,7 +589,10 @@ public sealed partial class PptxDocument
                             var advance = resolvedFont.GetAdvanceWidth(glyphIndex) / (float)resolvedFont.UnitsPerEm * token.RunProperties.SizeEmu;
                             if (!token.IsWhitespace)
                             {
-                                glyphs.Add(new LineGlyph(resolvedFont, glyphIndex, cursorX, token.RunProperties.SizeEmu, token.RunProperties.Color));
+                                glyphs.Add(new LineGlyph(
+                                    resolvedFont, glyphIndex, cursorX, token.RunProperties.SizeEmu, token.RunProperties.Color,
+                                    token.RunProperties.OutlineWidthEmu, token.RunProperties.OutlineColor,
+                                    token.RunProperties.OutlineDashArray));
                             }
 
                             cursorX += advance;
@@ -1017,7 +1037,9 @@ public sealed partial class PptxDocument
 
             foreach (var glyph in line.Glyphs)
             {
-                glyphs.Add(new PptxGlyphPlacement(glyph.Font, glyph.GlyphIndex, startX + glyph.XInLineEmu, baselineY, glyph.SizeEmu, glyph.Color));
+                glyphs.Add(new PptxGlyphPlacement(
+                    glyph.Font, glyph.GlyphIndex, startX + glyph.XInLineEmu, baselineY, glyph.SizeEmu, glyph.Color,
+                    glyph.OutlineWidthEmu, glyph.OutlineColor, glyph.OutlineDashArray));
             }
 
             foreach (var span in line.UnderlineSpans)

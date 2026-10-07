@@ -18,6 +18,32 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     meaningful when <paramref name="UnderlineStyle"/> is not <see cref="PptxUnderlineStyle.None"/>.
 /// </param>
 /// <param name="Color">The run's resolved color.</param>
+/// <param name="OutlineWidthEmu">
+///     The run's resolved text-outline (stroke) width, in EMU, from a run-level <c>&lt;a:ln&gt;</c>
+///     child of <c>&lt;a:rPr&gt;</c>/<c>&lt;a:defRPr&gt;</c> (Phase 2 Follow-Up: Run Text Outline) -
+///     <see langword="null"/> both when no tier in the attribute-level inheritance chain declares
+///     an <c>&lt;a:ln&gt;</c> at all, and when the first tier that does declare one explicitly
+///     cancels the outline (an <c>&lt;a:noFill/&gt;</c> line fill, a non-positive <c>w</c>, or a
+///     resolved paint that is not a plain solid color) - either way meaning "no outline is painted
+///     for this run"; see <see cref="PptxDocument.ResolveEffectiveRunProperties"/>'s own tier-
+///     selection-then-resolution remarks for why these two distinct cases both collapse to
+///     <see langword="null"/> here without the explicit-cancellation case falling through to a
+///     shallower tier. Distinct from a shape's own <c>&lt;p:spPr&gt;/&lt;a:ln&gt;</c>, which
+///     strokes the shape's geometry, not its text.
+/// </param>
+/// <param name="OutlineColor">
+///     The run's resolved text-outline ink color, only meaningful when
+///     <paramref name="OutlineWidthEmu"/> is non-<see langword="null"/>.
+/// </param>
+/// <param name="OutlineDashArray">
+///     The run's resolved text-outline dash pattern, in EMU (Phase 2 Follow-Up: Run Text Outline
+///     Dash Threading), resolved from the same <c>&lt;a:ln&gt;/&lt;a:prstDash val="..."/&gt;</c>
+///     that <see cref="PptxDocument.ResolveLineStyle"/> already resolves for a shape's own
+///     geometry outline - <see langword="null"/> means a solid outline (either no
+///     <c>&lt;a:prstDash&gt;</c> at all, an explicit <c>val="solid"</c>, or an unrecognized preset
+///     name - see <see cref="PptxDocument.ResolveLineStyle"/>'s own remarks), only meaningful when
+///     <paramref name="OutlineWidthEmu"/> is non-<see langword="null"/>.
+/// </param>
 internal sealed record PptxEffectiveRunProperties(
     string FontFamily,
     float SizeEmu,
@@ -25,7 +51,10 @@ internal sealed record PptxEffectiveRunProperties(
     bool Italic,
     PptxUnderlineStyle UnderlineStyle,
     Rgba32 UnderlineColor,
-    Rgba32 Color);
+    Rgba32 Color,
+    float? OutlineWidthEmu = null,
+    Rgba32 OutlineColor = default,
+    IReadOnlyList<float>? OutlineDashArray = null);
 
 /// <summary>
 ///     The discriminator for a run's resolved <c>&lt;a:rPr u="..."/&gt;</c> underline style
