@@ -1,6 +1,8 @@
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 
+// cspell:ignore THEMEVAL
+
 namespace DemaConsulting.CanvasNet.Vsdx;
 
 // cspell:ignore vsdx Visio Rgba Themed Foregnd
@@ -15,9 +17,11 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     <c>FillForegnd</c>); any other numeric <c>FillPattern</c> value degrades to the same solid-
 ///     fill treatment as <c>1</c> rather than throwing (see <see cref="VsdxResolvedPaint"/>'s own
 ///     remarks for the design-doc citation), and the literal sentinel <c>"Themed"</c> color value
-///     resolves through <see cref="VsdxColorPalette.ThemedFallback"/> (deferred in full to
-///     Milestone 6 - see <see cref="VsdxColorPalette.ThemedFallback"/>'s own remarks for the
-///     fixture evidence motivating this deliberate deviation from the originating plan report).
+///     resolves against the document's parsed theme (<c>VsdxDocument.Theme.cs</c>) when the
+///     cell's own formula carries a recognized <c>THEMEVAL("slotName")</c> reference, falling back
+///     to <see cref="VsdxColorPalette.ThemedFallback"/> otherwise (see that member's own remarks
+///     for the fixture evidence motivating this deliberate deviation from the originating
+///     Milestone-4 plan report).
 ///     Also resolves <c>BeginArrow</c>/<c>EndArrow</c> (and their paired
 ///     <c>BeginArrowSize</c>/<c>EndArrowSize</c>) through the exact same <c>Line*</c>-category
 ///     precedence - see <c>VsdxDocument.Arrowheads.cs</c>'s <c>ResolveArrowhead</c>.
@@ -45,12 +49,12 @@ public sealed partial class VsdxDocument
         var sectionNoFill = geometries.Count > 0 && geometries[0].NoFill;
         var sectionNoLine = geometries.Count > 0 && geometries[0].NoLine;
 
-        var linePattern = ResolveLineCellValue(effectiveCells, "LinePattern", lineStyleId);
-        var lineColorRaw = ResolveLineCellValue(effectiveCells, "LineColor", lineStyleId);
-        var lineWeightRaw = ResolveLineCellValue(effectiveCells, "LineWeight", lineStyleId);
+        var linePattern = ResolveLineCellValue(effectiveCells, "LinePattern", lineStyleId)?.Value;
+        var lineColorCell = ResolveLineCellValue(effectiveCells, "LineColor", lineStyleId);
+        var lineWeightRaw = ResolveLineCellValue(effectiveCells, "LineWeight", lineStyleId)?.Value;
 
-        var fillPattern = ResolveFillCellValue(effectiveCells, "FillPattern", fillStyleId);
-        var fillColorRaw = ResolveFillCellValue(effectiveCells, "FillForegnd", fillStyleId);
+        var fillPattern = ResolveFillCellValue(effectiveCells, "FillPattern", fillStyleId)?.Value;
+        var fillColorCell = ResolveFillCellValue(effectiveCells, "FillForegnd", fillStyleId);
 
         var hasLine = !sectionNoLine && linePattern != "0";
         var hasFill = !sectionNoFill && fillPattern != "0";
@@ -63,12 +67,14 @@ public sealed partial class VsdxDocument
         var beginArrowhead = ResolveArrowhead(effectiveCells, lineStyleId, isBegin: true);
         var endArrowhead = ResolveArrowhead(effectiveCells, lineStyleId, isBegin: false);
 
+        var theme = GetTheme();
+
         return new VsdxResolvedPaint(
             HasLine: hasLine,
-            StrokeColor: VsdxColorPalette.Resolve(lineColorRaw, DefaultStrokeColor),
+            StrokeColor: VsdxColorPalette.Resolve(lineColorCell?.Value, lineColorCell?.Formula, theme, DefaultStrokeColor),
             StrokeWidthInches: strokeWidth,
             HasFill: hasFill,
-            FillColor: VsdxColorPalette.Resolve(fillColorRaw, DefaultFillColor),
+            FillColor: VsdxColorPalette.Resolve(fillColorCell?.Value, fillColorCell?.Formula, theme, DefaultFillColor),
             BeginArrowhead: beginArrowhead,
             EndArrowhead: endArrowhead);
     }
@@ -77,19 +83,19 @@ public sealed partial class VsdxDocument
     /// <param name="effectiveCells">The shape's merged flat cell bag.</param>
     /// <param name="cellName">The cell name to resolve.</param>
     /// <param name="lineStyleId">The shape's effective <c>LineStyle</c> StyleSheet ID.</param>
-    /// <returns>The resolved raw value, or <see langword="null"/> when unresolved anywhere.</returns>
-    private string? ResolveLineCellValue(VsdxCellBag effectiveCells, string cellName, string? lineStyleId) =>
+    /// <returns>The resolved cell (carrying both its raw value and formula, for theme-aware callers), or <see langword="null"/> when unresolved anywhere.</returns>
+    private VsdxCell? ResolveLineCellValue(VsdxCellBag effectiveCells, string cellName, string? lineStyleId) =>
         effectiveCells.TryGetLiteral(cellName, out var cell)
-            ? cell.Value
+            ? cell
             : ResolveStyleCellValue(lineStyleId, cellName, style => style.LineStyleParentId);
 
     /// <summary>Resolves a <c>Fill*</c>-category cell: the shape's own literal value, or the StyleSheet chain walked via the <c>FillStyle</c> parent pointer.</summary>
     /// <param name="effectiveCells">The shape's merged flat cell bag.</param>
     /// <param name="cellName">The cell name to resolve.</param>
     /// <param name="fillStyleId">The shape's effective <c>FillStyle</c> StyleSheet ID.</param>
-    /// <returns>The resolved raw value, or <see langword="null"/> when unresolved anywhere.</returns>
-    private string? ResolveFillCellValue(VsdxCellBag effectiveCells, string cellName, string? fillStyleId) =>
+    /// <returns>The resolved cell (carrying both its raw value and formula, for theme-aware callers), or <see langword="null"/> when unresolved anywhere.</returns>
+    private VsdxCell? ResolveFillCellValue(VsdxCellBag effectiveCells, string cellName, string? fillStyleId) =>
         effectiveCells.TryGetLiteral(cellName, out var cell)
-            ? cell.Value
+            ? cell
             : ResolveStyleCellValue(fillStyleId, cellName, style => style.FillStyleParentId);
 }

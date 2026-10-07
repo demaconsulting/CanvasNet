@@ -125,7 +125,7 @@ internal sealed record VsdxEffectiveTextBoxStyle(
 /// <param name="SizeInches">The resolved font em-height, in inches (Visio's own native unit for this cell).</param>
 /// <param name="Bold">Whether the run is resolved bold (<c>Style</c> bit 0).</param>
 /// <param name="Italic">Whether the run is resolved italic (<c>Style</c> bit 1).</param>
-/// <param name="Color">The resolved ink color (see <see cref="VsdxColorPalette.Resolve"/>).</param>
+/// <param name="Color">The resolved ink color (see <c>VsdxColorPalette.Resolve</c>).</param>
 /// <param name="Paragraph">The owning paragraph's resolved effective properties.</param>
 internal sealed record VsdxEffectiveTextRun(
     string Text,

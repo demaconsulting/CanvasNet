@@ -1,4 +1,4 @@
-// cspell:ignore vsdx Visio
+// cspell:ignore vsdx Visio THEMEVAL
 
 using System.IO.Compression;
 using System.Text;
@@ -43,14 +43,16 @@ internal static class VsdxTestPackages
         </VisioDocument>
         """;
 
-    /// <summary>Builds <c>visio/_rels/document.xml.rels</c>, declaring a required <c>pages</c> relationship and an optional <c>masters</c> relationship.</summary>
+    /// <summary>Builds <c>visio/_rels/document.xml.rels</c>, declaring a required <c>pages</c> relationship and optional <c>masters</c>/<c>theme</c> relationships.</summary>
     /// <param name="includeMasters">Whether to declare a relationship to <c>visio/masters/masters.xml</c>.</param>
-    public static string BuildDocumentRelsXml(bool includeMasters) =>
+    /// <param name="includeTheme">Whether to declare a relationship to <c>visio/theme/theme1.xml</c>.</param>
+    public static string BuildDocumentRelsXml(bool includeMasters, bool includeTheme = false) =>
         $"""
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
           <Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/pages" Target="pages/pages.xml" />
         {(includeMasters ? """<Relationship Id="rId2" Type="http://schemas.microsoft.com/visio/2010/relationships/masters" Target="masters/masters.xml" />""" : string.Empty)}
+        {(includeTheme ? """<Relationship Id="rId3" Type="http://schemas.microsoft.com/visio/2010/relationships/theme" Target="theme/theme1.xml" />""" : string.Empty)}
         </Relationships>
         """;
 
@@ -122,21 +124,57 @@ internal static class VsdxTestPackages
         """;
 
     /// <summary>
+    ///     Builds a minimal, synthetic <c>visio/theme/theme1.xml</c>, declaring a single named
+    ///     <c>&lt;a:clrScheme&gt;</c> slot (any of the 12 canonical DrawingML slot names) as an
+    ///     <c>&lt;a:srgbClr&gt;</c> literal, with every other slot a distinct, recognizable filler
+    ///     color - enough to prove a specific slot resolves through <c>VsdxColorPalette.Resolve</c>'s
+    ///     own narrow <c>THEMEVAL("slotName")</c> text match without ambiguity against any other
+    ///     slot's own color.
+    /// </summary>
+    /// <param name="slotName">The clrScheme slot name to set to <paramref name="slotHexColor"/> (for example <c>"accent1"</c>).</param>
+    /// <param name="slotHexColor">The 6-digit hex color (no leading <c>#</c>) to assign to <paramref name="slotName"/>.</param>
+    public static string BuildTheme1Xml(string slotName, string slotHexColor)
+    {
+        var slotNames = new[]
+        {
+            "dk1", "lt1", "dk2", "lt2",
+            "accent1", "accent2", "accent3", "accent4", "accent5", "accent6",
+            "hlink", "folHlink"
+        };
+
+        var slotsXml = string.Concat(slotNames.Select((name, index) =>
+            $"<a:{name}><a:srgbClr val=\"{(name == slotName ? slotHexColor : $"{index:X2}{index:X2}{index:X2}")}\"/></a:{name}>"));
+
+        return $"""
+               <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+               <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Test Theme">
+                 <a:themeElements>
+                   <a:clrScheme name="Test">
+               {slotsXml}
+                   </a:clrScheme>
+                 </a:themeElements>
+               </a:theme>
+               """;
+    }
+
+    /// <summary>
     ///     Assembles a complete in-memory <c>.vsdx</c> ZIP package from its parts, omitting the
-    ///     masters entries entirely when <paramref name="mastersXml"/> is <see langword="null"/>.
+    ///     masters entries entirely when <paramref name="mastersXml"/> is <see langword="null"/>,
+    ///     and the theme entry entirely when <paramref name="theme1Xml"/> is <see langword="null"/>.
     /// </summary>
     /// <param name="pageShapesXml">The page's own top-level <c>&lt;Shape&gt;</c> markup (see <see cref="BuildPageContentXml"/>).</param>
     /// <param name="styleSheetsXml">The optional literal <c>&lt;StyleSheets&gt;</c> markup to embed in <c>visio/document.xml</c>.</param>
     /// <param name="mastersXml">The optional literal <c>&lt;Shape&gt;</c> markup for a single Master (<c>ID="1"</c>); when supplied, the package also declares the <c>masters</c> relationship and parts.</param>
     /// <param name="connectsXml">The optional literal <c>&lt;Connect .../&gt;</c> markup for the page's <c>&lt;Connects&gt;</c> section - see <see cref="BuildPageContentXml"/>.</param>
-    public static Stream BuildPackage(string pageShapesXml, string? styleSheetsXml = null, string? mastersXml = null, string? connectsXml = null)
+    /// <param name="theme1Xml">The optional literal <c>&lt;a:theme&gt;...&lt;/a:theme&gt;</c> markup for <c>visio/theme/theme1.xml</c>; when supplied, the package also declares the <c>theme</c> relationship and part.</param>
+    public static Stream BuildPackage(string pageShapesXml, string? styleSheetsXml = null, string? mastersXml = null, string? connectsXml = null, string? theme1Xml = null)
     {
         var entries = new List<(string Name, string Content)>
         {
             ("[Content_Types].xml", ContentTypesXml),
             ("_rels/.rels", PackageRelsXml),
             ("visio/document.xml", BuildDocumentXml(styleSheetsXml)),
-            ("visio/_rels/document.xml.rels", BuildDocumentRelsXml(includeMasters: mastersXml is not null)),
+            ("visio/_rels/document.xml.rels", BuildDocumentRelsXml(includeMasters: mastersXml is not null, includeTheme: theme1Xml is not null)),
             ("visio/pages/pages.xml", BuildPagesXml()),
             ("visio/pages/_rels/pages.xml.rels", BuildPagesRelsXml()),
             ("visio/pages/page1.xml", BuildPageContentXml(pageShapesXml, connectsXml))
@@ -147,6 +185,11 @@ internal static class VsdxTestPackages
             entries.Add(("visio/masters/masters.xml", BuildMastersXml()));
             entries.Add(("visio/masters/_rels/masters.xml.rels", BuildMastersRelsXml()));
             entries.Add(("visio/masters/master1.xml", BuildMasterContentXml(mastersXml)));
+        }
+
+        if (theme1Xml is not null)
+        {
+            entries.Add(("visio/theme/theme1.xml", theme1Xml));
         }
 
         var stream = new MemoryStream();

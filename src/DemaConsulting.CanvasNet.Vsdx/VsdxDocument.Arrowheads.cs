@@ -34,8 +34,8 @@ public sealed partial class VsdxDocument
         var styleCellName = isBegin ? "BeginArrow" : "EndArrow";
         var sizeCellName = isBegin ? "BeginArrowSize" : "EndArrowSize";
 
-        var styleRaw = ResolveLineCellValue(effectiveCells, styleCellName, lineStyleId);
-        var sizeRaw = ResolveLineCellValue(effectiveCells, sizeCellName, lineStyleId);
+        var styleRaw = ResolveLineCellValue(effectiveCells, styleCellName, lineStyleId)?.Value;
+        var sizeRaw = ResolveLineCellValue(effectiveCells, sizeCellName, lineStyleId)?.Value;
 
         var style = ParseArrowheadStyle(styleRaw);
         return style == VsdxArrowheadStyle.None

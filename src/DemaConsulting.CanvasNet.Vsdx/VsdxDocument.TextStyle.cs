@@ -83,7 +83,7 @@ public sealed partial class VsdxDocument
         string? ResolveFlat(string cellName) =>
             effectiveCells.TryGetLiteral(cellName, out var cell)
                 ? cell.Value
-                : ResolveStyleCellValue(textStyleId, cellName, style => style.TextStyleParentId);
+                : ResolveStyleCellValue(textStyleId, cellName, style => style.TextStyleParentId)?.Value;
 
         var verticalAlign = ResolveFlat("VerticalAlign") switch
         {

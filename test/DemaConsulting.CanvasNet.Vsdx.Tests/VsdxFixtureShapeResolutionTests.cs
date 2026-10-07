@@ -87,11 +87,14 @@ public class VsdxFixtureShapeResolutionTests
 
     /// <summary>
     ///     Proves <c>davehoward-test10-nested-shapes.vsdx</c>'s top-level shapes resolve, and that
-    ///     any nested child shapes are parsed (forward-compatibility) but intentionally left
-    ///     unresolved this milestone.
+    ///     every nested child shape - at every nesting depth - is now also fully resolved (Master
+    ///     merge, geometry, transform, paint), each with its <see cref="VsdxShapeNode.Parent"/>
+    ///     correctly set to its immediately-enclosing shape - see <c>VsdxDocument.Groups.cs</c>'s
+    ///     <c>ResolveShapeRecursive</c> (Milestone 6), which supersedes this fixture's own earlier,
+    ///     children-left-unresolved behavior.
     /// </summary>
     [Fact]
-    public void FixtureShapeResolution_NestedShapesFixture_TopLevelResolvesChildrenParsedUnresolved()
+    public void FixtureShapeResolution_NestedShapesFixture_EveryNestedChildResolvesWithParentSet()
     {
         // Arrange
         using var document = VsdxDocument.Open(FixturePath("davehoward-test10-nested-shapes.vsdx"));
@@ -101,11 +104,27 @@ public class VsdxFixtureShapeResolutionTests
 
         // Assert
         Assert.NotEmpty(shapes);
-        foreach (var child in shapes.SelectMany(shape => shape.Children))
+        var allDescendants = shapes.SelectMany(FlattenDescendants).ToList();
+        Assert.NotEmpty(allDescendants); // the fixture is known to nest at least one level deep.
+        foreach (var (child, parent) in allDescendants)
         {
-            Assert.Null(child.EffectiveCells);
-            Assert.Null(child.Transform);
-            Assert.Null(child.Paint);
+            Assert.NotNull(child.EffectiveCells);
+            Assert.NotNull(child.Transform);
+            Assert.NotNull(child.Paint);
+            Assert.Same(parent, child.Parent);
+        }
+    }
+
+    /// <summary>Recursively flattens a shape's own descendant tree into (child, parent) pairs, at every nesting depth.</summary>
+    private static IEnumerable<(VsdxShapeNode Child, VsdxShapeNode Parent)> FlattenDescendants(VsdxShapeNode shape)
+    {
+        foreach (var child in shape.Children)
+        {
+            yield return (child, shape);
+            foreach (var descendant in FlattenDescendants(child))
+            {
+                yield return descendant;
+            }
         }
     }
 }

@@ -10,13 +10,13 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 /// </summary>
 /// <remarks>
 ///     A shape's nested <c>&lt;Shapes&gt;</c> children are always parsed and exposed via
-///     <see cref="Children"/> (so the model is forward-compatible with a later milestone's full
-///     recursive group/nested-shape composition - see <c>davehoward-test10-nested-shapes.vsdx</c>
-///     and <c>davehoward-test3-house.vsdx</c>'s own nested <c>MasterShape</c>-referencing group
-///     children), but this milestone's resolver only populates <see cref="EffectiveCells"/>/
-///     <see cref="Geometries"/>/<see cref="Transform"/>/<see cref="Paint"/> for the top-level
-///     shapes directly under a page's <c>&lt;Shapes&gt;</c> element - a child's own corresponding
-///     properties remain <see langword="null"/> until a later milestone (4/5/6) resolves them.
+///     <see cref="Children"/>. Since Milestone 6, <see cref="VsdxDocument"/>'s recursive shape
+///     resolver (<c>VsdxDocument.Groups.cs</c>'s <c>ResolveShapeRecursive</c>) walks this tree to
+///     arbitrary nesting depth, composing each child's own local transform with its parent's
+///     already-resolved transform (see <see cref="Parent"/>) to produce correct absolute
+///     page-space coordinates - see <c>davehoward-test10-nested-shapes.vsdx</c> (plain 3-level
+///     nesting) and <c>davehoward-test3-house.vsdx</c> (Master-driven group children, correlated
+///     by <c>MasterShapeId</c>/<see cref="Id"/>, not position).
 /// </remarks>
 internal sealed class VsdxShapeNode
 {
@@ -152,4 +152,15 @@ internal sealed class VsdxShapeNode
     ///     <see cref="Connects"/>.
     /// </summary>
     public VsdxConnectorEndpoints? ConnectorEndpoints { get; internal set; }
+
+    /// <summary>
+    ///     This shape's resolved parent shape - the immediately-enclosing <c>&lt;Shape
+    ///     Type="Group"&gt;</c> (or any other container shape) one level up the
+    ///     <see cref="Children"/> tree - or <see langword="null"/> for a page's own top-level
+    ///     shapes. Set by <c>VsdxDocument.Groups.cs</c>'s <c>ResolveShapeRecursive</c> as it walks
+    ///     the tree, so a descendant's absolute page-space position can be composed by walking
+    ///     this chain upward (see <c>VsdxDocument.Groups.cs</c>'s <c>ToPageSpace</c>) without
+    ///     re-deriving it from scratch at every level.
+    /// </summary>
+    public VsdxShapeNode? Parent { get; internal set; }
 }

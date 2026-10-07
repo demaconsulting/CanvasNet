@@ -8,13 +8,16 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     Implements the <see cref="VsdxDocument"/> page shape-tree parser and resolver: locating a
 ///     page's content part (<c>visio/pages/pageN.xml</c>), parsing its <c>&lt;Shapes&gt;</c> tree
 ///     into <see cref="VsdxShapeNode"/> instances, parsing its sibling <c>&lt;Connects&gt;</c>
-///     section and attaching each entry to its connector shape, and resolving each top-level
-///     shape (Master/MasterShape cell and geometry-row merge, StyleSheet chain walk, transform,
-///     paint, 1-D connector endpoints) - see <c>VsdxDocument.CellMerge.cs</c>/
-///     <c>VsdxDocument.Styles.cs</c>/<c>VsdxDocument.Geometry.cs</c>/
-///     <c>VsdxDocument.Transform.cs</c>/<c>VsdxDocument.Paint.cs</c>/
-///     <c>VsdxDocument.Connects.cs</c>/<c>VsdxDocument.Arrowheads.cs</c> for each resolution
-///     concern's own implementation.
+///     section and attaching each entry to its connector shape, and resolving every shape in the
+///     tree - top-level and arbitrarily nested group children alike (Master/MasterShape cell and
+///     geometry-row merge, StyleSheet chain walk, transform, paint, 1-D connector endpoints) - see
+///     <c>VsdxDocument.CellMerge.cs</c>/<c>VsdxDocument.Styles.cs</c>/
+///     <c>VsdxDocument.Geometry.cs</c>/<c>VsdxDocument.Transform.cs</c>/
+///     <c>VsdxDocument.Paint.cs</c>/<c>VsdxDocument.Connects.cs</c>/
+///     <c>VsdxDocument.Arrowheads.cs</c>/<c>VsdxDocument.Groups.cs</c> for each resolution
+///     concern's own implementation (the recursive, nested-group-aware resolver itself -
+///     <c>ResolveShapeRecursive</c> - lives in <c>VsdxDocument.Groups.cs</c>, alongside its own
+///     depth/count budget guards).
 /// </summary>
 public sealed partial class VsdxDocument
 {
@@ -25,17 +28,19 @@ public sealed partial class VsdxDocument
     ///     Returns every top-level shape declared directly under the given page's
     ///     <c>&lt;Shapes&gt;</c> element, fully resolved (Master/MasterShape cell and geometry
     ///     merge, StyleSheet chain walk, transform, paint - see this class's own remarks for the
-    ///     exact set of concerns resolved). A shape's nested children (see
-    ///     <see cref="VsdxShapeNode.Children"/>) are parsed but not themselves resolved this
-    ///     milestone.
+    ///     exact set of concerns resolved). Each shape's own nested children (see
+    ///     <see cref="VsdxShapeNode.Children"/>) are recursively resolved to arbitrary nesting
+    ///     depth as well - see <c>VsdxDocument.Groups.cs</c>'s <c>ResolveShapeRecursive</c>.
     /// </summary>
     /// <param name="pageIndex">The zero-based page index, in <c>[0, PageCount)</c>.</param>
     /// <returns>The page's resolved top-level shapes, in document order.</returns>
     /// <exception cref="ObjectDisposedException">Thrown when this document has been disposed.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="pageIndex"/> is outside <c>[0, PageCount)</c>.</exception>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the page's content part cannot be resolved or is not well-formed XML, or
-    ///     its root element is not a <c>&lt;PageContents&gt;</c> element.
+    ///     Thrown when the page's content part cannot be resolved or is not well-formed XML, its
+    ///     root element is not a <c>&lt;PageContents&gt;</c> element, or the page's shape tree
+    ///     exceeds <c>VsdxDocument.Groups.cs</c>'s own group-nesting depth/resolved-shape-count
+    ///     budget.
     /// </exception>
     internal IReadOnlyList<VsdxShapeNode> GetPageShapes(int pageIndex)
     {
@@ -67,9 +72,10 @@ public sealed partial class VsdxDocument
         AttachConnectsToShapes(rawShapes, connects);
 
         var resolved = new List<VsdxShapeNode>(rawShapes.Count);
+        var resolvedShapeCount = 0;
         foreach (var shape in rawShapes)
         {
-            ResolveShape(shape);
+            ResolveShapeRecursive(shape, ResolveMasterShape(shape.MasterId), parent: null, depth: 0, ref resolvedShapeCount);
             resolved.Add(shape);
         }
 
@@ -155,60 +161,5 @@ public sealed partial class VsdxDocument
             rawCharacterRows,
             rawParagraphRows,
             children);
-    }
-
-    /// <summary>
-    ///     Resolves a single top-level shape in place: merges its own cells/geometry with its
-    ///     Master shape's (if <see cref="VsdxShapeNode.MasterId"/> is set), walks the StyleSheet
-    ///     chain for any paint cell left unresolved by that merge, and computes its transform,
-    ///     paint, and text (runs, text box, layout) - populating
-    ///     <see cref="VsdxShapeNode.EffectiveCells"/>/<see cref="VsdxShapeNode.Geometries"/>/
-    ///     <see cref="VsdxShapeNode.Transform"/>/<see cref="VsdxShapeNode.Paint"/>/
-    ///     <see cref="VsdxShapeNode.TextRuns"/>/<see cref="VsdxShapeNode.TextBox"/>/
-    ///     <see cref="VsdxShapeNode.TextLayout"/>.
-    /// </summary>
-    /// <param name="shape">The shape to resolve.</param>
-    private void ResolveShape(VsdxShapeNode shape)
-    {
-        var masterShape = ResolveMasterShape(shape.MasterId);
-
-        var effectiveCells = MergeCells(shape.RawCells, masterShape?.RawCells);
-        var effectiveGeometrySections = MergeGeometrySections(shape.RawGeometrySections, masterShape?.RawGeometrySections);
-
-        var effectiveLineStyleId = shape.LineStyleId ?? masterShape?.LineStyleId;
-        var effectiveFillStyleId = shape.FillStyleId ?? masterShape?.FillStyleId;
-        var effectiveTextStyleId = shape.TextStyleId ?? masterShape?.TextStyleId;
-
-        shape.EffectiveCells = effectiveCells;
-        shape.Geometries = BuildGeometrySections(effectiveGeometrySections, effectiveCells);
-        shape.Transform = BuildTransform(effectiveCells);
-        shape.Paint = ResolvePaint(effectiveCells, shape.Geometries, effectiveLineStyleId, effectiveFillStyleId);
-
-        // A 1-D (connector) shape always carries both a BeginX and an EndX cell (see the format
-        // reference's §4.4); a 2-D shape carries neither. Trust the already-resolved V values
-        // directly rather than recomputing them - see VsdxConnectorEndpoints's own remarks.
-        shape.ConnectorEndpoints = effectiveCells.TryGet("BeginX", out _) && effectiveCells.TryGet("EndX", out _)
-            ? new VsdxConnectorEndpoints(
-                effectiveCells.GetDouble("BeginX"),
-                effectiveCells.GetDouble("BeginY"),
-                effectiveCells.GetDouble("EndX"),
-                effectiveCells.GetDouble("EndY"))
-            : null;
-
-        // Assumption #4 (documented, low-risk design-consistency extension, not fixture-evidenced
-        // - see the Milestone 4 plan report): an instance shape with no own <Text> element falls
-        // back to its Master shape's own <Text> verbatim, mirroring every other "absent instance
-        // cell/section ⇒ inherit Master" rule this unit already establishes.
-        var effectiveRawText = shape.RawText.Runs.Count > 0 ? shape.RawText : masterShape?.RawText ?? VsdxRawText.Empty;
-        var effectiveCharacterRows = MergeTextSectionRows(shape.RawCharacterRows, masterShape?.RawCharacterRows);
-        var effectiveParagraphRows = MergeTextSectionRows(shape.RawParagraphRows, masterShape?.RawParagraphRows);
-
-        var textRuns = effectiveRawText.Runs
-            .Select(run => ResolveEffectiveRun(run, effectiveCharacterRows, effectiveParagraphRows, effectiveTextStyleId))
-            .ToList();
-        shape.TextRuns = textRuns;
-        shape.TextBox = BuildTextBox(effectiveCells, shape.Transform);
-        var textBoxStyle = ResolveTextBoxStyle(effectiveCells, effectiveTextStyleId);
-        shape.TextLayout = ResolveTextLayout(textRuns, shape.TextBox, textBoxStyle, ResolveTextFont);
     }
 }

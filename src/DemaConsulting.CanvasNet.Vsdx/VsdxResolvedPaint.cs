@@ -14,7 +14,7 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     <see langword="true"/>.
 /// </param>
 /// <param name="StrokeColor">
-///     The resolved stroke color (see <see cref="VsdxColorPalette.Resolve"/>). Meaningful only
+///     The resolved stroke color (see <c>VsdxColorPalette.Resolve</c>). Meaningful only
 ///     when <see cref="HasLine"/> is <see langword="true"/>.
 /// </param>
 /// <param name="StrokeWidthInches">The resolved <c>LineWeight</c> cell's value, in inches (Visio's own native unit for this cell - see the format reference's unit-of-measure caveat).</param>
@@ -28,7 +28,7 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     ... never throwing").
 /// </param>
 /// <param name="FillColor">
-///     The resolved fill color (see <see cref="VsdxColorPalette.Resolve"/>). Meaningful only when
+///     The resolved fill color (see <c>VsdxColorPalette.Resolve</c>). Meaningful only when
 ///     <see cref="HasFill"/> is <see langword="true"/>.
 /// </param>
 /// <param name="BeginArrowhead">

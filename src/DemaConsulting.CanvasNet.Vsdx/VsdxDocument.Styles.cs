@@ -1,6 +1,6 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio
+// cspell:ignore vsdx Visio THEMEVAL
 
 /// <summary>
 ///     A single parsed <c>&lt;StyleSheet&gt;</c> element from <c>visio/document.xml</c>'s
@@ -38,11 +38,17 @@ public sealed partial class VsdxDocument
     ///     found by walking the StyleSheet chain starting at <paramref name="startStyleId"/>, each
     ///     hop following <paramref name="nextParentId"/>'s own category-specific parent pointer.
     /// </summary>
+    /// <remarks>
+    ///     Returns the full <see cref="VsdxCell"/> (not just its raw <c>V</c> string) so a caller
+    ///     needing theme-awareness (see <c>VsdxDocument.Paint.cs</c>'s <c>ResolveLineCellValue</c>/
+    ///     <c>ResolveFillCellValue</c>) can also consult the cell's own <c>F</c> formula text for a
+    ///     <c>THEMEVAL("slotName")</c> reference - see <c>VsdxColorPalette.Resolve(string?, string?, VsdxTheme?, Rgba32)</c>.
+    /// </remarks>
     /// <param name="startStyleId">The effective StyleSheet ID to start the walk at, or <see langword="null"/> to resolve nothing.</param>
     /// <param name="cellName">The cell name to search for at each style in the chain.</param>
     /// <param name="nextParentId">Selects the next StyleSheet ID to consult from a given style's own <see cref="VsdxStyleSheetInfo"/> (its <c>LineStyle</c>, <c>FillStyle</c>, or <c>TextStyle</c> attribute, matching the category <paramref name="cellName"/> belongs to).</param>
-    /// <returns>The first literal cell's raw value found, or <see langword="null"/> when none is found before the chain terminates (a style with no further parent pointer) or a cycle is detected.</returns>
-    private string? ResolveStyleCellValue(string? startStyleId, string cellName, Func<VsdxStyleSheetInfo, string?> nextParentId)
+    /// <returns>The first literal cell found, or <see langword="null"/> when none is found before the chain terminates (a style with no further parent pointer) or a cycle is detected.</returns>
+    private VsdxCell? ResolveStyleCellValue(string? startStyleId, string cellName, Func<VsdxStyleSheetInfo, string?> nextParentId)
     {
         var styleSheets = GetStyleSheets();
         var styleId = startStyleId;
@@ -57,7 +63,7 @@ public sealed partial class VsdxDocument
 
             if (style.Cells.TryGetLiteral(cellName, out var cell))
             {
-                return cell.Value;
+                return cell;
             }
 
             styleId = nextParentId(style);
