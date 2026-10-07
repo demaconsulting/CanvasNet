@@ -28,6 +28,10 @@ package CanvasNet {
         expose CanvasNetChartsSystem;
     }
 
+    view CanvasNetVsdxView {
+        expose CanvasNetVsdxSystem;
+    }
+
     view ChartModelView {
         expose ChartModel;
     }

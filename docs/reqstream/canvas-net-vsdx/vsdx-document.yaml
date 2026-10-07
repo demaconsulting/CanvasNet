@@ -1,0 +1,471 @@
+---
+# Software Unit Requirements for VsdxDocument
+#
+# cspell:ignore vsdx Visio VisioML xfrm stencil stencils glueable NURBS nurbs shapesheet ShapeSheet
+# cspell:ignore PinX PinY LocPinX LocPinY FlipX FlipY BeginX BeginY EndX EndY MasterShape
+# cspell:ignore FillForegnd FillBkgnd LineColor LineWeight LinePattern FillPattern Themed
+# cspell:ignore TxtPinX TxtPinY TxtLocPinX TxtLocPinY TxtWidth TxtHeight TxtAngle
+#
+# These requirements describe the design-level behavior of the VsdxDocument unit.
+#
+# Packaging note: VsdxDocument is distributed as the separate DemaConsulting.CanvasNet.Vsdx NuGet
+# package (namespace DemaConsulting.CanvasNet.Vsdx), which references the core
+# DemaConsulting.CanvasNet package. VsdxDocument is the sole unit of the CanvasNetVsdx system.
+#
+# Delivery note: as of this planning skeleton, no CanvasNetVsdx source or test files exist yet.
+# Every "tests" entry below forward-declares the planned test method name that will provide
+# passing evidence once the Implementation Phase Plan in docs/design/canvas-net-vsdx.md reaches
+# milestone (h) (comprehensive test suite); see docs/verification/canvas-net-vsdx/vsdx-document.md
+# for the current TODO status.
+
+sections:
+  - title: CanvasNetVsdx Requirements
+    sections:
+      - title: VsdxDocument Requirements
+        requirements:
+          - id: CanvasNetVsdx-VsdxDocument-OpenStream
+            title: >-
+              The VsdxDocument class shall expose a static Open(Stream) method that buffers the
+              entire supplied stream into memory, constructs the OPC package layer from the
+              buffered bytes, rejects a null stream with ArgumentNullException, and bounds the
+              number of bytes read from the supplied stream to a fixed maximum package size,
+              rejecting a stream exceeding that bound with InvalidDataException.
+            justification: |
+              Callers need to open a package from any stream source without CanvasNetVsdx
+              retaining a dependency on the caller's stream lifetime, and must not let an
+              adversarial or non-terminating stream exhaust available memory.
+            tests:
+              - VsdxDocument_Open_WellFormedMinimalPackage_Succeeds
+              - VsdxDocument_Open_NullStream_ThrowsArgumentNullException
+              - VsdxDocument_Open_NonTerminatingOversizedStream_ThrowsInvalidDataException
+
+          - id: CanvasNetVsdx-VsdxDocument-OpenPath
+            title: >-
+              The VsdxDocument class shall expose a static Open(string) method that validates the
+              path is neither null nor empty/whitespace-only (throwing ArgumentNullException or
+              ArgumentException respectively), then opens and delegates to Open(Stream).
+            justification: |
+              Callers most commonly have a file path rather than an already-open stream, and must
+              receive argument-validation errors distinguishable from a missing-file error.
+            tests:
+              - VsdxDocument_Open_NullPath_ThrowsArgumentNullException
+              - VsdxDocument_Open_WhitespacePath_ThrowsArgumentException
+
+          - id: CanvasNetVsdx-VsdxDocument-ZipValidation
+            title: >-
+              The VsdxDocument class shall open the buffered bytes as a read-only ZipArchive and
+              reject an unreadable or corrupt (non-ZIP) stream with InvalidDataException.
+            justification: |
+              A .vsdx file is fundamentally a ZIP archive; a corrupt or non-ZIP input must fail
+              closed with a clear, documented exception type.
+            tests:
+              - VsdxDocument_Open_CorruptNonZipStream_ThrowsInvalidDataException
+
+          - id: CanvasNetVsdx-VsdxDocument-ContentTypesValidation
+            title: >-
+              The VsdxDocument class shall require the package to contain a well-formed
+              [Content_Types].xml part and reject a package missing this part, or with an
+              oversized or malformed-root content-types part, with InvalidDataException.
+            justification: |
+              Every valid OPC package must declare [Content_Types].xml; its absence or corruption
+              means the package is fundamentally malformed and must be rejected before any later
+              resolution step attempts to interpret any part's content.
+            tests:
+              - VsdxDocument_Open_MissingContentTypes_ThrowsInvalidDataException
+              - VsdxDocument_Open_OversizedContentTypesPart_ThrowsInvalidDataException
+
+          - id: CanvasNetVsdx-VsdxDocument-RelationshipResolution
+            title: >-
+              The VsdxDocument class shall resolve _rels/.rels and every per-part .rels file
+              exclusively through r:id relationship references (never by filename-number
+              convention) to locate visio/document.xml, visio/masters/masters.xml,
+              visio/pages/pages.xml, and the optional visio/theme/theme1.xml, and reject a package
+              missing a required relationship target with InvalidDataException.
+            justification: |
+              Master, page, and theme part names are not guaranteed to follow a predictable
+              numbering scheme; only the relationship graph reliably identifies each part's role.
+            tests:
+              - VsdxDocument_Open_ResolvesDocumentMastersPagesViaRelationships
+              - VsdxDocument_Open_MissingRequiredRelationshipTarget_ThrowsInvalidDataException
+
+          - id: CanvasNetVsdx-VsdxDocument-Dispose
+            title: >-
+              The VsdxDocument class shall implement IDisposable, releasing its underlying
+              ZipArchive and any buffered package bytes, and tolerate a redundant Dispose call.
+            justification: |
+              The package keeps a ZipArchive and buffered bytes open for the lifetime of the
+              VsdxDocument instance; callers must have a deterministic way to release them.
+            tests:
+              - VsdxDocument_Dispose_ReleasesUnderlyingZipArchive
+              - VsdxDocument_Dispose_CalledTwice_DoesNotThrow
+
+          - id: CanvasNetVsdx-VsdxDocument-PageCount
+            title: >-
+              The VsdxDocument class shall expose a PageCount property returning the number of
+              entries parsed from visio/pages/pages.xml's page index, available immediately after
+              Open succeeds.
+            justification: |
+              Callers need the page count to drive page-selection UI or batch-render loops without
+              resolving any page's shape tree.
+            tests:
+              - VsdxDocument_PageCount_ReturnsDeclaredPageCount
+
+          - id: CanvasNetVsdx-VsdxDocument-GetPageSize
+            title: >-
+              The VsdxDocument class shall expose a GetPageSize(int) method returning the
+              requested page's declared PageWidth/PageHeight (converted from inches to the
+              document's internal EMU unit) and name, and throw ArgumentOutOfRangeException for a
+              pageIndex outside [0, PageCount).
+            justification: |
+              Callers need a page's physical size to size an output surface correctly before
+              rendering, and must receive a clear, documented exception for an invalid index.
+            tests:
+              - VsdxDocument_GetPageSize_ReturnsDeclaredSizeInEmu
+              - VsdxDocument_GetPageSize_OutOfRangeIndex_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNetVsdx-VsdxDocument-LazyPageResolution
+            title: >-
+              The VsdxDocument class shall defer resolving a page's full shape tree until Render is
+              first called for that page index, caching the resolved tree for subsequent calls.
+            justification: |
+              Resolving every page's full Master/MasterShape/StyleSheet-merged shape tree
+              up front would waste work for callers who only need page metadata or render a
+              subset of pages.
+            tests:
+              - VsdxDocument_Render_FirstCallResolvesShapeTree_SecondCallReusesCache
+
+          - id: CanvasNetVsdx-VsdxDocument-GeometryRowResolution
+            title: >-
+              The VsdxDocument class shall resolve a shape's geometry sections' MoveTo/LineTo/
+              RelMoveTo/RelLineTo/EllipticalArcTo/NURBSTo/InfiniteLine rows into a core Path,
+              scaling RelMoveTo/RelLineTo's normalized coordinates by the shape's resolved
+              Width/Height.
+            justification: |
+              These are the geometry row types confirmed present in the sample corpus underlying
+              this design; a shape's rendered outline must match the row sequence exactly.
+            tests:
+              - VsdxDocument_Geometry_ResolvesMoveLineRows
+              - VsdxDocument_Geometry_ResolvesEllipticalArcAndNurbsRows
+              - VsdxDocument_Geometry_RelativeRowsScaledByWidthHeight
+
+          - id: CanvasNetVsdx-VsdxDocument-GeometryUnrecognizedRowSkip
+            title: >-
+              The VsdxDocument class shall skip (not throw on) a geometry row of an unrecognized
+              type, including the documented-but-unobserved ArcTo/RelCubBezTo/SplineStart/
+              SplineKnot/PolylineTo/Ellipse row kinds.
+            justification: |
+              A geometry row type absent from the verified sample corpus must still degrade
+              gracefully rather than aborting an entire shape or page.
+            tests:
+              - VsdxDocument_Geometry_UnrecognizedRowType_IsSkippedNotThrown
+
+          - id: CanvasNetVsdx-VsdxDocument-ShapeTransform
+            title: >-
+              The VsdxDocument class shall resolve a 2-D shape's local-to-parent affine transform
+              by translating by -LocPinX/-LocPinY, applying FlipX/FlipY, rotating by Angle
+              (radians, counter-clockwise), then translating by PinX/PinY.
+            justification: |
+              This is the transform order verified against rotated and unrotated real-world
+              samples in the format research underlying this design; an incorrect order produces
+              visibly wrong shape placement for any rotated or flipped shape.
+            tests:
+              - VsdxDocument_Transform_UnrotatedShape_MatchesExpectedPosition
+              - VsdxDocument_Transform_RotatedShape_MatchesExpectedOutline
+              - VsdxDocument_Transform_FlippedShape_MatchesExpectedOutline
+
+          - id: CanvasNetVsdx-VsdxDocument-ConnectorTransform
+            title: >-
+              The VsdxDocument class shall resolve a 1-D (connector) shape's transform using its
+              own PinX/PinY/Width/Height/Angle cells exactly like a 2-D shape, trusting these as
+              already pre-derived by Visio from the connector's BeginX/Y/EndX/Y endpoints.
+            justification: |
+              Visio itself pre-bakes a 1-D shape's derived cells at save time; re-deriving them
+              from BeginX/Y/EndX/Y independently would risk introducing a formula-evaluator
+              dependency this unit deliberately avoids.
+            tests:
+              - VsdxDocument_Transform_ConnectorShape_UsesPreBakedPinAndAngleCells
+
+          - id: CanvasNetVsdx-VsdxDocument-MasterResolution
+            title: >-
+              The VsdxDocument class shall resolve a shape instance's Master="N" reference through
+              masters.xml's Master element, its child relationship, and the masters .rels file, to
+              the target masterN.xml part, caching the parsed master content tree per resolved
+              master file.
+            justification: |
+              Master IDs are sparse and never guaranteed to align with the physical masterN.xml
+              filename; only the relationship chain reliably resolves the correct master part.
+            tests:
+              - VsdxDocument_MasterResolution_ResolvesMasterViaRelationshipChain
+              - VsdxDocument_MasterResolution_CachesParsedMasterContentTree
+
+          - id: CanvasNetVsdx-VsdxDocument-CellMerge
+            title: >-
+              The VsdxDocument class shall resolve a shape instance's effective cell set so that an
+              instance cell with a non-inherited (non-Inh) value wins, and an instance cell with
+              F="Inh" or absent entirely falls through to the master's resolved value for that
+              cell name.
+            justification: |
+              This cell-merge precedence is required to reproduce a native Visio client's own
+              effective-value computation for a customized master instance.
+            tests:
+              - VsdxDocument_CellMerge_InstanceCellOverridesMaster
+              - VsdxDocument_CellMerge_InheritedOrAbsentCellFallsThroughToMaster
+
+          - id: CanvasNetVsdx-VsdxDocument-GeometryRowMerge
+            title: >-
+              The VsdxDocument class shall merge a shape instance's geometry rows with its
+              master's by matching row index (IX): an instance row with the same IX replaces the
+              master's row, an instance row with Del="1" marks the master's corresponding row
+              deleted, and a master row with no matching instance IX and no Del is inherited
+              verbatim.
+            justification: |
+              Geometry-row-level inheritance (distinct from cell-level inheritance) is how Visio
+              lets a master instance add, replace, or remove individual outline segments without
+              redeclaring the entire geometry.
+            tests:
+              - VsdxDocument_GeometryRowMerge_InstanceRowReplacesMasterRowByIndex
+              - VsdxDocument_GeometryRowMerge_DeletedRowIsOmittedFromResolvedGeometry
+              - VsdxDocument_GeometryRowMerge_UnmatchedMasterRowIsInheritedVerbatim
+
+          - id: CanvasNetVsdx-VsdxDocument-NestedMasterShapeResolution
+            title: >-
+              The VsdxDocument class shall resolve a Group-typed master shape's children by
+              matching each child's own MasterShape attribute against the master's nested Shapes
+              elements by ID, not by position.
+            justification: |
+              A grouped master's child shapes are not guaranteed to be declared in the same order
+              as the master's own child shapes; matching by ID is the only reliable correlation.
+            tests:
+              - VsdxDocument_NestedMasterShapeResolution_MatchesChildrenByIdNotPosition
+
+          - id: CanvasNetVsdx-VsdxDocument-StyleSheetChainWalk
+            title: >-
+              The VsdxDocument class shall resolve a shape's effective line, fill, and text style
+              by walking its LineStyle/FillStyle/TextStyle StyleSheet-ID reference up the
+              StyleSheet chain (each StyleSheet's own LineStyle/FillStyle/TextStyle attribute
+              identifying its own parent for that facet) until a literal, non-Inh value is found.
+            justification: |
+              Visio StyleSheets form an inheritance chain independent of Master/MasterShape
+              inheritance; both must be resolved correctly to reproduce the effective rendered
+              style.
+            tests:
+              - VsdxDocument_StyleSheetChainWalk_ResolvesLiteralValueAtFirstNonInheritedAncestor
+
+          - id: CanvasNetVsdx-VsdxDocument-DirectOverridePrecedence
+            title: >-
+              The VsdxDocument class shall apply a shape's own direct, non-Inh cell value in
+              preference to any value resolved through the StyleSheet chain for the same cell
+              name.
+            justification: |
+              A per-shape override is always the most specific, most recently authored
+              expression of intent and must take final precedence over an inherited style.
+            tests:
+              - VsdxDocument_DirectOverridePrecedence_ShapeOwnCellWinsOverStyleSheetChain
+
+          - id: CanvasNetVsdx-VsdxDocument-NoStyleTermination
+            title: >-
+              The VsdxDocument class shall guarantee the StyleSheet chain walk terminates at
+              StyleSheet ID 0 ("No Style"), applying its own documented default values when no
+              ancestor StyleSheet declares a literal value for a given cell name.
+            justification: |
+              Without a guaranteed termination point, a malformed or cyclic StyleSheet chain could
+              cause an unbounded resolution loop.
+            tests:
+              - VsdxDocument_NoStyleTermination_WalkTerminatesAtStyleSheetZero
+
+          - id: CanvasNetVsdx-VsdxDocument-ColorTableResolution
+            title: >-
+              The VsdxDocument class shall resolve a shape's line/fill color against the document's
+              own explicit hex color table (visio/document.xml's Colors section) and the built-in
+              palette index convention, in addition to a directly-declared hex value.
+            justification: |
+              A shape frequently references a color by document-level palette index rather than
+              declaring its own hex value; both forms must resolve to the same effective color.
+            tests:
+              - VsdxDocument_ColorTableResolution_ResolvesDocumentColorsPaletteIndex
+              - VsdxDocument_ColorTableResolution_ResolvesDirectHexValue
+
+          - id: CanvasNetVsdx-VsdxDocument-ThemedCellResolution
+            title: >-
+              The VsdxDocument class shall resolve a literal "Themed" cell value against an
+              optional parsed visio/theme/theme1.xml theme part, falling back to a documented
+              neutral default when no theme part is present or the referenced scheme entry is
+              absent.
+            justification: |
+              No sample in the format research underlying this design meaningfully exercises
+              theme-based color resolution; a safe, documented fallback avoids an unhandled
+              failure for the rare document that does use it.
+            tests:
+              - VsdxDocument_ThemedCellResolution_FallsBackToNeutralDefaultWhenNoThemePart
+              - VsdxDocument_ThemedCellResolution_ResolvesAgainstParsedTheme
+
+          - id: CanvasNetVsdx-VsdxDocument-FillPatternDeferral
+            title: >-
+              The VsdxDocument class shall resolve a solid FillPattern value and a best-effort
+              linear-gradient approximation, and throw VsdxUnsupportedFeatureException carrying a
+              stable feature token for any other FillPattern value.
+            justification: |
+              The full FillPattern hatch/gradient vocabulary is not enumerable from the sample
+              corpus underlying this design; an explicit, documented exception is safer than a
+              silently wrong fill approximation.
+            tests:
+              - VsdxDocument_FillPatternDeferral_SolidFillResolvesDirectly
+              - VsdxDocument_FillPatternDeferral_UnsupportedPatternThrowsVsdxUnsupportedFeatureException
+
+          - id: CanvasNetVsdx-VsdxDocument-TextRunParsing
+            title: >-
+              The VsdxDocument class shall parse a shape's Text element's character data and cp/pp
+              formatting markers against the shape's Section N="Character"/"Paragraph" rows into
+              an ordered list of formatted text runs.
+            justification: |
+              A shape's text can carry multiple runs of differing character/paragraph formatting
+              within a single Text element; run boundaries must be resolved from the cp/pp markers
+              exactly as Visio itself interprets them.
+            tests:
+              - VsdxDocument_TextRunParsing_ResolvesMultiRunFormattedText
+
+          - id: CanvasNetVsdx-VsdxDocument-TextBoxPositioning
+            title: >-
+              The VsdxDocument class shall position a shape's text box using its resolved
+              TxtPinX/TxtPinY/TxtLocPinX/TxtLocPinY/TxtWidth/TxtHeight/TxtAngle cells, defaulting to
+              the shape's own box when no explicit text-transform cells are present.
+            justification: |
+              A shape's text box is not always coincident with its own geometry box; explicit
+              text-transform cells must be honored when present.
+            tests:
+              - VsdxDocument_TextBoxPositioning_UsesExplicitTextTransformCells
+              - VsdxDocument_TextBoxPositioning_DefaultsToShapeBoxWhenAbsent
+
+          - id: CanvasNetVsdx-VsdxDocument-GlyphRendering
+            title: >-
+              The VsdxDocument class shall render a text run's glyph ink onto the destination
+              Surface using the core Fonts subsystem's typeface resolution and the core Drawing
+              subsystem's PathFiller.
+            justification: |
+              Consistent glyph rendering reuses the same, already-verified text-painting
+              primitives established by the other CanvasNet rendering systems.
+            tests:
+              - VsdxDocument_GlyphRendering_PaintsResolvedTextOntoSurface
+
+          - id: CanvasNetVsdx-VsdxDocument-ConnectsParsing
+            title: >-
+              The VsdxDocument class shall parse a page's Connects section (sibling of its Shapes
+              section), resolving each Connect entry's FromSheet/FromCell/FromPart and
+              ToSheet/ToCell/ToPart attributes into a VsdxConnect record.
+            justification: |
+              The Connects section is the authoritative declaration of which connector shape is
+              glued to which target shape and connection point.
+            tests:
+              - VsdxDocument_ConnectsParsing_ResolvesConnectEntryAttributes
+
+          - id: CanvasNetVsdx-VsdxDocument-GluePointResolution
+            title: >-
+              The VsdxDocument class shall resolve a connector's rendered endpoints directly from
+              its own pre-baked, already-resolved BeginX/BeginY/EndX/EndY page-space coordinate
+              cells, for both whole-shape-pin and connection-point-indexed glue, without performing
+              live glue-point tracking.
+            justification: |
+              Visio itself pre-bakes a saved connector's resolved endpoint coordinates; a static
+              renderer can reproduce correct output without implementing a live constraint solver.
+            tests:
+              - VsdxDocument_GluePointResolution_UsesPreBakedBeginEndCoordinates
+
+          - id: CanvasNetVsdx-VsdxDocument-ArrowheadRendering
+            title: >-
+              The VsdxDocument class shall render a connector's optional stroked or filled
+              arrowhead at either end, oriented along the connector's own resolved line direction,
+              for the documented subset of recognized BeginArrow/EndArrow index values, and throw
+              VsdxUnsupportedFeatureException carrying a stable feature token for an unrecognized
+              index.
+            justification: |
+              The full BeginArrow/EndArrow style-index table is not enumerable from the sample
+              corpus underlying this design; an explicit, documented exception is safer than a
+              silently wrong arrowhead shape.
+            tests:
+              - VsdxDocument_ArrowheadRendering_RendersRecognizedArrowAtConnectorEnd
+              - VsdxDocument_ArrowheadRendering_UnrecognizedIndexThrowsVsdxUnsupportedFeatureException
+
+          - id: CanvasNetVsdx-VsdxDocument-DanglingGlueTargetTolerance
+            title: >-
+              The VsdxDocument class shall tolerate a Connect entry whose target shape ID cannot be
+              resolved within the page by skipping only that connector's glue resolution, rendering
+              the connector shape using its own already-resolved BeginX/Y/EndX/Y cells unaffected.
+            justification: |
+              A dangling glue target must not abort rendering of the rest of the page, since the
+              connector's own endpoint coordinates remain valid and renderable independent of its
+              declared glue target.
+            tests:
+              - VsdxDocument_DanglingGlueTargetTolerance_SkipsGlueResolutionNotWholePage
+
+          - id: CanvasNetVsdx-VsdxDocument-GroupChildTransformComposition
+            title: >-
+              The VsdxDocument class shall compose a group shape's child transform by applying each
+              ancestor's own local-to-parent transform from the leaf child up to the page, since a
+              VisioML group child's cells are already expressed directly in the parent group's own
+              local box with no separate child-coordinate-space remap step.
+            justification: |
+              Unlike DrawingML's chOff/chExt child-coordinate-space remapping, VisioML group
+              children are already expressed in the parent's local box; applying an additional
+              remap step would double-transform every nested group's children.
+            tests:
+              - VsdxDocument_GroupChildTransformComposition_ResolvesNestedGroupChildPosition
+
+          - id: CanvasNetVsdx-VsdxDocument-GroupNestingDepthBudget
+            title: >-
+              The VsdxDocument class shall bound group-nesting recursion depth and total resolved
+              shape count to fixed, documented budgets, rejecting a page exceeding either budget
+              with InvalidDataException rather than recursing or allocating without bound.
+            justification: |
+              An adversarial or corrupt package could declare a pathologically deep or wide group
+              nesting; a fixed budget prevents unbounded recursion or memory allocation.
+            tests:
+              - VsdxDocument_GroupNestingDepthBudget_ExceedingDepthThrowsInvalidDataException
+              - VsdxDocument_GroupNestingDepthBudget_ExceedingShapeCountThrowsInvalidDataException
+
+          - id: CanvasNetVsdx-VsdxDocument-RenderPixelDimensions
+            title: >-
+              The VsdxDocument class shall expose a Render(int pageIndex, int width, int height,
+              VsdxRenderOptions? options) method that clears a new width-by-height Surface to the
+              requested (or default opaque white) background color, paints the resolved page shape
+              tree, and returns the painted Surface.
+            justification: |
+              Callers frequently need an exact pixel-dimension output surface regardless of the
+              page's own declared physical size.
+            tests:
+              - VsdxDocument_Render_PixelDimensionsOverload_PaintsExpectedSurface
+              - VsdxDocument_Render_DefaultBackgroundColor_IsOpaqueWhite
+
+          - id: CanvasNetVsdx-VsdxDocument-RenderDpi
+            title: >-
+              The VsdxDocument class shall expose a Render(int pageIndex, int dpi,
+              VsdxRenderOptions? options) convenience overload that resolves the page's declared
+              size, converts it to pixel dimensions at the requested dpi, and delegates to the
+              pixel-dimension overload.
+            justification: |
+              Callers commonly want to render at a specific print or screen resolution without
+              computing the pixel dimensions themselves.
+            tests:
+              - VsdxDocument_Render_DpiOverload_ComputesExpectedPixelDimensions
+
+          - id: CanvasNetVsdx-VsdxDocument-RenderArgumentValidation
+            title: >-
+              The VsdxDocument class shall validate pageIndex, width/height, and dpi, throwing
+              ArgumentOutOfRangeException for a pageIndex outside [0, PageCount), a non-positive
+              width/height/dpi, or a width/height exceeding Surface.MaxDimension.
+            justification: |
+              Callers must receive a clear, documented exception for an invalid render argument
+              rather than an unrelated downstream failure.
+            tests:
+              - VsdxDocument_Render_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException
+              - VsdxDocument_Render_NonPositiveDimensions_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNetVsdx-VsdxDocument-RenderDocumentOrderZOrder
+            title: >-
+              The VsdxDocument class shall paint a page's resolved shape tree in document order
+              (the first shape declared is painted first/bottom), matching the z-order convention
+              already established by PptxDocument and PdfDocument.
+            justification: |
+              Visio's own document order is the authoritative z-order; painting out of order would
+              produce visibly incorrect overlapping shapes.
+            tests:
+              - VsdxDocument_RenderDocumentOrderZOrder_FirstShapeIsPaintedBeneathLater

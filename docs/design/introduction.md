@@ -138,6 +138,29 @@ software items, specifically:
   rectangles, TrueType text layout/metrics, and the bundled Liberation Sans fallback font), and
   must never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, or `CanvasNetVsdx` — see
   _CanvasNetCharts System Design_ (`canvas-net-charts.md`)
+- **CanvasNetVsdx (System)** — A separate, independently-distributed software system providing
+  Microsoft Visio (`.vsdx`) diagram-rendering support, containing a single unit, `VsdxDocument`.
+  Unlike `CanvasNetPptx`'s own incrementally-delivered phase history, this feature is delivered as
+  a single pull request describing its complete, final feature set: an OPC (Open Packaging
+  Conventions) package layer opening a `.vsdx` file and resolving its `[Content_Types].xml` and
+  relationship graph (`_rels/.rels` through `visio/document.xml` to `masters.xml`/`pages.xml`/an
+  optional `theme1.xml`, exclusively through relationship references, never by filename-number
+  convention); a page/shape model parsing `visio/pages/pages.xml`'s page index and each page's
+  shape tree; shape geometry and transform resolution (the VisioML geometry row vocabulary and the
+  shape-local-to-page affine transform, including the 1-D connector begin/end-derived transform
+  special case); Master/MasterShape cell-and-geometry-row inheritance; StyleSheet chain resolution
+  for line/fill/text style; text rendering; connector/glue-point routing (trusting a connector's
+  own pre-baked, already-resolved endpoint coordinates rather than live glue-point tracking);
+  color/fill resolution; arbitrarily nested group/child-shape handling; and the public, page-level
+  `Render` API. Embedded images/`Foreign` shapes, non-trivial theme-variation resolution, non-solid
+  fill-pattern combinations beyond solid, the full arrowhead style-index table, and several
+  documented-but-unobserved geometry row types remain explicitly deferred — see
+  _CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`) for the full supported/deferred boundary and
+  its Implementation Phase Plan. `CanvasNetVsdx` depends on the `CanvasNet` system's `Canvas`,
+  `Geometry`, `Drawing`, and `Fonts` subsystems, and must never reference `CanvasNetPptx`,
+  `CanvasNetPdf`, or `CanvasNetCharts` — a future, explicitly out-of-scope dependency on the
+  sibling `CanvasNetSvg` system (to rasterize an embedded SVG foreign object) is anticipated but
+  not yet modeled — see _CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`)
 
 The following OTS items are also covered:
 

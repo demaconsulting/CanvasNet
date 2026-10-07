@@ -1,0 +1,240 @@
+---
+# cspell:ignore vsdx Visio VisioML xfrm stencil stencils glueable NURBS nurbs shapesheet ShapeSheet
+# cspell:ignore PinX PinY LocPinX LocPinY FlipX FlipY BeginX BeginY EndX EndY MasterShape
+# cspell:ignore FillForegnd FillBkgnd LineColor LineWeight LinePattern FillPattern Themed
+# cspell:ignore TxtPinX TxtPinY TxtLocPinX TxtLocPinY TxtWidth TxtHeight TxtAngle
+#
+# Software System Requirements for CanvasNetVsdx
+#
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Vsdx
+# package (namespace DemaConsulting.CanvasNet.Vsdx) from the perspective of its consumers, without
+# specifying implementation details.
+#
+# CanvasNetVsdx is an independent software system, distributed as its own NuGet package, depending
+# on the core CanvasNet system (docs/reqstream/canvas-net.yaml) - specifically its Canvas
+# (Surface/Rgba32), Geometry (Path/PathBuilder/Rect), Drawing (PathFiller/PathStroker/Gradient
+# types), and Fonts (TrueTypeFont/SystemFontCatalog) subsystems - see
+# docs/design/canvas-net-vsdx.md's Dependencies section for details. Unlike CanvasNetPptx's own
+# incrementally-delivered phase history, this requirement set describes CanvasNetVsdx's complete,
+# final feature set in full, to be delivered as a single pull request following the internal
+# Implementation Phase Plan documented in docs/design/canvas-net-vsdx.md: an OPC (Open Packaging
+# Conventions) package layer opening a .vsdx file and resolving its [Content_Types].xml and
+# relationship graph; a page/shape model parsing the page index and each page's shape tree; shape
+# geometry/transform resolution (including the 1-D connector begin/end-derived transform special
+# case); Master/MasterShape cell-and-geometry-row inheritance; StyleSheet chain resolution for
+# line/fill/text style, including the built-in/document color palette and best-effort Themed-cell
+# resolution; text rendering; connector/glue-point routing (trusting a connector's own pre-baked,
+# already-resolved page-space endpoint coordinates); color/fill resolution; arbitrarily nested
+# group/child-shape handling; and the public, page-level Render API. Embedded images/Foreign
+# shapes, non-trivial theme-variation resolution, non-solid fill-pattern combinations beyond
+# solid, the full arrowhead style-index table, and several documented-but-unobserved geometry row
+# types (ArcTo/RelCubBezTo/SplineStart/SplineKnot/PolylineTo/Ellipse) remain explicitly deferred -
+# see docs/design/canvas-net-vsdx.md's Design Constraints section for the complete deferred-feature
+# boundary.
+
+sections:
+  - title: CanvasNetVsdx Requirements
+    requirements:
+      - id: CanvasNetVsdx-Open
+        title: >-
+          The library shall parse a well-formed OPC/.vsdx package exactly once, from either a
+          stream or a file path, resolving its [Content_Types].xml content-type mappings and its
+          package-level relationship chain through to visio/document.xml, and reject a null
+          stream/path, an empty or whitespace-only path, or a malformed package structure (an
+          unreadable/corrupt ZIP, or a package missing a required part) with the documented
+          exception contract.
+        tags: [system]
+        justification: |
+          Callers need a single, reliable entry point that turns raw .vsdx bytes into a usable,
+          in-memory package representation, and must be able to distinguish a programming error
+          (null/empty argument) from malformed input (corrupt or incomplete package structure).
+        children:
+          - CanvasNetVsdx-VsdxDocument-OpenStream
+          - CanvasNetVsdx-VsdxDocument-OpenPath
+          - CanvasNetVsdx-VsdxDocument-ZipValidation
+          - CanvasNetVsdx-VsdxDocument-ContentTypesValidation
+          - CanvasNetVsdx-VsdxDocument-RelationshipResolution
+          - CanvasNetVsdx-VsdxDocument-Dispose
+        tests:
+          - CanvasNetVsdx_SystemIntegration_VsdxOpen_SucceedsOnWellFormedPackage
+          - CanvasNetVsdx_SystemIntegration_VsdxOpenValidationNull_NullStreamThrowsArgumentNullException
+          - CanvasNetVsdx_SystemIntegration_VsdxOpenValidationEmptyPath_EmptyPathThrowsArgumentException
+
+      - id: CanvasNetVsdx-PageModel
+        title: >-
+          The library shall expose the number of pages in an opened package and, for each page,
+          its declared size (converted to the document's internal EMU unit) and name, without
+          resolving that page's shape tree until the page is first rendered.
+        tags: [system]
+        justification: |
+          Callers commonly need to enumerate pages and their sizes (for example to size an output
+          surface, or to present a page picker) without paying the cost of resolving every page's
+          full shape tree up front.
+        children:
+          - CanvasNetVsdx-VsdxDocument-PageCount
+          - CanvasNetVsdx-VsdxDocument-GetPageSize
+          - CanvasNetVsdx-VsdxDocument-LazyPageResolution
+        tests:
+          - CanvasNetVsdx_SystemIntegration_PageCount_ReturnsDeclaredPageCount
+          - CanvasNetVsdx_SystemIntegration_GetPageSize_ReturnsDeclaredSizeInEmu
+          - CanvasNetVsdx_SystemIntegration_GetPageSize_OutOfRangeIndexThrowsArgumentOutOfRangeException
+
+      - id: CanvasNetVsdx-Geometry
+        title: >-
+          The library shall resolve each shape's geometry sections into renderable path outlines,
+          supporting the MoveTo/LineTo/RelMoveTo/RelLineTo/EllipticalArcTo/NURBSTo/InfiniteLine row
+          vocabulary, and tolerate an unrecognized row type by skipping that row rather than
+          failing the shape or the page.
+        tags: [system]
+        justification: |
+          A shape's visual outline is defined entirely by its geometry rows; a renderer that
+          aborts on the first unfamiliar row type observed in the wild would be unusable against
+          real-world diagrams that mix well-understood and rare row kinds in the same page.
+        children:
+          - CanvasNetVsdx-VsdxDocument-GeometryRowResolution
+          - CanvasNetVsdx-VsdxDocument-GeometryUnrecognizedRowSkip
+          - CanvasNetVsdx-VsdxDocument-ShapeTransform
+          - CanvasNetVsdx-VsdxDocument-ConnectorTransform
+        tests:
+          - CanvasNetVsdx_SystemIntegration_Geometry_ResolvesCommonRowTypes
+          - CanvasNetVsdx_SystemIntegration_Geometry_UnrecognizedRowTypeIsSkippedNotThrown
+          - CanvasNetVsdx_SystemIntegration_Transform_RotatedShapeMatchesExpectedOutline
+
+      - id: CanvasNetVsdx-MasterInheritance
+        title: >-
+          The library shall resolve a shape instance's effective cell set and geometry rows by
+          merging it with its referenced Master/MasterShape, in which an instance cell with a
+          non-inherited value wins, an inherited-or-absent instance cell falls through to the
+          master's resolved value, and a geometry row is merged or deleted by matching index
+          between the instance and the master.
+        tags: [system]
+        justification: |
+          Nearly every shape dropped from a Visio stencil is a lightly-customized master instance;
+          without correct inheritance resolution, most real-world diagrams would render as empty
+          or wildly incorrect shapes.
+        children:
+          - CanvasNetVsdx-VsdxDocument-MasterResolution
+          - CanvasNetVsdx-VsdxDocument-CellMerge
+          - CanvasNetVsdx-VsdxDocument-GeometryRowMerge
+          - CanvasNetVsdx-VsdxDocument-NestedMasterShapeResolution
+        tests:
+          - CanvasNetVsdx_SystemIntegration_MasterInheritance_InstanceCellOverridesMaster
+          - CanvasNetVsdx_SystemIntegration_MasterInheritance_InheritedCellFallsThroughToMaster
+          - CanvasNetVsdx_SystemIntegration_MasterInheritance_DeletedGeometryRowIsOmitted
+
+      - id: CanvasNetVsdx-StyleResolution
+        title: >-
+          The library shall resolve a shape's effective line, fill, and text style by walking its
+          LineStyle/FillStyle/TextStyle StyleSheet reference up the StyleSheet chain until a
+          literal value is found, terminating at StyleSheet ID 0, with a direct per-shape override
+          always taking precedence over any inherited StyleSheet value.
+        tags: [system]
+        justification: |
+          Visio diagrams rely heavily on named styles to keep shape appearance consistent and
+          centrally editable; rendering must reproduce the same effective style a native Visio
+          client would compute.
+        children:
+          - CanvasNetVsdx-VsdxDocument-StyleSheetChainWalk
+          - CanvasNetVsdx-VsdxDocument-DirectOverridePrecedence
+          - CanvasNetVsdx-VsdxDocument-NoStyleTermination
+        tests:
+          - CanvasNetVsdx_SystemIntegration_StyleResolution_WalksChainToLiteralValue
+          - CanvasNetVsdx_SystemIntegration_StyleResolution_DirectOverrideWinsOverStyleSheet
+
+      - id: CanvasNetVsdx-ColorFill
+        title: >-
+          The library shall resolve a shape's effective line color and fill (solid, or a
+          best-effort linear-gradient approximation) from its resolved style, including the
+          document's own explicit hex and built-in-palette-index color table, and resolve a
+          literal Themed cell value against an optional parsed theme part, falling back to a
+          neutral default when no theme part is present or the referenced entry is absent.
+        tags: [system]
+        justification: |
+          Correct color resolution is required for every visibly painted shape; a renderer that
+          cannot resolve the document's own color table or gracefully degrade an unresolvable
+          themed reference would produce visibly wrong output on a large fraction of real diagrams.
+        children:
+          - CanvasNetVsdx-VsdxDocument-ColorTableResolution
+          - CanvasNetVsdx-VsdxDocument-ThemedCellResolution
+          - CanvasNetVsdx-VsdxDocument-FillPatternDeferral
+        tests:
+          - CanvasNetVsdx_SystemIntegration_ColorFill_ResolvesDocumentColorTable
+          - CanvasNetVsdx_SystemIntegration_ColorFill_ThemedCellFallsBackToNeutralDefaultWhenNoTheme
+          - CanvasNetVsdx_SystemIntegration_ColorFill_UnsupportedFillPatternThrowsVsdxUnsupportedFeatureException
+
+      - id: CanvasNetVsdx-Text
+        title: >-
+          The library shall parse a shape's text runs and their character/paragraph formatting,
+          position the resulting text box according to its resolved TxtPinX/TxtPinY/TxtLocPinX/
+          TxtLocPinY/TxtWidth/TxtHeight/TxtAngle cells, and render glyph ink onto the destination
+          surface.
+        tags: [system]
+        justification: |
+          Shape and connector labels are a primary carrier of diagram meaning; text must be
+          positioned and rendered correctly relative to its owning shape's own transform.
+        children:
+          - CanvasNetVsdx-VsdxDocument-TextRunParsing
+          - CanvasNetVsdx-VsdxDocument-TextBoxPositioning
+          - CanvasNetVsdx-VsdxDocument-GlyphRendering
+        tests:
+          - CanvasNetVsdx_SystemIntegration_Text_RendersShapeLabel
+          - CanvasNetVsdx_SystemIntegration_Text_PositionsTextBoxRelativeToShapeTransform
+
+      - id: CanvasNetVsdx-Connectors
+        title: >-
+          The library shall parse a page's Connects section and render each 1-D connector shape's
+          resolved straight/curved line and optional arrowheads, trusting the connector's own
+          pre-baked, already-resolved begin/end page-space coordinates rather than performing live
+          glue-point tracking, and tolerate a dangling or unrecognized glue target by skipping only
+          that connector's glue resolution.
+        tags: [system]
+        justification: |
+          Connectors (lines between shapes) are a defining feature of a Visio diagram; because
+          Visio itself pre-bakes a saved connector's resolved endpoint coordinates, a static
+          renderer can reproduce correct output without implementing a live constraint solver.
+        children:
+          - CanvasNetVsdx-VsdxDocument-ConnectsParsing
+          - CanvasNetVsdx-VsdxDocument-GluePointResolution
+          - CanvasNetVsdx-VsdxDocument-ArrowheadRendering
+          - CanvasNetVsdx-VsdxDocument-DanglingGlueTargetTolerance
+        tests:
+          - CanvasNetVsdx_SystemIntegration_Connectors_RendersStraightConnectorBetweenShapes
+          - CanvasNetVsdx_SystemIntegration_Connectors_DanglingGlueTargetIsSkippedNotThrown
+
+      - id: CanvasNetVsdx-Groups
+        title: >-
+          The library shall resolve an arbitrarily nested group shape's children, each expressed
+          directly in the group's own local box with no separate child-coordinate-space remap
+          step, composing each ancestor's own local-to-parent transform from the leaf child up to
+          the page.
+        tags: [system]
+        justification: |
+          Grouping is a common Visio authoring pattern for composite shapes; correct nested-group
+          rendering is required for any diagram built from grouped building blocks.
+        children:
+          - CanvasNetVsdx-VsdxDocument-GroupChildTransformComposition
+          - CanvasNetVsdx-VsdxDocument-GroupNestingDepthBudget
+        tests:
+          - CanvasNetVsdx_SystemIntegration_Groups_ComposesNestedGroupChildTransform
+
+      - id: CanvasNetVsdx-Render
+        title: >-
+          The library shall expose a public, page-level Render API accepting either explicit pixel
+          dimensions or a target DPI, clearing the destination surface to the requested (or
+          default) background color, walking the resolved page's shape tree in document order
+          (first shape drawn first/bottom), and painting each node's resolved fill, stroke,
+          connector line/arrowheads, and text.
+        tags: [system]
+        justification: |
+          A single, documented rendering entry point is the system's primary externally visible
+          contract; callers must receive validated, documented behavior for every argument and
+          predictable z-order/compositing semantics.
+        children:
+          - CanvasNetVsdx-VsdxDocument-RenderPixelDimensions
+          - CanvasNetVsdx-VsdxDocument-RenderDpi
+          - CanvasNetVsdx-VsdxDocument-RenderArgumentValidation
+          - CanvasNetVsdx-VsdxDocument-RenderDocumentOrderZOrder
+        tests:
+          - CanvasNetVsdx_SystemIntegration_Render_PixelDimensionsOverload_PaintsExpectedSurface
+          - CanvasNetVsdx_SystemIntegration_Render_DpiOverload_ComputesExpectedPixelDimensions
+          - CanvasNetVsdx_SystemIntegration_Render_InvalidDimensionsThrowsArgumentOutOfRangeException
