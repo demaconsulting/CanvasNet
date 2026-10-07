@@ -2766,6 +2766,70 @@ A before/after visual repro (the bug report's own exact geometry, rendered and v
 confirmed the fix: before, a plain pale ellipse with no red anywhere on its perimeter; after, a
 complete, correctly-closed red ellipse outline fully framing the same pale ellipse.
 
+#### Phase 2 Follow-Up: Run Text Outline Rendering (`<a:ln>` on `<a:rPr>`/`<a:defRPr>`)
+
+A user-reported real-world corpus fixture ("ERF IWF Breadboard Peer Review.pptx", slide 3
+"Objective") contains two large numbered-badge runs whose own `<a:rPr>` declares `<a:ln
+w="9525"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:ln>` (a solid purple stroke)
+alongside a `<a:solidFill>` of `<a:srgbClr val="70AD47"><a:tint val="1000"/></a:srgbClr>` - a
+~1%-tint, near-white fill - deliberately constructing PowerPoint's "hollow outlined numeral"
+effect, where the stroke is the only visible ink. CanvasNet rendered these numerals as nearly
+invisible near-white shapes: `PptxEffectiveRunProperties`/`PaintTextLayout` resolved and painted
+only a run's own `<a:solidFill>` fill color, with no concept at all of a run's own `<a:ln>` (as
+distinct from a shape's `<p:spPr>/<a:ln>`, which strokes the shape's geometry, not its text) - an
+undocumented gap until this investigation (triggered by, but distinct from, a separately-reported
+font-fallback suspicion that this investigation disproved: both this fixture's and a second
+real-world fixture's own theme fonts were confirmed, by direct test, to resolve correctly).
+
+**Scope**: solid-color-only, mirroring the pre-existing run fill color's own scope (`Color` is
+`Rgba32`, not a general `PptxPaint`) - a run `<a:ln>` with a gradient/image/pattern paint, or one
+that resolves to "no stroke" (see `ResolveLineStyle`'s own documented cases), is treated as "no
+outline declared at this tier", falling through the same attribute-level inheritance chain used
+for every other run property. The companion `<a:effectLst><a:glow>` PowerPoint also applies to
+this fixture's same badges remains out of scope, consistent with this unit's already-documented
+`<a:effectRef>` shape-effects deferral - only the `<a:ln>` stroke itself is implemented.
+
+**Model/inheritance** (`PptxEffectiveTextProperties.cs`/`PptxDocument.TextInheritance.cs`):
+`PptxEffectiveRunProperties` gains two trailing optional fields, `OutlineWidthEmu` (`float?`,
+`null` meaning "no outline") and `OutlineColor` (`Rgba32`, meaningful only when
+`OutlineWidthEmu` is non-null) - optional, so this record's one existing construction call site
+needed no other change. A new `GetRunOutline(XElement?, PptxTheme, PptxColorMap?)` reuses
+`ResolveLineStyle` (the exact resolver `RenderShape`/`RenderPicture`/`RenderConnector` already use
+for shape/picture/connector strokes) against the element's own `<a:ln>` child, returning
+`(WidthEmu, Color)` only when `ResolveLineStyle` resolves a stroke whose paint is a plain
+`PptxSolidFill`; `ResolveEffectiveRunProperties` chains `GetRunOutline` across the same four tiers
+(run/paragraph-defRPr/placeholder-lstStyle-level/master-txStyles) as every other run property.
+
+**Layout plumbing** (`PptxTextLayout.cs`/`PptxDocument.TextLayout.cs`): `LineGlyph` and
+`PptxGlyphPlacement` each gain the same trailing optional `OutlineWidthEmu`/`OutlineColor` pair
+(pre-existing direct-construction call sites, including tests, keep compiling unchanged);
+`BuildLines` additionally autofit-scales `OutlineWidthEmu` by the same `fontScale` factor applied
+to `SizeEmu`, so a shrunk-to-fit outline stays proportional to its own shrunk text.
+
+**Painting** (`PptxDocument.TextRender.cs`): `PaintTextLayout`'s glyph matrix is now built in two
+stages instead of one - a `localGlyphMatrix` (scale + baseline-origin translation only, no
+`shapeToSurfaceTransform`) builds the glyph's outline in shape-local EMU space, which is then
+`.Transform(shapeToSurfaceTransform)`-ed for the existing fill paint (mathematically identical to
+the prior single-step composed matrix, by matrix-multiplication associativity - the pre-existing
+fill-painting tests needed no changes and continue to pass unmodified). When a glyph's own
+`OutlineWidthEmu` is non-null, its `localGlyphMatrix`-built path is additionally stroked via
+`ResolveStrokeOutline` (constructing an ad hoc single-use `PptxLineStyle(OutlineWidthEmu, new
+PptxSolidFill(OutlineColor), DashArray: null)`) before being transformed and filled with
+`OutlineColor` - mirroring `RenderShape`'s own fill-then-stroke pattern, and, by stroking in
+local/native-EMU space before transforming (exactly like every existing shape/picture/connector
+stroke), correctly picking up `ResolveFlattenTolerance`'s coordinate-scale-aware tessellation.
+
+**Test coverage**: `PptxTextTests.cs` gained `ResolveEffectiveRunProperties_RunLn_
+ResolvesOutlineWidthAndColor` (a run-level `<a:ln>` resolves both fields) and
+`ResolveEffectiveRunProperties_NoLnDeclared_OutlineWidthEmuIsNull` (absent at every tier, a
+regression guard that the chain still defaults to "no outline"). `PptxTextRenderTests.cs` gained
+`PaintTextLayout_GlyphWithOutline_PaintsOutlineStrokeAroundInterior` (a synthetic square glyph with
+a near-white fill and a strongly-colored outline: the interior samples the fill color, the path
+edge samples the outline color, and the exterior remains untouched). A before/after visual repro
+(the bug report's own fixture, slide 3, rendered end-to-end through the public `PptxDocument.Render`
+API and saved to PNG) confirmed the fix: before, the two numeral badges appeared as near-invisible
+pale shapes; after, both render as clearly visible purple-outlined hollow numerals.
+
 #### Phase 2 Follow-Up: Table Style/Banding Resolution (`<a:tableStyleId>`)
 
 **Bug**: a `<a:tbl>` whose `<a:tblPr>` declares `<a:tableStyleId>{GUID}</a:tableStyleId>`

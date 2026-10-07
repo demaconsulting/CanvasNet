@@ -317,7 +317,14 @@ public sealed partial class PptxDocument
         bool IsTab = false);
 
     /// <summary>A single laid-out glyph, positioned relative to its own line's start (alignment/margin not yet applied).</summary>
-    private readonly record struct LineGlyph(TrueTypeFont Font, int GlyphIndex, float XInLineEmu, float SizeEmu, Rgba32 Color);
+    private readonly record struct LineGlyph(
+        TrueTypeFont Font,
+        int GlyphIndex,
+        float XInLineEmu,
+        float SizeEmu,
+        Rgba32 Color,
+        float? OutlineWidthEmu = null,
+        Rgba32 OutlineColor = default);
 
     /// <summary>
     ///     A single contiguous underlined span on one line (Phase 2 Follow-Up: Underline
@@ -493,7 +500,11 @@ public sealed partial class PptxDocument
                 runIndex++;
                 var scaledSizeEmu = runProps.SizeEmu * fontScale;
                 var font = resolveFont(runProps.FontFamily, runProps.Bold, runProps.Italic);
-                var scaledRunProps = runProps with { SizeEmu = scaledSizeEmu };
+                var scaledRunProps = runProps with
+                {
+                    SizeEmu = scaledSizeEmu,
+                    OutlineWidthEmu = runProps.OutlineWidthEmu is { } outlineWidthEmu ? outlineWidthEmu * fontScale : null,
+                };
 
                 foreach (var (text, isWhitespace, isTab) in Tokenize(run.Text))
                 {
@@ -572,7 +583,9 @@ public sealed partial class PptxDocument
                             var advance = resolvedFont.GetAdvanceWidth(glyphIndex) / (float)resolvedFont.UnitsPerEm * token.RunProperties.SizeEmu;
                             if (!token.IsWhitespace)
                             {
-                                glyphs.Add(new LineGlyph(resolvedFont, glyphIndex, cursorX, token.RunProperties.SizeEmu, token.RunProperties.Color));
+                                glyphs.Add(new LineGlyph(
+                                    resolvedFont, glyphIndex, cursorX, token.RunProperties.SizeEmu, token.RunProperties.Color,
+                                    token.RunProperties.OutlineWidthEmu, token.RunProperties.OutlineColor));
                             }
 
                             cursorX += advance;
@@ -1017,7 +1030,9 @@ public sealed partial class PptxDocument
 
             foreach (var glyph in line.Glyphs)
             {
-                glyphs.Add(new PptxGlyphPlacement(glyph.Font, glyph.GlyphIndex, startX + glyph.XInLineEmu, baselineY, glyph.SizeEmu, glyph.Color));
+                glyphs.Add(new PptxGlyphPlacement(
+                    glyph.Font, glyph.GlyphIndex, startX + glyph.XInLineEmu, baselineY, glyph.SizeEmu, glyph.Color,
+                    glyph.OutlineWidthEmu, glyph.OutlineColor));
             }
 
             foreach (var span in line.UnderlineSpans)

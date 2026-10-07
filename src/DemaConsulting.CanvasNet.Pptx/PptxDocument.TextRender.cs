@@ -51,14 +51,22 @@ public sealed partial class PptxDocument
     ///     A glyph whose outline has no subpaths (a space or control character - though
     ///     <see cref="ResolveTextLayout"/> already omits whitespace glyphs from
     ///     <see cref="PptxTextLayout.Glyphs"/>, a defensive, resolver-agnostic check) is skipped
-    ///     entirely rather than painting an empty fill. After every glyph is painted, every
-    ///     <see cref="PptxTextLayout.Underlines"/> segment (Phase 2 Follow-Up: Underline
-    ///     Rendering) is painted as one or two thin filled rectangles (see
-    ///     <see cref="UnderlineThicknessRatio"/>/<see cref="UnderlineOffsetRatio"/>'s own remarks
-    ///     for the documented thickness/offset approximation) - <see cref="PptxUnderlineStyle.Double"/>
-    ///     paints two thinner, gapped rectangles; every other non-<see cref="PptxUnderlineStyle.None"/>
-    ///     style (<see cref="PptxUnderlineStyle.Single"/>/<see cref="PptxUnderlineStyle.Other"/>)
-    ///     paints exactly one - never throwing for an unrecognized style.
+    ///     entirely rather than painting an empty fill. A glyph with a non-null
+    ///     <see cref="PptxGlyphPlacement.OutlineWidthEmu"/> (Phase 2 Follow-Up: Run Text Outline)
+    ///     additionally has its outline stroked and filled with
+    ///     <see cref="PptxGlyphPlacement.OutlineColor"/>, on top of its own fill - mirroring
+    ///     <c>PptxDocument.Render.cs</c>'s shape-outline pattern: the glyph's own local-space
+    ///     outline path is stroked via <see cref="ResolveStrokeOutline"/> (so
+    ///     <see cref="ResolveFlattenTolerance"/>'s coordinate-scale-aware tessellation applies
+    ///     correctly) and only then transformed into surface space, exactly like the fill path.
+    ///     After every glyph is painted, every <see cref="PptxTextLayout.Underlines"/> segment
+    ///     (Phase 2 Follow-Up: Underline Rendering) is painted as one or two thin filled
+    ///     rectangles (see <see cref="UnderlineThicknessRatio"/>/<see cref="UnderlineOffsetRatio"/>'s
+    ///     own remarks for the documented thickness/offset approximation) -
+    ///     <see cref="PptxUnderlineStyle.Double"/> paints two thinner, gapped rectangles; every
+    ///     other non-<see cref="PptxUnderlineStyle.None"/> style
+    ///     (<see cref="PptxUnderlineStyle.Single"/>/<see cref="PptxUnderlineStyle.Other"/>) paints
+    ///     exactly one - never throwing for an unrecognized style.
     /// </summary>
     /// <param name="surface">The surface to paint onto.</param>
     /// <param name="layout">The resolved text layout to paint.</param>
@@ -81,16 +89,29 @@ public sealed partial class PptxDocument
             // y, relative to the baseline), not below it. A positive Y scale here would paint
             // every glyph upside-down and offset below the baseline instead of above it.
             var glyphScaleEmu = glyph.SizeEmu / glyph.Font.UnitsPerEm;
-            var glyphMatrix =
+
+            // Built in the glyph's own shape-local (native-EMU) space first - shapeToSurfaceTransform
+            // is applied afterward, separately for the fill path and (when present) the stroked
+            // outline path, so ResolveStrokeOutline's own flattenTolerance derivation sees the
+            // correct pre-transform coordinate magnitude (mirroring the shape-outline pattern in
+            // PptxDocument.Render.cs). Matrix multiplication associativity means the fill path's
+            // own rendered geometry is unchanged from composing the full transform in one step.
+            var localGlyphMatrix =
                 Matrix3x2.CreateScale(glyphScaleEmu, -glyphScaleEmu) *
-                Matrix3x2.CreateTranslation(glyph.OriginXEmu, glyph.OriginYEmu) *
-                shapeToSurfaceTransform;
+                Matrix3x2.CreateTranslation(glyph.OriginXEmu, glyph.OriginYEmu);
 
             var builder = new PathBuilder();
-            AppendTransformedGlyphOutline(builder, outline, glyphMatrix);
-            var path = builder.Build();
+            AppendTransformedGlyphOutline(builder, outline, localGlyphMatrix);
+            var localPath = builder.Build();
 
-            PathFiller.Fill(surface, path, glyph.Color, FillRule.NonZero);
+            PathFiller.Fill(surface, localPath.Transform(shapeToSurfaceTransform), glyph.Color, FillRule.NonZero);
+
+            if (glyph.OutlineWidthEmu is { } outlineWidthEmu)
+            {
+                var outlineLineStyle = new PptxLineStyle(outlineWidthEmu, new PptxSolidFill(glyph.OutlineColor), DashArray: null);
+                var strokedOutline = ResolveStrokeOutline(localPath, outlineLineStyle, shapeToSurfaceTransform);
+                PathFiller.Fill(surface, strokedOutline.Transform(shapeToSurfaceTransform), glyph.OutlineColor, FillRule.NonZero);
+            }
         }
 
         foreach (var segment in layout.Underlines)

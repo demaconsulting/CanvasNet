@@ -620,6 +620,49 @@ public class PptxTextTests
     }
 
     /// <summary>
+    ///     Resolve Effective Run Properties - a run-level <c>&lt;a:ln&gt;</c> (Phase 2 Follow-Up:
+    ///     Run Text Outline) resolves <see cref="PptxEffectiveRunProperties.OutlineWidthEmu"/>/
+    ///     <see cref="PptxEffectiveRunProperties.OutlineColor"/>, reproducing the real-world
+    ///     "hollow outlined numeral" markup (a near-invisible fill paired with a solid-colored
+    ///     stroke) that originally surfaced this gap.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_RunLn_ResolvesOutlineWidthAndColor()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "FFFFFF"))),
+            new XElement(
+                DrawingNs + "ln",
+                new XAttribute("w", "19050"),
+                new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "7030A0"))))));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Equal(19050f, result.OutlineWidthEmu);
+        Assert.Equal(new Rgba32(0x70, 0x30, 0xA0, 255), result.OutlineColor);
+    }
+
+    /// <summary>Resolve Effective Run Properties - No <c>&lt;a:ln&gt;</c> declared at any inheritance tier - OutlineWidthEmu stays <see langword="null"/> (no outline painted).</summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_NoLnDeclared_OutlineWidthEmuIsNull()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "FF0000")))));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Null(result.OutlineWidthEmu);
+    }
+
+    /// <summary>
     ///     Resolve Effective Run Properties - Theme Font Tokens - Resolve Through The Theme's
     ///     FontScheme (rather than being passed through as literal, unresolvable family name
     ///     strings, which would miss the theme's actual font and fall back to the font

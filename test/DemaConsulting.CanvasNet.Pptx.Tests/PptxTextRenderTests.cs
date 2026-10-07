@@ -189,6 +189,40 @@ public class PptxTextRenderTests
         Assert.Equal(default, surface[25, 112]);
     }
 
+    /// <summary>
+    ///     Proves a glyph with a non-null <see cref="PptxGlyphPlacement.OutlineWidthEmu"/> (Phase
+    ///     2 Follow-Up: Run Text Outline) is stroked with <see cref="PptxGlyphPlacement.OutlineColor"/>
+    ///     straddling its own path edge, in addition to its own interior fill - reproducing the
+    ///     real-world "hollow outlined numeral" effect (a near-invisible fill paired with a
+    ///     strongly-colored <c>&lt;a:ln&gt;</c> stroke) that originally surfaced this gap.
+    /// </summary>
+    [Fact]
+    public void PaintTextLayout_GlyphWithOutline_PaintsOutlineStrokeAroundInterior()
+    {
+        // Same geometry as PaintTextLayout_IdentityTransform_PaintsGlyphAtExpectedLocationWithResolvedColor:
+        // font-unit square [100,900]x[100,900], SizeEmu 100 -> scale 0.1, Origin (5,95) -> surface
+        // square [15,95]x[5,85] (identity transform, so shape-local EMU == surface pixels here).
+        var font = NewFilledSquareFont();
+        var glyphIndex = font.GetGlyphIndex('A');
+        var fillColor = new Rgba32(254, 254, 254, 255);
+        var outlineColor = new Rgba32(120, 30, 170, 255);
+        var glyph = new PptxGlyphPlacement(
+            font, glyphIndex, OriginXEmu: 5f, OriginYEmu: 95f, SizeEmu: 100f, fillColor,
+            OutlineWidthEmu: 4f, outlineColor);
+        var layout = new PptxTextLayout([glyph], AppliedFontScale: 1f);
+
+        using var surface = new Surface(100, 100);
+
+        PptxDocument.PaintTextLayout(surface, layout, Matrix3x2.Identity);
+
+        // Comfortably inside the square (away from every edge): the fill color, not the outline.
+        Assert.Equal(fillColor, surface[50, 50]);
+        // Straddling the square's left edge (x=15, +/- the 4-EMU stroke's half-width): the outline color.
+        Assert.Equal(outlineColor, surface[15, 50]);
+        // Comfortably outside the square and its stroke: untouched.
+        Assert.Equal(default, surface[2, 2]);
+    }
+
     /// <summary>Proves <see cref="PptxDocument.ResolveTextFont"/> falls back to the bundled font when the family hint does not match any resolvable system font criterion and no installed font happens to be returned as a generic-family fallback (bundled fallback is always reachable regardless).</summary>
     [Fact]
     public void ResolveTextFont_AnyFamilyHint_ResolvesNonNullFont()

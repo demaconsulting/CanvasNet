@@ -63,10 +63,20 @@ internal readonly record struct PptxUnderlineSegment(
 /// <param name="OriginYEmu">The glyph's baseline origin Y, in EMU, in the owning shape's own local coordinate space.</param>
 /// <param name="SizeEmu">The glyph's resolved (already autofit-scaled) font size, in EMU.</param>
 /// <param name="Color">The glyph's resolved ink color.</param>
+/// <param name="OutlineWidthEmu">
+///     The glyph's resolved text-outline (stroke) width, in EMU (Phase 2 Follow-Up: Run Text
+///     Outline), already scaled by the same autofit factor as <paramref name="SizeEmu"/> - see
+///     <see cref="PptxEffectiveRunProperties.OutlineWidthEmu"/>. <see langword="null"/> means "no
+///     outline is painted for this glyph", the default for every pre-existing direct-construction
+///     call site (for example in tests) that predates outline support.
+/// </param>
+/// <param name="OutlineColor">The glyph's resolved outline ink color, only meaningful when <paramref name="OutlineWidthEmu"/> is non-<see langword="null"/>.</param>
 internal sealed record PptxGlyphPlacement(
     TrueTypeFont Font,
     int GlyphIndex,
     float OriginXEmu,
     float OriginYEmu,
     float SizeEmu,
-    Rgba32 Color);
+    Rgba32 Color,
+    float? OutlineWidthEmu = null,
+    Rgba32 OutlineColor = default);

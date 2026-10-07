@@ -18,6 +18,17 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     meaningful when <paramref name="UnderlineStyle"/> is not <see cref="PptxUnderlineStyle.None"/>.
 /// </param>
 /// <param name="Color">The run's resolved color.</param>
+/// <param name="OutlineWidthEmu">
+///     The run's resolved text-outline (stroke) width, in EMU, from a run-level <c>&lt;a:ln&gt;</c>
+///     child of <c>&lt;a:rPr&gt;</c>/<c>&lt;a:defRPr&gt;</c> (Phase 2 Follow-Up: Run Text Outline) -
+///     <see langword="null"/> when no tier in the attribute-level inheritance chain declares one,
+///     meaning "no outline is painted for this run". Distinct from a shape's own
+///     <c>&lt;p:spPr&gt;/&lt;a:ln&gt;</c>, which strokes the shape's geometry, not its text.
+/// </param>
+/// <param name="OutlineColor">
+///     The run's resolved text-outline ink color, only meaningful when
+///     <paramref name="OutlineWidthEmu"/> is non-<see langword="null"/>.
+/// </param>
 internal sealed record PptxEffectiveRunProperties(
     string FontFamily,
     float SizeEmu,
@@ -25,7 +36,9 @@ internal sealed record PptxEffectiveRunProperties(
     bool Italic,
     PptxUnderlineStyle UnderlineStyle,
     Rgba32 UnderlineColor,
-    Rgba32 Color);
+    Rgba32 Color,
+    float? OutlineWidthEmu = null,
+    Rgba32 OutlineColor = default);
 
 /// <summary>
 ///     The discriminator for a run's resolved <c>&lt;a:rPr u="..."/&gt;</c> underline style

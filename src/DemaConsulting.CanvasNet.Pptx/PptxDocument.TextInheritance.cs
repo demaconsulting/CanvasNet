@@ -143,7 +143,15 @@ public sealed partial class PptxDocument
             GetUnderlineColor(masterLevelDefRPr, theme, colorMap) ??
             color;
 
-        return new PptxEffectiveRunProperties(typeface, sizeEmu, bold, italic, underlineStyle, underlineColor, color);
+        var outline =
+            GetRunOutline(runRPr, theme, colorMap) ??
+            GetRunOutline(paragraphDefRPr, theme, colorMap) ??
+            GetRunOutline(placeholderLevelDefRPr, theme, colorMap) ??
+            GetRunOutline(masterLevelDefRPr, theme, colorMap);
+
+        return new PptxEffectiveRunProperties(
+            typeface, sizeEmu, bold, italic, underlineStyle, underlineColor, color,
+            outline?.WidthEmu, outline?.Color ?? default);
     }
 
     /// <summary>
@@ -603,6 +611,42 @@ public sealed partial class PptxDocument
     {
         var colorElement = rPrLikeElement?.Element(DrawingNamespace + "solidFill")?.Elements().FirstOrDefault();
         return colorElement is null ? null : ResolveColor(colorElement, theme, colorMap: colorMap);
+    }
+
+    /// <summary>
+    ///     Resolves an <c>&lt;a:rPr&gt;</c>/<c>&lt;a:defRPr&gt;</c>-shaped element's run-level
+    ///     <c>&lt;a:ln&gt;</c> text-outline/stroke child (Phase 2 Follow-Up: Run Text Outline),
+    ///     reusing the exact same <see cref="ResolveLineStyle"/> a shape's own
+    ///     <c>&lt;p:spPr&gt;/&lt;a:ln&gt;</c> is resolved with - PowerPoint lets a run stroke its
+    ///     own glyph outlines (for example a hollow/outlined numeral effect: a near-transparent
+    ///     fill paired with a solid-colored stroke), a schema position entirely distinct from a
+    ///     shape's geometry outline.
+    /// </summary>
+    /// <returns>
+    ///     The resolved width/color pair, or <see langword="null"/> when <paramref name="rPrLikeElement"/>
+    ///     has no <c>&lt;a:ln&gt;</c> child at all, that child resolves to "no stroke" (see
+    ///     <see cref="ResolveLineStyle"/>'s own remarks - for example an explicit
+    ///     <c>&lt;a:noFill/&gt;</c> line or a non-positive <c>w</c>), or its resolved paint is not
+    ///     a plain <see cref="PptxSolidFill"/> - a gradient/image/pattern text-outline paint is a
+    ///     documented, out-of-scope simplification (this unit's run <em>fill</em> color is already
+    ///     solid-only; its outline color is kept at that same fidelity). In every one of these
+    ///     cases the attribute-level inheritance chain keeps falling through to a shallower tier,
+    ///     exactly like every other run attribute this file resolves - including the case where a
+    ///     run's own <c>&lt;a:ln&gt;</c> explicitly cancels an outline a shallower tier declares;
+    ///     a document relying on that explicit-cancellation nuance is not expected in practice.
+    /// </returns>
+    private static (float WidthEmu, Rgba32 Color)? GetRunOutline(XElement? rPrLikeElement, PptxTheme theme, PptxColorMap? colorMap = null)
+    {
+        var lnElement = rPrLikeElement?.Element(DrawingNamespace + "ln");
+        if (lnElement is null)
+        {
+            return null;
+        }
+
+        var lineStyle = ResolveLineStyle(lnElement, theme, colorMap);
+        return lineStyle is { Paint: PptxSolidFill solidFill }
+            ? (lineStyle.WidthEmu, solidFill.Color)
+            : null;
     }
 
     /// <summary>
