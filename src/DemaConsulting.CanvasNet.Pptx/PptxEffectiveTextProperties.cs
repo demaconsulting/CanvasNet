@@ -21,9 +21,15 @@ namespace DemaConsulting.CanvasNet.Pptx;
 /// <param name="OutlineWidthEmu">
 ///     The run's resolved text-outline (stroke) width, in EMU, from a run-level <c>&lt;a:ln&gt;</c>
 ///     child of <c>&lt;a:rPr&gt;</c>/<c>&lt;a:defRPr&gt;</c> (Phase 2 Follow-Up: Run Text Outline) -
-///     <see langword="null"/> when no tier in the attribute-level inheritance chain declares one,
-///     meaning "no outline is painted for this run". Distinct from a shape's own
-///     <c>&lt;p:spPr&gt;/&lt;a:ln&gt;</c>, which strokes the shape's geometry, not its text.
+///     <see langword="null"/> both when no tier in the attribute-level inheritance chain declares
+///     an <c>&lt;a:ln&gt;</c> at all, and when the first tier that does declare one explicitly
+///     cancels the outline (an <c>&lt;a:noFill/&gt;</c> line fill, a non-positive <c>w</c>, or a
+///     resolved paint that is not a plain solid color) - either way meaning "no outline is painted
+///     for this run"; see <see cref="PptxDocument.ResolveEffectiveRunProperties"/>'s own tier-
+///     selection-then-resolution remarks for why these two distinct cases both collapse to
+///     <see langword="null"/> here without the explicit-cancellation case falling through to a
+///     shallower tier. Distinct from a shape's own <c>&lt;p:spPr&gt;/&lt;a:ln&gt;</c>, which
+///     strokes the shape's geometry, not its text.
 /// </param>
 /// <param name="OutlineColor">
 ///     The run's resolved text-outline ink color, only meaningful when

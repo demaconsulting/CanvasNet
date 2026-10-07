@@ -749,6 +749,42 @@ public class PptxTextTests
     }
 
     /// <summary>
+    ///     Resolve Effective Run Properties - a run-level <c>&lt;a:ln&gt;</c> declaring a
+    ///     <c>&lt;a:blipFill&gt;</c> picture-fill line paint (out of scope - this unit's run
+    ///     outline color is solid-only, see this feature's design-doc scope note) resolves to "no
+    ///     outline" instead of propagating <see cref="PptxUnsupportedFeatureException"/> -
+    ///     regression test for a post-merge code-review finding: <c>GetRunOutline</c> previously
+    ///     called <see cref="PptxDocument.ResolveLineStyle"/> with no <c>resolveBlipImage</c>
+    ///     delegate, so a run-level picture-fill outline's own <see cref="PptxDocument.ResolveFill"/>
+    ///     call threw instead of degrading gracefully the way a gradient/pattern line paint
+    ///     already does, aborting rendering of the entire slide over a single unsupported run's
+    ///     stroke paint.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_RunLnWithBlipFill_ResolvesNoOutlineInsteadOfThrowing()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XElement(
+                DrawingNs + "ln",
+                new XAttribute("w", "19050"),
+                new XElement(
+                    DrawingNs + "blipFill",
+                    new XElement(
+                        DrawingNs + "blip",
+                        new XAttribute(
+                            XNamespace.Get("http://schemas.openxmlformats.org/officeDocument/2006/relationships") + "embed",
+                            "rId1"))))));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Null(result.OutlineWidthEmu);
+    }
+
+    /// <summary>
     ///     Resolve Effective Run Properties - Theme Font Tokens - Resolve Through The Theme's
     ///     FontScheme (rather than being passed through as literal, unresolvable family name
     ///     strings, which would miss the theme's actual font and fall back to the font

@@ -2782,10 +2782,14 @@ font-fallback suspicion that this investigation disproved: both this fixture's a
 real-world fixture's own theme fonts were confirmed, by direct test, to resolve correctly).
 
 **Scope**: solid-color-only, mirroring the pre-existing run fill color's own scope (`Color` is
-`Rgba32`, not a general `PptxPaint`) - a run `<a:ln>` with a gradient/image/pattern paint, or one
-that resolves to "no stroke" (see `ResolveLineStyle`'s own documented cases), is treated as "no
-outline declared at this tier", falling through the same attribute-level inheritance chain used
-for every other run property. The companion `<a:effectLst><a:glow>` PowerPoint also applies to
+`Rgba32`, not a general `PptxPaint`) - a run `<a:ln>` that declares a `<a:blipFill>` picture-fill
+line paint is short-circuited before `ResolveLineStyle` is ever called (see the picture-fill
+correction below), and one that resolves to "no stroke" or to a gradient/pattern paint (see
+`ResolveLineStyle`'s own documented cases) is treated as "no outline for this run" - but, per the
+explicit-cancellation tier-selection correction below, none of these cases fall through to a
+shallower tier once the first tier declaring an `<a:ln>` at all has been selected; tier selection
+and tier resolution are two separate steps, and only the former walks the attribute-level
+inheritance chain. The companion `<a:effectLst><a:glow>` PowerPoint also applies to
 this fixture's same badges remains out of scope, consistent with this unit's already-documented
 `<a:effectRef>` shape-effects deferral - only the `<a:ln>` stroke itself is implemented.
 
@@ -2851,6 +2855,21 @@ dash array, unmodified in shape, through every layer this feature already thread
 new PptxSolidFill(glyph.OutlineColor), glyph.OutlineDashArray)` - so a dashed run-level outline now
 renders dashed exactly like a shape's own dashed geometry outline already does, with the same
 autofit `fontScale` scaling applied along the way.
+
+**Correction - picture-fill run outline short-circuit (a third post-merge code-review finding)**:
+`GetRunOutline` delegated straight to `ResolveLineStyle` with no `resolveBlipImage` delegate
+supplied. For a run-level `<a:ln><a:blipFill>...</a:blipFill></a:ln>`, `ResolveLineStyle`'s own
+`ResolveFill` call throws `PptxUnsupportedFeatureException("pptx-picture-fill", ...)` rather than
+returning a non-solid `PptxPaint` the way a gradient/pattern line fill already does - unlike those
+two paint kinds, which `GetRunOutline`'s existing `is { Paint: PptxSolidFill }` pattern match
+already discards harmlessly as "no outline", a picture-fill line paint never reached that pattern
+match at all; the exception propagated out of `GetRunOutline` and aborted rendering the entire
+slide over a single run's out-of-scope stroke paint. The fix adds an explicit guard in
+`GetRunOutline`, checking for a `<a:blipFill>` child of the selected `<a:ln>` element and returning
+`null` (the exact same "no outline for this run" result a gradient/pattern paint already produces)
+before `ResolveLineStyle` is ever called - consistent with this feature's documented solid-color-
+only scope, and without needing to thread a `resolveBlipImage` delegate through this code path at
+all (picture-fill run outlines remain unsupported, just gracefully instead of fatally).
 
 **Painting** (`PptxDocument.TextRender.cs`): `PaintTextLayout`'s glyph matrix is now built in two
 stages instead of one - a `localGlyphMatrix` (scale + baseline-origin translation only, no
