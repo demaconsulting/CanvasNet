@@ -1,0 +1,2154 @@
+---
+# Software Unit Requirements for PptxDocument
+#
+# cspell:ignore ooxml pptx srgb xfrm prst cust patt bodyPr normAutofit noAutofit spAutoFit pPr
+# cspell:ignore rPr txBody txStyles lstStyle defRPr ctrTitle lIns tIns rIns bIns algn marL lnSpc
+# cspell:ignore spcBef spcAft justLow lnSpcReduction fontScale lvl ordinally mistargeted unrenderable
+# cspell:ignore pythonpptx Autoshape aiden0z Aiden aiden misrendered bgRef bgFillStyleLst phClr
+# cspell:ignore tblStyle wholeTbl tcStyle tcBdr insideH insideV bandRow firstRow band1H band2H
+#
+# These requirements describe the design-level behavior of the PptxDocument unit.
+#
+# Packaging note: PptxDocument is distributed as the separate DemaConsulting.CanvasNet.Pptx NuGet
+# package (namespace DemaConsulting.CanvasNet.Pptx), which references the core
+# DemaConsulting.CanvasNet package. PptxDocument is the sole unit of the CanvasNetPptx system.
+
+sections:
+  - title: CanvasNetPptx Requirements
+    sections:
+      - title: PptxDocument Requirements
+        requirements:
+          - id: CanvasNetPptx-PptxDocument-OpenStream
+            title: >-
+              The PptxDocument class shall expose a static Open(Stream) method that buffers the
+              entire supplied stream into memory (without disposing or requiring it to remain
+              seekable afterward), constructs the OOXML package layer from the buffered bytes,
+              rejects a null stream with ArgumentNullException, and bounds the number of bytes
+              read from the supplied stream to a fixed maximum package size (256 MiB), rejecting a
+              stream exceeding that bound with InvalidDataException rather than buffering it in
+              full.
+            justification: |
+              Callers need to open a package from any stream source (file, network, in-memory)
+              without CanvasNetPptx retaining a dependency on the caller's stream lifetime. A
+              caller-supplied stream is not necessarily trusted or even finite (for example a
+              network stream under adversarial control, or a non-terminating stream), so buffering
+              it in full with no upper bound would let a single Open(Stream) call exhaust available
+              memory or block indefinitely; a fixed, documented size bound fails the call closed
+              with a clear exception instead.
+            tests:
+              - PptxDocument_Open_WellFormedMinimalPackage_Succeeds
+              - PptxDocument_Open_NullStream_ThrowsArgumentNullException
+              - PptxDocument_Open_NonTerminatingOversizedStream_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-OpenPath
+            title: >-
+              The PptxDocument class shall expose a static Open(string) method that validates the
+              path is neither null nor empty/whitespace-only (throwing ArgumentNullException or
+              ArgumentException respectively), then opens and delegates to Open(Stream).
+            justification: |
+              Callers most commonly have a file path rather than an already-open stream, and must
+              receive argument-validation errors distinguishable from a missing-file error.
+            tests:
+              - PptxDocument_Open_NullPath_ThrowsArgumentNullException
+              - PptxDocument_Open_WhitespacePath_ThrowsArgumentException
+
+          - id: CanvasNetPptx-PptxDocument-ZipValidation
+            title: >-
+              The PptxDocument class shall open the buffered bytes as a read-only ZipArchive and
+              reject an unreadable or corrupt (non-ZIP) stream with InvalidDataException.
+            justification: |
+              A .pptx file is fundamentally a ZIP archive; a corrupt or non-ZIP input must fail
+              closed with a clear, documented exception type rather than an unrelated BCL
+              exception leaking through.
+            tests:
+              - PptxDocument_Open_CorruptNonZipStream_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-ContentTypesValidation
+            title: >-
+              The PptxDocument class shall require the package to contain a well-formed
+              [Content_Types].xml part whose root is a Types element in the OPC content-types
+              namespace, parsing its Default (extension-to-content-type) and Override
+              (part-specific) entries - each of which must declare its required attribute(s)
+              (Extension/ContentType for Default, PartName/ContentType for Override) - and reject
+              a package missing this part, an oversized part exceeding a bounded character budget,
+              a part with a malformed root element, or a Default/Override element with a missing
+              required attribute, all with InvalidDataException.
+            justification: |
+              Every valid OPC package must declare [Content_Types].xml; its absence means the
+              package is fundamentally malformed and must be rejected before any later phase
+              attempts to interpret any part's content. A malformed root or incomplete
+              Default/Override element must fail closed (per Open()'s documented contract) rather
+              than silently being skipped, and an attacker-controlled, unbounded XML part (an "XML
+              bomb") must not be allowed to exhaust memory while parsing.
+            tests:
+              - PptxDocument_Open_MissingContentTypes_ThrowsInvalidDataException
+              - PptxDocument_Open_OversizedContentTypesPart_ThrowsInvalidDataException
+              - PptxDocument_Open_ContentTypesWrongRoot_ThrowsInvalidDataException
+              - PptxDocument_Open_ContentTypesDefaultMissingRequiredAttribute_ThrowsInvalidDataException
+              - PptxDocument_Open_ContentTypesOverrideMissingRequiredAttribute_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-MediaPartSizeValidation
+            title: >-
+              The PptxDocument class shall bound a single part's decompressed byte size (as read
+              by GetPartBytes) to a fixed maximum (256 MiB), enforced incrementally during the
+              copy itself rather than trusting the ZIP entry's declared length, and reject a part
+              whose decompressed content exceeds that bound with InvalidDataException.
+            justification: |
+              A single OPC part's compressed-to-decompressed ratio is entirely attacker-controlled
+              (a "zip bomb") - a small, highly-compressible media part can pass the whole
+              package's own compressed-size bound (MaxPackageBytes) easily while still
+              decompressing to an unbounded size through GetPartBytes, exhausting memory. Bounding
+              decompressed size incrementally during the copy, rather than trusting any declared
+              length, closes this gap without weakening support for any realistic media part.
+            tests:
+              - PptxDocument_GetPartBytes_OversizedDecompressedEntry_ThrowsInvalidDataException
+              - PptxDocument_GetPartBytes_WellFormedPart_ReturnsExactBytes
+
+          - id: CanvasNetPptx-PptxDocument-PackageRelationshipsValidation
+            title: >-
+              The PptxDocument class shall require the package to contain a well-formed
+              package-level _rels/.rels relationships part whose root is a Relationships element
+              in the OPC relationships namespace, parsing it eagerly at Open() time, and reject a
+              package missing this part, a part with a malformed root element, or a Relationship
+              element missing a required attribute (Id, Type, or Target), all with
+              InvalidDataException.
+            justification: |
+              The package-level relationships part is the sole entry point for discovering the
+              presentation's root part in later phases; its absence means the package cannot be
+              navigated at all. A malformed root or an incomplete Relationship element must fail
+              closed rather than silently being skipped, which would otherwise let a malformed
+              package appear navigable when it is not.
+            tests:
+              - PptxDocument_Open_MissingPackageRelationships_ThrowsInvalidDataException
+              - PptxDocument_Open_PackageRelsWrongRoot_ThrowsInvalidDataException
+              - PptxDocument_Open_RelationshipMissingRequiredAttribute_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-CaseSensitivePartNames
+            title: >-
+              The PptxDocument class shall compare OPC part names ordinally (case-sensitively),
+              treating two part names differing only by case as distinct parts, rejecting an
+              incorrectly-cased reserved part name (for example "[content_types].xml") as if the
+              reserved part were absent, and rejecting a package containing two ZIP entries with
+              exactly identical names, all with InvalidDataException where applicable.
+            justification: |
+              OPC (ECMA-376 Part 2) defines part-name comparison as ordinal; treating part names
+              case-insensitively would incorrectly merge two legitimately distinct parts (for
+              example "ppt/slides/Slide1.xml" and "ppt/slides/slide1.xml") or incorrectly accept
+              a malformed reserved-name part that must instead be rejected as absent.
+            tests:
+              - PptxDocument_ResolvePart_PartNamesDifferingOnlyByCase_ResolveAsDistinctParts
+              - PptxDocument_Open_WrongCaseContentTypesPartName_ThrowsInvalidDataException
+              - PptxDocument_Open_DuplicateEntryNames_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-ContentTypeOverride
+            title: >-
+              The PptxDocument class shall resolve a part's content type using its
+              [Content_Types].xml Override entry (keyed by exact part path) when one is declared
+              for that part, in preference to any Default extension-based mapping.
+            justification: |
+              OPC's own content-type resolution rules require an Override to take precedence over
+              a Default mapping for the same part; getting this precedence wrong would
+              misidentify a part's real content type.
+            tests:
+              - PptxDocument_ResolvePart_OverrideContentType_TakesPrecedenceOverDefaultExtension
+
+          - id: CanvasNetPptx-PptxDocument-ContentTypeDefault
+            title: >-
+              The PptxDocument class shall resolve a part with no Override entry via
+              [Content_Types].xml's Default extension-based mapping, and reject a request to
+              resolve a part the package does not contain, or whose content type cannot be
+              resolved by either mapping, with InvalidDataException.
+            justification: |
+              Most parts in a real .pptx package (nearly every slide, layout, and master) rely
+              solely on the Default extension mapping rather than an individual Override entry.
+            tests:
+              - PptxDocument_ResolvePart_NoOverride_ResolvesDefaultExtensionContentType
+              - PptxDocument_ResolvePart_UnknownPart_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-RelationshipResolution
+            title: >-
+              The PptxDocument class shall resolve a named relationship ID from a given source
+              part's own relationships part (or, for the empty source part path, the package-level
+              _rels/.rels), reject an unknown relationship ID, and reject a relationship whose
+              TargetMode is External, all with InvalidDataException.
+            justification: |
+              Relationship resolution is the sole navigation mechanism for discovering a package's
+              part graph; an unknown ID or an unsupported external target must fail closed rather
+              than silently returning an incorrect or unusable path.
+            tests:
+              - PptxDocument_Open_WellFormedMinimalPackage_Succeeds
+              - PptxDocument_ResolveRelationship_UnknownRelationshipId_ThrowsInvalidDataException
+              - PptxDocument_ResolveRelationship_ExternalTargetMode_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-RelativeTargetTraversal
+            title: >-
+              The PptxDocument class shall resolve a relationship's relative Target value relative
+              to the source part's own directory (not the package root), correctly applying a
+              leading "../" parent-directory traversal segment, and reject a target that would
+              traverse past the package root with InvalidDataException.
+            justification: |
+              Real-world .pptx packages universally reference sibling parts (for example a slide
+              referencing its layout) using a relative, parent-traversing Target value; incorrect
+              resolution would misidentify the target part entirely.
+            tests:
+              - PptxDocument_ResolveRelationship_RelativeTargetWithParentTraversal_ResolvesCorrectTarget
+              - PptxDocument_ResolveRelationship_TargetEscapesPackageRoot_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-Dispose
+            title: >-
+              The PptxDocument class shall make Dispose idempotent (safe to call more than once),
+              releasing the underlying ZipArchive and its backing buffer.
+            justification: |
+              Standard, predictable IDisposable behavior matches every other disposable type in
+              CanvasNet, so double-disposing (a common pattern with using declarations and manual
+              disposal both present) never throws.
+            tests:
+              - PptxDocument_Dispose_CalledTwice_DoesNotThrow
+
+          - id: CanvasNetPptx-PptxDocument-PresentationParsing
+            title: >-
+              The PptxDocument class shall, at Open() time, locate ppt/presentation.xml via the
+              package root's /officeDocument relationship, parse its declared slide size into a
+              public SlideSize property, resolve its ordered slide list into a public SlideCount
+              property, and expose a GetSlideSizeInPixels(float dpi) conversion method, all guarded
+              by ObjectDisposedException once the document is disposed.
+            justification: |
+              Callers need the presentation's overall slide size and slide count without
+              navigating the package's relationship graph themselves, and need a pixel-resolution
+              conversion ahead of any later rendering phase reusing the same arithmetic.
+            tests:
+              - PptxDocument_Open_MultiSlidePresentation_SlideCountAndSlideSizeResolveCorrectly
+              - PptxDocument_GetSlideSizeInPixels_ValidDpi_ComputesExpectedPixelSize
+              - PptxDocument_GetSlideSizeInPixels_NonPositiveDpi_ThrowsArgumentOutOfRangeException
+              - CanvasNetPptx_SystemIntegration_PptxOpenPresentation_SlideCountAndSizeResolveEndToEnd
+
+          - id: CanvasNetPptx-PptxDocument-PresentationValidation
+            title: >-
+              The PptxDocument class shall reject, with InvalidDataException, a package with no
+              /officeDocument relationship, a presentation part whose root is not a PresentationML
+              <p:presentation> element, a presentation missing a valid <p:sldSz> (including a
+              missing, non-numeric, or non-positive cx/cy attribute, or a cx/cy that would
+              overflow int once converted to pixels), a presentation whose <p:sldIdLst> is missing
+              or declares zero slides, and a <p:sldId> whose resolved relationship Type does not
+              identify a slide part.
+            justification: |
+              A malformed or non-presentation package must fail closed at Open() time rather than
+              later surfacing as a confusing null-reference or structural failure when a caller
+              first reads SlideCount/SlideSize, calls GetSlideSizeInPixels, or navigates to a
+              mistargeted "slide" that is actually a theme or other arbitrary part.
+            tests:
+              - PptxDocument_Open_MissingOfficeDocumentRelationship_ThrowsInvalidDataException
+              - PptxDocument_Open_PresentationMissingSldSz_ThrowsInvalidDataException
+              - PptxDocument_Open_PresentationEmptySlideList_ThrowsInvalidDataException
+              - PptxDocument_Open_PresentationNonNumericSldSz_ThrowsInvalidDataException
+              - PptxDocument_Open_SlideIdRelationshipWrongType_ThrowsInvalidDataException
+              - PptxDocument_GetSlideSizeInPixels_OversizedDimension_ThrowsInvalidDataException
+              - CanvasNetPptx_SystemIntegration_PptxOpenValidationEmptySlideList_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-SlideSizePixelConversion
+            title: >-
+              The PptxDocument class shall convert its EMU-unit SlideSize to a pixel size at a
+              caller-supplied DPI via GetSlideSizeInPixels(float dpi), rounding each dimension to
+              the nearest pixel, and reject a non-positive or non-finite dpi with
+              ArgumentOutOfRangeException.
+            justification: |
+              A later rendering phase needs a pixel-dimensioned Canvas.Surface to paint onto;
+              providing this conversion now, already tested, avoids re-deriving the EMU-to-pixel
+              arithmetic when that phase arrives.
+            tests:
+              - PptxDocument_GetSlideSizeInPixels_ValidDpi_ComputesExpectedPixelSize
+              - PptxDocument_GetSlideSizeInPixels_NonPositiveDpi_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNetPptx-PptxDocument-ThemeColorScheme
+            title: >-
+              The PptxDocument class shall resolve a theme part's 12-slot color scheme
+              (<a:clrScheme>) into concrete Rgba32 values, resolving an <a:srgbClr val="RRGGBB"/>
+              directly and an <a:sysClr val="..." lastClr="RRGGBB"/> via its cached lastClr value,
+              and reject a color value that is not exactly six hexadecimal digits (for example an
+              eight-digit AARRGGBB value) with InvalidDataException.
+            justification: |
+              A placeholder's effective properties may reference a theme color by scheme slot
+              rather than an explicit RGB value; resolving the scheme up front lets a later
+              rendering phase look up a concrete color without re-parsing the theme XML. OOXML's
+              own color-value attributes are always exactly six hex digits; an eight-digit value
+              must be rejected rather than silently misread with its first byte as alpha.
+            tests:
+              - PptxDocument_GetTheme_SrgbClrColorScheme_ResolvesRgba32Values
+              - PptxDocument_GetTheme_SysClrColorScheme_ResolvesLastClrValue
+              - PptxDocument_GetTheme_SrgbClrEightDigitValue_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-ThemeFontScheme
+            title: >-
+              The PptxDocument class shall resolve a theme part's font scheme (<a:fontScheme>)
+              into major (heading) and minor (body) typeface collections, each naming the Latin,
+              East Asian, and complex-script typeface.
+            justification: |
+              A placeholder's effective text properties may reference a theme's major/minor font
+              rather than an explicit typeface name; resolving the font scheme up front supports
+              that lookup without re-parsing the theme XML in a later phase.
+            tests:
+              - PptxDocument_GetTheme_FontScheme_ResolvesMajorMinorTypefaces
+
+          - id: CanvasNetPptx-PptxDocument-MasterPlaceholderParsing
+            title: >-
+              The PptxDocument class shall structurally parse a slide master's immediate
+              placeholder shapes (type and idx, defaulting to "obj"/0 when omitted) and resolve
+              its theme part via the master's own /theme relationship.
+            justification: |
+              A slide layout's placeholders may inherit effective properties from the owning
+              master's placeholders of a matching type, and a master's theme supplies the
+              scheme-level color/font context for the whole master/layout/slide chain beneath it.
+            tests:
+              - PptxDocument_GetMaster_PlaceholderShapes_ParsedWithTypeAndIdx
+
+          - id: CanvasNetPptx-PptxDocument-LayoutPlaceholderParsing
+            title: >-
+              The PptxDocument class shall structurally parse a slide layout's immediate
+              placeholder shapes (type and idx, defaulting to "obj"/0 when omitted) and resolve
+              its owning master's part path via the layout's own /slideMaster relationship.
+            justification: |
+              A slide's placeholders are matched against the owning layout's placeholders by idx;
+              the layout's own master part path is needed to continue the inheritance chain to
+              the master level when a layout-level match is found.
+            tests:
+              - PptxDocument_GetLayout_PlaceholderShapes_ParsedWithDefaultTypeAndIdx
+
+          - id: CanvasNetPptx-PptxDocument-SlidePlaceholderParsing
+            title: >-
+              The PptxDocument class shall expose GetSlide(int slideIndex), range-checked against
+              SlideCount with ArgumentOutOfRangeException, structurally parsing the slide's
+              immediate placeholder shapes (excluding non-placeholder shapes) and resolving its
+              owning layout's part path via the slide's own /slideLayout relationship.
+            justification: |
+              A caller (or a later rendering phase) needs to enumerate a specific slide's
+              placeholder shapes and locate its layout to begin the property-inheritance
+              resolution chain.
+            tests:
+              - PptxDocument_GetSlide_ImmediatePlaceholderShapes_ParsedStructurally
+              - PptxDocument_GetSlide_IndexOutOfRange_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNetPptx-PptxDocument-PlaceholderInheritanceIdxMatch
+            title: >-
+              The PptxDocument class shall resolve a slide placeholder's matching layout
+              placeholder by idx alone (type is not consulted at this hop), with a miss (no layout
+              placeholder shares the slide placeholder's idx) short-circuiting the remainder of
+              the inheritance chain rather than being retried by type.
+            justification: |
+              This is the verified ECMA-376 §19.3.1.36 slide-to-layout placeholder matching rule
+              (confirmed against the python-pptx reference implementation), distinct from a
+              naive "type+idx exact match" framing.
+            tests:
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_IdxMatchAtLayout_UsesLayoutSpPr
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_NoIdxMatchAtLayout_FallsThroughToMasterOnly
+
+          - id: CanvasNetPptx-PptxDocument-PlaceholderInheritanceTypeMatch
+            title: >-
+              The PptxDocument class shall, only when a layout-level idx match was found, resolve
+              that matched layout placeholder's matching master placeholder by type alone (idx is
+              not consulted at this hop), remapping the layout placeholder's type through a fixed
+              table (body/chart/bitmap/orgChart/mediaClip/obj/pic/subTitle/tbl/clipArt/dgm/media to
+              "body"; ctrTitle to "title"; every other type maps to itself) before matching.
+            justification: |
+              This is the verified ECMA-376 §19.3.1.36 layout-to-master placeholder matching rule;
+              getting the remap table or the "only runs after a layout match" short-circuit wrong
+              would resolve an incorrect or spurious master-level property fragment.
+            tests:
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_TypeMatchAtMaster_IgnoresMismatchedIdx
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_RemappedBodyLikeType_MatchesMasterBodyPlaceholder
+
+          - id: CanvasNetPptx-PptxDocument-EffectivePlaceholderTypeForTextStyle
+            title: >-
+              The PptxDocument class shall resolve a slide placeholder's effective type for master
+              text-style-bucket selection (titleStyle/bodyStyle/otherStyle) and default-typeface
+              selection as its own declared <p:ph type="..."/> value when explicitly present,
+              otherwise the idx-matched layout placeholder's type (PlaceholderInheritanceIdxMatch's
+              own hop-1 match), otherwise its own schema-defaulted type ("obj") as a last resort,
+              rather than always using the slide placeholder's own raw, schema-defaulted type.
+            justification: |
+              A slide <p:ph> that omits type is a valid, common OOXML pattern meaning "inherit the
+              idx-matched layout placeholder's type" - exactly as PlaceholderXfrmGeometryInheritance
+              already resolves for position/size/geometry via the same idx-matched layout
+              placeholder. Using the slide placeholder's own raw, schema-defaulted type ("obj")
+              directly for text-style-bucket selection instead incorrectly collapsed an
+              omitted-type title placeholder into the bodyStyle bucket rather than titleStyle,
+              confirmed via a synthetic repro of a real-world regression (a "Section Header"
+              layout's title placeholder rendering at its master's bodyStyle font size instead of
+              titleStyle - roughly 1/3 PowerPoint's own ground-truth size).
+            tests:
+              - ResolveEffectiveRunProperties_SectionHeaderTitlePlaceholderWithOmittedType_ResolvesMasterTitleStyleNotBodyStyle
+              - Render_SectionHeaderTitleWithOmittedType_PaintsIdenticallyToExplicitTitleType
+
+          - id: CanvasNetPptx-PptxDocument-PlaceholderInheritancePerCategory
+            title: >-
+              The PptxDocument class shall resolve a slide placeholder's effective <p:spPr> and
+              <p:txBody>/<a:lstStyle> property fragments independently (slide, then matched
+              layout, then matched master, taking the first element present at all), and carry
+              the resolved theme through unchanged as context rather than selecting it via the
+              same fallback. For <p:spPr> (fill/line resolution), an empty element still counts
+              as present, stopping the fallback for that category; <a:xfrm>/geometry
+              (PlaceholderXfrmGeometryInheritance) and <a:lstStyle> level overrides
+              (TxBodyListStyleLevelInheritance) are the two named exceptions, each resolved via
+              its own independent, non-whole-element walk that continues past a tier's own
+              empty-but-present element.
+            justification: |
+              Each property category's inheritance chain is independent in real PowerPoint
+              behavior (a slide may override its fill without overriding its text style, or vice
+              versa); merging them into a single fallback decision would resolve incorrect
+              effective properties for one or both categories.
+            tests:
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_PerCategoryIndependentFallthrough_SlideOverridesFillButNotText
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_NoMatchAtAnyLevel_ReturnsNullForBothCategories
+
+          - id: CanvasNetPptx-PptxDocument-PlaceholderXfrmGeometryInheritance
+            title: >-
+              The PptxDocument class shall resolve a placeholder's effective <a:xfrm> element, and
+              separately its effective geometry-bearing <p:spPr> element (the first <p:spPr>, slide
+              then matched layout then matched master, that itself declares an <a:prstGeom> or
+              <a:custGeom> child), each independently of PlaceholderInheritancePerCategory's own
+              whole-<p:spPr>-element fallback, continuing the slide -> matched layout -> matched
+              master walk past a tier's own empty-but-present <p:spPr/> that declares neither, and
+              shall skip painting the shape silently, rather than throwing, when no tier anywhere
+              in the chain resolves one or the other.
+            justification: |
+              A placeholder's own <p:spPr> is frequently present but empty (self-closing
+              <p:spPr/>, declaring no <a:xfrm> and no <a:prstGeom>/<a:custGeom>), deliberately
+              relying on its matched layout/master placeholder for position, size, and geometry -
+              extremely common in real-world .pptx files not authored by actual PowerPoint
+              (confirmed against samplelib.com's own general-purpose sample deck). Because
+              PlaceholderInheritancePerCategory's own effective-<p:spPr> fallback only advances
+              past a null reference (an empty-but-present element still "wins"), it never reaches
+              the layout/master's own populated <p:spPr> for such a placeholder, silently
+              discarding the whole shape when ShapeFrameTransform then finds no <a:xfrm>, or
+              crashing with InvalidDataException once geometry resolution is reached. Unlike
+              fill/line resolution (FillResolution's own absent-fill-means-no-op behavior),
+              geometry resolution has no graceful fallback for "no geometry anywhere" - a real
+              master placeholder always declares one per ECMA-376's standard master content, so
+              resolving it via this independent, per-element (not per-whole-<p:spPr>) walk is both
+              safe and necessary for conformance with real-world files, mirroring the per-attribute
+              (not per-whole-element) resolution TextPropertyInheritance already establishes for
+              run/paragraph properties.
+            tests:
+              - Render_PlaceholderShapeWithEmptySpPr_InheritsXfrmAndGeometryFromLayout
+              - PptxDocument_Render_SamplelibSamplePresentationFixture_EverySlidePaintsContent
+
+          - id: CanvasNetPptx-PptxDocument-TxBodyListStyleLevelInheritance
+            title: >-
+              The PptxDocument class shall resolve a placeholder's effective <p:txBody>/<a:lstStyle>
+              element by walking slide -> matched layout -> matched master and selecting the first
+              tier whose own <a:lstStyle> element itself declares at least one <a:lvl{N}pPr> (N = 1..9)
+              level-override child, independently of PlaceholderInheritancePerCategory's own
+              whole-element fallback, continuing past a tier's own empty-but-present <a:lstStyle/>
+              that declares no level child at all, rather than letting that empty element "win" and
+              block the layout/master's real level overrides.
+            justification: |
+              A slide-level placeholder frequently declares an empty, self-closing <a:lstStyle/> (no
+              <a:lvl{N}pPr> children at all) while its matched layout placeholder declares a real
+              override (for example a large title defRPr sz) - confirmed against a real-world deck
+              ("ERF IWF Breadboard Peer Review.pptx", a ctrTitle placeholder) where this
+              empty-but-present element silently blocked the layout's 60pt title-size override,
+              causing text to render at a smaller, further-downstream fallback size (~28pt) instead.
+              This is the exact same bug class PlaceholderXfrmGeometryInheritance already fixed for
+              <a:xfrm>/geometry (an empty, non-descriptive element incorrectly "winning"
+              PlaceholderInheritancePerCategory's own element-presence fallback) applied to the
+              <a:lstStyle> category - TextPropertyInheritance's GetLevelDefRPr/GetLevelElement helpers
+              index this element by level, so an empty <a:lstStyle/> with no level children causes
+              those lookups to silently fail for every level exactly as if the element were entirely
+              absent, making "treat empty as absent" both correct and necessary for this category.
+            tests:
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_SlideLstStyleEmptyWithNoLevelOverride_FallsThroughToLayoutLevelOverride
+              - PptxDocumentInheritance_ResolvePlaceholderProperties_SlideLstStyleHasLevelOverride_SlideWinsOverLayout
+              - ResolveEffectiveRunProperties_CtrTitlePlaceholderWithEmptySlideLstStyle_ResolvesLayoutDefRPrSizeNotMasterTitleStyleFallback
+              - Render_CtrTitlePlaceholderWithEmptySlideLstStyle_PaintsIdenticallyToAbsentLstStyle
+
+          - id: CanvasNetPptx-PptxDocument-ShapeFrameTransform
+            title: >-
+              The PptxDocument class shall resolve a shape's <a:xfrm> element (off/ext position and
+              size, an optional rot rotation in 60,000ths of a degree about the shape's own center,
+              defaulting to zero when omitted, and optional flipH/flipV mirroring about the shape's
+              own center) into a single composed transform placing the shape's local coordinate
+              space into its parent's coordinate space, and reject a missing off/ext child element,
+              a non-numeric off/ext attribute (x/y/cx/cy), or a non-numeric rot attribute with
+              InvalidDataException.
+            justification: |
+              Every DrawingML shape's geometry is authored in its own local coordinate space; a
+              correct, single composed transform is the foundation every later geometry and paint
+              resolution in this phase, and any future rendering phase, builds on. A malformed
+              (non-numeric) off/ext attribute must fail with the documented InvalidDataException
+              contract, not an unrelated raw conversion-failure exception.
+            tests:
+              - ResolveShapeFrame_PlainOffsetAndSize_MapsLocalOriginToOffset
+              - ResolveShapeFrame_MissingOff_ThrowsInvalidDataException
+              - ResolveShapeFrame_MissingExt_ThrowsInvalidDataException
+              - ResolveShapeFrame_Rotation90Degrees_RotatesAboutOwnCenterClockwise
+              - ResolveShapeFrame_MissingRot_DefaultsToZeroRotation
+              - ResolveShapeFrame_FlipHorizontal_MirrorsAboutOwnCenterX
+              - ResolveShapeFrame_FlipVertical_MirrorsAboutOwnCenterY
+              - ResolveShapeFrame_InvalidRotAttribute_ThrowsInvalidDataException
+              - ResolveShapeFrame_NonNumericOffAttribute_ThrowsInvalidDataException
+              - ResolveShapeFrame_NonNumericExtAttribute_ThrowsInvalidDataException
+              - CanvasNetPptx_SystemIntegration_GeometryAndPaint_FreeformShapeResolvesEndToEnd
+
+          - id: CanvasNetPptx-PptxDocument-GroupChildTransform
+            title: >-
+              The PptxDocument class shall resolve a group shape's (<p:grpSp>) own <a:xfrm> element
+              into a child-space-to-group-space transform, scaling and translating a child
+              coordinate declared in the group's chOff/chExt child coordinate space into the
+              group's own off/ext box, defaulting to an identity child coordinate space when
+              chOff/chExt are omitted (but requiring both attributes, failing closed with
+              InvalidDataException, whenever chOff/chExt IS present but incomplete), so a child
+              shape's own resolved frame transform composes correctly through its owning group's
+              transform chain.
+            justification: |
+              A group shape's children are authored in a child-specific coordinate space distinct
+              from the group's own placement in its parent; composing a child's transform without
+              correctly scaling through the group's chOff/chExt would misplace every shape nested
+              in a group. A present-but-incomplete chOff/chExt is malformed input, not an "absent
+              element" the schema-default fallback is meant to cover, and must fail closed rather
+              than silently substituting a default.
+            tests:
+              - ResolveGroupChildTransform_IdentityChildSpace_MatchesGroupFrameDirectly
+              - ResolveGroupChildTransform_ScaledChildSpace_ScalesChildCoordinatesIntoGroupBox
+              - ResolveGroupChildTransform_OffsetChildSpace_TranslatesChildOriginBeforeScaling
+              - ResolveGroupChildTransform_ChildOfChild_ComposesThroughBothTransforms
+              - ResolveGroupChildTransform_MissingChOffChExt_DefaultsToIdentityChildSpace
+              - ResolveGroupChildTransform_ChOffPresentWithMissingAttribute_ThrowsInvalidDataException
+              - ResolveGroupChildTransform_ChExtPresentWithMissingAttribute_ThrowsInvalidDataException
+              - CanvasNetPptx_SystemIntegration_GeometryAndPaint_GroupShapeChildTransformComposesEndToEnd
+
+          - id: CanvasNetPptx-PptxDocument-PresetGeometry
+            title: >-
+              The PptxDocument class shall resolve a shape's <a:prstGeom prst="..."> element into a
+              concrete geometric path sized to the shape's own width/height, supporting a fixed set
+              of approximately 28 common preset geometry names (including rect, roundRect, ellipse,
+              triangle, and a practical subset of arrows, stars, curved arrows, and other basic
+              shapes), and shall reject a preset name outside this supported set with
+              PptxUnsupportedFeatureException (feature token "pptx-preset-geometry") rather than
+              producing incorrect geometry, and reject a missing geometry element (neither
+              <a:prstGeom> nor <a:custGeom>) or a <a:prstGeom> missing its prst attribute with
+              InvalidDataException.
+            justification: |
+              DrawingML's preset geometry vocabulary is large; implementing every preset is out of
+              scope for this phase, but silently rendering an unsupported preset as the wrong shape
+              would be worse than a clear, distinguishable failure a caller can catch and handle.
+              The four curved-arrow presets (curvedRightArrow/curvedLeftArrow/curvedUpArrow/
+              curvedDownArrow) were added in a real-world-corpus hardening pass after
+              curvedUpArrow was found to crash rendering of a real-world slide; the architecture's
+              existing Mirror/RotateQuarter derivation pattern (already used for
+              upArrow/downArrow/leftArrow) made deriving all four cheaply and naturally from one
+              canonical builder.
+            tests:
+              - ResolveShapeGeometry_PrstGeomRect_ReturnsRectanglePath
+              - ResolveShapeGeometry_NeitherPrstGeomNorCustGeom_ThrowsInvalidDataException
+              - ResolveShapeGeometry_UnsupportedPreset_ThrowsPptxUnsupportedFeatureException
+              - ResolveShapeGeometry_PrstGeomMissingPrstAttribute_ThrowsInvalidDataException
+              - PptxPresetGeometry_Build_EachSupportedPreset_ProducesPathWithinDeclaredBounds
+              - PptxPresetGeometry_Build_UpArrow_PointsUpward
+              - PptxPresetGeometry_Build_DownArrow_PointsDownward
+              - PptxPresetGeometry_Build_UnsupportedPreset_ThrowsWithFeatureToken
+              - PptxPresetGeometry_Build_NonPositiveSize_ReturnsEmptyPath
+              - PptxPresetGeometry_Build_CurvedUpArrow_PointsUpwardWithoutThrowing
+              - PptxPresetGeometry_Build_CurvedArrowSiblings_EachPointsTowardItsOwnDeclaredEdge
+              - Render_CurvedUpArrowShape_RendersWithoutThrowingAndPaintsInk
+
+          - id: CanvasNetPptx-PptxDocument-CustomGeometry
+            title: >-
+              The PptxDocument class shall resolve a shape's <a:custGeom> element by parsing every
+              <a:path> under its <a:pathLst>, interpreting moveTo/lnTo/cubicBezTo/quadBezTo/close
+              commands into the equivalent core Path commands, scaling each path's own w/h
+              coordinate space (defaulting to the shape's own extent when omitted) to the shape's
+              declared extent, and resolving a <a:custGeom> with no <a:pathLst> to an empty path.
+            justification: |
+              Many real-world DrawingML shapes (especially those hand-drawn or imported from other
+              authoring tools) use an explicit custom geometry rather than a named preset; without
+              this parser, such shapes could not be resolved to any geometry at all.
+            tests:
+              - ResolveCustomGeometry_MoveLineClose_ProducesClosedTriangle
+              - ResolveCustomGeometry_CubicBezTo_ProducesCubicBezierCommand
+              - ResolveCustomGeometry_QuadBezTo_ProducesQuadraticBezierCommand
+              - ResolveCustomGeometry_PathCoordinateSpaceScaledToShapeExtent
+              - ResolveCustomGeometry_NoPathLst_ReturnsEmptyPath
+
+          - id: CanvasNetPptx-PptxDocument-FillResolution
+            title: >-
+              The PptxDocument class shall resolve a shape's fill from its <p:spPr> into a closed
+              PptxPaint value: an explicit <a:noFill>, no recognized fill child element, or a null
+              <p:spPr> all resolve to PptxNoFill; <a:solidFill> resolves to a PptxSolidFill via
+              color resolution; <a:gradFill> resolves to a PptxGradientFill; <a:blipFill> resolves
+              to a PptxImageFill (see CanvasNetPptx-PptxDocument-PictureFillResolution below) when
+              a blip-image resolver is supplied, or is rejected with
+              PptxUnsupportedFeatureException (feature token "pptx-picture-fill") when it is not;
+              and <a:pattFill prst="..."/> naming a covered preset resolves to a PptxPatternFill
+              (see CanvasNetPptx-PptxDocument-PatternFillResolution below), an uncovered prst is
+              rejected with PptxUnsupportedFeatureException (feature token "pptx-pattern-fill"),
+              and a non-conformant, attribute-less <a:pattFill/> with no prst at all resolves to
+              PptxNoFill rather than either of those.
+            justification: |
+              Pattern fill is now resolved for a documented preset subset (the remainder still
+              requires tiling/procedural machinery this project does not yet implement for every
+              named ECMA-376 ST_PresetPatternVal value); rejecting an uncovered preset explicitly,
+              rather than silently falling back to PptxNoFill, lets a caller distinguish
+              "genuinely unfilled" from "fill kind not yet supported".
+            tests:
+              - ResolveFill_NullParent_ReturnsNoFill
+              - ResolveFill_ExplicitNoFill_ReturnsNoFill
+              - ResolveFill_NoRecognizedFillChild_ReturnsNoFill
+              - ResolveFill_SolidFillSrgbClr_ReturnsResolvedSolidFill
+              - ResolveFill_SolidFillSchemeClr_ResolvesThroughTheme
+              - ResolveFill_GradFillLinear_ReturnsResolvedGradientFill
+              - ResolveFill_PatternFillUnsupportedPreset_ThrowsPptxUnsupportedFeatureException
+              - ResolveFill_PictureFill_ThrowsPptxUnsupportedFeatureException
+              - ResolveFill_BarePatternFillWithNoPrstAttribute_ReturnsNoFill
+
+          - id: CanvasNetPptx-PptxDocument-PictureFillResolution
+            title: >-
+              The PptxDocument class shall resolve a shape/paragraph fill's <a:blipFill> (used as a
+              fill-definition child, distinct from a <p:pic> picture shape's own <p:blipFill>)
+              into a PptxImageFill wrapping the decoded raster image (reusing the existing
+              blip-decoding/relationship-resolution logic unchanged) and an image-pixel-space-to-
+              local-EMU-space transform derived from the <a:blipFill>'s own <a:tile> (consulted
+              first when present, mapping the image's own native 96-DPI pixel size through the
+              tile's tx/ty EMU offsets and sx/sy percentage scale factors) or <a:stretch>
+              (optionally cropped by a nested <a:fillRect>'s l/t/r/b percentage insets before being
+              stretched to exactly fill the shape, with a degenerate crop - edges summing to 100%
+              or more on an axis - falling back to an uncropped full stretch on that axis); every
+              FillPaint-style switch over PptxPaint values (shape fills, table-cell fills,
+              line/stroke fills, slide background fills, and connector fills) paints a resolved
+              PptxImageFill via a TilePaint constructed from its Image/ImageToLocalTransform,
+              composed with the same shape-to-surface transform already applied to
+              PptxGradientFill. A linked-only (<a:blip r:link>, no r:embed) or Microsoft
+              SVG-only-fallback blip behaves identically to how the pre-existing <p:pic> picture-
+              shape decoding already handles those cases (unchanged exception behavior).
+            justification: |
+              <a:blipFill> used as a shape/paragraph fill (for example a rounded-rectangle "photo
+              frame" autoshape) is a common real-world DrawingML construct - the Python-pptx test
+              corpus's own pythonpptx-dml-fill.pptx fixture exercises the <a:tile> variant
+              specifically - and rejecting it outright (the prior CanvasNetPptx-PptxDocument-
+              FillResolution behavior) left such shapes unrenderable even though the same decoding
+              machinery already used for <p:pic> picture shapes is directly reusable for it.
+              Implementing both <a:stretch> and <a:tile> uniformly through one PptxImageFill/
+              TilePaint pair (rather than two bespoke code paths) keeps the painting side identical
+              to PptxGradientFill's own established shape-to-surface composition pattern.
+            tests:
+              - ResolveFill_BlipFillWithResolver_ReturnsPptxImageFill
+              - ResolveImageFillTransform_TileWithNonTrivialOffsetAndScale_AppliesBothToEachAxis
+              - ResolveImageFillTransform_StretchWithFillRectInsets_CropsBeforeStretching
+              - ResolveImageFillTransform_DegenerateFillRect_FallsBackToFullStretch
+              - PptxDocument_Render_DmlFillFixture_Slide0RendersPictureAndPatternFillShapesWithoutThrowing
+              - CanvasNetPptx_SystemIntegration_Images_TileBlipFillShapeDecodesAndRendersEndToEnd
+
+          - id: CanvasNetPptx-PptxDocument-PatternFillResolution
+            title: >-
+              The PptxDocument class shall resolve a shape/paragraph fill's <a:pattFill prst="..."/>
+              naming a covered ECMA-376 ST_PresetPatternVal preset (30 of the 54 named values -
+              the horizontal/vertical stripe, diagonal-stripe, cross-hatch, and percentage/dot-
+              density families, plus the two fixture-mandatory divot/wave presets) into a
+              PptxPatternFill wrapping the preset name and its resolved fgClr/bgClr colors
+              (defaulting to black/white respectively when either child is absent), resolved via
+              the same ResolveColor helper <a:solidFill> already uses; every FillPaint-style
+              switch over PptxPaint values that handles a PptxPatternFill synthesizes a small
+              procedural repeating tile (via PptxPatternTileRenderer, one covered pixel rule per
+              preset) and paints it as a TilePaint, composed with the shape/connector/line/
+              arrowhead's own local-to-surface transform (PptxDocument.Render.cs's own
+              RenderShape/RenderPicture/RenderConnector fill and stroke-outline call sites, and
+              PaintArrowhead's own two arrowhead-paint call sites, all route through a shared
+              FillPaintComposingLocalTransform helper for this purpose, narrowly scoped to
+              PptxPatternFill alone, to compose that transform correctly - see its own remarks for
+              the pre-existing, codebase-wide transform-composition gap this narrowly addresses).
+              A line/stroke fill's own <a:ln><a:pattFill .../></a:ln> shares the identical
+              ResolveFill resolver used for shape fills, so it is equally resolvable and equally
+              covered by this same transform-composition fix. An uncovered preset is rejected with
+              PptxUnsupportedFeatureException (feature token "pptx-pattern-fill"); a
+              non-conformant, attribute-less <a:pattFill/> with no prst at all resolves to
+              PptxNoFill instead (see CanvasNetPptx-PptxDocument-FillResolution above). The
+              slide/layout/master background fill is now also covered by this same
+              transform-composition fix: PptxDocument.Render.cs's own Render method composes the
+              slide's own EMU-to-pixel baseTransform into the background fill's synthesized tile
+              via the same FillPaintComposingLocalTransform helper.
+            justification: |
+              <a:pattFill> used as a shape's own background fill (for example a diagonal-stripe or
+              dot-density "texture" autoshape) is a common real-world DrawingML construct - the
+              Python-pptx test corpus's own pythonpptx-dml-fill.pptx fixture exercises both the
+              divot and wave presets specifically - and rejecting every preset outright (the prior
+              CanvasNetPptx-PptxDocument-FillResolution behavior) left such shapes unrenderable
+              even though a procedural tile-synthesis rule is straightforward for a large, common
+              preset subset. Implementing all 54 named presets pixel-perfectly to PowerPoint's own
+              rendering is out of this project's scope; a documented, narrower covered subset (with
+              the remainder still rejected explicitly, not silently misinterpreted) keeps this
+              feature's own footprint bounded while unblocking the real fixture.
+            tests:
+              - ResolveFill_PatternFillCoveredPreset_ReturnsPptxPatternFill
+              - ResolveFill_PatternFillMissingFgBgClr_DefaultsToBlackOnWhite
+              - ResolveFill_PatternFillUnsupportedPreset_ThrowsPptxUnsupportedFeatureException
+              - ResolveFill_BarePatternFillWithNoPrstAttribute_ReturnsNoFill
+              - RenderTile_Horz_AlternatesFullRows
+              - RenderTile_Vert_AlternatesFullColumns
+              - RenderTile_LtHorz_SparseThinRows
+              - RenderTile_DkHorz_DominantRows
+              - RenderTile_LtVert_SparseThinColumns
+              - RenderTile_DkVert_DominantColumns
+              - RenderTile_DnDiag_FollowsXPlusYModuloRule
+              - RenderTile_UpDiag_FollowsXMinusYModuloRule
+              - RenderTile_WdDnDiag_ProducesWideBands
+              - RenderTile_Cross_FgAtHorizontalOrVerticalLines
+              - RenderTile_DiagCross_FgAtEitherDiagonal
+              - RenderTile_PercentageFamily_BothColorsPresent
+              - RenderTile_PercentageFamily_FgPixelCountIncreasesWithPercent
+              - RenderTile_Divot_BothColorsPresent
+              - RenderTile_Wave_BothColorsPresent
+              - RenderTile_EveryCoveredPreset_ProducesTileSizeSquareSurface
+              - PptxDocument_Render_DmlFillFixture_Slide0RendersPictureAndPatternFillShapesWithoutThrowing
+              - PptxDocument_Render_DmlFillFixture_Slide1PatternFillShapesRenderAndBareFillIsTransparent
+              - ResolveLineStyle_PatternFillCoveredPreset_ReturnsLineStyleWithPptxPatternFill
+              - Render_ShapeWithPatternFillStroke_PaintsCorrectlyTransformedStripesNotFlatColor
+              - Render_ConnectorWithPatternFillStroke_PaintsCorrectlyTransformedStripesNotFlatColor
+              - Render_SlideLevelPatternFillBackground_PaintsCorrectlyTransformedStripesNotFlatColor
+
+          - id: CanvasNetPptx-PptxDocument-ColorResolution
+            title: >-
+              The PptxDocument class shall resolve a DrawingML color-definition element to a
+              concrete Rgba32 value: <a:srgbClr val="RRGGBB"/> directly, <a:sysClr .../> via its
+              lastClr attribute, <a:schemeClr val="..."/> by looking the named slot up in the
+              supplied PptxTheme's color scheme (reusing the existing PptxTheme/PptxColorScheme
+              resolver rather than re-resolving the theme), including the bg1/tx1/bg2/tx2
+              background/text aliases, which are first mapped through the effective
+              <p:clrMap>/<p:clrMapOvr> color map (the slide master's own required <p:clrMap>,
+              overridden if present by the slide's own or otherwise the slide layout's own
+              <p:clrMapOvr>) to their own mapped slot name before that slot is looked up in the
+              theme's color scheme - never a fixed bg1->Light1/tx1->Dark1/bg2->Light2/tx2->Dark2
+              mapping; and <a:prstClr val="white"/>/<a:prstClr val="black"/> to their standard RGB
+              values (the only two ECMA-376 ST_PresetColorVal names this package resolves). An
+              unrecognized schemeClr slot name throws InvalidDataException, any other,
+              unsupported color-definition element kind (including every ST_PresetColorVal name
+              other than white/black) throws PptxUnsupportedFeatureException (feature token
+              "pptx-color-kind"), and an srgbClr/sysClr hex value whose length (after stripping an
+              optional leading '#') is not exactly six hex digits - for example an 8-digit  #
+              AARRGGBB-style value - throws InvalidDataException rather than being passed to the
+              underlying hex parser.
+            justification: |
+              Scheme color resolution must build directly on Phase 1b's already-verified
+              PptxTheme/PptxColorScheme resolver rather than duplicating its 12-slot lookup table,
+              so both phases stay in sync automatically if that table ever changes. Per ECMA-376,
+              bg1/tx1/bg2/tx2 are themselves an indirection, not a fixed mapping: a slide master's
+              own <p:clrMap> is required and may map them to any of the theme's dk1/lt1/dk2/lt2
+              slots, and a slide layout or slide may further override that mapping via its own
+              <p:clrMapOvr> - a non-identity map (most commonly a "dark" layout/master variant)
+              was previously rendered with every bg1/tx1/bg2/tx2 scheme color silently wrong
+              because the mapping was hard-coded rather than consulted, so this indirection step
+              must happen before, not instead of, the existing theme-slot lookup. OOXML's
+              srgbClr/sysClr val attribute is specified as exactly six RGB hex digits; the
+              underlying Rgba32 hex parser also accepts an 8-digit  # AARRGGBB form and would
+              silently treat the first byte as alpha for a malformed 8-digit value, so the
+              six-digit form must be enforced before parsing to fail closed rather than silently
+              produce a wrong, unintended-alpha color. <a:prstClr> support is deliberately narrowed
+              to white/black (the only two names this package's own real fixture corpus - a
+              pattern fill's own bgClr - requires), rather than implementing the full ~140-name
+              ECMA-376 preset-color table, to keep this companion fix minimally scoped.
+            tests:
+              - ResolveColor_SrgbClr_ParsesHexDirectly
+              - ResolveColor_SysClr_UsesLastClrAttribute
+              - ResolveColor_SchemeClrOrdinarySlots_ResolveToMatchingThemeSlot
+              - ResolveColor_SchemeClrBackgroundTextAliases_MapToExpectedSlot
+              - ResolveColor_SchemeClrUnrecognizedSlot_ThrowsInvalidDataException
+              - ResolveColor_UnsupportedColorKind_ThrowsPptxUnsupportedFeatureException
+              - ResolveColor_SrgbClrEightDigitValue_ThrowsInvalidDataException
+              - ResolveColor_SysClrEightDigitLastClrValue_ThrowsInvalidDataException
+              - ResolveColor_PrstClrWhite_ReturnsWhite
+              - ResolveColor_PrstClrBlack_ReturnsBlack
+              - ResolveColor_PrstClrUnsupportedName_ThrowsPptxUnsupportedFeatureException
+              - ResolveColor_PrstClrMissingValAttribute_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-ColorTransforms
+            title: >-
+              The PptxDocument class shall apply a DrawingML color-definition element's
+              lumMod/lumOff/shade/tint/alpha child transforms to its resolved base color in a
+              fixed pipeline order - lumMod and lumOff applied together first in HSL luminance
+              space, then shade and tint in RGB space, then alpha replacing the alpha channel
+              outright - interpreting each val attribute as OOXML's thousandths-of-a-percent unit
+              (100000 = 100%).
+            justification: |
+              Real-world themes and shapes very commonly apply one or more of these transforms
+              (for example a "lighter" or "darker" accent-color shade) rather than referencing a
+              raw color directly; without this pipeline, such shapes would resolve to the wrong,
+              untransformed color.
+            tests:
+              - ResolveColor_Alpha_SetsAlphaChannel
+              - ResolveColor_Shade_DarkensProportionally
+              - ResolveColor_Tint_LightensProportionally
+              - ResolveColor_LumMod_DecreasesLuminance
+              - ResolveColor_LumOff_IncreasesLuminance
+              - ResolveColor_CombinedLumModLumOffShadeTintAlpha_AppliesFixedPipelineOrder
+
+          - id: CanvasNetPptx-PptxDocument-GradientFill
+            title: >-
+              The PptxDocument class shall resolve a <a:gradFill> element's <a:gsLst> gradient
+              stops and its <a:lin> linear-direction angle (in 60,000ths of a degree) into a core
+              LinearGradient spanning the shape's own width/height, and shall reject a <a:gradFill>
+              with no <a:lin> child (for example a path/radial gradient) with
+              PptxUnsupportedFeatureException (feature token "pptx-gradient-path"), a <a:gradFill>
+              with no <a:gsLst> with InvalidDataException, and a <a:gs> element with a non-numeric
+              pos attribute with InvalidDataException.
+            justification: |
+              Linear gradients are the most common DrawingML gradient fill in practice; radial and
+              path gradients require a different, not-yet-implemented core gradient paint type, so
+              rejecting them explicitly avoids silently rendering them as an incorrect linear
+              approximation. A malformed (non-numeric) gradient-stop position must fail with the
+              documented InvalidDataException contract, not an unrelated raw conversion-failure
+              exception.
+            tests:
+              - ResolveGradientFill_LinearZeroDegrees_PointsAlongPositiveX
+              - ResolveGradientFill_MissingLin_ThrowsPptxUnsupportedFeatureException
+              - ResolveGradientFill_MissingGsLst_ThrowsInvalidDataException
+              - ResolveGradientFill_NonNumericGsPos_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-LineStyleResolution
+            title: >-
+              The PptxDocument class shall resolve a shape's <a:ln> stroke element into a
+              PptxLineStyle (width in EMU, resolved fill, and an optional dash array derived from
+              <a:prstDash val="..."/>), resolving to no stroke (null) when <a:ln> is null, its w
+              attribute is explicitly present and non-positive (a genuinely-absent w instead
+              defaults to the OOXML conventional default stroke width, 9525 EMU / 0.75pt), or its
+              resolved fill is PptxNoFill, and shall realize a resolved PptxLineStyle against a
+              shape's path into a stroked outline path via the core PathStroker, mirroring the PDF
+              renderer's own StrokeStyle/PathStroker call pattern, using a flatten tolerance scaled
+              to the shape's own local-to-surface transform so curved geometry at native,
+              large-magnitude PPTX EMU coordinates is neither over-tessellated nor falsely
+              collapsed to a solid fill.
+            justification: |
+              A shape's visible outline is produced by stroking its geometric path with the
+              resolved line style, not merely resolving the line style's data in isolation; reusing
+              the already-tested core PathStroker exactly as the PDF renderer already does avoids
+              a second, divergent stroking implementation for this package. A genuinely-absent w
+              attribute must not collapse to the same "no stroke" outcome as an explicit w="0":
+              real-world documents commonly declare an <a:ln> with only a color/fill, relying on
+              PowerPoint's own default stroke weight for an un-set w, and previously rendered with
+              no visible outline at all - a visual-fidelity bug fixed by defaulting a genuinely-
+              absent w to PowerPoint's own observed default stroke width instead. Separately, a
+              curved preset geometry (ellipse, roundRect) stroked at a full-size slide's own native
+              EMU coordinate magnitude, using the core stroker's pixel-tuned default flatten
+              tolerance, over-tessellated by roughly 200x and falsely triggered the shared
+              StrokeOutliner's inner-ring collapse detector (see the Drawing subsystem's own
+              PathStroker requirements), rendering a noFill shape's thin outline as a solid-filled
+              interior instead of a ring - a confirmed real-world regression fixed by deriving the
+              flatten tolerance from the shape's own rendering scale instead.
+            tests:
+              - ResolveLineStyle_NullElement_ReturnsNull
+              - ResolveLineStyle_ZeroWidth_ReturnsNull
+              - ResolveLineStyle_NoFillLine_ReturnsNull
+              - ResolveLineStyle_WidthAndSolidFill_ResolvesWidthAndColor
+              - ResolveLineStyle_DashPresets_ProduceNonNullDashArray
+              - ResolveLineStyle_SolidPreset_ProducesNullDashArray
+              - ResolveLineStyle_ExplicitZeroWidth_ReturnsNull
+              - ResolveLineStyle_ExplicitNegativeWidth_ReturnsNull
+              - ResolveLineStyle_MissingWidthAttribute_ResolvesDefaultWidth
+              - Render_EllipseWithNoFillAndLnMissingWidthButRecognizedColor_PaintsDefaultWidthStroke
+              - ResolveStrokeOutline_RectangleWithSolidLine_ProducesNonEmptyOutline
+              - Render_FullSlideScaleEllipseWithNoFillAndLnMissingWidth_RendersThinRingNotSolidDisc
+              - Render_FullSlideScaleRoundRectWithNoFillAndLnMissingWidth_RendersThinOutlineNotSolidFill
+              - CanvasNetPptx_SystemIntegration_GeometryAndPaint_FreeformShapeResolvesEndToEnd
+
+          - id: CanvasNetPptx-PptxDocument-TextBodyParsing
+            title: >-
+              The PptxDocument class shall parse a shape's <p:txBody> element into an ordered list
+              of paragraphs, each with its own raw, unresolved paragraph properties and ordered
+              runs, and shall parse its <a:bodyPr> element into resolved vertical anchor (t/ctr/b,
+              defaulting to t), word-wrap mode (square/none, defaulting to square), four insets
+              (lIns/tIns/rIns/bIns, defaulting to 91440/45720/91440/45720 EMU when absent), and the
+              raw autofit child element (noAutofit/normAutofit/spAutoFit), retained unparsed for
+              the layout engine to interpret; an empty <a:p> with no recognized child is a valid,
+              empty paragraph (a blank line), not an error.
+            justification: |
+              Text layout and rendering cannot begin without first structurally parsing the
+              DrawingML text-body element tree into a form later phases of this feature (property
+              inheritance, word-wrap, rendering) can consume without re-parsing raw XML.
+            tests:
+              - ParseBodyProperties_Absent_ResolvesSchemaDefaults
+              - ParseBodyProperties_AnchorCtr_ResolvesMiddle
+              - ParseBodyProperties_AnchorB_ResolvesBottom
+              - ParseBodyProperties_AnchorT_ResolvesTop
+              - ParseBodyProperties_WrapNone_ResolvesWrapNone
+              - ParseBodyProperties_CustomInsets_ResolvesDeclaredValues
+              - ParseBodyProperties_AutofitElement_IsRetainedUnparsed
+              - ParseTextBody_NoParagraphs_ResolvesEmptyParagraphList
+              - ParseTextBody_SingleParagraphSingleRun_ParsesBodyAndParagraph
+              - ParseParagraph_NoChildren_ResolvesEmptyRunList
+
+          - id: CanvasNetPptx-PptxDocument-ParagraphRunParsing
+            title: >-
+              The PptxDocument class shall parse a paragraph's <a:pPr> element (algn, marL, indent,
+              lnSpc, spcBef, spcAft, and defRPr, each retained raw/unresolved) and its lvl attribute
+              (clamped to the valid [0,8] level range per the OOXML schema's ten-level style
+              vocabulary), defaulting every field/level to its schema default when <a:pPr> or the
+              individual attribute is absent, shall parse a run's <a:rPr> element (retained
+              raw/unresolved) and its <a:t> text, defaulting text to the empty string when <a:t> is
+              absent, and shall parse a paragraph's <a:r> run children and <a:br> explicit
+              line-break children into a single ordered item list preserving their original
+              document order (rather than selecting only <a:r> children and discarding every
+              <a:br>), so a later layout pass can turn each preserved <a:br> into an explicit line
+              boundary.
+            justification: |
+              Resolving effective run/paragraph properties (CanvasNetPptx-PptxDocument-
+              TextPropertyInheritance) requires each paragraph's/run's own raw property fragment to
+              already be extracted and level-clamped, independent of the inheritance chain itself.
+              <a:br/> is DrawingML's explicit line-break element (distinct from word-wrap-induced
+              line breaks); discarding it during parsing would make it structurally impossible for
+              any later layout stage to honor an author-intended forced line break, so document
+              order between runs and breaks must be preserved from the parse stage onward.
+            tests:
+              - ParseParagraphProperties_Absent_ResolvesLevelZeroAndNullOptionals
+              - ParseParagraphProperties_LevelAttribute_ClampsToZeroToEight
+              - ParseParagraphProperties_FullyPopulated_ResolvesEveryField
+              - ParseRun_NoText_ResolvesEmptyString
+              - ParseRun_WithTextAndRPr_ResolvesBoth
+              - ParseParagraph_RunBreakRun_PreservesBreakInDocumentOrder
+
+          - id: CanvasNetPptx-PptxDocument-TextPropertyInheritance
+            title: >-
+              The PptxDocument class shall resolve a run's effective character properties
+              (typeface, size, bold, italic, underline, color) and a paragraph's effective
+              properties (alignment, left margin, indent, line spacing) attribute-by-attribute
+              through the chain run/paragraph defRPr -> placeholder level-indexed lstStyle ->
+              master level-indexed txStyles bucket -> theme/hard-coded default, each attribute
+              independently taking its own first non-null value rather than falling back at the
+              level of the whole run/paragraph, shall normalize algn="just"/"justLow" to "l" (full
+              text justification is explicitly out of scope this phase), and shall resolve an
+              <a:latin typeface="..."/> value naming one of the six reserved DrawingML theme-font
+              tokens (+mj-lt/+mn-lt, +mj-ea/+mn-ea, +mj-cs/+mn-cs) through the supplied PptxTheme's
+              FontScheme (major/minor Latin/EastAsian/ComplexScript font) at whichever inheritance
+              tier the token is declared, rather than returning the literal token string as the
+              resolved family name.
+            justification: |
+              Real-world DrawingML text commonly overrides a single attribute (for example making
+              one word bold) without overriding every other attribute at the same level; an
+              element-level (not attribute-level) fallback would incorrectly lose every other
+              attribute's own, more specific resolution for that run/paragraph. DrawingML permits
+              an <a:latin typeface="..."/> to name a theme-font token instead of a literal family
+              name so that body text tracks the theme's own major/minor font choice; returning the
+              token string unresolved would make font lookup miss the theme's actual font and fall
+              back to a bundled default font even when the theme itself defines the intended one.
+            tests:
+              - ResolveEffectiveRunProperties_RunOverride_WinsOverEveryOtherTier
+              - ResolveEffectiveRunProperties_ParagraphDefRPrOnly_WinsWhenRunDeclaresNothing
+              - ResolveEffectiveRunProperties_PlaceholderLevelStyleOnly_WinsWhenRunAndParagraphDeclareNothing
+              - ResolveEffectiveRunProperties_NoneDeclared_ResolvesHardCodedDefaults
+              - ResolveEffectiveRunProperties_UnderlineAttribute_ResolvesExpectedStyle
+              - ResolveEffectiveRunProperties_RunSolidFillSrgbClr_ResolvesExplicitColor
+              - ResolveEffectiveParagraphProperties_NoneDeclared_ResolvesHardCodedDefaults
+              - ResolveEffectiveParagraphProperties_Alignment_NormalizesJustificationToLeft
+              - ResolveEffectiveParagraphProperties_FixedLineSpacing_ResolvesPointsToEmu
+              - ResolveEffectiveParagraphProperties_PlaceholderLevelStyleOnly_WinsWhenParagraphDeclaresNothing
+              - ResolveEffectiveRunProperties_ThemeFontToken_ResolvesThroughFontScheme
+              - ResolveEffectiveRunProperties_LiteralTypeface_PassesThroughUnchanged
+
+          - id: CanvasNetPptx-PptxDocument-TextStylesInheritance
+            title: >-
+              The PptxDocument class shall parse a slide master's own <p:txStyles> element (a
+              direct, sibling-of-<p:cSld> child of <p:sldMaster>, not nested inside it) into its
+              schema-optional titleStyle/bodyStyle/otherStyle buckets, and shall select, for a
+              given shape's placeholder type, titleStyle for title/ctrTitle placeholder types,
+              otherStyle for a non-placeholder shape, and bodyStyle otherwise, consulting the
+              selected bucket's level-indexed entry in the run/paragraph property-inheritance
+              chain (CanvasNetPptx-PptxDocument-TextPropertyInheritance) after the placeholder's
+              own lstStyle and before the theme/hard-coded default.
+            justification: |
+              A slide master's own default text styling (distinct from any one placeholder's own
+              lstStyle override) is the next fallback tier ECMA-376 defines before the theme/
+              hard-coded default; without parsing and consulting it, text with no placeholder-level
+              style override would skip straight to an incorrect default.
+            tests:
+              - GetMaster_TxStylesSiblingOfCSld_ParsesAllThreeStyles
+              - ResolveEffectiveRunProperties_MasterTxStylesOnly_WinsWhenEverythingAboveIsAbsent
+              - ResolveEffectiveRunProperties_MasterTitleStyle_SelectedForTitlePlaceholderType
+              - ResolveEffectiveRunProperties_MasterOtherStyle_SelectedForNonPlaceholderShape
+              - ResolveEffectiveParagraphProperties_MasterTxStylesOnly_WinsWhenEverythingAboveIsAbsent
+              - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
+              - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd
+
+          - id: CanvasNetPptx-PptxDocument-TextLayoutWordWrap
+            title: >-
+              The PptxDocument class shall word-wrap a text body's resolved runs into lines bounded
+              by the owning shape's own width (less its horizontal insets), tokenizing each run's
+              text into whitespace/non-whitespace tokens (preserving multi-space runs as their own
+              token, not collapsing them) and greedily packing tokens onto each line - treating
+              only whitespace (and explicit line-break items) as legal wrap points, so consecutive
+              non-whitespace tokens spanning two or more adjacent runs (a single word split across
+              a formatting-run boundary, with no whitespace between them) are packed as one
+              wrap-atomic unit that is never itself broken mid-word - placing a single token or
+              word-spanning-runs unit that alone exceeds the available width alone on its own
+              (overflowing) line rather than looping indefinitely, shall resolve horizontal
+              alignment (left/center/right, using each line's own margin/indent) against the
+              available width, shall force a new line at each preserved <a:br> explicit line-break
+              item (in addition to word-wrap-induced line breaks), and shall select the
+              tallest-run candidate for each line's natural height/baseline by comparing each
+              run's font metrics (ascender, descender, line gap) scaled by that run's own font.
+              UnitsPerEm and its own resolved SizeEmu, rather than by comparing raw, unscaled
+              font-design-unit metrics across runs that may use different fonts and/or sizes.
+            justification: |
+              Word-wrap is the foundational text-layout behavior every other layout concern
+              (vertical anchor, autofit) builds on; an incorrect or infinite-looping wrap algorithm
+              would make every other text-layout feature unusable. Wrapping at a non-whitespace
+              run boundary would be a visible layout defect indistinguishable from a tokenizer bug:
+              since each run is tokenized independently of its neighbors, a single word spelled
+              across two formatting runs (for example a bold "Hel" run immediately followed by a
+              plain "lo" run spelling "Hello", with no whitespace between them - a routine
+              consequence of a PowerPoint author changing formatting mid-word) would otherwise be
+              eligible to wrap at that internal run boundary even though no whitespace exists
+              there, producing an incorrect line break a real document could trigger at any
+              width. <a:br/> is DrawingML's explicit line-break element and must force a line
+              boundary distinct from word-wrap's own token-packing decisions, or an
+              author-intended forced break would be silently dropped and its following text would
+              incorrectly run on into the same line. Raw font-design-unit metrics are not directly
+              comparable across runs using different fonts or point sizes (for example a font with
+              an unusually tall em-box can report larger raw ascender/descender/line-gap values
+              despite rendering at a visually smaller size); comparing unscaled values can
+              therefore select the wrong run as "tallest" and produce an incorrect line
+              height/baseline for that line.
+            tests:
+              - ResolveTextLayout_WordWrap_NarrowWidth_WrapsAtTokenBoundary
+              - ResolveTextLayout_WordWrap_SingleTokenWiderThanAvailableWidth_PlacedAloneOnOwnLine
+              - ResolveTextLayout_WordWrap_WordSplitAcrossRuns_DoesNotWrapAtRunBoundary
+              - ResolveTextLayout_AlignCenter_CentersLineWithinAvailableWidth
+              - ResolveTextLayout_AlignRight_RightAlignsLineAgainstAvailableWidth
+              - ResolveTextLayout_RunBreakRun_ForcesSecondLine
+              - ResolveTextLayout_TallestFontComparison_ScalesByUnitsPerEmAndSizeEmu_NotRawFontUnits
+
+          - id: CanvasNetPptx-PptxDocument-TextAlignmentWidthUnderWrapNone
+            title: >-
+              The PptxDocument class shall position horizontally-aligned (center/right) lines of a
+              wrap="none" text body against the same finite, real width - the owning shape's own
+              declared width, less its horizontal insets - that a wrap="square" text body's own
+              alignment uses, independently of the effectively-infinite width used only to
+              suppress word-wrapping for a wrap="none" body's own line-breaking decision.
+            justification: |
+              wrap="none" is implemented by widening the width passed to the word-wrap
+              line-breaking step to an effectively-infinite value, suppressing any wrap decision.
+              Reusing that same infinite width for PositionLines's own center/right alignment
+              math (rather than the shape's real, finite declared width) positioned every glyph of
+              a centered or right-aligned wrap="none" paragraph at an astronomical X offset, far
+              outside the shape and the rendered surface entirely - a silent, incorrect-output
+              failure on text alignment (TextLayoutWordWrap's own already-implemented feature),
+              discovered rendering pythonpptx-txt-font-props.pptx's own real-world centered,
+              wrap="none" underline-demo slide, which painted zero pixels before this fix.
+            tests:
+              - ResolveTextLayout_AlignCenter_WrapNone_StillCentersAgainstShapesDeclaredWidth
+              - PptxDocument_Render_TxtFontPropsFixture_RendersEverySlideWithVisibleContent
+
+          - id: CanvasNetPptx-PptxDocument-TextVerticalAnchor
+            title: >-
+              The PptxDocument class shall position a text body's word-wrapped lines vertically
+              per its resolved anchor (t/ctr/b) and total resolved block height within the owning
+              shape's own height (less its vertical insets), with no clipping applied when the
+              block overflows the available height (text positioned exactly as computed, even past
+              the shape's own box).
+            justification: |
+              Vertical anchoring is a required, independently observable text-layout behavior
+              (PowerPoint commonly anchors title/body placeholders differently); an incorrect
+              anchor calculation would visibly misplace every anchored text body.
+            tests:
+              - ResolveTextLayout_AnchorTop_PositionsFirstBaselineAtAscentFromTop
+              - ResolveTextLayout_AnchorMiddle_CentersBlockVerticallyWithinAvailableHeight
+              - ResolveTextLayout_AnchorBottom_PositionsBlockAtBottomOfAvailableHeight
+
+          - id: CanvasNetPptx-PptxDocument-TextAutofit
+            title: >-
+              The PptxDocument class shall apply a text body's resolved autofit policy in three
+              tiers: no scaling at all for noAutofit, an absent autofit element, or spAutoFit
+              (shape-resize autofit, deliberately not implemented this phase); a normAutofit with
+              one or both of its fontScale/lnSpcReduction attributes present, applying each present
+              attribute's own stored value verbatim and independently, using that attribute's own
+              spec-defined neutral default (fontScale 100%, lnSpcReduction 0%/no reduction) for
+              whichever of the two attributes is absent, rather than requiring both attributes to
+              be present before applying either; and an attribute-less normAutofit (neither
+              attribute present) running a bounded, deterministic 10%-step shrink loop (at most 9
+              iterations, floored at 10% scale) that stops at the first scale whose naturally
+              laid-out height fits the available height.
+            justification: |
+              PowerPoint's own "shrink text on overflow" autofit behavior is commonly authored
+              without explicit fontScale/lnSpcReduction values (PowerPoint itself computes and
+              persists them lazily); a bounded, deterministic shrink loop reproduces the same
+              user-visible effect without depending on PowerPoint's own unpublished exact algorithm.
+              The two normAutofit attributes are independently optional per the OOXML schema -
+              PowerPoint may persist only one of the two (for example only a computed fontScale);
+              requiring both before applying either would discard a validly persisted single
+              attribute entirely and fall through to the attribute-less shrink loop instead of
+              honoring the author's/PowerPoint's own already-computed factor. A subsequent
+              real-world-corpus investigation of a reported subtitle "invisible sliver" symptom
+              confirmed the shrink loop does not over-shrink content that genuinely fits a
+              realistically-sized box (see the companion design document's "Genuine bug 3" entry
+              for the full investigation and its inconclusive result for that specific symptom).
+            tests:
+              - ResolveTextLayout_NoAutofit_AppliesNoScalingEvenWhenOverflowing
+              - ResolveTextLayout_SpAutoFit_AppliesNoScaling
+              - ResolveTextLayout_NormAutofitWithExplicitAttributes_AppliesStoredFactorsVerbatim
+              - ResolveTextLayout_NormAutofitAttributeLess_ShrinkLoopConvergesOnFirstFittingScale
+              - ResolveTextLayout_NormAutofitFontScaleOnly_AppliesStoredFontScaleVerbatim
+              - ResolveTextLayout_NormAutofitLnSpcReductionOnly_AppliesStoredReductionWithNeutralFontScale
+              - ResolveTextLayout_SubtitlePlaceholderWithAttributeLessNormAutofit_DoesNotOverShrinkContentThatFits
+
+          - id: CanvasNetPptx-PptxDocument-TextRendering
+            title: >-
+              The PptxDocument class shall paint a resolved text layout's glyphs onto a core
+              Surface by composing each glyph's own unit-to-EMU scale (with a negated Y component,
+              since TrueType glyph outlines use a y-up font coordinate system while CanvasNet's
+              shape-local/surface space is y-down), its resolved baseline origin, and the owning
+              shape's own frame transform into a single glyph-to-surface matrix, re-issuing the
+              glyph's outline through that matrix and filling it with the glyph's resolved color
+              via the core PathFiller (mirroring the PDF renderer's own glyph-painting pattern),
+              skipping a glyph whose outline has no subpaths (for example a whitespace glyph)
+              entirely rather than painting an empty fill, and shall resolve a DrawingML typeface
+              name hint to a concrete TrueTypeFont via the core SystemFontCatalog (always passing
+              serif/fixed-pitch false, since DrawingML never signals either classification),
+              falling back to a bundled font when no installed font matches. Independently of a
+              run's own primary font resolution, each non-whitespace character shall additionally
+              be resolved for per-character glyph coverage: a character missing from its run's
+              primary font (GetGlyphIndex returning .notdef) falls back to a single bundled
+              fallback font (keyed by bold/italic only), with that character alone painting from
+              whichever font actually resolved a non-.notdef glyph for it, independent of any
+              neighboring character's own resolution.
+            justification: |
+              Painting resolved glyph ink onto a Surface is this phase's terminal, user-visible
+              output; reusing the already-verified core PathFiller/SystemFontCatalog building
+              blocks (exactly as the PDF renderer already does) avoids a second, divergent
+              glyph-painting/font-resolution implementation for this package. A positive (rather
+              than negated) Y scale on the glyph-outline transform would paint every glyph upside
+              down and below the baseline instead of right-side-up and above it, since TrueType
+              outline coordinates are y-up but this package's shape-local/surface space is y-down
+              (see core Path.Rectangle's own doc comments for the authoritative convention); a
+              symmetric glyph outline cannot expose this regression class, since flipping it about
+              its own center leaves it visually/structurally identical, so an asymmetric synthetic
+              glyph outline is required to detect it. Before per-character glyph-coverage fallback,
+              a run was permanently bound to its single resolved primary font for every character -
+              a reported "tofu box" (missing-glyph) rendering defect for a character immediately
+              following a character requiring a different resolved typeface (for example two
+              distinct DrawingML runs produced by PowerPoint's own "Insert Symbol"/AutoCorrect
+              tagging one inserted character's run with an explicit typeface override) demonstrated
+              this real feature gap, not any form of cross-character state corruption (the cmap
+              glyph lookup is a pure, stateless closure over immutable arrays and a run's resolved
+              font never changes mid-run); resolving each character's coverage independently against
+              a single bundled fallback font closes this gap without introducing a full font-
+              linking/script-itemization pipeline (see the design doc's documented limitation).
+            tests:
+              - PaintTextLayout_IdentityTransform_PaintsGlyphAtExpectedLocationWithResolvedColor
+              - PaintTextLayout_TranslatedShapeTransform_ShiftsPaintedLocation
+              - PaintTextLayout_EmptyOutlineGlyph_PaintsNothing
+              - PaintTextLayout_AsymmetricGlyph_PaintsInkAboveBaselineNotBelow
+              - ResolveTextFont_AnyFamilyHint_ResolvesNonNullFont
+              - ResolveTextLayout_PlusMinusFollowedByDegree_BothNeitherInPrimary_BothIndependentlyResolveFallback
+              - ResolveTextLayout_PlusMinusAlone_ResolvesFallbackGlyph
+              - ResolveTextLayout_PlusMinusFollowedByDegree_PrimaryCoversOnlyDegree_DegreeStaysOnPrimaryFont
+              - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
+              - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd
+
+          - id: CanvasNetPptx-PptxDocument-PictureDecodeAndCrop
+            title: >-
+              The PptxDocument class shall resolve a <p:pic> shape's <p:blipFill>/<a:blip> into a
+              decoded core Surface by dispatching on the embedded relationship's resolved part
+              content type (mirroring the SVG codec's own raster-decoder dispatch), rejecting a
+              <a:blip> with only an r:link with PptxUnsupportedFeatureException (feature token
+              "pptx-image-link"), rejecting a <a:blip> with neither an r:embed nor an r:link
+              attribute but carrying a recognized Microsoft SVG extension fallback
+              (<a:extLst>/<a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}">) with
+              PptxUnsupportedFeatureException (feature token "pptx-image-svg-only"), rejecting a
+              <a:blip> with neither an embed/link attribute nor any recognized extension fallback
+              with InvalidDataException, rejecting an unsupported content type with
+              PptxUnsupportedFeatureException (feature token "pptx-image-format"), and shall
+              resolve a <p:blipFill>'s optional <a:srcRect> into a normalized, scaled-fraction
+              PptxSrcRect crop rectangle (each edge defaulting to zero/full-extent when its own
+              attribute is absent).
+            justification: |
+              A dedicated <p:pic> picture shape is the only in-scope picture-rendering construct
+              this phase (an ordinary shape's own <a:blipFill>/<a:pattFill> background fill remains
+              explicitly deferred - see this unit's own remarks); decoding its referenced media
+              part eagerly, by content type, mirrors the already-verified SVG codec dispatch
+              pattern rather than inventing a second, divergent raster-decode entry point. A linked
+              (external-file) image has no embedded bytes this package can read without performing
+              file-system I/O outside the supplied package stream, so it is deliberately
+              unsupported rather than silently treated as a missing/blank image. A real PowerPoint
+              "Insert Icon"-style picture may declare only a Microsoft SVG extension fallback (no
+              raster r:embed/r:link at all) - this is a well-formed, valid OOXML construct this
+              package does not yet decode, and a regression fix corrected this case from being
+              misclassified as InvalidDataException (malformed data) to the dedicated
+              "pptx-image-svg-only" PptxUnsupportedFeatureException token; a <a:blip> with neither
+              an embed/link attribute nor any recognized extension still throws
+              InvalidDataException unchanged (genuinely malformed - ECMA-376 requires at least one
+              of these). <a:srcRect>'s scaled-fraction percentages (in thousandths of a percent)
+              must be parsed exactly as OOXML defines them, or a crop that is supposed to trim a
+              small edge sliver would instead crop away most or all of the image.
+            tests:
+              - ResolveSrcRect_NoSrcRectElement_ReturnsNull
+              - ResolveSrcRect_AllEdgesPresent_ParsesScaledFractions
+              - ResolveSrcRect_SomeEdgesAbsent_DefaultsToZero
+              - ResolveSrcRect_NonNumericEdgeAttribute_ThrowsInvalidDataException
+              - ResolveSrcRect_NullBlipFillElement_ThrowsArgumentNullException
+              - ResolvePictureSurface_EmbeddedPng_DecodesSurfaceWithExpectedPixel
+              - ResolvePictureSurface_NoBlipElement_ThrowsInvalidDataException
+              - ResolvePictureSurface_BlipMissingEmbedAndLink_ThrowsInvalidDataException
+              - ResolvePictureSurface_LinkedBlipOnly_ThrowsPptxUnsupportedFeatureExceptionWithImageLinkToken
+              - ResolvePictureSurface_SvgOnlyBlipExtension_ThrowsPptxUnsupportedFeatureExceptionWithSvgOnlyToken
+              - ResolvePictureSurface_UnsupportedContentType_ThrowsPptxUnsupportedFeatureExceptionWithImageFormatToken
+              - ResolvePictureSurface_NullArguments_ThrowsArgumentNullException
+
+          - id: CanvasNetPptx-PptxDocument-PicturePainting
+            title: >-
+              The PptxDocument class shall paint a decoded picture Surface onto a destination
+              Surface by composing the picture's own crop-rectangle-to-unit-square mapping with
+              the shape's resolved frame transform into a single image-to-surface matrix, sampling
+              the source image with nearest-neighbor filtering for each destination pixel whose
+              inverse-mapped source coordinate falls within the image bounds, alpha-blending each
+              sampled source pixel over the existing destination pixel via standard Porter-Duff
+              "over" compositing (rather than overwriting it outright), and painting no pixels at
+              all when the composed transform is singular (non-invertible), without applying any
+              Y-axis flip to the sampled image (unlike a y-up rendering target such as PDF, this
+              package's surface space is already y-down, matching the image's own top-down pixel
+              row order).
+            justification: |
+              Nearest-neighbor sampling composed through a single matrix keeps picture painting
+              consistent with this package's existing shape-transform/geometry conventions (see
+              Phase 1c's ResolveShapeFrame) without introducing a second coordinate-mapping scheme
+              just for images. A singular transform (for example a zero-area shape frame) has no
+              well-defined inverse to sample through, so painting nothing is the only fail-safe
+              behavior; explicitly omitting the (1-v) row flip that an equivalent y-up target would
+              require is a deliberate, documented divergence from the PDF renderer's own pattern,
+              not an oversight - applying it here would paint every picture upside down.
+              Alpha-blending (rather than raw-overwriting) a sampled source pixel over the existing
+              destination pixel is required because a source pixel with a non-opaque (including
+              fully transparent) alpha channel must let existing destination content show through
+              correctly; a confirmed real-world logo image with an unassociated-alpha white matte
+              previously painted a solid white rectangle instead of a transparent background
+              before this was fixed.
+            tests:
+              - PaintPicture_IdentityTransformNoCrop_PaintsImagePixelsUnflipped
+              - PaintPicture_TopBottomAsymmetricImage_PaintsWithoutVerticalFlip
+              - PaintPicture_WithSrcRectCroppingLeftHalf_SamplesOnlyRightHalf
+              - PaintPicture_TranslatedTransform_ShiftsPaintedFootprint
+              - PaintPicture_DegenerateTransform_PaintsNothing
+              - PaintPicture_NullSurfaceOrImage_ThrowsArgumentNullException
+              - PaintPicture_SourceImageWithAlphaChannel_AlphaBlendsOntoExistingBackground
+              - PaintPicture_EllipseClipPath_CornerUnpaintedCenterPainted
+              - PaintPicture_NullClipPath_PaintsFullRectangleUnclipped
+
+          - id: CanvasNetPptx-PptxDocument-PictureGeometryClipping
+            title: >-
+              The PptxDocument class shall clip a <p:pic> picture's painted image to the path
+              resolved from its own <p:spPr>/<a:prstGeom> (or <a:custGeom>) geometry, reusing the
+              same preset/custom-geometry resolution already used for auto-shapes, while
+              preserving the original unclipped full-bounding-box-rectangle behavior when
+              <p:spPr> declares no geometry at all or explicitly declares the "rect" preset.
+            justification: |
+              A confirmed real-world corpus fixture ("ERF IWF and Reagent Probe Breadboard Motion
+              System Overview.pptx") contains <p:pic> picture shapes whose own <a:prstGeom>
+              declares a non-rect preset (for example "ellipse"); PowerPoint's own rendering
+              visibly crops the embedded image to that shape, while this package previously
+              painted every picture as a plain, unclipped full rectangle regardless of its own
+              declared geometry, producing a visibly incorrect render against real-world decks.
+              Resolving the clip path via the same PptxPresetGeometry.Build/ResolveCustomGeometry
+              dispatch ResolveShapeGeometry already uses for an auto-shape - rather than a second,
+              divergent geometry resolver - keeps this fix consistent with the package's existing
+              geometry-resolution contract, including its fail-closed behavior for an unsupported
+              preset or a malformed <a:prstGeom> missing its own "prst" attribute. Returning no
+              clip (null) for an absent geometry element or an explicit "rect" preset preserves
+              every pre-existing, already-shipped <p:pic> render unchanged - clipping to a "rect"
+              preset would be a pure no-op, and a geometry-less <p:pic> is schema-valid, not
+              malformed, unlike an auto-shape with no geometry at all.
+            tests:
+              - ResolvePictureClipPath_RectPreset_ReturnsNull
+              - ResolvePictureClipPath_NoGeometryElement_ReturnsNull
+              - ResolvePictureClipPath_EllipsePreset_ReturnsNonNullPath
+              - ResolvePictureClipPath_RoundRectPreset_ReturnsNonNullPath
+              - ResolvePictureClipPath_CustGeom_ReturnsNonNullPath
+              - ResolvePictureClipPath_PrstGeomMissingPrstAttribute_ThrowsInvalidDataException
+              - ResolvePictureClipPath_UnsupportedPreset_ThrowsPptxUnsupportedFeatureException
+              - ResolvePictureClipPath_NullSpPrElement_ThrowsArgumentNullException
+              - Render_PictureEllipseGeometry_ClipsImageToEllipticalRegion
+              - Render_PictureRectGeometry_PaintsFullBoundingBoxUnclipped
+              - Render_PictureNoPrstGeom_PaintsFullBoundingBoxUnclipped
+              - Render_PictureRoundRectGeometry_ClipsImageCorners
+              - Render_PictureEllipseGeometry_NearSquareRealWorldAspect_ClipsAllFourBoundingBoxCorners
+
+          - id: CanvasNetPptx-PptxDocument-PictureStrokeOutline
+            title: >-
+              The PptxDocument class shall stroke a <p:pic> picture's own <p:spPr>/<a:ln> as a
+              complete, correctly-closed outline around its resolved preset/custom geometry (or
+              the implicit/explicit full bounding-box rectangle when neither is declared), reusing
+              the same line-style resolution and stroke-outline primitives already used for an
+              auto-shape's own <a:ln>.
+            justification: |
+              A confirmed real-world bug report's own <p:pic> fixture declared a red <a:ln> on an
+              ellipse-cropped photo; PowerPoint's own rendering shows a complete red outline
+              framing the cropped photo, while this package's RenderPicture never read or painted
+              ANY <p:pic>'s own <a:ln> at all - 0% of the ellipse's perimeter rendered any stroke
+              color, not merely the partial arc the report described. A prior investigation pass
+              incorrectly concluded the report's entire underlying complaint was "a visual
+              illusion" caused by the embedded photo's own background color, and made no source
+              change; a from-scratch, independently re-verified investigation (direct code
+              inspection plus a freshly rendered repro) proved the missing stroke is a real,
+              100%-of-perimeter defect, unrelated to the image-content clip concern (which remains
+              correctly unaffected - see CanvasNetPptx-PptxDocument-PictureGeometryClipping).
+              Resolving the stroke geometry via a new ResolvePictureGeometryPath helper - which,
+              unlike ResolvePictureClipPath, always returns a concrete path rather than collapsing
+              "no geometry"/"rect" to null - and reusing ResolveShapeLineStyle/ResolveStrokeOutline
+              unchanged (the exact same resolvers RenderShape already uses for an auto-shape's own
+              <a:ln>) keeps this fix consistent with the package's existing line-style-resolution
+              contract, with zero new stroke-resolution logic.
+            tests:
+              - ResolvePictureGeometryPath_RectPreset_ReturnsNonNullRectanglePath
+              - ResolvePictureGeometryPath_NoGeometryElement_ReturnsImplicitRectanglePath
+              - ResolvePictureGeometryPath_EllipsePreset_ReturnsNonNullPath
+              - ResolvePictureGeometryPath_CustGeom_ReturnsNonNullPath
+              - ResolvePictureGeometryPath_PrstGeomMissingPrstAttribute_ThrowsInvalidDataException
+              - ResolvePictureGeometryPath_UnsupportedPreset_ThrowsPptxUnsupportedFeatureException
+              - ResolvePictureGeometryPath_NullSpPrElement_ThrowsArgumentNullException
+              - Render_PictureEllipseGeometry_WithRedLnStroke_RendersCompleteClosedEllipseOutline
+              - Render_PictureNoPrstGeom_WithLnStroke_StrokesRectangleOutline
+
+          - id: CanvasNetPptx-PptxDocument-TableParsing
+            title: >-
+              The PptxDocument class shall parse a <p:graphicFrame>'s <a:graphic>/<a:graphicData>/
+              <a:tbl> into a PptxTable (column widths from <a:tblGrid>/<a:gridCol>, rows from
+              <a:tr> with required height attributes, cells from <a:tc> with gridSpan/rowSpan/
+              hMerge/vMerge attributes defaulting to 1/1/false/false when absent), rejecting a
+              <a:graphicData> whose uri does not end in "/table" with
+              PptxUnsupportedFeatureException (feature token "pptx-graphic-frame-kind") and a
+              missing <a:graphicData>, <a:tblGrid>, or <a:tr> height, or a non-numeric gridCol
+              width/gridSpan/rowSpan attribute, with InvalidDataException, and shall resolve each
+              cell's <a:tcPr> fill and line styles (<a:lnL>/<a:lnR>/<a:lnT>/<a:lnB>) and text body
+              by reusing the already-verified Phase 1c/1d ResolveFill/ResolveLineStyle/
+              ParseTextBody resolvers verbatim.
+            justification: |
+              A <p:graphicFrame> can declare graphic data kinds other than a table (for example an
+              embedded chart or OLE object); this phase only implements tables, so any other kind
+              is a deliberately unsupported, well-formed construct rather than a malformed one.
+              Reusing ResolveFill/ResolveLineStyle/ParseTextBody verbatim for cell-level properties
+              keeps a table cell's own fill/border/text behavior in lock-step with an ordinary
+              shape's own fill/border/text behavior, rather than maintaining a second, divergent
+              resolution path solely for table cells.
+            tests:
+              - ParseTable_WellFormedTable_ParsesColumnsAndRows
+              - ParseTable_MissingGraphicData_ThrowsInvalidDataException
+              - ParseTable_NonTableGraphicFrameKind_ThrowsPptxUnsupportedFeatureExceptionWithGraphicFrameKindToken
+              - ParseTable_MissingTblGrid_ThrowsInvalidDataException
+              - ParseTable_GridColNonNumericWidth_ThrowsInvalidDataException
+              - ParseTable_TrMissingHeight_ThrowsInvalidDataException
+              - ParseTableCell_NoAttributes_DefaultsToSpanOneNoMerge
+              - ParseTableCell_AttributesPresent_ParsesSpanAndMergeFlags
+              - ParseTableCell_NonNumericGridSpan_ThrowsInvalidDataException
+              - ParseTableCell_TcPrWithFillAndBorders_ResolvesFillAndBorders
+              - ParseTableCell_NoTxBody_TextBodyIsNull
+              - ParseTableCell_WithTxBody_ParsesTextBody
+
+          - id: CanvasNetPptx-PptxDocument-TableCellRectResolution
+            title: >-
+              The PptxDocument class shall resolve each of a PptxTable's non-merge-continuation
+              cells (a cell with neither hMerge nor vMerge set) into a PptxResolvedTableCell
+              carrying its own EMU-space rectangle, computed by accumulating each physical
+              <a:tc>-entry's own single grid column's width when advancing the running column
+              offset (so that a spanning cell's own trailing continuation entries are never
+              double-counted), while the surviving cell's own stored rectangle width/height spans
+              the full gridSpan/rowSpan range of columns/rows it covers, and shall silently skip
+              any merge-continuation cell (it contributes no PptxResolvedTableCell of its own).
+            justification: |
+              Per ECMA-376's table content model, each <a:tc> XML entry - whether a real cell or an
+              hMerge/vMerge continuation placeholder - represents exactly one physical grid column;
+              only the governing (non-continuation) cell of a merged region owns a rectangle wide/
+              tall enough to span that whole region. Advancing the running column offset by the
+              merged cell's own full spanned width, rather than by each physical entry's own single
+              column width, would double-count the columns already covered by that cell's trailing
+              continuation entries, corrupting every subsequent cell's computed left edge in the
+              same row.
+            tests:
+              - ResolveCellRects_SimpleGrid_ComputesCumulativeOffsets
+              - ResolveCellRects_MergeContinuationCells_AreSkipped
+              - ResolveCellRects_HorizontalMerge_ComputesSpannedWidth
+              - ResolveCellRects_VerticalMerge_ComputesSpannedHeight
+
+          - id: CanvasNetPptx-PptxDocument-TablePainting
+            title: >-
+              The PptxDocument class shall paint a PptxTable onto a destination Surface by, for
+              each resolved cell rectangle, filling its own resolved fill (solid or gradient, via
+              the core PathFiller, transforming the cell's core Path.Rectangle through the table's
+              own shape transform first), stroking each side with a resolved line style whose own
+              width/dash/cap matches the Phase 1c stroke-outline convention, and painting the
+              cell's own text body (when present) via the already-verified Phase 1d
+              ResolveTextLayout/PaintTextLayout pipeline constrained to the cell's own rectangle,
+              and shall paint nothing for an empty cell (no fill, no borders, no text).
+            justification: |
+              Reusing the core PathFiller for cell fills and the Phase 1d text-layout/rendering
+              pipeline for cell text keeps a table cell's painted appearance consistent with how an
+              ordinary shape's own fill and text are painted elsewhere in this package, rather than
+              introducing a third, divergent painting code path solely for tables. An empty cell
+              (no fill, no border, no text) is a common, valid table shape and must not paint any
+              visible pixels at all.
+            tests:
+              - PaintTable_SolidFilledCell_PaintsFillColorAcrossCellRectangle
+              - PaintTable_CellWithTopBorder_PaintsStrokedLineAtTopEdge
+              - PaintTable_CellWithText_PaintsGlyphInkInsideCellRectangle
+              - PaintTable_EmptyCell_PaintsNothing
+
+          - id: CanvasNetPptx-PptxDocument-TableStyleResolution
+            title: >-
+              The PptxDocument class shall resolve a <a:tbl>/<a:tblPr>'s <a:tableStyleId> against
+              the presentation package's own ppt/tableStyles.xml part (tolerating every cause of
+              "not found" - no /tableStyles relationship, a missing/malformed part, or no matching
+              styleId - by falling back to today's plain, style-less cell-only rendering without
+              throwing) and shall apply the matched <a:tblStyle>'s <a:wholeTbl> base tier to every
+              cell, its <a:band1H>/<a:band2H> tiers alternating by non-header row parity when
+              <a:tblPr bandRow="1"> (a tier missing its own <a:fill> falling through to the next
+              lower tier rather than to "no fill"), and its <a:firstRow> tier overriding both for
+              the header row when <a:tblPr firstRow="1">, with a cell's own explicit <a:tcPr>
+              fill/border always taking final precedence over every style tier, reusing the
+              existing ResolveFill/ResolveLineStyle resolvers for every style-tier color (including
+              schemeClr) unchanged.
+            justification: |
+              A confirmed real-world corpus fixture ("ERF IWF and Reagent Probe Breadboard Motion
+              System Overview.pptx", slide 23) declares a <a:tbl> with <a:tblPr firstRow="1"
+              bandRow="1"><a:tableStyleId>{GUID}</a:tableStyleId></a:tblPr>; PowerPoint's own
+              rendering shows a shaded header row, alternating banded row fills, and style-defined
+              cell borders, while this package's Phase 1e TableParsing never resolved
+              <a:tableStyleId> at all, rendering only a bare, mostly-invisible grid of thin border
+              lines with no shading - a visibly incorrect render confirmed against a real-world
+              ground-truth PowerPoint COM export. The row-parity convention (a styled header row
+              excluded from band-row counting; <a:band1H> applied to the first row after the
+              header, alternating with <a:band2H> thereafter) was confirmed against that same
+              ground-truth render and matches ECMA-376's own documented convention for a styled,
+              banded table. Mirroring ResolveShapeLineStyle's own established "explicit always wins
+              over style/theme fallback" precedence pattern, rather than inventing a divergent one
+              solely for tables, and reusing ResolveFill/ResolveLineStyle verbatim for every
+              style-tier color keeps this fix consistent with the package's existing
+              fill/line-style-resolution contract, with zero new color-resolution logic.
+              firstCol/lastCol/lastRow/corner-cell style parts, column banding (band1V/band2V),
+              and table-style-driven font color remain explicitly deferred - each a separable,
+              independently-scoped refinement with no bearing on the primary header-row/row-banding
+              defect this fix addresses.
+            tests:
+              - ParseTable_FirstRowTblPrWithMatchingTableStyle_HeaderRowCellUsesFirstRowStyleFill
+              - ParseTable_BandRowTblPrWithMatchingTableStyle_AlternatesBand1HAndBand2HFillStartingAfterHeaderRow
+              - ParseTable_TblPrWithNoTableStyleId_FallsBackToPlainCellOnlyBorderAndNoFill
+              - ParseTable_TblPrWithUnresolvableTableStyleId_FallsBackToPlainCellOnlyBorderAndNoFillWithoutThrowing
+              - ParseTableCell_TcPrExplicitFillAndBorder_OverridesTableStyleFillAndBorder
+              - ParseTableCell_InteriorColumnBorder_UsesInsideVNotLeftRightTcBdrEdge
+
+          - id: CanvasNetPptx-PptxDocument-ChartGraphicFrames
+            title: >-
+              The PptxDocument class shall resolve a <p:graphicFrame>'s <a:graphic>/<a:graphicData>
+              whose uri ends in "/chart" by resolving its <c:chart r:id> relationship to the
+              referenced chart part, parsing that part via the sibling
+              DemaConsulting.CanvasNet.Charts package's OpenXmlChartParser.Parse, and - when
+              actually rendering the slide - rendering/compositing the resulting Chart via
+              DemaConsulting.CanvasNet.Charts.ChartRenderer onto the slide surface at the graphic
+              frame's own resolved frame, reusing the existing picture-compositing primitive
+              exactly as a <p:pic> composites its own decoded image, while rejecting a missing
+              <c:chart r:id> attribute or any other malformed chart part with InvalidDataException
+              and wrapping any ChartUnsupportedFeatureException raised while parsing a
+              recognized-but-unsupported chart construct as a PptxUnsupportedFeatureException whose
+              own Feature token is "pptx-chart-" followed by the wrapped exception's own Feature
+              value.
+            justification: |
+              A <p:graphicFrame> may declare a chart rather than a table; before this phase, every
+              chart graphic-data kind fell through TableParsing's own "not a table"
+              PptxUnsupportedFeatureException path, so no presentation containing a chart could
+              ever render past that slide. DemaConsulting.CanvasNet.Charts (Phases 1-3) already
+              independently verified chart-model construction, OOXML-chart parsing, and pixel
+              rendering; this requirement's own responsibility is purely resolving the chart
+              part's relationship and invoking that already-verified parser/renderer, not
+              re-implementing chart parsing or rendering. Prefixing the wrapped feature token with
+              "pptx-chart-" keeps a chart-specific deferred-feature token distinguishable, in
+              CanvasNetPptx's own exception contract, from every other "pptx-*" feature token this
+              package already raises, while still surfacing the Charts package's own, more specific
+              Feature value (for example "charts-openxml-radar-chart") rather than discarding it.
+              This dependency is strictly one-directional - DemaConsulting.CanvasNet.Charts must
+              never reference DemaConsulting.CanvasNet.Pptx (see docs/design/canvas-net-charts.md's
+              Dependencies section) - so CanvasNetPptx depends on CanvasNetCharts exactly as it
+              already depends on the core CanvasNet system, never the reverse.
+            tests:
+              - ParseShapeTree_GraphicFrameWithSupportedChart_DispatchesToChartNode
+              - ParseShapeTree_GraphicFrameWithTable_StillDispatchesToTableNode
+              - ParseShapeTree_GraphicFrameWithRadarChart_ThrowsPptxUnsupportedFeatureExceptionWithWrappedFeatureToken
+              - ParseChart_ChartElementWithNoRelationshipId_ThrowsInvalidDataException
+              - ParseChart_GraphicDataWithNoChartChild_ThrowsInvalidDataException
+              - Render_ChartOnlySlide_PaintsVisibleContent
+              - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0AndSlide1PaintContent
+              - PptxDocument_Render_SamplelibSamplePresentationFixture_EverySlidePaintsContent
+              - PptxDocument_Render_PythonPptxChartLineFixture_RendersSuccessfully
+              - PptxDocument_Render_PythonPptxChartUnsupportedRadarFixture_ThrowsPptxUnsupportedFeatureException
+              - PptxDocument_Render_ShpShapesFixture_Chart2NodeHasNonNullChart
+
+          - id: CanvasNetPptx-PptxDocument-ShapeTree
+            title: >-
+              The PptxDocument class shall recursively parse a <p:spTree> (or, for a nested group,
+              a <p:grpSp>'s own direct children, which are not wrapped in a nested <p:spTree> per
+              ECMA-376's CT_GroupShape content model) into a closed PptxShapeTreeNode hierarchy,
+              dispatching a <p:sp> to PptxSpShapeNode (resolving its placeholder, if any, via the
+              Phase 1b placeholder-detection logic extracted into TryParsePlaceholder), a <p:pic>
+              to PptxPictureShapeNode, a <p:graphicFrame> to PptxGraphicFrameShapeNode (eagerly
+              parsing its table via ParseTable, against a theme lazily resolved - only when a
+              table is actually encountered - via the slide's own layout/master/theme relationship
+              chain), and a <p:grpSp> to PptxGroupShapeNode (resolving its own child-coordinate-
+              space transform via the already-verified Phase 1c ResolveGroupChildTransform and
+              recursing into its own children), and a <p:cxnSp> to PptxConnectorShapeNode (wrapping
+              the raw element for a later rendering pass - see CanvasNetPptx-PptxDocument-
+              ConnectorRendering below), silently skipping any other, truly unrecognized element
+              kind (for example <p:nvGrpSpPr>, <p:grpSpPr>, or <p:contentPart>), and shall expose
+              the result as PptxSlide.ShapeTree alongside the existing, unchanged
+              PptxSlide.Placeholders flat list.
+            justification: |
+              Earlier phases only enumerated a slide's immediate placeholder shapes, excluding
+              freeform shapes and never recursing into groups at all; a full shape-tree walk is the
+              structural foundation a future per-slide Render API needs to paint every shape in
+              document order, including nested groups' own children with their own composed
+              transforms. Deferring theme resolution until a table is actually encountered avoids
+              forcing every slide - including the overwhelming majority with no tables at all - to
+              walk its layout/master/theme relationship chain merely to build its shape tree.
+              Silently skipping unrecognized element kinds (rather than rejecting them) matches the
+              existing Phase 1b precedent of excluding non-placeholder shapes from the flat
+              placeholder list - a tree-walk tolerance, not a fail-closed feature rejection.
+            tests:
+              - ParseShapeTree_FreeformShape_ProducesSpShapeNodeWithNullPlaceholder
+              - ParseShapeTree_PlaceholderShape_ProducesSpShapeNodeWithResolvedPlaceholder
+              - ParseShapeTree_Picture_ProducesPictureShapeNode
+              - ParseShapeTree_GraphicFrameTable_ProducesGraphicFrameShapeNodeWithParsedTable
+              - ParseShapeTree_NoGraphicFrame_NeverInvokesThemeResolver
+              - ParseShapeTree_UnrecognizedElements_SilentlySkipped
+              - ParseShapeTree_Connector_ProducesConnectorShapeNode
+              - ParseShapeTree_Group_ProducesGroupShapeNodeWithDirectSiblingChildren
+              - ParseShapeTree_NestedGroups_EachResolveOwnChildTransformAndChildren
+              - ParseShapeTree_GroupMissingXfrm_ThrowsInvalidDataException
+              - ParseShapeTree_GraphicFrameInsideGroup_ParsesTableUsingPropagatedThemeResolver
+              - TryParsePlaceholder_FreeformShape_ReturnsNull
+              - TryParsePlaceholder_NoTypeOrIdxAttributes_DefaultsToObjAndZero
+              - TryParsePlaceholder_NonNumericIdx_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-SlideRendering
+            title: >-
+              The PptxDocument class shall render a slide's full PptxSlide.ShapeTree onto a
+              destination Surface by walking it recursively in document order with an
+              accumulating transform seeded from the base EMU-to-pixel scale, composing a
+              PptxGroupShapeNode's own already-resolved ChildTransform into that accumulator
+              before recursing into its children, resolving a PptxSpShapeNode's effective shape
+              properties (via ResolvePlaceholderProperties for a placeholder, or directly from its
+              own spPr for a freeform shape) and painting its geometry/fill/stroke and, when
+              present, its own slide-level text body via the Phase 1d text pipeline, painting a
+              PptxPictureShapeNode's embedded image via the Phase 1e picture pipeline, and
+              painting a PptxGraphicFrameShapeNode's already-parsed table via PaintTable using the
+              graphic frame's own direct p:xfrm child, while silently skipping a shape, picture, or
+              graphic frame whose geometry resolves no a:xfrm/p:xfrm element anywhere in its own
+              ancestry, or a picture with no p:blipFill.
+            justification: |
+              Every geometry/paint/text/image/table primitive this requirement composes was
+              already independently verified by Phase 1c/1d/1e's own unit tests; this requirement's
+              own responsibility is purely the shape-tree walk and per-node-kind dispatch that
+              wires those primitives together in the correct document order and coordinate space,
+              which no earlier phase exercised end-to-end. A placeholder shape's text is read from
+              the slide-level shape element's own txBody, never from a layout/master placeholder's
+              text, because ResolvePlaceholderProperties only ever carries styling, never content -
+              conflating the two would silently render stale layout boilerplate text instead of a
+              slide's own authored content. Skipping a position-less shape or an image-less
+              picture silently, rather than throwing, matches ParseShapeTree's own established
+              tolerant-tree-walk precedent (see CanvasNetPptx-PptxDocument-ShapeTree above);
+              treating a malformed-but-unused construct as fatal would make an otherwise-renderable
+              slide unrenderable over a single unused, incidental shape.
+            tests:
+              - Render_SingleFullSlideShape_PaintsFillColorAcrossSurface
+              - Render_EmptyShapeTree_RendersOnlyBackground
+              - Render_SmallPixelDimensionsAgainstLargeEmuSlideSize_DoesNotTruncateTransformToZero
+              - Render_TwoOverlappingShapes_LaterShapePaintsOnTopInDocumentOrder
+              - Render_ShapeWithNoXfrm_SkippedSilently
+              - Render_NestedGroup_ComposesChildTransformIntoExpectedSurfaceLocation
+              - Render_DoublyNestedGroups_EachComposeOwnChildTransform
+              - Render_Picture_PaintsEmbeddedImageAtExpectedLocation
+              - Render_PictureMissingBlipFill_SkippedSilently
+              - Render_Table_PaintsCellFillAcrossCellRectangle
+              - Render_GraphicFrameMissingXfrm_SkippedSilently
+              - Render_NonPlaceholderShapeWithText_PaintsGlyphInkInsideShapeRectangle
+              - Render_PlaceholderShape_ReadsTextFromSlideLevelShapeNotLayout
+              - Render_PlaceholderShapeWithEmptySpPr_InheritsXfrmAndGeometryFromLayout
+              - PptxDocument_Render_BlankSlideFixtures_RendersWithoutError
+              - PptxDocument_Render_ShpAutoshapePropsFixture_PaintsVisibleContent
+              - PptxDocument_Render_ShpGroupShapeFixture_RendersWithoutError
+              - PptxDocument_Render_ShpPictureFixture_RendersEverySlideWithVisibleContent
+              - PptxDocument_Render_TblCellFixture_RendersEverySlideWithVisibleContent
+              - PptxDocument_Render_TxtFontPropsFixture_RendersEverySlideWithVisibleContent
+              - PptxDocument_Render_TxtTextFrameFixture_RendersEverySlideWithVisibleContent
+              - PptxDocument_Render_ShpShapesFixture_Slide0ThrowsUnsupportedFeatureSlide1PaintsContent
+              - PptxDocument_Render_SamplelibSamplePresentationFixture_EverySlidePaintsContent
+              - PptxDocument_Render_SldBackgroundFixture_RendersAndPaintsSlideBackgroundFill
+              - PptxDocument_Render_PhInheritPropsFixture_Slide0PaintsSlide1RendersWithoutError
+              - PptxDocument_Render_PhUnpopulatedPlaceholdersFixture_RendersEverySlideWithoutError
+              - PptxDocument_Render_TxtFitTextFixture_PaintsVisibleContent
+              - PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsPaintVisibleLines
+              - PptxDocument_Render_DmlFillFixture_Slide0RendersPictureAndPatternFillShapesWithoutThrowing
+              - PptxDocument_Render_DmlFillFixture_Slide1PatternFillShapesRenderAndBareFillIsTransparent
+              - PptxDocument_Render_DmlLineFixture_RendersEverySlideWithVisibleContent
+              - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0AndSlide1PaintContent
+              - PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentAndBackgroundFill
+              - PptxDocument_Render_Aiden0zTableStaleFrameFixture_PaintsVisibleContentDespiteFrameSizeMismatch
+
+          - id: CanvasNetPptx-PptxDocument-RenderPublicApi
+            title: >-
+              The PptxDocument class shall expose public Render(int slideIndex, int width, int
+              height, PptxRenderOptions? options = null) and Render(int slideIndex, float dpi,
+              PptxRenderOptions? options = null) overloads that each validate a disposed document,
+              an out-of-range slideIndex, non-positive width/height, and a non-positive or
+              non-finite dpi by throwing ObjectDisposedException or ArgumentOutOfRangeException
+              respectively before any rendering work begins, shall compute the dpi overload's own
+              pixel width/height from the slide's own SlideSize EMU dimensions using the same
+              EMU-per-inch convention as DemaConsulting.CanvasNet.Pdf.PdfDocument's own DPI
+              overload, and shall clear the destination Surface to options.BackgroundColor (or
+              PptxRenderOptions.Default's opaque white when options is null) before painting any
+              shape.
+            justification: |
+              Validating every argument before any rendering work begins - rather than allowing a
+              later internal resolver to throw a less specific or less helpfully-named exception -
+              keeps this API's own failure modes consistent with every other public entry point in
+              this codebase (see CanvasNetPptx-PptxDocument's own earlier public-API requirements).
+              Reusing PdfDocument's own DPI-to-pixel-dimension convention keeps the two sibling
+              format renderers' public APIs symmetric for a caller already familiar with one of
+              them. Clearing to a caller-supplied background color before painting - defaulting to
+              opaque white - mirrors PdfRenderOptions's own convention and gives a caller painting
+              a slide with transparent or partially-covered shapes a predictable, non-garbage
+              background rather than undefined pixel contents.
+            tests:
+              - Render_DefaultOptions_ClearsUnpaintedAreaToOpaqueWhite
+              - Render_CustomBackgroundColor_ClearsToThatColor
+              - Render_FullyTransparentBackgroundColor_ClearsToTransparent
+              - Render_NegativeSlideIndex_ThrowsArgumentOutOfRangeException
+              - Render_SlideIndexAtSlideCount_ThrowsArgumentOutOfRangeException
+              - Render_NonPositiveWidth_ThrowsArgumentOutOfRangeException
+              - Render_NonPositiveHeight_ThrowsArgumentOutOfRangeException
+              - Render_DisposedDocument_ThrowsObjectDisposedException
+              - Render_Dpi_NonPositiveDpi_ThrowsArgumentOutOfRangeException
+              - Render_Dpi_NonFiniteDpi_ThrowsArgumentOutOfRangeException
+              - Render_Dpi_NegativeSlideIndex_ThrowsArgumentOutOfRangeException
+              - Render_Dpi_SlideIndexAtSlideCount_ThrowsArgumentOutOfRangeException
+              - Render_DpiOverload_ComputesExpectedPixelDimensionsFromSlideSize
+
+          - id: CanvasNetPptx-PptxDocument-SlideBackgroundFill
+            title: >-
+              The PptxDocument class's Render methods shall resolve and paint a slide's own
+              p:cSld/p:bg background fill - falling back to its layout's, then its master's, own
+              p:bg when the slide declares none - across the full slide immediately before the
+              shape-tree walk begins, reusing the existing ResolveFill/ResolveColor DrawingML
+              fill-resolution pipeline (solid, linear-gradient, and p:bgRef theme-indexed fills via
+              a:fmtScheme/a:bgFillStyleLst with phClr substitution) rather than duplicating it, and
+              shall fall back unchanged to PptxRenderOptions.BackgroundColor only when none of
+              slide/layout/master declare a p:bg at all.
+            justification: |
+              A branded, non-white background fill is the single highest-visual-impact gap between
+              CanvasNetPptx's rendered output and a real PowerPoint export - before this
+              requirement, every slide rendered against a plain, uniform BackgroundColor regardless
+              of what the file itself declared, even though two real fixture files in this
+              project's own corpus (pythonpptx-sld-background.pptx, added specifically for this
+              feature, and aiden0z-image-crop-css-reset.pptx) declare one. Resolving slide, then
+              layout, then master in "first element present at all wins" order mirrors this unit's
+              own established placeholder-property-inheritance precedent (see
+              CanvasNetPptx-PptxDocument-PlaceholderInheritancePerCategory above) exactly, rather than
+              introducing a second, bespoke inheritance rule. Reusing ResolveFill/ResolveColor
+              rather than re-implementing fill resolution for backgrounds keeps every future
+              fill-resolution bug fix or feature addition automatically applicable to backgrounds
+              too, and keeps this requirement's own verification scope limited to the
+              background-specific resolution/dispatch logic layered on top. A pattern or picture
+              background fill is explicitly out of scope for this requirement - it is rejected with
+              PptxUnsupportedFeatureException, inherited unchanged from ResolveFill's own
+              pre-existing Phase 1c boundary (see CanvasNetPptx-PptxDocument-FillResolution above) -
+              rather than silently dropped or misrendered.
+            tests:
+              - Render_SlideLevelSolidBackground_PaintsAcrossFullSlide
+              - Render_SlideLevelBackgroundWithShape_ShapePaintsOnTopOfBackground
+              - Render_LayoutLevelSolidBackground_PaintsWhenSlideDeclaresNone
+              - Render_MasterLevelSolidBackground_PaintsWhenNeitherSlideNorLayoutDeclaresOne
+              - Render_SlideLevelBackground_TakesPriorityOverLayoutAndMasterBackgrounds
+              - Render_LayoutLevelBackground_TakesPriorityOverMasterBackgroundWhenSlideDeclaresNone
+              - Render_NoBackgroundAnywhere_FallsBackToOptionsBackgroundColor
+              - Render_SlideLevelThemeIndexedBackgroundReference_ResolvesBgFillStyleListEntryWithPhClrSubstitution
+              - Render_SlideLevelThemeIndexedBackgroundReferenceIdxZero_PaintsNoBackground
+              - ResolveSlideBackgroundFill_AllThreeTiersNull_ReturnsNull
+              - ResolveSlideBackgroundFill_SlideDeclaresOne_ResolvesSlideOwnBackground
+              - ResolveSlideBackgroundFill_SlideDeclaresNoneLayoutDoes_ResolvesLayoutOwnBackground
+              - ResolveSlideBackgroundFill_SlideAndLayoutDeclareNoneMasterDoes_ResolvesMasterOwnBackground
+              - ResolveSlideBackgroundFill_EmptySlideBackgroundStillWinsOverLayout_MatchesPlaceholderInheritancePrecedent
+              - ResolveSlideBackgroundFill_BgElementWithNeitherBgPrNorBgRef_ThrowsInvalidDataException
+              - ResolveSlideBackgroundFill_BgRefIdxZero_ReturnsNoFill
+              - ResolveSlideBackgroundFill_BgRefIdxOneThousand_ReturnsNoFill
+              - ResolveSlideBackgroundFill_BgRefIdxInFillStyleListRange_ThrowsPptxUnsupportedFeatureException
+              - ResolveSlideBackgroundFill_BgRefIdxResolvesBgFillStyleListEntryWithPhClrSubstitution
+              - ResolveSlideBackgroundFill_BgRefIdxSecondEntry_ResolvesSecondBgFillStyleListEntry
+              - ResolveSlideBackgroundFill_BgRefResolution_DoesNotMutateThemeBgFillStyleList
+              - ResolveSlideBackgroundFill_BgRefIdxPastEndOfBgFillStyleList_ThrowsInvalidDataException
+              - ResolveSlideBackgroundFill_BgRefWithNoIdxAttribute_ThrowsInvalidDataException
+              - ResolveSlideBackgroundFill_BgRefWithNonNumericIdxAttribute_ThrowsInvalidDataException
+              - ResolveSlideBackgroundFill_BgRefWithNoColorChild_ResolvesEntryWithDefaultPhClr
+              - GetTheme_NoFmtScheme_BgFillStyleListIsEmpty
+              - GetTheme_FmtSchemeWithNoBgFillStyleLst_BgFillStyleListIsEmpty
+              - GetTheme_FmtSchemeWithBgFillStyleLst_ParsesEntriesInDocumentOrder
+              - PptxDocument_Render_SldBackgroundFixture_RendersAndPaintsSlideBackgroundFill
+              - PptxDocument_Render_Aiden0zImageCropCssResetFixture_PaintsVisibleContentAndBackgroundFill
+
+          - id: CanvasNetPptx-PptxDocument-MasterLayoutShapeRendering
+            title: >-
+              The PptxDocument class's Render methods shall render a slide's own master's and own
+              layout's non-placeholder shapes (pictures, autoshapes, groups, and freeform shapes)
+              back-to-front in document order - master shapes first, then layout shapes, then the
+              slide's own shapes unchanged on top - immediately after painting the resolved
+              background and before the existing slide shape-tree walk, using the exact same
+              per-shape-type paint dispatch a slide-level shape already uses, while never
+              rendering a master's or layout's own placeholder shapes directly, and shall catch a
+              PptxUnsupportedFeatureException thrown while painting a single master/layout shape
+              (including one nested inside a group) and skip only that shape, continuing to render
+              every other master/layout and slide shape, while a slide's own shape throwing the
+              same exception continues to hard-fail Render unchanged.
+            justification: |
+              A real PowerPoint deck frequently places decoration (a logo, a rule, a watermark)
+              directly on a slide master's or slide layout's own shape tree, outside any
+              placeholder - before this requirement, CanvasNetPptx walked a master's or layout's
+              own p:cSld/p:spTree only far enough to find placeholder shapes for the
+              PlaceholderInheritancePerCategory chain (and, after the SlideBackgroundFill
+              requirement above, to resolve p:bg) - any non-placeholder sibling shape was silently
+              never painted, leaving a visible gap between CanvasNetPptx's rendered output and a
+              real PowerPoint export. Reusing the existing per-shape-type paint dispatch (the same
+              RenderNode/RenderShape/RenderPicture/RenderGraphicFrame functions a slide-level shape
+              already uses) rather than introducing a parallel master/layout-specific rendering
+              path keeps every future shape-rendering bug fix or feature addition automatically
+              applicable to master/layout shapes too. A master/layout's own placeholder shapes
+              must never be painted directly - they are real PowerPoint's own "Click to
+              edit…" prompt/edit-mode-only text, never shown on an actual exported slide - so
+              RenderNode gained a skipPlaceholderShapes flag, set only for the two new master/
+              layout loops, leaving the pre-existing slide-shape-tree loop's own behavior
+              unchanged. A slide only ever walks its own layout's and that layout's own master's
+              shape tree (the same slide -> layout -> master relationship already resolved for
+              placeholder inheritance and background), never an unrelated layout's or master's
+              shapes. A master/layout shape that itself uses an already-deferred feature (an
+              unsupported preset geometry, a chart/OLE graphic frame, an unsupported raster
+              picture format, and so on) hits the exact same PptxUnsupportedFeatureException
+              boundary a slide-level shape already hits. A regression fix corrected the original
+              implementation, which did
+              not contain this exception: without containment, a single already-deferred feature
+              used by one decorative master/layout shape aborted rendering for every slide using
+              that master/layout - a severe regression versus the pre-existing behavior where
+              master/layout shape trees were never walked at all. RenderNode now catches
+              PptxUnsupportedFeatureException at each leaf dispatch point, gated on the same
+              skipPlaceholderShapes flag, so only the single failing master/layout shape is
+              skipped and rendering continues; a slide's own shape (skipPlaceholderShapes == false)
+              is never caught here and continues to hard-fail Render exactly as before this fix.
+            tests:
+              - Render_MasterNonPlaceholderPicture_PaintsOnEverySlideUsingThatMasterResolvingOwnRels
+              - Render_LayoutNonPlaceholderAutoshape_PaintsOnlyOnSlidesUsingThatLayout
+              - Render_MasterAndSlideShapesOverlap_SlideShapePaintsOnTopOfMasterShape
+              - Render_MasterAndLayoutShapesOverlap_LayoutShapePaintsOnTopOfMasterShape
+              - Render_MasterPlaceholderShape_DoesNotRenderItsOwnPromptContent
+              - Render_LayoutPlaceholderShape_DoesNotRenderItsOwnPromptContent
+              - Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent
+              - Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException
+              - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0AndSlide1PaintContent
+
+          - id: CanvasNetPptx-PptxDocument-BulletProperties
+            title: >-
+              The PptxDocument class shall parse a paragraph's a:buNone/a:buAutoNum/a:buChar
+              bullet-type choice, and its independent a:buClrTx/a:buClr color,
+              a:buFontTx/a:buFont font, and a:buSzTx/a:buSzPct/a:buSzPts size choices, and shall
+              resolve each of these four choice-groups independently through the same
+              placeholder/master attribute-level inheritance chain already established for
+              run/paragraph properties (own paragraph, then placeholder level override, then
+              master level override, then a hard-coded default), with an explicit a:buNone or the
+              complete absence of bullet markup anywhere in the chain resolving to no bullet at
+              all, a:buAutoNum's type/startAt defaulting per the ECMA-376 schema
+              (arabicPeriod/1) when omitted, and the three "follow text" sentinels
+              (a:buClrTx/a:buFontTx/a:buSzTx, and the complete absence of color/font/size markup)
+              resolving to the paragraph's own first run's effective color/typeface/size.
+            justification: |
+              A bulleted or numbered paragraph is one of the most common real-world PPTX
+              constructs, and before this requirement CanvasNetPptx neither parsed nor resolved
+              any bullet markup at all - every such paragraph rendered as plain, unmarked text, a
+              visually obvious gap against a real PowerPoint export. Resolving each of the four
+              independent OOXML choice-groups (type/color/font/size) on its own inheritance chain,
+              rather than resolving one monolithic "bullet properties" object wholesale from
+              whichever single tier wins, is required because a real-world paragraph commonly
+              declares only its own bullet character while deliberately relying on its
+              placeholder/master level style for the bullet's color/font/size (or the reverse) -
+              mirroring exactly how algn/marL/indent/lnSpc are already each resolved independently
+              by ResolveEffectiveParagraphProperties (see
+              CanvasNetPptx-PptxDocument-PlaceholderInheritancePerCategory above), rather than
+              introducing a second, bespoke, coarser-grained inheritance rule specific to bullets.
+            tests:
+              - ParseParagraphProperties_Absent_ResolvesEmptyBulletProperties
+              - ParseBulletProperties_BuNone_CapturesTypeElement
+              - ParseBulletProperties_BuChar_CapturesTypeElement
+              - ParseBulletProperties_BuAutoNum_CapturesTypeElement
+              - ParseBulletProperties_ColorFontSizeModifiers_CapturesEachIndependently
+              - ParseBulletProperties_FollowTextModifiers_CapturesEachIndependently
+              - ResolveEffectiveParagraphProperties_NoBulletMarkupAnywhere_ResolvesNone
+              - ResolveEffectiveParagraphProperties_OwnBuChar_WinsOverEveryOtherTier
+              - ResolveEffectiveParagraphProperties_OwnBuNone_SuppressesInheritedBullet
+              - ResolveEffectiveParagraphProperties_PlaceholderLevelBuAutoNum_WinsWhenParagraphDeclaresNothing
+              - ResolveEffectiveParagraphProperties_MasterBodyStyleBuChar_WinsWhenEverythingAboveIsAbsent
+              - ResolveEffectiveParagraphProperties_BuAutoNumNoAttributes_ResolvesSchemaDefaults
+              - ResolveEffectiveParagraphProperties_OwnTypeOnly_InheritsColorFontSizeIndependently
+              - ResolveEffectiveParagraphProperties_BuClrTxOrAbsent_FollowsFirstRunColor
+              - ResolveEffectiveParagraphProperties_BuClrTxRunLessParagraph_FallsBackToDark1
+              - ResolveEffectiveParagraphProperties_BuFontTxOrAbsent_FollowsFirstRunFont
+              - ResolveEffectiveParagraphProperties_BuSzPct_ResolvesFractionOfFirstRunSize
+              - ResolveEffectiveParagraphProperties_BuSzPts_ResolvesAbsoluteSizeIndependentOfRunSize
+              - ResolveEffectiveParagraphProperties_SldNumDtFtrPlaceholderType_SuppressesMasterBodyStyleBullet
+              - ResolveEffectiveParagraphProperties_SldNumDtFtrPlaceholderTypeWithOwnBuChar_StillResolvesOwnBullet
+
+          - id: CanvasNetPptx-PptxDocument-BulletRendering
+            title: >-
+              The PptxDocument class's text layout engine shall format an auto-numbered bullet's
+              rendered string for the arabicPeriod, arabicParenR, arabicPlain, alphaLcPeriod,
+              alphaUcPeriod, alphaLcParenR, alphaUcParenR, romanLcPeriod, romanUcPeriod,
+              romanLcParenR, and romanUcParenR ST_TextAutonumberScheme values (gracefully omitting
+              only that one paragraph's bullet glyph, without aborting rendering, for any other
+              scheme value), shall maintain one running counter and last-used-scheme per indent
+              level so consecutive same-level auto-numbered paragraphs sequence correctly and a
+              nested sub-list's own counter resets independently of, and without disturbing, its
+              parent level's own counter, shall paint a resolved bullet glyph at the paragraph's
+              own marL+indent hanging-indent gutter position, shall position a bulleted
+              paragraph's own first-line run text starting at marL (not marL+indent) whenever that
+              line has a resolved bullet, clamped so the text never shares an X range with the
+              bullet glyph it is painted beside regardless of the paragraph's resolved indent,
+              shall additionally reserve a minimum trailing gap - one space character's own
+              advance width, measured in the bullet's own resolved font/size - beyond an
+              auto-numbered marker's own measured width specifically (not for a buChar marker,
+              whose already-correct "touching, zero extra gap" behavior is unaffected), so a
+              multi-character auto-number marker (e.g. "12.") reads as visibly separated from the
+              paragraph's own text rather than merely touching it, matching PowerPoint's own
+              tab-stop-like spacing after a number marker, leaving a non-bulleted paragraph's own
+              first-line indent behavior unchanged, and shall suppress the bullet glyph entirely
+              (while still advancing the auto-number counter state) for a paragraph with no <a:r>
+              run children at all, so a blank/spacer paragraph that merely inherits a list's
+              bullet properties never renders a stray, isolated bullet glyph with no accompanying
+              text.
+            justification: |
+              Formatting and positioning a bullet glyph requires layout-engine support distinct
+              from, and layered on top of, the choice-group parsing/inheritance resolution above:
+              auto-numbering requires per-shape sequence state that single-paragraph property
+              resolution alone cannot provide, and correct gutter positioning requires the
+              paragraph's own text to be deliberately excluded from the indent it would otherwise
+              apply to itself. The latter was found, during this requirement's own implementation,
+              to be a previously-undocumented, closely-related rendering defect: a bulleted
+              paragraph's first-line text was already incorrectly shifted into the
+              hanging-indent gutter reserved for the bullet glyph (treating indent as an
+              additional first-line text indent rather than the gutter width ECMA-376, and every
+              real PowerPoint export, intends) - fixing this alongside adding the bullet glyph
+              itself is necessary, not merely cosmetic, since a bullet glyph painted correctly in
+              the gutter while its own paragraph's text remains shifted into that same gutter would
+              still look wrong relative to a genuine PowerPoint export. An unrecognized
+              auto-number scheme degrades gracefully (omitting only that one bullet) rather than
+              throwing PptxUnsupportedFeatureException, matching this codebase's own established
+              convention for an optional, nullable-returning resolver, since a single unsupported
+              bullet scheme in an otherwise-ordinary real-world deck must never abort rendering of
+              every other slide/shape/paragraph. A further visual-fidelity defect was found after
+              this requirement's initial implementation: painting a bullet glyph for any paragraph
+              with resolved, non-None bullet properties - regardless of whether that paragraph had
+              any run content at all - rendered a stray, isolated bullet glyph on a run-less
+              blank/spacer paragraph, something no genuine PowerPoint export ever does. The fix
+              gates only the glyph itself on the paragraph having at least one run, leaving the
+              auto-number counter's own advancement untouched, so a run-less auto-numbered
+              paragraph still consumes its own position in the sequence even though nothing is
+              painted for it - matching real PowerPoint's own counter semantics. A further bug was
+              found against real-world content, reported as a buAutoNum marker appearing to render
+              stacked/overlapping its own paragraph's first word: investigation (direct code
+              inspection plus temporary numeric probes) refuted the plausible duplicate-paint and
+              type-precedence-merge hypotheses - there is exactly one bullet-glyph-painting call
+              site, and a paragraph's own buAutoNum fully supersedes an inherited master buChar
+              default, never merging the two - and instead confirmed a bullet-gutter/text-start-X
+              collision in PositionLines: when a bulleted paragraph's resolved IndentEmu was zero
+              or not negative enough to clear the bullet glyph's own rendered width, the bullet
+              and the paragraph's own first-line text painted at the same, or an overlapping, X
+              coordinate - a positioning defect affecting buChar and buAutoNum bullets alike,
+              confirmed numerically on a real-world slide (marL="320040", lvl="1", no indent
+              attribute, a plain non-placeholder TextBox, buAutoNum type="arabicPeriod"). The fix
+              clamps the bulleted first line's own text-start-X to never fall short of the
+              bullet's own gutter position plus its own measured width, a no-op whenever the
+              existing gutter already clears the bullet's own width. A follow-up real-world report
+              found that same clamp, while correct for buChar, still insufficient for buAutoNum:
+              CanvasNet rendered an auto-numbered marker immediately touching the paragraph's own
+              first word (e.g. "1.3 custom tip geometries"), whereas real PowerPoint shows a
+              clear, word-space-sized gap after the marker. Investigation confirmed
+              BuildBulletGlyphs already measures a multi-character auto-number marker's full
+              string width correctly (refuting a suspected single-glyph-width regression) - the
+              gap was the prior fix's own documented "just touching, zero extra padding"
+              simplification, applied uniformly to every bullet kind. The fix adds a
+              BulletGlyphsResult.TrailingGapEmu - one space character's own advance width,
+              measured in the bullet's own resolved font/size - gated to PptxBulletKind.AutoNum
+              only (zero for Char/None, leaving the already-verified buChar behavior unaffected),
+              folded additively into the existing clamp.
+            tests:
+              - FormatAutoNumber_SupportedTypes_FormatsExpectedString
+              - FormatAutoNumber_UnsupportedType_ReturnsNull
+              - ResolveTextLayout_NonBulletedParagraph_FirstLineIndentStillAppliesToTextX
+              - ResolveTextLayout_BulletedParagraph_TextStartsAtMarLGutterHoldsBullet
+              - ResolveTextLayout_BuNone_PaintsNoGlyphBeyondRunText
+              - ResolveTextLayout_ConsecutiveAutoNumParagraphs_SequencesCounterAcrossParagraphs
+              - ResolveTextLayout_NestedThenReturnToShallowerLevel_ResumesShallowerCounterRestartsDeeperLevel
+              - ResolveTextLayout_UnsupportedAutoNumType_SkipsOnlyThatBulletGracefully
+              - PaintTextLayout_BulletedParagraph_PaintsBulletGlyphToSurface
+              - BuildLines_ParagraphWithBulletPropertiesAndNoRuns_PaintsNoBulletGlyph
+              - BuildLines_OtherwiseIdenticalParagraphWithOneRun_StillPaintsBulletGlyph
+              - BuildLines_RunlessAutoNumberParagraph_CounterStillAdvancesForSubsequentParagraph
+              - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0AndSlide1PaintContent
+              - ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth
+              - PaintTextLayout_BulletedParagraphWithZeroIndent_BulletAndTextInkDoNotOverlap
+              - ResolveTextLayout_MasterBuCharDefault_OwnBuAutoNumOverride_PaintsOnlyAutoNumberMarker
+              - ResolveTextLayout_BulletedParagraphWithZeroIndent_AutoNumTwoDigitMarker_TextClearsBulletWidthPlusGap
+              - PaintTextLayout_BulletedParagraphWithZeroIndent_AutoNumMarker_BulletAndTextHaveVisibleGap
+
+          - id: CanvasNetPptx-PptxDocument-ShapeStyleReference
+            title: >-
+              The PptxDocument class shall resolve a shape's own <p:style>/<a:fillRef idx="N"/>
+              and <a:lnRef idx="N"/> shape-style references - as produced by PowerPoint's "Shape
+              Styles" gallery - into a concrete fill/line style, indexing the theme's own
+              <a:fmtScheme>/<a:fillStyleLst>/<a:lnStyleLst> directly, 1-based, with no offset
+              (idx="0" meaning "none"; idx outside [1,3], or indexing past either list's own
+              entry count, throwing InvalidDataException), substituting the fillRef/lnRef's own
+              color-definition child for the matched style-list entry's own <a:schemeClr
+              val="phClr"/> token(s), and shall give priority to an explicit fill-definition child
+              (on the shape's own <p:spPr>, or on its own <a:ln>, including an explicit
+              <a:noFill/>) over its corresponding style reference. For the line side specifically,
+              a present <a:ln> that declares no recognized fill-definition child of its own keeps
+              its own width/dash but defers only its color to the style <a:lnRef> (falling back to
+              "no stroke" when no style color is available); a fully absent fill/line element
+              defers to the style reference entirely for both width and color.
+            justification: |
+              A shape styled purely through PowerPoint's own Shape Styles gallery (rather than an
+              explicit, user-applied fill/line) declares that choice solely via <p:style>, which
+              this unit previously parsed nowhere at all - such a shape silently rendered with no
+              fill and no stroke whatsoever, a genuine visual-fidelity defect rather than a
+              gracefully-deferred feature boundary. Unlike <p:bgRef>'s own background-specific
+              +1000/+1001 offset matrix into bgFillStyleLst, an ordinary fillRef/lnRef indexes
+              fillStyleLst/lnStyleLst directly, since a real theme's own fmtScheme always declares
+              exactly 3 entries in each list and no "other half" concept applies here; rejecting an
+              out-of-range idx with InvalidDataException (rather than silently clamping it) keeps
+              this resolver consistent with every other idx-validating resolver already in this
+              unit. An explicit fill-definition child (including <a:noFill/>) must win over a style
+              reference because real PowerPoint itself allows a user to override an otherwise
+              gallery-styled shape's own fill/line without clearing its <p:style>, so both can
+              legitimately coexist on the same shape. However, a real-world shape commonly declares
+              an <a:ln> that carries only width/dash/cap attributes with no recognized
+              fill-definition child at all, relying entirely on its <p:style>/<a:lnRef> for its own
+              visible color - treating such a fill-less <a:ln> as if it had "explicitly won" over
+              the style (the original, buggy policy) silently discarded that color and rendered no
+              stroke at all, the opposite of PowerPoint's own rendering. The line side's resolver
+              therefore keeps the shape's own width/dash (never pulled from style) but defers only
+              its color to the style <a:lnRef>, falling back to "no stroke" when no style color is
+              available - the same pre-existing default every other fill-less-line call site in
+              this unit already produces, and the same default ResolveConnectorLineStyle already
+              establishes as precedent for a connector's own, broader per-attribute merge; no new
+              default color is invented, since OOXML's own schema default for an absent or idx="0"
+              style reference is "no line at all", not a specific color.
+            tests:
+              - ResolveShapeStyleFill_NullStyleElement_ReturnsNoFill
+              - ResolveShapeStyleFill_NoFillRef_ReturnsNoFill
+              - ResolveShapeStyleFill_IdxZero_ReturnsNoFill
+              - ResolveShapeStyleFill_FillRefIdxOne_ResolvesFillStyleListEntryZeroNoOffset
+              - ResolveShapeStyleFill_FillRefWithSchemeClrPhClr_SubstitutesFillRefOwnColor
+              - ResolveShapeStyleFill_IdxOutOfRange_ThrowsInvalidDataException
+              - ResolveShapeStyleFill_IdxPastEndOfEmptyFillStyleList_ThrowsInvalidDataException
+              - ResolveShapeStyleFill_FillRefWithNoIdxAttribute_ThrowsInvalidDataException
+              - ResolveShapeStyleLineStyle_NullStyleElement_ReturnsNull
+              - ResolveShapeStyleLineStyle_NoLnRef_ReturnsNull
+              - ResolveShapeStyleLineStyle_IdxZero_ReturnsNull
+              - ResolveShapeStyleLineStyle_LnRefIdxOne_ResolvesLnStyleListEntryZeroNoOffset
+              - ResolveShapeStyleLineStyle_LnRefWithSchemeClrPhClr_SubstitutesLnRefOwnColor
+              - ResolveShapeStyleLineStyle_IdxOutOfRange_ThrowsInvalidDataException
+              - ResolveShapeStyleLineStyle_LnRefWithNoIdxAttribute_ThrowsInvalidDataException
+              - GetTheme_NoFmtScheme_FillStyleListAndLnStyleListDefaultToEmpty
+              - GetTheme_FmtSchemeWithNoFillStyleLstOrLnStyleLst_BothDefaultToEmpty
+              - GetTheme_FmtSchemeWithFillStyleLstAndLnStyleLst_ParsesEntriesInDocumentOrder
+              - Render_ShapeWithOnlyStyleFillRefNoExplicitSpPrFill_RendersResolvedTintedAccentColor
+              - Render_ShapeWithBothExplicitSpPrFillAndStyleFillRef_ExplicitFillWins
+              - Render_ShapeWithOnlyStyleLnRefNoExplicitLn_RendersResolvedStrokeColor
+              - Render_ShapeWithExplicitLnNoFillAndStyleLnRef_ExplicitLnWins
+              - ResolveShapeLineStyle_LnElementNull_DefersToStyleLineStyle
+              - ResolveShapeLineStyle_LnHasExplicitSolidFill_OwnFillWinsOverStyle
+              - ResolveShapeLineStyle_LnHasExplicitNoFill_ResolvesNullRegardlessOfStyle
+              - ResolveShapeLineStyle_LnHasWidthButNoFillChild_KeepsOwnWidthUsesStyleColor
+              - ResolveShapeLineStyle_LnHasWidthAndOwnDashButNoFillChild_KeepsOwnDashArray
+              - ResolveShapeLineStyle_LnHasWidthButNoFillChildAndNoStyleElement_ResolvesNullDefault
+              - ResolveShapeLineStyle_LnHasWidthButNoFillChildAndStyleLnRefIdxZero_ResolvesNullDefault
+              - ResolveShapeLineStyle_LnHasNoWidthAndNoFillChild_ResolvesNullRegardlessOfStyle
+              - Render_ShapeWithLnWidthOnlyNoFillChildAndStyleLnRef_UsesOwnWidthAndStyleColor
+
+          - id: CanvasNetPptx-PptxDocument-ConnectorRendering
+            title: >-
+              The PptxDocument class shall dispatch a <p:cxnSp> connector shape to its own
+              PptxConnectorShapeNode in the same document-order shape-tree walk as every other
+              shape kind, resolving its preset connector geometry (line/straightConnector1 as an
+              open two-point diagonal; bentConnector2-5/curvedConnector2-5 as an elbow polyline,
+              optionally corner-rounded; any other, unimplemented preset name failing gracefully
+              for that one shape only, not the whole slide render) even when its own <a:ext>
+              declares a zero width and/or zero height, shall paint its effective stroke by
+              merging its own <a:ln> with its sibling <p:style>/<a:lnRef> fallback independently
+              per attribute (width, paint, dash) rather than as an all-or-nothing choice, shall
+              paint a fill only when the connector's own <p:spPr> explicitly declares one, and
+              shall paint a resolved <a:headEnd>/<a:tailEnd> arrowhead (recognizing
+              triangle/stealth/diamond/oval/arrow type values, sized relative to the connector's
+              own stroke width via its w/len size keywords) oriented along the connector's own
+              line direction at the corresponding endpoint.
+            justification: |
+              A <p:cxnSp> connector shape - the straight/elbow/curved lines PowerPoint draws
+              between other shapes in flowcharts and diagrams - was previously never represented
+              in the parsed shape tree at all, so a slide containing one rendered with that
+              connector simply absent; for a real-world flowchart/diagram slide this is a severe,
+              highly visible fidelity gap, not a gracefully-deferred rare feature. Dispatching
+              <p:cxnSp> through the exact same ParseShapeTree/RenderNode walk every other shape
+              kind already uses (rather than a parallel, connector-specific tree/render path)
+              keeps a connector's z-order among its siblings, and its own group-nested transform
+              composition when nested inside a <p:grpSp>, correct for free, with no special-casing
+              needed anywhere in the walk itself. The preset-geometry zero-size bypass is a
+              targeted, connector-scoped fix: a real-world connector frequently declares a
+              perfectly horizontal or vertical line via a zero-height or zero-width <a:ext> -
+              confirmed in the pythonpptx-shp-connector-props.pptx fixture's own second slide -
+              and PptxPresetGeometry's own pre-existing "non-positive bounding box renders as
+              Path.Empty" guard (correct and unchanged for every other, non-connector preset) would
+              otherwise silently discard such a connector's line entirely. The per-attribute line-
+              style merge (rather than RenderShape's own simpler "any present <a:ln> wins outright
+              over <a:lnRef>" policy) was proven necessary by that same real fixture: its own
+              connector declares a bare <a:ln><a:tailEnd type="arrow"/></a:ln> - no width, no fill
+              - relying entirely on its sibling <p:style>/<a:lnRef> for its actual visible color
+              and width; under the ordinary shape policy this would resolve to an invisible line.
+              A connector paints no fill by default (unlike an ordinary autoshape) because a real
+              connector line is visually just a stroked path with no interior area to fill, and
+              PowerPoint itself only rarely has a user explicitly add one. Arrowhead size-keyword
+              scaling is a documented, reasonable visual approximation relative to the connector's
+              own stroke width, since PowerPoint publishes no normative EMU/pixel table for its own
+              sm/med/lg size keywords. An exotic or future connector preset name this phase does
+              not implement degrades to "this one connector paints nothing" (via a dedicated,
+              unconditional inner try/catch around connector geometry resolution specifically, in
+              addition to the standard skipPlaceholderShapes-gated outer catch every node kind
+              already has) rather than aborting the rest of the slide's own render - satisfying the
+              same graceful, single-shape-scoped degradation policy already established for
+              master/layout decorative shapes, now extended to a slide's own connectors as well.
+            tests:
+              - ParseShapeTree_Connector_ProducesConnectorShapeNode
+              - PptxPresetGeometry_Build_StraightConnectorPresets_ProducesOpenDiagonal
+              - PptxPresetGeometry_Build_StraightConnectorWithZeroWidthOrHeight_StillProducesLine
+              - PptxPresetGeometry_Build_OrdinaryPresetWithZeroHeight_StillDegradesToEmpty
+              - PptxPresetGeometry_Build_BentConnectorPresets_ReachesEndpointAsOpenPolyline
+              - PptxPresetGeometry_Build_CurvedConnectorPresets_ReachesEndpoint
+              - ResolveShapeFrame_StraightConnectorWithFlipCombination_MapsEndpointsCorrectly
+              - ResolveConnectorLineStyle_OwnLnExplicitNoFill_AlwaysWinsOverStyle
+              - ResolveConnectorLineStyle_OwnLnHasNoWidth_FallsBackToStyleWidth
+              - ResolveConnectorLineStyle_OwnLnHasWidthButNoFill_FallsBackToStylePaint
+              - ResolveConnectorLineStyle_OwnLnHasExplicitWidthAndFill_OwnValuesWin
+              - ResolveConnectorLineStyle_NoOwnWidthAndNoStyle_ResolvesToNull
+              - ResolveConnectorLineStyle_OwnLnHasExplicitDash_UsesOwnDashArray
+              - ResolveArrowhead_RecognizedTypeValue_ResolvesExpectedKind
+              - ResolveArrowhead_NoLnElement_ReturnsNull
+              - ResolveArrowhead_NoMatchingEndElement_ReturnsNull
+              - ResolveArrowhead_NoneOrUnrecognizedType_ReturnsNull
+              - ResolveArrowhead_NoWOrLenAttributes_DefaultsToMed
+              - PptxArrowheadGeometry_Build_FilledKinds_TipAtOriginBodyExtendsBackward
+              - PptxArrowheadGeometry_Build_Oval_IsClosedAndCenteredNearOrigin
+              - PptxArrowheadGeometry_Build_Arrow_IsOpenChevron
+              - PptxArrowheadGeometry_Build_NonPositiveLineWidth_ReturnsEmpty
+              - PptxArrowheadGeometry_Build_SizeKeys_LargeIsBiggerThanSmall
+              - ComputeEndpointsAndTangents_HorizontalStraightConnector_TangentsPointAlongPositiveX
+              - ComputeEndpointsAndTangents_VerticalStraightConnector_TangentsPointAlongPositiveY
+              - ComputeEndpointsAndTangents_DiagonalStraightConnector_TangentsPointAtFortyFiveDegrees
+              - ComputeEndpointsAndTangents_BentConnector_FinalSegmentTangentPointsAlongLastDirection
+              - Render_StraightConnector_PaintsDiagonalLineAtExpectedPixels
+              - Render_ZeroHeightHorizontalConnector_PaintsLineWithoutDegradingToEmpty
+              - Render_ConnectorWithTailArrowhead_PaintsArrowheadNearEndpoint
+              - PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsPaintVisibleLines
+
+          - id: CanvasNetPptx-PptxDocument-UnderlineRendering
+            title: >-
+              The PptxDocument class shall resolve a text run's effective <a:rPr u="..."> value
+              into one of four underline styles (none/single/double/other, where every ECMA-376
+              variant other than none/sng/dbl - heavy, dotted, dottedHeavy, dash, dashHeavy,
+              dashLong, dashLongHeavy, dotDash, dotDashHeavy, dotDotDash, dotDotDashHeavy, wavy,
+              wavyHeavy, wavyDbl, and any unrecognized value - maps to other), following the same
+              four-tier run/paragraph-defRPr/lstStyle-level/master-txStyles inheritance chain as
+              every other text property, shall resolve the underline's own color independently
+              from an explicit <a:uFill>/<a:solidFill> child when present, defaulting to the
+              run's own already-resolved text-fill color whenever no <a:uFill> child exists
+              (including when an explicit <a:uFillTx/> is present), and shall paint a visible,
+              solid-filled rectangle beneath each underlined run spanning its own measured glyph
+              width (continuous across interior spaces within one run, and not merged across a
+              run boundary even when both runs are underlined), positioned and sized proportional
+              to the run's own font size, with a double-underline style painting two thinner,
+              gapped rectangles instead of one.
+            justification: |
+              A real-world corpus fixture ("ERF IWF Breadboard Motion System Overview.pptx",
+              slide 23 "Configurations") contains text runs declaring <a:rPr u="sng"/> that
+              PowerPoint's own ground-truth rendering shows with a visible single underline, while
+              CanvasNet rendered no underline at all: GetUnderline parsed the u attribute into a
+              boolean PptxEffectiveRunProperties.Underline, but nothing downstream (layout or
+              paint) ever consumed it, silently dropping an explicitly-authored, visible text
+              decoration. Modeling the resolved value as a style enum (rather than restoring the
+              prior boolean) lets every other ECMA-376 u variant resolve to a defined, intentional
+              behavior (a single solid line, documented as a pragmatic simplification) instead of
+              either crashing on an unrecognized value or silently dropping it exactly as before.
+              Resolving the underline's own color independently of the run's text color (rather
+              than always matching the text color outright) is required because PowerPoint itself
+              allows an author to declare a differently-colored underline via <a:uFill>; defaulting
+              to the run's own text color whenever no <a:uFill> child exists (including the
+              explicit "inherit text color" marker <a:uFillTx/>) matches PowerPoint's own default
+              behavior for a run that does not override its underline color. Building one
+              contiguous span per underlined run (not merged across a run boundary, but continuous
+              across an interior space within the same run) matches PowerPoint's own visual
+              behavior: an underline never bridges a run boundary even when both runs happen to
+              be underlined, but a single run's own interior whitespace is visibly underlined, not
+              skipped. Deriving thickness/offset as a documented, SizeEmu-proportional
+              approximation (rather than parsing the OpenType post table's own
+              underlinePosition/underlineThickness fields) is an explicit, pragmatic
+              simplification for this phase - true font-metric-derived values are deferred to a
+              later phase.
+            tests:
+              - ResolveEffectiveRunProperties_NoneDeclared_ResolvesHardCodedDefaults
+              - ResolveEffectiveRunProperties_UnderlineAttribute_ResolvesExpectedStyle
+              - ResolveEffectiveRunProperties_ExplicitUFill_OverridesTextColor
+              - ResolveEffectiveRunProperties_NoUnderlineFillMarkup_DefaultsUnderlineColorToTextColor
+              - ResolveEffectiveRunProperties_ExplicitUFillTx_DefaultsUnderlineColorToTextColor
+              - ResolveTextLayout_UnderlinedRun_EmitsOneSegmentSpanningRunWidth
+              - ResolveTextLayout_NonUnderlinedRun_EmitsNoSegment
+              - ResolveTextLayout_TwoRunsOnlyFirstUnderlined_EmitsExactlyOneSegment
+              - ResolveTextLayout_UnderlinedRunWithInteriorSpace_SpanCoversSpace
+              - PaintTextLayout_SingleUnderlineSegment_PaintsStrokeBelowBaselineAtExpectedPositionAndColor
+              - PaintTextLayout_NoUnderlineSegments_PaintsNoExtraInk
+              - PaintTextLayout_DoubleUnderlineSegment_DoesNotThrowAndPaintsInk
+              - PaintTextLayout_OtherUnderlineSegment_DoesNotThrowAndPaintsInk
+
+          - id: CanvasNetPptx-PptxDocument-TabStopExpansion
+            title: >-
+              The PptxDocument class shall expand a literal U+0009 TAB character within a run's
+              text to the next default OOXML tab stop (a fixed 914400 EMU, 1 inch, interval) when
+              word-wrapping and rendering a text body's lines, isolating each tab character as its
+              own single-character token (never merged with adjacent whitespace of another kind,
+              nor with another adjacent tab), computing its effective width dynamically from the
+              current running horizontal position at that point in the line - both for the
+              word-wrap fit/overflow decision and for the rendered cursor position - rather than
+              measuring it via the run's own font glyph metrics, and shall always advance the
+              cursor by at least a minimal, non-zero amount even when it already sits exactly on a
+              tab-stop boundary.
+            justification: |
+              A real-world corpus fixture ("ERF IWF Breadboard Peer Review.pptx", slide 9
+              "Requirements", the single highest-divergence slide in a full 73-slide pixel-diff
+              pass) contains 19 paragraphs whose "numbers" are literal typed digits separated from
+              their sentence text by a literal tab character, not a buAutoNum bullet. Tokenize/
+              MeasureTokenWidthEmu/BuildLines previously treated a tab exactly like any other
+              whitespace character, resolving it via the shared ResolveGlyph helper against the
+              run's own primary font; most fonts have no cmap entry for U+0009, so this resolved to
+              glyph index 0 (.notdef), whose advance width is typically 0 or near-zero, jamming the
+              numbered-list text together instead of PowerPoint's wide, consistent column-like gap,
+              and silently corrupting word-wrap width calculations for any line containing a tab.
+              This was previously flagged as a distinct, pre-existing, out-of-scope defect in the
+              Bullets and Numbering follow-up and deferred to a separate unit of work. The chosen
+              914400 EMU default interval is confirmed two independent ways: the corpus file's own
+              slide master <p:txStyles> and the presentation's own <p:defaultTextStyle> both
+              declare defTabSz="914400" on every list level, and independent ground-truth pixel
+              measurement of the rendered slide (three different bullet-number widths - "1", "2",
+              "10") each showed the following sentence text starting within 1px of the position a
+              single 914400-EMU tab-stop expansion predicts. Computing a tab's width dynamically
+              from the current position (rather than a fixed, precomputed advance) is required
+              because a tab stop's effective width is inherently position-dependent - the same tab
+              character expands by a different amount depending on how much text precedes it on
+              the line - and the word-wrap fit decision must use this same expanded width (not the
+              near-zero glyph-measured width) or an early tab in a long line would silently
+              under-count the line's true occupied width and mis-place the wrap point. Explicit
+              <a:tabLst> tab-stop support remains out of scope: no slide in the investigated corpus
+              (slide 9, its layout, or its master) declares <a:tabLst> anywhere, so
+              default-interval-only expansion fully resolves the observed defect without requiring
+              new tabLst parsing/inheritance infrastructure.
+            tests:
+              - ResolveTextLayout_TabCharacter_ExpandsToNextDefaultTabStop
+              - ResolveTextLayout_TabCharacter_WrapDecisionUsesExpandedWidthNotGlyphWidth
+              - ResolveTextLayout_MultipleTabCharacters_EachAdvancesToItsOwnNextTabStop

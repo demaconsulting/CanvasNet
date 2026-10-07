@@ -531,8 +531,10 @@ public sealed partial class PdfDocument
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when <paramref name="array"/> does not have exactly 1 or 2 elements (feature
-    ///     <c>pdf-colorspace-Pattern</c>), or propagated from <see cref="ResolveColorSpaceValue"/>
-    ///     when the base color space is itself unsupported.
+    ///     <c>pdf-colorspace-Pattern</c>); when the resolved base color space is itself a
+    ///     <c>/Pattern</c> color space - nested <c>[/Pattern /Pattern]</c> is not a meaningful PDF
+    ///     construct (feature <c>pdf-colorspace-Pattern-nested</c>); or propagated from
+    ///     <see cref="ResolveColorSpaceValue"/> when the base color space is itself unsupported.
     /// </exception>
     private PdfColorSpace ResolvePatternColorSpace(PdfObject array)
     {
@@ -558,6 +560,13 @@ public sealed partial class PdfDocument
         try
         {
             var baseSpace = ResolveColorSpaceValue(Resolve(array.Items[1]));
+            if (baseSpace.Kind == PdfColorSpace.Family.Pattern)
+            {
+                throw new UnsupportedImageFeatureException(
+                    "pdf-colorspace-Pattern-nested",
+                    "Color space '/Pattern' base must not itself be a '/Pattern' color space.");
+            }
+
             return PdfColorSpace.Pattern(baseSpace);
         }
         finally

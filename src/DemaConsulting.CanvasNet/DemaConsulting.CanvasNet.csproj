@@ -87,6 +87,11 @@
          substitute-font resolution path - see PdfDocument.FontFallback.cs's
          ResolveSymbolicNotoFallback. -->
     <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Pdf" />
+    <!-- Grants DemaConsulting.CanvasNet.Pptx access to Rgba32's internal per-pixel
+         CompositeOver helper, reused (not duplicated) by PptxDocument.Images.cs's PaintPicture
+         image-compositing loop - the same Porter-Duff "over" helper DemaConsulting.CanvasNet.Pdf's
+         PdfDocument.Images.cs's CompositeImageOntoSurface also reuses. -->
+    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Pptx" />
   </ItemGroup>
 
   <ItemGroup>

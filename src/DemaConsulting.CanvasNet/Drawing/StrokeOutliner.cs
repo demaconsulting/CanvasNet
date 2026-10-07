@@ -623,6 +623,46 @@ internal static class StrokeOutliner
         // valid inward offset - instead runs BACKWARDS, because the offset lines were pushed past
         // each other. A single such reversal invalidates the whole ring as a hole (see
         // CreateClosedStrokePolygons).
+        //
+        // The "runs backwards" test below tolerates a bounded amount of backwards projected
+        // length before concluding the ring has genuinely collapsed, and that tolerance must
+        // scale with the LOCAL tessellation density of the edge being tested, not with the
+        // contour's overall size. For a contour of true local radius of curvature R tessellated
+        // into N vertices, a forced-exact-intersection inner-ring vertex lands at radius
+        // R' ~= R - h (independent of N - the geometric erosion amount itself is computed
+        // correctly), but the projected length this check actually measures is the CHORD between
+        // two such adjacent vertices, whose length is approximately |R - h| * 2*sin(pi/N) -
+        // i.e. it shrinks proportionally to 1/N purely because finer tessellation produces more,
+        // shorter inner-ring edges, regardless of how far h exceeds the inradius. A single
+        // tolerance computed once from the whole contour's (N-independent) bounding-box span
+        // cannot track this density-dependent shrinkage of the very signal it is compared
+        // against: once N is large enough, the raw chord length falls below that tolerance for a
+        // growing range of genuine over-erosions, not just a "near-exact-inradius" edge case,
+        // silently stopping detection of real collapses (confirmed - see
+        // StrokeOutliner_Outline_SmallCircleRealisticTessellation_HalfWidthJustOverInradius_CollapsesToSolid).
+        //
+        // The fix is to derive the tolerance PER EDGE from that edge's own flattened
+        // source-segment length (Vector2.Distance(points[i], points[next])) rather than from the
+        // whole contour's bounding-box span. The raw chord-length signal - both genuine
+        // over-erosion and float32 storage-quantization noise amplified by the near-parallel-
+        // offset-lines division inherent to resolving each forced exact-intersection point at a
+        // tiny per-vertex turn angle (see CreateClosedStrokePolygons's areaNearZeroTolerance
+        // remarks for the analogous noise-amplification mechanism) - scales with local segment
+        // length/density the same way, so comparing it against a per-edge, local-segment-length-
+        // relative tolerance restores a stable, density-invariant comparison. This preserves both
+        // existing guarantees: a tiny contour (short segments, short tolerance) still correctly
+        // detects a genuine half-width-exceeds-inradius collapse (confirmed - see
+        // StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_ProducesNoInvalidHole and
+        // StrokeOutliner_Outline_ClosedSquareHalfWidthNearButBelowInradius_ProducesValidHole),
+        // while a huge, finely-tessellated contour (long source segments even at high N, so a
+        // correspondingly generous per-edge tolerance) is not given a tolerance so tight that
+        // ordinary float32 noise at its own scale still triggers a false collapse (confirmed -
+        // see StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedClosedContour_ProducesValidThinRing
+        // and StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedSmallCircleThickStroke_CollapsesToSolid).
+        // NearZeroDistance remains a floor so a tiny or degenerate (near-zero-length) source
+        // segment still falls back to the original, already-correct absolute behavior.
+        const double relativeCollapseTolerance = 1e-2;
+
         collapsed = false;
         for (var i = 0; i < points.Count; i++)
         {
@@ -634,8 +674,12 @@ internal static class StrokeOutliner
                 continue;
             }
 
+            var localSegmentLength = Vector2.Distance(points[i], points[next]);
+            var collapseTolerance =
+                (float)Math.Max(NearZeroDistance, localSegmentLength * relativeCollapseTolerance);
+
             var edgeVector = ring[nextIndex] - ring[currentIndex];
-            if (Vector2.Dot(edgeVector, frames[i].Tangent) <= NearZeroDistance)
+            if (Vector2.Dot(edgeVector, frames[i].Tangent) <= -collapseTolerance)
             {
                 collapsed = true;
                 break;

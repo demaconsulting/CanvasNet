@@ -535,6 +535,25 @@ its own distinguishable `Feature` token.
   rule. Every path-painting operator, including `n`, always clears the current path afterward
   (`_pathBuilder.Clear()`); the surrounding graphics state is entirely unaffected by that clear,
   so a subsequent path in the same content stream still sees the same CTM/stroke style/color.
+  - **Shared `StrokeOutliner` false-collapse investigation (regression fix note).** A separate
+    investigation into a PPTX rendering regression (a `<a:noFill/>` shape's thin stroke outline
+    rendering as a solid-filled interior instead of a thin ring) traced the root cause to the
+    shared core `Drawing.StrokeOutliner`'s inner-ring collapse detector, which used a fixed
+    absolute tolerance that false-positives when stroking a closed, curved contour tessellated
+    finely relative to its own large coordinate magnitude (see
+    `docs/design/canvas-net/drawing/path-stroker.md`'s "Inner-ring collapse" section). `PaintStroke`
+    above shares this exact `Drawing.PathStroker.Stroke`/`StrokeOutliner` code path, so the
+    investigation confirmed the same underlying defect is reproducible here too, with plain
+    large-magnitude device-space coordinates independent of PPTX/EMU. In practice, `PaintStroke`
+    strokes `path` _after_ it is already device-space-baked (unlike the PPTX caller that was
+    stroking in native, pre-transform EMU space) and typical PDF device-space coordinates stay at
+    a modest, page/pixel scale, so this defect was judged unlikely to manifest for ordinary PDF
+    documents - no `PdfDocument` source change was required. The shared `StrokeOutliner` tolerance
+    fix itself was still made (hardening every caller, including this one, against unusually large
+    pages/zoom levels), and a dedicated regression test,
+    `PdfDocumentTests.PdfDocument_PathOps_StrokeOnlyClosedBezierCircle_RendersThinRingNotSolidDisc`,
+    confirms a stroke-only, unfilled closed Bezier-curve circle continues to render as a ring
+    (not a solid disc) through this exact code path.
 - **Device color operators (`PdfDocument.Color.cs`, added in Phase 3; color-space model replaced
   in Phase 14)** — a private, immutable `PdfColorSpace` class (nested `Family` enum:
   `DeviceGray`/`DeviceRGB`/`DeviceCMYK`/`Indexed`, with shared `DeviceGray`/`DeviceRGB`/
@@ -650,7 +669,16 @@ its own distinguishable `Feature` token.
   image.Height)`, since image sample row `0` is the _top_ of the unit square per the PDF
   specification's image-space convention, the opposite of user-space's y-up convention) — no
   bilinear interpolation, a documented Phase 3 simplification consistent with Phase 2's own
-  stroke-width simplification precedent.
+  stroke-width simplification precedent. Each sampled source pixel is alpha-blended "over" the
+  existing destination pixel via the shared internal `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)`
+  helper (standard Porter-Duff "over" alpha compositing — straight/unassociated alpha in and out,
+  `outA = fgA + bgA * (1 - fgA)`, each color channel `outC = (fgC * fgA + bgC * bgA * (1 - fgA)) /
+  outA` when `outA != 0` else `0`, round-half-away-from-zero, clamped to `[0, 255]`) rather than
+  overwritten outright — a documented fix (every decoded PDF image XObject is currently always
+  fully opaque per the `/SMask`/`/Mask` limitation noted above, so this matters only for a future
+  phase that decodes a non-opaque alpha channel, or for this same helper's shared reuse by
+  `DemaConsulting.CanvasNet.Pptx`'s own `PaintPicture`, which does sample genuinely non-opaque
+  source pixels today — see that package's own design documentation).
 - **CCITT Group 4 fax decoding (`PdfDocument.CcittFax.cs`, added in Phase 15)** — a from-scratch
   ITU-T T.6 decoder, implementing two-dimensional MMR coding only (`/K` must be negative;
   non-negative `/K`, i.e. Group 3, and `/EndOfLine true` are rejected up front by the top-level
@@ -1047,13 +1075,24 @@ its own distinguishable `Feature` token.
   bundled Liberation Sans/Serif/Mono font (which is itself already process-lifetime-cached by
   `SystemFontCatalog`). This process-lifetime cache is deliberately broader-scoped than
   `_fontCache`'s per-`Render` call scope, since a system or bundled font file's bytes never
-  change between calls or between documents.
+  change between calls or between documents. **This ordinary (non-Symbol/non-ZapfDingbats) branch
+  now returns a 2-element candidate list** - `[primaryMatch, Fonts.SystemFontCatalog.
+  LoadBundledFallback(flavor)]`, where `primaryMatch` is whichever of the matched-system-font or
+  already-bundled-fallback result the paragraph above resolved - reusing the same composite
+  glyph-lookup mechanism the Symbol/ZapfDingbats path already established (see
+  `ResolvedSimpleFont.Resolve` immediately below) rather than introducing a second, parallel
+  mechanism: a codepoint the primary match itself does not cover now falls through to the bundled
+  Liberation fallback's own glyph for that codepoint (closing the "tofu box"/missing-glyph gap for
+  an otherwise-fully-resolved ordinary font whose own coverage is merely incomplete), instead of
+  painting `.notdef` outright. Primary-font-first ordering means a font with full coverage is
+  completely unaffected - the bundled fallback is only ever consulted on an actual per-codepoint
+  glyph-0 miss.
 
   `BuildResolvedSimpleFont`'s `ResolvedSimpleFont.Fonts` property (plural, renamed from the
   earlier single `Font` property) is an ordered, non-empty `IReadOnlyList<Fonts.TrueTypeFont>` -
-  a single-element list for every pre-existing resolution path (embedded `/FontFile2`, a matched
-  system font, or the bundled Liberation fallback), and only ever multi-element for the Symbol
-  Noto-substitute union above. `ResolvedSimpleFont.Resolve(code)` (the sole
+  a single-element list only for the embedded `/FontFile2` resolution path now, and multi-element
+  for every fallback-substitution path (the ordinary 2-element primary/bundled-fallback list
+  above, and the Symbol Noto-substitute union below). `ResolvedSimpleFont.Resolve(code)` (the sole
   `IResolvedFont.Resolve` implementation this concerns) tries each font in `Fonts` in priority
   order, returning the first one whose `GetGlyphIndex` for the code's mapped codepoint is
   non-zero (its advance width is derived from that winning font), falling back to `Fonts[0]` and

@@ -65,6 +65,7 @@ words:
   - combinators
   - CSUM
   - Decodability
+  - DOTLESS
   - dequantize
   - dequantizes
   - Deflate
@@ -97,6 +98,19 @@ words:
   - gAMA
   - Grayscale
   - grayscale
+  - gridline
+  - gridlines
+  - horz
+  - Horz
+  - Dmnd
+  - patt
+  - pythonpptx
+  - slidenum
+  - xfrm
+  - drawingml
+  - Calibri
+  - unoverridden
+  - subtable
   - IDAT
   - IDCT
   - IEND
@@ -114,8 +128,10 @@ words:
   - mcus
   - microarchitecture
   - misdecoded
+  - misrender
   - nameof
   - nonzero
+  - paintable
   - NOTAFONT
   - NOTAGIF
   - Outliner
@@ -309,6 +325,41 @@ words:
   - thinspace
   - Thinspace
   - subsetted
+  - rels
+  - Rels
+  - Linq
+  - OOXML
+  - openxmlformats
+  - officedocument
+  - presentationml
+  - pptx
+  - Pptx
+  - autofit
+  - Autofit
+  - unrotated
+  - unflipped
+  - unshifted
+  - autoshape
+  - Autoshape
+  - autoshapes
+  - Autonumber
+  - srgb
+  - MCMXCIV
+  - hlink
+  - Hlink
+  - clrmap
+  - clrmapovr
+  - colormap
+  - openxml
+  - textless
+  - aiden
+  - misrouting
+  - parameterless
+  - Lbls
+  - texel
+  - precomputes
+  - uncontained
+  - prst
 
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:

@@ -86,6 +86,58 @@ software items, specifically:
   system/bundled fallback font when none is embedded. `CanvasNetPdf` depends on this
   `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Codecs` subsystems — see
   _CanvasNetPdf System Design_ (`canvas-net-pdf.md`)
+- **CanvasNetPptx (System)** — A separate, independently-distributed software system providing
+  PowerPoint (`.pptx`) presentation-rendering support, containing a single unit, `PptxDocument`.
+  This feature was delivered incrementally across Phases 1a–1f, each additive to the last: Phase
+  1a implemented the underlying OOXML (Office Open XML) package layer — opening a `.pptx` file as
+  a ZIP archive, resolving `[Content_Types].xml`'s default and part-specific override content-type
+  mappings, and resolving package-level and per-part relationships (including relative-target
+  traversal). Phase 1b added the presentation/theme/master/layout/slide model and a placeholder
+  property-inheritance resolver — parsing `ppt/presentation.xml`'s declared slide size and ordered
+  slide list (exposed as public `SlideCount`/`SlideSize` members), resolving each slide master's
+  theme (color/font scheme), structurally parsing each master/layout/slide's placeholder shapes,
+  and implementing the verified ECMA-376 placeholder-matching algorithm. Phase 1c added DrawingML
+  shape geometry (position/rotation/flip transform resolution, group child-coordinate-space
+  composition, preset and custom geometry resolution) and paint resolution (solid/gradient fills,
+  line styles). Phase 1d added DrawingML text layout and rendering — structural text parsing, an
+  attribute-level run/paragraph property-inheritance resolver, word-wrap/alignment/vertical-
+  anchor/autofit layout, and glyph-ink text rendering. Phase 1e added `<p:pic>` picture-shape
+  decoding/cropping/compositing, `<a:tbl>` table structure/cell-rect/paint resolution, and
+  recursive, full `<p:spTree>` shape-tree parsing (including nested `<p:grpSp>` enumeration).
+  Phase 1f (the current release) added the public, slide-level `Render` API — a document-order
+  walk of a slide's full shape tree dispatching each node to the already-verified Phase 1c/1d/1e
+  resolvers and painters — followed by subsequent Phase 2 Follow-Ups adding slide/layout/master
+  `<p:bg>` background-fill resolution ahead of that walk, `<a:buChar>`/`<a:buAutoNum>`
+  bullet/numbering rendering, and `<p:cxnSp>` connector-shape rendering. Radial/path gradients,
+  full text justification, `spAutoFit` shape-resize behavior, kerning, text clipping on overflow,
+  nested tables, and table auto-sizing/banding remain explicitly deferred. Pattern fill (a
+  documented subset of 30 of the 54 named ECMA-376 `ST_PresetPatternVal` preset names, including
+  background fills; the remaining 24 are deferred) and picture fill are both implemented — see
+  _CanvasNetPptx System Design_ (`canvas-net-pptx.md`) for the full supported/deferred boundary.
+  `CanvasNetPptx` depends on the `CanvasNet` system's `Canvas`, `Geometry`,
+  `Drawing`, `Fonts`, and `Codecs` subsystems (for the `Rgba32` color type, path geometry/
+  stroking, font/glyph resolution, and image decoding used to resolve and render shape/text/
+  picture content), and on the `CanvasNetCharts` system (for parsing and rendering embedded
+  `<p:graphicFrame>` charts — see `OpenXmlChartParser`/`ChartRenderer` below) — see
+  _CanvasNetPptx System Design_ (`canvas-net-pptx.md`)
+- **CanvasNetCharts (System)** — A separate, independently-distributed software system providing
+  chart support, containing two subsystems: `ChartModel`, containing a single unit,
+  `ChartDocument` — the public, immutable, validating chart data model (`Chart`/`ChartSeries`/
+  `ChartAxis`/`ChartLegend`/`ChartTitle`/`ChartType`), the `ChartBuilder` fluent construction API,
+  and a `ChartRenderer` unit that paints a `Chart` onto a core `Surface`; and `OpenXmlChart`,
+  containing a single unit, `OpenXmlChartParser`, which parses an OOXML `chart1.xml` part into
+  the `ChartModel` data model. The `CanvasNetPptx` system integrates `CanvasNetCharts` into its
+  own slide rendering, automatically parsing and rendering embedded `<p:graphicFrame>` charts —
+  see _CanvasNetPptx System Design_ (`canvas-net-pptx.md`) for that integration's detail. Bar,
+  column, line, pie, doughnut, and area OOXML chart types are supported; radar, scatter, bubble,
+  stock, surface, 3-D, "of pie", and multi-chart-type ("combo") OOXML charts remain explicitly
+  deferred (see _OpenXmlChartParser Unit Design_ (`open-xml-chart-parser.md`) for the complete
+  supported/deferred boundary). `CanvasNetCharts` depends on this `CanvasNet`
+  system's `Canvas`, `Drawing`, `Geometry`, `Fonts`, and `Rendering` subsystems (for the `Rgba32`
+  color type and pixel buffer, path filling/stroking and tile-paint primitives, transforms and
+  rectangles, TrueType text layout/metrics, and the bundled Liberation Sans fallback font), and
+  must never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, or `CanvasNetVsdx` — see
+  _CanvasNetCharts System Design_ (`canvas-net-charts.md`)
 
 The following OTS items are also covered:
 

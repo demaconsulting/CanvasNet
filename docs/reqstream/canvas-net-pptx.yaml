@@ -1,0 +1,410 @@
+---
+# cspell:ignore ooxml pptx srgb xfrm prst cust paintable bodyPr pPr rPr txBody txStyles lstStyle
+# cspell:ignore defRPr normAutofit noAutofit spAutoFit lnSpcReduction fontScale grpSp spTree tbl
+# cspell:ignore srcRect tcPr
+#
+# Software System Requirements for CanvasNetPptx
+#
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Pptx
+# package (namespace DemaConsulting.CanvasNet.Pptx) from the perspective of its consumers, without
+# specifying implementation details.
+#
+# CanvasNetPptx is an independent software system, distributed as its own NuGet package,
+# depending on the core CanvasNet system (docs/reqstream/canvas-net.yaml) - see
+# docs/design/canvas-net-pptx.md's Dependencies section for details. As of Phase 1b, the Canvas
+# subsystem's Rgba32 type is used to resolve a theme's color scheme. As of Phase 1c, the Geometry
+# subsystem's Path/PathBuilder/PathCommand types, the Drawing subsystem's PathStroker/StrokeStyle
+# and Gradient/LinearGradient/GradientStop types, and Rgba32's color-space math are additionally
+# used to resolve shape geometry, fills, and stroked outlines. As of Phase 1d, the Fonts
+# subsystem's TrueTypeFont/SystemFontCatalog types and the Drawing subsystem's PathFiller type are
+# additionally used to resolve text layout and paint glyph ink onto a core Surface. As of Phase 1e,
+# the Codecs subsystem's PngCodec/JpegCodec/BmpCodec/TiffCodec/GifCodec types are additionally used
+# to decode a picture shape's embedded raster image.
+#
+# CanvasNetPptx was delivered incrementally across Phases 1a-1f, each additive to the last. Phase
+# 1a implemented the underlying OOXML (Office Open XML) package layer: opening a .pptx file as a
+# ZIP archive, resolving [Content_Types].xml (default extension mappings and part-specific
+# overrides), and resolving package-level (_rels/.rels) and per-part relationships, including
+# relative-target resolution. Phase 1b added the presentation/theme/master/layout/slide model and
+# a placeholder property-inheritance resolver: parsing ppt/presentation.xml's declared slide size
+# and ordered slide list (exposed as public SlideCount/SlideSize members), resolving each slide
+# master's theme, structurally parsing placeholder shapes, and the verified ECMA-376
+# placeholder-matching algorithm. Phase 1c added DrawingML shape geometry and paint resolution:
+# resolving a shape's <a:xfrm> transform (position, size, rotation, flip) and a group shape's
+# child coordinate-space composition; resolving <a:prstGeom> preset geometry (approximately 24
+# common presets) and <a:custGeom> custom path geometry into the core Path type; and resolving
+# <a:solidFill>/<a:gradFill> (linear)/<a:noFill> fills, DrawingML color transforms (lumMod/lumOff/
+# shade/tint/alpha), and <a:ln> stroke outlines via the core PathStroker. Phase 1d added DrawingML
+# text body parsing (<p:txBody>/<a:bodyPr>/<a:p>/<a:pPr>/<a:r>/<a:rPr>/<a:t>), attribute-level
+# run/paragraph property inheritance through the placeholder/layout/master (including the master's
+# own <p:txStyles> title/body/other style buckets)/theme chain, word-wrap/alignment/vertical-
+# anchor/autofit text layout, and glyph-ink rendering onto a core Surface. Phase 1e added dedicated
+# <p:pic> picture-shape support (content-type dispatch, <a:srcRect> crop-rectangle resolution, and
+# compositing), <a:tbl> table support (structure/cell parsing reusing the Phase 1c/1d fill/border/
+# text-body resolvers, merge-aware cell-rect resolution, and cell fill/border/text painting), and
+# recursive, full shape-tree parsing across a slide's own <p:sp>/<p:pic>/<p:graphicFrame>/<p:grpSp>
+# elements (including nested <p:grpSp> child-transform composition). Phase 1f added the public,
+# slide-level Render API: a document-order walk of a slide's full shape tree, dispatching each
+# shape/picture/table node to the already-verified Phase 1c/1d/1e resolvers and painters onto a
+# Surface of the requested pixel dimensions. Subsequent Phase 2 Follow-Ups added slide/layout/
+# master <p:bg> background-fill resolution ahead of that shape-tree walk, <a:buChar>/<a:buAutoNum>
+# bullet/numbering rendering, and <p:cxnSp> connector-shape rendering. Pattern and picture fills,
+# radial/path gradients, full text justification, spAutoFit shape-resize behavior, kerning, text
+# clipping on overflow, nested tables, and table auto-sizing/banding remain unimplemented - see
+# docs/design/canvas-net-pptx.md for the full current feature set and its documented,
+# still-unimplemented scope. As of Phase 4, a <p:graphicFrame> declaring a chart graphic-data kind
+# is resolved and rendered by delegating to the sibling CanvasNetCharts system's
+# OpenXmlChartParser/ChartRenderer, rather than always throwing PptxUnsupportedFeatureException;
+# SmartArt/diagram and OLE-object graphic frames remain unsupported.
+
+sections:
+  - title: CanvasNetPptx Requirements
+    requirements:
+      - id: CanvasNetPptx-Open
+        title: >-
+          The library shall parse a well-formed OOXML/.pptx package exactly once, from either a
+          stream or a file path, resolving its [Content_Types].xml content-type mappings and its
+          package-level relationships, and reject a null stream/path, an empty or whitespace-only
+          path, or a malformed package structure (an unreadable/corrupt ZIP, or a package missing
+          [Content_Types].xml or _rels/.rels) with the documented exception contract.
+        tags: [system]
+        justification: |
+          Callers need a single, reliable entry point that turns raw .pptx bytes into a usable,
+          in-memory package representation, and must be able to distinguish a programming error
+          (null/empty argument) from malformed input (corrupt or incomplete package structure).
+        children:
+          - CanvasNetPptx-PptxDocument-OpenStream
+          - CanvasNetPptx-PptxDocument-OpenPath
+          - CanvasNetPptx-PptxDocument-ZipValidation
+          - CanvasNetPptx-PptxDocument-ContentTypesValidation
+          - CanvasNetPptx-PptxDocument-PackageRelationshipsValidation
+          - CanvasNetPptx-PptxDocument-MediaPartSizeValidation
+          - CanvasNetPptx-PptxDocument-CaseSensitivePartNames
+          - CanvasNetPptx-PptxDocument-Dispose
+        tests:
+          - CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage
+          - CanvasNetPptx_SystemIntegration_PptxOpenValidationNull_NullStreamThrowsArgumentNullException
+          - CanvasNetPptx_SystemIntegration_PptxOpenValidationEmptyPath_EmptyPathThrowsArgumentException
+
+      - id: CanvasNetPptx-ResolvePart
+        title: >-
+          The library shall resolve any part's content type, giving a part-specific
+          [Content_Types].xml override precedence over the default extension-based mapping, and
+          shall reject a request for a part the package does not contain or whose content type
+          cannot be resolved by either mapping.
+        tags: [system]
+        justification: |
+          Later phases need a reliable way to discover what kind of content a given package part
+          holds before attempting to parse it, honoring the same override-wins precedence rule
+          every OPC-consuming tool must apply.
+        children:
+          - CanvasNetPptx-PptxDocument-ContentTypeOverride
+          - CanvasNetPptx-PptxDocument-ContentTypeDefault
+        tests:
+          - CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage
+
+      - id: CanvasNetPptx-ResolveRelationship
+        title: >-
+          The library shall resolve a named relationship from a given source part (or the package
+          root) to its target part path, correctly applying OPC's relative-target resolution rules
+          (including a "../" parent-directory traversal segment), and shall reject an unknown
+          relationship ID, an external-target relationship, or a target that would escape the
+          package root.
+        tags: [system]
+        justification: |
+          Every OOXML presentation part is discovered by following a chain of relationships
+          (package root -> ppt/presentation.xml -> each slide -> its layout, and so on); this
+          resolution must be correct, including the common case of a part referencing a sibling
+          part via a relative, parent-traversing path.
+        children:
+          - CanvasNetPptx-PptxDocument-RelationshipResolution
+          - CanvasNetPptx-PptxDocument-RelativeTargetTraversal
+        tests:
+          - CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage
+
+      - id: CanvasNetPptx-Presentation
+        title: >-
+          The library shall, upon opening a .pptx package, resolve its presentation part and
+          expose its declared slide count and slide size, converting the slide size to pixels at
+          a caller-supplied resolution, and shall reject a package that is not a navigable
+          presentation with a valid slide size and at least one declared slide.
+        tags: [system]
+        justification: |
+          Callers (and later rendering phases) need the presentation's overall slide size and
+          slide count without navigating the package's relationship graph themselves, and a
+          malformed or non-presentation package must fail closed at Open() time.
+        children:
+          - CanvasNetPptx-PptxDocument-PresentationParsing
+          - CanvasNetPptx-PptxDocument-PresentationValidation
+          - CanvasNetPptx-PptxDocument-SlideSizePixelConversion
+        tests:
+          - CanvasNetPptx_SystemIntegration_PptxOpenPresentation_SlideCountAndSizeResolveEndToEnd
+          - CanvasNetPptx_SystemIntegration_PptxOpenValidationEmptySlideList_ThrowsInvalidDataException
+
+      - id: CanvasNetPptx-Theme
+        title: >-
+          The library shall, upon resolving a slide master's theme part, resolve that theme's
+          12-slot color scheme (<a:clrScheme>, including both srgbClr and sysClr entries) and its
+          major/minor font scheme (Latin, East Asian, and complex-script typefaces) into concrete
+          values usable by placeholder-property resolution and later rendering phases.
+        tags: [system]
+        justification: |
+          A placeholder's effective properties may reference a theme color by scheme slot or a
+          theme font by major/minor role rather than an explicit value; resolving the theme's
+          color and font schemes up front lets later phases look up concrete values without
+          re-parsing the theme XML for every placeholder that resolves to it.
+        children:
+          - CanvasNetPptx-PptxDocument-ThemeColorScheme
+          - CanvasNetPptx-PptxDocument-ThemeFontScheme
+        tests:
+          - CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage
+
+      - id: CanvasNetPptx-PlaceholderInheritance
+        title: >-
+          The library shall structurally parse the placeholder shapes declared on a slide's
+          master, layout, and slide (recording each one's type and idx, defaulting to "obj"/0 when
+          omitted) and resolve a slide placeholder's effective shape and text-body properties by
+          independently falling through slide, then matched layout, then matched master for each
+          property category, applying the verified ECMA-376 idx-then-remapped-type placeholder
+          matching algorithm at each hop.
+        tags: [system]
+        justification: |
+          A slide's placeholders rarely declare their own complete formatting; real PowerPoint
+          behavior inherits unset shape and text properties from the owning layout and, beyond
+          that, the owning master, and callers (and later rendering phases) need this resolved
+          chain rather than re-implementing OOXML's placeholder-matching rules themselves.
+        children:
+          - CanvasNetPptx-PptxDocument-MasterPlaceholderParsing
+          - CanvasNetPptx-PptxDocument-LayoutPlaceholderParsing
+          - CanvasNetPptx-PptxDocument-SlidePlaceholderParsing
+          - CanvasNetPptx-PptxDocument-PlaceholderInheritanceIdxMatch
+          - CanvasNetPptx-PptxDocument-PlaceholderInheritanceTypeMatch
+          - CanvasNetPptx-PptxDocument-PlaceholderInheritancePerCategory
+          - CanvasNetPptx-PptxDocument-EffectivePlaceholderTypeForTextStyle
+          - CanvasNetPptx-PptxDocument-PlaceholderXfrmGeometryInheritance
+          - CanvasNetPptx-PptxDocument-TxBodyListStyleLevelInheritance
+        tests:
+          - CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage
+
+      - id: CanvasNetPptx-ShapeGeometryAndPaint
+        title: >-
+          The library shall resolve a DrawingML shape's position, size, rotation, and flip into a
+          single transform (including a group shape's child-coordinate-space composition);
+          resolve its preset or custom geometry into a concrete path sized to the shape's own
+          extent; resolve its fill (solid, linear gradient, or none) and color, including
+          scheme-color lookup through the resolved theme and the lumMod/lumOff/shade/tint/alpha
+          color-transform pipeline; and resolve and realize its stroke outline via the core
+          path-stroking machinery - rejecting any unsupported preset geometry, gradient kind, or
+          fill kind with a distinguishable exception rather than producing incorrect output.
+        tags: [system]
+        justification: |
+          A .pptx presentation's visual content is overwhelmingly expressed as DrawingML shapes
+          whose geometry and paint are declared relative to the shape's own local coordinate
+          space and the presentation's theme; resolving these into concrete, paintable path and
+          color data is the prerequisite every later rendering phase needs, and must fail closed,
+          rather than silently rendering incorrect output, for the DrawingML constructs this phase
+          does not yet implement.
+        children:
+          - CanvasNetPptx-PptxDocument-ShapeFrameTransform
+          - CanvasNetPptx-PptxDocument-GroupChildTransform
+          - CanvasNetPptx-PptxDocument-PresetGeometry
+          - CanvasNetPptx-PptxDocument-CustomGeometry
+          - CanvasNetPptx-PptxDocument-FillResolution
+          - CanvasNetPptx-PptxDocument-ColorResolution
+          - CanvasNetPptx-PptxDocument-ColorTransforms
+          - CanvasNetPptx-PptxDocument-GradientFill
+          - CanvasNetPptx-PptxDocument-LineStyleResolution
+          - CanvasNetPptx-PptxDocument-PictureFillResolution
+          - CanvasNetPptx-PptxDocument-PatternFillResolution
+          - CanvasNetPptx-PptxDocument-ShapeStyleReference
+        tests:
+          - CanvasNetPptx_SystemIntegration_GeometryAndPaint_FreeformShapeResolvesEndToEnd
+          - CanvasNetPptx_SystemIntegration_GeometryAndPaint_GroupShapeChildTransformComposesEndToEnd
+
+      - id: CanvasNetPptx-TextLayoutAndRendering
+        title: >-
+          The library shall parse a shape's DrawingML text body into paragraphs and runs; resolve
+          each run's and paragraph's effective properties attribute-by-attribute through the
+          placeholder/layout/master (including the master's own titleStyle/bodyStyle/otherStyle
+          text-style buckets)/theme inheritance chain; word-wrap, align, vertically anchor, and
+          (for the common fontScale/lnSpcReduction-bearing and attribute-less shrink-to-fit cases)
+          autofit the resulting text within the shape's own bounding box; and paint the laid-out
+          glyphs onto a core Surface by composing each glyph's own transform with the shape's own
+          frame transform and resolving typefaces through the core system font catalog.
+        tags: [system]
+        justification: |
+          Text is the dominant content type in real-world presentations; without resolving its
+          inherited properties correctly and laying it out and painting it onto a concrete
+          rendering surface, no later full-slide rendering phase of this feature could produce
+          visually correct output for the overwhelming majority of real .pptx content.
+        children:
+          - CanvasNetPptx-PptxDocument-TextBodyParsing
+          - CanvasNetPptx-PptxDocument-ParagraphRunParsing
+          - CanvasNetPptx-PptxDocument-TextPropertyInheritance
+          - CanvasNetPptx-PptxDocument-TextStylesInheritance
+          - CanvasNetPptx-PptxDocument-TextLayoutWordWrap
+          - CanvasNetPptx-PptxDocument-TextVerticalAnchor
+          - CanvasNetPptx-PptxDocument-TextAutofit
+          - CanvasNetPptx-PptxDocument-TextRendering
+          - CanvasNetPptx-PptxDocument-TextAlignmentWidthUnderWrapNone
+          - CanvasNetPptx-PptxDocument-UnderlineRendering
+          - CanvasNetPptx-PptxDocument-TabStopExpansion
+        tests:
+          - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
+          - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd
+
+      - id: CanvasNetPptx-PictureShapes
+        title: >-
+          The library shall resolve a picture shape's embedded raster image (decoding its content
+          type via the shared image-decoding infrastructure), resolve its declared crop rectangle
+          against the decoded image's own pixel bounds, and composite the resulting, cropped image
+          onto a rendering surface at the shape's own resolved frame.
+        tags: [system]
+        justification: |
+          Embedded images are common in real-world presentations (photographs, logos, diagrams
+          captured as pictures); without resolving and compositing a picture shape's own embedded
+          raster content, a rendered slide containing one would be visibly incomplete.
+        children:
+          - CanvasNetPptx-PptxDocument-PictureDecodeAndCrop
+          - CanvasNetPptx-PptxDocument-PicturePainting
+          - CanvasNetPptx-PptxDocument-PictureGeometryClipping
+          - CanvasNetPptx-PptxDocument-PictureStrokeOutline
+        tests:
+          - CanvasNetPptx_SystemIntegration_Images_PictureDecodesAndRendersEndToEnd
+
+      - id: CanvasNetPptx-TableShapes
+        title: >-
+          The library shall parse a table shape's declared rows, columns, and cells (resolving
+          merged-cell spans into a single merge-aware cell rectangle per cell), and paint each
+          cell's resolved fill, border, and text content onto a rendering surface at that cell's
+          own resolved rectangle.
+        tags: [system]
+        justification: |
+          Tabular data is common in real-world presentations; without resolving a table's own
+          structure and painting each cell's own content at the correct rectangle, a rendered
+          slide containing one would show incorrect or missing tabular content.
+        children:
+          - CanvasNetPptx-PptxDocument-TableParsing
+          - CanvasNetPptx-PptxDocument-TableCellRectResolution
+          - CanvasNetPptx-PptxDocument-TablePainting
+          - CanvasNetPptx-PptxDocument-TableStyleResolution
+        tests:
+          - CanvasNetPptx_SystemIntegration_Tables_GraphicFrameParsesAndRendersCellFillEndToEnd
+
+      - id: CanvasNetPptx-ShapeTreeEnumeration
+        title: >-
+          The library shall recursively enumerate every recognized shape, picture, table, and
+          group element declared in a slide's own shape tree, at any nesting depth, composing each
+          nested group's own child-coordinate-space transform with its ancestors' transforms so
+          every enumerated node's effective position is correct relative to the slide.
+        tags: [system]
+        justification: |
+          Real-world presentations commonly group shapes, including nested groups, to move and
+          resize related content together; without recursively enumerating every nesting level and
+          correctly composing each level's own transform, a rendered slide would omit or
+          mis-position any shape nested inside a group.
+        children:
+          - CanvasNetPptx-PptxDocument-ShapeTree
+          - CanvasNetPptx-PptxDocument-GroupChildTransform
+        tests:
+          - CanvasNetPptx_SystemIntegration_ShapeTree_NestedGroupEnumeratesAndComposesTransformEndToEnd
+
+      - id: CanvasNetPptx-SlideBackgroundFill
+        title: >-
+          The library shall resolve and paint a slide's own, or (falling back in order) its
+          layout's or its master's own, declared background fill across the full slide ahead of
+          that slide's own shape-tree walk, reusing the existing DrawingML fill-resolution
+          pipeline (solid, linear-gradient, and theme-indexed background-fill-list references).
+        tags: [system]
+        justification: |
+          A branded, non-white background fill is a highly visible real-world presentation
+          feature; without resolving and painting it, a rendered slide would always show a plain,
+          uniform background regardless of what the file itself declares.
+        children:
+          - CanvasNetPptx-PptxDocument-SlideBackgroundFill
+        tests:
+          - PptxDocument_Render_SldBackgroundFixture_RendersAndPaintsSlideBackgroundFill
+
+      - id: CanvasNetPptx-MasterLayoutShapeRendering
+        title: >-
+          The library shall render a slide's own master's and own layout's non-placeholder shapes
+          back-to-front in document order - master shapes first, then layout shapes, then the
+          slide's own shapes on top - immediately after painting the resolved background, using
+          the same per-shape-type paint dispatch a slide-level shape already uses, while never
+          rendering a master's or layout's own placeholder shapes directly.
+        tags: [system]
+        justification: |
+          Real-world presentations frequently place decoration (a logo, a rule, a watermark)
+          directly on a slide master's or layout's own shape tree, outside any placeholder;
+          without rendering these, a rendered slide would omit visible, authored content.
+        children:
+          - CanvasNetPptx-PptxDocument-MasterLayoutShapeRendering
+        tests:
+          - Render_MasterNonPlaceholderPicture_PaintsOnEverySlideUsingThatMasterResolvingOwnRels
+
+      - id: CanvasNetPptx-BulletsAndNumbering
+        title: >-
+          The library shall parse and resolve a paragraph's bullet/numbering properties (type,
+          color, font, and size, each independently inherited through the placeholder/master
+          chain) and shall format, sequence, and paint the resulting bullet or auto-number glyph
+          alongside its paragraph's own text.
+        tags: [system]
+        justification: |
+          A bulleted or numbered paragraph is one of the most common real-world PPTX constructs;
+          without parsing, resolving, and painting bullet/numbering markup, such paragraphs would
+          render as plain, unmarked text, a visually obvious gap against a real PowerPoint export.
+        children:
+          - CanvasNetPptx-PptxDocument-BulletProperties
+          - CanvasNetPptx-PptxDocument-BulletRendering
+        tests:
+          - PptxDocument_Render_PhInheritPropsFixture_Slide0PaintsSlide1RendersWithoutError
+
+      - id: CanvasNetPptx-ConnectorShapes
+        title: >-
+          The library shall dispatch a connector shape to its own shape-tree node in the same
+          document-order walk as every other shape kind, resolving its preset connector geometry,
+          its per-attribute stroke style (merging its own line properties with its sibling shape-
+          style reference), and its resolved arrowhead markers.
+        tags: [system]
+        justification: |
+          A connector shape - the straight/elbow/curved lines PowerPoint draws between other
+          shapes in flowcharts and diagrams - is a common real-world construct; without resolving
+          and painting it, a slide containing one would render with that connector entirely
+          absent, a severe fidelity gap for diagram-heavy content.
+        children:
+          - CanvasNetPptx-PptxDocument-ConnectorRendering
+        tests:
+          - PptxDocument_Render_ShpConnectorPropsFixture_ConnectorsPaintVisibleLines
+
+      - id: CanvasNetPptx-ChartGraphicFrames
+        title: >-
+          The library shall resolve a graphic frame declaring a chart by delegating to the
+          sibling DemaConsulting.CanvasNet.Charts package's parser and renderer, compositing the
+          resulting chart onto the slide surface at the graphic frame's own resolved frame.
+        tags: [system]
+        justification: |
+          A graphic frame may declare a chart rather than a table; without resolving and
+          rendering it via the already-verified Charts package, no presentation containing a
+          chart could ever render past that slide.
+        children:
+          - CanvasNetPptx-PptxDocument-ChartGraphicFrames
+        tests:
+          - Render_ChartOnlySlide_PaintsVisibleContent
+
+      - id: CanvasNetPptx-RenderApi
+        title: >-
+          The library shall render a single slide, by index, onto a new surface sized either to
+          caller-supplied pixel dimensions or to the slide's own aspect ratio at a caller-supplied
+          resolution in dots per inch, by walking that slide's full shape tree in document order
+          and dispatching each node to its own resolved paint.
+        tags: [system]
+        justification: |
+          Callers need a single, public entry point that turns a parsed presentation's slide into a
+          concrete, paintable surface without re-implementing the shape-tree walk and per-node-kind
+          dispatch themselves, and must be able to request output sized either in exact pixels or
+          at a target print/display resolution.
+        children:
+          - CanvasNetPptx-PptxDocument-RenderPublicApi
+          - CanvasNetPptx-PptxDocument-SlideRendering
+        tests:
+          - CanvasNetPptx_SystemIntegration_Render_PixelAndDpiOverloadsProduceConsistentOutputEndToEnd

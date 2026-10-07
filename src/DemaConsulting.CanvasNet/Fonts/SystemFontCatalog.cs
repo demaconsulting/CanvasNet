@@ -57,6 +57,23 @@ public readonly record struct SystemFontInfo(
 ///         corrupt face within an otherwise well-formed <c>.ttc</c> collection is silently
 ///         skipped rather than aborting the whole catalog build.
 ///     </para>
+///     <para>
+///         <b>Thread safety</b>: every member of this class is safe to call concurrently from
+///         multiple threads, with no external synchronization required. <see cref="Fonts"/> is
+///         backed by a <see cref="Lazy{T}"/> constructed with
+///         <see cref="LazyThreadSafetyMode.ExecutionAndPublication"/> - concurrent first-time
+///         callers block until a single winning thread finishes the directory scan, after which
+///         every caller (concurrent or later) observes that same published result; the scan
+///         itself is never run more than once per process, and no caller can observe a
+///         partially-built catalog. <see cref="LoadBundledFallback"/>'s process-lifetime cache
+///         (<see cref="BundledFontCache"/>) is guarded by a dedicated lock
+///         (<see cref="BundledFontLock"/>) around both its lookup and its populate-on-miss path,
+///         so concurrent requests for the same bundled style can never race on the cache
+///         dictionary or load/parse the same embedded font file twice. <see cref="FindBestMatch"/>
+///         only reads already-published, immutable data (<see cref="Fonts"/>'s own
+///         <see cref="IReadOnlyList{T}"/> and this class's read-only generic-family-name arrays)
+///         and performs no mutation, so it requires no locking of its own.
+///     </para>
 /// </remarks>
 public static class SystemFontCatalog
 {
@@ -92,7 +109,10 @@ public static class SystemFontCatalog
 
     /// <summary>
     ///     Backs <see cref="Fonts"/> - built once per process, on first access, and never
-    ///     rescanned afterward.
+    ///     rescanned afterward. Uses <see cref="LazyThreadSafetyMode.ExecutionAndPublication"/>
+    ///     so concurrent first-time accessors block on a single winning thread's scan rather than
+    ///     each independently (and redundantly) scanning, and so no thread can ever observe a
+    ///     partially-built catalog - see the class remarks' "Thread safety" section.
     /// </summary>
     private static readonly Lazy<IReadOnlyList<SystemFontInfo>> LazyFonts =
         new(BuildCatalog, LazyThreadSafetyMode.ExecutionAndPublication);
@@ -103,11 +123,18 @@ public static class SystemFontCatalog
     ///     fallback (see <see cref="LoadBundledFallbackCore"/>'s remarks), keyed by the embedded
     ///     resource's bundled file name (for example <c>"LiberationSans-Bold.ttf"</c>) - at most
     ///     15 entries are ever created (12 Liberation Sans/Serif/Mono style variants plus 3 Noto
-    ///     substitute fonts), each created at most once, for the lifetime of the process.
+    ///     substitute fonts), each created at most once, for the lifetime of the process. All
+    ///     access to this dictionary is guarded by <see cref="BundledFontLock"/> - see the class
+    ///     remarks' "Thread safety" section.
     /// </summary>
     private static readonly Dictionary<string, TrueTypeFont> BundledFontCache = new(StringComparer.Ordinal);
 
-    /// <summary>Guards <see cref="BundledFontCache"/> against concurrent population.</summary>
+    /// <summary>
+    ///     Guards <see cref="BundledFontCache"/> against concurrent population - every read and
+    ///     write of the cache (in <see cref="LoadBundledFallbackCore"/>) holds this lock for its
+    ///     full lookup-or-populate critical section, so two threads requesting the same not-yet-
+    ///     cached bundled style can never both load/parse that embedded font file.
+    /// </summary>
     private static readonly object BundledFontLock = new();
 
     /// <summary>
@@ -119,7 +146,8 @@ public static class SystemFontCatalog
     ///     Never throws: a missing or inaccessible scan directory, or a candidate file that fails
     ///     to parse as a valid font, is silently skipped rather than aborting the scan. An empty
     ///     result (for example on a minimal container image with no fonts installed at all) is a
-    ///     valid, expected outcome, not an error.
+    ///     valid, expected outcome, not an error. Safe to call concurrently from any number of
+    ///     threads - see the class remarks' "Thread safety" section.
     /// </remarks>
     public static IReadOnlyList<SystemFontInfo> Fonts => LazyFonts.Value;
 
@@ -152,7 +180,8 @@ public static class SystemFontCatalog
     ///     <see cref="Fonts"/> is empty, or genuinely has no exact family match and no
     ///     generic-bucket match either. This method never consults
     ///     <see cref="LoadBundledFallback"/> - composing "system match, else bundled fallback" is
-    ///     the caller's responsibility.
+    ///     the caller's responsibility. Safe to call concurrently from any number of threads -
+    ///     see the class remarks' "Thread safety" section.
     /// </returns>
     public static SystemFontInfo? FindBestMatch(
         string familyNameHint,
@@ -183,6 +212,12 @@ public static class SystemFontCatalog
     ///     Liberation Sans/Serif/Mono style-variant bundled files this method can request are
     ///     guaranteed present at build time.
     /// </exception>
+    /// <remarks>
+    ///     Safe to call concurrently from any number of threads: the underlying cache lookup and
+    ///     populate-on-miss path are both guarded by <see cref="BundledFontLock"/>, so no two
+    ///     threads can load/parse the same embedded font file twice - see the class remarks'
+    ///     "Thread safety" section.
+    /// </remarks>
     public static TrueTypeFont LoadBundledFallback(bool serif, bool fixedPitch, bool bold, bool italic)
     {
         string family;

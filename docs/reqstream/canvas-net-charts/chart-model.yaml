@@ -1,0 +1,288 @@
+---
+# Software Subsystem Requirements for ChartModel
+#
+# These requirements decompose the CanvasNetCharts system's data-model responsibility into the
+# ChartModel subsystem: validating, immutable representations of a chart's shape (kind, series,
+# axes, legend, title, and color palette) and the builder that assembles them. Each requirement
+# here links down to the ChartDocument unit requirements that implement it.
+
+sections:
+  - title: CanvasNetCharts Requirements
+    sections:
+      - title: ChartModel Requirements
+        requirements:
+          - id: CanvasNetCharts-ChartModel-ChartConstruction
+            title: >-
+              The ChartModel subsystem shall construct a validated Chart from a chart type and at
+              least one series, with optional category axis, value axis, legend, title, and color
+              palette, rejecting an undefined ChartType value, a null or empty series collection, a
+              null series entry, and an empty color palette.
+            justification: |
+              A Chart is the root aggregate every later rendering/parsing phase consumes; it must
+              be impossible to construct one in a structurally invalid state.
+            children:
+              - CanvasNetCharts-ChartModel-ChartDocument-ChartConstruction
+              - CanvasNetCharts-ChartModel-ChartDocument-ChartTypeValidation
+              - CanvasNetCharts-ChartModel-ChartDocument-SeriesCollectionValidation
+              - CanvasNetCharts-ChartModel-ChartDocument-ColorPaletteValidation
+            tests:
+              - Constructor_MinimalMembers_SetsRequiredAndLeavesOptionalsUnset
+              - Constructor_AllMembers_SetsAllMembers
+              - Constructor_UndefinedType_ThrowsArgumentOutOfRangeException
+              - Constructor_NullSeries_ThrowsArgumentNullException
+              - Constructor_EmptySeries_ThrowsArgumentException
+              - Constructor_NullSeriesEntry_ThrowsArgumentException
+              - Constructor_EmptyColorPalette_ThrowsArgumentException
+
+          - id: CanvasNetCharts-ChartModel-SeriesAxisConsistency
+            title: >-
+              The ChartModel subsystem shall validate, for a category-based chart type (Bar,
+              Column, Line, or Area) whose category axis declares category labels, that every
+              series' value count exactly equals that label count, and shall not apply this check
+              to a proportional-share chart type (Pie or Doughnut) or when no category labels are
+              declared.
+            justification: |
+              A category-based chart's series values are plotted one-for-one against the category
+              axis's labels; a length mismatch would silently misalign data from its intended
+              category when later rendered, so it must fail at construction instead.
+            children:
+              - CanvasNetCharts-ChartModel-ChartDocument-CategoryLengthValidation
+            tests:
+              - Constructor_CategoryBasedTypeWithMatchingLength_Succeeds
+              - Constructor_CategoryBasedTypeWithMismatchedLength_ThrowsArgumentException
+              - Constructor_ProportionalType_IsExemptFromLengthCheck
+              - Constructor_CategoryAxisWithNoLabels_DoesNotTriggerLengthCheck
+
+          - id: CanvasNetCharts-ChartModel-SeriesValidation
+            title: >-
+              The ChartModel subsystem shall construct a validated ChartSeries from a name and at
+              least one finite value, with an optional per-point color override, an optional
+              per-point label override, and an optional series-level color, rejecting a null or
+              empty/whitespace-only name, a null, empty, or non-finite-containing values
+              collection, and a per-point color or label collection whose count does not exactly
+              equal the values count.
+            justification: |
+              A series with a blank name, no data points, a non-finite value, or mismatched
+              per-point overrides cannot be meaningfully plotted and must be rejected before it
+              reaches any later rendering phase.
+            children:
+              - CanvasNetCharts-ChartModel-ChartDocument-SeriesValidation
+              - CanvasNetCharts-ChartModel-ChartDocument-SeriesNameValidation
+              - CanvasNetCharts-ChartModel-ChartDocument-ValuesValidation
+              - CanvasNetCharts-ChartModel-ChartDocument-PerPointCollectionValidation
+            tests:
+              - Constructor_NameAndValuesOnly_SetsMembersAndLeavesOptionalsUnset
+              - Constructor_NullName_ThrowsArgumentNullException
+              - Constructor_EmptyOrWhitespaceName_ThrowsArgumentException
+              - Constructor_NullValues_ThrowsArgumentNullException
+              - Constructor_EmptyValues_ThrowsArgumentException
+              - Constructor_NonFiniteValueEntry_ThrowsArgumentException
+              - Constructor_PointColorsCountMismatch_ThrowsArgumentException
+              - Constructor_PointLabelsCountMismatch_ThrowsArgumentException
+              - Constructor_NullPointLabelEntry_ThrowsArgumentException
+
+          - id: CanvasNetCharts-ChartModel-AxisValidation
+            title: >-
+              The ChartModel subsystem shall construct a validated ChartAxis from an optional
+              ordered label collection, an optional finite value range (minimum, maximum, tick
+              interval), and an optional title, rejecting a null label entry, a non-finite
+              minimum/maximum/tick interval, a minimum not strictly less than the maximum when both
+              are supplied, a non-positive tick interval, and an empty or whitespace-only title.
+            justification: |
+              An axis with an inverted or non-finite range, a non-positive tick spacing, or a null
+              label cannot be meaningfully rendered and must be rejected before it reaches any
+              later rendering phase.
+            children:
+              - CanvasNetCharts-ChartModel-ChartDocument-AxisValidation
+              - CanvasNetCharts-ChartModel-ChartDocument-AxisLabelValidation
+              - CanvasNetCharts-ChartModel-ChartDocument-AxisRangeValidation
+              - CanvasNetCharts-ChartModel-ChartDocument-AxisTitleValidation
+            tests:
+              - Constructor_LabelsOnly_SetsLabelsAndLeavesRangeUnset
+              - Constructor_ValueRangeOnly_SetsRangeAndLeavesLabelsUnset
+              - Constructor_LabelsAndRangeAndTitle_SetsAllMembers
+              - Constructor_NullLabelEntry_ThrowsArgumentException
+              - Constructor_NonFiniteMinimum_ThrowsArgumentOutOfRangeException
+              - Constructor_NonFiniteMaximum_ThrowsArgumentOutOfRangeException
+              - Constructor_MinimumEqualToMaximum_ThrowsArgumentOutOfRangeException
+              - Constructor_MinimumGreaterThanMaximum_ThrowsArgumentOutOfRangeException
+              - Constructor_InvalidTickInterval_ThrowsArgumentOutOfRangeException
+              - Constructor_WhitespaceTitle_ThrowsArgumentException
+
+          - id: CanvasNetCharts-ChartModel-LegendValidation
+            title: >-
+              The ChartModel subsystem shall construct a validated ChartLegend from an optional
+              placement position (defaulting to Right) and an optional visibility flag (defaulting
+              to true), rejecting an undefined ChartLegendPosition value.
+            justification: |
+              A legend with an out-of-range placement value cannot be meaningfully rendered and
+              must be rejected before it reaches any later rendering phase.
+            children:
+              - CanvasNetCharts-ChartModel-ChartDocument-LegendValidation
+            tests:
+              - Constructor_Defaults_IsVisibleAndRightPositioned
+              - Constructor_EachDefinedPosition_IsAccepted
+              - Constructor_IsVisibleFalse_IsStored
+              - Constructor_UndefinedPosition_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNetCharts-ChartModel-TitleValidation
+            title: >-
+              The ChartModel subsystem shall construct a validated ChartTitle from non-null,
+              non-empty, non-whitespace-only text and an optional finite, strictly positive
+              font-size hint, rejecting any value outside those bounds.
+            justification: |
+              A title with blank text or a non-positive font size cannot be meaningfully rendered
+              and must be rejected before it reaches any later rendering phase.
+            children:
+              - CanvasNetCharts-ChartModel-ChartDocument-TitleValidation
+            tests:
+              - Constructor_TextOnly_SetsTextAndLeavesFontSizeUnset
+              - Constructor_TextAndFontSize_SetsBothMembers
+              - Constructor_NullText_ThrowsArgumentNullException
+              - Constructor_EmptyText_ThrowsArgumentException
+              - Constructor_WhitespaceText_ThrowsArgumentException
+              - Constructor_InvalidFontSize_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNetCharts-ChartModel-DefensiveCopies
+            title: >-
+              The ChartModel subsystem shall defensively copy every caller-supplied collection
+              argument (series, color palette, values, point colors, point labels, and axis
+              labels) into an immutable snapshot at construction time, so that mutating the
+              caller's original collection after construction has no effect on the constructed
+              instance.
+            justification: |
+              A model type whose internal state could still be mutated by a caller after
+              construction would break the "fully validated, immutable" guarantee every later
+              rendering/parsing phase relies on.
+            children:
+              - CanvasNetCharts-ChartModel-ChartDocument-DefensiveCopies
+            tests:
+              - Constructor_MutatingOriginalSeriesList_DoesNotAffectStoredSnapshot
+              - Constructor_MutatingOriginalColorPaletteList_DoesNotAffectStoredSnapshot
+              - Constructor_MutatingOriginalValuesList_DoesNotAffectStoredSnapshot
+              - Constructor_MutatingOriginalPointColorsList_DoesNotAffectStoredSnapshot
+              - Constructor_MutatingOriginalPointLabelsList_DoesNotAffectStoredSnapshot
+              - Constructor_MutatingOriginalLabelsList_DoesNotAffectStoredSnapshot
+
+          - id: CanvasNetCharts-ChartModel-TypeEnumeration
+            title: >-
+              The ChartModel subsystem shall define exactly the Bar, Column, Line, Pie, Doughnut,
+              and Area chart kinds for Phase 1, each a fully documented ChartType member.
+            justification: |
+              Every chart-type-dependent validation rule in this subsystem (for example, the
+              category-length check) and every later rendering/parsing phase dispatches on this
+              fixed, well-documented set of chart kinds.
+            children:
+              - CanvasNetCharts-ChartModel-ChartDocument-TypeEnumeration
+            tests:
+              - AllV1Members_AreDefined
+              - UndefinedValue_IsNotDefined
+              - UndefinedValue_RejectedByChartConstructor
+
+          - id: CanvasNetCharts-ChartModel-BuilderFluentChaining
+            title: >-
+              The ChartModel subsystem shall return the same ChartBuilder instance from every one
+              of its chainable configuration methods, enabling fluent method chaining.
+            justification: |
+              A fluent builder's defining usability characteristic is that every configuration
+              step can be chained onto the previous one without an intermediate local variable.
+            children:
+              - CanvasNetCharts-ChartModel-ChartDocument-BuilderFluentChaining
+            tests:
+              - FluentMethods_EachReturnSameBuilderInstance
+              - Build_WithMultipleSeriesAddedViaChartSeriesOverload_PreservesOrder
+
+          - id: CanvasNetCharts-ChartModel-BuilderDelegatesValidation
+            title: >-
+              The ChartModel subsystem's ChartBuilder shall delegate all data-shape validation to
+              the model type constructors it calls, so that an invalid argument passed to any
+              ChartBuilder method surfaces the identical exception the corresponding model
+              constructor would throw directly.
+            justification: |
+              Duplicating validation logic between ChartBuilder and the model constructors would
+              risk the two drifting out of sync over time; a single source of truth for each rule
+              avoids that risk entirely.
+            children:
+              - CanvasNetCharts-ChartModel-ChartDocument-BuilderDelegatesValidation
+            tests:
+              - AddSeries_InvalidName_PropagatesChartSeriesConstructorException
+              - AddSeries_NullChartSeries_PropagatesArgumentNullException
+              - WithCategoryAxis_NullChartAxis_PropagatesArgumentNullException
+              - WithValueAxis_NullChartAxis_PropagatesArgumentNullException
+              - WithValueAxis_InvalidRange_PropagatesChartAxisConstructorException
+              - WithLegend_NullChartLegend_PropagatesArgumentNullException
+              - WithTitle_WhitespaceText_PropagatesChartTitleConstructorException
+              - WithColorPalette_Null_ThrowsArgumentNullException
+              - Build_SeriesLengthMismatchedWithCategoryAxis_PropagatesChartConstructorException
+
+          - id: CanvasNetCharts-ChartModel-ChartRendering
+            title: >-
+              The ChartModel subsystem shall render a validated Chart onto a core CanvasNet
+              Surface, for a caller-specified pixel size or a caller-specified physical size and
+              DPI, dispatching every defined ChartType (Bar, Column, Line, Area, Pie, Doughnut) to
+              a dedicated painter that also paints axes (for category-based types), a legend (at
+              any position), a title, and opt-in per-point data labels, correctly handling
+              negative values, a single-category Pie/Doughnut's full-circle wedge, and a large
+              series/point count's legend/bar-group layout.
+            justification: |
+              A validated Chart is only useful once it can actually be turned into visible pixels;
+              this is the ChartModel subsystem's rendering responsibility, exercised end-to-end for
+              every chart kind, decoration, and data shape the model itself supports.
+            children:
+              - CanvasNetCharts-ChartModel-ChartRenderer-PixelRender
+              - CanvasNetCharts-ChartModel-ChartRenderer-DpiRender
+              - CanvasNetCharts-ChartModel-ChartRenderer-ChartTypeDispatch
+              - CanvasNetCharts-ChartModel-ChartRenderer-PieDoughnutWedgeLayout
+              - CanvasNetCharts-ChartModel-ChartRenderer-TitleRendering
+              - CanvasNetCharts-ChartModel-ChartRenderer-LegendRendering
+              - CanvasNetCharts-ChartModel-ChartRenderer-LegendOverflowByOmission
+              - CanvasNetCharts-ChartModel-ChartRenderer-AxisRendering
+              - CanvasNetCharts-ChartModel-ChartRenderer-NegativeValueHandling
+              - CanvasNetCharts-ChartModel-ChartRenderer-DataLabelRendering
+              - CanvasNetCharts-ChartModel-ChartRenderer-SinglePointSeries
+              - CanvasNetCharts-ChartModel-ChartRenderer-LongLabelTruncation
+              - CanvasNetCharts-ChartModel-ChartRenderer-RenderTargetSizeExtremes
+              - CanvasNetCharts-ChartModel-ChartRenderer-ManySeriesGroupedLayout
+            tests:
+              - Render_EveryChartType_ProducesCorrectlySizedSurface
+              - Render_WithTitle_PaintsContentInTitleBand
+              - Render_LegendTop_PaintsSwatchesInTopBand
+              - Render_WithAxes_PaintsNonBackgroundContentInReservedMargins
+              - Render_PointWithDataLabel_PaintsVisibleTextNearPoint
+              - Render_Column_NegativeAndPositiveValues_PaintsBothAboveAndBelowZeroBaseline
+              - Render_Pie_SingleCategory_FillsEntireCircleWithoutDegenerateArc
+              - Render_VerySmallRenderTargets_RenderSuccessfully
+              - Render_ManySeriesGroupedColumn_NarrowsBarsRatherThanOverlapping
+
+          - id: CanvasNetCharts-ChartModel-ChartRenderingDefaults
+            title: >-
+              The ChartModel subsystem shall apply documented default rendering styling (an opaque
+              white background, the bundled fallback font, and a documented 10-entry default color
+              palette) whenever a caller omits the corresponding render option, series/point
+              color, or chart-level color palette, resolving colors in a fixed, documented
+              precedence order.
+            justification: |
+              A caller who supplies only the minimal Chart data (no colors, no render options)
+              must still receive a legible, fully deterministic, well-styled rendering rather than
+              an error or an arbitrary/undocumented appearance.
+            children:
+              - CanvasNetCharts-ChartModel-ChartRenderer-DefaultStyling
+            tests:
+              - Render_CustomBackgroundColor_ClearsToThatColor
+              - Render_SeriesWithoutExplicitColor_ResolvesToDefaultPaletteInOrder
+              - Render_ChartColorPaletteOverride_TakesPriorityOverDefaultPalette
+              - Render_OptionsColorPaletteOverride_UsedWhenChartSuppliesNone
+
+          - id: CanvasNetCharts-ChartModel-BuilderIncompleteBuildFails
+            title: >-
+              The ChartModel subsystem's ChartBuilder shall throw InvalidOperationException from
+              Build when no chart type has been set, or when no series has been added, rather than
+              constructing a Chart from incomplete configuration.
+            justification: |
+              Silently defaulting an unset chart type or an empty series list would produce a
+              Chart the caller never intended; failing closed surfaces the omission immediately.
+            children:
+              - CanvasNetCharts-ChartModel-ChartDocument-BuilderIncompleteBuildFails
+            tests:
+              - Build_TypeNeverSet_ThrowsInvalidOperationException
+              - Build_NoSeriesAdded_ThrowsInvalidOperationException

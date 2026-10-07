@@ -1,0 +1,160 @@
+---
+# Software System Requirements for CanvasNetCharts
+#
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Charts
+# package (namespace DemaConsulting.CanvasNet.Charts) from the perspective of its consumers, without
+# specifying implementation details.
+#
+# CanvasNetCharts is an independent software system, distributed as its own NuGet package,
+# depending on the core CanvasNet system (docs/reqstream/canvas-net.yaml) for its Canvas
+# subsystem's Rgba32/Surface units and, as of Phase 2, its Drawing/Geometry/Fonts/Rendering
+# subsystems - see docs/design/canvas-net-charts.md's Dependencies section for details.
+#
+# CanvasNetCharts is being delivered incrementally. Phase 1 shipped the public, immutable chart
+# data model (Chart/ChartSeries/ChartAxis/ChartLegend/ChartTitle/ChartType) and the ChartBuilder
+# ergonomic construction API. Phase 2 added a ChartRenderer that paints a Chart onto a core
+# Surface. Phase 3 (these requirements) adds a format-agnostic OpenXmlChartParser that produces a
+# Chart directly from a raw c:chartSpace/c:chart XElement/XDocument, reading only cached values -
+# it has no OPC/ZIP packaging knowledge and no dependency on any host document-format package.
+# Phase 4 will integrate locating/opening a chart1.xml OPC part and invoking this parser into
+# PptxDocument's own slide rendering. These later-phase requirements will be added to this file
+# (and new per-unit files) when each phase lands, mirroring canvas-net-pptx.yaml's own per-phase
+# header-comment convention.
+
+sections:
+  - title: Chart Model API
+    requirements:
+      - id: CanvasNetCharts-Lib-ChartModel
+        title: >-
+          The library shall provide an immutable, validating data model (Chart, ChartSeries,
+          ChartAxis, ChartLegend, ChartTitle, and the ChartType enumeration) describing a chart's
+          kind, data series, optional category/value axes, optional legend, optional title, and an
+          optional default color palette, rejecting any invalid construction argument (a null
+          required argument, an empty or whitespace-only name/title, a non-finite numeric value, a
+          series/category-axis length mismatch, or similar) at construction time rather than
+          silently coercing it, and defensively copying every caller-supplied collection so that
+          mutating the caller's original collection after construction has no effect on the
+          constructed instance.
+        tags: [system]
+        justification: |
+          Later phases (a renderer and an OOXML chart1.xml parser) both need a single, already
+          validated, immutable in-memory representation of "what chart to draw" that cannot be
+          mutated out from under them after construction, and that fails closed on invalid data
+          rather than propagating it into rendering or serialization logic.
+        children:
+          - CanvasNetCharts-ChartModel-ChartConstruction
+          - CanvasNetCharts-ChartModel-SeriesAxisConsistency
+          - CanvasNetCharts-ChartModel-SeriesValidation
+          - CanvasNetCharts-ChartModel-AxisValidation
+          - CanvasNetCharts-ChartModel-LegendValidation
+          - CanvasNetCharts-ChartModel-TitleValidation
+          - CanvasNetCharts-ChartModel-DefensiveCopies
+          - CanvasNetCharts-ChartModel-TypeEnumeration
+        tests:
+          - Constructor_AllMembers_SetsAllMembers
+          - Constructor_MutatingOriginalSeriesList_DoesNotAffectStoredSnapshot
+
+      - id: CanvasNetCharts-Lib-ChartBuilder
+        title: >-
+          The library shall provide a fluent ChartBuilder API for constructing a Chart, where every
+          chainable method either stores already-valid caller state or delegates construction of a
+          model type to that type's own validating constructor (never duplicating a validation
+          rule), and where calling Build before a chart type and at least one series have been
+          configured throws InvalidOperationException with a message identifying what is missing.
+        tags: [system]
+        justification: |
+          Constructing a Chart's full constructor argument list directly is verbose for the common
+          case; callers need a more ergonomic, discoverable, step-by-step way to assemble one
+          without the builder itself becoming a second, divergent place where validation rules
+          could drift from the model's own rules.
+        children:
+          - CanvasNetCharts-ChartModel-BuilderFluentChaining
+          - CanvasNetCharts-ChartModel-BuilderDelegatesValidation
+          - CanvasNetCharts-ChartModel-BuilderIncompleteBuildFails
+        tests:
+          - Build_FullConfiguration_ProducesChartRoundTrippingBuilderInputs
+          - Build_TypeNeverSet_ThrowsInvalidOperationException
+          - Build_NoSeriesAdded_ThrowsInvalidOperationException
+
+  - title: Chart Rendering API
+    requirements:
+      - id: CanvasNetCharts-Lib-ChartRenderer
+        title: >-
+          The library shall render a validated Chart onto a new core CanvasNet Surface, via a
+          caller-specified pixel width/height or a caller-specified physical width/height/DPI,
+          dispatching every defined ChartType to a dedicated painter that also paints axes (for
+          category-based types), a legend, a title, and opt-in per-point data labels, failing
+          closed with a documented exception on a null chart or invalid dimensions, and otherwise
+          degrading gracefully (never throwing) for an extreme render-target size, a legend
+          overflowing its band, an over-long label, or a single-category Pie/Doughnut's
+          full-circle wedge.
+        tags: [system]
+        justification: |
+          A validated Chart is only useful once a consumer can turn it into visible pixels; this
+          is the one externally visible capability Phase 2 adds, and it must behave predictably
+          across every chart kind, decoration, and data shape the Phase 1 model itself supports.
+        children:
+          - CanvasNetCharts-ChartModel-ChartRendering
+        tests:
+          - Render_EveryChartType_ProducesCorrectlySizedSurface
+          - Render_PixelOverloadNullChart_ThrowsArgumentNullException
+          - Render_DpiOverload_ComputesExpectedPixelDimensions
+          - Render_ManySeriesGroupedColumn_NarrowsBarsRatherThanOverlapping
+
+      - id: CanvasNetCharts-Lib-ChartRenderOptions
+        title: >-
+          The library shall provide a ChartRenderOptions settings bag (background color, an
+          optional font override, per-element default font sizes, and an optional color-palette
+          override) with a Default singleton, applied by ChartRenderer whenever a caller omits the
+          corresponding render option, series/point color, or chart-level color palette, resolving
+          colors via Chart.ColorPalette, then ChartRenderOptions.ColorPalette, then a documented
+          10-entry default color palette, in that fixed order.
+        tags: [system]
+        justification: |
+          A caller who supplies only the minimal Chart data (no colors, no render options) must
+          still receive a legible, fully deterministic, well-styled rendering rather than an error
+          or an arbitrary/undocumented appearance; a caller who does want control over styling
+          needs a single, extensible, documented settings surface to do so.
+        children:
+          - CanvasNetCharts-ChartModel-ChartRenderingDefaults
+        tests:
+          - Render_CustomBackgroundColor_ClearsToThatColor
+          - Render_SeriesWithoutExplicitColor_ResolvesToDefaultPaletteInOrder
+          - Render_ChartColorPaletteOverride_TakesPriorityOverDefaultPalette
+
+  - title: OpenXML Chart Parsing API
+    requirements:
+      - id: CanvasNetCharts-Lib-OpenXmlChartParser
+        title: >-
+          The library shall provide a format-agnostic OpenXmlChartParser that parses a raw ECMA-376
+          DrawingML-Charts c:chartSpace (or bare c:chart) XElement/XDocument into a validated Chart,
+          reading only cached values (never recomputing from a c:f formula), supporting
+          barChart (bar/column, classified by barDir), lineChart, pieChart, doughnutChart, and
+          areaChart, extracting series names/categories/values, chart/axis titles, and legend
+          presence/position, and throwing a dedicated ChartUnsupportedFeatureException - carrying
+          a short, stable Feature token - for a recognized-but-unimplemented chart kind (radar,
+          bubble, scatter, stock, surface, 3-D, or "of pie"), a combo chart, a plot area with no
+          recognized chart-type element, or a series with no cached value.
+        tags: [system]
+        justification: |
+          Before chart rendering can be integrated into any host document format (such as
+          PptxDocument in a later phase), there must be a single, well-tested, format-agnostic
+          component that turns a real chart1.xml part's XML content into the already-validated
+          Chart the Phase 2 renderer consumes, without taking on any packaging- or host-format-
+          specific knowledge that would make it unusable by a future non-PowerPoint host.
+        children:
+          - CanvasNetCharts-OpenXmlChart-ChartTypeClassification
+          - CanvasNetCharts-OpenXmlChart-SeriesDataExtraction
+          - CanvasNetCharts-OpenXmlChart-DecorationExtraction
+          - CanvasNetCharts-OpenXmlChart-UnsupportedFeatureRejection
+          - CanvasNetCharts-OpenXmlChart-EndToEndValidation
+        tests:
+          - Parse_BarChartWithBarDirection_ClassifiesAsBar
+          - Parse_LineChart_ClassifiesAsLine
+          - Parse_PieChart_ClassifiesAsPieWithPointLabels
+          - Parse_DoughnutChart_ClassifiesAsDoughnut
+          - Parse_AreaChart_ClassifiesAsArea
+          - Parse_RealFixtureBarChartExcerpt_ParsesExpectedShape
+          - Parse_SeriesWithUncachedValues_ThrowsWithUncachedValuesFeatureToken
+          - Parse_ComboChart_ThrowsWithComboChartFeatureToken
+          - Parse_EmptyPlotArea_ThrowsWithNoChartTypeFeatureToken

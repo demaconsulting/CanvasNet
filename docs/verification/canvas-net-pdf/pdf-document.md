@@ -64,6 +64,14 @@ end-to-end rather than only the empty-password shortcut.
 
 Unit tests reside in `PdfDocumentTests.cs` within the `DemaConsulting.CanvasNet.Pdf.Tests`
 project; encryption-specific tests reside in the sibling `PdfDocumentEncryptionTests.cs`.
+The private `CompositeImageOntoSurface` image-alpha-compositing regression test resides in its
+own sibling `PdfDocumentImageCompositingTests.cs`, which invokes that private method directly via
+reflection against a `PdfDocument` instance created with
+`System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject` (bypassing its private
+constructor, which requires a real, parseable PDF byte buffer) since `CompositeImageOntoSurface`
+only reads/writes the instance's own `_surface` field, which the test sets directly - the same
+reflection-based internals-testing approach `PdfDocumentSymbolicEncodingTests.cs` already
+established for a private static field.
 
 ### Test Environment
 
@@ -656,7 +664,8 @@ Renders a bare `l` with no preceding `m`/`re`, asserting `InvalidDataException`.
 `PdfDocument_PathOps_FillEvenOdd_PaintsExpectedPixels`, `PdfDocument_PathOps_Stroke_PaintsExpectedPixels`,
 `PdfDocument_PathOps_CloseAndFillAndStroke_PaintsExpectedPixels`,
 `PdfDocument_PathOps_NoOp_DiscardsPathWithoutPainting`,
-`PdfDocument_PathOps_PaintOperator_ClearsPathButPreservesGraphicsState`
+`PdfDocument_PathOps_PaintOperator_ClearsPathButPreservesGraphicsState`,
+`PdfDocument_PathOps_StrokeOnlyClosedBezierCircle_RendersThinRingNotSolidDisc`
 
 Renders a filled rectangle (`f`), asserting an interior pixel is opaque black and an exterior
 pixel remains transparent. Renders two nested, same-winding rectangles (`f*`), asserting the outer
@@ -669,6 +678,18 @@ rectangle followed by `n`, asserting the entire surface remains fully transparen
 rectangles filled under the same scaled `cm`, asserting the second path's fill lands only in its
 own expected region - proving the first path was cleared after its own `f` rather than
 accumulating into the second, while the surrounding CTM was preserved across the clear.
+
+`PdfDocument_PathOps_StrokeOnlyClosedBezierCircle_RendersThinRingNotSolidDisc` is a shared-library
+regression guard (see `../canvas-net/drawing/path-stroker.md`'s "Inner-ring collapse" section and
+`../../design/canvas-net-pdf/pdf-document.md`'s "Shared `StrokeOutliner` false-collapse
+investigation" note): it strokes-only (no fill) a closed circular path built from four cubic
+`c` Bezier curves, asserting the circle's own center pixel remains the (transparent) background -
+proving the ring's own interior is not filled solid - while a pixel on the circle's own boundary is
+opaque black, proving the ring itself still paints. This exercises the exact `PaintStroke` ->
+`Drawing.PathStroker.Stroke` -> `Drawing.StrokeOutliner` code path shared with `PptxDocument`,
+guarding PDF against the false inner-ring-collapse regression even though PDF's own
+stroke-after-transform architecture made it unlikely to manifest for typical PDF device-space
+coordinate magnitudes.
 
 #### CanvasNetPdf-PdfDocument-Dispose: Dispose Is Idempotent
 
@@ -948,7 +969,8 @@ bits before each row, rather than the implementation coincidentally tolerating z
 `PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Images_DoOperator_UndefinedXObjectName_ThrowsInvalidDataException`,
 `PdfDocument_Images_DoOperator_MalformedOperandCount_ThrowsInvalidDataException`,
-`CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels`
+`CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels`,
+`CompositeImageOntoSurface_SourceImageWithAlphaChannel_AlphaBlendsOntoExistingBackground`
 
 Places a small, raw 8-bit `DeviceGray`/`DeviceRGB`/`DeviceCMYK` `FlateDecode` image XObject via
 `cm`/`Do`, asserting the four composited device pixels match the image's four known source
@@ -965,7 +987,15 @@ renders `Do` with a malformed operand count/type, asserting `InvalidDataExceptio
 The end-to-end system-integration test independently proves the same `Do` compositing against a
 real, hand-authored fixture, asserting specific composited pixel colors at specific coordinates
 matching the fixture's known 2x2 source image, and a pixel outside the placed image's
-device-space footprint remains transparent.
+device-space footprint remains transparent. A dedicated regression test (regression guard for a
+confirmed real-world raw-overwrite alpha-compositing bug, invoking the private
+`CompositeImageOntoSurface` method directly via reflection, since every image XObject this
+package currently decodes is always fully opaque and so cannot exercise non-opaque sampling
+end-to-end) proves each sampled source pixel is alpha-blended "over" the existing destination
+pixel - a fully transparent source pixel with a non-matching stored RGB leaves the background
+completely unchanged, a fully opaque source pixel exactly replaces it, and a partially
+transparent source pixel blends to the exact expected bytes per the documented Porter-Duff "over"
+formula.
 
 #### CanvasNetPdf-PdfDocument-FormXObjects: Do Executes Nested Form XObject Content Streams
 
@@ -1403,6 +1433,7 @@ silently ignored like the CMap's own PostScript resource-management wrapper keyw
 **Tests**: `PdfDocument_BuildResolvedFont_Standard14NoEmbeddedFont_ResolvesViaFallback`,
 `PdfDocument_BuildResolvedFont_NonStandard14FlagsOnlyUnmatchedFamily_ResolvesViaBundledFallback`,
 `PdfDocument_BuildResolvedFont_SymbolicFlagWithoutEmbeddedFont_ThrowsSymbolicNotEmbeddedException`,
+`PdfDocument_BuildResolvedFont_PrimaryMatchMissesCodepoint_FallsBackToBundledLiberationSans`,
 `CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk`,
 `CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException`
 
@@ -1426,6 +1457,28 @@ operating system), and the other-symbolic-font case asserts the render throws
 `Codecs.UnsupportedImageFeatureException` rather than silently painting an unrelated glyph shape -
 a regression guard proving the new Symbol/ZapfDingbats substitution path did not loosen this
 fail-closed policy for any other symbolic font.
+
+`PdfDocument_BuildResolvedFont_PrimaryMatchMissesCodepoint_FallsBackToBundledLiberationSans`
+proves the ordinary (non-Symbol/non-ZapfDingbats) substitution path's extended 2-element candidate
+list (primary match, then the bundled Liberation fallback) actually resolves a codepoint the
+primary match itself does not cover, rather than painting `.notdef`. Renders two fixtures and
+asserts pixel-identity between them - "any pixel was painted" is deliberately **not** sufficient
+here, since a real/synthetic `.notdef` glyph commonly has its own non-empty (visible box) outline,
+so that weaker assertion would pass even without this fix. The "actual" fixture uses an unmatched
+fixed-pitch family name (deliberately diverting `Fonts.SystemFontCatalog.FindBestMatchCore`'s
+tier-2 generic-family matching to whichever monospace font the host provides) with
+`/Encoding/Differences [1 /uni0237]` mapping code `1` to U+0237 (LATIN SMALL LETTER DOTLESS J) - a
+codepoint present in the bundled `LiberationSans-Regular.ttf` but absent from
+`LiberationMono-Regular.ttf`/`LiberationSerif-Regular.ttf` (confirmed via `fontTools`), so a
+fixed-pitch request's likely system substitute (for example Courier New, itself also missing
+U+0237) must fall through to the bundled Liberation Sans fallback to resolve it at all. The
+"reference" fixture sidesteps `Fonts.SystemFontCatalog.FindBestMatch`'s own host-dependent
+behavior entirely by embedding the bundled `LiberationSans-Regular.ttf` bytes directly as its own
+`/FontFile2` (read via reflection over `Fonts.SystemFontCatalog`'s embedded-resource assembly),
+guaranteeing a deterministic, environment-independent rendering of that exact glyph to compare
+against. This test was deliberately verified (via a temporary `git stash` of the production fix,
+rebuild, and re-run) to fail without the fix and pass with it, confirming it is a meaningful
+regression guard and not a vacuously-passing assertion.
 
 #### CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback: Symbol/ZapfDingbats Resolve via a Bundled Noto Union
 

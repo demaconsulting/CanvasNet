@@ -42,6 +42,14 @@ constituent software items, specifically:
 - **CanvasNetPdf (System)** — A separate, independently-distributed software system providing
   PDF page-rendering support, containing a single unit, `PdfDocument` — see
   _CanvasNetPdf System Verification_ (`canvas-net-pdf.md`)
+- **CanvasNetCharts (System)** — A separate, independently-distributed software system providing
+  chart support, being delivered incrementally. The current release ships two subsystems:
+  `ChartModel`, containing the `ChartDocument` and `ChartRenderer` units, and `OpenXmlChart`,
+  containing the `OpenXmlChartParser` unit — see _CanvasNetCharts System Verification_
+  (`canvas-net-charts.md`)
+- **CanvasNetPptx (System)** — A separate, independently-distributed software system providing
+  PowerPoint (`.pptx`) presentation-rendering support, containing a single unit,
+  `PptxDocument` — see _CanvasNetPptx System Verification_ (`canvas-net-pptx.md`)
 
 The following OTS items are also covered:
 

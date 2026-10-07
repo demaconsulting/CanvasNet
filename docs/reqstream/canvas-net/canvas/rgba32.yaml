@@ -67,3 +67,29 @@ sections:
                   - Rgba32_TryParse_ValidInput_ReturnsTrueAndSetsResult
                   - Rgba32_TryParse_InvalidInput_ReturnsFalseAndSetsResultToDefault
                   - Rgba32_TryParse_Null_ReturnsFalse
+
+              - id: CanvasNet-Canvas-Rgba32-CompositeOver
+                title: >-
+                  The Rgba32 struct shall provide an internal single-pixel CompositeOver helper
+                  computing the standard Porter-Duff "over" alpha-compositing formula (straight
+                  alpha in and out, outA = fgA + bgA * (1 - fgA), each color channel outC =
+                  (fgC * fgA + bgC * bgA * (1 - fgA)) / outA when outA != 0 else 0,
+                  round-half-away-from-zero, clamped to [0, 255]) identical to Surface's own
+                  per-row CompositeOver formula, exposed cross-assembly to
+                  DemaConsulting.CanvasNet.Pptx and DemaConsulting.CanvasNet.Pdf for their own
+                  one-sampled-pixel-at-a-time image-compositing loops.
+                justification: |
+                  Both sibling renderer packages composite a decoded source image onto a
+                  destination Surface one sampled pixel at a time; sharing one tested helper
+                  rather than duplicating the blending math independently in both assemblies
+                  avoids a second, divergent implementation of the same formula drifting out of
+                  sync with Surface's own CompositeOver(Rgba32) row-based formula. This fixes a
+                  confirmed real-world bug where both renderers previously overwrote the
+                  destination pixel outright with the raw sampled source pixel, ignoring its
+                  alpha channel entirely.
+                tests:
+                  - Rgba32_CompositeOver_FullyTransparentForeground_ReturnsBackgroundUnchanged
+                  - Rgba32_CompositeOver_FullyOpaqueForeground_ReturnsForegroundExactly
+                  - Rgba32_CompositeOver_PartiallyTransparentForegroundOverOpaqueBackground_BlendsExactly
+                  - Rgba32_CompositeOver_BothBackgroundAndForegroundPartiallyTransparent_BlendsExactly
+                  - Rgba32_CompositeOver_BothBackgroundAndForegroundFullyTransparent_ReturnsZeroedResult

@@ -176,6 +176,9 @@ public styling values are preserved exactly.
 - `StrokeOutliner_Outline_MiterJoinExceedingLimit_FallsBackToBevelVertex`
 - `StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_ProducesNoInvalidHole`
 - `StrokeOutliner_Outline_ClosedSquareHalfWidthNearButBelowInradius_ProducesValidHole`
+- `StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedClosedContour_ProducesValidThinRing`
+- `StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedSmallCircleThickStroke_CollapsesToSolid`
+- `StrokeOutliner_Outline_SmallCircleRealisticTessellation_HalfWidthJustOverInradius_CollapsesToSolid`
 
 These tests verify the intermediate geometry contracts that feed the public API: preserving
 open/closed state, applying SVG-style dash semantics, stitching seam-wrapping visible runs,
@@ -183,7 +186,20 @@ normalizing every independently-emitted outer outline (open-line outlines, point
 closed-contour outer rings) to a single consistent winding direction regardless of outline kind or
 source authoring order, tolerating segments spanning near-extreme float32 coordinates without
 overflowing to a degenerate outline, and producing shell rings with opposite winding for
-`FillRule.NonZero`.
+`FillRule.NonZero`. The middle two of these cover a confirmed regression fix: a closed, curved
+contour tessellated finely relative to its own large coordinate magnitude (for example, a
+PPTX shape's native EMU-space ellipse geometry, or an equivalent plain-coordinate repro at the
+same magnitude/tessellation density) must still produce a valid, two-ring thin outline rather than
+false-positively collapsing to a solid fill (`...ProducesValidThinRing`), while a genuine
+thick-stroke-exceeds-inradius case at the same large coordinate magnitude and tessellation density
+must still correctly collapse to a solid fill (`...CollapsesToSolid`) - proving the fix is scale-
+relative, not merely a loosened absolute threshold. The last of these covers a second, related
+regression fix: the collapse detector's tolerance must be derived from each edge's own local
+flattened source-segment length, not from the whole contour's bounding-box span, because the raw
+backwards-offset-edge signal it is compared against shrinks proportionally to tessellation density
+(`1/N`) independent of how far the stroke half-width exceeds the inradius - a small shape at a
+realistic (not unrealistically fine) tessellation density, stroked only 1% over its own inradius,
+must still correctly collapse to a solid fill (`...SmallCircleRealisticTessellation_...`).
 
 #### Complexity Verification Policy
 

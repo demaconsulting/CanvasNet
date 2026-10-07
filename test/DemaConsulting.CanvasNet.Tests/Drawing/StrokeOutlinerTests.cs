@@ -632,4 +632,160 @@ public class StrokeOutlinerTests
 
         return inside;
     }
+
+    /// <summary>
+    ///     Builds a closed, near-circular polygon approximation of a circle at the requested
+    ///     point count - standing in for a PPTX ellipse shape's own Bezier-flattened geometry at
+    ///     native EMU-space coordinate magnitude and tessellation density, without depending on
+    ///     the Bezier flattener itself.
+    /// </summary>
+    private static List<Vector2> BuildCircle(Vector2 center, float radius, int pointCount)
+    {
+        var points = new List<Vector2>(pointCount);
+        for (var i = 0; i < pointCount; i++)
+        {
+            var angle = MathF.Tau * i / pointCount;
+            points.Add(center + radius * new Vector2(MathF.Cos(angle), MathF.Sin(angle)));
+        }
+
+        return points;
+    }
+
+    /// <summary>
+    ///     Proves the fix for the "closed-contour thin-stroke false collapse" regression: a
+    ///     large-coordinate (EMU-scale-like magnitude), finely-tessellated closed contour - the
+    ///     same shape of input the PPTX renderer's own stroke-outline resolution actually produces
+    ///     for a real-world PPTX ellipse shape at native slide scale - stroked with a thin
+    ///     half-width must still produce a genuine thin ring (two counter-wound rings), not a
+    ///     false "inner-ring collapse" that discards the hole and fills the whole interior solid.
+    /// </summary>
+    /// <remarks>
+    ///     Before the fix, <c>StrokeOutliner.BuildClosedSide</c>'s inner-ring collapse
+    ///     detector compared the (coordinate-scale-dependent) projected offset-edge length against
+    ///     a fixed absolute <c>NearZeroDistance</c> (<c>1e-6f</c>). At this coordinate magnitude
+    ///     and tessellation density, ordinary float32 storage-quantization noise in the flattened
+    ///     vertices - amplified by the near-parallel-offset-lines division inherent to resolving
+    ///     each forced exact-intersection point at such a tiny per-vertex turn angle - produced a
+    ///     measurably negative projected length even though the stroke's half-width is nowhere
+    ///     close to this contour's inradius, misclassifying this ring as collapsed. This exact
+    ///     scenario (a ~914400-unit-radius circle, a ~9525-unit stroke width - PowerPoint's own
+    ///     default <c>&lt;a:ln&gt;</c> width, and ~8192-point tessellation density, matching what
+    ///     <c>StrokePathFlattener.Flatten</c> actually produces for this geometry at the library's
+    ///     pixel-tuned default <c>flattenTolerance: 0.25f</c>) reproduced the reported real-world
+    ///     bug (an oval shape with <c>&lt;a:noFill/&gt;</c> and a thin, color-only
+    ///     <c>&lt;a:ln&gt;</c> rendering as a solid disc instead of a thin ring).
+    /// </remarks>
+    [Fact]
+    public void StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedClosedContour_ProducesValidThinRing()
+    {
+        // Arrange: a circle at native PPTX EMU-space magnitude (radius ~1 inch) tessellated as
+        // finely as StrokePathFlattener's own default 0.25f tolerance actually produces for this
+        // geometry, stroked with PowerPoint's own default <a:ln> width (9525 EMU, half-width
+        // 4762.5 EMU) - nowhere close to this circle's own inradius of ~914400 EMU.
+        const float radius = 914400f;
+        var center = new Vector2(radius, radius);
+        var points = BuildCircle(center, radius, pointCount: 8192);
+        var style = new StrokeStyle(9525f);
+
+        // Act
+        var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
+
+        // Assert: a genuine thin ring - one outer ring and one counter-wound inner ring (the
+        // hole), never a single collapsed-to-solid outer ring.
+        Assert.Equal(2, polygons.Count);
+        Assert.True(GetSignedArea(polygons[0]) * GetSignedArea(polygons[1]) < 0f);
+
+        var outerRing = polygons[0];
+        var innerRing = polygons[1];
+
+        // The circle's own center must fall inside the hole (the inner ring) - i.e. NOT covered
+        // by the stroke band - exactly the "center sample must not be covered" assertion from the
+        // bug report.
+        Assert.True(IsPointInPolygon(center, outerRing));
+        Assert.True(IsPointInPolygon(center, innerRing));
+
+        // A point on the circle's own boundary must be covered by the stroke band (inside the
+        // outer ring, but outside the inner ring/hole) - the "boundary sample must be covered"
+        // assertion from the bug report.
+        var boundaryPoint = center + new Vector2(radius, 0f);
+        Assert.True(IsPointInPolygon(boundaryPoint, outerRing));
+        Assert.False(IsPointInPolygon(boundaryPoint, innerRing));
+    }
+
+    /// <summary>
+    ///     Proves the false-collapse fix (above) does not regress the genuine "half-width exceeds
+    ///     inradius" collapse-to-solid case at the same large coordinate magnitude/tessellation
+    ///     density the false-positive fix targets - a thick stroke on a small, finely-tessellated
+    ///     closed contour must still correctly collapse to a solid fill with no hole.
+    /// </summary>
+    [Fact]
+    public void StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedSmallCircleThickStroke_CollapsesToSolid()
+    {
+        // Arrange: a small circle (radius 10, at a large coordinate offset so its own absolute
+        // magnitude is still large) tessellated just as finely as the large-radius case above,
+        // stroked with a half-width (50) that comfortably exceeds its own inradius (10).
+        const float radius = 10f;
+        var center = new Vector2(1_000_000f, 1_000_000f);
+        var points = BuildCircle(center, radius, pointCount: 8192);
+        var style = new StrokeStyle(100f);
+
+        // Act
+        var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
+
+        // Assert: exactly one polygon (no hole) - the whole circle interior renders as solid
+        // stroke, and the circle's own center is covered by it.
+        var polygon = Assert.Single(polygons);
+        Assert.True(IsPointInPolygon(center, polygon));
+    }
+
+    /// <summary>
+    ///     Proves the inner-ring collapse detector in <c>StrokeOutliner.BuildClosedSide</c>
+    ///     correctly detects a genuine "half-width exceeds inradius" collapse at a realistic
+    ///     tessellation density for a small shape, not just at the unrealistically fine
+    ///     8192-point density used by the large-coordinate regression tests above.
+    /// </summary>
+    /// <remarks>
+    ///     Before the fix, the collapse detector compared each edge's projected (potentially
+    ///     backwards-running) offset-edge length against a single tolerance computed once for the
+    ///     whole contour from its bounding-box geometric-mean span
+    ///     (<c>relativeCollapseTolerance * sqrt(RingAreaScale(points))</c>). That raw projected
+    ///     length - for a circle of true radius <c>R</c> stroked with half-width <c>h</c> and
+    ///     tessellated into <c>N</c> vertices - shrinks proportionally to <c>1/N</c> as the chord
+    ///     between two adjacent forced-exact-intersection inner-ring vertices (each at radius
+    ///     <c>R - h</c>, independent of <c>N</c>), purely as an artifact of finer tessellation
+    ///     producing more, shorter inner-ring edges - NOT because the genuine over-erosion
+    ///     shrinks. A tolerance tied only to the whole contour's (constant, <c>N</c>-independent)
+    ///     bounding-box span cannot track this density-dependent shrinkage of the signal it is
+    ///     compared against, so at a realistic tessellation density for a small radius-10 object
+    ///     (64 points, matching what <see cref="StrokePathFlattener.Flatten"/> actually produces at
+    ///     this library's own default <c>flattenTolerance: 0.25f</c>), the detector failed to
+    ///     flag a half-width only 1% over this circle's own inradius as collapsed, instead
+    ///     emitting a spurious, invalid inner ring that still covered the circle's own center.
+    ///     The fix replaces the whole-contour tolerance with a per-edge tolerance derived from
+    ///     that edge's own flattened source-segment length, which scales with density the same
+    ///     way the raw signal does, restoring a stable, density-invariant comparison.
+    /// </remarks>
+    [Fact]
+    public void StrokeOutliner_Outline_SmallCircleRealisticTessellation_HalfWidthJustOverInradius_CollapsesToSolid()
+    {
+        // Arrange: a radius-10 circle tessellated at a realistic point count for this object
+        // size/scale (64 points - a reasonable proxy for what the library's own default
+        // flattenTolerance: 0.25f produces for a radius-10 shape), stroked with a half-width
+        // (10.1) only 1% over this circle's own inradius (10) - the exact scenario reported by
+        // the code-review finding.
+        const float radius = 10f;
+        var center = new Vector2(0f, 0f);
+        var points = BuildCircle(center, radius, pointCount: 64);
+        var style = new StrokeStyle(20.2f);
+
+        // Act
+        var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
+
+        // Assert: exactly one polygon (no hole) - the whole circle interior renders as solid
+        // stroke, and the circle's own center is covered by it. A spurious/invalid inner ring
+        // being retained instead (e.g. two polygons, or one polygon that does not cover the
+        // center) indicates the collapse was not detected.
+        var polygon = Assert.Single(polygons);
+        Assert.True(IsPointInPolygon(center, polygon));
+    }
 }

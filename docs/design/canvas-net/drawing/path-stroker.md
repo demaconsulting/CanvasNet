@@ -163,6 +163,49 @@ instances directly. Every emitted polygon becomes one closed subpath in the resu
   otherwise become the hole, omits that ring entirely rather than emitting it as a hole - matching
   what a true geometric erosion of the contour by that half-width would produce (an empty inner
   boundary) and leaving the whole interior filled as solid stroke.
+  - **Density-relative false-positive/false-negative tolerance (regression fix).** The
+    backwards-edge test tolerates a bounded amount of backwards-projected length before concluding
+    a ring has genuinely collapsed, and that tolerance is derived **per edge**, from that edge's
+    own flattened *source*-segment length (`Vector2.Distance(points[i], points[next]) *
+    relativeCollapseTolerance`), floored at the original fixed `NearZeroDistance` for tiny or
+    degenerate segments. This replaced two successive earlier tolerance bases, each of which
+    produced a confirmed regression: a first fixed absolute tolerance (`NearZeroDistance = 1e-6f`,
+    tuned for small/pixel-scale coordinates) was swamped by float32 storage-quantization noise at
+    large coordinate magnitude and finely tessellated segments - for example a PPTX shape's
+    native EMU-space geometry (coordinates in the hundreds of thousands to millions), tessellated
+    finely enough that each segment subtends only a tiny turn angle, forcing each
+    forced-exact-intersection point to divide by a correspondingly tiny (near-parallel-offset-
+    lines) cross-product denominator and amplifying that noise into a projected edge length that
+    is measurably, not just infinitesimally, negative - a false positive that collapsed a
+    perfectly valid thin ring (for example, a `noFill` ellipse's thin `<a:ln>` outline) into a
+    solid fill. A second tolerance, derived once from the whole contour's bounding-box extent
+    (its geometric-mean span, `sqrt(RingAreaScale(points))`), fixed that false positive but
+    introduced a **false negative**: for a contour of true local radius of curvature `R`
+    tessellated into `N` vertices, the raw chord length between two adjacent
+    forced-exact-intersection inner-ring vertices (each at radius `R - h`, independent of `N`)
+    shrinks proportionally to `1/N` purely because finer tessellation produces more, shorter
+    inner-ring edges - not because the genuine over-erosion shrinks. A single tolerance computed
+    from the whole contour's (`N`-independent) bounding-box span could not track this
+    density-dependent shrinkage of the very signal it was compared against, so at a realistic
+    tessellation density for a small shape it silently stopped detecting a genuine
+    half-width-exceeds-inradius collapse for a growing range of real over-erosions, not just a
+    "near-exact-inradius" edge case. Deriving the tolerance per edge from that edge's own local
+    source-segment length tracks the same `1/N` density scaling the raw signal undergoes,
+    restoring a stable, density-invariant comparison without reintroducing the original
+    large-coordinate false positive. Promoting the line-intersection arithmetic to `double`
+    precision alone does *not* fix either regression (confirmed by direct experimentation): the
+    noise already exists in the float32-stored flattened vertices themselves, before the
+    intersection division even runs, so more precision in the division does not recover
+    information already lost, and it does nothing to address the density-dependent shrinkage of
+    the genuine-collapse signal either. All three cases - the original genuine-collapse case (a
+    thick stroke whose half-width truly exceeds a small shape's inradius at a fine, large-scale
+    tessellation), the large-coordinate false-positive-at-scale case, and the realistic-density
+    false-negative case - are covered by dedicated unit tests - see
+    `StrokeOutlinerTests.StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_ProducesNoInvalidHole`,
+    `StrokeOutlinerTests.StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedClosedContour_ProducesValidThinRing`,
+    `StrokeOutlinerTests.StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedSmallCircleThickStroke_CollapsesToSolid`,
+    and
+    `StrokeOutlinerTests.StrokeOutliner_Outline_SmallCircleRealisticTessellation_HalfWidthJustOverInradius_CollapsesToSolid`.
 - **Degenerate subpaths.** A single point (or a path collapsed to one effective point after
   duplicate-vertex simplification) renders as a cap-shaped mark: round creates a full circle,
   square creates an axis-aligned width-by-width square, and butt creates nothing. This same

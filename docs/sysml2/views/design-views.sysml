@@ -20,6 +20,22 @@ package CanvasNet {
         expose CanvasNetPdfSystem;
     }
 
+    view CanvasNetPptxView {
+        expose CanvasNetPptxSystem;
+    }
+
+    view CanvasNetChartsView {
+        expose CanvasNetChartsSystem;
+    }
+
+    view ChartModelView {
+        expose ChartModel;
+    }
+
+    view OpenXmlChartView {
+        expose OpenXmlChart;
+    }
+
     view CanvasView {
         expose Canvas;
     }

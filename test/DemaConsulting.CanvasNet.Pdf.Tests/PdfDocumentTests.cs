@@ -735,6 +735,25 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Reads the raw bytes of a bundled embedded-resource font file (for example
+    ///     <c>"LiberationSans-Regular.ttf"</c>) straight from <c>DemaConsulting.CanvasNet</c>'s own
+    ///     assembly, for use as a test fixture's own real <c>/FontFile2</c> payload - letting a
+    ///     test embed the exact same font bytes <see cref="SystemFontCatalog.LoadBundledFallback"/>
+    ///     would otherwise load, so the test's expectations never depend on which fonts happen to
+    ///     be installed on the host running it.
+    /// </summary>
+    /// <param name="bundledFileName">The bundled font file's name, for example <c>"LiberationSans-Regular.ttf"</c>.</param>
+    private static byte[] ReadBundledFontBytes(string bundledFileName)
+    {
+        var logicalName = $"DemaConsulting.CanvasNet.Fonts.BundledFonts.{bundledFileName}";
+        using var stream = typeof(SystemFontCatalog).Assembly.GetManifestResourceStream(logicalName)
+            ?? throw new InvalidOperationException($"Embedded resource '{logicalName}' not found.");
+        using var memory = new MemoryStream();
+        stream.CopyTo(memory);
+        return memory.ToArray();
+    }
+
+    /// <summary>
     ///     Builds a single glyph's Type 2 charstring bytecode: a filled square outline spanning
     ///     font-design-space <c>(100, 100)</c>-<c>(500, 500)</c> (matching
     ///     <see cref="BuildEmbeddedFontBytes"/>'s own TrueType-outline square glyph, so both
@@ -4567,6 +4586,53 @@ public class PdfDocumentTests
         }
     }
 
+    /// <summary>
+    ///     Regression guard for the stroke-outliner false inner-ring collapse fix shared with
+    ///     <c>DemaConsulting.CanvasNet.Pptx</c> (see the companion planning report): a closed,
+    ///     stroke-only (no fill) circular path built from four cubic Bezier <c>c</c> curves must
+    ///     render as a thin ring - its own center must remain unpainted (the <c>Transparent</c>
+    ///     background), not the stroke color - rather than collapsing to a solid-filled disc.
+    /// </summary>
+    /// <remarks>
+    ///     <c>PdfDocument.PaintStroke</c> strokes an already device-space-baked path (per its own
+    ///     XML doc remarks), so unlike <c>PptxDocument.ResolveStrokeOutline</c> (which
+    ///     strokes shape geometry in native, large-magnitude EMU space before any device
+    ///     transform), a typical PDF content stream's device-space coordinates stay modest - the
+    ///     investigation behind this fix found this makes the shared <c>StrokeOutliner</c> defect
+    ///     unlikely to trigger in practice for PDF. This test still exercises the identical,
+    ///     shared <c>StrokeOutliner.BuildClosedSide</c> code path with a genuinely closed,
+    ///     curved (not merely straight-edged) contour, guarding against any future regression of
+    ///     the underlying fix.
+    /// </remarks>
+    [Fact]
+    public void PdfDocument_PathOps_StrokeOnlyClosedBezierCircle_RendersThinRingNotSolidDisc()
+    {
+        // A closed circle approximated by four cubic Bezier arcs (center 50,50; radius 35; the
+        // standard kappa = 0.5522847498 control-point offset), stroked only (no fill) with a 6
+        // unit-wide line - thick enough to sample reliably, thin enough to leave the circle's own
+        // center well clear of the ring.
+        const string content =
+            "6 w 85 50 m " +
+            "85 69.33 69.33 85 50 85 c " +
+            "30.67 85 15 69.33 15 50 c " +
+            "15 30.67 30.67 15 50 15 c " +
+            "69.33 15 85 30.67 85 50 c " +
+            "h S";
+
+        using var surface = RenderContent(content);
+
+        // The circle's own center (PDF-space (50,50) -> pixel row 100-50=50) remains the
+        // Transparent background - proving the ring's own interior is not filled solid.
+        Assert.Equal(default, surface[50, 50]);
+
+        // The circle's own top boundary (PDF-space (50,85) -> pixel row 100-85=15) is painted
+        // the stroke color - proving the ring itself still paints.
+        Assert.Equal(Black, surface[50, 15]);
+
+        // A corner of the canvas, well outside the circle's own bounding box, remains unpainted.
+        Assert.Equal(default, surface[5, 5]);
+    }
+
     /// <summary>Proves that a malformed operand count for a path-construction operator throws <see cref="InvalidDataException"/>.</summary>
     [Theory]
     [InlineData("m")]
@@ -5004,6 +5070,36 @@ public class PdfDocumentTests
         // Act & Assert
         var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
         Assert.Equal("pdf-colorspace-Pattern", exception.Feature);
+    }
+
+    /// <summary>
+    ///     Proves that <c>/CS0 cs</c> naming a nested <c>[/Pattern /Pattern]</c> array (a
+    ///     <c>/Pattern</c> color space whose own declared base is itself another <c>/Pattern</c>
+    ///     color space) declared in <c>/Resources/ColorSpace</c> throws
+    ///     <see cref="UnsupportedImageFeatureException"/> with feature
+    ///     <c>pdf-colorspace-Pattern-nested</c> - not a raw/undocumented
+    ///     <see cref="InvalidOperationException"/> (the previously documented "unreachable"
+    ///     fail-closed backstop in <c>ComponentCount</c>'s own <c>Family.Pattern</c> arm).
+    ///     Rejecting this nesting proactively at <c>cs</c>-operator time (inside
+    ///     <c>ResolvePatternColorSpace</c>), rather than only when <c>ComponentCount</c> is later
+    ///     reached for an uncolored tiling pattern, both fails closed earlier and follows this
+    ///     unit's established "well-formed but unsupported PDF feature"
+    ///     <see cref="UnsupportedImageFeatureException"/> contract consistently.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Color_PatternColorSpace_NestedPatternBase_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange: a /Pattern color space array whose own 2nd element is itself a /Pattern array.
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs",
+            "/ColorSpace << /CS0 [/Pattern /Pattern] >>",
+            []);
+
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal("pdf-colorspace-Pattern-nested", exception.Feature);
     }
 
     /// <summary>Proves that <c>/P1 scn</c> (colored pattern operand, name alone, no base space) resolves a declared pattern successfully.</summary>
@@ -5486,6 +5582,37 @@ public class PdfDocumentTests
         Assert.Equal(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 25]);
         Assert.Equal(new Canvas.Rgba32(10, 10, 10, 255), surface[25, 75]);
         Assert.Equal(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 75]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>FlateDecode</c>+TIFF-predictor (<c>/Predictor 2</c>) stream whose
+    ///     decoded length is not an exact multiple of the row stride (<c>rowBytes</c>) throws
+    ///     <see cref="InvalidDataException"/> rather than silently truncating the incomplete
+    ///     trailing row via integer-division - the same validation
+    ///     <see cref="PdfDocument_Images_FlateDecodePngFixedPredictor_LengthNotMultipleOfRowStride_ThrowsInvalidDataException"/>
+    ///     already proves for the sibling PNG predictor path.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Images_FlateDecodeTiffPredictor_LengthNotMultipleOfRowStride_ThrowsInvalidDataException()
+    {
+        // Arrange: rowBytes is 2 (1 colors * 8 bits * 2 columns / 8), but only 3 bytes of decoded
+        // payload are supplied for a 2x2 image (needs 4) - not a multiple of the stride.
+        var compressed = ZlibCompress([10, 20, 30]);
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 "
+            + "/Filter /FlateDecode /DecodeParms << /Predictor 2 /Colors 1 /BitsPerComponent 8 /Columns 2 >>",
+            compressed);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 
     /// <summary>
@@ -7336,6 +7463,92 @@ public class PdfDocumentTests
         // Act & Assert: renders without throwing, using the bundled Liberation Sans fallback
         using var surface = RenderPdfBytes(bytes);
         Assert.NotNull(surface);
+    }
+
+    /// <summary>
+    ///     Proves <c>PdfDocument.ResolveFallbackFont</c>'s new per-character
+    ///     glyph-coverage fallback for an ordinary (non-<c>Symbol</c>/<c>ZapfDingbats</c>)
+    ///     non-embedded font: an unmatched, fixed-pitch <c>/BaseFont</c> family's primary
+    ///     candidate (the host's installed monospace substitute, or the bundled
+    ///     <c>LiberationMono-Regular</c> font when none is installed) does not cover U+0237
+    ///     (LATIN SMALL LETTER DOTLESS J, confirmed absent from both
+    ///     <c>LiberationMono-Regular.ttf</c>'s and the host's own <c>Courier New</c>'s <c>cmap</c>
+    ///     via a direct <c>fontTools</c> check performed while authoring this test) - but the
+    ///     always-appended second candidate, plain bundled <c>LiberationSans-Regular</c>, does
+    ///     cover it. A <c>/Differences</c> entry (<c>/uni0237</c>, the Adobe-Glyph-List generic
+    ///     hex-codepoint naming convention) maps character code <c>1</c> directly to U+0237
+    ///     without needing a Standard-14 name. Mirrors <c>PptxDocument.TextLayout.cs</c>'s own
+    ///     per-character fallback regression tests for the parallel PPTX text-rendering path.
+    ///     <para>
+    ///     Rather than merely asserting "some pixel was painted" (which a mismatched primary
+    ///     font's own <c>.notdef</c> glyph could also satisfy, since real-world <c>.notdef</c>
+    ///     glyphs are often a non-empty box outline, not literally empty), this test renders a
+    ///     second, reference fixture that embeds the bundled <c>LiberationSans-Regular.ttf</c>'s
+    ///     own bytes directly as its <c>/FontFile2</c> (bypassing <c>ResolveFallbackFont</c>
+    ///     entirely - embedded fonts always take priority, per
+    ///     <c>PdfDocument_BuildResolvedFont_EmbeddedFontFileTakesPriorityOverFallback</c> above)
+    ///     and asserts the two renders are pixel-identical - proving the fixed-pitch fixture
+    ///     painted U+0237 via the exact same bundled <c>LiberationSans-Regular</c> glyph outline,
+    ///     not its mismatched primary candidate's differently-shaped <c>.notdef</c> box.
+    ///     </para>
+    /// </summary>
+    [Fact]
+    public void PdfDocument_BuildResolvedFont_PrimaryMatchMissesCodepoint_FallsBackToBundledLiberationSans()
+    {
+        // Arrange: an unmatched, fixed-pitch family (/Flags 1 -> FixedPitch bit set, Serif unset)
+        // with /Differences mapping code 1 to U+0237 - a codepoint the resolved primary candidate
+        // lacks but the always-appended generic bundled LiberationSans-Regular candidate covers.
+        var descriptorObj = "<< /Type /FontDescriptor /Flags 1 >>"u8.ToArray();
+        var fontDictObj =
+            "<< /Type /Font /Subtype /TrueType /BaseFont /TotallyUnlikelyFontFamilyXyzzyMono /FirstChar 1 /LastChar 1 /Widths [600] /FontDescriptor 6 0 R /Encoding << /Differences [1 /uni0237] >> >>"u8.ToArray();
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 40 Tf 10 30 Td <01> Tj ET", "/Font << /F1 5 0 R >>",
+            [fontDictObj, descriptorObj]);
+
+        // Arrange a reference fixture: identical content/position/width, but with the bundled
+        // LiberationSans-Regular.ttf's own bytes embedded directly as /FontFile2, so its render is
+        // guaranteed (independent of ResolveFallbackFont/the host's installed fonts) to be exactly
+        // bundled LiberationSans-Regular's own U+0237 glyph outline.
+        var liberationSansBytes = ReadBundledFontBytes("LiberationSans-Regular.ttf");
+        var (referenceResourcesBody, referenceExtraObjects) = BuildSimpleTrueTypeFontResources(
+            liberationSansBytes,
+            fontDictExtra: "/FirstChar 1 /LastChar 1 /Widths [600] /Encoding << /Differences [1 /uni0237] >>");
+
+        var referenceBytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 40 Tf 10 30 Td <01> Tj ET", referenceResourcesBody, referenceExtraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+        using var referenceSurface = RenderPdfBytes(referenceBytes);
+
+        // Assert: some glyph ink was actually painted...
+        var paintedAnyPixel = false;
+        for (var y = 0; y < surface.Height && !paintedAnyPixel; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                if (surface[x, y].A > 0)
+                {
+                    paintedAnyPixel = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(paintedAnyPixel, "Expected U+0237 to paint via the bundled Liberation Sans coverage fallback, not .notdef.");
+
+        // ...and, crucially, it is pixel-identical to the embedded-LiberationSans reference render -
+        // proving the painted ink is U+0237's actual LiberationSans-Regular glyph outline, not the
+        // mismatched primary candidate's own (possibly also non-empty) .notdef box shape.
+        Assert.Equal(referenceSurface.Width, surface.Width);
+        Assert.Equal(referenceSurface.Height, surface.Height);
+        for (var y = 0; y < surface.Height; y++)
+        {
+            Assert.True(
+                surface.GetRowSpanBytes(y).SequenceEqual(referenceSurface.GetRowSpanBytes(y)),
+                $"Row {y} differs from the LiberationSans-direct reference render.");
+        }
     }
 
     /// <summary>
@@ -10267,6 +10480,44 @@ public class PdfDocumentTests
         Assert.True(surface[50, 50].R < surface[95, 50].R);
     }
 
+    /// <summary>
+    ///     Proves that <see cref="PdfDocument"/> reads the shading dictionary's own <c>/Domain</c>
+    ///     entry (PDF 32000-1 §8.7.4.5.3) when present, instead of always assuming the default
+    ///     <c>[0, 1]</c> - a non-default <c>/Domain</c> must shift which portion of the axial
+    ///     gradient's own color ramp is sampled at a given position along <c>/Coords</c>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Patterns_ShadingPattern_NonDefaultDomain_RespectsDomainBoundsWhenSampling()
+    {
+        // Arrange: axis from (0,0) to (100,0), /Domain [0.2 0.8], linear black -> white function.
+        // With the correct (non-default) /Domain, t=0.2 (near x=2) must map to domain value 0.2
+        // (not 0.0) and t=0.8 (near x=97) must map to domain value 0.8 (not 1.0) - i.e. the
+        // sampled color at both ends is noticeably less extreme than it would be under the
+        // (buggy) always-[0,1] behavior.
+        var patternDict = "<< /PatternType 2 /Shading 6 0 R >>"u8.ToArray();
+        var shadingDict = "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Domain [0.2 0.8] /Function 7 0 R >>"u8.ToArray();
+        var functionStream = BuildStreamObjectBody(
+            "/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P1 scn 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternDict, shadingDict, functionStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: near x=2 (t~0.02 along /Coords), the correct sampled domain value is
+        // ~0.2 + 0.02*(0.8-0.2) ~= 0.212 -> R ~= 54; under the old always-[0,1] bug it would be
+        // near-black (R close to 0). Near x=97 (t~0.97), correct domain value is
+        // ~0.2 + 0.97*0.6 ~= 0.782 -> R ~= 199; under the old bug it would be near-white (R close
+        // to 255). Generous ranges absorb anti-aliasing/rounding while still distinguishing
+        // correct-domain sampling from the old hardcoded-[0,1] behavior.
+        Assert.InRange(surface[2, 50].R, 40, 70);
+        Assert.InRange(surface[97, 50].R, 185, 215);
+    }
+
     /// <summary>Proves that an unsupported <c>/ShadingType</c> (<c>1</c> or <c>4</c>) throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-shading-type-{n}</c>.</summary>
     [Theory]
     [InlineData(1)]
@@ -10439,6 +10690,42 @@ public class PdfDocumentTests
             [patternStream]);
 
         // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>
+    ///     Proves that when a tiling pattern cell's own content stream execution throws partway
+    ///     through (here, an undeclared <c>/XObject</c> reference inside the cell content), the
+    ///     exception still propagates cleanly (the already-allocated tile surface
+    ///     is disposed along that path inside <c>RenderTilingPatternCell</c>, rather than leaked).
+    /// </summary>
+    /// <remarks>
+    ///     <c>DemaConsulting.CanvasNet.Canvas.Surface</c> currently holds only managed memory (no finalizer, no
+    ///     unmanaged handle) - it is forward-compatible <see cref="IDisposable"/> scaffolding per
+    ///     its own doc comments, so there is presently no CLR-observable native/unmanaged
+    ///     resource for a dedicated leak-detection test to assert against; the GC would reclaim
+    ///     an undisposed instance regardless. This test instead confirms there is no regression
+    ///     in the exception-propagation behavior itself (no secondary exception, no hang, no
+    ///     corrupted shared state) when the fix's new <c>try</c>/<c>catch</c>/<c>Dispose</c> path
+    ///     is exercised.
+    /// </remarks>
+    [Fact]
+    public void PdfDocument_Patterns_TilingPattern_CellExecutionThrows_PropagatesCleanly()
+    {
+        // Arrange: pattern /P1's own content stream references an undeclared XObject, which
+        // throws partway through RenderTilingPatternCell's nested ExecuteOperators call.
+        var patternStream = BuildStreamObjectBody(
+            "/PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 10 10] /XStep 10 /YStep 10",
+            "/NoSuchXObj Do"u8.ToArray());
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P1 scn 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternStream]);
+
+        // Act & Assert: propagates cleanly as InvalidDataException, with no secondary/different
+        // exception obscuring it (which an unhandled Dispose-path failure could otherwise cause).
         Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 

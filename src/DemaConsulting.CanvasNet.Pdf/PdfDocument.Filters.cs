@@ -242,6 +242,12 @@ public sealed partial class PdfDocument
     ///     same component's earlier byte in the same row - no per-row filter-type byte is present
     ///     (unlike the PNG predictor forms).
     /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="data"/>'s length is not an exact multiple of the row
+    ///     stride (<c>rowBytes</c>) - a partial trailing row would otherwise be silently dropped
+    ///     by integer-division truncation rather than rejected, mirroring the equivalent check in
+    ///     <see cref="ApplyPngPredictor"/>.
+    /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when <paramref name="bitsPerComponent"/> is not <c>8</c>.
     /// </exception>
@@ -256,6 +262,12 @@ public sealed partial class PdfDocument
 
         var bytesPerPixel = Math.Max(1, colors * bitsPerComponent / 8);
         var rowBytes = (colors * bitsPerComponent * columns + 7) / 8;
+        if (rowBytes != 0 && data.Length % rowBytes != 0)
+        {
+            throw new InvalidDataException(
+                $"TIFF predictor data length ({data.Length}) is not a multiple of the row stride ({rowBytes}).");
+        }
+
         var result = (byte[])data.Clone();
         var rowCount = rowBytes == 0 ? 0 : result.Length / rowBytes;
         for (var row = 0; row < rowCount; row++)

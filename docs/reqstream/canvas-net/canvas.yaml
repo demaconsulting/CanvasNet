@@ -396,6 +396,24 @@ sections:
               - Rgba32_Parse_6HexUppercase_ReturnsExpectedRgbaWithAlpha255
               - Rgba32_TryParse_ValidInput_ReturnsTrueAndSetsResult
 
+          - id: CanvasNet-Canvas-PixelCompositing
+            title: >-
+              The Canvas subsystem shall provide a single-pixel Porter-Duff "over" alpha-
+              compositing helper on Rgba32, identical to Surface's own per-row CompositeOver
+              formula, exposed cross-assembly for a sibling renderer package's own
+              one-sampled-pixel-at-a-time image-compositing loops.
+            justification: |
+              Both sibling renderer packages (DemaConsulting.CanvasNet.Pptx and
+              DemaConsulting.CanvasNet.Pdf) composite a decoded source image onto a destination
+              Surface one sampled pixel at a time; sharing one tested helper rather than
+              duplicating the blending math independently in both assemblies avoids a second,
+              divergent implementation of the same formula drifting out of sync with Surface's
+              own row-based CompositeOver formula.
+            children:
+              - CanvasNet-Canvas-Rgba32-CompositeOver
+            tests:
+              - Rgba32_CompositeOver_PartiallyTransparentForegroundOverOpaqueBackground_BlendsExactly
+
           - id: CanvasNet-Canvas-Disposal
             title: >-
               The Canvas subsystem shall provide explicit resource-lifetime management for its

@@ -452,7 +452,13 @@ public sealed partial class PdfDocument
     ///     simplification. A non-invertible (degenerate) <paramref name="ctm"/> silently paints
     ///     nothing, rather than throwing. Per the PDF specification's image-space convention,
     ///     image sample row <c>0</c> is the <em>top</em> of the unit square (the opposite of
-    ///     user-space's y-up convention): <c>row = floor((1 - v) * image.Height)</c>.
+    ///     user-space's y-up convention): <c>row = floor((1 - v) * image.Height)</c>. Each sampled
+    ///     source pixel is alpha-blended "over" the existing destination pixel via
+    ///     <see cref="Rgba32.CompositeOver"/> (standard Porter-Duff "over" compositing) rather
+    ///     than overwriting it outright, so a source pixel with a non-opaque (including fully
+    ///     transparent) alpha channel lets the existing destination content show through
+    ///     correctly instead of being replaced by whatever RGB value happens to be stored
+    ///     alongside that transparent alpha.
     /// </remarks>
     private void CompositeImageOntoSurface(Surface image, Matrix3x2 ctm)
     {
@@ -491,7 +497,7 @@ public sealed partial class PdfDocument
 
                 var column = Math.Clamp((int)Math.Floor(u * image.Width), 0, image.Width - 1);
                 var row = Math.Clamp((int)Math.Floor((1 - v) * image.Height), 0, image.Height - 1);
-                _surface[x, y] = image[column, row];
+                _surface[x, y] = Rgba32.CompositeOver(_surface[x, y], image[column, row]);
             }
         }
     }

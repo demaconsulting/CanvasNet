@@ -2,7 +2,12 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Tests.Canvas;
 
-/// <summary>Unit tests for the <see cref="Rgba32"/> parse/tryparse behavior.</summary>
+/// <summary>
+///     Unit tests for the <see cref="Rgba32"/> parse/tryparse behavior and the shared internal
+///     single-pixel <see cref="Rgba32.CompositeOver"/> Porter-Duff "over" alpha-blending helper
+///     (reused by <c>DemaConsulting.CanvasNet.Pptx</c>'s <c>PaintPicture</c> and
+///     <c>DemaConsulting.CanvasNet.Pdf</c>'s <c>CompositeImageOntoSurface</c>).
+/// </summary>
 public class Rgba32Tests
 {
     /// <summary>Rgba32_Parse_6HexUppercase_ReturnsExpectedRgbaWithAlpha255.</summary>
@@ -148,5 +153,86 @@ public class Rgba32Tests
     {
         var ex = Assert.Throws<FormatException>(() => Rgba32.Parse("#GGGGGG"));
         Assert.Contains("'G'", ex.Message, StringComparison.Ordinal);
+    }
+
+    // --- CompositeOver (shared single-pixel Porter-Duff "over" helper) -------------------------
+
+    /// <summary>
+    ///     Proves a fully transparent foreground (<c>alpha == 0</c>) leaves the background pixel
+    ///     completely unchanged, regardless of the (irrelevant, since fully transparent) RGB
+    ///     stored alongside that zero alpha.
+    /// </summary>
+    [Fact]
+    public void Rgba32_CompositeOver_FullyTransparentForeground_ReturnsBackgroundUnchanged()
+    {
+        var background = new Rgba32(10, 20, 30, 255);
+        var foreground = new Rgba32(255, 255, 255, 0);
+
+        var result = Rgba32.CompositeOver(background, foreground);
+
+        Assert.Equal(background, result);
+    }
+
+    /// <summary>
+    ///     Proves a fully opaque foreground (<c>alpha == 255</c>) exactly replaces the background
+    ///     pixel, regardless of the background's own color/alpha.
+    /// </summary>
+    [Fact]
+    public void Rgba32_CompositeOver_FullyOpaqueForeground_ReturnsForegroundExactly()
+    {
+        var background = new Rgba32(10, 20, 30, 255);
+        var foreground = new Rgba32(7, 8, 9, 255);
+
+        var result = Rgba32.CompositeOver(background, foreground);
+
+        Assert.Equal(foreground, result);
+    }
+
+    /// <summary>
+    ///     Proves a partially transparent foreground composited over a fully opaque background
+    ///     blends per the documented Porter-Duff "over" formula, asserting the exact expected
+    ///     bytes (computed independently via the documented formula with round-half-away-from-zero).
+    /// </summary>
+    [Fact]
+    public void Rgba32_CompositeOver_PartiallyTransparentForegroundOverOpaqueBackground_BlendsExactly()
+    {
+        var background = new Rgba32(0, 255, 0, 255);
+        var foreground = new Rgba32(200, 100, 50, 128);
+
+        var result = Rgba32.CompositeOver(background, foreground);
+
+        Assert.Equal(new Rgba32(100, 177, 25, 255), result);
+    }
+
+    /// <summary>
+    ///     Proves two partially transparent pixels (both background and foreground with
+    ///     non-0/non-255 alpha) composite to the correctly premultiplied-then-unpremultiplied
+    ///     color, with the composited alpha channel computed per <c>outA = fgA + bgA * (1 - fgA)</c>.
+    /// </summary>
+    [Fact]
+    public void Rgba32_CompositeOver_BothBackgroundAndForegroundPartiallyTransparent_BlendsExactly()
+    {
+        var background = new Rgba32(100, 150, 200, 100);
+        var foreground = new Rgba32(50, 60, 70, 90);
+
+        var result = Rgba32.CompositeOver(background, foreground);
+
+        Assert.Equal(new Rgba32(71, 98, 124, 155), result);
+    }
+
+    /// <summary>
+    ///     Proves two fully transparent pixels (both background and foreground with
+    ///     <c>alpha == 0</c>) composite to the fully transparent, zeroed-color degenerate result,
+    ///     rather than a division-by-zero <c>NaN</c>.
+    /// </summary>
+    [Fact]
+    public void Rgba32_CompositeOver_BothBackgroundAndForegroundFullyTransparent_ReturnsZeroedResult()
+    {
+        var background = new Rgba32(123, 45, 67, 0);
+        var foreground = new Rgba32(89, 10, 11, 0);
+
+        var result = Rgba32.CompositeOver(background, foreground);
+
+        Assert.Equal(default, result);
     }
 }
