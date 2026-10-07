@@ -102,7 +102,8 @@ public class CornerRoundEffectTests
     [Fact]
     public void CornerRoundEffect_Apply_CubicThenLineThenLine_LeavesCurveAdjacentVertexUnroundedButRoundsLineLineCorner()
     {
-        // MoveTo(0,0) -> CubicBezierTo(...,end=(10,0)) -> LineTo(10,0)->(10,10) -> LineTo(10,10)->(0,10).
+        // Path: a move to the origin, a cubic curve to (10, 0), then line segments through
+        // (10, 10) and on to (0, 10).
         // Vertex A = (10, 0): between the CubicBezierTo and the first LineTo - curve-adjacent,
         // must NOT be rounded. Vertex B = (10, 10): between the first and second LineTo - a
         // genuine line-to-line-to-line corner, must be rounded.
