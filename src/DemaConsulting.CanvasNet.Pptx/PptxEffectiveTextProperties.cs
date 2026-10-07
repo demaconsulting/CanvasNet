@@ -29,6 +29,15 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     The run's resolved text-outline ink color, only meaningful when
 ///     <paramref name="OutlineWidthEmu"/> is non-<see langword="null"/>.
 /// </param>
+/// <param name="OutlineDashArray">
+///     The run's resolved text-outline dash pattern, in EMU (Phase 2 Follow-Up: Run Text Outline
+///     Dash Threading), resolved from the same <c>&lt;a:ln&gt;/&lt;a:prstDash val="..."/&gt;</c>
+///     that <see cref="PptxDocument.ResolveLineStyle"/> already resolves for a shape's own
+///     geometry outline - <see langword="null"/> means a solid outline (either no
+///     <c>&lt;a:prstDash&gt;</c> at all, an explicit <c>val="solid"</c>, or an unrecognized preset
+///     name - see <see cref="PptxDocument.ResolveLineStyle"/>'s own remarks), only meaningful when
+///     <paramref name="OutlineWidthEmu"/> is non-<see langword="null"/>.
+/// </param>
 internal sealed record PptxEffectiveRunProperties(
     string FontFamily,
     float SizeEmu,
@@ -38,7 +47,8 @@ internal sealed record PptxEffectiveRunProperties(
     Rgba32 UnderlineColor,
     Rgba32 Color,
     float? OutlineWidthEmu = null,
-    Rgba32 OutlineColor = default);
+    Rgba32 OutlineColor = default,
+    IReadOnlyList<float>? OutlineDashArray = null);
 
 /// <summary>
 ///     The discriminator for a run's resolved <c>&lt;a:rPr u="..."/&gt;</c> underline style

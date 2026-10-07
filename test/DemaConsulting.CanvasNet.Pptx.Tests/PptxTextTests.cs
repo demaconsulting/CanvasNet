@@ -663,6 +663,92 @@ public class PptxTextTests
     }
 
     /// <summary>
+    ///     Resolve Effective Run Properties - a run's own explicit <c>&lt;a:ln&gt;&lt;a:noFill/&gt;
+    ///     &lt;/a:ln&gt;</c> cancellation must win outright over a shallower tier's own declared
+    ///     outline (regression test for the tier-selection bug: "resolves to null" at the run's own
+    ///     tier used to be indistinguishable from "undeclared here", incorrectly letting the
+    ///     paragraph-level outline leak through).
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_RunLnExplicitNoFill_CancelsParagraphOutlineInheritance()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XElement(DrawingNs + "ln", new XElement(DrawingNs + "noFill"))));
+        var paragraphDefRPr = new XElement(
+            DrawingNs + "defRPr",
+            new XElement(
+                DrawingNs + "ln",
+                new XAttribute("w", "19050"),
+                new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "7030A0")))));
+        var paragraph = Paragraph(new XElement(DrawingNs + "pPr", paragraphDefRPr), run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Null(result.OutlineWidthEmu);
+    }
+
+    /// <summary>
+    ///     Resolve Effective Run Properties - a run's own explicit non-positive <c>w</c> (an
+    ///     explicit zero-width <c>&lt;a:ln&gt;</c>) must likewise cancel a shallower tier's own
+    ///     declared outline, exactly like an explicit <c>&lt;a:noFill/&gt;</c> line does.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_RunLnExplicitZeroWidth_CancelsParagraphOutlineInheritance()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XElement(
+                DrawingNs + "ln",
+                new XAttribute("w", "0"),
+                new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "7030A0"))))));
+        var paragraphDefRPr = new XElement(
+            DrawingNs + "defRPr",
+            new XElement(
+                DrawingNs + "ln",
+                new XAttribute("w", "19050"),
+                new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "7030A0")))));
+        var paragraph = Paragraph(new XElement(DrawingNs + "pPr", paragraphDefRPr), run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Null(result.OutlineWidthEmu);
+    }
+
+    /// <summary>
+    ///     Resolve Effective Run Properties - a run-level <c>&lt;a:ln&gt;</c> declaring
+    ///     <c>&lt;a:prstDash val="dash"/&gt;</c> (Phase 2 Follow-Up: Run Text Outline Dash
+    ///     Threading) resolves a non-null <see cref="PptxEffectiveRunProperties.OutlineDashArray"/>
+    ///     matching the exact same dash-array values <see cref="PptxDocument.ResolveLineStyle"/>
+    ///     already produces for a shape outline declaring the same preset at the same width -
+    ///     proving the dash array is no longer silently discarded.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_RunLnWithPrstDash_ResolvesMatchingOutlineDashArray()
+    {
+        var theme = BuildTestTheme();
+        var lnElement = new XElement(
+            DrawingNs + "ln",
+            new XAttribute("w", "19050"),
+            new XElement(DrawingNs + "solidFill", new XElement(DrawingNs + "srgbClr", new XAttribute("val", "7030A0"))),
+            new XElement(DrawingNs + "prstDash", new XAttribute("val", "dash")));
+        var run = Run(new XElement(DrawingNs + "rPr", new XElement(lnElement)));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+        var expectedLineStyle = PptxDocument.ResolveLineStyle(lnElement, theme);
+
+        Assert.Equal(19050f, result.OutlineWidthEmu);
+        Assert.NotNull(result.OutlineDashArray);
+        Assert.Equal(expectedLineStyle!.DashArray, result.OutlineDashArray);
+    }
+
+    /// <summary>
     ///     Resolve Effective Run Properties - Theme Font Tokens - Resolve Through The Theme's
     ///     FontScheme (rather than being passed through as literal, unresolvable family name
     ///     strings, which would miss the theme's actual font and fall back to the font

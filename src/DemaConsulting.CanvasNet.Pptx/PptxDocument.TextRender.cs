@@ -59,6 +59,11 @@ public sealed partial class PptxDocument
     ///     outline path is stroked via <see cref="ResolveStrokeOutline"/> (so
     ///     <see cref="ResolveFlattenTolerance"/>'s coordinate-scale-aware tessellation applies
     ///     correctly) and only then transformed into surface space, exactly like the fill path.
+    ///     The stroke's own <see cref="PptxGlyphPlacement.OutlineDashArray"/> (Phase 2 Follow-Up:
+    ///     Run Text Outline Dash Threading) is threaded through to the same ad hoc
+    ///     <see cref="PptxLineStyle"/> instead of being hard-coded to <see langword="null"/>, so a
+    ///     dashed run-level <c>&lt;a:ln&gt;</c> renders dashed exactly like a shape's own dashed
+    ///     geometry outline already does, rather than silently degrading to solid.
     ///     After every glyph is painted, every <see cref="PptxTextLayout.Underlines"/> segment
     ///     (Phase 2 Follow-Up: Underline Rendering) is painted as one or two thin filled
     ///     rectangles (see <see cref="UnderlineThicknessRatio"/>/<see cref="UnderlineOffsetRatio"/>'s
@@ -108,7 +113,7 @@ public sealed partial class PptxDocument
 
             if (glyph.OutlineWidthEmu is { } outlineWidthEmu)
             {
-                var outlineLineStyle = new PptxLineStyle(outlineWidthEmu, new PptxSolidFill(glyph.OutlineColor), DashArray: null);
+                var outlineLineStyle = new PptxLineStyle(outlineWidthEmu, new PptxSolidFill(glyph.OutlineColor), glyph.OutlineDashArray);
                 var strokedOutline = ResolveStrokeOutline(localPath, outlineLineStyle, shapeToSurfaceTransform);
                 PathFiller.Fill(surface, strokedOutline.Transform(shapeToSurfaceTransform), glyph.OutlineColor, FillRule.NonZero);
             }

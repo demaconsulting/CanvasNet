@@ -143,15 +143,22 @@ public sealed partial class PptxDocument
             GetUnderlineColor(masterLevelDefRPr, theme, colorMap) ??
             color;
 
-        var outline =
-            GetRunOutline(runRPr, theme, colorMap) ??
-            GetRunOutline(paragraphDefRPr, theme, colorMap) ??
-            GetRunOutline(placeholderLevelDefRPr, theme, colorMap) ??
-            GetRunOutline(masterLevelDefRPr, theme, colorMap);
+        // Tier selection and tier resolution are deliberately two separate steps (bug fix - see
+        // GetRunOutline's own remarks): the first tier whose rPrLikeElement has an <a:ln> child
+        // present AT ALL wins outright, regardless of what that child resolves to, so a run's own
+        // explicit "no stroke" declaration (for example <a:ln><a:noFill/></a:ln>, or a
+        // non-positive w) is never mistaken for "undeclared here, keep falling through" and does
+        // not let a shallower tier's outline incorrectly leak through.
+        var runLnElement = runRPr?.Element(DrawingNamespace + "ln");
+        var paragraphLnElement = paragraphDefRPr?.Element(DrawingNamespace + "ln");
+        var placeholderLnElement = placeholderLevelDefRPr?.Element(DrawingNamespace + "ln");
+        var masterLnElement = masterLevelDefRPr?.Element(DrawingNamespace + "ln");
+        var selectedLnElement = runLnElement ?? paragraphLnElement ?? placeholderLnElement ?? masterLnElement;
+        var outline = GetRunOutline(selectedLnElement, theme, colorMap);
 
         return new PptxEffectiveRunProperties(
             typeface, sizeEmu, bold, italic, underlineStyle, underlineColor, color,
-            outline?.WidthEmu, outline?.Color ?? default);
+            outline?.WidthEmu, outline?.Color ?? default, outline?.DashArray);
     }
 
     /// <summary>
@@ -614,30 +621,43 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>
-    ///     Resolves an <c>&lt;a:rPr&gt;</c>/<c>&lt;a:defRPr&gt;</c>-shaped element's run-level
-    ///     <c>&lt;a:ln&gt;</c> text-outline/stroke child (Phase 2 Follow-Up: Run Text Outline),
-    ///     reusing the exact same <see cref="ResolveLineStyle"/> a shape's own
-    ///     <c>&lt;p:spPr&gt;/&lt;a:ln&gt;</c> is resolved with - PowerPoint lets a run stroke its
-    ///     own glyph outlines (for example a hollow/outlined numeral effect: a near-transparent
-    ///     fill paired with a solid-colored stroke), a schema position entirely distinct from a
-    ///     shape's geometry outline.
+    ///     Resolves an already-tier-selected <c>&lt;a:ln&gt;</c> text-outline/stroke element (Phase
+    ///     2 Follow-Up: Run Text Outline; corrected by the explicit-cancellation fix below), reusing
+    ///     the exact same <see cref="ResolveLineStyle"/> a shape's own <c>&lt;p:spPr&gt;/&lt;a:ln&gt;</c>
+    ///     is resolved with - PowerPoint lets a run stroke its own glyph outlines (for example a
+    ///     hollow/outlined numeral effect: a near-transparent fill paired with a solid-colored
+    ///     stroke), a schema position entirely distinct from a shape's geometry outline.
     /// </summary>
+    /// <remarks>
+    ///     <paramref name="lnElement"/> must already be the single, tier-selected <c>&lt;a:ln&gt;</c>
+    ///     element - the first one present (regardless of what it resolves to) when walking
+    ///     run/paragraph-defRPr/placeholder-level/master-level in that order (see
+    ///     <see cref="ResolveEffectiveRunProperties"/>'s own selection logic). This two-step split -
+    ///     "which tier's element wins" (a plain <c>??</c> chain over the raw <c>XElement?</c> itself)
+    ///     followed by "how that single chosen element resolves" (this method, called exactly once) -
+    ///     is required so an explicit, closer-tier cancellation (for example a run's own
+    ///     <c>&lt;a:ln&gt;&lt;a:noFill/&gt;&lt;/a:ln&gt;</c>, or a non-positive <c>w</c>) is honored
+    ///     as "no outline for this run" instead of being indistinguishable from "this tier declares
+    ///     nothing at all, keep searching a shallower tier" - the bug this method's previous
+    ///     "resolve-then-chain-with-??" shape used to have, where a tuple collapsing to
+    ///     <see langword="null"/> could mean either "absent here" or "explicitly cancelled here",
+    ///     and the caller's own <c>??</c> chain could not tell them apart.
+    /// </remarks>
     /// <returns>
-    ///     The resolved width/color pair, or <see langword="null"/> when <paramref name="rPrLikeElement"/>
-    ///     has no <c>&lt;a:ln&gt;</c> child at all, that child resolves to "no stroke" (see
-    ///     <see cref="ResolveLineStyle"/>'s own remarks - for example an explicit
-    ///     <c>&lt;a:noFill/&gt;</c> line or a non-positive <c>w</c>), or its resolved paint is not
-    ///     a plain <see cref="PptxSolidFill"/> - a gradient/image/pattern text-outline paint is a
-    ///     documented, out-of-scope simplification (this unit's run <em>fill</em> color is already
-    ///     solid-only; its outline color is kept at that same fidelity). In every one of these
-    ///     cases the attribute-level inheritance chain keeps falling through to a shallower tier,
-    ///     exactly like every other run attribute this file resolves - including the case where a
-    ///     run's own <c>&lt;a:ln&gt;</c> explicitly cancels an outline a shallower tier declares;
-    ///     a document relying on that explicit-cancellation nuance is not expected in practice.
+    ///     The resolved width/color/dash-array triple, or <see langword="null"/> when
+    ///     <paramref name="lnElement"/> is itself <see langword="null"/> (no tier declared an
+    ///     <c>&lt;a:ln&gt;</c> at all), it resolves to "no stroke" (see <see cref="ResolveLineStyle"/>'s
+    ///     own remarks - for example an explicit <c>&lt;a:noFill/&gt;</c> line or a non-positive
+    ///     <c>w</c>), or its resolved paint is not a plain <see cref="PptxSolidFill"/> - a
+    ///     gradient/image/pattern text-outline paint is a documented, out-of-scope simplification
+    ///     (this unit's run <em>fill</em> color is already solid-only; its outline color is kept at
+    ///     that same fidelity). Unlike every other run attribute's own tier chain, none of these
+    ///     "resolves to null" cases fall through to a shallower tier here - tier selection already
+    ///     happened in the caller, before this method ever runs.
     /// </returns>
-    private static (float WidthEmu, Rgba32 Color)? GetRunOutline(XElement? rPrLikeElement, PptxTheme theme, PptxColorMap? colorMap = null)
+    private static (float WidthEmu, Rgba32 Color, IReadOnlyList<float>? DashArray)? GetRunOutline(
+        XElement? lnElement, PptxTheme theme, PptxColorMap? colorMap = null)
     {
-        var lnElement = rPrLikeElement?.Element(DrawingNamespace + "ln");
         if (lnElement is null)
         {
             return null;
@@ -645,7 +665,7 @@ public sealed partial class PptxDocument
 
         var lineStyle = ResolveLineStyle(lnElement, theme, colorMap);
         return lineStyle is { Paint: PptxSolidFill solidFill }
-            ? (lineStyle.WidthEmu, solidFill.Color)
+            ? (lineStyle.WidthEmu, solidFill.Color, lineStyle.DashArray)
             : null;
     }
 

@@ -71,6 +71,14 @@ internal readonly record struct PptxUnderlineSegment(
 ///     call site (for example in tests) that predates outline support.
 /// </param>
 /// <param name="OutlineColor">The glyph's resolved outline ink color, only meaningful when <paramref name="OutlineWidthEmu"/> is non-<see langword="null"/>.</param>
+/// <param name="OutlineDashArray">
+///     The glyph's resolved text-outline dash pattern, in EMU, already scaled by the same autofit
+///     factor as <paramref name="SizeEmu"/>/<paramref name="OutlineWidthEmu"/> (Phase 2 Follow-Up:
+///     Run Text Outline Dash Threading) - see
+///     <see cref="PptxEffectiveRunProperties.OutlineDashArray"/>. <see langword="null"/> means a
+///     solid outline, only meaningful when <paramref name="OutlineWidthEmu"/> is
+///     non-<see langword="null"/>.
+/// </param>
 internal sealed record PptxGlyphPlacement(
     TrueTypeFont Font,
     int GlyphIndex,
@@ -79,4 +87,5 @@ internal sealed record PptxGlyphPlacement(
     float SizeEmu,
     Rgba32 Color,
     float? OutlineWidthEmu = null,
-    Rgba32 OutlineColor = default);
+    Rgba32 OutlineColor = default,
+    IReadOnlyList<float>? OutlineDashArray = null);
