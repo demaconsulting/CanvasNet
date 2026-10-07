@@ -10,11 +10,15 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 /// <param name="LineStyleParentId">The style's own <c>LineStyle=</c> attribute (the next StyleSheet ID to consult for a <c>Line*</c> cell left unresolved here), or <see langword="null"/> when absent (a terminal/built-in style, for example ID <c>0</c>, "No Style").</param>
 /// <param name="FillStyleParentId">The style's own <c>FillStyle=</c> attribute (the next StyleSheet ID to consult for a <c>Fill*</c> cell), or <see langword="null"/> when absent.</param>
 /// <param name="TextStyleParentId">The style's own <c>TextStyle=</c> attribute (the next StyleSheet ID to consult for a text/<c>Char*</c> cell), or <see langword="null"/> when absent.</param>
+/// <param name="CharacterRows">The style's own direct <c>&lt;Section N="Character"&gt;</c> child's <c>&lt;Row IX="k"&gt;</c> children, keyed by row index. Empty when the style declares no such section at all - meaning it defers to <see cref="TextStyleParentId"/>'s own rows for the whole row (see <c>VsdxDocument.TextStyle.cs</c>).</param>
+/// <param name="ParagraphRows">The style's own direct <c>&lt;Section N="Paragraph"&gt;</c> child's <c>&lt;Row IX="k"&gt;</c> children, keyed by row index. Same "absent section defers to parent" convention as <see cref="CharacterRows"/>.</param>
 internal sealed record VsdxStyleSheetInfo(
     VsdxCellBag Cells,
     string? LineStyleParentId,
     string? FillStyleParentId,
-    string? TextStyleParentId);
+    string? TextStyleParentId,
+    IReadOnlyDictionary<int, VsdxCellBag> CharacterRows,
+    IReadOnlyDictionary<int, VsdxCellBag> ParagraphRows);
 
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> StyleSheet chain resolver: parses
@@ -89,7 +93,9 @@ public sealed partial class VsdxDocument
                     VsdxCellBag.Parse(styleSheetElement),
                     (string?)styleSheetElement.Attribute("LineStyle"),
                     (string?)styleSheetElement.Attribute("FillStyle"),
-                    (string?)styleSheetElement.Attribute("TextStyle"));
+                    (string?)styleSheetElement.Attribute("TextStyle"),
+                    ParseTextSectionRows(styleSheetElement, "Character"),
+                    ParseTextSectionRows(styleSheetElement, "Paragraph"));
             }
         }
 

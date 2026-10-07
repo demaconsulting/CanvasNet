@@ -125,6 +125,10 @@ public sealed partial class VsdxDocument
             }
         }
 
+        var rawText = ParseTextElement(shapeElement.Element(ns + "Text"));
+        var rawCharacterRows = ParseTextSectionRows(shapeElement, "Character");
+        var rawParagraphRows = ParseTextSectionRows(shapeElement, "Paragraph");
+
         var childShapesElement = shapeElement.Element(ns + "Shapes");
         var children = childShapesElement is null
             ? (IReadOnlyList<VsdxShapeNode>)[]
@@ -140,16 +144,21 @@ public sealed partial class VsdxDocument
             textStyleId,
             rawCells,
             geometrySections,
+            rawText,
+            rawCharacterRows,
+            rawParagraphRows,
             children);
     }
 
     /// <summary>
     ///     Resolves a single top-level shape in place: merges its own cells/geometry with its
     ///     Master shape's (if <see cref="VsdxShapeNode.MasterId"/> is set), walks the StyleSheet
-    ///     chain for any paint cell left unresolved by that merge, and computes its transform and
-    ///     paint - populating <see cref="VsdxShapeNode.EffectiveCells"/>/
-    ///     <see cref="VsdxShapeNode.Geometries"/>/<see cref="VsdxShapeNode.Transform"/>/
-    ///     <see cref="VsdxShapeNode.Paint"/>.
+    ///     chain for any paint cell left unresolved by that merge, and computes its transform,
+    ///     paint, and text (runs, text box, layout) - populating
+    ///     <see cref="VsdxShapeNode.EffectiveCells"/>/<see cref="VsdxShapeNode.Geometries"/>/
+    ///     <see cref="VsdxShapeNode.Transform"/>/<see cref="VsdxShapeNode.Paint"/>/
+    ///     <see cref="VsdxShapeNode.TextRuns"/>/<see cref="VsdxShapeNode.TextBox"/>/
+    ///     <see cref="VsdxShapeNode.TextLayout"/>.
     /// </summary>
     /// <param name="shape">The shape to resolve.</param>
     private void ResolveShape(VsdxShapeNode shape)
@@ -161,10 +170,27 @@ public sealed partial class VsdxDocument
 
         var effectiveLineStyleId = shape.LineStyleId ?? masterShape?.LineStyleId;
         var effectiveFillStyleId = shape.FillStyleId ?? masterShape?.FillStyleId;
+        var effectiveTextStyleId = shape.TextStyleId ?? masterShape?.TextStyleId;
 
         shape.EffectiveCells = effectiveCells;
         shape.Geometries = BuildGeometrySections(effectiveGeometrySections, effectiveCells);
         shape.Transform = BuildTransform(effectiveCells);
         shape.Paint = ResolvePaint(effectiveCells, shape.Geometries, effectiveLineStyleId, effectiveFillStyleId);
+
+        // Assumption #4 (documented, low-risk design-consistency extension, not fixture-evidenced
+        // - see the Milestone 4 plan report): an instance shape with no own <Text> element falls
+        // back to its Master shape's own <Text> verbatim, mirroring every other "absent instance
+        // cell/section ⇒ inherit Master" rule this unit already establishes.
+        var effectiveRawText = shape.RawText.Runs.Count > 0 ? shape.RawText : masterShape?.RawText ?? VsdxRawText.Empty;
+        var effectiveCharacterRows = MergeTextSectionRows(shape.RawCharacterRows, masterShape?.RawCharacterRows);
+        var effectiveParagraphRows = MergeTextSectionRows(shape.RawParagraphRows, masterShape?.RawParagraphRows);
+
+        var textRuns = effectiveRawText.Runs
+            .Select(run => ResolveEffectiveRun(run, effectiveCharacterRows, effectiveParagraphRows, effectiveTextStyleId))
+            .ToList();
+        shape.TextRuns = textRuns;
+        shape.TextBox = BuildTextBox(effectiveCells, shape.Transform);
+        var textBoxStyle = ResolveTextBoxStyle(effectiveCells, effectiveTextStyleId);
+        shape.TextLayout = ResolveTextLayout(textRuns, shape.TextBox, textBoxStyle, ResolveTextFont);
     }
 }

@@ -67,6 +67,17 @@
     <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.Vsdx\DemaConsulting.CanvasNet.Vsdx.csproj" />
   </ItemGroup>
 
+  <!-- Shared test-support helpers reused from the core test project (single source of truth;
+       linked, not duplicated - see DemaConsulting.CanvasNet.Tests\TestSupport\*.cs). The whole
+       folder is linked (not just SyntheticFontBuilder.cs) so its own XML doc comments'
+       cross-references to sibling TestSupport types still resolve. Used by this milestone's text
+       layout/render tests (VsdxTextLayoutTests.cs, VsdxTextRenderTests.cs) for deterministic,
+       synthetic TrueType fonts - mirrors DemaConsulting.CanvasNet.Pptx.Tests.csproj's own,
+       identical linking block. -->
+  <ItemGroup>
+    <Compile Include="..\DemaConsulting.CanvasNet.Tests\TestSupport\**\*.cs" Link="TestSupport\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <!-- Real-world .vsdx fixture files, staged outside this project's cone pending promotion;
        Link remaps the out-of-cone ..\ source path to an in-project-relative output path, since
        MSBuild's default output-relative-path derivation for a ..\-containing Include is

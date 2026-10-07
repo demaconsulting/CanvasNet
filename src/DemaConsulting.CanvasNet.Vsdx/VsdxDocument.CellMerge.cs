@@ -127,6 +127,45 @@ public sealed partial class VsdxDocument
 
         return [.. byIndex.Values];
     }
+
+    /// <summary>
+    ///     Merges an instance shape's own <c>Section N="Character"</c>/<c>"Paragraph"</c> rows
+    ///     (already row-indexed by <see cref="VsdxDocument.ParseTextSectionRows"/>) with its
+    ///     Master shape's own same-named rows (if any): an instance row at index <c>k</c> is
+    ///     itself merged cell-by-cell over the Master's same-index row via the existing
+    ///     <see cref="VsdxCellBagMerge.Merge"/> (literal-instance-cell-wins, else Master's cell,
+    ///     else instance's own non-literal cell); a Master row with no matching instance index is
+    ///     inherited verbatim. No <c>Del="1"</c> concept exists for Character/Paragraph rows in any
+    ///     inspected fixture, so none is implemented here (documented absence, not an oversight -
+    ///     unlike <see cref="MergeGeometryRows"/>'s own row-delete handling).
+    /// </summary>
+    /// <param name="instanceRows">The instance shape's own row-indexed Character/Paragraph cell bags.</param>
+    /// <param name="masterRows">The Master shape's own row-indexed Character/Paragraph cell bags, or <see langword="null"/> when the instance has no Master.</param>
+    /// <returns>The merged rows, keyed by row index.</returns>
+    private static IReadOnlyDictionary<int, VsdxCellBag> MergeTextSectionRows(
+        IReadOnlyDictionary<int, VsdxCellBag> instanceRows,
+        IReadOnlyDictionary<int, VsdxCellBag>? masterRows)
+    {
+        if (masterRows is null || masterRows.Count == 0)
+        {
+            return instanceRows;
+        }
+
+        var merged = new Dictionary<int, VsdxCellBag>();
+        foreach (var (index, masterRow) in masterRows)
+        {
+            merged[index] = masterRow;
+        }
+
+        foreach (var (index, instanceRow) in instanceRows)
+        {
+            merged[index] = merged.TryGetValue(index, out var masterRow)
+                ? VsdxCellBagMerge.Merge(instanceRow, masterRow)
+                : instanceRow;
+        }
+
+        return merged;
+    }
 }
 
 /// <summary>

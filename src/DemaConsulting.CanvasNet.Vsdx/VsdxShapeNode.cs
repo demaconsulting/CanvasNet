@@ -30,6 +30,9 @@ internal sealed class VsdxShapeNode
     /// <param name="textStyleId">The shape's own <c>TextStyle=</c> attribute, or <see langword="null"/> when absent.</param>
     /// <param name="rawCells">The shape's own direct <c>&lt;Cell&gt;</c> children.</param>
     /// <param name="rawGeometrySections">The shape's own direct <c>&lt;Section N="Geometry"&gt;</c> children, unmerged.</param>
+    /// <param name="rawText">The shape's own direct <c>&lt;Text&gt;</c> child, parsed into marker-delimited runs - see <see cref="VsdxDocument.ParseTextElement"/>.</param>
+    /// <param name="rawCharacterRows">The shape's own direct <c>&lt;Section N="Character"&gt;</c> child's <c>&lt;Row IX="k"&gt;</c> children, unmerged with any Master shape.</param>
+    /// <param name="rawParagraphRows">The shape's own direct <c>&lt;Section N="Paragraph"&gt;</c> child's <c>&lt;Row IX="k"&gt;</c> children, unmerged with any Master shape.</param>
     /// <param name="children">The shape's own direct <c>&lt;Shapes&gt;</c>/<c>&lt;Shape&gt;</c> descendants, recursively parsed but not resolved.</param>
     public VsdxShapeNode(
         string id,
@@ -41,6 +44,9 @@ internal sealed class VsdxShapeNode
         string? textStyleId,
         VsdxCellBag rawCells,
         IReadOnlyList<VsdxGeometrySectionRaw> rawGeometrySections,
+        VsdxRawText rawText,
+        IReadOnlyDictionary<int, VsdxCellBag> rawCharacterRows,
+        IReadOnlyDictionary<int, VsdxCellBag> rawParagraphRows,
         IReadOnlyList<VsdxShapeNode> children)
     {
         Id = id;
@@ -52,6 +58,9 @@ internal sealed class VsdxShapeNode
         TextStyleId = textStyleId;
         RawCells = rawCells;
         RawGeometrySections = rawGeometrySections;
+        RawText = rawText;
+        RawCharacterRows = rawCharacterRows;
+        RawParagraphRows = rawParagraphRows;
         Children = children;
     }
 
@@ -82,6 +91,15 @@ internal sealed class VsdxShapeNode
     /// <summary>The shape's own direct <c>&lt;Section N="Geometry"&gt;</c> children, unmerged with any Master shape.</summary>
     public IReadOnlyList<VsdxGeometrySectionRaw> RawGeometrySections { get; }
 
+    /// <summary>The shape's own direct <c>&lt;Text&gt;</c> child, parsed into marker-delimited runs, or <see cref="VsdxRawText.Empty"/> when the shape has no <c>&lt;Text&gt;</c> element.</summary>
+    public VsdxRawText RawText { get; }
+
+    /// <summary>The shape's own direct <c>&lt;Section N="Character"&gt;</c> child's <c>&lt;Row IX="k"&gt;</c> children, unmerged with any Master shape. Empty when the shape declares no such section.</summary>
+    public IReadOnlyDictionary<int, VsdxCellBag> RawCharacterRows { get; }
+
+    /// <summary>The shape's own direct <c>&lt;Section N="Paragraph"&gt;</c> child's <c>&lt;Row IX="k"&gt;</c> children, unmerged with any Master shape. Empty when the shape declares no such section.</summary>
+    public IReadOnlyDictionary<int, VsdxCellBag> RawParagraphRows { get; }
+
     /// <summary>The shape's own direct <c>&lt;Shapes&gt;</c>/<c>&lt;Shape&gt;</c> descendants, recursively parsed but not resolved - see this type's own remarks.</summary>
     public IReadOnlyList<VsdxShapeNode> Children { get; }
 
@@ -102,4 +120,18 @@ internal sealed class VsdxShapeNode
 
     /// <summary>The shape's resolved stroke/fill paint, or <see langword="null"/> until resolved.</summary>
     public VsdxResolvedPaint? Paint { get; internal set; }
+
+    /// <summary>
+    ///     The shape's fully resolved (Master-merged, StyleSheet-chain-walked) text runs, or
+    ///     <see langword="null"/> until resolved. Populated only for a page's top-level shapes
+    ///     this milestone. Empty (not <see langword="null"/>) when the resolved shape has no text
+    ///     content at all.
+    /// </summary>
+    public IReadOnlyList<VsdxEffectiveTextRun>? TextRuns { get; internal set; }
+
+    /// <summary>The shape's resolved text-box transform (implicit default or explicit <c>Txt*</c> override), or <see langword="null"/> until resolved.</summary>
+    public VsdxTextBoxTransform? TextBox { get; internal set; }
+
+    /// <summary>The shape's resolved, word-wrapped glyph layout, or <see langword="null"/> until resolved.</summary>
+    public VsdxTextLayout? TextLayout { get; internal set; }
 }
