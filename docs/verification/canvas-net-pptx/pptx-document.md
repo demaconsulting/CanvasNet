@@ -983,7 +983,8 @@ tab semantics `GetNextTabStopEmu` implements.
 `ResolvePictureSurface_NoBlipElement_ThrowsInvalidDataException`,
 `ResolvePictureSurface_BlipMissingEmbedAndLink_ThrowsInvalidDataException`,
 `ResolvePictureSurface_LinkedBlipOnly_ThrowsPptxUnsupportedFeatureExceptionWithImageLinkToken`,
-`ResolvePictureSurface_SvgOnlyBlipExtension_ThrowsPptxUnsupportedFeatureExceptionWithSvgOnlyToken`,
+`ResolvePictureSurface_SvgOnlyBlipExtension_ReturnsDecodedSurfaceFromAsvgSvgBlipEmbed`,
+`ResolvePictureSurface_SvgBlipExtensionMissingEmbed_ThrowsInvalidDataException`,
 `ResolvePictureSurface_UnsupportedContentType_ThrowsPptxUnsupportedFeatureExceptionWithImageFormatToken`,
 `ResolvePictureSurface_NullArguments_ThrowsArgumentNullException`
 
@@ -997,17 +998,19 @@ parts, `BuildMinimalImagePackage`) into a `Surface` whose single pixel matches t
 known color, proves a `<p:pic>` with no `<a:blip>` element at all throws
 `InvalidDataException`, proves a `<a:blip>` with neither `r:embed` nor `r:link` nor any recognized
 extension fallback throws `InvalidDataException` (a genuinely malformed blip - this is an explicit
-non-regression check: the fix below only reclassifies the one recognized SVG-extension-fallback
-case, not every embed/link-less blip), proves a `<a:blip>` with only `r:link` (no embedded bytes)
+non-regression check: the fix below only decodes the one recognized SVG-extension-fallback case,
+not every embed/link-less blip), proves a `<a:blip>` with only `r:link` (no embedded bytes)
 throws `PptxUnsupportedFeatureException` carrying the `"pptx-image-link"` feature token, proves a
 `<a:blip>` with neither `r:embed` nor `r:link` but carrying a recognized Microsoft SVG extension
 fallback (`<a:extLst>/<a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}">` wrapping an
-`<asvg:svgBlip>`, the "Insert Icon" SVG-with-no-raster-fallback pattern real PowerPoint produces)
-throws `PptxUnsupportedFeatureException` carrying the `"pptx-image-svg-only"` feature token rather
-than `InvalidDataException` - a regression fix, since this well-formed, valid OOXML construct was
-previously misclassified as malformed data, proves a media part whose resolved content type is not
-a recognized raster format throws `PptxUnsupportedFeatureException` carrying the
-`"pptx-image-format"` feature token, and proves null argument validation for both
+`<asvg:svgBlip r:embed="...">`, the "Insert Icon" SVG-with-no-raster-fallback pattern real
+PowerPoint produces) now resolves to a non-null, correctly-sized `Surface` rasterized via the
+sibling `DemaConsulting.CanvasNet.Svg` package's `SvgCodec` - a Phase 2 Follow-Up fix, since this
+well-formed, valid OOXML construct is now decoded rather than rejected - proves that same SVG
+extension present but with no `r:embed` of its own on `<asvg:svgBlip>` (genuinely malformed -
+nothing left to fall back to) still throws `InvalidDataException`, proves a media part whose
+resolved content type is not a recognized raster format throws `PptxUnsupportedFeatureException`
+carrying the `"pptx-image-format"` feature token, and proves null argument validation for both
 `picElement`/`document`.
 
 #### CanvasNetPptx-PptxDocument-PicturePainting: Picture Compositing Without PDF's Y-Flip
@@ -1450,6 +1453,7 @@ pipeline verbatim rather than introducing a background-specific gradient path.
 `Render_LayoutPlaceholderShape_DoesNotRenderItsOwnPromptContent`,
 `Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent`,
 `Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException`,
+`Render_MasterSvgOnlyLogoPicture_PaintsVisiblePixelsInsteadOfBeingSkipped`,
 `PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature`
 
 Proves, at the pixel level with deliberately contrasting colors so a wrong z-order or a missed
@@ -1473,7 +1477,15 @@ the slide's own content still paints normally over the full slide footprint - ra
 aborting the whole render; and, as the matching counter-proof that this containment is scoped
 only to master/layout-owned shapes, that a **slide's own** picture shape referencing the same
 unsupported raster format still hard-fails `Render` with `PptxUnsupportedFeatureException`,
-exactly as before this containment was added. Proves, against a real-world fixture
+exactly as before this containment was added. Proves, as a regression guard for the Phase 2
+Follow-Up "SVG-Only Picture Blip Rendering" fix (mirroring the real-world "ERF IWF Breadboard Peer
+Review.pptx" master-logo scenario), that a master-owned "SVG-only" `<p:pic>` (no raster
+`r:embed`/`r:link` at all, only a Microsoft `<asvg:svgBlip r:embed="...">` extension referencing an
+`.svg` media part) now actually paints its own rasterized pixels on every slide using that master,
+instead of being silently caught and skipped by the same graceful-skip containment described
+above - a dedicated before/after regression, since this exact shape previously fell into the
+"caught and skipped" path for a different reason (an unsupported feature, not a malformed one).
+Proves, against a real-world fixture
 (`aiden0z-1-chart-and-complex.pptx`, whose own `slideLayout1.xml` declares a real, non-placeholder,
 `userDrawn="1"` `<a:custGeom>` freeform shape named "Freeform 5"), that the custGeom-freeform-on-
 layout dispatch path executes without throwing and resolves its own documented `bg1`-scheme fill

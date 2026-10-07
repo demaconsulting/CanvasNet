@@ -176,6 +176,21 @@ pattern but targeting a sibling _system_ rather than a `CanvasNet` subsystem:
 new, one-directional `ProjectReference` from `DemaConsulting.CanvasNet.Pptx.csproj` to
 `DemaConsulting.CanvasNet.Charts.csproj` described above.
 
+**As of this Phase 2 Follow-Up (SVG-Only Picture Blip Rendering), `CanvasNetPptx` additionally
+depends on the sibling `CanvasNetSvg` system** (its own separate package,
+`DemaConsulting.CanvasNet.Svg`) - specifically `SvgCodec.GetInfo`/`SvgCodec.Load`, to resolve a
+Microsoft "SVG-only" `<p:pic>` picture blip's own intrinsic size and rasterize it into a core
+`Surface` before compositing it via the existing `PaintPicture` primitive, exactly like any other
+decoded raster image - see `docs/design/canvas-net-pptx/pptx-document.md`'s "Phase 2 Follow-Up:
+SVG-Only Picture Blip Rendering" design section for the full integration. This dependency is
+likewise strictly one-directional: `CanvasNetSvg` must never reference `CanvasNetPptx` (see
+`docs/design/canvas-net-svg.md`'s own Dependencies section), so `CanvasNetPptx` depends on
+`CanvasNetSvg` exactly as it already depends on `CanvasNetCharts` and the core `CanvasNet` system,
+never the reverse. Mirroring the same per-phase SysML2 edge-addition pattern:
+`dependency usesSvg from CanvasNetPptxSystem to CanvasNetSvgSystem;` - the SysML2 edge for this
+new, one-directional `ProjectReference` from `DemaConsulting.CanvasNet.Pptx.csproj` to
+`DemaConsulting.CanvasNet.Svg.csproj`.
+
 This is an ordinary, same-repository, system-to-system dependency: both `CanvasNet` and
 `CanvasNetPptx` are produced by this repository, so it is neither an OTS Software Item (not a
 third-party/external-program dependency) nor a Shared Package (that category is scoped to a

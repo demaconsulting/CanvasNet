@@ -6,6 +6,7 @@
 <!-- cspell:ignore Zapf -->
 <!-- cspell:ignore SASLprep -->
 <!-- cspell:ignore Noto -->
+<!-- cspell:ignore asvg -->
 
 ## Purpose
 
@@ -1081,6 +1082,13 @@ Parses an SVG file at the specified path and returns an `ImageInfo`.
 - `ArgumentNullException`: Thrown when `path` is null.
 - `ArgumentException`: Thrown when `path` is an empty string.
 - `InvalidDataException`: Thrown for the same conditions as `GetInfo(Stream)`.
+
+When rendering a `.pptx` presentation via the separate `DemaConsulting.CanvasNet.Pptx` package's
+`PptxDocument.Render`, a `<p:pic>` picture blip that declares only a Microsoft SVG extension
+fallback (no raster `r:embed`/`r:link`, only `<a:extLst>/<a:ext>` wrapping an
+`<asvg:svgBlip r:embed="...">`) is automatically resolved and rasterized via `SvgCodec` at the
+referenced SVG's own intrinsic size - no extra caller code is required beyond calling
+`PptxDocument.Render` itself.
 
 ### PdfDocument
 

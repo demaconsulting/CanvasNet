@@ -6,6 +6,7 @@
 # cspell:ignore spcBef spcAft justLow lnSpcReduction fontScale lvl ordinally mistargeted unrenderable
 # cspell:ignore pythonpptx Autoshape aiden0z Aiden aiden misrendered bgRef bgFillStyleLst phClr
 # cspell:ignore tblStyle wholeTbl tcStyle tcBdr insideH insideV bandRow firstRow band1H band2H
+# cspell:ignore asvg Asvg
 #
 # These requirements describe the design-level behavior of the PptxDocument unit.
 #
@@ -1144,13 +1145,17 @@ sections:
               decoded core Surface by dispatching on the embedded relationship's resolved part
               content type (mirroring the SVG codec's own raster-decoder dispatch), rejecting a
               <a:blip> with only an r:link with PptxUnsupportedFeatureException (feature token
-              "pptx-image-link"), rejecting a <a:blip> with neither an r:embed nor an r:link
+              "pptx-image-link"), decoding a <a:blip> with neither an r:embed nor an r:link
               attribute but carrying a recognized Microsoft SVG extension fallback
-              (<a:extLst>/<a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}">) with
-              PptxUnsupportedFeatureException (feature token "pptx-image-svg-only"), rejecting a
-              <a:blip> with neither an embed/link attribute nor any recognized extension fallback
-              with InvalidDataException, rejecting an unsupported content type with
-              PptxUnsupportedFeatureException (feature token "pptx-image-format"), and shall
+              (<a:extLst>/<a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}"> wrapping an
+              <asvg:svgBlip r:embed="...">) by resolving that extension element's own r:embed
+              relationship and rasterizing the referenced SVG media part via the sibling
+              DemaConsulting.CanvasNet.Svg package's SvgCodec at the SVG's own intrinsic size
+              (clamped to [1, Surface.MaxDimension] on each axis), rejecting that same SVG
+              extension present but with no r:embed of its own with InvalidDataException,
+              rejecting a <a:blip> with neither an embed/link attribute nor any recognized
+              extension fallback with InvalidDataException, rejecting an unsupported content type
+              with PptxUnsupportedFeatureException (feature token "pptx-image-format"), and shall
               resolve a <p:blipFill>'s optional <a:srcRect> into a normalized, scaled-fraction
               PptxSrcRect crop rectangle (each edge defaulting to zero/full-extent when its own
               attribute is absent).
@@ -1164,15 +1169,18 @@ sections:
               file-system I/O outside the supplied package stream, so it is deliberately
               unsupported rather than silently treated as a missing/blank image. A real PowerPoint
               "Insert Icon"-style picture may declare only a Microsoft SVG extension fallback (no
-              raster r:embed/r:link at all) - this is a well-formed, valid OOXML construct this
-              package does not yet decode, and a regression fix corrected this case from being
-              misclassified as InvalidDataException (malformed data) to the dedicated
-              "pptx-image-svg-only" PptxUnsupportedFeatureException token; a <a:blip> with neither
-              an embed/link attribute nor any recognized extension still throws
-              InvalidDataException unchanged (genuinely malformed - ECMA-376 requires at least one
-              of these). <a:srcRect>'s scaled-fraction percentages (in thousandths of a percent)
-              must be parsed exactly as OOXML defines them, or a crop that is supposed to trim a
-              small edge sliver would instead crop away most or all of the image.
+              raster r:embed/r:link at all) - a Phase 2 Follow-Up fix (SVG-Only Picture Blip
+              Rendering) decodes this well-formed, valid OOXML construct via the sibling
+              DemaConsulting.CanvasNet.Svg package's SvgCodec instead of rejecting it, reusing the
+              decoded Surface exactly like any other raster image for every downstream consumer
+              (crop/srcRect, stretch/tile, shape transform, master/layout painting); only that same
+              extension present but with no r:embed of its own (genuinely malformed - nothing left
+              to fall back to) still throws InvalidDataException, and a <a:blip> with neither an
+              embed/link attribute nor any recognized extension still throws InvalidDataException
+              unchanged (genuinely malformed - ECMA-376 requires at least one of these).
+              <a:srcRect>'s scaled-fraction percentages (in thousandths of a percent) must be
+              parsed exactly as OOXML defines them, or a crop that is supposed to trim a small edge
+              sliver would instead crop away most or all of the image.
             tests:
               - ResolveSrcRect_NoSrcRectElement_ReturnsNull
               - ResolveSrcRect_AllEdgesPresent_ParsesScaledFractions
@@ -1183,7 +1191,8 @@ sections:
               - ResolvePictureSurface_NoBlipElement_ThrowsInvalidDataException
               - ResolvePictureSurface_BlipMissingEmbedAndLink_ThrowsInvalidDataException
               - ResolvePictureSurface_LinkedBlipOnly_ThrowsPptxUnsupportedFeatureExceptionWithImageLinkToken
-              - ResolvePictureSurface_SvgOnlyBlipExtension_ThrowsPptxUnsupportedFeatureExceptionWithSvgOnlyToken
+              - ResolvePictureSurface_SvgOnlyBlipExtension_ReturnsDecodedSurfaceFromAsvgSvgBlipEmbed
+              - ResolvePictureSurface_SvgBlipExtensionMissingEmbed_ThrowsInvalidDataException
               - ResolvePictureSurface_UnsupportedContentType_ThrowsPptxUnsupportedFeatureExceptionWithImageFormatToken
               - ResolvePictureSurface_NullArguments_ThrowsArgumentNullException
 
@@ -1736,6 +1745,7 @@ sections:
               - Render_LayoutPlaceholderShape_DoesNotRenderItsOwnPromptContent
               - Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent
               - Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException
+              - Render_MasterSvgOnlyLogoPicture_PaintsVisiblePixelsInsteadOfBeingSkipped
               - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0AndSlide1PaintContent
 
           - id: CanvasNetPptx-PptxDocument-BulletProperties

@@ -817,11 +817,13 @@ resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surfac
   malformed data. One with neither `r:embed` nor `r:link`, but carrying only a Microsoft SVG
   extension fallback (`<a:extLst>/<a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}">` wrapping an
   `<asvg:svgBlip>` element - the "Insert Icon" SVG-with-no-raster-fallback pattern real PowerPoint
-  produces) throws `PptxUnsupportedFeatureException` (feature token `"pptx-image-svg-only"`) -
-  also a well-formed, valid OOXML construct this package does not yet decode, not malformed data.
-  Only when neither an embed/link attribute nor this recognized extension fallback is present does
-  `<a:blip>` throw `InvalidDataException` (genuinely malformed - ECMA-376 requires at least one of
-  these).
+  produces) is resolved via the `<asvg:svgBlip>` element's own `r:embed` relationship and
+  rasterized through the sibling `DemaConsulting.CanvasNet.Svg` package's `SvgCodec` (see
+  _Phase 2 Follow-Up: SVG-Only Picture Blip Rendering_ below for the full rationale and rasterization
+  policy). Only when neither an embed/link attribute nor this recognized extension fallback is
+  present (or when the `<asvg:svgBlip>` extension element itself declares no `r:embed` of its
+  own) does `<a:blip>` throw `InvalidDataException` (genuinely malformed - ECMA-376 requires at
+  least one of these).
 - **Content-type dispatch**: the resolved media part's content type (via the existing
   `ResolvePart` content-type lookup) dispatches to a private `ResolveRasterDecoder` helper
   mirroring `DemaConsulting.CanvasNet.Svg.SvgCodec.ResolveRasterDecoder`'s own
@@ -943,13 +945,15 @@ for a documented preset subset.
   `Gradient.WithTransform(shapeToSurfaceTransform)` branch already does, immediately above it in
   the same switch, rather than introducing a divergent composition convention for this new paint
   kind.
-- **Linked-only and SVG-only-fallback blips behave identically to `<p:pic>`**: since
+- **Linked-only blips still fail; SVG-only-fallback blips now decode like `<p:pic>`**: since
   `resolveBlipImage` is typically a closure directly over `ResolvePictureSurface`, a
-  `<a:blipFill>`'s `<a:blip>` that carries only `r:link` (no `r:embed`), or only the Microsoft
-  SVG-extension fallback pattern, throws exactly the same `PptxUnsupportedFeatureException`
-  (feature tokens `"pptx-image-link"`/`"pptx-image-svg-only"` respectively) `ResolvePictureSurface`
-  already throws for a `<p:pic>` in either case - no new, divergent exception behavior was
-  introduced for the fill-context case.
+  `<a:blipFill>`'s `<a:blip>` that carries only `r:link` (no `r:embed`) still throws exactly the
+  same `PptxUnsupportedFeatureException` (feature token `"pptx-image-link"`) `ResolvePictureSurface`
+  already throws for a `<p:pic>` in that case - no new, divergent exception behavior was
+  introduced for the fill-context case. A `<a:blip>` carrying only the Microsoft SVG-extension
+  fallback pattern likewise now decodes successfully in the fill context exactly as it does for a
+  `<p:pic>` (see _Phase 2 Follow-Up: SVG-Only Picture Blip Rendering_ below) - no special-casing
+  was needed here either, since both call sites share the same `ResolvePictureSurface` decode path.
 - **Pythonpptx-DML-Fill Fixture**: this package's own `pythonpptx-dml-fill.pptx` fixture's slide 0
   places six shapes in document order - an inherited fill, an explicit `<a:noFill/>`, a solid RGB
   fill, a real embedded `<a:blipFill>`/`<a:tile tx="0" ty="0" sx="100000" sy="100000"/>` picture
@@ -3124,3 +3128,90 @@ flipped or corrected: `aiden0z-1-chart-and-complex.pptx` and
 slides no longer throw), and `pythonpptx-shp-shapes.pptx` slide 0's existing throw-assertion test
 had only its doc comment corrected (the throw is still asserted, now attributed to "Diagram 7",
 not "Chart 2") alongside the new, narrower "Chart 2"-isolation fact above.
+
+#### Phase 2 Follow-Up: SVG-Only Picture Blip Rendering
+
+**Root cause**: a user-reported real-world deck ("ERF IWF Breadboard Peer Review.pptx") places its
+company logo as a `<p:pic>` directly on `ppt/slideMasters/slideMaster1.xml` (a master-owned
+decorative shape - see _Phase 2 Follow-Up: Master/Layout Decorative Shape Rendering_ above). That
+logo's own `<a:blip>` declares **no raster `r:embed`/`r:link`** at all - only the Microsoft SVG
+blip extension (`<a:extLst>/<a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}">` wrapping an
+`<asvg:svgBlip r:embed="rId75"/>`), referencing `ppt/media/image1.svg`, a pure SVG media part with
+no raster fallback whatsoever - the "Insert Icon"-style picture OOXML allows and real PowerPoint
+produces. Before this fix, `ResolvePictureSurface` (`PptxDocument.Images.cs`) detected exactly
+this pattern via `HasSvgOnlyExtensionFallback(blip)` and threw `PptxUnsupportedFeatureException`
+(feature token `"pptx-image-svg-only"`). Because this particular picture happened to be
+master-owned, the pre-existing master/layout decorative-shape containment (`RenderNode`'s
+`skipPlaceholderShapes`-gated `catch (PptxUnsupportedFeatureException)`, see the Master/Layout
+Decorative Shape Rendering follow-up above) silently swallowed that one shape's exception - the
+logo was simply invisible, with the rest of the slide still rendering normally. A **slide-level**
+(non-master/layout) picture using this same SVG-only pattern had no such containment and still
+hard-failed `Render` entirely, exactly like any other `PptxUnsupportedFeatureException` thrown by
+a slide's own shape.
+
+**What changed**: `ResolvePictureSurface` no longer throws for this case. When
+`<a:blip>` declares neither `r:embed` nor `r:link`, a new `ResolveSvgBlipEmbedId(XElement blip)`
+helper (replacing the old boolean-only `HasSvgOnlyExtensionFallback`) walks the same
+`<a:extLst>/<a:ext uri="{96DAC541-...}">` traversal and additionally extracts the
+`<asvg:svgBlip>` element's own `r:embed` attribute value. When present, a new
+`ResolveSvgOnlyPictureSurface(ownerPartPath, svgEmbedId)` resolves that relationship via the
+exact same `ResolveRelationship`/`GetPartBytes` primitives the raster path already uses (scoped
+identically to `ownerPartPath`, so a master/layout-owned SVG-only logo continues to resolve
+against its own `.rels` file, not the slide's), then rasterizes the referenced `.svg` media
+part's bytes via the sibling `DemaConsulting.CanvasNet.Svg` package's `SvgCodec`, returning the
+resulting `Surface` exactly as the raster path returns its own decoded `Surface` - so every piece
+of downstream logic (crop/`srcRect`, stretch/tile, shape transform, master/layout painting,
+disposal/ownership tracking via `_ownedImageSurfaces`) is completely unchanged; an SVG-only blip
+simply becomes "another decoded image" to every caller. Only a genuinely malformed case -
+`<asvg:svgBlip>` present but declaring no `r:embed` of its own, leaving nothing left to fall back
+to - still throws, now as `InvalidDataException` rather than `PptxUnsupportedFeatureException`,
+consistent with how a dangling/unmatched raster `r:embed` already throws `InvalidDataException`
+elsewhere in this same method. A malformed referenced SVG document's own `InvalidDataException`
+(from `SvgCodec.GetInfo`/`SvgCodec.Load`) propagates unchanged, exactly like a corrupt raster
+image already propagates its own codec's exception unchanged.
+
+**New `CanvasNetSvg` project dependency**: `DemaConsulting.CanvasNet.Pptx.csproj` gained a
+`ProjectReference` to `DemaConsulting.CanvasNet.Svg.csproj`, alongside its pre-existing references
+to `DemaConsulting.CanvasNet` and `DemaConsulting.CanvasNet.Charts` - the same sibling-system
+dependency pattern Phase 4's own chart-rendering integration already established for
+`CanvasNetCharts` (see `canvas-net-pptx.md`'s own system-level Dependencies section). This
+dependency is one-directional: `CanvasNetSvg` must never reference `DemaConsulting.CanvasNet.Pptx`
+back.
+
+**Intrinsic-size rasterization policy**: `SvgCodec.Load(Stream, int, int, ...)` requires explicit
+raster target dimensions, unlike the raster codecs' own `Func<Stream, Surface>` signature taking
+only a `Stream` - so `ResolveSvgOnlyPictureSurface` first calls `SvgCodec.GetInfo(Stream)` to
+resolve the SVG document's own intrinsic size (its `viewBox`/`width`/`height`, already rounded to
+the nearest whole pixel and floored at `1` by `GetInfo` itself), then clamps each axis to
+`[1, Surface.MaxDimension]` (8192) via `Math.Clamp` before calling `Load` - a deliberately simple,
+defense-in-depth cap against a malformed or pathologically large `viewBox` requesting an
+excessive-memory rasterization, mirroring the same `Surface.MaxDimension` ceiling every raster
+codec already enforces. This method deliberately does **not** thread the consuming shape's own
+EMU target size down into `ResolvePictureSurface`: that method is called independently of
+paint-time shape transforms and is reused, unchanged, by multiple callers (the table-cell
+`<a:blipFill>` resolution path, the fill-context `<a:blipFill>` resolution path via `ResolveFill`,
+and `Render`'s own slide-level picture resolution) that would all need the identical change for no
+benefit - scaling a decoded image to its shape's own displayed size already happens later, via the
+existing transform/compositing pipeline (`PaintPicture`), exactly like every other raster format.
+`ResolveRasterDecoder`'s own content-type dispatch table is deliberately **not** extended with an
+`"image/svg+xml"` case: its `Func<Stream, Surface>` shape cannot carry the `int width, int height`
+`SvgCodec.Load` requires, so the SVG-only case is instead handled by a distinct branch in
+`ResolvePictureSurface`, before `ResolveRasterDecoder` is ever consulted for this blip.
+
+**Real-file regression scenario**: the "ERF IWF Breadboard Peer Review.pptx" master-logo scenario
+described above is reproduced synthetically (no corpus fixture file is added, consistent with how
+every other real-world scenario referenced in this unit's own prose is verified - see, for
+example, the Master/Layout Decorative Shape Rendering follow-up's own synthetic repro pattern) by
+`Render_MasterSvgOnlyLogoPicture_PaintsVisiblePixelsInsteadOfBeingSkipped`
+(`PptxRenderTests.cs`): a master-owned `<p:pic>` declaring only the `<asvg:svgBlip>` extension
+fallback, referencing a minimal solid-color SVG media part, now paints that color's pixels on
+every slide using that master, instead of being silently skipped by the master/layout
+decorative-shape containment. `PptxImagesTests.cs` gained
+`ResolvePictureSurface_SvgOnlyBlipExtension_ReturnsDecodedSurfaceFromAsvgSvgBlipEmbed` (a unit-level
+proof that `ResolvePictureSurface` itself now returns a non-null, correctly-sized `Surface` for
+this pattern instead of throwing) and
+`ResolvePictureSurface_SvgBlipExtensionMissingEmbed_ThrowsInvalidDataException` (the malformed-
+extension regression case); the pre-existing
+`ResolvePictureSurface_BlipMissingEmbedAndLink_ThrowsInvalidDataException` (no raster fallback and
+no SVG extension at all) continues to pass unchanged, proving that genuinely malformed case is
+unaffected by this fix.

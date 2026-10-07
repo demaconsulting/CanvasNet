@@ -4,6 +4,7 @@ using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Svg;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx;
@@ -29,15 +30,31 @@ public sealed partial class PptxDocument
     /// <summary>
     ///     The <c>uri</c> attribute value identifying the Microsoft SVG blip extension
     ///     (<c>&lt;a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}"&gt;&lt;asvg:svgBlip
-    ///     .../&gt;&lt;/a:ext&gt;</c>) - see <see cref="HasSvgOnlyExtensionFallback"/>.
+    ///     .../&gt;&lt;/a:ext&gt;</c>) - see <see cref="ResolveSvgBlipEmbedId"/>.
     /// </summary>
     private const string SvgBlipExtensionUri = "{96DAC541-7B7A-43D3-8B79-37D633B846F1}";
 
     /// <summary>
+    ///     The XML namespace used by the Microsoft SVG blip extension's <c>&lt;asvg:svgBlip&gt;</c>
+    ///     element - see <see cref="SvgBlipExtensionUri"/>/<see cref="ResolveSvgBlipEmbedId"/>.
+    /// </summary>
+    private static readonly XNamespace SvgBlipNamespace =
+        "http://schemas.microsoft.com/office/drawing/2016/SVG/main";
+
+    /// <summary>
     ///     Resolves a <c>&lt;p:pic&gt;</c> shape's <c>&lt;p:blipFill&gt;</c> element into a
-    ///     fully decoded raster <see cref="Surface"/>: resolves its <c>&lt;a:blip r:embed="..."/&gt;</c>
-    ///     relationship to the owning media part, resolves that part's content type, and
-    ///     dispatches to the matching sibling raster codec's own <c>Load(Stream)</c> entry point.
+    ///     fully decoded <see cref="Surface"/>. For an ordinary raster <c>&lt;a:blip
+    ///     r:embed="..."/&gt;</c>, this resolves that relationship to the owning media part,
+    ///     resolves that part's content type, and dispatches to the matching sibling raster
+    ///     codec's own <c>Load(Stream)</c> entry point. For a Microsoft "SVG-only" blip (no raster
+    ///     <c>r:embed</c>/<c>r:link</c> at all, only a <c>&lt;a:extLst&gt;/&lt;a:ext uri="{96DAC541-
+    ///     7B7A-43D3-8B79-37D633B846F1}"&gt;&lt;asvg:svgBlip r:embed="..."/&gt;</c> extension - a
+    ///     common "Insert Icon"-style picture with no raster fallback), this instead resolves the
+    ///     <c>&lt;asvg:svgBlip&gt;</c> element's own <c>r:embed</c> relationship to the referenced
+    ///     <c>.svg</c> media part and rasterizes it via the sibling
+    ///     <see cref="DemaConsulting.CanvasNet.Svg"/> package's <see cref="SvgCodec"/>, at the
+    ///     SVG's own intrinsic size (see <see cref="SvgCodec.GetInfo(Stream)"/>), clamped to
+    ///     <c>[1, <see cref="Surface.MaxDimension"/>]</c> on each axis.
     /// </summary>
     /// <param name="ownerPartPath">
     ///     The part path of the slide (or other part) that owns <paramref name="blipFillElement"/> -
@@ -45,35 +62,36 @@ public sealed partial class PptxDocument
     ///     own <c>.rels</c> file (see <see cref="ResolveRelationship"/>).
     /// </param>
     /// <param name="blipFillElement">The shape's <c>&lt;p:blipFill&gt;</c> element.</param>
-    /// <returns>The fully decoded raster image, as a core <see cref="Surface"/>.</returns>
+    /// <returns>The fully decoded image, as a core <see cref="Surface"/>.</returns>
     /// <exception cref="ArgumentNullException">
     ///     Thrown when <paramref name="ownerPartPath"/> or <paramref name="blipFillElement"/> is null.
     /// </exception>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="blipFillElement"/> has no <c>&lt;a:blip&gt;</c> child, when
-    ///     that child has neither an <c>r:embed</c> nor an <c>r:link</c> attribute, or when the
+    ///     that child has neither an <c>r:embed</c> nor an <c>r:link</c> attribute and no usable
+    ///     <c>&lt;asvg:svgBlip&gt;</c> extension (an <c>&lt;a:extLst&gt;/&lt;a:ext uri="{96DAC541-
+    ///     7B7A-43D3-8B79-37D633B846F1}"&gt;&lt;asvg:svgBlip&gt;</c> with no <c>r:embed</c> attribute
+    ///     of its own is likewise malformed, with nothing left to fall back to), or when the
     ///     resolved media part/relationship is otherwise malformed (propagated unchanged from
     ///     <see cref="ResolveRelationship"/>/<see cref="ResolvePart"/>/<see cref="GetPartBytes"/>).
     /// </exception>
     /// <exception cref="PptxUnsupportedFeatureException">
     ///     Thrown (feature token <c>"pptx-image-link"</c>) when <c>&lt;a:blip&gt;</c> declares only
     ///     an <c>r:link</c> (a linked, non-embedded image - requires external/network resolution,
-    ///     out of scope this phase), (feature token <c>"pptx-image-svg-only"</c>) when
-    ///     <c>&lt;a:blip&gt;</c> declares neither <c>r:embed</c> nor <c>r:link</c> but instead
-    ///     carries only a Microsoft SVG extension (<c>&lt;a:extLst&gt;/&lt;a:ext uri="{96DAC541-
-    ///     7B7A-43D3-8B79-37D633B846F1}"&gt;&lt;asvg:svgBlip&gt;</c>) with no raster fallback - a
-    ///     well-formed, valid "Insert Icon"-style SVG-only picture this package does not yet
-    ///     decode, or (feature token <c>"pptx-image-format"</c>) when the resolved media part's
-    ///     content type is not one of the five raster formats this package's codecs decode (for
-    ///     example an EMF/WMF vector picture, or an SVG image - common PowerPoint picture formats
-    ///     this phase's raster-only codecs cannot decode).
+    ///     out of scope this phase), or (feature token <c>"pptx-image-format"</c>) when the
+    ///     resolved media part's content type is not one of the five raster formats this package's
+    ///     codecs decode (for example an EMF/WMF vector picture - a common PowerPoint picture
+    ///     format this phase's raster-only codecs cannot decode).
     /// </exception>
     /// <remarks>
     ///     A codec decode failure (corrupt image bytes) is <em>not</em> wrapped here - it
     ///     propagates as whatever exception the matching codec's own <c>Load(Stream)</c> throws
     ///     (typically <see cref="InvalidDataException"/> or
-    ///     <see cref="Codecs.UnsupportedImageFeatureException"/>), consistent with how this
-    ///     package never wraps a sibling package's own, already-well-defined exception types.
+    ///     <see cref="Codecs.UnsupportedImageFeatureException"/> for a raster image, or
+    ///     <see cref="InvalidDataException"/> from <see cref="SvgCodec.GetInfo(Stream)"/>/
+    ///     <see cref="SvgCodec.Load(Stream, int, int, System.Collections.Generic.IReadOnlyDictionary{string, DemaConsulting.CanvasNet.Fonts.TrueTypeFont}?)"/>
+    ///     for a malformed referenced SVG), consistent with how this package never wraps a sibling
+    ///     package's own, already-well-defined exception types.
     /// </remarks>
     internal Surface ResolvePictureSurface(string ownerPartPath, XElement blipFillElement)
     {
@@ -93,12 +111,10 @@ public sealed partial class PptxDocument
                     "A linked (not embedded) <a:blip r:link=\"...\"> image is not supported.");
             }
 
-            if (HasSvgOnlyExtensionFallback(blip))
+            var svgEmbedId = ResolveSvgBlipEmbedId(blip);
+            if (svgEmbedId is not null)
             {
-                throw new PptxUnsupportedFeatureException(
-                    "pptx-image-svg-only",
-                    "An <a:blip> declares only a Microsoft SVG extension (<asvg:svgBlip>) with no " +
-                    "r:embed/r:link raster fallback; SVG-only pictures are not supported.");
+                return ResolveSvgOnlyPictureSurface(ownerPartPath, svgEmbedId);
             }
 
             throw new InvalidDataException("An <a:blip> element has neither an 'r:embed' nor an 'r:link' attribute.");
@@ -113,6 +129,42 @@ public sealed partial class PptxDocument
         var bytes = GetPartBytes(mediaPartPath);
         using var stream = new MemoryStream(bytes);
         return decoder(stream);
+    }
+
+    /// <summary>
+    ///     Resolves a Microsoft "SVG-only" <c>&lt;a:blip&gt;</c>'s referenced <c>.svg</c> media
+    ///     part (via the <c>&lt;asvg:svgBlip&gt;</c> extension element's own <c>r:embed</c>
+    ///     relationship) and rasterizes it via <see cref="SvgCodec"/>, at the SVG's own intrinsic
+    ///     size (<see cref="SvgCodec.GetInfo(Stream)"/>), clamped to
+    ///     <c>[1, <see cref="Surface.MaxDimension"/>]</c> on each axis.
+    /// </summary>
+    /// <param name="ownerPartPath">See <see cref="ResolvePictureSurface"/>.</param>
+    /// <param name="svgEmbedId">
+    ///     The <c>&lt;asvg:svgBlip&gt;</c> extension element's own <c>r:embed</c> attribute value.
+    /// </param>
+    /// <returns>The rasterized SVG, as a core <see cref="Surface"/>.</returns>
+    /// <exception cref="InvalidDataException">
+    ///     Propagated unchanged from <see cref="ResolveRelationship"/>/<see cref="GetPartBytes"/>
+    ///     when the relationship/media part is malformed, or from <see cref="SvgCodec.GetInfo(Stream)"/>/
+    ///     <see cref="SvgCodec.Load(Stream, int, int, System.Collections.Generic.IReadOnlyDictionary{string, DemaConsulting.CanvasNet.Fonts.TrueTypeFont}?)"/>
+    ///     when the referenced SVG document is malformed.
+    /// </exception>
+    private Surface ResolveSvgOnlyPictureSurface(string ownerPartPath, string svgEmbedId)
+    {
+        var mediaPartPath = ResolveRelationship(ownerPartPath, svgEmbedId);
+        var bytes = GetPartBytes(mediaPartPath);
+
+        int width;
+        int height;
+        using (var infoStream = new MemoryStream(bytes))
+        {
+            var info = SvgCodec.GetInfo(infoStream);
+            width = Math.Clamp(info.Width, 1, Surface.MaxDimension);
+            height = Math.Clamp(info.Height, 1, Surface.MaxDimension);
+        }
+
+        using var loadStream = new MemoryStream(bytes);
+        return SvgCodec.Load(loadStream, width, height);
     }
 
     /// <summary>
@@ -154,7 +206,12 @@ public sealed partial class PptxDocument
     ///     <see cref="BmpCodec.Load(Stream)"/>, <see cref="TiffCodec.Load(Stream)"/>, or
     ///     <see cref="GifCodec.Load(Stream)"/> for the matching recognized content type; otherwise
     ///     <see langword="null"/> for any unrecognized content type (for example
-    ///     <c>"image/x-emf"</c>, <c>"image/x-wmf"</c>, or <c>"image/svg+xml"</c>).
+    ///     <c>"image/x-emf"</c> or <c>"image/x-wmf"</c>). This dispatcher's <c>Func&lt;Stream,
+    ///     Surface&gt;</c> shape intentionally excludes <c>"image/svg+xml"</c>: an SVG-only picture
+    ///     is handled by a distinct branch in <see cref="ResolvePictureSurface"/>
+    ///     (<see cref="ResolveSvgOnlyPictureSurface"/>) before this dispatcher is ever consulted,
+    ///     since <see cref="SvgCodec.Load(Stream, int, int, System.Collections.Generic.IReadOnlyDictionary{string, DemaConsulting.CanvasNet.Fonts.TrueTypeFont}?)"/>
+    ///     requires explicit raster target dimensions this dispatcher's signature cannot carry.
     /// </returns>
     private static Func<Stream, Surface>? ResolveRasterDecoder(string contentType) => contentType switch
     {
@@ -167,36 +224,42 @@ public sealed partial class PptxDocument
     };
 
     /// <summary>
-    ///     Detects the Microsoft "SVG-only" <c>&lt;a:blip&gt;</c> fallback pattern: an
+    ///     Detects the Microsoft "SVG-only" <c>&lt;a:blip&gt;</c> fallback pattern - an
     ///     <c>&lt;a:extLst&gt;</c> child containing an <c>&lt;a:ext uri="{96DAC541-7B7A-43D3-8B79-
-    ///     37D633B846F1}"&gt;</c> wrapping an <c>&lt;asvg:svgBlip&gt;</c> extension element - a
-    ///     well-formed, valid OOXML picture ("Insert Icon"-style SVG with no raster fallback) that
-    ///     this package does not yet decode, distinct from a genuinely malformed <c>&lt;a:blip&gt;</c>
-    ///     with neither an embed/link attribute nor any recognized extension.
+    ///     37D633B846F1}"&gt;</c> wrapping an <c>&lt;asvg:svgBlip&gt;</c> extension element, a
+    ///     well-formed, valid OOXML picture ("Insert Icon"-style SVG with no raster fallback) - and,
+    ///     when found, extracts that <c>&lt;asvg:svgBlip&gt;</c> element's own <c>r:embed</c>
+    ///     attribute value (the relationship id of the referenced <c>.svg</c> media part).
     /// </summary>
     /// <param name="blip">The <c>&lt;a:blip&gt;</c> element to inspect.</param>
     /// <returns>
-    ///     <see langword="true"/> when <paramref name="blip"/> has an <c>&lt;a:extLst&gt;</c> child
-    ///     with an <c>&lt;a:ext&gt;</c> whose <c>uri</c> attribute matches
-    ///     <see cref="SvgBlipExtensionUri"/>; otherwise <see langword="false"/>.
+    ///     The <c>&lt;asvg:svgBlip&gt;</c> element's own <c>r:embed</c> attribute value when
+    ///     <paramref name="blip"/> has an <c>&lt;a:extLst&gt;</c> child with an <c>&lt;a:ext&gt;</c>
+    ///     whose <c>uri</c> attribute matches <see cref="SvgBlipExtensionUri"/> and that element's
+    ///     <c>&lt;asvg:svgBlip&gt;</c> child itself declares an <c>r:embed</c> attribute; otherwise
+    ///     <see langword="null"/> (either no such extension is present at all, or it is present but
+    ///     malformed - missing its own <c>r:embed</c> - leaving nothing left to fall back to).
     /// </returns>
-    private static bool HasSvgOnlyExtensionFallback(XElement blip)
+    private static string? ResolveSvgBlipEmbedId(XElement blip)
     {
         var extLst = blip.Element(DrawingNamespace + "extLst");
         if (extLst is null)
         {
-            return false;
+            return null;
         }
 
         foreach (var ext in extLst.Elements(DrawingNamespace + "ext"))
         {
-            if ((string?)ext.Attribute("uri") == SvgBlipExtensionUri)
+            if ((string?)ext.Attribute("uri") != SvgBlipExtensionUri)
             {
-                return true;
+                continue;
             }
+
+            var svgBlip = ext.Element(SvgBlipNamespace + "svgBlip");
+            return (string?)svgBlip?.Attribute(RelationshipRefNamespace + "embed");
         }
 
-        return false;
+        return null;
     }
 
     /// <summary>
