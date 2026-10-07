@@ -67,4 +67,15 @@
     <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.Vsdx\DemaConsulting.CanvasNet.Vsdx.csproj" />
   </ItemGroup>
 
+  <!-- Real-world .vsdx fixture files, staged outside this project's cone pending promotion;
+       Link remaps the out-of-cone ..\ source path to an in-project-relative output path, since
+       MSBuild's default output-relative-path derivation for a ..\-containing Include is
+       unreliable without it. -->
+  <ItemGroup>
+    <None Include="..\DemaConsulting.CanvasNet.Vsdx.Tests.Fixtures-STAGING\VsdxFixtures\**">
+      <Link>VsdxFixtures\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
