@@ -842,7 +842,7 @@ public class PptxImagesTests
         using var stream = package;
         using var document = PptxDocument.Open(stream);
 
-        var surface = document.ResolvePictureSurface(slidePartPath, BuildSvgOnlyBlipFill("rId2"));
+        using var surface = document.ResolvePictureSurface(slidePartPath, BuildSvgOnlyBlipFill("rId2"));
 
         Assert.Equal(Surface.MaxDimension, surface.Width);
         Assert.Equal(Surface.MaxDimension, surface.Height);
