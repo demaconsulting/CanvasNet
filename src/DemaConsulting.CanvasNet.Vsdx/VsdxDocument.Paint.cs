@@ -18,6 +18,9 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     resolves through <see cref="VsdxColorPalette.ThemedFallback"/> (deferred in full to
 ///     Milestone 6 - see <see cref="VsdxColorPalette.ThemedFallback"/>'s own remarks for the
 ///     fixture evidence motivating this deliberate deviation from the originating plan report).
+///     Also resolves <c>BeginArrow</c>/<c>EndArrow</c> (and their paired
+///     <c>BeginArrowSize</c>/<c>EndArrowSize</c>) through the exact same <c>Line*</c>-category
+///     precedence - see <c>VsdxDocument.Arrowheads.cs</c>'s <c>ResolveArrowhead</c>.
 /// </summary>
 public sealed partial class VsdxDocument
 {
@@ -57,12 +60,17 @@ public sealed partial class VsdxDocument
             ? parsedWeight
             : 0d;
 
+        var beginArrowhead = ResolveArrowhead(effectiveCells, lineStyleId, isBegin: true);
+        var endArrowhead = ResolveArrowhead(effectiveCells, lineStyleId, isBegin: false);
+
         return new VsdxResolvedPaint(
             HasLine: hasLine,
             StrokeColor: VsdxColorPalette.Resolve(lineColorRaw, DefaultStrokeColor),
             StrokeWidthInches: strokeWidth,
             HasFill: hasFill,
-            FillColor: VsdxColorPalette.Resolve(fillColorRaw, DefaultFillColor));
+            FillColor: VsdxColorPalette.Resolve(fillColorRaw, DefaultFillColor),
+            BeginArrowhead: beginArrowhead,
+            EndArrowhead: endArrowhead);
     }
 
     /// <summary>Resolves a <c>Line*</c>-category cell: the shape's own literal value, or the StyleSheet chain walked via the <c>LineStyle</c> parent pointer.</summary>

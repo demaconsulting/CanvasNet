@@ -7,11 +7,14 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> page shape-tree parser and resolver: locating a
 ///     page's content part (<c>visio/pages/pageN.xml</c>), parsing its <c>&lt;Shapes&gt;</c> tree
-///     into <see cref="VsdxShapeNode"/> instances, and resolving each top-level shape (Master/
-///     MasterShape cell and geometry-row merge, StyleSheet chain walk, transform, paint) - see
-///     <c>VsdxDocument.CellMerge.cs</c>/<c>VsdxDocument.Styles.cs</c>/
-///     <c>VsdxDocument.Geometry.cs</c>/<c>VsdxDocument.Transform.cs</c>/
-///     <c>VsdxDocument.Paint.cs</c> for each resolution concern's own implementation.
+///     into <see cref="VsdxShapeNode"/> instances, parsing its sibling <c>&lt;Connects&gt;</c>
+///     section and attaching each entry to its connector shape, and resolving each top-level
+///     shape (Master/MasterShape cell and geometry-row merge, StyleSheet chain walk, transform,
+///     paint, 1-D connector endpoints) - see <c>VsdxDocument.CellMerge.cs</c>/
+///     <c>VsdxDocument.Styles.cs</c>/<c>VsdxDocument.Geometry.cs</c>/
+///     <c>VsdxDocument.Transform.cs</c>/<c>VsdxDocument.Paint.cs</c>/
+///     <c>VsdxDocument.Connects.cs</c>/<c>VsdxDocument.Arrowheads.cs</c> for each resolution
+///     concern's own implementation.
 /// </summary>
 public sealed partial class VsdxDocument
 {
@@ -58,6 +61,10 @@ public sealed partial class VsdxDocument
         var rawShapes = shapesElement is null
             ? []
             : ParseShapeElements(shapesElement);
+
+        var connectsElement = root.Element(VsdxMainNamespace + "Connects");
+        var connects = ParseConnectsElement(connectsElement);
+        AttachConnectsToShapes(rawShapes, connects);
 
         var resolved = new List<VsdxShapeNode>(rawShapes.Count);
         foreach (var shape in rawShapes)
@@ -176,6 +183,17 @@ public sealed partial class VsdxDocument
         shape.Geometries = BuildGeometrySections(effectiveGeometrySections, effectiveCells);
         shape.Transform = BuildTransform(effectiveCells);
         shape.Paint = ResolvePaint(effectiveCells, shape.Geometries, effectiveLineStyleId, effectiveFillStyleId);
+
+        // A 1-D (connector) shape always carries both a BeginX and an EndX cell (see the format
+        // reference's §4.4); a 2-D shape carries neither. Trust the already-resolved V values
+        // directly rather than recomputing them - see VsdxConnectorEndpoints's own remarks.
+        shape.ConnectorEndpoints = effectiveCells.TryGet("BeginX", out _) && effectiveCells.TryGet("EndX", out _)
+            ? new VsdxConnectorEndpoints(
+                effectiveCells.GetDouble("BeginX"),
+                effectiveCells.GetDouble("BeginY"),
+                effectiveCells.GetDouble("EndX"),
+                effectiveCells.GetDouble("EndY"))
+            : null;
 
         // Assumption #4 (documented, low-risk design-consistency extension, not fixture-evidenced
         // - see the Milestone 4 plan report): an instance shape with no own <Text> element falls

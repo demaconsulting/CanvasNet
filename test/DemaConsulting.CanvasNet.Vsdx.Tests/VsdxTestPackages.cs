@@ -75,15 +75,17 @@ internal static class VsdxTestPackages
         </Relationships>
         """;
 
-    /// <summary>Builds <c>visio/pages/page1.xml</c>, wrapping the supplied literal <c>&lt;Shape&gt;</c> markup in a <c>&lt;PageContents&gt;&lt;Shapes&gt;...&lt;/Shapes&gt;&lt;/PageContents&gt;</c> envelope.</summary>
+    /// <summary>Builds <c>visio/pages/page1.xml</c>, wrapping the supplied literal <c>&lt;Shape&gt;</c> markup in a <c>&lt;PageContents&gt;&lt;Shapes&gt;...&lt;/Shapes&gt;&lt;/PageContents&gt;</c> envelope, optionally followed by a sibling <c>&lt;Connects&gt;</c> section.</summary>
     /// <param name="shapesXml">The literal <c>&lt;Shape&gt;...&lt;/Shape&gt;</c> markup for every top-level shape on the page.</param>
-    public static string BuildPageContentXml(string shapesXml) =>
+    /// <param name="connectsXml">The literal <c>&lt;Connect .../&gt;</c> markup for every glued connector endpoint on the page, or <see langword="null"/> to omit the <c>&lt;Connects&gt;</c> section entirely (matching every fixture with no connectors - see the format reference's own confirmation that <c>&lt;Connects&gt;</c> is optional/page-dependent).</param>
+    public static string BuildPageContentXml(string shapesXml, string? connectsXml = null) =>
         $"""
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <PageContents xmlns="http://schemas.microsoft.com/office/visio/2012/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
           <Shapes>
         {shapesXml}
           </Shapes>
+        {(connectsXml is null ? string.Empty : $"<Connects>{connectsXml}</Connects>")}
         </PageContents>
         """;
 
@@ -126,7 +128,8 @@ internal static class VsdxTestPackages
     /// <param name="pageShapesXml">The page's own top-level <c>&lt;Shape&gt;</c> markup (see <see cref="BuildPageContentXml"/>).</param>
     /// <param name="styleSheetsXml">The optional literal <c>&lt;StyleSheets&gt;</c> markup to embed in <c>visio/document.xml</c>.</param>
     /// <param name="mastersXml">The optional literal <c>&lt;Shape&gt;</c> markup for a single Master (<c>ID="1"</c>); when supplied, the package also declares the <c>masters</c> relationship and parts.</param>
-    public static Stream BuildPackage(string pageShapesXml, string? styleSheetsXml = null, string? mastersXml = null)
+    /// <param name="connectsXml">The optional literal <c>&lt;Connect .../&gt;</c> markup for the page's <c>&lt;Connects&gt;</c> section - see <see cref="BuildPageContentXml"/>.</param>
+    public static Stream BuildPackage(string pageShapesXml, string? styleSheetsXml = null, string? mastersXml = null, string? connectsXml = null)
     {
         var entries = new List<(string Name, string Content)>
         {
@@ -136,7 +139,7 @@ internal static class VsdxTestPackages
             ("visio/_rels/document.xml.rels", BuildDocumentRelsXml(includeMasters: mastersXml is not null)),
             ("visio/pages/pages.xml", BuildPagesXml()),
             ("visio/pages/_rels/pages.xml.rels", BuildPagesRelsXml()),
-            ("visio/pages/page1.xml", BuildPageContentXml(pageShapesXml))
+            ("visio/pages/page1.xml", BuildPageContentXml(pageShapesXml, connectsXml))
         };
 
         if (mastersXml is not null)

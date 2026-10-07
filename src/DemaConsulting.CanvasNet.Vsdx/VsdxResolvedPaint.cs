@@ -31,9 +31,18 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     The resolved fill color (see <see cref="VsdxColorPalette.Resolve"/>). Meaningful only when
 ///     <see cref="HasFill"/> is <see langword="true"/>.
 /// </param>
+/// <param name="BeginArrowhead">
+///     The shape's resolved <c>BeginArrow</c>/<c>BeginArrowSize</c> arrowhead (see
+///     <c>VsdxDocument.Arrowheads.cs</c>), resolved for every shape - meaningful only for a 1-D
+///     (connector) shape with <see cref="VsdxArrowheadStyle.None"/> otherwise rendering as a
+///     no-op.
+/// </param>
+/// <param name="EndArrowhead">The shape's resolved <c>EndArrow</c>/<c>EndArrowSize</c> arrowhead - see <see cref="BeginArrowhead"/>'s own remarks.</param>
 internal sealed record VsdxResolvedPaint(
     bool HasLine,
     Rgba32 StrokeColor,
     double StrokeWidthInches,
     bool HasFill,
-    Rgba32 FillColor);
+    Rgba32 FillColor,
+    VsdxArrowhead BeginArrowhead,
+    VsdxArrowhead EndArrowhead);

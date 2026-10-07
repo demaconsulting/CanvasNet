@@ -374,16 +374,18 @@ sections:
             title: >-
               The VsdxDocument class shall render a connector's optional stroked or filled
               arrowhead at either end, oriented along the connector's own resolved line direction,
-              for the documented subset of recognized BeginArrow/EndArrow index values, and throw
-              VsdxUnsupportedFeatureException carrying a stable feature token for an unrecognized
-              index.
+              for the documented subset of recognized BeginArrow/EndArrow index values, and
+              degrade an unrecognized index to a plain, unadorned line end (no arrowhead) rather
+              than throwing.
             justification: |
               The full BeginArrow/EndArrow style-index table is not enumerable from the sample
-              corpus underlying this design; an explicit, documented exception is safer than a
-              silently wrong arrowhead shape.
+              corpus underlying this design; a safe, documented degrade is consistent with this
+              unit's "never throwing" risk control measure for a well-formed but out-of-scope
+              construct, and avoids rejecting an otherwise-renderable page over a single
+              unrecognized arrowhead index.
             tests:
               - VsdxDocument_ArrowheadRendering_RendersRecognizedArrowAtConnectorEnd
-              - VsdxDocument_ArrowheadRendering_UnrecognizedIndexThrowsVsdxUnsupportedFeatureException
+              - VsdxDocument_ArrowheadRendering_UnrecognizedIndexDegradesToNoArrowhead
 
           - id: CanvasNetVsdx-VsdxDocument-DanglingGlueTargetTolerance
             title: >-

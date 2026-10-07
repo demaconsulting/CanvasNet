@@ -134,4 +134,22 @@ internal sealed class VsdxShapeNode
 
     /// <summary>The shape's resolved, word-wrapped glyph layout, or <see langword="null"/> until resolved.</summary>
     public VsdxTextLayout? TextLayout { get; internal set; }
+
+    /// <summary>
+    ///     This shape's own <c>&lt;Connect&gt;</c> entries from the page's <c>&lt;Connects&gt;</c>
+    ///     section (see <c>VsdxDocument.Connects.cs</c>), attached by matching
+    ///     <see cref="VsdxConnect.ConnectorShapeId"/> against <see cref="Id"/>. Empty (not
+    ///     <see langword="null"/>) for a shape that is not a connector, or whose page declares no
+    ///     <c>&lt;Connects&gt;</c> section at all.
+    /// </summary>
+    public IReadOnlyList<VsdxConnect> Connects { get; internal set; } = [];
+
+    /// <summary>
+    ///     This shape's resolved 1-D (connector) begin/end endpoint coordinates, or
+    ///     <see langword="null"/> for a 2-D shape (one with no <c>BeginX</c>/<c>EndX</c> cell
+    ///     pair in its merged, effective cell bag) - see <see cref="VsdxConnectorEndpoints"/>'s own
+    ///     remarks for why these are trusted directly rather than recomputed from
+    ///     <see cref="Connects"/>.
+    /// </summary>
+    public VsdxConnectorEndpoints? ConnectorEndpoints { get; internal set; }
 }
