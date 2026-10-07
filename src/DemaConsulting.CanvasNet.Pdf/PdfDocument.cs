@@ -146,6 +146,16 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         fail closed with <see cref="UnsupportedImageFeatureException"/>, each with its own
 ///         distinguishable <see cref="UnsupportedImageFeatureException.Feature"/> token.
 ///     </para>
+///     <para>
+///         <strong>Thread safety</strong>: a <see cref="PdfDocument"/> instance is <em>not</em>
+///         thread-safe. <see cref="Render(int, int, int, PdfRenderOptions?)"/> and every other
+///         public member lazily populate and read shared per-instance caches (parsed pages,
+///         fonts, and resolved object-stream entries) without synchronization, so calling any of
+///         them concurrently from multiple threads on the <em>same</em> instance is unsupported
+///         and may corrupt those caches or throw. Open one <see cref="PdfDocument"/> instance per
+///         thread when concurrent access is needed, or otherwise synchronize all calls to a
+///         single shared instance externally.
+///     </para>
 /// </remarks>
 public sealed partial class PdfDocument : IDisposable
 {

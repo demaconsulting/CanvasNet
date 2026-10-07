@@ -144,6 +144,19 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         boundary (an unrecognized connector preset degrades to "this one connector is
 ///         invisible" rather than aborting the slide).
 ///     </para>
+///     <para>
+///         <strong>Thread safety</strong>: a <see cref="PptxDocument"/> instance is <em>not</em>
+///         thread-safe. <see cref="Render(int, int, int, PptxRenderOptions?)"/> and every other
+///         public member lazily populate and read shared per-instance caches (parsed slides,
+///         layouts, masters, themes, relationships, table styles, and owned picture surfaces)
+///         without synchronization, so calling any of them concurrently from multiple threads on
+///         the <em>same</em> instance is unsupported and may corrupt those caches, throw, or
+///         leak/double-dispose a decoded picture. This mirrors common .NET document/parser types
+///         (for example <see cref="System.Xml.Linq.XDocument"/> or <see cref="Stream"/>): open
+///         one <see cref="PptxDocument"/> instance per thread (re-opening the same file is cheap
+///         relative to rendering) when concurrent access is needed, or otherwise synchronize all
+///         calls to a single shared instance externally.
+///     </para>
 /// </remarks>
 public sealed partial class PptxDocument : IDisposable
 {

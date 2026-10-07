@@ -47,7 +47,13 @@ public sealed partial class PptxDocument
     ///     Thrown when <paramref name="graphicData"/> has no <c>&lt;c:chart&gt;</c> child, or that
     ///     child has no <c>r:id</c> attribute - a malformed chart graphic frame, distinct from a
     ///     recognized-but-unsupported chart kind (see <see cref="PptxUnsupportedFeatureException"/>
-    ///     below).
+    ///     below). Also thrown (wrapping the original <see cref="ArgumentException"/>) when the
+    ///     referenced chart part's own data is otherwise malformed in a way
+    ///     <see cref="OpenXmlChartParser.Parse(XElement)"/> only detects by delegating to the
+    ///     <see cref="Chart"/>/<see cref="ChartSeries"/>/<see cref="ChartAxis"/> model
+    ///     constructors (for example a cached point count that does not match its series' point
+    ///     count) - every malformed chart part must surface as <see cref="InvalidDataException"/>,
+    ///     never as a model-constructor <see cref="ArgumentException"/> escaping unwrapped.
     /// </exception>
     /// <exception cref="PptxUnsupportedFeatureException">
     ///     Thrown (wrapping a <see cref="ChartUnsupportedFeatureException"/> thrown by
@@ -78,6 +84,15 @@ public sealed partial class PptxDocument
                 "pptx-chart-" + ex.Feature,
                 $"Chart feature '{ex.Feature}' is not supported.",
                 ex);
+        }
+        catch (ArgumentException ex)
+        {
+            // OpenXmlChartParser.Parse delegates cache/count/range validation to the Chart/
+            // ChartSeries/ChartAxis constructors, which throw ArgumentException for malformed
+            // chart data (for example a cached point count that disagrees with its series'
+            // actual point count). The Pptx requirement promises InvalidDataException for any
+            // malformed chart part, so rewrap rather than letting this escape as-is.
+            throw new InvalidDataException($"Chart part referenced by relationship '{relationshipId}' has malformed data.", ex);
         }
     }
 }

@@ -44,11 +44,22 @@ public static partial class ChartRenderer
         var values = series.Values;
 
         // Only positive values contribute angular share; a non-positive value draws no wedge
-        // (rather than throwing) - the documented "negative/zero pie value" edge case.
-        var total = 0d;
-        foreach (var value in values)
+        // (rather than throwing) - the documented "negative/zero pie value" edge case. Summing
+        // raw values directly can overflow to +Infinity when two or more large-but-finite values
+        // are present (double.MaxValue + double.MaxValue), which would then make every share
+        // 0/Infinity = 0 and paint no wedges at all. Avoid this by first normalizing every value
+        // against the largest positive value before accumulating: each normalized term is in
+        // [0, 1], so neither the running total nor any later share computation can overflow,
+        // regardless of how extreme the input magnitudes are.
+        var maxPositive = values.Count > 0 ? Math.Max(0d, values.Max()) : 0d;
+
+        var normalizedTotal = 0d;
+        if (maxPositive > 0d)
         {
-            total += Math.Max(0d, value);
+            foreach (var value in values)
+            {
+                normalizedTotal += Math.Max(0d, value) / maxPositive;
+            }
         }
 
         var centerX = plotRect.X + plotRect.Width / 2f;
@@ -68,7 +79,7 @@ public static partial class ChartRenderer
         var angle = -MathF.PI / 2f;
         for (var i = 0; i < values.Count; i++)
         {
-            var share = total > 0d ? Math.Max(0d, values[i]) / total : 0d;
+            var share = normalizedTotal > 0d ? Math.Max(0d, values[i]) / maxPositive / normalizedTotal : 0d;
             var sweepAngle = (float)(share * (2d * Math.PI));
             var color = ResolvePointColor(chart, options, series, i);
 

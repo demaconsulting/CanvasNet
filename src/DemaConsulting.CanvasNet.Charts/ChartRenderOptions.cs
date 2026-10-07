@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Fonts;
 
@@ -88,15 +89,19 @@ public sealed class ChartRenderOptions
     public IReadOnlyList<Rgba32>? ColorPalette
     {
         get => _colorPalette;
-        init => _colorPalette = value is null ? null : [.. value];
+        init => _colorPalette = value is null ? null : new ReadOnlyCollection<Rgba32>([.. value]);
     }
 
     /// <summary>
-    ///     The backing field for <see cref="ColorPalette"/>. A defensive copy is made in the
-    ///     <see langword="init"/> accessor above so a caller mutating the list/array they passed
-    ///     in (or reusing a single mutable list across several <see cref="ChartRenderOptions"/>
-    ///     instances) after construction cannot retroactively change palette resolution for an
-    ///     already-constructed, supposedly-immutable options instance.
+    ///     The backing field for <see cref="ColorPalette"/>. A defensive copy is made and wrapped
+    ///     in a <see cref="ReadOnlyCollection{T}"/> in the <see langword="init"/> accessor above,
+    ///     so neither mutating the caller's original list/array after construction (or reusing a
+    ///     single mutable list across several <see cref="ChartRenderOptions"/> instances), nor
+    ///     casting <see cref="ColorPalette"/> back to <c>Rgba32[]</c>/<c>IList&lt;Rgba32&gt;</c>
+    ///     and mutating it that way, can retroactively change palette resolution for an
+    ///     already-constructed, supposedly-immutable options instance - matching the same
+    ///     defensive-copy-plus-read-only-wrapper pattern already used by <see cref="Chart.ColorPalette"/>
+    ///     and <see cref="ChartSeries.PointColors"/>.
     /// </summary>
     private readonly IReadOnlyList<Rgba32>? _colorPalette;
 }
