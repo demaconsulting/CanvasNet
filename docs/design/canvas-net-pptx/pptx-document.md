@@ -2860,16 +2860,27 @@ autofit `fontScale` scaling applied along the way.
 `GetRunOutline` delegated straight to `ResolveLineStyle` with no `resolveBlipImage` delegate
 supplied. For a run-level `<a:ln><a:blipFill>...</a:blipFill></a:ln>`, `ResolveLineStyle`'s own
 `ResolveFill` call throws `PptxUnsupportedFeatureException("pptx-picture-fill", ...)` rather than
-returning a non-solid `PptxPaint` the way a gradient/pattern line fill already does - unlike those
-two paint kinds, which `GetRunOutline`'s existing `is { Paint: PptxSolidFill }` pattern match
-already discards harmlessly as "no outline", a picture-fill line paint never reached that pattern
-match at all; the exception propagated out of `GetRunOutline` and aborted rendering the entire
-slide over a single run's out-of-scope stroke paint. The fix adds an explicit guard in
-`GetRunOutline`, checking for a `<a:blipFill>` child of the selected `<a:ln>` element and returning
-`null` (the exact same "no outline for this run" result a gradient/pattern paint already produces)
-before `ResolveLineStyle` is ever called - consistent with this feature's documented solid-color-
-only scope, and without needing to thread a `resolveBlipImage` delegate through this code path at
-all (picture-fill run outlines remain unsupported, just gracefully instead of fatally).
+returning a non-solid `PptxPaint`; the exception propagated out of `GetRunOutline` and aborted
+rendering the entire slide over a single run's out-of-scope stroke paint. The initial fix added an
+explicit guard checking only for a `<a:blipFill>` child of the selected `<a:ln>` element -
+superseded by the broader guard documented immediately below, which also covers `<a:gradFill>`/
+`<a:pattFill>`.
+
+**Correction - short-circuit every non-`solidFill` run outline paint (a fourth post-merge
+code-review finding)**: the picture-fill-only guard above was itself incomplete. `ResolveFill`
+resolves a _supported_ `<a:gradFill>`/`<a:pattFill>` variant successfully to a non-solid
+`PptxPaint`, which `GetRunOutline`'s own `is { Paint: PptxSolidFill }` pattern match already
+discards harmlessly as "no outline" - but an _unsupported_ variant (a path/no-direction gradient,
+or a pattern preset outside `PptxPresetPattern`'s covered set) still throws
+`PptxUnsupportedFeatureException` out of `ResolveFill`, exactly like the picture-fill case the
+third correction above fixed. The guard in `GetRunOutline` now checks for any of `<a:gradFill>`,
+`<a:pattFill>`, or `<a:blipFill>` as a direct child of the selected `<a:ln>` element and returns
+`null` immediately for all three, before `ResolveLineStyle` is ever called - consistent with this
+feature's documented solid-color-only scope, and without needing to care whether the specific
+gradient/pattern variant happens to be one `ResolveFill` would have resolved successfully or
+rejected (every non-`solidFill` run outline paint is out of scope regardless, so the two cases are
+treated identically up front rather than relying on the post-resolution pattern match to catch only
+the subset that happens not to throw).
 
 **Painting** (`PptxDocument.TextRender.cs`): `PaintTextLayout`'s glyph matrix is now built in two
 stages instead of one - a `localGlyphMatrix` (scale + baseline-origin translation only, no

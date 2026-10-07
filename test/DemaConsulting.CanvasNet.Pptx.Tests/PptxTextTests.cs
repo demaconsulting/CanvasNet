@@ -785,6 +785,68 @@ public class PptxTextTests
     }
 
     /// <summary>
+    ///     Resolve Effective Run Properties - a run-level <c>&lt;a:ln&gt;</c> declaring an
+    ///     <c>&lt;a:gradFill&gt;</c> path gradient (one of the specific gradient/pattern variants
+    ///     <see cref="PptxDocument.ResolveFill"/> itself rejects with
+    ///     <see cref="PptxUnsupportedFeatureException"/>) resolves to "no outline" instead of
+    ///     propagating that exception - regression test for a second post-merge code-review
+    ///     finding: the first blip-fill-only short-circuit guard still let
+    ///     <see cref="PptxDocument.ResolveLineStyle"/> call through to <c>ResolveFill</c> for every
+    ///     other non-<c>solidFill</c> paint, so an out-of-scope gradient/pattern run outline could
+    ///     likewise abort rendering of the whole slide depending on which specific variant it used.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_RunLnWithUnsupportedPathGradFill_ResolvesNoOutlineInsteadOfThrowing()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XElement(
+                DrawingNs + "ln",
+                new XAttribute("w", "19050"),
+                new XElement(
+                    DrawingNs + "gradFill",
+                    new XElement(
+                        DrawingNs + "gsLst",
+                        new XElement(
+                        DrawingNs + "gs",
+                        new XAttribute("pos", "0"),
+                        new XElement(DrawingNs + "srgbClr", new XAttribute("val", "FF0000")))),
+                    new XElement(DrawingNs + "path")))));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Null(result.OutlineWidthEmu);
+    }
+
+    /// <summary>
+    ///     Resolve Effective Run Properties - a run-level <c>&lt;a:ln&gt;</c> declaring an
+    ///     <c>&lt;a:pattFill prst="..."/&gt;</c> naming a preset outside <see cref="PptxPresetPattern"/>'s
+    ///     covered set resolves to "no outline" instead of propagating
+    ///     <see cref="PptxUnsupportedFeatureException"/> - the pattern-fill counterpart to the
+    ///     path-gradient regression test above.
+    /// </summary>
+    [Fact]
+    public void ResolveEffectiveRunProperties_RunLnWithUnsupportedPattFill_ResolvesNoOutlineInsteadOfThrowing()
+    {
+        var theme = BuildTestTheme();
+        var run = Run(new XElement(
+            DrawingNs + "rPr",
+            new XElement(
+                DrawingNs + "ln",
+                new XAttribute("w", "19050"),
+                new XElement(DrawingNs + "pattFill", new XAttribute("prst", "notARealPreset")))));
+        var paragraph = Paragraph(null, run);
+        var placeholderProperties = EmptyPlaceholderProperties(theme);
+
+        var result = PptxDocument.ResolveEffectiveRunProperties(run, paragraph, placeholderProperties, theme, "body");
+
+        Assert.Null(result.OutlineWidthEmu);
+    }
+
+    /// <summary>
     ///     Resolve Effective Run Properties - Theme Font Tokens - Resolve Through The Theme's
     ///     FontScheme (rather than being passed through as literal, unresolvable family name
     ///     strings, which would miss the theme's actual font and fall back to the font

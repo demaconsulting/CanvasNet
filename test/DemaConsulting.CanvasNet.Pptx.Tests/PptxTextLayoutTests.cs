@@ -907,7 +907,7 @@ public class PptxTextLayoutTests
                 DrawingNs + "p",
                 new XElement(
                     DrawingNs + "r",
-                    new XElement(DrawingNs + "rPr", new XAttribute("sz", "100"), ln),
+                    new XElement(DrawingNs + "rPr", new XAttribute("sz", "100"), new XElement(ln)),
                     new XElement(DrawingNs + "t", "A"))))
             .ToArray();
 

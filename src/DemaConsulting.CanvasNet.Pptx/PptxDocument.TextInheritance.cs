@@ -648,12 +648,13 @@ public sealed partial class PptxDocument
     ///     <paramref name="lnElement"/> is itself <see langword="null"/> (no tier declared an
     ///     <c>&lt;a:ln&gt;</c> at all), it resolves to "no stroke" (see <see cref="ResolveLineStyle"/>'s
     ///     own remarks - for example an explicit <c>&lt;a:noFill/&gt;</c> line or a non-positive
-    ///     <c>w</c>), it declares a <c>&lt;a:blipFill&gt;</c> (a picture-fill line, short-circuited
-    ///     before <see cref="ResolveLineStyle"/> is ever called - see this method's body), or its
-    ///     resolved paint is otherwise not a plain <see cref="PptxSolidFill"/> - a gradient/pattern
-    ///     text-outline paint is a documented, out-of-scope simplification (this unit's run
-    ///     <em>fill</em> color is already solid-only; its outline color is kept at that same
-    ///     fidelity). Unlike every other run attribute's own tier chain, none of these
+    ///     <c>w</c>), it declares a non-<c>solidFill</c> paint (<c>&lt;a:gradFill&gt;</c>,
+    ///     <c>&lt;a:pattFill&gt;</c>, or <c>&lt;a:blipFill&gt;</c> - every one of these is
+    ///     short-circuited before <see cref="ResolveLineStyle"/> is ever called - see this method's
+    ///     body), or its resolved paint is otherwise not a plain <see cref="PptxSolidFill"/> - a
+    ///     gradient/pattern/picture text-outline paint is a documented, out-of-scope simplification
+    ///     (this unit's run <em>fill</em> color is already solid-only; its outline color is kept at
+    ///     that same fidelity). Unlike every other run attribute's own tier chain, none of these
     ///     "resolves to null" cases fall through to a shallower tier here - tier selection already
     ///     happened in the caller, before this method ever runs.
     /// </returns>
@@ -666,15 +667,19 @@ public sealed partial class PptxDocument
         }
 
         // A run-level outline's own fill is solid-only in scope (see this method's own remarks)
-        // - a picture-fill blipFill line is short-circuited here, before ever calling
-        // ResolveLineStyle, because ResolveLineStyle's own ResolveFill call throws
-        // PptxUnsupportedFeatureException for a blipFill element with no resolveBlipImage
-        // delegate supplied (none is supplied here) - unlike a gradient/pattern line fill, which
-        // ResolveFill resolves successfully to a non-solid PptxPaint this method already discards
-        // via the pattern match below. Treating a picture-fill run outline as "no outline" instead
-        // of letting that exception propagate keeps a single unsupported run-level stroke paint
-        // from aborting rendering of the whole slide
-        if (lnElement.Element(DrawingNamespace + "blipFill") is not null)
+        // - any gradFill/pattFill/blipFill line paint is short-circuited here, before ever calling
+        // ResolveLineStyle, because ResolveLineStyle's own ResolveFill call can throw
+        // PptxUnsupportedFeatureException for an unsupported pattern preset, a path/no-direction
+        // gradient, or a blipFill element with no resolveBlipImage delegate supplied (none is
+        // supplied here). A *supported* gradient/pattern would otherwise resolve successfully to a
+        // non-solid PptxPaint this method already discards via the pattern match below, but an
+        // *unsupported* one would propagate its exception uncaught instead - treating every
+        // non-solidFill run outline paint as "no outline" up front, regardless of whether the
+        // specific variant happens to be supported, keeps a single out-of-scope run-level stroke
+        // paint from aborting rendering of the whole slide
+        if (lnElement.Element(DrawingNamespace + "gradFill") is not null ||
+            lnElement.Element(DrawingNamespace + "pattFill") is not null ||
+            lnElement.Element(DrawingNamespace + "blipFill") is not null)
         {
             return null;
         }
