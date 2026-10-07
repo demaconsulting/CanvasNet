@@ -54,6 +54,16 @@ public sealed partial class VsdxDocument
     /// </summary>
     private static readonly XNamespace VsdxMainNamespace = "http://schemas.microsoft.com/office/visio/2012/main";
 
+    /// <summary>
+    ///     The XML namespace of the <c>r:id</c> attribute on a VisioML <c>&lt;Rel&gt;</c> child
+    ///     element (a <c>&lt;Page&gt;</c>'s or <c>&lt;Master&gt;</c>'s own pointer to its content
+    ///     part) - the standard OOXML "officeDocument relationships" namespace, distinct from
+    ///     <c>VsdxDocument.Package.cs</c>'s own <c>RelationshipsNamespace</c> (the <em>package</em>
+    ///     relationships namespace used by <c>.rels</c> part root elements).
+    /// </summary>
+    private static readonly XNamespace VsdxRelationshipsNamespace =
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+
     /// <summary>The resolved part path of <c>visio/document.xml</c>, set by <see cref="InitializePages"/>.</summary>
     private string _documentPartPath = string.Empty;
 
@@ -77,6 +87,35 @@ public sealed partial class VsdxDocument
     ///     The parsed page index, in document order, set by <see cref="InitializePages"/>.
     /// </summary>
     private IReadOnlyList<VsdxPageInfo> _pages = [];
+
+    /// <summary>
+    ///     Each page's own content part path (<c>visio/pages/pageN.xml</c>), resolved via that
+    ///     page's own <c>&lt;Rel r:id="..."/&gt;</c> child (never by filename convention), in the
+    ///     same order as <see cref="_pages"/>. Set by <see cref="InitializePages"/>; consumed by
+    ///     <c>VsdxDocument.Shapes.cs</c>'s shape-tree parser.
+    /// </summary>
+    private IReadOnlyList<string> _pageContentPartPaths = [];
+
+    /// <summary>
+    ///     Returns the given page's own content part path (<c>visio/pages/pageN.xml</c>),
+    ///     resolved via that page's own <c>&lt;Rel r:id="..."/&gt;</c> child.
+    /// </summary>
+    /// <param name="pageIndex">The zero-based page index, in <c>[0, PageCount)</c>.</param>
+    /// <returns>The page's content part path.</returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the page declares no <c>&lt;Rel&gt;</c> child, or its relationship could
+    ///     not be resolved.
+    /// </exception>
+    private string GetPageContentPartPath(int pageIndex)
+    {
+        var partPath = _pageContentPartPaths[pageIndex];
+        if (partPath.Length == 0)
+        {
+            throw new InvalidDataException($"Page index {pageIndex} declares no resolvable content part relationship.");
+        }
+
+        return partPath;
+    }
 
     /// <summary>
     ///     Gets the resolved part path of <c>visio/masters/masters.xml</c>, or
@@ -172,6 +211,18 @@ public sealed partial class VsdxDocument
         pages.AddRange(pageElements.Select(ParsePage));
 
         _pages = pages;
+
+        var contentPartPaths = new List<string>(pageElements.Count);
+        foreach (var pageElement in pageElements)
+        {
+            var relId = (string?)pageElement.Element(VsdxMainNamespace + "Rel")?.Attribute(VsdxRelationshipsNamespace + "id");
+            contentPartPaths.Add(
+                relId is not null && TryResolveRelationshipById(pagesPartPath, relId, out var contentPartPath)
+                    ? contentPartPath
+                    : string.Empty);
+        }
+
+        _pageContentPartPaths = contentPartPaths;
     }
 
     /// <summary>

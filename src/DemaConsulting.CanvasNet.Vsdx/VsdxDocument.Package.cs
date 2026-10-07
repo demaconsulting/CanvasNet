@@ -402,6 +402,47 @@ public sealed partial class VsdxDocument
     }
 
     /// <summary>
+    ///     Resolves the target part path of the single relationship of
+    ///     <paramref name="sourcePartPath"/> whose <c>Id</c> is <paramref name="relationshipId"/>
+    ///     - used for every VisioML <c>&lt;Rel r:id="..."/&gt;</c> child element (a
+    ///     <c>&lt;Page&gt;</c>'s or <c>&lt;Master&gt;</c>'s own pointer to its content part),
+    ///     which must be addressed by its explicit relationship <c>Id</c> rather than by
+    ///     <c>Type</c>: a single shared <c>.rels</c> part (for example
+    ///     <c>visio/pages/_rels/pages.xml.rels</c>) commonly declares several relationships of the
+    ///     identical <c>Type</c> (one per sibling <c>&lt;Page&gt;</c>/<c>&lt;Master&gt;</c>), so
+    ///     <see cref="TryResolveRelationshipByType"/>'s "the one relationship of this type" search
+    ///     would not disambiguate between them.
+    /// </summary>
+    /// <param name="sourcePartPath">The source part's path, or empty string for the package root.</param>
+    /// <param name="relationshipId">The relationship's explicit <c>Id</c> attribute value, from a <c>&lt;Rel r:id="..."/&gt;</c> child element.</param>
+    /// <param name="resolvedPartPath">
+    ///     Set to the resolved target part path, with no leading slash, when a match is found;
+    ///     otherwise <see langword="null"/>.
+    /// </param>
+    /// <returns>
+    ///     <see langword="true"/> when a non-external relationship of
+    ///     <paramref name="sourcePartPath"/> has an <c>Id</c> equal to
+    ///     <paramref name="relationshipId"/>; otherwise <see langword="false"/>.
+    /// </returns>
+    private bool TryResolveRelationshipById(
+        string sourcePartPath,
+        string relationshipId,
+        out string resolvedPartPath)
+    {
+        var normalizedSource = NormalizePartPath(sourcePartPath);
+        var relationships = GetRelationships(normalizedSource);
+
+        if (relationships.TryGetValue(relationshipId, out var relationship) && !relationship.IsExternal)
+        {
+            resolvedPartPath = ResolveRelativeTarget(normalizedSource, relationship.Target);
+            return true;
+        }
+
+        resolvedPartPath = null!;
+        return false;
+    }
+
+    /// <summary>
     ///     Loads and returns the root XML element of the part at <paramref name="partPath"/>,
     ///     wrapping a missing part or malformed XML in <see cref="InvalidDataException"/>. Shared
     ///     by every part-specific parser so each implements only its own element-shape parsing,
