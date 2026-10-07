@@ -92,6 +92,15 @@ image, text, and CSS styling) and every method's full parameter and exception de
 - The `Codecs` subsystem's shared `ImageInfo` record struct (the return type of `GetInfo`) — see
   _Codecs Subsystem Design_ (`docs/design/canvas-net/codecs.md`)
 
+**`CanvasNetSvg` must never reference `DemaConsulting.CanvasNet.Pptx`, `DemaConsulting.CanvasNet.Pdf`,
+`DemaConsulting.CanvasNet.Charts`, or a future `DemaConsulting.CanvasNet.Vsdx`.** This is a hard
+architectural constraint, not a phase-specific limitation: `CanvasNetSvg` is designed to be a
+reusable SVG rasterization library any consumer of the core `CanvasNet` system can use directly,
+independent of any specific document format. `CanvasNetPptx` depends on `CanvasNetSvg` as of its
+own "Phase 2 Follow-Up: SVG-Only Picture Blip Rendering" (the opposite direction), the same way it
+already depends on `CanvasNetCharts` and the core `CanvasNet` system — never the other way around;
+see `docs/design/canvas-net-pptx.md`'s own Dependencies section for that integration's details.
+
 This is an ordinary, same-repository, system-to-system dependency: both `CanvasNet` and
 `CanvasNetSvg` are produced by this repository, so it is neither an OTS Software Item (not a
 third-party/external-program dependency) nor a Shared Package (that category is scoped to a

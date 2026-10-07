@@ -9,6 +9,7 @@ namespace DemaConsulting.CanvasNet.Pptx.Tests;
 // cspell:ignore pptx sppr nvsppr nvpr cnvpr cnvsppr grpsp nvgrpsppr grpsppr cxnsp nvcxnsppr cnvcxnsppr
 // cspell:ignore nvpicpr nvpr cnvpicpr blipfill srcrect embed graphicframe tbl tblgrid gridcol tcpr srgb
 // cspell:ignore calibri txbox xfrm prst Xfrm hlink Hlink cust pythonpptx bbox patt fgclr bgclr
+// cspell:ignore asvg
 
 /// <summary>
 ///     Unit-level tests for the Phase 1f public, slide-level rendering API
@@ -3071,6 +3072,52 @@ public class PptxRenderTests
         // If RenderPicture incorrectly resolved the master's own <a:blip r:embed="rId2"> against
         // the slide's own .rels (which also declares an rId2, deliberately targeting a different
         // image), this would instead sample the wrong (200, 0, 200) picture.
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Regression test (see <c>pptx-document.md</c>'s "Phase 2 Follow-Up: SVG-Only Picture
+    ///     Blip Rendering" section, mirroring the real-world "ERF IWF Breadboard Peer Review.pptx"
+    ///     master-logo scenario): a master-owned "SVG-only" <c>&lt;p:pic&gt;</c> (no raster
+    ///     <c>r:embed</c>/<c>r:link</c> at all, only a Microsoft SVG extension
+    ///     <c>&lt;asvg:svgBlip r:embed="..."/&gt;</c> referencing an <c>.svg</c> media part) now
+    ///     actually paints visible pixels on every slide using that master, instead of being
+    ///     silently skipped by the master/layout decorative-shape containment.
+    /// </summary>
+    [Fact]
+    public void Render_MasterSvgOnlyLogoPicture_PaintsVisiblePixelsInsteadOfBeingSkipped()
+    {
+        var svgBytes = Encoding.UTF8.GetBytes(
+            """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#0A141E"/></svg>""");
+        const string masterShapeTreeXml =
+            """
+            <p:pic>
+              <p:nvPicPr><p:cNvPr id="3" name="MasterLogo"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill>
+                <a:blip>
+                  <a:extLst>
+                    <a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}">
+                      <asvg:svgBlip xmlns:asvg="http://schemas.microsoft.com/office/drawing/2016/SVG/main" r:embed="rId2"/>
+                    </a:ext>
+                  </a:extLst>
+                </a:blip>
+              </p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:pic>
+            """;
+        using var stream = BuildRenderPackage(
+            spTreeInnerXml: string.Empty,
+            masterShapeTreeXml: masterShapeTreeXml,
+            masterMedia: ("svg", "image/svg+xml", svgBytes));
+        using var document = PptxDocument.Open(stream);
+
+        using var surface = document.Render(0, 20, 20);
+
+        // Previously silently skipped (PptxUnsupportedFeatureException("pptx-image-svg-only", ...)
+        // caught by the master/layout containment) - the logo now actually paints.
         Assert.Equal(new Rgba32(10, 20, 30, 255), surface[10, 10]);
     }
 

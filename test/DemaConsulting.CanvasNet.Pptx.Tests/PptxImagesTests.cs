@@ -757,22 +757,26 @@ public class PptxImagesTests
         Assert.Equal("pptx-image-link", ex.Feature);
     }
 
-    /// <summary>
-    ///     Proves an <c>&lt;a:blip&gt;</c> declaring neither <c>r:embed</c> nor <c>r:link</c>, but
-    ///     only a Microsoft SVG extension (<c>&lt;a:extLst&gt;/&lt;a:ext uri="{96DAC541-7B7A-43D3-
-    ///     8B79-37D633B846F1}"&gt;&lt;asvg:svgBlip .../&gt;&lt;/a:ext&gt;</c>) fallback, throws
-    ///     <see cref="PptxUnsupportedFeatureException"/> with feature token
-    ///     <c>"pptx-image-svg-only"</c> rather than <see cref="InvalidDataException"/>.
-    /// </summary>
-    [Fact]
-    public void ResolvePictureSurface_SvgOnlyBlipExtension_ThrowsPptxUnsupportedFeatureExceptionWithSvgOnlyToken()
-    {
-        var (package, slidePartPath) = BuildMinimalImagePackage("png", "image/png", BuildPngBytes(default));
-        using var stream = package;
-        using var document = PptxDocument.Open(stream);
+    /// <summary>The Microsoft SVG blip extension's own XML namespace (<c>&lt;asvg:svgBlip&gt;</c>).</summary>
+    private static readonly XNamespace Asvg = "http://schemas.microsoft.com/office/drawing/2016/SVG/main";
 
-        XNamespace asvg = "http://schemas.microsoft.com/office/drawing/2016/SVG/main";
-        var blipFill = new XElement(
+    /// <summary>The <c>uri</c> attribute value identifying the Microsoft SVG blip extension.</summary>
+    private const string SvgBlipExtensionUri = "{96DAC541-7B7A-43D3-8B79-37D633B846F1}";
+
+    /// <summary>Builds a minimal, valid SVG document's UTF-8 encoded bytes with the given intrinsic pixel size.</summary>
+    private static byte[] BuildSvgBytes(int width, int height) =>
+        Encoding.UTF8.GetBytes(
+            $"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}"><rect width="{width}" height="{height}" fill="#112233"/></svg>""");
+
+    /// <summary>
+    ///     Builds a <c>&lt;p:blipFill&gt;</c> element declaring only a Microsoft SVG extension
+    ///     fallback (<c>&lt;a:blip&gt;&lt;a:extLst&gt;&lt;a:ext uri="{96DAC541-7B7A-43D3-8B79-
+    ///     37D633B846F1}"&gt;&lt;asvg:svgBlip r:embed="..."/&gt;&lt;/a:ext&gt;&lt;/a:extLst&gt;
+    ///     &lt;/a:blip&gt;</c>), with no raster <c>r:embed</c>/<c>r:link</c> on the <c>&lt;a:blip&gt;</c>
+    ///     element itself.
+    /// </summary>
+    private static XElement BuildSvgOnlyBlipFill(string? svgEmbedId) =>
+        new(
             PresentationNs + "blipFill",
             new XElement(
                 A + "blip",
@@ -780,11 +784,45 @@ public class PptxImagesTests
                     A + "extLst",
                     new XElement(
                         A + "ext",
-                        new XAttribute("uri", "{96DAC541-7B7A-43D3-8B79-37D633B846F1}"),
-                        new XElement(asvg + "svgBlip", new XAttribute(R + "embed", "rId75"))))));
+                        new XAttribute("uri", SvgBlipExtensionUri),
+                        svgEmbedId is null
+                            ? new XElement(Asvg + "svgBlip")
+                            : new XElement(Asvg + "svgBlip", new XAttribute(R + "embed", svgEmbedId))))));
 
-        var ex = Assert.Throws<PptxUnsupportedFeatureException>(() => document.ResolvePictureSurface(slidePartPath, blipFill));
-        Assert.Equal("pptx-image-svg-only", ex.Feature);
+    /// <summary>
+    ///     Proves an <c>&lt;a:blip&gt;</c> declaring neither <c>r:embed</c> nor <c>r:link</c>, but
+    ///     only a Microsoft SVG extension (<c>&lt;a:extLst&gt;/&lt;a:ext uri="{96DAC541-7B7A-43D3-
+    ///     8B79-37D633B846F1}"&gt;&lt;asvg:svgBlip r:embed="..."/&gt;&lt;/a:ext&gt;</c>) fallback,
+    ///     now resolves to a non-null, correctly-sized <see cref="Surface"/> rasterized via
+    ///     <c>DemaConsulting.CanvasNet.Svg</c>'s <c>SvgCodec</c>, instead of throwing.
+    /// </summary>
+    [Fact]
+    public void ResolvePictureSurface_SvgOnlyBlipExtension_ReturnsDecodedSurfaceFromAsvgSvgBlipEmbed()
+    {
+        var svgBytes = BuildSvgBytes(10, 20);
+        var (package, slidePartPath) = BuildMinimalImagePackage("svg", "image/svg+xml", svgBytes);
+        using var stream = package;
+        using var document = PptxDocument.Open(stream);
+
+        var surface = document.ResolvePictureSurface(slidePartPath, BuildSvgOnlyBlipFill("rId2"));
+
+        Assert.Equal(10, surface.Width);
+        Assert.Equal(20, surface.Height);
+    }
+
+    /// <summary>
+    ///     Proves a Microsoft SVG blip extension present but with no <c>r:embed</c> attribute of
+    ///     its own on <c>&lt;asvg:svgBlip&gt;</c> (genuinely malformed - nothing left to fall back
+    ///     to) still throws <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void ResolvePictureSurface_SvgBlipExtensionMissingEmbed_ThrowsInvalidDataException()
+    {
+        var (package, slidePartPath) = BuildMinimalImagePackage("png", "image/png", BuildPngBytes(default));
+        using var stream = package;
+        using var document = PptxDocument.Open(stream);
+
+        Assert.Throws<InvalidDataException>(() => document.ResolvePictureSurface(slidePartPath, BuildSvgOnlyBlipFill(svgEmbedId: null)));
     }
 
     /// <summary>Proves an unrecognized media content type (for example an EMF vector picture) throws <see cref="PptxUnsupportedFeatureException"/> with feature token <c>"pptx-image-format"</c>.</summary>

@@ -84,8 +84,9 @@ public sealed partial class PptxDocument
     ///     <paramref name="resolveBlipImage"/> is <see langword="null"/> (no resolver supplied);
     ///     otherwise propagated unchanged from <paramref name="resolveBlipImage"/> itself - see
     ///     <see cref="ResolvePictureSurface"/>'s own <c>&lt;exception&gt;</c> documentation for
-    ///     every cause (a linked, non-embedded image; an SVG-only fallback blip; or an unsupported
-    ///     raster image format).
+    ///     every cause (a linked, non-embedded image, or an unsupported raster image format - an
+    ///     SVG-only fallback blip is no longer a failure cause, as it is now decoded successfully
+    ///     via the sibling <c>DemaConsulting.CanvasNet.Svg</c> package's <c>SvgCodec</c>).
     /// </exception>
     internal static PptxPaint ResolveFill(
         XElement? fillParentElement, PptxTheme theme, float widthEmu, float heightEmu, Rgba32? phClrOverride = null,
