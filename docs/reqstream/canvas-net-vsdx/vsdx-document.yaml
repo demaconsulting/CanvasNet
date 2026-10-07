@@ -132,7 +132,7 @@ sections:
               up front would waste work for callers who only need page metadata or render a
               subset of pages.
             tests:
-              - VsdxDocument_Render_FirstCallResolvesShapeTree_SecondCallReusesCache
+              - Render_AfterRendering_GetPageShapesReturnsTheSameCachedShapeTreeInstance
 
           - id: CanvasNetVsdx-VsdxDocument-GeometryRowResolution
             title: >-
@@ -345,7 +345,7 @@ sections:
               Consistent glyph rendering reuses the same, already-verified text-painting
               primitives established by the other CanvasNet rendering systems.
             tests:
-              - VsdxDocument_GlyphRendering_PaintsResolvedTextOntoSurface
+              - Render_TextShape_PaintsVisibleGlyphInk
 
           - id: CanvasNetVsdx-VsdxDocument-ConnectsParsing
             title: >-
@@ -384,8 +384,8 @@ sections:
               construct, and avoids rejecting an otherwise-renderable page over a single
               unrecognized arrowhead index.
             tests:
-              - VsdxDocument_ArrowheadRendering_RendersRecognizedArrowAtConnectorEnd
-              - VsdxDocument_ArrowheadRendering_UnrecognizedIndexDegradesToNoArrowhead
+              - Render_ConnectorWithRecognizedEndArrow_PaintsArrowheadInkBeyondLineStroke
+              - Render_ConnectorWithUnrecognizedEndArrowIndex_DegradesGracefullyWithoutThrowing
 
           - id: CanvasNetVsdx-VsdxDocument-DanglingGlueTargetTolerance
             title: >-
@@ -434,8 +434,9 @@ sections:
               Callers frequently need an exact pixel-dimension output surface regardless of the
               page's own declared physical size.
             tests:
-              - VsdxDocument_Render_PixelDimensionsOverload_PaintsExpectedSurface
-              - VsdxDocument_Render_DefaultBackgroundColor_IsOpaqueWhite
+              - Render_ExplicitBackgroundColor_OverridesTheOpaqueWhiteDefault
+              - Render_TextShape_PaintsVisibleGlyphInk
+              - Render_DefaultOptions_BackgroundIsOpaqueWhite
 
           - id: CanvasNetVsdx-VsdxDocument-RenderDpi
             title: >-
@@ -447,7 +448,7 @@ sections:
               Callers commonly want to render at a specific print or screen resolution without
               computing the pixel dimensions themselves.
             tests:
-              - VsdxDocument_Render_DpiOverload_ComputesExpectedPixelDimensions
+              - Render_DpiOverload_ComputesExpectedPixelDimensions
 
           - id: CanvasNetVsdx-VsdxDocument-RenderArgumentValidation
             title: >-
@@ -458,8 +459,10 @@ sections:
               Callers must receive a clear, documented exception for an invalid render argument
               rather than an unrelated downstream failure.
             tests:
-              - VsdxDocument_Render_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException
-              - VsdxDocument_Render_NonPositiveDimensions_ThrowsArgumentOutOfRangeException
+              - Render_PageIndexOutOfRange_ThrowsArgumentOutOfRangeException
+              - Render_NonPositiveWidthOrHeight_ThrowsArgumentOutOfRangeException
+              - Render_DpiNonPositive_ThrowsArgumentOutOfRangeException
+              - Render_DpiOverload_PageIndexOutOfRange_ThrowsArgumentOutOfRangeException
 
           - id: CanvasNetVsdx-VsdxDocument-RenderDocumentOrderZOrder
             title: >-
@@ -470,4 +473,4 @@ sections:
               Visio's own document order is the authoritative z-order; painting out of order would
               produce visibly incorrect overlapping shapes.
             tests:
-              - VsdxDocument_RenderDocumentOrderZOrder_FirstShapeIsPaintedBeneathLater
+              - Render_DocumentOrder_LaterDeclaredShapePaintsOnTopOfOverlap

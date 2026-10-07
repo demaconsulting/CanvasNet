@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace DemaConsulting.CanvasNet.Vsdx;
 
 // cspell:ignore vsdx Visio LocPin davehoward
@@ -92,5 +94,30 @@ internal sealed record VsdxShapeTransform(
         var ry = (dx * sin) + (dy * cos);
 
         return (PinX + rx, PinY + ry);
+    }
+
+    /// <summary>
+    ///     Builds this transform's single-precision <see cref="Matrix3x2"/> equivalent of
+    ///     <see cref="ToPage(double, double)"/> - the float-narrowing convenience overload this
+    ///     type's own remarks anticipate, for Milestone 7's page-space <see cref="DemaConsulting.CanvasNet.Geometry.Path"/>
+    ///     construction. Composes the identical translate/flip/rotate/translate steps as
+    ///     <see cref="ToPage(double, double)"/>, as <see cref="Matrix3x2"/> multiplications applied
+    ///     left-to-right (<c>System.Numerics</c>'s own row-vector convention: a point is mapped by
+    ///     <c>Vector2.Transform(point, m1 * m2)</c> as <c>m1</c> first, then <c>m2</c>).
+    /// </summary>
+    /// <returns>
+    ///     The <see cref="Matrix3x2"/> mapping this shape's own local-box coordinates (inches)
+    ///     into page-space coordinates (inches).
+    /// </returns>
+    public Matrix3x2 ToPageMatrix()
+    {
+        var flipScaleX = FlipX ? -1f : 1f;
+        var flipScaleY = FlipY ? -1f : 1f;
+
+        return
+            Matrix3x2.CreateTranslation((float)-LocPinX, (float)-LocPinY) *
+            Matrix3x2.CreateScale(flipScaleX, flipScaleY) *
+            Matrix3x2.CreateRotation((float)Angle) *
+            Matrix3x2.CreateTranslation((float)PinX, (float)PinY);
     }
 }

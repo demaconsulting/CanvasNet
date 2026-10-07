@@ -16,9 +16,12 @@ public sealed partial class VsdxDocument
     /// <summary>
     ///     The number of EMU (English Metric Units) per inch, used to convert a page's raw,
     ///     always-inches <c>PageWidth</c>/<c>PageHeight</c> cell value into the document's
-    ///     internal unit - the same constant already used by <c>PptxSlideSize</c>.
+    ///     internal unit - the same constant already used by <c>PptxSlideSize</c>. Widened from
+    ///     <see langword="private"/> to <see langword="internal"/> in Milestone 7 so
+    ///     <c>VsdxDocument.Render.cs</c>'s public Render API can reuse this single already-defined
+    ///     unit-conversion constant instead of duplicating the magic number.
     /// </summary>
-    private const double EmuPerInch = 914_400d;
+    internal const double EmuPerInch = 914_400d;
 
     /// <summary>
     ///     The relationship <c>Type</c> URI suffix identifying the package root's relationship to
