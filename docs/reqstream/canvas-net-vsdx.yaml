@@ -259,6 +259,7 @@ sections:
           - CanvasNetVsdx-VsdxDocument-NonPrintingSuppression
           - CanvasNetVsdx-VsdxDocument-HideTextSuppression
           - CanvasNetVsdx-VsdxDocument-MinimumVisibleStrokeWidth
+          - CanvasNetVsdx-VsdxDocument-TextBoxRotationRendering
         tests:
           - CanvasNetVsdx_SystemIntegration_Render_PixelDimensionsOverload_PaintsExpectedSurface
           - CanvasNetVsdx_SystemIntegration_Render_DpiOverload_ComputesExpectedPixelDimensions
