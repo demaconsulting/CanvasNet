@@ -73,14 +73,3 @@ below (verified by exact file size against the upstream file before inclusion):
 | `jgreywolfvsdxjs-diagramwithstyles.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/DiagramWithStyles.vsdx> |
 | `jgreywolfvsdxjs-drawing.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/Drawing.vsdx> |
 | `jgreywolfvsdxjs-flowchartshapes.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/FlowchartShapes.vsdx> |
-
-## Staging Note
-
-This `VsdxFixtures` folder currently lives in a temporary staging location
-(`test\DemaConsulting.CanvasNet.Vsdx.Tests.Fixtures-STAGING\`) because the
-`DemaConsulting.CanvasNet.Vsdx.Tests` project does not exist yet. A subsequent scaffolding pass is
-expected to move this folder (and the two `.LICENSE` files alongside it) into that project's own
-directory and add a `<None Include="VsdxFixtures\**">` `CopyToOutputDirectory` item group to its
-`.csproj`, mirroring the convention already used by
-`test\DemaConsulting.CanvasNet.Pptx.Tests\DemaConsulting.CanvasNet.Pptx.Tests.csproj` for its own
-`PptxFixtures` folder.

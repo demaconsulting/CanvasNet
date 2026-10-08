@@ -78,13 +78,9 @@
     <Compile Include="..\DemaConsulting.CanvasNet.Tests\TestSupport\**\*.cs" Link="TestSupport\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
-  <!-- Real-world .vsdx fixture files, staged outside this project's cone pending promotion;
-       Link remaps the out-of-cone ..\ source path to an in-project-relative output path, since
-       MSBuild's default output-relative-path derivation for a ..\-containing Include is
-       unreliable without it. -->
+  <!-- Real-world VSDX test fixtures (see VsdxFixtures\README.md for provenance) -->
   <ItemGroup>
-    <None Include="..\DemaConsulting.CanvasNet.Vsdx.Tests.Fixtures-STAGING\VsdxFixtures\**">
-      <Link>VsdxFixtures\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    <None Include="VsdxFixtures\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

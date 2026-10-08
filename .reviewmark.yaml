@@ -1058,7 +1058,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Vsdx/**/*.cs"                    # unit source (planned; not yet created)
       - "src/DemaConsulting.CanvasNet.Vsdx/DemaConsulting.CanvasNet.Vsdx.csproj"  # project file (planned)
       - "test/DemaConsulting.CanvasNet.Vsdx.Tests/**/*.cs"             # unit/integration tests (planned)
-      - "test/DemaConsulting.CanvasNet.Vsdx.Tests.Fixtures-STAGING/**"  # staged fixture corpus (pre-promotion)
+      - "test/DemaConsulting.CanvasNet.Vsdx.Tests/VsdxFixtures/**"      # fixture corpus (promoted)
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
