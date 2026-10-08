@@ -98,10 +98,14 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   the cell/geometry-row merge algorithm — an instance cell with a non-`"Inh"` `F` wins; an
   instance cell with `F="Inh"` or no cell at all falls through to the master's resolved value; a
   geometry row present in the instance (matched by `IX`) is merged with the master's row of the
-  same `IX` **cell-by-cell** (an instance's own literal cell for that row wins, falling through to
-  the master row's same-named cell when the instance's own cell for that name is absent or marked
-  `F="Inh"` — Milestone 11 corrected an earlier, since-superseded whole-row-replacement
-  implementation, see below); a row with `Del="1"` marks the master's corresponding row deleted; a
+  same `IX` **cell-by-cell**: for every cell name the instance row itself actually carries (literal
+  or marked `F="Inh"` — Milestone 11's quality-retry cycle (retry 1) confirmed a geometry-row
+  coordinate cell is itself formula-derived from the shape's own `Width`/`Height` and so is
+  typically cached as `Inh`, never literal, unlike an ordinary authored cell — see below), the
+  instance's own cell always wins; a cell name genuinely absent from the instance row (never
+  declared at all, not merely `Inh`-cached) falls through to the master row's same-named cell —
+  Milestone 11 corrected an earlier, since-superseded whole-row-replacement implementation, see
+  below); a row with `Del="1"` marks the master's corresponding row deleted; a
   row in the master with no matching instance `IX` and no `Del` is inherited verbatim. For a
   `Group`-typed master
   shape, recurses per-child via the child's own `MasterShape` attribute (matched against the
@@ -131,7 +135,9 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   stale/cached cell for one of these nine names — confirmed by a dedicated unit test
   (`MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue`) proving a 2-D shape's
   legitimate full Master-inheritance-of-position is unaffected by this overlay. This refinement
-  (`VsdxDocument.CellMerge.cs`'s `TransformCellNames`/`PreferInstanceTransformCells`) was
+  (`VsdxDocument.CellMerge.cs`'s `TransformCellNames`/`PreferInstanceCells`, generalized by
+  Milestone 11's quality-retry cycle, retry 1, from an original `PreferInstanceTransformCells`
+  taking a fixed cell-name list to a reusable helper taking any cell-name array — see below) was
   discovered during Milestone 10's own root-cause investigation of its Bug 2 (missing connector
   lines): the stroke-width floor described under `Render(...)` below was, on its own,
   insufficient against `60973.vsdx`'s connector shape `802`, because the generic merge rule was
@@ -160,6 +166,48 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   value, producing a visibly wrong outline point; see
   `MasterInheritance_GeometryRowPartialOverride_MergesCellByCellNotWholesale` for the locking test
   added.
+
+  Milestone 11's quality-retry cycle (retry 1) then uncovered, and fixed, a deeper regression in
+  that same cell-by-cell merge: because a geometry-row coordinate cell is formula-derived from the
+  shape's own `Width`/`Height` and so is typically cached as `F="Inh"` rather than literal, the
+  cell-by-cell merge's own "instance's own literal cell wins, else the master row's own cell" rule
+  (unchanged from the paragraph above) was treating an `Inh`-marked instance row cell identically
+  to a genuinely absent one — discarding the instance's own, correctly-sized coordinate in favor
+  of the master row's own, differently-scaled cached template value whenever the instance had no
+  literal override for that cell, which is the common case for geometry coordinates. Confirmed
+  against `60489.vsdx`'s Shape `ID='114'` (an ellipse instance glued to a Master via a distinct,
+  larger instance `Width`/`Height`, every one of its own geometry-row cells cached as `Inh`): the
+  pre-fix rule rendered the Master's own smaller cached radius for every row, fusing Shape 114 and
+  its sibling Shape 122 (distinctly-sized instances of the same Master) into a single,
+  wrongly-proportioned blob instead of two independently-sized ellipses. `MergeGeometryRow` now
+  overlays every cell name an instance row itself carries (literal or `Inh`) unconditionally over
+  the matched master row's own cell — reusing the same `PreferInstanceCells(merged, instanceCells,
+  names)` helper the transform-cell overlay above now shares (generalized from the original
+  `PreferInstanceTransformCells`, which took a fixed cell-name list), applied here with the
+  instance row's own full cell-name set rather than a fixed array, and with no 1-D/2-D gate (a
+  geometry row's own coordinates are per-instance-derived for every shape, 1-D or 2-D alike,
+  unlike the nine transform cells above, which are only per-instance-derived for a 1-D shape) — a
+  cell name genuinely absent from the instance row (never declared at all, not merely `Inh`-cached)
+  still falls through to the master row's own value exactly as before, confirmed by a dedicated
+  companion test
+  (`MasterInheritance_GeometryRowCellGenuinelyAbsentOnInstance_StillFallsThroughToMaster`). This
+  same cycle also generalized `PreferInstanceCells` itself to accept the four arrowhead-decoration
+  cells `BeginArrow`/`EndArrow`/`BeginArrowSize`/`EndArrowSize` (a new `ArrowCellNames` array,
+  applied through the existing 1-D-only gate alongside `TransformCellNames`) — a defensive
+  extension mirroring the transform cells' own rationale, planned alongside this fix rather than
+  because any fixture in this unit's corpus was confirmed to require it (this cycle's own
+  investigation of a related arrowhead-rendering quality finding traced both of that finding's
+  observed symptoms to causes other than a missing arrowhead-cell overlay — see
+  `canvas-net-vsdx.md`'s Design Constraints section for the full evidence trail). Overlaying an
+  arrowhead cell required writing the overlaid cell back as a literal (dropping any `"Inh"`
+  marking), unlike the transform-cell overlay: the arrowhead cells are resolved through the same
+  StyleSheet-chain-aware `Line*`-category precedence every other `Line*` cell uses
+  (`ResolveLineCellValue`'s own `TryGetLiteral` check), which treats any `Inh`-marked cell as "not
+  a genuine override, defer to the StyleSheet chain instead" — an overlay that preserved the `Inh`
+  marking verbatim would have had no observable effect on the resolved arrowhead at all, confirmed
+  by this cycle's own locking tests
+  (`ArrowheadResolution_InstanceInhMarkedArrowCell_PreferredOverMasterValue`,
+  `ArrowheadResolution_2DShapeInhMarkedArrowCell_DefersToMasterValue`).
 - **`ResolveStyleChain(string styleSheetId, string cellName)`** (internal): Walks a shape's
   `LineStyle`/`FillStyle`/`TextStyle` StyleSheet-ID reference up the StyleSheet chain (each
   StyleSheet's own `LineStyle`/`FillStyle`/`TextStyle` attributes identify its own parent for that

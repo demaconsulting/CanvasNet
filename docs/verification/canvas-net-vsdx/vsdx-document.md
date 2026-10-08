@@ -230,7 +230,9 @@ than re-parsed on every shape resolution.
 `MasterInheritance_InstanceOmitsCells_FallsThroughToMasterCells`,
 `MasterInheritance_InstanceInhMarkedTransformCell_PreferredOverMasterValue`,
 `MasterInheritance_InstanceInhMarkedNonTransformCell_StillDefersToMasterValue`,
-`MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue`
+`MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue`,
+`ArrowheadResolution_InstanceInhMarkedArrowCell_PreferredOverMasterValue`,
+`ArrowheadResolution_2DShapeInhMarkedArrowCell_DefersToMasterValue`
 
 Proves an instance's own literal (non-`Inh`, present) cell value takes precedence over the
 Master's same-named cell, and proves an instance cell that is absent entirely falls through to the
@@ -276,6 +278,29 @@ within this milestone's scope; see `canvas-net-vsdx.md`'s Design Constraints sec
 deferred limitation's own documented entry. No test or code change was made for this limitation
 this milestone.
 
+**Milestone 11 quality-retry (retry 1) note**: this cycle generalized the transform-cell overlay's
+own helper (renamed `PreferInstanceCells(merged, instanceCells, names)`, taking any cell-name
+array rather than a fixed list) and extended it to a new `ArrowCellNames` array
+(`BeginArrow`/`EndArrow`/`BeginArrowSize`/`EndArrowSize`), applied through the same existing 1-D-
+only gate. `ArrowheadResolution_InstanceInhMarkedArrowCell_PreferredOverMasterValue` proves a 1-D
+connector instance's own `F="Inh"`-marked `EndArrow`/`EndArrowSize` cells still win over the
+Master's own distinct literal values, and `ArrowheadResolution_
+2DShapeInhMarkedArrowCell_DefersToMasterValue` proves a 2-D shape's own `F="Inh"`-marked
+`EndArrow` still defers to the Master's own value, unaffected by the overlay - mirroring the
+existing transform-cell tests' own 1-D/2-D split. This extension is defensive, planned alongside
+the geometry-row fix below rather than because any real-world fixture in this unit's corpus was
+confirmed to require it: this cycle's own investigation of a related arrowhead-rendering quality
+finding (`44501e.vsdx` page 1) traced both of that finding's observed symptoms to causes other
+than a missing arrowhead-cell overlay - see `CanvasNetVsdx-VsdxDocument-ArrowheadRendering` below
+for the full evidence trail. Overlaying an arrowhead cell required writing it back as a literal
+(dropping any `"Inh"` marking it carried), unlike the transform-cell overlay: a first
+implementation attempt that preserved the `Inh` marking verbatim was caught by this cycle's own new
+tests failing (`ArrowheadResolution_InstanceInhMarkedArrowCell_PreferredOverMasterValue` resolved
+to `None` instead of the expected `Arrow`), because `ResolveLineCellValue`'s own `TryGetLiteral`
+check (`VsdxDocument.Paint.cs`) treats any `Inh`-marked cell as "not a genuine override, defer to
+the StyleSheet chain instead" - the same convention `VsdxCellBagMerge.Merge` applies generically -
+so a non-literal overlay would have had no observable effect on the resolved arrowhead at all.
+
 #### CanvasNetVsdx-VsdxDocument-DeletedShapeExclusion: Shape-Level Del="1" Group-Child Exclusion
 
 **Test**: `VsdxDocument_GroupChildDeletedStub_ExcludedFromResolvedShapeTree`
@@ -297,7 +322,9 @@ Constraints section for that defect's own documented, deferred-limitation entry.
 
 **Tests**: `MasterInheritance_GeometryRowDelete_RemovesMasterRowFromMergedGeometry`,
 `MasterInheritance_InstanceGeometryRowWithoutDel_ReplacesMasterRowAtMatchingIndex`,
-`MasterInheritance_GeometryRowPartialOverride_MergesCellByCellNotWholesale`
+`MasterInheritance_GeometryRowPartialOverride_MergesCellByCellNotWholesale`,
+`MasterInheritance_GeometryRowAllCellsInhButInstanceSizeDiffers_InstanceCoordinatesWin`,
+`MasterInheritance_GeometryRowCellGenuinelyAbsentOnInstance_StillFallsThroughToMaster`
 
 Proves an instance geometry row marked `Del="1"` removes the Master's row at the matching `IX`
 entirely (not merely overriding it), and - closing this milestone's own replace-by-IX coverage
@@ -312,6 +339,33 @@ whose own matched instance rows overrode only a subset of their own cells; the p
 whole-row-replacement implementation was silently discarding the Master row's other,
 legitimately-inherited cell values, collapsing the un-overridden coordinate to its CLR default
 rather than the Master's own intended value.
+
+**Milestone 11 quality-retry (retry 1) note**: `MasterInheritance_
+GeometryRowAllCellsInhButInstanceSizeDiffers_InstanceCoordinatesWin` proves the deeper regression
+this quality-retry cycle fixed: an instance row whose own cells are all cached as `F="Inh"` (the
+typical case for a formula-derived geometry coordinate, which is never authored as a literal) must
+still have its own, per-instance-correct coordinates win over the Master row's own, differently-
+scaled cached value - the pre-fix cell-by-cell merge above correctly handled a _literal_ instance
+override (proven by the pre-existing partial-override test) but incorrectly treated an
+`Inh`-marked instance cell identically to a genuinely absent one, silently discarding it.
+Confirmed necessary against a real-world regression in `60489.vsdx`'s Shape `ID='114'` (an ellipse
+instance glued to its Master via a distinct, larger `Width`/`Height`, every one of its own
+geometry-row cells cached as `Inh`): the pre-fix rule substituted the Master's own smaller cached
+radius for every row, fusing Shape 114 and its sibling Shape 122 (both distinctly-sized instances
+of the same Master) into a single, wrongly-proportioned blob instead of two independently-sized
+ellipses - confirmed fixed via a before/after visual comparison of the external smoke-test
+harness's rendered `60489.vsdx` page 0 against the Visio-reference PNG (the two ellipses render
+distinct and correctly sized after the fix). The identical root cause was independently confirmed,
+during this cycle's investigation of a related quality finding, to also explain a previously-
+unexplained floating, mispositioned, wrong-colored triangle artifact in `44501e.vsdx` (Shape
+`ID='64'`, `NameU='Directions'`, a vestigial "Data Graphic callout icon" helper shape deliberately
+collapsed to `Width="0"`/`Height="0"` on its own instance, whose own all-`Inh` geometry-row cells
+fell through, pre-fix, to the Master's own non-zero template triangle geometry and its own
+unrelated light-blue fill) - also confirmed fixed by the same before/after visual comparison
+(the floating triangle no longer renders after the fix). `MasterInheritance_
+GeometryRowCellGenuinelyAbsentOnInstance_StillFallsThroughToMaster` proves the companion,
+non-regressing half of the fix: a cell genuinely absent from the instance row (never declared at
+all, not merely `Inh`-cached) still correctly falls through to the Master row's own value.
 
 #### CanvasNetVsdx-VsdxDocument-NestedMasterShapeResolution: Group Children Matched by MasterShape ID
 
@@ -520,6 +574,30 @@ proportional to the connector's resolved stroke width, a pre-existing, unchanged
 this milestone did not revisit; at `44501e.vsdx`'s own thin stroke width the painted arrowhead is
 visibly smaller than the Visio-reference PNG's own arrowhead, though now the correct hollow-
 triangle shape rather than absent.
+
+**Milestone 11 quality-retry (retry 1) investigation note**: a subsequent quality finding reported
+`44501e.vsdx` page 1 rendering an unexpected floating triangle and several flat "dash" marks in
+place of expected UML connector arrowheads. Real fixture access during this cycle conclusively
+traced these to two distinct, previously-conflated causes, neither of which required any change to
+this requirement's own scope: (1) the floating, mispositioned, wrong-colored triangle was the
+`CanvasNetVsdx-VsdxDocument-GeometryRowMerge` regression (Shape `ID='64'`, `NameU='Directions'`) -
+fully resolved as a side effect of that fix, confirmed via before/after visual comparison (the
+triangle no longer renders); (2) the "dash" marks were traced, via direct resolver inspection, to
+the "Pipe flow arrow" marker shapes (`Master='29'`), ordinary 2-D `Shape`-typed icons (no
+`BeginX`/`EndX` cell pair) whose `EndArrow`/`EndArrowSize` cells already resolve correctly - the
+dash appearance is solely because `VsdxDocument.Render.cs`'s arrowhead-decoration painting is
+gated on `shape.ConnectorEndpoints is { } endpoints` (1-D connectors only, per
+`VsdxDocument.Groups.cs`'s own convention), so a 2-D shape's correctly-resolved arrowhead is never
+painted as a decoration, only its bare line geometry renders. Confirmed via `git stash`/`git stash
+pop` differential rendering that this dash-mark symptom is identical with and without this cycle's
+own fix - a deliberate, pre-existing architectural scope boundary (arrowhead decoration is scoped
+to 1-D connectors only), not a regression introduced or worsened by Milestone 11's cell-merge
+work, and not a defect in this requirement's own documented scope (which has never claimed to
+decorate a 2-D shape's arrowhead cells). **Determination**: accepted, out-of-scope limitation (not
+force-fixed); no code or test change was made to this requirement for this finding. The single
+UML "Binary Association" connector carrying a genuine `EndArrow="254"` override (the "-includes"
+association) was already correctly resolving via the existing `EndArrowIndex254` fix above and
+continues to render correctly, confirmed in the same before/after comparison.
 
 #### CanvasNetVsdx-VsdxDocument-DanglingGlueTargetTolerance: A Dangling Connect Target Skips Only That Glue Resolution
 

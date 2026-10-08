@@ -358,6 +358,50 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
     unchanged design approximation (the same philosophy already applied to `PptxArrowheadGeometry`),
     not a regression or a defect in Milestone 11's own style-index-mapping fix.
 
+  Milestone 11's quality-retry cycle (retry 1) subsequently confirmed, and fixed, a real-world
+  regression in the geometry-row cell-merge algorithm, and separately investigated and
+  characterized a second, previously-conflated quality finding:
+
+  - **Geometry-row cell-merge discarding an instance's own, correctly-sized coordinate in favor of
+    a differently-scaled Master cached value (fixed)** — `VsdxDocument.CellMerge.cs`'s
+    `MergeGeometryRow` previously applied the generic "instance's own literal cell wins, else the
+    Master's own cell" rule even to geometry-row coordinate cells, which are themselves formula-
+    derived from a shape's own `Width`/`Height` and so are typically cached as `F="Inh"`, never
+    literal. Confirmed against `60489.vsdx`'s Shape `ID='114'` (an ellipse glued to its Master via
+    a distinct instance `Width`/`Height`, every one of its own geometry-row cells cached as `Inh`):
+    the pre-fix rule substituted the Master's own smaller, unrelated cached radius for every row,
+    fusing Shape 114 and its sibling Shape 122 (both distinctly-sized instances of the same
+    Master) into a single, wrongly-proportioned blob instead of two independently-sized ellipses.
+    The identical anti-pattern was independently confirmed, during this cycle's investigation of a
+    second quality finding below, to also be the true root cause of a floating, mispositioned,
+    wrong-colored triangle artifact in `44501e.vsdx` (Shape `ID='64'`, `NameU='Directions'`, a
+    vestigial Visio "Data Graphic callout icon" helper deliberately collapsed to
+    `Width="0"`/`Height="0"` on its own instance, whose own geometry-row cells are all cached as
+    `Inh` and so, pre-fix, fell through to the Master's own non-zero 6mm-square template triangle
+    and its own unrelated `FillForegnd="#33bbff"` light-blue fill). `MergeGeometryRow` now
+    unconditionally overlays every cell name an instance row itself carries (literal or `Inh`)
+    over the matched Master row's own cell — see `CanvasNetVsdx-VsdxDocument-GeometryRowMerge`'s
+    own updated justification for the full evidence trail; both symptoms are confirmed fixed by
+    visual before/after comparison against the Visio-reference renders.
+  - **UML connector arrowheads rendering as flat "dash" marks instead of triangles, for shapes
+    outside the arrowhead-decoration pipeline's 1-D-connector scope (accepted, pre-existing
+    limitation, not a regression)** — the same quality-retry investigation above traced a second,
+    previously-conflated symptom in `44501e.vsdx` page 1 (several small, flat line marks rendering
+    in place of expected arrowhead triangles) to the fixture's "Pipe flow arrow" marker shapes
+    (`Master='29'`): these are ordinary 2-D `Shape`-typed icons (no `BeginX`/`EndX` cell pair, so
+    never a 1-D connector by this design's own detection convention), whose Master geometry is a
+    trivial 2-point line carrying a literal `EndArrow` cell. Direct resolver inspection confirmed
+    their `EndArrow`/`EndArrowSize` cells already resolve correctly; the dash-mark appearance is
+    solely because `VsdxDocument.Render.cs` only ever paints an arrowhead decoration for a shape
+    identified as 1-D (one carrying `ConnectorEndpoints`) — a deliberate, pre-existing
+    architectural scope boundary unrelated to, and not introduced or worsened by, any Milestone 11
+    cell-merge change (confirmed via `git stash`/`git stash pop` differential testing that this
+    symptom renders identically with and without this cycle's own fix). This is an accepted,
+    out-of-scope limitation of `CanvasNetVsdx-VsdxDocument-ArrowheadRendering` (which has never
+    claimed to decorate a 2-D shape's arrowhead cells), not a regression requiring a force-fix;
+    deferred, if ever addressed, to a future milestone that deliberately widens the renderer's own
+    arrowhead-decoration scope beyond 1-D connectors.
+
 ### Platform Support
 
 The library targets the following frameworks, identical to the `CanvasNet` system it depends on,
