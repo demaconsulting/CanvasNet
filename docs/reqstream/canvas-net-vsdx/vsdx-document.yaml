@@ -215,13 +215,26 @@ sections:
               The VsdxDocument class shall resolve a shape instance's effective cell set so that an
               instance cell with a non-inherited (non-Inh) value wins, and an instance cell with
               F="Inh" or absent entirely falls through to the master's resolved value for that
-              cell name.
+              cell name, except for the nine transform cells PinX/PinY/Width/Height/LocPinX/
+              LocPinY/Angle/FlipX/FlipY, for which an instance's own cell always wins over the
+              master's same-named cell even when the instance's own cell is marked F="Inh".
             justification: |
               This cell-merge precedence is required to reproduce a native Visio client's own
-              effective-value computation for a customized master instance.
+              effective-value computation for a customized master instance. The nine transform
+              cells are an exception (Milestone 10): unlike a genuinely shared style cell (for
+              example LineColor), these nine are themselves baked per-instance (for a 1-D shape,
+              pre-derived from that instance's own BeginX/BeginY/EndX/EndY endpoints), so the
+              master's own same-named cell is only that master's unrelated template-local default
+              position/size, never a value any instance should adopt - confirmed against
+              60973.vsdx's connector shape 802, whose own already-correct, baked PinX/PinY were
+              being discarded by the generic rule in favor of the master's own small, unrelated
+              default position, collapsing the connector's resolved geometry to the wrong corner
+              of the page.
             tests:
               - MasterInheritance_InstanceLiteralCell_OverridesMasterCell
               - MasterInheritance_InstanceOmitsCells_FallsThroughToMasterCells
+              - MasterInheritance_InstanceInhMarkedTransformCell_PreferredOverMasterValue
+              - MasterInheritance_InstanceInhMarkedNonTransformCell_StillDefersToMasterValue
 
           - id: CanvasNetVsdx-VsdxDocument-GeometryRowMerge
             title: >-
@@ -237,6 +250,21 @@ sections:
             tests:
               - MasterInheritance_GeometryRowDelete_RemovesMasterRowFromMergedGeometry
               - MasterInheritance_InstanceGeometryRowWithoutDel_ReplacesMasterRowAtMatchingIndex
+
+          - id: CanvasNetVsdx-VsdxDocument-DeletedShapeExclusion
+            title: >-
+              The VsdxDocument class shall exclude a group child Shape element marked Del="1"
+              (shape-level deletion, distinct from the row-level Del="1" marker described by
+              CanvasNetVsdx-VsdxDocument-GeometryRowMerge) from the resolved shape tree entirely,
+              rather than resolving and rendering it.
+            justification: |
+              Milestone 10 confirmed against 60973.vsdx that an unhandled shape-level Del="1" stub
+              (a group child Visio itself no longer considers part of the diagram, but which a
+              save operation left declared in the page's XML) was being resolved and rendered as a
+              stale, superseded placeholder shape, producing spurious duplicate text never shown
+              by a native Visio client.
+            tests:
+              - VsdxDocument_GroupChildDeletedStub_ExcludedFromResolvedShapeTree
 
           - id: CanvasNetVsdx-VsdxDocument-NestedMasterShapeResolution
             title: >-
@@ -261,6 +289,24 @@ sections:
               style.
             tests:
               - StyleResolution_ChainWalk_ResolvesThroughMultipleParents
+
+          - id: CanvasNetVsdx-VsdxDocument-TransparencyResolution
+            title: >-
+              The VsdxDocument class shall resolve a shape's effective FillForegndTrans and
+              LineColorTrans cells through the same FillStyle/LineStyle StyleSheet chain used to
+              resolve FillForegnd/LineColor, parse each as a 0..1 transparency fraction (0 fully
+              opaque, 1 fully transparent, defaulting to 0 when absent or unparseable), and
+              modulate the resolved FillColor/StrokeColor alpha channel accordingly.
+            justification: |
+              Milestone 10 confirmed against 60973.vsdx's "Virtual Devices" container shape, whose
+              Master declares literal FillForegndTrans="0.4"/LineColorTrans="0.4" cells (40%
+              transparency), that these cells were previously never consulted anywhere in the
+              resolver, so the container's fill rendered fully opaque, obscuring its own label and
+              its children's top edges, rather than the light, mostly-see-through frame Visio
+              itself renders.
+            tests:
+              - StyleResolution_FillForegndTrans_ReducesResolvedFillAlpha
+              - StyleResolution_LineColorTrans_ReducesResolvedStrokeAlpha
 
           - id: CanvasNetVsdx-VsdxDocument-DirectOverridePrecedence
             title: >-
@@ -511,3 +557,30 @@ sections:
               produce visibly incorrect overlapping shapes.
             tests:
               - Render_DocumentOrder_LaterDeclaredShapePaintsOnTopOfOverlap
+
+          - id: CanvasNetVsdx-VsdxDocument-NonPrintingSuppression
+            title: >-
+              The VsdxDocument class shall skip a shape's own self-paint (fill, stroke, text, and
+              arrowheads) when its effective NonPrinting cell resolves true, while still recursing
+              into and painting that shape's own children.
+            justification: |
+              Milestone 10 confirmed against 44501b.vsdx's Watermark Title shape that an
+              unconsulted NonPrinting cell was causing a spurious "Activity" heading to be painted
+              that a native Visio client never shows; suppressing recursion into children as well
+              would be an over-correction with no supporting fixture evidence, so only the
+              shape's own self-paint is skipped.
+            tests:
+              - Render_NonPrintingShape_SkipsOwnFillButStillRendersChildren
+
+          - id: CanvasNetVsdx-VsdxDocument-MinimumVisibleStrokeWidth
+            title: >-
+              The VsdxDocument class shall apply a minimum visible stroke width of 1 device pixel
+              when painting a shape's resolved stroke, regardless of how small the resolved
+              LineWeight-in-pixels value is at the requested render resolution.
+            justification: |
+              Milestone 10 confirmed against 60973.vsdx's connector shapes, whose resolved
+              LineWeight rasterizes to roughly half a device pixel at a typical 150 DPI render,
+              that a sub-pixel stroke width was rasterizing to no visible ink at all, silently
+              dropping connector lines a native Visio client renders as a visible hairline.
+            tests:
+              - Render_SubPixelLineWeight_StillPaintsVisibleHairlineStroke

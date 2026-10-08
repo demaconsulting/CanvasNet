@@ -1,7 +1,7 @@
 # System Design
 
 <!-- cspell:ignore vsdx Visio VisioML xfrm stencil stencils glueable NURBS nurbs -->
-<!-- cspell:ignore shapesheet ShapeSheet rrggbb slnx Foregnd -->
+<!-- cspell:ignore shapesheet ShapeSheet rrggbb slnx Foregnd THEMEVAL -->
 
 This document provides the system-level design for CanvasNetVsdx.
 
@@ -226,7 +226,16 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
     theme part uses explicit hex colors instead); `VsdxDocument` parses a present `theme1.xml`
     (reusing the existing PPTX DrawingML theme-parsing infrastructure, since both are OOXML
     `<a:theme>` parts) but falls back to a neutral default color for a `Themed` cell with no
-    resolvable scheme entry.
+    resolvable scheme entry. Milestone 10's own stress-testing against the apache/poi test-data
+    corpus confirmed a concrete, real-world sample of this exact limitation: `test.vsdx`'s header
+    bar and star shape resolve a bare `THEMEVAL()` formula cell that genuinely depends on the
+    shape's own Quick-Style variation index (a full variation-matrix engine, not merely scheme
+    lookup, would be required to resolve it), so they render in the neutral fallback color rather
+    than Visio's own blue — confirmed, by direct comparison against a Visio COM reference PNG, to
+    be this already-documented limitation working exactly as intended, compounded by the
+    `EllipticalArcTo`-skip deferral below rounding the header bar's corners squarely instead.
+    No code change was made for this sample; it is recorded here purely as confirmed evidence this
+    documented gap is real and already correctly tolerated, not a newly discovered defect.
   - **Non-solid `FillPattern` values (built-in hatch/gradient combinations)** and the full
     `BeginArrow`/`EndArrow` arrowhead-style index table — neither is fully enumerable from the
     format research's sample corpus; `VsdxDocument` supports `FillPattern` 0 (none) and 1 (solid)

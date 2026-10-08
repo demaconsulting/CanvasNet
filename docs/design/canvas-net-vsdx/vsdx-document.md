@@ -96,7 +96,26 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   `IX`; a row with `Del="1"` marks the master's corresponding row deleted; a row in the master
   with no matching instance `IX` and no `Del` is inherited verbatim. For a `Group`-typed master
   shape, recurses per-child via the child's own `MasterShape` attribute (matched against the
-  master's nested `<Shapes>` by `ID`), not by position.
+  master's nested `<Shapes>` by `ID`), not by position. A group child `<Shape Del="1">` stub
+  (shape-level, not the row-level `Del="1"` above) is excluded from the resolved shape tree
+  entirely — Milestone 10 confirmed against `60973.vsdx` that an unhandled shape-level `Del="1"`
+  stub was rendering its own stale, superseded placeholder text (`VsdxDocument.Shapes.cs`'s
+  `ParseShapeElements`). Milestone 10 also narrows the generic "instance `F="Inh"` cell falls
+  through to the master" rule above for exactly the nine transform cells `PinX`/`PinY`/`Width`/
+  `Height`/`LocPinX`/`LocPinY`/`Angle`/`FlipX`/`FlipY`: an instance's own cached cell for one of
+  these nine is always preferred over the master's same-named cell, even when `F="Inh"`, because
+  — unlike a genuinely shared style cell such as `LineColor` — these nine are themselves baked
+  per-instance (for a 1-D shape, pre-derived from that instance's own `BeginX`/`BeginY`/`EndX`/
+  `EndY` endpoints) and the master's own same-named cell is only that master's unrelated
+  template-local default position/size, never a value any instance should adopt. This refinement
+  (`VsdxDocument.CellMerge.cs`'s `TransformCellNames`/`PreferInstanceTransformCells`) was
+  discovered during Milestone 10's own root-cause investigation of its Bug 2 (missing connector
+  lines): the stroke-width floor described under `Render(...)` below was, on its own,
+  insufficient against `60973.vsdx`'s connector shape `802`, because the generic merge rule was
+  also collapsing that connector's resolved position to the master's own small, unrelated
+  template-local corner — a deviation beyond this milestone's originating plan report's own
+  stroke-width-only diagnosis, confirmed via the milestone's smoke-test visual-comparison
+  procedure.
 - **`ResolveStyleChain(string styleSheetId, string cellName)`** (internal): Walks a shape's
   `LineStyle`/`FillStyle`/`TextStyle` StyleSheet-ID reference up the StyleSheet chain (each
   StyleSheet's own `LineStyle`/`FillStyle`/`TextStyle` attributes identify its own parent for that
@@ -105,6 +124,12 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   literal value of `"Themed"` resolves through the optional parsed theme instead, falling back to
   a neutral default when no theme part is present or the referenced scheme entry is absent (see
   the Design Constraints deferral in _CanvasNetVsdx System Design_, `canvas-net-vsdx.md`).
+  Milestone 10 additionally resolves `FillForegndTrans`/`LineColorTrans` through this same
+  `FillStyle`/`LineStyle` chain (a literal `"0..1"` transparency fraction, `0` fully opaque, `1`
+  fully transparent) and modulates the resolved `FillForegnd`/`LineColor` color's own alpha
+  channel accordingly (`VsdxDocument.Paint.cs`'s `ApplyTransparency`) — previously unconsulted
+  anywhere in this resolver, confirmed against `60973.vsdx`'s "Virtual Devices" container shape,
+  whose literal 40%-transparent fill was rendering fully opaque and obscuring its own children.
 - **`ResolveTransform(VsdxShapeNode shape, Point2 local)`** (internal): Applies the shape-local-
   to-parent affine transform — translate by `-LocPinX/-LocPinY`, apply `FlipX`/`FlipY` before
   rotation, rotate by `Angle` (radians, counter-clockwise), translate by `PinX/PinY` — identical
@@ -125,7 +150,16 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   `width`x`height` `Surface` to `options.BackgroundColor`, then walks the shape tree in document
   order — document order is z-order, first shape drawn first/bottom, the same convention already
   established by `PptxDocument`/`PdfDocument` — painting each node's resolved fill, stroke,
-  connector line/arrowheads, and text. Returns the painted `Surface`.
+  connector line/arrowheads, and text. Returns the painted `Surface`. Milestone 10 adds two
+  rendering-fidelity refinements: (1) a shape whose effective `NonPrinting` cell resolves `true`
+  skips its own self-paint (fill, stroke, text, arrowheads) entirely, but recursion into its
+  children still proceeds unaffected — confirmed against `44501b.vsdx`'s Watermark Title shape,
+  whose `NonPrinting` cell was previously unconsulted and so painted a spurious "Activity"
+  heading never shown by Visio itself; and (2) `PaintShapeGeometry`'s stroke paint applies a
+  `MinStrokeWidthPixels = 1f` floor to the resolved `LineWeight`-in-pixels value before stroking,
+  so a sub-pixel line weight (confirmed against `60973.vsdx`'s connector shapes, whose resolved
+  `LineWeight` rasterizes to roughly half a device pixel at the smoke-test's 150 DPI) still paints
+  a visible hairline instead of rasterizing to nothing.
 - **`Render(int pageIndex, int dpi, VsdxRenderOptions? options)`**: Resolves the page's
   `VsdxPageInfo` size, converts it to pixel dimensions at the requested `dpi`, and delegates to
   the pixel-dimension overload above.

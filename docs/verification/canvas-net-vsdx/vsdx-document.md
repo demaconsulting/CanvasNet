@@ -204,14 +204,45 @@ calls to the internal `ResolveMasterShape` for the same master ID return the exa
 Same`) parsed content tree instance, confirming the per-master-file parse result is cached rather
 than re-parsed on every shape resolution.
 
-#### CanvasNetVsdx-VsdxDocument-CellMerge: Instance-Literal-Wins, Else-Master-Cell Merge Precedence
+#### CanvasNetVsdx-VsdxDocument-CellMerge: Instance-Wins, Else-Master Merge (Transform-Cell Exception)
 
 **Tests**: `MasterInheritance_InstanceLiteralCell_OverridesMasterCell`,
-`MasterInheritance_InstanceOmitsCells_FallsThroughToMasterCells`
+`MasterInheritance_InstanceOmitsCells_FallsThroughToMasterCells`,
+`MasterInheritance_InstanceInhMarkedTransformCell_PreferredOverMasterValue`,
+`MasterInheritance_InstanceInhMarkedNonTransformCell_StillDefersToMasterValue`
 
 Proves an instance's own literal (non-`Inh`, present) cell value takes precedence over the
 Master's same-named cell, and proves an instance cell that is absent entirely falls through to the
-Master's resolved value for that cell name.
+Master's resolved value for that cell name. Milestone 10 adds two further tests covering a
+deliberate, narrowly-scoped exception to this rule for the nine transform cells `PinX`/`PinY`/
+`Width`/`Height`/`LocPinX`/`LocPinY`/`Angle`/`FlipX`/`FlipY`: `MasterInheritance_
+InstanceInhMarkedTransformCell_PreferredOverMasterValue` proves an instance's own `F="Inh"`-marked
+`PinX` cell still wins over the Master's own distinct `PinX` value (unlike the generic rule
+above), and `MasterInheritance_InstanceInhMarkedNonTransformCell_StillDefersToMasterValue` proves
+an `F="Inh"`-marked _non_-transform cell (`FillForegnd`) still defers to the Master's own literal
+value exactly as before, confirming the exception did not widen beyond its intended nine cell
+names. This exception was discovered during this milestone's own root-cause investigation of Bug
+2 (missing connector lines): the stroke hairline floor (see
+`CanvasNetVsdx-VsdxDocument-MinimumVisibleStrokeWidth` below) alone did not resolve
+`60973.vsdx`'s missing connector-line symptom against the Visio-reference PNG, because the generic
+merge rule was also collapsing connector shape `802`'s resolved position to its Master's own
+small, unrelated template-local corner; re-inspecting the raw XML confirmed the instance's own
+`PinX`/`PinY` cells were themselves already correct (baked from that instance's own `BeginX`/
+`BeginY`/`EndX`/`EndY` endpoints) but marked `F="Inh"`, so the generic rule discarded them - a
+deviation beyond this milestone's originating plan report's own stroke-width-only diagnosis,
+confirmed resolved via the external smoke-test visual-comparison procedure (§6) after the
+refinement.
+
+#### CanvasNetVsdx-VsdxDocument-DeletedShapeExclusion: Shape-Level Del="1" Group-Child Exclusion
+
+**Test**: `VsdxDocument_GroupChildDeletedStub_ExcludedFromResolvedShapeTree`
+
+Proves a group child `<Shape Del="1">` stub (shape-level deletion, distinct from the row-level
+`Del="1"` geometry-row marker covered by `CanvasNetVsdx-VsdxDocument-GeometryRowMerge` below) is
+excluded from the resolved shape tree entirely via a synthetic fixture mirroring `60973.vsdx`'s
+own structure - confirmed, via a controlled `git stash`-based A/B pixel diff of the external
+smoke-test harness's rendered output, to eliminate the spurious duplicate placeholder text
+(`"OOB: N/A"`/`"[B] Lo1: N/A"`/`"TS: N/A"`) `60973.vsdx` was rendering before this fix.
 
 #### CanvasNetVsdx-VsdxDocument-GeometryRowMerge: Geometry-Row Merge by Matching IX (Replace, Delete, Inherit)
 
@@ -240,6 +271,23 @@ Proves a shape's effective line/fill/text style resolves by walking its `LineSty
 `TextStyle` StyleSheet-ID reference up a multi-level StyleSheet parent-pointer chain until a
 literal, non-`Inh` value is found - confirmed with a three-level chain, independent of Master/
 MasterShape inheritance.
+
+#### CanvasNetVsdx-VsdxDocument-TransparencyResolution: FillForegndTrans/LineColorTrans Alpha Modulation
+
+**Tests**: `StyleResolution_FillForegndTrans_ReducesResolvedFillAlpha`,
+`StyleResolution_LineColorTrans_ReducesResolvedStrokeAlpha`
+
+Proves a literal `FillForegndTrans`/`LineColorTrans` cell, resolved through the same `FillStyle`/
+`LineStyle` StyleSheet chain as `FillForegnd`/`LineColor` themselves, modulates the resolved
+`FillColor`/`StrokeColor`'s own alpha channel by the parsed `0..1` transparency fraction (a
+literal `"0.4"` reducing alpha to 60% of fully opaque, i.e. `153`). Confirmed against
+`60973.vsdx`'s "Virtual Devices" container shape via the external smoke-test harness: before this
+fix, its Master's literal 40%-transparent `FillForegndTrans`/`LineColorTrans` cells were never
+consulted, so the container rendered fully opaque, obscuring its own label and its children's top
+edges; direct pixel sampling of the rendered output after the fix (fill color
+`(127,127,127,153)` blended over a white background) confirmed the rasterizer's own alpha
+compositing produces the expected `(178,178,178)` result, matching the Visio-reference PNG's
+lighter, mostly-see-through frame.
 
 #### CanvasNetVsdx-VsdxDocument-DirectOverridePrecedence: A Shape's Own Direct Cell Wins Over the StyleSheet Chain
 
@@ -429,9 +477,36 @@ Proves two overlapping, differently-colored rectangles paint in document order: 
 later-declared shape's own color wins within the overlap region, matching the z-order convention
 already established by `PptxDocument`/`PdfDocument`.
 
+#### CanvasNetVsdx-VsdxDocument-NonPrintingSuppression: NonPrinting Shapes Skip Self-Paint but Still Render Children
+
+**Test**: `Render_NonPrintingShape_SkipsOwnFillButStillRendersChildren`
+
+Proves a `Type="Group"` shape with its own resolved fill and a `NonPrinting="1"` cell paints none
+of its own fill ink (a pixel sampled inside the parent's own box but outside its child's box stays
+fully transparent), while its child shape - nested entirely within the parent's own box - still
+paints its own, distinctly-colored fill, proving self-paint suppression does not also suppress
+recursion into children. Confirmed against `44501b.vsdx`'s Watermark Title shape via the external
+smoke-test harness: before this fix, the shape's `NonPrinting` cell was unconsulted and a spurious
+"Activity" heading was painted that the Visio-reference PNG never shows; after the fix, the
+rendered page matches the reference with no regression.
+
+#### CanvasNetVsdx-VsdxDocument-MinimumVisibleStrokeWidth: Sub-Pixel LineWeight Still Paints a Visible Hairline
+
+**Test**: `Render_SubPixelLineWeight_StillPaintsVisibleHairlineStroke`
+
+Proves a shape with a deliberately sub-pixel resolved `LineWeight` (`0.002in`, 0.2px at 100 DPI)
+still paints at least one visible, non-transparent stroke pixel rather than rasterizing to a blank
+surface. Confirmed against `60973.vsdx`'s own connector shapes (`LineWeight≈0.0033in`, ~0.5px at
+this milestone's 150 DPI smoke-test render) via the external smoke-test harness: before this fix,
+sub-pixel connector lines vanished entirely against the Visio-reference PNG's own visible
+hairlines; after the fix (a `MinStrokeWidthPixels = 1f` floor applied in `PaintShapeGeometry`'s
+`PaintStroke` call, combined with the `CanvasNetVsdx-VsdxDocument-CellMerge` transform-cell
+refinement above, which was additionally required to correct the same connector's resolved
+position), the rendered page matches the reference's visible connector lines.
+
 ### Supplementary (Non-Requirement-Mapped) Coverage
 
-Beyond the 35 `CanvasNetVsdx-VsdxDocument-*` requirement-mapped scenarios above, the test project
+Beyond the 40 `CanvasNetVsdx-VsdxDocument-*` requirement-mapped scenarios above, the test project
 carries additional smoke-level and fixture-conformance tiers that increase confidence without
 mapping to a single dedicated requirement each:
 
