@@ -329,6 +329,85 @@ public class VsdxMasterInheritanceTests
     }
 
     /// <summary>
+    ///     A Master Group (<c>ID="5"</c>) whose own single child (<c>ID="6"</c>) carries the
+    ///     Master's own template-default <c>Width</c>/<c>PinY</c> (<c>0.5</c>/<c>0.1</c>) -
+    ///     mirroring <c>Test_Visio-Some_Random_Text.vsdx</c>'s own <c>master5.xml</c> "View" Group
+    ///     Master and its header child Shape <c>ID='6'</c>.
+    /// </summary>
+    private const string GroupMasterShapeXml =
+        """
+        <Shape ID="5" Type="Group">
+          <Cell N="PinX" V="0.5"/><Cell N="PinY" V="0.5"/><Cell N="Width" V="0.5"/><Cell N="Height" V="0.5"/>
+          <Cell N="LocPinX" V="0.25"/><Cell N="LocPinY" V="0.25"/><Cell N="Angle" V="0"/>
+          <Shapes>
+            <Shape ID="6" Type="Shape">
+              <Cell N="PinX" V="0.25"/><Cell N="PinY" V="0.1"/><Cell N="Width" V="0.5"/><Cell N="Height" V="0.2"/>
+              <Cell N="LocPinX" V="0.25"/><Cell N="LocPinY" V="0.1"/><Cell N="Angle" V="0"/>
+            </Shape>
+          </Shapes>
+        </Shape>
+        """;
+
+    /// <summary>
+    ///     Proves this milestone's (Milestone 12, Finding #3) Group-child carve-out: a 2-D shape
+    ///     that is itself a Group child (<see cref="VsdxShapeNode.Parent"/> not <see
+    ///     langword="null"/>) whose own <c>Width</c>/<c>PinY</c> cells are marked <c>F="Inh"</c>
+    ///     (cached, baked from a formula referencing the enclosing Group's own resized dimension -
+    ///     for example <c>Width=GUARD(Sheet.5!Width)</c>) still resolve to the <em>instance's
+    ///     own</em> cached value, not the Master's own stale template-default same-named cell -
+    ///     unlike a <em>top-level</em> 2-D shape (see
+    ///     <see cref="MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue"/>,
+    ///     unaffected by this carve-out). Mirrors <c>Test_Visio-Some_Random_Text.vsdx</c>'s own
+    ///     "View" Group (Shape <c>ID='5'</c>), whose page instance resizes the Group larger than
+    ///     its Master's own template default (instance <c>Width≈1.1146in</c> vs. Master's own
+    ///     cached <c>Width=0.5in</c>), and whose header child (Shape <c>ID='6'</c>) own
+    ///     <c>Width</c>/<c>PinY</c> cells are marked <c>F="Inh"</c> - before this fix, the
+    ///     Master's stale <c>0.5in</c> default won, corrupting <c>Transform.Width</c> and, via
+    ///     <c>TxtWidth</c>'s own fallback, the resolved text box's available width (see
+    ///     <c>VsdxDocument.CellMerge.cs</c>'s own <c>TransformCellNames</c> remarks for the full
+    ///     root-cause account).
+    /// </summary>
+    [Fact]
+    public void MasterInheritance_2DGroupChildInhMarkedTransformCell_PrefersInstanceValue()
+    {
+        // Arrange: the page instance resizes the Group larger than its Master's own template
+        // default (instance Group Width="1.1146" vs. the Master's own cached Width="0.5" - see
+        // GroupMasterShapeXml); the Group's own child (ID="6") carries its own, different,
+        // F="Inh"-marked Width/PinY (modeling a value baked from a formula referencing the
+        // enclosing Group's own resized dimension), distinct from the Master child's own stale
+        // template-default Width="0.5"/PinY="0.1".
+        var instanceShapeXml =
+            """
+            <Shape ID="5" Type="Group" Master="1">
+              <Cell N="PinX" V="2"/><Cell N="PinY" V="2"/><Cell N="Width" V="1.1146"/><Cell N="Height" V="0.4"/>
+              <Cell N="LocPinX" V="0.5573"/><Cell N="LocPinY" V="0.2"/><Cell N="Angle" V="0"/>
+              <Shapes>
+                <Shape ID="6" MasterShape="6">
+                  <Cell N="Width" V="1.1146" F="Inh"/>
+                  <Cell N="PinY" V="3.75" F="Inh"/>
+                </Shape>
+              </Shapes>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(instanceShapeXml, mastersXml: GroupMasterShapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var group = document.GetPageShapes(0)[0];
+        var child = Assert.Single(group.Children);
+
+        // Assert: the instance child's own Inh-marked Width (1.1146) and PinY (3.75) win, not the
+        // Master child's stale template-default Width (0.5)/PinY (0.1).
+        Assert.Same(group, child.Parent);
+        Assert.NotNull(child.EffectiveCells);
+        Assert.NotNull(child.Transform);
+        Assert.Equal(1.1146, child.EffectiveCells.GetDouble("Width"));
+        Assert.Equal(3.75, child.EffectiveCells.GetDouble("PinY"));
+        Assert.Equal(1.1146, child.Transform.Width);
+        Assert.Equal(3.75, child.Transform.PinY);
+    }
+
+    /// <summary>
     ///     A Master shape whose own Geometry section's two rows are expressed as fractions of its
     ///     own <c>Width</c>/<c>Height</c> (<c>Width=2</c>/<c>Height=2</c>): row <c>IX=1</c>
     ///     (<c>MoveTo</c>) is the Master's own mid-left point (<c>Width*0.5, 0</c> = <c>(1, 0)</c>)

@@ -107,4 +107,67 @@ public class VsdxTextBoxPositioningTests
         Assert.Equal(0.6, textBox.TxtWidth, 6);
         Assert.Equal(0.3, textBox.TxtHeight, 6);
     }
+
+    /// <summary>
+    ///     Proves this milestone's (Milestone 12, Finding #3) Group-child transform-cell-merge
+    ///     fix flows through to <c>BuildTextBox</c>'s own <c>TxtWidth</c>/<c>TxtHeight</c>
+    ///     implicit-default fallback (shape's own geometry bounding box, i.e. <c>Transform.Width</c>/
+    ///     <c>Height</c> - see <see cref="TextBox_NoTxtCells_ResolvesImplicitDefaultEqualToShapeGeometryBox"/>):
+    ///     a Group child shape declaring no own <c>Txt*</c> cells, whose own <c>Width</c> cell is
+    ///     marked <c>F="Inh"</c> and differs from its Master child's own stale template-default
+    ///     <c>Width</c> (modeling a resized Group - see
+    ///     <c>VsdxMasterInheritanceTests.MasterInheritance_2DGroupChildInhMarkedTransformCell_PrefersInstanceValue</c>),
+    ///     resolves <c>TxtWidth</c> from the instance's own, correct <c>Width</c>, not the
+    ///     Master's stale default - mirroring <c>Test_Visio-Some_Random_Text.vsdx</c>'s own "View"
+    ///     Group header child (Shape <c>ID='6'</c>), whose pre-fix <c>TxtWidth</c> resolved to the
+    ///     Master's stale <c>0.5in</c> default instead of the instance's true <c>~1.1146in</c>,
+    ///     causing severe premature word-wrap.
+    /// </summary>
+    [Fact]
+    public void TextBox_GroupChildInhMarkedWidthDiffersFromMaster_TxtWidthReflectsInstanceWidth()
+    {
+        // Arrange: a Master Group (ID="5") whose own child (ID="6") has the Master's own
+        // template-default Width (0.5); the page instance resizes the Group larger, and its own
+        // corresponding child carries a different, F="Inh"-marked Width (1.1146) - modeling a
+        // value baked from the enclosing Group's own resize - with no own Txt* cells at all.
+        const string masterXml =
+            """
+            <Shape ID="5" Type="Group">
+              <Cell N="PinX" V="0.5"/><Cell N="PinY" V="0.5"/><Cell N="Width" V="0.5"/><Cell N="Height" V="0.5"/>
+              <Cell N="LocPinX" V="0.25"/><Cell N="LocPinY" V="0.25"/><Cell N="Angle" V="0"/>
+              <Shapes>
+                <Shape ID="6" Type="Shape">
+                  <Cell N="PinX" V="0.25"/><Cell N="PinY" V="0.1"/><Cell N="Width" V="0.5"/><Cell N="Height" V="0.2"/>
+                  <Cell N="LocPinX" V="0.25"/><Cell N="LocPinY" V="0.1"/><Cell N="Angle" V="0"/>
+                  <Text>Test View</Text>
+                </Shape>
+              </Shapes>
+            </Shape>
+            """;
+        var instanceShapeXml =
+            """
+            <Shape ID="5" Type="Group" Master="1">
+              <Cell N="PinX" V="2"/><Cell N="PinY" V="2"/><Cell N="Width" V="1.1146"/><Cell N="Height" V="0.4"/>
+              <Cell N="LocPinX" V="0.5573"/><Cell N="LocPinY" V="0.2"/><Cell N="Angle" V="0"/>
+              <Shapes>
+                <Shape ID="6" MasterShape="6">
+                  <Cell N="Width" V="1.1146" F="Inh"/>
+                  <Cell N="Height" V="0.4" F="Inh"/>
+                </Shape>
+              </Shapes>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(instanceShapeXml, mastersXml: masterXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var group = document.GetPageShapes(0)[0];
+        var child = Assert.Single(group.Children);
+
+        // Assert: TxtWidth reflects the instance's own corrected Width (1.1146), not the Master
+        // child's stale template-default Width (0.5).
+        Assert.NotNull(child.TextBox);
+        Assert.Equal(1.1146, child.TextBox.TxtWidth, 6);
+        Assert.Equal(0.4, child.TextBox.TxtHeight, 6);
+    }
 }

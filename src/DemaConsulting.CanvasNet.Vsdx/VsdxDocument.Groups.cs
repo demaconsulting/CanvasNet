@@ -96,7 +96,7 @@ public sealed partial class VsdxDocument
 
         shape.Parent = parent;
 
-        var effectiveCells = MergeCells(shape.RawCells, masterShape?.RawCells);
+        var effectiveCells = MergeCells(shape.RawCells, masterShape?.RawCells, isGroupChild: parent is not null);
         var effectiveGeometrySections = MergeGeometrySections(shape.RawGeometrySections, masterShape?.RawGeometrySections);
 
         var effectiveLineStyleId = shape.LineStyleId ?? masterShape?.LineStyleId;

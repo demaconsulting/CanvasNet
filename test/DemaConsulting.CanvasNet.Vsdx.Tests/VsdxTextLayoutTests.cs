@@ -111,6 +111,39 @@ public class VsdxTextLayoutTests
     }
 
     /// <summary>
+    ///     Proves this milestone's (Milestone 12, Finding #3) symptom directly at the word-wrap
+    ///     level: the same text laid out against the Master's own stale, too-narrow template-
+    ///     default width wraps across two lines, while the instance's own true, corrected width
+    ///     keeps every glyph on a single line - mirroring
+    ///     <c>Test_Visio-Some_Random_Text.vsdx</c>'s own "View" Group header child ("Test View"
+    ///     wrapping to "Test"/"View" against the pre-fix stale <c>0.5in</c> <c>TxtWidth</c>, fitting
+    ///     on one line against the corrected <c>~1.1146in</c> width - see
+    ///     <c>VsdxTextBoxPositioningTests.TextBox_GroupChildInhMarkedWidthDiffersFromMaster_TxtWidthReflectsInstanceWidth</c>
+    ///     for the <c>TxtWidth</c>-resolution half of this same fix).
+    /// </summary>
+    [Fact]
+    public void TextLayout_CorrectedGroupChildWidth_FitsOneLineWhereStaleMasterWidthOverWrapped()
+    {
+        // Arrange: "AA AA" - each "AA" is 1in wide, a space is 0.2in (total natural width 2.2in).
+        // A 1.1in-wide box (simulating the Master's own stale template-default TxtWidth) fits
+        // only the first "AA" before wrapping; a 2.3in-wide box (simulating the instance's own
+        // corrected, resized TxtWidth) fits the whole line.
+        var runs = new List<VsdxEffectiveTextRun> { MakeRun("AA AA") };
+
+        // Act
+        var staleLayout = VsdxDocument.ResolveTextLayout(runs, MakeBox(1.1, 10), MakeStyle(), ConstantFontResolver);
+        var correctedLayout = VsdxDocument.ResolveTextLayout(runs, MakeBox(2.3, 10), MakeStyle(), ConstantFontResolver);
+
+        // Assert: the stale, too-narrow width wraps across two distinct Y lines (the pre-fix
+        // symptom).
+        Assert.True(staleLayout.Glyphs[2].OriginYInches < staleLayout.Glyphs[0].OriginYInches);
+
+        // Assert: the corrected width keeps every glyph on a single line (no over-wrap).
+        var firstLineY = correctedLayout.Glyphs[0].OriginYInches;
+        Assert.All(correctedLayout.Glyphs, glyph => Assert.Equal(firstLineY, glyph.OriginYInches, 6));
+    }
+
+    /// <summary>
     ///     Proves <c>VerticalAlign</c> top/middle/bottom each anchor a single short line's
     ///     baseline at the expected Y position within a box taller than the line's own natural
     ///     height.

@@ -31,12 +31,14 @@ public sealed partial class VsdxDocument
     ///     <see cref="VsdxShapeTransform"/>'s own remarks) - the Master's own same-named cell is
     ///     only that Master's own unrelated default template position/size, never a value any
     ///     instance should ever adopt. A 2-D shape (one with no <c>BeginX</c>/<c>EndX</c> cell) is
-    ///     deliberately <em>excluded</em> from this overlay (see <see cref="MergeCells"/>): for a
-    ///     2-D shape, the Master's own same-named cell genuinely can be the shared,
-    ///     legitimately-inherited value (a shape never locally moved/resized by the author), so
-    ///     the generic "Master's cell wins over an inherited instance cell" rule remains correct
-    ///     and must not be overridden merely because the instance happens to carry its own stale/
-    ///     cached cell for one of these nine names. Confirmed against <c>60973.vsdx</c>'s own connector-group
+    ///     deliberately <em>excluded</em> from this overlay for a <em>top-level</em> (non-Group-
+    ///     child) shape (see <see cref="MergeCells"/>): for a top-level 2-D shape, the Master's own
+    ///     same-named cell genuinely can be the shared, legitimately-inherited value (a shape never
+    ///     locally moved/resized by the author), so the generic "Master's cell wins over an
+    ///     inherited instance cell" rule remains correct there and must not be overridden merely
+    ///     because the instance happens to carry its own stale/cached cell for one of these nine
+    ///     names - confirmed by the locked
+    ///     <c>MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue</c> test. Confirmed against <c>60973.vsdx</c>'s own connector-group
     ///     shape <c>ID='802'</c> (<c>Master='28'</c>): its own <c>PinX</c>/<c>PinY</c>/
     ///     <c>LocPinX</c>/<c>LocPinY</c> cells are marked <c>F="Inh"</c>, so the generic merge rule
     ///     discarded their already-correct, baked instance values (<c>PinX≈3.84</c>,
@@ -49,6 +51,28 @@ public sealed partial class VsdxDocument
     ///     Visio-reference PNG - see this milestone's own completion report for the fuller
     ///     root-cause trace.
     /// </summary>
+    /// <remarks>
+    ///     Milestone 12 (Finding #3) extended this overlay to apply unconditionally to a 2-D shape
+    ///     that is itself a <em>Group child</em> (<see cref="VsdxShapeNode.Parent"/> is not
+    ///     <see langword="null"/>), independent of the 1-D/<c>BeginX</c>/<c>EndX</c> test - see
+    ///     <see cref="MergeCells"/>'s own remarks. A Group child's own <c>PinX</c>/<c>PinY</c>/
+    ///     <c>Width</c>/<c>Height</c>/<c>LocPinX</c>/<c>LocPinY</c> cells can be baked, per-instance,
+    ///     from the enclosing Group's own resize - the same way a 1-D connector's transform cells
+    ///     are baked from its own endpoints - exactly as confirmed by
+    ///     <c>Test_Visio-Some_Random_Text.vsdx</c>'s "View" Group (Shape <c>ID='5'</c>, children
+    ///     <c>ID='6'</c>/<c>'7'</c>): the page instance resizes the Group larger than its Master's
+    ///     own template default (instance <c>Width≈1.1146in</c> vs. Master's own cached
+    ///     <c>Width=0.5in</c>), and both children's own <c>Width</c>/<c>Height</c>/<c>PinY</c>
+    ///     cells are marked <c>F="Inh"</c> (baked from formulas referencing the enclosing Group's
+    ///     own resized dimension). Before this fix, the generic rule let the Master's stale
+    ///     <c>0.5in</c> default win, corrupting <c>Transform.Width</c>/<c>Height</c> and, via
+    ///     <c>VsdxDocument.TextBox.cs</c>'s <c>TxtWidth</c>/<c>TxtHeight</c> fallback, the
+    ///     resolved text box's available width/height - causing severe premature word-wrap
+    ///     ("Test View" wrapping to "Test"/"View"). This is the identical gap this milestone's
+    ///     own Design Constraints deferred-limitation bullet (from Milestone 11) previously
+    ///     documented as having "no safe narrowly-scoped disambiguating heuristic"; the Group-child
+    ///     <c>Parent is not null</c> signal is that disambiguating condition.
+    /// </remarks>
     private static readonly string[] TransformCellNames =
     [
         "PinX", "PinY", "Width", "Height", "LocPinX", "LocPinY", "Angle", "FlipX", "FlipY",
@@ -76,26 +100,39 @@ public sealed partial class VsdxDocument
 
     /// <summary>
     ///     Merges an instance shape's own cells with its Master shape's cells (if any) into a
-    ///     single, flat effective <see cref="VsdxCellBag"/>, then - <em>only when the merged
-    ///     result identifies the shape as 1-D</em> (both a <c>BeginX</c> and an <c>EndX</c> cell
-    ///     present, the same detection convention <c>VsdxDocument.Groups.cs</c>'s own
-    ///     <c>ConnectorEndpoints</c> resolution uses) - re-applies the instance's own cached
-    ///     <see cref="TransformCellNames"/> and <see cref="ArrowCellNames"/> cells (if present)
-    ///     over whatever the generic merge produced; see those two arrays' own remarks for why a
-    ///     1-D shape's transform/arrowhead cells cannot use the generic "Master's cell wins over
-    ///     an inherited instance cell" rule. A 2-D shape is left unaffected by this overlay: its
+    ///     single, flat effective <see cref="VsdxCellBag"/>, then re-applies the instance's own
+    ///     cached <see cref="TransformCellNames"/> cells (if present) over whatever the generic
+    ///     merge produced whenever the shape is <em>either</em> 1-D (both a <c>BeginX</c> and an
+    ///     <c>EndX</c> cell present, the same detection convention <c>VsdxDocument.Groups.cs</c>'s
+    ///     own <c>ConnectorEndpoints</c> resolution uses) <em>or</em> a Group child
+    ///     (<paramref name="isGroupChild"/> is <see langword="true"/>) - see
+    ///     <see cref="TransformCellNames"/>'s own remarks for why both cases bake their transform
+    ///     cells per-instance rather than genuinely sharing the Master's own cell. The
+    ///     <see cref="ArrowCellNames"/> overlay remains 1-D-only (no evidence an arrowhead cell has
+    ///     the Group-child problem; see <see cref="ArrowCellNames"/>'s own remarks) - it is
+    ///     deliberately <em>not</em> extended to Group children here. A top-level (non-Group-child)
+    ///     2-D shape is left unaffected by the <see cref="TransformCellNames"/> overlay: its
     ///     generic merge result (Master's cell wins over an <c>F="Inh"</c> instance cell) is
-    ///     correct for a shape that legitimately inherits its full transform/arrowheads from its
-    ///     Master.
+    ///     correct for a shape that legitimately inherits its full transform from its Master (see
+    ///     the locked <c>MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue</c>
+    ///     test).
     /// </summary>
     /// <param name="instanceCells">The instance shape's own direct <c>&lt;Cell&gt;</c> children.</param>
     /// <param name="masterCells">The Master shape's own direct <c>&lt;Cell&gt;</c> children, or <see langword="null"/> when the instance has no Master.</param>
+    /// <param name="isGroupChild">
+    ///     <see langword="true"/> when the instance shape being merged is itself a Group child
+    ///     (its already-resolved <see cref="VsdxShapeNode.Parent"/> is not <see langword="null"/>);
+    ///     <see langword="false"/> for one of a page's own top-level shapes. See
+    ///     <see cref="TransformCellNames"/>'s own remarks (Milestone 12, Finding #3) for why a
+    ///     Group child's own transform cells must always win over its Master's same-named cell,
+    ///     independent of the 1-D/<c>BeginX</c>/<c>EndX</c> test.
+    /// </param>
     /// <returns>
     ///     <paramref name="instanceCells"/> unchanged when <paramref name="masterCells"/> is
     ///     <see langword="null"/>; otherwise a new, merged <see cref="VsdxCellBag"/> built per
     ///     this class's own remarks.
     /// </returns>
-    private static VsdxCellBag MergeCells(VsdxCellBag instanceCells, VsdxCellBag? masterCells)
+    private static VsdxCellBag MergeCells(VsdxCellBag instanceCells, VsdxCellBag? masterCells, bool isGroupChild)
     {
         if (masterCells is null)
         {
@@ -104,23 +141,28 @@ public sealed partial class VsdxDocument
 
         var merged = VsdxCellBagMerge.Merge(instanceCells, masterCells);
 
-        // Only a 1-D (connector) shape's own transform/arrowhead cells are baked, per-instance,
-        // from that instance's own BeginX/BeginY/EndX/EndY endpoints or its own authoring choices
-        // (see TransformCellNames/ArrowCellNames's own remarks) - the same detection convention
+        // A 1-D (connector) shape's own transform/arrowhead cells are baked, per-instance, from
+        // that instance's own BeginX/BeginY/EndX/EndY endpoints or its own authoring choices (see
+        // TransformCellNames/ArrowCellNames's own remarks) - the same detection convention
         // VsdxDocument.Groups.cs's own ConnectorEndpoints resolution uses (a 1-D shape always
-        // carries both a BeginX and an EndX cell; a 2-D shape carries neither). A 2-D shape that
-        // legitimately inherits its full transform/arrowheads from its Master (never locally
-        // moved/resized/re-arrowed, its own cell - if any - still marked F="Inh") must keep
-        // falling through to the generic "Master's cell wins over an inherited instance cell"
-        // rule above; only a 1-D shape's own cached cell should ever override the Master's
-        // unrelated template-local position/size/arrowhead.
-        if (!merged.TryGet("BeginX", out _) || !merged.TryGet("EndX", out _))
+        // carries both a BeginX and an EndX cell; a 2-D shape carries neither). Separately, a
+        // Group child's own transform cells (regardless of 1-D/2-D) can be baked, per-instance,
+        // from the enclosing Group's own resize (Milestone 12, Finding #3 - see
+        // TransformCellNames's own remarks) - so the TransformCellNames overlay below also applies
+        // whenever isGroupChild is true, independent of the 1-D test. A top-level 2-D shape that
+        // legitimately inherits its full transform from its Master (never locally moved/resized,
+        // its own cell - if any - still marked F="Inh") must keep falling through to the generic
+        // "Master's cell wins over an inherited instance cell" rule above.
+        var isOneDimensional = merged.TryGet("BeginX", out _) && merged.TryGet("EndX", out _);
+        if (isOneDimensional || isGroupChild)
         {
-            return merged;
+            merged = PreferInstanceCells(merged, instanceCells, TransformCellNames);
         }
 
-        merged = PreferInstanceCells(merged, instanceCells, TransformCellNames);
-        return PreferInstanceCells(merged, instanceCells, ArrowCellNames);
+        // The ArrowCellNames overlay remains 1-D-only: no evidence an arrowhead cell has the
+        // Group-child problem (see ArrowCellNames's own remarks) - it is deliberately not extended
+        // to Group children.
+        return isOneDimensional ? PreferInstanceCells(merged, instanceCells, ArrowCellNames) : merged;
     }
 
     /// <summary>
