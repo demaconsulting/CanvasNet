@@ -11,10 +11,13 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 /// </summary>
 /// <remarks>
 ///     Deliberately stores every field as <see cref="double"/>, mirroring
-///     <see cref="VsdxShapeTransform"/>'s own documented precision rationale - no
-///     <see cref="System.Numerics.Matrix3x2"/>/page-space composition is applied to this box this
-///     milestone (deferred to Milestone 7, exactly as <see cref="VsdxShapeTransform"/> itself is
-///     not yet applied to any geometry path).
+///     <see cref="VsdxShapeTransform"/>'s own documented precision rationale. This type's own
+///     <see cref="TxtAngle"/> is not composed into the laid-out <see cref="VsdxGlyphPlacement"/>
+///     coordinates <c>VsdxDocument.TextLayout.cs</c>'s <c>ResolveTextLayout</c> produces -
+///     those remain within this box's own unrotated rectangle - but is instead composed directly
+///     into the shape-local-to-pixel transform used when painting (see
+///     <c>VsdxDocument.Render.cs</c>'s <c>ResolveTextToPixelTransform</c>), mirroring how
+///     <see cref="VsdxShapeTransform"/> itself is applied only at paint time, not during layout.
 /// </remarks>
 /// <param name="TxtPinX">The text box's pin X position, in shape-local inches.</param>
 /// <param name="TxtPinY">The text box's pin Y position, in shape-local inches.</param>

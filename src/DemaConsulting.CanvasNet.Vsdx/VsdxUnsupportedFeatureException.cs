@@ -9,7 +9,12 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     this exception - a recognized-but-deferred construct - and a tolerant, silent skip, which
 ///     this milestone instead uses for an unrecognized geometry row type or an unresolved
 ///     "Themed" color - see <c>VsdxColorPalette.ThemedFallback</c>'s own remarks for the
-///     evidence-based justification of that choice).
+///     evidence-based justification of that choice). Not yet thrown by any resolver in this
+///     delivery (see <c>vsdx-document.md</c>'s Data Model section's own "Supporting exception
+///     type" entry for the full, current list of constructs that instead degrade to a tolerant
+///     skip) - reserved for a future recognized-but-deferred VisioML construct requiring a hard
+///     failure, exactly mirroring <c>PptxUnsupportedFeatureException</c>'s own established
+///     precedent and contract.
 /// </summary>
 /// <remarks>
 ///     Mirrors the sibling <c>DemaConsulting.CanvasNet.Pptx.PptxUnsupportedFeatureException</c>'s
@@ -24,9 +29,16 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     <see cref="InvalidDataException"/>, not its base type. <see cref="Feature"/> is a short,
 ///     stable, machine-matchable token identifying which unsupported feature was encountered
 ///     (for example <c>"vsdx-group-recursion"</c>), distinct from the free-text, human-readable
-///     <see cref="Exception.Message"/>.
+///     <see cref="Exception.Message"/>. Declared <see langword="public"/> - like its
+///     <c>PptxUnsupportedFeatureException</c> sibling - rather than <see langword="internal"/>
+///     (PR #42 review Finding #4): this type's own documented purpose is for an external caller
+///     of <see cref="VsdxDocument"/>'s public API to distinguish "well-formed but unsupported"
+///     from "malformed" input, which an <see langword="internal"/> accessibility would make
+///     impossible regardless of whether any resolver throws it yet - and declaring it public now
+///     (rather than only once a future resolver first throws it) avoids a later breaking
+///     accessibility change to this already-named, already-shaped type.
 /// </remarks>
-internal sealed class VsdxUnsupportedFeatureException : IOException
+public sealed class VsdxUnsupportedFeatureException : IOException
 {
     /// <summary>
     ///     A short, stable, machine-matchable token identifying which unsupported feature caused

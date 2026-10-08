@@ -1,5 +1,6 @@
 // cspell:ignore vsdx Visio Foregnd
 
+using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;
@@ -74,6 +75,57 @@ public class VsdxRenderTests
           <Text>{text}</Text>
         </Shape>
         """;
+
+    /// <summary>Builds a single top-level, open (unfilled), stroked line <c>&lt;Shape&gt;</c> running along its own local X-axis, rotatable via <paramref name="angleRadians"/> about its own local origin (<c>LocPinX</c>/<c>LocPinY</c> both <c>0</c>) - used to prove stroke-width scale resolution is rotation-invariant (PR #42 review Finding #2).</summary>
+    /// <param name="id">The shape's own <c>ID</c> attribute.</param>
+    /// <param name="pinX">The shape's <c>PinX</c> cell (page-space inches) - also the rotated line's own fixed endpoint, since <c>LocPinX</c>/<c>LocPinY</c> are both <c>0</c>.</param>
+    /// <param name="pinY">The shape's <c>PinY</c> cell (page-space inches).</param>
+    /// <param name="length">The line's own local length (inches) before rotation.</param>
+    /// <param name="angleRadians">The shape's own <c>Angle</c> cell, in radians (counter-clockwise).</param>
+    /// <param name="lineWeightInches">The shape's own <c>LineWeight</c> cell (inches).</param>
+    private static string BuildRotatableStrokedLineShapeXml(int id, double pinX, double pinY, double length, double angleRadians, double lineWeightInches) =>
+        $"""
+        <Shape ID="{id}" Type="Shape">
+          <Cell N="PinX" V="{pinX}"/><Cell N="PinY" V="{pinY}"/><Cell N="Width" V="{length}"/><Cell N="Height" V="0"/>
+          <Cell N="LocPinX" V="0"/><Cell N="LocPinY" V="0"/><Cell N="Angle" V="{angleRadians}"/>
+          <Cell N="LineColor" V="#000000"/><Cell N="LineWeight" V="{lineWeightInches}"/><Cell N="LinePattern" V="1"/>
+          <Cell N="FillPattern" V="0"/>
+          <Section N="Geometry" IX="0">
+            <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+            <Row T="LineTo" IX="2"><Cell N="X" V="{length}"/><Cell N="Y" V="0"/></Row>
+          </Section>
+        </Shape>
+        """;
+
+    /// <summary>Counts the number of non-transparent pixels in the vertical column <paramref name="x"/>, within pixel rows <c>[searchYMin, searchYMax)</c> on <paramref name="surface"/> - used to measure a horizontal stroked line's own painted thickness.</summary>
+    private static int CountPaintedPixelsInColumn(Surface surface, int x, int searchYMin, int searchYMax)
+    {
+        var count = 0;
+        for (var y = searchYMin; y < searchYMax; y++)
+        {
+            if (surface[x, y].A > 0)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>Counts the number of non-transparent pixels in the horizontal row <paramref name="y"/>, within pixel columns <c>[searchXMin, searchXMax)</c> on <paramref name="surface"/> - used to measure a vertical stroked line's own painted thickness.</summary>
+    private static int CountPaintedPixelsInRow(Surface surface, int y, int searchXMin, int searchXMax)
+    {
+        var count = 0;
+        for (var x = searchXMin; x < searchXMax; x++)
+        {
+            if (surface[x, y].A > 0)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
 
     /// <summary>Proves at least one non-transparent pixel exists somewhere on <paramref name="surface"/>.</summary>
     private static void AssertPaintedSomePixel(Surface surface)
@@ -406,5 +458,141 @@ public class VsdxRenderTests
 
         // Assert
         Assert.Null(exception);
+    }
+
+    /// <summary>
+    ///     Proves a shape with multiple geometry sections where the first section is
+    ///     <c>NoFill</c>/<c>NoLine</c> but a later section is paintable still paints that later
+    ///     section's own fill/stroke - PR #42 review Finding #1 (<c>VsdxDocument.Paint.cs</c>'s
+    ///     <c>ResolvePaint</c> previously derived the shape-wide <c>HasFill</c>/<c>HasLine</c>
+    ///     flags from only the first geometry section's own <c>NoFill</c>/<c>NoLine</c> cells,
+    ///     incorrectly suppressing every other, independently paintable section too). Each
+    ///     section's own flag must instead gate only that section, against the shape-wide
+    ///     resolved paint - see <c>VsdxDocument.Render.cs</c>'s <c>PaintShapeGeometry</c>.
+    /// </summary>
+    [Fact]
+    public void Render_MultipleGeometrySections_FirstSectionNoFillDoesNotSuppressLaterPaintableSection()
+    {
+        // Arrange: a shape with two geometry sections - section IX="0" is a small square marked
+        // NoFill/NoLine (so it must not paint), and section IX="1" is a disjoint, solid-filled
+        // square elsewhere in the same shape's local box (so it must still paint).
+        var shapeXml =
+            """
+            <Shape ID="1" Type="Shape">
+              <Cell N="PinX" V="2"/><Cell N="PinY" V="2"/><Cell N="Width" V="4"/><Cell N="Height" V="4"/>
+              <Cell N="LocPinX" V="0"/><Cell N="LocPinY" V="0"/><Cell N="Angle" V="0"/>
+              <Cell N="FillForegnd" V="#00ff00"/><Cell N="FillPattern" V="1"/><Cell N="LinePattern" V="0"/>
+              <Section N="Geometry" IX="0">
+                <Cell N="NoFill" V="1"/><Cell N="NoLine" V="1"/>
+                <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+                <Row T="LineTo" IX="2"><Cell N="X" V="1"/><Cell N="Y" V="0"/></Row>
+                <Row T="LineTo" IX="3"><Cell N="X" V="1"/><Cell N="Y" V="1"/></Row>
+                <Row T="LineTo" IX="4"><Cell N="X" V="0"/><Cell N="Y" V="1"/></Row>
+              </Section>
+              <Section N="Geometry" IX="1">
+                <Row T="MoveTo" IX="1"><Cell N="X" V="2"/><Cell N="Y" V="2"/></Row>
+                <Row T="LineTo" IX="2"><Cell N="X" V="4"/><Cell N="Y" V="2"/></Row>
+                <Row T="LineTo" IX="3"><Cell N="X" V="4"/><Cell N="Y" V="4"/></Row>
+                <Row T="LineTo" IX="4"><Cell N="X" V="2"/><Cell N="Y" V="4"/></Row>
+              </Section>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act: render at 100 dpi (1 pixel = 0.01in). With LocPinX=LocPinY=0 and PinX=PinY=2,
+        // shape-local (x, y) maps to page-space (x + 2, y + 2). Local (3, 3) (well inside the
+        // second section's local [2,4]x[2,4] square) maps to page-space (5, 5) -> pixel
+        // (5 * 100, (11 - 5) * 100) = (500, 600) on the 8.5x11in page.
+        using var surface = document.Render(0, 100);
+
+        // Assert: the second, paintable section's own fill color is present - proving it was not
+        // suppressed by the first section's own NoFill flag.
+        var fillColor = new Rgba32(0, 255, 0, 255);
+        Assert.Equal(fillColor, surface[500, 600]);
+    }
+
+    /// <summary>
+    ///     Proves a shape's resolved stroke width is rotation-invariant: a stroked line rotated 90
+    ///     degrees still paints at (approximately) the same pixel thickness as the identical,
+    ///     axis-aligned line - PR #42 review Finding #2 (<c>VsdxDocument.Render.cs</c>'s
+    ///     <c>AverageScale</c> previously approximated the local-to-pixel transform's own scale
+    ///     magnitude from only its raw diagonal (<c>(|M11| + |M22|) / 2</c>), which a 90-degree
+    ///     rotation zeroes out regardless of the transform's actual scale - collapsing
+    ///     <c>PaintShapeGeometry</c>'s resolved stroke width down to its own 1-pixel hairline
+    ///     floor even when the shape's resolved <c>LineWeight</c> should render much thicker).
+    /// </summary>
+    [Fact]
+    public void Render_RotatedStrokedLine_PaintsAtSameThicknessAsUnrotatedLine()
+    {
+        // Arrange: two otherwise-identical 2in-long, 0.2in-thick stroked lines, pinned at page
+        // (2, 2) with LocPinX/LocPinY both 0 (so the pin point is the line's own fixed endpoint) -
+        // one axis-aligned (Angle 0), one rotated 90 degrees (Angle pi/2).
+        const double lineWeightInches = 0.2;
+        var unrotatedShapeXml = BuildRotatableStrokedLineShapeXml(1, 2, 2, 2, angleRadians: 0, lineWeightInches);
+        var rotatedShapeXml = BuildRotatableStrokedLineShapeXml(1, 2, 2, 2, angleRadians: Math.PI / 2, lineWeightInches);
+        using var unrotatedStream = VsdxTestPackages.BuildPackage(unrotatedShapeXml);
+        using var rotatedStream = VsdxTestPackages.BuildPackage(rotatedShapeXml);
+        using var unrotatedDocument = VsdxDocument.Open(unrotatedStream);
+        using var rotatedDocument = VsdxDocument.Open(rotatedStream);
+
+        // Act: render both at 100 dpi (1 pixel = 0.01in).
+        // The unrotated line runs page X in [2,4], Y=2 (pixel Y = (11-2)*100 = 900) - its own
+        // painted thickness is measured vertically through its horizontal midpoint (pixel
+        // x = 300), across a generous +/-15px vertical search band.
+        using var unrotatedSurface = unrotatedDocument.Render(0, 100);
+        var unrotatedThickness = CountPaintedPixelsInColumn(unrotatedSurface, x: 300, searchYMin: 885, searchYMax: 915);
+
+        // The rotated line runs page X=2 (pixel X = 2*100 = 200), Y in [2,4] - its own painted
+        // thickness is measured horizontally through its vertical midpoint (pixel
+        // y = (11-3)*100 = 800), across the same generous +/-15px search band.
+        using var rotatedSurface = rotatedDocument.Render(0, 100);
+        var rotatedThickness = CountPaintedPixelsInRow(rotatedSurface, y: 800, searchXMin: 185, searchXMax: 215);
+
+        // Assert: both lines resolve to (approximately) the same painted thickness - roughly
+        // lineWeightInches * 100 dpi = 20 pixels. Before this finding's fix, the rotated line's
+        // thickness collapsed to PaintShapeGeometry's own 1-pixel hairline floor regardless of
+        // LineWeight, while the unrotated line kept its full resolved width - a stark, easily
+        // distinguished difference far larger than any anti-aliasing tolerance.
+        Assert.True(unrotatedThickness > 10, $"Expected the unrotated line's own thickness to be near 20px; was {unrotatedThickness}px.");
+        Assert.True(rotatedThickness > 10, $"Expected the rotated line's own thickness to be near 20px (not collapsed to the 1px hairline floor); was {rotatedThickness}px.");
+    }
+
+    /// <summary>
+    ///     Proves <see cref="VsdxDocument.ResolveTextToPixelTransform"/> composes a non-zero
+    ///     <c>TxtAngle</c> rotation about the text box's own <c>TxtPinX</c>/<c>TxtPinY</c> pin
+    ///     (in shape-local space) before <c>localToPixel</c> - PR #42 review Finding #3. A zero
+    ///     <c>TxtAngle</c> must leave <c>localToPixel</c> completely untouched (the overwhelmingly
+    ///     common case - no shape-local-space rotation cost paid when no text-box rotation is
+    ///     declared), and a non-zero <c>TxtAngle</c> must rotate a point elsewhere in shape-local
+    ///     space around the text box's own pin exactly like <see cref="VsdxShapeTransform.ToPage"/>
+    ///     itself rotates a shape-local point around its own <c>LocPinX</c>/<c>LocPinY</c> pin.
+    /// </summary>
+    [Fact]
+    public void ResolveTextToPixelTransform_ComposesTxtAngleRotationAboutTextBoxPin()
+    {
+        // Arrange: an arbitrary, non-identity localToPixel (so the composed result is easy to
+        // distinguish from a bug that simply ignores TxtAngle and returns localToPixel itself),
+        // and a text box pinned away from the shape-local origin with a 90-degree TxtAngle.
+        var localToPixel = Matrix3x2.CreateScale(100f) * Matrix3x2.CreateTranslation(10f, 20f);
+        var zeroAngleTextBox = new VsdxTextBoxTransform(TxtPinX: 1, TxtPinY: 1, TxtWidth: 2, TxtHeight: 1, TxtLocPinX: 0, TxtLocPinY: 0, TxtAngle: 0);
+        var rotatedTextBox = zeroAngleTextBox with { TxtAngle = Math.PI / 2 };
+
+        // Act
+        var zeroAngleTransform = VsdxDocument.ResolveTextToPixelTransform(zeroAngleTextBox, localToPixel);
+        var rotatedTransform = VsdxDocument.ResolveTextToPixelTransform(rotatedTextBox, localToPixel);
+
+        // Assert: a zero TxtAngle leaves localToPixel completely untouched.
+        Assert.Equal(localToPixel, zeroAngleTransform);
+
+        // Assert: a shape-local point offset +1 in X from the text box's own pin (1, 1) - i.e.
+        // shape-local (2, 1) - rotates 90 degrees CCW about that pin to shape-local (1, 2), then
+        // maps through localToPixel exactly like that rotated point would.
+        var expectedShapeLocalPoint = new Vector2(1f, 2f);
+        var expectedPixelPoint = Vector2.Transform(expectedShapeLocalPoint, localToPixel);
+        var actualPixelPoint = Vector2.Transform(new Vector2(2f, 1f), rotatedTransform);
+
+        Assert.Equal(expectedPixelPoint.X, actualPixelPoint.X, 3);
+        Assert.Equal(expectedPixelPoint.Y, actualPixelPoint.Y, 3);
     }
 }

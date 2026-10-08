@@ -67,8 +67,12 @@ public sealed partial class VsdxDocument
         // so the text box's own rectangle - and "top"/"bottom" vertical anchoring within it -
         // must be derived from TxtPinX/TxtPinY/TxtLocPinX/TxtLocPinY/TxtWidth/TxtHeight rather
         // than assumed to start at (0,0) the way DrawingML's own top-left-origin, y-down shape
-        // space lets PptxDocument.TextLayout.cs do. TxtAngle is not applied (Milestone 7 - see
-        // VsdxTextBoxTransform's own remarks).
+        // space lets PptxDocument.TextLayout.cs do. TxtAngle is deliberately not applied here:
+        // every glyph position below is computed within the text box's own unrotated rectangle,
+        // and the box's TxtAngle rotation (about its own TxtPinX/TxtPinY pin) is instead composed
+        // into the transform used when painting - see VsdxDocument.Render.cs's
+        // ResolveTextToPixelTransform - so this resolver's own output never needs revisiting
+        // for a non-zero TxtAngle.
         var boxLeft = textBox.TxtPinX - textBox.TxtLocPinX;
         var boxBottom = textBox.TxtPinY - textBox.TxtLocPinY;
         var boxTop = boxBottom + textBox.TxtHeight;

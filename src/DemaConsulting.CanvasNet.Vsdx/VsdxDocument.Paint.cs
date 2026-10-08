@@ -44,19 +44,21 @@ public sealed partial class VsdxDocument
 
     /// <summary>Resolves a shape's stroke/fill paint.</summary>
     /// <param name="effectiveCells">The shape's merged flat cell bag.</param>
-    /// <param name="geometries">The shape's resolved geometry sections (supplies the <c>NoFill</c>/<c>NoLine</c> flags - the first section's flags are used, matching every in-scope fixture's single-section shapes).</param>
     /// <param name="lineStyleId">The shape's effective <c>LineStyle</c> StyleSheet ID, or <see langword="null"/>.</param>
     /// <param name="fillStyleId">The shape's effective <c>FillStyle</c> StyleSheet ID, or <see langword="null"/>.</param>
-    /// <returns>The resolved <see cref="VsdxResolvedPaint"/>.</returns>
+    /// <returns>
+    ///     The resolved <see cref="VsdxResolvedPaint"/>. This shape-wide result intentionally does
+    ///     not consult any geometry section's own <c>NoFill</c>/<c>NoLine</c> flag - a shape may
+    ///     declare several geometry sections, and a flag on one section must not suppress painting
+    ///     of a different, paintable section. Each section's own flag is instead honored
+    ///     per-section, directly against this resolved (shape-wide) <c>HasFill</c>/<c>HasLine</c>,
+    ///     by <c>VsdxDocument.Render.cs</c>'s <c>PaintShapeGeometry</c>.
+    /// </returns>
     private VsdxResolvedPaint ResolvePaint(
         VsdxCellBag effectiveCells,
-        IReadOnlyList<VsdxGeometrySection> geometries,
         string? lineStyleId,
         string? fillStyleId)
     {
-        var sectionNoFill = geometries.Count > 0 && geometries[0].NoFill;
-        var sectionNoLine = geometries.Count > 0 && geometries[0].NoLine;
-
         var linePattern = ResolveLineCellValue(effectiveCells, "LinePattern", lineStyleId)?.Value;
         var lineColorCell = ResolveLineCellValue(effectiveCells, "LineColor", lineStyleId);
         var lineWeightRaw = ResolveLineCellValue(effectiveCells, "LineWeight", lineStyleId)?.Value;
@@ -66,8 +68,8 @@ public sealed partial class VsdxDocument
         var fillTransRaw = ResolveFillCellValue(effectiveCells, "FillForegndTrans", fillStyleId)?.Value;
         var lineTransRaw = ResolveLineCellValue(effectiveCells, "LineColorTrans", lineStyleId)?.Value;
 
-        var hasLine = !sectionNoLine && linePattern != "0";
-        var hasFill = !sectionNoFill && fillPattern != "0";
+        var hasLine = linePattern != "0";
+        var hasFill = fillPattern != "0";
 
         var strokeWidth = double.TryParse(lineWeightRaw, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedWeight) &&
             double.IsFinite(parsedWeight) && parsedWeight >= 0

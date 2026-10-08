@@ -7,11 +7,10 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 
 /// <summary>
 ///     The fully-resolved, laid-out glyph stream for a single shape's <c>&lt;Text&gt;</c>
-///     element, produced by <c>VsdxDocument.TextLayout.cs</c>'s <c>ResolveTextLayout</c>. Not yet
-///     painted onto a <see cref="Surface"/> this milestone (deferred to Milestone 7, alongside
-///     the rest of the public Render API) - see <c>VsdxDocument.TextRender.cs</c>'s own
-///     <c>PaintTextLayout</c> for the glyph-painting primitive this layout is already shaped to
-///     drive, once a later milestone wires it up.
+///     element, produced by <c>VsdxDocument.TextLayout.cs</c>'s <c>ResolveTextLayout</c> and
+///     painted onto a <see cref="Surface"/> by <c>VsdxDocument.TextRender.cs</c>'s own
+///     <c>PaintTextLayout</c> as part of the public <c>Render</c> API - see
+///     <c>VsdxDocument.Render.cs</c>'s <c>RenderShapeRecursive</c> for the call site.
 /// </summary>
 /// <param name="Glyphs">
 ///     Every non-whitespace glyph to paint, in reading order, already positioned in the owning

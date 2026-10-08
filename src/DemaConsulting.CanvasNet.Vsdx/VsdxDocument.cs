@@ -2,7 +2,7 @@ using System.IO.Compression;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio
+// cspell:ignore vsdx Visio NURBS
 
 /// <summary>
 ///     Provides read-only access to a Microsoft Visio (<c>.vsdx</c>) diagram document.
@@ -12,20 +12,65 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///         An instance is created by <see cref="Open(Stream)"/> or <see cref="Open(string)"/>,
 ///         which read and parse the OPC (Open Packaging Conventions) package structure exactly
 ///         once (the entire input is buffered in memory first, so the caller's stream need not
-///         remain open or seekable afterward).
-///     </para>
-///     <para>
-///         <strong>Milestone 2 (this release)</strong> implements only the underlying OPC
-///         package layer and page index: opening the <c>.vsdx</c> file as a ZIP archive,
+///         remain open or seekable afterward): opening the <c>.vsdx</c> file as a ZIP archive,
 ///         resolving <c>[Content_Types].xml</c>, resolving the package-level
 ///         (<c>_rels/.rels</c>) and per-part relationship graph (including relative target
 ///         resolution, for example <c>../masters/masters.xml</c>), locating
 ///         <c>visio/document.xml</c> and <c>visio/pages/pages.xml</c> through that relationship
 ///         graph (never by filename convention), and parsing each declared page's name and
-///         declared size (see <see cref="PageCount"/>/<see cref="GetPageSize(int)"/>). No shape,
-///         geometry, master-content, style, theme, text, or connector parsing exists yet - all
-///         deferred to later milestones; see <c>canvas-net-vsdx.md</c>'s Implementation Phase
-///         Plan.
+///         declared size (see <see cref="PageCount"/>/<see cref="GetPageSize(int)"/>).
+///     </para>
+///     <para>
+///         <see cref="GetPageShapes"/> and the public, page-level
+///         <see cref="Render(int, int, int, VsdxRenderOptions?)"/>/
+///         <see cref="Render(int, int, VsdxRenderOptions?)"/> rendering API resolve a page's full
+///         shape tree, lazily and cached thereafter: Master/MasterShape cell-and-geometry-row
+///         inheritance (an instance cell with a non-<c>Inh</c> <c>F</c> wins; an instance cell
+///         with <c>F="Inh"</c> or no cell at all falls through to the resolved master value; a
+///         geometry row is matched and merged, or marked deleted, by <c>IX</c>; a <c>Group</c>
+///         master shape recurses per child via <c>MasterShape</c>, matched by <c>ID</c> not
+///         position); the StyleSheet chain for <c>LineStyle</c>/<c>FillStyle</c>/<c>TextStyle</c>
+///         (walking each StyleSheet's own parent reference until a literal, non-<c>Inh</c> value
+///         is found, terminating at StyleSheet ID <c>0</c> "No Style", with a literal
+///         <c>"Themed"</c> value resolved against an optional parsed theme and otherwise falling
+///         back to a neutral default); shape geometry (<c>MoveTo</c>/<c>LineTo</c>/
+///         <c>RelMoveTo</c>/<c>RelLineTo</c> rows resolved into the core <see cref="Geometry.Path"/>
+///         type; <c>EllipticalArcTo</c>/<c>ArcTo</c> rows converted to an <c>ArcTo</c> path
+///         command reaching the row's own destination point, with a zero-bow <c>ArcTo</c> row
+///         degrading to a plain <c>LineTo</c>; <c>NURBSTo</c>/<c>InfiniteLine</c> and any other
+///         unrecognized row type tolerantly skipped rather than approximated); the
+///         shape-local-to-page affine transform (translate by <c>LocPinX</c>/<c>Y</c>, apply
+///         <c>FlipX</c>/<c>FlipY</c>, rotate by <c>Angle</c> in radians, translate by
+///         <c>PinX</c>/<c>PinY</c> - identical for a 2-D shape and a 1-D connector, whose own
+///         <c>PinX</c>/<c>PinY</c>/<c>Width</c>/<c>Height</c>/<c>Angle</c> are themselves
+///         pre-derived by Visio at save time from <c>BeginX</c>/<c>Y</c>/<c>EndX</c>/<c>Y</c>);
+///         text (<c>&lt;Text&gt;</c> run parsing against <c>Section N="Character"</c>/
+///         <c>"Paragraph"</c> rows, including a <c>&lt;fld&gt;</c> Field-reference element's own
+///         nested text content parsed as a literal run, and <c>TxtPinX</c>/<c>Y</c>/
+///         <c>TxtLocPinX</c>/<c>Y</c>/<c>TxtWidth</c>/<c>Height</c>/<c>TxtAngle</c> text-box
+///         positioning, including the text box's own <c>TxtAngle</c> rotation about its own pin);
+///         and connector/glue-point routing (<c>&lt;Connects&gt;</c> parsing, trusting a
+///         connector's own pre-baked, already-resolved <c>BeginX</c>/<c>Y</c>/<c>EndX</c>/<c>Y</c>
+///         page-space coordinates rather than performing live glue-point tracking).
+///     </para>
+///     <para>
+///         <see cref="Render(int, int, int, VsdxRenderOptions?)"/> and its DPI convenience
+///         overload clear the destination <see cref="Canvas.Surface"/> to
+///         <see cref="VsdxRenderOptions.BackgroundColor"/> (default opaque white) and walk a
+///         page's shape tree in document order (first declared shape painted first/bottom),
+///         painting each node's resolved fill, stroke, connector line/arrowheads, and text -
+///         suppressing only a shape's own text paint, not its fill/stroke/children, when its
+///         effective <c>HideText</c> cell resolves truthy - composing a group's own
+///         already-resolved child transform with no separate <c>chOff</c>/<c>chExt</c>-style
+///         child-coordinate remap step, since a VisioML group child's cells are already expressed
+///         directly in the parent group's own local box. Embedded images/Foreign shapes,
+///         non-trivial Themed theme-variation resolution, non-solid <c>FillPattern</c>
+///         hatch/gradient combinations beyond solid (degraded to the same solid-fill treatment
+///         as <c>FillPattern="1"</c> rather than approximated), the full <c>BeginArrow</c>/
+///         <c>EndArrow</c> style-index table, and the <c>RelCubBezTo</c>/<c>SplineStart</c>/
+///         <c>SplineKnot</c>/<c>PolylineTo</c>/<c>Ellipse</c> geometry row types remain explicitly
+///         deferred - see <c>canvas-net-vsdx.md</c>'s own Design Constraints section for the
+///         complete deferred-feature boundary.
 ///     </para>
 ///     <para>
 ///         <strong>Thread safety</strong>: a <see cref="VsdxDocument"/> instance is <em>not</em>

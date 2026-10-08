@@ -130,19 +130,57 @@ public class VsdxTextStyleTests
     /// <summary>
     ///     Proves <c>VerticalAlign</c>/<c>LeftMargin</c> (flat, non-row-indexed cells) resolve
     ///     through the <c>TextStyle</c> StyleSheet chain via the existing
-    ///     <c>ResolveStyleCellValue</c> helper, exactly like <c>LineColor</c>/<c>FillForegnd</c>.
+    ///     <c>ResolveStyleCellValue</c> helper, exactly like <c>LineColor</c>/<c>FillForegnd</c>,
+    ///     and that the resolved values actually move the shape's laid-out glyph - not merely
+    ///     that <c>TextLayout</c> is non-null, which would also pass if <c>VerticalAlign</c>/
+    ///     margins were silently ignored. Builds a tall (3in), wide (3in) shape so the
+    ///     <c>StyleSheet</c>-inherited <c>VerticalAlign="1"</c> (Middle)/<c>LeftMargin="0.05"</c>
+    ///     defaults and a shape with its own overriding flat <c>VerticalAlign="0"</c> (Top)/
+    ///     <c>LeftMargin="0.4"</c> cells produce measurably different glyph origins.
     /// </summary>
     [Fact]
-    public void TextStyle_FlatTextStyleCells_ResolveThroughTextStyleParentChain()
+    public void TextStyle_FlatTextStyleCells_ResolveThroughTextStyleParentChainAndAffectGlyphPosition()
     {
-        // Arrange / Act
-        using var document = OpenShape("<Text>Hi</Text>");
-        var shape = document.GetPageShapes(0)[0];
+        // Arrange: a 3x3in shape so a 2.9in-tall/2.9in-wide content box leaves plenty of room
+        // for Top vs Middle vertical anchoring, and a 0.05in vs 0.4in LeftMargin, to diverge
+        // measurably rather than rounding away to the same pixel.
+        static string ShapeXml(string ownCellsXml) =>
+            $"""
+            <Shape ID="1" Type="Shape" TextStyle="3">
+              <Cell N="PinX" V="2"/><Cell N="PinY" V="2"/><Cell N="Width" V="3"/><Cell N="Height" V="3"/>
+              <Cell N="LocPinX" V="1.5"/><Cell N="LocPinY" V="1.5"/><Cell N="Angle" V="0"/>
+              {ownCellsXml}
+              <Section N="Geometry" IX="0">
+                <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+              </Section>
+              <Text>Hi</Text>
+            </Shape>
+            """;
 
-        // Assert: resolved indirectly via the non-null TextLayout (built from the same
-        // flat-cell resolution this test targets) - proves the resolution path executes without
-        // throwing and the shape's layout reflects a non-default VerticalAlign/LeftMargin.
-        Assert.NotNull(shape.TextLayout);
+        using var defaultDocument = VsdxDocument.Open(VsdxTestPackages.BuildPackage(ShapeXml(string.Empty), StyleSheetsXml));
+        using var overriddenDocument = VsdxDocument.Open(
+            VsdxTestPackages.BuildPackage(
+                ShapeXml("""<Cell N="VerticalAlign" V="0"/><Cell N="LeftMargin" V="0.4"/>"""),
+                StyleSheetsXml));
+
+        // Act
+        var defaultGlyph = defaultDocument.GetPageShapes(0)[0].TextLayout!.Glyphs[0];
+        var overriddenGlyph = overriddenDocument.GetPageShapes(0)[0].TextLayout!.Glyphs[0];
+
+        // Assert: the default shape inherits VerticalAlign="1" (Middle)/LeftMargin="0.05" from
+        // the TextStyle="3" -> "1" -> "0" StyleSheet chain; the overridden shape's own
+        // VerticalAlign="0" (Top)/LeftMargin="0.4" cells win over that chain for this shape only.
+        // Top-anchored text sits higher (larger shape-local, y-up Y) than Middle-anchored text in
+        // the same tall box, and the larger LeftMargin pushes the glyph further right - so if
+        // either flat cell were silently ignored, these two shapes would resolve to the same
+        // glyph origin and this assertion would fail.
+        Assert.True(
+            overriddenGlyph.OriginYInches > defaultGlyph.OriginYInches,
+            $"Expected Top-anchored glyph Y ({overriddenGlyph.OriginYInches}) to exceed Middle-anchored glyph Y ({defaultGlyph.OriginYInches}).");
+        Assert.True(
+            overriddenGlyph.OriginXInches > defaultGlyph.OriginXInches,
+            $"Expected LeftMargin=0.4in glyph X ({overriddenGlyph.OriginXInches}) to exceed LeftMargin=0.05in glyph X ({defaultGlyph.OriginXInches}).");
+        Assert.Equal(0.4 - 0.05, overriddenGlyph.OriginXInches - defaultGlyph.OriginXInches, 6);
     }
 
     /// <summary>

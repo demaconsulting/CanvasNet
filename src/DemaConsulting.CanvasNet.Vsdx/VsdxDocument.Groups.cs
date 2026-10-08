@@ -106,7 +106,7 @@ public sealed partial class VsdxDocument
         shape.EffectiveCells = effectiveCells;
         shape.Geometries = BuildGeometrySections(effectiveGeometrySections, effectiveCells);
         shape.Transform = BuildTransform(effectiveCells);
-        shape.Paint = ResolvePaint(effectiveCells, shape.Geometries, effectiveLineStyleId, effectiveFillStyleId);
+        shape.Paint = ResolvePaint(effectiveCells, effectiveLineStyleId, effectiveFillStyleId);
 
         // A 1-D (connector) shape always carries both a BeginX and an EndX cell (see the format
         // reference's §4.4); a 2-D shape carries neither. Trust the already-resolved V values

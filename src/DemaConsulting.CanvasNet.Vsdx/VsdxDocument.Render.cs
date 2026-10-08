@@ -206,14 +206,17 @@ public sealed partial class VsdxDocument
             PaintShapeGeometry(surface, shape, localToPixel);
 
             // Shape-local text (glyph outlines positioned in the owning shape's own local,
-            // unrotated/unflipped coordinate space - see VsdxTextLayout's own remarks) uses the
-            // same localToPixel transform as the shape's own geometry. A truthy, resolved
-            // HideText cell (see VsdxDocument.Paint.cs's ResolveHideText) suppresses only this
-            // text-paint call - unlike NonPrinting, the shape's own fill/stroke/arrowheads still
-            // paint normally.
+            // unrotated/unflipped text-box coordinate space - see VsdxTextLayout's own remarks)
+            // composes the resolved text box's own TxtAngle rotation (about its own TxtPinX/
+            // TxtPinY pin, in shape-local space) before the shape's own localToPixel transform -
+            // see ResolveTextToPixelTransform's own remarks for why this is necessary (PR #42
+            // review Finding #3). A truthy, resolved HideText cell (see
+            // VsdxDocument.Paint.cs's ResolveHideText) suppresses only this text-paint call -
+            // unlike NonPrinting, the shape's own fill/stroke/arrowheads still paint normally.
             if (!ResolveHideText(shape.EffectiveCells))
             {
-                PaintTextLayout(surface, shape.TextLayout!, localToPixel);
+                var textToPixel = ResolveTextToPixelTransform(shape.TextBox!, localToPixel);
+                PaintTextLayout(surface, shape.TextLayout!, textToPixel);
             }
 
             if (shape.ConnectorEndpoints is { } endpoints)
@@ -371,16 +374,61 @@ public sealed partial class VsdxDocument
     }
 
     /// <summary>
-    ///     Derives a uniform scale-magnitude approximation from <paramref name="matrix"/>'s own
-    ///     diagonal (<c>(|M11| + |M22|) / 2</c>) - an accepted approximation for stroke-width/
-    ///     arrowhead sizing under a non-uniform transform (<c>scaleX != scaleY</c>, only possible
-    ///     via the pixel-dimension <see cref="Render(int, int, int, VsdxRenderOptions?)"/> overload
-    ///     when called with an aspect ratio that does not match the page's own - the common
+    ///     Derives a uniform scale-magnitude approximation from the lengths of
+    ///     <paramref name="matrix"/>'s own transformed X/Y basis vectors (<c>(|(M11,M12)| +
+    ///     |(M21,M22)|) / 2</c>) - an accepted approximation for stroke-width/arrowhead sizing
+    ///     under a non-uniform transform (<c>scaleX != scaleY</c>, only possible via the
+    ///     pixel-dimension <see cref="Render(int, int, int, VsdxRenderOptions?)"/> overload when
+    ///     called with an aspect ratio that does not match the page's own - the common
     ///     <see cref="Render(int, int, VsdxRenderOptions?)"/> DPI overload always produces square
     ///     pixels), consistent with <c>DemaConsulting.CanvasNet.Pptx.PptxDocument</c>'s own
-    ///     equivalent handling.
+    ///     equivalent handling (see <c>PptxDocument.Paint.cs</c>'s <c>ResolveFlattenTolerance</c>).
+    ///     Using the raw diagonal (<c>(|M11| + |M22|) / 2</c>) instead - this method's previous
+    ///     implementation - is <em>not</em> rotation-invariant: a shape rotated 90 degrees zeroes
+    ///     out both diagonal entries regardless of its actual (non-zero) scale, which previously
+    ///     collapsed <c>AverageScale</c> to <c>0</c> for such a shape and forced every one of its
+    ///     stroke widths down to <see cref="MinStrokeWidthPixels"/> even when its resolved
+    ///     <c>LineWeight</c> should render much thicker. Summing the transformed basis vectors'
+    ///     own lengths instead correctly reports the same scale magnitude regardless of rotation.
     /// </summary>
     /// <param name="matrix">The transform to approximate a uniform scale magnitude from.</param>
     /// <returns>The approximated uniform scale magnitude.</returns>
-    private static float AverageScale(Matrix3x2 matrix) => (MathF.Abs(matrix.M11) + MathF.Abs(matrix.M22)) / 2f;
+    private static float AverageScale(Matrix3x2 matrix)
+    {
+        var scaleX = new Vector2(matrix.M11, matrix.M12).Length();
+        var scaleY = new Vector2(matrix.M21, matrix.M22).Length();
+        return (scaleX + scaleY) / 2f;
+    }
+
+    /// <summary>
+    ///     Composes <paramref name="textBox"/>'s own <c>TxtAngle</c> rotation (about its own
+    ///     <c>TxtPinX</c>/<c>TxtPinY</c> pin, in the owning shape's local, unrotated coordinate
+    ///     space) with <paramref name="localToPixel"/> - PR #42 review Finding #3: previously,
+    ///     <c>VsdxTextLayout</c>'s already-resolved glyph placements (laid out directly within
+    ///     <paramref name="textBox"/>'s own unrotated rectangle - see
+    ///     <c>VsdxDocument.TextLayout.cs</c>'s <c>ResolveTextLayout</c>) were painted straight
+    ///     through the owning shape's own <c>localToPixel</c> transform, silently ignoring any
+    ///     non-zero <c>TxtAngle</c> cell entirely: any shape with a rotated text box (distinct
+    ///     from the shape's own <c>Angle</c>, already applied via <c>localToPixel</c>) laid out
+    ///     and painted its text axis-aligned, at the wrong position/orientation. Mirrors
+    ///     <see cref="VsdxShapeTransform.ToPageMatrix"/>'s own translate/rotate/translate-back
+    ///     composition pattern, rotating about the text box's own pin rather than the shape's.
+    /// </summary>
+    /// <param name="textBox">The owning shape's resolved text-box transform.</param>
+    /// <param name="localToPixel">The transform mapping the owning shape's own local-box coordinates (inches) into pixel space.</param>
+    /// <returns>The transform mapping <see cref="VsdxGlyphPlacement"/> coordinates (already expressed in the shape's local space, within the text box's own unrotated rectangle) into pixel space.</returns>
+    internal static Matrix3x2 ResolveTextToPixelTransform(VsdxTextBoxTransform textBox, Matrix3x2 localToPixel)
+    {
+        if (textBox.TxtAngle == 0d)
+        {
+            return localToPixel;
+        }
+
+        var pin = new Vector2((float)textBox.TxtPinX, (float)textBox.TxtPinY);
+        return
+            Matrix3x2.CreateTranslation(-pin) *
+            Matrix3x2.CreateRotation((float)textBox.TxtAngle) *
+            Matrix3x2.CreateTranslation(pin) *
+            localToPixel;
+    }
 }
