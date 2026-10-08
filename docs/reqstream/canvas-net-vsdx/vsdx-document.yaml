@@ -216,25 +216,32 @@ sections:
               instance cell with a non-inherited (non-Inh) value wins, and an instance cell with
               F="Inh" or absent entirely falls through to the master's resolved value for that
               cell name, except for the nine transform cells PinX/PinY/Width/Height/LocPinX/
-              LocPinY/Angle/FlipX/FlipY, for which an instance's own cell always wins over the
-              master's same-named cell even when the instance's own cell is marked F="Inh".
+              LocPinY/Angle/FlipX/FlipY on a shape identified as 1-D (both a BeginX and an EndX
+              cell present), for which an instance's own cell always wins over the master's
+              same-named cell even when the instance's own cell is marked F="Inh"; a 2-D shape
+              (no BeginX/EndX cell) always uses the generic rule for these nine cells too.
             justification: |
               This cell-merge precedence is required to reproduce a native Visio client's own
               effective-value computation for a customized master instance. The nine transform
-              cells are an exception (Milestone 10): unlike a genuinely shared style cell (for
-              example LineColor), these nine are themselves baked per-instance (for a 1-D shape,
-              pre-derived from that instance's own BeginX/BeginY/EndX/EndY endpoints), so the
-              master's own same-named cell is only that master's unrelated template-local default
-              position/size, never a value any instance should adopt - confirmed against
-              60973.vsdx's connector shape 802, whose own already-correct, baked PinX/PinY were
-              being discarded by the generic rule in favor of the master's own small, unrelated
-              default position, collapsing the connector's resolved geometry to the wrong corner
-              of the page.
+              cells are an exception (Milestone 10) for a 1-D (connector) shape only: unlike a
+              genuinely shared style cell (for example LineColor), these nine are themselves baked
+              per-instance for a 1-D shape, pre-derived from that instance's own BeginX/BeginY/
+              EndX/EndY endpoints, so the master's own same-named cell is only that master's
+              unrelated template-local default position/size, never a value any instance should
+              adopt - confirmed against 60973.vsdx's connector shape 802, whose own
+              already-correct, baked PinX/PinY were being discarded by the generic rule in favor
+              of the master's own small, unrelated default position, collapsing the connector's
+              resolved geometry to the wrong corner of the page. Milestone 10 retry 1 (quality
+              Finding  # 3) narrowed an initial, unscoped implementation that applied this exception
+              to every shape type - including 2-D shapes, for which the master's own cell
+              genuinely can be the legitimately-inherited shared value - to the 1-D-only scope
+              this justification always described.
             tests:
               - MasterInheritance_InstanceLiteralCell_OverridesMasterCell
               - MasterInheritance_InstanceOmitsCells_FallsThroughToMasterCells
               - MasterInheritance_InstanceInhMarkedTransformCell_PreferredOverMasterValue
               - MasterInheritance_InstanceInhMarkedNonTransformCell_StillDefersToMasterValue
+              - MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue
 
           - id: CanvasNetVsdx-VsdxDocument-GeometryRowMerge
             title: >-
@@ -262,7 +269,14 @@ sections:
               (a group child Visio itself no longer considers part of the diagram, but which a
               save operation left declared in the page's XML) was being resolved and rendered as a
               stale, superseded placeholder shape, producing spurious duplicate text never shown
-              by a native Visio client.
+              by a native Visio client. This fix resolves the "OOB: N/A"/"[B] Lo1: N/A"/"TS: N/A"
+              stale-stub clutter text in that same document specifically; it does NOT resolve the
+              separate, deeper AIRttt/AIRuuu duplicate-text defect also present in 60973.vsdx,
+              which Milestone 10 retry 1 (quality Finding  # 2) confirmed is a distinct,
+              pre-existing defect unrelated to any shape-level Del="1" stub (bisected to render
+              identically broken before Milestone 9, before Milestone 10, and after all 4
+              Milestone 10 commits) - see canvas-net-vsdx.md's Design Constraints section for that
+              defect's own documented, deferred-limitation entry.
             tests:
               - VsdxDocument_GroupChildDeletedStub_ExcludedFromResolvedShapeTree
 
@@ -303,10 +317,18 @@ sections:
               transparency), that these cells were previously never consulted anywhere in the
               resolver, so the container's fill rendered fully opaque, obscuring its own label and
               its children's top edges, rather than the light, mostly-see-through frame Visio
-              itself renders.
+              itself renders. Milestone 10 retry 1 (quality Finding  # 1) independently re-verified
+              a claimed regression on github260.vsdx's literal LineColorTrans="1" shapes (a
+              Lucidchart export convention; this fixture carries no theme1.xml part at all) by
+              directly pixel-scanning the actual Visio-reference PNG at the exact coordinates of
+              every such shape: none of them carries a visible border in real Visio, confirming
+              the unconditional alpha-zero interpretation for V="1" is spec-correct, not a
+              QuickStyle-governance case and not a regression - no code change was made.
             tests:
               - StyleResolution_FillForegndTrans_ReducesResolvedFillAlpha
               - StyleResolution_LineColorTrans_ReducesResolvedStrokeAlpha
+              - StyleResolution_LineColorTrans_FullyTransparent_HasNoVisibleStroke
+              - StyleResolution_FillForegndTrans_FullyTransparent_HasNoVisibleFill
 
           - id: CanvasNetVsdx-VsdxDocument-DirectOverridePrecedence
             title: >-

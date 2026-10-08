@@ -100,14 +100,28 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   (shape-level, not the row-level `Del="1"` above) is excluded from the resolved shape tree
   entirely — Milestone 10 confirmed against `60973.vsdx` that an unhandled shape-level `Del="1"`
   stub was rendering its own stale, superseded placeholder text (`VsdxDocument.Shapes.cs`'s
-  `ParseShapeElements`). Milestone 10 also narrows the generic "instance `F="Inh"` cell falls
-  through to the master" rule above for exactly the nine transform cells `PinX`/`PinY`/`Width`/
+  `ParseShapeElements`) — specifically the `"OOB: N/A"`/`"[B] Lo1: N/A"`/`"TS: N/A"` stale-stub
+  clutter text in that same document; this fix does **not** address the separate, deeper
+  `AIRttt`/`AIRuuu` duplicate-text defect in the same document, which is a distinct, pre-existing
+  issue unrelated to any shape-level `Del="1"` stub — see `canvas-net-vsdx.md`'s Design
+  Constraints section for that defect's own documented, deferred-limitation entry. Milestone 10
+  also narrows the generic "instance `F="Inh"` cell falls through to the master" rule above for
+  exactly the nine transform cells `PinX`/`PinY`/`Width`/
   `Height`/`LocPinX`/`LocPinY`/`Angle`/`FlipX`/`FlipY`: an instance's own cached cell for one of
-  these nine is always preferred over the master's same-named cell, even when `F="Inh"`, because
-  — unlike a genuinely shared style cell such as `LineColor` — these nine are themselves baked
-  per-instance (for a 1-D shape, pre-derived from that instance's own `BeginX`/`BeginY`/`EndX`/
-  `EndY` endpoints) and the master's own same-named cell is only that master's unrelated
-  template-local default position/size, never a value any instance should adopt. This refinement
+  these nine is always preferred over the master's same-named cell, even when `F="Inh"` — but
+  **only when the shape is identified as 1-D** (both a `BeginX` and an `EndX` cell present on the
+  merged result — the same detection convention `VsdxDocument.Groups.cs`'s own
+  `ConnectorEndpoints` resolution uses). For a 1-D shape, these nine cells are themselves baked
+  per-instance, pre-derived from that instance's own `BeginX`/`BeginY`/`EndX`/`EndY` endpoints, and
+  the master's own same-named cell is only that master's unrelated template-local default
+  position/size, never a value any instance should adopt. A 2-D shape (no `BeginX`/`EndX` cell) is
+  deliberately **excluded** from this overlay: for a 2-D shape, the master's own same-named cell
+  genuinely can be the shared, legitimately-inherited value (a shape never locally moved/resized by
+  the author), so the generic "master's cell wins over an inherited instance cell" rule above
+  remains correct and is not overridden merely because the instance happens to carry its own
+  stale/cached cell for one of these nine names — confirmed by a dedicated unit test
+  (`MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue`) proving a 2-D shape's
+  legitimate full Master-inheritance-of-position is unaffected by this overlay. This refinement
   (`VsdxDocument.CellMerge.cs`'s `TransformCellNames`/`PreferInstanceTransformCells`) was
   discovered during Milestone 10's own root-cause investigation of its Bug 2 (missing connector
   lines): the stroke-width floor described under `Render(...)` below was, on its own,
@@ -115,7 +129,10 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   also collapsing that connector's resolved position to the master's own small, unrelated
   template-local corner — a deviation beyond this milestone's originating plan report's own
   stroke-width-only diagnosis, confirmed via the milestone's smoke-test visual-comparison
-  procedure.
+  procedure. Milestone 10 retry 1 (quality Finding #3) corrected an initial, unscoped
+  implementation that applied this overlay to every shape regardless of dimensionality — narrowed
+  to the 1-D-only scope documented here, matching this paragraph's own rationale, which was always
+  1-D-specific.
 - **`ResolveStyleChain(string styleSheetId, string cellName)`** (internal): Walks a shape's
   `LineStyle`/`FillStyle`/`TextStyle` StyleSheet-ID reference up the StyleSheet chain (each
   StyleSheet's own `LineStyle`/`FillStyle`/`TextStyle` attributes identify its own parent for that
@@ -130,6 +147,14 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   channel accordingly (`VsdxDocument.Paint.cs`'s `ApplyTransparency`) — previously unconsulted
   anywhere in this resolver, confirmed against `60973.vsdx`'s "Virtual Devices" container shape,
   whose literal 40%-transparent fill was rendering fully opaque and obscuring its own children.
+  Milestone 10 retry 1 (quality Finding #1) independently re-verified a claimed regression on
+  `github260.vsdx`'s literal `LineColorTrans="1"` shapes (a Lucidchart export convention, this
+  fixture carries no `theme1.xml` part at all) by directly pixel-scanning the actual
+  Visio-reference PNG at the exact coordinates of every such shape: none of them carries a visible
+  border in real Visio, confirming the unconditional alpha-zero interpretation for `V="1"` is
+  spec-correct, not a regression — no code change was warranted; see
+  `VsdxStyleResolutionTests.cs`'s `StyleResolution_LineColorTrans_FullyTransparent_HasNoVisibleStroke`/
+  `StyleResolution_FillForegndTrans_FullyTransparent_HasNoVisibleFill` for the locking tests added.
 - **`ResolveTransform(VsdxShapeNode shape, Point2 local)`** (internal): Applies the shape-local-
   to-parent affine transform — translate by `-LocPinX/-LocPinY`, apply `FlipX`/`FlipY` before
   rotation, rotate by `Angle` (radians, counter-clockwise), translate by `PinX/PinY` — identical

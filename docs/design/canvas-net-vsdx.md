@@ -255,10 +255,40 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
     revision of this design anticipated converting `EllipticalArcTo`/`NURBSTo` rows to Bezier
     curve approximations; this was never implemented, and the tolerant-skip treatment already
     applied to every other unrecognized row type was confirmed sufficient (no inspected fixture's
-    rendered output depends on these two row types contributing a path segment).
+    rendered output depends on these two row types contributing a path segment). Milestone 10
+    retry 1's own independent re-verification of a disputed transparency-regression claim
+    (quality Finding #1) confirmed a second, real-world instance of this same limitation:
+    `github260.vsdx`'s "start state" circle (Master `8`'s `MasterShape="6"`, page Shape `ID="1"`)
+    has a `Section N="Geometry"` consisting of a single `MoveTo` followed entirely by `NURBSTo`
+    rows with no `LineTo` fallback — skipping every `NURBSTo` row leaves a single bare point with
+    no closed path to paint, so the shape renders with neither fill nor stroke regardless of its
+    own `LineColorTrans`/`FillForegndTrans` values; confirmed via direct pixel-scanning of the
+    actual Visio-reference PNG that the shape's genuine appearance there is a solid fill with no
+    visible border (not the fully-bordered shape an initial, since-corrected quality finding
+    claimed), and confirmed byte-identical across the pre-Bug-#3-fix and post-Bug-#3-fix commits,
+    ruling out any Milestone 10 transparency-resolution change as the cause.
 
   None of these gaps blocks the rest of the design: each is isolated to its own narrow code path,
   with a safe, non-throwing fallback, consistent with the Risk Control Measures above.
+
+  Beyond the format-subset gaps above, Milestone 10 retry 1 (quality Finding #2) confirmed and
+  documents one further, narrowly-scoped, pre-existing rendering defect, deferred rather than
+  fixed in this milestone:
+
+  - **Text/geometry rendering for a 100%-Master-inherited 2-D shape nested 2+ group levels deep
+    whose own instance carries zero geometry/transform cells** — confirmed against
+    `60973.vsdx`'s `AIRttt`/`AIRuuu` "Wireless Controller" instances (page shapes `791`/`854`,
+    `Master="21"` resolving to `master19.xml`): both instances carry only a `LayerMember`, a
+    `Character/Size` override, and their own literal `<Text>` — zero geometry, fill, or transform
+    cells of their own — yet the resolved text overflows unclipped with no visible box fill,
+    unlike sibling boxes using other Masters in the same document, which render correctly. This is
+    a distinct and deeper defect from the Del="1"-stub-exclusion and connector-line fixes
+    Milestone 10 did deliver for this same document (see `CanvasNetVsdx-VsdxDocument-DeletedShapeExclusion`'s
+    own justification note distinguishing the two). Confirmed via git-history bisection to render
+    identically broken before Milestone 9, before Milestone 10, and after all 4 Milestone 10
+    commits — not introduced or fixable by this milestone's scope; deferred pending dedicated
+    root-cause investigation of the Master-shape-lookup/`TextBox.cs` `TxtWidth`-sizing interaction
+    for deeply nested, fully-inherited 2-D shapes.
 
 ### Platform Support
 
