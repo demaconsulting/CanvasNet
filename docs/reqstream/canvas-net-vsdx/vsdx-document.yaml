@@ -248,7 +248,10 @@ sections:
               (written back as a literal, not carrying the Inh marking forward, so that downstream
               StyleSheet-chain-aware resolution of the arrowhead cells treats it as the winning,
               authoritative value rather than deferring further); a 2-D shape (no BeginX/EndX cell)
-              always uses the generic rule for these thirteen cells too.
+              that is itself a child of a group also applies the nine-transform-cell overlay (but
+              not the four arrowhead-decoration cells, which remain 1-D-only); a top-level 2-D
+              shape (no BeginX/EndX cell, not a group child) always uses the generic rule for all
+              thirteen cells.
             justification: |
               This cell-merge precedence is required to reproduce a native Visio client's own
               effective-value computation for a customized master instance. The nine transform
@@ -284,7 +287,26 @@ sections:
               are consumed through the same StyleSheet-chain-aware Line*-category resolution every
               other Line* cell uses, which treats any Inh-marked cell as "not a genuine override,
               defer to the StyleSheet chain instead" - so a non-literal overlay would have had no
-              observable effect on the resolved arrowhead at all.
+              observable effect on the resolved arrowhead at all. Milestone 12 (quality Finding
+              # 3) extended the nine-transform-cell overlay a second time, to cover a 2-D shape
+              that is itself a Group child (an isGroupChild parameter on MergeCells, driven by
+              `parent is not null` at the sole ResolveShapeRecursive call site in
+              VsdxDocument.Groups.cs, applied independently of the existing 1-D test) - confirmed
+              against Test_Visio-Some_Random_Text.vsdx's "View" table shape, whose own resized,
+              Inh-marked Width cell was being discarded by the top-level-2-D exclusion in favor of
+              its Master's stale, narrower template-default Width, causing TextBox.cs's TxtWidth
+              fallback to over-wrap "Test View"/"I am a test view" to "Test"/"View"; and against
+              44501e.vsdx's connector-label shape and 60973.vsdx's rack-frame container, both
+              previously mispositioned for the identical reason (see
+              docs/design/canvas-net-vsdx.md's Design Constraints section for the full evidence
+              trail of both the fix and 60973.vsdx's frame remaining invisible for a separate,
+              already-documented Themed-color/gradient-fill reason unrelated to this cell-merge
+              fix). This extension is deliberately scoped to the nine transform cells only - the
+              four arrowhead-decoration cells remain 1-D-only, since a 2-D group child's own
+              arrowhead cells are never consumed (a 2-D shape is never rendered with connector
+              arrowhead decoration) - and leaves the top-level-2-D-shape exclusion fully intact,
+              confirmed unaffected by MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue
+              continuing to pass unmodified.
             tests:
               - MasterInheritance_InstanceLiteralCell_OverridesMasterCell
               - MasterInheritance_InstanceOmitsCells_FallsThroughToMasterCells
@@ -293,6 +315,10 @@ sections:
               - ArrowheadResolution_InstanceInhMarkedArrowCell_PreferredOverMasterValue
               - ArrowheadResolution_2DShapeInhMarkedArrowCell_DefersToMasterValue
               - MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue
+              - MasterInheritance_2DGroupChildInhMarkedTransformCell_PrefersInstanceValue
+              - VsdxDocument_NestedMasterShapeResolution_MatchesChildrenByIdNotPosition
+              - TextBox_GroupChildInhMarkedWidthDiffersFromMaster_TxtWidthReflectsInstanceWidth
+              - TextLayout_CorrectedGroupChildWidth_FitsOneLineWhereStaleMasterWidthOverWrapped
 
           - id: CanvasNetVsdx-VsdxDocument-GeometryRowMerge
             title: >-

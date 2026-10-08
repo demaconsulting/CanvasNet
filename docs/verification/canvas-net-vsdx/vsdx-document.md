@@ -224,15 +224,19 @@ calls to the internal `ResolveMasterShape` for the same master ID return the exa
 Same`) parsed content tree instance, confirming the per-master-file parse result is cached rather
 than re-parsed on every shape resolution.
 
-#### CanvasNetVsdx-VsdxDocument-CellMerge: Instance-Wins, Else-Master Merge (Transform-Cell Exception, 1-D Only)
+#### CanvasNetVsdx-VsdxDocument-CellMerge: Instance-Wins, Else-Master Merge (Transform-Cell Exception, 1-D Or Group-Child)
 
 **Tests**: `MasterInheritance_InstanceLiteralCell_OverridesMasterCell`,
 `MasterInheritance_InstanceOmitsCells_FallsThroughToMasterCells`,
 `MasterInheritance_InstanceInhMarkedTransformCell_PreferredOverMasterValue`,
 `MasterInheritance_InstanceInhMarkedNonTransformCell_StillDefersToMasterValue`,
 `MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue`,
+`MasterInheritance_2DGroupChildInhMarkedTransformCell_PrefersInstanceValue`,
 `ArrowheadResolution_InstanceInhMarkedArrowCell_PreferredOverMasterValue`,
-`ArrowheadResolution_2DShapeInhMarkedArrowCell_DefersToMasterValue`
+`ArrowheadResolution_2DShapeInhMarkedArrowCell_DefersToMasterValue`,
+`VsdxDocument_NestedMasterShapeResolution_MatchesChildrenByIdNotPosition`,
+`TextBox_GroupChildInhMarkedWidthDiffersFromMaster_TxtWidthReflectsInstanceWidth`,
+`TextLayout_CorrectedGroupChildWidth_FitsOneLineWhereStaleMasterWidthOverWrapped`
 
 Proves an instance's own literal (non-`Inh`, present) cell value takes precedence over the
 Master's same-named cell, and proves an instance cell that is absent entirely falls through to the
@@ -277,6 +281,54 @@ counter-example from the already-locked `MasterInheritance_
 within this milestone's scope; see `canvas-net-vsdx.md`'s Design Constraints section for this
 deferred limitation's own documented entry. No test or code change was made for this limitation
 this milestone.
+
+**Milestone 12 fix note (Finding #3)**: this milestone resolved the Milestone 11 deferred
+limitation above for the 2-D group-child case specifically, without touching the top-level-2-D
+exclusion. `MergeCells` gained an `isGroupChild` parameter; the nine-transform-cell
+`PreferInstanceCells` overlay now applies when the merged shape is **either** 1-D **or**
+`isGroupChild` (computed independently - a shape can be both, though in practice a 1-D connector
+is never itself a group child in the inspected corpus), while the four arrowhead-decoration cells'
+own overlay remains 1-D-only (a 2-D shape, group child or not, is never rendered with connector
+arrowhead decoration, so extending that overlay would have no observable effect and was
+deliberately not done). The sole call site, `VsdxDocument.Groups.cs`'s `ResolveShapeRecursive`,
+passes `isGroupChild: parent is not null`, so a top-level (non-nested) shape always passes
+`false`, preserving the existing, locked behavior.
+`MasterInheritance_2DGroupChildInhMarkedTransformCell_PrefersInstanceValue` is this milestone's
+new, synthetic-fixture proof: a Group's Master carries a template-default child `Width`/`PinY`;
+the page instance's corresponding child carries a different, `F="Inh"`-marked `Width`/`PinY`
+(modeling a resized Group) - the test asserts both the merged `EffectiveCells` and the resolved
+`Transform` reflect the **instance's** value, not the Master's stale one, both in isolation and
+through the full `ResolveShapeRecursive` pipeline. `TextBox_
+GroupChildInhMarkedWidthDiffersFromMaster_TxtWidthReflectsInstanceWidth`
+(`VsdxTextBoxPositioningTests.cs`) extends this proof one layer up the pipeline: a Group child's
+resolved `TextBox.TxtWidth`/`TxtHeight` reflect the instance's own `F="Inh"`-marked `Width`/
+`Height`, not the Master's stale template-default. `TextLayout_
+CorrectedGroupChildWidth_FitsOneLineWhereStaleMasterWidthOverWrapped`
+(`VsdxTextLayoutTests.cs`) closes the loop at the word-wrap layer, using the existing
+synthetic-font `ResolveTextLayout` harness to prove text that over-wraps to two lines in the
+stale, Master-derived (narrower) box width fits a single line once the corrected, instance-derived
+width is used - directly modeling the real-world symptom this fix resolves.
+`MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue` (the top-level-2-D,
+non-group-child case) and `VsdxDocument_
+NestedMasterShapeResolution_MatchesChildrenByIdNotPosition` (a stub group child with no own
+`Width` cell, so the overlay is a no-op regardless of the new `isGroupChild` gate) were both
+re-run unmodified and confirmed still passing, proving this change is additive and does not alter
+either previously-locked scenario. The fix was confirmed against the real-world corpus via the
+external smoke-test harness: `Test_Visio-Some_Random_Text.vsdx`'s "View" table shape no longer
+over-wraps "Test View"/"I am a test view" (its own resized, `Inh`-marked `Width` now correctly
+wins over its Master's stale, narrower template default), and `test.vsdx`'s header bar now sits
+flush at the top of its container (previously vertically mispositioned by the same stale-Master-
+wins defect). `44501e.vsdx`'s "-has" connector label also now resolves to its own external,
+correctly-offset position rather than glued inside a sibling box's title compartment.
+`60973.vsdx`'s rack-frame border/"15 U" label was also re-examined post-fix and still does not
+visually render - direct fixture tracing confirmed this is **not** a regression or an incomplete
+fix of this cell-merge gap, but a separate, already-documented limitation (the frame's own
+`LineColor`/`FillForegnd`/`FillPattern` cells resolve through an unresolvable, bare `Themed`
+formula - the same root cause as the neutral-theme-fallback limitation - compounded by one of the
+frame's rail sub-shapes using a non-solid, gradient-flagged `FillPattern` that this design's
+documented `FillPattern` deferral also degrades to an unresolvable solid fill); see
+`canvas-net-vsdx.md`'s Design Constraints section for the full evidence trail of both the fix and
+this remaining, unrelated non-render.
 
 **Milestone 11 quality-retry (retry 1) note**: this cycle generalized the transform-cell overlay's
 own helper (renamed `PreferInstanceCells(merged, instanceCells, names)`, taking any cell-name

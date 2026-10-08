@@ -244,7 +244,28 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
     formula through the same unresolvable-scheme path, rendering in the neutral fallback gray
     rather than Visio's own orange/blue fill — confirmed via direct comparison against the
     Visio-reference PNG, and left untouched (documentation-only confirmation, no code change),
-    consistent with the first instance above.
+    consistent with the first instance above. Milestone 12's own real-world-corpus validation pass
+    conducted an exhaustive cross-fixture investigation seeking a safe, narrowly-scoped
+    discriminator that would let `VsdxDocument` resolve _some_ `Themed` cells (where Visio's own
+    render shows a real, non-neutral theme color) while still safely falling back for others
+    (where Visio's own render shows no fill/no distinct color at all) — motivated by two directly
+    conflicting real-world counter-examples: `test_text_extraction.vsdx`/`60489.vsdx`'s
+    use-case-diagram ellipses, whose own `Themed` fill/line cells must resolve to _unfilled_
+    (Visio renders them with no fill, an outline only) for the rendered diagram to match the
+    reference, versus `60973.vsdx`'s `Nwwww`/`Neeeee` rack-slot bars (see above) and rack-frame
+    sub-shapes, whose own `Themed` fill/line cells must resolve to _filled, with real theme
+    colors_ for the rendered diagram to match the reference. Candidate discriminators
+    investigated and ruled out, each confirmed (by direct cross-fixture cell inspection) to
+    produce the same value on both sides of the conflicting pair: the shape's own
+    `QuickStyleType` cell; its `QuickStyleFillMatrix`/`QuickStyleLineMatrix` cell values; its
+    `ColorSchemeIndex`/`ThemeIndex` cell values; the mere presence or absence of a `theme1.xml`
+    part in the package; and the shape's own Master/Group-nesting depth. No safe, narrowly-scoped
+    signal was found that reliably separates the two cases; resolving this would require the same
+    full Quick-Style variation-matrix engine already identified as out of scope above. This
+    limitation therefore remains deferred exactly as originally documented, with this milestone's
+    investigation recorded here as confirmation that the gap is not solvable by a small, targeted
+    heuristic and should not be attempted piecemeal in a future milestone without first building
+    that variation-matrix engine.
   - **Non-solid `FillPattern` values (built-in hatch/gradient combinations)** and the full
     `BeginArrow`/`EndArrow` arrowhead-style index table — neither is fully enumerable from the
     format research's sample corpus; `VsdxDocument` supports `FillPattern` 0 (none) and 1 (solid)
@@ -313,31 +334,53 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
   rendering limitations deferred rather than fixed this milestone:
 
   - **2-D shape transform-cell-merge exclusion discarding a legitimately-cached instance position
-    in favor of an unrelated Master design-time position** — `VsdxDocument.CellMerge.cs`'s
-    `TransformCellNames`/`PreferInstanceTransformCells` overlay (see
-    `CanvasNetVsdx-VsdxDocument-CellMerge`'s own justification, and `canvas-net-vsdx/vsdx-document.md`)
-    deliberately excludes a 2-D shape (no `BeginX`/`EndX` cell pair) from the instance-cached-
-    transform-cell preference applied to a 1-D connector, on the documented assumption that a 2-D
-    shape's own `F="Inh"`-marked transform cell is always a legitimate, intentional Master
-    inheritance. Milestone 11 traced two independent real-world findings to the same counter-
-    example of that assumption: a 2-D `Shape` that is itself a child of a group/connector (a frame
-    container in `60973.vsdx`'s rack-mount page, and a connector-label shape `ID='45'`
-    ("end1_name") in `44501e.vsdx`'s Binary Association group) whose own `PinX`/`PinY`/`Width`/
-    `Height`/`LocPinX`/`LocPinY` are all marked `F="Inh"` yet do carry a genuinely different,
-    correctly-cached instance-specific position — discarded in favor of the Master's unrelated
-    template-local position, landing the frame/label in the wrong place (overlapping/inside a
-    sibling shape rather than at its own correct position). No safe, narrowly-scoped
-    disambiguating heuristic between this counter-example and the overlay's own original
-    legitimate-2-D-inheritance justification (locked by
-    `MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue`) was identified within
-    this milestone's scope; broadening the existing 1-D-only overlay to cover this 2-D case risks
-    silently breaking that locked, intentional case. Deferred pending a dedicated root-cause
-    investigation of a safe disambiguation signal (for example, a group-child-specific heuristic
-    distinct from a top-level 2-D shape). This is the same limitation underlying both
-    `60973.vsdx`'s still-missing rack-frame border/"15 U" field label positioning and
-    `44501e.vsdx`'s "-has" connector label rendering glued inside a sibling box's title
-    compartment rather than at its own external connector-label position — not two independent
-    defects, but one shared root cause observed at two real-world sites.
+    in favor of an unrelated Master design-time position (fixed for the group-child case in
+    Milestone 12)** — `VsdxDocument.CellMerge.cs`'s `TransformCellNames`/
+    `PreferInstanceTransformCells` overlay (see `CanvasNetVsdx-VsdxDocument-CellMerge`'s own
+    justification, and `canvas-net-vsdx/vsdx-document.md`) originally excluded a 2-D shape (no
+    `BeginX`/`EndX` cell pair) from the instance-cached-transform-cell preference applied to a 1-D
+    connector, on the documented assumption that a 2-D shape's own `F="Inh"`-marked transform cell
+    is always a legitimate, intentional Master inheritance. Milestone 11 traced two independent
+    real-world findings to the same counter-example of that assumption: a 2-D `Shape` that is
+    itself a child of a group/connector (a frame container in `60973.vsdx`'s rack-mount page, and
+    a connector-label shape `ID='45'` ("end1_name") in `44501e.vsdx`'s Binary Association group)
+    whose own `PinX`/`PinY`/`Width`/`Height`/`LocPinX`/`LocPinY` are all marked `F="Inh"` yet do
+    carry a genuinely different, correctly-cached instance-specific position — discarded in favor
+    of the Master's unrelated template-local position, landing the frame/label in the wrong place
+    (overlapping/inside a sibling shape rather than at its own correct position). **Milestone 12
+    resolved this**: `MergeCells` now also applies the `TransformCellNames` overlay when the
+    merged shape is a Group child (an `isGroupChild` parameter, driven by `parent is not null` at
+    `VsdxDocument.Groups.cs`'s sole `ResolveShapeRecursive` call site), independent of the 1-D
+    test — a disambiguating condition that leaves the original, locked top-level-2-D-shape exclusion
+    untouched (`MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue` still passes
+    unmodified) while fixing the group-child counter-example. Confirmed fixed by direct visual
+    comparison against the Visio-reference render for `Test_Visio-Some_Random_Text.vsdx`'s "View"
+    table shape (whose `TxtWidth` previously fell back to a stale, too-narrow Master `Width`,
+    over-wrapping "Test View"/"I am a test view" to "Test"/"View"; it now renders on a single line
+    each, matching the reference) and for `test.vsdx`'s header bar (previously vertically
+    mispositioned relative to its own group, it now sits flush at the top of its container,
+    matching the reference). `44501e.vsdx`'s "-has" connector label also now resolves to its own
+    external, correctly-offset position (confirmed by visual comparison) rather than glued inside
+    a sibling box's title compartment. `60973.vsdx`'s rack-frame border/"15 U" label, however,
+    still does not visually render post-fix — direct fixture tracing (Master `39` → `master32.xml`
+    Shape `ID='5'`, the Cabinet's own Master Group) found the frame's `LineStyle`/`FillStyle`
+    chain resolves to StyleSheet 6 ("Theme"), whose `LineColor`/`FillForegnd`/`FillPattern` cells
+    are all a bare, unresolvable `V='Themed' F='THEMEVAL()'` formula — the identical root-cause
+    chain as the neutral-theme-fallback limitation described below, not a transform-cell-merge
+    problem; this milestone's fix corrected the frame's _position_ (as evidenced by the "-has" and
+    header-bar fixes above using the same code path) but the frame remains invisible for the
+    separate, already-documented Themed-color reason, compounded by one of the frame's own rail
+    sub-shapes using a non-solid, gradient-flagged `FillPattern` (`36`, `FillGradientEnabled="1"`)
+    that this design's documented `FillPattern` deferral (below) also degrades to solid fill using
+    a resolved color that itself cannot be resolved. No further code change was made for this
+    sample in Milestone 12; it is recorded here as confirmed evidence that the frame's continued
+    non-rendering is explained by these two already-documented, deliberately-deferred limitations
+    compounding, not a new or distinct defect, and not a regression risk from this milestone's own
+    change. This is the same limitation underlying both `60973.vsdx`'s rack-frame
+    border/"15 U" field label positioning and `44501e.vsdx`'s "-has" connector label rendering —
+    not two independent defects, but one shared root cause observed at two real-world sites, now
+    fixed for the position aspect at both sites (`60973.vsdx`'s frame remaining invisible for the
+    unrelated Themed-color/gradient-fill reasons just described).
   - **Standalone top-level 2-D shape mis-position unrelated to any Master/geometry inheritance
     path** — `test.vsdx`'s "This is a test." text shape (page Shape `ID=1`, a top-level sibling of
     the "Classic" group, not nested within it, carrying fully literal, non-`"Inh"` `PinX`/`PinY`/
@@ -401,6 +444,25 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
     claimed to decorate a 2-D shape's arrowhead cells), not a regression requiring a force-fix;
     deferred, if ever addressed, to a future milestone that deliberately widens the renderer's own
     arrowhead-decoration scope beyond 1-D connectors.
+
+  Milestone 12's own real-world-corpus validation pass also confirmed, and documents, one further
+  rendering limitation left deferred, not root-caused or fixed, this milestone:
+
+  - **UML class-name text overlapping the class-shape compartment's own top border (deferred,
+    unresolved)** — `44501d.vsdx`/`44501e.vsdx`'s UML class shapes (for example the "Game",
+    "Player", "Team" boxes rendered on `44501e.vsdx`'s class-diagram page) render their own
+    class-name text (the top compartment) with its baseline sitting close enough to the
+    compartment's own top border that, depending on the specific shape's resolved text-block
+    margins, the glyphs' own ascenders can visually crowd or touch the border rather than sitting
+    centered within the compartment's own vertical space the way Visio's own reference render
+    shows. This milestone's own corpus-wide visual sweep observed the symptom but did not root-
+    cause it: it was not traced to any specific cell, and no fix was attempted, since this
+    milestone's scope was narrowly the group-child transform-cell-merge gap (Finding #3) only, and
+    introducing a speculative fix for a different, unverified root cause risks a regression
+    elsewhere. A follow-up milestone should investigate the UML class-name compartment shape's own
+    `TopMargin`/`VerticalAlign` cell resolution (and whether the compartment's own fixed row
+    height, versus the class name's own resolved font-size-derived line height, is the source of
+    the crowding) before attempting a fix.
 
 ### Platform Support
 
