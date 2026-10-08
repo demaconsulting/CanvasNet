@@ -2,7 +2,7 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio
+// cspell:ignore vsdx Visio Rttt
 
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> page shape-tree parser and resolver: locating a
@@ -89,13 +89,32 @@ public sealed partial class VsdxDocument
     ///     including each shape's own nested <c>&lt;Shapes&gt;</c> descendants.
     /// </summary>
     /// <param name="shapesElement">A <c>&lt;Shapes&gt;</c> element (a page's own, or a group shape's nested one).</param>
-    /// <returns>The parsed shapes, in document order.</returns>
+    /// <returns>The parsed shapes, in document order, excluding any <c>&lt;Shape Del="1"&gt;</c> deleted-child stub (see this method's own remarks).</returns>
+    /// <remarks>
+    ///     A shape-level <c>Del="1"</c> attribute marks a group-child stub as deleted (distinct
+    ///     from <c>VsdxDocument.CellMerge.cs</c>'s <c>MergeGeometryRows</c>, which already
+    ///     correctly handles a <em>row</em>-level <c>Del</c> on a geometry <c>&lt;Row&gt;</c> - a
+    ///     different construct). Confirmed in <c>60973.vsdx</c>'s <c>page2.xml</c>: a correct
+    ///     group child (for example the resolved "AIRttt"/"Location: ttt" card) is followed by
+    ///     sibling stubs such as <c>&lt;Shape Del='1' MasterShape='8' ID='4294967295'/&gt;</c>.
+    ///     Such a stub carries no useful data of its own (its sentinel <c>ID='4294967295'</c>
+    ///     cannot plausibly be a real <c>&lt;Connect&gt;</c> target - see this milestone's own
+    ///     plan report) - excluding it from the parsed tree entirely is simpler and more correct
+    ///     than threading an <c>IsDeleted</c> flag through <see cref="VsdxShapeNode"/>/
+    ///     <c>ResolveShapeRecursive</c>/rendering, and matches Visio's own behavior of never
+    ///     resolving/rendering a deleted shape.
+    /// </remarks>
     private static List<VsdxShapeNode> ParseShapeElements(XElement shapesElement)
     {
         var ns = shapesElement.Name.Namespace;
         var result = new List<VsdxShapeNode>();
         foreach (var shapeElement in shapesElement.Elements(ns + "Shape"))
         {
+            if ((string?)shapeElement.Attribute("Del") == "1")
+            {
+                continue;
+            }
+
             result.Add(ParseShapeElement(shapeElement));
         }
 

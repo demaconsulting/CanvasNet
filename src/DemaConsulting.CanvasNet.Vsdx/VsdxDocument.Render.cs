@@ -157,7 +157,10 @@ public sealed partial class VsdxDocument
     ///     <see cref="VsdxShapeTransform.ToPageMatrix"/> with <paramref name="parentToPixel"/> -
     ///     uniform recursion regardless of whether <paramref name="shape"/> is a pure-container
     ///     group (whose own <see cref="VsdxShapeNode.Geometries"/>/<see cref="VsdxShapeNode.TextLayout"/>
-    ///     are simply empty) or a leaf shape.
+    ///     are simply empty) or a leaf shape. A shape whose resolved <c>NonPrinting</c> cell is
+    ///     <see langword="true"/> skips its own self-paint (fill/stroke/text/arrowheads) entirely
+    ///     but still recurses into its own children, since <c>NonPrinting</c> is a per-shape,
+    ///     non-inherited cell (see this method's own body remarks).
     /// </summary>
     /// <param name="surface">The surface to paint onto.</param>
     /// <param name="shape">The already-resolved shape to paint.</param>
@@ -172,16 +175,25 @@ public sealed partial class VsdxDocument
     {
         var localToPixel = shape.Transform!.ToPageMatrix() * parentToPixel;
 
-        PaintShapeGeometry(surface, shape, localToPixel);
-
-        // Shape-local text (glyph outlines positioned in the owning shape's own local,
-        // unrotated/unflipped coordinate space - see VsdxTextLayout's own remarks) uses the same
-        // localToPixel transform as the shape's own geometry.
-        PaintTextLayout(surface, shape.TextLayout!, localToPixel);
-
-        if (shape.ConnectorEndpoints is { } endpoints)
+        // A NonPrinting shape (Visio's own per-shape, non-inherited "exclude from print/export"
+        // cell - confirmed in 44501b.vsdx's Watermark Title master shape, carrying
+        // <Cell N="NonPrinting" V="1"/>) must not paint its own fill/stroke/text/arrowheads, but
+        // its children are still painted (NonPrinting is not inherited - see this milestone's own
+        // plan report). Skipping self-paint only (not recursion) matches Visio's own print/export
+        // behavior, which produced the Visio-reference PNGs this fix is verified against.
+        if (!shape.EffectiveCells!.GetBool("NonPrinting"))
         {
-            PaintConnectorArrowheads(surface, endpoints, shape.Paint!, pageToPixel);
+            PaintShapeGeometry(surface, shape, localToPixel);
+
+            // Shape-local text (glyph outlines positioned in the owning shape's own local,
+            // unrotated/unflipped coordinate space - see VsdxTextLayout's own remarks) uses the
+            // same localToPixel transform as the shape's own geometry.
+            PaintTextLayout(surface, shape.TextLayout!, localToPixel);
+
+            if (shape.ConnectorEndpoints is { } endpoints)
+            {
+                PaintConnectorArrowheads(surface, endpoints, shape.Paint!, pageToPixel);
+            }
         }
 
         foreach (var child in shape.Children)

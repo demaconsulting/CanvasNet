@@ -144,6 +144,49 @@ public class VsdxGroupResolutionTests
     }
 
     /// <summary>
+    ///     Proves a group-child <c>&lt;Shape Del="1"&gt;</c> stub (Milestone 10's Bug #1(a) fix -
+    ///     see <c>VsdxDocument.Shapes.cs</c>'s <c>ParseShapeElements</c>) is excluded from the
+    ///     resolved shape tree entirely: it contributes neither a <see cref="VsdxShapeNode"/> nor
+    ///     any spurious rendered content, confirmed against <c>60973.vsdx</c>'s own
+    ///     <c>page2.xml</c> shape, which this synthetic fixture reproduces in miniature (a
+    ///     correct sibling child followed by a <c>MasterShape</c>-only deleted stub using the
+    ///     real fixture's own sentinel <c>ID="4294967295"</c>).
+    /// </summary>
+    [Fact]
+    public void VsdxDocument_GroupChildDeletedStub_ExcludedFromResolvedShapeTree()
+    {
+        // Arrange: a top-level Group with one correct child (ID="1") and a deleted stub sibling
+        // (Del="1", no cells/geometry of its own - mirroring 60973.vsdx's
+        // <Shape Del='1' MasterShape='8' ID='4294967295'/>).
+        var shapeXml =
+            """
+            <Shape ID="2" Type="Group">
+              <Cell N="PinX" V="0.5"/><Cell N="PinY" V="0.5"/><Cell N="Width" V="1"/><Cell N="Height" V="1"/>
+              <Cell N="LocPinX" V="0.5"/><Cell N="LocPinY" V="0.5"/><Cell N="Angle" V="0"/>
+              <Shapes>
+                <Shape ID="1" Type="Shape">
+                  <Cell N="PinX" V="0.5"/><Cell N="PinY" V="0.5"/><Cell N="Width" V="1"/><Cell N="Height" V="1"/>
+                  <Cell N="LocPinX" V="0.5"/><Cell N="LocPinY" V="0.5"/><Cell N="Angle" V="0"/>
+                  <Section N="Geometry" IX="0">
+                    <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+                  </Section>
+                </Shape>
+                <Shape Del="1" MasterShape="8" ID="4294967295"/>
+              </Shapes>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var group = Assert.Single(document.GetPageShapes(0));
+
+        // Assert: only the correct child resolved - the deleted stub never made it into the tree.
+        var child = Assert.Single(group.Children);
+        Assert.Equal("1", child.Id);
+    }
+
+    /// <summary>
     ///     Proves a synthetic page whose top-level shape nests deeper than
     ///     <c>VsdxDocument.Groups.cs</c>'s own <c>MaxGroupNestingDepth</c> budget throws
     ///     <see cref="InvalidDataException"/> rather than overflowing the call stack - explicitly
