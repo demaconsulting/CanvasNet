@@ -74,9 +74,10 @@ internal static class VsdxArrowheadGeometry
     ///     remarks for its coordinate convention): <see cref="VsdxArrowheadStyle.Arrow"/>/
     ///     <see cref="VsdxArrowheadStyle.Stealth"/>/<see cref="VsdxArrowheadStyle.Circle"/> each
     ///     return a closed, fillable path; <see cref="VsdxArrowheadStyle.OpenArrow"/>/
-    ///     <see cref="VsdxArrowheadStyle.Diamond"/> return a path meant to be <em>stroked</em>,
-    ///     not filled (an open, unfilled line arrowhead and an unfilled diamond outline,
-    ///     respectively - see <see cref="VsdxArrowheadStyle"/>'s own remarks). <see cref="Path.Empty"/>
+    ///     <see cref="VsdxArrowheadStyle.Diamond"/>/<see cref="VsdxArrowheadStyle.HollowTriangle"/>
+    ///     return a path meant to be <em>stroked</em>, not filled (an open, unfilled line
+    ///     arrowhead, an unfilled diamond outline, and an unfilled triangle outline, respectively -
+    ///     see <see cref="VsdxArrowheadStyle"/>'s own remarks). <see cref="Path.Empty"/>
     ///     (never filled) when <paramref name="style"/> is <see cref="VsdxArrowheadStyle.None"/> or
     ///     <paramref name="strokeWidthInches"/> is non-positive (an arrowhead has no meaningful
     ///     size to scale from).
@@ -123,6 +124,13 @@ internal static class VsdxArrowheadGeometry
 
             VsdxArrowheadStyle.OpenArrow => new VsdxArrowheadGeometryResult(
                 OpenChevron(length, halfWidth),
+                IsFilled: false),
+
+            VsdxArrowheadStyle.HollowTriangle => new VsdxArrowheadGeometryResult(
+                Polygon(
+                    Vector2.Zero,
+                    new Vector2(-length, -halfWidth),
+                    new Vector2(-length, halfWidth)),
                 IsFilled: false),
 
             _ => new VsdxArrowheadGeometryResult(Path.Empty, IsFilled: false),

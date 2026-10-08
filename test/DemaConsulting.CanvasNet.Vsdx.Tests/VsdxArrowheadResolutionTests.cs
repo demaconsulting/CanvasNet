@@ -143,6 +143,51 @@ public class VsdxArrowheadResolutionTests
     }
 
     /// <summary>
+    ///     Proves <c>EndArrow="4"</c> resolves to <see cref="VsdxArrowheadStyle.Arrow"/> - this
+    ///     milestone's Finding #5 fix (<c>VsdxDocument.Arrowheads.cs</c>'s <c>ParseArrowheadStyle</c>),
+    ///     confirmed in use against a real corpus connector (mirrors a <c>44501e.vsdx</c> cell).
+    /// </summary>
+    [Fact]
+    public void ArrowheadResolution_EndArrowIndex4_ResolvesToArrowStyle()
+    {
+        // Arrange
+        var shapeXml = BuildConnectorShapeXml(
+            lineStyleAttribute: string.Empty,
+            extraCellsXml: """<Cell N="EndArrow" V="4"/>""");
+        using var stream = VsdxTestPackages.BuildPackage(shapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var paint = document.GetPageShapes(0)[0].Paint!;
+
+        // Assert
+        Assert.Equal(VsdxArrowheadStyle.Arrow, paint.EndArrowhead.Style);
+    }
+
+    /// <summary>
+    ///     Proves <c>EndArrow="254"</c> resolves to <see cref="VsdxArrowheadStyle.HollowTriangle"/> -
+    ///     this milestone's Finding #5 fix (<c>VsdxDocument.Arrowheads.cs</c>'s
+    ///     <c>ParseArrowheadStyle</c>), confirmed necessary against <c>44501e.vsdx</c>'s own
+    ///     <c>EndArrow V='254' F='USE("Navigable")'</c> cell (a UML "navigable association" end).
+    /// </summary>
+    [Fact]
+    public void ArrowheadResolution_EndArrowIndex254_ResolvesToHollowTriangleStyle()
+    {
+        // Arrange
+        var shapeXml = BuildConnectorShapeXml(
+            lineStyleAttribute: string.Empty,
+            extraCellsXml: """<Cell N="EndArrow" V="254"/>""");
+        using var stream = VsdxTestPackages.BuildPackage(shapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var paint = document.GetPageShapes(0)[0].Paint!;
+
+        // Assert
+        Assert.Equal(VsdxArrowheadStyle.HollowTriangle, paint.EndArrowhead.Style);
+    }
+
+    /// <summary>
     ///     Proves a shape with no <c>BeginArrow</c>/<c>EndArrow</c> cells anywhere in its chain
     ///     (no <c>LineStyle</c> attribute, no <c>&lt;StyleSheets&gt;</c> override) resolves both
     ///     arrowheads to <see cref="VsdxArrowhead.NoArrowhead"/> by default.

@@ -12,9 +12,8 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     <c>VsdxDocument.Paint.cs</c>'s <c>ResolveLineCellValue</c>), then degrades an unrecognized
 ///     style index to <see cref="VsdxArrowheadStyle.None"/> rather than throwing - see
 ///     <see cref="VsdxArrowheadStyle"/>'s own remarks for the documented, conservative subset of
-///     recognized indices and the fixture evidence (or rather, the documented absence of fixture
-///     evidence - the format reference's §9 confirms "non-zero values not exercised in these
-///     samples") motivating that conservative choice.
+///     recognized indices, including the two indices (<c>4</c>, <c>254</c>) this milestone added
+///     after a full-corpus scan confirmed them genuinely in use.
 /// </summary>
 public sealed partial class VsdxDocument
 {
@@ -63,9 +62,11 @@ public sealed partial class VsdxDocument
             0 => VsdxArrowheadStyle.None,
             1 => VsdxArrowheadStyle.OpenArrow,
             2 => VsdxArrowheadStyle.Arrow,
+            4 => VsdxArrowheadStyle.Arrow,
             5 => VsdxArrowheadStyle.Stealth,
             10 => VsdxArrowheadStyle.Circle,
             22 => VsdxArrowheadStyle.Diamond,
+            254 => VsdxArrowheadStyle.HollowTriangle,
             _ => VsdxArrowheadStyle.None
         };
     }
