@@ -1055,9 +1055,9 @@ reviews:
       - "docs/design/canvas-net-vsdx/vsdx-document.md"                # unit design
       - "docs/verification/canvas-net-vsdx/vsdx-document.md"          # unit verification
       - "docs/sysml2/model/canvas-net-vsdx/vsdx-document.sysml"       # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Vsdx/**/*.cs"                    # unit source (planned; not yet created)
-      - "src/DemaConsulting.CanvasNet.Vsdx/DemaConsulting.CanvasNet.Vsdx.csproj"  # project file (planned)
-      - "test/DemaConsulting.CanvasNet.Vsdx.Tests/**/*.cs"             # unit/integration tests (planned)
+      - "src/DemaConsulting.CanvasNet.Vsdx/**/*.cs"                    # unit source
+      - "src/DemaConsulting.CanvasNet.Vsdx/DemaConsulting.CanvasNet.Vsdx.csproj"  # project file
+      - "test/DemaConsulting.CanvasNet.Vsdx.Tests/**/*.cs"             # unit/integration tests
       - "test/DemaConsulting.CanvasNet.Vsdx.Tests/VsdxFixtures/**"      # fixture corpus (promoted)
 
   # OTS-BuildMark Review (one per OTS item)
