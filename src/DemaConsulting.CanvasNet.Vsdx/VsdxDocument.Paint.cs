@@ -30,6 +30,9 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     modulates the resolved <c>FillColor</c>/<c>StrokeColor</c> alpha channel accordingly (see
 ///     <see cref="ApplyTransparency"/>) - previously unconsulted anywhere in this resolver,
 ///     leaving every fill/stroke fully opaque regardless of a literal transparency cell.
+///     This milestone also resolves a shape's own <c>HideText</c> cell (see
+///     <see cref="ResolveHideText"/>), consumed by <c>VsdxDocument.Render.cs</c> to suppress only
+///     the shape's own text rendering - previously never consulted anywhere in the package.
 /// </summary>
 public sealed partial class VsdxDocument
 {
@@ -120,6 +123,22 @@ public sealed partial class VsdxDocument
         var alpha = (byte)Math.Round(color.A * (1d - transparency), MidpointRounding.AwayFromZero);
         return new Rgba32(color.R, color.G, color.B, alpha);
     }
+
+    /// <summary>
+    ///     Resolves a shape's own merged <c>HideText</c> cell - a per-shape, non-inherited flag
+    ///     (like <c>NonPrinting</c>, resolved directly from the shape's merged cell bag rather
+    ///     than walked through any StyleSheet chain) that, when truthy, suppresses only the
+    ///     shape's own text rendering (fill/stroke are unaffected - see
+    ///     <c>VsdxDocument.Render.cs</c>'s <c>RenderShapeRecursive</c>). Confirmed necessary
+    ///     against <c>60489.vsdx</c>'s "Dynamic connector" master's four midpoint-label helper
+    ///     sub-shapes (<c>ID="6"</c>/<c>"7"</c>/<c>"8"</c>/<c>"9"</c>), each carrying a literal
+    ///     <c>&lt;Cell N='HideText' V='1' F='NOT(Sheet.5!User.ShowMulti)'/&gt;</c> baked at
+    ///     authoring time: unconsulted, these shapes rendered their literal <c>"M1"</c>/<c>"M2"</c>/
+    ///     <c>"M3"</c>/<c>"M4"</c> text unconditionally, bleeding through into the final render.
+    /// </summary>
+    /// <param name="effectiveCells">The shape's merged flat cell bag.</param>
+    /// <returns><see langword="true"/> when the resolved <c>HideText</c> cell is truthy (<c>"1"</c>); otherwise <see langword="false"/>.</returns>
+    private static bool ResolveHideText(VsdxCellBag effectiveCells) => effectiveCells.GetBool("HideText");
 
     /// <summary>Resolves a <c>Line*</c>-category cell: the shape's own literal value, or the StyleSheet chain walked via the <c>LineStyle</c> parent pointer.</summary>
     /// <param name="effectiveCells">The shape's merged flat cell bag.</param>

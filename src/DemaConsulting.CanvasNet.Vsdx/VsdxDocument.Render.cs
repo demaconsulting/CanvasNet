@@ -176,7 +176,11 @@ public sealed partial class VsdxDocument
     ///     are simply empty) or a leaf shape. A shape whose resolved <c>NonPrinting</c> cell is
     ///     <see langword="true"/> skips its own self-paint (fill/stroke/text/arrowheads) entirely
     ///     but still recurses into its own children, since <c>NonPrinting</c> is a per-shape,
-    ///     non-inherited cell (see this method's own body remarks).
+    ///     non-inherited cell (see this method's own body remarks). A shape whose resolved
+    ///     <c>HideText</c> cell is <see langword="true"/> (see <c>VsdxDocument.Paint.cs</c>'s
+    ///     <c>ResolveHideText</c>) skips only its own text-paint call - its fill/stroke/
+    ///     arrowheads and its children are unaffected, unlike <c>NonPrinting</c>'s broader
+    ///     self-paint suppression.
     /// </summary>
     /// <param name="surface">The surface to paint onto.</param>
     /// <param name="shape">The already-resolved shape to paint.</param>
@@ -203,8 +207,14 @@ public sealed partial class VsdxDocument
 
             // Shape-local text (glyph outlines positioned in the owning shape's own local,
             // unrotated/unflipped coordinate space - see VsdxTextLayout's own remarks) uses the
-            // same localToPixel transform as the shape's own geometry.
-            PaintTextLayout(surface, shape.TextLayout!, localToPixel);
+            // same localToPixel transform as the shape's own geometry. A truthy, resolved
+            // HideText cell (see VsdxDocument.Paint.cs's ResolveHideText) suppresses only this
+            // text-paint call - unlike NonPrinting, the shape's own fill/stroke/arrowheads still
+            // paint normally.
+            if (!ResolveHideText(shape.EffectiveCells))
+            {
+                PaintTextLayout(surface, shape.TextLayout!, localToPixel);
+            }
 
             if (shape.ConnectorEndpoints is { } endpoints)
             {

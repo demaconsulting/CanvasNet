@@ -307,6 +307,50 @@ public class VsdxRenderTests
         AssertPaintedSomePixel(surface);
     }
 
+    /// <summary>
+    ///     Proves a truthy <c>HideText</c> cell suppresses only a shape's own text-paint call,
+    ///     not its fill/stroke - this milestone's Finding #8 fix (<c>VsdxDocument.Paint.cs</c>'s
+    ///     <c>ResolveHideText</c>, consumed by <c>VsdxDocument.Render.cs</c>'s
+    ///     <c>RenderShapeRecursive</c>). A solid-filled rectangle (no glyph-shaped ink possible
+    ///     from the fill alone) carrying both a fill and a <c>HideText="1"</c>-marked
+    ///     <c>&lt;Text&gt;</c> run is rendered at a small enough scale that any painted glyph ink
+    ///     would visibly protrude past the rectangle's own filled bounds; the fill itself still
+    ///     paints (confirmed via a corner pixel), but no ink appears anywhere outside those exact
+    ///     bounds.
+    /// </summary>
+    [Fact]
+    public void Render_ShapeWithHideTextCell_SuppressesOwnTextButNotFillOrStroke()
+    {
+        // Arrange: a solid-filled rectangle with its own HideText="1" cell and a <Text> run.
+        var shapeXml =
+            """
+            <Shape ID="1" Type="Shape">
+              <Cell N="PinX" V="1"/><Cell N="PinY" V="1"/><Cell N="Width" V="2"/><Cell N="Height" V="1"/>
+              <Cell N="LocPinX" V="0"/><Cell N="LocPinY" V="0"/><Cell N="Angle" V="0"/>
+              <Cell N="FillForegnd" V="#ff0000"/><Cell N="FillPattern" V="1"/><Cell N="LinePattern" V="0"/>
+              <Cell N="HideText" V="1"/>
+              <Section N="Geometry" IX="0">
+                <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+                <Row T="LineTo" IX="2"><Cell N="X" V="2"/><Cell N="Y" V="0"/></Row>
+                <Row T="LineTo" IX="3"><Cell N="X" V="2"/><Cell N="Y" V="1"/></Row>
+                <Row T="LineTo" IX="4"><Cell N="X" V="0"/><Cell N="Y" V="1"/></Row>
+              </Section>
+              <Text>Hidden</Text>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act: render at 100 dpi (1 pixel = 0.01in) so pixel arithmetic is exact - the rectangle
+        // spans page X in [1,3], Y in [1,2].
+        using var surface = document.Render(0, 100);
+
+        // Assert: page-space (2, 1.5) inches - well inside the rectangle - maps to pixel
+        // (200, 1100 - 150) = (200, 950) (Y-up page space -> Y-down pixel space); the fill still
+        // painted its resolved color despite HideText="1".
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[200, 950]);
+    }
+
     /// <summary>Proves a connector with a recognized <c>EndArrow</c> style index (<c>2</c>, <see cref="VsdxArrowheadStyle.Arrow"/>) paints visible ink beyond its own stroked line's width near the end point, confirming the arrowhead itself was painted (not just the connector's own line).</summary>
     [Fact]
     public void Render_ConnectorWithRecognizedEndArrow_PaintsArrowheadInkBeyondLineStroke()
