@@ -8,10 +8,12 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     Implements the <see cref="VsdxDocument"/> <c>&lt;Text&gt;</c> element parser: reads a
 ///     shape's direct <c>&lt;Text&gt;</c> child's mixed content (literal text interleaved with
 ///     <c>&lt;cp IX="k"/&gt;</c>/<c>&lt;pp IX="k"/&gt;</c> run/paragraph markers, per the format
-///     reference's §8.1) into an ordered sequence of marker-delimited <see cref="VsdxRawTextRun"/>
-///     entries, and a shape's own direct <c>&lt;Section N="Character"&gt;</c>/
-///     <c>&lt;Section N="Paragraph"&gt;</c> children (no section-level <c>IX=</c>, only
-///     <c>&lt;Row IX="k"&gt;</c> children) into a row-indexed <see cref="VsdxCellBag"/> lookup.
+///     reference's §8.1, and a <c>&lt;fld IX="k"&gt;...&lt;/fld&gt;</c> Field-reference element's
+///     own cached text content) into an ordered sequence of marker-delimited
+///     <see cref="VsdxRawTextRun"/> entries, and a shape's own direct
+///     <c>&lt;Section N="Character"&gt;</c>/<c>&lt;Section N="Paragraph"&gt;</c> children (no
+///     section-level <c>IX=</c>, only <c>&lt;Row IX="k"&gt;</c> children) into a row-indexed
+///     <see cref="VsdxCellBag"/> lookup.
 /// </summary>
 public sealed partial class VsdxDocument
 {
@@ -33,13 +35,16 @@ public sealed partial class VsdxDocument
 
     /// <summary>
     ///     Walks <paramref name="textElement"/>'s mixed content (<see cref="XText"/> nodes
-    ///     interleaved with <c>&lt;cp&gt;</c>/<c>&lt;pp&gt;</c> child elements) in document order,
-    ///     per the format reference's §8.1 rule: a <c>&lt;cp IX="k"/&gt;</c> sets the current
-    ///     character-row index for every subsequent text segment until the next <c>&lt;cp&gt;</c>
-    ///     or the end of the element; <c>&lt;pp IX="k"/&gt;</c> does the same for the paragraph-
-    ///     row index, independently. A text segment with no preceding marker of a given kind
-    ///     carries <see langword="null"/> for that axis (resolved through row <c>0</c>'s own
-    ///     StyleSheet-chain default by <c>VsdxDocument.TextStyle.cs</c>). Adjacent text nodes
+    ///     interleaved with <c>&lt;cp&gt;</c>/<c>&lt;pp&gt;</c>/<c>&lt;fld&gt;</c> child elements)
+    ///     in document order, per the format reference's §8.1 rule: a <c>&lt;cp IX="k"/&gt;</c>
+    ///     sets the current character-row index for every subsequent text segment until the next
+    ///     <c>&lt;cp&gt;</c> or the end of the element; <c>&lt;pp IX="k"/&gt;</c> does the same for
+    ///     the paragraph-row index, independently; a <c>&lt;fld IX="k"&gt;...&lt;/fld&gt;</c>
+    ///     Field-reference element's own nested text content (Visio's save-time-cached field
+    ///     value, not a live re-evaluation of its own formula) is appended as a literal run segment
+    ///     exactly like a plain <see cref="XText"/> node. A text segment with no preceding marker
+    ///     of a given kind carries <see langword="null"/> for that axis (resolved through row
+    ///     <c>0</c>'s own StyleSheet-chain default by <c>VsdxDocument.TextStyle.cs</c>). Adjacent text nodes
     ///     with no intervening marker are merged into a single run.
     /// </summary>
     /// <param name="textElement">The <c>&lt;Text&gt;</c> element to walk.</param>
@@ -80,6 +85,20 @@ public sealed partial class VsdxDocument
                 case XElement { Name.LocalName: "pp" } ppElement when ppElement.Name.Namespace == ns:
                     FlushPendingText();
                     paragraphRowIndex = ParseMarkerIndex(ppElement);
+                    break;
+
+                case XElement { Name.LocalName: "fld" } fldElement when fldElement.Name.Namespace == ns:
+                    // A <fld> element is a Visio Field reference (a computed/substituted text
+                    // placeholder, backed by the shape's own Section N="Field" row) rather than a
+                    // plain character run - its own nested text content is Visio's save-time-
+                    // cached field value (for example "42 U"), which this parser treats as a
+                    // literal run at the current row-index position, exactly like a plain XText
+                    // segment, rather than re-evaluating the field's own (out-of-scope) live
+                    // formula. Confirmed necessary against 60973.vsdx's master32.xml Shape ID='9'
+                    // (the "15 U" rack-capacity label), whose <Text> element is exactly
+                    // <fld IX='0'>42 U</fld> with no sibling XText/cp/pp content at all - before
+                    // this case existed, the label was silently dropped entirely.
+                    pendingText.Append(fldElement.Value);
                     break;
             }
         }

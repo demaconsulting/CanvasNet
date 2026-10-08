@@ -118,6 +118,50 @@ public class VsdxTextParsingTests
     }
 
     /// <summary>
+    ///     Proves <c>&lt;Text&gt;&lt;fld IX='0'&gt;42 U&lt;/fld&gt;&lt;/Text&gt;</c> (mirrors
+    ///     <c>60973.vsdx</c>'s <c>master32.xml</c> Shape ID='9' verbatim) parses the Field
+    ///     element's own nested text content as a literal run, rather than the field being
+    ///     silently dropped entirely - this milestone's Finding #3 "15 U" label sub-symptom fix
+    ///     (<c>VsdxDocument.Text.cs</c>'s <c>BuildRawRuns</c> <c>&lt;fld&gt;</c> case).
+    /// </summary>
+    [Fact]
+    public void TextParsing_FldElement_NestedTextContentParsedAsLiteralRun()
+    {
+        // Arrange
+        const string xml =
+            "<Text xmlns='http://schemas.microsoft.com/office/visio/2012/main'><fld IX='0'>42 U</fld></Text>";
+
+        // Act
+        var rawText = VsdxDocument.ParseTextElement(System.Xml.Linq.XElement.Parse(xml));
+
+        // Assert
+        var run = Assert.Single(rawText.Runs);
+        Assert.Equal("42 U", run.Text);
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;fld&gt;</c> element interleaved with plain text on either side merges
+    ///     into the surrounding run exactly like a plain <c>XText</c> segment would (no run
+    ///     boundary is introduced merely because the content came from a <c>&lt;fld&gt;</c>
+    ///     element rather than directly from <c>XText</c>).
+    /// </summary>
+    [Fact]
+    public void TextParsing_FldElementInterleavedWithText_MergesIntoSurroundingRun()
+    {
+        // Arrange
+        const string xml =
+            "<Text xmlns='http://schemas.microsoft.com/office/visio/2012/main'><cp IX='0'/>Capacity: <fld IX='1'>15 U</fld> max</Text>";
+
+        // Act
+        var rawText = VsdxDocument.ParseTextElement(System.Xml.Linq.XElement.Parse(xml));
+
+        // Assert
+        var run = Assert.Single(rawText.Runs);
+        Assert.Equal("Capacity: 15 U max", run.Text);
+        Assert.Equal(0, run.CharacterRowIndex);
+    }
+
+    /// <summary>
     ///     Proves a shape's own direct <c>Section N="Character"</c> (no section-level <c>IX=</c>)
     ///     parses into a row-indexed cell-bag dictionary, distinct from
     ///     <c>Section N="Geometry" IX="0"</c>'s own section-indexed shape.
