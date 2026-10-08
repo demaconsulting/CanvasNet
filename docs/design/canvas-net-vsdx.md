@@ -219,8 +219,11 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
   - **Embedded images / `Foreign` shapes** — no inspected sample contains a `<Shape
     Type="Foreign">`/image relationship; the expected OOXML-convention shape is inferred, not
     observed, and must be verified against a real image-bearing `.vsdx` sample before
-    implementation. `VsdxDocument` recognizes but does not render a `Foreign`-typed shape in this
-    delivery.
+    implementation. `VsdxDocument` carries no distinct `Type`-based handling for a `Foreign`
+    shape at all — it is parsed and resolved exactly like any other `Shape` element, and its own
+    geometry/paint/text, when present, render normally; what remains deferred is decoding and
+    rasterizing the embedded image/OLE object's own binary payload, which this delivery never
+    attempts.
   - **`Themed` color resolution against a non-trivial `theme1.xml` variation** — no inspected
     sample exercises a shape whose resolved color is genuinely theme-driven (every sample with a
     theme part uses explicit hex colors instead); `VsdxDocument` parses a present `theme1.xml`

@@ -22,7 +22,16 @@ public sealed partial class VsdxDocument
     ///     <see cref="VsdxRawText"/>.
     /// </summary>
     /// <param name="textElement">The shape's <c>&lt;Text&gt;</c> element, or <see langword="null"/> when the shape has no <c>&lt;Text&gt;</c> element at all.</param>
-    /// <returns><see cref="VsdxRawText.Empty"/> when <paramref name="textElement"/> is <see langword="null"/> or empty; otherwise the parsed runs, per <see cref="BuildRawRuns"/>.</returns>
+    /// <returns>
+    ///     <see cref="VsdxRawText.Empty"/> (with <see cref="VsdxRawText.HasElement"/>
+    ///     <see langword="false"/>) when <paramref name="textElement"/> is <see langword="null"/>;
+    ///     otherwise a <see cref="VsdxRawText"/> with <see cref="VsdxRawText.HasElement"/>
+    ///     <see langword="true"/> and the parsed runs, per <see cref="BuildRawRuns"/> (empty when
+    ///     the element itself is empty - a genuinely present-but-empty <c>&lt;Text/&gt;</c> is
+    ///     still distinguished from an absent one via <see cref="VsdxRawText.HasElement"/>, so
+    ///     <c>VsdxDocument.Groups.cs</c>'s <c>ResolveShapeRecursive</c> does not incorrectly fall
+    ///     back to the Master's own text for an instance that intentionally suppresses it).
+    /// </returns>
     internal static VsdxRawText ParseTextElement(XElement? textElement)
     {
         if (textElement is null)
@@ -30,7 +39,7 @@ public sealed partial class VsdxDocument
             return VsdxRawText.Empty;
         }
 
-        return new VsdxRawText(BuildRawRuns(textElement));
+        return new VsdxRawText(BuildRawRuns(textElement), HasElement: true);
     }
 
     /// <summary>

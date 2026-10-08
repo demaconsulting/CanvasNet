@@ -104,7 +104,30 @@ public sealed partial class VsdxDocument
     ///     <c>ResolveShapeRecursive</c>/rendering, and matches Visio's own behavior of never
     ///     resolving/rendering a deleted shape.
     /// </remarks>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the shape tree rooted at <paramref name="shapesElement"/> exceeds
+    ///     <c>VsdxDocument.Groups.cs</c>'s <see cref="MaxGroupNestingDepth"/>/
+    ///     <see cref="MaxResolvedShapeCount"/> budget - see this class's own parse-time budget
+    ///     remarks on <see cref="ParseShapeElement(XElement, int, ref int)"/>.
+    /// </exception>
     private static List<VsdxShapeNode> ParseShapeElements(XElement shapesElement)
+    {
+        var parsedShapeCount = 0;
+        return ParseShapeElements(shapesElement, depth: 0, ref parsedShapeCount);
+    }
+
+    /// <summary>
+    ///     The depth/count-budgeted recursive worker behind
+    ///     <see cref="ParseShapeElements(XElement)"/> - see that method's own remarks for the
+    ///     parsing algorithm, and <see cref="ParseShapeElement(XElement, int, ref int)"/>'s own
+    ///     remarks for why this budget must be enforced during parsing, not only during
+    ///     resolution.
+    /// </summary>
+    /// <param name="shapesElement">A <c>&lt;Shapes&gt;</c> element (a page's own, or a group shape's nested one).</param>
+    /// <param name="depth">The nesting depth of <paramref name="shapesElement"/>'s own direct <c>&lt;Shape&gt;</c> children - <c>0</c> for a page's (or a Master's) own top-level shapes.</param>
+    /// <param name="parsedShapeCount">A running count of every shape parsed so far across the whole page/Master (top-level and nested combined), threaded through by reference exactly like <c>ResolveShapeRecursive</c>'s own <c>resolvedShapeCount</c>.</param>
+    /// <returns>The parsed shapes, in document order, excluding any <c>&lt;Shape Del="1"&gt;</c> deleted-child stub.</returns>
+    private static List<VsdxShapeNode> ParseShapeElements(XElement shapesElement, int depth, ref int parsedShapeCount)
     {
         var ns = shapesElement.Name.Namespace;
         var result = new List<VsdxShapeNode>();
@@ -115,7 +138,7 @@ public sealed partial class VsdxDocument
                 continue;
             }
 
-            result.Add(ParseShapeElement(shapeElement));
+            result.Add(ParseShapeElement(shapeElement, depth, ref parsedShapeCount));
         }
 
         return result;
@@ -128,8 +151,64 @@ public sealed partial class VsdxDocument
     /// </summary>
     /// <param name="shapeElement">The <c>&lt;Shape&gt;</c> element to parse.</param>
     /// <returns>The parsed, unresolved <see cref="VsdxShapeNode"/>.</returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="shapeElement"/>'s own shape tree exceeds
+    ///     <c>VsdxDocument.Groups.cs</c>'s <see cref="MaxGroupNestingDepth"/>/
+    ///     <see cref="MaxResolvedShapeCount"/> budget - see the three-parameter overload's own
+    ///     remarks for why this budget must be enforced here too.
+    /// </exception>
     internal static VsdxShapeNode ParseShapeElement(XElement shapeElement)
     {
+        var parsedShapeCount = 0;
+        return ParseShapeElement(shapeElement, depth: 0, ref parsedShapeCount);
+    }
+
+    /// <summary>
+    ///     The depth/count-budgeted recursive worker behind
+    ///     <see cref="ParseShapeElement(XElement)"/>.
+    /// </summary>
+    /// <remarks>
+    ///     PR #42 review round 2 (Finding #1, High): before this fix,
+    ///     <see cref="ParseShapeElement(XElement)"/> recursively parsed every nested
+    ///     <c>&lt;Shapes&gt;</c> subtree in full before <c>VsdxDocument.Groups.cs</c>'s
+    ///     <c>ResolveShapeRecursive</c> ever ran, so its own <see cref="MaxGroupNestingDepth"/>/
+    ///     <see cref="MaxResolvedShapeCount"/> budget check - designed specifically to guard
+    ///     against a pathological or cyclic shape tree exhausting the call stack or memory - could
+    ///     never trip in time: a deeply nested or very wide untrusted page/master's own parse pass
+    ///     would already have exhausted the call stack or memory before resolution ever began.
+    ///     This worker enforces the identical budget (reusing the very same constants, so the two
+    ///     passes can never disagree) during the parse pass itself, threading <paramref name="depth"/>/
+    ///     <paramref name="parsedShapeCount"/> through exactly as <c>ResolveShapeRecursive</c>
+    ///     threads its own <c>depth</c>/<c>resolvedShapeCount</c>, so a hostile input is rejected
+    ///     promptly during parsing rather than only (too late) during resolution.
+    /// </remarks>
+    /// <param name="shapeElement">The <c>&lt;Shape&gt;</c> element to parse.</param>
+    /// <param name="depth"><paramref name="shapeElement"/>'s own nesting depth - <c>0</c> for a page's (or a Master's) own top-level shapes, incrementing by <c>1</c> for each level of nested <c>&lt;Shapes&gt;</c>.</param>
+    /// <param name="parsedShapeCount">A running count of every shape parsed so far across the whole page/Master (top-level and nested combined), incremented before each shape's own parse and checked against <see cref="MaxResolvedShapeCount"/>.</param>
+    /// <returns>The parsed, unresolved <see cref="VsdxShapeNode"/>.</returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="depth"/> exceeds <see cref="MaxGroupNestingDepth"/>, or
+    ///     <paramref name="parsedShapeCount"/> exceeds <see cref="MaxResolvedShapeCount"/> -
+    ///     either budget's violation is treated as a pathological or cyclic shape tree, never
+    ///     silently truncated, mirroring <c>ResolveShapeRecursive</c>'s own error contract.
+    /// </exception>
+    private static VsdxShapeNode ParseShapeElement(XElement shapeElement, int depth, ref int parsedShapeCount)
+    {
+        if (depth > MaxGroupNestingDepth)
+        {
+            throw new InvalidDataException(
+                $"A shape's nested group tree exceeds the maximum supported group nesting depth of {MaxGroupNestingDepth}; " +
+                "its page's (or Master's) shape tree is either pathological or cyclic.");
+        }
+
+        parsedShapeCount++;
+        if (parsedShapeCount > MaxResolvedShapeCount)
+        {
+            throw new InvalidDataException(
+                $"The page's (or Master's) shape tree exceeds the maximum supported shape count of {MaxResolvedShapeCount}; " +
+                "it is either pathological or cyclic.");
+        }
+
         var ns = shapeElement.Name.Namespace;
 
         var id = (string?)shapeElement.Attribute("ID") ?? string.Empty;
@@ -164,7 +243,7 @@ public sealed partial class VsdxDocument
         var childShapesElement = shapeElement.Element(ns + "Shapes");
         var children = childShapesElement is null
             ? (IReadOnlyList<VsdxShapeNode>)[]
-            : ParseShapeElements(childShapesElement);
+            : ParseShapeElements(childShapesElement, depth + 1, ref parsedShapeCount);
 
         return new VsdxShapeNode(
             id,
@@ -182,3 +261,4 @@ public sealed partial class VsdxDocument
             children);
     }
 }
+

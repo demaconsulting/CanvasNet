@@ -2,7 +2,7 @@ using System.IO.Compression;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio NURBS
+// cspell:ignore vsdx Visio NURBS Foregnd
 
 /// <summary>
 ///     Provides read-only access to a Microsoft Visio (<c>.vsdx</c>) diagram document.
@@ -63,14 +63,19 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///         effective <c>HideText</c> cell resolves truthy - composing a group's own
 ///         already-resolved child transform with no separate <c>chOff</c>/<c>chExt</c>-style
 ///         child-coordinate remap step, since a VisioML group child's cells are already expressed
-///         directly in the parent group's own local box. Embedded images/Foreign shapes,
-///         non-trivial Themed theme-variation resolution, non-solid <c>FillPattern</c>
-///         hatch/gradient combinations beyond solid (degraded to the same solid-fill treatment
-///         as <c>FillPattern="1"</c> rather than approximated), the full <c>BeginArrow</c>/
-///         <c>EndArrow</c> style-index table, and the <c>RelCubBezTo</c>/<c>SplineStart</c>/
-///         <c>SplineKnot</c>/<c>PolylineTo</c>/<c>Ellipse</c> geometry row types remain explicitly
-///         deferred - see <c>canvas-net-vsdx.md</c>'s own Design Constraints section for the
-///         complete deferred-feature boundary.
+///         directly in the parent group's own local box. An embedded Foreign shape (image/OLE
+///         object) carries no distinct Type-based handling at all and is resolved exactly like
+///         any other <c>&lt;Shape&gt;</c> element - its own geometry/paint/text, when present,
+///         render normally; <see cref="VsdxUnsupportedFeatureException"/> is not currently thrown
+///         by any resolver for this delivery, reserved for a future recognized-but-deferred
+///         construct. A non-solid <c>FillPattern</c> beyond the documented subset instead
+///         degrades to the same solid-fill treatment as <c>FillPattern="1"</c>, using the
+///         shape's own resolved <c>FillForegnd</c> color, never throwing. Non-trivial Themed
+///         theme-variation resolution, the full <c>BeginArrow</c>/<c>EndArrow</c> style-index
+///         table, and the <c>RelCubBezTo</c>/<c>SplineStart</c>/<c>SplineKnot</c>/
+///         <c>PolylineTo</c>/<c>Ellipse</c> geometry row types remain explicitly deferred - see
+///         <c>canvas-net-vsdx.md</c>'s own Design Constraints section for the complete
+///         deferred-feature boundary.
 ///     </para>
 ///     <para>
 ///         <strong>Thread safety</strong>: a <see cref="VsdxDocument"/> instance is <em>not</em>

@@ -113,4 +113,82 @@ public class VsdxFixtureTextResolutionTests
             }
         }
     }
+
+    /// <summary>
+    ///     Proves an instance shape with an explicit, empty <c>&lt;Text/&gt;</c> element over a
+    ///     Master with non-empty text resolves with NO text of its own, rather than falling back
+    ///     to the Master's own text - PR #42 review round 2 (Finding #2, Medium): an explicit
+    ///     empty <c>&lt;Text/&gt;</c> (or one containing only markers, yielding a raw run list
+    ///     with <c>Count == 0</c>) must not be treated the same as a genuinely absent
+    ///     <c>&lt;Text&gt;</c> element - same bug family as the Milestone 10/11
+    ///     stencil/master-text-leak fixes, but for the empty-vs-absent distinction specifically.
+    ///     See <c>VsdxDocument.Groups.cs</c>'s <c>ResolveShapeRecursive</c>, which now consults
+    ///     <see cref="VsdxRawText.HasElement"/> rather than <c>Runs.Count</c>.
+    /// </summary>
+    [Fact]
+    public void FixtureTextResolution_InstanceWithExplicitEmptyTextOverNonEmptyMaster_ResolvesNoText()
+    {
+        // Arrange: a Master with non-empty text, and a page instance that explicitly declares its
+        // own empty <Text/> element (intentionally suppressing its inherited text).
+        const string masterShapeXml =
+            """
+            <Shape ID="1" Type="Shape">
+              <Cell N="PinX" V="2"/><Cell N="PinY" V="2"/><Cell N="Width" V="2"/><Cell N="Height" V="2"/>
+              <Cell N="LocPinX" V="1"/><Cell N="LocPinY" V="1"/><Cell N="Angle" V="0"/>
+              <Text>Master Label</Text>
+            </Shape>
+            """;
+        const string instanceShapeXml =
+            """
+            <Shape ID="10" Type="Shape" Master="1">
+              <Text/>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(instanceShapeXml, mastersXml: masterShapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var shape = document.GetPageShapes(0)[0];
+
+        // Assert: the instance resolves NO text at all - not the Master's "Master Label".
+        Assert.NotNull(shape.TextRuns);
+        Assert.Empty(shape.TextRuns);
+        Assert.NotNull(shape.TextLayout);
+        Assert.Empty(shape.TextLayout.Glyphs);
+    }
+
+    /// <summary>
+    ///     Proves an instance shape with NO own <c>&lt;Text&gt;</c> element at all (genuinely
+    ///     absent, unlike the explicit-empty case above) still correctly falls back to its
+    ///     Master's own non-empty text - the companion, "still works" half of Finding #2's fix,
+    ///     guarding against an overcorrection that would have broken the pre-existing, intended
+    ///     Master-text-inheritance behavior.
+    /// </summary>
+    [Fact]
+    public void FixtureTextResolution_InstanceWithNoTextElementOverNonEmptyMaster_InheritsMasterText()
+    {
+        // Arrange: a Master with non-empty text, and a page instance with no <Text> element at all.
+        const string masterShapeXml =
+            """
+            <Shape ID="1" Type="Shape">
+              <Cell N="PinX" V="2"/><Cell N="PinY" V="2"/><Cell N="Width" V="2"/><Cell N="Height" V="2"/>
+              <Cell N="LocPinX" V="1"/><Cell N="LocPinY" V="1"/><Cell N="Angle" V="0"/>
+              <Text>Master Label</Text>
+            </Shape>
+            """;
+        const string instanceShapeXml =
+            """
+            <Shape ID="10" Type="Shape" Master="1"/>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(instanceShapeXml, mastersXml: masterShapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var shape = document.GetPageShapes(0)[0];
+
+        // Assert: the instance inherits the Master's own text verbatim.
+        Assert.NotNull(shape.TextRuns);
+        var run = Assert.Single(shape.TextRuns);
+        Assert.Equal("Master Label", run.Text);
+    }
 }

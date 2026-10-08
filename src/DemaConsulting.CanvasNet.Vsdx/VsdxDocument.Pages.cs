@@ -270,8 +270,11 @@ public sealed partial class VsdxDocument
     /// <param name="cellName">The <c>&lt;Cell&gt;</c>'s required <c>N</c> attribute value.</param>
     /// <returns>The cell's value, converted from inches to EMU and rounded to the nearest whole EMU.</returns>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when no <c>&lt;Cell N="{cellName}"&gt;</c> child exists, or its <c>V</c>
-    ///     attribute is missing, non-numeric, non-finite, or not strictly positive.
+    ///     Thrown when no <c>&lt;Cell N="{cellName}"&gt;</c> child exists, its <c>V</c>
+    ///     attribute is missing, non-numeric, non-finite, or not strictly positive, or the
+    ///     resulting EMU value would overflow <see cref="long"/> (an untrusted/malformed
+    ///     page-dimension cell carrying a pathologically large but still-positive-and-finite
+    ///     value - see this method's own remarks).
     /// </exception>
     private static long ParseSizeCellEmu(XElement pageSheet, string cellName)
     {
@@ -290,6 +293,23 @@ public sealed partial class VsdxDocument
                 $"The <Cell N=\"{cellName}\"> child has a missing, non-numeric, non-finite, or non-positive 'V' attribute.");
         }
 
-        return checked((long)Math.Round(inches * EmuPerInch, MidpointRounding.AwayFromZero));
+        // A pathologically large (but still finite and positive) inch value can scale past
+        // long.MaxValue once multiplied by EmuPerInch - the `checked` cast below would then
+        // throw the framework's own OverflowException, breaking this method's documented
+        // InvalidDataException-only error contract for malformed page dimensions. Catch that
+        // overflow explicitly and re-surface it as the same InvalidDataException every other
+        // malformed-cell case already throws, rather than letting an internal implementation
+        // detail (the EMU conversion's own integer width) leak through as a different exception
+        // type.
+        var scaledEmu = Math.Round(inches * EmuPerInch, MidpointRounding.AwayFromZero);
+        try
+        {
+            return checked((long)scaledEmu);
+        }
+        catch (OverflowException)
+        {
+            throw new InvalidDataException(
+                $"The <Cell N=\"{cellName}\"> child's 'V' attribute ({rawValue}) is too large to convert to EMU.");
+        }
     }
 }

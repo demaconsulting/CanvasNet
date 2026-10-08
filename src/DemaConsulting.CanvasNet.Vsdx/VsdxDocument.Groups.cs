@@ -122,8 +122,12 @@ public sealed partial class VsdxDocument
         // Assumption #4 (documented, low-risk design-consistency extension, not fixture-evidenced
         // - see the Milestone 4 plan report): an instance shape with no own <Text> element falls
         // back to its Master shape's own <Text> verbatim, mirroring every other "absent instance
-        // cell/section ⇒ inherit Master" rule this unit already establishes.
-        var effectiveRawText = shape.RawText.Runs.Count > 0 ? shape.RawText : masterShape?.RawText ?? VsdxRawText.Empty;
+        // cell/section ⇒ inherit Master" rule this unit already establishes. PR #42 review round
+        // 2 (Finding #2): "no own <Text> element" must be judged by VsdxRawText.HasElement, not
+        // by Runs.Count - an instance's own explicit, empty <Text/> element (intentionally
+        // suppressing its own inherited text) is present, just empty, and must not fall through
+        // to the Master's own text the way a genuinely absent <Text> element does.
+        var effectiveRawText = shape.RawText.HasElement ? shape.RawText : masterShape?.RawText ?? VsdxRawText.Empty;
         var effectiveCharacterRows = MergeTextSectionRows(shape.RawCharacterRows, masterShape?.RawCharacterRows);
         var effectiveParagraphRows = MergeTextSectionRows(shape.RawParagraphRows, masterShape?.RawParagraphRows);
 

@@ -300,7 +300,19 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   resolves `true` skips only its own text-run paint call, leaving its own fill/stroke/arrowheads
   and its children's painting unaffected — confirmed against `60489.vsdx`'s actor-label shapes,
   whose `HideText` cell was previously unconsulted and so painted a duplicate copy of a sibling
-  shape's already-correctly-positioned label text.
+  shape's already-correctly-positioned label text. PR #42 review round 1 (Finding #3) adds a
+  fourth refinement, via `ResolveTextToPixelTransform`: before painting a shape's own already
+  laid-out glyph placements (which are positioned directly within its text box's own unrotated
+  rectangle), the text box's own `TxtAngle` rotation is composed, about its own `TxtPinX`/
+  `TxtPinY` pin in the shape's local coordinate space, with the shape's own `localToPixel`
+  transform — mirroring `VsdxShapeTransform.ToPageMatrix`'s own translate/rotate/translate-back
+  pattern, but rotating about the text box's own pin rather than the shape's. This composition is
+  applied at paint time, immediately before the text layout is painted, rather than at layout
+  time, because `VsdxTextLayout`'s own word-wrap/line-break geometry is computed in the text
+  box's unrotated local space and must stay that way; only the final placement onto the pixel
+  surface needs the rotation. Previously, a shape with a rotated text box (distinct from the
+  shape's own `Angle`, already applied via `localToPixel`) had its text painted axis-aligned, at
+  the wrong position/orientation, because this rotation was silently ignored.
 - **`Render(int pageIndex, int dpi, VsdxRenderOptions? options)`**: Resolves the page's
   `VsdxPageInfo` size, converts it to pixel dimensions at the requested `dpi`, and delegates to
   the pixel-dimension overload above.

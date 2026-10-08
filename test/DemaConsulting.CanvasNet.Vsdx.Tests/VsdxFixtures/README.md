@@ -27,6 +27,18 @@ Two independent sources are represented:
   `JgreywolfVsdxJs.LICENSE` in this same folder. Each file's exact upstream source URL is listed in
   its own table row below.
 
+These 14 files are the **complete** set of `.vsdx` fixtures checked into this repository - there
+is no other fixture source committed here. In particular, the separate 12-file/16-page
+Apache-POI-derived corpus (Apache-licensed, from the
+[apache/poi](https://github.com/apache/poi) project's own test-data) used during Milestones
+10-12's real-world bug-fix work for visual comparison against Microsoft Visio (COM)-rendered
+ground truth, and the ad hoc smoke-test scratch tooling that drove that comparison, were both
+external, scratch tooling used only during development - neither was ever checked into this
+repository, and neither should be expected in this folder. Every fixture-driven test in this test
+project (`VsdxFixtureShapeResolutionTests.cs`, `VsdxFixtureTextResolutionTests.cs`,
+`VsdxRenderFixtureTests.cs`, `VsdxConnectorFixtureTests.cs`) exercises only the 14 files listed
+below.
+
 ## Included Files
 
 | File | Upstream source URL | Exercises |

@@ -752,9 +752,25 @@ hairlines; after the fix (a `MinStrokeWidthPixels = 1f` floor applied in `PaintS
 refinement above, which was additionally required to correct the same connector's resolved
 position), the rendered page matches the reference's visible connector lines.
 
+#### CanvasNetVsdx-VsdxDocument-TextBoxRotationRendering: Rendered Text-Box Ink Reflects TxtAngle Rotation
+
+**Test**: `ResolveTextToPixelTransform_ComposesTxtAngleRotationAboutTextBoxPin`
+
+Proves `ResolveTextToPixelTransform` composes a non-zero `TxtAngle` rotation (about the text
+box's own `TxtPinX`/`TxtPinY` pin) with the owning shape's own `localToPixel` transform, and
+short-circuits to that `localToPixel` transform unchanged when `TxtAngle == 0` (the common case).
+Confirmed against PR #42 review round 1 (Finding #3): before this fix, `VsdxTextLayout`'s
+already-resolved glyph placements - laid out directly within the text box's own unrotated
+rectangle - were painted straight through the owning shape's own transform alone, silently
+ignoring any non-zero `TxtAngle` cell; a shape with a rotated text box (distinct from the shape's
+own `Angle`, already applied via `localToPixel`) painted its text axis-aligned, at the wrong
+position/orientation. This is currently a matrix-composition-level unit test only; no
+`Render_...`-level test yet proves a full page render of a rotated text box paints glyph ink at
+the rotated pixel location on a `Surface` - a candidate for future end-to-end coverage.
+
 ### Supplementary (Non-Requirement-Mapped) Coverage
 
-Beyond the 42 `CanvasNetVsdx-VsdxDocument-*` requirement-mapped scenarios above, the test project
+Beyond the 43 `CanvasNetVsdx-VsdxDocument-*` requirement-mapped scenarios above, the test project
 carries additional smoke-level and fixture-conformance tiers that increase confidence without
 mapping to a single dedicated requirement each:
 

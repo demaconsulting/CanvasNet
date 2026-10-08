@@ -796,3 +796,25 @@ sections:
               shape itself).
             tests:
               - Render_ShapeWithHideTextCell_SuppressesOwnTextButNotFillOrStroke
+
+          - id: CanvasNetVsdx-VsdxDocument-TextBoxRotationRendering
+            title: >-
+              The VsdxDocument class shall compose a shape's resolved text box's own TxtAngle
+              rotation (about its own TxtPinX/TxtPinY pin, in the owning shape's local,
+              unrotated coordinate space) with the shape's own localToPixel transform when
+              painting its already-laid-out glyph placements, rather than painting them through
+              the shape's own transform alone.
+            justification: |
+              PR #42 review round 1 (Finding  # 3) confirmed VsdxTextLayout's already-resolved
+              glyph placements - laid out directly within the text box's own unrotated rectangle
+              - were previously painted straight through the owning shape's own localToPixel
+              transform, silently ignoring any non-zero TxtAngle cell entirely: a shape with a
+              rotated text box (distinct from the shape's own Angle, already applied via
+              localToPixel) painted its text axis-aligned, at the wrong position/orientation.
+              ResolveTextToPixelTransform fixes this by mirroring
+              VsdxShapeTransform.ToPageMatrix's own translate/rotate/translate-back composition
+              pattern, rotating about the text box's own pin rather than the shape's, and
+              short-circuits to the shape's own localToPixel transform unchanged for the common
+              TxtAngle == 0 case.
+            tests:
+              - ResolveTextToPixelTransform_ComposesTxtAngleRotationAboutTextBoxPin

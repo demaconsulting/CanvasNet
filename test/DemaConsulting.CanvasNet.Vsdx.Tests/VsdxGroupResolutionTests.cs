@@ -1,5 +1,7 @@
 // cspell:ignore vsdx Visio davehoward
 
+using System.Xml.Linq;
+
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;
 
 /// <summary>
@@ -271,6 +273,73 @@ public class VsdxGroupResolutionTests
 
         // Act
         var exception = Record.Exception(() => document.GetPageShapes(0));
+
+        // Assert
+        Assert.IsType<InvalidDataException>(exception);
+    }
+
+    /// <summary>
+    ///     Proves <c>VsdxDocument.Shapes.cs</c>'s <c>ParseShapeElement</c> itself (not merely
+    ///     <c>VsdxDocument.Groups.cs</c>'s <c>ResolveShapeRecursive</c>) enforces the
+    ///     <c>MaxGroupNestingDepth</c> budget during the parse pass - PR #42 review round 2
+    ///     (Finding #1, High): before this fix, a pathologically deep nested <c>&lt;Shapes&gt;</c>
+    ///     subtree was fully parsed (recursing to the input's own full depth) before the resolver
+    ///     ever ran, so this budget could not trip until long after the parse-time stack/memory
+    ///     cost had already been paid. This test calls <c>ParseShapeElement</c> directly - never
+    ///     reaching <c>ResolveShapeRecursive</c> at all - with a synthetic tree nested
+    ///     1,000 levels deep (built iteratively via <see cref="XElement"/>, not XML-text parsing,
+    ///     so constructing the input tree itself stays cheap and does not confound the
+    ///     measurement), confirming the parse pass itself throws
+    ///     <see cref="InvalidDataException"/> promptly - its own recursion never proceeds past
+    ///     <c>MaxGroupNestingDepth</c> levels deep, regardless of how much deeper the input
+    ///     actually nests.
+    /// </summary>
+    [Fact]
+    public void VsdxDocument_ParseShapeElement_ExceedingDepthThrowsInvalidDataExceptionDuringParsing()
+    {
+        // Arrange: build a 1,000-level-deep nested <Shape><Shapes>...</Shapes></Shape> tree
+        // directly via XElement (no XML text parsing), simulating a pathological/adversarial
+        // input far beyond MaxGroupNestingDepth (64).
+        const int nestingLevels = 1_000;
+        var innermost = new XElement("Shape", new XAttribute("ID", "0"));
+        var root = innermost;
+        for (var level = 1; level <= nestingLevels; level++)
+        {
+            root = new XElement(
+                "Shape",
+                new XAttribute("ID", level.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                new XElement("Shapes", root));
+        }
+
+        // Act: call the parser directly - this must never reach ResolveShapeRecursive at all.
+        var exception = Record.Exception(() => VsdxDocument.ParseShapeElement(root));
+
+        // Assert
+        Assert.IsType<InvalidDataException>(exception);
+    }
+
+    /// <summary>
+    ///     Proves <c>ParseShapeElement</c> also enforces the <c>MaxResolvedShapeCount</c> budget
+    ///     during the parse pass - PR #42 review round 2 (Finding #1, High) - for a very wide
+    ///     (rather than deep) pathological shape tree: a single top-level <c>Shape</c> with far
+    ///     more direct <c>&lt;Shapes&gt;</c> children than the budget allows, each nested well
+    ///     within <c>MaxGroupNestingDepth</c> so only the count budget can trip. Calls
+    ///     <c>ParseShapeElement</c> directly, never reaching the resolver.
+    /// </summary>
+    [Fact]
+    public void VsdxDocument_ParseShapeElement_ExceedingShapeCountThrowsInvalidDataExceptionDuringParsing()
+    {
+        // Arrange: a single top-level Shape with 60,000 direct children - more than
+        // MaxResolvedShapeCount (50,000), all at nesting depth 1.
+        const int childCount = 60_000;
+        var children = new XElement(
+            "Shapes",
+            Enumerable.Range(1, childCount).Select(id =>
+                new XElement("Shape", new XAttribute("ID", id.ToString(System.Globalization.CultureInfo.InvariantCulture)))));
+        var root = new XElement("Shape", new XAttribute("ID", "0"), children);
+
+        // Act
+        var exception = Record.Exception(() => VsdxDocument.ParseShapeElement(root));
 
         // Assert
         Assert.IsType<InvalidDataException>(exception);

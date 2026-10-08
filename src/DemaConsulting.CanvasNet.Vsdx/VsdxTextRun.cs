@@ -30,11 +30,21 @@ internal sealed record VsdxRawTextRun(string Text, int? CharacterRowIndex, int? 
 ///     A shape's raw, as-parsed <c>&lt;Text&gt;</c> element: its ordered marker-delimited runs,
 ///     before any StyleSheet/character/paragraph-row resolution.
 /// </summary>
-/// <param name="Runs">The element's parsed runs, in document order. Empty when the shape has no <c>&lt;Text&gt;</c> element, or the element is empty.</param>
-internal sealed record VsdxRawText(IReadOnlyList<VsdxRawTextRun> Runs)
+/// <param name="Runs">The element's parsed runs, in document order. Empty when the shape has no <c>&lt;Text&gt;</c> element, or the element is present but empty.</param>
+/// <param name="HasElement">
+///     Whether the shape declared an own direct <c>&lt;Text&gt;</c> element at all (regardless of
+///     whether that element carried any runs) - distinct from <paramref name="Runs"/> being empty,
+///     which is also true for a genuinely absent <c>&lt;Text&gt;</c> element. PR #42 review round
+///     2 (Finding #2): an instance shape's explicit, empty <c>&lt;Text/&gt;</c> element
+///     (intentionally suppressing its own inherited text) must not be treated the same as a
+///     genuinely absent <c>&lt;Text&gt;</c> element, which falls back to the Master's own text -
+///     see <c>VsdxDocument.Groups.cs</c>'s <c>ResolveShapeRecursive</c>, which consults this flag
+///     rather than <paramref name="Runs"/>'s own count.
+/// </param>
+internal sealed record VsdxRawText(IReadOnlyList<VsdxRawTextRun> Runs, bool HasElement)
 {
     /// <summary>The shared, immutable empty instance, used for a shape with no <c>&lt;Text&gt;</c> element at all.</summary>
-    public static readonly VsdxRawText Empty = new([]);
+    public static readonly VsdxRawText Empty = new([], HasElement: false);
 }
 
 /// <summary>

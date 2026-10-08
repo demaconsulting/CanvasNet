@@ -720,6 +720,44 @@ public class VsdxDocumentTests
     }
 
     /// <summary>
+    ///     Proves a pathologically large (but still finite and positive) <c>PageWidth</c> value
+    ///     - one that overflows <see cref="long"/> once scaled to EMU - throws the documented
+    ///     <see cref="InvalidDataException"/> error contract for malformed page dimensions,
+    ///     rather than an internal-implementation-detail <see cref="OverflowException"/> leaking
+    ///     through from the EMU conversion's own <c>checked</c> cast - PR #42 review round 2
+    ///     (Finding #3, Medium).
+    /// </summary>
+    [Fact]
+    public void VsdxDocument_Open_PageWidthCellPathologicallyLarge_ThrowsInvalidDataExceptionNotOverflowException()
+    {
+        // Arrange: 1e300 inches, scaled by EmuPerInch (914,400), vastly exceeds long.MaxValue.
+        const string pagesXml =
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Pages xmlns="http://schemas.microsoft.com/office/visio/2012/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+              <Page ID="0" Name="Page-1" NameU="Page-1">
+                <PageSheet>
+                  <Cell N="PageWidth" V="1e300"/>
+                  <Cell N="PageHeight" V="11"/>
+                </PageSheet>
+              </Page>
+            </Pages>
+            """;
+        using var stream = BuildPackage(
+            ("[Content_Types].xml", DefaultContentTypesXml),
+            ("_rels/.rels", DefaultPackageRelsXml),
+            ("visio/document.xml", DefaultDocumentXml),
+            ("visio/_rels/document.xml.rels", DefaultDocumentRelsXml),
+            ("visio/pages/pages.xml", pagesXml));
+
+        // Act
+        var exception = Record.Exception(() => VsdxDocument.Open(stream));
+
+        // Assert: specifically InvalidDataException, not OverflowException (nor any other type).
+        Assert.IsType<InvalidDataException>(exception);
+    }
+
+    /// <summary>
     ///     Proves a relationship target with a <c>"../"</c> traversal segment resolves relative
     ///     to the source part's own directory - exercised here through
     ///     <c>visio/pages/pages.xml</c> being resolved from a <c>visio/sub/document.xml</c> part

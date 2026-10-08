@@ -91,7 +91,12 @@ internal sealed class VsdxShapeNode
     /// <summary>The shape's own direct <c>&lt;Section N="Geometry"&gt;</c> children, unmerged with any Master shape.</summary>
     public IReadOnlyList<VsdxGeometrySectionRaw> RawGeometrySections { get; }
 
-    /// <summary>The shape's own direct <c>&lt;Text&gt;</c> child, parsed into marker-delimited runs, or <see cref="VsdxRawText.Empty"/> when the shape has no <c>&lt;Text&gt;</c> element.</summary>
+    /// <summary>
+    ///     The shape's own direct <c>&lt;Text&gt;</c> child, parsed into marker-delimited runs, or
+    ///     <see cref="VsdxRawText.Empty"/> when the shape has no <c>&lt;Text&gt;</c> element at
+    ///     all. See <see cref="VsdxRawText.HasElement"/> to distinguish that genuinely-absent case
+    ///     from an explicit, present-but-empty <c>&lt;Text/&gt;</c> element.
+    /// </summary>
     public VsdxRawText RawText { get; }
 
     /// <summary>The shape's own direct <c>&lt;Section N="Character"&gt;</c> child's <c>&lt;Row IX="k"&gt;</c> children, unmerged with any Master shape. Empty when the shape declares no such section.</summary>
@@ -105,7 +110,7 @@ internal sealed class VsdxShapeNode
 
     /// <summary>
     ///     The shape's fully resolved (Master/MasterShape-merged) cell bag, or <see langword="null"/>
-    ///     until resolved. Populated only for a page's top-level shapes this milestone.
+    ///     until resolved.
     /// </summary>
     public VsdxCellBag? EffectiveCells { get; internal set; }
 

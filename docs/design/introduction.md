@@ -152,7 +152,10 @@ software items, specifically:
   for line/fill/text style; text rendering; connector/glue-point routing (trusting a connector's
   own pre-baked, already-resolved endpoint coordinates rather than live glue-point tracking);
   color/fill resolution; arbitrarily nested group/child-shape handling; and the public, page-level
-  `Render` API. Embedded images/`Foreign` shapes, non-trivial theme-variation resolution, non-solid
+  `Render` API. No distinct `Type`-based handling exists for an embedded-image/`Foreign` shape -
+  it renders exactly like any other shape (its own geometry/paint/text, when present, render
+  normally; decoding/rasterizing the embedded image payload itself remains deferred). Non-trivial
+  theme-variation resolution, non-solid
   fill-pattern combinations beyond solid, the full arrowhead style-index table, and several
   documented-but-unobserved geometry row types remain explicitly deferred — see
   _CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`) for the full supported/deferred boundary and
