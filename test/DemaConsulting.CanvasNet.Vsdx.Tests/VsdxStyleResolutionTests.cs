@@ -239,4 +239,85 @@ public class VsdxStyleResolutionTests
         Assert.Equal(0x66, paint.FillColor.G);
         Assert.Equal(0x99, paint.FillColor.B);
     }
+
+    /// <summary>
+    ///     Proves Milestone 10's <c>FillForegndTrans</c> resolution (Bug #3 - see
+    ///     <c>VsdxDocument.Paint.cs</c>'s <c>ApplyTransparency</c>): a literal
+    ///     <c>FillForegndTrans="0.4"</c> cell (40% transparent) reduces the resolved
+    ///     <see cref="VsdxResolvedPaint.FillColor"/>'s own alpha channel to 60% of fully opaque,
+    ///     rather than the cell being silently ignored (leaving the fill fully opaque) as before
+    ///     this milestone. Confirmed against <c>60973.vsdx</c>'s own "Virtual Devices" container
+    ///     shape, whose literal 40%-transparent fill was previously painting fully opaque and
+    ///     obscuring its children (see the milestone's own completion report for the external
+    ///     smoke-test visual evidence).
+    /// </summary>
+    [Fact]
+    public void StyleResolution_FillForegndTrans_ReducesResolvedFillAlpha()
+    {
+        // Arrange
+        var shapeXml =
+            """
+            <Shape ID="1" Type="Shape" LineStyle="0" FillStyle="0">
+              <Cell N="PinX" V="1"/><Cell N="PinY" V="1"/><Cell N="Width" V="1"/><Cell N="Height" V="1"/>
+              <Cell N="LocPinX" V="0.5"/><Cell N="LocPinY" V="0.5"/><Cell N="Angle" V="0"/>
+              <Cell N="FillForegnd" V="#7F7F7F"/><Cell N="FillPattern" V="1"/>
+              <Cell N="FillForegndTrans" V="0.4"/>
+              <Section N="Geometry" IX="0">
+                <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+              </Section>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shapeXml, StyleSheetsXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var paint = document.GetPageShapes(0)[0].Paint!;
+
+        // Assert: the resolved fill color keeps its literal RGB, but its alpha is reduced to 60%
+        // (0.6 * 255 ≈ 153) of fully opaque.
+        Assert.True(paint.HasFill);
+        Assert.Equal(0x7F, paint.FillColor.R);
+        Assert.Equal(0x7F, paint.FillColor.G);
+        Assert.Equal(0x7F, paint.FillColor.B);
+        Assert.Equal(153, paint.FillColor.A);
+    }
+
+    /// <summary>
+    ///     Proves Milestone 10's <c>LineColorTrans</c> resolution (Bug #3's stroke-side
+    ///     counterpart - see <c>VsdxDocument.Paint.cs</c>'s <c>ApplyTransparency</c>): a literal
+    ///     <c>LineColorTrans="0.4"</c> cell (40% transparent) reduces the resolved
+    ///     <see cref="VsdxResolvedPaint.StrokeColor"/>'s own alpha channel to 60% of fully opaque,
+    ///     symmetrically with <see cref="StyleResolution_FillForegndTrans_ReducesResolvedFillAlpha"/>'s
+    ///     fill-side coverage.
+    /// </summary>
+    [Fact]
+    public void StyleResolution_LineColorTrans_ReducesResolvedStrokeAlpha()
+    {
+        // Arrange
+        var shapeXml =
+            """
+            <Shape ID="1" Type="Shape" LineStyle="0" FillStyle="0">
+              <Cell N="PinX" V="1"/><Cell N="PinY" V="1"/><Cell N="Width" V="1"/><Cell N="Height" V="1"/>
+              <Cell N="LocPinX" V="0.5"/><Cell N="LocPinY" V="0.5"/><Cell N="Angle" V="0"/>
+              <Cell N="LineColor" V="#7F7F7F"/><Cell N="LinePattern" V="1"/>
+              <Cell N="LineColorTrans" V="0.4"/>
+              <Section N="Geometry" IX="0">
+                <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+              </Section>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shapeXml, StyleSheetsXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var paint = document.GetPageShapes(0)[0].Paint!;
+
+        // Assert: the resolved stroke color keeps its literal RGB, but its alpha is reduced to
+        // 60% (0.6 * 255 ≈ 153) of fully opaque.
+        Assert.True(paint.HasLine);
+        Assert.Equal(0x7F, paint.StrokeColor.R);
+        Assert.Equal(0x7F, paint.StrokeColor.G);
+        Assert.Equal(0x7F, paint.StrokeColor.B);
+        Assert.Equal(153, paint.StrokeColor.A);
+    }
 }

@@ -25,6 +25,11 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     Also resolves <c>BeginArrow</c>/<c>EndArrow</c> (and their paired
 ///     <c>BeginArrowSize</c>/<c>EndArrowSize</c>) through the exact same <c>Line*</c>-category
 ///     precedence - see <c>VsdxDocument.Arrowheads.cs</c>'s <c>ResolveArrowhead</c>.
+///     Milestone 10 also resolves <c>FillForegndTrans</c>/<c>LineColorTrans</c> (transparency,
+///     <c>0..1</c>) through this same <c>Fill*</c>/<c>Line*</c>-category chain precedence, and
+///     modulates the resolved <c>FillColor</c>/<c>StrokeColor</c> alpha channel accordingly (see
+///     <see cref="ApplyTransparency"/>) - previously unconsulted anywhere in this resolver,
+///     leaving every fill/stroke fully opaque regardless of a literal transparency cell.
 /// </summary>
 public sealed partial class VsdxDocument
 {
@@ -55,6 +60,8 @@ public sealed partial class VsdxDocument
 
         var fillPattern = ResolveFillCellValue(effectiveCells, "FillPattern", fillStyleId)?.Value;
         var fillColorCell = ResolveFillCellValue(effectiveCells, "FillForegnd", fillStyleId);
+        var fillTransRaw = ResolveFillCellValue(effectiveCells, "FillForegndTrans", fillStyleId)?.Value;
+        var lineTransRaw = ResolveLineCellValue(effectiveCells, "LineColorTrans", lineStyleId)?.Value;
 
         var hasLine = !sectionNoLine && linePattern != "0";
         var hasFill = !sectionNoFill && fillPattern != "0";
@@ -69,14 +76,49 @@ public sealed partial class VsdxDocument
 
         var theme = GetTheme();
 
+        var strokeColor = VsdxColorPalette.Resolve(lineColorCell?.Value, lineColorCell?.Formula, theme, DefaultStrokeColor);
+        var fillColor = VsdxColorPalette.Resolve(fillColorCell?.Value, fillColorCell?.Formula, theme, DefaultFillColor);
+
         return new VsdxResolvedPaint(
             HasLine: hasLine,
-            StrokeColor: VsdxColorPalette.Resolve(lineColorCell?.Value, lineColorCell?.Formula, theme, DefaultStrokeColor),
+            StrokeColor: ApplyTransparency(strokeColor, lineTransRaw),
             StrokeWidthInches: strokeWidth,
             HasFill: hasFill,
-            FillColor: VsdxColorPalette.Resolve(fillColorCell?.Value, fillColorCell?.Formula, theme, DefaultFillColor),
+            FillColor: ApplyTransparency(fillColor, fillTransRaw),
             BeginArrowhead: beginArrowhead,
             EndArrowhead: endArrowhead);
+    }
+
+    /// <summary>
+    ///     Modulates <paramref name="color"/>'s own alpha channel by a resolved <c>*Trans</c>
+    ///     (transparency) cell's raw value, parsed as a <c>0..1</c> fraction (<c>0</c> fully
+    ///     opaque, <c>1</c> fully transparent) and clamped to <c>[0, 1]</c> - defaulting to
+    ///     <c>0</c> (fully opaque, this method's previous behavior before this cell was consulted
+    ///     at all) when <paramref name="transRaw"/> is <see langword="null"/>, empty, or
+    ///     unparseable, per <c>canvas-net-vsdx.md</c>'s "never throw" design constraint. Confirmed
+    ///     necessary against <c>60973.vsdx</c>'s "Virtual Devices" container shape, whose Master
+    ///     resolves literal <c>FillForegndTrans="0.4"</c>/<c>LineColorTrans="0.4"</c> cells (40%
+    ///     transparency) that, unconsulted, left the container's fill fully opaque - visually
+    ///     confirmed to obscure its own label and its children's top edges against the
+    ///     Visio-reference PNG, which instead shows a light, mostly-see-through frame.
+    /// </summary>
+    /// <param name="color">The already fully opaque-or-not resolved color (<c>VsdxColorPalette.Resolve</c>'s own result) to modulate.</param>
+    /// <param name="transRaw">The resolved <c>*Trans</c> cell's raw string value, or <see langword="null"/> when unresolved anywhere in the chain.</param>
+    /// <returns><paramref name="color"/> with its alpha channel reduced by the parsed transparency fraction.</returns>
+    private static Rgba32 ApplyTransparency(Rgba32 color, string? transRaw)
+    {
+        var transparency = double.TryParse(transRaw, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) &&
+            double.IsFinite(parsed)
+            ? Math.Clamp(parsed, 0d, 1d)
+            : 0d;
+
+        if (transparency <= 0d)
+        {
+            return color;
+        }
+
+        var alpha = (byte)Math.Round(color.A * (1d - transparency), MidpointRounding.AwayFromZero);
+        return new Rgba32(color.R, color.G, color.B, alpha);
     }
 
     /// <summary>Resolves a <c>Line*</c>-category cell: the shape's own literal value, or the StyleSheet chain walked via the <c>LineStyle</c> parent pointer.</summary>
