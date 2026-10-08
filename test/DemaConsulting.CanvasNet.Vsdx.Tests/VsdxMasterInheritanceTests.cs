@@ -113,6 +113,42 @@ public class VsdxMasterInheritanceTests
     }
 
     /// <summary>
+    ///     Proves <c>MergeGeometryRows</c> merges an instance row over its Master's own
+    ///     same-indexed row <em>cell-by-cell</em>, not wholesale: an instance row carrying only an
+    ///     <c>X</c> cell (relying on <c>F="Inh"</c> for its own <c>Y</c>) must still inherit the
+    ///     Master row's own <c>Y</c> value, rather than that axis silently defaulting to <c>0</c>
+    ///     (the pre-fix "whole-row replacement" bug - see <c>MergeGeometryRows</c>'s own remarks
+    ///     and this milestone's Findings #2/#3 "diagonal zigzag" symptom).
+    /// </summary>
+    [Fact]
+    public void MasterInheritance_GeometryRowPartialOverride_MergesCellByCellNotWholesale()
+    {
+        // Arrange: the instance's own row IX=3 overrides only X (to 5), omitting Y entirely -
+        // the merged row must still carry the Master row's own Y=2, not default it to 0.
+        var instanceShapeXml =
+            """
+            <Shape ID="10" Type="Shape" Master="1">
+              <Section N="Geometry" IX="0">
+                <Row T="LineTo" IX="3"><Cell N="X" V="5"/></Row>
+              </Section>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(instanceShapeXml, mastersXml: MasterShapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var shape = document.GetPageShapes(0)[0];
+
+        // Assert: two commands (LineTo(2,0), then LineTo(5,2) - X from the instance, Y inherited
+        // from the Master row, not defaulted to 0).
+        var subpath = Assert.Single(shape.Geometries![0].Path.Subpaths);
+        Assert.Equal(2, subpath.Commands.Count);
+        var lastCommand = subpath.Commands[^1];
+        Assert.Equal(5f, lastCommand.EndPoint.X);
+        Assert.Equal(2f, lastCommand.EndPoint.Y);
+    }
+
+    /// <summary>
     ///     Proves a shape with no <c>Master=</c> attribute at all resolves using only its own
     ///     cells, with no Master merge attempted.
     /// </summary>

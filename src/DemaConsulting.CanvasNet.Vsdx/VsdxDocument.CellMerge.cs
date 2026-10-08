@@ -177,16 +177,31 @@ public sealed partial class VsdxDocument
 
     /// <summary>
     ///     Merges an instance geometry section's own rows with its Master's own same-indexed
-    ///     section's rows: a Master row not mentioned by the instance is inherited verbatim; an
-    ///     instance row at the same <c>IX</c> replaces it entirely (the instance always carries
-    ///     its own full row, including <c>T=</c>, even when only overriding one axis - see the
-    ///     format reference's own observation that <c>T=</c> is always present); and an instance
-    ///     row marked <c>Del="1"</c> removes the Master's row at that <c>IX</c> from the result
-    ///     entirely.
+    ///     section's rows <em>cell-by-cell</em> within each shared <c>IX</c>: a Master row not
+    ///     mentioned by the instance is inherited verbatim; an instance row at the same <c>IX</c>
+    ///     as a Master row is merged over it cell-by-cell via <see cref="VsdxCellBagMerge.Merge"/>
+    ///     (the instance's own literal cells win; a cell name the instance row does not itself
+    ///     carry falls through to the Master row's same-named cell - see
+    ///     <see cref="MergeGeometryRow"/>); an instance row at an <c>IX</c> with no Master row is
+    ///     used as-is; and an instance row marked <c>Del="1"</c> removes the Master's row at that
+    ///     <c>IX</c> from the result entirely.
     /// </summary>
     /// <param name="instanceRows">The instance section's own rows.</param>
     /// <param name="masterRows">The Master section's own rows, or <see langword="null"/> when there is no Master section at this index.</param>
     /// <returns>The merged rows, ordered by row <c>IX</c>.</returns>
+    /// <remarks>
+    ///     This method previously replaced the Master's same-indexed row wholesale whenever the
+    ///     instance carried any row at that <c>IX</c>, on the (now falsified) assumption that "the
+    ///     instance always carries its own full row... even when only overriding one axis." Direct
+    ///     raw-XML evidence from three independent real-world fixtures (<c>60489.vsdx</c>'s
+    ///     "system boundary" rounded rect, <c>60973.vsdx</c>'s rack frame, and
+    ///     <c>44501e.vsdx</c>'s UML class compartment divider) shows an instance row commonly
+    ///     carrying only a subset of cells (for example only <c>X</c>, relying on Visio's own
+    ///     <c>F="Inh"</c> to inherit <c>Y</c> from the Master's same-indexed row) - the previous
+    ///     whole-row replacement silently defaulted every cell the instance row omitted to
+    ///     <c>0</c>, corrupting the resolved path into a diagonal "zigzag"/degenerate shape. See
+    ///     this milestone's own completion report for the fuller root-cause trace.
+    /// </remarks>
     private static IReadOnlyList<VsdxGeometryRowRaw> MergeGeometryRows(
         IReadOnlyList<VsdxGeometryRowRaw> instanceRows,
         IReadOnlyList<VsdxGeometryRowRaw>? masterRows)
@@ -212,11 +227,32 @@ public sealed partial class VsdxDocument
             }
             else
             {
-                byIndex[row.Index] = row;
+                byIndex[row.Index] = byIndex.TryGetValue(row.Index, out var masterRow)
+                    ? MergeGeometryRow(row, masterRow)
+                    : row;
             }
         }
 
         return [.. byIndex.Values];
+    }
+
+    /// <summary>
+    ///     Merges a single instance geometry row over its Master's own same-indexed row,
+    ///     cell-by-cell: the row's own cell bag is merged via <see cref="VsdxCellBagMerge.Merge"/>
+    ///     (instance's own literal cell wins per name, else the Master row's same-named cell,
+    ///     else the instance's own non-literal cell), and the row's <c>T=</c> (type) is the
+    ///     instance row's own value when present, otherwise the Master row's value - mirroring
+    ///     every other cell's own "absent-on-instance falls through to Master" rule, since
+    ///     <c>T=</c> is not itself a <c>&lt;Cell&gt;</c> but the row element's own attribute.
+    /// </summary>
+    /// <param name="instanceRow">The instance's own row at this <c>IX</c>.</param>
+    /// <param name="masterRow">The Master's own row at the same <c>IX</c>.</param>
+    /// <returns>The merged <see cref="VsdxGeometryRowRaw"/>, keyed at <paramref name="instanceRow"/>'s own <c>IX</c> (identical to <paramref name="masterRow"/>'s, by construction).</returns>
+    private static VsdxGeometryRowRaw MergeGeometryRow(VsdxGeometryRowRaw instanceRow, VsdxGeometryRowRaw masterRow)
+    {
+        var mergedCells = VsdxCellBagMerge.Merge(instanceRow.Cells, masterRow.Cells);
+        var type = instanceRow.Type.Length > 0 ? instanceRow.Type : masterRow.Type;
+        return new VsdxGeometryRowRaw(instanceRow.Index, type, IsDelete: false, mergedCells);
     }
 
     /// <summary>
