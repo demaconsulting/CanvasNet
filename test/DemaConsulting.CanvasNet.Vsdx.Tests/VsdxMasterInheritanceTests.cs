@@ -137,4 +137,80 @@ public class VsdxMasterInheritanceTests
         Assert.Equal(4.0, shape.EffectiveCells!.GetDouble("PinX"));
         Assert.Equal(1.0, shape.EffectiveCells.GetDouble("Width"));
     }
+
+    /// <summary>
+    ///     Proves <c>ResolveMasterShape</c> caches a Master's parsed content tree per resolved
+    ///     master file rather than re-parsing <c>masterN.xml</c> on every shape that references
+    ///     the same Master ID - two independent page shapes both referencing <c>Master="1"</c>
+    ///     resolve the exact same <see cref="VsdxShapeNode"/> instance by reference, proving the
+    ///     cache (not merely an equal-by-value re-parse) is being hit. Exercises the internal
+    ///     <c>ResolveMasterShape</c> entry point directly (see its own remarks for why it is
+    ///     <see langword="internal"/>, not <see langword="private"/>): the cache is an
+    ///     implementation invariant with no distinguishing externally-visible side effect other
+    ///     than performance, so it cannot be proven through the public API alone.
+    /// </summary>
+    [Fact]
+    public void MasterInheritance_RepeatedResolution_ReusesCachedParsedMasterContentTree()
+    {
+        // Arrange: two page shapes both reference the same Master="1".
+        var pageShapesXml =
+            """
+            <Shape ID="10" Type="Shape" Master="1"/>
+            <Shape ID="11" Type="Shape" Master="1"/>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(pageShapesXml, mastersXml: MasterShapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act: resolve the same Master ID twice through the internal entry point.
+        var first = document.ResolveMasterShape("1");
+        var second = document.ResolveMasterShape("1");
+
+        // Assert: the exact same parsed instance is returned both times (reference equality),
+        // proving the second call served from the cache rather than re-parsing master1.xml.
+        Assert.NotNull(first);
+        Assert.Same(first, second);
+    }
+
+    /// <summary>
+    ///     Proves the geometry-row merge's "replace by matching IX" semantics: an instance row at
+    ///     the same <c>IX</c> as a Master row, with no <c>Del</c> attribute, replaces that row's
+    ///     own coordinates in the merged geometry (rather than being appended alongside it or
+    ///     ignored), while a Master row at a different, unmatched <c>IX</c> is still inherited
+    ///     verbatim in the same merge - proving both halves of
+    ///     <c>CanvasNetVsdx-VsdxDocument-GeometryRowMerge</c>'s "replace by IX" / "unmatched rows
+    ///     inherited verbatim" requirement text in a single shape, complementing the existing
+    ///     <see cref="MasterInheritance_GeometryRowDelete_RemovesMasterRowFromMergedGeometry"/>
+    ///     delete-case coverage.
+    /// </summary>
+    [Fact]
+    public void MasterInheritance_InstanceGeometryRowWithoutDel_ReplacesMasterRowAtMatchingIndex()
+    {
+        // Arrange: the instance replaces the Master's row IX=2 (LineTo (2,0)) with LineTo (3,0),
+        // while leaving the Master's row IX=3 (LineTo (2,2)) unmatched and thus inherited
+        // verbatim.
+        var instanceShapeXml =
+            """
+            <Shape ID="10" Type="Shape" Master="1">
+              <Section N="Geometry" IX="0">
+                <Row T="LineTo" IX="2"><Cell N="X" V="3"/><Cell N="Y" V="0"/></Row>
+              </Section>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(instanceShapeXml, mastersXml: MasterShapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var shape = document.GetPageShapes(0)[0];
+
+        // Assert: MoveTo(0,0) [start], then the replaced LineTo(3,0), then the unmatched,
+        // verbatim-inherited LineTo(2,2).
+        var subpath = Assert.Single(shape.Geometries![0].Path.Subpaths);
+        Assert.Equal(0f, subpath.Start.X);
+        Assert.Equal(0f, subpath.Start.Y);
+        Assert.Equal(2, subpath.Commands.Count);
+        Assert.Equal(3f, subpath.Commands[0].EndPoint.X);
+        Assert.Equal(0f, subpath.Commands[0].EndPoint.Y);
+        Assert.Equal(2f, subpath.Commands[1].EndPoint.X);
+        Assert.Equal(2f, subpath.Commands[1].EndPoint.Y);
+    }
 }

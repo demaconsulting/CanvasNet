@@ -117,6 +117,47 @@ public class VsdxGeometryTests
         Assert.Equal(1f, command.EndPoint.Y);
     }
 
+    /// <summary>
+    ///     Proves <c>EllipticalArcTo</c> and <c>NURBSTo</c> rows specifically - documented
+    ///     VisioML vocabulary this delivery recognizes by name but does not convert to path
+    ///     segments (see the <c>GeometryUnrecognizedRowSkip</c> requirement's own Milestone 8
+    ///     correction note) - are tolerantly skipped exactly like any other unrecognized row
+    ///     type, leaving the surrounding recognized rows' resolved geometry unaffected and never
+    ///     throwing.
+    /// </summary>
+    [Fact]
+    public void Geometry_EllipticalArcToAndNurbsToRows_AreSkippedWithoutThrowing()
+    {
+        // Arrange: MoveTo(0,0), an EllipticalArcTo row, a NURBSTo row, then LineTo(2,1) - both
+        // rows must be skipped entirely rather than contributing a command or throwing.
+        var shapeXml =
+            $"""
+            <Shape ID="1" Type="Shape">
+              {ShapeCellsXml}
+              <Section N="Geometry" IX="0">
+                <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+                <Row T="EllipticalArcTo" IX="2"><Cell N="X" V="1"/><Cell N="Y" V="1"/><Cell N="A" V="0.5"/><Cell N="B" V="0.5"/><Cell N="C" V="0"/><Cell N="D" V="1"/></Row>
+                <Row T="NURBSTo" IX="3"><Cell N="X" V="1"/><Cell N="Y" V="1"/><Cell N="A" V="0"/><Cell N="B" V="0"/><Cell N="C" V="0"/><Cell N="D" V="0"/><Cell N="E" V="1"/></Row>
+                <Row T="LineTo" IX="4"><Cell N="X" V="2"/><Cell N="Y" V="1"/></Row>
+              </Section>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var exception = Record.Exception(() => document.GetPageShapes(0));
+
+        // Assert
+        Assert.Null(exception);
+        var shape = document.GetPageShapes(0)[0];
+        var subpath = Assert.Single(shape.Geometries![0].Path.Subpaths);
+        var command = Assert.Single(subpath.Commands);
+        Assert.Equal(PathCommandType.LineTo, command.Type);
+        Assert.Equal(2f, command.EndPoint.X);
+        Assert.Equal(1f, command.EndPoint.Y);
+    }
+
     /// <summary>Proves the <c>NoFill</c>/<c>NoLine</c>/<c>NoShow</c> section flags are resolved from the section's own cells.</summary>
     [Fact]
     public void Geometry_SectionFlags_ResolvedFromSectionCells()

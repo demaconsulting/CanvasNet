@@ -20,9 +20,12 @@ unit's own delivery follows.
 ### Data Model
 
 - **`VsdxDocument`** (the public entry point) — holds the opened `ZipArchive`, the resolved
-  content-type/relationship part graph, the parsed `<StyleSheets>`/`<Colors>`/`<FaceNames>` model
-  from `visio/document.xml`, the page index parsed from `visio/pages/pages.xml`, a lazily-resolved
-  optional theme parsed from `visio/theme/theme1.xml`, and a lazily-resolved, per-master-file cache
+  content-type/relationship part graph, the parsed `<StyleSheets>` model from
+  `visio/document.xml` (an earlier revision of this design also claimed a parsed `<Colors>`/
+  `<FaceNames>` model here; Milestone 8 confirmed via repository-wide search that neither element
+  is parsed anywhere in this package's source and corrected this passage accordingly), the page
+  index parsed from `visio/pages/pages.xml`, a lazily-resolved optional theme parsed from
+  `visio/theme/theme1.xml`, and a lazily-resolved, per-master-file cache
   of parsed `<MasterContents>` trees (a page's shape tree is not resolved until `Render` is first
   called for that page, mirroring `PptxDocument`'s own lazy-resolution precedent — see
   _PptxDocument Unit Design_, `canvas-net-pptx/pptx-document.md`).
@@ -35,8 +38,10 @@ unit's own delivery follows.
   its effective (post-Master/MasterShape-merge, post-StyleSheet-chain-resolved) cell set
   (`PinX`/`PinY`/`Width`/`Height`/`LocPinX`/`LocPinY`/`Angle`/`FlipX`/`FlipY`, and for a 1-D shape
   `BeginX`/`BeginY`/`EndX`/`EndY`), its resolved geometry sections (each an ordered list of
-  geometry rows — `MoveTo`/`LineTo`/`RelMoveTo`/`RelLineTo`/`EllipticalArcTo`/`NURBSTo`/
-  `InfiniteLine` — plus the section-level `NoFill`/`NoLine`/`NoShow` flags), its resolved line/
+  geometry rows — `MoveTo`/`LineTo`/`RelMoveTo`/`RelLineTo` are converted to path segments, and
+  every other row type including `EllipticalArcTo`/`NURBSTo`/`InfiniteLine` is tolerantly skipped
+  (see Risk Control Measures in `canvas-net-vsdx.md`) — plus the section-level `NoFill`/`NoLine`/
+  `NoShow` flags), its resolved line/
   fill style (`LineColor`/`LineWeight`/`LinePattern`/`BeginArrow`/`EndArrow`/`FillForegnd`/
   `FillBkgnd`/`FillPattern`), its resolved text (runs with character/paragraph formatting, and the
   text box's own `TxtPinX`/`TxtPinY`/`TxtLocPinX`/`TxtLocPinY`/`TxtWidth`/`TxtHeight`/`TxtAngle`),
@@ -46,14 +51,14 @@ unit's own delivery follows.
   point-indexed (and if so, which connection-point index).
 - **`VsdxRenderOptions`** — render-time options: `BackgroundColor` (default opaque white,
   mirroring `PptxRenderOptions`'s own precedent).
-- **Supporting exception type**: `VsdxUnsupportedFeatureException` — thrown for a recognized but
-  explicitly deferred VisioML construct (an embedded `Foreign` shape, a non-solid `FillPattern`
-  beyond the documented subset, or an unrecognized `BeginArrow`/`EndArrow` index), carrying a
-  stable feature-token string, mirroring `PptxUnsupportedFeatureException`'s own precedent (see
-  _PptxDocument Unit Design_, `canvas-net-pptx/pptx-document.md`). An unrecognized geometry row
-  type or a dangling `Connect` target is **not** an exception — per the Risk Control Measures in
-  _CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`), these degrade to a tolerant, no-effect
-  skip instead.
+- **Supporting exception type**: `VsdxUnsupportedFeatureException` — defined (mirroring
+  `PptxUnsupportedFeatureException`'s own precedent, see _PptxDocument Unit Design_,
+  `canvas-net-pptx/pptx-document.md`) for a future recognized-but-deferred VisioML construct
+  requiring a hard failure, carrying a stable feature-token string. Not currently thrown by any
+  resolver in this delivery: a non-solid `FillPattern` beyond the documented subset, an
+  unrecognized `BeginArrow`/`EndArrow` index, an unrecognized geometry row
+  type, and a dangling `Connect` target all instead degrade to a tolerant, no-effect skip — per
+  the Risk Control Measures in _CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`).
 
 **Invariants**: `PageCount` and `GetPageSize` are available immediately after `Open` succeeds,
 with no page shape tree resolved yet. A `VsdxShapeNode`'s effective cell set is always fully
@@ -70,7 +75,8 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   for null, `ArgumentException` for an empty/whitespace path), opens the ZIP as a read-only
   `ZipArchive`, resolves `[Content_Types].xml` and the `_rels/.rels` → `visio/document.xml` →
   `masters.xml`/`pages.xml`/`theme1.xml` relationship chain, parses `visio/document.xml`'s
-  `<Colors>`/`<FaceNames>`/`<StyleSheets>` and `visio/pages/pages.xml`'s page index. Throws
+  `<StyleSheets>` and `visio/pages/pages.xml`'s page index (not `<Colors>`/`<FaceNames>` — see
+  the Data Model section's own correction note above). Throws
   `InvalidDataException` for an unreadable/corrupt ZIP or a package missing a required part.
   Postcondition: `PageCount`/`GetPageSize` are resolvable; no page's shape tree is parsed yet.
 - **`PageCount`** (property): Returns the number of entries in the parsed page index.
@@ -105,9 +111,9 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   for a 2-D shape and a 1-D (connector) shape, since a 1-D shape's `PinX/PinY/Width/Height/Angle`
   are themselves pre-derived from its `BeginX/Y`/`EndX/Y` endpoints by Visio at save time.
 - **`ResolveGeometry(VsdxShapeNode shape)`** (internal): Converts each resolved geometry section's
-  rows into a `Geometry.Path`, scaling `RelMoveTo`/`RelLineTo`'s normalized `[0,1]` coordinates by
-  `Width`/`Height`, converting `EllipticalArcTo`/`NURBSTo` rows to Bezier segments, and skipping
-  (not throwing on) an unrecognized row type.
+  `MoveTo`/`LineTo`/`RelMoveTo`/`RelLineTo` rows into a `Geometry.Path`, scaling `RelMoveTo`/
+  `RelLineTo`'s normalized `[0,1]` coordinates by `Width`/`Height`, and skipping (not throwing on)
+  every other row type, including `EllipticalArcTo`/`NURBSTo`/`InfiniteLine`.
 - **`ResolveConnectors(VsdxDocument document, IReadOnlyList<XElement> connects)`** (internal):
   Resolves each `<Connect>` entry's connector shape and target shape; since a connector's own
   `BeginX/BeginY`/`EndX/EndY` cells are already pre-baked, resolved page-space coordinates (by
@@ -141,12 +147,17 @@ Measures call for tolerance, and only propagates to the caller when no safe defa
 ### Dependencies
 
 - **`CanvasNet.Canvas`** — `Surface` (destination raster), `Rgba32` (resolved line/fill/text
-  colors, including built-in palette index and document `<Colors>` table resolution)
+  colors, including built-in palette index, literal hex, and `"Themed"`-sentinel resolution — not
+  a document-declared `<Colors>` table, which is never parsed; see the Data Model section's own
+  correction note above)
 - **`CanvasNet.Geometry`** — `Path`/`PathBuilder` (resolved shape/connector outlines), `Rect`
   (resolved bounding boxes)
 - **`CanvasNet.Drawing`** — `PathFiller`/`PathStroker` (rasterizing resolved paths/strokes/
-  arrowheads), `Gradient`/`LinearGradient`/`GradientStop` (best-effort linear fill-pattern
-  approximation)
+  arrowheads). Correction note (Milestone 8): an earlier revision of this design also listed
+  `Gradient`/`LinearGradient`/`GradientStop` here for a best-effort linear fill-pattern
+  approximation; this was never implemented, and no such type is referenced anywhere in this
+  package's source — every non-solid `FillPattern` value degrades to solid fill instead (see
+  `FillPatternDeferral` above).
 - **`CanvasNet.Fonts`** — `TrueTypeFont`/`SystemFontCatalog` (resolving a `Section N="Character"`
   row's `Font` name hint and extracting glyph outlines for shape/connector text)
 - **`CanvasNet.Codecs`** — reserved for the deferred embedded-image/`Foreign`-shape capability;

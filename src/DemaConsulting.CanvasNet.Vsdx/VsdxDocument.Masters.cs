@@ -32,7 +32,7 @@ public sealed partial class VsdxDocument
     /// </summary>
     /// <param name="masterId">The shape's own <c>Master=</c> attribute value, or <see langword="null"/>.</param>
     /// <returns>The Master's raw top-level shape, or <see langword="null"/>.</returns>
-    private VsdxShapeNode? ResolveMasterShape(string? masterId)
+    internal VsdxShapeNode? ResolveMasterShape(string? masterId)
     {
         if (masterId is null)
         {

@@ -1,7 +1,7 @@
 # System Design
 
 <!-- cspell:ignore vsdx Visio VisioML xfrm stencil stencils glueable NURBS nurbs -->
-<!-- cspell:ignore shapesheet ShapeSheet rrggbb slnx -->
+<!-- cspell:ignore shapesheet ShapeSheet rrggbb slnx Foregnd -->
 
 This document provides the system-level design for CanvasNetVsdx.
 
@@ -106,14 +106,21 @@ nesting) and every method's full parameter and exception detail.
 
 - The `Canvas` subsystem's `Surface` unit (constructing the destination raster and compositing
   filled/stroked/text pixels into it) and `Rgba32` unit (representing resolved line/fill/text
-  colors, including the built-in 24-color Visio palette, the document's own `<Colors>` extension
-  table, and literal hex colors)
-- The `Geometry` subsystem's `Path`/`PathBuilder` (assembling a shape's resolved geometry-row
-  subpaths, including `EllipticalArcTo` and `NURBSTo` segments converted to Bezier curves) and
-  `Rect` (resolved shape/page bounding boxes)
+  colors, including the built-in 24-color Visio palette and literal hex colors). Correction note
+  (Milestone 8): an earlier revision of this design also claimed resolution against the
+  document's own `<Colors>` extension table (a custom, document-declared color palette distinct
+  from the built-in 24-color one); a repository-wide search confirms no `<Colors>` element is
+  parsed anywhere in this package's source — only the built-in palette, literal hex colors, and
+  the `"Themed"` sentinel are resolved (see `VsdxColorPalette.Resolve`).
+- The `Geometry` subsystem's `Path`/`PathBuilder` (assembling a shape's resolved `MoveTo`/
+  `LineTo`/`RelMoveTo`/`RelLineTo` geometry-row subpaths) and `Rect` (resolved shape/page bounding
+  boxes)
 - The `Drawing` subsystem's `PathFiller`/`PathStroker` (rasterizing resolved shape/connector
-  outlines, including connector arrowheads) and `Gradient`/`LinearGradient`/`GradientStop` types
-  (best-effort fill-pattern resolution, mirroring `CanvasNetPptx`'s own linear-only boundary)
+  outlines, including connector arrowheads). Correction note (Milestone 8): an earlier revision of
+  this design anticipated also depending on the `Gradient`/`LinearGradient`/`GradientStop` types
+  for a best-effort fill-pattern resolution; this was never implemented, and no such type is
+  referenced anywhere in this package's source — every non-solid `FillPattern` value degrades to
+  solid fill instead (see Design Constraints below).
 - The `Fonts` subsystem's `TrueTypeFont`/`SystemFontCatalog` (resolving a `Section N="Character"`
   row's `Font` name hint and extracting glyph outlines for shape text)
 - The `Codecs` subsystem (reserved for the deferred embedded-image/foreign-object capability
@@ -171,8 +178,13 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
    a required part with `InvalidDataException`
 3. **Processing**: Resolves `[Content_Types].xml` and the `_rels/.rels` → `visio/document.xml` →
    `masters.xml`/`pages.xml`/`theme1.xml` relationship chain into a navigable part graph; parses
-   `visio/document.xml`'s `<Colors>`/`<FaceNames>`/`<StyleSheets>` and `visio/pages/pages.xml`'s
-   page index into an in-memory model, without yet resolving any individual page's shape tree
+   `visio/document.xml`'s `<StyleSheets>` and `visio/pages/pages.xml`'s page index into an
+   in-memory model, without yet resolving any individual page's shape tree. Correction note
+   (Milestone 8): an earlier revision of this design also claimed `<Colors>`/`<FaceNames>`
+   parsing at this step; a repository-wide search confirms neither element is parsed anywhere in
+   this package's source (see the Dependencies section's own correction note above for the
+   `<Colors>` case specifically) - `<FaceNames>` parsing was never implemented at all, and no
+   in-scope requirement or test currently depends on it.
 4. **Output**: A `VsdxDocument` instance exposing `PageCount`/`GetPageSize`/`Render`
 
 **Page render path:**
@@ -199,7 +211,7 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
 - **Portability**: Compatible across supported .NET platforms
 - **Format subset**: `VsdxDocument` implements the VisioML construct set confirmed by real-world
   sample packages (per the format research underlying this design) — `MoveTo`/`LineTo`/
-  `RelMoveTo`/`RelLineTo`/`EllipticalArcTo`/`NURBSTo`/`InfiniteLine` geometry rows; Master/
+  `RelMoveTo`/`RelLineTo` geometry rows; Master/
   MasterShape cell-and-row inheritance; the StyleSheet chain (including direct per-shape
   overrides); explicit hex and built-in-palette-index colors; character/paragraph text formatting
   and run markers; whole-shape-pin and connection-point-indexed glue; and arbitrarily nested
@@ -218,13 +230,23 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
   - **Non-solid `FillPattern` values (built-in hatch/gradient combinations)** and the full
     `BeginArrow`/`EndArrow` arrowhead-style index table — neither is fully enumerable from the
     format research's sample corpus; `VsdxDocument` supports `FillPattern` 0 (none) and 1 (solid)
-    plus a best-effort linear-gradient approximation, and a documented subset of common arrowhead
-    styles, with an unrecognized value degrading to a flat fill or a plain, unadorned line end
-    respectively, never throwing.
-  - **`ArcTo`/`RelCubBezTo`/`SplineStart`/`SplineKnot`/`PolylineTo`/`Ellipse` geometry rows** —
-    documented VisioML vocabulary not observed in any inspected sample; an unrecognized row type
-    is skipped (see Risk Control Measures above) rather than implemented against an unverified
-    cell layout.
+    directly, and degrades any other numeric `FillPattern` value to the same solid-fill treatment
+    (using the resolved `FillForegnd` color), and supports a documented subset of common arrowhead
+    styles, with an unrecognized arrowhead index degrading to a plain, unadorned line end, never
+    throwing. An earlier revision of this design anticipated a best-effort linear-gradient
+    approximation for a non-solid `FillPattern`; this was never implemented — direct inspection of
+    `VsdxDocument.Paint.cs` confirms every non-zero, non-one `FillPattern` value has always
+    degraded to solid fill, and no `Gradient`/`LinearGradient` type from the core `Drawing`
+    subsystem is referenced anywhere in this package's source.
+  - **`EllipticalArcTo`/`NURBSTo`/`InfiniteLine`/`ArcTo`/`RelCubBezTo`/`SplineStart`/
+    `SplineKnot`/`PolylineTo`/`Ellipse` geometry rows** — documented VisioML vocabulary observed
+    (`EllipticalArcTo`/`NURBSTo`) or not observed (the remainder) in the inspected sample corpus;
+    every one of these row types is skipped (see Risk Control Measures above) rather than
+    implemented against an unverified cell layout or curve-approximation algorithm. An earlier
+    revision of this design anticipated converting `EllipticalArcTo`/`NURBSTo` rows to Bezier
+    curve approximations; this was never implemented, and the tolerant-skip treatment already
+    applied to every other unrecognized row type was confirmed sufficient (no inspected fixture's
+    rendered output depends on these two row types contributing a path segment).
 
   None of these gaps blocks the rest of the design: each is isolated to its own narrow code path,
   with a safe, non-throwing fallback, consistent with the Risk Control Measures above.
@@ -282,7 +304,7 @@ already correct.
    row vocabulary and the shape-local-to-page affine transform (including the 1-D begin/end-
    derived transform special case); implement the Master/MasterShape cell-and-geometry-row merge
    algorithm and the StyleSheet chain resolution (including direct per-shape overrides and the
-   built-in/document `<Colors>` palette). Scope: an ungrouped, unmastered-or-mastered shape's
+   built-in color palette). Scope: an ungrouped, unmastered-or-mastered shape's
    outline, fill, and stroke resolve and paint correctly.
 4. **Text rendering.** Implement `<Text>` run parsing (`<cp>`/`<pp>` markers against
    `Section N="Character"`/`"Paragraph"` rows), the implicit text-box-equals-shape-box default,

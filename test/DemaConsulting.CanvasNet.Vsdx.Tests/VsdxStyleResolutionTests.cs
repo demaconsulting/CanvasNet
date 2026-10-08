@@ -161,4 +161,82 @@ public class VsdxStyleResolutionTests
         var paint = document.GetPageShapes(0)[0].Paint!;
         Assert.Equal(VsdxColorPalette.ThemedFallback, paint.FillColor);
     }
+
+    /// <summary>
+    ///     Proves the StyleSheet chain walk's own documented termination guarantee: a shape
+    ///     referencing StyleSheet ID <c>0</c> ("No Style") directly - the chain's own root, with
+    ///     no further parent of any kind - resolves ID 0's literal cells immediately, with no
+    ///     infinite walk and no fallback-to-caller-default needed, proving the walk is guaranteed
+    ///     to terminate at ID 0 exactly as <c>CanvasNetVsdx-VsdxDocument-NoStyleTermination</c>
+    ///     requires.
+    /// </summary>
+    [Fact]
+    public void StyleResolution_NoAncestorSuppliesValue_TerminatesAtStyleSheetZeroDefault()
+    {
+        // Arrange: LineStyle/FillStyle reference ID 0 directly - the chain's own terminal node.
+        var shapeXml =
+            """
+            <Shape ID="1" Type="Shape" LineStyle="0" FillStyle="0">
+              <Cell N="PinX" V="1"/><Cell N="PinY" V="1"/><Cell N="Width" V="1"/><Cell N="Height" V="1"/>
+              <Cell N="LocPinX" V="0.5"/><Cell N="LocPinY" V="0.5"/><Cell N="Angle" V="0"/>
+              <Section N="Geometry" IX="0">
+                <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+              </Section>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shapeXml, StyleSheetsXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var exception = Record.Exception(() => document.GetPageShapes(0));
+
+        // Assert: resolves without throwing (no infinite walk), landing directly on ID 0's own
+        // literal LineColor="0" (black) / FillForegnd="1" (white) - the same terminal values
+        // StyleResolution_ChainWalk_ResolvesThroughMultipleParents proves are reached via the
+        // longer 3 -> 1 -> 0 walk.
+        Assert.Null(exception);
+        var paint = document.GetPageShapes(0)[0].Paint!;
+        Assert.True(paint.HasLine);
+        Assert.Equal(0, paint.StrokeColor.R);
+        Assert.True(paint.HasFill);
+        Assert.Equal(255, paint.FillColor.R);
+    }
+
+    /// <summary>
+    ///     Proves a non-zero, non-one <c>FillPattern</c> value degrades to the same solid-fill
+    ///     treatment as <c>FillPattern="1"</c> (using the resolved <c>FillForegnd</c> color)
+    ///     rather than throwing - the actual, correct, graceful-degradation behavior the
+    ///     <c>FillPatternDeferral</c> requirement describes after its Milestone 8 text
+    ///     correction (an earlier revision of that requirement incorrectly claimed the library
+    ///     "shall... throw VsdxUnsupportedFeatureException" for this case; it never did).
+    /// </summary>
+    [Fact]
+    public void StyleResolution_DegradesNonSolidFillPatternToSolidFillWithoutThrowing()
+    {
+        // Arrange: FillPattern="25" is not enumerable as a specific hatch/gradient pattern.
+        var shapeXml =
+            """
+            <Shape ID="1" Type="Shape" LineStyle="0" FillStyle="0">
+              <Cell N="PinX" V="1"/><Cell N="PinY" V="1"/><Cell N="Width" V="1"/><Cell N="Height" V="1"/>
+              <Cell N="LocPinX" V="0.5"/><Cell N="LocPinY" V="0.5"/><Cell N="Angle" V="0"/>
+              <Cell N="FillForegnd" V="#336699"/><Cell N="FillPattern" V="25"/>
+              <Section N="Geometry" IX="0">
+                <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+              </Section>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shapeXml, StyleSheetsXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var exception = Record.Exception(() => document.GetPageShapes(0));
+
+        // Assert: degrades to solid fill using the resolved FillForegnd color, never throwing.
+        Assert.Null(exception);
+        var paint = document.GetPageShapes(0)[0].Paint!;
+        Assert.True(paint.HasFill);
+        Assert.Equal(0x33, paint.FillColor.R);
+        Assert.Equal(0x66, paint.FillColor.G);
+        Assert.Equal(0x99, paint.FillColor.B);
+    }
 }

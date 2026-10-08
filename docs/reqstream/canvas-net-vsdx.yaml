@@ -12,25 +12,26 @@
 #
 # CanvasNetVsdx is an independent software system, distributed as its own NuGet package, depending
 # on the core CanvasNet system (docs/reqstream/canvas-net.yaml) - specifically its Canvas
-# (Surface/Rgba32), Geometry (Path/PathBuilder/Rect), Drawing (PathFiller/PathStroker/Gradient
-# types), and Fonts (TrueTypeFont/SystemFontCatalog) subsystems - see
-# docs/design/canvas-net-vsdx.md's Dependencies section for details. Unlike CanvasNetPptx's own
-# incrementally-delivered phase history, this requirement set describes CanvasNetVsdx's complete,
-# final feature set in full, to be delivered as a single pull request following the internal
-# Implementation Phase Plan documented in docs/design/canvas-net-vsdx.md: an OPC (Open Packaging
-# Conventions) package layer opening a .vsdx file and resolving its [Content_Types].xml and
-# relationship graph; a page/shape model parsing the page index and each page's shape tree; shape
-# geometry/transform resolution (including the 1-D connector begin/end-derived transform special
-# case); Master/MasterShape cell-and-geometry-row inheritance; StyleSheet chain resolution for
-# line/fill/text style, including the built-in/document color palette and best-effort Themed-cell
-# resolution; text rendering; connector/glue-point routing (trusting a connector's own pre-baked,
-# already-resolved page-space endpoint coordinates); color/fill resolution; arbitrarily nested
-# group/child-shape handling; and the public, page-level Render API. Embedded images/Foreign
-# shapes, non-trivial theme-variation resolution, non-solid fill-pattern combinations beyond
-# solid, the full arrowhead style-index table, and several documented-but-unobserved geometry row
-# types (ArcTo/RelCubBezTo/SplineStart/SplineKnot/PolylineTo/Ellipse) remain explicitly deferred -
-# see docs/design/canvas-net-vsdx.md's Design Constraints section for the complete deferred-feature
-# boundary.
+# (Surface/Rgba32), Geometry (Path/PathBuilder/Rect), Drawing (PathFiller/PathStroker), and Fonts
+# (TrueTypeFont/SystemFontCatalog) subsystems - see docs/design/canvas-net-vsdx.md's Dependencies
+# section for details. Unlike CanvasNetPptx's own incrementally-delivered phase history, this
+# requirement set describes CanvasNetVsdx's complete, final feature set in full, to be delivered
+# as a single pull request following the internal Implementation Phase Plan documented in
+# docs/design/canvas-net-vsdx.md: an OPC (Open Packaging Conventions) package layer opening a
+# .vsdx file and resolving its [Content_Types].xml and relationship graph; a page/shape model
+# parsing the page index and each page's shape tree; shape geometry/transform resolution
+# (including the 1-D connector begin/end-derived transform special case); Master/MasterShape
+# cell-and-geometry-row inheritance; StyleSheet chain resolution for line/fill/text style,
+# including the built-in color palette and best-effort Themed-cell resolution; text
+# rendering; connector/glue-point routing (trusting a connector's own pre-baked, already-resolved
+# page-space endpoint coordinates); color/fill resolution; arbitrarily nested group/child-shape
+# handling; and the public, page-level Render API. Embedded images/Foreign shapes, non-trivial
+# theme-variation resolution, non-solid fill-pattern combinations beyond solid (including any
+# gradient approximation), the full arrowhead style-index table, and several documented geometry
+# row types that are recognized but not resolved into path segments
+# (EllipticalArcTo/NURBSTo/InfiniteLine/ArcTo/RelCubBezTo/SplineStart/SplineKnot/PolylineTo/
+# Ellipse) remain explicitly deferred - see docs/design/canvas-net-vsdx.md's Design Constraints
+# section for the complete deferred-feature boundary.
 
 sections:
   - title: CanvasNetVsdx Requirements
@@ -82,8 +83,9 @@ sections:
       - id: CanvasNetVsdx-Geometry
         title: >-
           The library shall resolve each shape's geometry sections into renderable path outlines,
-          supporting the MoveTo/LineTo/RelMoveTo/RelLineTo/EllipticalArcTo/NURBSTo/InfiniteLine row
-          vocabulary, and tolerate an unrecognized row type by skipping that row rather than
+          supporting the MoveTo/LineTo/RelMoveTo/RelLineTo row vocabulary, and tolerate every other
+          row type - including the recognized but not-yet-resolved EllipticalArcTo/NURBSTo/
+          InfiniteLine rows and any other unrecognized row type - by skipping that row rather than
           failing the shape or the page.
         tags: [system]
         justification: |
@@ -143,24 +145,32 @@ sections:
 
       - id: CanvasNetVsdx-ColorFill
         title: >-
-          The library shall resolve a shape's effective line color and fill (solid, or a
-          best-effort linear-gradient approximation) from its resolved style, including the
-          document's own explicit hex and built-in-palette-index color table, and resolve a
+          The library shall resolve a shape's effective line color and fill from its resolved
+          style, including the built-in 24-entry palette-index convention and a directly-declared
+          hex literal; resolve a solid FillPattern value directly and gracefully degrade any other
+          FillPattern value to the same solid-fill treatment rather than throwing; and resolve a
           literal Themed cell value against an optional parsed theme part, falling back to a
           neutral default when no theme part is present or the referenced entry is absent.
         tags: [system]
         justification: |
           Correct color resolution is required for every visibly painted shape; a renderer that
-          cannot resolve the document's own color table or gracefully degrade an unresolvable
-          themed reference would produce visibly wrong output on a large fraction of real diagrams.
+          cannot resolve a built-in-palette-index or hex color, cannot gracefully degrade a
+          not-fully-enumerable FillPattern value, or cannot gracefully degrade an unresolvable themed
+          reference would produce visibly wrong output - or an avoidable failure - on a large
+          fraction of real diagrams. Correction note (Milestone 8): this requirement previously
+          also claimed resolution against "the document's own explicit hex and
+          built-in-palette-index color table" (implying a parsed, document-declared `<Colors>`
+          extension table); a repository-wide search confirms no such element is parsed anywhere
+          in this package's source - only the built-in palette, literal hex, and the "Themed"
+          sentinel are resolved. This is a documentation-only correction.
         children:
           - CanvasNetVsdx-VsdxDocument-ColorTableResolution
           - CanvasNetVsdx-VsdxDocument-ThemedCellResolution
           - CanvasNetVsdx-VsdxDocument-FillPatternDeferral
         tests:
-          - CanvasNetVsdx_SystemIntegration_ColorFill_ResolvesDocumentColorTable
+          - CanvasNetVsdx_SystemIntegration_ColorFill_ResolvesBuiltInPaletteIndexAndHexColors
           - CanvasNetVsdx_SystemIntegration_ColorFill_ThemedCellFallsBackToNeutralDefaultWhenNoTheme
-          - CanvasNetVsdx_SystemIntegration_ColorFill_UnsupportedFillPatternThrowsVsdxUnsupportedFeatureException
+          - CanvasNetVsdx_SystemIntegration_ColorFill_UnsupportedFillPatternDegradesToSolidFill
 
       - id: CanvasNetVsdx-Text
         title: >-
