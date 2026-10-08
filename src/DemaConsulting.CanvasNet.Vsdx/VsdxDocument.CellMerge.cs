@@ -16,18 +16,27 @@ public sealed partial class VsdxDocument
     /// <summary>
     ///     The <see cref="VsdxShapeTransform"/>'s own input cell names - <c>PinX</c>/<c>PinY</c>/
     ///     <c>Width</c>/<c>Height</c>/<c>LocPinX</c>/<c>LocPinY</c>/<c>Angle</c>/<c>FlipX</c>/
-    ///     <c>FlipY</c> - for which an instance's own cached cell (even when marked <c>F="Inh"</c>)
-    ///     must always win over the Master's own same-named cell, rather than the generic
-    ///     "literal-instance-wins, else Master's cell" rule <see cref="VsdxCellBagMerge.Merge"/>
-    ///     otherwise applies. Unlike a shared style cell (for example <c>LineColor</c>), where the
-    ///     Master's own cell genuinely <em>is</em> the shared value an inherited instance cell is
-    ///     merely caching, these nine cells are never actually shared across instances of the same
-    ///     Master: a 1-D (connector) shape's <c>PinX</c>/<c>PinY</c>/<c>Width</c>/<c>Height</c>/
-    ///     <c>LocPinX</c>/<c>LocPinY</c> cells are themselves baked, per-instance, from that
-    ///     instance's own <c>BeginX</c>/<c>BeginY</c>/<c>EndX</c>/<c>EndY</c> endpoints (see
+    ///     <c>FlipY</c> - for which, <em>on a 1-D (connector) shape only</em> (both a
+    ///     <c>BeginX</c> and an <c>EndX</c> cell present on the merged result - see
+    ///     <see cref="MergeCells"/>'s own remarks), an instance's own cached cell (even when
+    ///     marked <c>F="Inh"</c>) must always win over the Master's own same-named cell, rather
+    ///     than the generic "literal-instance-wins, else Master's cell" rule
+    ///     <see cref="VsdxCellBagMerge.Merge"/> otherwise applies. Unlike a shared style cell (for
+    ///     example <c>LineColor</c>), where the Master's own cell genuinely <em>is</em> the shared
+    ///     value an inherited instance cell is merely caching, these nine cells are never actually
+    ///     shared across instances of the same Master <em>for a 1-D shape</em>: a 1-D (connector)
+    ///     shape's <c>PinX</c>/<c>PinY</c>/<c>Width</c>/<c>Height</c>/<c>LocPinX</c>/
+    ///     <c>LocPinY</c> cells are themselves baked, per-instance, from that instance's own
+    ///     <c>BeginX</c>/<c>BeginY</c>/<c>EndX</c>/<c>EndY</c> endpoints (see
     ///     <see cref="VsdxShapeTransform"/>'s own remarks) - the Master's own same-named cell is
     ///     only that Master's own unrelated default template position/size, never a value any
-    ///     instance should ever adopt. Confirmed against <c>60973.vsdx</c>'s own connector-group
+    ///     instance should ever adopt. A 2-D shape (one with no <c>BeginX</c>/<c>EndX</c> cell) is
+    ///     deliberately <em>excluded</em> from this overlay (see <see cref="MergeCells"/>): for a
+    ///     2-D shape, the Master's own same-named cell genuinely can be the shared,
+    ///     legitimately-inherited value (a shape never locally moved/resized by the author), so
+    ///     the generic "Master's cell wins over an inherited instance cell" rule remains correct
+    ///     and must not be overridden merely because the instance happens to carry its own stale/
+    ///     cached cell for one of these nine names. Confirmed against <c>60973.vsdx</c>'s own connector-group
     ///     shape <c>ID='802'</c> (<c>Master='28'</c>): its own <c>PinX</c>/<c>PinY</c>/
     ///     <c>LocPinX</c>/<c>LocPinY</c> cells are marked <c>F="Inh"</c>, so the generic merge rule
     ///     discarded their already-correct, baked instance values (<c>PinX≈3.84</c>,
@@ -47,10 +56,16 @@ public sealed partial class VsdxDocument
 
     /// <summary>
     ///     Merges an instance shape's own cells with its Master shape's cells (if any) into a
-    ///     single, flat effective <see cref="VsdxCellBag"/>, then re-applies the instance's own
-    ///     cached <see cref="TransformCellNames"/> cells (if present) over whatever the generic
-    ///     merge produced - see <see cref="TransformCellNames"/>'s own remarks for why these nine
-    ///     cells cannot use the generic "Master's cell wins over an inherited instance cell" rule.
+    ///     single, flat effective <see cref="VsdxCellBag"/>, then - <em>only when the merged
+    ///     result identifies the shape as 1-D</em> (both a <c>BeginX</c> and an <c>EndX</c> cell
+    ///     present, the same detection convention <c>VsdxDocument.Groups.cs</c>'s own
+    ///     <c>ConnectorEndpoints</c> resolution uses) - re-applies the instance's own cached
+    ///     <see cref="TransformCellNames"/> cells (if present) over whatever the generic merge
+    ///     produced; see <see cref="TransformCellNames"/>'s own remarks for why a 1-D shape's nine
+    ///     transform cells cannot use the generic "Master's cell wins over an inherited instance
+    ///     cell" rule. A 2-D shape is left unaffected by this overlay: its generic merge result
+    ///     (Master's cell wins over an <c>F="Inh"</c> instance cell) is correct for a shape that
+    ///     legitimately inherits its full transform from its Master.
     /// </summary>
     /// <param name="instanceCells">The instance shape's own direct <c>&lt;Cell&gt;</c> children.</param>
     /// <param name="masterCells">The Master shape's own direct <c>&lt;Cell&gt;</c> children, or <see langword="null"/> when the instance has no Master.</param>
@@ -67,7 +82,19 @@ public sealed partial class VsdxDocument
         }
 
         var merged = VsdxCellBagMerge.Merge(instanceCells, masterCells);
-        return PreferInstanceTransformCells(merged, instanceCells);
+
+        // Only a 1-D (connector) shape's own transform cells are baked, per-instance, from that
+        // instance's own BeginX/BeginY/EndX/EndY endpoints (see TransformCellNames's own
+        // remarks) - the same detection convention VsdxDocument.Groups.cs's own
+        // ConnectorEndpoints resolution uses (a 1-D shape always carries both a BeginX and an
+        // EndX cell; a 2-D shape carries neither). A 2-D shape that legitimately inherits its
+        // full transform from its Master (never locally moved/resized, its own cell - if any -
+        // still marked F="Inh") must keep falling through to the generic "Master's cell wins
+        // over an inherited instance cell" rule above; only a 1-D shape's own cached cell should
+        // ever override the Master's unrelated template-local position/size.
+        return merged.TryGet("BeginX", out _) && merged.TryGet("EndX", out _)
+            ? PreferInstanceTransformCells(merged, instanceCells)
+            : merged;
     }
 
     /// <summary>

@@ -210,29 +210,71 @@ public class VsdxMasterInheritanceTests
         Assert.Equal(2, subpath.Commands.Count);
         Assert.Equal(3f, subpath.Commands[0].EndPoint.X);
         Assert.Equal(0f, subpath.Commands[0].EndPoint.Y);
+        Assert.Equal(2f, subpath.Commands[1].EndPoint.X);
+        Assert.Equal(2f, subpath.Commands[1].EndPoint.Y);
     }
 
     /// <summary>
-    ///     Proves Milestone 10's <c>PreferInstanceTransformCells</c> overlay: an instance's own
-    ///     <c>PinX</c> cell marked <c>F="Inh"</c> (a cached, round-tripped formula result, not a
-    ///     literal override) still wins over the Master's own distinct <c>PinX</c> value - unlike
-    ///     every other (non-transform) cell, where an <c>Inh</c> marking defers entirely to the
-    ///     Master. Confirmed necessary against <c>60973.vsdx</c>'s shape <c>802</c> (a 1-D
-    ///     connector instance): its own cached, per-instance-computed <c>PinX</c>/<c>PinY</c> (Visio's
-    ///     already-baked connector endpoint midpoint) were being discarded in favor of the
-    ///     Master's own small, unrelated template-local default position, because the generic
-    ///     Master-wins merge rule treated the instance's <c>Inh</c>-marked cell as "absent" - see
+    ///     Proves Milestone 10's <c>PreferInstanceTransformCells</c> overlay, narrowed (Milestone
+    ///     10 retry 1, Finding #3) to apply only to a 1-D (connector) shape - one carrying both a
+    ///     <c>BeginX</c> and an <c>EndX</c> cell, the same detection convention
+    ///     <c>VsdxDocument.Groups.cs</c>'s own <c>ConnectorEndpoints</c> resolution uses: an
+    ///     instance's own <c>PinX</c> cell marked <c>F="Inh"</c> (a cached, round-tripped formula
+    ///     result, not a literal override) still wins over the Master's own distinct <c>PinX</c>
+    ///     value - unlike every other (non-transform) cell, where an <c>Inh</c> marking defers
+    ///     entirely to the Master. Confirmed necessary against <c>60973.vsdx</c>'s shape
+    ///     <c>802</c> (a genuine 1-D connector instance, carrying its own <c>BeginX</c>/
+    ///     <c>BeginY</c>/<c>EndX</c>/<c>EndY</c> cells exactly as this fixture now does): its own
+    ///     cached, per-instance-computed <c>PinX</c>/<c>PinY</c> (Visio's already-baked connector
+    ///     endpoint midpoint) were being discarded in favor of the Master's own small, unrelated
+    ///     template-local default position, because the generic Master-wins merge rule treated the
+    ///     instance's <c>Inh</c>-marked cell as "absent" - see
     ///     <c>VsdxDocument.CellMerge.cs</c>'s own <c>TransformCellNames</c> remarks for the full
     ///     root-cause account and why this is strictly more correct than the generic rule for
-    ///     exactly these 9 per-instance geometry/position cells.
+    ///     exactly these 9 per-instance geometry/position cells, and only for a 1-D shape.
     /// </summary>
     [Fact]
     public void MasterInheritance_InstanceInhMarkedTransformCell_PreferredOverMasterValue()
     {
         // Arrange: the Master's own PinX is 2 (its small, template-local default position); the
-        // instance carries its own cached PinX="9", marked F="Inh" - a round-tripped formula
-        // result, not a literal override, yet still the instance's own correct, per-instance
-        // computed position.
+        // instance is a genuine 1-D connector (carries its own BeginX/BeginY/EndX/EndY cells, the
+        // 1-D detection convention) with its own cached PinX="9", marked F="Inh" - a round-tripped
+        // formula result, not a literal override, yet still the instance's own correct,
+        // per-instance computed position derived from its own endpoints.
+        var instanceShapeXml =
+            """
+            <Shape ID="10" Type="Shape" Master="1">
+              <Cell N="PinX" V="9" F="Inh"/>
+              <Cell N="BeginX" V="8"/><Cell N="BeginY" V="1"/>
+              <Cell N="EndX" V="10"/><Cell N="EndY" V="1"/>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(instanceShapeXml, mastersXml: MasterShapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var shape = document.GetPageShapes(0)[0];
+
+        // Assert: the instance's own Inh-marked PinX (9) wins, not the Master's PinX (2).
+        Assert.Equal(9.0, shape.EffectiveCells!.GetDouble("PinX"));
+    }
+
+    /// <summary>
+    ///     Proves Milestone 10 retry 1's Finding #3 narrowing: a 2-D shape (no <c>BeginX</c>/
+    ///     <c>EndX</c> cell) whose own <c>PinX</c> cell is marked <c>F="Inh"</c> (never locally
+    ///     overridden by the author - a legitimate full Master-inheritance-of-position scenario)
+    ///     still defers entirely to the Master's own <c>PinX</c> value, exactly as the original,
+    ///     pre-Milestone-10 generic merge rule always resolved it - proving the narrowed
+    ///     <c>PreferInstanceTransformCells</c> overlay does not affect a 2-D shape in either
+    ///     direction (it neither regresses this legitimate inheritance case, which the original,
+    ///     unscoped Milestone 10 implementation risked, nor was it ever needed for this case to
+    ///     resolve correctly).
+    /// </summary>
+    [Fact]
+    public void MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue()
+    {
+        // Arrange: a 2-D shape (no BeginX/EndX) whose own PinX is marked Inh with a stale cached
+        // value; the Master's own literal PinX is 2 (see MasterShapeXml).
         var instanceShapeXml =
             """
             <Shape ID="10" Type="Shape" Master="1">
@@ -245,8 +287,9 @@ public class VsdxMasterInheritanceTests
         // Act
         var shape = document.GetPageShapes(0)[0];
 
-        // Assert: the instance's own Inh-marked PinX (9) wins, not the Master's PinX (2).
-        Assert.Equal(9.0, shape.EffectiveCells!.GetDouble("PinX"));
+        // Assert: the Master's own PinX (2) wins, not the instance's stale Inh-marked PinX (9) -
+        // unaffected by the (now 1-D-only) transform-cell overlay.
+        Assert.Equal(2.0, shape.EffectiveCells!.GetDouble("PinX"));
     }
 
     /// <summary>
