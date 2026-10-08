@@ -1,4 +1,4 @@
-// cspell:ignore vsdx davehoward jgreywolfvsdxjs basicshapes Visio
+// cspell:ignore vsdx davehoward jgreywolfvsdxjs basicshapes Visio Foregnd
 
 using DemaConsulting.CanvasNet.Canvas;
 
@@ -142,5 +142,111 @@ public class VsdxRenderFixtureTests
             using var surface = document.Render(pageIndex, Dpi, Transparent);
             AssertPaintedSomePixel(surface);
         }
+    }
+
+    /// <summary>
+    ///     Proves Milestone 10's <c>NonPrinting</c> suppression (Bug #1(b) - see
+    ///     <c>VsdxDocument.Render.cs</c>'s <c>RenderShapeRecursive</c>): a <c>Type="Group"</c>
+    ///     shape with its own resolved fill and a <c>NonPrinting="1"</c> cell paints none of its
+    ///     own fill ink, yet its child shape - nested entirely within the parent's own box -
+    ///     still paints its own, distinctly-colored fill, proving self-paint suppression does not
+    ///     also suppress recursion into children. Uses a small, hand-authored synthetic package
+    ///     (not the external <c>poi-fixtures</c> corpus), modeled on this milestone's own
+    ///     confirmed <c>44501b.vsdx</c> "Activity" heading regression (see the milestone's own
+    ///     completion report for the external smoke-test visual evidence).
+    /// </summary>
+    [Fact]
+    public void Render_NonPrintingShape_SkipsOwnFillButStillRendersChildren()
+    {
+        // Arrange: a red-filled Group spanning page-space [1,3]x[1,3], marked NonPrinting="1",
+        // containing one blue-filled child spanning the Group's own local-space [0.5,1.5]x[0.5,1.5]
+        // (entirely inside the parent's own box, but not covering all of it).
+        var shapeXml =
+            """
+            <Shape ID="1" Type="Group">
+              <Cell N="PinX" V="1"/><Cell N="PinY" V="1"/><Cell N="Width" V="2"/><Cell N="Height" V="2"/>
+              <Cell N="LocPinX" V="0"/><Cell N="LocPinY" V="0"/><Cell N="Angle" V="0"/>
+              <Cell N="NonPrinting" V="1"/>
+              <Cell N="FillForegnd" V="#FF0000"/><Cell N="FillPattern" V="1"/><Cell N="LinePattern" V="0"/>
+              <Section N="Geometry" IX="0">
+                <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+                <Row T="LineTo" IX="2"><Cell N="X" V="2"/><Cell N="Y" V="0"/></Row>
+                <Row T="LineTo" IX="3"><Cell N="X" V="2"/><Cell N="Y" V="2"/></Row>
+                <Row T="LineTo" IX="4"><Cell N="X" V="0"/><Cell N="Y" V="2"/></Row>
+              </Section>
+              <Shapes>
+                <Shape ID="2" Type="Shape">
+                  <Cell N="PinX" V="0.5"/><Cell N="PinY" V="0.5"/><Cell N="Width" V="1"/><Cell N="Height" V="1"/>
+                  <Cell N="LocPinX" V="0"/><Cell N="LocPinY" V="0"/><Cell N="Angle" V="0"/>
+                  <Cell N="FillForegnd" V="#0000FF"/><Cell N="FillPattern" V="1"/><Cell N="LinePattern" V="0"/>
+                  <Section N="Geometry" IX="0">
+                    <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+                    <Row T="LineTo" IX="2"><Cell N="X" V="1"/><Cell N="Y" V="0"/></Row>
+                    <Row T="LineTo" IX="3"><Cell N="X" V="1"/><Cell N="Y" V="1"/></Row>
+                    <Row T="LineTo" IX="4"><Cell N="X" V="0"/><Cell N="Y" V="1"/></Row>
+                  </Section>
+                </Shape>
+              </Shapes>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act: render at 100 DPI against the default 8.5x11in page (850x1100px) with a
+        // transparent background, so an unpainted pixel is unambiguously detectable.
+        using var surface = document.Render(0, 100, Transparent);
+
+        // Assert: a pixel inside the parent's own box but outside the child's box (page-space
+        // (1.2, 2.8), i.e. pixel (120, 820)) stayed fully transparent - the parent's own red
+        // fill was never painted.
+        Assert.Equal(0, surface[120, 820].A);
+
+        // Assert: a pixel inside the child's own box (page-space (2, 2), i.e. pixel (200, 900))
+        // painted the child's own blue fill - recursion into children still happened.
+        var childPixel = surface[200, 900];
+        Assert.Equal(0, childPixel.R);
+        Assert.Equal(0, childPixel.G);
+        Assert.Equal(255, childPixel.B);
+        Assert.True(childPixel.A > 0);
+    }
+
+    /// <summary>
+    ///     Proves Milestone 10's <c>MinStrokeWidthPixels</c> hairline floor (Bug #2 - see
+    ///     <c>VsdxDocument.Render.cs</c>'s <c>PaintShapeGeometry</c>): a shape whose resolved
+    ///     <c>LineWeight</c> rasterizes to well under one physical pixel at the chosen render
+    ///     resolution still paints visible stroke ink, rather than vanishing entirely. Uses a
+    ///     small, hand-authored synthetic package with a deliberately sub-pixel
+    ///     <c>LineWeight="0.002"</c> (0.2px at 100 DPI) and no fill of its own, modeled on this
+    ///     milestone's own confirmed <c>60973.vsdx</c> missing-connector-line regression (see the
+    ///     milestone's own completion report for the external smoke-test visual evidence).
+    /// </summary>
+    [Fact]
+    public void Render_SubPixelLineWeight_StillPaintsVisibleHairlineStroke()
+    {
+        // Arrange: a plain, unfilled horizontal line spanning page-space (0.25,5.5)-(4.25,5.5),
+        // with LineWeight="0.002" (0.2px at 100 DPI - well under one physical pixel).
+        var shapeXml =
+            """
+            <Shape ID="1" Type="Shape">
+              <Cell N="PinX" V="2.25"/><Cell N="PinY" V="5.5"/>
+              <Cell N="Width" V="4"/><Cell N="Height" V="0"/>
+              <Cell N="LocPinX" V="2"/><Cell N="LocPinY" V="0"/><Cell N="Angle" V="0"/>
+              <Cell N="LineColor" V="#000000"/><Cell N="LineWeight" V="0.002"/><Cell N="LinePattern" V="1"/>
+              <Cell N="FillPattern" V="0"/>
+              <Section N="Geometry" IX="0">
+                <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+                <Row T="LineTo" IX="2"><Cell N="X" V="4"/><Cell N="Y" V="0"/></Row>
+              </Section>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act: render at 100 DPI against the default 8.5x11in page, transparent background.
+        using var surface = document.Render(0, 100, Transparent);
+
+        // Assert: despite the sub-pixel LineWeight, at least one visible (non-transparent) pixel
+        // was painted along the line - without the hairline floor, this would be a blank surface.
+        AssertPaintedSomePixel(surface);
     }
 }

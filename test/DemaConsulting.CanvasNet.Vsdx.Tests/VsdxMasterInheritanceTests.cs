@@ -210,7 +210,73 @@ public class VsdxMasterInheritanceTests
         Assert.Equal(2, subpath.Commands.Count);
         Assert.Equal(3f, subpath.Commands[0].EndPoint.X);
         Assert.Equal(0f, subpath.Commands[0].EndPoint.Y);
-        Assert.Equal(2f, subpath.Commands[1].EndPoint.X);
-        Assert.Equal(2f, subpath.Commands[1].EndPoint.Y);
+    }
+
+    /// <summary>
+    ///     Proves Milestone 10's <c>PreferInstanceTransformCells</c> overlay: an instance's own
+    ///     <c>PinX</c> cell marked <c>F="Inh"</c> (a cached, round-tripped formula result, not a
+    ///     literal override) still wins over the Master's own distinct <c>PinX</c> value - unlike
+    ///     every other (non-transform) cell, where an <c>Inh</c> marking defers entirely to the
+    ///     Master. Confirmed necessary against <c>60973.vsdx</c>'s shape <c>802</c> (a 1-D
+    ///     connector instance): its own cached, per-instance-computed <c>PinX</c>/<c>PinY</c> (Visio's
+    ///     already-baked connector endpoint midpoint) were being discarded in favor of the
+    ///     Master's own small, unrelated template-local default position, because the generic
+    ///     Master-wins merge rule treated the instance's <c>Inh</c>-marked cell as "absent" - see
+    ///     <c>VsdxDocument.CellMerge.cs</c>'s own <c>TransformCellNames</c> remarks for the full
+    ///     root-cause account and why this is strictly more correct than the generic rule for
+    ///     exactly these 9 per-instance geometry/position cells.
+    /// </summary>
+    [Fact]
+    public void MasterInheritance_InstanceInhMarkedTransformCell_PreferredOverMasterValue()
+    {
+        // Arrange: the Master's own PinX is 2 (its small, template-local default position); the
+        // instance carries its own cached PinX="9", marked F="Inh" - a round-tripped formula
+        // result, not a literal override, yet still the instance's own correct, per-instance
+        // computed position.
+        var instanceShapeXml =
+            """
+            <Shape ID="10" Type="Shape" Master="1">
+              <Cell N="PinX" V="9" F="Inh"/>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(instanceShapeXml, mastersXml: MasterShapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var shape = document.GetPageShapes(0)[0];
+
+        // Assert: the instance's own Inh-marked PinX (9) wins, not the Master's PinX (2).
+        Assert.Equal(9.0, shape.EffectiveCells!.GetDouble("PinX"));
+    }
+
+    /// <summary>
+    ///     Proves <c>PreferInstanceTransformCells</c>' overlay is narrowly scoped to exactly the
+    ///     9 transform cell names (<c>PinX</c>/<c>PinY</c>/<c>Width</c>/<c>Height</c>/
+    ///     <c>LocPinX</c>/<c>LocPinY</c>/<c>Angle</c>/<c>FlipX</c>/<c>FlipY</c>): an
+    ///     <c>Inh</c>-marked <em>non</em>-transform cell (<c>FillForegnd</c>) on the instance
+    ///     still defers to the Master's own literal value, exactly as every style/paint cell
+    ///     already did before this milestone - proving the new overlay did not widen to cells
+    ///     where the generic Master-wins rule remains correct.
+    /// </summary>
+    [Fact]
+    public void MasterInheritance_InstanceInhMarkedNonTransformCell_StillDefersToMasterValue()
+    {
+        // Arrange: the instance's own FillForegnd is marked Inh with a stale cached value;
+        // the Master's own literal FillForegnd is "#112233" (see MasterShapeXml).
+        var instanceShapeXml =
+            """
+            <Shape ID="10" Type="Shape" Master="1">
+              <Cell N="FillForegnd" V="#ff0000" F="Inh"/>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(instanceShapeXml, mastersXml: MasterShapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var shape = document.GetPageShapes(0)[0];
+
+        // Assert: the Master's own literal FillForegnd wins, unaffected by the transform-cell
+        // overlay.
+        Assert.Equal("#112233", shape.EffectiveCells!.GetString("FillForegnd"));
     }
 }

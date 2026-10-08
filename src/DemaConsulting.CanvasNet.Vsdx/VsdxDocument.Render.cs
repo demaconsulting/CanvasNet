@@ -20,6 +20,22 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 public sealed partial class VsdxDocument
 {
     /// <summary>
+    ///     The minimum stroke width, in pixels, <see cref="PaintShapeGeometry"/> will ever pass to
+    ///     <see cref="PaintStroke"/> - a hairline/"cosmetic pen" floor matching Visio's own
+    ///     convention of always rendering a visually perceptible line regardless of a resolved
+    ///     sub-pixel <c>LineWeight</c>. Confirmed necessary against <c>60973.vsdx</c>'s own
+    ///     connector shapes: their Master's literal <c>LineWeight</c> resolves to
+    ///     <c>~0.0033</c> inches, which at this milestone's 150 DPI smoke-test render is
+    ///     <c>~0.5</c> physical pixels - sub-pixel enough that, with no floor, every connector
+    ///     line vanished entirely (visually confirmed absent against the Visio-reference PNG)
+    ///     despite its geometry, color, and <c>HasLine</c> all already resolving correctly.
+    ///     Expressed in pixels (not inches) so it only ever engages when a line would otherwise
+    ///     render below one physical pixel, never thickening an already-&gt;1px line - see this
+    ///     milestone's own plan report, Risk #2.
+    /// </summary>
+    private const float MinStrokeWidthPixels = 1f;
+
+    /// <summary>
     ///     Renders the specified page into a new <see cref="Surface"/> of the given pixel
     ///     dimensions, walking the page's full, lazily-resolved shape tree
     ///     (<c>GetPageShapes</c>) in document order and painting each shape's resolved fill,
@@ -231,7 +247,8 @@ public sealed partial class VsdxDocument
 
             if (paint.HasLine && !geometry.NoLine)
             {
-                PaintStroke(surface, transformedPath, paint.StrokeColor, (float)(paint.StrokeWidthInches * AverageScale(localToPixel)));
+                var strokeWidthPixels = Math.Max((float)(paint.StrokeWidthInches * AverageScale(localToPixel)), MinStrokeWidthPixels);
+                PaintStroke(surface, transformedPath, paint.StrokeColor, strokeWidthPixels);
             }
         }
     }
