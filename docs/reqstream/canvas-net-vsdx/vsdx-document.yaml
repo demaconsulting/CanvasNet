@@ -151,10 +151,10 @@ sections:
           - id: CanvasNetVsdx-VsdxDocument-GeometryUnrecognizedRowSkip
             title: >-
               The VsdxDocument class shall skip (not throw on) a geometry row of an unrecognized
-              type, including EllipticalArcTo/NURBSTo/InfiniteLine (documented VisioML vocabulary
-              observed in the sample corpus, but not converted to path segments by this delivery)
-              and the documented-but-unobserved ArcTo/RelCubBezTo/SplineStart/SplineKnot/
-              PolylineTo/Ellipse row kinds.
+              type, including NURBSTo/InfiniteLine (documented VisioML vocabulary observed in the
+              sample corpus, but not converted to path segments by this delivery) and the
+              documented-but-unobserved RelCubBezTo/SplineStart/SplineKnot/PolylineTo/Ellipse row
+              kinds.
             justification: |
               A geometry row type absent from this delivery's resolved vocabulary must still
               degrade gracefully rather than aborting an entire shape or page. Correction note
@@ -165,9 +165,34 @@ sections:
               through to the same tolerant skip as any other unrecognized row type. The design
               docs have been corrected to match; this is a documentation-only correction (no
               production code change), analogous to the FillPatternDeferral correction below.
+              Milestone 11 note: EllipticalArcTo and ArcTo are no longer part of this requirement's
+              skip list - see CanvasNetVsdx-VsdxDocument-ArcGeometryResolution below, which
+              supersedes the Milestone 8 correction note's treatment of EllipticalArcTo
+              specifically; NURBSTo remains skipped.
             tests:
               - Geometry_UnrecognizedRowType_SkippedWithoutThrowing
-              - Geometry_EllipticalArcToAndNurbsToRows_AreSkippedWithoutThrowing
+
+          - id: CanvasNetVsdx-VsdxDocument-ArcGeometryResolution
+            title: >-
+              The VsdxDocument class shall convert a geometry section's EllipticalArcTo row (a
+              general ellipse/arc segment reaching an explicit destination point, with an
+              X/Y/A/B/C/D cell set) and ArcTo row (a circular arc reaching an explicit destination
+              point, with an X/Y/A "bow height" cell set) into an ArcTo path command reaching the
+              row's own destination point, rather than skipping either row type.
+            justification: |
+              Milestone 11 confirmed against test.vsdx's header-bar shape (an EllipticalArcTo-
+              shaped rounded corner) and a synthetic ArcTo bow-height fixture that skipping these
+              two row types - previously tolerated as an unimplemented, documented gap - produced
+              a visibly wrong outline (a sharp wedge/triangle instead of a smoothly rounded corner)
+              whenever a shape's own rendered appearance genuinely depended on the arc segment
+              contributing to the closed path, rather than being safe to skip like the remaining
+              unobserved row kinds. A zero-bow ArcTo row (A=0) degrades to a plain
+              LineTo to its destination point without throwing, since a true zero-radius arc has
+              no well-defined curvature to resolve.
+            tests:
+              - Geometry_EllipticalArcToRow_ConvertsToArcReachingDestination
+              - Geometry_ArcToRow_ConvertsToArcWithBowDerivedRadius
+              - Geometry_ArcToRow_ZeroBow_DegradesToLineTo
 
           - id: CanvasNetVsdx-VsdxDocument-ShapeTransform
             title: >-
@@ -246,17 +271,27 @@ sections:
           - id: CanvasNetVsdx-VsdxDocument-GeometryRowMerge
             title: >-
               The VsdxDocument class shall merge a shape instance's geometry rows with its
-              master's by matching row index (IX): an instance row with the same IX replaces the
-              master's row, an instance row with Del="1" marks the master's corresponding row
-              deleted, and a master row with no matching instance IX and no Del is inherited
-              verbatim.
+              master's by matching row index (IX), merging each matched row's own cells
+              individually (an instance's own literal cell wins for that cell name, falling
+              through to the master row's same-named cell when the instance's own cell is absent
+              or marked F="Inh") rather than replacing the master's entire row wholesale; an
+              instance row with Del="1" marks the master's corresponding row deleted, and a master
+              row with no matching instance IX and no Del is inherited verbatim.
             justification: |
               Geometry-row-level inheritance (distinct from cell-level inheritance) is how Visio
               lets a master instance add, replace, or remove individual outline segments without
-              redeclaring the entire geometry.
+              redeclaring the entire geometry. Milestone 11 corrected an earlier, since-superseded
+              implementation that replaced an entire matched row wholesale with the instance's own
+              row - confirmed against several real-world fixtures (60973.vsdx's container frame,
+              44501e.vsdx's connector elbow routing) that a matched instance row overriding only
+              one or two of its own cells (for example only X, leaving Y to inherit from the
+              master row) was silently discarding the master row's other, legitimately-inherited
+              cell values instead of merging them, producing a visibly wrong (collapsed-to-zero or
+              default) outline point.
             tests:
               - MasterInheritance_GeometryRowDelete_RemovesMasterRowFromMergedGeometry
               - MasterInheritance_InstanceGeometryRowWithoutDel_ReplacesMasterRowAtMatchingIndex
+              - MasterInheritance_GeometryRowPartialOverride_MergesCellByCellNotWholesale
 
           - id: CanvasNetVsdx-VsdxDocument-DeletedShapeExclusion
             title: >-
@@ -413,16 +448,25 @@ sections:
 
           - id: CanvasNetVsdx-VsdxDocument-TextRunParsing
             title: >-
-              The VsdxDocument class shall parse a shape's Text element's character data and cp/pp
-              formatting markers against the shape's Section N="Character"/"Paragraph" rows into
-              an ordered list of formatted text runs.
+              The VsdxDocument class shall parse a shape's Text element's character data, cp/pp
+              formatting markers, and fld (Field reference) elements' own nested text content
+              against the shape's Section N="Character"/"Paragraph" rows into an ordered list of
+              formatted text runs.
             justification: |
               A shape's text can carry multiple runs of differing character/paragraph formatting
               within a single Text element; run boundaries must be resolved from the cp/pp markers
-              exactly as Visio itself interprets them.
+              exactly as Visio itself interprets them. Milestone 11 confirmed against 60973.vsdx's
+              master32.xml Shape ID='9' (a rack-capacity label whose entire Text element is a bare
+              fld IX='0' element with no sibling XText/cp/pp content at all) that an unhandled fld
+              element was silently dropping the label's own save-time-cached field value entirely,
+              rather than Visio's own live Field-formula re-evaluation (deliberately out of scope);
+              a fld element's own nested text content is now treated as a literal run at the
+              current row-index position, identically to a plain XText segment.
             tests:
               - TextParsing_PpThenCpMarkers_BothRowIndicesAttached
               - TextParsing_MultipleCpMarkers_EachStartsNewRunUntilNextMarkerOrEnd
+              - TextParsing_FldElement_NestedTextContentParsedAsLiteralRun
+              - TextParsing_FldElementInterleavedWithText_MergesIntoSurroundingRun
 
           - id: CanvasNetVsdx-VsdxDocument-TextBoxPositioning
             title: >-
@@ -479,18 +523,32 @@ sections:
             title: >-
               The VsdxDocument class shall render a connector's optional stroked or filled
               arrowhead at either end, oriented along the connector's own resolved line direction,
-              for the documented subset of recognized BeginArrow/EndArrow index values, and
-              degrade an unrecognized index to a plain, unadorned line end (no arrowhead) rather
-              than throwing.
+              for the documented subset of recognized BeginArrow/EndArrow index values - including
+              index 4 (a filled triangle, an alternate encoding of index 2) and index 254 (an
+              unfilled/hollow triangle, confirmed in use by UML "navigable association" ends) -
+              and degrade an unrecognized index to a plain, unadorned line end (no arrowhead)
+              rather than throwing.
             justification: |
               The full BeginArrow/EndArrow style-index table is not enumerable from the sample
               corpus underlying this design; a safe, documented degrade is consistent with this
               unit's "never throwing" risk control measure for a well-formed but out-of-scope
               construct, and avoids rejecting an otherwise-renderable page over a single
-              unrecognized arrowhead index.
+              unrecognized arrowhead index. Milestone 11 confirmed against 44501e.vsdx's
+              Binary/Unidirectional Association connectors (EndArrow V='254' F='USE("Navigable")')
+              that index 254 - previously unrecognized, degrading to no arrowhead at all - is
+              exercised by a real-world UML diagram and must resolve to a distinct, unfilled
+              triangle style rather than either a filled triangle or no arrowhead; index 4 was
+              separately confirmed present in the same full-document scan and mapped to the same
+              filled-triangle style as index 2. The arrowhead's own rendered size remains
+              proportional to the connector's resolved stroke width (an existing, unchanged design
+              approximation - see canvas-net-vsdx.md's Design Constraints section) and so can
+              render very small for a thin-stroked connector; this is a separate, already-accepted
+              limitation, not a defect in the style mapping itself.
             tests:
               - Render_ConnectorWithRecognizedEndArrow_PaintsArrowheadInkBeyondLineStroke
               - Render_ConnectorWithUnrecognizedEndArrowIndex_DegradesGracefullyWithoutThrowing
+              - ArrowheadResolution_EndArrowIndex4_ResolvesToArrowStyle
+              - ArrowheadResolution_EndArrowIndex254_ResolvesToHollowTriangleStyle
 
           - id: CanvasNetVsdx-VsdxDocument-DanglingGlueTargetTolerance
             title: >-
@@ -606,3 +664,21 @@ sections:
               dropping connector lines a native Visio client renders as a visible hairline.
             tests:
               - Render_SubPixelLineWeight_StillPaintsVisibleHairlineStroke
+
+          - id: CanvasNetVsdx-VsdxDocument-HideTextSuppression
+            title: >-
+              The VsdxDocument class shall skip a shape's own text paint (glyph ink only - fill,
+              stroke, and arrowheads are unaffected) when its effective HideText cell resolves
+              true, while still recursing into and painting that shape's own children's text.
+            justification: |
+              Milestone 11 confirmed against 60489.vsdx's actor-label shapes (a HideText="1"
+              cell previously unconsulted anywhere in this resolver) that an unconsulted HideText
+              cell was causing a duplicate copy of a shape's own label text to be painted
+              alongside a sibling shape's already-correctly-positioned label, producing visibly
+              doubled text never shown by a native Visio client. Unlike NonPrinting (which
+              suppresses a shape's entire self-paint), HideText suppresses only the shape's own
+              text run painting - its fill/stroke/arrowheads still paint normally, matching
+              Visio's own documented HideText semantics (hide this shape's own label, not the
+              shape itself).
+            tests:
+              - Render_ShapeWithHideTextCell_SuppressesOwnTextButNotFillOrStroke

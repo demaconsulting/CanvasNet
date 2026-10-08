@@ -1,7 +1,7 @@
 ## VsdxDocument Unit Verification Design
 
 <!-- cspell:ignore vsdx Visio VisioML davehoward jgreywolfvsdxjs Jgreywolf Foregnd Themed -->
-<!-- cspell:ignore THEMEVAL unitsperem NURBSTo -->
+<!-- cspell:ignore THEMEVAL unitsperem NURBSTo Nwwww Neeeee -->
 
 `VsdxDocument` is distributed as the separate `DemaConsulting.CanvasNet.Vsdx` NuGet package
 (namespace `DemaConsulting.CanvasNet.Vsdx`), which references the core `DemaConsulting.CanvasNet`
@@ -156,19 +156,39 @@ scaled by the shape's own resolved `Width`/`Height` before being added to the pa
 
 #### CanvasNetVsdx-VsdxDocument-GeometryUnrecognizedRowSkip: Unrecognized Row Types Are Skipped, Not Thrown
 
-**Tests**: `Geometry_UnrecognizedRowType_SkippedWithoutThrowing`,
-`Geometry_EllipticalArcToAndNurbsToRows_AreSkippedWithoutThrowing`
+**Test**: `Geometry_UnrecognizedRowType_SkippedWithoutThrowing`
 
-Proves an arbitrary unrecognized geometry row type is skipped without throwing, and specifically
-proves `EllipticalArcTo` and `NURBSTo` rows fall through to the same tolerant skip as any other
-unrecognized row type, rather than being converted to an approximating Bezier curve. **Milestone 8
+Proves an arbitrary unrecognized geometry row type is skipped without throwing. **Milestone 8
 correction note**: an earlier revision of this requirement and of `canvas-net-vsdx.md`/
 `canvas-net-vsdx/vsdx-document.md` claimed `EllipticalArcTo`/`NURBSTo` were converted to Bezier-
 curve path segments; direct inspection of `VsdxDocument.Geometry.cs` confirmed this was never
 implemented. The design docs and this requirement's own text have been corrected to match the
 actual, tolerant-skip behavior; this is a documentation-only correction (no production code
 change), discovered while writing this requirement's own test coverage, analogous to the
-plan-authorized `FillPatternDeferral` correction below.
+plan-authorized `FillPatternDeferral` correction below. **Milestone 11 note**: `EllipticalArcTo`
+is no longer part of this requirement's scope - see
+`CanvasNetVsdx-VsdxDocument-ArcGeometryResolution` below, which supersedes the Milestone 8
+correction note's treatment of `EllipticalArcTo` specifically. `NURBSTo` remains covered here; the
+dedicated `Geometry_EllipticalArcToAndNurbsToRows_AreSkippedWithoutThrowing` test was replaced by
+`Geometry_EllipticalArcToRow_ConvertsToArcReachingDestination` (below) since it no longer proved a
+true statement once `EllipticalArcTo` conversion was implemented.
+
+#### CanvasNetVsdx-VsdxDocument-ArcGeometryResolution: EllipticalArcTo/ArcTo Convert to an ArcTo Path Command
+
+**Tests**: `Geometry_EllipticalArcToRow_ConvertsToArcReachingDestination`,
+`Geometry_ArcToRow_ConvertsToArcWithBowDerivedRadius`, `Geometry_ArcToRow_ZeroBow_DegradesToLineTo`
+
+Proves an `EllipticalArcTo` row (general ellipse/arc, cells `X`/`Y`/`A`/`B`/`C`/`D`) converts to a
+`PathCommandType.ArcTo` command reaching the row's own destination point; proves an `ArcTo` row
+(circular, bow-height-derived arc, cells `X`/`Y`/`A`) converts to an `ArcTo` command whose radius
+is derived from the declared bow height via `TryResolveEllipticalArc`'s own geometry; and proves a
+zero-bow `ArcTo` row (`A="0"`) degrades to a plain `LineTo` to its destination point rather than
+throwing or producing a degenerate zero-radius arc command. Confirmed necessary against
+`test.vsdx`'s header-bar shape via the external smoke-test harness: the shape's own
+`EllipticalArcTo`-shaped rounded corner was rendering as a sharp wedge/triangle (the arc row
+tolerantly skipped, leaving only the surrounding `LineTo` rows) instead of the smoothly rounded
+bar Visio itself renders; re-rendering after this fix confirmed the bar now renders correctly
+rounded.
 
 #### CanvasNetVsdx-VsdxDocument-ShapeTransform: 2-D Shape Transform Order (LocPin, Flip, Rotate, Pin)
 
@@ -244,7 +264,17 @@ no test previously proved the exception was safe - to the 1-D-only scope this se
 documents and tests; a full `poi-fixtures` corpus re-render after the narrowing confirmed no
 regression to either `60973.vsdx`'s connector lines or the other fidelity-improving fixtures
 (`44501e.vsdx`, `60489.vsdx`) quality's own review had separately confirmed, since both of those
-fixtures' affected shapes are themselves 1-D connectors.
+fixtures' affected shapes are themselves 1-D connectors. **Milestone 11 confirmed-but-deferred
+limitation note**: this milestone's own real-world-corpus validation traced two independent
+findings - `60973.vsdx`'s rack-mount frame container, and `44501e.vsdx`'s connector-label shape
+`ID='45'` "end1_name" - to the 2-D-exclusion rule itself (not the 1-D-only overlay's own scope)
+discarding a legitimately-cached, genuinely different instance position in favor of the Master's
+unrelated template-local position. No safe, narrowly-scoped heuristic distinguishing this
+counter-example from the already-locked `MasterInheritance_
+2DShapeInhMarkedTransformCell_DefersToMasterValue` legitimate-2-D-inheritance case was identified
+within this milestone's scope; see `canvas-net-vsdx.md`'s Design Constraints section for this
+deferred limitation's own documented entry. No test or code change was made for this limitation
+this milestone.
 
 #### CanvasNetVsdx-VsdxDocument-DeletedShapeExclusion: Shape-Level Del="1" Group-Child Exclusion
 
@@ -263,16 +293,25 @@ defect confirmed via git-history bisection to render identically broken before M
 before Milestone 10, and after all 4 Milestone 10 commits - see `canvas-net-vsdx.md`'s Design
 Constraints section for that defect's own documented, deferred-limitation entry.
 
-#### CanvasNetVsdx-VsdxDocument-GeometryRowMerge: Geometry-Row Merge by Matching IX (Replace, Delete, Inherit)
+#### CanvasNetVsdx-VsdxDocument-GeometryRowMerge: Geometry-Row Merge by Matching IX, Cell-by-Cell (Replace, Delete, Inherit)
 
 **Tests**: `MasterInheritance_GeometryRowDelete_RemovesMasterRowFromMergedGeometry`,
-`MasterInheritance_InstanceGeometryRowWithoutDel_ReplacesMasterRowAtMatchingIndex`
+`MasterInheritance_InstanceGeometryRowWithoutDel_ReplacesMasterRowAtMatchingIndex`,
+`MasterInheritance_GeometryRowPartialOverride_MergesCellByCellNotWholesale`
 
 Proves an instance geometry row marked `Del="1"` removes the Master's row at the matching `IX`
 entirely (not merely overriding it), and - closing this milestone's own replace-by-IX coverage
 gap - proves an instance row at the same `IX` as a Master row, without `Del`, fully replaces that
 row's values while every other, unmatched Master row at a different `IX` is still inherited
-verbatim into the same merged subpath.
+verbatim into the same merged subpath. **Milestone 11 note**: `MasterInheritance_
+GeometryRowPartialOverride_MergesCellByCellNotWholesale` proves the merge is now cell-by-cell, not
+whole-row-replacement - an instance row overriding only its own `X` cell (leaving `Y` absent)
+still inherits the Master row's own `Y` cell rather than defaulting it to `0`. Confirmed necessary
+against `60973.vsdx`'s rack-mount frame container and `44501e.vsdx`'s connector elbow routing,
+whose own matched instance rows overrode only a subset of their own cells; the prior
+whole-row-replacement implementation was silently discarding the Master row's other,
+legitimately-inherited cell values, collapsing the un-overridden coordinate to its CLR default
+rather than the Master's own intended value.
 
 #### CanvasNetVsdx-VsdxDocument-NestedMasterShapeResolution: Group Children Matched by MasterShape ID
 
@@ -371,7 +410,13 @@ Proves a literal `"Themed"` cell value falls back to a documented neutral defaul
 `<a:clrScheme>` slot when the cell's own formula carries a recognized `THEMEVAL("slotName")`
 reference - necessarily a hand-built synthetic package, since no real staged fixture's own
 `THEMEVAL(...)` argument happens to use a canonical DrawingML slot name (see
-`VsdxThemeResolutionTests`'s own remarks).
+`VsdxThemeResolutionTests`'s own remarks). **Milestone 11 confirmation note**: the external
+smoke-test harness confirmed a second, independent real-world instance of the documented neutral-
+fallback limitation (`canvas-net-vsdx.md`'s Design Constraints section): `60973.vsdx`'s
+`Nwwww`/`Neeeee` rack-slot bars resolve a bare `THEMEVAL()` formula through this same
+unresolvable-scheme path, rendering gray rather than Visio's own orange/blue fill. No code change
+was made; recorded purely as confirmed evidence this documented gap is real and already correctly
+tolerated at a second site.
 
 #### CanvasNetVsdx-VsdxDocument-FillPatternDeferral: Solid Resolves Directly, Any Other Value Degrades
 
@@ -389,15 +434,24 @@ anywhere in the Vsdx codebase; every non-zero `FillPattern` value has always deg
 fill. The design docs and this requirement's own text have been corrected to describe this actual,
 already-implemented, already-design-doc-approved behavior; no production code was changed.
 
-#### CanvasNetVsdx-VsdxDocument-TextRunParsing: cp/pp Marker Interleaving Resolves Ordered Formatted Runs
+#### CanvasNetVsdx-VsdxDocument-TextRunParsing: cp/pp Marker Interleaving and fld Elements Resolve Ordered Formatted Runs
 
 **Tests**: `TextParsing_PpThenCpMarkers_BothRowIndicesAttached`,
-`TextParsing_MultipleCpMarkers_EachStartsNewRunUntilNextMarkerOrEnd`
+`TextParsing_MultipleCpMarkers_EachStartsNewRunUntilNextMarkerOrEnd`,
+`TextParsing_FldElement_NestedTextContentParsedAsLiteralRun`,
+`TextParsing_FldElementInterleavedWithText_MergesIntoSurroundingRun`
 
 Proves a `<Text>` element's `<pp>` (paragraph) marker followed by a `<cp>` (character) marker both
 attach their own row index to the resulting run, and proves multiple `<cp>` markers each start a
 new run that persists until the next marker or the end of the text, matching the format
-reference's own §8.1 interleaving rule.
+reference's own §8.1 interleaving rule. **Milestone 11** adds `<fld>` (Field reference) element
+coverage: proves a `<Text>` element consisting solely of a bare `<fld IX='0'>42 U</fld>` (mirroring
+`60973.vsdx`'s `master32.xml` Shape ID='9' verbatim) parses the field's own nested, save-time-
+cached text content as a single literal run rather than the text being silently dropped entirely
+(the pre-fix behavior, confirmed against the real fixture before this change), and proves a
+`<fld>` element interleaved between plain text segments merges into the surrounding run exactly
+like a plain `XText` node would, introducing no spurious run boundary merely because the content
+came from a field reference.
 
 #### CanvasNetVsdx-VsdxDocument-TextBoxPositioning: Explicit Txt* Cells Override the Implicit Shape-Box Default
 
@@ -447,12 +501,25 @@ glue) - without performing any live glue-point tracking/constraint solving.
 #### CanvasNetVsdx-VsdxDocument-ArrowheadRendering: Recognized Arrowhead Indices Paint, Unrecognized Degrade Gracefully
 
 **Tests**: `Render_ConnectorWithRecognizedEndArrow_PaintsArrowheadInkBeyondLineStroke`,
-`Render_ConnectorWithUnrecognizedEndArrowIndex_DegradesGracefullyWithoutThrowing`
+`Render_ConnectorWithUnrecognizedEndArrowIndex_DegradesGracefullyWithoutThrowing`,
+`ArrowheadResolution_EndArrowIndex4_ResolvesToArrowStyle`,
+`ArrowheadResolution_EndArrowIndex254_ResolvesToHollowTriangleStyle`
 
 Proves a connector with a recognized `EndArrow` index paints additional ink beyond its own plain
 line stroke (the arrowhead itself), and proves an unrecognized `EndArrow` index degrades to a
 plain, unadorned line end rather than throwing - the same graceful-degradation convention already
-established for `FillPattern`.
+established for `FillPattern`. **Milestone 11** adds coverage for two confirmed-in-use indices
+found via a full-document scan of the `poi-fixtures` corpus: index `4` resolves to the existing
+solid-filled arrow style (the same geometry as index `5`/`6`'s own family, not previously
+exercised by a dedicated test), and index `254` - confirmed, via the external smoke-test harness
+against `44501e.vsdx`'s connector arrowheads, to have been silently degrading to the unrecognized-
+index plain-line-end fallback before this fix - resolves to a new hollow/unfilled-triangle
+`VsdxArrowheadStyle`, matching the Visio-reference PNG's own unfilled triangular arrowhead
+outline. **Accepted limitation (not a regression)**: the arrowhead's own painted size remains
+proportional to the connector's resolved stroke width, a pre-existing, unchanged sizing design
+this milestone did not revisit; at `44501e.vsdx`'s own thin stroke width the painted arrowhead is
+visibly smaller than the Visio-reference PNG's own arrowhead, though now the correct hollow-
+triangle shape rather than absent.
 
 #### CanvasNetVsdx-VsdxDocument-DanglingGlueTargetTolerance: A Dangling Connect Target Skips Only That Glue Resolution
 
@@ -528,6 +595,18 @@ recursion into children. Confirmed against `44501b.vsdx`'s Watermark Title shape
 smoke-test harness: before this fix, the shape's `NonPrinting` cell was unconsulted and a spurious
 "Activity" heading was painted that the Visio-reference PNG never shows; after the fix, the
 rendered page matches the reference with no regression.
+
+#### CanvasNetVsdx-VsdxDocument-HideTextSuppression: HideText Shapes Skip Own Text but Still Paint Fill/Stroke/Children
+
+**Test**: `Render_ShapeWithHideTextCell_SuppressesOwnTextButNotFillOrStroke`
+
+Proves a shape whose effective `HideText` cell resolves truthy paints no pixel of its own text run
+ink while still painting its own fill and stroke unaffected, distinguishing this suppression from
+the broader `NonPrinting` suppression above (which also skips the shape's own fill/stroke).
+Confirmed against `60489.vsdx`'s actor-label shapes via the external smoke-test harness: before
+this fix, a `HideText`-marked shape's own `HideText` cell was unconsulted, so its text ran painted
+a duplicate, overlapping copy of a sibling shape's already-correctly-positioned label; after the
+fix, the duplicate text disappears and the rendered page matches the Visio-reference PNG.
 
 #### CanvasNetVsdx-VsdxDocument-MinimumVisibleStrokeWidth: Sub-Pixel LineWeight Still Paints a Visible Hairline
 

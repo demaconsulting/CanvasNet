@@ -38,12 +38,17 @@ unit's own delivery follows.
   its effective (post-Master/MasterShape-merge, post-StyleSheet-chain-resolved) cell set
   (`PinX`/`PinY`/`Width`/`Height`/`LocPinX`/`LocPinY`/`Angle`/`FlipX`/`FlipY`, and for a 1-D shape
   `BeginX`/`BeginY`/`EndX`/`EndY`), its resolved geometry sections (each an ordered list of
-  geometry rows — `MoveTo`/`LineTo`/`RelMoveTo`/`RelLineTo` are converted to path segments, and
-  every other row type including `EllipticalArcTo`/`NURBSTo`/`InfiniteLine` is tolerantly skipped
+  geometry rows — `MoveTo`/`LineTo`/`RelMoveTo`/`RelLineTo`/`EllipticalArcTo`/`ArcTo` (Milestone 11
+  added `EllipticalArcTo`/`ArcTo` conversion to an `ArcTo` path command, see `ResolveGeometry`
+  below) are converted to path segments, and every other row type including `NURBSTo`/
+  `InfiniteLine` is tolerantly skipped
   (see Risk Control Measures in `canvas-net-vsdx.md`) — plus the section-level `NoFill`/`NoLine`/
   `NoShow` flags), its resolved line/
   fill style (`LineColor`/`LineWeight`/`LinePattern`/`BeginArrow`/`EndArrow`/`FillForegnd`/
-  `FillBkgnd`/`FillPattern`), its resolved text (runs with character/paragraph formatting, and the
+  `FillBkgnd`/`FillPattern`/`HideText` — Milestone 11 added `HideText` resolution, see `Render`
+  below), its resolved text (runs with character/paragraph formatting, including a `<fld>`
+  Field-reference element's own nested text content treated as a literal run - Milestone 11, see
+  `BuildRawRuns`/`CanvasNetVsdx-VsdxDocument-TextRunParsing` - and the
   text box's own `TxtPinX`/`TxtPinY`/`TxtLocPinX`/`TxtLocPinY`/`TxtWidth`/`TxtHeight`/`TxtAngle`),
   and (for a `Group`) its child `VsdxShapeNode` list.
 - **`VsdxConnect`** — a resolved `<Connect>` entry: the connector shape's ID and which endpoint
@@ -92,9 +97,13 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
 - **`ResolveEffectiveShape(XElement instanceShape, XElement? masterShape)`** (internal): Implements
   the cell/geometry-row merge algorithm — an instance cell with a non-`"Inh"` `F` wins; an
   instance cell with `F="Inh"` or no cell at all falls through to the master's resolved value; a
-  geometry row present in the instance (matched by `IX`) replaces the master's row of the same
-  `IX`; a row with `Del="1"` marks the master's corresponding row deleted; a row in the master
-  with no matching instance `IX` and no `Del` is inherited verbatim. For a `Group`-typed master
+  geometry row present in the instance (matched by `IX`) is merged with the master's row of the
+  same `IX` **cell-by-cell** (an instance's own literal cell for that row wins, falling through to
+  the master row's same-named cell when the instance's own cell for that name is absent or marked
+  `F="Inh"` — Milestone 11 corrected an earlier, since-superseded whole-row-replacement
+  implementation, see below); a row with `Del="1"` marks the master's corresponding row deleted; a
+  row in the master with no matching instance `IX` and no `Del` is inherited verbatim. For a
+  `Group`-typed master
   shape, recurses per-child via the child's own `MasterShape` attribute (matched against the
   master's nested `<Shapes>` by `ID`), not by position. A group child `<Shape Del="1">` stub
   (shape-level, not the row-level `Del="1"` above) is excluded from the resolved shape tree
@@ -132,7 +141,25 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   procedure. Milestone 10 retry 1 (quality Finding #3) corrected an initial, unscoped
   implementation that applied this overlay to every shape regardless of dimensionality — narrowed
   to the 1-D-only scope documented here, matching this paragraph's own rationale, which was always
-  1-D-specific.
+  1-D-specific. Milestone 11's own real-world-corpus validation traced two independent findings
+  (`60973.vsdx`'s rack-mount frame container, `44501e.vsdx`'s connector-label shape `ID='45'`
+  "end1_name") to this same 2-D-exclusion rule discarding a legitimately-cached, genuinely
+  different instance position in favor of the Master's unrelated template-local position, landing
+  each shape overlapping/inside a sibling instead of at its own correct position — see
+  `canvas-net-vsdx.md`'s Design Constraints section for this confirmed-but-deferred limitation's
+  own entry (no safe, narrowly-scoped disambiguation from the overlay's own original, still-locked
+  legitimate-2-D-inheritance case was identified within this milestone's scope).
+
+  Milestone 11 also corrected the geometry-row-merge algorithm described above from a
+  whole-row-replacement to a cell-by-cell merge (`VsdxDocument.CellMerge.cs`'s
+  `MergeGeometryRows`): confirmed necessary against several real-world fixtures whose matched
+  instance row overrode only one or two of its own cells (for example only `X`, leaving `Y` to
+  inherit from the master row) — the prior whole-row-replacement behavior was silently discarding
+  the master row's other, legitimately-inherited cell values instead of merging them, collapsing
+  the un-overridden coordinate to its CLR default (`0`) rather than the master's own intended
+  value, producing a visibly wrong outline point; see
+  `MasterInheritance_GeometryRowPartialOverride_MergesCellByCellNotWholesale` for the locking test
+  added.
 - **`ResolveStyleChain(string styleSheetId, string cellName)`** (internal): Walks a shape's
   `LineStyle`/`FillStyle`/`TextStyle` StyleSheet-ID reference up the StyleSheet chain (each
   StyleSheet's own `LineStyle`/`FillStyle`/`TextStyle` attributes identify its own parent for that
@@ -162,8 +189,14 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   are themselves pre-derived from its `BeginX/Y`/`EndX/Y` endpoints by Visio at save time.
 - **`ResolveGeometry(VsdxShapeNode shape)`** (internal): Converts each resolved geometry section's
   `MoveTo`/`LineTo`/`RelMoveTo`/`RelLineTo` rows into a `Geometry.Path`, scaling `RelMoveTo`/
-  `RelLineTo`'s normalized `[0,1]` coordinates by `Width`/`Height`, and skipping (not throwing on)
-  every other row type, including `EllipticalArcTo`/`NURBSTo`/`InfiniteLine`.
+  `RelLineTo`'s normalized `[0,1]` coordinates by `Width`/`Height`. Milestone 11 additionally
+  converts an `EllipticalArcTo` row (a general ellipse/arc segment, cells `X`/`Y`/`A`/`B`/`C`/`D`)
+  and an `ArcTo` row (a circular, bow-height-derived arc segment, cells `X`/`Y`/`A`) to an `ArcTo`
+  path command reaching the row's own destination point (`AppendEllipticalArcTo`/
+  `AppendArcTo`/`TryResolveEllipticalArc`) — a zero-bow `ArcTo` row (`A=0`) degrades to a plain
+  `LineTo` to its destination point rather than throwing, since a true zero-radius arc has no
+  well-defined curvature. Every other row type, including `NURBSTo`/`InfiniteLine`, is still
+  skipped (not throwing on) rather than converted.
 - **`ResolveConnectors(VsdxDocument document, IReadOnlyList<XElement> connects)`** (internal):
   Resolves each `<Connect>` entry's connector shape and target shape; since a connector's own
   `BeginX/BeginY`/`EndX/EndY` cells are already pre-baked, resolved page-space coordinates (by
@@ -184,7 +217,12 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   `MinStrokeWidthPixels = 1f` floor to the resolved `LineWeight`-in-pixels value before stroking,
   so a sub-pixel line weight (confirmed against `60973.vsdx`'s connector shapes, whose resolved
   `LineWeight` rasterizes to roughly half a device pixel at the smoke-test's 150 DPI) still paints
-  a visible hairline instead of rasterizing to nothing.
+  a visible hairline instead of rasterizing to nothing. Milestone 11 adds a third refinement:
+  (3) a shape whose effective `HideText` cell (`VsdxDocument.Paint.cs`'s `ResolveHideText`)
+  resolves `true` skips only its own text-run paint call, leaving its own fill/stroke/arrowheads
+  and its children's painting unaffected — confirmed against `60489.vsdx`'s actor-label shapes,
+  whose `HideText` cell was previously unconsulted and so painted a duplicate copy of a sibling
+  shape's already-correctly-positioned label text.
 - **`Render(int pageIndex, int dpi, VsdxRenderOptions? options)`**: Resolves the page's
   `VsdxPageInfo` size, converts it to pixel dimensions at the requested `dpi`, and delegates to
   the pixel-dimension overload above.
