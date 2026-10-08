@@ -329,6 +329,112 @@ public class VsdxMasterInheritanceTests
     }
 
     /// <summary>
+    ///     A Master shape whose own Geometry section's two rows are expressed as fractions of its
+    ///     own <c>Width</c>/<c>Height</c> (<c>Width=2</c>/<c>Height=2</c>): row <c>IX=1</c>
+    ///     (<c>MoveTo</c>) is the Master's own mid-left point (<c>Width*0.5, 0</c> = <c>(1, 0)</c>)
+    ///     and row <c>IX=2</c> (<c>LineTo</c>) is the Master's own right-mid point (<c>Width*1,
+    ///     Height*0.5</c> = <c>(2, 1)</c>) - mirroring <c>60489.vsdx</c>'s own Shape
+    ///     <c>ID='114'</c>/<c>122</c> ellipse-approximation Master pattern (see
+    ///     <c>MergeGeometryRow</c>'s own remarks).
+    /// </summary>
+    private const string EllipseMasterShapeXml =
+        """
+        <Shape ID="1" Type="Shape">
+          <Cell N="PinX" V="2"/><Cell N="PinY" V="2"/><Cell N="Width" V="2"/><Cell N="Height" V="2"/>
+          <Cell N="LocPinX" V="1"/><Cell N="LocPinY" V="1"/><Cell N="Angle" V="0"/>
+          <Section N="Geometry" IX="0">
+            <Row T="MoveTo" IX="1"><Cell N="X" V="1" F="Width*0.5"/><Cell N="Y" V="0" F="No Formula"/></Row>
+            <Row T="LineTo" IX="2"><Cell N="X" V="2" F="Width*1"/><Cell N="Y" V="1" F="Height*0.5"/></Row>
+          </Section>
+        </Shape>
+        """;
+
+    /// <summary>
+    ///     Proves the geometry-row-level regression this milestone fixes: an instance shape
+    ///     glued to a Master via a <em>differently-sized</em> <c>Width</c>/<c>Height</c> (here,
+    ///     double the Master's own <c>2x2</c> template size) whose own geometry-row cells are all
+    ///     cached as <c>F="Inh"</c> (not literal) must still resolve to <em>its own</em>
+    ///     per-shape-derived coordinates, not the Master's differently-scaled cached values -
+    ///     mirroring <c>60489.vsdx</c>'s own Shape <c>ID='114'</c> (an ellipse glued to its
+    ///     Master via a distinct instance <c>Width</c>/<c>Height</c>, every one of its own
+    ///     geometry-row cells cached as <c>Inh</c>): the pre-fix generic
+    ///     <see cref="VsdxCellBagMerge.Merge"/> rule substituted the Master's own smaller cached
+    ///     radius for every row, fusing Shape 114 and its sibling Shape 122 (both instances of the
+    ///     same Master, each with its own distinct size) into a single, wrongly-proportioned blob
+    ///     instead of two independently-sized ellipses.
+    /// </summary>
+    [Fact]
+    public void MasterInheritance_GeometryRowAllCellsInhButInstanceSizeDiffers_InstanceCoordinatesWin()
+    {
+        // Arrange: the instance is twice the Master's own template size (Width/Height 4 vs. the
+        // Master's 2), so its own correct, per-instance-derived geometry-row coordinates (X=2 for
+        // Width*0.5, X=4/Y=2 for Width*1/Height*0.5) differ from the Master's own cached (1,0)/
+        // (2,1) - yet every one of the instance's own geometry-row cells is cached as F="Inh",
+        // not literal.
+        var instanceShapeXml =
+            """
+            <Shape ID="10" Type="Shape" Master="1">
+              <Cell N="Width" V="4"/><Cell N="Height" V="4"/>
+              <Section N="Geometry" IX="0">
+                <Row T="MoveTo" IX="1"><Cell N="X" V="2" F="Inh"/><Cell N="Y" V="0" F="Inh"/></Row>
+                <Row T="LineTo" IX="2"><Cell N="X" V="4" F="Inh"/><Cell N="Y" V="2" F="Inh"/></Row>
+              </Section>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(instanceShapeXml, mastersXml: EllipseMasterShapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var shape = document.GetPageShapes(0)[0];
+
+        // Assert: the instance's own (2,0)/(4,2) coordinates win - not the Master's (1,0)/(2,1).
+        var subpath = Assert.Single(shape.Geometries![0].Path.Subpaths);
+        Assert.Equal(2f, subpath.Start.X);
+        Assert.Equal(0f, subpath.Start.Y);
+        var command = Assert.Single(subpath.Commands);
+        Assert.Equal(4f, command.EndPoint.X);
+        Assert.Equal(2f, command.EndPoint.Y);
+    }
+
+    /// <summary>
+    ///     Proves the companion, non-regressing half of this milestone's geometry-row fix: a
+    ///     geometry-row cell genuinely <em>absent</em> from the instance row (not merely
+    ///     <c>Inh</c>-cached, but never mentioned by the instance row at all) still falls through
+    ///     to the Master row's own same-named cell, exactly as before - the new unconditional
+    ///     <c>PreferInstanceCells</c> overlay in <c>MergeGeometryRow</c> only ever overlays a cell
+    ///     name the instance row itself actually carries (see that method's own remarks), so an
+    ///     instance row overriding only <c>X</c> must still inherit the Master row's own <c>Y</c>
+    ///     rather than losing it.
+    /// </summary>
+    [Fact]
+    public void MasterInheritance_GeometryRowCellGenuinelyAbsentOnInstance_StillFallsThroughToMaster()
+    {
+        // Arrange: the instance's own row IX=2 carries only a literal X override (to 9); it does
+        // not mention Y at all (not even Inh) - the merged row's own Y must still be the Master's
+        // own cached 1 (Height*0.5 at the Master's own Height=2), not 0.
+        var instanceShapeXml =
+            """
+            <Shape ID="10" Type="Shape" Master="1">
+              <Section N="Geometry" IX="0">
+                <Row T="LineTo" IX="2"><Cell N="X" V="9"/></Row>
+              </Section>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(instanceShapeXml, mastersXml: EllipseMasterShapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var shape = document.GetPageShapes(0)[0];
+
+        // Assert: X=9 from the instance's own literal override; Y=1 still inherited from the
+        // Master row (not lost/defaulted to 0).
+        var subpath = Assert.Single(shape.Geometries![0].Path.Subpaths);
+        var command = Assert.Single(subpath.Commands);
+        Assert.Equal(9f, command.EndPoint.X);
+        Assert.Equal(1f, command.EndPoint.Y);
+    }
+
+    /// <summary>
     ///     Proves <c>PreferInstanceTransformCells</c>' overlay is narrowly scoped to exactly the
     ///     9 transform cell names (<c>PinX</c>/<c>PinY</c>/<c>Width</c>/<c>Height</c>/
     ///     <c>LocPinX</c>/<c>LocPinY</c>/<c>Angle</c>/<c>FlipX</c>/<c>FlipY</c>): an

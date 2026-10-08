@@ -55,17 +55,38 @@ public sealed partial class VsdxDocument
     ];
 
     /// <summary>
+    ///     The arrowhead-decoration cell names - <c>BeginArrow</c>/<c>EndArrow</c>/
+    ///     <c>BeginArrowSize</c>/<c>EndArrowSize</c> - for which, <em>on a 1-D (connector) shape
+    ///     only</em> (the same <c>BeginX</c>/<c>EndX</c> gate <see cref="TransformCellNames"/>
+    ///     uses - see <see cref="MergeCells"/>'s own remarks), an instance's own cached cell (even
+    ///     when marked <c>F="Inh"</c>) must always win over the Master's own same-named cell,
+    ///     mirroring <see cref="TransformCellNames"/>'s own rationale: a 1-D connector's own
+    ///     arrowhead selection is a per-instance authoring choice (for example toggling a UML
+    ///     association's navigability, or resizing one specific connector's arrow), never a value
+    ///     genuinely shared with every other instance of the same Master the way an ordinary 2-D
+    ///     shape's style cells are. A 2-D shape is deliberately excluded from this overlay for the
+    ///     same reason <see cref="TransformCellNames"/> excludes one: a 2-D shape's own arrowhead
+    ///     cell (when present at all) genuinely can be the Master's own shared default, so the
+    ///     generic "Master's cell wins over an inherited instance cell" rule remains correct there.
+    /// </summary>
+    private static readonly string[] ArrowCellNames =
+    [
+        "BeginArrow", "EndArrow", "BeginArrowSize", "EndArrowSize",
+    ];
+
+    /// <summary>
     ///     Merges an instance shape's own cells with its Master shape's cells (if any) into a
     ///     single, flat effective <see cref="VsdxCellBag"/>, then - <em>only when the merged
     ///     result identifies the shape as 1-D</em> (both a <c>BeginX</c> and an <c>EndX</c> cell
     ///     present, the same detection convention <c>VsdxDocument.Groups.cs</c>'s own
     ///     <c>ConnectorEndpoints</c> resolution uses) - re-applies the instance's own cached
-    ///     <see cref="TransformCellNames"/> cells (if present) over whatever the generic merge
-    ///     produced; see <see cref="TransformCellNames"/>'s own remarks for why a 1-D shape's nine
-    ///     transform cells cannot use the generic "Master's cell wins over an inherited instance
-    ///     cell" rule. A 2-D shape is left unaffected by this overlay: its generic merge result
-    ///     (Master's cell wins over an <c>F="Inh"</c> instance cell) is correct for a shape that
-    ///     legitimately inherits its full transform from its Master.
+    ///     <see cref="TransformCellNames"/> and <see cref="ArrowCellNames"/> cells (if present)
+    ///     over whatever the generic merge produced; see those two arrays' own remarks for why a
+    ///     1-D shape's transform/arrowhead cells cannot use the generic "Master's cell wins over
+    ///     an inherited instance cell" rule. A 2-D shape is left unaffected by this overlay: its
+    ///     generic merge result (Master's cell wins over an <c>F="Inh"</c> instance cell) is
+    ///     correct for a shape that legitimately inherits its full transform/arrowheads from its
+    ///     Master.
     /// </summary>
     /// <param name="instanceCells">The instance shape's own direct <c>&lt;Cell&gt;</c> children.</param>
     /// <param name="masterCells">The Master shape's own direct <c>&lt;Cell&gt;</c> children, or <see langword="null"/> when the instance has no Master.</param>
@@ -83,35 +104,51 @@ public sealed partial class VsdxDocument
 
         var merged = VsdxCellBagMerge.Merge(instanceCells, masterCells);
 
-        // Only a 1-D (connector) shape's own transform cells are baked, per-instance, from that
-        // instance's own BeginX/BeginY/EndX/EndY endpoints (see TransformCellNames's own
-        // remarks) - the same detection convention VsdxDocument.Groups.cs's own
-        // ConnectorEndpoints resolution uses (a 1-D shape always carries both a BeginX and an
-        // EndX cell; a 2-D shape carries neither). A 2-D shape that legitimately inherits its
-        // full transform from its Master (never locally moved/resized, its own cell - if any -
-        // still marked F="Inh") must keep falling through to the generic "Master's cell wins
-        // over an inherited instance cell" rule above; only a 1-D shape's own cached cell should
-        // ever override the Master's unrelated template-local position/size.
-        return merged.TryGet("BeginX", out _) && merged.TryGet("EndX", out _)
-            ? PreferInstanceTransformCells(merged, instanceCells)
-            : merged;
+        // Only a 1-D (connector) shape's own transform/arrowhead cells are baked, per-instance,
+        // from that instance's own BeginX/BeginY/EndX/EndY endpoints or its own authoring choices
+        // (see TransformCellNames/ArrowCellNames's own remarks) - the same detection convention
+        // VsdxDocument.Groups.cs's own ConnectorEndpoints resolution uses (a 1-D shape always
+        // carries both a BeginX and an EndX cell; a 2-D shape carries neither). A 2-D shape that
+        // legitimately inherits its full transform/arrowheads from its Master (never locally
+        // moved/resized/re-arrowed, its own cell - if any - still marked F="Inh") must keep
+        // falling through to the generic "Master's cell wins over an inherited instance cell"
+        // rule above; only a 1-D shape's own cached cell should ever override the Master's
+        // unrelated template-local position/size/arrowhead.
+        if (!merged.TryGet("BeginX", out _) || !merged.TryGet("EndX", out _))
+        {
+            return merged;
+        }
+
+        merged = PreferInstanceCells(merged, instanceCells, TransformCellNames);
+        return PreferInstanceCells(merged, instanceCells, ArrowCellNames);
     }
 
     /// <summary>
-    ///     Overlays <paramref name="instanceCells"/>'s own cached <see cref="TransformCellNames"/>
-    ///     cells (present or not, literal or <c>"Inh"</c>) onto <paramref name="merged"/>, for
-    ///     every one of those nine names the instance itself actually carries a cell for -
-    ///     leaving every other cell (and any <see cref="TransformCellNames"/> entry the instance
+    ///     Overlays <paramref name="instanceCells"/>'s own cached cells named in
+    ///     <paramref name="names"/> (present or not, literal or <c>"Inh"</c>) onto
+    ///     <paramref name="merged"/>, for every name the instance itself actually carries a cell
+    ///     for - leaving every other cell (and any <paramref name="names"/> entry the instance
     ///     does not itself carry at all, which correctly keeps falling through to the Master's own
-    ///     cell) untouched.
+    ///     cell) untouched. The overlaid cell is always written back <em>as a literal</em> (its own
+    ///     <c>F=</c> formula, if any, is dropped - see this method's own remarks) rather than
+    ///     carrying forward an <c>"Inh"</c> marking: for <see cref="ArrowCellNames"/> specifically,
+    ///     <c>ResolveLineCellValue</c>/<c>ResolveFillCellValue</c> (<c>VsdxDocument.Paint.cs</c>)
+    ///     treat any <c>"Inh"</c>-marked cell as "not a genuine override, defer to the StyleSheet
+    ///     chain instead" - the exact same convention <see cref="VsdxCellBagMerge.Merge"/> applies
+    ///     generically - so an overlay that preserved the <c>"Inh"</c> marking verbatim would
+    ///     silently have no effect on arrowhead resolution at all (the StyleSheet chain would still
+    ///     win), defeating the entire purpose of this override. <see cref="TransformCellNames"/>'s
+    ///     own consumer (<c>VsdxShapeTransform</c>) never inspects a cell's formula/inherited
+    ///     status, so dropping it there is a no-op change, not merely a special case for arrowheads.
     /// </summary>
     /// <param name="merged">The already Master/instance-merged cell bag to overlay onto.</param>
     /// <param name="instanceCells">The instance shape's own direct <c>&lt;Cell&gt;</c> children.</param>
-    /// <returns><paramref name="merged"/> unchanged when the instance carries none of <see cref="TransformCellNames"/>; otherwise a new, overlaid <see cref="VsdxCellBag"/>.</returns>
-    private static VsdxCellBag PreferInstanceTransformCells(VsdxCellBag merged, VsdxCellBag instanceCells)
+    /// <param name="names">The cell names to prefer the instance's own cached cell for, when present (see <see cref="TransformCellNames"/>/<see cref="ArrowCellNames"/>).</param>
+    /// <returns><paramref name="merged"/> unchanged when the instance carries none of <paramref name="names"/>; otherwise a new, overlaid <see cref="VsdxCellBag"/>.</returns>
+    private static VsdxCellBag PreferInstanceCells(VsdxCellBag merged, VsdxCellBag instanceCells, IReadOnlyList<string> names)
     {
         Dictionary<string, VsdxCell>? overlaid = null;
-        foreach (var name in TransformCellNames)
+        foreach (var name in names)
         {
             if (!instanceCells.TryGet(name, out var instanceCell))
             {
@@ -119,7 +156,7 @@ public sealed partial class VsdxDocument
             }
 
             overlaid ??= merged.Names.ToDictionary(n => n, n => merged.TryGet(n, out var c) ? c : default, StringComparer.Ordinal);
-            overlaid[name] = instanceCell;
+            overlaid[name] = new VsdxCell(instanceCell.Name, instanceCell.Value, Formula: null);
         }
 
         return overlaid is null ? merged : VsdxCellBag.FromDictionary(overlaid);
@@ -240,7 +277,9 @@ public sealed partial class VsdxDocument
     ///     Merges a single instance geometry row over its Master's own same-indexed row,
     ///     cell-by-cell: the row's own cell bag is merged via <see cref="VsdxCellBagMerge.Merge"/>
     ///     (instance's own literal cell wins per name, else the Master row's same-named cell,
-    ///     else the instance's own non-literal cell), and the row's <c>T=</c> (type) is the
+    ///     else the instance's own non-literal cell), then the instance row's own present cells
+    ///     (present at all - literal <em>or</em> <c>F="Inh"</c>) are unconditionally overlaid back
+    ///     on top via <see cref="PreferInstanceCells"/>, and the row's <c>T=</c> (type) is the
     ///     instance row's own value when present, otherwise the Master row's value - mirroring
     ///     every other cell's own "absent-on-instance falls through to Master" rule, since
     ///     <c>T=</c> is not itself a <c>&lt;Cell&gt;</c> but the row element's own attribute.
@@ -248,9 +287,39 @@ public sealed partial class VsdxDocument
     /// <param name="instanceRow">The instance's own row at this <c>IX</c>.</param>
     /// <param name="masterRow">The Master's own row at the same <c>IX</c>.</param>
     /// <returns>The merged <see cref="VsdxGeometryRowRaw"/>, keyed at <paramref name="instanceRow"/>'s own <c>IX</c> (identical to <paramref name="masterRow"/>'s, by construction).</returns>
+    /// <remarks>
+    ///     A geometry row's cells (<c>X</c>/<c>Y</c>/<c>A</c>/.../<c>Del</c>) are never a value
+    ///     genuinely shared across every instance of the same Master the way an ordinary style
+    ///     cell (for example <c>LineColor</c>) is - a geometry row's resolved coordinates are
+    ///     always derived from <em>that shape's own</em> already-resolved <c>Width</c>/
+    ///     <c>Height</c> (for example <c>Width*0.5</c>), which differ per instance even when the
+    ///     row's own cell is cached as <c>F="Inh"</c>. <see cref="VsdxCellBagMerge.Merge"/>'s
+    ///     generic "literal-instance-wins, else Master's cell" rule therefore silently discards an
+    ///     instance row's own already-correct, per-shape-derived <c>Inh</c> cell in favor of the
+    ///     Master's own differently-scaled cached value whenever the instance's own cell is itself
+    ///     marked <c>Inh</c> (not literal) - confirmed directly against <c>60489.vsdx</c>'s own
+    ///     Shape <c>ID='114'</c> (an ellipse glued to its Master via a differently-sized
+    ///     <c>Width</c>/<c>Height</c>): every one of its own geometry-row cells is cached as
+    ///     <c>F="Inh"</c>, so the generic merge rule substituted the Master's own smaller cached
+    ///     radius for every row, fusing two independently-sized ellipse instances of the same
+    ///     Master into a single, wrongly-proportioned blob. Unlike <see cref="TransformCellNames"/>/
+    ///     <see cref="ArrowCellNames"/> (which apply this same "instance's own cached cell always
+    ///     wins" rule only on a 1-D shape), this overlay applies unconditionally to every geometry
+    ///     row regardless of 1-D/2-D shape kind, because a geometry row's own coordinates are
+    ///     <em>always</em> derived from that shape's own dimensions, never a shared page-space
+    ///     position the way <see cref="TransformCellNames"/>'s own <c>PinX</c>/<c>PinY</c> can
+    ///     legitimately be for a 2-D shape. A cell genuinely absent from the instance row (not
+    ///     merely <c>Inh</c>-cached, but never mentioned by the instance row at all) is left alone
+    ///     by <see cref="PreferInstanceCells"/> - see that method's own remarks - and keeps falling
+    ///     through to the Master row's same-named cell via the preceding
+    ///     <see cref="VsdxCellBagMerge.Merge"/> call, exactly as the existing, still-correct
+    ///     "Master row not mentioned by the instance is inherited verbatim" rule for an entire row
+    ///     already does at <see cref="MergeGeometryRows"/>'s own level.
+    /// </remarks>
     private static VsdxGeometryRowRaw MergeGeometryRow(VsdxGeometryRowRaw instanceRow, VsdxGeometryRowRaw masterRow)
     {
         var mergedCells = VsdxCellBagMerge.Merge(instanceRow.Cells, masterRow.Cells);
+        mergedCells = PreferInstanceCells(mergedCells, instanceRow.Cells, instanceRow.Cells.Names.ToArray());
         var type = instanceRow.Type.Length > 0 ? instanceRow.Type : masterRow.Type;
         return new VsdxGeometryRowRaw(instanceRow.Index, type, IsDelete: false, mergedCells);
     }

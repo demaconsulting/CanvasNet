@@ -188,6 +188,112 @@ public class VsdxArrowheadResolutionTests
     }
 
     /// <summary>
+    ///     A Master connector shape (1-D: carries its own <c>BeginX</c>/<c>EndX</c>) whose own
+    ///     <c>EndArrow</c>/<c>EndArrowSize</c> are literal <c>0</c>/<c>2</c> (no arrowhead) -
+    ///     mirroring <c>44501e.vsdx</c>'s own <c>master25.xml</c> "Binary Association" Group
+    ///     shape's literal <c>EndArrow V='0' F='GUARD(0)'</c> cell.
+    /// </summary>
+    private const string ArrowMasterShapeXml =
+        """
+        <Shape ID="1" Type="Shape">
+          <Cell N="PinX" V="1"/><Cell N="PinY" V="0"/><Cell N="Width" V="2"/><Cell N="Height" V="0"/>
+          <Cell N="LocPinX" V="1"/><Cell N="LocPinY" V="0"/><Cell N="Angle" V="0"/>
+          <Cell N="BeginX" V="0"/><Cell N="BeginY" V="0"/><Cell N="EndX" V="2"/><Cell N="EndY" V="0"/>
+          <Cell N="EndArrow" V="0"/><Cell N="EndArrowSize" V="2"/>
+          <Section N="Geometry" IX="0">
+            <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+            <Row T="LineTo" IX="2"><Cell N="X" V="2"/><Cell N="Y" V="0"/></Row>
+          </Section>
+        </Shape>
+        """;
+
+    /// <summary>
+    ///     Proves this milestone's <c>ArrowCellNames</c> extension of
+    ///     <c>PreferInstanceCells</c> (see <c>VsdxDocument.CellMerge.cs</c>'s own remarks): a 1-D
+    ///     (connector) instance's own <c>EndArrow</c>/<c>EndArrowSize</c> cells, cached as
+    ///     <c>F="Inh"</c> (not literal), still win over the Master's own distinct literal
+    ///     <c>EndArrow="0"</c>/<c>EndArrowSize="2"</c> (see <see cref="ArrowMasterShapeXml"/>) -
+    ///     mirroring a per-instance "toggle navigability" authoring choice on one specific UML
+    ///     association instance of a shared Master, analogous to <c>44501e.vsdx</c>'s own
+    ///     <c>Binary Association</c> connector pattern.
+    /// </summary>
+    [Fact]
+    public void ArrowheadResolution_InstanceInhMarkedArrowCell_PreferredOverMasterValue()
+    {
+        // Arrange: the instance is a genuine 1-D connector (own BeginX/BeginY/EndX/EndY cells)
+        // whose own EndArrow/EndArrowSize are cached as Inh, not literal, yet still the
+        // instance's own correct, per-instance authoring choice (Arrow, size index 1).
+        var instanceShapeXml =
+            """
+            <Shape ID="10" Type="Shape" Master="1">
+              <Cell N="BeginX" V="0"/><Cell N="BeginY" V="0"/><Cell N="EndX" V="2"/><Cell N="EndY" V="0"/>
+              <Cell N="EndArrow" V="4" F="Inh"/><Cell N="EndArrowSize" V="1" F="Inh"/>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(instanceShapeXml, mastersXml: ArrowMasterShapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var paint = document.GetPageShapes(0)[0].Paint!;
+
+        // Assert: the instance's own Inh-marked EndArrow (4/Arrow) wins, not the Master's literal
+        // EndArrow="0" (None).
+        Assert.Equal(VsdxArrowheadStyle.Arrow, paint.EndArrowhead.Style);
+        Assert.Equal(1, paint.EndArrowhead.SizeIndex);
+    }
+
+    /// <summary>
+    ///     A Master <em>2-D</em> shape (no <c>BeginX</c>/<c>EndX</c> cell anywhere - unlike
+    ///     <see cref="ArrowMasterShapeXml"/>) whose own <c>EndArrow</c>/<c>EndArrowSize</c> are
+    ///     literal <c>0</c>/<c>2</c> (no arrowhead).
+    /// </summary>
+    private const string TwoDimensionalArrowMasterShapeXml =
+        """
+        <Shape ID="1" Type="Shape">
+          <Cell N="PinX" V="1"/><Cell N="PinY" V="1"/><Cell N="Width" V="2"/><Cell N="Height" V="2"/>
+          <Cell N="LocPinX" V="1"/><Cell N="LocPinY" V="1"/><Cell N="Angle" V="0"/>
+          <Cell N="EndArrow" V="0"/><Cell N="EndArrowSize" V="2"/>
+          <Section N="Geometry" IX="0">
+            <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+            <Row T="LineTo" IX="2"><Cell N="X" V="2"/><Cell N="Y" V="0"/></Row>
+          </Section>
+        </Shape>
+        """;
+
+    /// <summary>
+    ///     Proves the <c>ArrowCellNames</c> overlay's narrowing to 1-D shapes only, mirroring
+    ///     <c>TransformCellNames</c>'s own narrowing: a 2-D shape (no <c>BeginX</c>/<c>EndX</c>
+    ///     cell) whose own <c>EndArrow</c> cell is marked <c>F="Inh"</c> still defers entirely to
+    ///     the Master's own literal <c>EndArrow</c> value, exactly as the generic merge rule
+    ///     already resolved it before this milestone - proving the new overlay does not affect an
+    ///     ordinary 2-D shape that legitimately inherits its arrowhead cells from its Master (a
+    ///     2-D shape's own arrowhead cell, when present at all, genuinely can be the Master's own
+    ///     shared default).
+    /// </summary>
+    [Fact]
+    public void ArrowheadResolution_2DShapeInhMarkedArrowCell_DefersToMasterValue()
+    {
+        // Arrange: a 2-D shape (no BeginX/EndX) whose own EndArrow is marked Inh with a stale
+        // cached value (4/Arrow); the Master's own literal EndArrow is 0 (None) - see
+        // TwoDimensionalArrowMasterShapeXml.
+        var instanceShapeXml =
+            """
+            <Shape ID="10" Type="Shape" Master="1">
+              <Cell N="EndArrow" V="4" F="Inh"/>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(instanceShapeXml, mastersXml: TwoDimensionalArrowMasterShapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var paint = document.GetPageShapes(0)[0].Paint!;
+
+        // Assert: the Master's own literal EndArrow (None) wins, not the instance's stale
+        // Inh-marked EndArrow (Arrow) - unaffected by the (1-D-only) arrow-cell overlay.
+        Assert.Equal(VsdxArrowheadStyle.None, paint.EndArrowhead.Style);
+    }
+
+    /// <summary>
     ///     Proves a shape with no <c>BeginArrow</c>/<c>EndArrow</c> cells anywhere in its chain
     ///     (no <c>LineStyle</c> attribute, no <c>&lt;StyleSheets&gt;</c> override) resolves both
     ///     arrowheads to <see cref="VsdxArrowhead.NoArrowhead"/> by default.
