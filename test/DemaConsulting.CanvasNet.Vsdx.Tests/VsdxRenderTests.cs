@@ -348,7 +348,25 @@ public class VsdxRenderTests
         // Assert: page-space (2, 1.5) inches - well inside the rectangle - maps to pixel
         // (200, 1100 - 150) = (200, 950) (Y-up page space -> Y-down pixel space); the fill still
         // painted its resolved color despite HideText="1".
-        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[200, 950]);
+        var fillColor = new Rgba32(255, 0, 0, 255);
+        Assert.Equal(fillColor, surface[200, 950]);
+
+        // Assert: the resolved default text color is black (not red), so any glyph ink painted
+        // for the "Hidden" <Text> run anywhere within the rectangle's own pixel bounds (page X in
+        // [1,3] -> pixel X [100,300), page Y in [1,2] -> pixel Y [900,1000)) would leave a
+        // non-fill-colored pixel. Scanning every pixel in that region - not just one arbitrarily
+        // chosen interior sample - proves the text was actually suppressed rather than merely
+        // happening to miss one probe point.
+        for (var y = 900; y < 1000; y++)
+        {
+            for (var x = 100; x < 300; x++)
+            {
+                Assert.True(
+                    surface[x, y] == fillColor,
+                    $"Expected pixel ({x},{y}) to be the pure fill color (no glyph ink from the " +
+                    $"HideText=\"1\" <Text> run), but found {surface[x, y]}.");
+            }
+        }
     }
 
     /// <summary>Proves a connector with a recognized <c>EndArrow</c> style index (<c>2</c>, <see cref="VsdxArrowheadStyle.Arrow"/>) paints visible ink beyond its own stroked line's width near the end point, confirming the arrowhead itself was painted (not just the connector's own line).</summary>
