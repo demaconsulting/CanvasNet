@@ -1,6 +1,6 @@
 # CanvasNet
 
-<!-- cspell:ignore SFNT codepoints Noto Zapf -->
+<!-- cspell:ignore SFNT codepoints Noto Zapf Visio -->
 <!-- IMPORTANT: All links in this file must be absolute URLs.
      This file is distributed in packages and relative links will not resolve. -->
 
@@ -50,6 +50,10 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
   separate `DemaConsulting.CanvasNet.Pptx` package's `PptxDocument.Render`, an embedded
   `<p:graphicFrame>` chart is automatically parsed and painted using this same package, with no
   extra caller code required.
+- 📊 **Visio (.vsdx) Diagram Rendering** - Open a Microsoft Visio `.vsdx` package, inspect its page
+  count/size, and rasterize a page's shape geometry (including Master/stencil inheritance,
+  StyleSheet-resolved line/fill/text styles, connectors/glue points with arrowheads, nested
+  groups, and text) to a surface (ships as the separate `DemaConsulting.CanvasNet.Vsdx` package)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
@@ -126,6 +130,19 @@ Or via Package Manager Console:
 
 ```powershell
 Install-Package DemaConsulting.CanvasNet.Pptx
+```
+
+Visio (`.vsdx`) diagram parsing and rendering requires the separate
+`DemaConsulting.CanvasNet.Vsdx` package:
+
+```bash
+dotnet add package DemaConsulting.CanvasNet.Vsdx
+```
+
+Or via Package Manager Console:
+
+```powershell
+Install-Package DemaConsulting.CanvasNet.Vsdx
 ```
 
 ## Usage

@@ -1,6 +1,7 @@
 # Introduction
 
 <!-- cspell:ignore glyf sfnt -->
+<!-- cspell:ignore Visio -->
 
 This document provides the verification design for CanvasNet, a .NET library
 providing a canvas-based drawing and rendering API.
@@ -50,6 +51,9 @@ constituent software items, specifically:
 - **CanvasNetPptx (System)** — A separate, independently-distributed software system providing
   PowerPoint (`.pptx`) presentation-rendering support, containing a single unit,
   `PptxDocument` — see _CanvasNetPptx System Verification_ (`canvas-net-pptx.md`)
+- **CanvasNetVsdx (System)** — A separate, independently-distributed software system providing
+  Microsoft Visio (`.vsdx`) diagram-rendering support, containing a single unit,
+  `VsdxDocument` — see _CanvasNetVsdx System Verification_ (`canvas-net-vsdx.md`)
 
 The following OTS items are also covered:
 
