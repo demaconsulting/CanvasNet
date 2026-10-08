@@ -773,7 +773,7 @@ public sealed class Surface : IDisposable
 
     /// <summary>
     ///     Amortized-workspace counterpart of <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32)"/>
-    ///     for callers - such as <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill(Surface, System.Collections.Generic.IReadOnlyList{System.Collections.Generic.List{System.Numerics.Vector2}}, Rgba32, DemaConsulting.CanvasNet.Drawing.FillRule, DemaConsulting.CanvasNet.Geometry.Rect)"/> -
+    ///     for callers - such as <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill(Surface, System.Collections.Generic.IReadOnlyList{System.Collections.Generic.List{System.Numerics.Vector2}}, Rgba32, DemaConsulting.CanvasNet.Drawing.FillRule, DemaConsulting.CanvasNet.Geometry.Rect, DemaConsulting.CanvasNet.Drawing.ClipMask?)"/> -
     ///     that composite many equal-or-smaller-width spans in a tight per-row loop.
     /// </summary>
     /// <param name="y">The zero-based row to composite into. Must be within <c>[0, Height)</c>.</param>
@@ -891,7 +891,7 @@ public sealed class Surface : IDisposable
 
     /// <summary>
     ///     Amortized-workspace counterpart of <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, ReadOnlySpan{Rgba32})"/>,
-    ///     for callers - such as <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill(Surface, IReadOnlyList{List{System.Numerics.Vector2}}, DemaConsulting.CanvasNet.Drawing.Gradient, DemaConsulting.CanvasNet.Drawing.FillRule, Geometry.Rect)"/> -
+    ///     for callers - such as <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill(Surface, IReadOnlyList{List{System.Numerics.Vector2}}, DemaConsulting.CanvasNet.Drawing.Gradient, DemaConsulting.CanvasNet.Drawing.FillRule, Geometry.Rect, DemaConsulting.CanvasNet.Drawing.ClipMask?)"/> -
     ///     that composite many equal-or-smaller-width spans in a tight per-row loop.
     /// </summary>
     /// <param name="y">The zero-based row to composite into. Must be within <c>[0, Height)</c>.</param>
@@ -1372,7 +1372,7 @@ public sealed class Surface : IDisposable
     ///     A reusable set of scratch buffers for the internal
     ///     <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32, CompositeSpanWorkspace)"/>
     ///     overload, so a caller that composites many spans of the same or smaller width in a
-    ///     tight loop - for example <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill(Surface, System.Collections.Generic.IReadOnlyList{System.Collections.Generic.List{System.Numerics.Vector2}}, Rgba32, DemaConsulting.CanvasNet.Drawing.FillRule, DemaConsulting.CanvasNet.Geometry.Rect)"/>,
+    ///     tight loop - for example <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill(Surface, System.Collections.Generic.IReadOnlyList{System.Collections.Generic.List{System.Numerics.Vector2}}, Rgba32, DemaConsulting.CanvasNet.Drawing.FillRule, DemaConsulting.CanvasNet.Geometry.Rect, DemaConsulting.CanvasNet.Drawing.ClipMask?)"/>,
     ///     once per rasterized row - can rent its <see cref="RowChannelBuffers"/>/
     ///     <see cref="CompositeWorkBuffers"/> scratch arrays exactly once for the whole loop
     ///     instead of once per row, eliminating that hot path's per-row

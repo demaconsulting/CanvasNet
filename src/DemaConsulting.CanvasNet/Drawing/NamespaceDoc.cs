@@ -24,9 +24,15 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     <see cref="DemaConsulting.CanvasNet.Geometry"/> (for <c>Path</c>, curve flattening, and
 ///     arc conversion) and <see cref="DemaConsulting.CanvasNet.Canvas"/> (for the pixel buffer it
 ///     paints into) - neither of those namespaces depends on this one, so future changes here
-///     never ripple back into either foundational namespace. Transform-aware fills, clip regions
-///     beyond the surface's own bounds, and font/text rendering remain reserved for later
-///     phases.
+///     never ripple back into either foundational namespace. An internal <see cref="ClipMask"/>
+///     type represents a per-pixel antialiased clip-region coverage mask - built from a path the
+///     same way <see cref="PathFiller"/> itself rasterizes one, then intersected (never replaced)
+///     with any previously active clip - and is threaded through dedicated internal clip-aware
+///     overloads of <see cref="PathFiller.Fill(DemaConsulting.CanvasNet.Canvas.Surface, DemaConsulting.CanvasNet.Geometry.Path, DemaConsulting.CanvasNet.Canvas.Rgba32, FillRule, float)"/>
+///     for <c>DemaConsulting.CanvasNet.Pdf</c> (an <c>InternalsVisibleTo</c> friend assembly) to
+///     enforce a PDF content stream's current clipping path (PDF 32000-1 &#xA7;8.5.4) without that
+///     concept becoming part of this namespace's public surface. Transform-aware fills and
+///     font/text rendering remain reserved for later phases.
 /// </summary>
 internal static class NamespaceDoc
 {

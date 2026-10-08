@@ -490,8 +490,8 @@ its own distinguishable `Feature` token.
   first, operator keyword last).
 - **`DispatchOperator(string operatorName, List<PdfObject> operands)`
   (`PdfDocument.ContentStream.cs`)** — a single `switch` over every operator this phase
-  implements (graphics-state, path-construction, path-painting, device-color, and
-  image-XObject), silently doing nothing for any other keyword (text, clipping, `gs`
+  implements (graphics-state, path-construction, path-painting, clipping-path, device-color, and
+  image-XObject), silently doing nothing for any other keyword (text, `gs`
   (ExtGState), shading, inline images, and any other operator not yet implemented).
 - **`ResolvePageContentBytes(PdfObject pageNode)` (`PdfDocument.ContentStream.cs`)** — resolves
   `/Contents`: a single stream is decoded directly via `GetStreamDecodedBytes`; an array of
@@ -554,6 +554,35 @@ its own distinguishable `Feature` token.
     `PdfDocumentTests.PdfDocument_PathOps_StrokeOnlyClosedBezierCircle_RendersThinRingNotSolidDisc`,
     confirms a stroke-only, unfilled closed Bezier-curve circle continues to render as a ring
     (not a solid disc) through this exact code path.
+- **Clipping-path operators (`W`/`W*`, `PdfDocument.ContentStream.cs`/`PdfDocument.PathOps.cs`/
+  `PdfDocument.GraphicsState.cs`, per PDF 32000-1 §8.5.4)** — `W`/`W*` do not themselves modify the
+  active clip immediately; each only records a _pending_ clip fill rule
+  (`_pendingClipFillRule`, nonzero for `W`, even-odd for `W*`) on a field scoped exactly like
+  `_pathBuilder` (not part of `GraphicsState`, since it tracks in-progress-path state, not a
+  graphics-state attribute that survives `q`/`Q`). `PaintCurrentPath` - the single shared dispatch
+  point for every path-painting operator - applies the pending clip _after_ that operator's own
+  fill/stroke painting (so, for example, `W f` still fills using the _previous_ clip, then installs
+  the new one for whatever comes next; `W n` paints nothing but still installs the new clip): it
+  rasterizes the just-painted path into a fresh `Drawing.ClipMask` (via `ClipMask.FromPath`, under
+  the pending fill rule, bound to the destination surface's own pixel extent) and assigns
+  `_gs.Clip = _gs.Clip is null ? newMask : _gs.Clip.Intersect(newMask)` - an _intersection_ with any
+  already-active clip, never a wholesale replacement, per the specification's own wording ("the new
+  clipping path ... shall be the intersection of the current clipping path and the newly
+  constructed path"). `GraphicsState.Clip` (an `internal Drawing.ClipMask?`, `null` meaning "the
+  entire output device", i.e. unclipped) is an ordinary graphics-state field, so `Clone()` copies
+  it like any other - `ClipMask` is immutable and `Intersect` always returns a new instance, so
+  sharing the reference across a `q`/`Q`/Form-XObject/Type3-glyph clone is always safe, with no
+  extra save/restore logic required anywhere. The active clip is enforced by multiplying its own
+  per-pixel antialiased coverage into every subsequent paint operation's own coverage: `_gs.Clip` is
+  threaded as a `Drawing.ClipMask?` argument into every `Drawing.PathFiller.Fill` call site this
+  class owns (ordinary fill/stroke/pattern fill in `PaintCurrentPath`/`PaintStroke`/
+  `PaintPatternFill`, and glyph fill in `PdfDocument.Text.cs`'s `ShowGlyph`), and - since
+  `PdfDocument.Images.cs`'s `CompositeImageOntoSurface` paints a decoded image XObject directly
+  rather than through `Drawing.PathFiller` - that method instead multiplies each sampled source
+  pixel's own alpha by `_gs.Clip?.GetCoverage(x, y)` before compositing it "over" the destination,
+  the same technique applied at the one paint call site that does not go through `Drawing.PathFiller`.
+  See `docs/design/canvas-net/drawing/path-filler.md`'s own _ClipMask_ subsection for the
+  `Drawing`-layer rasterization/intersection mechanics.
 - **Device color operators (`PdfDocument.Color.cs`, added in Phase 3; color-space model replaced
   in Phase 14)** — a private, immutable `PdfColorSpace` class (nested `Family` enum:
   `DeviceGray`/`DeviceRGB`/`DeviceCMYK`/`Indexed`, with shared `DeviceGray`/`DeviceRGB`/
@@ -1250,7 +1279,10 @@ its own distinguishable `Feature` token.
   actual `[false false]`/`[true true]`/mixed value — a documented, narrower-than-spec
   simplification: no existing `GradientSpread` value expresses the spec's true
   "paint nothing outside the defining geometry" default, and implementing that exactly would
-  require a general clipping mechanism (`W`/`W*`) this phase does not add.
+  require clipping the shading's own paint to its defining geometry automatically - distinct from
+  the general-purpose `W`/`W*` clipping-path operators (see _Clipping Paths_ below), which a
+  content stream must invoke explicitly and which this phase does not wire into `/Extend`
+  resolution itself.
 - **Tiling patterns (`PdfDocument.Patterns.cs`/`PdfDocument.Patterns.Tiling.cs`, added alongside
   `/Pattern` color-space support)** — a `/PatternType 1` stream's `/BBox` (4 numbers), `/XStep`/
   `/YStep` (each required finite and non-zero — `InvalidDataException` otherwise, a malformed, not
@@ -1284,15 +1316,14 @@ its own distinguishable `Feature` token.
   pixel by `Drawing.PathFiller`'s new `TilePaint` fill overload, mirroring the existing `Gradient`
   overload's structure exactly.
 - **Scope boundaries (deliberately not implemented this phase)** — `ShadingType` `1`/`4`-`7`
-  (function-based and mesh shadings), `/FunctionType 4` (PostScript calculator functions), the
-  `sh` operator, and generic path clipping (`W`/`W*`) all remain unsupported/unchanged (the `sh`
-  operator and `W`/`W*` both remain silently skipped by `DispatchOperator`'s existing lenient
-  default case, unchanged by this feature); a `/Pattern` color space nested inside another
-  `/Pattern`'s own `PatternBase` is out of scope (the `ComponentCount` arm for `Family.Pattern`
-  throws `InvalidOperationException` as a fail-closed backstop, since no caller is expected to
-  reach it); deep nested-tiling-pattern recursion is bounded only by the shared, reused
-  `MaxFormNestingDepth` guard (no dedicated correctness test of deep nested rendering itself, only
-  that the guard still fires through this new call path).
+  (function-based and mesh shadings), `/FunctionType 4` (PostScript calculator functions), and the
+  `sh` operator all remain unsupported/unchanged (the `sh` operator remains silently skipped by
+  `DispatchOperator`'s existing lenient default case, unchanged by this feature); a `/Pattern`
+  color space nested inside another `/Pattern`'s own `PatternBase` is out of scope (the
+  `ComponentCount` arm for `Family.Pattern` throws `InvalidOperationException` as a fail-closed
+  backstop, since no caller is expected to reach it); deep nested-tiling-pattern recursion is
+  bounded only by the shared, reused `MaxFormNestingDepth` guard (no dedicated correctness test of
+  deep nested rendering itself, only that the guard still fires through this new call path).
 
 ### Resource and Input Bounds
 

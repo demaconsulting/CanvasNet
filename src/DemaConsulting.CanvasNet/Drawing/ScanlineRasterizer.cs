@@ -136,9 +136,15 @@ internal static class ScanlineRasterizer
     ///     (<see cref="PathFiller.Fill(Canvas.Surface, Geometry.Path, Canvas.Rgba32, FillRule, float)"/>); this method rounds it outward to whole pixel rows and
     ///     columns.
     /// </param>
-    internal static void Fill(Surface surface, IReadOnlyList<List<Vector2>> polygons, Rgba32 color, FillRule fillRule, Rect clipBounds)
+    /// <param name="clip">
+    ///     An optional PDF clipping path coverage mask (see <see cref="ClipMask"/>) whose per-pixel
+    ///     coverage is multiplied into this fill's own antialiased coverage before compositing, or
+    ///     <see langword="null"/> when no clip is active. Defaults to <see langword="null"/> so
+    ///     every pre-existing call site (none of which know about clipping) is unaffected.
+    /// </param>
+    internal static void Fill(Surface surface, IReadOnlyList<List<Vector2>> polygons, Rgba32 color, FillRule fillRule, Rect clipBounds, ClipMask? clip = null)
     {
-        var sweep = new CoverageSweep(polygons, fillRule, clipBounds);
+        var sweep = new CoverageSweep(polygons, fillRule, clipBounds, clip);
         if (sweep.IsEmpty)
         {
             return;
@@ -172,21 +178,26 @@ internal static class ScanlineRasterizer
     /// <param name="clipBounds">
     ///     The region to rasterize, in the same path-space coordinates as <paramref name="polygons"/>.
     /// </param>
+    /// <param name="clip">
+    ///     An optional PDF clipping path coverage mask (see <see cref="ClipMask"/>) whose per-pixel
+    ///     coverage is multiplied into this fill's own antialiased coverage before compositing, or
+    ///     <see langword="null"/> when no clip is active. Defaults to <see langword="null"/>.
+    /// </param>
     /// <remarks>
     ///     Shares its whole row-coverage computation (edge table build, active-edge tracking, and
     ///     per-row <c>cover</c>/<c>area</c> accumulation) with the constant-color
-    ///     <see cref="Fill(Surface, IReadOnlyList{List{Vector2}}, Rgba32, FillRule, Rect)"/>
+    ///     <see cref="Fill(Surface, IReadOnlyList{List{Vector2}}, Rgba32, FillRule, Rect, ClipMask?)"/>
     ///     overload via the shared <see cref="CoverageSweep"/> helper - the only difference between
     ///     the two overloads is the final per-row compositing call, which here first evaluates a
     ///     per-pixel color row via <see cref="GradientEvaluator.EvaluateRow"/>, against a
     ///     <see cref="Gradient"/> plan built exactly once for the whole fill operation (via
     ///     <see cref="GradientEvaluator.CreatePlan"/>), not rebuilt on every row.
     /// </remarks>
-    internal static void Fill(Surface surface, IReadOnlyList<List<Vector2>> polygons, Gradient paint, FillRule fillRule, Rect clipBounds)
+    internal static void Fill(Surface surface, IReadOnlyList<List<Vector2>> polygons, Gradient paint, FillRule fillRule, Rect clipBounds, ClipMask? clip = null)
     {
         ArgumentNullException.ThrowIfNull(paint);
 
-        var sweep = new CoverageSweep(polygons, fillRule, clipBounds);
+        var sweep = new CoverageSweep(polygons, fillRule, clipBounds, clip);
         if (sweep.IsEmpty)
         {
             return;
@@ -222,20 +233,25 @@ internal static class ScanlineRasterizer
     /// <param name="clipBounds">
     ///     The region to rasterize, in the same path-space coordinates as <paramref name="polygons"/>.
     /// </param>
+    /// <param name="clip">
+    ///     An optional PDF clipping path coverage mask (see <see cref="ClipMask"/>) whose per-pixel
+    ///     coverage is multiplied into this fill's own antialiased coverage before compositing, or
+    ///     <see langword="null"/> when no clip is active. Defaults to <see langword="null"/>.
+    /// </param>
     /// <remarks>
     ///     Shares its whole row-coverage computation with the constant-color and
-    ///     <see cref="Fill(Surface, IReadOnlyList{List{Vector2}}, Gradient, FillRule, Rect)"/>
+    ///     <see cref="Fill(Surface, IReadOnlyList{List{Vector2}}, Gradient, FillRule, Rect, ClipMask?)"/>
     ///     overloads via the shared <see cref="CoverageSweep"/> helper - the only difference here
     ///     is that the final per-row compositing call first evaluates a per-pixel color row via
     ///     <see cref="TilePaintEvaluator.EvaluateRow"/>, against a <see cref="TilePaint"/> plan
     ///     built exactly once for the whole fill operation (via
     ///     <see cref="TilePaintEvaluator.CreatePlan"/>), not rebuilt on every row.
     /// </remarks>
-    internal static void Fill(Surface surface, IReadOnlyList<List<Vector2>> polygons, TilePaint paint, FillRule fillRule, Rect clipBounds)
+    internal static void Fill(Surface surface, IReadOnlyList<List<Vector2>> polygons, TilePaint paint, FillRule fillRule, Rect clipBounds, ClipMask? clip = null)
     {
         ArgumentNullException.ThrowIfNull(paint);
 
-        var sweep = new CoverageSweep(polygons, fillRule, clipBounds);
+        var sweep = new CoverageSweep(polygons, fillRule, clipBounds, clip);
         if (sweep.IsEmpty)
         {
             return;
@@ -256,6 +272,47 @@ internal static class ScanlineRasterizer
     }
 
     /// <summary>
+    ///     Rasterizes <paramref name="polygons"/>'s antialiased fill coverage directly into
+    ///     <paramref name="mask"/>, a dense <paramref name="maskWidth"/> x height buffer covering
+    ///     an entire <see cref="Surface"/> extent - the entry point <see cref="ClipMask.FromPath"/>
+    ///     uses to build a PDF clipping path's own coverage mask (PDF 32000-1 &#xA7;8.5.4), reusing
+    ///     the exact same <see cref="CoverageSweep"/> row-coverage computation as every <c>Fill</c>
+    ///     overload above rather than duplicating it.
+    /// </summary>
+    /// <param name="polygons">
+    ///     The closed polygons to rasterize (typically produced by <see cref="EdgeFlattener.Flatten"/>).
+    /// </param>
+    /// <param name="fillRule">The rule used to resolve overlapping/self-intersecting geometry.</param>
+    /// <param name="clipBounds">
+    ///     The region to rasterize, in the same path-space coordinates as <paramref name="polygons"/>
+    ///     - already intersected with the full <paramref name="maskWidth"/> x height mask extent by
+    ///     the caller (<see cref="ClipMask.FromPath"/>), exactly as every <c>Fill</c> overload's own
+    ///     <paramref name="clipBounds"/> is.
+    /// </param>
+    /// <param name="mask">
+    ///     The dense coverage buffer to write into, row-major with the same layout as
+    ///     <see cref="Surface"/>'s own pixel storage (row <c>y</c>, column <c>x</c>, at index
+    ///     <c>y * maskWidth + x</c>) and already zero-initialized by the caller for every pixel
+    ///     <paramref name="polygons"/> does not cover.
+    /// </param>
+    /// <param name="maskWidth">The full width, in pixel columns, of <paramref name="mask"/>'s own extent.</param>
+    internal static void AccumulateCoverageMask(
+        IReadOnlyList<List<Vector2>> polygons, FillRule fillRule, Rect clipBounds, float[] mask, int maskWidth)
+    {
+        var sweep = new CoverageSweep(polygons, fillRule, clipBounds);
+        if (sweep.IsEmpty)
+        {
+            return;
+        }
+
+        while (sweep.MoveNext(out var y, out var rowCoverage))
+        {
+            var rowOffset = (y * maskWidth) + sweep.ClipMinX;
+            rowCoverage.CopyTo(mask.AsSpan(rowOffset, rowCoverage.Length));
+        }
+    }
+
+    /// <summary>
     ///     Encapsulates the row-coverage computation shared by every <c>Fill</c> overload:
     ///     the edge table build, active-edge tracking, and per-row <c>cover</c>/<c>area</c>
     ///     accumulation/resolution described in this class's type-level remarks. A caller
@@ -265,10 +322,19 @@ internal static class ScanlineRasterizer
     ///     (constant color vs. per-pixel gradient color) - the coverage math itself is computed
     ///     exactly once, in exactly one place, regardless of how many <c>Fill</c> overloads exist.
     /// </summary>
+    /// <remarks>
+    ///     When constructed with a non-<see langword="null"/> <c>clip</c> (see <see cref="ClipMask"/>),
+    ///     every resolved row-coverage value is additionally multiplied by that clip's own
+    ///     per-pixel coverage at the same device pixel, in <see cref="AccumulateRowCoverage"/> -
+    ///     this is the single place a PDF clipping path (PDF 32000-1 &#xA7;8.5.4) is enforced
+    ///     against painted fill coverage, regardless of which <c>Fill</c> overload or paint source
+    ///     (solid color, gradient, tile) is in use.
+    /// </remarks>
     private sealed class CoverageSweep
     {
         private readonly List<Edge> _edges;
         private readonly FillRule _fillRule;
+        private readonly ClipMask? _clip;
         private readonly int _clipMinX;
         private readonly int _clipMaxX;
         private readonly int _clipMinY;
@@ -284,9 +350,10 @@ internal static class ScanlineRasterizer
         private int _nextEdgeIndex;
         private int _currentY;
 
-        public CoverageSweep(IReadOnlyList<List<Vector2>> polygons, FillRule fillRule, Rect clipBounds)
+        public CoverageSweep(IReadOnlyList<List<Vector2>> polygons, FillRule fillRule, Rect clipBounds, ClipMask? clip = null)
         {
             _fillRule = fillRule;
+            _clip = clip;
 
             // Round the (already surface-clipped) float clip bounds outward to whole pixel rows
             // and columns - the rasterizer always operates on whole-pixel scanlines and columns.
@@ -390,7 +457,7 @@ internal static class ScanlineRasterizer
                     continue;
                 }
 
-                AccumulateRowCoverage();
+                AccumulateRowCoverage(y);
 
                 rowCoverage = _rowCoverage;
                 return true;
@@ -468,12 +535,16 @@ internal static class ScanlineRasterizer
         ///     Accumulates every active, row-restricted edge into the shared <c>cover</c>/<c>area</c>
         ///     cell arrays, then sweeps left to right exactly once to resolve <see cref="_rowCoverage"/>.
         /// </summary>
+        /// <param name="y">
+        ///     The zero-based device row being resolved - used only to look up this row's own
+        ///     <see cref="_clip"/> coverage per column, when a clip is active.
+        /// </param>
         /// <remarks>
         ///     Isolated from <see cref="MoveNext"/> as its own self-contained row-sweep phase,
         ///     independently nameable from edge expiration/activation - see this class's
         ///     type-level remarks for the cell-based accumulation technique.
         /// </remarks>
-        private void AccumulateRowCoverage()
+        private void AccumulateRowCoverage(int y)
         {
             // Accumulate every active edge's row-restricted slice into the shared cell
             // arrays - a single O(edges) pass, with no sorting and no pairing of edges into
@@ -488,13 +559,23 @@ internal static class ScanlineRasterizer
             // Single left-to-right sweep: "accumulatedCover" is the running winding total. At
             // each column, "accumulatedCover" is first advanced by this column's own
             // "cover[x]", then the updated running total plus this column's own partial-edge
-            // geometry ("area[x]") is resolved to a [0, 1] coverage fraction per fill rule.
+            // geometry ("area[x]") is resolved to a [0, 1] coverage fraction per fill rule. When
+            // a PDF clipping path (see this class's remarks and ClipMask) is active, that same
+            // column's own clip coverage is then multiplied in - intersecting the two coverage
+            // fractions, exactly as PDF 32000-1 8.5.4 requires painting to be restricted to the
+            // current clipping path "in addition to" (not instead of) the geometry being painted.
             var accumulatedCover = 0f;
             for (var i = 0; i < Width; i++)
             {
                 accumulatedCover += _cover[i];
                 var total = accumulatedCover + _area[i];
-                _rowCoverage[i] = ResolveCoverage(total, _fillRule);
+                var coverage = ResolveCoverage(total, _fillRule);
+                if (_clip != null)
+                {
+                    coverage *= _clip.GetCoverage(_clipMinX + i, y);
+                }
+
+                _rowCoverage[i] = coverage;
             }
         }
 

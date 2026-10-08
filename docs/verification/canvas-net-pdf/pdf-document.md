@@ -691,6 +691,44 @@ guarding PDF against the false inner-ring-collapse regression even though PDF's 
 stroke-after-transform architecture made it unlikely to manifest for typical PDF device-space
 coordinate magnitudes.
 
+#### CanvasNetPdf-PdfDocument-ClippingPath: W/W* Clip, Enforce, and Scope the Active Clipping Path
+
+**Tests**: `PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion`,
+`PdfDocument_Clipping_SetInsideQQ_DoesNotLeakPastQ`,
+`PdfDocument_Clipping_WStar_UsesEvenOddFillRule`,
+`PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace`,
+`PdfDocument_Clipping_ClipThenImageDo_RestrictsImageToClipRegion`,
+`PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion`
+
+Every test in this group reuses the existing `RenderContent`/`BuildSinglePagePdfWithResources`
+helpers and asserts against the `Transparent` background sentinel exactly like the
+`PathPainting` group above, so a clipped-away pixel is distinguishable from a painted one with no
+new test infrastructure. `PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion` issues
+`W n` against a 50x50 rectangle, then fills the entire page, asserting a pixel inside the
+intersection of the clip and the fill paints while a pixel inside the fill but outside the clip
+remains background - proving `W`/`W*` are deferred (the `n` itself paints nothing) and enforced
+against a later, unrelated paint operator. `PdfDocument_Clipping_SetInsideQQ_DoesNotLeakPastQ`
+establishes and consumes a clip entirely inside `q ... Q`, then issues a second, full-page fill
+after `Q`, asserting that fill paints everywhere - proving the clip is restored away by `Q` rather
+than leaking past it. `PdfDocument_Clipping_WStar_UsesEvenOddFillRule` builds two overlapping
+rectangles into one path and clips with `W*`, asserting the overlap (which `W*`'s even-odd
+interpretation folds to a hole) is not painted by a subsequent full-page fill while each
+rectangle's own non-overlapping region is - mirroring
+`PathFiller_Fill_OverlappingSameWoundRectangles_NonZeroVsEvenOddDiverge`'s technique, but applied
+to clip-path interpretation rather than ordinary fill. `PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace`
+issues two sequential `re W n` clips (no intervening `q`/`Q`) with partially overlapping
+rectangles, asserting only their geometric overlap is painted by a following full-page fill -
+proving successive clips intersect rather than replace one another. Finally,
+`PdfDocument_Clipping_ClipThenImageDo_RestrictsImageToClipRegion` and
+`PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion` each establish a clip narrower
+than, respectively, a full-page image XObject placement and a glyph's own device bounding box,
+asserting a pixel that would otherwise be painted by the image/glyph (compared directly against
+the equivalent unclipped assertion in `PdfDocument_Images_DoOperator_DeviceGrayFlateDecode_PlacesExpectedPixels`/
+`PdfDocument_Text_ShowText_PaintsGlyphAtComposedTextRenderingMatrix`) is suppressed instead -
+proving the active clip is enforced at the two paint call sites (`Do`'s image compositing, and
+glyph fill) that do not route through `Drawing.PathFiller`'s own clip-aware overloads the way
+ordinary fill/stroke does.
+
 #### CanvasNetPdf-PdfDocument-Dispose: Dispose Is Idempotent
 
 **Test**: `PdfDocument_Dispose_CalledTwice_DoesNotThrow`

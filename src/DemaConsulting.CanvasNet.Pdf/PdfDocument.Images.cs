@@ -458,7 +458,18 @@ public sealed partial class PdfDocument
     ///     than overwriting it outright, so a source pixel with a non-opaque (including fully
     ///     transparent) alpha channel lets the existing destination content show through
     ///     correctly instead of being replaced by whatever RGB value happens to be stored
-    ///     alongside that transparent alpha.
+    ///     alongside that transparent alpha. When the current graphics state has an active
+    ///     <see cref="GraphicsState.Clip"/> (PDF 32000-1 &#xA7;8.5.4), each sampled source pixel's
+    ///     own alpha is first multiplied by that pixel's clip coverage - restricting image
+    ///     painting to the current clipping path exactly like every <see cref="Drawing.PathFiller"/>
+    ///     fill/stroke call site already does, since <c>Do</c> (<see cref="OpDrawXObject"/>)
+    ///     bypasses <see cref="Drawing.PathFiller"/> entirely and must therefore enforce the clip
+    ///     directly here instead. The graphics state itself is read via a null-conditional access
+    ///     (<c>_gs?.Clip</c>, treating an absent graphics state identically to "no clip active")
+    ///     purely so <c>PdfDocumentImageCompositingTests</c>'s reflection-based direct invocation
+    ///     against an otherwise-uninitialized <see cref="PdfDocument"/> instance (which never runs
+    ///     <see cref="ExecuteContentStream"/>, and so never assigns <c>_gs</c>) keeps working -
+    ///     every real content-stream-driven call always has a non-null <c>_gs</c> by this point.
     /// </remarks>
     private void CompositeImageOntoSurface(Surface image, Matrix3x2 ctm)
     {
@@ -467,6 +478,7 @@ public sealed partial class PdfDocument
             return;
         }
 
+        var clip = _gs?.Clip;
         var corner00 = Vector2.Transform(new Vector2(0, 0), ctm);
         var corner10 = Vector2.Transform(new Vector2(1, 0), ctm);
         var corner01 = Vector2.Transform(new Vector2(0, 1), ctm);
@@ -495,9 +507,22 @@ public sealed partial class PdfDocument
                     continue;
                 }
 
+                var clipCoverage = clip?.GetCoverage(x, y) ?? 1f;
+                if (clipCoverage <= 0f)
+                {
+                    continue;
+                }
+
                 var column = Math.Clamp((int)Math.Floor(u * image.Width), 0, image.Width - 1);
                 var row = Math.Clamp((int)Math.Floor((1 - v) * image.Height), 0, image.Height - 1);
-                _surface[x, y] = Rgba32.CompositeOver(_surface[x, y], image[column, row]);
+                var sourcePixel = image[column, row];
+                if (clipCoverage < 1f)
+                {
+                    sourcePixel = new Rgba32(
+                        sourcePixel.R, sourcePixel.G, sourcePixel.B, (byte)Math.Round(sourcePixel.A * clipCoverage));
+                }
+
+                _surface[x, y] = Rgba32.CompositeOver(_surface[x, y], sourcePixel);
             }
         }
     }

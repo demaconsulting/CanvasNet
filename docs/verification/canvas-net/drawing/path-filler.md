@@ -1,14 +1,15 @@
 ### PathFiller Unit Verification Design
 
 This document describes the unit-level verification strategy for the `PathFiller` class (and the
-supporting `FillRule` enum and internal `EdgeFlattener`/`ScanlineRasterizer` helpers).
+supporting `FillRule` enum and internal `EdgeFlattener`/`ScanlineRasterizer`/`ClipMask` helpers).
 
 #### Verification Approach
 
 The `PathFiller` unit is verified through unit tests that exercise `PathFiller.Fill` end to end
 (constructing a `Path`, filling it onto a `Surface`, and inspecting resulting pixels), plus
-dedicated unit tests for the internal `EdgeFlattener` and `ScanlineRasterizer` helpers (accessible
-to the test project via `InternalsVisibleTo`) that verify their narrower contracts in isolation.
+dedicated unit tests for the internal `EdgeFlattener`, `ScanlineRasterizer`, and `ClipMask` helpers
+(accessible to the test project via `InternalsVisibleTo`) that verify their narrower contracts in
+isolation.
 Expected antialiased coverage values throughout are **hand-computed analytically** from the
 geometry under test - the exact fraction of each pixel's unit cell (`[x, x+1) x [y, y+1)`, per
 the coordinate convention documented in _PathFiller Unit Design_, `../../../design/canvas-net/
@@ -17,9 +18,8 @@ under test, not by re-deriving the same rasterization formula. Byte-level expect
 account for `Surface`'s `MidpointRounding.AwayFromZero` blend-pipeline convention where relevant
 (for example, `255 * 0.5 = 127.5` rounds to `128` under round-half-away-from-zero).
 
-Unit tests reside in `PathFillerTests.cs`, `EdgeFlattenerTests.cs`, and
-`ScanlineRasterizerTests.cs` within the `DemaConsulting.CanvasNet.Tests.Drawing` project
-namespace.
+Unit tests reside in `PathFillerTests.cs`, `EdgeFlattenerTests.cs`, `ScanlineRasterizerTests.cs`,
+and `ClipMaskTests.cs` within the `DemaConsulting.CanvasNet.Tests.Drawing` project namespace.
 
 #### Test Environment
 
@@ -311,6 +311,51 @@ turn, asserting `ArgumentNullException` in each case, and separately asserts the
 `ScanlineRasterizer` tile-paint entry point itself also rejects a `null` tile paint with
 `ArgumentNullException` - matching the solid-color and gradient overloads' own validation
 behavior.
+
+##### ClipMask and the Internal Clip-Aware Fill Overloads (Regression/Defensive Coverage, No New Requirement)
+
+**Tests**: `ClipMask_FromPath_AxisAlignedRectangle_InteriorFullCoverageExteriorZero`,
+`ClipMask_FromPath_OverlappingSameWoundRectangles_NonZeroVsEvenOddDiverge`,
+`ClipMask_FromPath_NullPath_ThrowsArgumentNullException`,
+`ClipMask_FromPath_NonPositiveWidth_ThrowsArgumentOutOfRangeException`,
+`ClipMask_FromPath_NonPositiveHeight_ThrowsArgumentOutOfRangeException`,
+`ClipMask_FromPath_EmptyPath_AllZeroCoverage`,
+`ClipMask_Intersect_OverlappingRectangles_ProducesGeometricIntersection`,
+`ClipMask_Intersect_DoesNotMutateEitherOperand`,
+`ClipMask_Intersect_NullOther_ThrowsArgumentNullException`,
+`ClipMask_Intersect_MismatchedExtents_ThrowsArgumentException`,
+`ClipMask_GetCoverage_OutOfBoundsCoordinates_ReturnsZero` (all in `ClipMaskTests.cs`),
+`PathFiller_Fill_SolidColorWithClip_RestrictsFillToClipCoverage`,
+`PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload`
+
+Per `testing-principles.md`'s "tests MAY exist without a requirement", these tests exist as
+regression/defensive coverage for `ClipMask` and the internal clip-aware `PathFiller.Fill`/
+`ScanlineRasterizer.Fill` overloads, rather than because a new public-facing requirement is
+mandated at this layer: `ClipMask` adds no new, externally observable capability to `PathFiller`'s
+own public contract (its only consumer is the `DemaConsulting.CanvasNet.Pdf` friend assembly), and
+the one genuinely observable, testable behavior change - clipping enforced in rendered PDF output
+
+- is fully covered instead by `CanvasNetPdf-PdfDocument-ClippingPath` in
+`docs/reqstream/canvas-net-pdf/pdf-document.yaml` (see
+`../../canvas-net-pdf/pdf-document.md`'s own verification design for that requirement's test
+narrative). `ClipMaskTests.cs` builds a rectangular `Path`, rasterizes it via `FromPath` under both
+`FillRule` values, and asserts interior/exterior/boundary pixel coverage directly against
+hand-computed expected fractions exactly like `PathFillerTests`'s own antialiasing tests; it
+separately asserts `Intersect` produces the elementwise product of two independently-constructed,
+only-partially-overlapping rectangular masks (a pixel covered by only one operand, or by neither,
+resolves to zero exactly as a product with a `0` factor must) without mutating either operand, that mismatched
+`Width`/`Height` operands throw `ArgumentException`, that `GetCoverage` returns `0f` for
+out-of-bounds coordinates, and that `FromPath` itself rejects a `null` path, a non-defined
+`FillRule`, and non-positive/non-finite `flattenTolerance`/`width`/`height` arguments with the
+same exception types `PathFiller.Fill`'s own validation uses.
+`PathFiller_Fill_SolidColorWithClip_RestrictsFillToClipCoverage` fills a full-surface rectangle
+through an internal clip-aware `Fill` overload call with a narrower `ClipMask` supplied, asserting
+the fill paints only where the clip mask itself has non-zero coverage - directly exercising the
+`CoverageSweep`-level `clip.GetCoverage(x, y)` multiplication described in _PathFiller Unit
+Design_'s `ClipMask` subsection. `PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload`
+calls the same internal overload with an explicit `null` clip and asserts the result is pixel-for-
+pixel identical to calling the public, clip-less `Fill` overload - proving `clip: null` is a
+behavior-preserving default, not merely a compiling one.
 
 #### Floating-Point Tolerance
 

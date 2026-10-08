@@ -4816,6 +4816,176 @@ public class PdfDocumentTests
 
     #endregion
 
+    #region Clipping
+
+    /// <summary>
+    ///     Proves that <c>W n</c> marks the current path as the new clipping path (PDF 32000-1
+    ///     &#xA7;8.5.4), applied starting with the very next path-painting operator: a full-page
+    ///     fill issued after <c>W n</c> only paints the intersection of the fill's own geometry
+    ///     and the clip rectangle, not the full page.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion()
+    {
+        // Arrange: W n marks a 50x50 clip rectangle (no-op paint, since n neither fills nor
+        // strokes); the following full-page fill is then restricted to that rectangle. PDF rect
+        // (10,10)-(60,60) -> device x [10, 60], device y [40, 90] (y flipped: 100 - pdfY).
+        const string content = "10 10 50 50 re W n 0 0 100 100 re f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: inside the clip rectangle (and the fill), the fill paints.
+        Assert.Equal(Black, surface[30, 70]);
+
+        // Assert: inside the fill's own geometry, but outside the clip rectangle, nothing paints.
+        Assert.Equal(default, surface[80, 80]);
+    }
+
+    /// <summary>
+    ///     Proves that a clipping path set inside a <c>q</c> ... <c>Q</c> block does not leak past
+    ///     the matching <c>Q</c> (PDF 32000-1 &#xA7;8.4.2: the clipping path is part of the
+    ///     graphics state): a second, full-page fill issued after <c>Q</c> paints the entire page,
+    ///     proving the earlier clip is no longer active.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Clipping_SetInsideQQ_DoesNotLeakPastQ()
+    {
+        // Arrange: a clip is established and consumed entirely inside q ... Q; after Q restores
+        // the prior (unclipped) graphics state, a second full-page fill should paint everywhere.
+        const string content = "q 10 10 50 50 re W n 0 0 100 100 re f Q 0 0 100 100 re f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: a pixel that was outside the q-scoped clip rectangle is nonetheless painted by
+        // the second, post-Q fill - proving the clip did not survive the Q.
+        Assert.Equal(Black, surface[80, 80]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>W*</c> interprets the current path for clipping purposes using the
+    ///     even-odd rule (PDF 32000-1 &#xA7;8.5.4): two overlapping rectangles clip to their own
+    ///     symmetric difference (XOR), leaving a hole where the two rectangles overlap, rather
+    ///     than the union <c>W</c> (nonzero winding) would produce for the same geometry.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Clipping_WStar_UsesEvenOddFillRule()
+    {
+        // Arrange: rect1 pdf (10,10)-(70,70), rect2 pdf (30,30)-(90,90); their overlap
+        // (30,30)-(70,70) has winding 2, folding to a hole under even-odd.
+        const string content = "10 10 60 60 re 30 30 60 60 re W* n 0 0 100 100 re f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: a pixel in rect1 only (pdf (15,15) -> device (15, 85)) is painted.
+        Assert.Equal(Black, surface[15, 85]);
+
+        // Assert: a pixel in the overlap (pdf (50,50) -> device (50, 50)) is a hole - not painted.
+        Assert.Equal(default, surface[50, 50]);
+
+        // Assert: a pixel in rect2 only (pdf (80,80) -> device (80, 20)) is painted.
+        Assert.Equal(Black, surface[80, 20]);
+
+        // Assert: a pixel outside both rectangles (pdf (95,95) -> device (95, 5)) is not painted.
+        Assert.Equal(default, surface[95, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that two successive <c>W n</c> clips (without any intervening <c>q</c>/<c>Q</c>)
+    ///     intersect rather than replace one another (PDF 32000-1 &#xA7;8.5.4: "the new clipping
+    ///     path ... shall be the intersection of the current clipping path and the newly
+    ///     constructed path"): only the geometric overlap of the two clip rectangles is painted.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace()
+    {
+        // Arrange: clip A pdf (10,10)-(80,80), clip B pdf (30,30)-(100,100); their intersection
+        // is pdf (30,30)-(80,80) -> device x [30, 80], device y [20, 70].
+        const string content = "10 10 70 70 re W n 30 30 70 70 re W n 0 0 100 100 re f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: a pixel in the intersection is painted.
+        Assert.Equal(Black, surface[50, 50]);
+
+        // Assert: a pixel in clip A only (pdf (15,15) -> device (15, 85)) is not painted.
+        Assert.Equal(default, surface[15, 85]);
+
+        // Assert: a pixel in clip B only (pdf (90,90) -> device (90, 10)) is not painted.
+        Assert.Equal(default, surface[90, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that an active clipping path restricts an image XObject's <c>Do</c> painting
+    ///     exactly like it restricts an ordinary fill: the right half of a full-page image
+    ///     placement is suppressed by a clip rectangle covering only the left half of the page.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Clipping_ClipThenImageDo_RestrictsImageToClipRegion()
+    {
+        // Arrange: the same 2x2 DeviceGray image fixture used by the Images tests, placed across
+        // the full page, but clipped to the left half (pdf x [0, 50)) beforehand.
+        byte[] raw = [0, 255, 64, 192];
+        var compressed = ZlibCompress(raw);
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode",
+            compressed);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "0 0 50 100 re W n 100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: inside the clip (left half), the image's own top-right-quadrant-adjacent pixel
+        // still paints its expected sample value.
+        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[25, 25]);
+
+        // Assert: outside the clip (right half), the image no longer paints - compare against
+        // PdfDocument_Images_DoOperator_DeviceGrayFlateDecode_PlacesExpectedPixels, where this
+        // same pixel is opaque white without a clip in effect.
+        Assert.Equal(default, surface[75, 25]);
+    }
+
+    /// <summary>
+    ///     Proves that an active clipping path restricts glyph-fill painting exactly like it
+    ///     restricts an ordinary fill: a clip rectangle covering only part of a glyph's own device
+    ///     bounding box suppresses the portion of the glyph outside the clip.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion()
+    {
+        // Arrange: same font/glyph geometry as
+        // PdfDocument_Text_ShowText_PaintsGlyphAtComposedTextRenderingMatrix (glyph paints device
+        // x [7, 15), y [40, 48)), but clipped to pdf x [0, 9) beforehand (device x [0, 9), full
+        // page height).
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1), (66, 2)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(fontBytes);
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "0 0 9 100 re W n BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: inside both the glyph and the clip, the glyph paints.
+        Assert.NotEqual(default, surface[8, 44]);
+
+        // Assert: inside the glyph's own bounding box, but outside the clip, nothing paints -
+        // compare against PdfDocument_Text_ShowText_PaintsGlyphAtComposedTextRenderingMatrix,
+        // where this same pixel is painted without a clip in effect.
+        Assert.Equal(default, surface[10, 44]);
+    }
+
+    #endregion
+
     #region Color
 
     /// <summary>Proves that <c>g</c> sets the fill color to the expected gray RGBA value.</summary>

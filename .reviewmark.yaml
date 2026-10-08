@@ -374,10 +374,12 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Drawing/FillRule.cs"        # supporting enum source
       - "src/DemaConsulting.CanvasNet/Drawing/EdgeFlattener.cs"   # internal helper source
       - "src/DemaConsulting.CanvasNet/Drawing/ScanlineRasterizer.cs"  # internal helper source
+      - "src/DemaConsulting.CanvasNet/Drawing/ClipMask.cs"         # internal clip-mask helper source
       - "src/DemaConsulting.CanvasNet/Drawing/NamespaceDoc.cs"    # Drawing namespace documentation
       - "test/DemaConsulting.CanvasNet.Tests/Drawing/PathFillerTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Drawing/EdgeFlattenerTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Drawing/ScanlineRasterizerTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/ClipMaskTests.cs"  # internal clip-mask helper tests
 
   # CanvasNet-Drawing-PathStroker Review (one per unit)
   - id: CanvasNet-Drawing-PathStroker

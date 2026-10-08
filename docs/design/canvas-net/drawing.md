@@ -38,9 +38,13 @@ font-specific logic.
   polygons and rasterizes them onto a `Surface` with a solid color, a `GradientPaint` gradient, or
   a `TilePaint` tile, together with the supporting
   `FillRule` enum (nonzero/even-odd fill-rule selection) and the internal
-  `EdgeFlattener`/`ScanlineRasterizer` helpers, all documented inline within the `PathFiller`
-  unit design rather than as their own units, because none of them has any independent behavior
-  beyond supporting `PathFiller.Fill`; see _PathFiller Unit Design_ (`drawing/path-filler.md`)
+  `EdgeFlattener`/`ScanlineRasterizer`/`ClipMask` helpers, all documented inline within the
+  `PathFiller` unit design rather than as their own units, because none of them has any
+  independent behavior beyond supporting `PathFiller.Fill`; `ClipMask` additionally backs a small
+  set of internal clip-aware `Fill` overloads consumed solely by
+  `DemaConsulting.CanvasNet.Pdf` to enforce a PDF content stream's active clipping path
+  (PDF 32000-1 §8.5.4) without widening `PathFiller`'s own public contract - see
+  _PathFiller Unit Design_ (`drawing/path-filler.md`)
 - **PathStroker** — a public static `Stroke` entry point that converts a `Path` centerline plus a
   `StrokeStyle` into one or more closed outline polygons expressed as a new `Path`, together with
   the supporting public `LineCap`, `LineJoin`, and `StrokeStyle` types and the internal

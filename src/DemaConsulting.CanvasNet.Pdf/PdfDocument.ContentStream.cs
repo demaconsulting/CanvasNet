@@ -78,6 +78,7 @@ public sealed partial class PdfDocument
         _currentPoint = default;
         _subpathStart = default;
         _hasOpenSubpath = false;
+        _pendingClipFillRule = null;
         _fontCache = new Dictionary<PdfObject, IResolvedFont>();
         _textMatrix = Matrix3x2.Identity;
         _lineMatrix = Matrix3x2.Identity;
@@ -162,7 +163,7 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Dispatches one recognized content-stream keyword operator (per the fixed set this
     ///     phase implements) against its accumulated operand stack, silently ignoring any other
-    ///     keyword (clipping, ExtGState, shading, inline images, and every other operator not yet
+    ///     keyword (ExtGState, shading, inline images, and every other operator not yet
     ///     implemented).
     /// </summary>
     /// <param name="operatorName">The operator keyword.</param>
@@ -267,6 +268,19 @@ public sealed partial class PdfDocument
             case "n":
                 RequireOperandCount(operands, "n", 0);
                 PaintCurrentPath(fill: false, FillRule.NonZero, stroke: false, closeFirst: false);
+                break;
+
+            // Clipping-path operators (PdfDocument.PathOps.cs): mark that the current path under
+            // construction becomes the new clipping path the next time a path-painting operator
+            // executes - see OpMarkPendingClip's remarks for the full deferred-apply timing (PDF
+            // 32000-1 8.5.4).
+            case "W":
+                RequireOperandCount(operands, "W", 0);
+                OpMarkPendingClip(FillRule.NonZero);
+                break;
+            case "W*":
+                RequireOperandCount(operands, "W*", 0);
+                OpMarkPendingClip(FillRule.EvenOdd);
                 break;
 
             // Device color operators (PdfDocument.Color.cs).
@@ -381,10 +395,11 @@ public sealed partial class PdfDocument
                 break;
 
             default:
-                // Any other keyword (gs, W/W*, sh, BI/ID/EI, Tc/Td/.../TJ's own undefined
-                // siblings, or any other undefined keyword) is silently skipped - out of this
-                // phase's scope (shading/patterns, ExtGState, clipping) per this phase's
-                // documented lenient-consumer posture toward unrecognized operators.
+                // Any other keyword (gs, sh, BI/ID/EI, Tc/Td/.../TJ's own undefined siblings, or
+                // any other undefined keyword) is silently skipped - out of this phase's scope
+                // (shading/patterns, ExtGState, inline images) per this phase's documented
+                // lenient-consumer posture toward unrecognized operators. W/W* (clipping) are
+                // handled above, not skipped here.
                 break;
         }
     }

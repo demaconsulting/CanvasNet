@@ -11,7 +11,10 @@ closed `Geometry.Path` onto a `Canvas.Surface` with a solid color, a linear/radi
 repeating tiled pattern, using an antialiased
 signed-area/coverage-accumulation scanline algorithm. The supporting `FillRule` enum and the
 internal `EdgeFlattener`/`ScanlineRasterizer` helpers are documented inline here, because none of
-them has any independent behavior beyond supporting `PathFiller.Fill`.
+them has any independent behavior beyond supporting `PathFiller.Fill` - as is a fourth internal
+helper, `ClipMask` (see _ClipMask (internal) and the internal clip-aware `Fill` overloads_ below),
+which represents a PDF content stream's active clipping path and is consumed, via new internal
+clip-aware `Fill` overloads, solely by `DemaConsulting.CanvasNet.Pdf`.
 
 #### Purpose
 
@@ -50,6 +53,7 @@ precise geometric question once cell boundaries are pinned to integer path coord
 | `FillRule`           | Public enum: `NonZero`, `EvenOdd` - selects winding-count resolution. |
 | `EdgeFlattener`      | Internal static class: converts a `Path`'s subpaths into polygons.    |
 | `ScanlineRasterizer` | Internal static class: rasterizes polygons into row coverage.         |
+| `ClipMask`           | Internal sealed class: immutable per-pixel clip coverage mask.        |
 | `PathFiller`         | Public static class: the single `Fill` entry point.                   |
 
 `FillRule.NonZero` (the default) treats a pixel as filled whenever the accumulated signed winding
@@ -280,17 +284,69 @@ the implementation against it, not by automated runtime performance tests - a de
 decision, since wall-clock assertions are unreliable guards for algorithmic complexity on
 heterogeneous CI hardware.
 
+##### ClipMask (internal) and the internal clip-aware `Fill` overloads
+
+`ClipMask` (`Drawing/ClipMask.cs`) is a fourth internal helper documented inline here, alongside
+`EdgeFlattener`/`ScanlineRasterizer`, for the same reason: it has no independent behavior beyond
+supporting clip-path enforcement, and is not a new public `Drawing` unit (unlike `TilePaint`) -
+see that file's own remarks for why this "internal helper" treatment, not a "new public unit"
+treatment, was chosen. It represents a PDF content stream's current clipping path
+(`DemaConsulting.CanvasNet.Pdf`'s only consumer, an `InternalsVisibleTo` friend assembly) as an
+immutable, per-pixel `[0, 1]` antialiased coverage buffer bound to a fixed `Width`/`Height` device
+pixel extent - coverage, not a boolean inside/outside bit, so a clip boundary's own antialiasing
+composes smoothly with whatever is painted through it.
+
+- **`ClipMask.FromPath(Path path, FillRule fillRule, int width, int height, float flattenTolerance)`**
+  validates its arguments via the same `PathFiller.ValidateFillArgs`/`GetPolygonBounds` helpers
+  `PathFiller.Fill` itself uses (both widened from `private` to `internal` for exactly this
+  reuse), flattens `path` via `EdgeFlattener.Flatten`, intersects the flattened polygons' own
+  bounds with the `width` x `height` extent, and - when that intersection is non-empty - calls a
+  new internal `ScanlineRasterizer.AccumulateCoverageMask(polygons, fillRule, clipBounds, mask,
+  maskWidth)` entry point that runs an independent, clip-less `CoverageSweep` and copies each
+  resolved row's coverage directly into the caller-supplied dense `float[]` mask buffer, reusing
+  the exact same sweep algorithm described above rather than re-implementing scanline math a
+  second time.
+- **`ClipMask.Intersect(ClipMask other)`** returns a new `ClipMask` holding the elementwise
+  product of this mask's and `other`'s own coverage (both must share the same `Width`/`Height`) -
+  implementing "the new clipping path shall be the intersection of the current clipping path and
+  the newly constructed path" (PDF 32000-1 §8.5.4) purely via per-pixel multiplication, since the
+  product of two `[0, 1]` coverage fractions is itself a coverage fraction no larger than either
+  operand. Neither operand is ever mutated - `Intersect` always allocates a fresh result - which is
+  what lets `PdfDocument.GraphicsState.Clone()` safely copy a `ClipMask` reference as-is for
+  `q`/`Q` save/restore scoping, with no risk of one graphics state's clip later being mutated out
+  from under another.
+- **`ClipMask.GetCoverage(int x, int y)`** returns `0f` for any out-of-bounds `(x, y)`, otherwise
+  the stored coverage - so a clip mask can only ever restrict paint, never grant coverage beyond
+  what it was built for.
+
+To thread an active `ClipMask?` through rasterization without widening `PathFiller.Fill`'s public
+contract, each of the 3 public `Fill` overloads (`Rgba32`/`Gradient`/`TilePaint` paint) was
+converted into a one-line forwarder that calls a new, same-named **internal** overload (adding one
+extra `ClipMask? clip` parameter, positioned right after the paint argument) with `clip: null` -
+so the public API's signatures/behavior/docs are entirely unchanged, while the new internal
+overloads carry the real clip-aware implementation and are the ones `PdfDocument` actually calls.
+`ScanlineRasterizer.Fill`'s own 3 overloads (already fully internal) instead gained an optional
+`ClipMask? clip = null` parameter directly, threaded into a new `CoverageSweep` constructor
+parameter: when non-null, `CoverageSweep` multiplies each column's own resolved fill coverage by
+`clip.GetCoverage(x, y)` immediately after `ResolveCoverage`, before compositing the row - the
+exact same "multiply coverage fractions together" technique `ClipMask.Intersect` itself uses, just
+applied between a path's own fill coverage and the active clip's coverage instead of between two
+clip masks.
+
 #### Error Handling
 
 All argument validation is performed by `PathFiller.Fill` itself, at the very start of the
 method, before any bounds computation or rasterization begins (see above). `EdgeFlattener` and
 `ScanlineRasterizer` are internal helpers that assume valid, already-validated input from
 `PathFiller.Fill` and perform no further validation of their own; they are only ever reached after
-`PathFiller.Fill`'s guards and the empty/out-of-bounds no-op check have already passed.
+`PathFiller.Fill`'s guards and the empty/out-of-bounds no-op check have already passed. `ClipMask`
+performs its own argument validation (null path, non-defined `FillRule`, non-finite/non-positive
+`flattenTolerance`/`width`/`height`) since `FromPath` is itself an entry point, not a callee that
+can assume already-validated input the way `EdgeFlattener`/`ScanlineRasterizer` do.
 
 #### Dependencies
 
-`PathFiller` (and its internal `EdgeFlattener`/`ScanlineRasterizer` helpers) depend on
+`PathFiller` (and its internal `EdgeFlattener`/`ScanlineRasterizer`/`ClipMask` helpers) depend on
 `System.Numerics.Vector2` (in-box BCL type), the `Geometry` subsystem's `Path`, `Subpath`,
 `PathCommand`, `Rect`, `BezierFlattening`, and `SvgArcConverter` (via `EdgeFlattener`), and the
 `Canvas` subsystem's `Surface`, `Rgba32`, and `Surface.CompositeOverSpan` (via
@@ -298,13 +354,18 @@ method, before any bounds computation or rasterization begins (see above). `Edge
 documentation). The gradient-paint overload additionally depends on the `Gradient` public type and
 the internal `GradientEvaluator` helper (see _GradientPaint Unit Design_, `gradient-paint.md`).
 The tile-paint overload additionally depends on the `TilePaint` public type and the internal
-`TilePaintEvaluator` helper (see _TilePaint Unit Design_, `tile-paint.md`). No
+`TilePaintEvaluator` helper (see _TilePaint Unit Design_, `tile-paint.md`). `ClipMask` and the
+internal clip-aware `Fill` overloads are additionally depended on by
+`DemaConsulting.CanvasNet.Pdf` (an `InternalsVisibleTo` friend assembly) - see
+`docs/design/canvas-net-pdf/pdf-document.md`'s _Clipping-path operators_ section. No
 new runtime NuGet package is introduced.
 
 #### Callers
 
-`PathFiller.Fill` is a public API entry point, invoked externally by consumers of the CanvasNet
-package. It is exercised end to end by this unit's own tests (`PathFillerTests`,
-`EdgeFlattenerTests`, `ScanlineRasterizerTests`) and by system-integration tests that build a
-`Path` via `PathBuilder` and fill it onto a `Surface` (see `CanvasNetTests.cs`). `PathFiller` has
-no dependency on any consumer, and no other unit in this library depends on `PathFiller`.
+`PathFiller.Fill`'s public overloads are a public API entry point, invoked externally by
+consumers of the CanvasNet package; the internal clip-aware overloads are invoked solely by
+`DemaConsulting.CanvasNet.Pdf`'s `PdfDocument`. Both are exercised end to end by this unit's own
+tests (`PathFillerTests`, `EdgeFlattenerTests`, `ScanlineRasterizerTests`, `ClipMaskTests`) and by
+system-integration tests that build a `Path` via `PathBuilder` and fill it onto a `Surface` (see
+`CanvasNetTests.cs`). `PathFiller` has no dependency on any consumer, and no other unit in this
+library depends on `PathFiller`.

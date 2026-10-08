@@ -406,14 +406,14 @@ sections:
           - id: CanvasNetPdf-PdfDocument-ContentStreamDispatch
             title: >-
               The PdfDocument class shall tokenize and dispatch a page's resolved content-stream
-              bytes over a fixed set of recognized path-construction/painting and graphics-state
-              operators, silently skipping any other keyword (color, text, image, clipping, and
-              any other operator not yet implemented) rather than throwing, and shall throw
+              bytes over a fixed set of recognized path-construction/painting, clipping, and
+              graphics-state operators, silently skipping any other keyword (color, text, image,
+              and any other operator not yet implemented) rather than throwing, and shall throw
               InvalidDataException when a recognized operator's own operand count/type does not
               match its documented requirement.
             justification: |
               Real-world content streams routinely contain operators outside this phase's scope
-              (color, text, images, clipping); a lenient-toward-the-unrecognized, strict-toward-
+              (color, text, images); a lenient-toward-the-unrecognized, strict-toward-
               the-malformed-recognized dispatch loop lets such streams still render their in-scope
               geometry instead of failing outright.
             tests:
@@ -508,6 +508,32 @@ sections:
               - PdfDocument_PathOps_CloseAndFillAndStroke_PaintsExpectedPixels
               - PdfDocument_PathOps_NoOp_DiscardsPathWithoutPainting
               - PdfDocument_PathOps_PaintOperator_ClearsPathButPreservesGraphicsState
+
+          - id: CanvasNetPdf-PdfDocument-ClippingPath
+            title: >-
+              The PdfDocument class shall support the W/W* clipping-path operators by marking the
+              current path, interpreted under the nonzero (W) or even-odd (W*) fill rule, to
+              become the new clipping path starting with the next path-painting operator (which
+              still paints per its own normal fill/stroke/no-op semantics), intersecting that new
+              clipping path with any already-active clipping path rather than replacing it, scope
+              the active clipping path as part of the graphics state so it is saved/restored by
+              q/Q (and by Form XObject/Type3 glyph re-entry, both of which clone the graphics
+              state identically), and enforce the active clipping path against every subsequent
+              fill, stroke, image XObject (Do), and glyph-fill paint until it is changed or
+              restored.
+            justification: |
+              PDF 32000-1 section 8.5.4 documents W/W* as deferred, intersecting, graphics-state-
+              scoped clip-path updates; a reader that silently ignores them (as this class
+              previously did) renders fill/stroke/image/glyph content outside a document's
+              intended clipping region, producing visibly wrong output for any content stream
+              relying on clipping to mask painted geometry.
+            tests:
+              - PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion
+              - PdfDocument_Clipping_SetInsideQQ_DoesNotLeakPastQ
+              - PdfDocument_Clipping_WStar_UsesEvenOddFillRule
+              - PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace
+              - PdfDocument_Clipping_ClipThenImageDo_RestrictsImageToClipRegion
+              - PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion
 
           - id: CanvasNetPdf-PdfDocument-Dispose
             title: >-
