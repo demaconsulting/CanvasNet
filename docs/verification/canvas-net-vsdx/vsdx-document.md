@@ -754,7 +754,7 @@ position), the rendered page matches the reference's visible connector lines.
 
 ### Supplementary (Non-Requirement-Mapped) Coverage
 
-Beyond the 40 `CanvasNetVsdx-VsdxDocument-*` requirement-mapped scenarios above, the test project
+Beyond the 42 `CanvasNetVsdx-VsdxDocument-*` requirement-mapped scenarios above, the test project
 carries additional smoke-level and fixture-conformance tiers that increase confidence without
 mapping to a single dedicated requirement each:
 
@@ -778,3 +778,22 @@ mapping to a single dedicated requirement each:
   and glyph-painting coverage using a deterministic synthetic `TrueTypeFont` (via the shared
   `SyntheticFontBuilder` test-support helper), so every expected glyph coordinate can be
   hand-computed exactly, complementing `GlyphRendering`'s own single representative scenario.
+
+## Acceptance Criteria
+
+A unit-level test run passes when all scenarios above pass without error or exception beyond
+those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return/field
+value constitutes a failure. Collectively, these scenarios cover the complete current
+`VsdxDocument` package layer (OPC ZIP opening, content-types/relationship resolution and its
+validation contract, page-count/size and lazy page resolution), geometry-row resolution and the
+unified shape-local-to-page-space transform (including the Milestone 11 `EllipticalArcTo`/`ArcTo`
+arc-geometry conversion and the tolerant skip of genuinely unrecognized row types such as
+`NURBSTo`), Master/MasterShape cell and geometry-row inheritance (including the Milestone 10/12
+deleted-shape exclusion and group-child transform-cell refinements), the StyleSheet chain walk and
+color/fill resolution (including the Milestone 11 transparency-alpha-modulation resolution), text
+run parsing/layout/rendering, connector/glue-point/arrowhead resolution, nested-group transform
+composition and its depth/shape-count budget, and the public `Render` API (including the
+Milestone 10/11 non-printing-shape, hide-text, and minimum-visible-stroke-width render-time
+suppression/floor behaviors). Every requirement in
+`docs/reqstream/canvas-net-vsdx/vsdx-document.yaml` links to at least one passing test listed
+above, including all 7 requirements added across the Milestone 10-12 real-world bug-fix rounds.

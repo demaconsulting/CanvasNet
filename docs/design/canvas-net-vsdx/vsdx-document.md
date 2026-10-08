@@ -1,5 +1,7 @@
 ## VsdxDocument Unit Design
 
+![CanvasNetVsdx Structure](CanvasNetVsdxView.svg)
+
 <!-- cspell:ignore vsdx Visio VisioML xfrm stencil stencils glueable NURBS nurbs -->
 <!-- cspell:ignore shapesheet ShapeSheet rrggbb PinX PinY LocPinX LocPinY FlipX FlipY BeginX BeginY -->
 <!-- cspell:ignore EndX EndY MasterShape FillForegnd FillBkgnd LineColor LineWeight LinePattern -->
@@ -46,6 +48,10 @@ unit's own delivery follows.
   `NoShow` flags), its resolved line/
   fill style (`LineColor`/`LineWeight`/`LinePattern`/`BeginArrow`/`EndArrow`/`FillForegnd`/
   `FillBkgnd`/`FillPattern`/`HideText` — Milestone 11 added `HideText` resolution, see `Render`
+  below; Milestone 11 also added recognition of `BeginArrow`/`EndArrow` index `4` (a solid, filled
+  triangle, mapped to the same `VsdxArrowheadStyle.Arrow` style as index `2`) and index `254` (an
+  open/unfilled triangle outline resolved through a `USE("Navigable")` named-cell formula, mapped
+  to the new `VsdxArrowheadStyle.HollowTriangle` style) — see `VsdxArrowhead.cs`'s own remarks
   below), its resolved text (runs with character/paragraph formatting, including a `<fld>`
   Field-reference element's own nested text content treated as a literal run - Milestone 11, see
   `BuildRawRuns`/`CanvasNetVsdx-VsdxDocument-TextRunParsing` - and the
@@ -124,11 +130,13 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   these nine is always preferred over the master's same-named cell, even when `F="Inh"` — but
   **only when the shape is identified as 1-D** (both a `BeginX` and an `EndX` cell present on the
   merged result — the same detection convention `VsdxDocument.Groups.cs`'s own
-  `ConnectorEndpoints` resolution uses). For a 1-D shape, these nine cells are themselves baked
+  `ConnectorEndpoints` resolution uses) **or when the shape is itself a Group child** (Milestone 12,
+  Finding #3 — see below). For a 1-D shape, these nine cells are themselves baked
   per-instance, pre-derived from that instance's own `BeginX`/`BeginY`/`EndX`/`EndY` endpoints, and
   the master's own same-named cell is only that master's unrelated template-local default
-  position/size, never a value any instance should adopt. A 2-D shape (no `BeginX`/`EndX` cell) is
-  deliberately **excluded** from this overlay: for a 2-D shape, the master's own same-named cell
+  position/size, never a value any instance should adopt. A **top-level** (non-Group-child) 2-D
+  shape (no `BeginX`/`EndX` cell) is deliberately **excluded** from this overlay: for a top-level
+  2-D shape, the master's own same-named cell
   genuinely can be the shared, legitimately-inherited value (a shape never locally moved/resized by
   the author), so the generic "master's cell wins over an inherited instance cell" rule above
   remains correct and is not overridden merely because the instance happens to carry its own
@@ -208,6 +216,28 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   by this cycle's own locking tests
   (`ArrowheadResolution_InstanceInhMarkedArrowCell_PreferredOverMasterValue`,
   `ArrowheadResolution_2DShapeInhMarkedArrowCell_DefersToMasterValue`).
+
+  Milestone 12 (Finding #3) extended the `TransformCellNames` overlay above to apply
+  unconditionally to a 2-D shape that is itself a **Group child** (`VsdxShapeNode.Parent` is not
+  `null`, passed into `MergeCells(instanceCells, masterCells, isGroupChild)` as its new
+  `isGroupChild` parameter, wired from `VsdxDocument.Groups.cs`'s `ResolveShapeRecursive` via
+  `parent is not null`), independent of the 1-D/`BeginX`/`EndX` test: a Group child's own
+  `PinX`/`PinY`/`Width`/`Height`/`LocPinX`/`LocPinY` cells can be baked, per-instance, from the
+  enclosing Group's own resize — the same way a 1-D connector's transform cells are baked from its
+  own endpoints — confirmed by `Test_Visio-Some_Random_Text.vsdx`'s "View" Group (Shape `ID='5'`,
+  children `ID='6'`/`'7'`): the page instance resizes the Group larger than its Master's own
+  template default, and both children's own `Width`/`Height`/`PinY` cells are marked `F="Inh"`
+  (baked from formulas referencing the enclosing Group's own resized dimension). Before this fix,
+  the generic rule let the Master's stale default win, corrupting the resolved transform and, via
+  `VsdxDocument.TextBox.cs`'s `TxtWidth`/`TxtHeight` fallback, the resolved text box's available
+  width/height — causing severe premature word-wrap. This is the identical gap Milestone 11's own
+  Design Constraints deferred-limitation entry previously documented as having "no safe
+  narrowly-scoped disambiguating heuristic"; the Group-child `Parent is not null` signal is that
+  disambiguating condition. The **top-level** (non-Group-child) 2-D shape exclusion described
+  above remains unaffected and is still locked by
+  `MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue`. The `ArrowCellNames`
+  overlay is deliberately **not** extended to Group children (no evidence an arrowhead cell has
+  the same Group-child problem) — it remains 1-D-only, exactly as described above.
 - **`ResolveStyleChain(string styleSheetId, string cellName)`** (internal): Walks a shape's
   `LineStyle`/`FillStyle`/`TextStyle` StyleSheet-ID reference up the StyleSheet chain (each
   StyleSheet's own `LineStyle`/`FillStyle`/`TextStyle` attributes identify its own parent for that

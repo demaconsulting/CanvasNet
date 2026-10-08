@@ -28,9 +28,10 @@
 # handling; and the public, page-level Render API. Embedded images/Foreign shapes, non-trivial
 # theme-variation resolution, non-solid fill-pattern combinations beyond solid (including any
 # gradient approximation), the full arrowhead style-index table, and several documented geometry
-# row types that are recognized but not resolved into path segments
-# (EllipticalArcTo/NURBSTo/InfiniteLine/ArcTo/RelCubBezTo/SplineStart/SplineKnot/PolylineTo/
-# Ellipse) remain explicitly deferred - see docs/design/canvas-net-vsdx.md's Design Constraints
+# row types that remain recognized but not resolved into path segments (NURBSTo/InfiniteLine/
+# RelCubBezTo/SplineStart/SplineKnot/PolylineTo/Ellipse - EllipticalArcTo/ArcTo were added in
+# Milestone 11, see CanvasNetVsdx-VsdxDocument-ArcGeometryResolution)
+# remain explicitly deferred - see docs/design/canvas-net-vsdx.md's Design Constraints
 # section for the complete deferred-feature boundary.
 
 sections:
@@ -83,10 +84,10 @@ sections:
       - id: CanvasNetVsdx-Geometry
         title: >-
           The library shall resolve each shape's geometry sections into renderable path outlines,
-          supporting the MoveTo/LineTo/RelMoveTo/RelLineTo row vocabulary, and tolerate every other
-          row type - including the recognized but not-yet-resolved EllipticalArcTo/NURBSTo/
-          InfiniteLine rows and any other unrecognized row type - by skipping that row rather than
-          failing the shape or the page.
+          supporting the MoveTo/LineTo/RelMoveTo/RelLineTo row vocabulary and converting
+          EllipticalArcTo/ArcTo rows to an ArcTo path command, and tolerate every other,
+          genuinely-unrecognized row type - including NURBSTo/InfiniteLine - by skipping that row
+          rather than failing the shape or the page.
         tags: [system]
         justification: |
           A shape's visual outline is defined entirely by its geometry rows; a renderer that
@@ -97,6 +98,7 @@ sections:
           - CanvasNetVsdx-VsdxDocument-GeometryUnrecognizedRowSkip
           - CanvasNetVsdx-VsdxDocument-ShapeTransform
           - CanvasNetVsdx-VsdxDocument-ConnectorTransform
+          - CanvasNetVsdx-VsdxDocument-ArcGeometryResolution
         tests:
           - CanvasNetVsdx_SystemIntegration_Geometry_ResolvesCommonRowTypes
           - CanvasNetVsdx_SystemIntegration_Geometry_UnrecognizedRowTypeIsSkippedNotThrown
@@ -119,6 +121,7 @@ sections:
           - CanvasNetVsdx-VsdxDocument-CellMerge
           - CanvasNetVsdx-VsdxDocument-GeometryRowMerge
           - CanvasNetVsdx-VsdxDocument-NestedMasterShapeResolution
+          - CanvasNetVsdx-VsdxDocument-DeletedShapeExclusion
         tests:
           - CanvasNetVsdx_SystemIntegration_MasterInheritance_InstanceCellOverridesMaster
           - CanvasNetVsdx_SystemIntegration_MasterInheritance_InheritedCellFallsThroughToMaster
@@ -129,16 +132,20 @@ sections:
           The library shall resolve a shape's effective line, fill, and text style by walking its
           LineStyle/FillStyle/TextStyle StyleSheet reference up the StyleSheet chain until a
           literal value is found, terminating at StyleSheet ID 0, with a direct per-shape override
-          always taking precedence over any inherited StyleSheet value.
+          always taking precedence over any inherited StyleSheet value, and shall resolve a
+          shape's effective fill/line transparency (alpha) from its FillForegndTrans/LineColorTrans
+          cells through the same chain.
         tags: [system]
         justification: |
           Visio diagrams rely heavily on named styles to keep shape appearance consistent and
           centrally editable; rendering must reproduce the same effective style a native Visio
-          client would compute.
+          client would compute, including a shape's authored transparency, which is resolved
+          through the identical StyleSheet chain as its other line/fill cells.
         children:
           - CanvasNetVsdx-VsdxDocument-StyleSheetChainWalk
           - CanvasNetVsdx-VsdxDocument-DirectOverridePrecedence
           - CanvasNetVsdx-VsdxDocument-NoStyleTermination
+          - CanvasNetVsdx-VsdxDocument-TransparencyResolution
         tests:
           - CanvasNetVsdx_SystemIntegration_StyleResolution_WalksChainToLiteralValue
           - CanvasNetVsdx_SystemIntegration_StyleResolution_DirectOverrideWinsOverStyleSheet
@@ -233,17 +240,25 @@ sections:
           dimensions or a target DPI, clearing the destination surface to the requested (or
           default) background color, walking the resolved page's shape tree in document order
           (first shape drawn first/bottom), and painting each node's resolved fill, stroke,
-          connector line/arrowheads, and text.
+          connector line/arrowheads, and text, suppressing a NonPrinting shape's own self-paint
+          (while still recursing into its children) and a HideText shape's own text paint (while
+          still painting its fill/stroke/children), and applying a minimum visible stroke-width
+          floor so a sub-pixel-resolved LineWeight still paints a visible hairline.
         tags: [system]
         justification: |
           A single, documented rendering entry point is the system's primary externally visible
           contract; callers must receive validated, documented behavior for every argument and
-          predictable z-order/compositing semantics.
+          predictable z-order/compositing semantics, including the documented NonPrinting/HideText
+          suppression and minimum-stroke-width behaviors confirmed necessary against real-world
+          fixtures during the Milestone 10/11 bug-fix rounds.
         children:
           - CanvasNetVsdx-VsdxDocument-RenderPixelDimensions
           - CanvasNetVsdx-VsdxDocument-RenderDpi
           - CanvasNetVsdx-VsdxDocument-RenderArgumentValidation
           - CanvasNetVsdx-VsdxDocument-RenderDocumentOrderZOrder
+          - CanvasNetVsdx-VsdxDocument-NonPrintingSuppression
+          - CanvasNetVsdx-VsdxDocument-HideTextSuppression
+          - CanvasNetVsdx-VsdxDocument-MinimumVisibleStrokeWidth
         tests:
           - CanvasNetVsdx_SystemIntegration_Render_PixelDimensionsOverload_PaintsExpectedSurface
           - CanvasNetVsdx_SystemIntegration_Render_DpiOverload_ComputesExpectedPixelDimensions

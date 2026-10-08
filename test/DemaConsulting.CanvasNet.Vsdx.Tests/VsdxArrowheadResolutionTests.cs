@@ -294,6 +294,71 @@ public class VsdxArrowheadResolutionTests
     }
 
     /// <summary>
+    ///     A Master Group (<c>ID="5"</c>) whose own single child (<c>ID="6"</c>) is a 2-D shape
+    ///     (no <c>BeginX</c>/<c>EndX</c> cell) carrying the Master's own template-default
+    ///     <c>EndArrow</c>/<c>EndArrowSize</c> (<c>0</c>/<c>2</c>, no arrowhead) - mirroring
+    ///     <see cref="TwoDimensionalArrowMasterShapeXml"/>, but nested one level inside a Group.
+    /// </summary>
+    private const string TwoDimensionalArrowGroupMasterShapeXml =
+        """
+        <Shape ID="5" Type="Group">
+          <Cell N="PinX" V="0.5"/><Cell N="PinY" V="0.5"/><Cell N="Width" V="0.5"/><Cell N="Height" V="0.5"/>
+          <Cell N="LocPinX" V="0.25"/><Cell N="LocPinY" V="0.25"/><Cell N="Angle" V="0"/>
+          <Shapes>
+            <Shape ID="6" Type="Shape">
+              <Cell N="PinX" V="0.25"/><Cell N="PinY" V="0.25"/><Cell N="Width" V="0.5"/><Cell N="Height" V="0.5"/>
+              <Cell N="LocPinX" V="0.25"/><Cell N="LocPinY" V="0.25"/><Cell N="Angle" V="0"/>
+              <Cell N="EndArrow" V="0"/><Cell N="EndArrowSize" V="2"/>
+            </Shape>
+          </Shapes>
+        </Shape>
+        """;
+
+    /// <summary>
+    ///     Proves Milestone 12's (Finding #3) Group-child carve-out is deliberately scoped to the
+    ///     <c>TransformCellNames</c> overlay only, and does <em>not</em> extend to
+    ///     <c>ArrowCellNames</c>: a 2-D shape that is itself a Group child (<see
+    ///     cref="VsdxShapeNode.Parent"/> not <see langword="null"/>) whose own <c>EndArrow</c>
+    ///     cell is marked <c>F="Inh"</c> still defers entirely to the Master child's own literal
+    ///     <c>EndArrow</c> value, exactly like an ordinary top-level 2-D shape (see
+    ///     <see cref="ArrowheadResolution_2DShapeInhMarkedArrowCell_DefersToMasterValue"/>) -
+    ///     proving arrowhead cells remain 1-D-only regardless of Group nesting, per
+    ///     <c>VsdxDocument.CellMerge.cs</c>'s own remarks that <c>ArrowCellNames</c> was
+    ///     deliberately left out of the <c>isGroupChild</c> carve-out.
+    /// </summary>
+    [Fact]
+    public void ArrowheadResolution_2DGroupChildInhMarkedArrowCell_DefersToMasterValue()
+    {
+        // Arrange: a Group child (2-D shape, no BeginX/EndX) whose own EndArrow is marked Inh
+        // with a stale cached value (4/Arrow); the Master child's own literal EndArrow is 0
+        // (None) - see TwoDimensionalArrowGroupMasterShapeXml.
+        var instanceShapeXml =
+            """
+            <Shape ID="5" Type="Group" Master="1">
+              <Cell N="PinX" V="2"/><Cell N="PinY" V="2"/><Cell N="Width" V="0.5"/><Cell N="Height" V="0.5"/>
+              <Cell N="LocPinX" V="0.25"/><Cell N="LocPinY" V="0.25"/><Cell N="Angle" V="0"/>
+              <Shapes>
+                <Shape ID="6" MasterShape="6">
+                  <Cell N="EndArrow" V="4" F="Inh"/>
+                </Shape>
+              </Shapes>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(instanceShapeXml, mastersXml: TwoDimensionalArrowGroupMasterShapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        // Act
+        var group = document.GetPageShapes(0)[0];
+        var child = Assert.Single(group.Children);
+
+        // Assert: the Master child's own literal EndArrow (None) wins, not the instance child's
+        // stale Inh-marked EndArrow (Arrow) - the (1-D-only) arrow-cell overlay is unaffected by
+        // Group nesting.
+        Assert.Same(group, child.Parent);
+        Assert.Equal(VsdxArrowheadStyle.None, child.Paint!.EndArrowhead.Style);
+    }
+
+    /// <summary>
     ///     Proves a shape with no <c>BeginArrow</c>/<c>EndArrow</c> cells anywhere in its chain
     ///     (no <c>LineStyle</c> attribute, no <c>&lt;StyleSheets&gt;</c> override) resolves both
     ///     arrowheads to <see cref="VsdxArrowhead.NoArrowhead"/> by default.

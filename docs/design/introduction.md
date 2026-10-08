@@ -121,8 +121,8 @@ software items, specifically:
   `<p:graphicFrame>` charts — see `OpenXmlChartParser`/`ChartRenderer` below) — see
   _CanvasNetPptx System Design_ (`canvas-net-pptx.md`)
 - **CanvasNetCharts (System)** — A separate, independently-distributed software system providing
-  chart support, containing two subsystems: `ChartModel`, containing a single unit,
-  `ChartDocument` — the public, immutable, validating chart data model (`Chart`/`ChartSeries`/
+  chart support, containing two subsystems: `ChartModel`, containing two units, `ChartDocument` —
+  the public, immutable, validating chart data model (`Chart`/`ChartSeries`/
   `ChartAxis`/`ChartLegend`/`ChartTitle`/`ChartType`), the `ChartBuilder` fluent construction API,
   and a `ChartRenderer` unit that paints a `Chart` onto a core `Surface`; and `OpenXmlChart`,
   containing a single unit, `OpenXmlChartParser`, which parses an OOXML `chart1.xml` part into
@@ -241,6 +241,19 @@ XObjects, and text — TrueType, Type 1, Type 1C, Type 3, or Type 0/CID-keyed �
 font-fallback substitution, optionally decrypting an encrypted document first) —
 see the Folder Layout section below and _CanvasNetPdf
 System Design_ (`canvas-net-pdf.md`).
+
+A third sibling top-level system (within this section's narrative; `CanvasNetPptx` and
+`CanvasNetCharts` are additional sibling systems not yet narrated here — a pre-existing gap this
+branch did not introduce), `CanvasNetVsdx`, likewise lives in this same repository
+alongside `CanvasNet`: its sole unit, `VsdxDocument`, namespace `DemaConsulting.CanvasNet.Vsdx`,
+is distributed as its own separate NuGet package and depends on the `CanvasNet` system's
+`Canvas`, `Geometry`, `Drawing`, and `Fonts` subsystems (`Render` opens a `.vsdx` package's OPC
+structure, resolves the Master/MasterShape cell-and-geometry-row inheritance chain and the
+StyleSheet line/fill/text style chain, resolves shape/connector transforms and geometry rows to
+paintable paths — including Milestone 11's real `EllipticalArcTo`/`ArcTo`-to-Bezier conversion —
+composes arbitrarily nested group/child-shape transforms, and paints a page's full shape tree,
+including text, in document order) — see the Folder Layout section below and
+_CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`).
 
 ## Folder Layout
 
@@ -446,6 +459,72 @@ src/DemaConsulting.CanvasNet.Pdf/
 `Fonts` (`TrueTypeFont`, `SystemFontCatalog`), and `Codecs` (`UnsupportedImageFeatureException`,
 `JpegCodec`) subsystems — see _CanvasNetPdf System Design_ (`canvas-net-pdf.md`) for exactly
 which file introduced each dependency.
+
+`VsdxDocument` lives in the `src/DemaConsulting.CanvasNet.Vsdx/` project folder (namespace
+`DemaConsulting.CanvasNet.Vsdx`, distributed as the separate `DemaConsulting.CanvasNet.Vsdx`
+NuGet package). Like `SvgCodec`'s and `PdfDocument`'s own folders, this is the source folder of
+a separate, sibling system's sole unit (see _CanvasNetVsdx System Design_,
+`canvas-net-vsdx.md`), a flat structure with no further nesting:
+
+```text
+src/DemaConsulting.CanvasNet.Vsdx/
+├── VsdxDocument.cs                — Public API entry point: Open/PageCount/GetPageSize/Render/
+│                                     Dispose; partial-class implementation continues below
+├── VsdxDocument.Package.cs        — OPC package layer: ZIP opening, Content-Types/relationship
+│                                     resolution
+├── VsdxDocument.Pages.cs          — Page-index parser (visio/pages/pages.xml)
+├── VsdxDocument.Shapes.cs         — Page shape-tree parser/resolver
+├── VsdxDocument.Masters.cs        — Master/Stencil resolver (masters.xml)
+├── VsdxDocument.CellMerge.cs      — Master/MasterShape cell and geometry-row merge algorithm
+│                                     (instance-wins, else-Master, including the 1-D/group-child
+│                                     transform-cell and arrowhead-cell exceptions)
+├── VsdxDocument.Geometry.cs       — Geometry-row resolver (MoveTo/LineTo/ArcTo/EllipticalArcTo
+│                                     to path commands, tolerant skip of unrecognized rows)
+├── VsdxDocument.Transform.cs      — Shape-local-to-page-space affine transform resolver
+├── VsdxDocument.Styles.cs         — Parsed StyleSheet element/index
+├── VsdxDocument.TextStyle.cs      — Text StyleSheet-chain resolver
+├── VsdxDocument.Paint.cs          — Line/fill paint resolver (color, transparency, stroke-width
+│                                     floor, non-printing/hide-text suppression)
+├── VsdxDocument.Text.cs           — `<Text>` element parser
+├── VsdxDocument.TextBox.cs        — Text-box transform resolver
+├── VsdxDocument.TextLayout.cs     — Text layout engine (word-wrap/alignment)
+├── VsdxDocument.TextRender.cs     — Text-painting primitive
+├── VsdxDocument.Connects.cs       — `<Connects>` section parser
+├── VsdxDocument.Arrowheads.cs     — Arrowhead style-index and geometry resolver
+├── VsdxDocument.Groups.cs         — Recursive group/nested-shape resolver
+├── VsdxDocument.Theme.cs          — Theme loader (theme1.xml)
+├── VsdxDocument.Render.cs         — Public, page-level rendering API
+├── VsdxCell.cs                    — Single parsed VisioML `<Cell>` element
+├── VsdxCellBag.cs                 — Immutable, name-keyed lookup of `VsdxCell` entries
+├── VsdxGeometry.cs                — Single, as-parsed (pre-merge) `<Row>` element
+├── VsdxShapeNode.cs               — Single parsed VisioML `<Shape>` element
+├── VsdxShapeTransform.cs          — Resolved 2-D affine transform for a shape
+├── VsdxTextBoxTransform.cs        — Resolved text-box placement
+├── VsdxTextRun.cs                 — As-parsed, marker-delimited text segment
+├── VsdxTextLayout.cs              — Fully-resolved, laid-out glyph stream for a shape's text
+├── VsdxResolvedPaint.cs           — Resolved stroke/fill paint after cell-merge and StyleSheet
+│                                     chain resolution
+├── VsdxColorPalette.cs            — Resolves a color cell's raw value to an `Rgba32`
+├── VsdxConnect.cs                 — Identifies which end of a connector a `<Connect>` describes
+├── VsdxConnectorEndpoints.cs      — Resolved, page-space begin/end connector endpoints
+├── VsdxArrowhead.cs               — Recognized `BeginArrow`/`EndArrow` index subset
+├── VsdxArrowheadGeometry.cs       — Local-space `Path` geometry for a resolved `VsdxArrowhead`
+├── VsdxTheme.cs                   — Parsed document theme (color scheme)
+├── VsdxPageInfo.cs                — Reports a page's declared name/size (EMU)
+├── VsdxRenderOptions.cs           — Page-rendering configuration (for example background color)
+├── VsdxUnsupportedFeatureException.cs — Thrown when a resolver refuses an unsupported-but-
+│                                     recognized construct
+└── NamespaceDoc.cs                — Namespace-level XML documentation
+```
+
+`VsdxDocument`'s dependencies span the `CanvasNet` system's `Canvas` (`Surface`/`Rgba32`),
+`Geometry` (`PathBuilder`/`Path`), `Drawing` (`PathFiller`/`PathStroker`/`StrokeStyle`), and
+`Fonts` (`TrueTypeFont`, `SystemFontCatalog`) subsystems — see _CanvasNetVsdx System Design_
+(`canvas-net-vsdx.md`) for exactly which file introduced each dependency. `CanvasNetPptx` and
+`CanvasNetCharts` also have their own sibling project folders
+(`src/DemaConsulting.CanvasNet.Pptx/`, `src/DemaConsulting.CanvasNet.Charts/`); their folder-layout
+trees are not yet documented in this section — a pre-existing gap predating this branch, tracked
+separately and not addressed here.
 
 ## Document Conventions
 

@@ -13,11 +13,11 @@
 # package (namespace DemaConsulting.CanvasNet.Vsdx), which references the core
 # DemaConsulting.CanvasNet package. VsdxDocument is the sole unit of the CanvasNetVsdx system.
 #
-# Delivery note: as of this planning skeleton, no CanvasNetVsdx source or test files exist yet.
-# Every "tests" entry below forward-declares the planned test method name that will provide
-# passing evidence once the Implementation Phase Plan in docs/design/canvas-net-vsdx.md reaches
-# milestone (h) (comprehensive test suite); see docs/verification/canvas-net-vsdx/vsdx-document.md
-# for the current TODO status.
+# Delivery status: CanvasNetVsdx has completed all 9 initial Implementation Phase Plan milestones
+# (docs/design/canvas-net-vsdx.md) plus 3 additional rounds of real-world-corpus bug-fix work
+# (Milestones 10, 11, 12). Every "tests" entry below cites an existing, passing test method in the
+# DemaConsulting.CanvasNet.Vsdx.Tests project; see docs/verification/canvas-net-vsdx/vsdx-document.md
+# for the current test-evidence/acceptance status.
 
 sections:
   - title: CanvasNetVsdx Requirements
@@ -331,9 +331,9 @@ sections:
               a cell name genuinely absent from the instance row (not merely Inh-marked, but never
               declared at all) falls through to the master row's same-named cell. This is distinct
               from, and stricter than, the generic Master/MasterShape cell-merge rule
-              (CanvasNetVsdx-VsdxDocument-MasterShapeInheritance) applied everywhere else: a
+              (CanvasNetVsdx-VsdxDocument-CellMerge) applied everywhere else: a
               geometry row's own coordinates are per-instance-derived from that instance's own
-              Width/Height/endpoints the same way CanvasNetVsdx-VsdxDocument-MasterShapeInheritance's
+              Width/Height/endpoints the same way CanvasNetVsdx-VsdxDocument-CellMerge's
               nine transform cells are, so they must never defer to the master's own differently-
               scaled cached value merely because the instance's own cell happens to be cached as
               Inh rather than literal. An instance row with Del="1" marks the master's

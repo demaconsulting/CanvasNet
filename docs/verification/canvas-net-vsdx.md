@@ -121,10 +121,26 @@ rows compose into a usable, paintable path when driven through the full package-
 
 Exercises end-to-end system behavior for the geometry resolver's tolerant-skip contract: opens a
 hand-authored, in-memory package whose single shape's `Geometry` section includes a synthetic
-`EllipticalArcTo` row (a row type this package never converts to a Bezier approximation - see the
-Milestone 8 correction note on `CanvasNetVsdx-VsdxDocument-GeometryUnrecognizedRowSkip`) interleaved
-with recognized `MoveTo`/`LineTo` rows. Asserts shape resolution completes without throwing,
-confirming the documented "skip, don't throw" contract end-to-end.
+`NURBSTo` row (a row type this package never converts to a Bezier approximation - see the
+Milestone 8 correction note on `CanvasNetVsdx-VsdxDocument-GeometryUnrecognizedRowSkip`; Milestone 11
+added real `EllipticalArcTo`/`ArcTo`-to-Bezier conversion, so `NURBSTo` - not `EllipticalArcTo` - is
+now used here as the genuinely still-unrecognized example row type) interleaved with recognized
+`MoveTo`/`LineTo` rows. Asserts shape resolution completes without throwing, confirming the
+documented "skip, don't throw" contract end-to-end.
+
+### Integration: Geometry Arc Resolution Converts Elliptical Arc To Reaching Destination
+
+**Test**: `Geometry_EllipticalArcToRow_ConvertsToArcReachingDestination` (`VsdxGeometryTests`)
+
+Milestone 10/11 capability added after the original system-tier test suite was authored - see
+`CanvasNetVsdx-VsdxDocument-ArcGeometryResolution`. Exercises end-to-end system behavior for the
+`EllipticalArcTo`-to-`ArcTo`-path-command conversion through the identical `VsdxDocument.Open`
+(hand-authored in-memory package)/`GetPageShapes` public-API path the dedicated
+`CanvasNetVsdx_SystemIntegration_*` tests above use, just housed in `VsdxGeometryTests` alongside
+this unit's other geometry-row coverage: opens a hand-authored package whose single shape's
+`Geometry` section includes a quarter-circle `EllipticalArcTo` row. Asserts the resolved path
+carries a single `ArcTo` command reaching the row's own destination point, confirming the
+real-world-corpus-driven arc-geometry fix (`test.vsdx`'s header-bar rounded corner) end-to-end.
 
 ### Integration: Transform Rotated Shape Matches Expected Outline
 
@@ -165,6 +181,19 @@ package whose instance shape marks one of its Master's geometry rows `Del="1"` a
 Asserts the merged geometry's single subpath carries no surviving command for that row, confirming
 the row-delete (not override) semantics end-to-end.
 
+### Integration: Master Inheritance Deleted Shape Is Excluded From Resolved Tree
+
+**Test**: `VsdxDocument_GroupChildDeletedStub_ExcludedFromResolvedShapeTree` (`VsdxGroupResolutionTests`)
+
+Milestone 10 capability added after the original system-tier test suite was authored - see
+`CanvasNetVsdx-VsdxDocument-DeletedShapeExclusion`. Exercises end-to-end system behavior for
+shape-level `Del="1"` exclusion through the same `VsdxDocument.Open`/`GetPageShapes` public-API
+path as the dedicated `CanvasNetVsdx_SystemIntegration_*` tests, housed in
+`VsdxGroupResolutionTests` alongside this unit's other group-resolution coverage: opens a
+hand-authored package whose Group shape has one correct child and one `Del="1"`-marked stub
+sibling (modeled on `60973.vsdx`'s own stale, superseded placeholder shape). Asserts only the
+correct child survives into the resolved shape tree, confirming the stub-exclusion fix end-to-end.
+
 ### Integration: Style Resolution Walks Chain To Literal Value
 
 **Test**: `CanvasNetVsdx_SystemIntegration_StyleResolution_WalksChainToLiteralValue`
@@ -182,6 +211,19 @@ Exercises end-to-end system behavior for direct-cell precedence: opens a hand-au
 whose shape both references a `FillStyle` StyleSheet carrying a literal `FillForegnd` and supplies
 its own, different literal `FillForegnd`. Asserts the resolved fill color is the shape's own value,
 confirming direct-cell precedence over the entire StyleSheet chain end-to-end.
+
+### Integration: Style Resolution Transparency Reduces Resolved Fill Alpha
+
+**Test**: `StyleResolution_FillForegndTrans_ReducesResolvedFillAlpha` (`VsdxStyleResolutionTests`)
+
+Milestone 10 capability added after the original system-tier test suite was authored - see
+`CanvasNetVsdx-VsdxDocument-TransparencyResolution`. Exercises end-to-end system behavior for
+`FillForegndTrans`/`LineColorTrans` alpha-channel resolution through the same `VsdxDocument.Open`
+public-API path as the dedicated `CanvasNetVsdx_SystemIntegration_*` tests, housed in
+`VsdxStyleResolutionTests` alongside this unit's other StyleSheet-resolution coverage: opens a
+hand-authored package whose shape carries a literal `FillForegndTrans="0.4"` cell. Asserts the
+resolved fill color's alpha channel is reduced to 60% of fully opaque, confirming the real-world-
+corpus-driven transparency fix (`60973.vsdx`'s "Virtual Devices" container) end-to-end.
 
 ### Integration: Color Fill Resolves Built In Palette Index And Hex Colors
 
@@ -289,6 +331,44 @@ overload with a zero width and, separately, a zero height. Asserts `ArgumentOutO
 thrown in both cases, confirming the documented validation contract at the system's own public
 entry point.
 
+### Integration: Render Non Printing Shape Skips Own Fill But Still Renders Children
+
+**Test**: `Render_NonPrintingShape_SkipsOwnFillButStillRendersChildren` (`VsdxRenderFixtureTests`)
+
+Milestone 10 capability added after the original system-tier test suite was authored - see
+`CanvasNetVsdx-VsdxDocument-NonPrintingSuppression`. Exercises end-to-end system behavior for
+`NonPrinting` self-paint suppression through the same `VsdxDocument.Open`/`Render` public-API path
+as the dedicated `CanvasNetVsdx_SystemIntegration_*` tests, housed in `VsdxRenderFixtureTests`
+alongside this unit's other render-fixture coverage: renders a hand-authored page whose
+`NonPrinting="1"` Group has its own fill and one child shape. Asserts the Group's own fill is never
+painted while its child's distinct fill still paints, confirming the real-world-corpus-driven
+suppression fix (`44501b.vsdx`'s "Activity" heading regression) end-to-end.
+
+### Integration: Render Sub Pixel Line Weight Still Paints Visible Hairline Stroke
+
+**Test**: `Render_SubPixelLineWeight_StillPaintsVisibleHairlineStroke` (`VsdxRenderFixtureTests`)
+
+Milestone 10 capability added after the original system-tier test suite was authored - see
+`CanvasNetVsdx-VsdxDocument-MinimumVisibleStrokeWidth`. Exercises end-to-end system behavior for
+the minimum-visible-stroke-width hairline floor through the same `VsdxDocument.Open`/`Render`
+public-API path as the dedicated `CanvasNetVsdx_SystemIntegration_*` tests, housed in
+`VsdxRenderFixtureTests`: renders a hand-authored page whose single unfilled line carries a
+deliberately sub-pixel `LineWeight="0.002"`. Asserts at least one non-transparent pixel still
+paints along the line, confirming the real-world-corpus-driven hairline-floor fix (`60973.vsdx`'s
+missing-connector-line regression) end-to-end.
+
+### Integration: Render Shape With Hide Text Cell Suppresses Own Text But Not Fill Or Stroke
+
+**Test**: `Render_ShapeWithHideTextCell_SuppressesOwnTextButNotFillOrStroke` (`VsdxRenderTests`)
+
+Milestone 10 capability added after the original system-tier test suite was authored - see
+`CanvasNetVsdx-VsdxDocument-HideTextSuppression`. Exercises end-to-end system behavior for
+`HideText` text-only-paint suppression through the same `VsdxDocument.Open`/`Render` public-API
+path as the dedicated `CanvasNetVsdx_SystemIntegration_*` tests, housed in `VsdxRenderTests`
+alongside this unit's other render coverage: renders a hand-authored page whose solid-filled
+rectangle carries both a `HideText="1"` cell and a `<Text>` run. Asserts the rectangle's own fill
+still paints while no glyph ink appears anywhere, confirming the suppression fix end-to-end.
+
 ### Integration: Whole Document Opens Resolves And Renders Every Page
 
 **Test**: `CanvasNetVsdx_SystemIntegration_WholeDocument_OpensResolvesAndRendersEveryPage`
@@ -314,13 +394,21 @@ resolving built-in-palette-index/hex/themed colors and the documented FillPatter
 graceful-degradation behavior (ColorFill), resolving and rendering text (TextRendering), resolving
 and rendering connectors including dangling-glue-target tolerance (Connectors), composing
 arbitrarily-nested group child transforms (Groups), and rendering a full page through the public
-`Render` API (RenderSurface) - plus validating the documented argument-validation contracts.
+`Render` API (RenderSurface) - plus validating the documented argument-validation contracts, plus
+the Milestone 10/11 real-world-corpus bug-fix capabilities (arc-geometry resolution, deleted-shape
+exclusion, transparency resolution, non-printing suppression, minimum visible stroke width, and
+hide-text suppression), each proven end-to-end through the same public-API path as the scenarios
+above (hosted in their own topical unit-test classes rather than the dedicated
+`VsdxSystemIntegrationTests` class, since each was added alongside that capability's own unit-level
+coverage during its respective bug-fix round).
 Every requirement in `docs/reqstream/canvas-net-vsdx.yaml` and
 `docs/reqstream/canvas-net-vsdx/platform-requirements.yaml` links to at least one passing test
 listed above, and the whole-document end-to-end scenario renders every staged real-world sample
 without an unhandled exception. A document-level `<Colors>`/`<FaceNames>` custom color/font table
 and a best-effort linear-gradient fill approximation remain unimplemented and explicitly out of
 scope (see the Milestone 8 correction notes on `CanvasNetVsdx-ColorFill` and the design
-documents), as does true `EllipticalArcTo`/`NURBSTo`/`InfiniteLine`-to-Bezier conversion (these row
-types are tolerantly skipped, not converted); a future, corpus-driven hardening pass may add this
-content if a real-world fixture is found to require it.
+documents), as does true `NURBSTo`/`InfiniteLine`-to-Bezier conversion (these row types are
+tolerantly skipped, not converted; Milestone 11 implemented real `EllipticalArcTo`/`ArcTo`-to-Bezier
+conversion - see `CanvasNetVsdx-VsdxDocument-ArcGeometryResolution` - so `EllipticalArcTo` is no
+longer in this unconverted set); a future, corpus-driven hardening pass may add this content if a
+real-world fixture is found to require it.

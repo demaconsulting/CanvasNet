@@ -1,4 +1,4 @@
-// cspell:ignore vsdx Visio davehoward jgreywolfvsdxjs Jgreywolf Foregnd basicshapes
+// cspell:ignore vsdx Visio davehoward jgreywolfvsdxjs Jgreywolf Foregnd basicshapes NURBSTo NURBS
 
 using DemaConsulting.CanvasNet.Canvas;
 
@@ -141,11 +141,14 @@ public class VsdxSystemIntegrationTests
         Assert.Contains(shapes, shape => shape.Geometries!.Any(section => section.Path.Subpaths.Any(subpath => subpath.Commands.Count > 0)));
     }
 
-    /// <summary>Proves an unrecognized geometry row type (here, a synthetic <c>EllipticalArcTo</c>) is tolerantly skipped rather than throwing, end-to-end through the public API.</summary>
+    /// <summary>Proves an unrecognized geometry row type (here, a synthetic <c>NURBSTo</c>) is tolerantly skipped rather than throwing, end-to-end through the public API.</summary>
     [Fact]
     public void CanvasNetVsdx_SystemIntegration_Geometry_UnrecognizedRowTypeIsSkippedNotThrown()
     {
-        // Arrange: a shape whose geometry section mixes recognized rows with an EllipticalArcTo row.
+        // Arrange: a shape whose geometry section mixes recognized rows with a NURBSTo row. (Note:
+        // this test previously used a synthetic EllipticalArcTo row as the "unrecognized" example,
+        // but Milestone 11 added real EllipticalArcTo/ArcTo-to-Bezier conversion, making it a
+        // recognized row type; NURBSTo remains genuinely unrecognized/tolerantly-skipped.)
         var shapeXml =
             """
             <Shape ID="1" Type="Shape">
@@ -153,7 +156,7 @@ public class VsdxSystemIntegrationTests
               <Cell N="LocPinX" V="0.5"/><Cell N="LocPinY" V="0.5"/><Cell N="Angle" V="0"/>
               <Section N="Geometry" IX="0">
                 <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
-                <Row T="EllipticalArcTo" IX="2">
+                <Row T="NURBSTo" IX="2">
                   <Cell N="X" V="1"/><Cell N="Y" V="1"/><Cell N="A" V="0.5"/><Cell N="B" V="0.5"/>
                   <Cell N="C" V="0"/><Cell N="D" V="1"/>
                 </Row>
