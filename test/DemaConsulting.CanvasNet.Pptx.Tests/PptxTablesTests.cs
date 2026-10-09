@@ -799,6 +799,41 @@ public class PptxTablesTests
     }
 
     /// <summary>
+    ///     Proves a row-spanning cell whose declared <c>rowSpan</c> extends past the table's own
+    ///     actual row count (a malformed-but-not-rejected input, since <see cref="PptxDocument.ParseTableCell"/>
+    ///     only rejects a non-positive <c>rowSpan</c>, not one exceeding the remaining row count)
+    ///     has its shortfall clamped onto the table's own last actual row instead of indexing past
+    ///     the end of the effective-heights array - a regression test for a growth-pass crash
+    ///     (<see cref="ArgumentOutOfRangeException"/>) found during formal review.
+    /// </summary>
+    [Fact]
+    public void ResolveCellRects_RowSpanExceedsTableRowCount_ClampsShortfallOntoLastActualRow()
+    {
+        // "AA AA AA AA" (4 "AA" tokens) wraps to a natural required height of 50800 EMU - see the
+        // sibling GrowsLastSpannedRow test above for the identical wrapping math - comfortably
+        // exceeding the table's own total stored height of 5000 + 5000 = 10000 EMU, even though
+        // the cell declares a rowSpan of 5 while the table itself only has 2 rows.
+        var spanningCell = PptxDocument.ParseTableCell(
+            BuildTc(rowSpan: 5, txBody: BuildTextBody("AA AA AA AA")), BuildTestTheme(), 30000f, 10000f);
+        var vMergeContinuation = PptxDocument.ParseTableCell(BuildTc(vMerge: true), BuildTestTheme(), 30000f, 5000f);
+
+        var table = new PptxTable(
+            [30000f],
+            [
+                new PptxTableRow(5000f, [spanningCell]),
+                new PptxTableRow(5000f, [vMergeContinuation]),
+            ]);
+
+        // Must not throw ArgumentOutOfRangeException - the fix clamps the "last spanned row" index
+        // to the table's own last actual row (index 1) instead of the declared-but-nonexistent
+        // index 4 (rowIndex 0 + rowSpan 5 - 1).
+        var rects = PptxDocument.ResolveCellRects(table, BuildTestTheme(), ConstantFontResolver);
+
+        var spanningRect = Assert.Single(rects); // the vMerge continuation contributes no rectangle of its own
+        Assert.Equal(50800f, spanningRect.HeightEmu); // the table's own last actual row absorbed the entire shortfall
+    }
+
+    /// <summary>
     ///     Proves growth is strictly opt-in via <see cref="PptxDocument.ResolveCellRects"/>'s new
     ///     optional <c>theme</c>/<c>fontResolver</c> parameters: a cell carrying a
     ///     <c>TextBody</c> that would otherwise require growth is left at its stored height when

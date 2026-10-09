@@ -486,7 +486,10 @@ public sealed partial class PptxDocument
             var shortfallEmu = requiredHeightEmu - SumConsecutive(effectiveHeightsEmu, rowIndex, rowSpan);
             if (shortfallEmu > 0f)
             {
-                var lastSpannedRowIndex = rowIndex + rowSpan - 1;
+                // Clamped to the last available row - matches SumConsecutive's own clamp-to-available
+                // behavior above, so a malformed rowSpan that extends past the table's declared row
+                // count still grows the table's actual last row instead of indexing out of bounds.
+                var lastSpannedRowIndex = Math.Min(rowIndex + rowSpan - 1, effectiveHeightsEmu.Count - 1);
                 effectiveHeightsEmu[lastSpannedRowIndex] += shortfallEmu;
             }
         }

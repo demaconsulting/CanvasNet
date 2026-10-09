@@ -3118,6 +3118,14 @@ code changed.
     row-spanning cells - no real-world fixture exercising a tall row-spanning cell was located in
     this repository's existing corpus to empirically validate against; a future corpus-driven
     hardening pass may revisit it if one is found.
+  - **Out-of-range `rowSpan` is clamped, not rejected**: `ParseTableCell` only rejects a
+    non-positive `rowSpan`; it never validates that `rowIndex + rowSpan` stays within the table's
+    own declared row count (symmetric with `gridSpan`/`columnIndex`, which is never validated
+    against `totalColumns` either). Pass 2's "last spanned row" index is therefore clamped to the
+    table's own last actual row (`Math.Min(rowIndex + rowSpan - 1, effectiveHeightsEmu.Count - 1)`)
+    - the same clamp-to-available-range behavior `SumConsecutive` already applies when summing
+    such a span's stored heights - so a malformed `rowSpan` that overruns the table still grows
+    the table's own last row instead of indexing past the end of the heights array.
   - The now-dead `SumRowHeights(IReadOnlyList<PptxTableRow>, int, int)` helper (superseded by
     `WalkResolvedCells` operating purely over `IReadOnlyList<float>` row-heights arrays via the
     already-existing `SumConsecutive`) is deleted.
