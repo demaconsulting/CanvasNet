@@ -36,6 +36,21 @@ static utility shape was chosen over an object with nothing to construct or conf
 | `Deflate`  | 8             | zlib-wrapped DEFLATE, matching `PngCodec`'s own IDAT wrapper. |
 | `PackBits` | 32773         | Apple/TIFF PackBits run-length encoding (TIFF 6.0 Section 9). |
 
+**Architectural decision**: the TIFF-flavor LZW implementation (`EncodeLzw`/`DecodeLzw` in
+`TiffCodec.Compression.cs`) deliberately uses *different* numeric code-width-bump thresholds for
+encoding (512/1024/2048 table entries) than for decoding (511/1023/2047 table entries). This is
+not an inconsistency to "fix" - it directly implements the code-width transition convention
+mandated by TIFF 6.0 Section 13, often called the "early change" rule: because an LZW decoder can
+only materialize a new table entry one iteration after the corresponding encoder-side entry was
+created (it must first see the *next* code to know the entry's final byte), a decoder using the
+same, plain/unadjusted thresholds as its encoder would read a code one bit too narrow immediately
+after a width transition, corrupting the rest of the stream. TIFF's encoder uses the plain
+thresholds; its decoder widens one table entry *earlier* to exactly compensate for that
+structural one-entry lag, so both sides change width at the same absolute bit position in the
+stream. Every TIFF-flavor LZW reader - including the canonical `libtiff` reference implementation
+and Pillow, which delegates to it - relies on this asymmetry, so `EncodeLzw` and `DecodeLzw` must
+keep their thresholds numerically different from each other.
+
 ##### TIFF header (8 bytes)
 
 | Offset | Size | Field            | Value                                               |

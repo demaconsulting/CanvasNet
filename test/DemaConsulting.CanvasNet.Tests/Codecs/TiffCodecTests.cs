@@ -397,6 +397,14 @@ public class TiffCodecTests
     ///     code 257), written entirely independently of <see cref="TiffCodec"/>'s own encoder,
     ///     directly from the specification text.
     /// </summary>
+    /// <remarks>
+    ///     Uses TIFF 6.0 Section 13's plain/unadjusted encoder-side code-width thresholds
+    ///     (512/1024/2048 table entries), matching <see cref="TiffCodec"/>'s own
+    ///     <c>EncodeLzw</c> and deliberately one table entry later than
+    ///     <see cref="TestDecodeLzwStandalone"/>'s decoder-side "early change" thresholds
+    ///     (511/1023/2047); see the remarks on <c>EncodeLzw</c>/<c>DecodeLzw</c> in
+    ///     <c>TiffCodec.Compression.cs</c> for why this asymmetry is correct and required.
+    /// </remarks>
     private static byte[] TestEncodeLzw(byte[] data)
     {
         var bytes = new List<byte>();
@@ -436,7 +444,7 @@ public class TiffCodecTests
                 WriteCode(prefix, codeSize);
                 table[(prefix, b)] = nextCode;
                 nextCode++;
-                if (nextCode is 511 or 1023 or 2047)
+                if (nextCode is 512 or 1024 or 2048)
                 {
                     codeSize++;
                 }
@@ -513,6 +521,13 @@ public class TiffCodecTests
     ///     <see cref="TiffCodec"/>'s own decoder, directly from the TIFF 6.0 Section 13
     ///     specification text.
     /// </summary>
+    /// <remarks>
+    ///     Uses TIFF 6.0 Section 13's decoder-side "early change" code-width thresholds
+    ///     (511/1023/2047 table entries), matching <see cref="TiffCodec"/>'s own
+    ///     <c>DecodeLzw</c>/<c>AddLzwTableEntry</c> and deliberately one table entry earlier than
+    ///     <see cref="TestEncodeLzw"/>'s encoder-side plain thresholds (512/1024/2048); this
+    ///     numeric difference is intentional and must not be "fixed" to match.
+    /// </remarks>
     private static byte[] TestDecodeLzwStandalone(byte[] data)
     {
         var bytePos = 0;
@@ -829,6 +844,55 @@ public class TiffCodecTests
                 Assert.Equal(surface[x, y], loaded[x, y]);
             }
         }
+    }
+
+    /// <summary>
+    ///     Proves that Save then Load round-trips a large, high-entropy image whose raw byte
+    ///     stream drives the LZW table past all three code-width boundaries (510/511, 1022/1023,
+    ///     and 2046/2047 table entries) multiple times before any 4094-entry Clear reset,
+    ///     regression-testing the encoder/decoder code-width "early change" asymmetry (TIFF 6.0
+    ///     Section 13) rather than only small, single-code-width LZW data.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_SaveThenLoad_LzwLargeVariedImage_RoundTripsAcrossAllCodeWidthBoundaries()
+    {
+        // Arrange: build a 200x200 RGBA surface with a deterministic, non-RNG, high-entropy
+        // per-pixel formula so the LZW table grows through all three code-width boundaries
+        // many times, instead of settling into short repeating runs
+        const int width = 200;
+        const int height = 200;
+        var surface = new Surface(width, height);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                surface[x, y] = new Rgba32(
+                    (byte)((x * 73) ^ (y * 151) ^ (x + y)),
+                    (byte)((x * 37 + y * 97) ^ (x ^ y)),
+                    (byte)((x * 191 + y * 211) ^ (x * y)),
+                    (byte)(255 - ((x * 29 + y * 61) ^ x)));
+            }
+        }
+
+        // Act: save with LZW compression then load back
+        using var stream = new MemoryStream();
+        TiffCodec.Save(surface, stream, TiffCompression.Lzw);
+        stream.Position = 0;
+        var loaded = TiffCodec.Load(stream);
+
+        // Assert: every pixel round-trips exactly
+        Assert.Equal(surface.Width, loaded.Width);
+        Assert.Equal(surface.Height, loaded.Height);
+        Assert.Multiple(() =>
+        {
+            for (var y = 0; y < surface.Height; y++)
+            {
+                for (var x = 0; x < surface.Width; x++)
+                {
+                    Assert.Equal(surface[x, y], loaded[x, y]);
+                }
+            }
+        });
     }
 
     /// <summary>

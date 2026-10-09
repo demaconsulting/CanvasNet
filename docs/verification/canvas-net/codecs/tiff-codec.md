@@ -106,12 +106,25 @@ an independent test-only PackBits encoder, and loads the real-world `rgb_packbit
 `TiffCodec_Load_LzwCompressedRepeatingData_DecodesUsingIndependentEncoder`,
 `TiffCodec_Load_RgbFixture_MatchesSourcePngWithOpaqueAlpha`,
 `TiffCodec_Load_RgbaFixture_MatchesSourcePngExactly`,
-`TiffCodec_Load_GrayscaleFixture_HasEqualRgbChannels`
+`TiffCodec_Load_GrayscaleFixture_HasEqualRgbChannels`,
+`TiffCodec_SaveThenLoad_LzwLargeVariedImage_RoundTripsAcrossAllCodeWidthBoundaries`
 
 Saves and loads a surface using `TiffCompression.Lzw`; separately, decodes strips built with an
 independent test-only TIFF-flavor LZW encoder (including a repeating-pattern case that exercises
 dictionary growth and code-width transitions), and loads the real-world `rgb_lzw.tiff`/
 `rgba_lzw.tiff`/`gray_lzw.tiff` fixtures (genuine third-party encoder output).
+`TiffCodec_SaveThenLoad_LzwLargeVariedImage_RoundTripsAcrossAllCodeWidthBoundaries` closes a
+previously-unexercised verification gap: it round-trips a 200x200, high-entropy RGBA surface
+through `TiffCodec`'s own production `Save` and `Load`, whose raw post-predictor byte stream
+drives the LZW table past all three TIFF code-width boundaries (510/511, 1022/1023, and
+2046/2047 table entries) multiple times before any 4094-entry Clear reset is emitted - none of
+the other LZW tests' inputs were large enough to reach even the first boundary. This directly
+regression-tests the encoder/decoder code-width "early change" asymmetry described in the design
+documentation (TIFF 6.0 Section 13): `EncodeLzw` previously bumped its code width one table entry
+too early (matching the decoder's thresholds instead of using the plain, unadjusted ones),
+producing a TIFF-flavor LZW stream unreadable by this library's own decoder and by third-party
+readers (confirmed against Pillow/libtiff) for any input large/varied enough to cross a code-width
+boundary.
 
 ##### CanvasNet-Codecs-TiffCodec-CompressionDeflate: Deflate Compression Round-Trips Exactly
 
