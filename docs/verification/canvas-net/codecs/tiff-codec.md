@@ -399,8 +399,8 @@ scenarios.
 
 A unit test run passes when all test methods above (including each `[Theory]` case) pass without
 error or unexpected exception; any unexpected exception type or wrong return/byte value
-constitutes a failure. Across `TiffCodecTests.cs` and `TiffFixtureTests.cs`, this totals 70 test
-methods (65 in `TiffCodecTests.cs` and 5 in `TiffFixtureTests.cs`; several of these are `[Theory]`
+constitutes a failure. Across `TiffCodecTests.cs` and `TiffFixtureTests.cs`, this totals 67 test
+methods (62 in `TiffCodecTests.cs` and 5 in `TiffFixtureTests.cs`; several of these are `[Theory]`
 methods that additionally expand to multiple executed xUnit test cases, one per fixture file or
 data row), plus the system-level integration scenarios documented in
 `docs/verification/canvas-net.md`.
