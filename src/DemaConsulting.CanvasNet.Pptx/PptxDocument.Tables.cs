@@ -277,6 +277,13 @@ public sealed partial class PptxDocument
     /// </param>
     /// <param name="colorMap">The effective color map consulted while measuring cell text - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
     /// <param name="fallbackFontResolver">Resolves a <c>(bold, italic)</c> pair to a bundled fallback font while measuring cell text - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
+    /// <param name="slideNumber">
+    ///     The rendered slide's own 1-based slide number, consulted while measuring a cell's own
+    ///     <c>&lt;a:fld type="slidenum"&gt;</c> field text so its required height reflects the
+    ///     substituted digits rather than the cached placeholder - see
+    ///     <see cref="GetEffectiveCellTextBody"/> - or <see langword="null"/> (the default) to
+    ///     measure every cell's cached field text verbatim.
+    /// </param>
     /// <returns>
     ///     The resolved rectangles, in row-major document order. A cell with
     ///     <see cref="PptxTableCell.HMerge"/> or <see cref="PptxTableCell.VMerge"/> set is
@@ -289,7 +296,8 @@ public sealed partial class PptxDocument
         PptxTheme? theme = null,
         Func<string, bool, bool, TrueTypeFont>? fontResolver = null,
         PptxColorMap? colorMap = null,
-        Func<bool, bool, TrueTypeFont>? fallbackFontResolver = null)
+        Func<bool, bool, TrueTypeFont>? fallbackFontResolver = null,
+        int? slideNumber = null)
     {
         var storedHeightsEmu = table.Rows.Select(row => row.HeightEmu).ToList();
 
@@ -298,12 +306,30 @@ public sealed partial class PptxDocument
         // method's own <param name="theme"/>/<param name="fontResolver"/> remarks.
         var effectiveHeightsEmu = theme is null || fontResolver is null
             ? storedHeightsEmu
-            : GrowRowHeightsToFitText(table, storedHeightsEmu, theme, fontResolver, colorMap, fallbackFontResolver);
+            : GrowRowHeightsToFitText(table, storedHeightsEmu, theme, fontResolver, colorMap, fallbackFontResolver, slideNumber);
 
         return WalkResolvedCells(table, effectiveHeightsEmu)
             .Select(walked => new PptxResolvedTableCell(walked.XEmu, walked.YEmu, walked.WidthEmu, walked.HeightEmu, walked.Cell))
             .ToList();
     }
+
+    /// <summary>
+    ///     Returns <paramref name="cell"/>'s own <see cref="PptxTableCell.TextBody"/> with every
+    ///     <c>&lt;a:fld type="slidenum"&gt;</c> field substituted via
+    ///     <see cref="SubstituteSlideNumberField"/> when <paramref name="slideNumber"/> is
+    ///     supplied, so a table cell's slide-number field resolves identically to a non-table
+    ///     shape's (see <c>PptxDocument.Render.cs</c>'s <c>RenderShape</c>) for both row-height
+    ///     measurement (<see cref="GrowRowHeightsToFitText"/>) and painting
+    ///     (<see cref="PaintTable"/>) - without this, a cell's cached <c>&#8249;#&#8250;</c>
+    ///     placeholder text would both measure and paint incorrectly. A <see langword="null"/>
+    ///     <paramref name="slideNumber"/> (the default for every caller with no slide-number
+    ///     context, including this file's own direct-call tests) returns <paramref name="cell"/>'s
+    ///     <see cref="PptxTableCell.TextBody"/> unchanged.
+    /// </summary>
+    private static PptxTextBody? GetEffectiveCellTextBody(PptxTableCell cell, int? slideNumber) =>
+        cell.TextBody is { } textBody && slideNumber.HasValue
+            ? SubstituteSlideNumberField(textBody, slideNumber.Value)
+            : cell.TextBody;
 
     /// <summary>
     ///     A single resolved cell's rectangle plus the index of its own governing row, produced by
@@ -442,6 +468,13 @@ public sealed partial class PptxDocument
     /// <param name="fontResolver">Resolves a <c>(familyName, bold, italic)</c> triple to a <see cref="TrueTypeFont"/> - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
     /// <param name="colorMap">The effective color map consulted while measuring cell text - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
     /// <param name="fallbackFontResolver">Resolves a <c>(bold, italic)</c> pair to a bundled fallback font while measuring cell text - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
+    /// <param name="slideNumber">
+    ///     The rendered slide's own 1-based slide number, substituted into any cell's own
+    ///     <c>&lt;a:fld type="slidenum"&gt;</c> field before measurement - see
+    ///     <see cref="GetEffectiveCellTextBody"/> - or <see langword="null"/> to measure a cell's
+    ///     cached field text verbatim (for example, a caller with no slide-number context of its
+    ///     own, such as this method's existing direct-call tests).
+    /// </param>
     /// <returns>Each row's own effective height, in EMU, in document order - always greater than or equal to its own <paramref name="storedHeightsEmu"/> value.</returns>
     private static List<float> GrowRowHeightsToFitText(
         PptxTable table,
@@ -449,7 +482,8 @@ public sealed partial class PptxDocument
         PptxTheme theme,
         Func<string, bool, bool, TrueTypeFont> fontResolver,
         PptxColorMap? colorMap,
-        Func<bool, bool, TrueTypeFont>? fallbackFontResolver)
+        Func<bool, bool, TrueTypeFont>? fallbackFontResolver,
+        int? slideNumber = null)
     {
         var effectiveHeightsEmu = storedHeightsEmu.ToList();
 
@@ -461,7 +495,7 @@ public sealed partial class PptxDocument
         // governing cell's own resolved WidthEmu/RowIndex - see this method's own <remarks/>.
         foreach (var provisional in WalkResolvedCells(table, storedHeightsEmu))
         {
-            if (provisional.Cell.TextBody is not { } textBody)
+            if (GetEffectiveCellTextBody(provisional.Cell, slideNumber) is not { } textBody)
             {
                 continue;
             }
@@ -489,7 +523,12 @@ public sealed partial class PptxDocument
                 // Clamped to the last available row - matches SumConsecutive's own clamp-to-available
                 // behavior above, so a malformed rowSpan that extends past the table's declared row
                 // count still grows the table's actual last row instead of indexing out of bounds.
-                var lastSpannedRowIndex = Math.Min(rowIndex + rowSpan - 1, effectiveHeightsEmu.Count - 1);
+                // Compares the untrusted rowSpan against the (small, trusted) remaining row count
+                // *before* adding it to rowIndex, so a rowSpan near int.MaxValue can never overflow
+                // `rowIndex + rowSpan - 1` into a negative index.
+                var lastSpannedRowIndex = rowSpan > effectiveHeightsEmu.Count - rowIndex
+                    ? effectiveHeightsEmu.Count - 1
+                    : rowIndex + rowSpan - 1;
                 effectiveHeightsEmu[lastSpannedRowIndex] += shortfallEmu;
             }
         }
@@ -520,15 +559,25 @@ public sealed partial class PptxDocument
     ///     parse time - so this parameter <em>does</em> see the slide's true effective color map
     ///     when supplied by a render-time caller.
     /// </param>
+    /// <param name="slideNumber">
+    ///     The rendered slide's own 1-based slide number, substituted into every cell's own
+    ///     <c>&lt;a:fld type="slidenum"&gt;</c> field before both row-height measurement (passed
+    ///     through to <see cref="ResolveCellRects"/>) and painting - see
+    ///     <see cref="GetEffectiveCellTextBody"/> - or <see langword="null"/> (the default) to
+    ///     paint every cell's cached field text verbatim, matching this method's pre-existing
+    ///     behavior for any caller with no slide-number context of its own (for example this
+    ///     file's own direct-call tests).
+    /// </param>
     internal static void PaintTable(
         Surface surface,
         PptxTable table,
         PptxTheme theme,
         Matrix3x2 shapeToSurfaceTransform,
         Func<string, bool, bool, TrueTypeFont> fontResolver,
-        PptxColorMap? colorMap = null)
+        PptxColorMap? colorMap = null,
+        int? slideNumber = null)
     {
-        foreach (var resolvedCell in ResolveCellRects(table, theme, fontResolver, colorMap))
+        foreach (var resolvedCell in ResolveCellRects(table, theme, fontResolver, colorMap, slideNumber: slideNumber))
         {
             var cellRectPath = Path.Rectangle(resolvedCell.XEmu, resolvedCell.YEmu, resolvedCell.WidthEmu, resolvedCell.HeightEmu)
                 .Transform(shapeToSurfaceTransform);
@@ -543,7 +592,7 @@ public sealed partial class PptxDocument
             PaintCellBorder(surface, resolvedCell.Cell.BottomBorder, shapeToSurfaceTransform,
                 resolvedCell.XEmu, resolvedCell.YEmu + resolvedCell.HeightEmu, resolvedCell.XEmu + resolvedCell.WidthEmu, resolvedCell.YEmu + resolvedCell.HeightEmu);
 
-            if (resolvedCell.Cell.TextBody is { } textBody)
+            if (GetEffectiveCellTextBody(resolvedCell.Cell, slideNumber) is { } textBody)
             {
                 var placeholderProperties = new PptxPlaceholderProperties(null, null, theme);
                 var layout = ResolveTextLayout(
@@ -698,8 +747,18 @@ public sealed partial class PptxDocument
     /// </summary>
     private static float SumConsecutive(IReadOnlyList<float> valuesEmu, int startIndex, int count)
     {
+        // Clamp the untrusted span length against the remaining row count *before* adding it to
+        // startIndex, so a malformed rowSpan near int.MaxValue can never overflow the addition
+        // (unlike the previous `Math.Min(startIndex + count, valuesEmu.Count)`, which could wrap
+        // to a negative endIndex for such a span).
+        var clampedCount = Math.Min(count, valuesEmu.Count - startIndex);
+        if (clampedCount <= 0)
+        {
+            return 0f;
+        }
+
         var sum = 0f;
-        var endIndex = Math.Min(startIndex + count, valuesEmu.Count);
+        var endIndex = startIndex + clampedCount;
         for (var i = startIndex; i < endIndex; i++)
         {
             sum += valuesEmu[i];

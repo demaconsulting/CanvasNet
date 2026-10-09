@@ -131,7 +131,7 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     <c>objectBoundingBox</c> default region computation; group-level (<c>g</c>/<c>symbol</c>)
 ///     filtering and filtering a shape's own marker content are both not implemented (a
 ///     <c>filter</c> only ever affects the single element it is set on directly); and any
-///     primitive type other than the sixteen implemented filter primitives listed above (for
+///     primitive type other than the seventeen implemented filter primitives listed above (for
 ///     example a future/non-standard <c>fe*</c> element) is a tolerant no-op passthrough of its
 ///     own input rather than actually implemented. <c>feImage</c>'s element-reference form can
 ///     recurse back into the ordinary element walk, so filter evaluation reuses the existing

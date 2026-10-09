@@ -39,17 +39,43 @@ namespace DemaConsulting.CanvasNet.Drawing;
 /// </remarks>
 internal sealed class ClipMask
 {
-    /// <summary>The per-pixel <c>[0, 1]</c> coverage buffer, row-major, sized <c>Width * Height</c>.</summary>
+    /// <summary>
+    ///     The per-pixel <c>[0, 1]</c> coverage buffer, row-major, sized
+    ///     <see cref="_boundsWidth"/> * <see cref="_boundsHeight"/> - only the clip path's own
+    ///     bounding box, not the full <see cref="Width"/> x <see cref="Height"/> device pixel
+    ///     extent. A clip path is typically a small fraction of the page (for example, a single
+    ///     table cell or figure), so bounding the buffer this way keeps a clip's memory cost
+    ///     proportional to the area it actually restricts, rather than forcing every clip -
+    ///     however small - to pay for a full-page-sized allocation (and a full-page-sized
+    ///     <see cref="Intersect"/> operation) regardless of its own extent.
+    /// </summary>
     private readonly float[] _coverage;
+
+    /// <summary>The device pixel column <see cref="_coverage"/>'s column <c>0</c> corresponds to.</summary>
+    private readonly int _originX;
+
+    /// <summary>The device pixel row <see cref="_coverage"/>'s row <c>0</c> corresponds to.</summary>
+    private readonly int _originY;
+
+    /// <summary>The width, in pixel columns, of <see cref="_coverage"/>'s own bounding box.</summary>
+    private readonly int _boundsWidth;
+
+    /// <summary>The height, in pixel rows, of <see cref="_coverage"/>'s own bounding box.</summary>
+    private readonly int _boundsHeight;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="ClipMask"/> class directly from an
-    ///     already-computed coverage buffer - used by both <see cref="FromPath"/> and
-    ///     <see cref="Intersect"/>, which differ only in how they produce that buffer.
+    ///     already-computed, bounding-box-restricted coverage buffer - used by both
+    ///     <see cref="FromPath"/> and <see cref="Intersect"/>, which differ only in how they
+    ///     produce that buffer and its bounding box.
     /// </summary>
-    private ClipMask(float[] coverage, int width, int height)
+    private ClipMask(float[] coverage, int width, int height, int originX, int originY, int boundsWidth, int boundsHeight)
     {
         _coverage = coverage;
+        _originX = originX;
+        _originY = originY;
+        _boundsWidth = boundsWidth;
+        _boundsHeight = boundsHeight;
         Width = width;
         Height = height;
     }
@@ -105,18 +131,27 @@ internal sealed class ClipMask
             throw new ArgumentOutOfRangeException(nameof(height), height, "Height must be greater than zero.");
         }
 
-        var coverage = new float[width * height];
-
         var polygons = EdgeFlattener.Flatten(path, flattenTolerance);
         var pathBounds = PathFiller.GetPolygonBounds(polygons);
         var extentBounds = new Rect(0, 0, width, height);
         var clipBounds = Rect.Intersect(pathBounds, extentBounds);
-        if (!clipBounds.IsEmpty)
+        if (clipBounds.IsEmpty)
         {
-            ScanlineRasterizer.AccumulateCoverageMask(polygons, fillRule, clipBounds, coverage, width);
+            return new ClipMask([], width, height, 0, 0, 0, 0);
         }
 
-        return new ClipMask(coverage, width, height);
+        // Round the (already extent-clipped) float clip bounds outward to the smallest whole
+        // pixel rectangle that contains them, and allocate the coverage buffer sized to only that
+        // rectangle - never the full width x height device pixel extent.
+        var originX = (int)MathF.Floor(clipBounds.Left);
+        var originY = (int)MathF.Floor(clipBounds.Top);
+        var boundsWidth = (int)MathF.Ceiling(clipBounds.Right) - originX;
+        var boundsHeight = (int)MathF.Ceiling(clipBounds.Bottom) - originY;
+
+        var coverage = new float[boundsWidth * boundsHeight];
+        ScanlineRasterizer.AccumulateCoverageMask(polygons, fillRule, clipBounds, coverage, boundsWidth, originX, originY);
+
+        return new ClipMask(coverage, width, height, originX, originY, boundsWidth, boundsHeight);
     }
 
     /// <summary>
@@ -146,13 +181,35 @@ internal sealed class ClipMask
                 "Cannot intersect clip masks covering different device pixel extents.", nameof(other));
         }
 
-        var result = new float[_coverage.Length];
-        for (var i = 0; i < result.Length; i++)
+        // The elementwise product of two coverage masks is zero everywhere outside either
+        // operand's own bounding box (see GetCoverage), so the result's own bounding box never
+        // needs to extend beyond the two operands' bounding-box overlap - restricting it that way
+        // (rather than to the full device pixel extent) is what keeps a chain of nested clips
+        // (PDF 32000-1 &#xA7;8.4.2 q/Q scoping) from growing memory with each intersection.
+        var minX = Math.Max(_originX, other._originX);
+        var minY = Math.Max(_originY, other._originY);
+        var maxX = Math.Min(_originX + _boundsWidth, other._originX + other._boundsWidth);
+        var maxY = Math.Min(_originY + _boundsHeight, other._originY + other._boundsHeight);
+        if (maxX <= minX || maxY <= minY)
         {
-            result[i] = _coverage[i] * other._coverage[i];
+            return new ClipMask([], Width, Height, 0, 0, 0, 0);
         }
 
-        return new ClipMask(result, Width, Height);
+        var boundsWidth = maxX - minX;
+        var boundsHeight = maxY - minY;
+        var result = new float[boundsWidth * boundsHeight];
+        for (var y = 0; y < boundsHeight; y++)
+        {
+            var deviceY = minY + y;
+            var rowOffset = y * boundsWidth;
+            for (var x = 0; x < boundsWidth; x++)
+            {
+                var deviceX = minX + x;
+                result[rowOffset + x] = GetCoverage(deviceX, deviceY) * other.GetCoverage(deviceX, deviceY);
+            }
+        }
+
+        return new ClipMask(result, Width, Height, minX, minY, boundsWidth, boundsHeight);
     }
 
     /// <summary>
@@ -170,11 +227,13 @@ internal sealed class ClipMask
     /// </returns>
     public float GetCoverage(int x, int y)
     {
-        if ((uint)x >= (uint)Width || (uint)y >= (uint)Height)
+        var localX = x - _originX;
+        var localY = y - _originY;
+        if ((uint)localX >= (uint)_boundsWidth || (uint)localY >= (uint)_boundsHeight)
         {
             return 0f;
         }
 
-        return _coverage[(y * Width) + x];
+        return _coverage[(localY * _boundsWidth) + localX];
     }
 }

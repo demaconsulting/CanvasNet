@@ -331,10 +331,13 @@ internal static class ScanlineRasterizer
     /// <summary>
     ///     Rasterizes <paramref name="polygons"/>'s antialiased fill coverage directly into
     ///     <paramref name="mask"/>, a dense <paramref name="maskWidth"/> x height buffer covering
-    ///     an entire <see cref="Surface"/> extent - the entry point <see cref="ClipMask.FromPath"/>
-    ///     uses to build a PDF clipping path's own coverage mask (PDF 32000-1 &#xA7;8.5.4), reusing
-    ///     the exact same <see cref="CoverageSweep"/> row-coverage computation as every <c>Fill</c>
-    ///     overload above rather than duplicating it.
+    ///     only <paramref name="clipBounds"/>'s own bounding box (not necessarily the entire
+    ///     <see cref="Surface"/> extent) - the entry point <see cref="ClipMask.FromPath"/> uses to
+    ///     build a PDF clipping path's own coverage mask (PDF 32000-1 &#xA7;8.5.4), reusing the
+    ///     exact same <see cref="CoverageSweep"/> row-coverage computation as every <c>Fill</c>
+    ///     overload above rather than duplicating it. Keeping <paramref name="mask"/> sized to the
+    ///     clip's own bounding box, rather than the full page extent, keeps a clip's memory cost
+    ///     proportional to the area it actually restricts rather than to the page size.
     /// </summary>
     /// <param name="polygons">
     ///     The closed polygons to rasterize (typically produced by <see cref="EdgeFlattener.Flatten"/>).
@@ -342,19 +345,28 @@ internal static class ScanlineRasterizer
     /// <param name="fillRule">The rule used to resolve overlapping/self-intersecting geometry.</param>
     /// <param name="clipBounds">
     ///     The region to rasterize, in the same path-space coordinates as <paramref name="polygons"/>
-    ///     - already intersected with the full <paramref name="maskWidth"/> x height mask extent by
-    ///     the caller (<see cref="ClipMask.FromPath"/>), exactly as every <c>Fill</c> overload's own
+    ///     - already intersected with the full device pixel extent by the caller
+    ///     (<see cref="ClipMask.FromPath"/>), exactly as every <c>Fill</c> overload's own
     ///     <paramref name="clipBounds"/> is.
     /// </param>
     /// <param name="mask">
-    ///     The dense coverage buffer to write into, row-major with the same layout as
-    ///     <see cref="Surface"/>'s own pixel storage (row <c>y</c>, column <c>x</c>, at index
-    ///     <c>y * maskWidth + x</c>) and already zero-initialized by the caller for every pixel
-    ///     <paramref name="polygons"/> does not cover.
+    ///     The dense coverage buffer to write into, row-major and sized to exactly
+    ///     <paramref name="maskWidth"/> x height pixels starting at device pixel
+    ///     (<paramref name="originX"/>, <paramref name="originY"/>) - row <c>y</c>, column <c>x</c>
+    ///     (both in the same device pixel space as <paramref name="clipBounds"/>) at index
+    ///     <c>((y - originY) * maskWidth) + (x - originX)</c> - already zero-initialized by the
+    ///     caller for every pixel <paramref name="polygons"/> does not cover.
     /// </param>
-    /// <param name="maskWidth">The full width, in pixel columns, of <paramref name="mask"/>'s own extent.</param>
+    /// <param name="maskWidth">The width, in pixel columns, of <paramref name="mask"/>'s own extent.</param>
+    /// <param name="originX">
+    ///     The device pixel column <paramref name="mask"/>'s column <c>0</c> corresponds to.
+    /// </param>
+    /// <param name="originY">
+    ///     The device pixel row <paramref name="mask"/>'s row <c>0</c> corresponds to.
+    /// </param>
     internal static void AccumulateCoverageMask(
-        IReadOnlyList<List<Vector2>> polygons, FillRule fillRule, Rect clipBounds, float[] mask, int maskWidth)
+        IReadOnlyList<List<Vector2>> polygons, FillRule fillRule, Rect clipBounds, float[] mask, int maskWidth,
+        int originX, int originY)
     {
         var sweep = new CoverageSweep(polygons, fillRule, clipBounds);
         if (sweep.IsEmpty)
@@ -364,7 +376,7 @@ internal static class ScanlineRasterizer
 
         while (sweep.MoveNext(out var y, out var rowCoverage))
         {
-            var rowOffset = (y * maskWidth) + sweep.ClipMinX;
+            var rowOffset = ((y - originY) * maskWidth) + (sweep.ClipMinX - originX);
             rowCoverage.CopyTo(mask.AsSpan(rowOffset, rowCoverage.Length));
         }
     }

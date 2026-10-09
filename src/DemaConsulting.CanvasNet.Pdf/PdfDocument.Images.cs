@@ -518,8 +518,12 @@ public sealed partial class PdfDocument
                 var sourcePixel = image[column, row];
                 if (clipCoverage < 1f)
                 {
+                    // Round the same way Surface's own compositing pipeline does (AwayFromZero,
+                    // not the default ToEven), so a clipped image's edge alpha never differs by
+                    // one level from a clipped vector fill's at an exact n + 0.5 midpoint.
                     sourcePixel = new Rgba32(
-                        sourcePixel.R, sourcePixel.G, sourcePixel.B, (byte)Math.Round(sourcePixel.A * clipCoverage));
+                        sourcePixel.R, sourcePixel.G, sourcePixel.B,
+                        (byte)Math.Round(sourcePixel.A * clipCoverage, MidpointRounding.AwayFromZero));
                 }
 
                 _surface[x, y] = Rgba32.CompositeOver(_surface[x, y], sourcePixel);

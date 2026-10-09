@@ -414,7 +414,7 @@ public sealed partial class PptxDocument
             case PptxGraphicFrameShapeNode graphicFrame:
                 try
                 {
-                    RenderGraphicFrame(surface, graphicFrame, theme, parentToSurface, colorMap);
+                    RenderGraphicFrame(surface, graphicFrame, theme, parentToSurface, colorMap, slideNumber);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {
@@ -702,8 +702,19 @@ public sealed partial class PptxDocument
     ///     helper, since a chart (unlike a picture) has no source image of its own whose pixel
     ///     dimensions could be reused directly.
     /// </summary>
+    /// <param name="surface">The surface to paint/composite onto.</param>
+    /// <param name="node">The parsed graphic-frame node (a table or chart).</param>
+    /// <param name="theme">The resolved theme, used to lay out a table's own cell text content.</param>
+    /// <param name="parentToSurface">The transform mapping the frame's own parent coordinate space into surface pixel space.</param>
+    /// <param name="colorMap">The effective color map consulted while painting a table's own cell text - see <see cref="PaintTable"/>'s matching parameter.</param>
+    /// <param name="slideNumber">
+    ///     The rendered slide's own 1-based slide number, passed through to <see cref="PaintTable"/>
+    ///     so a table cell's own <c>&lt;a:fld type="slidenum"&gt;</c> field resolves the same way a
+    ///     non-table shape's does (see <see cref="SubstituteSlideNumberField"/>) - a chart has no
+    ///     field text of its own and simply ignores this parameter.
+    /// </param>
     private static void RenderGraphicFrame(
-        Surface surface, PptxGraphicFrameShapeNode node, PptxTheme theme, Matrix3x2 parentToSurface, PptxColorMap colorMap)
+        Surface surface, PptxGraphicFrameShapeNode node, PptxTheme theme, Matrix3x2 parentToSurface, PptxColorMap colorMap, int slideNumber)
     {
         // Per ECMA-376's CT_GraphicalObjectFrame, a <p:graphicFrame>'s own position is a direct
         // <p:xfrm> child - not wrapped in a <p:spPr>, unlike an ordinary shape or picture.
@@ -718,7 +729,7 @@ public sealed partial class PptxDocument
 
         if (node.Table is not null)
         {
-            PaintTable(surface, node.Table, theme, localToSurface, ResolveTextFont, colorMap);
+            PaintTable(surface, node.Table, theme, localToSurface, ResolveTextFont, colorMap, slideNumber);
         }
         else if (node.Chart is not null)
         {

@@ -598,6 +598,78 @@ public class PptxTablesTests
         return TrueTypeFont.Load(stream);
     }
 
+    /// <summary>
+    ///     Proves a table cell's own <c>&lt;a:fld type="slidenum"&gt;</c> field is substituted
+    ///     with the actual slide number during row-height measurement (not just left at its
+    ///     cached, usually-longer placeholder text) when <see cref="PptxDocument.ResolveCellRects"/>
+    ///     is given a <c>slideNumber</c> - a regression test for the review finding that
+    ///     <see cref="PptxDocument.SubstituteSlideNumberField"/> was wired into
+    ///     <c>PptxDocument.Render.cs</c>'s <c>RenderShape</c> only, leaving a table cell's slide
+    ///     number field both measuring and painting its stale <c>&#8249;#&#8250;</c> cached text.
+    ///     A narrow column forces the longer cached placeholder text (three "AA" tokens, each
+    ///     costing one full line at this synthetic font's own metrics - see
+    ///     <see cref="ResolveCellRects_CellTextRequiresMoreHeightThanStored_GrowsRowAndShiftsNextRowYOffset"/>'s
+    ///     matching remarks for the sz/EMU derivation) to wrap across three lines - growing the
+    ///     row - while the single-digit substituted slide number ("7", a single token with no
+    ///     cmap-mapped glyph of its own, but still exactly one line) fits the stored row height
+    ///     and requires no growth at all.
+    /// </summary>
+    [Fact]
+    public void ResolveCellRects_SlideNumberFieldCell_MeasuresSubstitutedTextNotCachedPlaceholder()
+    {
+        var txBody = new XElement(
+            A + "txBody",
+            new XElement(A + "bodyPr", new XAttribute("lIns", 0), new XAttribute("tIns", 0), new XAttribute("rIns", 0), new XAttribute("bIns", 0)),
+            new XElement(
+                A + "p",
+                new XElement(
+                    A + "fld",
+                    new XAttribute("type", "slidenum"),
+                    new XElement(A + "rPr", new XAttribute("sz", 100)),
+                    new XElement(A + "t", "AA AA AA"))));
+
+        var cell = PptxDocument.ParseTableCell(BuildTc(txBody: txBody), BuildTestTheme(), 30000f, 15000f);
+        var table = new PptxTable([30000f], [new PptxTableRow(15000f, [cell])]);
+
+        var withoutSlideNumber = PptxDocument.ResolveCellRects(table, BuildTestTheme(), ConstantFontResolver);
+        var withSlideNumber = PptxDocument.ResolveCellRects(table, BuildTestTheme(), ConstantFontResolver, slideNumber: 7);
+
+        Assert.True(withoutSlideNumber[0].HeightEmu > withSlideNumber[0].HeightEmu);
+        Assert.Equal(15000f, withSlideNumber[0].HeightEmu); // single-token "7" fits the stored row height unchanged
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PptxDocument.PaintTable"/> accepts and threads an optional
+    ///     <c>slideNumber</c> through to both measurement and painting without throwing - the
+    ///     render-time wiring counterpart to the measurement-only proof above.
+    /// </summary>
+    [Fact]
+    public void PaintTable_SlideNumberFieldCell_PaintsWithoutThrowing()
+    {
+        var txBody = new XElement(
+            A + "txBody",
+            new XElement(A + "bodyPr", new XAttribute("lIns", 0), new XAttribute("tIns", 0), new XAttribute("rIns", 0), new XAttribute("bIns", 0)),
+            new XElement(
+                A + "p",
+                new XElement(
+                    A + "fld",
+                    new XAttribute("type", "slidenum"),
+                    new XElement(A + "rPr", new XAttribute("sz", 100)),
+                    new XElement(A + "t", "PLACEHOLDER"))));
+
+        var cell = PptxDocument.ParseTableCell(BuildTc(txBody: txBody), BuildTestTheme(), 2000f, 500f);
+        var table = new PptxTable([2000f], [new PptxTableRow(500f, [cell])]);
+
+        using var surface = new Surface(100, 100);
+
+        PptxDocument.PaintTable(surface, table, BuildTestTheme(), Matrix3x2.Identity, ConstantFontResolver, slideNumber: 7);
+
+        // Primarily a no-throw regression test (the measurement-vs-painting substitution itself
+        // is proven by ResolveCellRects_SlideNumberFieldCell_MeasuresSubstitutedTextNotCachedPlaceholder
+        // above); assert the surface survived painting untouched in size/identity.
+        Assert.Equal(100, surface.Width);
+    }
+
     /// <summary>Proves a solid-filled cell paints its fill color across the cell's own rectangle.</summary>
     [Fact]
     public void PaintTable_SolidFilledCell_PaintsFillColorAcrossCellRectangle()
@@ -831,6 +903,35 @@ public class PptxTablesTests
 
         var spanningRect = Assert.Single(rects); // the vMerge continuation contributes no rectangle of its own
         Assert.Equal(50800f, spanningRect.HeightEmu); // the table's own last actual row absorbed the entire shortfall
+    }
+
+    /// <summary>
+    ///     Proves a row-spanning cell whose declared <c>rowSpan</c> is large enough that
+    ///     <c>rowIndex + rowSpan - 1</c> would overflow <see cref="int"/> (a malformed-but-not-
+    ///     rejected input, since <see cref="PptxDocument.ParseTableCell"/> only rejects a
+    ///     non-positive <c>rowSpan</c>, not an excessively large one) still clamps the shortfall
+    ///     onto the table's own last actual row rather than overflowing into a negative index - a
+    ///     regression test for an overflow found during a follow-up code review of the sibling
+    ///     <see cref="ResolveCellRects_RowSpanExceedsTableRowCount_ClampsShortfallOntoLastActualRow"/>
+    ///     fix above.
+    /// </summary>
+    [Fact]
+    public void ResolveCellRects_RowSpanNearIntMaxValue_ClampsShortfallWithoutOverflow()
+    {
+        var spanningCell = PptxDocument.ParseTableCell(
+            BuildTc(rowSpan: int.MaxValue - 1, txBody: BuildTextBody("AA AA AA AA")), BuildTestTheme(), 30000f, 10000f);
+
+        var table = new PptxTable(
+            [30000f],
+            [new PptxTableRow(5000f, [spanningCell])]);
+
+        // Must not throw ArgumentOutOfRangeException (or index with a wrapped-negative index) -
+        // `rowIndex + rowSpan - 1` would overflow to a negative value for this rowSpan if computed
+        // before clamping against the table's own (small) remaining row count.
+        var rects = PptxDocument.ResolveCellRects(table, BuildTestTheme(), ConstantFontResolver);
+
+        var spanningRect = Assert.Single(rects);
+        Assert.Equal(50800f, spanningRect.HeightEmu); // the table's own only row absorbed the entire shortfall
     }
 
     /// <summary>
