@@ -293,9 +293,12 @@ public sealed partial class PdfDocument
     ///     <see cref="GradientSpread.Reflect"/>/<see cref="GradientSpread.Repeat"/> exist, none of
     ///     which is "transparent outside"). This method always uses
     ///     <see cref="GradientSpread.Pad"/> regardless of the shading's own declared
-    ///     <c>/Extend</c> value - a documented, narrower-than-spec approximation (a true
-    ///     "unextended" clip would require a general clipping mechanism, which is out of this
-    ///     phase's scope alongside the <c>W</c>/<c>W*</c> operators).
+    ///     <c>/Extend</c> value - a documented, narrower-than-spec approximation. This is distinct
+    ///     from the current clipping path (<c>W</c>/<c>W*</c>, applied via <see cref="GraphicsState.Clip"/>
+    ///     and already honored by <see cref="OpPaintShading"/>'s <c>PathFiller.Fill</c> call): a
+    ///     true "unextended" shading would instead need to clip the gradient to its own defining
+    ///     geometry (the shading's domain/coordinate bounds) independently of any current clipping
+    ///     path, which remains out of scope.
     /// </remarks>
     private static Gradient BuildShadingGradient(ResolvedPattern pattern, Matrix3x2 patternToDevice)
     {

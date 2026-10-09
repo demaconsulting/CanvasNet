@@ -119,9 +119,11 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         <see cref="UnsupportedImageFeatureException.Feature"/> token.
 ///     </para>
 ///     <para>
-///         <strong>Documented scope boundaries</strong> (not currently supported): mesh shadings,
-///         <c>/FunctionType 4</c> PostScript-calculator functions, the <c>sh</c> operator, generic
-///         path clipping, transparency groups, and clip text-rendering modes. Every other keyword
+///         <strong>Documented scope boundaries</strong> (not currently supported): mesh shadings
+///         (<c>/ShadingType</c> 4-7; axial/radial types 2-3 are supported by the <c>sh</c>
+///         operator and shading patterns), <c>/FunctionType 4</c> PostScript-calculator functions,
+///         transparency groups, and clip text-rendering modes. The <c>sh</c> operator and generic
+///         path clipping (<c>W</c>/<c>W*</c>) are both supported. Every other keyword
 ///         not implemented is silently skipped, not an error. A page with no <c>/Contents</c> at
 ///         all still renders a <see cref="Surface"/> cleared to
 ///         <see cref="PdfRenderOptions.BackgroundColor"/> (opaque white by default; see

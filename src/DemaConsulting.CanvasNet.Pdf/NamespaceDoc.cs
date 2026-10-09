@@ -35,8 +35,7 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///     <c>/Filter /Standard</c> security handler (RC4, AES-128, or AES-256/R5) is also supported.
 ///     See <see cref="PdfDocument"/>'s own remarks for the complete, current feature list and its
 ///     documented scope boundaries (for example mesh shadings, <c>/FunctionType 4</c>
-///     PostScript-calculator functions, the <c>sh</c> operator, generic path clipping,
-///     transparency groups, and clip text-rendering modes).
+///     PostScript-calculator functions, transparency groups, and clip text-rendering modes).
 /// </remarks>
 /// <example>
 ///     Rendering every page of a PDF document to a 300 DPI PNG file, using
