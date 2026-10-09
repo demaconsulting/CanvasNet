@@ -1158,8 +1158,8 @@ The optional `password` parameter defaults to `null`, which preserves the librar
 empty-user-password-only behavior byte-for-byte. When a non-`null` password is supplied, it is
 tried first as the **user password**, then - if that does not authenticate - as the **owner
 password** (ISO 32000-1 Algorithm 3 for RC4/AES-128 documents; the owner-password variant of
-ISO 32000-2 Algorithm 2.A for AES-256/R5 documents). R2-R4 (RC4/AES-128) passwords are encoded as
-Latin-1 (the ASCII range of PDFDocEncoding); R5 (AES-256) passwords are encoded as UTF-8 with no
+ISO 32000-2 Algorithm 2.A for AES-256/R5/R6 documents). R2-R4 (RC4/AES-128) passwords are encoded as
+Latin-1 (the ASCII range of PDFDocEncoding); R5/R6 (AES-256) passwords are encoded as UTF-8 with no
 SASLprep/Unicode normalization applied - both are intentional scope boundaries. Both encodings
 truncate the password's encoded bytes to a maximum of 127 bytes before any hashing.
 
@@ -1171,13 +1171,13 @@ truncate the password's encoded bytes to a maximum of 127 bytes before any hashi
   resolve the document catalog).
 - `UnsupportedImageFeatureException`: Thrown when the document's trailer declares an `/Encrypt`
   entry that this library cannot open: a security handler other than the PDF "Standard" handler,
-  an AES-256 document using the `/R 6` "hardened hash" key derivation, a crypt filter other than
-  the standard `/StdCF` filter (RC4, AES-128/`AESV2`, or AES-256-R5/`AESV3`), a document that
+  an AES-256 document using an `/R` other than 5 or 6, a crypt filter other than
+  the standard `/StdCF` filter (RC4, AES-128/`AESV2`, or AES-256-R5/R6/`AESV3`), a document that
   requires a password but `password` was not supplied (`null`), or a supplied `password` that
   does not authenticate as either the user or the owner password (feature
   `pdf-encrypted-incorrect-password`), or - for an R2-R4 document - contains a character outside
   ASCII 0-127 (feature `pdf-encrypted-password-non-ascii`). A document encrypted with the Standard
-  security handler using RC4 (40-128 bit), AES-128, or AES-256 (R5) and an empty user password -
+  security handler using RC4 (40-128 bit), AES-128, or AES-256 (R5/R6) and an empty user password -
   the vast majority of "owner password"/permission-restricted real-world PDFs - opens and renders
   normally with `password` left at its default `null`; its permission flags are not enforced (this
   library only ever reads for rendering, so copy/print restrictions do not apply).

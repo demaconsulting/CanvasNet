@@ -390,7 +390,7 @@ traversal rather than looping forever.
 
 **Tests**: `PdfDocument_Open_EncryptedTrailer_ThrowsUnsupportedImageFeatureException`,
 `CanvasNetPdf_SystemIntegration_PdfEncryptDetection_EncryptedTrailerThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Open_EncryptedAesV3_R6_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Open_EncryptedAesV3_UnknownRevision_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Open_EncryptedRc4_WrongUserPasswordHash_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Open_EncryptedAesV3_WrongValidationHash_ThrowsUnsupportedImageFeatureException`
 
@@ -398,9 +398,9 @@ Opens `PdfFixtures/encrypted-trailer.pdf` (a trailer containing an `/Encrypt` ke
 is `/Adobe.PubSec`, not `/Standard`) through the public API and asserts
 `UnsupportedImageFeatureException` is thrown with `Feature == "pdf-encrypted-filter-Adobe.PubSec"`
 (both from `PdfDocumentTests.cs` and, identically, from `PdfSystemIntegrationTests.cs`'s own
-end-to-end copy of the same assertion). Separately builds an in-memory `/V 5`/`/R 6` document and
-asserts `Feature == "pdf-encrypted-r6-hardened-hash"` (AES-256's "hardened hash" key derivation is
-out of scope). Separately builds an in-memory RC4 document with a well-formed `/O` but a
+end-to-end copy of the same assertion). Separately builds an in-memory `/V 5`/`/R 7` document and
+asserts `Feature == "pdf-encrypted-r-7"` (only AES-256 `/R 5` and `/R 6` are supported).
+Separately builds an in-memory RC4 document with a well-formed `/O` but a
 deliberately wrong `/U`, and an in-memory AESV3/R5 document with a deliberately wrong `/U`
 validation hash, asserting both throw with `Feature == "pdf-encrypted-password-required"` when no
 password is supplied (a real, non-empty password is genuinely required to open either document;
@@ -474,13 +474,26 @@ specifies). Opens it through the public API with no password supplied and assert
 produces the expected pixel colors, proving Algorithm 2.A's validation-salt authentication,
 `/UE` unwrapping, and direct-file-key stream decryption all work correctly end-to-end.
 
+#### CanvasNetPdf-PdfDocument-EncryptionAesV3R6: AES-256 R6 (Hardened Hash) Documents
+
+**Tests**: `PdfDocument_Open_EncryptedAesV3_R6_EmptyUserPassword_DecryptsAndRenders`,
+`PdfDocument_Open_EncryptedAesV3_R6_InMemoryEmptyUserPassword_DecryptsAndRenders`
+
+Opens `PdfFixtures/encrypted-aes256-r6-empty-user-password.pdf`, generated independently with
+pypdf (confirmed `/V 5`/`/R 6`; see the fixtures README) with an empty user password, and asserts
+`Render` paints the expected blue rectangle - an independent implementation proves Algorithm 2.B
+is not merely self-consistent. The in-memory test builds `/U`/`/UE` with a separately written
+test-side Algorithm 2.B. Reverting the `/R 6` support makes every R6 test fail.
+
 #### CanvasNetPdf-PdfDocument-UserPasswordAuthentication: Correct User Password Decrypts and Renders
 
 **Tests**: `PdfDocument_Open_EncryptedRc4_CorrectUserPassword_DecryptsAndRenders`,
 `PdfDocument_Open_EncryptedAesV2_CorrectUserPassword_DecryptsAndRenders`,
-`PdfDocument_Open_EncryptedAesV3_CorrectUserPassword_DecryptsAndRenders`
+`PdfDocument_Open_EncryptedAesV3_CorrectUserPassword_DecryptsAndRenders`,
+`PdfDocument_Open_EncryptedAesV3_R6_CorrectUserPassword_DecryptsAndRenders`,
+`PdfDocument_Open_EncryptedAesV3_R6_Utf8UserPassword_DecryptsAndRenders`
 
-The three tests build RC4 (`/V 2`/`/R 3`), AES-128 (`/V 4`/`/R 4`/`/CFM /AESV2`), and AES-256 R5
+The three non-fixture tests build RC4 (`/V 2`/`/R 3`), AES-128 (`/V 4`/`/R 4`/`/CFM /AESV2`), and AES-256 R5
 (`/V 5`/`/R 5`/`/CFM /AESV3`) fixtures whose `/O`/`/U` (or `/U`/`/UE`) are derived from a real,
 non-empty password (`"test"`) rather than the empty-password padding constant, then call
 `PdfDocument.Open(stream, "test")` and assert `Render` produces the expected pixel colors -
@@ -491,7 +504,11 @@ every supported cipher.
 #### CanvasNetPdf-PdfDocument-OwnerPasswordAuthentication: Correct Owner Password Decrypts and Renders
 
 **Tests**: `PdfDocument_Open_EncryptedRc4_CorrectOwnerPassword_DecryptsAndRenders`,
-`PdfDocument_Open_EncryptedAesV3_CorrectOwnerPassword_DecryptsAndRenders`
+`PdfDocument_Open_EncryptedAesV3_CorrectOwnerPassword_DecryptsAndRenders`,
+`PdfDocument_Open_EncryptedAesV3_R6_CorrectOwnerPassword_DecryptsAndRenders`
+
+The R6 owner test opens the pypdf `encrypted-aes256-r6-user-password.pdf` fixture with its owner
+password (`owner-secret`).
 
 `PdfDocument_Open_EncryptedRc4_CorrectOwnerPassword_DecryptsAndRenders` builds an `/R 3` RC4
 fixture whose `/O` is computed from a distinct owner password and a different real user password
@@ -510,7 +527,12 @@ document then renders correctly.
 
 #### CanvasNetPdf-PdfDocument-IncorrectPasswordRejection: Wrong Password Rejected With Distinguishable Feature
 
-**Test**: `PdfDocument_Open_Encrypted_IncorrectPassword_ThrowsUnsupportedImageFeatureException`
+**Tests**: `PdfDocument_Open_Encrypted_IncorrectPassword_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Open_EncryptedAesV3_R6_WrongPassword_ThrowsIncorrectPassword`,
+`PdfDocument_Open_EncryptedAesV3_R6_NoPassword_ThrowsPasswordRequired`
+
+(The two R6 tests use the pypdf user-password fixture: a wrong password throws
+`pdf-encrypted-incorrect-password`; no password throws `pdf-encrypted-password-required`.)
 
 Builds a well-formed `/R 3` RC4 fixture with real, distinct, correct owner and user passwords,
 then calls `Open(stream, "wrong-password")` and asserts `UnsupportedImageFeatureException` is

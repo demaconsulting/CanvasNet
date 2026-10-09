@@ -18,6 +18,8 @@ words:
   - AABB
   - Adler
   - AESV
+  - pypdf
+  - udata
   - AGG
   - apimark
   - ApiMark

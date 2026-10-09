@@ -92,8 +92,8 @@ addition to `/FunctionType 0` (sampled); and colored/uncolored tiling patterns (
 each cell rendered through the same nested-execution machinery `/Subtype /Form` XObjects use).
 Phase 15 added `CCITTFaxDecode` (Group 4/T.6 MMR only) image-XObject decoding. Phases 16/17 added
 decryption of a document encrypted with the PDF `/Filter /Standard` security handler using RC4
-(`/V 1`/`/V 2`), AES-128 (`/V 4`/`/CFM /AESV2`), or AES-256 using the simpler R5 key derivation
-(`/V 5`/`/R 5`/`/CFM /AESV3`), authenticating either the empty user password (the default) or an
+(`/V 1`/`/V 2`), AES-128 (`/V 4`/`/CFM /AESV2`), or AES-256 using the R5 or R6 (hardened hash) key derivation
+(`/V 5`/`/R 5` or `/R 6`/`/CFM /AESV3`), authenticating either the empty user password (the default) or an
 optional caller-supplied password tried as both the user and the owner password. **Current
 limitations**: `/MMType1` (Multiple Master Type 1) fonts remain entirely unsupported and fail
 closed; `/Encoding` values other than `/Identity-H` (including `/Identity-V` and predefined CJK
@@ -261,7 +261,7 @@ each with its own consistently-applied behavior:
 An `/Encrypt` key present in the trailer is detected explicitly: `PdfDocument` decrypts every
 indirect object's strings and every stream's raw bytes before any other parsing logic observes
 them, for a document using the PDF `/Filter /Standard` security handler with RC4 (`/V 1`/`/V 2`),
-AES-128 (`/V 4`/`/CFM /AESV2`), or AES-256 using the simpler R5 key derivation (`/V 5`/`/R 5`/
+AES-128 (`/V 4`/`/CFM /AESV2`), or AES-256 using the R5 or R6 (hardened hash) key derivation (`/V 5`/`/R 5` or `/R 6`/
 `/CFM /AESV3`), authenticating either the empty user password (the default) or an optional
 caller-supplied password tried as both the user and the owner password. `PdfDocument` never
 attempts to interpret the (still-encrypted) bytes of an encrypted document as plaintext content
@@ -328,7 +328,7 @@ descriptive `Feature` string so a caller (or this repository's own tests) can di
 which unsupported construct was encountered — the complete current set is:
 `pdf-encrypted-filter-{name}` (a non-`/Standard` security handler), `pdf-encrypted-cfm-{name}`
 (an unsupported `/CF/StdCF/CFM`), `pdf-encrypted-crypt-filter-{name}` (an unsupported named
-crypt filter), `pdf-encrypted-r6-hardened-hash`, `pdf-encrypted-r-{revision}`,
+crypt filter), `pdf-encrypted-r-{revision}`,
 `pdf-encrypted-v-{version}`, `pdf-encrypted-password-required` (a `null` password when a
 non-empty one is genuinely required), `pdf-encrypted-incorrect-password`,
 `pdf-encrypted-password-non-ascii` (an R2-R4 password outside ASCII 0-127),

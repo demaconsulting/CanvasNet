@@ -32,7 +32,7 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///     where applicable), placed Form XObjects (nested content streams with their own
 ///     <c>/Matrix</c>/<c>/Resources</c>), and <c>/Pattern</c>-color-space shading (axial/radial)
 ///     and tiling pattern fills/strokes. Opening a document encrypted with the PDF
-///     <c>/Filter /Standard</c> security handler (RC4, AES-128, or AES-256/R5) is also supported.
+///     <c>/Filter /Standard</c> security handler (RC4, AES-128, or AES-256/R5/R6) is also supported.
 ///     See <see cref="PdfDocument"/>'s own remarks for the complete, current feature list and its
 ///     documented scope boundaries (for example mesh shadings, <c>/FunctionType 4</c>
 ///     PostScript-calculator functions, transparency groups, and clip text-rendering modes).

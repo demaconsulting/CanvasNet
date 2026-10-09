@@ -50,6 +50,9 @@ own entry below for details).
 | `linear-scan-stream-noise.pdf` | Stray `<Z` byte pair - raw byte-pattern scan tolerates hex-string-like noise |
 | `object-stream-linear-scan-fallback.pdf` | Page dict compressed in `/Type /ObjStm`, no top-level xref/trailer |
 | `encrypted-trailer.pdf` | Non-`/Standard` handler (`/Filter /Adobe.PubSec`) - rejects unsupported handlers |
+| `encrypted-aes256-r6-empty-user-password.pdf` | AES-256 `/R 6` (Algorithm 2.B), empty user password |
+| `encrypted-aes256-r6-user-password.pdf` | AES-256 `/R 6`, user `user-secret` / owner `owner-secret` |
+| `encrypted-aes256-r6-utf8-password.pdf` | AES-256 `/R 6`, non-ASCII (UTF-8) user password |
 | `cyclic-page-tree.pdf` | A `/Kids` entry referencing an ancestor - exercises page-tree cycle rejection |
 | `path-construction-rect-and-line.pdf` | Filled rectangle (`re f`) plus a stroked line (`m`/`l`/`S`) |
 | `path-construction-rotated-page.pdf` | `/Rotate 90` with an asymmetric filled rectangle - CTM/rotation-sign check |
@@ -169,3 +172,15 @@ genuinely exercises both codes against real body text (`"...50μL..."`, `"...+1 
 > tests, which pixel-assert the specific glyph position against a synthetic embedded font built
 > for exactly that purpose; this fixture merely shows the real-world name occurs and the document
 > still opens and renders without error.
+
+## AES-256 `/R 6` encrypted fixtures
+
+The three `encrypted-aes256-r6-*.pdf` files were generated independently of CanvasNet's own
+implementation with Python `pypdf` 6.10.2 (`PdfWriter.encrypt(user, owner, algorithm="AES-256")`,
+which emits `/V 5`/`/R 6`; confirmed by inspecting each file's `/Encrypt` dictionary). Each is a
+single 100x100 page whose content stream is `0 0 1 rg 20 20 60 60 re f` (a blue filled square
+at (20,20)-(80,80)); tests expect the pixel at (50, 50) to be opaque blue and (5, 5) to be
+unpainted. Passwords: user `""` / owner `owner-secret`; user `user-secret` / owner `owner-secret`;
+a non-ASCII user password (contains U+00E4, U+00F6 and U+20AC) / owner `owner-secret`. They are small,
+created for this repository, and
+licensed under the same MIT license as the rest of it.

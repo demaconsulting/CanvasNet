@@ -1,4 +1,4 @@
-// cspell:ignore AESV StdCF sAlT ObjStm
+// cspell:ignore AESV StdCF sAlT ObjStm pypdf
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -10,7 +10,7 @@ namespace DemaConsulting.CanvasNet.Pdf.Tests;
 ///     Tests for the PDF "Standard" security handler (<c>/Filter /Standard</c>) with an empty
 ///     user password: RC4 (40/128-bit), AES-128 (<c>/V 4</c>/<c>/CFM /AESV2</c>), and AES-256
 ///     using the simpler R5 key derivation (<c>/V 5</c>/<c>/R 5</c>/<c>/CFM /AESV3</c>), plus the
-///     scope boundaries this phase deliberately still rejects (<c>/R 6</c> and a genuinely
+///     AES-256 <c>/R 6</c> (algorithm 2.B hardened hash), plus the scope boundaries this phase deliberately still rejects (an unknown <c>/R</c> and a genuinely
 ///     required non-empty password).
 /// </summary>
 /// <remarks>
@@ -932,21 +932,146 @@ public class PdfDocumentEncryptionTests
         Assert.Equal("pdf-encrypted-password-non-ascii", exception.Feature);
     }
 
-    /// <summary>Proves <c>/R 6</c> (AES-256 "hardened hash" key derivation) throws <see cref="UnsupportedImageFeatureException"/> with its own distinguishable feature token, instead of being silently mishandled as a regular R5 document.</summary>
+    /// <summary>Proves an unsupported AES-256 revision (<c>/V 5</c> with <c>/R 7</c>) throws <see cref="UnsupportedImageFeatureException"/> with the <c>pdf-encrypted-r-{revision}</c> feature token.</summary>
     [Fact]
-    public void PdfDocument_Open_EncryptedAesV3_R6_ThrowsUnsupportedImageFeatureException()
+    public void PdfDocument_Open_EncryptedAesV3_UnknownRevision_ThrowsUnsupportedImageFeatureException()
     {
         var zero32 = new byte[32];
         var zero48 = new byte[48];
         var encryptDictBody =
-            $"<< /Filter /Standard /V 5 /R 6 /O <{ToHex(zero32)}> /U <{ToHex(zero48)}> " +
+            $"<< /Filter /Standard /V 5 /R 7 /O <{ToHex(zero48)}> /U <{ToHex(zero48)}> " +
             $"/OE <{ToHex(zero32)}> /UE <{ToHex(zero32)}> /P -1 >>";
         var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, Encoding.ASCII.GetBytes(PlaintextContent));
 
         var exception = Assert.Throws<UnsupportedImageFeatureException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
-        Assert.Equal("pdf-encrypted-r6-hardened-hash", exception.Feature);
+        Assert.Equal("pdf-encrypted-r-7", exception.Feature);
     }
 
+    /// <summary>Resolves a pypdf-generated AES-256 <c>/R 6</c> fixture file.</summary>
+    private static string R6Fixture(string name) => Path.Join(AppContext.BaseDirectory, "PdfFixtures", name);
+
+    /// <summary>Asserts the R6 fixtures' blue filled rectangle rendered (and so the content stream decrypted).</summary>
+    private static void AssertR6FixtureRendered(PdfDocument document)
+    {
+        using var surface = document.Render(0, 100, 100, Transparent);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[50, 50]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>Proves an independently generated (pypdf) AES-256 <c>/R 6</c> document with an empty user password opens and renders.</summary>
+    [Fact]
+    public void PdfDocument_Open_EncryptedAesV3_R6_EmptyUserPassword_DecryptsAndRenders()
+    {
+        using var document = PdfDocument.Open(R6Fixture("encrypted-aes256-r6-empty-user-password.pdf"));
+        AssertR6FixtureRendered(document);
+    }
+
+    /// <summary>Proves an independently generated AES-256 <c>/R 6</c> document opens and renders with its correct user password.</summary>
+    [Fact]
+    public void PdfDocument_Open_EncryptedAesV3_R6_CorrectUserPassword_DecryptsAndRenders()
+    {
+        using var document = PdfDocument.Open(R6Fixture("encrypted-aes256-r6-user-password.pdf"), "user-secret");
+        AssertR6FixtureRendered(document);
+    }
+
+    /// <summary>Proves an independently generated AES-256 <c>/R 6</c> document opens and renders with its correct owner password.</summary>
+    [Fact]
+    public void PdfDocument_Open_EncryptedAesV3_R6_CorrectOwnerPassword_DecryptsAndRenders()
+    {
+        using var document = PdfDocument.Open(R6Fixture("encrypted-aes256-r6-user-password.pdf"), "owner-secret");
+        AssertR6FixtureRendered(document);
+    }
+
+    /// <summary>Proves a non-ASCII (UTF-8 encoded) user password authenticates an AES-256 <c>/R 6</c> document.</summary>
+    [Fact]
+    public void PdfDocument_Open_EncryptedAesV3_R6_Utf8UserPassword_DecryptsAndRenders()
+    {
+        using var document = PdfDocument.Open(R6Fixture("encrypted-aes256-r6-utf8-password.pdf"), "p\u00e4ssw\u00f6rd\u20ac");
+        AssertR6FixtureRendered(document);
+    }
+
+    /// <summary>Proves a wrong password on an AES-256 <c>/R 6</c> document throws the incorrect-password feature.</summary>
+    [Fact]
+    public void PdfDocument_Open_EncryptedAesV3_R6_WrongPassword_ThrowsIncorrectPassword()
+    {
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(
+            () => PdfDocument.Open(R6Fixture("encrypted-aes256-r6-user-password.pdf"), "wrong"));
+        Assert.Equal("pdf-encrypted-incorrect-password", exception.Feature);
+    }
+
+    /// <summary>Proves a missing password on an AES-256 <c>/R 6</c> document requiring one throws the password-required feature.</summary>
+    [Fact]
+    public void PdfDocument_Open_EncryptedAesV3_R6_NoPassword_ThrowsPasswordRequired()
+    {
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(
+            () => PdfDocument.Open(R6Fixture("encrypted-aes256-r6-user-password.pdf")));
+        Assert.Equal("pdf-encrypted-password-required", exception.Feature);
+    }
+
+    /// <summary>
+    ///     Test-only, independently written ISO 32000-2 Algorithm 2.B (hardened hash), used to
+    ///     build an in-memory <c>/R 6</c> document.
+    /// </summary>
+    private static byte[] TestHash2B(byte[] password, byte[] salt, byte[] userData)
+    {
+        var k = SHA256.HashData([.. password, .. salt, .. userData]);
+        var round = 0;
+        while (true)
+        {
+            var oneCopy = (byte[])[.. password, .. k, .. userData];
+            var k1 = new List<byte>();
+            for (var n = 0; n < 64; n++)
+            {
+                k1.AddRange(oneCopy);
+            }
+
+            using var aes = Aes.Create();
+            aes.Mode = CipherMode.CBC;
+            aes.Padding = PaddingMode.None;
+            var e = aes.CreateEncryptor(k[..16], k[16..32]).TransformFinalBlock([.. k1], 0, k1.Count);
+
+            var sum = e.Take(16).Sum(b => b);
+            k = (sum % 3) switch
+            {
+                0 => SHA256.HashData(e),
+                1 => SHA384.HashData(e),
+                _ => SHA512.HashData(e),
+            };
+
+            round++;
+            if (round >= 64 && e[^1] <= round - 32)
+            {
+                return k[..32];
+            }
+        }
+    }
+
+    /// <summary>Proves an in-memory AES-256 <c>/R 6</c> document (built with a test-side Algorithm 2.B) with an empty user password opens and renders.</summary>
+    [Fact]
+    public void PdfDocument_Open_EncryptedAesV3_R6_InMemoryEmptyUserPassword_DecryptsAndRenders()
+    {
+        var fileKey = (byte[])[.. Enumerable.Range(0, 32).Select(i => (byte)(0x40 + i))];
+        var validationSalt = (byte[])[.. Enumerable.Range(0, 8).Select(i => (byte)(0x50 + i))];
+        var keySalt = (byte[])[.. Enumerable.Range(0, 8).Select(i => (byte)(0x60 + i))];
+
+        var uBytes = (byte[])[.. TestHash2B([], validationSalt, []), .. validationSalt, .. keySalt];
+        var ueBytes = AesCbcEncryptNoIv(TestHash2B([], keySalt, []), fileKey);
+
+        var contentIv = (byte[])[.. Enumerable.Range(0, 16).Select(i => (byte)(0x70 + i))];
+        var encryptedContent = AesCbcEncryptIvPrefixed(fileKey, contentIv, Encoding.ASCII.GetBytes(PlaintextContent));
+
+        var encryptDictBody =
+            $"<< /Filter /Standard /V 5 /R 6 /Length 256 /O <{ToHex(new byte[48])}> /U <{ToHex(uBytes)}> " +
+            $"/OE <{ToHex(new byte[32])}> /UE <{ToHex(ueBytes)}> /P -3904 " +
+            "/CF << /StdCF << /CFM /AESV3 /Length 32 >> >> /StmF /StdCF /StrF /StdCF >>";
+        var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, encryptedContent);
+
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var surface = document.Render(0, 100, 100, Transparent);
+
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
     /// <summary>Proves that an Encrypt dictionary whose <c>/Length</c> entry resolves to a key length outside the ISO 32000-1 §7.6.2 valid range of 40-128 bits (5-16 bytes) throws <see cref="InvalidDataException"/> before any key derivation is attempted, instead of deriving a nonsensical-length key or indexing out of range later.</summary>
     [Fact]
     public void PdfDocument_Open_Encrypted_LengthOutOfRange_ThrowsInvalidDataException()

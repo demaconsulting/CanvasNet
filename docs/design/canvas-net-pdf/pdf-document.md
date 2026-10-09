@@ -63,11 +63,11 @@ procedures rather than an outline/CFF program) is also resolved and rendered, vi
 dedicated resolution and glyph-painting path (see _Type 3 Font Resolution_/_Type 3 Glyph Painting_
 below). As of Phase 16 (this phase), a document encrypted with the PDF "Standard" security
 handler (`/Filter /Standard`) using RC4 (40 to 128-bit), AES-128 (`/CFM /AESV2`), or AES-256 using
-the simpler R5 key derivation (`/CFM /AESV3`/`/R 5`) and an empty user password is also opened and
+the R5 or R6 (hardened hash) key derivation (`/CFM /AESV3`/`/R 5` or `/R 6`) and an empty user password is also opened and
 rendered transparently, with every indirect object's strings and every stream's raw bytes
 decrypted before any other parsing logic observes them (see _Encryption (Standard Security
 Handler)_ below); every other encrypted-document shape (a non-`/Standard` security handler,
-`/R 6`'s "hardened hash" key derivation, a non-`/StdCF` crypt filter, or a document that genuinely
+an `/R` other than 5/6, a non-`/StdCF` crypt filter, or a document that genuinely
 requires a non-empty password) still fails closed exactly as before. As of Phase 18 (this phase),
 both `LoadType1CFont` (simple `/Type1` fonts) and `LoadCidFontType0Font` (composite `CIDFontType0`
 descendant fonts) resolve a `/FontFile3` stream by sniffing the stream's own decoded bytes for a
@@ -346,7 +346,7 @@ non-`null` password is supplied, it is first tried as the **user password** (the
 instead of always the empty-password padding constant); if that does not authenticate, the same
 supplied string is tried as the **owner password** — ISO 32000-1 Algorithm 3 (R2-R4: recovers the
 padded user password from `/O`, then re-derives and re-authenticates a candidate file key) or the
-owner-password variant of ISO 32000-2 Algorithm 2.A (R5: recovers the file key directly from
+owner-password variant of ISO 32000-2 Algorithm 2.A (R5/R6: recovers the file key directly from
 `/OE`). If neither attempt authenticates, `Codecs.UnsupportedImageFeatureException` is thrown with
 the new `pdf-encrypted-incorrect-password` feature token (distinguishable from the null-password
 `pdf-encrypted-password-required` token, which is unchanged). **Encoding scope boundary**: R2-R4
@@ -365,10 +365,10 @@ truncation rule.
   `/V`/`/R`/`/Length`/`/O`/`/U`/`/P`/`/EncryptMetadata` and the trailer's `/ID` first element,
   then dispatches on `/V`: `1`/`2` → RC4 via `InitializeRc4OrAesV2Encryption(…, password)`; `4` →
   validates `/CF/StdCF/CFM` is `/AESV2` (else feature `pdf-encrypted-cfm-{name}`) then the same
-  RC4/AESV2 initialization path; `5` → rejects `/R 6` (feature `pdf-encrypted-r6-hardened-hash`)
-  and any other `/R` (feature `pdf-encrypted-r-{revision}`), validates `/CF/StdCF/CFM` is
-  `/AESV3`, computes `passwordBytes` (empty, or `EncodeR5PasswordBytes(password)`), tries
-  `TryComputeFileKeyAlgorithm2A` first and — when `password is not null` and that returns `null`
+  RC4/AESV2 initialization path; `5` → accepts `/R 5` and `/R 6` (hardened hash) and rejects any
+  other `/R` (feature `pdf-encrypted-r-{revision}`), validates `/CF/StdCF/CFM` is
+  `/AESV3`, computes `passwordBytes` (empty, or `EncodeR5PasswordBytes(password)`), passes `revision` to
+  `TryComputeFileKeyAlgorithm2A`, tried first and — when `password is not null` and that returns `null`
   — falls back to `TryComputeFileKeyAlgorithm2AOwnerPassword` (reading `/OE`), throwing the
   appropriate token (`pdf-encrypted-password-required` or `pdf-encrypted-incorrect-password`) if
   both fail; any other `/V` fails with feature `pdf-encrypted-v-{version}`. **Ordering invariant
@@ -429,24 +429,32 @@ truncation rule.
   key plus the object's 3-byte little-endian object number and 2-byte little-endian generation
   number (plus the 4 literal ASCII bytes `sAlT` for AESV2); the per-object key is the first
   `min(fileKeyLength + 5, 16)` bytes of that digest.
-- **`TryComputeFileKeyAlgorithm2A(byte[] passwordBytes, …)`** (ISO 32000-2 Algorithm 2.A, R5/AESV3
-  only, user-password path) — authenticates by comparing `SHA-256(passwordBytes ‖ /U`'s 8-byte
+- **`ComputeHashAlgorithm2B(byte[] password, ReadOnlySpan<byte> salt, ReadOnlySpan<byte> udata, int revision)`**
+  — the password hash used for both the validation hash and the intermediate key. R5: a single
+  `SHA-256(password ‖ salt ‖ udata)`. R6 (ISO 32000-2 Algorithm 2.B): `K = SHA-256(input)`, then
+  rounds of `K1 = (password ‖ K ‖ udata) × 64`, `E = AES-128-CBC(key = K[0..16], iv = K[16..32], K1)`
+  with no padding, `K = SHA-256/384/512(E)` selected by the sum of `E`'s first 16 bytes mod 3; at
+  least 64 rounds, then stop once the last byte of `E` is `<= round - 32`; the result is the
+  first 32 bytes of `K`. The loop is capped (64 + 256 rounds) and throws `InvalidDataException`
+  beyond that, failing closed.
+- **`TryComputeFileKeyAlgorithm2A(byte[] passwordBytes, …, int revision)`** (ISO 32000-2 Algorithm 2.A, R5/R6 AESV3
+  only, user-password path) — authenticates by comparing `ComputeHashAlgorithm2B(passwordBytes, /U`'s 8-byte
   validation salt`)` against `/U`'s own embedded 32-byte hash, returning `null` (instead of
   throwing) on a mismatch, otherwise AES-256-CBC-decrypts `/UE` (zero IV, no padding) using
-  `SHA-256(passwordBytes ‖ /U`'s 8-byte key salt`)` as the key, yielding the 32-byte file
+  `ComputeHashAlgorithm2B(passwordBytes, /U`'s 8-byte key salt`)` as the key, yielding the 32-byte file
   encryption key directly — used as-is for every string/stream, with no further per-object
   derivation (unlike RC4/AESV2).
-- **`TryComputeFileKeyAlgorithm2AOwnerPassword(byte[] passwordBytes, byte[] oBytes, byte[] oeBytes, byte[] uBytes)`**
-  (owner-password variant of ISO 32000-2 Algorithm 2.A, R5/AESV3 only) — hashes/encrypts over
+- **`TryComputeFileKeyAlgorithm2AOwnerPassword(byte[] passwordBytes, byte[] oBytes, byte[] oeBytes, byte[] uBytes, int revision)`**
+  (owner-password variant of ISO 32000-2 Algorithm 2.A, R5/R6 AESV3 only) — hashes/encrypts over
   `passwordBytes ‖ salt ‖ U` where `U` is the **full 48-byte** `/U` value (not a sub-slice):
-  compares `SHA-256(passwordBytes ‖ /O`'s 8-byte validation salt ‖ fullU`)` against `/O`'s own
+  compares `ComputeHashAlgorithm2B(passwordBytes, /O`'s 8-byte validation salt, fullU`)` against `/O`'s own
   32-byte hash, returning `null` on a mismatch, otherwise AES-256-CBC-decrypts `/OE` (not `/UE`,
-  zero IV, no padding) using `SHA-256(passwordBytes ‖ /O`'s 8-byte key salt ‖ fullU`)` as the key,
+  zero IV, no padding) using `ComputeHashAlgorithm2B(passwordBytes, /O`'s 8-byte key salt, fullU`)` as the key,
   yielding the 32-byte file encryption key directly.
 - **`DecryptStreamBytes`/`DecryptStringsInPlace`** — dispatch on `_encryptionCipher`: RC4
   re-derives the per-object key and XORs; AES-128 derives the per-object key with the `sAlT`
   suffix, then AES-128-CBC/PKCS7-decrypts a leading-16-byte-IV-prefixed ciphertext; AES-256
-  (R5) uses `_encryptionKey` directly against the same IV-prefixed wire format. Called,
+  (R5/R6) uses `_encryptionKey` directly against the same IV-prefixed wire format. Called,
   respectively, by `GetStreamRawBytes` (before the generic `/Filter`/`/DecodeParms` pipeline
   runs) and `ParseIndirectObjectAt` (recursing every `PdfKind.String` found anywhere within a
   freshly-parsed top-level indirect object's value, never recursing into `PdfKind.Reference`
@@ -459,11 +467,12 @@ truncation rule.
   decrypts.
 
 **Scope boundary**: only the `/Filter /Standard` security handler is supported, and only RC4
-(`/V 1`/`/V 2`), AES-128 (`/V 4`/`/CFM /AESV2`), and AES-256 using the simpler R5 key derivation
-(`/V 5`/`/R 5`/`/CFM /AESV3`) are supported. A caller-supplied password (R2-R4: Latin-1/ASCII only;
-R5: UTF-8, no SASLprep normalization; both: 127-byte truncation) is tried as the user password
-then the owner password, as described above. Every other shape (a non-`/Standard` filter, `/R 6`'s
-"hardened hash" key derivation, a crypt filter other than the standard `/StdCF`, a document whose
+(`/V 1`/`/V 2`), AES-128 (`/V 4`/`/CFM /AESV2`), and AES-256 using the R5 or R6
+(hardened hash) key derivation (`/V 5`/`/R 5` or `/R 6`/`/CFM /AESV3`) are supported. A caller-supplied password
+(R2-R4: Latin-1/ASCII only;
+R5/R6: UTF-8, no SASLprep normalization; both: 127-byte truncation) is tried as the user password
+then the owner password, as described above. Every other shape (a non-`/Standard` filter, an `/R` other
+than 5/6, a crypt filter other than the standard `/StdCF`, a document whose
 user/owner password does not match the supplied (or default empty) password, or an R2-4 password
 containing a non-ASCII character) fails closed with `Codecs.UnsupportedImageFeatureException` and
 its own distinguishable `Feature` token.
@@ -1451,8 +1460,7 @@ change behavior for any document within normal real-world limits.
   exact convention for malformed data.
 - **`/Encrypt` key present in the trailer, but not the `/Standard` security handler** (feature
   `pdf-encrypted-filter-{name}`), **a `/CF/StdCF/CFM` other than `/AESV2`/`/AESV3`** (feature
-  `pdf-encrypted-cfm-{name}`), **`/V 5` with `/R 6`'s "hardened hash" key derivation** (feature
-  `pdf-encrypted-r6-hardened-hash`), **`/V 5` with any other unsupported `/R`** (feature
+  `pdf-encrypted-cfm-{name}`), **`/V 5` with an unsupported `/R` (not 5 or 6)** (feature
   `pdf-encrypted-r-{revision}`), **an unsupported `/V`** (feature `pdf-encrypted-v-{version}`),
   **a `null` password that fails `/U` (R2-R4) or `/U`'s embedded validation hash (R5)
   authentication, i.e. the document genuinely requires a non-empty password** (feature

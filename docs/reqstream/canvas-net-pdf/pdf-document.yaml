@@ -192,12 +192,12 @@ sections:
             title: >-
               The PdfDocument class shall detect an /Encrypt key in the trailer and throw
               UnsupportedImageFeatureException with its own distinguishable feature token (for
-              example "pdf-encrypted-filter-{name}", "pdf-encrypted-r6-hardened-hash",
+              example "pdf-encrypted-filter-{name}", "pdf-encrypted-r-{revision}",
               "pdf-encrypted-crypt-filter-{name}", "pdf-encrypted-cfm-{name}",
               "pdf-encrypted-password-required", "pdf-encrypted-incorrect-password", or
               "pdf-encrypted-password-non-ascii") for every encrypted-document shape this phase
-              does not support: a non-/Standard security handler, AES-256 /R 6 "hardened hash"
-              key derivation, a crypt filter other than the standard /StdCF, a document that
+              does not support: a non-/Standard security handler, an AES-256 /R other than 5 or 6,
+              a crypt filter other than the standard /StdCF, a document that
               genuinely requires a non-empty password, a supplied password that authenticates
               as neither the user nor the owner password, or an R2-R4 password containing a
               non-ASCII character.
@@ -209,7 +209,7 @@ sections:
             tests:
               - PdfDocument_Open_EncryptedTrailer_ThrowsUnsupportedImageFeatureException
               - CanvasNetPdf_SystemIntegration_PdfEncryptDetection_EncryptedTrailerThrowsUnsupportedImageFeatureException
-              - PdfDocument_Open_EncryptedAesV3_R6_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Open_EncryptedAesV3_UnknownRevision_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Open_EncryptedRc4_WrongUserPasswordHash_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Open_EncryptedAesV3_WrongValidationHash_ThrowsUnsupportedImageFeatureException
 
@@ -260,21 +260,36 @@ sections:
               CBC initialization vector followed by AES-256/PKCS#7-padded ciphertext.
             justification: |
               AES-256 using the simpler R5 key derivation is a real-world encrypted-PDF shape
-              found in the wild; supporting it (while deliberately rejecting /R 6's more complex
-              "hardened hash" key derivation, which this phase does not implement) extends
-              empty-user-password coverage to the strongest widely-deployed encryption variant
-              this phase supports.
+              found in the wild; supporting it extends empty-user-password coverage to a widely-deployed
+              encryption variant (the stronger /R 6 variant is covered by its own requirement).
             tests:
               - PdfDocument_Open_EncryptedAesV3_R5_DecryptsAndRenders
+
+          - id: CanvasNetPdf-PdfDocument-EncryptionAesV3R6
+            title: >-
+              The PdfDocument class shall open a /Filter /Standard, /V 5, /R 6,
+              /CF/StdCF/CFM /AESV3 (AES-256, hardened hash) encrypted document, computing the
+              password validation hash and intermediate key with ISO 32000-2 Algorithm 2.B (an
+              iterated SHA-256/384/512 and AES-128-CBC construction, with a bounded round count)
+              for the empty user password, a caller-supplied user password, or a caller-supplied
+              owner password, then unwrapping /UE or /OE and decrypting every object as for R5.
+            justification: |
+              Documents written by current PDF producers use /R 6 (ISO 32000-2) rather than the
+              deprecated /R 5; supporting it lets CanvasNetPdf open and render them. Fixtures
+              generated independently with pypdf guard against a self-consistent implementation
+              bug.
+            tests:
+              - PdfDocument_Open_EncryptedAesV3_R6_EmptyUserPassword_DecryptsAndRenders
+              - PdfDocument_Open_EncryptedAesV3_R6_InMemoryEmptyUserPassword_DecryptsAndRenders
 
           - id: CanvasNetPdf-PdfDocument-UserPasswordAuthentication
             title: >-
               The PdfDocument class shall accept an optional caller-supplied password (default
               null, preserving today's empty-user-password-only behavior byte-for-byte) on both
               Open overloads and authenticate it as the user password (Algorithm 2 plus Algorithm
-              4/5 for R2-R4, or Algorithm 2.A for R5) when it is the document's correct user
+              4/5 for R2-R4, or Algorithm 2.A for R5/R6) when it is the document's correct user
               password, decrypting and rendering the document normally, regardless of which
-              supported cipher (RC4, AESV2, or AESV3/R5) the document uses.
+              supported cipher (RC4, AESV2, or AESV3/R5/R6) the document uses.
             justification: |
               Several real-world password-protected PDFs cannot be opened at all without a way to
               supply their actual user password; this unblocks that entire class of document
@@ -283,6 +298,8 @@ sections:
               - PdfDocument_Open_EncryptedRc4_CorrectUserPassword_DecryptsAndRenders
               - PdfDocument_Open_EncryptedAesV2_CorrectUserPassword_DecryptsAndRenders
               - PdfDocument_Open_EncryptedAesV3_CorrectUserPassword_DecryptsAndRenders
+              - PdfDocument_Open_EncryptedAesV3_R6_CorrectUserPassword_DecryptsAndRenders
+              - PdfDocument_Open_EncryptedAesV3_R6_Utf8UserPassword_DecryptsAndRenders
 
           - id: CanvasNetPdf-PdfDocument-OwnerPasswordAuthentication
             title: >-
@@ -299,6 +316,7 @@ sections:
             tests:
               - PdfDocument_Open_EncryptedRc4_CorrectOwnerPassword_DecryptsAndRenders
               - PdfDocument_Open_EncryptedAesV3_CorrectOwnerPassword_DecryptsAndRenders
+              - PdfDocument_Open_EncryptedAesV3_R6_CorrectOwnerPassword_DecryptsAndRenders
 
           - id: CanvasNetPdf-PdfDocument-IncorrectPasswordRejection
             title: >-
@@ -313,6 +331,8 @@ sections:
               password was supplied at all.
             tests:
               - PdfDocument_Open_Encrypted_IncorrectPassword_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Open_EncryptedAesV3_R6_WrongPassword_ThrowsIncorrectPassword
+              - PdfDocument_Open_EncryptedAesV3_R6_NoPassword_ThrowsPasswordRequired
 
           - id: CanvasNetPdf-PdfDocument-PasswordNonAsciiRejection
             title: >-
