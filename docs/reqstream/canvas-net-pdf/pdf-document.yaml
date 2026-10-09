@@ -10,6 +10,7 @@
 # cspell:ignore SASLprep
 # cspell:ignore Noto
 # cspell:ignore functiontype
+# cspell:ignore PDFium
 #
 # These requirements describe the design-level behavior of the PdfDocument unit.
 #
@@ -508,6 +509,28 @@ sections:
               - PdfDocument_PathOps_CloseAndFillAndStroke_PaintsExpectedPixels
               - PdfDocument_PathOps_NoOp_DiscardsPathWithoutPainting
               - PdfDocument_PathOps_PaintOperator_ClearsPathButPreservesGraphicsState
+            children:
+              - CanvasNetPdf-PdfDocument-StrokeLineWidthFidelity
+
+          - id: CanvasNetPdf-PdfDocument-StrokeLineWidthFidelity
+            title: >-
+              The PdfDocument class shall paint a stroked path's width to reflect its resolved
+              device-space line width: a literal (or effectively zero) user-space line width
+              shall still paint as a visible, full-opacity, one-device-pixel line (the thinnest
+              renderable line per the specification), while a genuinely positive user-space line
+              width shall paint with its own true, antialiased device-space coverage rather than
+              being forced up to that same one-device-pixel, full-opacity floor.
+            justification: |
+              A reader that floors every sub-one-device-pixel stroke width to full opacity
+              (regardless of whether the user-space width was a literal 0 or a genuinely positive
+              small value) paints every thin stroke visibly heavier/darker than mature PDF
+              renderers such as PDFium, which preserve a thin stroke's true sub-pixel coverage -
+              producing output that does not match the document's intended visual weight for
+              hairline-style content such as table rules and fine diagram lines.
+            tests:
+              - PdfDocument_PathOps_Stroke_ZeroWidth_RendersFullOpacityHairline
+              - PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke
+              - PdfDocument_PathOps_Stroke_SubEpsilonWidth_RendersVisibleLine
 
           - id: CanvasNetPdf-PdfDocument-ClippingPath
             title: >-

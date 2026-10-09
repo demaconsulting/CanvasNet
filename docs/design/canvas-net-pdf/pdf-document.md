@@ -10,6 +10,8 @@
 <!-- cspell:ignore begincodespacerange endcodespacerange findresource defineresource currentdict -->
 <!-- cspell:ignore begincmap endcmap bfchar usecmap cidrange cidchar codespacerange -->
 <!-- cspell:ignore functiontype bitspersample multiinput hival EOFB -->
+<!-- cspell:ignore PDFium -->
+
 <!-- cspell:ignore charsets -->
 <!-- cspell:ignore bchar achar -->
 <!-- cspell:ignore SASLprep -->
@@ -538,6 +540,27 @@ its own distinguishable `Feature` token.
   rule. Every path-painting operator, including `n`, always clears the current path afterward
   (`_pathBuilder.Clear()`); the surrounding graphics state is entirely unaffected by that clear,
   so a subsequent path in the same content stream still sees the same CTM/stroke style/color.
+  - **Hairline-stroke device-width clamp (regression fix note).** `DeviceLineWidth` originally
+    applied the same `MinimumDeviceLineWidth` one-device-pixel floor unconditionally to every
+    scaled line width, including a genuinely positive, small user-space width (e.g. `0.25 w`)
+    that legitimately resolves to a sub-device-pixel stroke - forcing every such stroke to paint
+    as a full-opacity, one-device-pixel-wide line indistinguishable from a literal `0 w` stroke,
+    reported as "hairline strokes drawn heavier than PDFium". `DeviceLineWidth` now branches on
+    whether the user-space `LineWidth` is itself (effectively, within a tiny
+    `ZeroLineWidthTolerance` epsilon) zero: only that case still floors to the full-opacity
+    `MinimumDeviceLineWidth` (the spec's "thinnest renderable line" rule, which has no magnitude
+    of its own to preserve); a genuinely positive `LineWidth` instead floors only to
+    `MinimumPositiveDeviceLineWidth` (a numerical-safety floor two orders of magnitude below one
+    device pixel, confirmed sufficient because `Drawing.PathStroker`/`Drawing.PathFiller` require
+    only a strictly-positive width to produce correct, non-degenerate outline/coverage geometry),
+    letting `Drawing.PathFiller`'s antialiased scanline-coverage rasterizer paint the stroke's
+    true, lighter sub-pixel coverage. Proven by three dedicated tests:
+    `PdfDocumentTests.PdfDocument_PathOps_Stroke_ZeroWidth_RendersFullOpacityHairline` (the
+    zero-width case is unaffected), `PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke`
+    (a small positive width now paints measurably lighter than a normal-width stroke, with a
+    genuinely partially-transparent pixel), and `PdfDocument_PathOps_Stroke_SubEpsilonWidth_RendersVisibleLine`
+    (a width below the numerical-safety floor still paints something visible rather than
+    vanishing).
   - **Shared `StrokeOutliner` false-collapse investigation (regression fix note).** A separate
     investigation into a PPTX rendering regression (a `<a:noFill/>` shape's thin stroke outline
     rendering as a solid-filled interior instead of a thin ring) traced the root cause to the

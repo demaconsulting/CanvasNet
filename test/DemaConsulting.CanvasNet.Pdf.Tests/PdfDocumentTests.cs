@@ -4758,6 +4758,87 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Regression test: proves a literal <c>0 w</c> stroke still renders as a visible,
+    ///     ~full-opacity, ~one-device-pixel-wide line - the PDF specification's "thinnest
+    ///     renderable line" rule for a zero line width must be unaffected by the hairline-stroke
+    ///     fix in <c>PdfDocument.PathOps.cs</c>'s <c>DeviceLineWidth()</c>, which now only relaxes
+    ///     the one-device-pixel floor for a <em>genuinely positive</em> line width (see
+    ///     <c>PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke</c>).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_PathOps_Stroke_ZeroWidth_RendersFullOpacityHairline()
+    {
+        // Arrange: a vertical line at x=60.5 (so the one-device-pixel-wide floored stroke falls
+        // exactly on pixel column 60's boundaries) stroked with a literal 0 w (no magnitude of
+        // its own to preserve).
+        const string content = "0 w 60.5 10 m 60.5 90 l S";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: some pixel in the narrow column straddling the centerline is fully opaque (the
+        // one-device-pixel floor still applies), and a pixel well clear of that column is
+        // untouched - matching this renderer's pre-fix 0 w behavior exactly.
+        var maxAlphaNearLine = Enumerable.Range(58, 5).Max(x => surface[x, 50].A);
+        Assert.Equal(255, maxAlphaNearLine);
+        Assert.Equal(default, surface[70, 50]);
+    }
+
+    /// <summary>
+    ///     Fix-proof test: proves a small-but-genuinely-nonzero width (e.g. <c>0.25 w</c>) now
+    ///     resolves to a true sub-device-pixel stroke - painted with measurably lower average
+    ///     coverage/opacity than a <c>2 w</c> stroke at the same position, with at least one
+    ///     partially-transparent (neither fully opaque nor fully transparent) pixel proving
+    ///     genuine antialiased coverage rather than a forced full-opacity pixel. Also proves a
+    ///     normal/large width (<c>2 w</c>) is unaffected by the fix: it still paints the expected
+    ///     pixel at full opacity, exactly like the pre-fix <see cref="PdfDocument_PathOps_Stroke_PaintsExpectedPixels"/>
+    ///     baseline.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke()
+    {
+        // Arrange: identical vertical line geometry, differing only by stroke width.
+        const string thinContent = "0.25 w 60 10 m 60 90 l S";
+        const string wideContent = "2 w 60 10 m 60 90 l S";
+
+        // Act
+        using var thinSurface = RenderContent(thinContent);
+        using var wideSurface = RenderContent(wideContent);
+        var thinAlphas = Enumerable.Range(58, 5).Select(x => (int)thinSurface[x, 50].A).ToArray();
+        var wideAlphas = Enumerable.Range(58, 5).Select(x => (int)wideSurface[x, 50].A).ToArray();
+
+        // Assert: the thin stroke's average coverage across the same pixel window is measurably
+        // lower than the wide stroke's (genuinely thinner, not forced to full opacity), the thin
+        // stroke has at least one partially-transparent pixel (true antialiased sub-pixel
+        // coverage), and the wide stroke still paints its expected pixel fully opaque unchanged.
+        Assert.True(thinAlphas.Average() < wideAlphas.Average());
+        Assert.Contains(thinAlphas, a => a is > 0 and < 255);
+        Assert.Equal(Black, wideSurface[60, 50]);
+    }
+
+    /// <summary>
+    ///     Edge-case test: proves a nonzero width below <c>PdfDocument.PathOps.cs</c>'s
+    ///     <c>MinimumPositiveDeviceLineWidth</c> numerical-safety floor (e.g. <c>0.001 w</c>)
+    ///     still renders as something visible - a nonzero-alpha pixel - rather than vanishing to
+    ///     fully transparent. This proves the floor exists purely to avoid a zero-area/degenerate
+    ///     stroke outline, not to reintroduce the old full-opacity clamp.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_PathOps_Stroke_SubEpsilonWidth_RendersVisibleLine()
+    {
+        // Arrange: a vertical line stroked with a width far below the numerical-safety floor.
+        const string content = "0.001 w 60 10 m 60 90 l S";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: some pixel in the narrow column straddling the centerline carries nonzero
+        // alpha - the stroke is visible, not degenerate/invisible.
+        var maxAlphaNearLine = Enumerable.Range(58, 5).Max(x => surface[x, 50].A);
+        Assert.True(maxAlphaNearLine > 0);
+    }
+
+    /// <summary>
     ///     Proves that a dash-dot pattern set via the <c>d</c> operator with a zero-length "on"
     ///     entry (e.g. <c>[4 8 0 8] 0 d</c>, the standard PDF/SVG/CSS dash-dot "dot" technique)
     ///     renders the dot as a distinct painted pixel, isolated by unpainted gap pixels on either

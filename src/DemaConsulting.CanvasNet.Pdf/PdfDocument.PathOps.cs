@@ -1,4 +1,5 @@
 // cspell:ignore fitz
+// cspell:ignore PDFium
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
@@ -9,13 +10,62 @@ namespace DemaConsulting.CanvasNet.Pdf;
 public sealed partial class PdfDocument
 {
     /// <summary>
-    ///     The minimum device-space (pixel) stroke line width this phase ever paints with,
+    ///     The device-space (pixel) stroke line width substituted for a literal (or
+    ///     effectively-zero, see <see cref="DeviceLineWidth"/>) <see cref="GraphicsState.LineWidth"/>,
     ///     implementing the PDF specification's "a line width of 0 shall be rendered as the
     ///     thinnest line that can be rendered at device resolution" rule (interpreted here as
-    ///     exactly one device pixel). This also covers any positive but very thin user-space
-    ///     width that would otherwise scale down to zero or a negative/invalid device width.
+    ///     exactly one device pixel, painted at full opacity). This floor is deliberately applied
+    ///     <em>only</em> to the zero-width case - see <see cref="MinimumPositiveDeviceLineWidth"/>
+    ///     for why a genuinely positive, sub-pixel user-space width must <em>not</em> reuse this
+    ///     same one-pixel floor.
     /// </summary>
     private const float MinimumDeviceLineWidth = 1f;
+
+    /// <summary>
+    ///     The smallest device-space (pixel) stroke line width <see cref="DeviceLineWidth"/> ever
+    ///     passes through for a genuinely positive <see cref="GraphicsState.LineWidth"/> - a purely
+    ///     numerical-safety floor, not a visual-weight floor like <see cref="MinimumDeviceLineWidth"/>.
+    /// </summary>
+    /// <remarks>
+    ///     A small-but-nonzero user-space width (e.g. <c>0.25 w</c>) legitimately resolves to a
+    ///     sub-device-pixel stroke, which <see cref="Drawing.PathFiller"/>'s antialiased
+    ///     scanline-coverage rasterizer renders correctly as a partially-transparent, genuinely
+    ///     thinner line - exactly how PDFium and other mature PDF renderers preserve a thin
+    ///     stroke's true visual weight instead of forcing it up to a full opaque device pixel.
+    ///     Reusing <see cref="MinimumDeviceLineWidth"/> here (the pre-fix behavior) made every
+    ///     width below one device pixel - whether <c>0.9</c> or <c>0.01</c> - paint identically to
+    ///     a full <c>1 w</c> stroke, which is the reported "hairline strokes drawn heavier than
+    ///     PDFium" defect. This constant exists only to keep <see cref="Drawing.StrokeStyle"/>'s
+    ///     outline geometry from becoming zero-area or numerically degenerate as the device width
+    ///     approaches zero (<see cref="Drawing.StrokeStyle"/>'s own constructor already rejects a
+    ///     width <c>&lt;= 0</c> outright); <see cref="Drawing.PathStroker.Stroke"/> and
+    ///     <see cref="Drawing.PathFiller.Fill(Canvas.Surface, Geometry.Path, Canvas.Rgba32, ClipMask?, FillRule, float)"/>
+    ///     were inspected and confirmed to require only a strictly-positive width to produce
+    ///     correct, non-crashing, non-degenerate outline/coverage geometry - neither imposes its
+    ///     own minimum-width assumption, so <c>0.1f</c> (an order of magnitude below the smallest
+    ///     width this renderer is expected to receive from real content) is used purely to avoid
+    ///     floating-point-scale edge cases, not to preserve visual weight.
+    /// </remarks>
+    private const float MinimumPositiveDeviceLineWidth = 0.1f;
+
+    /// <summary>
+    ///     The largest user-space <see cref="GraphicsState.LineWidth"/> magnitude
+    ///     <see cref="DeviceLineWidth"/> still treats as "effectively zero" (the PDF spec's
+    ///     "thinnest renderable line" case) rather than as a genuinely positive width to scale and
+    ///     preserve.
+    /// </summary>
+    /// <remarks>
+    ///     A strict <c>&lt;= 0f</c> comparison would be sufficient for a literal <c>0 w</c>, but a
+    ///     content stream can also set a vanishingly small positive width (e.g. from an upstream
+    ///     authoring tool's floating-point rounding) that is not meaningfully distinguishable from
+    ///     zero; this tiny epsilon treats both identically as "thinnest renderable line" rather
+    ///     than letting such noise fall through to <see cref="MinimumPositiveDeviceLineWidth"/>'s
+    ///     branch and paint as a barely-visible sliver. The value is far below any width a real
+    ///     PDF would intentionally author (PDF coordinates are typically whole points or simple
+    ///     fractions), so it never reclassifies a genuinely intended thin stroke (e.g. <c>0.001 w</c>)
+    ///     as zero - see <c>PdfDocument_PathOps_Stroke_SubEpsilonWidth_RendersVisibleLine</c>.
+    /// </remarks>
+    private const float ZeroLineWidthTolerance = 1e-6f;
 
     /// <summary>
     ///     The path currently under construction by the path-construction operators, for the
@@ -412,9 +462,48 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Computes the device-space (pixel) stroke width for the current graphics state's
     ///     user-space <see cref="GraphicsState.LineWidth"/>, applying <see cref="DeviceScale"/>
-    ///     and the <see cref="MinimumDeviceLineWidth"/> floor.
+    ///     and one of two distinct floors depending on whether <see cref="GraphicsState.LineWidth"/>
+    ///     is itself (effectively) zero.
     /// </summary>
-    private float DeviceLineWidth() => MathF.Max(_gs.LineWidth * DeviceScale(), MinimumDeviceLineWidth);
+    /// <remarks>
+    ///     <para>
+    ///     A literal (or effectively-zero, within <see cref="ZeroLineWidthTolerance"/>) line width
+    ///     means "the thinnest line that can be rendered at device resolution" per the PDF
+    ///     specification's <c>w</c>-operator text - there is no user-space magnitude to preserve,
+    ///     so this always returns the full-opacity, one-device-pixel
+    ///     <see cref="MinimumDeviceLineWidth"/>, exactly matching this renderer's pre-fix
+    ///     behavior for that case.
+    ///     </para>
+    ///     <para>
+    ///     A genuinely positive <see cref="GraphicsState.LineWidth"/>, however, carries real
+    ///     authorial intent about the stroke's visual weight - scaling it down to a sub-device-
+    ///     pixel width (e.g. <c>0.25 w</c> at unit <see cref="DeviceScale"/>) is not degenerate,
+    ///     it is simply a thin stroke that <see cref="Drawing.PathFiller"/>'s antialiased
+    ///     scanline-coverage rasterizer is fully able to paint as a partially-transparent line of
+    ///     its true device width. Forcing this case through the same one-pixel
+    ///     <see cref="MinimumDeviceLineWidth"/> floor (the pre-fix behavior) made every sub-pixel
+    ///     width paint as a full-opacity pixel indistinguishable from a literal <c>0 w</c> or a
+    ///     true <c>1 w</c> stroke - the reported "hairline strokes drawn heavier than PDFium"
+    ///     defect. This branch instead applies only <see cref="MinimumPositiveDeviceLineWidth"/>,
+    ///     a numerical-safety floor far below any visually-meaningful width, so the scaled width
+    ///     passes through unchanged in every realistic case.
+    ///     </para>
+    /// </remarks>
+    private float DeviceLineWidth()
+    {
+        // A literal (or effectively-zero) user-space line width has no magnitude of its own to
+        // preserve - the spec's "thinnest renderable line" rule applies, so this always floors to
+        // one full, opaque device pixel regardless of DeviceScale.
+        if (_gs.LineWidth <= ZeroLineWidthTolerance)
+        {
+            return MinimumDeviceLineWidth;
+        }
+
+        // A genuinely positive line width carries real visual intent - only clamp the numerically
+        // tiny degenerate case, letting every realistic sub-pixel width paint with its true,
+        // antialiased coverage instead of being forced up to full opacity.
+        return MathF.Max(_gs.LineWidth * DeviceScale(), MinimumPositiveDeviceLineWidth);
+    }
 
     /// <summary>
     ///     Computes the device-space (pixel) dash array for the current graphics state's

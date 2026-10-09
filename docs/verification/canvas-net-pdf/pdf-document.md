@@ -665,7 +665,10 @@ Renders a bare `l` with no preceding `m`/`re`, asserting `InvalidDataException`.
 `PdfDocument_PathOps_CloseAndFillAndStroke_PaintsExpectedPixels`,
 `PdfDocument_PathOps_NoOp_DiscardsPathWithoutPainting`,
 `PdfDocument_PathOps_PaintOperator_ClearsPathButPreservesGraphicsState`,
-`PdfDocument_PathOps_StrokeOnlyClosedBezierCircle_RendersThinRingNotSolidDisc`
+`PdfDocument_PathOps_StrokeOnlyClosedBezierCircle_RendersThinRingNotSolidDisc`,
+`PdfDocument_PathOps_Stroke_ZeroWidth_RendersFullOpacityHairline`,
+`PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke`,
+`PdfDocument_PathOps_Stroke_SubEpsilonWidth_RendersVisibleLine`
 
 Renders a filled rectangle (`f`), asserting an interior pixel is opaque black and an exterior
 pixel remains transparent. Renders two nested, same-winding rectangles (`f*`), asserting the outer
@@ -690,6 +693,21 @@ opaque black, proving the ring itself still paints. This exercises the exact `Pa
 guarding PDF against the false inner-ring-collapse regression even though PDF's own
 stroke-after-transform architecture made it unlikely to manifest for typical PDF device-space
 coordinate magnitudes.
+
+`PdfDocument_PathOps_Stroke_ZeroWidth_RendersFullOpacityHairline`,
+`PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke`, and
+`PdfDocument_PathOps_Stroke_SubEpsilonWidth_RendersVisibleLine` together verify the
+hairline-stroke device-width clamp regression fix (see `../../design/canvas-net-pdf/pdf-document.md`'s
+"Hairline-stroke device-width clamp" note): the first renders a literal `0 w` stroke and asserts a
+pixel straddling the centerline still reaches full opacity, proving the PDF specification's
+"thinnest renderable line" rule is unaffected by the fix; the second renders a `0.25 w` stroke
+alongside an otherwise-identical `2 w` stroke, asserting the thin stroke's average pixel coverage
+across the same window is measurably lower than the wide stroke's, that at least one of its pixels
+is genuinely partially transparent (true antialiased sub-pixel coverage, not a forced full-opacity
+pixel), and that the wide stroke's own expected pixel is still painted fully opaque, unchanged;
+the third renders a `0.001 w` stroke (below the numerical-safety floor) and asserts some pixel
+still carries nonzero alpha, proving the floor avoids a degenerate/invisible stroke rather than
+reintroducing the old full-opacity clamp.
 
 #### CanvasNetPdf-PdfDocument-ClippingPath: W/W* Clip, Enforce, and Scope the Active Clipping Path
 
