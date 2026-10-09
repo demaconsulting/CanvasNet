@@ -228,6 +228,40 @@ cell-based rewrite fixes: the prior sub-interval/sort-by-x algorithm produced ~1
 this exact case, because it assumed edges spanning a sub-interval never change their relative
 x-order within it - an assumption that crossing/self-intersecting edges violate by construction.
 
+##### CanvasNet-Drawing-PathFiller-ScanlineEvenOddMultiToggleRow: Multiple Even-Odd Toggles Within One Row Resolve Correctly
+
+**Tests**: `ScanlineRasterizer_Fill_EvenOdd_FourNestedRectanglesSameRow_ResolvesPartialCoverageNotFullFill`,
+`ScanlineRasterizer_Fill_NonZero_FourNestedRectanglesSameRow_StaysFullyOpaqueUnaffectedByFix`,
+`ScanlineRasterizer_Fill_EvenOdd_SingleBoundaryPerRow_MatchesPreFixHandComputedCoverage`,
+`ScanlineRasterizer_Fill_EvenOdd_SlantedEdgeForcedIntoSubRowSplitting_MatchesSingleToggleFastPath`,
+`CanvasNetPdf_SystemIntegration_PdfRender_EvenOddFill_MultipleBoundariesInSameRow_ResolvesPartialCoverageNotFullyOpaque`
+(`DemaConsulting.CanvasNet.Pdf.Tests`)
+
+This is a regression suite for a real-world rendering defect (a "double border" artifact reported
+against `f*`-filled nested rectangles whose boundaries land within one device-pixel row): four
+nested rectangles sharing the same x-range, whose top edges land at `y = 6.0, 6.167, 6.333, 6.5` -
+all four strictly within (or at the boundary of) device-pixel row 6 - previously folded the whole
+row's raw winding integral through `ResolveCoverage`'s single-toggle-only `EvenOdd` fold,
+producing fully opaque output (alpha 255) where an independently hand-computed height-weighted
+parity average is `0.334` (alpha 85). The first test asserts the fixed, correct partial value;
+the second asserts the identical geometry under `FillRule.NonZero` is completely unaffected
+(still fully opaque, exactly as always) - directly proving the fix's dispatcher only ever diverts
+`EvenOdd` rows, never `NonZero` ones. The third test proves the fast path (fewer than two mid-row
+breakpoints, the overwhelming common case already exercised throughout this verification document)
+is bit-for-bit unchanged by re-asserting an existing hand-computed single-toggle reference value.
+The fourth test generalizes the fix to slanted (non-axis-aligned) edges: a trapezoid with one
+slanted edge is rasterized alone (fast path, one breakpoint) and again alongside a second, disjoint
+rectangle that pushes the row's breakpoint count to two (forcing the sub-row-splitting path),
+asserting the trapezoid's own columns resolve identically either way - exploiting the fact that a
+closed polygon's net winding contribution outside its own x-extent is always exactly zero, so this
+is a self-contained equivalence check rather than one requiring external ground truth. The fifth
+test is the PDF-level, end-to-end proof: the literal bug-report content stream (four nested
+`f*`-filled rectangles, `0.6 0.6 0.6 rg ... re ... re ... re ... re f*`) rendered through the
+public `PdfDocument.Render` API at a resolution where all four boundaries land inside one device
+row, asserting the resolved alpha matches an independently hand-computed weighted-parity value
+exactly, proving the fix holds through the full PDF content-stream-to-pixel pipeline, not only the
+`ScanlineRasterizer` unit level.
+
 ##### CanvasNet-Drawing-PathFiller-ScanlineActiveEdgeList: Active-Edge-List Add/Remove Occurs at the Correct Rows
 
 **Test**: `ScanlineRasterizer_Fill_EdgeStartingAndEndingMidSweep_StopsContributingAtCorrectRows`

@@ -69,6 +69,7 @@ own entry below for details).
 | `malformed-content-stream.pdf` | `re` operator given only 2 of its 4 required operands (malformed) |
 | `text-embedded-type1-font.pdf` | `/Subtype /Type1`, embedded PostScript `/FontFile` (Phase B) - `Tf`/`Td`/`Tj` |
 | `text-standard14-type1-no-fontfile.pdf` | `/Subtype /Type1`, `/BaseFont /Helvetica`, no `/FontFile*` (Phase B) |
+| `fill-evenodd-nested-rectangles-double-border.pdf` | Even-odd (`f*`) "double border" - four boundaries in one row |
 | `text-type1c-differences-agl-ligatures.pdf` | Real-world `/Differences` names resolved via embedded font |
 
 For this phase, a real-world third-party PDF sourcing pass was investigated (mirroring
@@ -130,6 +131,20 @@ except its font dictionary declares `/Subtype /Type1` instead of `/Subtype /True
 the free non-embedded fallback path (`ResolveFallbackFont`) is reachable for `/Type1` fonts too,
 not only `/TrueType` fonts. Like `standard14-font-fallback.pdf`, it declares no
 `/FontDescriptor/FontFile`/`/FontFile2`/`/FontFile3` at all.
+
+`fill-evenodd-nested-rectangles-double-border.pdf` reproduces a real-world even-odd ("double
+border") rendering defect: four nested rectangles sharing the same x-range (`96 624` wide) but
+with slightly different y-ranges (bottom edges at user-space y `60`, `61.67`, `63.33`, `65`,
+mirrored at the top), filled with a single `f*` (`FillRule.EvenOdd`) operator - the exact
+operator sequence from the original bug report, `0.6 0.6 0.6 rg 96 65 624 930 re 96 61.67 624 934
+re 96 63.33 624 932 re 96 60 624 936 re f*`. At full (1:1) resolution each boundary lands in its
+own device-pixel row and renders correctly; at the downscaled resolution its system-integration
+test renders at, all four bottom boundaries (and, symmetrically, all four top boundaries) land
+strictly inside a single device-pixel row, reproducing the `ScanlineRasterizer` cell-accumulation
+defect fixed alongside this fixture (see `docs/design/canvas-net/drawing/path-filler.md` and
+`ScanlineRasterizerTests`'s own unit-level regressions for the underlying mechanism) - without the
+fix, the affected row folds to materially the wrong coverage; with the fix, it matches an
+independently hand-computed weighted-parity value exactly.
 
 `text-type1c-differences-agl-ligatures.pdf` is, unlike every other fixture in this folder, **not**
 hand-authored: it is a trimmed, single-page excerpt of a real-world document (page 4), kept

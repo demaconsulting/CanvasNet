@@ -897,6 +897,45 @@ public class PdfSystemIntegrationTests
         Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[97, 50]);
     }
 
+    /// <summary>
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> resolves even-odd (<c>f*</c>) coverage
+    ///     correctly end-to-end when multiple subpaths' y-boundaries land inside the SAME
+    ///     device-pixel row - the real-world "double border" regression fixed in
+    ///     <c>ScanlineRasterizer</c>'s <c>CoverageSweep</c> (see
+    ///     <c>ScanlineRasterizerTests</c>'s unit-level regressions, and
+    ///     <c>docs/design/canvas-net/drawing/path-filler.md</c>, for the underlying mechanism).
+    ///     The fixture's content stream is the literal bug-report operator sequence: four nested
+    ///     rectangles sharing the same x-range but with slightly different y-ranges, filled with a
+    ///     single <c>f*</c>. Rendered at this test's chosen resolution, all four bottom-edge
+    ///     y-boundaries (user-space y <c>60</c>/<c>61.67</c>/<c>63.33</c>/<c>65</c>) land strictly
+    ///     inside device row 183 (out of 195), forcing the rare multi-toggle-per-row code path.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_PdfRender_EvenOddFill_MultipleBoundariesInSameRow_ResolvesPartialCoverageNotFullyOpaque()
+    {
+        // Arrange: MediaBox [0 0 816 1061], /Contents = four nested "0.6 0.6 0.6 rg ... re"
+        // rectangles painted with a single "f*" - see PdfFixtures/README.md for the exact
+        // operator sequence and provenance.
+        using var document = PdfDocument.Open(Fixture("fill-evenodd-nested-rectangles-double-border.pdf"));
+
+        // Act: render at 149x195 - the smallest integral scale (preserving the page's aspect
+        // ratio) at which device row 183 spans user-space y [59.852, 65.293), wide enough to
+        // contain all four bottom-edge boundaries (60/61.67/63.33/65) strictly inside one row.
+        using var surface = document.Render(0, 149, 195, Transparent);
+        var alpha = surface[74, 183].A;
+
+        // Assert: the affected row's coverage matches an independently hand-computed
+        // height-weighted even-odd parity average over its four sub-intervals -
+        // [59.852, 60) parity 0 (height 0.148), [60, 61.67) parity 1 (height 1.67),
+        // [61.67, 63.33) parity 0 (height 1.66), [63.33, 65) parity 1 (height 1.67),
+        // [65, 65.293) parity 0 (height 0.293) - total covered height (1.67 + 1.67) over the
+        // 5.441-unit row height is ~0.6139 coverage, i.e. alpha 157 - strictly between fully
+        // transparent (0) and fully opaque (255), proving the "double border" gap is no longer
+        // folded away into a single solid, fully-opaque block.
+        Assert.Equal(157, alpha);
+        Assert.True(alpha is > 0 and < 255);
+    }
+
     /// <summary>Builds a <c>/FunctionType 2</c> stream object body (no sample data - exponential functions carry no <c>/FunctionType 0</c> sample bytes) for <see cref="BuildSyntheticPatternPdf"/>'s own <paramref name="dictionaryEntries"/>-driven extra objects.</summary>
     private static byte[] BuildPatternFunctionStreamBody(string dictionaryEntries) =>
         System.Text.Encoding.ASCII.GetBytes($"<< {dictionaryEntries} /Length 0 >>\nstream\n\nendstream");

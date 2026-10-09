@@ -254,6 +254,37 @@ approximation converging only as the sample count grows.
      behavior of AGG/FreeType/`stb_truetype` for coincident/overlapping contours within one cell,
      and is a materially rarer case in practice than ordinary self-intersecting geometry, which is
      why this trade-off is accepted in exchange for fixing the crossing-edge bug above.
+   - **Fix: exact sub-row splitting for multiple `EvenOdd` toggles within one row.**
+     `ResolveCoverage`'s `EvenOdd` fold collapses a single scalar - the row-height-weighted
+     integral of winding number over the row - into a parity value via `magnitude % 2` (reflected
+     above `1`). Folding and integrating only commute when at most one edge's `Y0`/`Y1` lands
+     strictly inside the row for a given column; when two or more do (for example several nested
+     shapes whose boundaries are all closer together than one device pixel - the "double border"
+     regression: four nested rectangles whose y-boundaries all land in the same row), the single
+     fold sees only the row's total accumulated winding, not how many times parity actually
+     toggled across the row's height, and silently produces the wrong coverage (observed: a fully
+     opaque fold where the true height-weighted parity average is a fraction such as ~0.33).
+     `FillRule.NonZero` never needs this reasoning - its fold (`magnitude != 0`) is a single
+     yes/no threshold on the same running total regardless of how many times winding crosses zero
+     within the row, so it trivially commutes with integration - which is why this fix touches
+     only the `EvenOdd` path and leaves `NonZero`'s code path completely untouched, bit-for-bit,
+     with no performance change whatsoever for `NonZero` or for any `EvenOdd` row with fewer than
+     two mid-row breakpoints (the overwhelming common case, handled by the original, unmodified
+     single-pass accumulation method). Only when `EvenOdd` and two or more distinct `Y0`/`Y1`
+     values land strictly inside the row does the rare slow path run: the row is split into
+     sub-intervals at each breakpoint; every `RowEdge` is re-clipped to each sub-interval's
+     `[top, bottom)` span by linearly re-interpolating its already-affine `x(y)` mapping at the
+     sub-interval's boundaries - exact for slanted edges as well as axis-aligned ones, since
+     restricting an affine function to a sub-interval of its domain and re-evaluating its
+     endpoints is exact, not an approximation. By construction no breakpoint lands strictly inside
+     any single sub-interval (breakpoints are exactly the sub-interval boundaries), so within any
+     one sub-interval no edge newly starts or stops partway through for any column - restoring the
+     single-toggle-per-row precondition the unmodified `ResolveCoverage` fold already relies on, so
+     each sub-interval's coverage is resolved by that same unmodified fold, scaled to that
+     sub-interval's own height, and the sub-intervals' coverages are combined by weighting each by
+     `sub-interval height / row height` and summing - exactly the height-weighted parity average
+     the single fold was supposed to approximate, now computed exactly because each term is
+     independently resolved over a range where the fold is valid.
 
 **Degenerate input**: an empty `polygons` list, or a polygon reduced (after edge-table
 construction skips horizontal edges) to fewer than 2 usable non-horizontal edges, contributes no
@@ -276,7 +307,13 @@ accumulation step above for why this is not a flat `O(edges)`, and degrades towa
 `O(edges * clippedWidth)` only for the atypical case of many edges nearly horizontal within a
 single row); and the dense per-row buffers themselves cost `O(rows * clippedWidth)` regardless of
 edge count - i.e. every term is bounded by the clipped bounding box of the path, not the full
-surface, and no edge is ever revisited for rows outside its own vertical extent.
+surface, and no edge is ever revisited for rows outside its own vertical extent. The rare
+`EvenOdd` multi-toggle-per-row sub-row-splitting path (see above) raises that row's own cost from
+`O(edges + clippedWidth)` to `O(edges + clippedWidth * breakpoints)` - re-accumulating cell
+contributions once per sub-interval - strictly worse than the common case, but only for the rare
+row where two or more edges' boundaries coincide within one device pixel, and still bounded by the
+number of edges actually active in that one row, so it cannot degrade the algorithm's overall
+complexity beyond a small, rare, local constant-factor multiplier confined to that row.
 
 These complexity properties (in particular, avoiding an `O(edges^2)` or `O(edges * rows)`
 blowup) are established by this design-level analysis and confirmed by code/design review of

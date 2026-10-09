@@ -92,6 +92,63 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     is why this trade-off is accepted in exchange for fixing the crossing-edge bug.
 ///     </para>
 ///     <para>
+///     <b>Why a single fold is insufficient when multiple edges toggle inside one row under
+///     <see cref="FillRule.EvenOdd"/>.</b> <see cref="CoverageSweep.ResolveCoverage"/>'s even-odd branch
+///     folds a single scalar - the row-height-weighted integral of winding number,
+///     <c>&#8747; w(y) dy</c> over the row, normalized to <c>[0, 1]</c> - into a parity value via
+///     <c>magnitude % 2</c> (reflected above <c>1</c>). Folding and integrating commute
+///     (<c>fold(&#8747; w dy) = &#8747; fold(w(y)) dy</c>) only when <c>w(y)</c> does not change
+///     sign/parity-class more than once within the row for a given column - i.e. at most one
+///     edge's <c>Y0</c>/<c>Y1</c> lands strictly inside the row. When two or more edges' start/end
+///     y-boundaries land inside the SAME row for the same column (for example several nested
+///     shapes whose boundaries are all closer together than one device pixel, such as this
+///     project's own "double border" regression - four nested rectangles whose boundaries all
+///     land in one row), <c>fold(&#8747; w dy) &#8800; &#8747; fold(w(y)) dy</c> in general: the
+///     single scalar fold sees only the row's total accumulated winding, not how many times parity
+///     actually toggled across the row's height, and silently produces the wrong coverage (for
+///     example, a fully opaque fold where the true height-weighted parity average is a fraction
+///     such as ~0.33). <see cref="FillRule.NonZero"/> never needs this reasoning: its fold
+///     (<c>magnitude != 0</c>) is a single yes/no threshold on the same running total regardless of
+///     how many times winding crosses zero within the row, so <c>fold</c> and <c>&#8747;</c>
+///     trivially commute for it - which is exactly why the fix below touches only the
+///     <see cref="FillRule.EvenOdd"/> path and leaves <see cref="FillRule.NonZero"/>'s code path
+///     completely untouched, bit-for-bit.
+///     </para>
+///     <para>
+///     <b>Fix: exact sub-row splitting for the rare even-odd multi-toggle-per-row case.</b> Each
+///     row first runs <see cref="CoverageSweep.CollectMidRowBreakpoints"/>, which scans every active edge's
+///     <c>Y0</c>/<c>Y1</c> for values landing strictly inside the row (not merely at its top/bottom
+///     boundary, which is the common case and needs no special handling). When fewer than two
+///     distinct breakpoints are found, or the fill rule is <see cref="FillRule.NonZero"/>, the row
+///     is accumulated exactly as before via <see cref="CoverageSweep.AccumulateRowCoverageSinglePass"/> - the
+///     original, unmodified single-pass method, same code, same output, bit-for-bit, for the
+///     overwhelming common case. Only when <see cref="FillRule.EvenOdd"/> and two or more
+///     breakpoints land inside the row does
+///     <see cref="CoverageSweep.AccumulateRowCoverageWithSubRowSplitting"/> run instead: the row is split into
+///     sub-intervals at each breakpoint, and <see cref="CoverageSweep.AccumulateSubInterval"/> re-clips every
+///     <see cref="RowEdge"/> to each sub-interval's <c>[top, bottom)</c> span by linearly
+///     re-interpolating its already-affine <c>x(y)</c> mapping at the sub-interval's boundaries -
+///     exact for slanted edges as well as axis-aligned ones, since a <see cref="RowEdge"/>'s x as a
+///     function of y is already an affine (straight-line) relationship by construction, and
+///     restricting an affine function to a sub-interval of its domain and re-evaluating its
+///     endpoints is exact, not an approximation. By construction each sub-interval contains no
+///     breakpoint strictly inside it (breakpoints are exactly the sub-interval boundaries), so
+///     within any single sub-interval no edge newly starts or stops partway through for any
+///     column - restoring the single-toggle-per-row precondition the existing, unmodified
+///     <see cref="CoverageSweep.ResolveCoverage"/> fold already relies on, so each sub-interval's coverage is
+///     resolved by that same fold, unmodified, scaled to that sub-interval's own height. The
+///     sub-intervals' resolved coverages are then combined by weighting each by
+///     <c>sub-interval height / row height</c> and summing - exactly the height-weighted parity
+///     average the single-fold approach was supposed to approximate, but now computed exactly
+///     because each term is independently resolved over a range where the fold is valid. This
+///     raises the rare multi-toggle row's cost from <c>O(edges + columns)</c> to
+///     <c>O(edges + columns x breakpoints)</c> (re-accumulating cell contributions once per
+///     sub-interval) - strictly worse than the common case, but only in the rare row where several
+///     edges' boundaries coincide within one device pixel, and still bounded by the number of
+///     edges actually active in that row, so it cannot degrade overall complexity beyond a small,
+///     rare, local constant-factor multiplier.
+///     </para>
+///     <para>
 ///     Edges lying entirely to the left of the clipped column range, or spanning across it, are
 ///     analytically split at the clip boundary rather than walked column-by-column outside the
 ///     visible range, so an edge (or a whole polygon) that extends far outside the surface's
@@ -342,11 +399,14 @@ internal static class ScanlineRasterizer
         private readonly float[] _cover;
         private readonly float[] _area;
         private readonly float[] _rowCoverage;
+        private readonly float[] _subRowCoverage;
         private readonly List<Edge> _activeEdges = [];
         private readonly List<int> _activeEdgeIds = [];
         private readonly Dictionary<int, int> _activeEdgePositions = [];
         private readonly List<int>?[] _expiringEdgeIds;
         private readonly List<RowEdge> _rowEdges = [];
+        private readonly List<float> _rowBreakpoints = [];
+        private readonly List<RowEdge> _subRowEdges = [];
         private int _nextEdgeIndex;
         private int _currentY;
 
@@ -372,6 +432,7 @@ internal static class ScanlineRasterizer
                 _cover = [];
                 _area = [];
                 _rowCoverage = [];
+                _subRowCoverage = [];
                 return;
             }
 
@@ -383,6 +444,7 @@ internal static class ScanlineRasterizer
                 _cover = [];
                 _area = [];
                 _rowCoverage = [];
+                _subRowCoverage = [];
                 return;
             }
 
@@ -392,9 +454,14 @@ internal static class ScanlineRasterizer
             // slot" reason AccumulateSingleColumn/AccumulateSlantedSpan's own bank-index clamping
             // needs. "rowCoverage" holds the final, already fill-rule-resolved coverage per
             // column, produced by the single left-to-right sweep over "cover"/"area".
+            // "subRowCoverage" is used only by the rare EvenOdd multi-mid-row-breakpoint path
+            // (see AccumulateRowCoverageWithSubRowSplitting) to accumulate each sub-interval's
+            // own height-weighted coverage contribution before it is merged into "rowCoverage" -
+            // it is never touched by the common fast path.
             _cover = new float[Width + 1];
             _area = new float[Width];
             _rowCoverage = new float[Width];
+            _subRowCoverage = new float[Width];
             _expiringEdgeIds = new List<int>?[_clipMaxY - _clipMinY];
         }
 
@@ -457,7 +524,7 @@ internal static class ScanlineRasterizer
                     continue;
                 }
 
-                AccumulateRowCoverage(y);
+                AccumulateRowCoverage(y, rowTop, rowBottom);
 
                 rowCoverage = _rowCoverage;
                 return true;
@@ -532,6 +599,71 @@ internal static class ScanlineRasterizer
         }
 
         /// <summary>
+        ///     Resolves this row's final <see cref="_rowCoverage"/>, dispatching to whichever of
+        ///     the two coverage-resolution strategies this row and <see cref="_fillRule"/>
+        ///     actually require.
+        /// </summary>
+        /// <param name="y">
+        ///     The zero-based device row being resolved - used only to look up this row's own
+        ///     <see cref="_clip"/> coverage per column, when a clip is active.
+        /// </param>
+        /// <param name="rowTop">This device row's top y-coordinate, in path-space units.</param>
+        /// <param name="rowBottom">This device row's bottom y-coordinate, in path-space units.</param>
+        /// <remarks>
+        ///     <para>
+        ///     <b>Why a dispatcher exists at all.</b> <see cref="ResolveCoverage"/>'s
+        ///     <c>EvenOdd</c> fold (<c>magnitude % 2</c>, reflected into <c>[0, 1]</c>) is exact
+        ///     only when the row's accumulated <c>total</c> reflects at most one winding-number
+        ///     transition for the column it describes - true whenever at most one active edge's
+        ///     <see cref="RowEdge.Y0"/>/<see cref="RowEdge.Y1"/> falls strictly inside this row
+        ///     (the overwhelmingly common case: an ordinary edge either spans the row's full
+        ///     height, having already started/ended in an earlier/later row, or is the one edge
+        ///     that legitimately starts or stops here). When two or more edges' boundaries land
+        ///     strictly inside the <em>same</em> row - for example, several nested rectangles
+        ///     whose close-together top/bottom edges all collapse into one device-pixel row under
+        ///     downscaling, the real-world <c>border: double</c> rendering defect this dispatch
+        ///     fixes - the row's true winding number visits three or more distinct values across
+        ///     its height for a shared column, and folding the row's single combined <c>total</c>
+        ///     no longer equals the parity-weighted average of those values:
+        ///     <c>fold(integral of w dy) != integral of parity(w(y)) dy</c> in general, though the
+        ///     two sides are provably equal whenever <c>w</c> only ever takes two distinct values
+        ///     across the row (the single-toggle case). <c>NonZero</c>'s resolution
+        ///     (<c>min(1, abs(total))</c>) has no such restriction - it depends only on the
+        ///     row-integrated magnitude, not on how many times winding number crosses parity
+        ///     boundaries within the row - so it is exact for every row regardless of how many
+        ///     mid-row breakpoints exist, and is therefore never routed through the sub-row
+        ///     splitting path below.
+        ///     </para>
+        ///     <para>
+        ///     <b>Dispatch condition.</b> <see cref="CollectMidRowBreakpoints"/> counts the
+        ///     distinct, strictly-mid-row <see cref="RowEdge.Y0"/>/<see cref="RowEdge.Y1"/> values
+        ///     this row's edges contribute. <c>NonZero</c> always takes the fast,
+        ///     unmodified single-pass path (<see cref="AccumulateRowCoverageSinglePass"/>) -
+        ///     unconditionally, so its output is bit-for-bit identical to before this dispatcher
+        ///     existed. <c>EvenOdd</c> also takes that same fast path whenever fewer than two such
+        ///     breakpoints exist, which keeps the - already proven exact, see above - common case
+        ///     at its original <c>O(edges + columns)</c> cost with no behavioral change. Only
+        ///     <c>EvenOdd</c> rows with two or more mid-row breakpoints fall through to
+        ///     <see cref="AccumulateRowCoverageWithSubRowSplitting"/>, whose cost is
+        ///     <c>O(edges + columns * breakpoints)</c> for that row alone (each of the
+        ///     <c>breakpoints + 1</c> sub-intervals re-scans this row's edges and re-sweeps every
+        ///     column) - acceptable because multi-toggle rows are rare by construction (most edges
+        ///     are long relative to a single row's height), so this cost is paid only on the rare
+        ///     rows that actually need it, never across the whole fill.
+        ///     </para>
+        /// </remarks>
+        private void AccumulateRowCoverage(int y, float rowTop, float rowBottom)
+        {
+            if (_fillRule == FillRule.EvenOdd && CollectMidRowBreakpoints(rowTop, rowBottom) >= 2)
+            {
+                AccumulateRowCoverageWithSubRowSplitting(y, rowTop, rowBottom);
+                return;
+            }
+
+            AccumulateRowCoverageSinglePass(y);
+        }
+
+        /// <summary>
         ///     Accumulates every active, row-restricted edge into the shared <c>cover</c>/<c>area</c>
         ///     cell arrays, then sweeps left to right exactly once to resolve <see cref="_rowCoverage"/>.
         /// </summary>
@@ -540,11 +672,12 @@ internal static class ScanlineRasterizer
         ///     <see cref="_clip"/> coverage per column, when a clip is active.
         /// </param>
         /// <remarks>
-        ///     Isolated from <see cref="MoveNext"/> as its own self-contained row-sweep phase,
-        ///     independently nameable from edge expiration/activation - see this class's
-        ///     type-level remarks for the cell-based accumulation technique.
+        ///     The common-case fast path (see <see cref="AccumulateRowCoverage"/>'s remarks for
+        ///     when it is and is not taken) - unmodified since before the sub-row-splitting fix
+        ///     existed, so every row/fill-rule combination that took this path before still
+        ///     produces bit-for-bit identical output.
         /// </remarks>
-        private void AccumulateRowCoverage(int y)
+        private void AccumulateRowCoverageSinglePass(int y)
         {
             // Accumulate every active edge's row-restricted slice into the shared cell
             // arrays - a single O(edges) pass, with no sorting and no pairing of edges into
@@ -576,6 +709,217 @@ internal static class ScanlineRasterizer
                 }
 
                 _rowCoverage[i] = coverage;
+            }
+        }
+
+        /// <summary>
+        ///     Collects, into <see cref="_rowBreakpoints"/> (sorted ascending, with near-equal
+        ///     values deduplicated), every distinct y-coordinate at which some
+        ///     <see cref="_rowEdges"/> entry's <see cref="RowEdge.Y0"/> or <see cref="RowEdge.Y1"/>
+        ///     falls strictly inside <c>(rowTop, rowBottom)</c> - that is, every point mid-row
+        ///     where some edge actually starts or stops, as opposed to merely spanning the row's
+        ///     full height.
+        /// </summary>
+        /// <param name="rowTop">This device row's top y-coordinate, in path-space units.</param>
+        /// <param name="rowBottom">This device row's bottom y-coordinate, in path-space units.</param>
+        /// <returns>The number of distinct mid-row breakpoints found (0, 1, or more).</returns>
+        /// <remarks>
+        ///     Uses the same <see cref="NearZeroDisplacement"/> tolerance the rest of this class
+        ///     uses for "is this y effectively at a given boundary" comparisons, both to decide
+        ///     whether a boundary is strictly interior (excluding one that lands within rounding
+        ///     distance of <paramref name="rowTop"/>/<paramref name="rowBottom"/> themselves, which
+        ///     is the ordinary single-toggle case already handled correctly by the fast path) and
+        ///     to merge near-duplicate breakpoints (for example, two edges both starting at
+        ///     exactly the same y) into one, so a coincidence of floating-point rounding never
+        ///     spuriously inflates the count past the two-breakpoint dispatch threshold or
+        ///     produces a near-zero-height sub-interval below.
+        /// </remarks>
+        private int CollectMidRowBreakpoints(float rowTop, float rowBottom)
+        {
+            _rowBreakpoints.Clear();
+
+            foreach (var edge in _rowEdges)
+            {
+                if (edge.Y0 > rowTop + NearZeroDisplacement && edge.Y0 < rowBottom - NearZeroDisplacement)
+                {
+                    _rowBreakpoints.Add(edge.Y0);
+                }
+
+                if (edge.Y1 > rowTop + NearZeroDisplacement && edge.Y1 < rowBottom - NearZeroDisplacement)
+                {
+                    _rowBreakpoints.Add(edge.Y1);
+                }
+            }
+
+            if (_rowBreakpoints.Count < 2)
+            {
+                return _rowBreakpoints.Count;
+            }
+
+            _rowBreakpoints.Sort();
+
+            var writeIndex = 1;
+            for (var readIndex = 1; readIndex < _rowBreakpoints.Count; readIndex++)
+            {
+                if (_rowBreakpoints[readIndex] - _rowBreakpoints[writeIndex - 1] > NearZeroDisplacement)
+                {
+                    _rowBreakpoints[writeIndex] = _rowBreakpoints[readIndex];
+                    writeIndex++;
+                }
+            }
+
+            _rowBreakpoints.RemoveRange(writeIndex, _rowBreakpoints.Count - writeIndex);
+            return _rowBreakpoints.Count;
+        }
+
+        /// <summary>
+        ///     The rare <c>EvenOdd</c>, two-or-more-mid-row-breakpoint path (see
+        ///     <see cref="AccumulateRowCoverage"/>'s remarks for why this is needed and when it is
+        ///     taken): splits the row into exact sub-intervals at <see cref="_rowBreakpoints"/>,
+        ///     resolves each sub-interval's own coverage independently via the existing,
+        ///     unmodified <see cref="ResolveCoverage"/> fold, and sums each sub-interval's
+        ///     contribution weighted by its own height (a fraction of the full row height) to
+        ///     produce the row's final, exact parity-weighted average coverage per column.
+        /// </summary>
+        /// <param name="y">
+        ///     The zero-based device row being resolved - used only to look up this row's own
+        ///     <see cref="_clip"/> coverage per column, when a clip is active.
+        /// </param>
+        /// <param name="rowTop">This device row's top y-coordinate, in path-space units.</param>
+        /// <param name="rowBottom">This device row's bottom y-coordinate, in path-space units.</param>
+        /// <remarks>
+        ///     <para>
+        ///     <b>Why splitting at every mid-row breakpoint restores exactness.</b> By
+        ///     construction, no edge starts or stops strictly inside any one of the resulting
+        ///     sub-intervals - every such point was already extracted as a sub-interval boundary -
+        ///     so within a single sub-interval the true winding number for any column changes at
+        ///     most by the edges that continuously cross it (a slanted edge's own partial-column
+        ///     crossing), never by a boundary appearing or disappearing mid-sub-interval. That is
+        ///     exactly the condition <see cref="ResolveCoverage"/>'s fold is already proven exact
+        ///     for (see <see cref="AccumulateRowCoverage"/>'s remarks), so applying it per
+        ///     sub-interval - rather than once for the whole multi-toggle row - is correct. A
+        ///     column where a slanted edge happens to cross partially within a sub-interval that
+        ///     also contains an unrelated edge's own crossing is the one case this does not fully
+        ///     resolve exactly; it falls back to the same already-documented, accepted
+        ///     coincident/overlapping-within-one-cell approximation this class's type-level
+        ///     remarks describe for the ordinary fast path, not a new trade-off introduced here,
+        ///     and only applies within the already-rare compound case of "slanted edge crossing
+        ///     and an unrelated boundary toggling in the very same sub-interval".
+        ///     </para>
+        ///     <para>
+        ///     <b>Why re-clipping a <see cref="RowEdge"/> to a sub-interval is exact for slanted
+        ///     edges, not just vertical ones.</b> <see cref="BuildRowEdges"/> already derives each
+        ///     <see cref="RowEdge"/>'s <see cref="RowEdge.XAtY0"/>/<see cref="RowEdge.XAtY1"/> from
+        ///     the same affine <c>x = TopX + Slope * (y - TopY)</c> relationship the parent
+        ///     <see cref="Edge"/> holds, so <c>x</c> is linear in <c>y</c> across the whole
+        ///     <c>[Y0, Y1]</c> range. <see cref="AccumulateSubInterval"/> below re-derives each
+        ///     sub-interval's endpoint <c>x</c> values by linearly interpolating along that exact
+        ///     same affine mapping, restricted to the sub-interval's own <c>[subTop, subBottom]</c>
+        ///     - not an approximation, because a sub-range of a linear function is still exactly
+        ///     that same linear function.
+        ///     </para>
+        ///     <para>
+        ///     <b>Why dividing by sub-interval height before folding, then multiplying back, is
+        ///     correct.</b> The fast path's <c>ResolveCoverage(total, fillRule)</c> implicitly
+        ///     assumes <c>total</c> is the winding integral over a full unit-height row - a column
+        ///     fully inside the shape across the whole row accumulates <c>deltaY</c> contributions
+        ///     summing to exactly <c>1</c>. A sub-interval's own height is some fraction
+        ///     <c>h &lt; 1</c> of the full row, so a column fully inside the shape across only that
+        ///     sub-interval accumulates a <c>total</c> of only <c>h</c>, not <c>1</c> - dividing by
+        ///     <c>h</c> first (the "density") restores the same per-unit-height scale the fold
+        ///     already assumes, and multiplying the resolved <c>[0, 1]</c> fraction back by
+        ///     <c>h</c> afterward converts it back into this sub-interval's own
+        ///     height-proportional contribution to the full row's average - exactly the
+        ///     area-weighted average the task requires.
+        ///     </para>
+        /// </remarks>
+        private void AccumulateRowCoverageWithSubRowSplitting(int y, float rowTop, float rowBottom)
+        {
+            Array.Clear(_subRowCoverage);
+
+            var previousBoundary = rowTop;
+            for (var i = 0; i <= _rowBreakpoints.Count; i++)
+            {
+                var boundary = i < _rowBreakpoints.Count ? _rowBreakpoints[i] : rowBottom;
+                AccumulateSubInterval(previousBoundary, boundary);
+                previousBoundary = boundary;
+            }
+
+            for (var i = 0; i < Width; i++)
+            {
+                var coverage = _subRowCoverage[i];
+                if (_clip != null)
+                {
+                    coverage *= _clip.GetCoverage(_clipMinX + i, y);
+                }
+
+                _rowCoverage[i] = coverage;
+            }
+        }
+
+        /// <summary>
+        ///     Accumulates one sub-row interval's own <c>EvenOdd</c> coverage - re-clipping every
+        ///     <see cref="_rowEdges"/> entry to <c>[subTop, subBottom)</c>, accumulating the
+        ///     restricted edges via the same unmodified <see cref="AccumulateRowEdge"/> cell
+        ///     accumulation the fast path uses, resolving via the same unmodified
+        ///     <see cref="ResolveCoverage"/> fold (scaled by this sub-interval's own height, see
+        ///     <see cref="AccumulateRowCoverageWithSubRowSplitting"/>'s remarks), and adding the
+        ///     height-weighted result into <see cref="_subRowCoverage"/>.
+        /// </summary>
+        /// <param name="subTop">This sub-interval's top y-coordinate, in path-space units.</param>
+        /// <param name="subBottom">This sub-interval's bottom y-coordinate, in path-space units.</param>
+        private void AccumulateSubInterval(float subTop, float subBottom)
+        {
+            var height = subBottom - subTop;
+            if (height <= NearZeroDisplacement)
+            {
+                // A near-zero-height sub-interval (possible only from floating-point rounding
+                // between adjacent breakpoints that CollectMidRowBreakpoints' deduplication did
+                // not fully merge) contributes a negligible area-weighted share - skipping it also
+                // avoids dividing by a near-zero height below.
+                return;
+            }
+
+            _subRowEdges.Clear();
+            foreach (var edge in _rowEdges)
+            {
+                var oy0 = Math.Max(edge.Y0, subTop);
+                var oy1 = Math.Min(edge.Y1, subBottom);
+                if (oy0 >= oy1)
+                {
+                    continue;
+                }
+
+                // Linearly interpolate this edge's x at the sub-interval's own restricted y
+                // range, along the exact same affine x(y) mapping BuildRowEdges already derived
+                // this RowEdge's own XAtY0/XAtY1 from - exact for slanted edges, not merely
+                // vertical ones (see this method's remarks).
+                var edgeHeight = edge.Y1 - edge.Y0;
+                var xAtOy0 = edge.XAtY0 + ((oy0 - edge.Y0) / edgeHeight * (edge.XAtY1 - edge.XAtY0));
+                var xAtOy1 = edge.XAtY0 + ((oy1 - edge.Y0) / edgeHeight * (edge.XAtY1 - edge.XAtY0));
+                _subRowEdges.Add(new RowEdge(oy0, oy1, xAtOy0, xAtOy1, edge.Direction));
+            }
+
+            if (_subRowEdges.Count == 0)
+            {
+                return;
+            }
+
+            Array.Clear(_cover);
+            Array.Clear(_area);
+            foreach (var edge in _subRowEdges)
+            {
+                AccumulateRowEdge(edge, _clipMinX, _clipMaxX, _cover, _area);
+            }
+
+            var accumulatedCover = 0f;
+            for (var i = 0; i < Width; i++)
+            {
+                accumulatedCover += _cover[i];
+                var total = accumulatedCover + _area[i];
+                var density = total / height;
+                var coverage = ResolveCoverage(density, FillRule.EvenOdd);
+                _subRowCoverage[i] += coverage * height;
             }
         }
 
