@@ -150,6 +150,10 @@ public sealed partial class PdfDocument
         var savedGs = _gs;
         var savedGsStack = _gsStack;
         var savedPendingClipFillRule = _pendingClipFillRule;
+        var savedTextClipBuilder = _textClipBuilder;
+        var savedTextClipPending = _textClipPending;
+        _textClipBuilder = null;
+        _textClipPending = false;
         _formNestingDepth++;
         try
         {
@@ -168,6 +172,8 @@ public sealed partial class PdfDocument
             _gs = savedGs;
             _gsStack = savedGsStack;
             _pendingClipFillRule = savedPendingClipFillRule;
+            _textClipBuilder = savedTextClipBuilder;
+            _textClipPending = savedTextClipPending;
         }
     }
 

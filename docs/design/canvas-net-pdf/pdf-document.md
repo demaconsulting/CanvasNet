@@ -88,8 +88,8 @@ entirely unsupported and fail closed with `Codecs.UnsupportedImageFeatureExcepti
 instead surfaces as `InvalidDataException` via `Fonts.CffTable.Parse`'s own existing rejection);
 only the `/WinAnsiEncoding` and `/MacRomanEncoding` base encodings (plus `/Differences`) are
 supported (an unrecognized base encoding also fails closed); text-rendering modes `0` (fill), `1`
-(stroke), `2` (fill, then stroke), and `3` (invisible) are supported (clip modes `4`-`7` fail
-closed); and no additional stream filters were added for any of these phases.
+(stroke), `2` (fill, then stroke), `3` (invisible), and the clip modes `4`-`7` are supported (a Type 3
+glyph under a clip mode fails closed); and no additional stream filters were added for any of these phases.
 **Phase 3 limitations** (narrowed by Phase 7/13 and the `/Pattern` color-space phase, see below):
 no transparency groups; shading/tiling pattern fills were added (`/ShadingType 2`/`3`,
 `/PatternType 1`/`2` — see _`/Pattern` Color Space (Shading and Tiling Patterns)_ below, reusing
@@ -1177,8 +1177,18 @@ its own distinguishable `Feature` token.
   named font resource via `ResolveFont` and stores it alongside the requested size;
   `OpSetTextRenderMode` (`Tr`) accepts modes `0` (fill, the default), `1` (stroke), `2`
   (fill, then stroke), and `3` (invisible — painted with zero-area geometry, i.e. skipped
-  entirely), throwing `Codecs.UnsupportedImageFeatureException` for the clip modes `4`-`7` (out
-  of this phase's scope) or `InvalidDataException` for any other numeric value. `OpTextMoveTo`/
+  entirely), and `4`-`7` (the clip modes: fill/stroke/fill+stroke/invisible respectively, each
+  additionally accumulating the glyph's device-space outline into `_textClipBuilder` and setting
+  `_textClipPending`, even for outline-less glyphs such as spaces). `OpEndText` (`ET`) then, if a
+  clip is pending, builds the accumulated path, converts it via `ClipMask.FromPath` (non-zero
+  winding) and intersects it into `_gs.Clip`; the clip is therefore not applied until `ET`, and is
+  restored by `Q`. Space-only clip text yields an empty region that clips everything (spec-
+  conformant). `OpBeginText`, `ExecuteContentStream`, and the Form XObject/Type 3/tiling re-entrant
+  executors reset or save/restore the accumulator so nested content cannot clobber it. A Type 3
+  glyph shown under a clip mode throws `Codecs.UnsupportedImageFeatureException` (feature
+  `pdf-text-render-mode-type3-clip`) from `ShowGlyph` since it has no outline; any other numeric
+  value throws `InvalidDataException`. Modes `4`/`6` use the same flat fill color as modes `0`/`2`
+  (the pre-existing no-Pattern-fill simplification). `OpTextMoveTo`/
   `OpTextMoveToSetLeading`/`OpTextNextLine` (`Td`/`TD`/`T*`) and `OpSetTextMatrix` (`Tm`)
   manipulate `_textMatrix`/`_lineMatrix` per the specification's own line-matrix-relative-
   displacement (`Td`/`TD`, `TD` additionally setting `Leading = -ty`) versus direct-replacement
@@ -1613,9 +1623,10 @@ change behavior for any document within normal real-world limits.
 - **An `/Encoding` naming an unrecognized base encoding** (anything other than
   `/WinAnsiEncoding`/`/MacRomanEncoding`/`/StandardEncoding` (the last added in Phase B), or their
   dictionary form's `/BaseEncoding`) — `Codecs.UnsupportedImageFeatureException`.
-- **`Tr` (text-rendering mode) set to `4`-`7`** (the clip modes) —
-  `Codecs.UnsupportedImageFeatureException`; any other numeric value outside `0`-`7` is
-  `InvalidDataException` instead.
+- **A Type 3 glyph shown under a clipping `Tr` mode (`4`-`7`)** —
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-text-render-mode-type3-clip`), raised at
+  show time; `Tr` itself accepts `0`-`7`, and any other numeric value is
+  `InvalidDataException`.
 - **A text-showing operator (`Tj`/`'`/`"`/`TJ`) with no font currently selected** (`Tf` was never
   called), or a malformed operand count/type for any text operator — `InvalidDataException`,
   matching every other operator family's own convention.

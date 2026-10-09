@@ -1134,7 +1134,8 @@ geometry), a documented, narrower-than-spec simplification; the `sh` operator an
 clipping (`W`/`W*`) remain unsupported and are silently skipped. **Documented scope
 boundaries**: `/MMType1` fonts, mesh shadings (`/ShadingType 1`/`4`-`7`), `/FunctionType 4`
 (PostScript calculator) functions, the `sh` operator, generic path clipping, transparency groups,
-and clip text-rendering modes all fail closed with `UnsupportedImageFeatureException`
+and Type 3 glyphs shown under a clip text-rendering mode (`Tr 4`-`7`; clip modes with outline-based
+fonts are supported) all fail closed with `UnsupportedImageFeatureException`
 rather than being silently skipped or mis-rendered.
 
 ```csharp
@@ -1255,7 +1256,7 @@ reproduce the pre-`PdfRenderOptions` fully transparent background, pass
   stream filter, font subtype (`/MMType1`; `/TrueType`, `/Type0`, `/Type1`, and `/Type3` are all
   supported), an otherwise-symbolic font (other than `Symbol`/`ZapfDingbats`, which resolve via a
   bundled Noto substitute instead) with no embedded font data, font encoding, or
-  text-rendering mode.
+  Type 3 glyph under a clip text-rendering mode (`pdf-text-render-mode-type3-clip`).
 - `ObjectDisposedException`: Thrown when called after `Dispose()` has been called.
 
 ##### PdfDocument.Render(int pageIndex, float dpi, PdfRenderOptions? options = null)

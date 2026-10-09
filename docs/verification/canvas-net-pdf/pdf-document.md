@@ -1743,7 +1743,7 @@ position/size matches the composed text-rendering matrix formula independently r
 the same font's own metrics (see this class's own pixel-math derivation, confirmed empirically
 against the real rasterizer before being fixed into every position-dependent test's assertions).
 
-#### CanvasNetPdf-PdfDocument-Tr: Tr Supports Fill/Stroke/Fill+Stroke/Invisible Modes, Fails Closed for Clip Modes
+#### CanvasNetPdf-PdfDocument-Tr: Tr Supports Fill/Stroke/Fill+Stroke/Invisible and Clip Modes
 
 **Tests**: `PdfDocument_Text_RenderMode3_Invisible_DoesNotPaintGlyph`,
 `PdfDocument_Text_RenderMode3_Invisible_StillAdvancesTextPosition`,
@@ -1751,7 +1751,21 @@ against the real rasterizer before being fixed into every position-dependent tes
 `PdfDocument_Text_RenderMode2_FillAndStroke_PaintsBothFillAndStroke`,
 `PdfDocument_Text_RenderMode1_StrokePattern_PaintsPatternStroke`,
 `PdfDocument_Fonts_Type3_RenderMode1Or2_BehavesLikeRenderMode0`,
-`PdfDocument_Text_RenderMode_UnsupportedDefinedMode_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Text_RenderMode_ClipModes_AcceptedByTr`,
+`PdfDocument_Text_RenderMode7_ClipOnly_ClipsSubsequentFillToGlyph`,
+`PdfDocument_Text_RenderMode7_ClipOnly_PaintsNoGlyphInk`,
+`PdfDocument_Text_RenderMode4_FillAndClip_FillsThenClips`,
+`PdfDocument_Text_RenderMode4_FillAndClip_PaintsGlyphFill`,
+`PdfDocument_Text_RenderMode5_StrokeAndClip_StrokesThenClips`,
+`PdfDocument_Text_RenderMode6_FillStrokeClip_PaintsBothThenClips`,
+`PdfDocument_Text_RenderMode7_ClipAccumulatesAcrossMultipleGlyphs`,
+`PdfDocument_Text_RenderMode7_ClipIntersectsWithExistingClip`,
+`PdfDocument_Text_RenderMode7_ClipNotAppliedUntilEndText`,
+`PdfDocument_Text_RenderMode7_ClipRestoredByRestoreState`,
+`PdfDocument_Text_RenderMode7_ClipWithCompositeFont`,
+`PdfDocument_Text_RenderMode_ClipModes_Type3Font_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Text_RenderMode7_NoGlyphsShown_DoesNotChangeClip`,
+`PdfDocument_Text_RenderMode7_NestedFormXObjectText_DoesNotClobberOuterClip`,
 `PdfDocument_Text_RenderMode_OutOfDefinedRange_ThrowsInvalidDataException`
 
 Sets `Tr 3` (invisible) and shows a glyph, asserting no ink is painted at its expected position.
@@ -1769,8 +1783,15 @@ glyph stroke step shares the path-painting operators' own `/Pattern`-aware strok
 `[Theory]` shows a Type3 glyph under `Tr 1` and `Tr 2` in turn, asserting its own content-stream
 procedure's ink paints identically to `Tr 0` - proving Type3 glyphs (which have no outline and so
 no fill/stroke distinction) are unaffected by the new mode-aware outline paint logic. A
-`[Theory]` sets `Tr` to each of the defined clip modes (`4`/`5`/`6`/`7`) in turn, asserting
-`Codecs.UnsupportedImageFeatureException` in every case; a separate `[Theory]` sets `Tr` to a
+`[Theory]` sets `Tr` to each clip mode (`4`/`5`/`6`/`7`) alone, asserting it is accepted. Mode `7`
+tests show a glyph then fill the page, asserting only the glyph area receives the later fill and
+that mode `7` itself paints nothing; modes `4`/`5`/`6` assert their fill/stroke ink plus the clip.
+Further tests assert the clip accumulates the union of several glyphs, intersects an existing
+`W n` clip, is not applied until `ET`, is undone by `Q`, works with a composite font, and is
+unchanged when no glyph is shown. A test invokes a Form XObject mid-`BT` of an outer mode `7`
+block, the Form running its own mode `7` `BT`...`ET`, asserting the outer accumulation is not
+clobbered (only the outer glyph survives as the clip). A `[Theory]` shows a Type 3 glyph under each clip mode,
+asserting `Codecs.UnsupportedImageFeatureException`; a separate `[Theory]` sets `Tr` to a
 value outside the specification's defined `0`-`7` range, asserting `InvalidDataException`.
 
 #### CanvasNetPdf-PdfDocument-TextPositioning: Td/TD/Tm/T* Compose the Text and Line Matrices Correctly

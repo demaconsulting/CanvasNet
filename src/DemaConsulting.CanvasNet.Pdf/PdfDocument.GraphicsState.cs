@@ -151,7 +151,8 @@ public sealed partial class PdfDocument
         /// <summary>
         ///     Gets or sets the text-rendering mode. The PDF specification's default is <c>0</c>
         ///     (fill) - see <see cref="PdfDocument.OpSetTextRenderMode"/> for which modes this
-        ///     phase actually supports.
+        ///     implementation supports (all of <c>0</c>-<c>7</c>; modes <c>4</c>-<c>7</c> also feed
+        ///     the text clip applied at <c>ET</c>).
         /// </summary>
         internal int RenderMode { get; set; }
 

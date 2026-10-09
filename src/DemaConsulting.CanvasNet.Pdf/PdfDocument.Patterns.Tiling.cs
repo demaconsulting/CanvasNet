@@ -167,6 +167,10 @@ public sealed partial class PdfDocument
             var savedSubpathStart = _subpathStart;
             var savedHasOpenSubpath = _hasOpenSubpath;
             var savedPendingClipFillRule = _pendingClipFillRule;
+            var savedTextClipBuilder = _textClipBuilder;
+            var savedTextClipPending = _textClipPending;
+            _textClipBuilder = null;
+            _textClipPending = false;
             _formNestingDepth++;
             try
             {
@@ -202,6 +206,8 @@ public sealed partial class PdfDocument
                 _subpathStart = savedSubpathStart;
                 _hasOpenSubpath = savedHasOpenSubpath;
                 _pendingClipFillRule = savedPendingClipFillRule;
+                _textClipBuilder = savedTextClipBuilder;
+                _textClipPending = savedTextClipPending;
             }
 
             if (pattern.PaintType == 2 && tint is { } tintColor)

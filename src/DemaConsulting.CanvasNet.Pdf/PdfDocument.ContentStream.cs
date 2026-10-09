@@ -82,6 +82,8 @@ public sealed partial class PdfDocument
         _fontCache = new Dictionary<PdfObject, IResolvedFont>();
         _textMatrix = Matrix3x2.Identity;
         _lineMatrix = Matrix3x2.Identity;
+        _textClipBuilder = null;
+        _textClipPending = false;
         _formNestingDepth = 0;
         _type3NestingDepth = 0;
         _colorSpaceRecursionDepth = 0;
@@ -172,8 +174,8 @@ public sealed partial class PdfDocument
     ///     requirement.
     /// </exception>
     /// <exception cref="Codecs.UnsupportedImageFeatureException">
-    ///     Propagated from <see cref="OpSetFont"/> (an unsupported font),
-    ///     <see cref="OpSetTextRenderMode"/> (a defined but unsupported text-rendering mode), or
+    ///     Propagated from <see cref="OpSetFont"/> (an unsupported font), <c>ShowGlyph</c> (a Type 3
+    ///     glyph shown under a clipping text-rendering mode <c>4</c>-<c>7</c>), or
     ///     <see cref="OpPaintShading"/> (an undeclared shading name, or a defined but unsupported
     ///     <c>/ShadingType</c>/<c>/ColorSpace</c> - the same exception the <c>scn</c>/<c>SCN</c>
     ///     Pattern-color-space path already throws for the identical underlying condition).

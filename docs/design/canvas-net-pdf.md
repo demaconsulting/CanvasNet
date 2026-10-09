@@ -100,7 +100,8 @@ closed; `/Encoding` values other than `/Identity-H` (including `/Identity-V` and
 encodings) and a CID-keyed CFF program fail closed too; only the `/WinAnsiEncoding`/
 `/MacRomanEncoding`/`/StandardEncoding` base encodings (plus `/Differences`) are supported (an
 unrecognized base encoding fails closed); fill (`Tr 0`), stroke (`Tr 1`), fill+stroke (`Tr 2`),
-and invisible (`Tr 3`) text-rendering modes are supported (clip modes `Tr 4`-`7` fail closed); a
+and invisible (`Tr 3`) text-rendering modes and the clip modes (`Tr 4`-`7`) are supported (a Type 3
+glyph under a clip mode fails closed); a
 Form XObject's `/BBox` is never used to clip its content and its `/Group` (transparency group)
 entry is never consulted, though the Form itself renders; `/ShadingType` values other than `2`/`3`
 and `/FunctionType 4` (PostScript calculator) functions fail closed, as does the `sh` operator and
@@ -153,7 +154,8 @@ The system exposes the following public API to external consumers, all on the se
   validation unwrapped, throws `InvalidDataException` for malformed `/Contents` or a malformed
   recognized operator, throws `Codecs.UnsupportedImageFeatureException` for a well-formed but
   unsupported color space/stream filter/pattern or shading shape/font subtype or encoding/
-  text-rendering mode/symbolic-font-without-embedded-data, and throws `ObjectDisposedException`
+  Type 3 glyph under a clip text-rendering mode (`pdf-text-render-mode-type3-clip`)/
+  symbolic-font-without-embedded-data, and throws `ObjectDisposedException`
   once disposed.
 - **PdfDocument.Render(int pageIndex, float dpi)**: Convenience overload preserving the page's
   own aspect ratio: reads `GetPageInfo(pageIndex)`'s rotation-adjusted point-space width/height,
@@ -273,8 +275,8 @@ to every well-formed but out-of-scope construct it could then encounter: an unsu
 space, an unsupported stream filter, and an unsupported image `/BitsPerComponent` are all
 rejected with `Codecs.UnsupportedImageFeatureException` rather than being silently skipped or
 mis-rendered. Phase 4 extended the same posture to text/font constructs: a font dictionary's
-`/MMType1` subtype, an `/Encoding` naming an unrecognized base encoding, and a clip
-text-rendering mode (`Tr 4`-`7`) are all likewise rejected with
+`/MMType1` subtype, an `/Encoding` naming an unrecognized base encoding, and (as of the text-clip
+change) a Type 3 glyph shown under a clip text-rendering mode (`Tr 4`-`7`) are all likewise rejected with
 `Codecs.UnsupportedImageFeatureException`. Phase 6 narrowed (but did not remove) the font-subtype
 fail-closed boundary: a `/Subtype /TrueType` font lacking an embedded `/FontFile2` is now resolved
 via automatic system/bundled-font substitution rather than rejected outright, except that a
@@ -343,7 +345,7 @@ font program), `pdf-font-encoding-{name}`, `pdf-font-type0-encoding-{name}` (a `
 `/Encoding` other than `/Identity-H`), `pdf-font-cidfonttype-{subtype}` (a descendant `/Subtype`
 other than `/CIDFontType2`/`/CIDFontType0`), `pdf-font-fontfile3-unrecognized-shape`,
 `pdf-font-tounicode-{operator}` and `pdf-font-tounicode-bfrange-array-destination` (an
-unsupported `/ToUnicode` CMap construct), `pdf-text-render-mode-{mode}` (clip),
+unsupported `/ToUnicode` CMap construct), `pdf-text-render-mode-type3-clip` (a Type 3 glyph under clip mode),
 `pdf-ccittfax-group3`, `pdf-ccittfax-endofline`, and `pdf-ccittfax-colorspace`. `/Annots`
 (annotations) and AcroForms are simply not
 processed at all — page rendering silently ignores `/Annots` rather than throwing — since this is
@@ -398,7 +400,8 @@ guards.
    a malformed recognized operator's operand count/type, and throws
    `Codecs.UnsupportedImageFeatureException` for a well-formed but unsupported color space,
    stream filter, pattern/shading shape, function type, or
-   font subtype/encoding/symbolic-font-without-embedded-data/text-rendering mode
+   font subtype/encoding/symbolic-font-without-embedded-data/Type 3 glyph under a clip
+   text-rendering mode (`pdf-text-render-mode-type3-clip`)
 4. **Output**: A new `Canvas.Surface` of exactly the requested size, painted with the page's
    interpreted path geometry, any placed image XObjects and nested Form XObjects, any
    pattern/shading-filled paths, and any shown text (or fully transparent, when the page declares

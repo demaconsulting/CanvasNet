@@ -1500,12 +1500,16 @@ sections:
               The PdfDocument class shall implement the Tr (text-rendering mode) operator,
               supporting mode 0 (fill, the default), mode 1 (stroke), mode 2 (fill, then stroke),
               and mode 3 (invisible - glyphs still advance the text position but are not painted),
-              throwing UnsupportedImageFeatureException for the clip modes 4-7, and
+              and the clip modes 4-7 (fill/stroke/fill+stroke/invisible, each also adding the glyph
+              outlines to a clipping path intersected into the clip at ET), failing closed with
+              UnsupportedImageFeatureException for a Type 3 glyph under a clip mode, and
               InvalidDataException for any other numeric value.
             justification: |
-              Clip text-rendering modes are explicitly out of this phase's scope; a content
-              stream requesting one must fail closed rather than being silently mis-rendered as a
-              fill, while invisible text (commonly used for an OCR text layer beneath a scanned
+              Clip text-rendering modes are used to fill text with images or gradients (for
+              example, shaded headings); ignoring them would paint the shading over the whole
+              page. Type 3 glyphs have no outline to clip with, so they must fail closed rather
+              than being silently mis-rendered, while invisible text (commonly used for an OCR
+              text layer beneath a scanned
               image) must still correctly advance the text position without painting any ink.
               Stroke and fill+stroke modes are real-world-prevalent (for example, outlined
               headings) and are supported by reusing the existing path-stroking paint logic
@@ -1517,7 +1521,21 @@ sections:
               - PdfDocument_Text_RenderMode2_FillAndStroke_PaintsBothFillAndStroke
               - PdfDocument_Text_RenderMode1_StrokePattern_PaintsPatternStroke
               - PdfDocument_Fonts_Type3_RenderMode1Or2_BehavesLikeRenderMode0
-              - PdfDocument_Text_RenderMode_UnsupportedDefinedMode_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Text_RenderMode_ClipModes_AcceptedByTr
+              - PdfDocument_Text_RenderMode7_ClipOnly_ClipsSubsequentFillToGlyph
+              - PdfDocument_Text_RenderMode7_ClipOnly_PaintsNoGlyphInk
+              - PdfDocument_Text_RenderMode4_FillAndClip_FillsThenClips
+              - PdfDocument_Text_RenderMode4_FillAndClip_PaintsGlyphFill
+              - PdfDocument_Text_RenderMode5_StrokeAndClip_StrokesThenClips
+              - PdfDocument_Text_RenderMode6_FillStrokeClip_PaintsBothThenClips
+              - PdfDocument_Text_RenderMode7_ClipAccumulatesAcrossMultipleGlyphs
+              - PdfDocument_Text_RenderMode7_ClipIntersectsWithExistingClip
+              - PdfDocument_Text_RenderMode7_ClipNotAppliedUntilEndText
+              - PdfDocument_Text_RenderMode7_ClipRestoredByRestoreState
+              - PdfDocument_Text_RenderMode7_ClipWithCompositeFont
+              - PdfDocument_Text_RenderMode_ClipModes_Type3Font_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Text_RenderMode7_NoGlyphsShown_DoesNotChangeClip
+              - PdfDocument_Text_RenderMode7_NestedFormXObjectText_DoesNotClobberOuterClip
               - PdfDocument_Text_RenderMode_OutOfDefinedRange_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-TextPositioning
