@@ -6,7 +6,7 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     The conservative, documented subset of <c>BeginArrow</c>/<c>EndArrow</c> index values this
 ///     unit recognizes and renders (see <c>VsdxDocument.Arrowheads.cs</c>'s
 ///     <c>ParseArrowheadStyle</c>). Every other index value degrades to <see cref="None"/> rather
-///     than throwing, per <c>canvas-net-vsdx.md</c>'s Design Constraints ("a documented subset of
+///     than throwing - this package's own documented design convention: "a documented subset of
 ///     common arrowhead styles, with an unrecognized value degrading to ... a plain, unadorned
 ///     line end ..., never throwing"). Milestone 11 confirmed two further indices actually in use
 ///     via a full-document scan of <c>44501e.vsdx</c> (its "Binary Association"/"Directions" UML

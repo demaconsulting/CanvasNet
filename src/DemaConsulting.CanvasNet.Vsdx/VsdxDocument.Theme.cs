@@ -29,8 +29,8 @@ public sealed partial class VsdxDocument
     ///     Never throws: a package with no <c>theme</c> relationship, or whose theme part is
     ///     missing/not well-formed XML, resolves to <see langword="null"/> - mirroring
     ///     <c>VsdxDocument.Masters.cs</c>'s own tolerant <c>LoadMasterShape</c>/
-    ///     <c>GetMastersIndex</c> pattern for an equally optional, auxiliary part, and
-    ///     <c>canvas-net-vsdx.md</c>'s Risk Control Measures mandate that color resolution never
+    ///     <c>GetMastersIndex</c> pattern for an equally optional, auxiliary part. This package's
+    ///     own convention mandates that color resolution never
     ///     fail the whole parse for a missing/malformed theme.
     /// </remarks>
     /// <returns>The parsed <see cref="VsdxTheme"/>, or <see langword="null"/> when the package declares no theme relationship, or its theme part cannot be resolved or parsed.</returns>

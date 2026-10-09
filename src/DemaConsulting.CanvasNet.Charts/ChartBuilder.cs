@@ -33,6 +33,14 @@ public sealed class ChartBuilder
     private IReadOnlyList<Rgba32>? _colorPalette;
 
     /// <summary>
+    ///     Creates a new, empty <see cref="ChartBuilder"/> with no type, series, axes, legend,
+    ///     title, or color palette configured yet.
+    /// </summary>
+    public ChartBuilder()
+    {
+    }
+
+    /// <summary>
     ///     Sets the kind of chart being built.
     /// </summary>
     /// <param name="type">The kind of chart to build. Must be a defined <see cref="ChartType"/> value.</param>

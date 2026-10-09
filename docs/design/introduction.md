@@ -42,8 +42,9 @@ software items, specifically:
   tangent-radius circular arcs)
 - **Drawing (Subsystem)** — An antialiased scanline-coverage fill rasterizer for closed
   `Geometry.Path` geometry with solid-color, gradient, or tiled-pattern paint: the `PathFiller`
-  unit (a public static `Fill` entry point, covering the supporting `FillRule` enum and the
-  internal `EdgeFlattener`/`ScanlineRasterizer` helpers inline), the `PathStroker` unit (a public
+  unit (a public static `Fill` entry point, covering the supporting `FillRule` enum, the internal
+  `EdgeFlattener`/`ScanlineRasterizer` helpers, and the internal `ClipMask` clip-coverage helper
+  inline), the `PathStroker` unit (a public
   static `Stroke` entry point, covering the supporting `LineCap`/`LineJoin`/`StrokeStyle` types
   and the internal `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline), the
   `GradientPaint` unit (the public `Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop`/
@@ -110,7 +111,7 @@ software items, specifically:
   `<p:bg>` background-fill resolution ahead of that walk, `<a:buChar>`/`<a:buAutoNum>`
   bullet/numbering rendering, and `<p:cxnSp>` connector-shape rendering. Radial/path gradients,
   full text justification, `spAutoFit` shape-resize behavior, kerning, text clipping on overflow,
-  nested tables, and table auto-sizing/banding remain explicitly deferred. Pattern fill (a
+  nested tables remain explicitly deferred. Pattern fill (a
   documented subset of 30 of the 54 named ECMA-376 `ST_PresetPatternVal` preset names, including
   background fills; the remaining 24 are deferred) and picture fill are both implemented — see
   _CanvasNetPptx System Design_ (`canvas-net-pptx.md`) for the full supported/deferred boundary.
@@ -206,8 +207,9 @@ namespace `DemaConsulting.CanvasNet.Codecs`, flat — no further nesting), the
 `Geometry` subsystem (the
 `Rect`, `Path`, `BezierFlattening`, and `SvgArcConverter` units, namespace
 `DemaConsulting.CanvasNet.Geometry`, flat — no further nesting), the `Drawing` subsystem (the
-`PathFiller` unit, covering the supporting `FillRule` enum and the internal
-`EdgeFlattener`/`ScanlineRasterizer` helpers inline, the `PathStroker` unit, covering the
+`PathFiller` unit, covering the supporting `FillRule` enum, the internal
+`EdgeFlattener`/`ScanlineRasterizer` helpers, and the internal `ClipMask` clip-coverage helper
+inline, the `PathStroker` unit, covering the
 supporting `LineCap`/`LineJoin`/`StrokeStyle` types and the internal
 `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline, the `GradientPaint`
 unit, covering the public `Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop`/
@@ -300,6 +302,7 @@ src/DemaConsulting.CanvasNet/
 │   ├── FillRule.cs                — Nonzero/even-odd fill-rule enumeration
 │   ├── EdgeFlattener.cs           — Converts a Path's subpaths into closed polygons
 │   ├── ScanlineRasterizer.cs      — Analytic coverage-accumulation scanline rasterizer
+│   ├── ClipMask.cs                — Precomputed per-pixel clip coverage for clip-aware fills
 │   ├── PathFiller.cs              — Public entry point: fills a Path onto a Surface
 │   ├── LineCap.cs                 — Stroke end-cap enumeration
 │   ├── LineJoin.cs                — Stroke corner-join enumeration

@@ -30,10 +30,14 @@ internal static class DashSplitter
     ///     that input is slow simply because <c>totalLength / dashSpan</c> is itself an
     ///     impractically large ratio (see <see cref="BuildOnIntervals"/>'s pre-flight estimate
     ///     below, which detects and short-circuits this case in O(1) time rather than paying for
-    ///     the loop). Each dash-pattern-entry transition costs <b>two</b> loop iterations, not
-    ///     one: one iteration consumes the entry's remaining span (advancing <c>position</c>), and
-    ///     a second, separate iteration advances to the next pattern entry (<c>remainingInDash
-    ///     &lt;= 0</c> falling into <see cref="AdvanceDash"/> and <c>continue</c>-ing). Direct
+    ///     the loop). Each <b>strictly-positive</b> dash-pattern-entry transition costs <b>two</b>
+    ///     loop iterations: one iteration consumes the entry's remaining span (advancing
+    ///     <c>position</c>), and a second, separate iteration advances to the next pattern entry
+    ///     (<c>remainingInDash &lt;= 0</c> falling into <see cref="AdvanceDash"/> and
+    ///     <c>continue</c>-ing). A <b>zero-length</b> entry costs only <b>one</b> iteration - the
+    ///     advance - since there is no span left for it to consume; a zero-length "on" entry's
+    ///     single iteration also emits one zero-length on-interval (the dash-dot "dot") before
+    ///     advancing. Direct
     ///     instrumentation of the existing
     ///     <c>DashSplitter_Split_FineDashPatternOnVeryLongPath_CompletesWithCorrectSegments</c>
     ///     regression test (a 17,000,000-unit path with a <c>[1, 1]</c> dash pattern) confirms this
@@ -60,11 +64,12 @@ internal static class DashSplitter
     ///     The maximum number of "on" intervals <see cref="BuildOnIntervals"/> will materialize
     ///     into its returned <c>List&lt;(double Start, double End)&gt;</c> before giving up on
     ///     this dash pattern, guarding against a distinct cost that <see cref="MaxOnIntervalIterations"/>
-    ///     does not bound at all: what is <b>counted</b> by that cap (loop iterations - two per
-    ///     dash-pattern-entry transition, see its remarks) is a different, generally smaller
+    ///     does not bound at all: what is <b>counted</b> by that cap (loop iterations - one or two
+    ///     per dash-pattern-entry transition, see its remarks) is a different, generally smaller
     ///     quantity than what is <b>retained</b> in memory and returned to <see cref="Split"/>
-    ///     (only the strictly-positive, even-indexed "on" entries actually append an interval; odd
-    ///     "off" entries and zero-length entries cost iterations but retain nothing). A pattern
+    ///     (every even-indexed "on" entry appends an interval - a strictly-positive one a genuine
+    ///     dash span, a zero-length one a single dash-dot "dot" point; odd "off" entries, whether
+    ///     zero-length or positive, retain nothing). A pattern
     ///     shaped so that most transitions are "on" transitions (e.g. <c>[1, 1]</c>, where every
     ///     other entry is on) can therefore stay <i>at or under</i>
     ///     <see cref="MaxOnIntervalIterations"/>'s estimate while still materializing tens of
@@ -74,7 +79,7 @@ internal static class DashSplitter
     ///     feeds through <see cref="StrokeOutliner.Outline"/> per segment, accumulating every
     ///     resulting outline polygon into one combined path. A concrete worst case: a two-point
     ///     path with <c>totalLength = 50,000,000</c> and dash pattern <c>[1, 1]</c> yields
-    ///     <c>estimatedIterations = 2 * 2 * (50,000,000 / 2) = 100,000,000</c> - not <i>greater
+    ///     <c>estimatedIterations = (2 + 2) * (50,000,000 / 2) = 100,000,000</c> - not <i>greater
     ///     than</i> the 100,000,000-iteration cap, so <see cref="MaxOnIntervalIterations"/> alone
     ///     does not trigger - yet the same pattern retains <c>25,000,000</c> on-intervals, each
     ///     destined to become its own segment and outline polygon. This constant closes that gap
@@ -151,7 +156,6 @@ internal static class DashSplitter
             pattern,
             dashOffset,
             totalLength,
-            isClosed,
             out var encounteredPositiveOffSpan,
             out var budgetExceeded);
 
@@ -340,7 +344,7 @@ internal static class DashSplitter
     private static bool IsDashOnAtStart(IReadOnlyList<float> pattern, float dashOffset)
     {
         var patternLength = GetPatternLength(pattern);
-        var (index, _) = LocatePhase(pattern, dashOffset, patternLength);
+        var (index, _, _) = LocatePhase(pattern, dashOffset, patternLength);
         return index % 2 == 0;
     }
 
@@ -357,8 +361,16 @@ internal static class DashSplitter
     ///     walks only ever compare the residual distance against individual, finite dash entries -
     ///     never against the (potentially astronomically large) total pattern length - so a tiny
     ///     offset is never lost against a huge pattern magnitude in either direction.
+    ///     <paramref name="dashOffset"/>'s normalized phase can land exactly on a pattern-entry
+    ///     boundary that is itself followed by one or more zero-length "on" entries (dash-dot
+    ///     "dots") occupying that same single pattern-space point; both walks skip forward through
+    ///     those to report the entry actually in effect, but also report (via the returned
+    ///     <c>SkippedOnEntryCount</c>) how many such zero-length "on" entries sat exactly at that
+    ///     boundary (a pattern such as <c>[0, 0, 0, 2]</c> has two, each its own dot), so
+    ///     <see cref="BuildOnIntervals"/> (unlike <see cref="IsDashOnAtStart"/>, which has no use
+    ///     for it) can still surface every dot it represents at path position zero.
     /// </remarks>
-    private static (int Index, float RemainingInDash) LocatePhase(
+    private static (int Index, float RemainingInDash, int SkippedOnEntryCount) LocatePhase(
         IReadOnlyList<float> pattern,
         float dashOffset,
         double patternLength)
@@ -379,9 +391,16 @@ internal static class DashSplitter
     ///     consuming every preceding entry - means the phase has already moved past it. The
     ///     trailing loop skips forward through any such zero-length entries so the returned index
     ///     always identifies the entry actually in effect at this phase, rather than a
-    ///     zero-length entry the phase is only nominally "at."
+    ///     zero-length entry the phase is only nominally "at." That trailing loop only ever runs
+    ///     while the residual <paramref name="offset"/> is exactly zero - i.e. only for entries
+    ///     genuinely coincident with the target pattern-space point, never ones merely passed over
+    ///     earlier while a still-positive offset was being consumed - so it alone (not the leading
+    ///     loop above it) is where skipped-over, zero-length "on" entries are counted and reported
+    ///     back via <c>SkippedOnEntryCount</c>.
     /// </remarks>
-    private static (int Index, float RemainingInDash) LocatePhaseForward(IReadOnlyList<float> pattern, double offset)
+    private static (int Index, float RemainingInDash, int SkippedOnEntryCount) LocatePhaseForward(
+        IReadOnlyList<float> pattern,
+        double offset)
     {
         var index = 0;
         while (offset > 0d)
@@ -396,8 +415,14 @@ internal static class DashSplitter
             index = (index + 1) % pattern.Count;
         }
 
+        var skippedOnEntryCount = 0;
         while (offset == 0d && pattern[index] == 0f)
         {
+            if (index % 2 == 0)
+            {
+                skippedOnEntryCount++;
+            }
+
             index = (index + 1) % pattern.Count;
         }
 
@@ -405,7 +430,7 @@ internal static class DashSplitter
         // float32 entry), so the remainder is safe to narrow back to float without any risk of
         // the overflow this two-way split exists to avoid.
         var remaining = (float)(pattern[index] - offset);
-        return (index, remaining < 0f ? 0f : remaining);
+        return (index, remaining < 0f ? 0f : remaining, skippedOnEntryCount);
     }
 
     /// <summary>
@@ -424,7 +449,7 @@ internal static class DashSplitter
     ///     subtracted from the huge total pattern length - so a small negative offset against an
     ///     enormous pattern remains exactly representable throughout.
     /// </remarks>
-    private static (int Index, float RemainingInDash) LocatePhaseBackward(
+    private static (int Index, float RemainingInDash, int SkippedOnEntryCount) LocatePhaseBackward(
         IReadOnlyList<float> pattern,
         double distanceFromWrap)
     {
@@ -447,19 +472,25 @@ internal static class DashSplitter
             // forward walk's zero-skip so a leading zero-length "on" entry is not mistaken for
             // the active entry.
             index = 0;
+            var skippedOnEntryCount = 0;
             while (pattern[index] == 0f)
             {
+                if (index % 2 == 0)
+                {
+                    skippedOnEntryCount++;
+                }
+
                 index = (index + 1) % pattern.Count;
             }
 
-            return (index, pattern[index]);
+            return (index, pattern[index], skippedOnEntryCount);
         }
 
         // distanceFromWrap is now within (0, pattern[index]] - already small relative to the
         // individual entry it was measured against, never the huge total pattern length - so it
         // is safe to use directly as the remaining-in-dash distance.
         var remaining = (float)distanceFromWrap;
-        return (index, remaining > pattern[index] ? pattern[index] : remaining);
+        return (index, remaining > pattern[index] ? pattern[index] : remaining, 0);
     }
 
     /// <summary>
@@ -483,25 +514,30 @@ internal static class DashSplitter
     ///     <para>
     ///     Before entering the loop at all, a cheap, <c>O(pattern.Count)</c> pre-flight estimate
     ///     predicts how many iterations the loop below would need, using the exact same cost model
-    ///     the loop itself follows: two iterations per dash-pattern-entry transition (one to
-    ///     consume the entry's span, one to advance to the next entry - see
-    ///     <see cref="MaxOnIntervalIterations"/>'s remarks). The number of cost-bearing transitions
-    ///     per full pattern cycle is the count of <b>strictly-positive</b> pattern entries
-    ///     (<c>positiveEntryCount</c>) - zero-length entries are invisible to the outer loop's
-    ///     iteration count (skipped internally by <see cref="AdvanceDash"/>'s own bounded inner
-    ///     loop) - and the number of full cycles <paramref name="totalLength"/> requires is
-    ///     <c>totalLength / patternLength</c> (the sum of <b>all</b> pattern entries, via
-    ///     <see cref="GetPatternLength"/>), giving
-    ///     <c>estimatedIterations = 2 * positiveEntryCount * (totalLength / patternLength)</c>.
-    ///     When that estimate already exceeds <see cref="MaxOnIntervalIterations"/>, the loop is
-    ///     skipped entirely and this method reports <paramref name="budgetExceeded"/>
+    ///     the loop itself follows: every pattern entry - zero-length or positive - costs one
+    ///     "advance" iteration, and a <b>strictly-positive</b> entry costs one additional "consume
+    ///     span" iteration (see <see cref="MaxOnIntervalIterations"/>'s remarks). The number of
+    ///     cost-bearing transitions per full pattern cycle is therefore
+    ///     <c>positiveEntryCount + pattern.Count</c> - every entry's advance, plus one extra per
+    ///     strictly-positive entry's span-consumption - and the number of full cycles
+    ///     <paramref name="totalLength"/> requires is <c>totalLength / patternLength</c> (the sum
+    ///     of <b>all</b> pattern entries, via <see cref="GetPatternLength"/>), giving
+    ///     <c>estimatedIterations = (positiveEntryCount + pattern.Count) * (totalLength /
+    ///     patternLength)</c>. For a pattern with no zero-length entries this reduces exactly to
+    ///     <c>2 * positiveEntryCount * (totalLength / patternLength)</c>, the prior formula - zero-length
+    ///     entries are what the <c>+ pattern.Count</c> term (rather than <c>2 *
+    ///     positiveEntryCount</c>) now additionally accounts for, since a zero-length entry still
+    ///     costs its one "advance" iteration (and, if "on", emits a single zero-length on-interval
+    ///     - see the zero-length-"on"-entry handling below). When that estimate already exceeds
+    ///     <see cref="MaxOnIntervalIterations"/>, the loop is skipped entirely and this method
+    ///     reports <paramref name="budgetExceeded"/>
     ///     immediately - turning a hopeless input's cost from
     ///     <c>O(MaxOnIntervalIterations)</c> into a handful of arithmetic operations, without
     ///     changing the outcome (the loop would have hit the same cap and reported the same
     ///     fallback regardless). This is a heuristic estimate closely tracking the loop's real
     ///     cost model, not an exact prediction or a strict mathematical upper bound: for paths
     ///     short relative to a single pattern cycle it can under-count by at most roughly one
-    ///     cycle's worth of iterations (bounded by <c>2 * positiveEntryCount</c>, an
+    ///     cycle's worth of iterations (bounded by <c>positiveEntryCount + pattern.Count</c>, an
     ///     array-length-order constant, negligible relative to the 100,000,000-iteration cap
     ///     decision boundary and only ever relevant to inputs that are already fast to resolve).
     ///     It has been verified safe (does not falsely short-circuit) against known edge cases,
@@ -514,10 +550,13 @@ internal static class DashSplitter
     ///     </para>
     ///     <para>
     ///     A second, independent pre-flight estimate guards <see cref="MaxOnIntervalCount"/>: the
-    ///     iteration-count estimate above counts every dash-pattern-entry transition, but only the
-    ///     strictly-positive, even-indexed ("on") entries actually append a retained interval to
-    ///     the returned list. Counting only those
-    ///     entries (<c>onEntryCount</c>) against the same <c>totalLength / patternLength</c> cycle
+    ///     iteration-count estimate above counts every dash-pattern-entry transition, but only
+    ///     even-indexed ("on") entries actually append a retained interval to the returned list -
+    ///     a strictly-positive "on" entry a genuine dash span, a zero-length "on" entry a single
+    ///     dash-dot "dot" point. Counting those
+    ///     entries unconditionally (<c>onEntryCount = pattern.Count / 2</c>, since
+    ///     <see cref="NormalizeDashArray"/> guarantees an even-length pattern) against the same
+    ///     <c>totalLength / patternLength</c> cycle
     ///     count gives <c>estimatedOnIntervalCount = onEntryCount * (totalLength /
     ///     patternLength)</c>, which can exceed <see cref="MaxOnIntervalCount"/> even when
     ///     <c>estimatedIterations</c> stays at or under <see cref="MaxOnIntervalIterations"/> (see
@@ -533,7 +572,6 @@ internal static class DashSplitter
         IReadOnlyList<float> pattern,
         float dashOffset,
         double totalLength,
-        bool isClosed,
         out bool encounteredPositiveOffSpan,
         out bool budgetExceeded)
     {
@@ -547,8 +585,40 @@ internal static class DashSplitter
             return intervals;
         }
 
-        var (dashIndex, remainingInDashFloat) = LocatePhase(pattern, dashOffset, patternLength);
+        var (dashIndex, remainingInDashFloat, skippedOnEntryCount) = LocatePhase(pattern, dashOffset, patternLength);
         double remainingInDash = remainingInDashFloat;
+
+        if (skippedOnEntryCount > 0)
+        {
+            // LocatePhase's own boundary walk - not the main loop below - passed over one or more
+            // zero-length "on" entries (dash-dot "dots") exactly coincident with path position
+            // zero before settling on the entry now in effect. Each of those is a real pattern
+            // repetition's dot at this exact position, so one interval per skipped entry is
+            // surfaced here (e.g. [0, 0, 0, 2] skips two zero-length "on" entries, so two distinct
+            // dots are emitted at position zero); without this, a pattern beginning with (or whose
+            // phase offset lands exactly on) one or more zero-length "on" entries would have all
+            // but the entry actually in effect go unobserved, since the main loop below only ever
+            // detects a zero-length "on" entry it advances into itself.
+            //
+            // skippedOnEntryCount is bounded only by pattern.Count (a single walk through the
+            // supplied pattern array), which EstimatesExceedBudget's totalLength/patternLength
+            // ratio does not account for: a pattern consisting almost entirely of leading
+            // zero-length "on" entries followed by one positive entry has a tiny patternLength (so
+            // the ratio-based estimate stays low) while still containing an enormous
+            // pattern.Count. Guard this loop against MaxOnIntervalCount directly, exactly like the
+            // main loop's own interval-count backstops below, rather than materializing every
+            // skipped entry unconditionally.
+            for (var i = 0; i < skippedOnEntryCount; i++)
+            {
+                intervals.Add((0d, 0d));
+
+                if (intervals.Count > MaxOnIntervalCount)
+                {
+                    budgetExceeded = true;
+                    return intervals;
+                }
+            }
+        }
 
         var position = 0d;
         var iterations = 0;
@@ -563,6 +633,27 @@ internal static class DashSplitter
             if (remainingInDash <= 0d)
             {
                 AdvanceDash(pattern, ref dashIndex, ref remainingInDash);
+
+                // A zero-length "on" entry (the standard PDF/SVG/CSS dash-dot "dot" technique,
+                // rendered as a round/square cap shape once StrokeOutliner.CreatePointStrokePolygons
+                // receives the resulting single-point segment) has no span for the logic below to
+                // consume, but must still surface as exactly one visible on-interval per pattern
+                // repetition. This is the one place that observes this pattern entry before the
+                // *next* iteration's AdvanceDash call steps past it, so it is emitted here exactly
+                // once. A zero-length "off" entry falls through this same branch unchanged (odd
+                // dashIndex, condition false below, nothing emitted) - a zero-length gap
+                // contributes nothing, per PDF/SVG dash semantics.
+                if (remainingInDash <= 0d && dashIndex % 2 == 0)
+                {
+                    intervals.Add((position, position));
+
+                    if (intervals.Count > MaxOnIntervalCount)
+                    {
+                        budgetExceeded = true;
+                        break;
+                    }
+                }
+
                 continue;
             }
 
@@ -604,11 +695,6 @@ internal static class DashSplitter
             remainingInDash -= span;
         }
 
-        if (!isClosed)
-        {
-            return intervals;
-        }
-
         return intervals;
     }
 
@@ -642,39 +728,44 @@ internal static class DashSplitter
     {
         patternLength = GetPatternLength(pattern);
 
+        // Every pattern entry (zero-length or positive) now costs exactly one "advance"
+        // iteration; a strictly-positive entry costs one additional "consume span" iteration.
+        // => (positiveEntryCount + pattern.Count) iterations per full pattern cycle.
         var positiveEntryCount = pattern.Count(entry => entry > 0f);
-        var estimatedIterations = 2d * positiveEntryCount * (totalLength / patternLength);
+        var estimatedIterations = (positiveEntryCount + pattern.Count) * (totalLength / patternLength);
         if (estimatedIterations > MaxOnIntervalIterations)
         {
             return true;
         }
 
-        var onEntryCount = 0;
-        for (var i = 0; i < pattern.Count; i += 2)
-        {
-            if (pattern[i] > 0f)
-            {
-                onEntryCount++;
-            }
-        }
-
+        // Every "on" (even-indexed) entry now retains exactly one interval per cycle, whether
+        // zero-length (the dot) or positive (a genuine dash) - not only the strictly-positive
+        // ones. The pattern is always even-length (see NormalizeDashArray), so half its entries
+        // are "on".
+        var onEntryCount = pattern.Count / 2;
         var estimatedOnIntervalCount = onEntryCount * (totalLength / patternLength);
         return estimatedOnIntervalCount > MaxOnIntervalCount;
     }
 
     /// <summary>
-    ///     Advances to the next positive-length dash entry.
+    ///     Advances to the next dash-pattern entry, whatever its length.
     /// </summary>
+    /// <remarks>
+    ///     This is a single pattern-entry step - it does <b>not</b> skip past zero-length entries.
+    ///     A zero-length entry (either "on", the standard dash-dot "dot" technique, or "off", a
+    ///     no-op gap) is a legitimate pattern entry in its own right, and <see cref="BuildOnIntervals"/>'s
+    ///     own <c>while</c> loop is responsible for observing it (and, for a zero-length "on"
+    ///     entry, emitting its single visible point) before calling this method again to continue
+    ///     walking the pattern. Collapsing this to a single step (rather than an internal skip
+    ///     loop) means every pattern-entry transition - zero-length or positive, "on" or "off" -
+    ///     costs exactly one call here and one accounted iteration in the caller's loop, so that
+    ///     loop's own <see cref="MaxOnIntervalIterations"/> cap is the sole, uniform termination
+    ///     guard for every stepping scenario, including a long run of zero-length entries.
+    /// </remarks>
     private static void AdvanceDash(IReadOnlyList<float> pattern, ref int dashIndex, ref double remainingInDash)
     {
-        var traversed = 0;
-        do
-        {
-            dashIndex = (dashIndex + 1) % pattern.Count;
-            remainingInDash = pattern[dashIndex];
-            traversed++;
-        }
-        while (remainingInDash <= 0d && traversed <= pattern.Count);
+        dashIndex = (dashIndex + 1) % pattern.Count;
+        remainingInDash = pattern[dashIndex];
     }
 
     /// <summary>

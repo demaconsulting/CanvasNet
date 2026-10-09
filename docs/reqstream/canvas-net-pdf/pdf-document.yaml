@@ -10,6 +10,7 @@
 # cspell:ignore SASLprep
 # cspell:ignore Noto
 # cspell:ignore functiontype
+# cspell:ignore PDFium
 #
 # These requirements describe the design-level behavior of the PdfDocument unit.
 #
@@ -406,14 +407,14 @@ sections:
           - id: CanvasNetPdf-PdfDocument-ContentStreamDispatch
             title: >-
               The PdfDocument class shall tokenize and dispatch a page's resolved content-stream
-              bytes over a fixed set of recognized path-construction/painting and graphics-state
-              operators, silently skipping any other keyword (color, text, image, clipping, and
-              any other operator not yet implemented) rather than throwing, and shall throw
+              bytes over a fixed set of recognized path-construction/painting, clipping, and
+              graphics-state operators, silently skipping any other keyword (color, text, image,
+              and any other operator not yet implemented) rather than throwing, and shall throw
               InvalidDataException when a recognized operator's own operand count/type does not
               match its documented requirement.
             justification: |
               Real-world content streams routinely contain operators outside this phase's scope
-              (color, text, images, clipping); a lenient-toward-the-unrecognized, strict-toward-
+              (color, text, images); a lenient-toward-the-unrecognized, strict-toward-
               the-malformed-recognized dispatch loop lets such streams still render their in-scope
               geometry instead of failing outright.
             tests:
@@ -508,6 +509,54 @@ sections:
               - PdfDocument_PathOps_CloseAndFillAndStroke_PaintsExpectedPixels
               - PdfDocument_PathOps_NoOp_DiscardsPathWithoutPainting
               - PdfDocument_PathOps_PaintOperator_ClearsPathButPreservesGraphicsState
+            children:
+              - CanvasNetPdf-PdfDocument-StrokeLineWidthFidelity
+
+          - id: CanvasNetPdf-PdfDocument-StrokeLineWidthFidelity
+            title: >-
+              The PdfDocument class shall paint a stroked path's width to reflect its resolved
+              device-space line width: a literal (or effectively zero) user-space line width
+              shall still paint as a visible, full-opacity, one-device-pixel line (the thinnest
+              renderable line per the specification), while a genuinely positive user-space line
+              width shall paint with its own true, antialiased device-space coverage rather than
+              being forced up to that same one-device-pixel, full-opacity floor.
+            justification: |
+              A reader that floors every sub-one-device-pixel stroke width to full opacity
+              (regardless of whether the user-space width was a literal 0 or a genuinely positive
+              small value) paints every thin stroke visibly heavier/darker than mature PDF
+              renderers such as PDFium, which preserve a thin stroke's true sub-pixel coverage -
+              producing output that does not match the document's intended visual weight for
+              hairline-style content such as table rules and fine diagram lines.
+            tests:
+              - PdfDocument_PathOps_Stroke_ZeroWidth_RendersFullOpacityHairline
+              - PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke
+              - PdfDocument_PathOps_Stroke_SubEpsilonWidth_RendersVisibleLine
+
+          - id: CanvasNetPdf-PdfDocument-ClippingPath
+            title: >-
+              The PdfDocument class shall support the W/W* clipping-path operators by marking the
+              current path, interpreted under the nonzero (W) or even-odd (W*) fill rule, to
+              become the new clipping path starting with the next path-painting operator (which
+              still paints per its own normal fill/stroke/no-op semantics), intersecting that new
+              clipping path with any already-active clipping path rather than replacing it, scope
+              the active clipping path as part of the graphics state so it is saved/restored by
+              q/Q (and by Form XObject/Type3 glyph re-entry, both of which clone the graphics
+              state identically), and enforce the active clipping path against every subsequent
+              fill, stroke, image XObject (Do), and glyph-fill paint until it is changed or
+              restored.
+            justification: |
+              PDF 32000-1 section 8.5.4 documents W/W* as deferred, intersecting, graphics-state-
+              scoped clip-path updates; a reader that silently ignores them (as this class
+              previously did) renders fill/stroke/image/glyph content outside a document's
+              intended clipping region, producing visibly wrong output for any content stream
+              relying on clipping to mask painted geometry.
+            tests:
+              - PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion
+              - PdfDocument_Clipping_SetInsideQQ_DoesNotLeakPastQ
+              - PdfDocument_Clipping_WStar_UsesEvenOddFillRule
+              - PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace
+              - PdfDocument_Clipping_ClipThenImageDo_RestrictsImageToClipRegion
+              - PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion
 
           - id: CanvasNetPdf-PdfDocument-Dispose
             title: >-
@@ -1621,6 +1670,36 @@ sections:
               - PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType4_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Patterns_ShadingPattern_FunctionArrayForm_ThreeOneOutputFunctions_BuildsRgbGradient
               - CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors
+
+          - id: CanvasNetPdf-PdfDocument-ShadingOperator
+            title: >-
+              The PdfDocument class shall paint the sh operator's named shading directly onto the
+              destination surface - restricted to the current clipping path when one is active, or
+              to the shading's own /BBox (clipped to the destination surface) otherwise, never
+              painting unboundedly - without requiring a path to be constructed/painted first and
+              without any /Pattern color-space selection, reusing the identical shading resolution
+              and exception behavior a /PatternType 2 shading-pattern fill already uses for the
+              same underlying /ShadingType/ColorSpace. An undeclared shading name shall throw
+              UnsupportedImageFeatureException with feature pdf-shading-not-declared; an
+              unsupported /ShadingType or /ColorSpace reached through sh shall throw
+              UnsupportedImageFeatureException with the same pdf-shading-type-{n}/
+              pdf-shading-colorspace-{family} features the shading-pattern-fill path already
+              throws for the identical condition, rather than being silently skipped.
+            justification: |
+              Some real-world producers paint a solid-color fallback shape first, then overlay a
+              gradient directly via sh (not via a second path fill with a /Pattern color space).
+              Before this requirement, sh was silently skipped by DispatchOperator's default case,
+              leaving the solid fallback visibly solid underneath the intended gradient, with no
+              exception thrown even for an otherwise-unsupported shading - a silent rendering
+              defect rather than a documented, fail-closed unsupported-feature rejection.
+            tests:
+              - PdfDocument_ShadingOperator_Axial_NoPrecedingPath_PaintsGradientAcrossFullPage
+              - PdfDocument_ShadingOperator_Radial_NoPrecedingPath_PaintsGradientAcrossFullPage
+              - PdfDocument_ShadingOperator_WithPrecedingClip_RestrictsGradientToClipRegion
+              - PdfDocument_ShadingOperator_BBoxNarrowerThanPage_RestrictsGradientToBBox
+              - PdfDocument_ShadingOperator_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_ShadingOperator_UndeclaredShadingName_ThrowsUnsupportedImageFeatureException
+              - CanvasNetPdf_SystemIntegration_ShadingOperatorOverBlackFallback_PaintsGradientNotBlack
 
           - id: CanvasNetPdf-PdfDocument-TilingPatternFill
             title: >-

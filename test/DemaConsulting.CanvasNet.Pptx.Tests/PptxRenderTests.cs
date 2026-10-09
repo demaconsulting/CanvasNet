@@ -99,6 +99,17 @@ public class PptxRenderTests
     ///     <c>6858000</c> (the default - a standard 7.5" 4:3 slide height) - see
     ///     <paramref name="slideWidthEmu"/>'s own remarks.
     /// </param>
+    /// <param name="additionalSlideSpTreeInnerXmls">
+    ///     Optional additional slides' own <c>&lt;p:spTree&gt;</c> inner content, one per entry,
+    ///     appended after the first slide (<paramref name="spTreeInnerXml"/>) - each additional
+    ///     slide (<c>ppt/slides/slide2.xml</c>, <c>slide3.xml</c>, ...) references the same
+    ///     <c>slideLayout1.xml</c>/master/theme as the first slide and declares no background/
+    ///     color-map override of its own. <see langword="null"/> (the default) preserves this
+    ///     helper's original single-slide package shape unchanged - used by the slide-number-field
+    ///     render tests (<see cref="Render_SlideNumberFieldOnSecondSlideOfTwo_SubstitutesDifferentSlideNumber"/>)
+    ///     to prove per-slide substitution against a genuine multi-slide deck, not a single slide
+    ///     rendered twice.
+    /// </param>
     private static Stream BuildRenderPackage(
         string spTreeInnerXml,
         string masterTxStylesXml = "",
@@ -115,7 +126,8 @@ public class PptxRenderTests
         string themeFillStyleListXml = "",
         string themeLnStyleListXml = "",
         float slideWidthEmu = 9144000f,
-        float slideHeightEmu = 6858000f)
+        float slideHeightEmu = 6858000f,
+        IReadOnlyList<string>? additionalSlideSpTreeInnerXmls = null)
     {
         // Distinct <Default Extension=".../> content-type entries, one per distinct extension
         // across all three possible media owners (slide/layout/master), avoiding a duplicate
@@ -149,15 +161,19 @@ public class PptxRenderTests
             $"""
             <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
               <p:sldSz cx="{slideWidthEmu:F0}" cy="{slideHeightEmu:F0}"/>
-              <p:sldIdLst><p:sldId id="256" r:id="rId2"/></p:sldIdLst>
+              <p:sldIdLst>
+                <p:sldId id="256" r:id="rId2"/>
+                {string.Join("\n    ", Enumerable.Range(0, additionalSlideSpTreeInnerXmls?.Count ?? 0).Select(i => $"""<p:sldId id="{257 + i}" r:id="rId{3 + i}"/>"""))}
+              </p:sldIdLst>
             </p:presentation>
             """;
 
-        const string presentationRelsXml =
-            """
+        var presentationRelsXml =
+            $"""
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
               <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml" />
+              {string.Join("\n  ", Enumerable.Range(0, additionalSlideSpTreeInnerXmls?.Count ?? 0).Select(i => $"""<Relationship Id="rId{3 + i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide{2 + i}.xml" />"""))}
             </Relationships>
             """;
 
@@ -272,6 +288,37 @@ public class PptxRenderTests
             WriteTextEntry(archive, "ppt/_rels/presentation.xml.rels", presentationRelsXml);
             WriteTextEntry(archive, "ppt/slides/slide1.xml", slideXml);
             WriteTextEntry(archive, "ppt/slides/_rels/slide1.xml.rels", slideRelsXml);
+
+            // Additional slides (slide2.xml, slide3.xml, ...), when present, share the same
+            // layout/master/theme as slide 1 and declare no background/color-map override of
+            // their own - see additionalSlideSpTreeInnerXmls's own remarks.
+            if (additionalSlideSpTreeInnerXmls is not null)
+            {
+                for (var i = 0; i < additionalSlideSpTreeInnerXmls.Count; i++)
+                {
+                    var additionalSlideNumber = i + 2;
+                    var additionalSlideXml =
+                        $"""
+                        <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                          <p:cSld>
+                            <p:spTree>
+                              {additionalSlideSpTreeInnerXmls[i]}
+                            </p:spTree>
+                          </p:cSld>
+                        </p:sld>
+                        """;
+                    const string additionalSlideRelsXml =
+                        """
+                        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml" />
+                        </Relationships>
+                        """;
+                    WriteTextEntry(archive, $"ppt/slides/slide{additionalSlideNumber}.xml", additionalSlideXml);
+                    WriteTextEntry(archive, $"ppt/slides/_rels/slide{additionalSlideNumber}.xml.rels", additionalSlideRelsXml);
+                }
+            }
+
             WriteTextEntry(archive, "ppt/slideLayouts/slideLayout1.xml", layoutXml);
             WriteTextEntry(archive, "ppt/slideLayouts/_rels/slideLayout1.xml.rels", layoutRelsXml);
             WriteTextEntry(archive, "ppt/slideMasters/slideMaster1.xml", masterXml);
@@ -1801,6 +1848,159 @@ public class PptxRenderTests
         }
 
         Assert.True(paintedAnyInk, "Expected at least one non-background pixel to be painted for the shape's text.");
+    }
+
+    /// <summary>A full-slide text-box shape whose single paragraph is the given raw <c>&lt;a:p&gt;</c> inner content.</summary>
+    private static string TextBoxShapeXml(string paragraphInnerXml) =>
+        $"""
+        <p:sp>
+          <p:nvSpPr><p:cNvPr id="2" name="TextBox 1"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+          <p:spPr>
+            <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+          </p:spPr>
+          <p:txBody>
+            <a:bodyPr/>
+            <a:p>{paragraphInnerXml}</a:p>
+          </p:txBody>
+        </p:sp>
+        """;
+
+    /// <summary>
+    ///     Proves a <c>&lt;a:fld type="slidenum"&gt;</c> field on a single-slide deck's only slide
+    ///     renders the slide's own 1-based slide number ("1") - not its cached placeholder text
+    ///     (<c>&#8249;#&#8250;</c>) - by asserting the rendered surface is pixel-identical to an
+    ///     otherwise-identical shape whose run is a plain <c>&lt;a:r&gt;&lt;a:t&gt;1&lt;/a:t&gt;&lt;/a:r&gt;</c>
+    ///     (same <c>&lt;a:rPr&gt;</c> styling), since the substituted field's run style/measurement
+    ///     is otherwise identical to a plain run's.
+    /// </summary>
+    [Fact]
+    public void Render_SlideNumberField_SubstitutesOneBasedSlideNumber()
+    {
+        var fieldShapeXml = TextBoxShapeXml(
+            """<a:r><a:rPr sz="4400"/><a:t>Page </a:t></a:r><a:fld type="slidenum" id="{12345678-1234-1234-1234-123456789012}"><a:rPr sz="4400"/><a:t>PLACEHOLDER</a:t></a:fld>""");
+        var referenceShapeXml = TextBoxShapeXml(
+            """<a:r><a:rPr sz="4400"/><a:t>Page </a:t></a:r><a:r><a:rPr sz="4400"/><a:t>1</a:t></a:r>""");
+
+        using var fieldStream = BuildRenderPackage(fieldShapeXml);
+        using var fieldDocument = PptxDocument.Open(fieldStream);
+        using var fieldSurface = fieldDocument.Render(0, 200, 150);
+
+        using var referenceStream = BuildRenderPackage(referenceShapeXml);
+        using var referenceDocument = PptxDocument.Open(referenceStream);
+        using var referenceSurface = referenceDocument.Render(0, 200, 150);
+
+        for (var y = 0; y < 150; y++)
+        {
+            for (var x = 0; x < 200; x++)
+            {
+                Assert.Equal(referenceSurface[x, y], fieldSurface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves the same <c>&lt;a:fld type="slidenum"&gt;</c> field shape, declared identically
+    ///     on both slides of a genuine two-slide deck, renders a <em>different</em> slide number
+    ///     on each slide ("1" on slide 0, "2" on slide 1) - proving true per-slide substitution
+    ///     driven by the slide actually being rendered, not a value hardcoded from slide 1.
+    /// </summary>
+    [Fact]
+    public void Render_SlideNumberFieldOnSecondSlideOfTwo_SubstitutesDifferentSlideNumber()
+    {
+        var fieldShapeXml = TextBoxShapeXml(
+            """<a:fld type="slidenum" id="{12345678-1234-1234-1234-123456789012}"><a:rPr sz="4400"/><a:t>PLACEHOLDER</a:t></a:fld>""");
+
+        using var stream = BuildRenderPackage(fieldShapeXml, additionalSlideSpTreeInnerXmls: [fieldShapeXml]);
+        using var document = PptxDocument.Open(stream);
+        using var slide1Surface = document.Render(0, 200, 150);
+        using var slide2Surface = document.Render(1, 200, 150);
+
+        var referenceOneShapeXml = TextBoxShapeXml("""<a:r><a:rPr sz="4400"/><a:t>1</a:t></a:r>""");
+        var referenceTwoShapeXml = TextBoxShapeXml("""<a:r><a:rPr sz="4400"/><a:t>2</a:t></a:r>""");
+        using var referenceOneStream = BuildRenderPackage(referenceOneShapeXml);
+        using var referenceOneDocument = PptxDocument.Open(referenceOneStream);
+        using var referenceOneSurface = referenceOneDocument.Render(0, 200, 150);
+        using var referenceTwoStream = BuildRenderPackage(referenceTwoShapeXml);
+        using var referenceTwoDocument = PptxDocument.Open(referenceTwoStream);
+        using var referenceTwoSurface = referenceTwoDocument.Render(0, 200, 150);
+
+        var slide1MatchesReferenceOne = true;
+        var slide2MatchesReferenceTwo = true;
+        var slide1MatchesSlide2 = true;
+        for (var y = 0; y < 150; y++)
+        {
+            for (var x = 0; x < 200; x++)
+            {
+                slide1MatchesReferenceOne &= referenceOneSurface[x, y] == slide1Surface[x, y];
+                slide2MatchesReferenceTwo &= referenceTwoSurface[x, y] == slide2Surface[x, y];
+                slide1MatchesSlide2 &= slide1Surface[x, y] == slide2Surface[x, y];
+            }
+        }
+
+        Assert.True(slide1MatchesReferenceOne, "Expected slide 1 (index 0) to render its own 1-based slide number, \"1\".");
+        Assert.True(slide2MatchesReferenceTwo, "Expected slide 2 (index 1) to render its own 1-based slide number, \"2\".");
+        Assert.False(slide1MatchesSlide2, "Expected slide 1 and slide 2 to render distinct slide numbers, proving genuine per-slide substitution.");
+    }
+
+    /// <summary>
+    ///     Proves a non-<c>"slidenum"</c> field (e.g. <c>type="datetime1"</c>) is completely
+    ///     unaffected by the new substitution: it keeps rendering its cached <c>&lt;a:t&gt;</c>
+    ///     text exactly as parsed, matching an otherwise-identical plain-run reference shape.
+    /// </summary>
+    [Fact]
+    public void Render_DateTimeField_KeepsCachedPlaceholderText()
+    {
+        var fieldShapeXml = TextBoxShapeXml(
+            """<a:fld type="datetime1" id="{12345678-1234-1234-1234-123456789012}"><a:rPr sz="4400"/><a:t>1/1/2024</a:t></a:fld>""");
+        var referenceShapeXml = TextBoxShapeXml("""<a:r><a:rPr sz="4400"/><a:t>1/1/2024</a:t></a:r>""");
+
+        using var fieldStream = BuildRenderPackage(fieldShapeXml);
+        using var fieldDocument = PptxDocument.Open(fieldStream);
+        using var fieldSurface = fieldDocument.Render(0, 200, 150);
+
+        using var referenceStream = BuildRenderPackage(referenceShapeXml);
+        using var referenceDocument = PptxDocument.Open(referenceStream);
+        using var referenceSurface = referenceDocument.Render(0, 200, 150);
+
+        for (var y = 0; y < 150; y++)
+        {
+            for (var x = 0; x < 200; x++)
+            {
+                Assert.Equal(referenceSurface[x, y], fieldSurface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves a plain <c>&lt;a:r&gt;</c> run sharing a paragraph with a
+    ///     <c>&lt;a:fld type="slidenum"&gt;</c> field is entirely unaffected by the substitution -
+    ///     only the field's own run changes - by comparing against a reference shape whose second
+    ///     run is already the expected literal "1" (same style), both runs otherwise identical.
+    /// </summary>
+    [Fact]
+    public void Render_PlainRunAlongsideSlideNumberField_PlainRunTextUnaffected()
+    {
+        var fieldShapeXml = TextBoxShapeXml(
+            """<a:r><a:rPr sz="4400"/><a:t>Slide </a:t></a:r><a:fld type="slidenum" id="{12345678-1234-1234-1234-123456789012}"><a:rPr sz="4400"/><a:t>PLACEHOLDER</a:t></a:fld>""");
+        var referenceShapeXml = TextBoxShapeXml(
+            """<a:r><a:rPr sz="4400"/><a:t>Slide </a:t></a:r><a:r><a:rPr sz="4400"/><a:t>1</a:t></a:r>""");
+
+        using var fieldStream = BuildRenderPackage(fieldShapeXml);
+        using var fieldDocument = PptxDocument.Open(fieldStream);
+        using var fieldSurface = fieldDocument.Render(0, 200, 150);
+
+        using var referenceStream = BuildRenderPackage(referenceShapeXml);
+        using var referenceDocument = PptxDocument.Open(referenceStream);
+        using var referenceSurface = referenceDocument.Render(0, 200, 150);
+
+        for (var y = 0; y < 150; y++)
+        {
+            for (var x = 0; x < 200; x++)
+            {
+                Assert.Equal(referenceSurface[x, y], fieldSurface[x, y]);
+            }
+        }
     }
 
     /// <summary>

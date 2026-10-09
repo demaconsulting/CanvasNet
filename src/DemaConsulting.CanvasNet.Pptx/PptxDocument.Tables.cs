@@ -18,12 +18,11 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     <see cref="PptxTable"/> (<see cref="ParseTable"/>, <see cref="ParseTableCell"/>),
 ///     resolving each cell's final, merge-aware rectangle (<see cref="ResolveCellRects"/>), and
 ///     painting the whole table - fill, borders, and cell text - onto a <see cref="Surface"/>
-///     (<see cref="PaintTable"/>) - see <c>pptx-document.md</c>'s "Tables (Phase 1e)" design
-///     section for the full merge/rect-resolution algorithm, documented deferrals (auto-sizing to
-///     fit overflowing content, nested tables), and the "Phase 2 Follow-Up: Table Style/Banding
-///     Resolution" section for the <c>&lt;a:tableStyleId&gt;</c>/<c>wholeTbl</c>/<c>band1H</c>/
-///     <c>band2H</c>/<c>firstRow</c> cascade implemented by <c>PptxDocument.TableStyles.cs</c>'s
-///     <see cref="ResolveTableCellStyle"/>.
+///     (<see cref="PaintTable"/>). Nested tables are a documented deferral. The
+///     <c>&lt;a:tableStyleId&gt;</c>/<c>wholeTbl</c>/<c>band1H</c>/<c>band2H</c>/<c>firstRow</c>
+///     cascade is implemented by <c>PptxDocument.TableStyles.cs</c>'s
+///     <see cref="ResolveTableCellStyle"/>, and <see cref="ResolveCellRects"/> implements its own
+///     row-height growth algorithm.
 /// </summary>
 public sealed partial class PptxDocument
 {
@@ -240,7 +239,10 @@ public sealed partial class PptxDocument
 
     /// <summary>
     ///     Resolves every non-merge-continuation cell in <paramref name="table"/> to its final,
-    ///     merge-aware, shape-local rectangle.
+    ///     merge-aware, shape-local rectangle, growing each row beyond its own stored
+    ///     <c>&lt;a:tr h="..."&gt;</c> height when needed to fit a single-row cell's own
+    ///     wrapped-text content, or a row-spanning cell's own shortfall onto its last spanned row
+    ///     (Phase 2 Follow-Up: Table Row-Height Growth - see <see cref="GrowRowHeightsToFitText"/>).
     /// </summary>
     /// <remarks>
     ///     A conformant producer (PowerPoint itself) always follows a <c>gridSpan="N"</c>
@@ -258,6 +260,30 @@ public sealed partial class PptxDocument
     ///     always zero and this method's behavior is unchanged.
     /// </remarks>
     /// <param name="table">The parsed table.</param>
+    /// <param name="theme">
+    ///     The resolved theme, consulted (together with <paramref name="fontResolver"/>) to
+    ///     measure each cell's own required wrapped-text height, or <see langword="null"/> (the
+    ///     default) to resolve every row at exactly its stored height, with no growth at all -
+    ///     the pre-existing behavior, preserved for any caller (for example this method's own
+    ///     existing direct-call tests) that does not supply a font-resolution context.
+    /// </param>
+    /// <param name="fontResolver">
+    ///     Resolves a <c>(familyName, bold, italic)</c> triple to a <see cref="TrueTypeFont"/>,
+    ///     consulted (together with <paramref name="theme"/>) to measure required cell text
+    ///     heights - see <see cref="ResolveTextLayout"/>'s matching parameter. Growth is applied
+    ///     only when both this parameter and <paramref name="theme"/> are non-null; leaving
+    ///     either at its default <see langword="null"/> preserves the pre-existing stored-height
+    ///     behavior unconditionally.
+    /// </param>
+    /// <param name="colorMap">The effective color map consulted while measuring cell text - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
+    /// <param name="fallbackFontResolver">Resolves a <c>(bold, italic)</c> pair to a bundled fallback font while measuring cell text - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
+    /// <param name="slideNumber">
+    ///     The rendered slide's own 1-based slide number, consulted while measuring a cell's own
+    ///     <c>&lt;a:fld type="slidenum"&gt;</c> field text so its required height reflects the
+    ///     substituted digits rather than the cached placeholder - see
+    ///     <see cref="GetEffectiveCellTextBody"/> - or <see langword="null"/> (the default) to
+    ///     measure every cell's cached field text verbatim.
+    /// </param>
     /// <returns>
     ///     The resolved rectangles, in row-major document order. A cell with
     ///     <see cref="PptxTableCell.HMerge"/> or <see cref="PptxTableCell.VMerge"/> set is
@@ -265,9 +291,74 @@ public sealed partial class PptxDocument
     ///     governing cell's own <see cref="PptxTableCell.GridSpan"/>/<see cref="PptxTableCell.RowSpan"/>
     ///     already spans its full merged rectangle).
     /// </returns>
-    internal static IReadOnlyList<PptxResolvedTableCell> ResolveCellRects(PptxTable table)
+    internal static IReadOnlyList<PptxResolvedTableCell> ResolveCellRects(
+        PptxTable table,
+        PptxTheme? theme = null,
+        Func<string, bool, bool, TrueTypeFont>? fontResolver = null,
+        PptxColorMap? colorMap = null,
+        Func<bool, bool, TrueTypeFont>? fallbackFontResolver = null,
+        int? slideNumber = null)
     {
-        var results = new List<PptxResolvedTableCell>();
+        var storedHeightsEmu = table.Rows.Select(row => row.HeightEmu).ToList();
+
+        // Growth is strictly opt-in: a caller that does not supply both a theme and a font
+        // resolver gets exactly today's stored-height behavior, unconditionally - see this
+        // method's own <param name="theme"/>/<param name="fontResolver"/> remarks.
+        var effectiveHeightsEmu = theme is null || fontResolver is null
+            ? storedHeightsEmu
+            : GrowRowHeightsToFitText(table, storedHeightsEmu, theme, fontResolver, colorMap, fallbackFontResolver, slideNumber);
+
+        return WalkResolvedCells(table, effectiveHeightsEmu)
+            .Select(walked => new PptxResolvedTableCell(walked.XEmu, walked.YEmu, walked.WidthEmu, walked.HeightEmu, walked.Cell))
+            .ToList();
+    }
+
+    /// <summary>
+    ///     Returns <paramref name="cell"/>'s own <see cref="PptxTableCell.TextBody"/> with every
+    ///     <c>&lt;a:fld type="slidenum"&gt;</c> field substituted via
+    ///     <see cref="SubstituteSlideNumberField"/> when <paramref name="slideNumber"/> is
+    ///     supplied, so a table cell's slide-number field resolves identically to a non-table
+    ///     shape's (see <c>PptxDocument.Render.cs</c>'s <c>RenderShape</c>) for both row-height
+    ///     measurement (<see cref="GrowRowHeightsToFitText"/>) and painting
+    ///     (<see cref="PaintTable"/>) - without this, a cell's cached <c>&#8249;#&#8250;</c>
+    ///     placeholder text would both measure and paint incorrectly. A <see langword="null"/>
+    ///     <paramref name="slideNumber"/> (the default for every caller with no slide-number
+    ///     context, including this file's own direct-call tests) returns <paramref name="cell"/>'s
+    ///     <see cref="PptxTableCell.TextBody"/> unchanged.
+    /// </summary>
+    private static PptxTextBody? GetEffectiveCellTextBody(PptxTableCell cell, int? slideNumber) =>
+        cell.TextBody is { } textBody && slideNumber.HasValue
+            ? SubstituteSlideNumberField(textBody, slideNumber.Value)
+            : cell.TextBody;
+
+    /// <summary>
+    ///     A single resolved cell's rectangle plus the index of its own governing row, produced by
+    ///     <see cref="WalkResolvedCells"/> - the extra <see cref="RowIndex"/> field (beyond
+    ///     <see cref="PptxResolvedTableCell"/>'s own public fields) is needed only internally, by
+    ///     <see cref="GrowRowHeightsToFitText"/>'s own provisional measurement pass, to know which
+    ///     row-heights-array slot(s) a cell's own required text height applies to.
+    /// </summary>
+    private readonly record struct WalkedCell(int RowIndex, float XEmu, float YEmu, float WidthEmu, float HeightEmu, PptxTableCell Cell);
+
+    /// <summary>
+    ///     Walks every non-merge-continuation cell in <paramref name="table"/>, accumulating each
+    ///     row's own Y-offset and each cell's own merged width/height purely arithmetically over
+    ///     <paramref name="rowHeightsEmu"/> - the shared column-walk/merge-compensation logic
+    ///     extracted, verbatim, from <see cref="ResolveCellRects"/>'s own former body, now
+    ///     parameterized on which row-heights array to accumulate from (the stored heights for a
+    ///     no-growth caller, or <see cref="GrowRowHeightsToFitText"/>'s own grown heights for a
+    ///     render-time caller) so the identical walk need not be duplicated for each.
+    /// </summary>
+    /// <param name="table">The parsed table.</param>
+    /// <param name="rowHeightsEmu">
+    ///     Each row's own height, in EMU, in document order - either <paramref name="table"/>'s
+    ///     own stored <see cref="PptxTableRow.HeightEmu"/> values, or a grown replacement array of
+    ///     the same length.
+    /// </param>
+    /// <returns>Every non-merge-continuation cell's resolved rectangle, each carrying its own governing <see cref="WalkedCell.RowIndex"/>.</returns>
+    private static List<WalkedCell> WalkResolvedCells(PptxTable table, IReadOnlyList<float> rowHeightsEmu)
+    {
+        var results = new List<WalkedCell>();
 
         var yEmu = 0f;
         for (var rowIndex = 0; rowIndex < table.Rows.Count; rowIndex++)
@@ -293,8 +384,8 @@ public sealed partial class PptxDocument
                 if (!cell.HMerge && !cell.VMerge)
                 {
                     var cellWidthEmu = SumColumnWidths(table.ColumnWidthsEmu, columnIndex, cell.GridSpan);
-                    var cellHeightEmu = SumRowHeights(table.Rows, rowIndex, cell.RowSpan);
-                    results.Add(new PptxResolvedTableCell(xEmu, yEmu, cellWidthEmu, cellHeightEmu, cell));
+                    var cellHeightEmu = SumConsecutive(rowHeightsEmu, rowIndex, cell.RowSpan);
+                    results.Add(new WalkedCell(rowIndex, xEmu, yEmu, cellWidthEmu, cellHeightEmu, cell));
 
                     // Count how many of the immediately-following cells are themselves real
                     // HMerge continuations of this governing cell (bounded by the expected count
@@ -321,10 +412,128 @@ public sealed partial class PptxDocument
                 columnIndex++;
             }
 
-            yEmu += row.HeightEmu;
+            yEmu += rowIndex < rowHeightsEmu.Count ? rowHeightsEmu[rowIndex] : 0f;
         }
 
         return results;
+    }
+
+    /// <summary>
+    ///     Computes each row's own effective (possibly grown) height, in EMU, so that every
+    ///     cell's own wrapped-text content fits without overlapping the next row (Phase 2
+    ///     Follow-Up: Table Row-Height Growth) - never shrinking a row below its own
+    ///     <paramref name="storedHeightsEmu"/> value.
+    /// </summary>
+    /// <remarks>
+    ///     Two passes, because a row-spanning cell's own requirement applies to the <em>sum</em>
+    ///     of its spanned rows, and any single-row growth within that same span (processed in
+    ///     document order, which may occur anywhere relative to the spanning cell itself) must be
+    ///     accounted for before deciding whether the span itself still falls short:
+    ///     <list type="number">
+    ///         <item>
+    ///             A provisional <see cref="WalkResolvedCells"/> pass (over the still-unmodified
+    ///             <paramref name="storedHeightsEmu"/>) learns every governing cell's own resolved
+    ///             <c>WidthEmu</c> (text wraps within a cell's own width, which growth itself never
+    ///             changes) and <c>RowIndex</c>. Its own <c>YEmu</c>/<c>HeightEmu</c> here are
+    ///             provisional/unused - they are necessarily computed from not-yet-grown heights.
+    ///             Every cell with a non-null <see cref="PptxTableCell.TextBody"/> has its own
+    ///             required height measured via <see cref="MeasureRequiredTextHeightEmu"/>.
+    ///             A <see cref="PptxTableCell.RowSpan"/>-<c>1</c> cell grows its own single row
+    ///             immediately (<c>effectiveHeightsEmu[rowIndex] = MathF.Max(...)</c> - never
+    ///             shrink, grow exactly enough to fit); a <c>RowSpan &gt; 1</c> cell's own
+    ///             requirement is deferred to pass 2.
+    ///         </item>
+    ///         <item>
+    ///             Each deferred row-spanning cell's own shortfall - its required height minus the
+    ///             (now possibly singly-grown) sum of its spanned rows - is added entirely onto
+    ///             its <em>last</em> spanned row when positive. "Last spanned row" (rather than
+    ///             proportional distribution across the span) is chosen because: (a) it is the
+    ///             simplest rule that satisfies "never shrink below stored, grow exactly enough to
+    ///             fit"; (b) it mirrors PowerPoint's own commonly-observed behavior of visually
+    ///             expanding the bottom of a merged region rather than redistributing already-fixed
+    ///             interior row boundaries that other, unrelated single-row cells within the same
+    ///             span may themselves depend on (pass 1's own growth of such a row already fixed
+    ///             its height for a reason unrelated to the spanning cell's own content); (c) it
+    ///             keeps the change's blast radius local - only the Y-offset of rows strictly
+    ///             after the span shifts, identical to any other single-row growth elsewhere in
+    ///             the table. This is a documented engineering judgment call, not an independently
+    ///             verified match to PowerPoint's own exact distribution algorithm for row-spanning
+    ///             cells (see the design document's matching Phase 2 Follow-Up section).
+    ///         </item>
+    ///     </list>
+    /// </remarks>
+    /// <param name="table">The parsed table.</param>
+    /// <param name="storedHeightsEmu">Each row's own stored <see cref="PptxTableRow.HeightEmu"/>, in document order - never mutated.</param>
+    /// <param name="theme">The resolved theme, consulted to measure each cell's own required wrapped-text height.</param>
+    /// <param name="fontResolver">Resolves a <c>(familyName, bold, italic)</c> triple to a <see cref="TrueTypeFont"/> - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
+    /// <param name="colorMap">The effective color map consulted while measuring cell text - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
+    /// <param name="fallbackFontResolver">Resolves a <c>(bold, italic)</c> pair to a bundled fallback font while measuring cell text - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
+    /// <param name="slideNumber">
+    ///     The rendered slide's own 1-based slide number, substituted into any cell's own
+    ///     <c>&lt;a:fld type="slidenum"&gt;</c> field before measurement - see
+    ///     <see cref="GetEffectiveCellTextBody"/> - or <see langword="null"/> to measure a cell's
+    ///     cached field text verbatim (for example, a caller with no slide-number context of its
+    ///     own, such as this method's existing direct-call tests).
+    /// </param>
+    /// <returns>Each row's own effective height, in EMU, in document order - always greater than or equal to its own <paramref name="storedHeightsEmu"/> value.</returns>
+    private static List<float> GrowRowHeightsToFitText(
+        PptxTable table,
+        IReadOnlyList<float> storedHeightsEmu,
+        PptxTheme theme,
+        Func<string, bool, bool, TrueTypeFont> fontResolver,
+        PptxColorMap? colorMap,
+        Func<bool, bool, TrueTypeFont>? fallbackFontResolver,
+        int? slideNumber = null)
+    {
+        var effectiveHeightsEmu = storedHeightsEmu.ToList();
+
+        // Deferred row-spanning cells' own (RowIndex, RowSpan, RequiredHeightEmu), resolved in
+        // pass 2 below, once every single-row cell's own growth (pass 1) has already applied.
+        var deferredSpans = new List<(int RowIndex, int RowSpan, float RequiredHeightEmu)>();
+
+        // Pass 1: provisional walk over the stored (not-yet-grown) heights, purely to learn each
+        // governing cell's own resolved WidthEmu/RowIndex - see this method's own <remarks/>.
+        foreach (var provisional in WalkResolvedCells(table, storedHeightsEmu))
+        {
+            if (GetEffectiveCellTextBody(provisional.Cell, slideNumber) is not { } textBody)
+            {
+                continue;
+            }
+
+            var requiredHeightEmu = MeasureRequiredTextHeightEmu(
+                textBody, theme, provisional.WidthEmu, fontResolver, colorMap, fallbackFontResolver);
+
+            if (provisional.Cell.RowSpan == 1)
+            {
+                effectiveHeightsEmu[provisional.RowIndex] = MathF.Max(effectiveHeightsEmu[provisional.RowIndex], requiredHeightEmu);
+            }
+            else
+            {
+                deferredSpans.Add((provisional.RowIndex, provisional.Cell.RowSpan, requiredHeightEmu));
+            }
+        }
+
+        // Pass 2: distribute each row-spanning cell's own remaining shortfall (if any) entirely
+        // onto its last spanned row - see this method's own <remarks/> for the policy rationale.
+        foreach (var (rowIndex, rowSpan, requiredHeightEmu) in deferredSpans)
+        {
+            var shortfallEmu = requiredHeightEmu - SumConsecutive(effectiveHeightsEmu, rowIndex, rowSpan);
+            if (shortfallEmu > 0f)
+            {
+                // Clamped to the last available row - matches SumConsecutive's own clamp-to-available
+                // behavior above, so a malformed rowSpan that extends past the table's declared row
+                // count still grows the table's actual last row instead of indexing out of bounds.
+                // Compares the untrusted rowSpan against the (small, trusted) remaining row count
+                // *before* adding it to rowIndex, so a rowSpan near int.MaxValue can never overflow
+                // `rowIndex + rowSpan - 1` into a negative index.
+                var lastSpannedRowIndex = rowSpan > effectiveHeightsEmu.Count - rowIndex
+                    ? effectiveHeightsEmu.Count - 1
+                    : rowIndex + rowSpan - 1;
+                effectiveHeightsEmu[lastSpannedRowIndex] += shortfallEmu;
+            }
+        }
+
+        return effectiveHeightsEmu;
     }
 
     /// <summary>
@@ -350,15 +559,25 @@ public sealed partial class PptxDocument
     ///     parse time - so this parameter <em>does</em> see the slide's true effective color map
     ///     when supplied by a render-time caller.
     /// </param>
+    /// <param name="slideNumber">
+    ///     The rendered slide's own 1-based slide number, substituted into every cell's own
+    ///     <c>&lt;a:fld type="slidenum"&gt;</c> field before both row-height measurement (passed
+    ///     through to <see cref="ResolveCellRects"/>) and painting - see
+    ///     <see cref="GetEffectiveCellTextBody"/> - or <see langword="null"/> (the default) to
+    ///     paint every cell's cached field text verbatim, matching this method's pre-existing
+    ///     behavior for any caller with no slide-number context of its own (for example this
+    ///     file's own direct-call tests).
+    /// </param>
     internal static void PaintTable(
         Surface surface,
         PptxTable table,
         PptxTheme theme,
         Matrix3x2 shapeToSurfaceTransform,
         Func<string, bool, bool, TrueTypeFont> fontResolver,
-        PptxColorMap? colorMap = null)
+        PptxColorMap? colorMap = null,
+        int? slideNumber = null)
     {
-        foreach (var resolvedCell in ResolveCellRects(table))
+        foreach (var resolvedCell in ResolveCellRects(table, theme, fontResolver, colorMap, slideNumber: slideNumber))
         {
             var cellRectPath = Path.Rectangle(resolvedCell.XEmu, resolvedCell.YEmu, resolvedCell.WidthEmu, resolvedCell.HeightEmu)
                 .Transform(shapeToSurfaceTransform);
@@ -373,7 +592,7 @@ public sealed partial class PptxDocument
             PaintCellBorder(surface, resolvedCell.Cell.BottomBorder, shapeToSurfaceTransform,
                 resolvedCell.XEmu, resolvedCell.YEmu + resolvedCell.HeightEmu, resolvedCell.XEmu + resolvedCell.WidthEmu, resolvedCell.YEmu + resolvedCell.HeightEmu);
 
-            if (resolvedCell.Cell.TextBody is { } textBody)
+            if (GetEffectiveCellTextBody(resolvedCell.Cell, slideNumber) is { } textBody)
             {
                 var placeholderProperties = new PptxPlaceholderProperties(null, null, theme);
                 var layout = ResolveTextLayout(
@@ -528,24 +747,21 @@ public sealed partial class PptxDocument
     /// </summary>
     private static float SumConsecutive(IReadOnlyList<float> valuesEmu, int startIndex, int count)
     {
+        // Clamp the untrusted span length against the remaining row count *before* adding it to
+        // startIndex, so a malformed rowSpan near int.MaxValue can never overflow the addition
+        // (unlike the previous `Math.Min(startIndex + count, valuesEmu.Count)`, which could wrap
+        // to a negative endIndex for such a span).
+        var clampedCount = Math.Min(count, valuesEmu.Count - startIndex);
+        if (clampedCount <= 0)
+        {
+            return 0f;
+        }
+
         var sum = 0f;
-        var endIndex = Math.Min(startIndex + count, valuesEmu.Count);
+        var endIndex = startIndex + clampedCount;
         for (var i = startIndex; i < endIndex; i++)
         {
             sum += valuesEmu[i];
-        }
-
-        return sum;
-    }
-
-    /// <summary>Sums <paramref name="count"/> consecutive row heights starting at <paramref name="startIndex"/>, clamped to the available row count.</summary>
-    private static float SumRowHeights(IReadOnlyList<PptxTableRow> rows, int startIndex, int count)
-    {
-        var sum = 0f;
-        var endIndex = Math.Min(startIndex + count, rows.Count);
-        for (var i = startIndex; i < endIndex; i++)
-        {
-            sum += rows[i].HeightEmu;
         }
 
         return sum;

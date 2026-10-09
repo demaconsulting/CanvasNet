@@ -73,8 +73,8 @@ public sealed partial class VsdxDocument
 
     /// <summary>
     ///     Parses a <c>BeginArrowSize</c>/<c>EndArrowSize</c> cell's raw value into its size index,
-    ///     defaulting to <c>2</c> (the built-in "No Style" StyleSheet's own documented default -
-    ///     see <c>vsdx-document.md</c>'s Data Model, "its resolved line/fill style") for an absent,
+    ///     defaulting to <c>2</c> (the built-in "No Style" StyleSheet's own documented default
+    ///     resolved line/fill style) for an absent,
     ///     non-numeric, or negative value.
     /// </summary>
     /// <param name="rawValue">The resolved cell's raw string value, or <see langword="null"/> when unresolved anywhere in the chain.</param>

@@ -67,6 +67,54 @@ public static class PathFiller
         Path path,
         Rgba32 color,
         FillRule fillRule = FillRule.NonZero,
+        float flattenTolerance = 0.25f) =>
+        Fill(surface, path, color, null, fillRule, flattenTolerance);
+
+    /// <summary>
+    ///     Fills <paramref name="path"/> onto <paramref name="surface"/> with <paramref name="color"/>,
+    ///     restricted to <paramref name="clip"/>'s antialiased coverage in addition to
+    ///     <paramref name="path"/>'s own fill coverage - the internal clip-aware counterpart of
+    ///     <see cref="Fill(Surface, Path, Rgba32, FillRule, float)"/>, which this overload's public
+    ///     forwarder calls with <paramref name="clip"/> fixed to <see langword="null"/>.
+    /// </summary>
+    /// <param name="surface">The surface to fill into. Must not be <see langword="null"/>.</param>
+    /// <param name="path">The path to fill. Must not be <see langword="null"/>.</param>
+    /// <param name="color">The solid color to paint, scaled per pixel by antialiased fill coverage.</param>
+    /// <param name="clip">
+    ///     The active PDF clipping path's antialiased coverage mask, or <see langword="null"/> if
+    ///     no clip is active - see <see cref="ClipMask"/>'s remarks for how its coverage is
+    ///     multiplied, pixel by pixel, into this fill's own coverage.
+    /// </param>
+    /// <param name="fillRule">
+    ///     The rule used to resolve overlapping or self-intersecting geometry. Defaults to
+    ///     <see cref="FillRule.NonZero"/>.
+    /// </param>
+    /// <param name="flattenTolerance">
+    ///     The maximum allowed perpendicular deviation between each curve in <paramref name="path"/>
+    ///     and the polyline used to approximate it for filling. Must be greater than zero.
+    ///     Defaults to <c>0.25f</c>.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="surface"/> or <paramref name="path"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="fillRule"/> is not a defined <see cref="FillRule"/> value,
+    ///     or when <paramref name="flattenTolerance"/> is not a finite value greater than zero.
+    /// </exception>
+    /// <remarks>
+    ///     See <see cref="Fill(Surface, Path, Rgba32, FillRule, float)"/>'s remarks for every bit
+    ///     of "every subpath implicitly closed", "no-op on empty/out-of-bounds path", and "no
+    ///     transform parameter" behavior shared identically here. This overload exists purely so
+    ///     <c>DemaConsulting.CanvasNet.Pdf</c> (an <c>InternalsVisibleTo</c> friend assembly) can
+    ///     thread a PDF content stream's current clipping path (PDF 32000-1 &#xA7;8.5.4) through to
+    ///     the rasterizer without that concept ever becoming part of this public API.
+    /// </remarks>
+    internal static void Fill(
+        Surface surface,
+        Path path,
+        Rgba32 color,
+        ClipMask? clip,
+        FillRule fillRule = FillRule.NonZero,
         float flattenTolerance = 0.25f)
     {
         ArgumentNullException.ThrowIfNull(surface);
@@ -78,7 +126,7 @@ public static class PathFiller
             return;
         }
 
-        ScanlineRasterizer.Fill(surface, polygons, color, fillRule, clipBounds);
+        ScanlineRasterizer.Fill(surface, polygons, color, fillRule, clipBounds, clip);
     }
 
     /// <summary>
@@ -125,6 +173,52 @@ public static class PathFiller
         Path path,
         Gradient paint,
         FillRule fillRule = FillRule.NonZero,
+        float flattenTolerance = 0.25f) =>
+        Fill(surface, path, paint, null, fillRule, flattenTolerance);
+
+    /// <summary>
+    ///     Fills <paramref name="path"/> onto <paramref name="surface"/> with <paramref name="paint"/>,
+    ///     restricted to <paramref name="clip"/>'s antialiased coverage - the internal clip-aware
+    ///     counterpart of <see cref="Fill(Surface, Path, Gradient, FillRule, float)"/>, which this
+    ///     overload's public forwarder calls with <paramref name="clip"/> fixed to
+    ///     <see langword="null"/>.
+    /// </summary>
+    /// <param name="surface">The surface to fill into. Must not be <see langword="null"/>.</param>
+    /// <param name="path">The path to fill. Must not be <see langword="null"/>.</param>
+    /// <param name="paint">The gradient to paint. Must not be <see langword="null"/>.</param>
+    /// <param name="clip">
+    ///     The active PDF clipping path's antialiased coverage mask, or <see langword="null"/> if
+    ///     no clip is active - see <see cref="ClipMask"/>'s remarks for how its coverage is
+    ///     multiplied, pixel by pixel, into this fill's own coverage.
+    /// </param>
+    /// <param name="fillRule">
+    ///     The rule used to resolve overlapping or self-intersecting geometry. Defaults to
+    ///     <see cref="FillRule.NonZero"/>.
+    /// </param>
+    /// <param name="flattenTolerance">
+    ///     The maximum allowed perpendicular deviation between each curve in <paramref name="path"/>
+    ///     and the polyline used to approximate it for filling. Must be greater than zero.
+    ///     Defaults to <c>0.25f</c>.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="surface"/>, <paramref name="path"/>, or <paramref name="paint"/>
+    ///     is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="fillRule"/> is not a defined <see cref="FillRule"/> value,
+    ///     or when <paramref name="flattenTolerance"/> is not a finite value greater than zero.
+    /// </exception>
+    /// <remarks>
+    ///     See <see cref="Fill(Surface, Path, Rgba32, ClipMask?, FillRule, float)"/>'s remarks -
+    ///     this overload exists for the identical reason, for <c>Gradient</c> paint rather than a
+    ///     solid color.
+    /// </remarks>
+    internal static void Fill(
+        Surface surface,
+        Path path,
+        Gradient paint,
+        ClipMask? clip,
+        FillRule fillRule = FillRule.NonZero,
         float flattenTolerance = 0.25f)
     {
         ArgumentNullException.ThrowIfNull(surface);
@@ -137,7 +231,7 @@ public static class PathFiller
             return;
         }
 
-        ScanlineRasterizer.Fill(surface, polygons, paint, fillRule, clipBounds);
+        ScanlineRasterizer.Fill(surface, polygons, paint, fillRule, clipBounds, clip);
     }
 
     /// <summary>
@@ -180,6 +274,52 @@ public static class PathFiller
         Path path,
         TilePaint paint,
         FillRule fillRule = FillRule.NonZero,
+        float flattenTolerance = 0.25f) =>
+        Fill(surface, path, paint, null, fillRule, flattenTolerance);
+
+    /// <summary>
+    ///     Fills <paramref name="path"/> onto <paramref name="surface"/> with <paramref name="paint"/>,
+    ///     restricted to <paramref name="clip"/>'s antialiased coverage - the internal clip-aware
+    ///     counterpart of <see cref="Fill(Surface, Path, TilePaint, FillRule, float)"/>, which this
+    ///     overload's public forwarder calls with <paramref name="clip"/> fixed to
+    ///     <see langword="null"/>.
+    /// </summary>
+    /// <param name="surface">The surface to fill into. Must not be <see langword="null"/>.</param>
+    /// <param name="path">The path to fill. Must not be <see langword="null"/>.</param>
+    /// <param name="paint">The tile paint to sample. Must not be <see langword="null"/>.</param>
+    /// <param name="clip">
+    ///     The active PDF clipping path's antialiased coverage mask, or <see langword="null"/> if
+    ///     no clip is active - see <see cref="ClipMask"/>'s remarks for how its coverage is
+    ///     multiplied, pixel by pixel, into this fill's own coverage.
+    /// </param>
+    /// <param name="fillRule">
+    ///     The rule used to resolve overlapping or self-intersecting geometry. Defaults to
+    ///     <see cref="FillRule.NonZero"/>.
+    /// </param>
+    /// <param name="flattenTolerance">
+    ///     The maximum allowed perpendicular deviation between each curve in <paramref name="path"/>
+    ///     and the polyline used to approximate it for filling. Must be greater than zero.
+    ///     Defaults to <c>0.25f</c>.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="surface"/>, <paramref name="path"/>, or <paramref name="paint"/>
+    ///     is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="fillRule"/> is not a defined <see cref="FillRule"/> value,
+    ///     or when <paramref name="flattenTolerance"/> is not a finite value greater than zero.
+    /// </exception>
+    /// <remarks>
+    ///     See <see cref="Fill(Surface, Path, Rgba32, ClipMask?, FillRule, float)"/>'s remarks -
+    ///     this overload exists for the identical reason, for <c>TilePaint</c> paint rather than a
+    ///     solid color.
+    /// </remarks>
+    internal static void Fill(
+        Surface surface,
+        Path path,
+        TilePaint paint,
+        ClipMask? clip,
+        FillRule fillRule = FillRule.NonZero,
         float flattenTolerance = 0.25f)
     {
         ArgumentNullException.ThrowIfNull(surface);
@@ -192,7 +332,7 @@ public static class PathFiller
             return;
         }
 
-        ScanlineRasterizer.Fill(surface, polygons, paint, fillRule, clipBounds);
+        ScanlineRasterizer.Fill(surface, polygons, paint, fillRule, clipBounds, clip);
     }
 
     /// <summary>
@@ -203,7 +343,13 @@ public static class PathFiller
     ///     Thrown when <paramref name="fillRule"/> is not a defined <see cref="FillRule"/> value,
     ///     or when <paramref name="flattenTolerance"/> is not a finite value greater than zero.
     /// </exception>
-    private static void ValidateFillArgs(FillRule fillRule, float flattenTolerance)
+    /// <remarks>
+    ///     Also reused by <see cref="ClipMask.FromPath"/>, which accepts the exact same
+    ///     <paramref name="fillRule"/>/<paramref name="flattenTolerance"/> arguments (a clip path
+    ///     is flattened and fill-rule-resolved identically to a painted one) and needs identical
+    ///     validation rather than a duplicated copy of it.
+    /// </remarks>
+    internal static void ValidateFillArgs(FillRule fillRule, float flattenTolerance)
     {
         // Reject an undefined FillRule value here, at the public API boundary, rather than
         // letting it silently fall through ScanlineRasterizer's internal winding-resolution
@@ -267,7 +413,13 @@ public static class PathFiller
     ///     The smallest axis-aligned rectangle enclosing every vertex, or <see cref="Rect.Empty"/>
     ///     if <paramref name="polygons"/> contains no vertices at all (for example, an empty path).
     /// </returns>
-    private static Rect GetPolygonBounds(IReadOnlyList<List<Vector2>> polygons)
+    /// <remarks>
+    ///     Also reused by <see cref="ClipMask.FromPath"/>, which needs the exact same "bounding
+    ///     box of already-flattened polygon vertices" computation to intersect a clip path's
+    ///     geometry against the surface extent it is built for - rather than duplicating this
+    ///     loop a second time.
+    /// </remarks>
+    internal static Rect GetPolygonBounds(IReadOnlyList<List<Vector2>> polygons)
     {
         var bounds = Rect.Empty;
 

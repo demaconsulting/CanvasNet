@@ -902,6 +902,43 @@ sections:
               - ParseRun_WithTextAndRPr_ResolvesBoth
               - ParseParagraph_RunBreakRun_PreservesBreakInDocumentOrder
 
+          - id: CanvasNetPptx-PptxDocument-SlideNumberFieldSubstitution
+            title: >-
+              The PptxDocument class shall capture an <a:fld> auto-text field's own type
+              attribute (e.g. "slidenum", "datetime1") alongside its parsed run, shall render a
+              type="slidenum" field (case-insensitively) with the slide's own current 1-based
+              slide number, formatted as a plain decimal string, at render time - rather than its
+              cached <a:t> placeholder text (e.g. the literal "<#>" PowerPoint stores) - and shall
+              leave every other field type's cached text, and every plain <a:r> run, completely
+              unchanged.
+            justification: |
+              A confirmed upstream bug report observed that a slide's own <a:fld type="slidenum">
+              placeholder (PowerPoint's "Slide Number" footer field) always rendered its cached,
+              last-computed placeholder text verbatim on every slide, instead of each slide's own
+              actual 1-based slide number, because CanvasNet's parser folded <a:fld> into the same
+              run-parsing path as <a:r> without ever reading the field's own type attribute, and
+              nothing downstream ever substituted a field's text before rendering. Scoping the fix
+              to exactly the "slidenum" field type (case-insensitively, since OOXML field-type
+              values are not reliably authored with consistent casing by every producer) preserves
+              today's established cached-text-fallback behavior for every other field type (for
+              example "datetime1"), since CanvasNet has no live engine to recompute those - see the
+              design document's matching Phase 2 Follow-Up section for the full rationale,
+              including why a nullable FieldType property was added directly to the existing
+              PptxRunItem record rather than introducing a dedicated field-item type.
+            tests:
+              - ParseParagraph_FieldRun_IsPreservedUsingCachedText
+              - ParseParagraph_FieldRunDatetime_CapturesDatetimeFieldType
+              - ParseParagraph_PlainRun_FieldTypeIsNull
+              - SubstituteSlideNumberField_SlidenumField_ReplacesTextWithOneBasedSlideNumber
+              - SubstituteSlideNumberField_SlidenumFieldUppercaseType_ReplacesTextCaseInsensitively
+              - SubstituteSlideNumberField_DatetimeField_LeavesCachedTextUnchanged
+              - SubstituteSlideNumberField_PlainRun_LeavesTextUnchanged
+              - SubstituteSlideNumberField_SlidenumFieldAlongsideLineBreakAndPlainRun_OnlySlidenumItemChanges
+              - Render_SlideNumberField_SubstitutesOneBasedSlideNumber
+              - Render_SlideNumberFieldOnSecondSlideOfTwo_SubstitutesDifferentSlideNumber
+              - Render_DateTimeField_KeepsCachedPlaceholderText
+              - Render_PlainRunAlongsideSlideNumberField_PlainRunTextUnaffected
+
           - id: CanvasNetPptx-PptxDocument-TextPropertyInheritance
             title: >-
               The PptxDocument class shall resolve a run's effective character properties
@@ -1368,6 +1405,34 @@ sections:
               - ResolveCellRects_MergeContinuationCells_AreSkipped
               - ResolveCellRects_HorizontalMerge_ComputesSpannedWidth
               - ResolveCellRects_VerticalMerge_ComputesSpannedHeight
+
+          - id: CanvasNetPptx-PptxDocument-TableRowHeightGrowth
+            title: >-
+              The PptxDocument class shall grow a table row's effective height beyond its
+              declared <a:tr h="..."> value (never shrinking below it) so that a single-row
+              cell's own wrapped-text content fits without overlapping the next row, growing a
+              row to the tallest required wrapped-text height among its own single-row cells,
+              and shall add a row-spanning cell's own shortfall (its required wrapped-text height
+              minus its spanned rows' own current sum) entirely to its last spanned row.
+            justification: |
+              A confirmed upstream bug report observed that this package's table rendering keeps
+              a row at exactly its stored <a:tr h="..."> EMU height regardless of how much text a
+              cell's own wrapped content actually requires, unlike PowerPoint, which grows a row
+              to fit its own cell content - causing a cell whose text wraps to more lines than
+              its stored row height can fit to paint past its own row's bottom edge, visibly
+              overlapping the next row's own content. Growing (never shrinking) preserves every
+              table that already fits its own declared heights exactly as before, while fixing
+              the reported overlap for any table that does not. "Grow the last spanned row" is
+              the policy adopted for a row-spanning cell's own shortfall - documented as the
+              simplest rule that never shrinks an already-fixed, unrelated single-row cell's own
+              row within the same span (see the design document's matching Phase 2 Follow-Up
+              section for the full rationale).
+            tests:
+              - ResolveCellRects_CellTextRequiresMoreHeightThanStored_GrowsRowAndShiftsNextRowYOffset
+              - ResolveCellRects_CellTextFitsWithinStoredHeight_RowHeightUnaffected
+              - ResolveCellRects_RowSpanCellTextRequiresMoreHeightThanSpanTotal_GrowsLastSpannedRow
+              - ResolveCellRects_NoThemeOrFontResolverSupplied_PreservesStoredHeightsUnconditionally
+              - PaintTable_TwoRowTableWithWrappedTextOverflowingStoredHeight_PaintsSecondRowBelowGrownFirstRow
 
           - id: CanvasNetPptx-PptxDocument-TablePainting
             title: >-

@@ -372,6 +372,7 @@ public sealed partial class PdfDocument
         var savedResources = _resources;
         var savedGs = _gs;
         var savedGsStack = _gsStack;
+        var savedPendingClipFillRule = _pendingClipFillRule;
         _type3NestingDepth++;
         try
         {
@@ -380,6 +381,7 @@ public sealed partial class PdfDocument
             nestedGs.CurrentTransform = glyphMatrix;
             _gs = nestedGs;
             _gsStack = new Stack<GraphicsState>();
+            _pendingClipFillRule = null;
             ExecuteOperators(contentBytes);
         }
         finally
@@ -388,6 +390,7 @@ public sealed partial class PdfDocument
             _resources = savedResources;
             _gs = savedGs;
             _gsStack = savedGsStack;
+            _pendingClipFillRule = savedPendingClipFillRule;
         }
     }
 

@@ -31,41 +31,20 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 🖨️ **TIFF Codec** - Load/save 8-bit RGB/RGBA/Grayscale TIFF files
 - 🗜️ **JPEG Codec** - Load baseline/progressive; save baseline JPEG
 - 🎞️ **GIF Codec** - Decode-only load of first GIF frame; `GetInfo` reports the true frame count
-- 📐 **SVG Codec** - Rasterize a common SVG subset, including markers/filters/clip-paths/masks and
-  weight/style-aware font matching, to a surface (ships as the separate
-  `DemaConsulting.CanvasNet.Svg` package)
-- 📄 **PDF Document** - Open a PDF, inspect its page count/size/rotation, and rasterize a page's
-  path geometry, device color (including shading and tiling pattern fills), image XObjects, and
-  TrueType text to a surface, automatically substituting a matching system font (or a bundled
-  Liberation Sans/Serif/Mono font) for text using a non-embedded font (ships as the separate
-  `DemaConsulting.CanvasNet.Pdf` package)
-- 📊 **Chart Rendering** - Build a validated Bar/Column/Line/Area/Pie/Doughnut chart (with axes,
-  legend, title, and data labels) via a fluent builder and paint it onto a surface with documented
-  default styling and a categorical color palette (ships as the separate
-  `DemaConsulting.CanvasNet.Charts` package)
-- 📈 **OOXML Chart Parsing** - Parse a raw ECMA-376 DrawingML-Charts `c:chartSpace`/`c:chart` XML
-  element (for example, a `chart1.xml` OPC part) into a validated chart, reading only cached
-  values, with no OPC/ZIP packaging or host document-format knowledge (ships as part of the same
-  `DemaConsulting.CanvasNet.Charts` package). When rendering a `.pptx` presentation via the
-  separate `DemaConsulting.CanvasNet.Pptx` package's `PptxDocument.Render`, an embedded
-  `<p:graphicFrame>` chart is automatically parsed and painted using this same package, with no
-  extra caller code required.
-- 📊 **Visio (.vsdx) Diagram Rendering** - Open a Microsoft Visio `.vsdx` package, inspect its page
-  count/size, and rasterize a page's shape geometry (including Master/stencil inheritance,
-  StyleSheet-resolved line/fill/text styles, connectors/glue points with arrowheads, nested
-  groups, and text) to a surface (ships as the separate `DemaConsulting.CanvasNet.Vsdx` package)
+- 📐 **SVG Codec** - Rasterize a common SVG subset to a surface (`DemaConsulting.CanvasNet.Svg`)
+- 📄 **PDF Document** - Open, inspect, and rasterize PDF pages with font substitution (`DemaConsulting.CanvasNet.Pdf`)
+- 📊 **Chart Rendering** - Build and paint Bar/Column/Line/Area/Pie/Doughnut charts (`DemaConsulting.CanvasNet.Charts`)
+- 📈 **OOXML Chart Parsing** - Parse ECMA-376 DrawingML charts, including from `.pptx` slides (`DemaConsulting.CanvasNet.Charts`)
+- 📊 **Visio (.vsdx) Diagram Rendering** - Open and rasterize Visio diagrams, including styles and connectors (`DemaConsulting.CanvasNet.Vsdx`)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
-- 🧱 **Tile Paint** - Fill a path by repeating a pre-rendered tile bitmap at a configurable
-  pattern-space pitch and transform
-- 🔤 **TrueType/CFF Fonts** - Load TrueType (`glyf`) or CFF/OpenType (`.otf`) fonts and individual
-  faces of a TrueType Collection (`.ttc`), map codepoints, extract glyph outlines, and query
-  name/style metadata (family/subfamily/full/PostScript name, bold/italic/fixed-pitch)
-- 🗂️ **System Font Discovery** - `Fonts.SystemFontCatalog` discovers fonts installed on the host
-  operating system, best-effort matches a requested family/style against them, and provides a
-  bundled Liberation Sans/Serif/Mono last-resort fallback font
+- 🧱 **Tile Paint** - Fill a path by repeating a pre-rendered tile bitmap at a configurable pitch
+- 🔤 **TrueType/CFF Fonts** - Load TrueType/CFF/OpenType fonts and collections, extract glyph
+  outlines, and query name/style metadata
+- 🗂️ **System Font Discovery** - Match a requested family/style against fonts installed on the
+  host OS, with a bundled fallback font
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
 - 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
@@ -73,188 +52,58 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 
 ## Installation
 
+Install the core package with the .NET CLI (or the equivalent `Install-Package` command in the
+Package Manager Console):
+
 ```bash
 dotnet add package DemaConsulting.CanvasNet
 ```
 
-Or via Package Manager Console:
+Each optional file-format/rendering feature ships as its own additional package - install only
+the ones you need, the same way as above:
 
-```powershell
-Install-Package DemaConsulting.CanvasNet
-```
-
-SVG rasterization requires the separate `DemaConsulting.CanvasNet.Svg` package:
-
-```bash
-dotnet add package DemaConsulting.CanvasNet.Svg
-```
-
-Or via Package Manager Console:
-
-```powershell
-Install-Package DemaConsulting.CanvasNet.Svg
-```
-
-PDF document parsing requires the separate `DemaConsulting.CanvasNet.Pdf` package:
-
-```bash
-dotnet add package DemaConsulting.CanvasNet.Pdf
-```
-
-Or via Package Manager Console:
-
-```powershell
-Install-Package DemaConsulting.CanvasNet.Pdf
-```
-
-Chart rendering requires the separate `DemaConsulting.CanvasNet.Charts` package:
-
-```bash
-dotnet add package DemaConsulting.CanvasNet.Charts
-```
-
-Or via Package Manager Console:
-
-```powershell
-Install-Package DemaConsulting.CanvasNet.Charts
-```
-
-PowerPoint (`.pptx`) document parsing and rendering requires the separate
-`DemaConsulting.CanvasNet.Pptx` package:
-
-```bash
-dotnet add package DemaConsulting.CanvasNet.Pptx
-```
-
-Or via Package Manager Console:
-
-```powershell
-Install-Package DemaConsulting.CanvasNet.Pptx
-```
-
-Visio (`.vsdx`) diagram parsing and rendering requires the separate
-`DemaConsulting.CanvasNet.Vsdx` package:
-
-```bash
-dotnet add package DemaConsulting.CanvasNet.Vsdx
-```
-
-Or via Package Manager Console:
-
-```powershell
-Install-Package DemaConsulting.CanvasNet.Vsdx
-```
+| Package                           | Adds                                             |
+|-----------------------------------|--------------------------------------------------|
+| `DemaConsulting.CanvasNet.Svg`    | SVG rasterization                                |
+| `DemaConsulting.CanvasNet.Pdf`    | PDF document rendering                           |
+| `DemaConsulting.CanvasNet.Charts` | Chart building/rendering and OOXML chart parsing |
+| `DemaConsulting.CanvasNet.Pptx`   | PowerPoint (`.pptx`) document rendering          |
+| `DemaConsulting.CanvasNet.Vsdx`   | Visio (`.vsdx`) diagram rendering                |
 
 ## Usage
+
+Create a surface, crop it, and round-trip it through a codec:
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
-using DemaConsulting.CanvasNet.Svg;
-using DemaConsulting.CanvasNet.Pdf;
-using System.IO;
 
 // Create a surface, set a pixel, and crop an independent copy
 using var surface = new Surface(4, 4);
 surface[1, 1] = new Rgba32(255, 0, 0, 255);
 using var cropped = surface.Crop(0, 0, 2, 2);
 
-// Save as BMP and load it back
-BmpCodec.Save(surface, "surface.bmp");
-using var reloaded = BmpCodec.Load("surface.bmp");
-
 // Save as PNG and load it back
 PngCodec.Save(surface, "surface.png");
-using var reloadedPng = PngCodec.Load("surface.png");
+using var reloaded = PngCodec.Load("surface.png");
+```
 
-// Save as TIFF and load it back
-TiffCodec.Save(surface, "surface.tiff");
-using var reloadedTiff = TiffCodec.Load("surface.tiff");
+Open a PDF and render a page (BMP/TIFF/JPEG/GIF/SVG codecs, header-only probing, and
+feature-detection all follow the same pattern):
 
-// Save as JPEG and load it back
-JpegCodec.Save(surface, "surface.jpg", 90);
-using var reloadedJpeg = JpegCodec.Load("surface.jpg");
+```csharp
+using DemaConsulting.CanvasNet.Pdf;
 
-// Decode-only: load the first frame of a GIF
-using var reloadedGif = GifCodec.Load("surface.gif");
-
-// GetInfo also reports a GIF's true total frame count; it decodes the first frame's
-// LZW-compressed pixel data to validate CanDecode, but never resolves those pixels into a
-// rendered Surface
-var gifInfo = GifCodec.GetInfo("surface.gif");
-Console.WriteLine($"Frames: {gifInfo.FrameCount}");
-
-// Decode/rasterize an SVG into a 256x256 surface
-using var rasterized = SvgCodec.Load("icon.svg", 256, 256);
-
-// Open a PDF, inspect its (rotation-adjusted) page size, and render it. Render paints the
-// page's real content-stream geometry: path fills/strokes with device color, placed image
-// XObjects, and text (using the page's embedded font, or an automatically substituted
-// system/bundled fallback font when none is embedded).
+// Render paints the page's real content-stream geometry: path fills/strokes with device
+// color, placed image XObjects, and text (using the page's embedded font, or an
+// automatically substituted system/bundled fallback font when none is embedded).
 using var pdfDoc = PdfDocument.Open("document.pdf");
 var pageInfo = pdfDoc.GetPageInfo(0);
 using var pdfSurface = pdfDoc.Render(0, pageInfo.Width, pageInfo.Height);
-
-// Triage an untrusted file's header before decoding pixel data
-var info = PngCodec.GetInfo("untrusted.png");
-if (info.Width > Surface.MaxDimension
-    || info.Height > Surface.MaxDimension
-    || (long)info.Width * info.Height > (long)Surface.MaxDimension * Surface.MaxDimension)
-{
-    throw new InvalidDataException("Image dimensions exceed the supported maximum.");
-}
-
-// Reject files that declare a feature the codec cannot decode
-if (!info.CanDecode)
-{
-    throw new UnsupportedImageFeatureException(
-        "png-adam7-interlace",
-        "File is well-formed but declares an unsupported feature.");
-}
-
-// Now safe to decode fully
-using var safeSurface = PngCodec.Load("untrusted.png");
 ```
 
-Building and rendering a chart:
-
-```csharp
-using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.Charts;
-
-// Build a validated Chart fluently
-var chart = new ChartBuilder()
-    .OfType(ChartType.Column)
-    .WithCategoryAxis(["Q1", "Q2"])
-    .WithValueAxis(minimum: 0f, maximum: 10f)
-    .AddSeries("Revenue", [4.0, 9.0], color: new Rgba32(31, 119, 180, 255))
-    .WithTitle("Quarterly Revenue")
-    .WithLegend(ChartLegendPosition.Bottom)
-    .Build();
-
-// Render it onto a new surface using every rendering default
-using var chartSurface = ChartRenderer.Render(chart, 400, 300);
-```
-
-Parsing a raw OOXML chart part and rendering it:
-
-```csharp
-using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.Charts;
-using DemaConsulting.CanvasNet.Charts.OpenXml;
-using System.Xml.Linq;
-
-// Parse a c:chartSpace/c:chart XML document (for example, a chart1.xml OPC part a host
-// document-format library - such as CanvasNetPptx - has already located and opened)
-var chartDocument = XDocument.Load("chart1.xml");
-var parsedChart = OpenXmlChartParser.Parse(chartDocument);
-
-// The parsed Chart is directly consumable by ChartRenderer, exactly like a Chart built via
-// ChartBuilder
-using var parsedChartSurface = ChartRenderer.Render(parsedChart, 400, 300);
-```
-
-Filling a vector path onto a surface:
+Fill a vector path onto a surface (stroking, gradients, tile paint, fonts, charts, and
+Visio/PowerPoint rendering follow the same `Drawing`/`Geometry` API):
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -276,155 +125,9 @@ var triangle = new PathBuilder()
 PathFiller.Fill(canvas, triangle, new Rgba32(0, 128, 255, 255));
 ```
 
-Stroking a vector path onto a surface:
-
-```csharp
-using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.Drawing;
-using DemaConsulting.CanvasNet.Geometry;
-using System.Numerics;
-
-using var canvas = new Surface(64, 64);
-
-// Build a zig-zag polyline
-var polyline = new PathBuilder()
-    .MoveTo(new Vector2(8, 48))
-    .LineTo(new Vector2(32, 16))
-    .LineTo(new Vector2(56, 48))
-    .Build();
-
-// Define a round-capped, round-joined, dashed stroke style
-var style = new StrokeStyle(
-    width: 6f,
-    cap: LineCap.Round,
-    join: LineJoin.Round,
-    dashArray: [10f, 6f]);
-
-// Convert the stroke to fillable outline geometry and fill it
-var strokedOutline = PathStroker.Stroke(polyline, style);
-PathFiller.Fill(canvas, strokedOutline, new Rgba32(255, 128, 0, 255));
-```
-
-Filling a vector path with a linear gradient:
-
-```csharp
-using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.Drawing;
-using DemaConsulting.CanvasNet.Geometry;
-using System.Numerics;
-
-using var canvas = new Surface(64, 64);
-
-// Build a square path
-var rectangle = new PathBuilder()
-    .MoveTo(new Vector2(4, 4))
-    .LineTo(new Vector2(60, 4))
-    .LineTo(new Vector2(60, 60))
-    .LineTo(new Vector2(4, 60))
-    .Close()
-    .Build();
-
-// Define a red-to-blue horizontal gradient
-var gradient = new LinearGradient(
-    start: new Vector2(4, 0),
-    end: new Vector2(60, 0),
-    stops:
-    [
-        new GradientStop(0f, new Rgba32(255, 0, 0, 255)),
-        new GradientStop(1f, new Rgba32(0, 0, 255, 255))
-    ]);
-
-// Fill the square with the gradient
-PathFiller.Fill(canvas, rectangle, gradient, FillRule.NonZero, 1f);
-```
-
-Loading a TrueType (or CFF/OpenType) font and filling a glyph outline:
-
-```csharp
-using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.Drawing;
-using DemaConsulting.CanvasNet.Fonts;
-using DemaConsulting.CanvasNet.Geometry;
-using System.Numerics;
-
-// Convert a glyph outline from font units (Y up) to canvas space (Y down).
-// glyf-flavored fonts produce QuadraticBezierTo segments; CFF/OpenType (.otf)
-// fonts produce CubicBezierTo segments - both are handled here.
-static Path TransformGlyph(Path glyph, float scale, float baselineY)
-{
-    var builder = new PathBuilder();
-
-    Vector2 ToCanvas(Vector2 point) => new(point.X * scale, baselineY - point.Y * scale);
-
-    foreach (var subpath in glyph.Subpaths)
-    {
-        builder.MoveTo(ToCanvas(subpath.Start));
-        foreach (var command in subpath.Commands)
-        {
-            switch (command.Type)
-            {
-                case PathCommandType.LineTo:
-                    builder.LineTo(ToCanvas(command.EndPoint));
-                    break;
-                case PathCommandType.QuadraticBezierTo:
-                    builder.QuadraticBezierTo(
-                        ToCanvas(command.Control1),
-                        ToCanvas(command.EndPoint));
-                    break;
-                case PathCommandType.CubicBezierTo:
-                    builder.CubicBezierTo(
-                        ToCanvas(command.Control1),
-                        ToCanvas(command.Control2),
-                        ToCanvas(command.EndPoint));
-                    break;
-                case PathCommandType.Close:
-                    builder.Close();
-                    break;
-            }
-        }
-    }
-
-    return builder.Build();
-}
-
-// Load the font (accepts .ttf, .otf, or a specific face of a .ttc) and get
-// glyph 'A' scaled to a 48px em size
-var font = TrueTypeFont.Load("font.ttf");
-var glyphIndex = font.GetGlyphIndex('A');
-var glyphOutline = font.GetGlyphOutline(glyphIndex);
-var scale = 48f / font.UnitsPerEm;
-var canvasOutline = TransformGlyph(glyphOutline, scale, baselineY: 56f);
-
-// Fill the transformed glyph outline
-using var surface = new Surface(64, 64);
-PathFiller.Fill(surface, canvasOutline, new Rgba32(20, 120, 255, 255));
-```
-
-Selecting a face from a TrueType Collection (`.ttc`):
-
-```csharp
-// Discover how many faces the collection contains
-var faceCount = TrueTypeFont.GetFaceCount("collection.ttc"); // e.g. 2
-
-// Load a specific face by index (face 0 is used when Load is called without
-// an index, matching an ordinary single-face font's default behavior)
-var boldFace = TrueTypeFont.Load("collection.ttc", faceIndex: 1);
-```
-
-Querying a font's name and style metadata:
-
-```csharp
-// Resolve the font's family/subfamily/full/PostScript name from its name table
-var nameInfo = font.GetNameInfo();
-Console.WriteLine($"{nameInfo.FamilyName} {nameInfo.SubfamilyName}"); // e.g. "Open Sans Regular"
-
-// Derived bold/italic/fixed-pitch classification (from OS/2, head.macStyle, and post)
-if (font.IsBold || font.IsItalic || font.IsFixedPitch)
-{
-    Console.WriteLine("Bold: {0}, Italic: {1}, Fixed-pitch: {2}",
-        font.IsBold, font.IsItalic, font.IsFixedPitch);
-}
-```
+See the [User Guide][link-releases] for the full API reference and additional worked examples,
+including stroking, gradients, tile paint, font loading/metadata, chart building, OOXML chart
+parsing, and Visio diagram rendering.
 
 ## Building
 

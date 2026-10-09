@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Reflection;
 using DemaConsulting.CanvasNet.Drawing;
 
 // cspell:ignore Lerp
@@ -569,5 +570,225 @@ public class DashSplitterTests
         var expectedX = -(double)float.MaxValue + edgeLength * expectedT;
         Assert.Equal(expectedX, interpolated.X, Math.Abs(expectedX) * 1e-5);
         Assert.Equal(0f, interpolated.Y);
+    }
+
+    /// <summary>
+    ///     Proves that a zero-length "on" dash-pattern entry - the standard PDF/SVG/CSS dash-dot
+    ///     "dot" technique - emits a single visible zero-length on-interval at every pattern
+    ///     repetition, rather than vanishing.
+    /// </summary>
+    /// <remarks>
+    ///     With dash pattern <c>[2, 2, 0, 2]</c> (dash=2, gap=2, dot=0, gap=2; pattern length 6)
+    ///     over an 18-unit path (exactly 3 full repetitions), hand-tracing the traversal loop
+    ///     yields six on-intervals: <c>(0,2)</c>, <c>(4,4)</c>, <c>(6,8)</c>, <c>(10,10)</c>,
+    ///     <c>(12,14)</c>, <c>(16,16)</c> - alternating 2-unit dashes and single-point dots.
+    ///     Before the fix, <c>AdvanceDash</c> silently skipped past the zero-length "on" entry
+    ///     internally, so the dots at <c>x=4</c>, <c>x=10</c>, and <c>x=16</c> were never emitted
+    ///     and only the three dashes survived.
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_Split_DashDotPatternWithZeroLengthOnEntry_EmitsDotIntervalAtEachRepetition()
+    {
+        // Arrange: an 18-unit horizontal path with a [2, 2, 0, 2] dash-dot pattern (3 full cycles).
+        var points = new List<Vector2> { new(0, 0), new(18, 0) };
+
+        // Act
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [2f, 2f, 0f, 2f], dashOffset: 0f);
+
+        // Assert
+        Assert.Multiple(
+            () => Assert.Equal(6, segments.Count),
+            () => Assert.Equal([new Vector2(0, 0), new Vector2(2, 0)], segments[0].Points),
+            () => Assert.Equal([new Vector2(4, 0)], segments[1].Points),
+            () => Assert.Equal([new Vector2(6, 0), new Vector2(8, 0)], segments[2].Points),
+            () => Assert.Equal([new Vector2(10, 0)], segments[3].Points),
+            () => Assert.Equal([new Vector2(12, 0), new Vector2(14, 0)], segments[4].Points),
+            () => Assert.Equal([new Vector2(16, 0)], segments[5].Points),
+            () => Assert.All(segments, segment => Assert.False(segment.IsClosed)));
+    }
+
+    /// <summary>
+    ///     Regression test proving that a dash pattern <em>beginning</em> with a zero-length "on"
+    ///     entry (a leading dot, the pattern's own index 0) is still observed and emitted - not
+    ///     just a zero-length entry reached mid-pattern via <c>AdvanceDash</c> (the scenario the
+    ///     sibling <see cref="DashSplitter_Split_DashDotPatternWithZeroLengthOnEntry_EmitsDotIntervalAtEachRepetition"/>
+    ///     test above already covers).
+    /// </summary>
+    /// <remarks>
+    ///     With dash pattern <c>[0, 2]</c> (dot=0, gap=2; pattern length 2) over an 8-unit path
+    ///     (exactly 4 full repetitions) and the default zero dash offset, the phase-traversal loop
+    ///     starts already positioned at the pattern's own index 0 - a zero-length "on" entry - set
+    ///     directly by <c>LocatePhase</c>, never reached via an internal <c>AdvanceDash</c> call.
+    ///     Before this fix, the loop only ever inspected a zero-length entry <em>after</em>
+    ///     advancing into it (checking the entry just stepped <em>into</em>, not the one just left
+    ///     behind), so this very first entry - having never been advanced into from within the
+    ///     loop - was stepped past unobserved, and only the dots at <c>x=2</c>, <c>x=4</c>, and
+    ///     <c>x=6</c> survived; the leading dot at <c>x=0</c> was silently dropped.
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_Split_DashDotPatternWithLeadingZeroLengthOnEntry_EmitsLeadingDot()
+    {
+        // Arrange: an 8-unit horizontal path with a [0, 2] dash-dot pattern (4 full cycles).
+        var points = new List<Vector2> { new(0, 0), new(8, 0) };
+
+        // Act
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [0f, 2f], dashOffset: 0f);
+
+        // Assert: one single-point dot at the start of every 2-unit cycle, including x=0.
+        Assert.Multiple(
+            () => Assert.Equal(4, segments.Count),
+            () => Assert.Equal([new Vector2(0, 0)], segments[0].Points),
+            () => Assert.Equal([new Vector2(2, 0)], segments[1].Points),
+            () => Assert.Equal([new Vector2(4, 0)], segments[2].Points),
+            () => Assert.Equal([new Vector2(6, 0)], segments[3].Points),
+            () => Assert.All(segments, segment => Assert.False(segment.IsClosed)));
+    }
+
+    /// <summary>
+    ///     Regression test proving that when the phase lands exactly on a run of
+    ///     <em>multiple</em> consecutive zero-length "on" entries, every one of them is observed -
+    ///     not just the single dot the previous fix (<see cref="DashSplitter_Split_DashDotPatternWithLeadingZeroLengthOnEntry_EmitsLeadingDot"/>)
+    ///     surfaced via a boolean "was at least one skipped" flag.
+    /// </summary>
+    /// <remarks>
+    ///     With dash pattern <c>[0, 0, 0, 2]</c> (dot=0, gap=0, dot=0, gap=2; pattern length 2)
+    ///     over a 2-unit path (exactly one full repetition) and the default zero dash offset,
+    ///     <c>LocatePhase</c>'s boundary walk skips over <em>two</em> zero-length "on" entries
+    ///     (pattern indices 0 and 2) before settling on index 3 (the 2-unit gap) as the entry in
+    ///     effect. Both skipped entries are real, distinct dots at path position zero - counting
+    ///     (rather than merely flagging) the skipped "on" entries is required to surface both.
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_Split_DashDotPatternWithMultipleLeadingZeroLengthOnEntries_EmitsEveryLeadingDot()
+    {
+        // Arrange: a 2-unit horizontal path with a [0, 0, 0, 2] dash-dot pattern (1 full cycle).
+        var points = new List<Vector2> { new(0, 0), new(2, 0) };
+
+        // Act
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [0f, 0f, 0f, 2f], dashOffset: 0f);
+
+        // Assert: both zero-length "on" entries (pattern indices 0 and 2) emit their own
+        // single-point dot at x=0, rather than only one of them being surfaced.
+        Assert.Multiple(
+            () => Assert.Equal(2, segments.Count),
+            () => Assert.Equal([new Vector2(0, 0)], segments[0].Points),
+            () => Assert.Equal([new Vector2(0, 0)], segments[1].Points),
+            () => Assert.All(segments, segment => Assert.False(segment.IsClosed)));
+    }
+
+    /// <summary>
+    ///     Regression test proving that the leading-zero-length-"on"-entries path emits dots
+    ///     surfaced via <c>LocatePhase</c>'s <c>SkippedOnEntryCount</c> is itself bounded by the
+    ///     <c>MaxOnIntervalCount</c> budget, rather than unconditionally materializing every
+    ///     skipped entry before any cap is checked.
+    /// </summary>
+    /// <remarks>
+    ///     A dash pattern consisting of over twenty million leading zero-length "on"/"off" entry
+    ///     pairs followed by one small positive "on"/"off" pair has a tiny <c>patternLength</c>
+    ///     (just the two positive entries' lengths), so <c>EstimatesExceedBudget</c>'s
+    ///     <c>totalLength / patternLength</c>-based ratio estimate stays negligible even though
+    ///     <c>pattern.Count</c> itself is over forty million - that estimate has no way to see the
+    ///     leading run of zero-length entries, since it is never reached by the main loop's own
+    ///     per-cycle walk. Calling the private <c>BuildOnIntervals</c> directly via reflection
+    ///     (rather than through the public <see cref="DashSplitter.Split"/>) is deliberate: the
+    ///     main loop's own <c>MaxOnIntervalCount</c> backstop would still - one iteration later -
+    ///     catch an unbounded skip loop for this particular input, converging on the same
+    ///     "fall back to a solid stroke" outward result either way and masking the difference in
+    ///     how many intervals were actually materialized first. Asserting directly on
+    ///     <c>intervals.Count</c> proves the skip loop itself never overshoots the budget by more
+    ///     than the one entry that trips it, rather than relying on this particular input
+    ///     happening to also be caught just as cheaply downstream.
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_BuildOnIntervals_PatternWithFarMoreLeadingZeroLengthOnEntriesThanOnIntervalBudget_StopsAtBudget()
+    {
+        // Arrange: a dash pattern with 20,000,001 leading (0, 0) "on"/"off" pairs (40,000,002
+        // zero-length entries - double the 10,000,000-entry MaxOnIntervalCount budget) followed by
+        // one small positive (2, 2) "on"/"off" pair - 40,000,004 entries total, all defaulting to
+        // 0f except the last two. A short 1-unit path keeps the main loop's own per-cycle cost
+        // estimate negligible, isolating the leading-skip path.
+        var dashArray = new float[40_000_004];
+        dashArray[^2] = 2f;
+        dashArray[^1] = 2f;
+
+        var buildOnIntervals = typeof(DashSplitter).GetMethod(
+            "BuildOnIntervals",
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+        var arguments = new object?[] { dashArray, 0f, 1d, false, false };
+
+        // Act
+        var intervals = (List<(double Start, double End)>)buildOnIntervals.Invoke(null, arguments)!;
+        var budgetExceeded = (bool)arguments[4]!;
+
+        // Assert: the skip loop's own budget check trips well before all 20,000,001 skipped
+        // entries would have been unconditionally materialized - the interval count never climbs
+        // far past the 10,000,000-entry cap, proving the cap is enforced inside the skip loop
+        // itself rather than left to be caught (possibly much later, after unbounded allocation)
+        // by the main loop's own backstop.
+        Assert.Multiple(
+            () => Assert.True(budgetExceeded),
+            () => Assert.True(
+                intervals.Count <= 10_000_001,
+                $"Expected at most 10,000,001 intervals before the budget check trips, but got {intervals.Count}."));
+    }
+
+    /// <summary>
+    ///     Regression test proving that a zero-length "off" (gap) entry remains invisible - the
+    ///     fix only changes zero-length "on" entries; zero-length off entries must keep
+    ///     contributing no extra interval and no gap.
+    /// </summary>
+    [Fact]
+    public void DashSplitter_Split_ZeroLengthOffEntryBetweenPositiveOnEntries_ProducesNoExtraIntervalOrGap()
+    {
+        // Arrange: a 9-unit horizontal path with a [3, 0, 3, 3] dash pattern (dash=3, gap=0,
+        // dash=3, gap=3 - one pattern cycle exactly spans the path).
+        var points = new List<Vector2> { new(0, 0), new(9, 0) };
+
+        // Act
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [3f, 0f, 3f, 3f], dashOffset: 0f);
+
+        // Assert: two contiguous 3-unit dashes, with no extra interval or gap introduced by the
+        // zero-length off entry between them.
+        Assert.Equal(2, segments.Count);
+        Assert.Equal([new Vector2(0, 0), new Vector2(3, 0)], segments[0].Points);
+        Assert.Equal([new Vector2(3, 0), new Vector2(6, 0)], segments[1].Points);
+    }
+
+    /// <summary>
+    ///     Regression test proving that a zero-heavy dash pattern (many zero-length entries mixed
+    ///     with one large positive entry) still falls back safely to a solid stroke rather than
+    ///     hanging or materializing an astronomical number of intervals, confirming the corrected
+    ///     <c>EstimatesExceedBudget</c> cost model remains a safe, bounded pre-flight guard.
+    /// </summary>
+    /// <remarks>
+    ///     Mirrors the "zero-heavy pattern" scenario named in <c>EstimatesExceedBudget</c>'s doc
+    ///     comment and the design documentation: 999,999 zero-length entries followed by one
+    ///     <c>1000f</c> entry (an even-length, 1,000,000-entry pattern whose cycle length is 1000).
+    ///     Uses a single giant edge (matching
+    ///     <see cref="DashSplitter_Split_ManyRetainedOnIntervalsWithinIterationBudget_FallsBackToSolidStroke"/>'s
+    ///     "single giant edge, no per-point materialization" technique) so the test itself stays
+    ///     fast regardless of the pathological interval count it proves is rejected before ever
+    ///     being materialized. With <c>positiveEntryCount = 1</c>, <c>pattern.Count = 1,000,000</c>,
+    ///     <c>patternLength = 1000</c>, and <c>totalLength = 1e9</c>, the corrected
+    ///     <c>estimatedIterations</c> formula yields roughly <c>1e12</c> - vastly exceeding
+    ///     <c>MaxOnIntervalIterations</c> - so the pre-flight estimate short-circuits to the
+    ///     solid-stroke fallback in O(1) time, exactly as it did before this fix.
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_Split_ZeroHeavyDashPatternOnLongPath_FallsBackToSolidStrokeWithoutHanging()
+    {
+        // Arrange: 999,999 zero-length entries followed by one 1000-unit entry, applied to a
+        // single 1,000,000,000-unit edge (no per-point materialization).
+        var dashArray = new float[1_000_000];
+        dashArray[^1] = 1000f;
+        var points = new List<Vector2> { new(0f, 0f), new(1e9f, 0f) };
+
+        // Act: direct, synchronous call - the pre-flight budget estimate (not wall-clock time) is
+        // what guarantees termination, so there is nothing to race against.
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray, dashOffset: 0f);
+
+        // Assert: the call completed (did not hang) - dashing was abandoned entirely, and the
+        // whole path is emitted unchanged as a single (unclosed) segment.
+        Assert.Equal(points, Assert.Single(segments).Points);
     }
 }

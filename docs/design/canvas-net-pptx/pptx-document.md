@@ -593,19 +593,27 @@ convention): resolved body properties plus an ordered list of paragraphs.
   the layout engine (`PptxDocument.TextLayout.cs`) to interpret - body-property parsing does not
   itself implement autofit policy.
 - **`ParseParagraph(XElement pElement)`** resolves `<a:p>` into a `PptxParagraph`: raw paragraph
-  properties (via `ParseParagraphProperties`) plus an ordered list of runs (via `ParseRun`). A
-  paragraph with no recognized child element resolves to an empty run list - a valid, empty
+  properties (via `ParseParagraphProperties`) plus an ordered item list (`<a:r>` runs and `<a:fld>`
+  auto-text fields, each wrapped as a `PptxRunItem`, plus `<a:br>` explicit line breaks). A
+  paragraph with no recognized child element resolves to an empty item list - a valid, empty
   paragraph (a blank line), not an error; `InvalidDataException` is reserved for genuinely
-  malformed structure, not merely sparse/empty content.
+  malformed structure, not merely sparse/empty content. An `<a:fld>` (e.g. `type="slidenum"` or
+  `type="datetime1"`) is parsed the same way as `<a:r>` (same `<a:rPr>`/`<a:t>` shape), additionally
+  capturing its own `type` attribute into `PptxRunItem.FieldType` (`null` for a plain `<a:r>` run) -
+  see _Phase 2 Follow-Up: Slide-Number Field (`<a:fld type="slidenum">`) Substitution_ below for how
+  `FieldType` is later consulted at render time.
 - **`ParseParagraphProperties(XElement? pPrElement)`** resolves `<a:pPr>`'s `algn`, `marL`,
   `indent`, `lnSpc`, `spcBef`, `spcAft`, and `defRPr` child/attributes, each retained **raw and
   unresolved** (a `PptxRawParagraphProperties` record) - resolution against the inheritance chain
   happens later, in `PptxDocument.TextInheritance.cs`, not here. The paragraph's own `lvl`
   attribute (its placeholder/master style level) is clamped to the OOXML schema's documented
   ten-level `[0,8]` range.
-- **`ParseRun(XElement rElement)`** resolves `<a:r>` into a `PptxTextRun`: its own raw,
-  unresolved `<a:rPr>` element (or `null`) plus its `<a:t>` text, defaulting to `string.Empty`
-  when `<a:t>` is absent, per the OOXML schema.
+- **`ParseRun(XElement rElement)`** resolves `<a:r>` (or `<a:fld>`, which shares the same element
+  shape) into a `PptxTextRun`: its own raw, unresolved `<a:rPr>` element (or `null`) plus its
+  `<a:t>` text, defaulting to `string.Empty` when `<a:t>` is absent, per the OOXML schema. As parsed
+  here, an `<a:fld>`'s `<a:t>` still holds PowerPoint's last-computed **cached** field value -
+  `ParseRun` itself performs no field-kind-specific substitution; that happens later, at render
+  time, only for `type="slidenum"` fields (see below).
 
 #### Master `<p:txStyles>` Parsing
 
@@ -1132,10 +1140,15 @@ not spell it out explicitly.
 
 #### Cell-Rect Resolution
 
-`ResolveCellRects(PptxTable table)` resolves each of a table's non-merge-continuation cells (a
-cell with neither `hMerge` nor `vMerge` set) into a `PptxResolvedTableCell` carrying its own
-EMU-space rectangle (`X`, `Y`, `Width`, `Height`), by walking each row's `<a:tc>` entries in
-document order while accumulating a running column offset.
+`ResolveCellRects(PptxTable table, PptxTheme? theme = null, Func<string, bool, bool,
+TrueTypeFont>? fontResolver = null, PptxColorMap? colorMap = null, Func<bool, bool,
+TrueTypeFont>? fallbackFontResolver = null)` resolves each of a table's non-merge-continuation
+cells (a cell with neither `hMerge` nor `vMerge` set) into a `PptxResolvedTableCell` carrying its
+own EMU-space rectangle (`X`, `Y`, `Width`, `Height`), by walking each row's `<a:tc>` entries in
+document order while accumulating a running column offset. A row's own `HeightEmu` consulted
+during this walk is its **effective** height - its own stored `<a:tr h="...">` value, or a grown
+replacement, when a `theme`/`fontResolver` are supplied - see _Phase 2 Follow-Up: Table
+Row-Height Growth_ below for the growth algorithm the new optional parameters enable.
 
 **Merge-continuation column-advancement rule**: each `<a:tc>` XML entry - whether a real cell or
 an `hMerge`/`vMerge` continuation placeholder - represents (in the common, well-formed case) one
@@ -1244,10 +1257,11 @@ design cost:
   the picture's own pixels are painted.
 - **Nested tables** - a table cell's own `<a:txBody>` is painted as plain text only; a cell
   containing another `<a:tbl>` is not specially recognized.
-- **Table auto-sizing to fit overflowing cell content** - `ResolveCellRects` computes each cell's
-  rectangle purely from the table's own declared column widths/row heights; a cell whose text
-  content overflows its own declared row height is not given additional vertical space (beyond
-  the row height the table itself declares) the way PowerPoint's own auto-grow-row behavior does.
+- ~~**Table auto-sizing to fit overflowing cell content** - `ResolveCellRects` computes each
+  cell's rectangle purely from the table's own declared column widths/row heights; a cell whose
+  text content overflows its own declared row height is not given additional vertical space
+  (beyond the row height the table itself declares) the way PowerPoint's own auto-grow-row
+  behavior does.~~ (closed by the _Phase 2 Follow-Up: Table Row-Height Growth_ section below.)
 - ~~**Table style/banding** (`<a:tblPr>`'s `<a:tableStyleId>` and first-row/banded-row
   styling)~~ (closed by the _Phase 2 Follow-Up: Table Style/Banding Resolution_ section below -
   `firstCol`/`lastCol`/`lastRow`/corner-cell style parts, column banding (`band1V`/`band2V`), and
@@ -3023,6 +3037,129 @@ interior column boundaries resolve against the style's own `insideV` edge rather
 `right` edges, while the table's two true outer-boundary edges still resolve against `left`/
 `right`).
 
+#### Phase 2 Follow-Up: Table Row-Height Growth to Fit Wrapped Text
+
+**Bug**: a confirmed upstream report observed that `ResolveCellRects` keeps a row at exactly its
+stored `<a:tr h="...">` EMU height, regardless of how much text a cell's own wrapped content
+actually requires. Unlike PowerPoint (which grows a row to fit its own cell content), a cell whose
+text wraps to more lines than its stored row height can fit painted past its own row's bottom
+edge, visibly overlapping the next row's own content - exactly the row-height growth gap this
+unit's own `pptx-document.md` already flagged (see the now-closed _Deferred to a Later Phase
+(Phase 1e)_ bullet above).
+
+**Investigation finding - no new cell-margin plumbing needed**: no `<a:tcPr marL/marR/marT/marB>`
+cell-margin parsing exists anywhere in this unit; a table cell's only margin/inset source is its
+own `<a:txBody>/<a:bodyPr lIns/tIns/rIns/bIns>` - the exact same `PptxTextBodyProperties` fields an
+ordinary shape's text body already uses, already read correctly by `PaintTable`'s existing
+`ResolveTextLayout` call. This removed an open question from the original bug report before any
+code changed.
+
+**Fix - reusing the existing word-wrap/autofit machinery, not reimplementing it**:
+
+- **`PptxDocument.TextLayout.cs`**: `ResolveTextLayout`'s own former steps (1)-(5) - reading
+  `<a:bodyPr>` insets, resolving every paragraph/run's effective properties, resolving the autofit
+  scale, and word-wrapping into `LineBox` lines - are extracted, verbatim (a pure cut-and-paste,
+  no reordering of any expression), into a new private `ResolveWrappedLines(...)` helper.
+  `ResolveTextLayout` itself now calls this helper and then performs only its former step (6)
+  (`PositionLines`) - a zero-behavior-change refactor, confirmed by re-running the full, unchanged
+  `PptxTextLayoutTests.cs` suite. A new, small, additive entry point,
+  `MeasureRequiredTextHeightEmu(PptxTextBody, PptxTheme, float widthEmu, fontResolver, colorMap,
+  fallbackFontResolver)`, builds on `ResolveWrappedLines` to answer "how tall must this text be at
+  its own natural size", returning `insetTop + Σ(LineHeightEmu + LeadingGapEmu) + insetBottom`.
+  - **Why an unbounded height sentinel, not a real candidate height**: `MeasureRequiredTextHeightEmu`
+    passes a new `UnboundedMeasurementHeightEmu` constant (`float.MaxValue / 4f` - the exact same
+    magnitude `ResolveTextLayout` already uses for its own `wrap="none"` infinite-width sentinel,
+    a reused convention, not a new magic number) as the candidate height, instead of a real
+    candidate row height. Passing a real candidate height would feed `ResolveAutofitScale`'s own
+    attribute-less-`normAutofit` shrink loop a real `availableHeight`, which could shrink the
+    measured font size instead of reporting the text's own natural wrapped height - reopening the
+    exact chicken-and-egg circularity ("does the text need to grow the row, or shrink itself, to
+    fit a height we are still trying to determine?") this feature must not reintroduce. The
+    sentinel guarantees the shrink loop's own `totalHeight <= availableHeight` check is `true` on
+    its first (unscaled) iteration and never shrinks, while an _explicit_ `fontScale`/
+    `lnSpcReduction` attribute on `<a:normAutofit>` (a value PowerPoint itself persisted,
+    independent of `availableHeight`) is still honored exactly as before - matching PowerPoint's
+    own table behavior (tables grow rows to fit text at natural size; they do not autofit-shrink
+    cell text the way a text-box shape can).
+- **`PptxDocument.Tables.cs`**: `ResolveCellRects` gained four new optional parameters (`theme`,
+  `fontResolver`, `colorMap`, `fallbackFontResolver`, all defaulting to `null`) - strictly
+  opt-in: a caller omitting `theme`/`fontResolver` (every pre-existing direct-call test, and any
+  future caller not yet updated) gets exactly the pre-existing stored-height behavior,
+  unconditionally. `PaintTable`'s own production call site now passes its own `theme`/
+  `fontResolver`/`colorMap` through, so growth is applied unconditionally for every real render.
+  - The method's former body (the merge-aware column/row walk) is extracted, verbatim, into a new
+    private `WalkResolvedCells(PptxTable, IReadOnlyList<float> rowHeightsEmu)` helper,
+    parameterized on which row-heights array to accumulate from, returning a private `WalkedCell`
+    record (the same fields as `PptxResolvedTableCell`, plus the owning `RowIndex` the growth pass
+    needs internally). `ResolveCellRects` itself becomes: compute `storedHeightsEmu` from the
+    table's own rows; compute `effectiveHeightsEmu` (the stored array unchanged, when no
+    `theme`/`fontResolver` are supplied, or `GrowRowHeightsToFitText`'s own result otherwise); walk
+    once via `WalkResolvedCells(table, effectiveHeightsEmu)`.
+  - **`GrowRowHeightsToFitText` - two passes**: (1) a provisional `WalkResolvedCells` pass over the
+    still-unmodified stored heights learns every governing cell's own resolved `WidthEmu`/
+    `RowIndex` (text wraps within a cell's own width, which growth itself never changes); every
+    cell with a non-null `TextBody` has its own required height measured via
+    `MeasureRequiredTextHeightEmu`. A `RowSpan == 1` cell grows its own single row immediately
+    (`effectiveHeightsEmu[rowIndex] = MathF.Max(effectiveHeightsEmu[rowIndex], requiredHeightEmu)` -
+    never shrink, grow exactly enough to fit); a `RowSpan > 1` cell's own requirement is deferred.
+    (2) each deferred row-spanning cell's own shortfall - its required height minus the (now
+    possibly singly-grown) sum of its spanned rows - is added entirely onto its _last_ spanned row
+    when positive.
+  - **Row-span distribution policy - "grow the last spanned row"** (over proportional
+    distribution across the span): (a) it is the simplest rule that satisfies "never shrink below
+    stored, grow exactly enough to fit"; (b) it mirrors PowerPoint's own commonly-observed
+    behavior of visually expanding the bottom of a merged region rather than redistributing
+    already-fixed interior row boundaries that other, unrelated single-row cells within the same
+    span may themselves depend on (pass 1's own growth of such a row already fixed its height for
+    a reason unrelated to the spanning cell's own content); (c) it keeps the change's blast radius
+    local - only the Y-offset of rows strictly after the span shifts, identical to any other
+    single-row growth elsewhere in the table. This is a documented engineering judgment call, not
+    an independently verified match to PowerPoint's own exact distribution algorithm for
+    row-spanning cells - no real-world fixture exercising a tall row-spanning cell was located in
+    this repository's existing corpus to empirically validate against; a future corpus-driven
+    hardening pass may revisit it if one is found.
+  - **Out-of-range `rowSpan` is clamped, not rejected**: `ParseTableCell` only rejects a
+    non-positive `rowSpan`; it never validates that `rowIndex + rowSpan` stays within the table's
+    own declared row count (symmetric with `gridSpan`/`columnIndex`, which is never validated
+    against `totalColumns` either). Pass 2's "last spanned row" index is therefore clamped to the
+    table's own last actual row (`Math.Min(rowIndex + rowSpan - 1, effectiveHeightsEmu.Count - 1)`)
+    - the same clamp-to-available-range behavior `SumConsecutive` already applies when summing
+    such a span's stored heights - so a malformed `rowSpan` that overruns the table still grows
+    the table's own last row instead of indexing past the end of the heights array.
+  - The now-dead `SumRowHeights(IReadOnlyList<PptxTableRow>, int, int)` helper (superseded by
+    `WalkResolvedCells` operating purely over `IReadOnlyList<float>` row-heights arrays via the
+    already-existing `SumConsecutive`) is deleted.
+- **`PptxTable.cs`**: `PptxTableRow.HeightEmu`'s XmlDoc now describes it as the row's **minimum**
+  height, not necessarily its final rendered height; `PptxResolvedTableCell.HeightEmu`'s XmlDoc
+  now describes it as the row's resulting **effective** (possibly grown) height.
+
+**Scope decisions (documented, not fixed)**: `ParseTable`'s own pre-existing `rowHeightsEmu`-based
+gradient-fill-sizing peek (used only to position a merged cell's own gradient paint at parse time)
+is unchanged - at parse time, no font resolver/theme-driven text measurement has run yet, and
+restructuring table parsing into a render-time-aware two-pass model is a materially larger,
+separately-scoped change. A cell with both a growing row-spanning text body _and_ a gradient fill
+may show a gradient ramp sized slightly differently than its own now-larger rectangle - a
+pre-existing, narrow, cosmetic approximation this fix does not regress or worsen. No `<a:tcPr>`
+cell-margin parsing is added (not needed - see the Investigation finding above).
+
+**Test coverage**: `PptxTablesTests.cs` gained
+`ResolveCellRects_CellTextRequiresMoreHeightThanStored_GrowsRowAndShiftsNextRowYOffset` (a row
+whose stored height is smaller than its own cell's natural wrapped-text height grows to exactly
+that height, and the next row's own Y-offset reflects the grown value),
+`ResolveCellRects_CellTextFitsWithinStoredHeight_RowHeightUnaffected` (a stored height already
+comfortably exceeding the natural wrapped-text height is left entirely unchanged - the
+regression-safety guarantee),
+`ResolveCellRects_RowSpanCellTextRequiresMoreHeightThanSpanTotal_GrowsLastSpannedRow` (a
+row-spanning cell's own shortfall against its spanned rows' stored sum is added entirely to the
+last spanned row, leaving the first spanned row - which anchors its own unrelated single-row
+cell - unchanged),
+`ResolveCellRects_NoThemeOrFontResolverSupplied_PreservesStoredHeightsUnconditionally` (omitting
+the new optional parameters preserves today's stored-height behavior even for a cell that would
+otherwise require growth), and
+`PaintTable_TwoRowTableWithWrappedTextOverflowingStoredHeight_PaintsSecondRowBelowGrownFirstRow`
+(an end-to-end proof that the next row's own painted fill starts below the grown, not stale
+stored, Y-offset - directly proving the reported overlap symptom is fixed).
+
 #### Phase 2 Follow-Up: Default Tab-Stop Expansion
 
 **Bug**: a literal U+0009 TAB character inside a run's text (e.g. a typed `"1\tReference fluid
@@ -3366,3 +3503,99 @@ extension regression case); the pre-existing
 `ResolvePictureSurface_BlipMissingEmbedAndLink_ThrowsInvalidDataException` (no raster fallback and
 no SVG extension at all) continues to pass unchanged, proving that genuinely malformed case is
 unaffected by this fix.
+
+#### Phase 2 Follow-Up: Slide-Number Field (`<a:fld type="slidenum">`) Substitution
+
+**Bug**: a confirmed upstream bug report observed that a slide's own `<a:fld type="slidenum">`
+field (PowerPoint's "Slide Number" footer placeholder) always rendered its cached, last-computed
+placeholder text (e.g. the literal `‹#›` PowerPoint stores in `<a:t>`) verbatim on every slide,
+instead of each slide's own actual 1-based slide number. `ParseParagraph` folded `<a:fld>` into
+the exact same run-parsing branch as `<a:r>`, discarding the field's own `type` attribute entirely;
+nothing downstream ever substituted a field's text before rendering, since `ParseRun` has no
+knowledge of the parent element's own `type` attribute and no later stage ever consulted it.
+
+**Model extension - a nullable property, not a dedicated item type**: `<a:br>` (DrawingML's
+explicit line break) is modeled as a dedicated, stateless `PptxLineBreakItem` subtype (see
+`ParseParagraph`'s own remarks above), appropriate there because a break carries no run-shaped
+payload at all. `<a:fld>`, by contrast, **is** run-shaped (the same
+`<a:rPr>`/`<a:t>` children `ParseRun` already handles) and must keep flowing through every
+existing run-based consumer unchanged - `PptxParagraph.Runs`'s own
+`Items.OfType<PptxRunItem>().Select(item => item.Run)` convenience accessor (consumed by the
+run-property inheritance resolver's/bullet "first run"'s lookup) and `ResolveWrappedLines`'s own
+`((PptxRunItem)item).Run` cast. A dedicated `PptxFieldItem` subtype would silently break the
+`Runs` accessor (it would need updating to flatten both item types back together) for no benefit,
+since a field's `<a:rPr>`-driven styling/inheritance must resolve identically to a plain run's.
+Instead, a nullable `string? FieldType` property was added directly to the existing `PptxRunItem`
+record (`PptxRunItem(PptxTextRun Run, string? FieldType = null)`), the minimal extension: every
+existing `PptxRunItem` call site/pattern-match continues to compile and behave unchanged; only
+`ParseParagraph`'s own `<a:fld>` branch populates the new, optional, default-`null` parameter with
+`(string?)child.Attribute("type")`.
+
+**`SubstituteSlideNumberField` - a pure, render-time-only substitution**: a new internal static
+`PptxDocument.SubstituteSlideNumberField(PptxTextBody textBody, int slideNumber)`
+(`PptxDocument.Text.cs`) returns a new `PptxTextBody` where every `PptxRunItem` whose `FieldType`
+case-insensitively equals the private `SlideNumberFieldType` constant (`"slidenum"`) has its run's
+text replaced with `slideNumber.ToString(CultureInfo.InvariantCulture)` (a plain decimal string, no
+placeholder punctuation); every other item (a plain run, a non-`"slidenum"` field such as
+`"datetime1"`, or a line break) passes through unchanged. Case-insensitive matching is deliberate:
+OOXML field-type values are not reliably authored with consistent casing by every producer.
+Parsing itself (`ParseParagraph`/`ParseRun`) is left untouched - every field type's `<a:t>` still
+holds PowerPoint's cached value exactly as before; only `"slidenum"` is substituted, and only at
+render time, immediately before layout/measurement.
+
+- **The `with`-vs-primary-constructor pitfall**: each affected `PptxParagraph` is rebuilt via its
+  primary constructor (`new PptxParagraph(paragraph.RawProperties, items)`), **not** a `with`
+  expression. `PptxParagraph.Runs` is a property whose backing field is populated once, from the
+  primary constructor's own `Items` parameter, by a property initializer
+  (`Items.OfType<PptxRunItem>().Select(item => item.Run).ToList()`); the compiler-generated `with`
+  copy constructor copies that backing field's **current** value verbatim rather than re-running
+  the initializer, so a `with` expression here would silently leave `Runs` pointing at the
+  pre-substitution run list even though `Items` itself had been correctly updated. `PptxTextBody`
+  itself has no such computed property, so `textBody with { Paragraphs = ... }` is safe for the
+  outer rebuild. A dedicated regression test
+  (`SubstituteSlideNumberField_SlidenumFieldAlongsideLineBreakAndPlainRun_OnlySlidenumItemChanges`,
+  `PptxTextTests.cs`) asserts `Runs` directly (not just `Items`) to guard against regressing this.
+
+**Threading the slide number through the render call chain**: `Render(int slideIndex, ...)`
+already receives a validated, zero-based `slideIndex` - `slideIndex + 1` is exactly PowerPoint's
+own 1-based slide number, computed once (`var slideNumber = slideIndex + 1;`, right after the
+existing range guard) and threaded, unchanged, through all three existing `RenderNode` call sites
+(master/layout/slide shape-tree walks), `RenderNode`'s own recursive group-children call, and its
+`RenderShape` call. `RenderShape` accepts the new `slideNumber` parameter and, immediately after
+`var textBody = ParseTextBody(txBodyElement);`, calls
+`textBody = SubstituteSlideNumberField(textBody, slideNumber);` before the existing
+`ResolveTextLayout`/`PaintTextLayout` calls - so every other already-verified code path
+(geometry/fill/stroke resolution, table/picture/connector rendering) is completely untouched. Only
+the slide's own shape-tree walk's placeholder shapes are real content (a master/layout's own
+placeholder shapes are never painted at all - see _Phase 2 Follow-Up: Master/Layout Decorative
+Shape Rendering_ above), matching the real-world fact that PowerPoint writes a `<p:ph
+type="sldNum">`/`<a:fld type="slidenum">` placeholder onto each slide's own part when the "Slide
+Number" footer option is enabled, not only onto the layout/master.
+
+**Scope decision**: table-cell text bodies (`PptxDocument.Tables.cs`'s own `ParseTextBody` call
+site) are left unchanged - a `<a:fld type="slidenum">` field inside a table cell keeps today's
+cached-text behavior. No real-world corpus fixture places a slidenum field inside a table cell; if
+this gap is reported, it is a separate, additive follow-up to `PptxDocument.Tables.cs`, not a
+revision of this section.
+
+**Test coverage**: `PptxTextTests.cs` gained
+`ParseParagraph_FieldRunDatetime_CapturesDatetimeFieldType` and
+`ParseParagraph_PlainRun_FieldTypeIsNull` (parse-level `FieldType` capture, alongside the updated
+`ParseParagraph_FieldRun_IsPreservedUsingCachedText`), plus a `SubstituteSlideNumberField` region
+covering `SubstituteSlideNumberField_SlidenumField_ReplacesTextWithOneBasedSlideNumber`,
+`SubstituteSlideNumberField_SlidenumFieldUppercaseType_ReplacesTextCaseInsensitively`,
+`SubstituteSlideNumberField_DatetimeField_LeavesCachedTextUnchanged`,
+`SubstituteSlideNumberField_PlainRun_LeavesTextUnchanged`, and the `Runs`-accessor regression test
+above. `PptxRenderTests.cs` gained an optional `additionalSlideSpTreeInnerXmls` parameter on
+`BuildRenderPackage` (defaulting to `null`, preserving every pre-existing single-slide call site
+unchanged) to build a genuine multi-slide deck, plus four end-to-end tests:
+`Render_SlideNumberField_SubstitutesOneBasedSlideNumber` (a single-slide deck's `slidenum` field
+renders pixel-identical to an otherwise-identical plain-run reference shape whose literal text is
+`"1"`), `Render_SlideNumberFieldOnSecondSlideOfTwo_SubstitutesDifferentSlideNumber` (the identical
+field shape on a genuine two-slide deck renders `"1"` on slide 0 and a visibly different `"2"` on
+slide 1 - proving true per-slide substitution, not a value hardcoded from slide 1),
+`Render_DateTimeField_KeepsCachedPlaceholderText` (a `type="datetime1"` field renders pixel-
+identical to its own cached text, completely unaffected), and
+`Render_PlainRunAlongsideSlideNumberField_PlainRunTextUnaffected` (a plain run sharing a paragraph
+with a `slidenum` field renders pixel-identical to a reference shape, proving only the field's own
+run changes).

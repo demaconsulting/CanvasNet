@@ -78,6 +78,7 @@ public sealed partial class PdfDocument
         _currentPoint = default;
         _subpathStart = default;
         _hasOpenSubpath = false;
+        _pendingClipFillRule = null;
         _fontCache = new Dictionary<PdfObject, IResolvedFont>();
         _textMatrix = Matrix3x2.Identity;
         _lineMatrix = Matrix3x2.Identity;
@@ -162,8 +163,7 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Dispatches one recognized content-stream keyword operator (per the fixed set this
     ///     phase implements) against its accumulated operand stack, silently ignoring any other
-    ///     keyword (clipping, ExtGState, shading, inline images, and every other operator not yet
-    ///     implemented).
+    ///     keyword (ExtGState, inline images, and every other operator not yet implemented).
     /// </summary>
     /// <param name="operatorName">The operator keyword.</param>
     /// <param name="operands">The operands accumulated since the previous operator.</param>
@@ -172,8 +172,11 @@ public sealed partial class PdfDocument
     ///     requirement.
     /// </exception>
     /// <exception cref="Codecs.UnsupportedImageFeatureException">
-    ///     Propagated from <see cref="OpSetFont"/> (an unsupported font) or
-    ///     <see cref="OpSetTextRenderMode"/> (a defined but unsupported text-rendering mode).
+    ///     Propagated from <see cref="OpSetFont"/> (an unsupported font),
+    ///     <see cref="OpSetTextRenderMode"/> (a defined but unsupported text-rendering mode), or
+    ///     <see cref="OpPaintShading"/> (an undeclared shading name, or a defined but unsupported
+    ///     <c>/ShadingType</c>/<c>/ColorSpace</c> - the same exception the <c>scn</c>/<c>SCN</c>
+    ///     Pattern-color-space path already throws for the identical underlying condition).
     /// </exception>
     private void DispatchOperator(string operatorName, List<PdfObject> operands)
     {
@@ -269,6 +272,19 @@ public sealed partial class PdfDocument
                 PaintCurrentPath(fill: false, FillRule.NonZero, stroke: false, closeFirst: false);
                 break;
 
+            // Clipping-path operators (PdfDocument.PathOps.cs): mark that the current path under
+            // construction becomes the new clipping path the next time a path-painting operator
+            // executes - see OpMarkPendingClip's remarks for the full deferred-apply timing (PDF
+            // 32000-1 8.5.4).
+            case "W":
+                RequireOperandCount(operands, "W", 0);
+                OpMarkPendingClip(FillRule.NonZero);
+                break;
+            case "W*":
+                RequireOperandCount(operands, "W*", 0);
+                OpMarkPendingClip(FillRule.EvenOdd);
+                break;
+
             // Device color operators (PdfDocument.Color.cs).
             case "g":
                 OpSetGrayFill(operands);
@@ -306,6 +322,15 @@ public sealed partial class PdfDocument
             // Image XObject operator (PdfDocument.Images.cs).
             case "Do":
                 OpDrawXObject(operands);
+                break;
+
+            // Shading operator (PdfDocument.Patterns.Shading.cs): paints a named /Resources
+            // /Shading dictionary's gradient directly within the current clipping path (or the
+            // shading's own /BBox when no clip is active), without constructing/consuming "the
+            // current path" and without going through a /Pattern color-space selection at all -
+            // a distinct mechanism from the scn/SCN + /Pattern + /PatternType 2 path above.
+            case "sh":
+                OpPaintShading(operands);
                 break;
 
             // Text object operators (PdfDocument.Text.cs).
@@ -381,10 +406,11 @@ public sealed partial class PdfDocument
                 break;
 
             default:
-                // Any other keyword (gs, W/W*, sh, BI/ID/EI, Tc/Td/.../TJ's own undefined
-                // siblings, or any other undefined keyword) is silently skipped - out of this
-                // phase's scope (shading/patterns, ExtGState, clipping) per this phase's
-                // documented lenient-consumer posture toward unrecognized operators.
+                // Any other keyword (gs, BI/ID/EI, Tc/Td/.../TJ's own undefined siblings, or any
+                // other undefined keyword) is silently skipped - out of this phase's scope
+                // (ExtGState, inline images) per this phase's documented lenient-consumer posture
+                // toward unrecognized operators. W/W* (clipping) and sh (shading) are handled
+                // above, not skipped here.
                 break;
         }
     }

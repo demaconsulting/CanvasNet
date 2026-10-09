@@ -7,7 +7,7 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 // cspell:ignore endcodespacerange findresource defineresource currentdict begincmap endcmap
 // cspell:ignore bfchar bfrange nendbfchar nendbfrange tounicode usecmap cidrange cidchar codepoints
 // cspell:ignore OTTO rmoveto rlineto endchar notdef charstring charstrings cidfonttype
-// cspell:ignore functiontype multiinput fitz uncatchable
+// cspell:ignore functiontype multiinput fitz uncatchable reimplementation
 // cspell:ignore Noto
 // cspell:ignore hsbw closepath fontfile lenIV quoteright Quoteright hival
 
@@ -4757,6 +4757,126 @@ public class PdfDocumentTests
         Assert.Equal(default, surface[70, 50]);
     }
 
+    /// <summary>
+    ///     Regression test: proves a literal <c>0 w</c> stroke still renders as a visible,
+    ///     ~full-opacity, ~one-device-pixel-wide line - the PDF specification's "thinnest
+    ///     renderable line" rule for a zero line width must be unaffected by the hairline-stroke
+    ///     fix in <c>PdfDocument.PathOps.cs</c>'s <c>DeviceLineWidth()</c>, which now only relaxes
+    ///     the one-device-pixel floor for a <em>genuinely positive</em> line width (see
+    ///     <c>PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke</c>).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_PathOps_Stroke_ZeroWidth_RendersFullOpacityHairline()
+    {
+        // Arrange: a vertical line at x=60.5 (so the one-device-pixel-wide floored stroke falls
+        // exactly on pixel column 60's boundaries) stroked with a literal 0 w (no magnitude of
+        // its own to preserve).
+        const string content = "0 w 60.5 10 m 60.5 90 l S";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: some pixel in the narrow column straddling the centerline is fully opaque (the
+        // one-device-pixel floor still applies), and a pixel well clear of that column is
+        // untouched - matching this renderer's pre-fix 0 w behavior exactly.
+        var maxAlphaNearLine = Enumerable.Range(58, 5).Max(x => surface[x, 50].A);
+        Assert.Equal(255, maxAlphaNearLine);
+        Assert.Equal(default, surface[70, 50]);
+    }
+
+    /// <summary>
+    ///     Fix-proof test: proves a small-but-genuinely-nonzero width (e.g. <c>0.25 w</c>) now
+    ///     resolves to a true sub-device-pixel stroke - painted with measurably lower average
+    ///     coverage/opacity than a <c>2 w</c> stroke at the same position, with at least one
+    ///     partially-transparent (neither fully opaque nor fully transparent) pixel proving
+    ///     genuine antialiased coverage rather than a forced full-opacity pixel. Also proves a
+    ///     normal/large width (<c>2 w</c>) is unaffected by the fix: it still paints the expected
+    ///     pixel at full opacity, exactly like the pre-fix <see cref="PdfDocument_PathOps_Stroke_PaintsExpectedPixels"/>
+    ///     baseline.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke()
+    {
+        // Arrange: identical vertical line geometry, differing only by stroke width.
+        const string thinContent = "0.25 w 60 10 m 60 90 l S";
+        const string wideContent = "2 w 60 10 m 60 90 l S";
+
+        // Act
+        using var thinSurface = RenderContent(thinContent);
+        using var wideSurface = RenderContent(wideContent);
+        var thinAlphas = Enumerable.Range(58, 5).Select(x => (int)thinSurface[x, 50].A).ToArray();
+        var wideAlphas = Enumerable.Range(58, 5).Select(x => (int)wideSurface[x, 50].A).ToArray();
+
+        // Assert: the thin stroke's average coverage across the same pixel window is measurably
+        // lower than the wide stroke's (genuinely thinner, not forced to full opacity), the thin
+        // stroke has at least one partially-transparent pixel (true antialiased sub-pixel
+        // coverage), and the wide stroke still paints its expected pixel fully opaque unchanged.
+        Assert.True(thinAlphas.Average() < wideAlphas.Average());
+        Assert.Contains(thinAlphas, a => a is > 0 and < 255);
+        Assert.Equal(Black, wideSurface[60, 50]);
+    }
+
+    /// <summary>
+    ///     Edge-case test: proves a nonzero width below <c>PdfDocument.PathOps.cs</c>'s
+    ///     <c>MinimumPositiveDeviceLineWidth</c> numerical-safety floor (e.g. <c>0.001 w</c>)
+    ///     still renders as something visible - a nonzero-alpha pixel - rather than vanishing to
+    ///     fully transparent. This proves the floor exists purely to avoid a zero-area/degenerate
+    ///     stroke outline, not to reintroduce the old full-opacity clamp.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_PathOps_Stroke_SubEpsilonWidth_RendersVisibleLine()
+    {
+        // Arrange: a vertical line stroked with a width far below the numerical-safety floor.
+        const string content = "0.001 w 60 10 m 60 90 l S";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: some pixel in the narrow column straddling the centerline carries nonzero
+        // alpha - the stroke is visible, not degenerate/invisible.
+        var maxAlphaNearLine = Enumerable.Range(58, 5).Max(x => surface[x, 50].A);
+        Assert.True(maxAlphaNearLine > 0);
+    }
+
+    /// <summary>
+    ///     Proves that a dash-dot pattern set via the <c>d</c> operator with a zero-length "on"
+    ///     entry (e.g. <c>[4 8 0 8] 0 d</c>, the standard PDF/SVG/CSS dash-dot "dot" technique)
+    ///     renders the dot as a distinct painted pixel, isolated by unpainted gap pixels on either
+    ///     side, rather than vanishing into the surrounding gap.
+    /// </summary>
+    /// <remarks>
+    ///     Reproduces the reported upstream bug end-to-end: a 4-unit-wide round-cap (<c>1 J</c>)
+    ///     stroke along a horizontal line from <c>(10,50)</c> to <c>(90,50)</c>, dash pattern
+    ///     <c>[4, 8, 0, 8]</c> (dash=4, gap=8, dot=0, gap=8; cycle=20) at offset 0 - the gaps are
+    ///     wide enough (relative to the 4-unit line width's 2-unit round-cap radius) that the
+    ///     dash's and dot's caps do not touch, leaving a genuinely unpainted pixel gap on each
+    ///     side of the dot for this pixel-level assertion to observe. Hand-tracing
+    ///     <c>DashSplitter.BuildOnIntervals</c>'s cost model over the 80-unit path yields dash
+    ///     <c>[10,14]</c>, gap <c>[14,22]</c>, a dot at <c>22</c>, gap <c>[22,30]</c>, dash
+    ///     <c>[30,34]</c>, and so on. Before the fix, the zero-length "on" entry was silently
+    ///     skipped by <c>AdvanceDash</c>, so the dot at <c>x=22</c> was never emitted and that
+    ///     pixel was indistinguishable from the surrounding gap; this test directly proves the fix
+    ///     restores the dot's visibility as a round-cap point distinct from both neighboring
+    ///     dashes.
+    /// </remarks>
+    [Fact]
+    public void PdfDocument_PathOps_DashDotPattern_RendersDistinctDotBetweenDashesAndGaps()
+    {
+        // Arrange
+        const string content = "4 w 1 J [4 8 0 8] 0 d 10 50 m 90 50 l S";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Multiple(
+            () => Assert.Equal(Black, surface[12, 50]), // inside the first dash run
+            () => Assert.Equal(default, surface[18, 50]), // inside the gap immediately before the dot
+            () => Assert.Equal(Black, surface[22, 50]), // the dot itself
+            () => Assert.Equal(default, surface[26, 50]), // inside the gap immediately after the dot
+            () => Assert.Equal(Black, surface[32, 50])); // inside the second dash run
+    }
+
     /// <summary>Proves that <c>b</c> closes the current (still-open) subpath before both filling and stroking it.</summary>
     [Fact]
     public void PdfDocument_PathOps_CloseAndFillAndStroke_PaintsExpectedPixels()
@@ -4812,6 +4932,223 @@ public class PdfDocumentTests
         // y => device y 40..60) is painted, and the first rectangle's area does not bleed into it.
         Assert.Equal(Black, surface[50, 50]);
         Assert.Equal(default, surface[15, 15]);
+    }
+
+    #endregion
+
+    #region Clipping
+
+    /// <summary>
+    ///     Proves that <c>W n</c> marks the current path as the new clipping path (PDF 32000-1
+    ///     &#xA7;8.5.4), applied starting with the very next path-painting operator: a full-page
+    ///     fill issued after <c>W n</c> only paints the intersection of the fill's own geometry
+    ///     and the clip rectangle, not the full page.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion()
+    {
+        // Arrange: W n marks a 50x50 clip rectangle (no-op paint, since n neither fills nor
+        // strokes); the following full-page fill is then restricted to that rectangle. PDF rect
+        // (10,10)-(60,60) -> device x [10, 60], device y [40, 90] (y flipped: 100 - pdfY).
+        const string content = "10 10 50 50 re W n 0 0 100 100 re f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: inside the clip rectangle (and the fill), the fill paints.
+        Assert.Equal(Black, surface[30, 70]);
+
+        // Assert: inside the fill's own geometry, but outside the clip rectangle, nothing paints.
+        Assert.Equal(default, surface[80, 80]);
+    }
+
+    /// <summary>
+    ///     Proves that a clipping path set inside a <c>q</c> ... <c>Q</c> block does not leak past
+    ///     the matching <c>Q</c> (PDF 32000-1 &#xA7;8.4.2: the clipping path is part of the
+    ///     graphics state): a second, full-page fill issued after <c>Q</c> paints the entire page,
+    ///     proving the earlier clip is no longer active.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Clipping_SetInsideQQ_DoesNotLeakPastQ()
+    {
+        // Arrange: a clip is established and consumed entirely inside q ... Q; after Q restores
+        // the prior (unclipped) graphics state, a second full-page fill should paint everywhere.
+        const string content = "q 10 10 50 50 re W n 0 0 100 100 re f Q 0 0 100 100 re f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: a pixel that was outside the q-scoped clip rectangle is nonetheless painted by
+        // the second, post-Q fill - proving the clip did not survive the Q.
+        Assert.Equal(Black, surface[80, 80]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>W*</c> interprets the current path for clipping purposes using the
+    ///     even-odd rule (PDF 32000-1 &#xA7;8.5.4): two overlapping rectangles clip to their own
+    ///     symmetric difference (XOR), leaving a hole where the two rectangles overlap, rather
+    ///     than the union <c>W</c> (nonzero winding) would produce for the same geometry.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Clipping_WStar_UsesEvenOddFillRule()
+    {
+        // Arrange: rect1 pdf (10,10)-(70,70), rect2 pdf (30,30)-(90,90); their overlap
+        // (30,30)-(70,70) has winding 2, folding to a hole under even-odd.
+        const string content = "10 10 60 60 re 30 30 60 60 re W* n 0 0 100 100 re f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: a pixel in rect1 only (pdf (15,15) -> device (15, 85)) is painted.
+        Assert.Equal(Black, surface[15, 85]);
+
+        // Assert: a pixel in the overlap (pdf (50,50) -> device (50, 50)) is a hole - not painted.
+        Assert.Equal(default, surface[50, 50]);
+
+        // Assert: a pixel in rect2 only (pdf (80,80) -> device (80, 20)) is painted.
+        Assert.Equal(Black, surface[80, 20]);
+
+        // Assert: a pixel outside both rectangles (pdf (95,95) -> device (95, 5)) is not painted.
+        Assert.Equal(default, surface[95, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that two successive <c>W n</c> clips (without any intervening <c>q</c>/<c>Q</c>)
+    ///     intersect rather than replace one another (PDF 32000-1 &#xA7;8.5.4: "the new clipping
+    ///     path ... shall be the intersection of the current clipping path and the newly
+    ///     constructed path"): only the geometric overlap of the two clip rectangles is painted.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace()
+    {
+        // Arrange: clip A pdf (10,10)-(80,80), clip B pdf (30,30)-(100,100); their intersection
+        // is pdf (30,30)-(80,80) -> device x [30, 80], device y [20, 70].
+        const string content = "10 10 70 70 re W n 30 30 70 70 re W n 0 0 100 100 re f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: a pixel in the intersection is painted.
+        Assert.Equal(Black, surface[50, 50]);
+
+        // Assert: a pixel in clip A only (pdf (15,15) -> device (15, 85)) is not painted.
+        Assert.Equal(default, surface[15, 85]);
+
+        // Assert: a pixel in clip B only (pdf (90,90) -> device (90, 10)) is not painted.
+        Assert.Equal(default, surface[90, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that an active clipping path restricts an image XObject's <c>Do</c> painting
+    ///     exactly like it restricts an ordinary fill: the right half of a full-page image
+    ///     placement is suppressed by a clip rectangle covering only the left half of the page.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Clipping_ClipThenImageDo_RestrictsImageToClipRegion()
+    {
+        // Arrange: the same 2x2 DeviceGray image fixture used by the Images tests, placed across
+        // the full page, but clipped to the left half (pdf x [0, 50)) beforehand.
+        byte[] raw = [0, 255, 64, 192];
+        var compressed = ZlibCompress(raw);
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode",
+            compressed);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "0 0 50 100 re W n 100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: inside the clip (left half), the image's own top-right-quadrant-adjacent pixel
+        // still paints its expected sample value.
+        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[25, 25]);
+
+        // Assert: outside the clip (right half), the image no longer paints - compare against
+        // PdfDocument_Images_DoOperator_DeviceGrayFlateDecode_PlacesExpectedPixels, where this
+        // same pixel is opaque white without a clip in effect.
+        Assert.Equal(default, surface[75, 25]);
+    }
+
+    /// <summary>
+    ///     Proves that an active clipping path restricts glyph-fill painting exactly like it
+    ///     restricts an ordinary fill: a clip rectangle covering only part of a glyph's own device
+    ///     bounding box suppresses the portion of the glyph outside the clip.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion()
+    {
+        // Arrange: same font/glyph geometry as
+        // PdfDocument_Text_ShowText_PaintsGlyphAtComposedTextRenderingMatrix (glyph paints device
+        // x [7, 15), y [40, 48)), but clipped to pdf x [0, 9) beforehand (device x [0, 9), full
+        // page height).
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1), (66, 2)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(fontBytes);
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "0 0 9 100 re W n BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: inside both the glyph and the clip, the glyph paints.
+        Assert.NotEqual(default, surface[8, 44]);
+
+        // Assert: inside the glyph's own bounding box, but outside the clip, nothing paints -
+        // compare against PdfDocument_Text_ShowText_PaintsGlyphAtComposedTextRenderingMatrix,
+        // where this same pixel is painted without a clip in effect.
+        Assert.Equal(default, surface[10, 44]);
+    }
+
+    /// <summary>
+    ///     Proves that a pending <c>W</c> clip survives a tiling-pattern fill of the very same
+    ///     path: the pattern cell's own nested content-stream execution (which paints its own
+    ///     path(s) via a recursive internal <c>PaintCurrentPath</c> call) must not consume/clear
+    ///     the outer, still-pending clip - a later, unrelated full-page fill issued after the
+    ///     pattern-filled path remains restricted to the clip rectangle.
+    /// </summary>
+    /// <remarks>
+    ///     Regression test: before isolating <c>_pendingClipFillRule</c> per nested content-stream
+    ///     execution, the tile cell's own first path-painting operator would read and clear the
+    ///     outer's still-pending clip flag (both nested and outer execution shared the same field)
+    ///     and install it onto the tile's own throwaway graphics state instead - which is then
+    ///     discarded when the nested execution returns - silently losing the outer clip.
+    /// </remarks>
+    [Fact]
+    public void PdfDocument_Clipping_PendingClipSurvivesTilingPatternFillOfSamePath_RestrictsLaterFill()
+    {
+        // Arrange: a colored tiling pattern whose own cell content paints a solid fill (its own
+        // path-painting operator, with no W of its own). The outer path is both marked as the
+        // pending clip (W) and painted with that pattern (scn + f) in the same painting step -
+        // exactly per PDF 32000-1 §8.5.4's "next painting operator" pairing. A second, unrelated
+        // full-page fill issued afterward should then be restricted to the clip rectangle pdf
+        // (10,10)-(90,90) -> device x [10, 90], device y [10, 90] (y flipped: 100 - pdfY).
+        var cellContent = "1 0 0 rg 0 0 10 10 re f";
+        var patternStream = BuildStreamObjectBody(
+            "/PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 10 10] /XStep 10 /YStep 10",
+            System.Text.Encoding.ASCII.GetBytes(cellContent));
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "10 10 80 80 re W /Pattern cs /P1 scn f 0 g 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: inside the clip rectangle, the second (unrelated) full-page fill's black
+        // overwrites the pattern tile's own red.
+        Assert.Equal(Black, surface[50, 50]);
+
+        // Assert: outside the clip rectangle, the second full-page fill is suppressed - the clip
+        // installed by the pending W survived the pattern-fill painting operator that consumed
+        // it, rather than being silently lost to the pattern cell's own nested execution.
+        Assert.Equal(default, surface[95, 5]);
     }
 
     #endregion
@@ -10748,6 +11085,181 @@ public class PdfDocumentTests
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    #endregion
+
+    #region Shading Operator (sh)
+
+    /// <summary>
+    ///     Proves that <c>sh</c> paints an axial (<c>/ShadingType 2</c>) shading's gradient
+    ///     directly onto the surface, with no preceding path/fill operator and no <c>/Pattern</c>
+    ///     color-space selection at all - the mechanism PDF 32000-1 &#xA7;8.7.4.2 documents as
+    ///     distinct from the <c>scn</c>/<c>SCN</c> + <c>/Pattern</c> + <c>/PatternType 2</c> path.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ShadingOperator_Axial_NoPrecedingPath_PaintsGradientAcrossFullPage()
+    {
+        // Arrange: content stream is just '/Sh1 sh' - no 'm'/'l'/'re'/'f'/'scn' at all. Object
+        // numbering: 5 = shadingDict, 6 = functionStream.
+        var shadingDict = "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function 6 0 R >>"u8.ToArray();
+        var functionStream = BuildStreamObjectBody(
+            "/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [shadingDict, functionStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: near-black at the start of the axis, near-white at the end.
+        Assert.True(surface[2, 50].R < 50);
+        Assert.True(surface[97, 50].R > 200);
+    }
+
+    /// <summary>
+    ///     Proves that <c>sh</c> paints a radial (<c>/ShadingType 3</c>) shading's gradient
+    ///     directly onto the surface (center color differs from edge color), mirroring
+    ///     <see cref="PdfDocument_Patterns_ShadingPattern_RadialFunctionType2_FillsVisiblyVaryingGradient"/>'s
+    ///     own assertion style.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ShadingOperator_Radial_NoPrecedingPath_PaintsGradientAcrossFullPage()
+    {
+        // Arrange: two concentric circles centered at (50,50), inner radius 0, outer radius 50,
+        // black -> white.
+        var shadingDict = "<< /ShadingType 3 /ColorSpace /DeviceRGB /Coords [50 50 0 50 50 50] /Function 6 0 R >>"u8.ToArray();
+        var functionStream = BuildStreamObjectBody(
+            "/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [shadingDict, functionStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the center is darker than near the outer edge.
+        Assert.True(surface[50, 50].R < surface[95, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves that <c>sh</c> composes with a preceding <c>W</c>/<c>W* n</c> clip exactly like
+    ///     an ordinary fill already does (PDF 32000-1 &#xA7;8.7.4.2: "within the bounds of the
+    ///     current clipping path"), reusing the existing clip-mask mechanism with zero new
+    ///     clip-related source code: the gradient (spanning the full page's own coordinate range)
+    ///     only appears within the clipped region.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ShadingOperator_WithPrecedingClip_RestrictsGradientToClipRegion()
+    {
+        // Arrange: clip to pdf (10,10)-(60,60) -> device x [10, 60], device y [40, 90] (y
+        // flipped), then 'sh' an axial gradient spanning the full page's x range.
+        var shadingDict = "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function 6 0 R >>"u8.ToArray();
+        var functionStream = BuildStreamObjectBody(
+            "/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "10 10 50 50 re W n /Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [shadingDict, functionStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: a pixel inside the clip rectangle shows gradient-varied (non-background) color.
+        Assert.NotEqual(default, surface[30, 70]);
+
+        // Assert: a pixel outside the clip rectangle remains the Transparent background
+        // sentinel, even though the gradient's own /Coords span the full page.
+        Assert.Equal(default, surface[80, 80]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>sh</c>, issued with no active clip at all, falls back to bounding the
+    ///     painted region to the shading's own <c>/BBox</c> (PDF 32000-1 &#xA7;8.7.4.3) rather
+    ///     than ever painting unboundedly across the whole page/surface.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ShadingOperator_BBoxNarrowerThanPage_RestrictsGradientToBBox()
+    {
+        // Arrange: no clip at all; the shading declares /BBox [20 20 80 80], narrower than the
+        // full 100x100 page -> device x [20, 80], device y [20, 80] (y flipped).
+        var shadingDict =
+            "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /BBox [20 20 80 80] /Function 6 0 R >>"u8
+                .ToArray();
+        var functionStream = BuildStreamObjectBody(
+            "/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [shadingDict, functionStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: a pixel outside the /BBox remains background (never painted unboundedly).
+        Assert.Equal(default, surface[5, 5]);
+
+        // Assert: a pixel inside the /BBox shows gradient-varied (non-background) color.
+        Assert.NotEqual(default, surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>sh</c> naming a shading dictionary with an unsupported
+    ///     <c>/ShadingType</c> throws <see cref="UnsupportedImageFeatureException"/> with feature
+    ///     <c>pdf-shading-type-{n}</c> - the exact same exception (not a reimplementation) the
+    ///     <c>scn</c>/<c>SCN</c> + <c>/Pattern</c> path already throws, directly proving the bug
+    ///     report's "no exception thrown for an unsupported case" complaint is fixed for this
+    ///     category.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public void PdfDocument_ShadingOperator_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException(int shadingType)
+    {
+        // Arrange: 5 = shadingDict.
+        var shadingDict = System.Text.Encoding.ASCII.GetBytes($"<< /ShadingType {shadingType} >>");
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [shadingDict]);
+
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal($"pdf-shading-type-{shadingType}", exception.Feature);
+    }
+
+    /// <summary>
+    ///     Proves that <c>sh</c> naming a shading not declared in the current page's
+    ///     <c>/Resources/Shading</c> dictionary throws <see cref="UnsupportedImageFeatureException"/>
+    ///     with feature <c>pdf-shading-not-declared</c> (mirroring the existing
+    ///     <c>pdf-pattern-not-declared</c> precedent exactly) - a defensive/regression test.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ShadingOperator_UndeclaredShadingName_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange: no /Resources/Shading dictionary at all declares /Sh1.
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Sh1 sh",
+            "",
+            []);
+
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal("pdf-shading-not-declared", exception.Feature);
     }
 
     #endregion

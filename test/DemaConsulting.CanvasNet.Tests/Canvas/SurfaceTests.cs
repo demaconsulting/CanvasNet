@@ -1346,7 +1346,7 @@ public class SurfaceTests
 
     /// <summary>
     ///     Proves that the internal, workspace-reusing <c>CompositeOverSpan</c> overload (used by
-    ///     <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill(DemaConsulting.CanvasNet.Canvas.Surface, System.Collections.Generic.IReadOnlyList{System.Collections.Generic.List{System.Numerics.Vector2}}, Rgba32, DemaConsulting.CanvasNet.Drawing.FillRule, DemaConsulting.CanvasNet.Geometry.Rect)"/> to amortize its
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill(DemaConsulting.CanvasNet.Canvas.Surface, System.Collections.Generic.IReadOnlyList{System.Collections.Generic.List{System.Numerics.Vector2}}, Rgba32, DemaConsulting.CanvasNet.Drawing.FillRule, DemaConsulting.CanvasNet.Geometry.Rect, DemaConsulting.CanvasNet.Drawing.ClipMask?)"/> to amortize its
     ///     scratch-buffer rent/return across every row of a fill instead of paying it per row)
     ///     produces byte-for-byte identical surface output to the public, per-call-renting
     ///     overload, across several rows sharing one <see cref="Surface.CompositeSpanWorkspace"/> -

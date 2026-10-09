@@ -22,6 +22,14 @@ namespace DemaConsulting.CanvasNet.Pptx;
 public sealed class PptxRenderOptions
 {
     /// <summary>
+    ///     Creates a new <see cref="PptxRenderOptions"/> instance with
+    ///     <see cref="BackgroundColor"/> set to its documented default (opaque white).
+    /// </summary>
+    public PptxRenderOptions()
+    {
+    }
+
+    /// <summary>
     ///     The default <see cref="PptxRenderOptions"/> instance, used by <c>Render</c> whenever a
     ///     caller passes <see langword="null"/> (or omits the <c>options</c> parameter entirely) -
     ///     opaque white (see <see cref="BackgroundColor"/>'s own default).
@@ -38,8 +46,8 @@ public sealed class PptxRenderOptions
     ///     when the slide declares none, its layout's/master's own <c>&lt;p:bg&gt;</c>) now takes
     ///     priority over this option when declared - painted across the full slide after this
     ///     clear and before the shape-tree walk (see
-    ///     <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>'s remarks and
-    ///     <see cref="PptxDocument.ResolveSlideBackgroundFill"/>). This option remains the
+    ///     <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>'s remarks). This
+    ///     option remains the
     ///     fallback - and the base clear color - only when none of slide/layout/master declare a
     ///     <c>&lt;p:bg&gt;</c> at all.
     /// </remarks>

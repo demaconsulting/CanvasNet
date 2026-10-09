@@ -755,6 +755,41 @@ proves `ParseParagraph`, given a `<a:p>` containing a run, then a `<a:br/>`, the
 preserves all three as an ordered item list in document order (run, break, run) rather than
 selecting only the `<a:r>` children and silently discarding the `<a:br/>`.
 
+#### CanvasNetPptx-PptxDocument-SlideNumberFieldSubstitution: `<a:fld type="slidenum">` Renders the Slide's Own Slide Number
+
+**Tests**: `ParseParagraph_FieldRun_IsPreservedUsingCachedText`,
+`ParseParagraph_FieldRunDatetime_CapturesDatetimeFieldType`,
+`ParseParagraph_PlainRun_FieldTypeIsNull`,
+`SubstituteSlideNumberField_SlidenumField_ReplacesTextWithOneBasedSlideNumber`,
+`SubstituteSlideNumberField_SlidenumFieldUppercaseType_ReplacesTextCaseInsensitively`,
+`SubstituteSlideNumberField_DatetimeField_LeavesCachedTextUnchanged`,
+`SubstituteSlideNumberField_PlainRun_LeavesTextUnchanged`,
+`SubstituteSlideNumberField_SlidenumFieldAlongsideLineBreakAndPlainRun_OnlySlidenumItemChanges`,
+`Render_SlideNumberField_SubstitutesOneBasedSlideNumber`,
+`Render_SlideNumberFieldOnSecondSlideOfTwo_SubstitutesDifferentSlideNumber`,
+`Render_DateTimeField_KeepsCachedPlaceholderText`,
+`Render_PlainRunAlongsideSlideNumberField_PlainRunTextUnaffected`
+
+Proves `ParseParagraph` captures an `<a:fld>` field's own `type` attribute into the parsed
+`PptxRunItem.FieldType` (case-sensitive-as-authored at parse time) for both a `"slidenum"` field
+and a `"datetime1"` field, while keeping each field's cached `<a:t>` text unchanged, and proves a
+plain `<a:r>` run parses with a `null` `FieldType`. Proves `SubstituteSlideNumberField` replaces a
+`"slidenum"` field's run text with the supplied slide number formatted as a plain decimal string,
+matches the `"slidenum"` type case-insensitively (an uppercase `"SLIDENUM"` field substitutes
+identically), leaves a `"datetime1"` field's cached text completely unchanged, leaves a plain run's
+text completely unchanged, and - guarding against the `with`-vs-primary-constructor stale-backing-
+field pitfall documented in the design doc - proves the rebuilt `PptxParagraph.Runs` convenience
+accessor (not just `Items`) reflects the substituted text when a paragraph mixes a plain run, a
+line break, and a `"slidenum"` field. Proves, end-to-end through the public `Render` API, that a
+single-slide deck's `"slidenum"` field renders pixel-identical to an otherwise-identical plain-run
+reference shape whose literal text is `"1"` (not the field's own cached placeholder text); that the
+identical field shape declared on both slides of a genuine two-slide deck renders a visibly
+different slide number on each slide (`"1"` on slide 0, `"2"` on slide 1), proving true per-slide
+substitution driven by the slide actually being rendered rather than a value hardcoded from slide
+1; that a `"datetime1"` field renders pixel-identical to its own cached text, completely
+unaffected by the substitution; and that a plain run sharing a paragraph with a `"slidenum"` field
+renders pixel-identical to a reference shape, proving only the field's own run changes.
+
 #### CanvasNetPptx-PptxDocument-TextPropertyInheritance: Attribute-Level Run/Paragraph Property Resolution
 
 **Tests**: `ResolveEffectiveRunProperties_RunOverride_WinsOverEveryOtherTier`,
@@ -1108,6 +1143,32 @@ the following cell's computed column offset: `ResolveCellRects` now counts the a
 `hMerge` continuations following a governing cell and defensively advances both `xEmu` and
 `columnIndex` past any shortfall, so the governing cell's own merged rectangle is unaffected and
 the following, unrelated cell lands at its correct, non-overlapping column offset.
+
+#### CanvasNetPptx-PptxDocument-TableRowHeightGrowth: Row-Height Growth to Fit Wrapped Text
+
+**Tests**:
+`ResolveCellRects_CellTextRequiresMoreHeightThanStored_GrowsRowAndShiftsNextRowYOffset`,
+`ResolveCellRects_CellTextFitsWithinStoredHeight_RowHeightUnaffected`,
+`ResolveCellRects_RowSpanCellTextRequiresMoreHeightThanSpanTotal_GrowsLastSpannedRow`,
+`ResolveCellRects_NoThemeOrFontResolverSupplied_PreservesStoredHeightsUnconditionally`,
+`PaintTable_TwoRowTableWithWrappedTextOverflowingStoredHeight_PaintsSecondRowBelowGrownFirstRow`
+
+Proves `ResolveCellRects` grows a row's own effective height past its stored `<a:tr h="...">`
+value when a single-row cell's own wrapped text requires more vertical space than that stored
+height provides, and that the following row's own computed `Y` offset reflects the grown, not
+stale stored, height - directly proving the reported row-overlap symptom no longer reproduces.
+Proves a stored height already comfortably exceeding a cell's own required text height is left
+entirely unchanged (the regression-safety guarantee: growth only ever enlarges a row, never
+shrinks or otherwise perturbs one that already fits). Proves a row-spanning cell (`RowSpan > 1`)
+whose required text height exceeds its spanned rows' stored height sum has its own shortfall
+added entirely onto the *last* spanned row, leaving an earlier spanned row - which may itself
+anchor an unrelated single-row cell in the same row - unaffected. Proves omitting the new optional
+`theme`/`fontResolver` parameters preserves today's stored-height-only behavior unconditionally,
+even for a cell that would otherwise require growth - confirming the feature is strictly opt-in
+and every pre-existing direct `ResolveCellRects` call site remains unaffected. Proves, end-to-end
+through `PaintTable`, that a two-row table's second row paints its own fill starting below the
+first row's grown (not stored) bottom edge, when the first row's own cell text wraps to more lines
+than its stored height can fit.
 
 #### CanvasNetPptx-PptxDocument-TablePainting: Cell Fill, Border, and Text Painting
 

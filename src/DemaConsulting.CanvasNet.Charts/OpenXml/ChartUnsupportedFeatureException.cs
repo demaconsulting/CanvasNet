@@ -3,11 +3,11 @@ namespace DemaConsulting.CanvasNet.Charts.OpenXml;
 /// <summary>
 ///     The exception thrown when <see cref="OpenXmlChartParser"/> refuses to parse an otherwise
 ///     well-formed DrawingML <c>c:chartSpace</c>/<c>c:chart</c> element because it declares a
-///     chart kind or data shape this phase does not implement (for example a radar, bubble,
+///     chart kind or data shape this parser does not implement (for example a radar, bubble,
 ///     scatter, stock, surface, 3-D, or "of pie" chart type; a combo chart combining more than
 ///     one chart-type element in a single plot area; or a series whose value cache is absent -
-///     see <c>open-xml-chart-parser.md</c>'s "Supported and Deferred Chart Types" design section
-///     for the exact supported/deferred boundary).
+///     see <see cref="OpenXmlChartParser"/>'s own remarks for the exact supported/deferred
+///     chart-type boundary).
 /// </summary>
 /// <remarks>
 ///     This type intentionally mirrors the shape of the equivalent "well-formed but unsupported"

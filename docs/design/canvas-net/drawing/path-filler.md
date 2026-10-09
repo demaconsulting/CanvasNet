@@ -11,7 +11,10 @@ closed `Geometry.Path` onto a `Canvas.Surface` with a solid color, a linear/radi
 repeating tiled pattern, using an antialiased
 signed-area/coverage-accumulation scanline algorithm. The supporting `FillRule` enum and the
 internal `EdgeFlattener`/`ScanlineRasterizer` helpers are documented inline here, because none of
-them has any independent behavior beyond supporting `PathFiller.Fill`.
+them has any independent behavior beyond supporting `PathFiller.Fill` - as is a fourth internal
+helper, `ClipMask` (see _ClipMask (internal) and the internal clip-aware `Fill` overloads_ below),
+which represents a PDF content stream's active clipping path and is consumed, via new internal
+clip-aware `Fill` overloads, solely by `DemaConsulting.CanvasNet.Pdf`.
 
 #### Purpose
 
@@ -50,6 +53,7 @@ precise geometric question once cell boundaries are pinned to integer path coord
 | `FillRule`           | Public enum: `NonZero`, `EvenOdd` - selects winding-count resolution. |
 | `EdgeFlattener`      | Internal static class: converts a `Path`'s subpaths into polygons.    |
 | `ScanlineRasterizer` | Internal static class: rasterizes polygons into row coverage.         |
+| `ClipMask`           | Internal sealed class: immutable per-pixel clip coverage mask.        |
 | `PathFiller`         | Public static class: the single `Fill` entry point.                   |
 
 `FillRule.NonZero` (the default) treats a pixel as filled whenever the accumulated signed winding
@@ -250,6 +254,37 @@ approximation converging only as the sample count grows.
      behavior of AGG/FreeType/`stb_truetype` for coincident/overlapping contours within one cell,
      and is a materially rarer case in practice than ordinary self-intersecting geometry, which is
      why this trade-off is accepted in exchange for fixing the crossing-edge bug above.
+   - **Fix: exact sub-row splitting for multiple `EvenOdd` toggles within one row.**
+     `ResolveCoverage`'s `EvenOdd` fold collapses a single scalar - the row-height-weighted
+     integral of winding number over the row - into a parity value via `magnitude % 2` (reflected
+     above `1`). Folding and integrating only commute when at most one edge's `Y0`/`Y1` lands
+     strictly inside the row for a given column; when two or more do (for example several nested
+     shapes whose boundaries are all closer together than one device pixel - the "double border"
+     regression: four nested rectangles whose y-boundaries all land in the same row), the single
+     fold sees only the row's total accumulated winding, not how many times parity actually
+     toggled across the row's height, and silently produces the wrong coverage (observed: a fully
+     opaque fold where the true height-weighted parity average is a fraction such as ~0.33).
+     `FillRule.NonZero` never needs this reasoning - its fold (`magnitude != 0`) is a single
+     yes/no threshold on the same running total regardless of how many times winding crosses zero
+     within the row, so it trivially commutes with integration - which is why this fix touches
+     only the `EvenOdd` path and leaves `NonZero`'s code path completely untouched, bit-for-bit,
+     with no performance change whatsoever for `NonZero` or for any `EvenOdd` row with fewer than
+     two mid-row breakpoints (the overwhelming common case, handled by the original, unmodified
+     single-pass accumulation method). Only when `EvenOdd` and two or more distinct `Y0`/`Y1`
+     values land strictly inside the row does the rare slow path run: the row is split into
+     sub-intervals at each breakpoint; every `RowEdge` is re-clipped to each sub-interval's
+     `[top, bottom)` span by linearly re-interpolating its already-affine `x(y)` mapping at the
+     sub-interval's boundaries - exact for slanted edges as well as axis-aligned ones, since
+     restricting an affine function to a sub-interval of its domain and re-evaluating its
+     endpoints is exact, not an approximation. By construction no breakpoint lands strictly inside
+     any single sub-interval (breakpoints are exactly the sub-interval boundaries), so within any
+     one sub-interval no edge newly starts or stops partway through for any column - restoring the
+     single-toggle-per-row precondition the unmodified `ResolveCoverage` fold already relies on, so
+     each sub-interval's coverage is resolved by that same unmodified fold, scaled to that
+     sub-interval's own height, and the sub-intervals' coverages are combined by weighting each by
+     `sub-interval height / row height` and summing - exactly the height-weighted parity average
+     the single fold was supposed to approximate, now computed exactly because each term is
+     independently resolved over a range where the fold is valid.
 
 **Degenerate input**: an empty `polygons` list, or a polygon reduced (after edge-table
 construction skips horizontal edges) to fewer than 2 usable non-horizontal edges, contributes no
@@ -272,7 +307,13 @@ accumulation step above for why this is not a flat `O(edges)`, and degrades towa
 `O(edges * clippedWidth)` only for the atypical case of many edges nearly horizontal within a
 single row); and the dense per-row buffers themselves cost `O(rows * clippedWidth)` regardless of
 edge count - i.e. every term is bounded by the clipped bounding box of the path, not the full
-surface, and no edge is ever revisited for rows outside its own vertical extent.
+surface, and no edge is ever revisited for rows outside its own vertical extent. The rare
+`EvenOdd` multi-toggle-per-row sub-row-splitting path (see above) raises that row's own cost from
+`O(edges + clippedWidth)` to `O(edges + clippedWidth * breakpoints)` - re-accumulating cell
+contributions once per sub-interval - strictly worse than the common case, but only for the rare
+row where two or more edges' boundaries coincide within one device pixel, and still bounded by the
+number of edges actually active in that one row, so it cannot degrade the algorithm's overall
+complexity beyond a small, rare, local constant-factor multiplier confined to that row.
 
 These complexity properties (in particular, avoiding an `O(edges^2)` or `O(edges * rows)`
 blowup) are established by this design-level analysis and confirmed by code/design review of
@@ -280,17 +321,69 @@ the implementation against it, not by automated runtime performance tests - a de
 decision, since wall-clock assertions are unreliable guards for algorithmic complexity on
 heterogeneous CI hardware.
 
+##### ClipMask (internal) and the internal clip-aware `Fill` overloads
+
+`ClipMask` (`Drawing/ClipMask.cs`) is a fourth internal helper documented inline here, alongside
+`EdgeFlattener`/`ScanlineRasterizer`, for the same reason: it has no independent behavior beyond
+supporting clip-path enforcement, and is not a new public `Drawing` unit (unlike `TilePaint`) -
+see that file's own remarks for why this "internal helper" treatment, not a "new public unit"
+treatment, was chosen. It represents a PDF content stream's current clipping path
+(`DemaConsulting.CanvasNet.Pdf`'s only consumer, an `InternalsVisibleTo` friend assembly) as an
+immutable, per-pixel `[0, 1]` antialiased coverage buffer bound to a fixed `Width`/`Height` device
+pixel extent - coverage, not a boolean inside/outside bit, so a clip boundary's own antialiasing
+composes smoothly with whatever is painted through it.
+
+- **`ClipMask.FromPath(Path path, FillRule fillRule, int width, int height, float flattenTolerance)`**
+  validates its arguments via the same `PathFiller.ValidateFillArgs`/`GetPolygonBounds` helpers
+  `PathFiller.Fill` itself uses (both widened from `private` to `internal` for exactly this
+  reuse), flattens `path` via `EdgeFlattener.Flatten`, intersects the flattened polygons' own
+  bounds with the `width` x `height` extent, and - when that intersection is non-empty - calls a
+  new internal `ScanlineRasterizer.AccumulateCoverageMask(polygons, fillRule, clipBounds, mask,
+  maskWidth)` entry point that runs an independent, clip-less `CoverageSweep` and copies each
+  resolved row's coverage directly into the caller-supplied dense `float[]` mask buffer, reusing
+  the exact same sweep algorithm described above rather than re-implementing scanline math a
+  second time.
+- **`ClipMask.Intersect(ClipMask other)`** returns a new `ClipMask` holding the elementwise
+  product of this mask's and `other`'s own coverage (both must share the same `Width`/`Height`) -
+  implementing "the new clipping path shall be the intersection of the current clipping path and
+  the newly constructed path" (PDF 32000-1 §8.5.4) purely via per-pixel multiplication, since the
+  product of two `[0, 1]` coverage fractions is itself a coverage fraction no larger than either
+  operand. Neither operand is ever mutated - `Intersect` always allocates a fresh result - which is
+  what lets `PdfDocument.GraphicsState.Clone()` safely copy a `ClipMask` reference as-is for
+  `q`/`Q` save/restore scoping, with no risk of one graphics state's clip later being mutated out
+  from under another.
+- **`ClipMask.GetCoverage(int x, int y)`** returns `0f` for any out-of-bounds `(x, y)`, otherwise
+  the stored coverage - so a clip mask can only ever restrict paint, never grant coverage beyond
+  what it was built for.
+
+To thread an active `ClipMask?` through rasterization without widening `PathFiller.Fill`'s public
+contract, each of the 3 public `Fill` overloads (`Rgba32`/`Gradient`/`TilePaint` paint) was
+converted into a one-line forwarder that calls a new, same-named **internal** overload (adding one
+extra `ClipMask? clip` parameter, positioned right after the paint argument) with `clip: null` -
+so the public API's signatures/behavior/docs are entirely unchanged, while the new internal
+overloads carry the real clip-aware implementation and are the ones `PdfDocument` actually calls.
+`ScanlineRasterizer.Fill`'s own 3 overloads (already fully internal) instead gained an optional
+`ClipMask? clip = null` parameter directly, threaded into a new `CoverageSweep` constructor
+parameter: when non-null, `CoverageSweep` multiplies each column's own resolved fill coverage by
+`clip.GetCoverage(x, y)` immediately after `ResolveCoverage`, before compositing the row - the
+exact same "multiply coverage fractions together" technique `ClipMask.Intersect` itself uses, just
+applied between a path's own fill coverage and the active clip's coverage instead of between two
+clip masks.
+
 #### Error Handling
 
 All argument validation is performed by `PathFiller.Fill` itself, at the very start of the
 method, before any bounds computation or rasterization begins (see above). `EdgeFlattener` and
 `ScanlineRasterizer` are internal helpers that assume valid, already-validated input from
 `PathFiller.Fill` and perform no further validation of their own; they are only ever reached after
-`PathFiller.Fill`'s guards and the empty/out-of-bounds no-op check have already passed.
+`PathFiller.Fill`'s guards and the empty/out-of-bounds no-op check have already passed. `ClipMask`
+performs its own argument validation (null path, non-defined `FillRule`, non-finite/non-positive
+`flattenTolerance`/`width`/`height`) since `FromPath` is itself an entry point, not a callee that
+can assume already-validated input the way `EdgeFlattener`/`ScanlineRasterizer` do.
 
 #### Dependencies
 
-`PathFiller` (and its internal `EdgeFlattener`/`ScanlineRasterizer` helpers) depend on
+`PathFiller` (and its internal `EdgeFlattener`/`ScanlineRasterizer`/`ClipMask` helpers) depend on
 `System.Numerics.Vector2` (in-box BCL type), the `Geometry` subsystem's `Path`, `Subpath`,
 `PathCommand`, `Rect`, `BezierFlattening`, and `SvgArcConverter` (via `EdgeFlattener`), and the
 `Canvas` subsystem's `Surface`, `Rgba32`, and `Surface.CompositeOverSpan` (via
@@ -298,13 +391,18 @@ method, before any bounds computation or rasterization begins (see above). `Edge
 documentation). The gradient-paint overload additionally depends on the `Gradient` public type and
 the internal `GradientEvaluator` helper (see _GradientPaint Unit Design_, `gradient-paint.md`).
 The tile-paint overload additionally depends on the `TilePaint` public type and the internal
-`TilePaintEvaluator` helper (see _TilePaint Unit Design_, `tile-paint.md`). No
+`TilePaintEvaluator` helper (see _TilePaint Unit Design_, `tile-paint.md`). `ClipMask` and the
+internal clip-aware `Fill` overloads are additionally depended on by
+`DemaConsulting.CanvasNet.Pdf` (an `InternalsVisibleTo` friend assembly) - see
+`docs/design/canvas-net-pdf/pdf-document.md`'s _Clipping-path operators_ section. No
 new runtime NuGet package is introduced.
 
 #### Callers
 
-`PathFiller.Fill` is a public API entry point, invoked externally by consumers of the CanvasNet
-package. It is exercised end to end by this unit's own tests (`PathFillerTests`,
-`EdgeFlattenerTests`, `ScanlineRasterizerTests`) and by system-integration tests that build a
-`Path` via `PathBuilder` and fill it onto a `Surface` (see `CanvasNetTests.cs`). `PathFiller` has
-no dependency on any consumer, and no other unit in this library depends on `PathFiller`.
+`PathFiller.Fill`'s public overloads are a public API entry point, invoked externally by
+consumers of the CanvasNet package; the internal clip-aware overloads are invoked solely by
+`DemaConsulting.CanvasNet.Pdf`'s `PdfDocument`. Both are exercised end to end by this unit's own
+tests (`PathFillerTests`, `EdgeFlattenerTests`, `ScanlineRasterizerTests`, `ClipMaskTests`) and by
+system-integration tests that build a `Path` via `PathBuilder` and fill it onto a `Surface` (see
+`CanvasNetTests.cs`). `PathFiller` has no dependency on any consumer, and no other unit in this
+library depends on `PathFiller`.

@@ -166,6 +166,7 @@ public sealed partial class PdfDocument
             var savedCurrentPoint = _currentPoint;
             var savedSubpathStart = _subpathStart;
             var savedHasOpenSubpath = _hasOpenSubpath;
+            var savedPendingClipFillRule = _pendingClipFillRule;
             _formNestingDepth++;
             try
             {
@@ -186,6 +187,7 @@ public sealed partial class PdfDocument
                 _currentPoint = default;
                 _subpathStart = default;
                 _hasOpenSubpath = false;
+                _pendingClipFillRule = null;
                 ExecuteOperators(pattern.ContentBytes!);
             }
             finally
@@ -199,6 +201,7 @@ public sealed partial class PdfDocument
                 _currentPoint = savedCurrentPoint;
                 _subpathStart = savedSubpathStart;
                 _hasOpenSubpath = savedHasOpenSubpath;
+                _pendingClipFillRule = savedPendingClipFillRule;
             }
 
             if (pattern.PaintType == 2 && tint is { } tintColor)

@@ -179,6 +179,7 @@ sections:
           - CanvasNetPdf-PdfDocument-CtmDerivation
           - CanvasNetPdf-PdfDocument-PathConstruction
           - CanvasNetPdf-PdfDocument-PathPainting
+          - CanvasNetPdf-PdfDocument-ClippingPath
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_FilledRectangleAndStrokedLine_PaintsExpectedPixels
           - CanvasNetPdf_SystemIntegration_PdfRender_RotatedPage_MapsGeometryToCorrectPixelPosition
@@ -352,6 +353,7 @@ sections:
           - CanvasNetPdf-PdfDocument-PatternColorSpace
           - CanvasNetPdf-PdfDocument-ShadingPatternFill
           - CanvasNetPdf-PdfDocument-TilingPatternFill
+          - CanvasNetPdf-PdfDocument-ShadingOperator
         tests:
           - CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors
           - CanvasNetPdf_SystemIntegration_ColoredTilingPatternFill_PaintsRepeatingTileColors

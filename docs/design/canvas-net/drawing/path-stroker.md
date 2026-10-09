@@ -72,9 +72,12 @@ as a brand-new `Path`:
 2. **Apply dashing in path-length space.** `DashSplitter` interprets the dash array as
    alternating on/off lengths, conceptually duplicates odd-length arrays to preserve the standard
    repeating on/off cycle, phase-shifts the pattern by `DashOffset`, and returns only the visible
-   "on" segments. When a closed contour's visible dash run wraps across the seam, the helper
-   stitches the two halves back into one contiguous segment so the stroke has one join sequence
-   rather than two artificial caps at the seam.
+   "on" segments. A zero-length "on" entry (the standard PDF/SVG/CSS dash-dot "dot" technique, used
+   alongside a round or square line cap) is emitted as exactly one zero-length on-interval per
+   pattern repetition rather than being silently skipped, so it renders as a single dot-shaped
+   point instead of vanishing. When a closed contour's visible dash run wraps across the seam, the
+   helper stitches the two halves back into one contiguous segment so the stroke has one join
+   sequence rather than two artificial caps at the seam.
 3. **Outline each visible segment.** `StrokeOutliner` offsets each segment by half the stroke
    width on both sides and resolves the corners and ends into plain polygon vertices:
    - **Open segments** produce one closed polygon built from the left side, an end cap, the right
@@ -281,9 +284,12 @@ throughout - so no `IsFinite`-style guard can detect it.
 
 `BuildOnIntervals` counts every pass through its traversal loop (including iterations that only
 advance the dash-pattern phase without emitting an interval) against a fixed cap,
-`MaxOnIntervalIterations = 100_000_000`. Each dash-pattern-entry transition costs **two** loop
-iterations, not one: one iteration consumes the entry's remaining span (advancing `position`), and
-a separate iteration advances to the next pattern entry. Direct instrumentation of the existing
+`MaxOnIntervalIterations = 100_000_000`. Each **strictly-positive** dash-pattern-entry transition
+costs **two** loop iterations: one iteration consumes the entry's remaining span (advancing
+`position`), and a separate iteration advances to the next pattern entry. A **zero-length** entry
+costs only **one** iteration - the advance - since there is no span left to consume; a zero-length
+"on" entry's single iteration also emits one zero-length on-interval (the dash-dot "dot" - see
+below). Direct instrumentation of the existing
 `DashSplitter_Split_FineDashPatternOnVeryLongPath_CompletesWithCorrectSegments` regression test (a
 17,000,000-unit path with a `[1, 1]` dash pattern) confirms this legitimately requires
 **~34,000,000** iterations (measured: 33,999,999) - correcting an earlier, since-fixed doc/comment
@@ -293,25 +299,29 @@ figure of "~17,000,000" that was too low by exactly the missing per-transition a
 (Release, JIT-warmed) - far below any threshold a caller could perceive as hanging.
 
 Before entering the loop at all, `BuildOnIntervals` runs a cheap, `O(pattern.Count)` pre-flight
-estimate using the same two-iterations-per-transition cost model:
-`estimatedIterations = 2 * positiveEntryCount * (totalLength / patternLength)`, where
-`positiveEntryCount` is the count of strictly-positive entries in the (already-normalized) dash
-pattern (zero-length entries cost nothing in the real loop, so they are excluded) and
-`patternLength` is the sum of *all* pattern entries (the full cycle length), not just the smallest
-one. When that estimate already exceeds `MaxOnIntervalIterations`, the loop is skipped entirely -
-the method reports the cap-exceeded outcome immediately, without ever running the traversal loop -
-turning a hopeless input's cost from `O(MaxOnIntervalIterations)` into a handful of arithmetic
-operations. This is a heuristic estimate that closely tracks the loop's real cost model, not an
-exact prediction or a strict mathematical upper bound: for paths short relative to a single pattern
-cycle it can under-count by at most roughly one cycle's worth of iterations (bounded by
-`2 * positiveEntryCount`, an array-length-order constant, negligible relative to the
-100,000,000-iteration cap decision boundary and only relevant to inputs that are already fast to
-resolve). It has been verified safe (does not falsely short-circuit) against a symmetric long-path
-legitimate case, an asymmetric small+large pattern case, a zero-heavy pattern case (many zero
-entries mixed with one large positive entry, a legal `StrokeStyle` input), and the adversarial
-huge-ULP case (which it still correctly short-circuits); the loop's own running iteration count
-remains the authoritative backstop for any input the pre-flight estimate does not catch. This is
-what makes raising the cap
+estimate using the same cost model:
+`estimatedIterations = (positiveEntryCount + pattern.Count) * (totalLength / patternLength)`,
+where `positiveEntryCount` is the count of strictly-positive entries in the (already-normalized)
+dash pattern, `pattern.Count` accounts for every entry's one-iteration advance (zero-length or
+positive), and `patternLength` is the sum of *all* pattern entries (the full cycle length), not
+just the smallest one. For a pattern with no zero-length entries this reduces exactly to the
+former `2 * positiveEntryCount * (totalLength / patternLength)` formula, since
+`positiveEntryCount == pattern.Count` in that case - the correction only raises the estimate for
+patterns that actually contain zero-length entries, which now genuinely cost one iteration each
+rather than nothing. When that estimate already exceeds `MaxOnIntervalIterations`, the loop is
+skipped entirely - the method reports the cap-exceeded outcome immediately, without ever running
+the traversal loop - turning a hopeless input's cost from `O(MaxOnIntervalIterations)` into a
+handful of arithmetic operations. This is a heuristic estimate that closely tracks the loop's real
+cost model, not an exact prediction or a strict mathematical upper bound: for paths short relative
+to a single pattern cycle it can under-count by at most roughly one cycle's worth of iterations
+(bounded by `positiveEntryCount + pattern.Count`, an array-length-order constant, negligible
+relative to the 100,000,000-iteration cap decision boundary and only relevant to inputs that are
+already fast to resolve). It has been verified safe (does not falsely short-circuit) against a
+symmetric long-path legitimate case, an asymmetric small+large pattern case, a zero-heavy pattern
+case (many zero entries mixed with one large positive entry, a legal `StrokeStyle` input), and the
+adversarial huge-ULP case (which it still correctly short-circuits); the loop's own running
+iteration count remains the authoritative backstop for any input the pre-flight estimate does not
+catch. This is what makes raising the cap
 from 50,000,000 to 100,000,000 safe for CI runtime specifically: the cap's magnitude no longer
 determines how long a hopeless input takes to resolve, so it can be sized purely for a comfortable
 margin over legitimate use rather than traded off against pathological-input runtime. When the cap
@@ -324,23 +334,31 @@ pattern length. This fallback shape matches `SvgCodec.RenderStroke`'s own establ
 this dash pattern -> render as solid stroke" convention for other dash-pattern-specific numeric
 problems, rather than throwing or silently omitting the stroke.
 
+A zero-length "on" entry - the standard PDF/SVG/CSS dash-dot "dot" technique, rendered as a
+round/square cap shape once `StrokeOutliner` receives the resulting single-point segment - is
+observed and emitted exactly once per pattern repetition at the point in the loop where it would
+otherwise be silently stepped over: the same `remainingInDash <= 0d` branch that advances past a
+zero-length entry also appends a zero-length on-interval (`(position, position)`) when that entry
+is "on" (even-indexed). A zero-length **off** entry falls through the same branch unchanged,
+preserving the pre-existing "zero-length gaps are invisible" behavior exactly.
+
 ##### Bounding Retained On-Interval Count
 
 `MaxOnIntervalIterations` (above) bounds the traversal loop's worst-case *iteration count*, but a
 cloud-PR-review finding identified that iteration count is a distinct quantity from the loop's
-*retained output*: `BuildOnIntervals` only appends an interval to its returned list for the
-strictly-positive, even-indexed ("on") pattern entries - odd ("off") entries and zero-length
-entries cost iterations but retain nothing. A pattern shaped so most transitions are "on"
-transitions (for example `[1, 1]`, where every other entry is on) can stay at or under
-`MaxOnIntervalIterations`'s estimate while still materializing tens of millions of retained
-tuples. `Split` does not stop at the tuple list either: it turns each retained interval into its
-own extracted polyline segment, which `PathStroker.Stroke` then feeds through `StrokeOutliner`
-per segment, accumulating every resulting outline polygon into one combined path - so the real
-retained cost is proportional to on-interval count times per-segment outline cost, not merely
-`sizeof(interval) * count`.
+*retained output*: `BuildOnIntervals` appends an interval to its returned list for every
+even-indexed ("on") pattern entry - a strictly-positive one a genuine dash span, a zero-length one
+a single dash-dot "dot" point; odd ("off") entries, zero-length or positive, retain nothing. A
+pattern shaped so most transitions are "on" transitions (for example `[1, 1]`, where every other
+entry is on) can stay at or under `MaxOnIntervalIterations`'s estimate while still materializing
+tens of millions of retained tuples. `Split` does not stop at the tuple list either: it turns each
+retained interval into its own extracted polyline segment, which `PathStroker.Stroke` then feeds
+through `StrokeOutliner` per segment, accumulating every resulting outline polygon into one
+combined path - so the real retained cost is proportional to on-interval count times per-segment
+outline cost, not merely `sizeof(interval) * count`.
 
 A concrete worst case makes the gap exact: a two-point path with `totalLength = 50,000,000` and
-dash pattern `[1, 1]` yields `estimatedIterations = 2 * 2 * (50,000,000 / 2) = 100,000,000` - not
+dash pattern `[1, 1]` yields `estimatedIterations = (2 + 2) * (50,000,000 / 2) = 100,000,000` - not
 *greater than* the 100,000,000-iteration cap, so `MaxOnIntervalIterations` alone does not trigger
 
 - yet the same pattern retains `estimatedOnIntervalCount = 1 * (50,000,000 / 2) = 25,000,000`
@@ -348,12 +366,12 @@ on-intervals, each destined to become its own segment and outline polygon.
 
 `BuildOnIntervals` now runs a second, independent `O(pattern.Count)` pre-flight estimate:
 `estimatedOnIntervalCount = onEntryCount * (totalLength / patternLength)`, where `onEntryCount` is
-the count of strictly-positive, even-indexed pattern entries (mirroring the same
-`totalLength / patternLength` cycle count used by the iteration estimate, but counting only the
-entries that actually retain output). When this estimate exceeds a new, separate
-`MaxOnIntervalCount = 10,000,000` budget, the loop is skipped entirely, exactly like the
-iteration-count short-circuit above. `MaxOnIntervalCount`'s value must stay above `8,500,000` (the
-on-interval count legitimately required by the existing
+`pattern.Count / 2` (every even-indexed entry, whether zero-length or strictly-positive, since the
+pattern is always even-length - see `NormalizeDashArray`), mirroring the same
+`totalLength / patternLength` cycle count used by the iteration estimate. When this estimate
+exceeds a new, separate `MaxOnIntervalCount = 10,000,000` budget, the loop is skipped entirely,
+exactly like the iteration-count short-circuit above. `MaxOnIntervalCount`'s value must stay above
+`8,500,000` (the on-interval count legitimately required by the existing
 `DashSplitter_Split_FineDashPatternOnVeryLongPath_CompletesWithCorrectSegments` regression test,
 which must keep passing) and below `25,000,000` (the pathological `[1, 1]`-on-~50,000,000-unit-path
 scenario above), giving `10,000,000` a comfortable margin on both sides. As a backstop for either

@@ -3,7 +3,7 @@
 <!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox Zapf Nonsymbolic -->
 <!-- cspell:ignore bfchar bfrange beginbfchar endbfchar beginbfrange endbfrange codepoints -->
 <!-- cspell:ignore usecmap cidrange cidchar cidfonttype -->
-<!-- cspell:ignore functiontype multiinput hival -->
+<!-- cspell:ignore functiontype multiinput hival reimplementation -->
 <!-- cspell:ignore Noto registerserif radicalex dogfoods dogfooding -->
 <!-- cspell:ignore fontfile quoteright Quoteright quotesingle EOFB -->
 
@@ -665,7 +665,10 @@ Renders a bare `l` with no preceding `m`/`re`, asserting `InvalidDataException`.
 `PdfDocument_PathOps_CloseAndFillAndStroke_PaintsExpectedPixels`,
 `PdfDocument_PathOps_NoOp_DiscardsPathWithoutPainting`,
 `PdfDocument_PathOps_PaintOperator_ClearsPathButPreservesGraphicsState`,
-`PdfDocument_PathOps_StrokeOnlyClosedBezierCircle_RendersThinRingNotSolidDisc`
+`PdfDocument_PathOps_StrokeOnlyClosedBezierCircle_RendersThinRingNotSolidDisc`,
+`PdfDocument_PathOps_Stroke_ZeroWidth_RendersFullOpacityHairline`,
+`PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke`,
+`PdfDocument_PathOps_Stroke_SubEpsilonWidth_RendersVisibleLine`
 
 Renders a filled rectangle (`f`), asserting an interior pixel is opaque black and an exterior
 pixel remains transparent. Renders two nested, same-winding rectangles (`f*`), asserting the outer
@@ -690,6 +693,59 @@ opaque black, proving the ring itself still paints. This exercises the exact `Pa
 guarding PDF against the false inner-ring-collapse regression even though PDF's own
 stroke-after-transform architecture made it unlikely to manifest for typical PDF device-space
 coordinate magnitudes.
+
+`PdfDocument_PathOps_Stroke_ZeroWidth_RendersFullOpacityHairline`,
+`PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke`, and
+`PdfDocument_PathOps_Stroke_SubEpsilonWidth_RendersVisibleLine` together verify the
+hairline-stroke device-width clamp regression fix (see `../../design/canvas-net-pdf/pdf-document.md`'s
+"Hairline-stroke device-width clamp" note): the first renders a literal `0 w` stroke and asserts a
+pixel straddling the centerline still reaches full opacity, proving the PDF specification's
+"thinnest renderable line" rule is unaffected by the fix; the second renders a `0.25 w` stroke
+alongside an otherwise-identical `2 w` stroke, asserting the thin stroke's average pixel coverage
+across the same window is measurably lower than the wide stroke's, that at least one of its pixels
+is genuinely partially transparent (true antialiased sub-pixel coverage, not a forced full-opacity
+pixel), and that the wide stroke's own expected pixel is still painted fully opaque, unchanged;
+the third renders a `0.001 w` stroke (below the numerical-safety floor) and asserts some pixel
+still carries nonzero alpha, proving the floor avoids a degenerate/invisible stroke rather than
+reintroducing the old full-opacity clamp.
+
+#### CanvasNetPdf-PdfDocument-ClippingPath: W/W* Clip, Enforce, and Scope the Active Clipping Path
+
+**Tests**: `PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion`,
+`PdfDocument_Clipping_SetInsideQQ_DoesNotLeakPastQ`,
+`PdfDocument_Clipping_WStar_UsesEvenOddFillRule`,
+`PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace`,
+`PdfDocument_Clipping_ClipThenImageDo_RestrictsImageToClipRegion`,
+`PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion`
+
+Every test in this group reuses the existing `RenderContent`/`BuildSinglePagePdfWithResources`
+helpers and asserts against the `Transparent` background sentinel exactly like the
+`PathPainting` group above, so a clipped-away pixel is distinguishable from a painted one with no
+new test infrastructure. `PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion` issues
+`W n` against a 50x50 rectangle, then fills the entire page, asserting a pixel inside the
+intersection of the clip and the fill paints while a pixel inside the fill but outside the clip
+remains background - proving `W`/`W*` are deferred (the `n` itself paints nothing) and enforced
+against a later, unrelated paint operator. `PdfDocument_Clipping_SetInsideQQ_DoesNotLeakPastQ`
+establishes and consumes a clip entirely inside `q ... Q`, then issues a second, full-page fill
+after `Q`, asserting that fill paints everywhere - proving the clip is restored away by `Q` rather
+than leaking past it. `PdfDocument_Clipping_WStar_UsesEvenOddFillRule` builds two overlapping
+rectangles into one path and clips with `W*`, asserting the overlap (which `W*`'s even-odd
+interpretation folds to a hole) is not painted by a subsequent full-page fill while each
+rectangle's own non-overlapping region is - mirroring
+`PathFiller_Fill_OverlappingSameWoundRectangles_NonZeroVsEvenOddDiverge`'s technique, but applied
+to clip-path interpretation rather than ordinary fill. `PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace`
+issues two sequential `re W n` clips (no intervening `q`/`Q`) with partially overlapping
+rectangles, asserting only their geometric overlap is painted by a following full-page fill -
+proving successive clips intersect rather than replace one another. Finally,
+`PdfDocument_Clipping_ClipThenImageDo_RestrictsImageToClipRegion` and
+`PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion` each establish a clip narrower
+than, respectively, a full-page image XObject placement and a glyph's own device bounding box,
+asserting a pixel that would otherwise be painted by the image/glyph (compared directly against
+the equivalent unclipped assertion in `PdfDocument_Images_DoOperator_DeviceGrayFlateDecode_PlacesExpectedPixels`/
+`PdfDocument_Text_ShowText_PaintsGlyphAtComposedTextRenderingMatrix`) is suppressed instead -
+proving the active clip is enforced at the two paint call sites (`Do`'s image compositing, and
+glyph fill) that do not route through `Drawing.PathFiller`'s own clip-aware overloads the way
+ordinary fill/stroke does.
 
 #### CanvasNetPdf-PdfDocument-Dispose: Dispose Is Idempotent
 
@@ -1845,6 +1901,45 @@ the `/Function [fn0 fn1 fn2]` array-of-1-output-functions form builds a correct 
 system-integration test additionally proves the same axial-gradient fill end-to-end through the
 public `Render` API using a fully synthetic, in-memory PDF (no binary fixture), asserting
 near-black/near-white at the expected device pixel positions.
+
+#### CanvasNetPdf-PdfDocument-ShadingOperator: sh Paints a Named Shading, Composing Clip/BBox, Fail Closed Otherwise
+
+**Tests**: `PdfDocument_ShadingOperator_Axial_NoPrecedingPath_PaintsGradientAcrossFullPage`,
+`PdfDocument_ShadingOperator_Radial_NoPrecedingPath_PaintsGradientAcrossFullPage`,
+`PdfDocument_ShadingOperator_WithPrecedingClip_RestrictsGradientToClipRegion`,
+`PdfDocument_ShadingOperator_BBoxNarrowerThanPage_RestrictsGradientToBBox`,
+`PdfDocument_ShadingOperator_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_ShadingOperator_UndeclaredShadingName_ThrowsUnsupportedImageFeatureException`,
+`CanvasNetPdf_SystemIntegration_ShadingOperatorOverBlackFallback_PaintsGradientNotBlack`
+
+Asserts `sh`, issued with no preceding path/fill operator and no `/Pattern` color-space selection
+at all (content stream is just `/Sh1 sh`), paints an axial (`/ShadingType 2`) shading's gradient
+directly, near-black at one end and near-white at the other - proving the operator paints without
+constructing or consuming "the current path", unlike the `scn`/`SCN` + `/Pattern` +
+`/PatternType 2` path `CanvasNetPdf-PdfDocument-ShadingPatternFill` already covers. A second test
+proves the same for a radial (`/ShadingType 3`) shading (center color differs from edge color).
+A third test proves `sh` composes with a preceding `W`/`W* n` clip exactly like an ordinary fill
+already does: a pixel inside the clipped region shows gradient-varied color while a pixel outside
+it (even though the gradient's own `/Coords` span the full page) remains the background
+sentinel - directly confirming the fix reuses the existing `W`/`W*` clip-mask mechanism
+(`Drawing.ClipMask`, from the clipping-path feature) with zero new clip-related source code,
+rather than inventing a parallel clip concept. A fourth test proves that `sh`, issued with no
+active clip at all, falls back to bounding the painted region to the shading's own `/BBox`
+(narrower than the full page) rather than ever painting unboundedly across the whole
+page/surface: a pixel outside the declared `/BBox` remains background while a pixel inside it
+shows the gradient. A `[Theory]` asserts `/ShadingType 1`/`4` reached through `sh` both throw
+`Codecs.UnsupportedImageFeatureException` (feature `pdf-shading-type-{n}`) - the exact same
+exception (not a reimplementation) the `scn`/`SCN` + `/Pattern` path already throws for the
+identical condition, directly proving the bug report's "no exception thrown for an unsupported
+case, silent solid-color fallback" complaint is fixed for this category. A further defensive test
+asserts an undeclared shading name throws `Codecs.UnsupportedImageFeatureException` (feature
+`pdf-shading-not-declared`, mirroring the existing `pdf-pattern-not-declared` precedent exactly).
+The system-integration test reproduces the reported bug shape end-to-end through the public
+`Render` API: a solid black fallback rectangle painted first across the whole page, then a
+light-blue-to-white axial gradient painted directly over the identical region via `sh` (no
+intervening `scn`/Pattern selection at all) - asserting the resulting pixels are not solid black
+and instead show the expected light-blue/white gradient progression, proving the gradient now
+actually overlays the fallback rather than remaining invisibly skipped underneath it.
 
 #### CanvasNetPdf-PdfDocument-TilingPatternFill: Colored/Uncolored Tiling Patterns Paint a Tile, Fail Closed Otherwise
 

@@ -26,7 +26,7 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     A page whose <c>&lt;PageSheet&gt;</c> declares
 ///     <c>&lt;Cell N="PageWidth" V="8.26771653543307"/&gt;</c> (8.26771653543307 inches, A4 width)
 ///     converts to EMU as <c>8.26771653543307 * 914400 = 7,560,000</c> (rounded to the nearest
-///     whole EMU) - this is <see cref="WidthEmu"/>'s exact value for that page. The raw <c>V</c>
+///     whole EMU) - this is <c>WidthEmu</c>'s exact value for that page. The raw <c>V</c>
 ///     value is always in inches even when a sibling, unrelated cell on the same
 ///     <c>&lt;PageSheet&gt;</c> carries a <c>U=</c> attribute (for example
 ///     <c>&lt;Cell N="PageScale" V="1" U="IN_F"/&gt;</c>) - <c>U</c> is a UI display-format hint

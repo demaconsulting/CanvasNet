@@ -108,6 +108,7 @@ sections:
                   - TiffCodec_Load_RgbFixture_MatchesSourcePngWithOpaqueAlpha
                   - TiffCodec_Load_RgbaFixture_MatchesSourcePngExactly
                   - TiffCodec_Load_GrayscaleFixture_HasEqualRgbChannels
+                  - TiffCodec_SaveThenLoad_LzwLargeVariedImage_RoundTripsAcrossAllCodeWidthBoundaries
 
               - id: CanvasNet-Codecs-TiffCodec-CompressionDeflate
                 title: The TiffCodec class shall save and load a TIFF image using TiffCompression.Deflate.

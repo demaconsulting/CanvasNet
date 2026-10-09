@@ -21,10 +21,10 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///         declared size (see <see cref="PageCount"/>/<see cref="GetPageSize(int)"/>).
 ///     </para>
 ///     <para>
-///         <see cref="GetPageShapes"/> and the public, page-level
+///         The public, page-level
 ///         <see cref="Render(int, int, int, VsdxRenderOptions?)"/>/
-///         <see cref="Render(int, int, VsdxRenderOptions?)"/> rendering API resolve a page's full
-///         shape tree, lazily and cached thereafter: Master/MasterShape cell-and-geometry-row
+///         <see cref="Render(int, int, VsdxRenderOptions?)"/> rendering API resolves a page's full
+///         shape tree internally, lazily and cached thereafter: Master/MasterShape cell-and-geometry-row
 ///         inheritance (an instance cell with a non-<c>Inh</c> <c>F</c> wins; an instance cell
 ///         with <c>F="Inh"</c> or no cell at all falls through to the resolved master value; a
 ///         geometry row is matched and merged, or marked deleted, by <c>IX</c>; a <c>Group</c>
@@ -73,9 +73,7 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///         shape's own resolved <c>FillForegnd</c> color, never throwing. Non-trivial Themed
 ///         theme-variation resolution, the full <c>BeginArrow</c>/<c>EndArrow</c> style-index
 ///         table, and the <c>RelCubBezTo</c>/<c>SplineStart</c>/<c>SplineKnot</c>/
-///         <c>PolylineTo</c>/<c>Ellipse</c> geometry row types remain explicitly deferred - see
-///         <c>canvas-net-vsdx.md</c>'s own Design Constraints section for the complete
-///         deferred-feature boundary.
+///         <c>PolylineTo</c>/<c>Ellipse</c> geometry row types remain explicitly deferred.
 ///     </para>
 ///     <para>
 ///         <strong>Thread safety</strong>: a <see cref="VsdxDocument"/> instance is <em>not</em>
@@ -157,8 +155,9 @@ public sealed partial class VsdxDocument : IDisposable
     /// <returns>A new <see cref="VsdxDocument"/> instance representing the parsed package.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the package cannot be parsed - see the private constructor's remarks for
-    ///     the exact conditions - or when <paramref name="stream"/> supplies more than
+    ///     Thrown when the package cannot be parsed - because <paramref name="stream"/> is not a
+    ///     readable ZIP/OPC archive, or the package is missing a required part or any required
+    ///     part is malformed - or when <paramref name="stream"/> supplies more than
     ///     <see cref="MaxPackageBytes"/> bytes (see <see cref="MaxPackageBytes"/>'s own remarks
     ///     for the bound's rationale).
     /// </exception>

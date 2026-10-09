@@ -621,5 +621,223 @@ public class ScanlineRasterizerTests
         Assert.Throws<ArgumentNullException>(
             () => ScanlineRasterizer.Fill(surface, [], (TilePaint)null!, FillRule.NonZero, new Rect(0, 0, 2, 2)));
     }
+
+    /// <summary>
+    ///     Proves the fix for the multi-toggle-per-row <c>EvenOdd</c> bug (the "border: double"
+    ///     WeasyPrint reproduction): four nested rectangles sharing the same x-range, whose top
+    ///     edges fall at <c>y = 6.0, 6.167, 6.333, 6.5</c> - all strictly within device-pixel row
+    ///     6 except the first, which starts exactly at the row boundary - previously folded the
+    ///     whole row's raw winding integral (<c>3.0</c>) through <c>ResolveCoverage</c>'s
+    ///     single-toggle-only fold, producing fully opaque output (alpha 255). The fix splits the
+    ///     row at each mid-row breakpoint and resolves each sub-interval independently.
+    /// </summary>
+    /// <remarks>
+    ///     Independently verified reference: the row decomposes into sub-intervals
+    ///     <c>[6, 6.167)</c>, <c>[6.167, 6.333)</c>, <c>[6.333, 6.5)</c>, <c>[6.5, 7)</c> with
+    ///     true winding numbers <c>1, 2, 3, 4</c> respectively (even-odd parity <c>1, 0, 1, 0</c>),
+    ///     so the height-weighted average coverage is
+    ///     <c>0.167*1 + 0.166*0 + 0.167*1 + 0.5*0 = 0.334</c> (alpha <c>255 * 0.334 = 85.2</c>,
+    ///     rounds to 85) - not the buggy fold's fully opaque 255, and not fully transparent 0.
+    /// </remarks>
+    [Fact]
+    public void ScanlineRasterizer_Fill_EvenOdd_FourNestedRectanglesSameRow_ResolvesPartialCoverageNotFullFill()
+    {
+        // Arrange: four nested rectangles, same x-range [0,1), whose top edges land at y = 6.0,
+        // 6.167, 6.333, 6.5 - all four inside (or at the boundary of) device row 6 - and whose
+        // bottom edges are symmetric, far outside row 6, so only the top boundaries matter there
+        static List<Vector2> Rectangle(float top, float bottom) =>
+        [
+            new Vector2(0, top),
+            new Vector2(1, top),
+            new Vector2(1, bottom),
+            new Vector2(0, bottom),
+            new Vector2(0, top)
+        ];
+
+        var r1 = Rectangle(6.0f, 20f);
+        var r2 = Rectangle(6.167f, 19.833f);
+        var r3 = Rectangle(6.333f, 19.667f);
+        var r4 = Rectangle(6.5f, 19.5f);
+        var color = new Rgba32(255, 255, 255, 255);
+        var clipBounds = new Rect(0, 0, 1, 26);
+
+        using var evenOddSurface = new Surface(1, 26);
+
+        // Act
+        ScanlineRasterizer.Fill(evenOddSurface, [r1, r2, r3, r4], color, FillRule.EvenOdd, clipBounds);
+
+        // Assert: row 6 resolves to the partial, height-weighted coverage - not fully opaque
+        Assert.Equal((byte)85, evenOddSurface[0, 6].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>NonZero</c>'s resolution of the very same multi-mid-row-breakpoint
+    ///     geometry used by <see cref="ScanlineRasterizer_Fill_EvenOdd_FourNestedRectanglesSameRow_ResolvesPartialCoverageNotFullFill"/>
+    ///     is completely unaffected by the <c>EvenOdd</c>-only sub-row-splitting fix: the
+    ///     dispatcher in <c>AccumulateRowCoverage</c> routes every <c>NonZero</c> row through the
+    ///     original, unmodified single-pass accumulation unconditionally, regardless of how many
+    ///     edges toggle mid-row.
+    /// </summary>
+    /// <remarks>
+    ///     Independently verified reference: the raw accumulated winding magnitude for row 6's
+    ///     shared column is <c>3.0</c> (the sum of all four rectangles' own
+    ///     row-restricted <c>deltaY</c> contributions, exactly as before this fix - see the
+    ///     type-level remarks' worked example), which <c>NonZero</c> clamps to <c>min(1, 3) = 1</c>
+    ///     (alpha 255) - the same value this geometry always produced under <c>NonZero</c>, before
+    ///     and after the fix.
+    /// </remarks>
+    [Fact]
+    public void ScanlineRasterizer_Fill_NonZero_FourNestedRectanglesSameRow_StaysFullyOpaqueUnaffectedByFix()
+    {
+        // Arrange: identical geometry to the EvenOdd multi-toggle regression test above
+        static List<Vector2> Rectangle(float top, float bottom) =>
+        [
+            new Vector2(0, top),
+            new Vector2(1, top),
+            new Vector2(1, bottom),
+            new Vector2(0, bottom),
+            new Vector2(0, top)
+        ];
+
+        var r1 = Rectangle(6.0f, 20f);
+        var r2 = Rectangle(6.167f, 19.833f);
+        var r3 = Rectangle(6.333f, 19.667f);
+        var r4 = Rectangle(6.5f, 19.5f);
+        var color = new Rgba32(255, 255, 255, 255);
+        var clipBounds = new Rect(0, 0, 1, 26);
+
+        using var nonZeroSurface = new Surface(1, 26);
+
+        // Act
+        ScanlineRasterizer.Fill(nonZeroSurface, [r1, r2, r3, r4], color, FillRule.NonZero, clipBounds);
+
+        // Assert: NonZero clamps the raw magnitude-3 winding to fully opaque, exactly as before
+        Assert.Equal((byte)255, nonZeroSurface[0, 6].A);
+    }
+
+    /// <summary>
+    ///     Proves that an ordinary <c>EvenOdd</c> fill with exactly one edge boundary per row
+    ///     (the common case the fast path - <c>AccumulateRowCoverageSinglePass</c> - already
+    ///     handled correctly before this fix) still produces the exact same hand-computed
+    ///     coverage: a regression-proof that the new breakpoint-detection dispatch never diverts
+    ///     an ordinary single-toggle row onto the (otherwise unreachable for this case) sub-row
+    ///     splitting path, nor otherwise changes its resolved value.
+    /// </summary>
+    /// <remarks>
+    ///     Arrange: a single rectangle spanning <c>y</c> in <c>[0.3, 3.7)</c> on a 1x4 surface -
+    ///     only one edge (the rectangle's own top, then separately its own bottom) ever starts or
+    ///     stops mid-row, in two different rows (0 and 3), never two or more in the same row.
+    ///     Independently hand-derived reference: row 0's column accumulates <c>deltaY = 1 - 0.3 =
+    ///     0.7</c> (alpha <c>255 * 0.7 = 178.5</c>, rounds to 179 for both <c>NonZero</c> -
+    ///     <c>min(1, 0.7) = 0.7</c> - and <c>EvenOdd</c> - folding <c>0.7</c> leaves it unchanged);
+    ///     rows 1-2 are fully inside (alpha 255 under both rules); row 3 accumulates
+    ///     <c>deltaY = 3.7 - 3 = 0.7</c> by symmetry (alpha 179 under both rules).
+    /// </remarks>
+    [Fact]
+    public void ScanlineRasterizer_Fill_EvenOdd_SingleBoundaryPerRow_MatchesPreFixHandComputedCoverage()
+    {
+        // Arrange
+        var rectangle = new List<Vector2>
+        {
+            new(0, 0.3f),
+            new(1, 0.3f),
+            new(1, 3.7f),
+            new(0, 3.7f),
+            new(0, 0.3f)
+        };
+        var color = new Rgba32(255, 255, 255, 255);
+        var clipBounds = new Rect(0, 0, 1, 4);
+
+        using var evenOddSurface = new Surface(1, 4);
+        using var nonZeroSurface = new Surface(1, 4);
+
+        // Act
+        ScanlineRasterizer.Fill(evenOddSurface, [rectangle], color, FillRule.EvenOdd, clipBounds);
+        ScanlineRasterizer.Fill(nonZeroSurface, [rectangle], color, FillRule.NonZero, clipBounds);
+
+        // Assert: both fill rules agree, and match the single-toggle hand-computed reference
+        foreach (var surface in new[] { evenOddSurface, nonZeroSurface })
+        {
+            Assert.Equal((byte)179, surface[0, 0].A);
+            Assert.Equal((byte)255, surface[0, 1].A);
+            Assert.Equal((byte)255, surface[0, 2].A);
+            Assert.Equal((byte)179, surface[0, 3].A);
+        }
+    }
+
+    /// <summary>
+    ///     Proves the slanted-edge generalization of the multi-toggle-per-row fix: a trapezoid
+    ///     with one slanted (non-axis-aligned) edge whose own top vertex lands strictly inside
+    ///     row 6 (<c>y = 6.4</c>), filled together with a second, disjoint (non-overlapping-in-x)
+    ///     rectangle whose own top edge also lands strictly inside row 6 (<c>y = 6.6</c>) -
+    ///     forcing the row as a whole past the two-breakpoint dispatch threshold into the sub-row
+    ///     splitting path, even though neither shape alone would ever trigger it. Because the two
+    ///     shapes share no pixel column, the trapezoid's own columns must resolve to <em>exactly</em>
+    ///     the same values the already-trusted single-breakpoint fast path produces when the
+    ///     trapezoid is rasterized alone - proving the sub-row splitting's linear x(y)
+    ///     re-interpolation is exact for a slanted edge, not merely for the vertical edges every
+    ///     other regression test in this class exercises.
+    /// </summary>
+    /// <remarks>
+    ///     A closed polygon's net winding contribution is always exactly zero for any column
+    ///     outside its own horizontal extent (every entering edge is matched by an exiting edge),
+    ///     so combining two disjoint shapes in one fill cannot let one shape's accumulated
+    ///     <c>cover</c> leak into the other's columns - the trapezoid's own per-column result is
+    ///     therefore attributable entirely to its own geometry in both runs below, making this a
+    ///     direct, self-contained regression check rather than one requiring an external ground
+    ///     truth. See the <see cref="ScanlineRasterizer"/> type-level remarks for the sub-row
+    ///     splitting design this test validates.
+    /// </remarks>
+    [Fact]
+    public void ScanlineRasterizer_Fill_EvenOdd_SlantedEdgeForcedIntoSubRowSplitting_MatchesSingleToggleFastPath()
+    {
+        // Arrange: a trapezoid with one vertical edge (x=0) and one slanted edge (from (3, 6.4)
+        // to (1, 20)), whose own top vertices land exactly at the single mid-row breakpoint
+        // y = 6.4 - alone, this shape never triggers the sub-row-splitting path
+        var trapezoid = new List<Vector2>
+        {
+            new(0, 6.4f),
+            new(3, 6.4f),
+            new(1, 20),
+            new(0, 20),
+            new(0, 6.4f)
+        };
+
+        // A second, disjoint rectangle far to the right (columns 10-12) whose own top edge lands
+        // at a different mid-row breakpoint, y = 6.6 - its sole purpose is to push the row's
+        // total mid-row breakpoint count to 2, forcing the sub-row-splitting path for the whole
+        // row, without ever sharing a pixel column with the trapezoid above
+        var farRectangle = new List<Vector2>
+        {
+            new(10, 6.6f),
+            new(13, 6.6f),
+            new(13, 20),
+            new(10, 20),
+            new(10, 6.6f)
+        };
+
+        var color = new Rgba32(255, 255, 255, 255);
+
+        // Act: resolve the trapezoid alone first (single breakpoint, fast path - the
+        // already-trusted reference) ...
+        using var aloneSurface = new Surface(4, 26);
+        ScanlineRasterizer.Fill(aloneSurface, [trapezoid], color, FillRule.EvenOdd, new Rect(0, 0, 4, 26));
+
+        // ... then resolve it again alongside the far, disjoint rectangle (two breakpoints in
+        // the same row - sub-row-splitting path)
+        using var combinedSurface = new Surface(14, 26);
+        ScanlineRasterizer.Fill(combinedSurface, [trapezoid, farRectangle], color, FillRule.EvenOdd, new Rect(0, 0, 14, 26));
+
+        // Assert: the trapezoid's own columns resolve identically whether the fast path or the
+        // sub-row-splitting path produced them, proving the slanted re-clipping math is exact
+        for (var x = 0; x < 4; x++)
+        {
+            Assert.Equal(aloneSurface[x, 6].A, combinedSurface[x, 6].A);
+        }
+
+        // Assert: row 6 is genuinely antialiased (strictly partial coverage), not a degenerate
+        // all-or-nothing match that would trivially satisfy the equality check above
+        Assert.InRange(aloneSurface[1, 6].A, (byte)1, (byte)254);
+    }
 }
 

@@ -311,7 +311,9 @@ public class PptxTextTests
     /// <summary>
     ///     Proves an <c>&lt;a:fld&gt;</c> auto-text field (e.g. <c>type="slidenum"</c>) is parsed
     ///     as a run using its cached <c>&lt;a:t&gt;</c> text - not silently dropped - matching how
-    ///     real-world decks embed a slide-number/date placeholder inside a footer text body.
+    ///     real-world decks embed a slide-number/date placeholder inside a footer text body, and
+    ///     that its own <c>type</c> attribute is captured into <see cref="PptxRunItem.FieldType"/>
+    ///     (consulted later by <see cref="PptxDocument.SubstituteSlideNumberField"/>).
     /// </summary>
     [Fact]
     public void ParseParagraph_FieldRun_IsPreservedUsingCachedText()
@@ -331,14 +333,191 @@ public class PptxTextTests
         Assert.Equal(2, result.Items.Count);
         var textRun = Assert.IsType<PptxRunItem>(result.Items[0]);
         Assert.Equal("Page ", textRun.Run.Text);
+        Assert.Null(textRun.FieldType);
         var fieldRun = Assert.IsType<PptxRunItem>(result.Items[1]);
         Assert.Equal("\u2039#\u203a", fieldRun.Run.Text);
+        Assert.Equal("slidenum", fieldRun.FieldType);
 
         Assert.Equal(2, result.Runs.Count);
         Assert.Equal("\u2039#\u203a", result.Runs[1].Text);
     }
 
+    /// <summary>
+    ///     Proves an <c>&lt;a:fld type="datetime1"&gt;</c> field (a non-<c>slidenum</c> field
+    ///     type) still captures its own <c>type</c> attribute into
+    ///     <see cref="PptxRunItem.FieldType"/> and keeps its cached text, unaffected by the
+    ///     <c>slidenum</c>-only render-time substitution.
+    /// </summary>
+    [Fact]
+    public void ParseParagraph_FieldRunDatetime_CapturesDatetimeFieldType()
+    {
+        var p = new XElement(
+            DrawingNs + "p",
+            new XElement(
+                DrawingNs + "fld",
+                new XAttribute("id", "{12345678-1234-1234-1234-123456789012}"),
+                new XAttribute("type", "datetime1"),
+                new XElement(DrawingNs + "t", "1/1/2024")));
+
+        var result = PptxDocument.ParseParagraph(p);
+
+        var fieldRun = Assert.IsType<PptxRunItem>(Assert.Single(result.Items));
+        Assert.Equal("datetime1", fieldRun.FieldType);
+        Assert.Equal("1/1/2024", fieldRun.Run.Text);
+    }
+
+    /// <summary>
+    ///     Proves an <c>&lt;a:fld type=""&gt;</c> field (an empty, present <c>type</c> attribute)
+    ///     normalizes to a <see langword="null"/> <see cref="PptxRunItem.FieldType"/> - matching
+    ///     its documented contract - rather than storing <see cref="string.Empty"/>, which would
+    ///     let an unpopulated field type be mistaken for a real one by callers that merely check
+    ///     for non-null (e.g. a future field type added without updating every comparison site).
+    /// </summary>
+    [Fact]
+    public void ParseParagraph_FieldRunWithEmptyTypeAttribute_FieldTypeIsNormalizedToNull()
+    {
+        var p = new XElement(
+            DrawingNs + "p",
+            new XElement(
+                DrawingNs + "fld",
+                new XAttribute("id", "{12345678-1234-1234-1234-123456789012}"),
+                new XAttribute("type", string.Empty),
+                new XElement(DrawingNs + "t", "placeholder")));
+
+        var result = PptxDocument.ParseParagraph(p);
+
+        var fieldRun = Assert.IsType<PptxRunItem>(Assert.Single(result.Items));
+        Assert.Null(fieldRun.FieldType);
+        Assert.Equal("placeholder", fieldRun.Run.Text);
+    }
+
+    /// <summary>Proves a plain <c>&lt;a:r&gt;</c> run (not an <c>&lt;a:fld&gt;</c>) parses with a <see langword="null"/> <see cref="PptxRunItem.FieldType"/>.</summary>
+    [Fact]
+    public void ParseParagraph_PlainRun_FieldTypeIsNull()
+    {
+        var p = new XElement(
+            DrawingNs + "p",
+            new XElement(DrawingNs + "r", new XElement(DrawingNs + "t", "Hello")));
+
+        var result = PptxDocument.ParseParagraph(p);
+
+        var run = Assert.IsType<PptxRunItem>(Assert.Single(result.Items));
+        Assert.Null(run.FieldType);
+    }
+
     #endregion
+
+    #region SubstituteSlideNumberField
+
+    /// <summary>Proves a <c>type="slidenum"</c> run's cached text is replaced with the given slide number, as a plain decimal string.</summary>
+    [Fact]
+    public void SubstituteSlideNumberField_SlidenumField_ReplacesTextWithOneBasedSlideNumber()
+    {
+        var p = new XElement(
+            DrawingNs + "p",
+            new XElement(
+                DrawingNs + "fld",
+                new XAttribute("type", "slidenum"),
+                new XElement(DrawingNs + "t", "\u2039#\u203a")));
+        var textBody = new PptxTextBody(PptxDocument.ParseBodyProperties(null), [PptxDocument.ParseParagraph(p)]);
+
+        var result = PptxDocument.SubstituteSlideNumberField(textBody, 7);
+
+        var run = Assert.IsType<PptxRunItem>(Assert.Single(result.Paragraphs[0].Items));
+        Assert.Equal("7", run.Run.Text);
+        Assert.Equal("slidenum", run.FieldType);
+    }
+
+    /// <summary>Proves the <c>type</c> match is case-insensitive (e.g. <c>type="SLIDENUM"</c>).</summary>
+    [Fact]
+    public void SubstituteSlideNumberField_SlidenumFieldUppercaseType_ReplacesTextCaseInsensitively()
+    {
+        var p = new XElement(
+            DrawingNs + "p",
+            new XElement(
+                DrawingNs + "fld",
+                new XAttribute("type", "SLIDENUM"),
+                new XElement(DrawingNs + "t", "\u2039#\u203a")));
+        var textBody = new PptxTextBody(PptxDocument.ParseBodyProperties(null), [PptxDocument.ParseParagraph(p)]);
+
+        var result = PptxDocument.SubstituteSlideNumberField(textBody, 3);
+
+        var run = Assert.IsType<PptxRunItem>(Assert.Single(result.Paragraphs[0].Items));
+        Assert.Equal("3", run.Run.Text);
+    }
+
+    /// <summary>Proves a <c>type="datetime1"</c> field's cached text is left completely unchanged.</summary>
+    [Fact]
+    public void SubstituteSlideNumberField_DatetimeField_LeavesCachedTextUnchanged()
+    {
+        var p = new XElement(
+            DrawingNs + "p",
+            new XElement(
+                DrawingNs + "fld",
+                new XAttribute("type", "datetime1"),
+                new XElement(DrawingNs + "t", "1/1/2024")));
+        var textBody = new PptxTextBody(PptxDocument.ParseBodyProperties(null), [PptxDocument.ParseParagraph(p)]);
+
+        var result = PptxDocument.SubstituteSlideNumberField(textBody, 5);
+
+        var run = Assert.IsType<PptxRunItem>(Assert.Single(result.Paragraphs[0].Items));
+        Assert.Equal("1/1/2024", run.Run.Text);
+    }
+
+    /// <summary>Proves a plain <c>&lt;a:r&gt;</c> run's text is left completely unchanged.</summary>
+    [Fact]
+    public void SubstituteSlideNumberField_PlainRun_LeavesTextUnchanged()
+    {
+        var p = new XElement(DrawingNs + "p", new XElement(DrawingNs + "r", new XElement(DrawingNs + "t", "Hello")));
+        var textBody = new PptxTextBody(PptxDocument.ParseBodyProperties(null), [PptxDocument.ParseParagraph(p)]);
+
+        var result = PptxDocument.SubstituteSlideNumberField(textBody, 2);
+
+        var run = Assert.IsType<PptxRunItem>(Assert.Single(result.Paragraphs[0].Items));
+        Assert.Equal("Hello", run.Run.Text);
+    }
+
+    /// <summary>
+    ///     Proves only the <c>slidenum</c> item changes when a paragraph mixes a plain run, a
+    ///     line break, and a <c>slidenum</c> field - and, critically, that the rebuilt
+    ///     <see cref="PptxParagraph.Runs"/> convenience accessor reflects the substituted text
+    ///     too (not just <see cref="PptxParagraph.Items"/>), regression-covering the
+    ///     <c>with</c>-vs-primary-constructor stale-backing-field pitfall described in
+    ///     <see cref="PptxDocument.SubstituteSlideNumberField"/>'s own remarks.
+    /// </summary>
+    [Fact]
+    public void SubstituteSlideNumberField_SlidenumFieldAlongsideLineBreakAndPlainRun_OnlySlidenumItemChanges()
+    {
+        var p = new XElement(
+            DrawingNs + "p",
+            new XElement(DrawingNs + "r", new XElement(DrawingNs + "t", "Page ")),
+            new XElement(DrawingNs + "br"),
+            new XElement(
+                DrawingNs + "fld",
+                new XAttribute("type", "slidenum"),
+                new XElement(DrawingNs + "t", "\u2039#\u203a")));
+        var textBody = new PptxTextBody(PptxDocument.ParseBodyProperties(null), [PptxDocument.ParseParagraph(p)]);
+
+        var result = PptxDocument.SubstituteSlideNumberField(textBody, 42);
+
+        var paragraph = result.Paragraphs[0];
+        Assert.Equal(3, paragraph.Items.Count);
+        var plainRun = Assert.IsType<PptxRunItem>(paragraph.Items[0]);
+        Assert.Equal("Page ", plainRun.Run.Text);
+        Assert.IsType<PptxLineBreakItem>(paragraph.Items[1]);
+        var slideNumRun = Assert.IsType<PptxRunItem>(paragraph.Items[2]);
+        Assert.Equal("42", slideNumRun.Run.Text);
+
+        // Regression: the Runs convenience accessor must reflect the substituted text too, not a
+        // stale pre-substitution backing field (see this test's own summary).
+        Assert.Equal(2, paragraph.Runs.Count);
+        Assert.Equal("Page ", paragraph.Runs[0].Text);
+        Assert.Equal("42", paragraph.Runs[1].Text);
+    }
+
+    #endregion
+
+
 
     #region ParseRun
 

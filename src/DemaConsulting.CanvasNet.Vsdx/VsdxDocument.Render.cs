@@ -8,14 +8,11 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 // cspell:ignore vsdx Visio
 
 /// <summary>
-///     Implements the <see cref="VsdxDocument"/> public, page-level rendering API (Milestone 7):
-///     resolves the requested page's full shape tree (first call for that page; cached
-///     thereafter - see <c>VsdxDocument.Shapes.cs</c>'s <c>GetPageShapes</c>), walks it in
-///     document order (document order is z-order; the first declared shape paints first/bottom),
-///     and wires the already-resolved geometry/fill/stroke (Milestone 3), text layout
-///     (Milestone 4), and connector/arrowhead (Milestone 5/6) data into one cohesive pipeline -
-///     see <c>vsdx-document.md</c>'s "Render" Key Methods entries for the authoritative contract
-///     this type implements.
+///     Implements the <see cref="VsdxDocument"/> public, page-level rendering API: resolves the
+///     requested page's full shape tree (first call for that page; cached thereafter), walks it
+///     in document order (document order is z-order; the first declared shape paints
+///     first/bottom), and wires the already-resolved geometry/fill/stroke, text layout, and
+///     connector/arrowhead data into one cohesive pipeline.
 /// </summary>
 public sealed partial class VsdxDocument
 {
@@ -38,7 +35,7 @@ public sealed partial class VsdxDocument
     /// <summary>
     ///     Renders the specified page into a new <see cref="Surface"/> of the given pixel
     ///     dimensions, walking the page's full, lazily-resolved shape tree
-    ///     (<c>GetPageShapes</c>) in document order and painting each shape's resolved fill,
+    ///     in document order and painting each shape's resolved fill,
     ///     stroke, text, and (for a 1-D connector) line and arrowheads.
     /// </summary>
     /// <param name="pageIndex">The zero-based index of the page to render, in <c>[0, PageCount)</c>.</param>
@@ -63,15 +60,14 @@ public sealed partial class VsdxDocument
     ///     (propagated, unwrapped, from the <see cref="Surface(int, int)"/> constructor).
     /// </exception>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the page's shape tree cannot be resolved - propagated unchanged from
-    ///     <see cref="GetPageShapes"/> (a malformed content part, or a group-nesting depth/
-    ///     resolved-shape-count budget exceeded).
+    ///     Thrown when the page's shape tree cannot be resolved (a malformed content part, or a
+    ///     group-nesting depth/resolved-shape-count budget exceeded).
     /// </exception>
     /// <remarks>
     ///     A recognized-but-unsupported construct (an unrecognized arrowhead index, a dangling
     ///     glue target, a non-solid fill pattern) never throws - it degrades to a tolerant,
-    ///     visually-reasonable default instead, per <c>canvas-net-vsdx.md</c>'s Design
-    ///     Constraints; every such degradation already happens during shape-tree resolution (see
+    ///     visually-reasonable default instead; every such degradation already happens during
+    ///     shape-tree resolution (see
     ///     <c>VsdxDocument.Arrowheads.cs</c>/<c>VsdxDocument.Paint.cs</c>), so this method itself
     ///     never needs to special-case one.
     /// </remarks>
@@ -146,8 +142,7 @@ public sealed partial class VsdxDocument
     /// <remarks>
     ///     This overload deliberately accepts <paramref name="dpi"/> as an <see langword="int"/>,
     ///     not a <see langword="float"/> - a documented deviation from
-    ///     <c>DemaConsulting.CanvasNet.Pptx.PptxDocument</c>'s own <c>float dpi</c> overload,
-    ///     per <c>vsdx-document.md</c>'s own authoritative signature.
+    ///     <c>DemaConsulting.CanvasNet.Pptx.PptxDocument</c>'s own <c>float dpi</c> overload.
     /// </remarks>
     public Surface Render(int pageIndex, int dpi, VsdxRenderOptions? options = null)
     {

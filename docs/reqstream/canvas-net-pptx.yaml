@@ -249,6 +249,7 @@ sections:
           - CanvasNetPptx-PptxDocument-TextAlignmentWidthUnderWrapNone
           - CanvasNetPptx-PptxDocument-UnderlineRendering
           - CanvasNetPptx-PptxDocument-TabStopExpansion
+          - CanvasNetPptx-PptxDocument-SlideNumberFieldSubstitution
         tests:
           - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
           - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd
@@ -288,6 +289,7 @@ sections:
           - CanvasNetPptx-PptxDocument-TableCellRectResolution
           - CanvasNetPptx-PptxDocument-TablePainting
           - CanvasNetPptx-PptxDocument-TableStyleResolution
+          - CanvasNetPptx-PptxDocument-TableRowHeightGrowth
         tests:
           - CanvasNetPptx_SystemIntegration_Tables_GraphicFrameParsesAndRendersCellFillEndToEnd
 

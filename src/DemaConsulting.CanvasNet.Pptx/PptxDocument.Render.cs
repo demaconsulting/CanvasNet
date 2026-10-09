@@ -9,25 +9,20 @@ namespace DemaConsulting.CanvasNet.Pptx;
 // cspell:ignore xfrm grpsppr sppr pptx prst cust unrenderable patt
 
 /// <summary>
-///     Implements the <see cref="PptxDocument"/> public, slide-level rendering API (Phase 1f):
-///     walks a slide's full shape tree (<see cref="PptxSlide.ShapeTree"/>, produced by
-///     <see cref="ParseShapeTree"/>) in document order, threading an accumulating
+///     Implements the <see cref="PptxDocument"/> public, slide-level rendering API: walks a
+///     slide's full, internally-resolved shape tree in document order, threading an accumulating
 ///     <see cref="Matrix3x2"/> transform through nested <c>&lt;p:grpSp&gt;</c> groups, and
-///     dispatches each leaf node kind to the already-verified Phase 1c/1d/1e resolvers/painters -
-///     see <c>pptx-document.md</c>'s "Full Slide Rendering (Phase 1f)" design section for the
-///     full per-node-kind dispatch and the deferred-items list this phase leaves unimplemented.
-///     As of the Phase 2 Follow-Up background-fill hardening pass, also paints the slide's own
-///     (or, failing that, its layout's/master's) <c>&lt;p:bg&gt;</c> background fill before the
-///     shape-tree walk - see <see cref="ResolveSlideBackgroundFill"/>.
+///     dispatches each leaf node kind to the already-verified resolvers/painters. Also paints the
+///     slide's own (or, failing that, its layout's/master's) <c>&lt;p:bg&gt;</c> background fill
+///     before the shape-tree walk.
 /// </summary>
 public sealed partial class PptxDocument
 {
     /// <summary>
     ///     Renders the specified slide into a new <see cref="Surface"/> of the given dimensions,
-    ///     walking the slide's full shape tree (<see cref="PptxSlide.ShapeTree"/>) in document
+    ///     walking the slide's full shape tree in document
     ///     order and painting each recognized shape kind (see the <see cref="PptxDocument"/>
-    ///     class remarks for this phase's dispatch summary, and <c>pptx-document.md</c>'s "Full
-    ///     Slide Rendering (Phase 1f)" design section for the full algorithm).
+    ///     class remarks for this dispatch summary).
     /// </summary>
     /// <param name="slideIndex">The zero-based index of the slide to render.</param>
     /// <param name="width">The width of the rendered surface, in pixels.</param>
@@ -43,8 +38,7 @@ public sealed partial class PptxDocument
     ///     is first cleared to <paramref name="options"/>'s
     ///     <see cref="PptxRenderOptions.BackgroundColor"/> (opaque white by default); the slide's
     ///     own <c>&lt;p:cSld&gt;/&lt;p:bg&gt;</c> background fill (falling back to its layout's,
-    ///     then its master's, own <c>&lt;p:bg&gt;</c> - see
-    ///     <see cref="ResolveSlideBackgroundFill"/>) is then painted across the full slide, before
+    ///     then its master's, own <c>&lt;p:bg&gt;</c>) is then painted across the full slide, before
     ///     any shape is walked, so slide content continues to draw on top of it; when none of
     ///     slide/layout/master declare a <c>&lt;p:bg&gt;</c> at all, <paramref name="options"/>'s
     ///     <see cref="PptxRenderOptions.BackgroundColor"/> remains the only background a slide
@@ -64,20 +58,18 @@ public sealed partial class PptxDocument
     ///     <c>&lt;a:solidFill&gt;</c>/<c>&lt;a:gradFill&gt;</c>, <c>&lt;p:txBody&gt;</c>, a
     ///     <c>&lt;p:pic&gt;</c>'s embedded image relationship, or an <c>&lt;a:tbl&gt;</c>) is
     ///     malformed - propagated unchanged from the Phase 1b-1e resolvers this method dispatches
-    ///     to (see <see cref="GetSlide"/>/<see cref="ResolveShapeFrame"/>/
-    ///     <see cref="ResolveShapeGeometry"/>/<see cref="ResolvePictureSurface"/>/
-    ///     <see cref="ParseTextBody"/>) - including a <c>&lt;p:pic&gt;</c>'s own
+    ///     to - including a <c>&lt;p:pic&gt;</c>'s own
     ///     <c>&lt;a:prstGeom&gt;</c>/<c>&lt;a:custGeom&gt;</c> clip geometry, propagated unchanged
-    ///     from <see cref="ResolvePictureClipPath"/> exactly as it already propagates for an
+    ///     exactly as it already propagates for an
     ///     auto-shape's own geometry.
     /// </exception>
     /// <exception cref="PptxUnsupportedFeatureException">
     ///     Thrown when a shape declares a well-formed-but-unsupported DrawingML construct -
-    ///     propagated unchanged from <see cref="ResolveShapeGeometry"/> (an unsupported
-    ///     <c>&lt;a:prstGeom&gt;</c> preset), <see cref="ResolveFill"/> (a pattern fill or
-    ///     a radial/path gradient), <see cref="ResolvePictureSurface"/> (a linked, non-embedded
-    ///     image, or an unsupported raster image format), or <see cref="ResolvePictureClipPath"/>
-    ///     (a <c>&lt;p:pic&gt;</c>'s own unsupported <c>&lt;a:prstGeom&gt;</c> clip preset).
+    ///     propagated unchanged from the Phase 1b-1e resolvers this method dispatches to: an
+    ///     unsupported <c>&lt;a:prstGeom&gt;</c> preset (including on a <c>&lt;p:pic&gt;</c>'s own
+    ///     clip geometry), a pattern fill or a radial/path gradient, or
+    ///     an unsupported picture condition (a linked, non-embedded image, or an unsupported
+    ///     raster image format).
     /// </exception>
     /// <exception cref="ObjectDisposedException">Thrown when this document has been disposed.</exception>
     /// <remarks>
@@ -85,19 +77,16 @@ public sealed partial class PptxDocument
     ///         A shape (placeholder or freeform), picture, or graphic-frame whose fully-resolved
     ///         geometry element declares no <c>&lt;a:xfrm&gt;</c> anywhere in its own ancestry is
     ///         <strong>skipped silently</strong>, not treated as an error - a position-less shape
-    ///         is a genuinely unrenderable (not malformed) construct this phase tolerates, mirroring
-    ///         <see cref="ParseShapeTree"/>'s own established "tolerant tree walk" precedent.
+    ///         is a genuinely unrenderable (not malformed) construct this tolerates, mirroring
+    ///         the shape-tree walk's own established "tolerant tree walk" precedent.
     ///     </para>
     ///     <para>
     ///         A nested table, table auto-sizing/banding, group-level style cascading, and picture
-    ///         effects/shadows are not rendered this phase - see <c>pptx-document.md</c>'s "Full Slide
-    ///         Rendering (Phase 1f)" design section for the complete deferred-items list, its "Phase 2
-    ///         Follow-Up: Slide/Layout/Master Background Fill (&lt;p:bg&gt;)" section for the
-    ///         background-fill fidelity achieved (solid and theme-indexed <c>&lt;p:bgRef&gt;</c>
-    ///         fills: full; linear gradient: best-effort; picture background fill: full; pattern
-    ///         background fill: full for a covered preset subset, since <c>ResolveFill</c> is
-    ///         shared across every fill context), and its "Phase 2 Follow-Up: Connector Shape Rendering (&lt;p:cxnSp&gt;)"
-    ///         section for the connector-line rendering since added.
+    ///         effects/shadows are not rendered this phase. Background-fill fidelity is: solid and
+    ///         theme-indexed <c>&lt;p:bgRef&gt;</c> fills, full; linear gradient, best-effort;
+    ///         picture background fill, full; pattern background fill, full for a covered preset
+    ///         subset, since <c>ResolveFill</c> is shared across every fill context. Connector
+    ///         (<c>&lt;p:cxnSp&gt;</c>) line rendering is also supported.
     ///     </para>
     /// </remarks>
     public Surface Render(int slideIndex, int width, int height, PptxRenderOptions? options = null)
@@ -107,6 +96,12 @@ public sealed partial class PptxDocument
         {
             throw new ArgumentOutOfRangeException(nameof(slideIndex), slideIndex, "Slide index is out of range.");
         }
+
+        // PowerPoint's own 1-based slide number: the deck's zero-based slideIndex plus one. This
+        // is threaded, unchanged, through every RenderNode/RenderShape call below so RenderShape
+        // can substitute it into any <a:fld type="slidenum"> field it encounters (see
+        // SubstituteSlideNumberField) - see this file's own Phase 2 Follow-Up design section.
+        var slideNumber = slideIndex + 1;
 
         var surface = new Surface(width, height);
 
@@ -157,17 +152,17 @@ public sealed partial class PptxDocument
             // non-placeholder siblings are.
             foreach (var node in master.ShapeTree)
             {
-                RenderNode(surface, node, master.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, skipPlaceholderShapes: true);
+                RenderNode(surface, node, master.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, slideNumber, skipPlaceholderShapes: true);
             }
 
             foreach (var node in layout.ShapeTree)
             {
-                RenderNode(surface, node, layout.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, skipPlaceholderShapes: true);
+                RenderNode(surface, node, layout.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, slideNumber, skipPlaceholderShapes: true);
             }
 
             foreach (var node in slide.ShapeTree)
             {
-                RenderNode(surface, node, slide.PartPath, layout, master, theme, baseTransform, colorMap, renderImages);
+                RenderNode(surface, node, slide.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, slideNumber);
             }
 
             return surface;
@@ -307,6 +302,13 @@ public sealed partial class PptxDocument
     ///     into <see cref="RenderShape"/>/<see cref="RenderPicture"/>/<see cref="RenderConnector"/>
     ///     - see <see cref="ResolveAndTrackPictureSurface"/>.
     /// </param>
+    /// <param name="slideNumber">
+    ///     The slide's own 1-based slide number, computed once in
+    ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/> as <c>slideIndex + 1</c> and
+    ///     threaded unchanged through every recursive call and into <see cref="RenderShape"/>,
+    ///     which substitutes it into any <c>&lt;a:fld type="slidenum"&gt;</c> field a shape's own
+    ///     text body declares - see <see cref="SubstituteSlideNumberField"/>.
+    /// </param>
     /// <param name="skipPlaceholderShapes">
     ///     When <see langword="true"/> (the master/layout decorative-shape walks in
     ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/>), a <see cref="PptxSpShapeNode"/>
@@ -322,8 +324,7 @@ public sealed partial class PptxDocument
     ///     thrown while painting a single master/layout shape (including one nested inside a
     ///     group) is caught and only that one shape is skipped, so one already-deferred, well-
     ///     formed-but-unsupported decorative shape (for example an EMF picture) cannot abort the
-    ///     rest of the slide's rendering - see <c>pptx-document.md</c>'s "Phase 2 Follow-Up:
-    ///     Master/Layout Decorative Shape Rendering" section. A slide's own shape
+    ///     rest of the slide's rendering. A slide's own shape
     ///     (<see langword="false"/>) is never caught here and continues to hard-fail
     ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/> exactly as before this
     ///     containment was added.
@@ -355,6 +356,7 @@ public sealed partial class PptxDocument
         Matrix3x2 parentToSurface,
         PptxColorMap colorMap,
         List<Surface> renderImages,
+        int slideNumber,
         bool skipPlaceholderShapes = false,
         int depth = 0)
     {
@@ -370,7 +372,7 @@ public sealed partial class PptxDocument
                 var childToSurface = group.ChildTransform * parentToSurface;
                 foreach (var child in group.Children)
                 {
-                    RenderNode(surface, child, ownerPartPath, layout, master, theme, childToSurface, colorMap, renderImages, skipPlaceholderShapes, depth + 1);
+                    RenderNode(surface, child, ownerPartPath, layout, master, theme, childToSurface, colorMap, renderImages, slideNumber, skipPlaceholderShapes, depth + 1);
                 }
 
                 break;
@@ -383,7 +385,7 @@ public sealed partial class PptxDocument
 
                 try
                 {
-                    RenderShape(surface, sp, ownerPartPath, layout, master, theme, parentToSurface, colorMap, renderImages);
+                    RenderShape(surface, sp, ownerPartPath, layout, master, theme, parentToSurface, colorMap, renderImages, slideNumber);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {
@@ -412,7 +414,7 @@ public sealed partial class PptxDocument
             case PptxGraphicFrameShapeNode graphicFrame:
                 try
                 {
-                    RenderGraphicFrame(surface, graphicFrame, theme, parentToSurface, colorMap);
+                    RenderGraphicFrame(surface, graphicFrame, theme, parentToSurface, colorMap, slideNumber);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {
@@ -449,7 +451,10 @@ public sealed partial class PptxDocument
     /// <summary>
     ///     Renders a <see cref="PptxSpShapeNode"/> (an ordinary or placeholder shape): resolves
     ///     its geometry/fill/stroke via the Phase 1c pipeline and, when it declares a
-    ///     <c>&lt;p:txBody&gt;</c>, its text via the Phase 1d pipeline.
+    ///     <c>&lt;p:txBody&gt;</c>, its text via the Phase 1d pipeline - substituting any
+    ///     <c>&lt;a:fld type="slidenum"&gt;</c> field's cached text with <paramref name="slideNumber"/>
+    ///     immediately after parsing, before layout/measurement (see
+    ///     <see cref="SubstituteSlideNumberField"/>).
     /// </summary>
     private void RenderShape(
         Surface surface,
@@ -460,7 +465,8 @@ public sealed partial class PptxDocument
         PptxTheme theme,
         Matrix3x2 parentToSurface,
         PptxColorMap colorMap,
-        List<Surface> renderImages)
+        List<Surface> renderImages,
+        int slideNumber)
     {
         Surface ResolveBlipImage(XElement blip) => ResolveAndTrackPictureSurface(ownerPartPath, blip, renderImages);
 
@@ -543,6 +549,7 @@ public sealed partial class PptxDocument
         if (txBodyElement is not null)
         {
             var textBody = ParseTextBody(txBodyElement);
+            textBody = SubstituteSlideNumberField(textBody, slideNumber);
             var layoutResult = ResolveTextLayout(
                 textBody, placeholderProperties, theme, placeholderType, frame.WidthEmu, frame.HeightEmu, ResolveTextFont, colorMap);
             PaintTextLayout(surface, layoutResult, localToSurface);
@@ -695,8 +702,19 @@ public sealed partial class PptxDocument
     ///     helper, since a chart (unlike a picture) has no source image of its own whose pixel
     ///     dimensions could be reused directly.
     /// </summary>
+    /// <param name="surface">The surface to paint/composite onto.</param>
+    /// <param name="node">The parsed graphic-frame node (a table or chart).</param>
+    /// <param name="theme">The resolved theme, used to lay out a table's own cell text content.</param>
+    /// <param name="parentToSurface">The transform mapping the frame's own parent coordinate space into surface pixel space.</param>
+    /// <param name="colorMap">The effective color map consulted while painting a table's own cell text - see <see cref="PaintTable"/>'s matching parameter.</param>
+    /// <param name="slideNumber">
+    ///     The rendered slide's own 1-based slide number, passed through to <see cref="PaintTable"/>
+    ///     so a table cell's own <c>&lt;a:fld type="slidenum"&gt;</c> field resolves the same way a
+    ///     non-table shape's does (see <see cref="SubstituteSlideNumberField"/>) - a chart has no
+    ///     field text of its own and simply ignores this parameter.
+    /// </param>
     private static void RenderGraphicFrame(
-        Surface surface, PptxGraphicFrameShapeNode node, PptxTheme theme, Matrix3x2 parentToSurface, PptxColorMap colorMap)
+        Surface surface, PptxGraphicFrameShapeNode node, PptxTheme theme, Matrix3x2 parentToSurface, PptxColorMap colorMap, int slideNumber)
     {
         // Per ECMA-376's CT_GraphicalObjectFrame, a <p:graphicFrame>'s own position is a direct
         // <p:xfrm> child - not wrapped in a <p:spPr>, unlike an ordinary shape or picture.
@@ -711,7 +729,7 @@ public sealed partial class PptxDocument
 
         if (node.Table is not null)
         {
-            PaintTable(surface, node.Table, theme, localToSurface, ResolveTextFont, colorMap);
+            PaintTable(surface, node.Table, theme, localToSurface, ResolveTextFont, colorMap, slideNumber);
         }
         else if (node.Chart is not null)
         {

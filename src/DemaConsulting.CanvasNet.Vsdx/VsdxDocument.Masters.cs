@@ -28,7 +28,8 @@ public sealed partial class VsdxDocument
     ///     <c>&lt;Master ID="{masterId}"&gt;</c> element exists, its content part could not be
     ///     resolved, or its content part declares no top-level <c>&lt;Shape&gt;</c> - every case
     ///     degrading tolerantly (a dangling/unresolvable Master reference is treated the same as
-    ///     "no Master", never throwing) per <c>canvas-net-vsdx.md</c>'s Risk Control Measures.
+    ///     "no Master", never throwing), consistent with this package's broader never-throw
+    ///     convention for recognized-but-unsupported constructs.
     /// </summary>
     /// <param name="masterId">The shape's own <c>Master=</c> attribute value, or <see langword="null"/>.</param>
     /// <returns>The Master's raw top-level shape, or <see langword="null"/>.</returns>

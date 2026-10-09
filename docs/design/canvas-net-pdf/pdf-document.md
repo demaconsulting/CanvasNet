@@ -10,6 +10,8 @@
 <!-- cspell:ignore begincodespacerange endcodespacerange findresource defineresource currentdict -->
 <!-- cspell:ignore begincmap endcmap bfchar usecmap cidrange cidchar codespacerange -->
 <!-- cspell:ignore functiontype bitspersample multiinput hival EOFB -->
+<!-- cspell:ignore PDFium -->
+
 <!-- cspell:ignore charsets -->
 <!-- cspell:ignore bchar achar -->
 <!-- cspell:ignore SASLprep -->
@@ -490,9 +492,12 @@ its own distinguishable `Feature` token.
   first, operator keyword last).
 - **`DispatchOperator(string operatorName, List<PdfObject> operands)`
   (`PdfDocument.ContentStream.cs`)** — a single `switch` over every operator this phase
-  implements (graphics-state, path-construction, path-painting, device-color, and
-  image-XObject), silently doing nothing for any other keyword (text, clipping, `gs`
-  (ExtGState), shading, inline images, and any other operator not yet implemented).
+  implements (graphics-state, path-construction, path-painting, clipping-path, device-color,
+  image-XObject, and the `sh` shading operator), silently doing nothing for any other keyword
+  (text, `gs` (ExtGState), inline images, and any other operator not yet implemented). `sh` is
+  dispatched to `OpPaintShading` (`PdfDocument.Patterns.Shading.cs`) — see _`/Pattern` Color Space
+  (Shading and Tiling Patterns)_ below for what it paints and how it reuses the shading-pattern
+  resolution/clip-mask mechanisms already documented there.
 - **`ResolvePageContentBytes(PdfObject pageNode)` (`PdfDocument.ContentStream.cs`)** — resolves
   `/Contents`: a single stream is decoded directly via `GetStreamDecodedBytes`; an array of
   streams is decoded entry-by-entry and concatenated with a single space byte inserted between
@@ -535,6 +540,27 @@ its own distinguishable `Feature` token.
   rule. Every path-painting operator, including `n`, always clears the current path afterward
   (`_pathBuilder.Clear()`); the surrounding graphics state is entirely unaffected by that clear,
   so a subsequent path in the same content stream still sees the same CTM/stroke style/color.
+  - **Hairline-stroke device-width clamp (regression fix note).** `DeviceLineWidth` originally
+    applied the same `MinimumDeviceLineWidth` one-device-pixel floor unconditionally to every
+    scaled line width, including a genuinely positive, small user-space width (e.g. `0.25 w`)
+    that legitimately resolves to a sub-device-pixel stroke - forcing every such stroke to paint
+    as a full-opacity, one-device-pixel-wide line indistinguishable from a literal `0 w` stroke,
+    reported as "hairline strokes drawn heavier than PDFium". `DeviceLineWidth` now branches on
+    whether the user-space `LineWidth` is itself (effectively, within a tiny
+    `ZeroLineWidthTolerance` epsilon) zero: only that case still floors to the full-opacity
+    `MinimumDeviceLineWidth` (the spec's "thinnest renderable line" rule, which has no magnitude
+    of its own to preserve); a genuinely positive `LineWidth` instead floors only to
+    `MinimumPositiveDeviceLineWidth` (a numerical-safety floor two orders of magnitude below one
+    device pixel, confirmed sufficient because `Drawing.PathStroker`/`Drawing.PathFiller` require
+    only a strictly-positive width to produce correct, non-degenerate outline/coverage geometry),
+    letting `Drawing.PathFiller`'s antialiased scanline-coverage rasterizer paint the stroke's
+    true, lighter sub-pixel coverage. Proven by three dedicated tests:
+    `PdfDocumentTests.PdfDocument_PathOps_Stroke_ZeroWidth_RendersFullOpacityHairline` (the
+    zero-width case is unaffected), `PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke`
+    (a small positive width now paints measurably lighter than a normal-width stroke, with a
+    genuinely partially-transparent pixel), and `PdfDocument_PathOps_Stroke_SubEpsilonWidth_RendersVisibleLine`
+    (a width below the numerical-safety floor still paints something visible rather than
+    vanishing).
   - **Shared `StrokeOutliner` false-collapse investigation (regression fix note).** A separate
     investigation into a PPTX rendering regression (a `<a:noFill/>` shape's thin stroke outline
     rendering as a solid-filled interior instead of a thin ring) traced the root cause to the
@@ -554,6 +580,35 @@ its own distinguishable `Feature` token.
     `PdfDocumentTests.PdfDocument_PathOps_StrokeOnlyClosedBezierCircle_RendersThinRingNotSolidDisc`,
     confirms a stroke-only, unfilled closed Bezier-curve circle continues to render as a ring
     (not a solid disc) through this exact code path.
+- **Clipping-path operators (`W`/`W*`, `PdfDocument.ContentStream.cs`/`PdfDocument.PathOps.cs`/
+  `PdfDocument.GraphicsState.cs`, per PDF 32000-1 §8.5.4)** — `W`/`W*` do not themselves modify the
+  active clip immediately; each only records a _pending_ clip fill rule
+  (`_pendingClipFillRule`, nonzero for `W`, even-odd for `W*`) on a field scoped exactly like
+  `_pathBuilder` (not part of `GraphicsState`, since it tracks in-progress-path state, not a
+  graphics-state attribute that survives `q`/`Q`). `PaintCurrentPath` - the single shared dispatch
+  point for every path-painting operator - applies the pending clip _after_ that operator's own
+  fill/stroke painting (so, for example, `W f` still fills using the _previous_ clip, then installs
+  the new one for whatever comes next; `W n` paints nothing but still installs the new clip): it
+  rasterizes the just-painted path into a fresh `Drawing.ClipMask` (via `ClipMask.FromPath`, under
+  the pending fill rule, bound to the destination surface's own pixel extent) and assigns
+  `_gs.Clip = _gs.Clip is null ? newMask : _gs.Clip.Intersect(newMask)` - an _intersection_ with any
+  already-active clip, never a wholesale replacement, per the specification's own wording ("the new
+  clipping path ... shall be the intersection of the current clipping path and the newly
+  constructed path"). `GraphicsState.Clip` (an `internal Drawing.ClipMask?`, `null` meaning "the
+  entire output device", i.e. unclipped) is an ordinary graphics-state field, so `Clone()` copies
+  it like any other - `ClipMask` is immutable and `Intersect` always returns a new instance, so
+  sharing the reference across a `q`/`Q`/Form-XObject/Type3-glyph clone is always safe, with no
+  extra save/restore logic required anywhere. The active clip is enforced by multiplying its own
+  per-pixel antialiased coverage into every subsequent paint operation's own coverage: `_gs.Clip` is
+  threaded as a `Drawing.ClipMask?` argument into every `Drawing.PathFiller.Fill` call site this
+  class owns (ordinary fill/stroke/pattern fill in `PaintCurrentPath`/`PaintStroke`/
+  `PaintPatternFill`, and glyph fill in `PdfDocument.Text.cs`'s `ShowGlyph`), and - since
+  `PdfDocument.Images.cs`'s `CompositeImageOntoSurface` paints a decoded image XObject directly
+  rather than through `Drawing.PathFiller` - that method instead multiplies each sampled source
+  pixel's own alpha by `_gs.Clip?.GetCoverage(x, y)` before compositing it "over" the destination,
+  the same technique applied at the one paint call site that does not go through `Drawing.PathFiller`.
+  See `docs/design/canvas-net/drawing/path-filler.md`'s own _ClipMask_ subsection for the
+  `Drawing`-layer rasterization/intersection mechanics.
 - **Device color operators (`PdfDocument.Color.cs`, added in Phase 3; color-space model replaced
   in Phase 14)** — a private, immutable `PdfColorSpace` class (nested `Family` enum:
   `DeviceGray`/`DeviceRGB`/`DeviceCMYK`/`Indexed`, with shared `DeviceGray`/`DeviceRGB`/
@@ -1250,7 +1305,36 @@ its own distinguishable `Feature` token.
   actual `[false false]`/`[true true]`/mixed value — a documented, narrower-than-spec
   simplification: no existing `GradientSpread` value expresses the spec's true
   "paint nothing outside the defining geometry" default, and implementing that exactly would
-  require a general clipping mechanism (`W`/`W*`) this phase does not add.
+  require clipping the shading's own paint to its defining geometry automatically - distinct from
+  the general-purpose `W`/`W*` clipping-path operators (see _Clipping Paths_ below), which a
+  content stream must invoke explicitly and which this phase does not wire into `/Extend`
+  resolution itself.
+- **Shading operator (`sh`, `PdfDocument.ContentStream.cs`/`PdfDocument.Patterns.Shading.cs`, per
+  PDF 32000-1 §8.7.4.2)** — paints a named `/Resources/Shading` dictionary's gradient directly
+  onto the destination surface, with no path construction/consumption and no `/Pattern`
+  color-space selection at all, distinct from the `scn`/`SCN` + `/Pattern` + `/PatternType 2` path
+  above. The shared `/ShadingType`/`/ColorSpace`/`/Function`/`/Domain`/`/Coords` resolution body
+  previously inline in `BuildShadingPattern` was extracted into `ResolveShadingDescriptor`
+  (returning a `ShadingDescriptor`, which also resolves an optional `/BBox` — see below);
+  `BuildShadingPattern` now simply wraps it, behaviorally identical to before. `OpPaintShading`
+  resolves the named shading (`Codecs.UnsupportedImageFeatureException`, feature
+  `pdf-shading-not-declared`, when undeclared — mirroring `ResolvePattern`'s own
+  `pdf-pattern-not-declared` precedent exactly), calls `ResolveShadingDescriptor` (propagating the
+  exact same `pdf-shading-type-{n}`/`pdf-shading-colorspace-{family}` exceptions the shading-
+  pattern path already throws, since it is the same method), and builds a transient
+  `ResolvedPattern` with `Matrix = Matrix3x2.Identity` — unlike a shading _pattern_'s own
+  `/Matrix` (anchored against the page's initial CTM via `PatternToDeviceTransform`), `sh` has no
+  pattern wrapper of its own, so `BuildShadingGradient` is instead composed directly against
+  `GraphicsState.CurrentTransform`, the CTM in effect when `sh` executes, per spec. The painted
+  region is whichever is bounded: when the shading declares a `/BBox`, its four corners
+  (transformed by the current CTM) form the region; otherwise a rectangle spanning the full
+  destination surface is used — either way the region is passed to the same clip-aware
+  `Drawing.PathFiller.Fill(Surface, Path, Gradient, ClipMask?, FillRule, float)` overload
+  `PaintPatternFill`/`PaintCurrentPath`/`PaintStroke` already call (see _Clipping-path operators_
+  above), so `sh` composes with an active `W`/`W*` clip with zero new clip-related code, and can
+  never paint beyond the destination surface regardless of whether a `/BBox` was declared (that
+  overload's own existing `TryFlattenForFill` step always intersects the fill's path bounds
+  against the surface's own bounds before painting a single pixel).
 - **Tiling patterns (`PdfDocument.Patterns.cs`/`PdfDocument.Patterns.Tiling.cs`, added alongside
   `/Pattern` color-space support)** — a `/PatternType 1` stream's `/BBox` (4 numbers), `/XStep`/
   `/YStep` (each required finite and non-zero — `InvalidDataException` otherwise, a malformed, not
@@ -1284,15 +1368,14 @@ its own distinguishable `Feature` token.
   pixel by `Drawing.PathFiller`'s new `TilePaint` fill overload, mirroring the existing `Gradient`
   overload's structure exactly.
 - **Scope boundaries (deliberately not implemented this phase)** — `ShadingType` `1`/`4`-`7`
-  (function-based and mesh shadings), `/FunctionType 4` (PostScript calculator functions), the
-  `sh` operator, and generic path clipping (`W`/`W*`) all remain unsupported/unchanged (the `sh`
-  operator and `W`/`W*` both remain silently skipped by `DispatchOperator`'s existing lenient
-  default case, unchanged by this feature); a `/Pattern` color space nested inside another
-  `/Pattern`'s own `PatternBase` is out of scope (the `ComponentCount` arm for `Family.Pattern`
-  throws `InvalidOperationException` as a fail-closed backstop, since no caller is expected to
-  reach it); deep nested-tiling-pattern recursion is bounded only by the shared, reused
-  `MaxFormNestingDepth` guard (no dedicated correctness test of deep nested rendering itself, only
-  that the guard still fires through this new call path).
+  (function-based and mesh shadings) and `/FunctionType 4` (PostScript calculator functions)
+  remain unsupported/unchanged, now reachable through two paths — `scn`/`SCN` + `/Pattern` and
+  `sh` — both throwing the identical `Codecs.UnsupportedImageFeatureException` (shared code, not
+  a reimplementation); a `/Pattern` color space nested inside another `/Pattern`'s own `PatternBase` is out of scope (the
+  `ComponentCount` arm for `Family.Pattern` throws `InvalidOperationException` as a fail-closed
+  backstop, since no caller is expected to reach it); deep nested-tiling-pattern recursion is
+  bounded only by the shared, reused `MaxFormNestingDepth` guard (no dedicated correctness test of
+  deep nested rendering itself, only that the guard still fires through this new call path).
 
 ### Resource and Input Bounds
 
@@ -1404,7 +1487,13 @@ change behavior for any document within normal real-world limits.
   `1`/`2`, feature `pdf-pattern-type-{n}`) — `Codecs.UnsupportedImageFeatureException`.
 - **An unsupported shading pattern** — a `/ShadingType` other than `2`/`3` (feature
   `pdf-shading-type-{n}`), or a `/ColorSpace` other than `DeviceGray`/`DeviceRGB`/`DeviceCMYK`
-  (feature `pdf-shading-colorspace-{family}`) — `Codecs.UnsupportedImageFeatureException`.
+  (feature `pdf-shading-colorspace-{family}`) — `Codecs.UnsupportedImageFeatureException`. The
+  `sh` operator reaching an undeclared shading name throws the same shape, feature
+  `pdf-shading-not-declared` (mirroring the existing `pdf-pattern-not-declared` feature exactly);
+  `sh` reaching an unsupported `/ShadingType`/`/ColorSpace` throws the identical
+  `pdf-shading-type-{n}`/`pdf-shading-colorspace-{family}` features the shading-pattern-fill path
+  already throws, since `ResolveShadingDescriptor` is the one shared implementation both paths
+  call.
 - **A pathological tiling pattern** — a `/XStep`/`/YStep` that is zero or non-finite, or a
   `/PaintType` other than `1`/`2` — `InvalidDataException`; a resolved device-pixel tile surface
   exceeding `MaxTileSurfaceDimension` — `Codecs.UnsupportedImageFeatureException` (feature

@@ -219,6 +219,34 @@ sections:
                 tests:
                   - ScanlineRasterizer_Fill_BowtieSelfIntersectingPolygon_ProducesCorrectPartialCoverageNotFullFill
 
+              - id: CanvasNet-Drawing-PathFiller-ScanlineEvenOddMultiToggleRow
+                title: >-
+                  The internal ScanlineRasterizer helper shall, under EvenOdd, split a row into
+                  exact sub-intervals at every mid-row edge-boundary breakpoint whenever two or
+                  more such breakpoints land strictly inside the row, resolving each
+                  sub-interval's coverage independently and combining them by height-weighted
+                  average, rather than folding the whole row's raw winding integral through a
+                  single-toggle-only fold; NonZero, and any EvenOdd row with fewer than two
+                  mid-row breakpoints, shall remain on the original, unmodified single-pass
+                  accumulation path with no behavioral or performance change whatsoever.
+                justification: |
+                  ResolveCoverage's EvenOdd fold (winding modulo 2, reflected) only commutes with
+                  the row-height-weighted winding integral when at most one edge boundary lands
+                  strictly inside the row for a given column; when two or more do (for example
+                  several nested shapes whose boundaries are all closer together than one device
+                  pixel - a real-world reported "double border" rendering defect), the single
+                  fold silently produces the wrong coverage (observed: fully opaque where the
+                  true height-weighted parity average is a fraction such as ~0.33). NonZero's
+                  fold (winding != 0) is a single yes/no threshold that always commutes with
+                  integration regardless of toggle count, so it needs no such correction and must
+                  remain byte-for-byte unaffected.
+                tests:
+                  - ScanlineRasterizer_Fill_EvenOdd_FourNestedRectanglesSameRow_ResolvesPartialCoverageNotFullFill
+                  - ScanlineRasterizer_Fill_NonZero_FourNestedRectanglesSameRow_StaysFullyOpaqueUnaffectedByFix
+                  - ScanlineRasterizer_Fill_EvenOdd_SingleBoundaryPerRow_MatchesPreFixHandComputedCoverage
+                  - ScanlineRasterizer_Fill_EvenOdd_SlantedEdgeForcedIntoSubRowSplitting_MatchesSingleToggleFastPath
+                  - CanvasNetPdf_SystemIntegration_PdfRender_EvenOddFill_MultipleBoundariesInSameRow_ResolvesPartialCoverageNotFullyOpaque
+
               - id: CanvasNet-Drawing-PathFiller-ScanlineActiveEdgeList
                 title: >-
                   The internal ScanlineRasterizer helper shall add each polygon edge to its

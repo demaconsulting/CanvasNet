@@ -4,9 +4,7 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     The exception thrown when a <see cref="PptxDocument"/> geometry/paint resolver refuses to
 ///     resolve an otherwise well-formed DrawingML construct because it declares a feature this
 ///     phase does not implement (for example a preset geometry name not in the supported ~24
-///     subset, a radial/path gradient fill, or a pattern/picture fill - see
-///     <c>pptx-document.md</c>'s "Geometry and Paint (Phase 1c)" design section for the exact
-///     supported/deferred boundary).
+///     subset, a radial/path gradient fill, or a pattern/picture fill).
 /// </summary>
 /// <remarks>
 ///     This mirrors <see cref="Codecs.UnsupportedImageFeatureException"/>'s own rationale and

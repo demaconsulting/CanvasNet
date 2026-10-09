@@ -390,7 +390,7 @@ public sealed partial class PdfDocument
                     // space, via the shared PaintStroke helper), this glyph fill always uses the
                     // flat fill color and does not mirror a Pattern fill color space the way the
                     // ordinary path-painting operators do.
-                    PathFiller.Fill(_surface, path, _gs.FillColor, FillRule.NonZero);
+                    PathFiller.Fill(_surface, path, _gs.FillColor, _gs.Clip, FillRule.NonZero);
                 }
 
                 if (_gs.RenderMode is 1 or 2)

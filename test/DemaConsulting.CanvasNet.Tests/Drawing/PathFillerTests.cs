@@ -672,5 +672,60 @@ public class PathFillerTests
 
         Assert.Equal((byte)0, surface[0, 0].A);
     }
+
+    /// <summary>
+    ///     Proves that the internal clip-aware <c>Fill(Surface, Path, Rgba32, ClipMask?, FillRule, float)</c>
+    ///     overload restricts an otherwise full-surface fill to the active clip mask's own
+    ///     covered region, leaving pixels outside the clip mask untouched.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_SolidColorWithClip_RestrictsFillToClipCoverage()
+    {
+        // Arrange: a full-surface fill path, clipped to a 2x2 square in the top-left corner of a
+        // 4x4 surface
+        using var surface = new Surface(4, 4);
+        var fillPath = new PathBuilder()
+            .MoveTo(new Vector2(0, 0)).LineTo(new Vector2(4, 0)).LineTo(new Vector2(4, 4)).LineTo(new Vector2(0, 4))
+            .Close().Build();
+        var clipPath = new PathBuilder()
+            .MoveTo(new Vector2(0, 0)).LineTo(new Vector2(2, 0)).LineTo(new Vector2(2, 2)).LineTo(new Vector2(0, 2))
+            .Close().Build();
+        var clip = ClipMask.FromPath(clipPath, FillRule.NonZero, 4, 4);
+        var color = new Rgba32(255, 0, 0, 255);
+
+        // Act
+        PathFiller.Fill(surface, fillPath, color, clip, FillRule.NonZero);
+
+        // Assert: inside the clip, the fill paints
+        Assert.Equal((byte)255, surface[0, 0].A);
+        Assert.Equal((byte)255, surface[1, 1].A);
+
+        // Assert: outside the clip (but inside the fill path), nothing paints
+        Assert.Equal((byte)0, surface[3, 3].A);
+        Assert.Equal((byte)0, surface[2, 2].A);
+    }
+
+    /// <summary>
+    ///     Proves that the internal clip-aware <c>Fill</c> overload with a <see langword="null"/>
+    ///     clip argument behaves identically to the public, non-clip-aware overload (no
+    ///     restriction is applied).
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload()
+    {
+        // Arrange
+        using var surface = new Surface(2, 2);
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(0, 0)).LineTo(new Vector2(2, 0)).LineTo(new Vector2(2, 2)).LineTo(new Vector2(0, 2))
+            .Close().Build();
+        var color = new Rgba32(0, 255, 0, 255);
+
+        // Act
+        PathFiller.Fill(surface, path, color, null, FillRule.NonZero);
+
+        // Assert
+        Assert.Equal((byte)255, surface[0, 0].A);
+        Assert.Equal((byte)255, surface[1, 1].A);
+    }
 }
 

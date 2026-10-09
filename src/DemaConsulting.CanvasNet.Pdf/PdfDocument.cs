@@ -18,21 +18,30 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         instance).
 ///     </para>
 ///     <para>
-///         Phase 1 of this package's implementation established document parsing and the
-///         page-info API surface. Phase 2 added a content-stream interpreter (path-
-///         construction/painting operators and the graphics-state stack), painting every path
-///         in solid opaque black. Phase 3 added real device color
-///         (<c>g</c>/<c>G</c>/<c>rg</c>/<c>RG</c>/<c>k</c>/<c>K</c>/<c>cs</c>/<c>CS</c>/
-///         <c>sc</c>/<c>SC</c>/<c>scn</c>/<c>SCN</c>), a generalized <c>/Filter</c>/
-///         <c>/DecodeParms</c> stream-decoding pipeline (<c>FlateDecode</c> plus PNG/TIFF
-///         predictor reversal), and image XObjects (<c>Do</c>: <c>DCTDecode</c> via
-///         <see cref="Codecs.JpegCodec"/>, or raw <c>DeviceGray</c>/<c>DeviceRGB</c>/
-///         <c>DeviceCMYK</c> 8-bit samples, composited through the current transformation
-///         matrix).
+///         Document parsing and the page-info API surface are backed by a content-stream
+///         interpreter (path-construction/painting operators and the graphics-state stack), real
+///         device color (<c>g</c>/<c>G</c>/<c>rg</c>/<c>RG</c>/<c>k</c>/<c>K</c>/<c>cs</c>/
+///         <c>CS</c>/<c>sc</c>/<c>SC</c>/<c>scn</c>/<c>SCN</c>), a generalized <c>/Filter</c>/
+///         <c>/DecodeParms</c> stream-decoding pipeline, and image XObjects (<c>Do</c>:
+///         <c>DCTDecode</c> via <see cref="Codecs.JpegCodec"/>, or raw <c>DeviceGray</c>/
+///         <c>DeviceRGB</c>/<c>DeviceCMYK</c> 8-bit samples, composited through the current
+///         transformation matrix).
 ///     </para>
 ///     <para>
-///         Text rendering (added starting with Phase 4 and substantially broadened by later
-///         phases) interprets the text object/state/positioning/showing operators
+///         <strong>Supported stream filters:</strong> <c>FlateDecode</c>/<c>LZWDecode</c>/
+///         <c>ASCII85Decode</c>/<c>ASCIIHexDecode</c>/<c>RunLengthDecode</c> are supported for any
+///         stream (cross-reference/object streams, page <c>/Contents</c>, Form XObjects, and image
+///         XObjects alike, including PNG/TIFF predictor reversal where declared via
+///         <c>/DecodeParms</c>); <c>DCTDecode</c> and <c>CCITTFaxDecode</c> (Group 4/MMR
+///         two-dimensional only, decoded by <see cref="DecodeCcittFax"/> - see
+///         <c>PdfDocument.CcittFax.cs</c>) are supported specifically for image XObjects; Group 3
+///         (<c>/DecodeParms /K</c> zero or greater) and an explicit <c>/EndOfLine true</c> both
+///         fail closed with <see cref="UnsupportedImageFeatureException"/>; and only
+///         <c>JPXDecode</c> (and any other unrecognized filter name) remains entirely unsupported
+///         for image XObjects.
+///     </para>
+///     <para>
+///         Text rendering interprets the text object/state/positioning/showing operators
 ///         (<c>BT</c>/<c>ET</c>, <c>Tc</c>/<c>Tw</c>/<c>Tz</c>/<c>TL</c>/<c>Tf</c>/<c>Tr</c>/
 ///         <c>Ts</c>, <c>Td</c>/<c>TD</c>/<c>Tm</c>/<c>T*</c>, and <c>Tj</c>/<c>'</c>/<c>"</c>/
 ///         <c>TJ</c>), resolving each named <c>/Resources/Font</c> entry against one of four
@@ -52,37 +61,38 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         <see cref="UnsupportedImageFeatureException"/> rather than silently substituting
 ///         or skipping. A font with an embedded font program (<c>/FontFile</c>/<c>/FontFile2</c>/
 ///         <c>/FontFile3</c>, as appropriate to its subtype) uses that embedded font; a simple
-///         font with no embedded program is, since Phase 6 (see below), automatically substituted
-///         with a matching system or bundled font rather than failing closed.
-///         (<c>LZWDecode</c>/<c>ASCII85Decode</c>/<c>ASCIIHexDecode</c>/
-///         <c>RunLengthDecode</c> are supported for any stream as of Phase 7;
-///         <c>CCITTFaxDecode</c>, Group 4 only, is supported for image XObjects as of
-///         Phase 15; only <c>JPXDecode</c> remains unsupported for image XObjects - see
-///         Phase 15's own remarks above.) <c>/Pattern</c>-color-space shading (axial/radial,
-///         <c>/ShadingType 2</c>/<c>3</c>, driven by <c>/FunctionType 0</c>/<c>2</c>/<c>3</c>
-///         functions) and tiling (<c>/PaintType 1</c>/<c>2</c>) pattern fills/strokes are also
-///         fully supported, as are placed Form XObjects (see Phase 13 below); the remaining
-///         unsupported features are listed under "Documented scope boundaries" in this package's
-///         user guide (mesh shadings, <c>/FunctionType 4</c> PostScript-calculator functions,
-///         the <c>sh</c> operator, generic path clipping, transparency groups, and clip
-///         text-rendering modes). Every other keyword not implemented is silently skipped, not
-///         an error. A page with no <c>/Contents</c> at all still renders a <see cref="Surface"/>
-///         cleared to <see cref="PdfRenderOptions.BackgroundColor"/> (opaque white by default;
-///         see <see cref="Render(int, int, int, PdfRenderOptions?)"/>).
+///         font with no embedded program is automatically substituted with a matching system or
+///         bundled font rather than failing closed: <see cref="Fonts.SystemFontCatalog"/> is
+///         searched for the closest-matching font installed on the host operating system by
+///         family name and serif/fixed-pitch/bold/italic style (derived from the Standard-14 name
+///         table when <c>/BaseFont</c> is one of the 14 standard names, else from
+///         <c>/FontDescriptor</c> flags/weight/angle and the name itself); when no system font
+///         matches, a bundled Liberation Sans/Serif/Mono font is used instead as a deterministic
+///         last resort (see <c>PdfDocument.FontFallback.cs</c>). This is fully automatic - there
+///         is no new public API and no "fallback occurred" diagnostics. <c>Symbol</c> and
+///         <c>ZapfDingbats</c> resolve instead via a dedicated bundled Noto substitute font union
+///         (see <c>PdfDocument.FontFallback.cs</c>'s <c>ResolveSymbolicNotoFallback</c>), using
+///         the built-in Symbol/ZapfDingbats Appendix D encoding rather than
+///         <c>/WinAnsiEncoding</c>. Any other font whose <c>/FontDescriptor/Flags</c> declares
+///         <c>Symbolic</c> without also declaring <c>Nonsymbolic</c> is still the sole remaining
+///         exception: with no embedded <c>/FontFile2</c> it still fails closed with
+///         <see cref="UnsupportedImageFeatureException"/>, since its symbol/dingbat glyph set
+///         has no meaningful generic-family equivalent.
 ///     </para>
 ///     <para>
-///         Phase 13 (this release) adds <c>/Subtype /Form</c> XObject rendering: <c>Do</c>
-///         on a Form XObject decodes its content stream (via the same generic
-///         <c>/Filter</c>/<c>/DecodeParms</c> pipeline every other stream uses), concatenates
-///         its optional <c>/Matrix</c> into the current transformation matrix (the same
-///         left-multiply convention the <c>cm</c> operator uses), resolves its own
-///         <c>/Resources</c> when present (else falling back to the invoking stream's
-///         resources), and executes the decoded bytes as a nested content stream that
-///         inherits the invoking stream's current graphics state and is implicitly bracketed
-///         like <c>q</c> ... <c>Q</c> (CTM/color/font-selection mutations made inside the
-///         Form never leak back out once <c>Do</c> returns, while path-painting/surface side
-///         effects persist, exactly like any other painting operator). <strong>Phase 13
-///         limitations</strong>: the Form's <c>/BBox</c> is never used to clip its content,
+///         <c>/Pattern</c>-color-space shading (axial/radial, <c>/ShadingType 2</c>/<c>3</c>,
+///         driven by <c>/FunctionType 0</c>/<c>2</c>/<c>3</c> functions) and tiling
+///         (<c>/PaintType 1</c>/<c>2</c>) pattern fills/strokes are fully supported, as are placed
+///         Form XObjects: <c>Do</c> on a <c>/Subtype /Form</c> XObject decodes its content stream
+///         (via the same generic <c>/Filter</c>/<c>/DecodeParms</c> pipeline every other stream
+///         uses), concatenates its optional <c>/Matrix</c> into the current transformation matrix
+///         (the same left-multiply convention the <c>cm</c> operator uses), resolves its own
+///         <c>/Resources</c> when present (else falling back to the invoking stream's resources),
+///         and executes the decoded bytes as a nested content stream that inherits the invoking
+///         stream's current graphics state and is implicitly bracketed like <c>q</c> ... <c>Q</c>
+///         (CTM/color/font-selection mutations made inside the Form never leak back out once
+///         <c>Do</c> returns, while path-painting/surface side effects persist, exactly like any
+///         other painting operator). The Form's <c>/BBox</c> is never used to clip its content,
 ///         its <c>/Group</c> (transparency group) entry is never consulted, and a hard
 ///         recursion-depth limit of 12 nested Form XObject invocations is enforced (a Form
 ///         that invokes itself, directly or via a longer cycle, beyond that depth throws
@@ -90,61 +100,34 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         call stack).
 ///     </para>
 ///     <para>
-///         Phase 6 adds automatic, silent font substitution for a simple TrueType font with
-///         no embedded <c>/FontFile2</c>: <see cref="Fonts.SystemFontCatalog"/> is searched
-///         for the closest-matching font installed on the host operating system by family
-///         name and serif/fixed-pitch/bold/italic style (derived from the Standard-14 name
-///         table when <c>/BaseFont</c> is one of the 14 standard names, else from
-///         <c>/FontDescriptor</c> flags/weight/angle and the name itself); when no system
-///         font matches, a bundled Liberation Sans/Serif/Mono font is used instead as a
-///         deterministic last resort (see <c>PdfDocument.FontFallback.cs</c>). This is
-///         fully automatic - there is no new public API and no "fallback occurred"
-///         diagnostics. <c>Symbol</c> and <c>ZapfDingbats</c> resolve instead via a dedicated
-///         bundled Noto substitute font union (see <c>PdfDocument.FontFallback.cs</c>'s
-///         <c>ResolveSymbolicNotoFallback</c>), using the built-in Symbol/ZapfDingbats Appendix
-///         D encoding rather than <c>/WinAnsiEncoding</c>. Any other font whose
-///         <c>/FontDescriptor/Flags</c> declares <c>Symbolic</c> without also declaring
-///         <c>Nonsymbolic</c> is still the sole remaining exception: with no embedded
-///         <c>/FontFile2</c> it still fails closed with
-///         <see cref="UnsupportedImageFeatureException"/>, since its symbol/dingbat glyph set
-///         has no meaningful generic-family equivalent.
-///     </para>
-///     <para>
-///         Phase 15 adds <c>CCITTFaxDecode</c> image-XObject support: an
-///         image XObject filtered solely with <c>CCITTFaxDecode</c> is decoded by
-///         <see cref="DecodeCcittFax"/> (see <c>PdfDocument.CcittFax.cs</c>) - a from-scratch
-///         ITU-T T.6 Group 4 (MMR, two-dimensional) decoder - and its samples are then
-///         composited through the same <c>/ColorSpace</c> pipeline every other image XObject
-///         uses. <strong>Phase 15 scope boundary</strong>: only Group 4 (<c>/DecodeParms /K</c>
-///         negative) is supported - Group 3 (<c>/K</c> <c>0</c> or greater, one- or
-///         two-dimensional) and an explicit <c>/EndOfLine true</c> both fail closed with
-///         <see cref="UnsupportedImageFeatureException"/> rather than being misinterpreted.
-///         The accurate current filter picture, correcting earlier phases' own stale remarks
-///         above: <c>FlateDecode</c>/<c>LZWDecode</c>/<c>ASCII85Decode</c>/
-///         <c>ASCIIHexDecode</c>/<c>RunLengthDecode</c> are supported for any stream
-///         (cross-reference/object streams, page <c>/Contents</c>, Form XObjects, and image
-///         XObjects alike); <c>DCTDecode</c> and <c>CCITTFaxDecode</c> (Group 4 only) are
-///         supported specifically for image XObjects; and only <c>JPXDecode</c> (and any other
-///         unrecognized filter name) remains entirely unsupported for image XObjects.
-///     </para>
-///     <para>
-///         Phase 16 (this release) adds support for opening a document encrypted with the PDF
-///         <c>/Filter /Standard</c> security handler, for the extremely common real-world case
-///         of an <em>empty user password</em> (a document that is merely permission-
-///         restricted, not actually password-protected to open): RC4 (40/128-bit, <c>/V 1</c>/
-///         <c>/V 2</c>), AES-128 (<c>/V 4</c>, <c>/CFM /AESV2</c>), and AES-256 using the
-///         simpler R5 key derivation (<c>/V 5</c>, <c>/R 5</c>, <c>/CFM /AESV3</c>) are all
+///         <strong>Encryption:</strong> opening a document encrypted with the PDF
+///         <c>/Filter /Standard</c> security handler is supported for the extremely common
+///         real-world case of an <em>empty user password</em> (a document that is merely
+///         permission-restricted, not actually password-protected to open): RC4 (40/128-bit,
+///         <c>/V 1</c>/<c>/V 2</c>), AES-128 (<c>/V 4</c>, <c>/CFM /AESV2</c>), and AES-256 using
+///         the simpler R5 key derivation (<c>/V 5</c>, <c>/R 5</c>, <c>/CFM /AESV3</c>) are all
 ///         transparently decrypted (see <c>PdfDocument.Encryption.cs</c>'s own ISO 32000-1
 ///         Algorithm 1/2/4/5, ISO 32000-2 Algorithm 2.A remarks) - a page's content stream,
-///         every string, and every other encrypted stream all decrypt before any other
-///         parsing logic ever sees their bytes, so the rest of this class needs no awareness
-///         that a document was ever encrypted at all. <strong>Phase 16 scope boundary</strong>:
-///         a non-<c>/Standard</c> security handler (for example <c>/Adobe.PubSec</c>), AES-256
-///         <c>/R 6</c> ("hardened hash" key derivation), a crypt filter other than the
-///         standard <c>/StdCF</c> (including <c>/Identity</c>), and a document that genuinely
-///         requires a non-empty password (there is no API surface to supply one) all still
-///         fail closed with <see cref="UnsupportedImageFeatureException"/>, each with its own
-///         distinguishable <see cref="UnsupportedImageFeatureException.Feature"/> token.
+///         every string, and every other encrypted stream all decrypt before any other parsing
+///         logic ever sees their bytes, so the rest of this class needs no awareness that a
+///         document was ever encrypted at all. A non-<c>/Standard</c> security handler (for
+///         example <c>/Adobe.PubSec</c>), AES-256 <c>/R 6</c> ("hardened hash" key derivation), a
+///         crypt filter other than the standard <c>/StdCF</c> (including <c>/Identity</c>), and a
+///         document that genuinely requires a non-empty password (there is no API surface to
+///         supply one) all still fail closed with <see cref="UnsupportedImageFeatureException"/>,
+///         each with its own distinguishable
+///         <see cref="UnsupportedImageFeatureException.Feature"/> token.
+///     </para>
+///     <para>
+///         <strong>Documented scope boundaries</strong> (not currently supported): mesh shadings
+///         (<c>/ShadingType</c> 4-7; axial/radial types 2-3 are supported by the <c>sh</c>
+///         operator and shading patterns), <c>/FunctionType 4</c> PostScript-calculator functions,
+///         transparency groups, and clip text-rendering modes. The <c>sh</c> operator and generic
+///         path clipping (<c>W</c>/<c>W*</c>) are both supported. Every other keyword
+///         not implemented is silently skipped, not an error. A page with no <c>/Contents</c> at
+///         all still renders a <see cref="Surface"/> cleared to
+///         <see cref="PdfRenderOptions.BackgroundColor"/> (opaque white by default; see
+///         <see cref="Render(int, int, int, PdfRenderOptions?)"/>).
 ///     </para>
 ///     <para>
 ///         <strong>Thread safety</strong>: a <see cref="PdfDocument"/> instance is <em>not</em>
@@ -227,11 +210,11 @@ public sealed partial class PdfDocument : IDisposable
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when the document's trailer declares an <c>/Encrypt</c> entry whose security
-    ///     handler, crypt filter, or revision this phase does not support (a non-<c>/Standard</c>
+    ///     handler, crypt filter, or revision is unsupported (a non-<c>/Standard</c>
     ///     security handler, <c>/R 6</c>, a non-<c>/StdCF</c> crypt filter, a genuinely-required
     ///     password that was not supplied, a supplied password that does not authenticate as
     ///     either the user or the owner password, or a non-ASCII password supplied for an
-    ///     <c>/R 2</c>-<c>4</c> document), per the class remarks' Phase 16 scope boundary.
+    ///     <c>/R 2</c>-<c>4</c> document), per the class remarks' encryption scope boundary.
     /// </exception>
     private PdfDocument(byte[] buffer, string? password)
     {
@@ -293,9 +276,9 @@ public sealed partial class PdfDocument : IDisposable
     ///     An optional password to authenticate an encrypted document with. When
     ///     <see langword="null"/> (the default), only the empty user password is authenticated -
     ///     byte-for-byte the same behavior as before this parameter existed. When non-null, it is
-    ///     tried first as the user password, then as the owner password; see the private
-    ///     constructor's own remarks for the full authentication and password-encoding details.
-    ///     Ignored entirely when the document is not encrypted.
+    ///     tried first as the user password, then as the owner password, against whichever
+    ///     security handler the document's <c>/Encrypt</c> entry declares (RC4, AES-128, or
+    ///     AES-256 with R5 key derivation). Ignored entirely when the document is not encrypted.
     /// </param>
     /// <returns>A new <see cref="PdfDocument"/> instance representing the parsed document.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
@@ -303,8 +286,12 @@ public sealed partial class PdfDocument : IDisposable
     ///     Thrown when the document cannot be parsed.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown for the same encrypted-document conditions documented on the private
-    ///     constructor above.
+    ///     Thrown when the document's trailer declares an <c>/Encrypt</c> entry whose security
+    ///     handler, crypt filter, or revision is unsupported (a non-<c>/Standard</c> security
+    ///     handler, <c>/R 6</c>, a non-<c>/StdCF</c> crypt filter, a genuinely-required password
+    ///     that was not supplied, a supplied password that does not authenticate as either the
+    ///     user or the owner password, or a non-ASCII password supplied for an <c>/R 2</c>-<c>4</c>
+    ///     document).
     /// </exception>
     public static PdfDocument Open(Stream stream, string? password = null)
     {

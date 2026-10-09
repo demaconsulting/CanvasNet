@@ -107,6 +107,7 @@ renders a visible stroke rather than vanishing to nothing.
 - `DashSplitter_Split_EdgeSpanningExtremeFloat32Coordinates_CompletesWithFiniteSegments`
 - `DashSplitter_Split_HugeFiniteTotalLengthWithFineDashSpan_FallsBackToSolidStroke`
 - `DashSplitter_Split_ManyRetainedOnIntervalsWithinIterationBudget_FallsBackToSolidStroke`
+- `DashSplitter_Split_ZeroHeavyDashPatternOnLongPath_FallsBackToSolidStrokeWithoutHanging`
 - `PathStroker_Stroke_HugeFiniteCoordinatesWithFineDashPattern_CompletesWithoutHanging`
 - `StrokeOutliner_Outline_RoundJoinAtExtremeScale_ProducesCurvedNotStraightJoin`
 - `StrokeOutliner_Outline_RoundCapAtTypicalScale_MatchesExpectedSegmentCount`
@@ -128,9 +129,13 @@ stays within `MaxOnIntervalIterations`'s own budget (a 50,000,000-unit path with
 pattern, whose 100,000,000 estimated iterations do not exceed the iteration cap but whose
 25,000,000 retained on-intervals do exceed the separate on-interval-count cap; the second,
 independent pre-flight estimate now catches this and falls back to a solid stroke before any
-interval is materialized), and a round join/cap tessellated at extreme geometric scale - rather
-than hanging, misclassifying the contour as degenerate, producing `NaN`/`Infinity` coordinates, or
-materializing an impractical number of retained intervals/segments.
+interval is materialized), a zero-heavy dash pattern (999,999 zero-length entries followed by one
+large positive entry, paired with a huge path length) that now costs one accounted iteration per
+zero-length entry rather than nothing (confirming the corrected pre-flight cost model remains a
+safe, bounded guard and still falls back to a solid stroke rather than hanging or materializing an
+astronomical number of intervals), and a round join/cap tessellated at extreme geometric scale -
+rather than hanging, misclassifying the contour as degenerate, producing `NaN`/`Infinity`
+coordinates, or materializing an impractical number of retained intervals/segments.
 
 ##### Public API Validation
 
@@ -168,6 +173,8 @@ public styling values are preserved exactly.
 - `DashSplitter_Split_PatternLongerThanPolyline_ReturnsSinglePartialOnSegment`
 - `DashSplitter_Split_AllZeroDashArray_TreatedAsSolid`
 - `DashSplitter_Split_FineDashPatternOnVeryLongPath_CompletesWithCorrectSegments`
+- `DashSplitter_Split_DashDotPatternWithZeroLengthOnEntry_EmitsDotIntervalAtEachRepetition`
+- `DashSplitter_Split_ZeroLengthOffEntryBetweenPositiveOnEntries_ProducesNoExtraIntervalOrGap`
 - `StrokeOutliner_Outline_ClosedSubpath_ProducesTwoCounterWoundRings`
 - `StrokeOutliner_Outline_OpenLineAndPointCapCircle_ShareSameOuterWinding`
 - `StrokeOutliner_Outline_ClosedContourReversedSourceWinding_NormalizesOuterRingConsistently`
@@ -181,7 +188,9 @@ public styling values are preserved exactly.
 - `StrokeOutliner_Outline_SmallCircleRealisticTessellation_HalfWidthJustOverInradius_CollapsesToSolid`
 
 These tests verify the intermediate geometry contracts that feed the public API: preserving
-open/closed state, applying SVG-style dash semantics, stitching seam-wrapping visible runs,
+open/closed state, applying SVG-style dash semantics (including a zero-length "on" entry - the
+dash-dot "dot" technique - correctly emitting one visible zero-length on-interval per pattern
+repetition, while a zero-length "off" entry remains invisible as before), stitching seam-wrapping visible runs,
 normalizing every independently-emitted outer outline (open-line outlines, point-cap circles, and
 closed-contour outer rings) to a single consistent winding direction regardless of outline kind or
 source authoring order, tolerating segments spanning near-extreme float32 coordinates without

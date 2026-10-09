@@ -23,6 +23,15 @@ namespace DemaConsulting.CanvasNet.Charts;
 public sealed class ChartRenderOptions
 {
     /// <summary>
+    ///     Creates a new <see cref="ChartRenderOptions"/> instance with all options set to their
+    ///     documented defaults (opaque white background, the bundled fallback font, and the
+    ///     documented default font sizes).
+    /// </summary>
+    public ChartRenderOptions()
+    {
+    }
+
+    /// <summary>
     ///     The default <see cref="ChartRenderOptions"/> instance, used by <c>Render</c> whenever a
     ///     caller passes <see langword="null"/> (or omits the <c>options</c> parameter entirely).
     /// </summary>

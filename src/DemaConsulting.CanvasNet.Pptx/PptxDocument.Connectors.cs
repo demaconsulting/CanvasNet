@@ -15,8 +15,7 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     resolving its <c>&lt;a:headEnd&gt;</c>/<c>&lt;a:tailEnd&gt;</c> arrowheads, and computing its
 ///     geometry's own start/end points and tangent directions (needed to orient an arrowhead) - see
 ///     <see cref="PptxDocument.RenderConnector"/> for how these are composed into a painted
-///     connector, and <c>pptx-document.md</c>'s "Phase 2 Follow-Up: Connector Shape Rendering"
-///     design section for the full rationale.
+///     connector.
 /// </summary>
 public sealed partial class PptxDocument
 {

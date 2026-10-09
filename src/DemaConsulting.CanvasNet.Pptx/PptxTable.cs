@@ -18,9 +18,11 @@ internal sealed record PptxTable(IReadOnlyList<float> ColumnWidthsEmu, IReadOnly
 ///     produced by <see cref="PptxDocument.ParseTable"/>.
 /// </summary>
 /// <param name="HeightEmu">
-///     The row's declared <c>&lt;a:tr h="..."/&gt;</c> height, in EMU, used as-is (this phase does
-///     not grow a row to fit overflowing cell content - see the design document's documented
-///     deferral).
+///     The row's declared <c>&lt;a:tr h="..."/&gt;</c> height, in EMU - the row's <em>minimum</em>
+///     height, not necessarily its final rendered height. <see cref="PptxDocument.ResolveCellRects"/>
+///     may grow a row beyond this stored value to fit a cell's own wrapped-text content (Phase 2
+///     Follow-Up: Table Row-Height Growth) - it is never shrunk below this value. See
+///     <see cref="PptxResolvedTableCell.HeightEmu"/> for the row's resulting effective height.
 /// </param>
 /// <param name="Cells">The row's ordered <c>&lt;a:tc&gt;</c> cells.</param>
 internal sealed record PptxTableRow(float HeightEmu, IReadOnlyList<PptxTableCell> Cells);
@@ -75,6 +77,12 @@ internal sealed record PptxTableCell(
 /// <param name="XEmu">The cell's left edge, in the table's own shape-local coordinate space, in EMU.</param>
 /// <param name="YEmu">The cell's top edge, in the table's own shape-local coordinate space, in EMU.</param>
 /// <param name="WidthEmu">The cell's full merged width (the sum of <see cref="PptxTableCell.GridSpan"/> consecutive column widths), in EMU.</param>
-/// <param name="HeightEmu">The cell's full merged height (the sum of <see cref="PptxTableCell.RowSpan"/> consecutive row heights), in EMU.</param>
+/// <param name="HeightEmu">
+///     The cell's full merged <em>effective</em> height (the sum of <see cref="PptxTableCell.RowSpan"/>
+///     consecutive rows' own effective heights), in EMU - not necessarily each spanned row's own
+///     stored <see cref="PptxTableRow.HeightEmu"/> sum, since <see cref="PptxDocument.ResolveCellRects"/>
+///     may have grown one or more of those rows to fit wrapped-text content (Phase 2 Follow-Up:
+///     Table Row-Height Growth).
+/// </param>
 /// <param name="Cell">The resolved cell this rectangle belongs to.</param>
 internal sealed record PptxResolvedTableCell(float XEmu, float YEmu, float WidthEmu, float HeightEmu, PptxTableCell Cell);

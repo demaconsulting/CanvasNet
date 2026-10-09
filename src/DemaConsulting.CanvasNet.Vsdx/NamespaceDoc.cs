@@ -32,8 +32,7 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     </para>
 ///     <para>
 ///         A small set of gaps remain documented, rather than fixed, because no in-scope fixture
-///         exercises them (see <c>canvas-net-vsdx.md</c>'s own Design Constraints section for the
-///         full evidence trail): decoding/rasterizing an embedded-image/<c>Foreign</c> shape's own
+///         exercises them: decoding/rasterizing an embedded-image/<c>Foreign</c> shape's own
 ///         binary payload is deferred (the shape itself still resolves and renders its own
 ///         geometry/paint/text normally, since no distinct <c>Type</c>-based handling exists for
 ///         it); a <c>Themed</c> color cell that depends on a shape's own Quick-Style variation
@@ -44,14 +43,12 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///         documented-but-unobserved geometry row types (<c>NURBSTo</c>, <c>InfiniteLine</c>,
 ///         <c>RelCubBezTo</c>, <c>SplineStart</c>/<c>SplineKnot</c>, <c>PolylineTo</c>,
 ///         <c>Ellipse</c>) are not implemented, each degrading tolerantly rather than throwing.
-///         The real-world-corpus bug-fix rounds (Milestones 10-12) additionally investigated,
-///         and left as documented known limitations rather than fixed (no safe narrow fix was
+///         The real-world-corpus bug-fix investigation additionally identified, and left as
+///         documented known limitations rather than fixed (no safe narrow fix was
 ///         found that would not regress other correctly-rendered shapes in the corpus):
 ///         <c>FillPattern="0"</c> inconsistently suppressing fill in a few shapes, one
 ///         unsupported gradient <c>FillPattern</c> value (<c>"36"</c>) affecting a single
-///         rack-diagram frame, and minor UML text/border padding differences - see
-///         <c>docs/verification/canvas-net-vsdx/vsdx-document.md</c> for the full evidence
-///         trail of each.
+///         rack-diagram frame, and minor UML text/border padding differences.
 ///     </para>
 /// </remarks>
 internal static class NamespaceDoc

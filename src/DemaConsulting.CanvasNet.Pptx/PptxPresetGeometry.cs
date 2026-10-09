@@ -9,9 +9,7 @@ namespace DemaConsulting.CanvasNet.Pptx;
 /// <summary>
 ///     Builds the core <see cref="Path"/> geometry for a DrawingML preset shape
 ///     (<c>&lt;a:prstGeom prst="..."/&gt;</c>), for the ~24-name subset of OOXML's full preset
-///     geometry catalog supported this phase - see <c>pptx-document.md</c>'s "Geometry and Paint
-///     (Phase 1c)" design section for the exact supported list and the rationale for every
-///     deferred name.
+///     geometry catalog supported this phase.
 /// </summary>
 /// <remarks>
 ///     <para>

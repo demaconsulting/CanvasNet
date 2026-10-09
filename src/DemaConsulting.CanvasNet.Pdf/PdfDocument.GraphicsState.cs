@@ -159,6 +159,21 @@ public sealed partial class PdfDocument
         internal double TextRise { get; set; }
 
         /// <summary>
+        ///     Gets or sets the current clipping path's antialiased coverage mask (PDF 32000-1
+        ///     &#xA7;8.5.4), or <see langword="null"/> when no clipping path has been set yet (the
+        ///     PDF specification's default: "the entire output device"). Set by
+        ///     <see cref="PdfDocument.PaintCurrentPath"/> once a path-painting operator executes
+        ///     after a pending <c>W</c>/<c>W*</c> (see <see cref="PdfDocument._pendingClipFillRule"/>'s
+        ///     remarks for why the clip is applied only then, not immediately on <c>W</c>/<c>W*</c>
+        ///     themselves) - never set directly by <c>W</c>/<c>W*</c>. A newly computed clip is
+        ///     always intersected with this field's previous value via <see cref="ClipMask.Intersect"/>,
+        ///     never a wholesale replacement, per PDF 32000-1 &#xA7;8.5.4: "the new clipping path
+        ///     ... shall be the intersection of the current clipping path and the newly
+        ///     constructed path".
+        /// </summary>
+        internal ClipMask? Clip { get; set; }
+
+        /// <summary>
         ///     Produces an independent copy of this graphics state, for <c>q</c> to push onto the
         ///     graphics-state stack.
         /// </summary>
@@ -168,7 +183,15 @@ public sealed partial class PdfDocument
         ///     wholesale by <c>d</c> (never mutated in place), so sharing the same
         ///     <see cref="IReadOnlyList{T}"/> reference across a clone is safe. <see cref="Font"/>
         ///     is likewise shared, not deep-copied: <see cref="IResolvedFont"/> instances are
-        ///     immutable once resolved by <see cref="PdfDocument.ResolveFont"/>.
+        ///     immutable once resolved by <see cref="PdfDocument.ResolveFont"/>. <see cref="Clip"/>
+        ///     is shared the same way, for the same reason: <see cref="ClipMask"/> is itself
+        ///     immutable (see its own remarks), and every subsequent clip narrowing produces a
+        ///     brand-new instance via <see cref="ClipMask.Intersect"/> rather than mutating the
+        ///     shared one - which is exactly what gives a clip set inside a <c>q</c>/<c>Q</c>
+        ///     block its correct save/restore scoping (PDF 32000-1 &#xA7;8.4.2) for free, with no
+        ///     special-case logic in <see cref="PdfDocument.OpPushGraphicsState"/>/
+        ///     <see cref="PdfDocument.OpPopGraphicsState"/> beyond this field simply being part of
+        ///     the cloned snapshot like every other graphics-state parameter.
         /// </remarks>
         internal GraphicsState Clone() => new()
         {
@@ -193,6 +216,7 @@ public sealed partial class PdfDocument
             Leading = Leading,
             RenderMode = RenderMode,
             TextRise = TextRise,
+            Clip = Clip,
         };
     }
 

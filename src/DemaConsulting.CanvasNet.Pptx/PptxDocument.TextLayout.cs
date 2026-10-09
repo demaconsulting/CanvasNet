@@ -49,6 +49,26 @@ public sealed partial class PptxDocument
         (MathF.Floor(currentXEmu / tabStopEmu) + 1f) * tabStopEmu;
 
     /// <summary>
+    ///     A sentinel "unbounded" height, in EMU, substituted for a real candidate height when
+    ///     measuring a text body's own natural wrapped height (Phase 2 Follow-Up: Table
+    ///     Row-Height Growth) - reuses the exact same magnitude <see cref="ResolveTextLayout"/>
+    ///     already uses for its own <c>wrap="none"</c> infinite-width sentinel, so this is a
+    ///     reused, already-vetted convention rather than a new magic number. Passing a real
+    ///     candidate height into <see cref="MeasureRequiredTextHeightEmu"/> would feed
+    ///     <see cref="ResolveAutofitScale"/>'s own attribute-less-<c>normAutofit</c> shrink loop a
+    ///     real <c>availableHeight</c>, which could shrink the measured font size instead of
+    ///     reporting the text's natural wrapped height - reopening the exact chicken-and-egg
+    ///     circularity ("does the text need to grow the row, or shrink itself, to fit a height we
+    ///     are still trying to determine?") a row-height-growth measurement must not reintroduce.
+    ///     Using this sentinel means the shrink loop's own <c>totalHeight &lt;= availableHeight</c>
+    ///     check is <see langword="true"/> on its very first (unscaled) iteration and never
+    ///     shrinks, while an *explicit* <c>fontScale</c>/<c>lnSpcReduction</c> attribute on
+    ///     <c>&lt;a:normAutofit&gt;</c> (a value PowerPoint itself persisted, independent of
+    ///     <c>availableHeight</c>) is still honored exactly as before.
+    /// </summary>
+    private const float UnboundedMeasurementHeightEmu = float.MaxValue / 4f;
+
+    /// <summary>
     ///     Resolves a text body's full layout: every run/paragraph's effective properties, word-
     ///     wrapped into lines bounded by <paramref name="widthEmu"/>, positioned per the body's
     ///     horizontal alignment/vertical anchor, and scaled per its autofit policy.
@@ -83,6 +103,71 @@ public sealed partial class PptxDocument
     /// </param>
     /// <returns>The resolved <see cref="PptxTextLayout"/>.</returns>
     internal static PptxTextLayout ResolveTextLayout(
+        PptxTextBody textBody,
+        PptxPlaceholderProperties placeholderProperties,
+        PptxTheme theme,
+        string placeholderType,
+        float widthEmu,
+        float heightEmu,
+        Func<string, bool, bool, TrueTypeFont> fontResolver,
+        PptxColorMap? colorMap = null,
+        Func<bool, bool, TrueTypeFont>? fallbackFontResolver = null)
+    {
+        var wrapped = ResolveWrappedLines(
+            textBody,
+            placeholderProperties,
+            theme,
+            placeholderType,
+            widthEmu,
+            heightEmu,
+            fontResolver,
+            colorMap,
+            fallbackFontResolver);
+
+        var (glyphs, underlines) = PositionLines(
+            wrapped.Lines,
+            textBody.Properties.Anchor,
+            wrapped.InsetLeft,
+            wrapped.InsetTop,
+            wrapped.AlignmentWidth,
+            wrapped.AvailableHeight);
+
+        return new PptxTextLayout(glyphs, wrapped.FontScale, underlines);
+    }
+
+    /// <summary>
+    ///     Word-wraps and measures a text body's paragraphs/runs - the shared "wrap and measure"
+    ///     machinery extracted from <see cref="ResolveTextLayout"/> (its former steps (1)-(5)) so
+    ///     it can be reused by <see cref="MeasureRequiredTextHeightEmu"/> (Phase 2 Follow-Up:
+    ///     Table Row-Height Growth) without duplicating the word-wrap/autofit/glyph-resolution
+    ///     logic. This is a pure, behavior-preserving extraction - every statement below is moved
+    ///     verbatim from <see cref="ResolveTextLayout"/>'s own former body, with no reordering or
+    ///     altered computation, so <see cref="ResolveTextLayout"/>'s own output is unchanged.
+    ///     Final glyph positioning (formerly step (6), <see cref="PositionLines"/>) is intentionally
+    ///     excluded - it is not needed to answer "how tall must this text be", only to place it.
+    /// </summary>
+    /// <param name="textBody">The parsed text body to wrap/measure.</param>
+    /// <param name="placeholderProperties">The owning shape's resolved placeholder property chain.</param>
+    /// <param name="theme">The resolved theme.</param>
+    /// <param name="placeholderType">The owning shape's placeholder type, or <see cref="string.Empty"/> for a non-placeholder shape.</param>
+    /// <param name="widthEmu">The owning shape's own declared width, in EMU (see <see cref="PptxShapeFrame.WidthEmu"/>).</param>
+    /// <param name="heightEmu">The owning shape's own declared height, in EMU (see <see cref="PptxShapeFrame.HeightEmu"/>).</param>
+    /// <param name="fontResolver">Resolves a <c>(familyName, bold, italic)</c> triple to a <see cref="TrueTypeFont"/> - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
+    /// <param name="colorMap">The effective color map - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
+    /// <param name="fallbackFontResolver">Resolves a <c>(bold, italic)</c> pair to a bundled fallback font - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
+    /// <returns>
+    ///     The word-wrapped <see cref="LineBox"/> lines, the resolved inset/alignment-width/
+    ///     available-height locals <see cref="ResolveTextLayout"/>'s own former body computed, and
+    ///     the resolved autofit <c>FontScale</c>.
+    /// </returns>
+    private static (
+        IReadOnlyList<LineBox> Lines,
+        float InsetLeft,
+        float InsetTop,
+        float InsetBottom,
+        float AlignmentWidth,
+        float AvailableHeight,
+        float FontScale) ResolveWrappedLines(
         PptxTextBody textBody,
         PptxPlaceholderProperties placeholderProperties,
         PptxTheme theme,
@@ -189,9 +274,60 @@ public sealed partial class PptxDocument
             ResolveGlyph);
 
         var lines = BuildLines(paragraphs, availableWidth, fontScale, lineSpacingFactor, ResolveFont, ResolveGlyph);
-        var (glyphs, underlines) = PositionLines(lines, bodyProperties.Anchor, insetLeft, insetTop, alignmentWidth, availableHeight);
 
-        return new PptxTextLayout(glyphs, fontScale, underlines);
+        return (lines, insetLeft, insetTop, insetBottom, alignmentWidth, availableHeight, fontScale);
+    }
+
+    /// <summary>
+    ///     Measures the minimum height, in EMU, a text body's own wrapped text naturally requires
+    ///     at its unscaled (or explicitly-attribute-scaled) font size, within a cell/shape of
+    ///     width <paramref name="widthEmu"/> (Phase 2 Follow-Up: Table Row-Height Growth) -
+    ///     <c>PptxDocument.Tables.cs</c>'s <c>GrowRowHeightsToFitText</c> consults this to
+    ///     grow a stored <c>&lt;a:tr h="..."&gt;</c> row height that is too small to show its own
+    ///     cell's wrapped text without overlapping the next row, matching PowerPoint's own table
+    ///     behavior (tables grow rows to fit text at natural size; they do not autofit-shrink cell
+    ///     text the way a text-box shape can). Reuses <see cref="ResolveWrappedLines"/> (this
+    ///     entry point's own former steps (1)-(5)) with <see cref="UnboundedMeasurementHeightEmu"/>
+    ///     substituted for a real candidate height - see that constant's own remarks for why a
+    ///     real candidate height must not be used here.
+    /// </summary>
+    /// <param name="textBody">The parsed cell text body to measure.</param>
+    /// <param name="theme">The resolved theme.</param>
+    /// <param name="widthEmu">The cell's own resolved width, in EMU, text wraps within.</param>
+    /// <param name="fontResolver">Resolves a <c>(familyName, bold, italic)</c> triple to a <see cref="TrueTypeFont"/> - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
+    /// <param name="colorMap">The effective color map - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
+    /// <param name="fallbackFontResolver">Resolves a <c>(bold, italic)</c> pair to a bundled fallback font - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
+    /// <returns>
+    ///     The text body's own natural required height, in EMU: the sum of its own top/bottom
+    ///     insets plus every wrapped line's own <see cref="LineBox.LineHeightEmu"/> and
+    ///     <see cref="LineBox.LeadingGapEmu"/>.
+    /// </returns>
+    internal static float MeasureRequiredTextHeightEmu(
+        PptxTextBody textBody,
+        PptxTheme theme,
+        float widthEmu,
+        Func<string, bool, bool, TrueTypeFont> fontResolver,
+        PptxColorMap? colorMap = null,
+        Func<bool, bool, TrueTypeFont>? fallbackFontResolver = null)
+    {
+        // Mirrors PaintTable's own existing placeholder-properties construction for a table
+        // cell's text body: a table cell has no placeholder inheritance chain of its own.
+        var placeholderProperties = new PptxPlaceholderProperties(null, null, theme);
+
+        var wrapped = ResolveWrappedLines(
+            textBody,
+            placeholderProperties,
+            theme,
+            string.Empty,
+            widthEmu,
+            UnboundedMeasurementHeightEmu,
+            fontResolver,
+            colorMap,
+            fallbackFontResolver);
+
+        return wrapped.InsetTop
+            + wrapped.Lines.Sum(line => line.LineHeightEmu + line.LeadingGapEmu)
+            + wrapped.InsetBottom;
     }
 
     /// <summary>

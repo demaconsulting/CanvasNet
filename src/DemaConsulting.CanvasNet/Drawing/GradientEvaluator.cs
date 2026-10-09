@@ -6,7 +6,7 @@ namespace DemaConsulting.CanvasNet.Drawing;
 
 /// <summary>
 ///     Evaluates a <see cref="Gradient"/>'s color at individual points or whole pixel rows, for
-///     use by <see cref="ScanlineRasterizer"/>'s gradient <see cref="ScanlineRasterizer.Fill(Surface, IReadOnlyList{List{Vector2}}, Gradient, FillRule, Geometry.Rect)"/>
+///     use by <see cref="ScanlineRasterizer"/>'s gradient <see cref="ScanlineRasterizer.Fill(Surface, IReadOnlyList{List{Vector2}}, Gradient, FillRule, Geometry.Rect, ClipMask?)"/>
 ///     overload.
 /// </summary>
 /// <remarks>

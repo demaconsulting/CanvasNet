@@ -12,11 +12,9 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     part (<see cref="TryResolveTableStyle"/>) and implements the core
 ///     <c>wholeTbl</c>/<c>band1H</c>/<c>band2H</c>/<c>firstRow</c>/explicit-cell-override
 ///     precedence cascade (<see cref="ResolveTableCellStyle"/>) consulted by
-///     <see cref="ParseTableCell"/> - see <c>pptx-document.md</c>'s "Phase 2 Follow-Up: Table
-///     Style/Banding Resolution" design section for the full algorithm, the confirmed
-///     ground-truth row-parity evidence, and the explicitly deferred scope (<c>firstCol</c>/
+///     <see cref="ParseTableCell"/>. The explicitly deferred scope is <c>firstCol</c>/
 ///     <c>lastCol</c>/<c>lastRow</c>/corner cells, <c>bandCol</c>/<c>band1V</c>/<c>band2V</c>, and
-///     table-style-driven font color).
+///     table-style-driven font color.
 /// </summary>
 public sealed partial class PptxDocument
 {

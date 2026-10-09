@@ -149,6 +149,19 @@ public static partial class TiffCodec
     ///     variable-width 9-12 bit codes, MSB-first bit packing, clear code 256, end-of-information
     ///     code 257.
     /// </summary>
+    /// <remarks>
+    ///     TIFF 6.0 Section 13 applies a code-width "early change" convention to LZW
+    ///     <em>decoders</em> only (widening one table entry sooner than a naive symmetric decoder
+    ///     would, to compensate for the one-iteration lag inherent in how an LZW decoder registers
+    ///     new table entries relative to the encoder). This encoder is the other half of that
+    ///     asymmetric pair: it uses the plain, unadjusted thresholds (code size bumps immediately
+    ///     after table entry 511/1023/2047 is created), matching the canonical libtiff
+    ///     <c>LZWPreEncode</c>/<c>LZWEncode</c> behavior. This must stay numerically different from
+    ///     <see cref="AddLzwTableEntry"/>'s thresholds - making them symmetric (either by adjusting
+    ///     this encoder to match the decoder's "early" thresholds, or vice versa) breaks
+    ///     interoperability with every TIFF-flavor LZW reader, including this library's own
+    ///     <see cref="DecodeLzw"/> and third-party readers such as libtiff/Pillow.
+    /// </remarks>
     private static byte[] EncodeLzw(byte[] data)
     {
         var writer = new LzwBitWriter();
@@ -178,7 +191,7 @@ public static partial class TiffCodec
             table[(prefixCode, next)] = nextCode;
             nextCode++;
 
-            if (nextCode is 511 or 1023 or 2047)
+            if (nextCode is 512 or 1024 or 2048)
             {
                 codeSize++;
             }
@@ -204,6 +217,19 @@ public static partial class TiffCodec
     ///     construction of <see cref="EncodeLzw"/> exactly (variable-width 9-12 bit codes,
     ///     MSB-first bit packing, clear code 256, end-of-information code 257).
     /// </summary>
+    /// <remarks>
+    ///     Per TIFF 6.0 Section 13's "early change" convention, this decoder (via
+    ///     <see cref="AddLzwTableEntry"/>) widens the code size one table entry <em>earlier</em>
+    ///     than <see cref="EncodeLzw"/> does. This is intentional and required: an LZW decoder
+    ///     can only materialize a new table entry one iteration after the encoder created the
+    ///     corresponding entry (it needs to see the next code first), so decoding with the
+    ///     encoder's plain thresholds would read the widened code one bit short. Widening one
+    ///     entry early exactly compensates for that lag so both sides switch widths at the same
+    ///     absolute bit position in the stream. Do not change these thresholds to match
+    ///     <see cref="EncodeLzw"/>'s plain/unadjusted thresholds - doing so reintroduces this
+    ///     exact class of bug (bit stream misalignment and
+    ///     <see cref="System.IO.InvalidDataException"/> on decode, or silent corruption).
+    /// </remarks>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when the stream does not begin with a Clear code, an invalid code is
     ///     encountered, or the stream ends before an end-of-information code is read.
@@ -287,6 +313,15 @@ public static partial class TiffCodec
     ///     byte of <paramref name="entry"/>, then widens <paramref name="codeSize"/> if the table
     ///     has just grown past a code-width boundary, returning the (possibly updated) code size.
     /// </summary>
+    /// <remarks>
+    ///     The thresholds here (511/1023/2047 table entries) deliberately implement TIFF 6.0
+    ///     Section 13's decoder-side "early change" convention, which is one table entry earlier
+    ///     than <see cref="EncodeLzw"/>'s plain/unadjusted thresholds (512/1024/2048). This is not
+    ///     a bug and must not be "fixed" to match <see cref="EncodeLzw"/> numerically - see the
+    ///     remarks on <see cref="DecodeLzw"/> and <see cref="EncodeLzw"/> for the full rationale
+    ///     (the decoder's new-table-entry registration inherently lags the encoder's by one
+    ///     iteration, and this earlier threshold compensates for exactly that lag).
+    /// </remarks>
     private static int AddLzwTableEntry(List<byte[]> table, byte[] previousEntry, byte[] entry, int codeSize)
     {
         var newEntry = new byte[previousEntry.Length + 1];
