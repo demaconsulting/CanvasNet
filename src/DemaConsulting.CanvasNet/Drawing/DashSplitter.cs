@@ -344,7 +344,7 @@ internal static class DashSplitter
     private static bool IsDashOnAtStart(IReadOnlyList<float> pattern, float dashOffset)
     {
         var patternLength = GetPatternLength(pattern);
-        var (index, _) = LocatePhase(pattern, dashOffset, patternLength);
+        var (index, _, _) = LocatePhase(pattern, dashOffset, patternLength);
         return index % 2 == 0;
     }
 
@@ -361,8 +361,15 @@ internal static class DashSplitter
     ///     walks only ever compare the residual distance against individual, finite dash entries -
     ///     never against the (potentially astronomically large) total pattern length - so a tiny
     ///     offset is never lost against a huge pattern magnitude in either direction.
+    ///     <paramref name="dashOffset"/>'s normalized phase can land exactly on a pattern-entry
+    ///     boundary that is itself followed by one or more zero-length "on" entries (dash-dot
+    ///     "dots") occupying that same single pattern-space point; both walks skip forward through
+    ///     those to report the entry actually in effect, but also report (via the returned
+    ///     <c>SkippedOnEntry</c>) whether at least one such zero-length "on" entry sat exactly at
+    ///     that boundary, so <see cref="BuildOnIntervals"/> (unlike <see cref="IsDashOnAtStart"/>,
+    ///     which has no use for it) can still surface the dot it represents at path position zero.
     /// </remarks>
-    private static (int Index, float RemainingInDash) LocatePhase(
+    private static (int Index, float RemainingInDash, bool SkippedOnEntry) LocatePhase(
         IReadOnlyList<float> pattern,
         float dashOffset,
         double patternLength)
@@ -383,9 +390,16 @@ internal static class DashSplitter
     ///     consuming every preceding entry - means the phase has already moved past it. The
     ///     trailing loop skips forward through any such zero-length entries so the returned index
     ///     always identifies the entry actually in effect at this phase, rather than a
-    ///     zero-length entry the phase is only nominally "at."
+    ///     zero-length entry the phase is only nominally "at." That trailing loop only ever runs
+    ///     while the residual <paramref name="offset"/> is exactly zero - i.e. only for entries
+    ///     genuinely coincident with the target pattern-space point, never ones merely passed over
+    ///     earlier while a still-positive offset was being consumed - so it alone (not the leading
+    ///     loop above it) is where a skipped-over, zero-length "on" entry is reported back via
+    ///     <c>SkippedOnEntry</c>.
     /// </remarks>
-    private static (int Index, float RemainingInDash) LocatePhaseForward(IReadOnlyList<float> pattern, double offset)
+    private static (int Index, float RemainingInDash, bool SkippedOnEntry) LocatePhaseForward(
+        IReadOnlyList<float> pattern,
+        double offset)
     {
         var index = 0;
         while (offset > 0d)
@@ -400,8 +414,10 @@ internal static class DashSplitter
             index = (index + 1) % pattern.Count;
         }
 
+        var skippedOnEntry = false;
         while (offset == 0d && pattern[index] == 0f)
         {
+            skippedOnEntry |= index % 2 == 0;
             index = (index + 1) % pattern.Count;
         }
 
@@ -409,7 +425,7 @@ internal static class DashSplitter
         // float32 entry), so the remainder is safe to narrow back to float without any risk of
         // the overflow this two-way split exists to avoid.
         var remaining = (float)(pattern[index] - offset);
-        return (index, remaining < 0f ? 0f : remaining);
+        return (index, remaining < 0f ? 0f : remaining, skippedOnEntry);
     }
 
     /// <summary>
@@ -428,7 +444,7 @@ internal static class DashSplitter
     ///     subtracted from the huge total pattern length - so a small negative offset against an
     ///     enormous pattern remains exactly representable throughout.
     /// </remarks>
-    private static (int Index, float RemainingInDash) LocatePhaseBackward(
+    private static (int Index, float RemainingInDash, bool SkippedOnEntry) LocatePhaseBackward(
         IReadOnlyList<float> pattern,
         double distanceFromWrap)
     {
@@ -451,19 +467,21 @@ internal static class DashSplitter
             // forward walk's zero-skip so a leading zero-length "on" entry is not mistaken for
             // the active entry.
             index = 0;
+            var skippedOnEntry = false;
             while (pattern[index] == 0f)
             {
+                skippedOnEntry |= index % 2 == 0;
                 index = (index + 1) % pattern.Count;
             }
 
-            return (index, pattern[index]);
+            return (index, pattern[index], skippedOnEntry);
         }
 
         // distanceFromWrap is now within (0, pattern[index]] - already small relative to the
         // individual entry it was measured against, never the huge total pattern length - so it
         // is safe to use directly as the remaining-in-dash distance.
         var remaining = (float)distanceFromWrap;
-        return (index, remaining > pattern[index] ? pattern[index] : remaining);
+        return (index, remaining > pattern[index] ? pattern[index] : remaining, false);
     }
 
     /// <summary>
@@ -558,8 +576,20 @@ internal static class DashSplitter
             return intervals;
         }
 
-        var (dashIndex, remainingInDashFloat) = LocatePhase(pattern, dashOffset, patternLength);
+        var (dashIndex, remainingInDashFloat, skippedOnEntry) = LocatePhase(pattern, dashOffset, patternLength);
         double remainingInDash = remainingInDashFloat;
+
+        if (skippedOnEntry)
+        {
+            // LocatePhase's own boundary walk - not the main loop below - passed over one or more
+            // zero-length "on" entries (dash-dot "dots") exactly coincident with path position
+            // zero before settling on the entry now in effect. Each of those is a real pattern
+            // repetition's dot at this exact position, so one is surfaced here; without this, the
+            // very first dot of a pattern beginning with (or whose phase offset lands exactly on)
+            // a zero-length "on" entry would never be observed, since the main loop below only
+            // ever detects a zero-length "on" entry it advances into itself.
+            intervals.Add((0d, 0d));
+        }
 
         var position = 0d;
         var iterations = 0;

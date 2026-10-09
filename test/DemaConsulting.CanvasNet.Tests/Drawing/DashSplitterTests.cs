@@ -607,6 +607,43 @@ public class DashSplitterTests
     }
 
     /// <summary>
+    ///     Regression test proving that a dash pattern <em>beginning</em> with a zero-length "on"
+    ///     entry (a leading dot, the pattern's own index 0) is still observed and emitted - not
+    ///     just a zero-length entry reached mid-pattern via <c>AdvanceDash</c> (the scenario the
+    ///     sibling <see cref="DashSplitter_Split_DashDotPatternWithZeroLengthOnEntry_EmitsDotIntervalAtEachRepetition"/>
+    ///     test above already covers).
+    /// </summary>
+    /// <remarks>
+    ///     With dash pattern <c>[0, 2]</c> (dot=0, gap=2; pattern length 2) over an 8-unit path
+    ///     (exactly 4 full repetitions) and the default zero dash offset, the phase-traversal loop
+    ///     starts already positioned at the pattern's own index 0 - a zero-length "on" entry - set
+    ///     directly by <c>LocatePhase</c>, never reached via an internal <c>AdvanceDash</c> call.
+    ///     Before this fix, the loop only ever inspected a zero-length entry <em>after</em>
+    ///     advancing into it (checking the entry just stepped <em>into</em>, not the one just left
+    ///     behind), so this very first entry - having never been advanced into from within the
+    ///     loop - was stepped past unobserved, and only the dots at <c>x=2</c>, <c>x=4</c>, and
+    ///     <c>x=6</c> survived; the leading dot at <c>x=0</c> was silently dropped.
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_Split_DashDotPatternWithLeadingZeroLengthOnEntry_EmitsLeadingDot()
+    {
+        // Arrange: an 8-unit horizontal path with a [0, 2] dash-dot pattern (4 full cycles).
+        var points = new List<Vector2> { new(0, 0), new(8, 0) };
+
+        // Act
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [0f, 2f], dashOffset: 0f);
+
+        // Assert: one single-point dot at the start of every 2-unit cycle, including x=0.
+        Assert.Multiple(
+            () => Assert.Equal(4, segments.Count),
+            () => Assert.Equal([new Vector2(0, 0)], segments[0].Points),
+            () => Assert.Equal([new Vector2(2, 0)], segments[1].Points),
+            () => Assert.Equal([new Vector2(4, 0)], segments[2].Points),
+            () => Assert.Equal([new Vector2(6, 0)], segments[3].Points),
+            () => Assert.All(segments, segment => Assert.False(segment.IsClosed)));
+    }
+
+    /// <summary>
     ///     Regression test proving that a zero-length "off" (gap) entry remains invisible - the
     ///     fix only changes zero-length "on" entries; zero-length off entries must keep
     ///     contributing no extra interval and no gap.
