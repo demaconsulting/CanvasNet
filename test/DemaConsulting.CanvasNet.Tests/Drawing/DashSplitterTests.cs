@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Reflection;
 using DemaConsulting.CanvasNet.Drawing;
 
 // cspell:ignore Lerp
@@ -673,6 +674,62 @@ public class DashSplitterTests
             () => Assert.Equal([new Vector2(0, 0)], segments[0].Points),
             () => Assert.Equal([new Vector2(0, 0)], segments[1].Points),
             () => Assert.All(segments, segment => Assert.False(segment.IsClosed)));
+    }
+
+    /// <summary>
+    ///     Regression test proving that the leading-zero-length-"on"-entries path emits dots
+    ///     surfaced via <c>LocatePhase</c>'s <c>SkippedOnEntryCount</c> is itself bounded by the
+    ///     <c>MaxOnIntervalCount</c> budget, rather than unconditionally materializing every
+    ///     skipped entry before any cap is checked.
+    /// </summary>
+    /// <remarks>
+    ///     A dash pattern consisting of over twenty million leading zero-length "on"/"off" entry
+    ///     pairs followed by one small positive "on"/"off" pair has a tiny <c>patternLength</c>
+    ///     (just the two positive entries' lengths), so <c>EstimatesExceedBudget</c>'s
+    ///     <c>totalLength / patternLength</c>-based ratio estimate stays negligible even though
+    ///     <c>pattern.Count</c> itself is over forty million - that estimate has no way to see the
+    ///     leading run of zero-length entries, since it is never reached by the main loop's own
+    ///     per-cycle walk. Calling the private <c>BuildOnIntervals</c> directly via reflection
+    ///     (rather than through the public <see cref="DashSplitter.Split"/>) is deliberate: the
+    ///     main loop's own <c>MaxOnIntervalCount</c> backstop would still - one iteration later -
+    ///     catch an unbounded skip loop for this particular input, converging on the same
+    ///     "fall back to a solid stroke" outward result either way and masking the difference in
+    ///     how many intervals were actually materialized first. Asserting directly on
+    ///     <c>intervals.Count</c> proves the skip loop itself never overshoots the budget by more
+    ///     than the one entry that trips it, rather than relying on this particular input
+    ///     happening to also be caught just as cheaply downstream.
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_BuildOnIntervals_PatternWithFarMoreLeadingZeroLengthOnEntriesThanOnIntervalBudget_StopsAtBudget()
+    {
+        // Arrange: a dash pattern with 20,000,001 leading (0, 0) "on"/"off" pairs (40,000,002
+        // zero-length entries - double the 10,000,000-entry MaxOnIntervalCount budget) followed by
+        // one small positive (2, 2) "on"/"off" pair - 40,000,004 entries total, all defaulting to
+        // 0f except the last two. A short 1-unit path keeps the main loop's own per-cycle cost
+        // estimate negligible, isolating the leading-skip path.
+        var dashArray = new float[40_000_004];
+        dashArray[^2] = 2f;
+        dashArray[^1] = 2f;
+
+        var buildOnIntervals = typeof(DashSplitter).GetMethod(
+            "BuildOnIntervals",
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+        var arguments = new object?[] { dashArray, 0f, 1d, false, false };
+
+        // Act
+        var intervals = (List<(double Start, double End)>)buildOnIntervals.Invoke(null, arguments)!;
+        var budgetExceeded = (bool)arguments[4]!;
+
+        // Assert: the skip loop's own budget check trips well before all 20,000,001 skipped
+        // entries would have been unconditionally materialized - the interval count never climbs
+        // far past the 10,000,000-entry cap, proving the cap is enforced inside the skip loop
+        // itself rather than left to be caught (possibly much later, after unbounded allocation)
+        // by the main loop's own backstop.
+        Assert.Multiple(
+            () => Assert.True(budgetExceeded),
+            () => Assert.True(
+                intervals.Count <= 10_000_001,
+                $"Expected at most 10,000,001 intervals before the budget check trips, but got {intervals.Count}."));
     }
 
     /// <summary>

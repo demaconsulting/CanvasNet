@@ -599,9 +599,24 @@ internal static class DashSplitter
             // phase offset lands exactly on) one or more zero-length "on" entries would have all
             // but the entry actually in effect go unobserved, since the main loop below only ever
             // detects a zero-length "on" entry it advances into itself.
+            //
+            // skippedOnEntryCount is bounded only by pattern.Count (a single walk through the
+            // supplied pattern array), which EstimatesExceedBudget's totalLength/patternLength
+            // ratio does not account for: a pattern consisting almost entirely of leading
+            // zero-length "on" entries followed by one positive entry has a tiny patternLength (so
+            // the ratio-based estimate stays low) while still containing an enormous
+            // pattern.Count. Guard this loop against MaxOnIntervalCount directly, exactly like the
+            // main loop's own interval-count backstops below, rather than materializing every
+            // skipped entry unconditionally.
             for (var i = 0; i < skippedOnEntryCount; i++)
             {
                 intervals.Add((0d, 0d));
+
+                if (intervals.Count > MaxOnIntervalCount)
+                {
+                    budgetExceeded = true;
+                    return intervals;
+                }
             }
         }
 
