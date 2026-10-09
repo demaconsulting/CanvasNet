@@ -713,14 +713,17 @@ public class PathFillerTests
     [Fact]
     public void PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload()
     {
+        // Arrange
         using var surface = new Surface(2, 2);
         var path = new PathBuilder()
             .MoveTo(new Vector2(0, 0)).LineTo(new Vector2(2, 0)).LineTo(new Vector2(2, 2)).LineTo(new Vector2(0, 2))
             .Close().Build();
         var color = new Rgba32(0, 255, 0, 255);
 
+        // Act
         PathFiller.Fill(surface, path, color, null, FillRule.NonZero);
 
+        // Assert
         Assert.Equal((byte)255, surface[0, 0].A);
         Assert.Equal((byte)255, surface[1, 1].A);
     }
