@@ -7,7 +7,7 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 // cspell:ignore endcodespacerange findresource defineresource currentdict begincmap endcmap
 // cspell:ignore bfchar bfrange nendbfchar nendbfrange tounicode usecmap cidrange cidchar codepoints
 // cspell:ignore OTTO rmoveto rlineto endchar notdef charstring charstrings cidfonttype
-// cspell:ignore functiontype multiinput fitz uncatchable
+// cspell:ignore functiontype multiinput fitz uncatchable reimplementation
 // cspell:ignore Noto
 // cspell:ignore hsbw closepath fontfile lenIV quoteright Quoteright hival
 
@@ -10918,6 +10918,181 @@ public class PdfDocumentTests
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    #endregion
+
+    #region Shading Operator (sh)
+
+    /// <summary>
+    ///     Proves that <c>sh</c> paints an axial (<c>/ShadingType 2</c>) shading's gradient
+    ///     directly onto the surface, with no preceding path/fill operator and no <c>/Pattern</c>
+    ///     color-space selection at all - the mechanism PDF 32000-1 &#xA7;8.7.4.2 documents as
+    ///     distinct from the <c>scn</c>/<c>SCN</c> + <c>/Pattern</c> + <c>/PatternType 2</c> path.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ShadingOperator_Axial_NoPrecedingPath_PaintsGradientAcrossFullPage()
+    {
+        // Arrange: content stream is just '/Sh1 sh' - no 'm'/'l'/'re'/'f'/'scn' at all. Object
+        // numbering: 5 = shadingDict, 6 = functionStream.
+        var shadingDict = "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function 6 0 R >>"u8.ToArray();
+        var functionStream = BuildStreamObjectBody(
+            "/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [shadingDict, functionStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: near-black at the start of the axis, near-white at the end.
+        Assert.True(surface[2, 50].R < 50);
+        Assert.True(surface[97, 50].R > 200);
+    }
+
+    /// <summary>
+    ///     Proves that <c>sh</c> paints a radial (<c>/ShadingType 3</c>) shading's gradient
+    ///     directly onto the surface (center color differs from edge color), mirroring
+    ///     <see cref="PdfDocument_Patterns_ShadingPattern_RadialFunctionType2_FillsVisiblyVaryingGradient"/>'s
+    ///     own assertion style.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ShadingOperator_Radial_NoPrecedingPath_PaintsGradientAcrossFullPage()
+    {
+        // Arrange: two concentric circles centered at (50,50), inner radius 0, outer radius 50,
+        // black -> white.
+        var shadingDict = "<< /ShadingType 3 /ColorSpace /DeviceRGB /Coords [50 50 0 50 50 50] /Function 6 0 R >>"u8.ToArray();
+        var functionStream = BuildStreamObjectBody(
+            "/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [shadingDict, functionStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the center is darker than near the outer edge.
+        Assert.True(surface[50, 50].R < surface[95, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves that <c>sh</c> composes with a preceding <c>W</c>/<c>W* n</c> clip exactly like
+    ///     an ordinary fill already does (PDF 32000-1 &#xA7;8.7.4.2: "within the bounds of the
+    ///     current clipping path"), reusing the existing clip-mask mechanism with zero new
+    ///     clip-related source code: the gradient (spanning the full page's own coordinate range)
+    ///     only appears within the clipped region.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ShadingOperator_WithPrecedingClip_RestrictsGradientToClipRegion()
+    {
+        // Arrange: clip to pdf (10,10)-(60,60) -> device x [10, 60], device y [40, 90] (y
+        // flipped), then 'sh' an axial gradient spanning the full page's x range.
+        var shadingDict = "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function 6 0 R >>"u8.ToArray();
+        var functionStream = BuildStreamObjectBody(
+            "/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "10 10 50 50 re W n /Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [shadingDict, functionStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: a pixel inside the clip rectangle shows gradient-varied (non-background) color.
+        Assert.NotEqual(default, surface[30, 70]);
+
+        // Assert: a pixel outside the clip rectangle remains the Transparent background
+        // sentinel, even though the gradient's own /Coords span the full page.
+        Assert.Equal(default, surface[80, 80]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>sh</c>, issued with no active clip at all, falls back to bounding the
+    ///     painted region to the shading's own <c>/BBox</c> (PDF 32000-1 &#xA7;8.7.4.3) rather
+    ///     than ever painting unboundedly across the whole page/surface.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ShadingOperator_BBoxNarrowerThanPage_RestrictsGradientToBBox()
+    {
+        // Arrange: no clip at all; the shading declares /BBox [20 20 80 80], narrower than the
+        // full 100x100 page -> device x [20, 80], device y [20, 80] (y flipped).
+        var shadingDict =
+            "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /BBox [20 20 80 80] /Function 6 0 R >>"u8
+                .ToArray();
+        var functionStream = BuildStreamObjectBody(
+            "/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [shadingDict, functionStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: a pixel outside the /BBox remains background (never painted unboundedly).
+        Assert.Equal(default, surface[5, 5]);
+
+        // Assert: a pixel inside the /BBox shows gradient-varied (non-background) color.
+        Assert.NotEqual(default, surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>sh</c> naming a shading dictionary with an unsupported
+    ///     <c>/ShadingType</c> throws <see cref="UnsupportedImageFeatureException"/> with feature
+    ///     <c>pdf-shading-type-{n}</c> - the exact same exception (not a reimplementation) the
+    ///     <c>scn</c>/<c>SCN</c> + <c>/Pattern</c> path already throws, directly proving the bug
+    ///     report's "no exception thrown for an unsupported case" complaint is fixed for this
+    ///     category.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public void PdfDocument_ShadingOperator_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException(int shadingType)
+    {
+        // Arrange: 5 = shadingDict.
+        var shadingDict = System.Text.Encoding.ASCII.GetBytes($"<< /ShadingType {shadingType} >>");
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [shadingDict]);
+
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal($"pdf-shading-type-{shadingType}", exception.Feature);
+    }
+
+    /// <summary>
+    ///     Proves that <c>sh</c> naming a shading not declared in the current page's
+    ///     <c>/Resources/Shading</c> dictionary throws <see cref="UnsupportedImageFeatureException"/>
+    ///     with feature <c>pdf-shading-not-declared</c> (mirroring the existing
+    ///     <c>pdf-pattern-not-declared</c> precedent exactly) - a defensive/regression test.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ShadingOperator_UndeclaredShadingName_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange: no /Resources/Shading dictionary at all declares /Sh1.
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Sh1 sh",
+            "",
+            []);
+
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal("pdf-shading-not-declared", exception.Feature);
     }
 
     #endregion

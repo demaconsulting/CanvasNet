@@ -163,8 +163,7 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Dispatches one recognized content-stream keyword operator (per the fixed set this
     ///     phase implements) against its accumulated operand stack, silently ignoring any other
-    ///     keyword (ExtGState, shading, inline images, and every other operator not yet
-    ///     implemented).
+    ///     keyword (ExtGState, inline images, and every other operator not yet implemented).
     /// </summary>
     /// <param name="operatorName">The operator keyword.</param>
     /// <param name="operands">The operands accumulated since the previous operator.</param>
@@ -173,8 +172,11 @@ public sealed partial class PdfDocument
     ///     requirement.
     /// </exception>
     /// <exception cref="Codecs.UnsupportedImageFeatureException">
-    ///     Propagated from <see cref="OpSetFont"/> (an unsupported font) or
-    ///     <see cref="OpSetTextRenderMode"/> (a defined but unsupported text-rendering mode).
+    ///     Propagated from <see cref="OpSetFont"/> (an unsupported font),
+    ///     <see cref="OpSetTextRenderMode"/> (a defined but unsupported text-rendering mode), or
+    ///     <see cref="OpPaintShading"/> (an undeclared shading name, or a defined but unsupported
+    ///     <c>/ShadingType</c>/<c>/ColorSpace</c> - the same exception the <c>scn</c>/<c>SCN</c>
+    ///     Pattern-color-space path already throws for the identical underlying condition).
     /// </exception>
     private void DispatchOperator(string operatorName, List<PdfObject> operands)
     {
@@ -322,6 +324,15 @@ public sealed partial class PdfDocument
                 OpDrawXObject(operands);
                 break;
 
+            // Shading operator (PdfDocument.Patterns.Shading.cs): paints a named /Resources
+            // /Shading dictionary's gradient directly within the current clipping path (or the
+            // shading's own /BBox when no clip is active), without constructing/consuming "the
+            // current path" and without going through a /Pattern color-space selection at all -
+            // a distinct mechanism from the scn/SCN + /Pattern + /PatternType 2 path above.
+            case "sh":
+                OpPaintShading(operands);
+                break;
+
             // Text object operators (PdfDocument.Text.cs).
             case "BT":
                 RequireOperandCount(operands, "BT", 0);
@@ -395,11 +406,11 @@ public sealed partial class PdfDocument
                 break;
 
             default:
-                // Any other keyword (gs, sh, BI/ID/EI, Tc/Td/.../TJ's own undefined siblings, or
-                // any other undefined keyword) is silently skipped - out of this phase's scope
-                // (shading/patterns, ExtGState, inline images) per this phase's documented
-                // lenient-consumer posture toward unrecognized operators. W/W* (clipping) are
-                // handled above, not skipped here.
+                // Any other keyword (gs, BI/ID/EI, Tc/Td/.../TJ's own undefined siblings, or any
+                // other undefined keyword) is silently skipped - out of this phase's scope
+                // (ExtGState, inline images) per this phase's documented lenient-consumer posture
+                // toward unrecognized operators. W/W* (clipping) and sh (shading) are handled
+                // above, not skipped here.
                 break;
         }
     }

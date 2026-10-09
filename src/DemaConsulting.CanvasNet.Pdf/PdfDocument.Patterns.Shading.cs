@@ -1,8 +1,9 @@
-// cspell:ignore cspace
+// cspell:ignore cspace bbox
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Geometry;
 
 namespace DemaConsulting.CanvasNet.Pdf;
 
@@ -22,14 +23,44 @@ public sealed partial class PdfDocument
     private const int ShadingGradientSampleCount = 32;
 
     /// <summary>
-    ///     Builds a <see cref="ResolvedPattern"/> of <see cref="ResolvedPattern.PatternKind.Shading"/>
-    ///     from an already-resolved <c>/PatternType 2</c> pattern dictionary.
+    ///     The fully resolved, immutable contents of a <c>/ShadingType 2</c>/<c>3</c> shading
+    ///     dictionary, shared by both consumers of a <c>/Shading</c> dictionary: the
+    ///     <c>scn</c>/<c>SCN</c> + <c>/Pattern</c> + <c>/PatternType 2</c> path
+    ///     (<see cref="BuildShadingPattern"/>, which wraps a shading dictionary in a pattern's own
+    ///     <c>/Matrix</c>) and the <c>sh</c> operator (<see cref="OpPaintShading"/>, which paints
+    ///     the shading directly against the current CTM, with no pattern wrapper at all).
     /// </summary>
-    /// <param name="patternDict">The already-resolved <c>/PatternType 2</c> pattern dictionary.</param>
+    /// <param name="ShadingType">The shading's <c>/ShadingType</c> (<c>2</c> axial or <c>3</c> radial).</param>
+    /// <param name="ColorSpace">The shading's resolved <c>/ColorSpace</c> (restricted to <c>DeviceGray</c>/<c>DeviceRGB</c>/<c>DeviceCMYK</c>).</param>
+    /// <param name="Coords">The shading's <c>/Coords</c> (4 elements for axial, 6 for radial).</param>
+    /// <param name="Domain">The function input domain to sample across (2 elements).</param>
+    /// <param name="Evaluate">The resolved function (or function-array) evaluation delegate.</param>
+    /// <param name="BBox">
+    ///     The shading's own optional <c>/BBox</c> (PDF 32000-1 &#xA7;8.7.4.3, <c>[llx lly urx ury]</c>
+    ///     in the shading's target coordinate space), or <see langword="null"/> when absent. Only
+    ///     consulted by <see cref="OpPaintShading"/> (via <see cref="BuildShadingPaintRegion"/>) -
+    ///     a shading *pattern*'s own fill region is instead whatever path it is painted onto, per
+    ///     <see cref="PaintPatternFill"/>.
+    /// </param>
+    private readonly record struct ShadingDescriptor(
+        int ShadingType,
+        PdfColorSpace ColorSpace,
+        double[] Coords,
+        double[] Domain,
+        Func<double, double[]> Evaluate,
+        double[]? BBox);
+
+    /// <summary>
+    ///     Resolves an already-resolved <c>/Shading</c> dictionary (or stream - some
+    ///     <c>/ShadingType</c>s are defined as streams, which <see cref="Resolve"/> handles
+    ///     uniformly alongside plain dictionaries) into a <see cref="ShadingDescriptor"/>, shared
+    ///     identically by <see cref="BuildShadingPattern"/> and <see cref="OpPaintShading"/>.
+    /// </summary>
+    /// <param name="shading">The already-resolved <c>/Shading</c> dictionary (or stream).</param>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <c>/Shading</c>, <c>/ColorSpace</c>, <c>/Function</c>, <c>/Domain</c>, or
-    ///     <c>/Coords</c> is missing or malformed, or propagated from <see cref="ReadOptionalMatrix"/>/
-    ///     <see cref="ResolveFunctionOrFunctionArray"/> for their own documented malformed-input
+    ///     Thrown when <c>/ColorSpace</c>, <c>/Function</c>, <c>/Domain</c>, <c>/Coords</c>, or
+    ///     <c>/BBox</c> is missing (where required) or malformed, or propagated from
+    ///     <see cref="ResolveFunctionOrFunctionArray"/> for its own documented malformed-input
     ///     cases.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
@@ -40,13 +71,8 @@ public sealed partial class PdfDocument
     ///     <see cref="ResolveColorSpaceValue"/>/<see cref="ResolveFunctionOrFunctionArray"/> for
     ///     their own documented unsupported-feature cases.
     /// </exception>
-    private ResolvedPattern BuildShadingPattern(PdfObject patternDict)
+    private ShadingDescriptor ResolveShadingDescriptor(PdfObject shading)
     {
-        var matrix = ReadOptionalMatrix(patternDict);
-        var shadingEntry = patternDict.Get("Shading")
-            ?? throw new InvalidDataException("/PatternType 2 pattern is missing required /Shading.");
-        var shading = Resolve(shadingEntry);
-
         var shadingType = RequireIntEntry(shading, "ShadingType");
         if (shadingType is not (2 or 3))
         {
@@ -88,16 +114,165 @@ public sealed partial class PdfDocument
                 $"/Coords must have exactly {expectedCoordCount} elements for /ShadingType {shadingType}.");
         }
 
+        // /BBox (PDF 32000-1 §8.7.4.3) is only meaningful to sh (see ShadingDescriptor's own
+        // remarks); it is still validated here, unconditionally, so a malformed /BBox is rejected
+        // identically regardless of which of the two consumers resolved this shading dictionary.
+        var bbox = ResolveOptionalNumberArray(shading, "BBox");
+        if (bbox is not null && bbox.Length != 4)
+        {
+            throw new InvalidDataException("/Shading /BBox must have exactly 4 elements.");
+        }
+
+        return new ShadingDescriptor(shadingType, colorSpace, coords, domain, evaluate, bbox);
+    }
+
+    /// <summary>
+    ///     Builds a <see cref="ResolvedPattern"/> of <see cref="ResolvedPattern.PatternKind.Shading"/>
+    ///     from an already-resolved <c>/PatternType 2</c> pattern dictionary.
+    /// </summary>
+    /// <param name="patternDict">The already-resolved <c>/PatternType 2</c> pattern dictionary.</param>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <c>/Shading</c> is missing, or propagated from <see cref="ReadOptionalMatrix"/>/
+    ///     <see cref="ResolveShadingDescriptor"/> for their own documented malformed-input cases.
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Propagated from <see cref="ResolveShadingDescriptor"/> for its own documented
+    ///     unsupported-feature cases.
+    /// </exception>
+    private ResolvedPattern BuildShadingPattern(PdfObject patternDict)
+    {
+        var matrix = ReadOptionalMatrix(patternDict);
+        var shadingEntry = patternDict.Get("Shading")
+            ?? throw new InvalidDataException("/PatternType 2 pattern is missing required /Shading.");
+        var shading = Resolve(shadingEntry);
+        var descriptor = ResolveShadingDescriptor(shading);
+
         return new ResolvedPattern
         {
             Kind = ResolvedPattern.PatternKind.Shading,
             Matrix = matrix,
-            ShadingType = shadingType,
-            ShadingColorSpace = colorSpace,
-            Coords = coords,
-            Domain = domain,
-            Evaluate = evaluate,
+            ShadingType = descriptor.ShadingType,
+            ShadingColorSpace = descriptor.ColorSpace,
+            Coords = descriptor.Coords,
+            Domain = descriptor.Domain,
+            Evaluate = descriptor.Evaluate,
         };
+    }
+
+    /// <summary>
+    ///     Handles the <c>/name sh</c> operator (PDF 32000-1 &#xA7;8.7.4.2): paints a named
+    ///     <c>/Resources/Shading</c> dictionary's gradient directly onto the destination surface,
+    ///     restricted to the current clipping path (<see cref="GraphicsState.Clip"/>) - or, when
+    ///     no clip is active, to the shading's own <c>/BBox</c> (see
+    ///     <see cref="BuildShadingPaintRegion"/>) - without constructing/consuming "the current
+    ///     path" (<see cref="_pathBuilder"/> is untouched) and without any <c>/Pattern</c>
+    ///     color-space selection at all, unlike a shading *pattern*'s <c>scn</c>/<c>SCN</c> path.
+    /// </summary>
+    /// <param name="operands">The <c>sh</c> operator's accumulated operand stack.</param>
+    /// <remarks>
+    ///     Per PDF 32000-1 &#xA7;8.7.4.2, <c>sh</c>'s target coordinate space is the CTM in effect
+    ///     when <c>sh</c> executes (<see cref="GraphicsState.CurrentTransform"/>) - unlike a
+    ///     shading *pattern*'s own <c>/Matrix</c>, which is anchored against the page's default
+    ///     (initial) coordinate system via <see cref="PatternToDeviceTransform"/>. A shading
+    ///     dictionary has no <c>/Matrix</c> entry of its own in the specification's object model,
+    ///     so the transient <see cref="ResolvedPattern"/> built below always uses
+    ///     <see cref="Matrix3x2.Identity"/> - the current CTM supplies position directly.
+    /// </remarks>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="operands"/> is not exactly 1 name operand, or propagated
+    ///     from <see cref="ResolveShadingDescriptor"/> for its own documented malformed-input
+    ///     cases.
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown when <paramref name="operands"/>' name is not declared in the current page's
+    ///     <c>/Resources/Shading</c> dictionary (feature <c>pdf-shading-not-declared</c>), or
+    ///     propagated from <see cref="ResolveShadingDescriptor"/> for its own documented
+    ///     unsupported-feature cases - the same exception the <c>scn</c>/<c>SCN</c> + <c>/Pattern</c>
+    ///     path already throws for the identical underlying condition.
+    /// </exception>
+    private void OpPaintShading(IReadOnlyList<PdfObject> operands)
+    {
+        RequireOperandCount(operands, "sh", 1);
+        if (operands[0].Kind != PdfKind.Name)
+        {
+            throw new InvalidDataException("Operator 'sh' requires a name operand.");
+        }
+
+        var name = operands[0].Text;
+        var shadingDictionaryEntry = _resources?.Get("Shading");
+        var resolvedDictionary = shadingDictionaryEntry is null ? null : Resolve(shadingDictionaryEntry);
+        var entry = resolvedDictionary?.Get(name);
+        if (entry is null)
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-shading-not-declared",
+                $"Undefined shading '/{name}' (not declared in the current page's /Resources/Shading).");
+        }
+
+        var shading = Resolve(entry);
+        var descriptor = ResolveShadingDescriptor(shading);
+
+        var pattern = new ResolvedPattern
+        {
+            Kind = ResolvedPattern.PatternKind.Shading,
+            Matrix = Matrix3x2.Identity,
+            ShadingType = descriptor.ShadingType,
+            ShadingColorSpace = descriptor.ColorSpace,
+            Coords = descriptor.Coords,
+            Domain = descriptor.Domain,
+            Evaluate = descriptor.Evaluate,
+        };
+        var gradient = BuildShadingGradient(pattern, _gs.CurrentTransform);
+        var region = BuildShadingPaintRegion(descriptor.BBox);
+        PathFiller.Fill(_surface, region, gradient, _gs.Clip, FillRule.NonZero);
+    }
+
+    /// <summary>
+    ///     Builds the device-space region <see cref="OpPaintShading"/> paints a shading's own
+    ///     gradient onto: <paramref name="bbox"/>'s 4 corners (transformed by the current CTM via
+    ///     <see cref="Transform(double, double)"/>) when present, or a rectangle covering the
+    ///     full destination surface otherwise.
+    /// </summary>
+    /// <param name="bbox">
+    ///     The shading's own optional <c>/BBox</c> (<see cref="ShadingDescriptor.BBox"/>), in the
+    ///     shading's target coordinate space (the same space <c>sh</c> paints against), or
+    ///     <see langword="null"/> when the shading declares none.
+    /// </param>
+    /// <returns>A closed device-space path covering the region to paint.</returns>
+    /// <remarks>
+    ///     Either way, the returned path is always bounded by the destination surface regardless:
+    ///     <see cref="PathFiller.Fill(Surface, Geometry.Path, Gradient, ClipMask?, FillRule, float)"/>'s
+    ///     own existing <c>TryFlattenForFill</c> step intersects every fill's path bounds against
+    ///     the surface's own bounds before painting a single pixel, so a full-surface fallback
+    ///     region (used here precisely because PDF 32000-1 &#xA7;8.7.4.2 does not require a
+    ///     <c>/BBox</c> to be present at all) can never paint beyond the surface, and a narrower
+    ///     declared <c>/BBox</c> restricts the paint further still - this method never needs (and
+    ///     does not implement) a second, independent bounding concept of its own.
+    /// </remarks>
+    private Geometry.Path BuildShadingPaintRegion(double[]? bbox)
+    {
+        var builder = new PathBuilder();
+        if (bbox is null)
+        {
+            builder.MoveTo(new Vector2(0f, 0f));
+            builder.LineTo(new Vector2(_surface.Width, 0f));
+            builder.LineTo(new Vector2(_surface.Width, _surface.Height));
+            builder.LineTo(new Vector2(0f, _surface.Height));
+            builder.Close();
+            return builder.Build();
+        }
+
+        var llx = bbox[0];
+        var lly = bbox[1];
+        var urx = bbox[2];
+        var ury = bbox[3];
+
+        builder.MoveTo(Transform(llx, lly));
+        builder.LineTo(Transform(urx, lly));
+        builder.LineTo(Transform(urx, ury));
+        builder.LineTo(Transform(llx, ury));
+        builder.Close();
+        return builder.Build();
     }
 
     /// <summary>

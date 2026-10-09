@@ -490,9 +490,12 @@ its own distinguishable `Feature` token.
   first, operator keyword last).
 - **`DispatchOperator(string operatorName, List<PdfObject> operands)`
   (`PdfDocument.ContentStream.cs`)** — a single `switch` over every operator this phase
-  implements (graphics-state, path-construction, path-painting, clipping-path, device-color, and
-  image-XObject), silently doing nothing for any other keyword (text, `gs`
-  (ExtGState), shading, inline images, and any other operator not yet implemented).
+  implements (graphics-state, path-construction, path-painting, clipping-path, device-color,
+  image-XObject, and the `sh` shading operator), silently doing nothing for any other keyword
+  (text, `gs` (ExtGState), inline images, and any other operator not yet implemented). `sh` is
+  dispatched to `OpPaintShading` (`PdfDocument.Patterns.Shading.cs`) — see _`/Pattern` Color Space
+  (Shading and Tiling Patterns)_ below for what it paints and how it reuses the shading-pattern
+  resolution/clip-mask mechanisms already documented there.
 - **`ResolvePageContentBytes(PdfObject pageNode)` (`PdfDocument.ContentStream.cs`)** — resolves
   `/Contents`: a single stream is decoded directly via `GetStreamDecodedBytes`; an array of
   streams is decoded entry-by-entry and concatenated with a single space byte inserted between
@@ -1283,6 +1286,32 @@ its own distinguishable `Feature` token.
   the general-purpose `W`/`W*` clipping-path operators (see _Clipping Paths_ below), which a
   content stream must invoke explicitly and which this phase does not wire into `/Extend`
   resolution itself.
+- **Shading operator (`sh`, `PdfDocument.ContentStream.cs`/`PdfDocument.Patterns.Shading.cs`, per
+  PDF 32000-1 §8.7.4.2)** — paints a named `/Resources/Shading` dictionary's gradient directly
+  onto the destination surface, with no path construction/consumption and no `/Pattern`
+  color-space selection at all, distinct from the `scn`/`SCN` + `/Pattern` + `/PatternType 2` path
+  above. The shared `/ShadingType`/`/ColorSpace`/`/Function`/`/Domain`/`/Coords` resolution body
+  previously inline in `BuildShadingPattern` was extracted into `ResolveShadingDescriptor`
+  (returning a `ShadingDescriptor`, which also resolves an optional `/BBox` — see below);
+  `BuildShadingPattern` now simply wraps it, behaviorally identical to before. `OpPaintShading`
+  resolves the named shading (`Codecs.UnsupportedImageFeatureException`, feature
+  `pdf-shading-not-declared`, when undeclared — mirroring `ResolvePattern`'s own
+  `pdf-pattern-not-declared` precedent exactly), calls `ResolveShadingDescriptor` (propagating the
+  exact same `pdf-shading-type-{n}`/`pdf-shading-colorspace-{family}` exceptions the shading-
+  pattern path already throws, since it is the same method), and builds a transient
+  `ResolvedPattern` with `Matrix = Matrix3x2.Identity` — unlike a shading _pattern_'s own
+  `/Matrix` (anchored against the page's initial CTM via `PatternToDeviceTransform`), `sh` has no
+  pattern wrapper of its own, so `BuildShadingGradient` is instead composed directly against
+  `GraphicsState.CurrentTransform`, the CTM in effect when `sh` executes, per spec. The painted
+  region is whichever is bounded: when the shading declares a `/BBox`, its four corners
+  (transformed by the current CTM) form the region; otherwise a rectangle spanning the full
+  destination surface is used — either way the region is passed to the same clip-aware
+  `Drawing.PathFiller.Fill(Surface, Path, Gradient, ClipMask?, FillRule, float)` overload
+  `PaintPatternFill`/`PaintCurrentPath`/`PaintStroke` already call (see _Clipping-path operators_
+  above), so `sh` composes with an active `W`/`W*` clip with zero new clip-related code, and can
+  never paint beyond the destination surface regardless of whether a `/BBox` was declared (that
+  overload's own existing `TryFlattenForFill` step always intersects the fill's path bounds
+  against the surface's own bounds before painting a single pixel).
 - **Tiling patterns (`PdfDocument.Patterns.cs`/`PdfDocument.Patterns.Tiling.cs`, added alongside
   `/Pattern` color-space support)** — a `/PatternType 1` stream's `/BBox` (4 numbers), `/XStep`/
   `/YStep` (each required finite and non-zero — `InvalidDataException` otherwise, a malformed, not
@@ -1316,10 +1345,10 @@ its own distinguishable `Feature` token.
   pixel by `Drawing.PathFiller`'s new `TilePaint` fill overload, mirroring the existing `Gradient`
   overload's structure exactly.
 - **Scope boundaries (deliberately not implemented this phase)** — `ShadingType` `1`/`4`-`7`
-  (function-based and mesh shadings), `/FunctionType 4` (PostScript calculator functions), and the
-  `sh` operator all remain unsupported/unchanged (the `sh` operator remains silently skipped by
-  `DispatchOperator`'s existing lenient default case, unchanged by this feature); a `/Pattern`
-  color space nested inside another `/Pattern`'s own `PatternBase` is out of scope (the
+  (function-based and mesh shadings) and `/FunctionType 4` (PostScript calculator functions)
+  remain unsupported/unchanged, now reachable through two paths — `scn`/`SCN` + `/Pattern` and
+  `sh` — both throwing the identical `Codecs.UnsupportedImageFeatureException` (shared code, not
+  a reimplementation); a `/Pattern` color space nested inside another `/Pattern`'s own `PatternBase` is out of scope (the
   `ComponentCount` arm for `Family.Pattern` throws `InvalidOperationException` as a fail-closed
   backstop, since no caller is expected to reach it); deep nested-tiling-pattern recursion is
   bounded only by the shared, reused `MaxFormNestingDepth` guard (no dedicated correctness test of
@@ -1435,7 +1464,13 @@ change behavior for any document within normal real-world limits.
   `1`/`2`, feature `pdf-pattern-type-{n}`) — `Codecs.UnsupportedImageFeatureException`.
 - **An unsupported shading pattern** — a `/ShadingType` other than `2`/`3` (feature
   `pdf-shading-type-{n}`), or a `/ColorSpace` other than `DeviceGray`/`DeviceRGB`/`DeviceCMYK`
-  (feature `pdf-shading-colorspace-{family}`) — `Codecs.UnsupportedImageFeatureException`.
+  (feature `pdf-shading-colorspace-{family}`) — `Codecs.UnsupportedImageFeatureException`. The
+  `sh` operator reaching an undeclared shading name throws the same shape, feature
+  `pdf-shading-not-declared` (mirroring the existing `pdf-pattern-not-declared` feature exactly);
+  `sh` reaching an unsupported `/ShadingType`/`/ColorSpace` throws the identical
+  `pdf-shading-type-{n}`/`pdf-shading-colorspace-{family}` features the shading-pattern-fill path
+  already throws, since `ResolveShadingDescriptor` is the one shared implementation both paths
+  call.
 - **A pathological tiling pattern** — a `/XStep`/`/YStep` that is zero or non-finite, or a
   `/PaintType` other than `1`/`2` — `InvalidDataException`; a resolved device-pixel tile surface
   exceeding `MaxTileSurfaceDimension` — `Codecs.UnsupportedImageFeatureException` (feature

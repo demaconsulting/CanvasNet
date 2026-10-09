@@ -865,6 +865,44 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> paints the
+    ///     <c>sh</c> operator's gradient over a previously-painted solid fallback shape, rather
+    ///     than the fallback remaining visibly solid underneath it - the exact reproduction of the
+    ///     reported bug (a producer paints a solid-color fallback shape, then overlays a gradient
+    ///     via <c>sh</c>, not via a second path fill with a <c>/Pattern</c> color space; before
+    ///     this fix, <c>sh</c> was silently skipped, leaving the solid fallback visible with no
+    ///     exception thrown).
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_ShadingOperatorOverBlackFallback_PaintsGradientNotBlack()
+    {
+        // Arrange: a solid black fallback rectangle painted first across the whole page (0 0 0
+        // rg ... re f), then a light-blue (0.68 0.85 0.9) -> white axial gradient painted
+        // directly over the identical region via 'sh', with no intervening scn/Pattern selection
+        // at all.
+        var bytes = BuildSyntheticPatternPdf(
+            "0 0 0 rg 0 0 100 100 re f /Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [
+                "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function 6 0 R >>"u8.ToArray(),
+                BuildPatternFunctionStreamBody(
+                    "/FunctionType 2 /Domain [0 1] /C0 [0.68 0.85 0.9] /C1 [1 1 1] /N 1"),
+            ]);
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var surface = document.Render(0, 100, 100, Transparent);
+
+        // Assert: the result is not solid black (the gradient now actually overlays the
+        // fallback) - both sampled pixels show the light-blue-to-white gradient progression, not
+        // the black fallback color.
+        Assert.NotEqual(new Canvas.Rgba32(0, 0, 0, 255), surface[2, 50]);
+        Assert.NotEqual(new Canvas.Rgba32(0, 0, 0, 255), surface[97, 50]);
+        Assert.True(surface[2, 50].B > 200);
+        Assert.True(surface[97, 50].R > 200 && surface[97, 50].G > 200 && surface[97, 50].B > 200);
+    }
+
+    /// <summary>
     ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> paints a colored (<c>/PaintType 1</c>) tiling
     ///     pattern fill end-to-end through the public API: a synthetic, in-memory single-page PDF
     ///     (no binary fixture) declaring a <c>/Pattern</c>-color-space fill driven by a 10x10

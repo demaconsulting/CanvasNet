@@ -3,7 +3,7 @@
 <!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox Zapf Nonsymbolic -->
 <!-- cspell:ignore bfchar bfrange beginbfchar endbfchar beginbfrange endbfrange codepoints -->
 <!-- cspell:ignore usecmap cidrange cidchar cidfonttype -->
-<!-- cspell:ignore functiontype multiinput hival -->
+<!-- cspell:ignore functiontype multiinput hival reimplementation -->
 <!-- cspell:ignore Noto registerserif radicalex dogfoods dogfooding -->
 <!-- cspell:ignore fontfile quoteright Quoteright quotesingle EOFB -->
 
@@ -1883,6 +1883,45 @@ the `/Function [fn0 fn1 fn2]` array-of-1-output-functions form builds a correct 
 system-integration test additionally proves the same axial-gradient fill end-to-end through the
 public `Render` API using a fully synthetic, in-memory PDF (no binary fixture), asserting
 near-black/near-white at the expected device pixel positions.
+
+#### CanvasNetPdf-PdfDocument-ShadingOperator: sh Paints a Named Shading, Composing Clip/BBox, Fail Closed Otherwise
+
+**Tests**: `PdfDocument_ShadingOperator_Axial_NoPrecedingPath_PaintsGradientAcrossFullPage`,
+`PdfDocument_ShadingOperator_Radial_NoPrecedingPath_PaintsGradientAcrossFullPage`,
+`PdfDocument_ShadingOperator_WithPrecedingClip_RestrictsGradientToClipRegion`,
+`PdfDocument_ShadingOperator_BBoxNarrowerThanPage_RestrictsGradientToBBox`,
+`PdfDocument_ShadingOperator_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_ShadingOperator_UndeclaredShadingName_ThrowsUnsupportedImageFeatureException`,
+`CanvasNetPdf_SystemIntegration_ShadingOperatorOverBlackFallback_PaintsGradientNotBlack`
+
+Asserts `sh`, issued with no preceding path/fill operator and no `/Pattern` color-space selection
+at all (content stream is just `/Sh1 sh`), paints an axial (`/ShadingType 2`) shading's gradient
+directly, near-black at one end and near-white at the other - proving the operator paints without
+constructing or consuming "the current path", unlike the `scn`/`SCN` + `/Pattern` +
+`/PatternType 2` path `CanvasNetPdf-PdfDocument-ShadingPatternFill` already covers. A second test
+proves the same for a radial (`/ShadingType 3`) shading (center color differs from edge color).
+A third test proves `sh` composes with a preceding `W`/`W* n` clip exactly like an ordinary fill
+already does: a pixel inside the clipped region shows gradient-varied color while a pixel outside
+it (even though the gradient's own `/Coords` span the full page) remains the background
+sentinel - directly confirming the fix reuses the existing `W`/`W*` clip-mask mechanism
+(`Drawing.ClipMask`, from the clipping-path feature) with zero new clip-related source code,
+rather than inventing a parallel clip concept. A fourth test proves that `sh`, issued with no
+active clip at all, falls back to bounding the painted region to the shading's own `/BBox`
+(narrower than the full page) rather than ever painting unboundedly across the whole
+page/surface: a pixel outside the declared `/BBox` remains background while a pixel inside it
+shows the gradient. A `[Theory]` asserts `/ShadingType 1`/`4` reached through `sh` both throw
+`Codecs.UnsupportedImageFeatureException` (feature `pdf-shading-type-{n}`) - the exact same
+exception (not a reimplementation) the `scn`/`SCN` + `/Pattern` path already throws for the
+identical condition, directly proving the bug report's "no exception thrown for an unsupported
+case, silent solid-color fallback" complaint is fixed for this category. A further defensive test
+asserts an undeclared shading name throws `Codecs.UnsupportedImageFeatureException` (feature
+`pdf-shading-not-declared`, mirroring the existing `pdf-pattern-not-declared` precedent exactly).
+The system-integration test reproduces the reported bug shape end-to-end through the public
+`Render` API: a solid black fallback rectangle painted first across the whole page, then a
+light-blue-to-white axial gradient painted directly over the identical region via `sh` (no
+intervening `scn`/Pattern selection at all) - asserting the resulting pixels are not solid black
+and instead show the expected light-blue/white gradient progression, proving the gradient now
+actually overlays the fallback rather than remaining invisibly skipped underneath it.
 
 #### CanvasNetPdf-PdfDocument-TilingPatternFill: Colored/Uncolored Tiling Patterns Paint a Tile, Fail Closed Otherwise
 
