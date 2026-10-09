@@ -156,7 +156,6 @@ internal static class DashSplitter
             pattern,
             dashOffset,
             totalLength,
-            isClosed,
             out var encounteredPositiveOffSpan,
             out var budgetExceeded);
 
@@ -546,7 +545,6 @@ internal static class DashSplitter
         IReadOnlyList<float> pattern,
         float dashOffset,
         double totalLength,
-        bool isClosed,
         out bool encounteredPositiveOffSpan,
         out bool budgetExceeded)
     {
@@ -636,11 +634,6 @@ internal static class DashSplitter
 
             position = nextPosition;
             remainingInDash -= span;
-        }
-
-        if (!isClosed)
-        {
-            return intervals;
         }
 
         return intervals;
