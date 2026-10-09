@@ -25,9 +25,9 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     <see langword="false"/> when the resolved <c>FillPattern</c> is literally <c>"0"</c> (no
 ///     fill) - otherwise <see langword="true"/>, including for any non-<c>0</c>/non-<c>1</c>
 ///     <c>FillPattern</c> value, which degrades to a flat fill using <see cref="FillColor"/>
-///     rather than implementing the specific gradient/pattern construction (per
-///     <c>canvas-net-vsdx.md</c>'s Design Constraints: a non-solid fill "degrades to a flat fill
-///     ... never throwing"). This shape-wide flag does not consult any geometry section's own
+///     rather than implementing the specific gradient/pattern construction - a non-solid fill
+///     always degrades to a flat fill rather than throwing. This shape-wide flag does not
+///     consult any geometry section's own
 ///     <c>NoFill</c> flag - see <see cref="HasLine"/>'s own remarks for why, and where that flag
 ///     is instead honored.
 /// </param>

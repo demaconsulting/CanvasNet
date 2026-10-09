@@ -12,9 +12,7 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     fill - falling back to its layout's, then its master's, own <c>&lt;p:bg&gt;</c> when the
 ///     slide declares none - into a concrete <see cref="PptxPaint"/>, reusing the existing Phase
 ///     1c <see cref="ResolveFill"/>/<see cref="ResolveColor"/> pipeline verbatim rather than
-///     re-implementing fill/color resolution for backgrounds - see <c>pptx-document.md</c>'s
-///     "Phase 2 Follow-Up: Slide/Layout/Master Background Fill (&lt;p:bg&gt;)" design section for
-///     the full resolution algorithm and the exact fidelity/deferred boundary.
+///     re-implementing fill/color resolution for backgrounds.
 /// </summary>
 public sealed partial class PptxDocument
 {

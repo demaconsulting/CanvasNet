@@ -14,10 +14,9 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     <see cref="OpenXmlChartParser.Parse(XElement)"/> - the integration point that lets
 ///     <c>DemaConsulting.CanvasNet.Pptx</c> render a <c>&lt;p:graphicFrame&gt;</c> chart instead
 ///     of throwing <see cref="PptxUnsupportedFeatureException"/> (feature token
-///     <c>"pptx-graphic-frame-kind"</c>) the way every earlier phase did. See
-///     <c>pptx-document.md</c>'s "Chart Graphic Frames (Phase 4)" design section for the full
-///     rationale and <c>canvas-net-charts.md</c>'s "Dependencies" section for the (Charts-never-
-///     references-Pptx) dependency-direction constraint this integration must never violate.
+///     <c>"pptx-graphic-frame-kind"</c>) the way every earlier phase did. This integration
+///     respects the <c>DemaConsulting.CanvasNet.Charts</c> package's own dependency-direction
+///     constraint: <c>Charts</c> never references <c>Pptx</c>, only the reverse.
 /// </summary>
 public sealed partial class PptxDocument
 {

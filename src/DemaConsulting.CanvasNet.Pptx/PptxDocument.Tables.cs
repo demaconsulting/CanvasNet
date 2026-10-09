@@ -18,13 +18,11 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     <see cref="PptxTable"/> (<see cref="ParseTable"/>, <see cref="ParseTableCell"/>),
 ///     resolving each cell's final, merge-aware rectangle (<see cref="ResolveCellRects"/>), and
 ///     painting the whole table - fill, borders, and cell text - onto a <see cref="Surface"/>
-///     (<see cref="PaintTable"/>) - see <c>pptx-document.md</c>'s "Tables (Phase 1e)" design
-///     section for the full merge/rect-resolution algorithm, documented deferrals (nested
-///     tables), the "Phase 2 Follow-Up: Table Style/Banding Resolution" section for the
+///     (<see cref="PaintTable"/>). Nested tables are a documented deferral. The
 ///     <c>&lt;a:tableStyleId&gt;</c>/<c>wholeTbl</c>/<c>band1H</c>/<c>band2H</c>/<c>firstRow</c>
-///     cascade implemented by <c>PptxDocument.TableStyles.cs</c>'s
-///     <see cref="ResolveTableCellStyle"/>, and the "Phase 2 Follow-Up: Table Row-Height Growth"
-///     section for <see cref="ResolveCellRects"/>'s own row-growth algorithm.
+///     cascade is implemented by <c>PptxDocument.TableStyles.cs</c>'s
+///     <see cref="ResolveTableCellStyle"/>, and <see cref="ResolveCellRects"/> implements its own
+///     row-height growth algorithm.
 /// </summary>
 public sealed partial class PptxDocument
 {

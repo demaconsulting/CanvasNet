@@ -77,8 +77,13 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     never for a <c>g</c>/<c>symbol</c> group, and never for a shape's own marker content),
 ///     referencing a <c>filter</c> element whose <c>fe*</c> primitive children
 ///     (<c>feFlood</c>, <c>feGaussianBlur</c>, <c>feOffset</c>, <c>feComposite</c> with
-///     <c>operator</c> <c>over</c>/<c>in</c>/<c>out</c>/<c>atop</c>/<c>xor</c>/<c>arithmetic</c>, and <c>feMerge</c>/
-///     <c>feMergeNode</c>) are evaluated in document order against an offscreen buffer sized to
+///     <c>operator</c> <c>over</c>/<c>in</c>/<c>out</c>/<c>atop</c>/<c>xor</c>/<c>arithmetic</c>,
+///     <c>feMerge</c>/<c>feMergeNode</c>, <c>feBlend</c>, <c>feColorMatrix</c>,
+///     <c>feComponentTransfer</c>, <c>feMorphology</c>, <c>feConvolveMatrix</c>,
+///     <c>feDisplacementMap</c>, <c>feTile</c>, <c>feDropShadow</c>, <c>feImage</c>,
+///     <c>feDiffuseLighting</c>, <c>feSpecularLighting</c>, and <c>feTurbulence</c> - the full
+///     set of standard SVG filter primitives) are evaluated in document order against an
+///     offscreen buffer sized to
 ///     the filter region, with the <c>SourceGraphic</c> and <c>SourceAlpha</c> implicit inputs
 ///     supported; the filter region defaults to <c>objectBoundingBox</c>'s standard
 ///     <c>-10% -10% 120% 120%</c> (each independently overridable via <c>x</c>/<c>y</c>/
@@ -126,12 +131,9 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     <c>objectBoundingBox</c> default region computation; group-level (<c>g</c>/<c>symbol</c>)
 ///     filtering and filtering a shape's own marker content are both not implemented (a
 ///     <c>filter</c> only ever affects the single element it is set on directly); and any
-///     primitive type other than <c>feFlood</c>/<c>feGaussianBlur</c>/<c>feOffset</c>/
-///     <c>feComposite</c>/<c>feMerge</c>/<c>feColorMatrix</c>/<c>feComponentTransfer</c>/
-///     <c>feMorphology</c>/<c>feConvolveMatrix</c>/<c>feDisplacementMap</c>/<c>feTile</c>/
-///     <c>feDropShadow</c>/<c>feImage</c>/<c>feDiffuseLighting</c>/<c>feSpecularLighting</c>/
-///     <c>feTurbulence</c>/<c>feBlend</c> is a tolerant no-op passthrough of its own
-///     input rather than actually implemented. <c>feImage</c>'s element-reference form can
+///     primitive type other than the sixteen implemented filter primitives listed above (for
+///     example a future/non-standard <c>fe*</c> element) is a tolerant no-op passthrough of its
+///     own input rather than actually implemented. <c>feImage</c>'s element-reference form can
 ///     recurse back into the ordinary element walk, so filter evaluation reuses the existing
 ///     <c>MaxUseDepth</c> guard that already bounds <c>use</c>/marker reference depth, declining
 ///     the nested render once that limit is reached.

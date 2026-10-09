@@ -50,8 +50,8 @@ internal sealed record VsdxTheme(
     /// </summary>
     /// <remarks>
     ///     Deliberately non-throwing, unlike <c>PptxTheme</c>'s own <c>GetTheme</c> (which throws
-    ///     <see cref="InvalidDataException"/> for a malformed theme): <c>canvas-net-vsdx.md</c>'s
-    ///     Risk Control Measures mandate a Vsdx color-resolution construct degrade gracefully
+    ///     <see cref="InvalidDataException"/> for a malformed theme): this package's own design
+    ///     convention mandates a Vsdx color-resolution construct degrade gracefully
     ///     rather than fail the whole parse. A missing <c>&lt;a:themeElements&gt;</c>/
     ///     <c>&lt;a:clrScheme&gt;</c> element yields a <see cref="VsdxTheme"/> with every slot
     ///     <see langword="null"/> (not a caller-visible exception); an individual slot that is

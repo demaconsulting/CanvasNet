@@ -23,6 +23,14 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 public sealed class VsdxRenderOptions
 {
     /// <summary>
+    ///     Creates a new <see cref="VsdxRenderOptions"/> instance with
+    ///     <see cref="BackgroundColor"/> set to its documented default (opaque white).
+    /// </summary>
+    public VsdxRenderOptions()
+    {
+    }
+
+    /// <summary>
     ///     The default <see cref="VsdxRenderOptions"/> instance, used by <c>Render</c> whenever a
     ///     caller passes <see langword="null"/> (or omits the <c>options</c> parameter entirely) -
     ///     opaque white (see <see cref="BackgroundColor"/>'s own default).

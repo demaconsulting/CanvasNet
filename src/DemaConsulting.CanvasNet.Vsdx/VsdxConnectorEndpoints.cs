@@ -18,8 +18,8 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///         <c>davehoward-test4-connectors.vsdx</c>'s page1.xml Shape ID='6'/'7') or
 ///         <c>PAR(PNT(Sheet.N!Connections.X«i»,Sheet.N!Connections.Y«i»))</c> (connection-point
 ///         glue, confirmed against <c>jgreywolfvsdxjs-connectors.vsdx</c>'s page1.xml Shape
-///         ID='42') - this unit deliberately never implements a formula evaluator (see
-///         <c>canvas-net-vsdx.md</c>'s Design Constraints) and instead reads the already-resolved
+///         ID='42') - this unit deliberately never implements a formula evaluator, and instead
+///         reads the already-resolved
 ///         <c>V</c> value directly, per the format reference's §7.2 glue-point resolution
 ///         algorithm: "even though these are 'formulas,' the pre-baked <c>V</c> values are already
 ///         the final glued page coordinates and a renderer again does not need a formula

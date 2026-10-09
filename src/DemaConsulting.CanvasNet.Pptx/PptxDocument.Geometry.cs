@@ -12,9 +12,7 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     Implements the <see cref="PptxDocument"/> DrawingML shape geometry resolvers (Phase 1c):
 ///     <c>&lt;a:xfrm&gt;</c> position/size/rotation/flip, <c>&lt;p:grpSp&gt;</c> child-transform
 ///     composition, <c>&lt;a:prstGeom&gt;</c> preset shapes (delegated to
-///     <see cref="PptxPresetGeometry"/>), and <c>&lt;a:custGeom&gt;</c> custom path geometry - see
-///     <c>pptx-document.md</c>'s "Geometry and Paint (Phase 1c)" design section for the full
-///     transform math and the exact supported/deferred preset-geometry boundary.
+///     <see cref="PptxPresetGeometry"/>), and <c>&lt;a:custGeom&gt;</c> custom path geometry.
 /// </summary>
 public sealed partial class PptxDocument
 {

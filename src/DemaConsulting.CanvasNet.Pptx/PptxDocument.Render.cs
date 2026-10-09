@@ -9,25 +9,20 @@ namespace DemaConsulting.CanvasNet.Pptx;
 // cspell:ignore xfrm grpsppr sppr pptx prst cust unrenderable patt
 
 /// <summary>
-///     Implements the <see cref="PptxDocument"/> public, slide-level rendering API (Phase 1f):
-///     walks a slide's full shape tree (<see cref="PptxSlide.ShapeTree"/>, produced by
-///     <see cref="ParseShapeTree"/>) in document order, threading an accumulating
+///     Implements the <see cref="PptxDocument"/> public, slide-level rendering API: walks a
+///     slide's full, internally-resolved shape tree in document order, threading an accumulating
 ///     <see cref="Matrix3x2"/> transform through nested <c>&lt;p:grpSp&gt;</c> groups, and
-///     dispatches each leaf node kind to the already-verified Phase 1c/1d/1e resolvers/painters -
-///     see <c>pptx-document.md</c>'s "Full Slide Rendering (Phase 1f)" design section for the
-///     full per-node-kind dispatch and the deferred-items list this phase leaves unimplemented.
-///     As of the Phase 2 Follow-Up background-fill hardening pass, also paints the slide's own
-///     (or, failing that, its layout's/master's) <c>&lt;p:bg&gt;</c> background fill before the
-///     shape-tree walk - see <see cref="ResolveSlideBackgroundFill"/>.
+///     dispatches each leaf node kind to the already-verified resolvers/painters. Also paints the
+///     slide's own (or, failing that, its layout's/master's) <c>&lt;p:bg&gt;</c> background fill
+///     before the shape-tree walk.
 /// </summary>
 public sealed partial class PptxDocument
 {
     /// <summary>
     ///     Renders the specified slide into a new <see cref="Surface"/> of the given dimensions,
-    ///     walking the slide's full shape tree (<see cref="PptxSlide.ShapeTree"/>) in document
+    ///     walking the slide's full shape tree in document
     ///     order and painting each recognized shape kind (see the <see cref="PptxDocument"/>
-    ///     class remarks for this phase's dispatch summary, and <c>pptx-document.md</c>'s "Full
-    ///     Slide Rendering (Phase 1f)" design section for the full algorithm).
+    ///     class remarks for this dispatch summary).
     /// </summary>
     /// <param name="slideIndex">The zero-based index of the slide to render.</param>
     /// <param name="width">The width of the rendered surface, in pixels.</param>
@@ -43,8 +38,7 @@ public sealed partial class PptxDocument
     ///     is first cleared to <paramref name="options"/>'s
     ///     <see cref="PptxRenderOptions.BackgroundColor"/> (opaque white by default); the slide's
     ///     own <c>&lt;p:cSld&gt;/&lt;p:bg&gt;</c> background fill (falling back to its layout's,
-    ///     then its master's, own <c>&lt;p:bg&gt;</c> - see
-    ///     <see cref="ResolveSlideBackgroundFill"/>) is then painted across the full slide, before
+    ///     then its master's, own <c>&lt;p:bg&gt;</c>) is then painted across the full slide, before
     ///     any shape is walked, so slide content continues to draw on top of it; when none of
     ///     slide/layout/master declare a <c>&lt;p:bg&gt;</c> at all, <paramref name="options"/>'s
     ///     <see cref="PptxRenderOptions.BackgroundColor"/> remains the only background a slide
@@ -64,20 +58,18 @@ public sealed partial class PptxDocument
     ///     <c>&lt;a:solidFill&gt;</c>/<c>&lt;a:gradFill&gt;</c>, <c>&lt;p:txBody&gt;</c>, a
     ///     <c>&lt;p:pic&gt;</c>'s embedded image relationship, or an <c>&lt;a:tbl&gt;</c>) is
     ///     malformed - propagated unchanged from the Phase 1b-1e resolvers this method dispatches
-    ///     to (see <see cref="GetSlide"/>/<see cref="ResolveShapeFrame"/>/
-    ///     <see cref="ResolveShapeGeometry"/>/<see cref="ResolvePictureSurface"/>/
-    ///     <see cref="ParseTextBody"/>) - including a <c>&lt;p:pic&gt;</c>'s own
+    ///     to - including a <c>&lt;p:pic&gt;</c>'s own
     ///     <c>&lt;a:prstGeom&gt;</c>/<c>&lt;a:custGeom&gt;</c> clip geometry, propagated unchanged
-    ///     from <see cref="ResolvePictureClipPath"/> exactly as it already propagates for an
+    ///     exactly as it already propagates for an
     ///     auto-shape's own geometry.
     /// </exception>
     /// <exception cref="PptxUnsupportedFeatureException">
     ///     Thrown when a shape declares a well-formed-but-unsupported DrawingML construct -
-    ///     propagated unchanged from <see cref="ResolveShapeGeometry"/> (an unsupported
-    ///     <c>&lt;a:prstGeom&gt;</c> preset), <see cref="ResolveFill"/> (a pattern fill or
-    ///     a radial/path gradient), <see cref="ResolvePictureSurface"/> (a linked, non-embedded
-    ///     image, or an unsupported raster image format), or <see cref="ResolvePictureClipPath"/>
-    ///     (a <c>&lt;p:pic&gt;</c>'s own unsupported <c>&lt;a:prstGeom&gt;</c> clip preset).
+    ///     propagated unchanged from the Phase 1b-1e resolvers this method dispatches to: an
+    ///     unsupported <c>&lt;a:prstGeom&gt;</c> preset (including on a <c>&lt;p:pic&gt;</c>'s own
+    ///     clip geometry), a pattern fill or a radial/path gradient, or
+    ///     an unsupported picture condition (a linked, non-embedded image, or an unsupported
+    ///     raster image format).
     /// </exception>
     /// <exception cref="ObjectDisposedException">Thrown when this document has been disposed.</exception>
     /// <remarks>
@@ -85,19 +77,16 @@ public sealed partial class PptxDocument
     ///         A shape (placeholder or freeform), picture, or graphic-frame whose fully-resolved
     ///         geometry element declares no <c>&lt;a:xfrm&gt;</c> anywhere in its own ancestry is
     ///         <strong>skipped silently</strong>, not treated as an error - a position-less shape
-    ///         is a genuinely unrenderable (not malformed) construct this phase tolerates, mirroring
-    ///         <see cref="ParseShapeTree"/>'s own established "tolerant tree walk" precedent.
+    ///         is a genuinely unrenderable (not malformed) construct this tolerates, mirroring
+    ///         the shape-tree walk's own established "tolerant tree walk" precedent.
     ///     </para>
     ///     <para>
     ///         A nested table, table auto-sizing/banding, group-level style cascading, and picture
-    ///         effects/shadows are not rendered this phase - see <c>pptx-document.md</c>'s "Full Slide
-    ///         Rendering (Phase 1f)" design section for the complete deferred-items list, its "Phase 2
-    ///         Follow-Up: Slide/Layout/Master Background Fill (&lt;p:bg&gt;)" section for the
-    ///         background-fill fidelity achieved (solid and theme-indexed <c>&lt;p:bgRef&gt;</c>
-    ///         fills: full; linear gradient: best-effort; picture background fill: full; pattern
-    ///         background fill: full for a covered preset subset, since <c>ResolveFill</c> is
-    ///         shared across every fill context), and its "Phase 2 Follow-Up: Connector Shape Rendering (&lt;p:cxnSp&gt;)"
-    ///         section for the connector-line rendering since added.
+    ///         effects/shadows are not rendered this phase. Background-fill fidelity is: solid and
+    ///         theme-indexed <c>&lt;p:bgRef&gt;</c> fills, full; linear gradient, best-effort;
+    ///         picture background fill, full; pattern background fill, full for a covered preset
+    ///         subset, since <c>ResolveFill</c> is shared across every fill context. Connector
+    ///         (<c>&lt;p:cxnSp&gt;</c>) line rendering is also supported.
     ///     </para>
     /// </remarks>
     public Surface Render(int slideIndex, int width, int height, PptxRenderOptions? options = null)
@@ -335,8 +324,7 @@ public sealed partial class PptxDocument
     ///     thrown while painting a single master/layout shape (including one nested inside a
     ///     group) is caught and only that one shape is skipped, so one already-deferred, well-
     ///     formed-but-unsupported decorative shape (for example an EMF picture) cannot abort the
-    ///     rest of the slide's rendering - see <c>pptx-document.md</c>'s "Phase 2 Follow-Up:
-    ///     Master/Layout Decorative Shape Rendering" section. A slide's own shape
+    ///     rest of the slide's rendering. A slide's own shape
     ///     (<see langword="false"/>) is never caught here and continues to hard-fail
     ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/> exactly as before this
     ///     containment was added.

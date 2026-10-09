@@ -14,9 +14,7 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     (<c>&lt;a:noFill&gt;</c>/<c>&lt;a:solidFill&gt;</c>/<c>&lt;a:gradFill&gt;</c>), color
 ///     (<c>&lt;a:srgbClr&gt;</c>/<c>&lt;a:sysClr&gt;</c>/<c>&lt;a:schemeClr&gt;</c> plus the
 ///     <c>lumMod</c>/<c>lumOff</c>/<c>shade</c>/<c>tint</c>/<c>alpha</c> color-transform chain),
-///     and line/stroke resolution (<c>&lt;a:ln&gt;</c>) - see <c>pptx-document.md</c>'s "Geometry
-///     and Paint (Phase 1c)" design section for the full color-transform math and the
-///     supported/deferred fill-kind boundary.
+///     and line/stroke resolution (<c>&lt;a:ln&gt;</c>).
 /// </summary>
 public sealed partial class PptxDocument
 {

@@ -8,11 +8,9 @@ namespace DemaConsulting.CanvasNet.Pptx;
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> DrawingML text-body/paragraph/run parser (Phase
 ///     1d): <c>&lt;p:txBody&gt;</c>/<c>&lt;a:bodyPr&gt;</c>/<c>&lt;a:p&gt;</c>/<c>&lt;a:pPr&gt;</c>/
-///     <c>&lt;a:r&gt;</c>/<c>&lt;a:rPr&gt;</c>/<c>&lt;a:t&gt;</c> - see
-///     <c>pptx-document.md</c>'s "Text Layout and Rendering (Phase 1d)" design section for the
-///     full structural parsing boundary, and <c>PptxDocument.TextInheritance.cs</c> for how the
-///     raw, unresolved properties this parser extracts are later resolved against the
-///     placeholder/layout/master/theme inheritance chain.
+///     <c>&lt;a:r&gt;</c>/<c>&lt;a:rPr&gt;</c>/<c>&lt;a:t&gt;</c> structural parsing; see
+///     <c>PptxDocument.TextInheritance.cs</c> for how the raw, unresolved properties this parser
+///     extracts are later resolved against the placeholder/layout/master/theme inheritance chain.
 /// </summary>
 public sealed partial class PptxDocument
 {

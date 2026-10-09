@@ -36,7 +36,7 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 /// </summary>
 public sealed partial class VsdxDocument
 {
-    /// <summary>The neutral stroke color substituted when no literal <c>LineColor</c> can be resolved anywhere in the chain (should not occur for a well-formed document, since the built-in "No Style" StyleSheet, ID <c>0</c>, always supplies one, but guarded defensively per <c>canvas-net-vsdx.md</c>'s "never throwing" design constraint).</summary>
+    /// <summary>The neutral stroke color substituted when no literal <c>LineColor</c> can be resolved anywhere in the chain (should not occur for a well-formed document, since the built-in "No Style" StyleSheet, ID <c>0</c>, always supplies one, but guarded defensively consistent with this package's "never throwing" design convention).</summary>
     private static readonly Rgba32 DefaultStrokeColor = new(0, 0, 0, 255);
 
     /// <summary>The neutral fill color substituted when no literal <c>FillForegnd</c> can be resolved anywhere in the chain.</summary>
@@ -100,7 +100,7 @@ public sealed partial class VsdxDocument
     ///     opaque, <c>1</c> fully transparent) and clamped to <c>[0, 1]</c> - defaulting to
     ///     <c>0</c> (fully opaque, this method's previous behavior before this cell was consulted
     ///     at all) when <paramref name="transRaw"/> is <see langword="null"/>, empty, or
-    ///     unparseable, per <c>canvas-net-vsdx.md</c>'s "never throw" design constraint. Confirmed
+    ///     unparseable, consistent with this package's "never throw" design convention. Confirmed
     ///     necessary against <c>60973.vsdx</c>'s "Virtual Devices" container shape, whose Master
     ///     resolves literal <c>FillForegndTrans="0.4"</c>/<c>LineColorTrans="0.4"</c> cells (40%
     ///     transparency) that, unconsulted, left the container's fill fully opaque - visually

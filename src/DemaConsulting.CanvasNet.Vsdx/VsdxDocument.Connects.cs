@@ -29,8 +29,8 @@ public sealed partial class VsdxDocument
     ///     Parses every direct <c>&lt;Connect&gt;</c> child of <paramref name="connectsElement"/>
     ///     into a <see cref="VsdxConnect"/>, tolerantly skipping (never throwing for) any entry
     ///     missing a required <c>FromSheet</c>/<c>ToSheet</c>/<c>ToCell</c> attribute - a
-    ///     malformed, well-formed-XML-but-out-of-scope construct, per
-    ///     <c>canvas-net-vsdx.md</c>'s Risk Control Measures.
+    ///     malformed, well-formed-XML-but-out-of-scope construct that this package tolerates
+    ///     rather than treats as fatal.
     /// </summary>
     /// <param name="connectsElement">The page's <c>&lt;Connects&gt;</c> element, or <see langword="null"/> when the page declares no such element (confirmed optional/page-dependent by the format reference's §13 inventory: <c>FlowchartShapes.vsdx</c>'s own page1 has no <c>&lt;Connects&gt;</c> section at all).</param>
     /// <returns>The parsed <see cref="VsdxConnect"/> entries, in document order. Empty when <paramref name="connectsElement"/> is <see langword="null"/> or declares no <c>&lt;Connect&gt;</c> children.</returns>

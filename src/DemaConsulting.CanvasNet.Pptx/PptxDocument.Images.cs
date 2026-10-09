@@ -16,9 +16,8 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///     (Phase 1e): decoding a <c>&lt;p:pic&gt;</c>'s <c>&lt;p:blipFill&gt;</c> into a core
 ///     <see cref="Surface"/> (<see cref="ResolvePictureSurface"/>), resolving its optional
 ///     <c>&lt;a:srcRect&gt;</c> crop (<see cref="ResolveSrcRect"/>), and compositing the decoded
-///     image onto a destination <see cref="Surface"/> (<see cref="PaintPicture"/>) - see
-///     <c>pptx-document.md</c>'s "Images (Phase 1e)" design section for the full dispatch and
-///     compositing rationale. <see cref="ResolvePictureSurface"/> is reused, unchanged, by
+///     image onto a destination <see cref="Surface"/> (<see cref="PaintPicture"/>).
+///     <see cref="ResolvePictureSurface"/> is reused, unchanged, by
 ///     <c>PptxDocument.Paint.cs</c>'s <see cref="ResolveFill"/> to decode an ordinary shape's own
 ///     <em>background</em> picture fill (<c>&lt;p:spPr&gt;/&lt;a:blipFill&gt;</c>) too - see this
 ///     file's own <see cref="ResolveImageFillTransform"/>, which resolves that fill-context
@@ -480,9 +479,7 @@ public sealed partial class PptxDocument
     ///     heightEmu)</c> coordinate space, reusing the exact same preset/custom-geometry dispatch
     ///     <see cref="ResolveShapeGeometry"/> already uses for an ordinary auto-shape
     ///     (<see cref="PptxPresetGeometry.Build"/>/<see cref="ResolveCustomGeometry"/>) - this is a
-    ///     thin, picture-specific wrapper around that identical dispatch, not a reimplementation
-    ///     (see <c>pptx-document.md</c>'s "Phase 2 Follow-Up: Picture Preset-Geometry Clipping"
-    ///     design section).
+    ///     thin, picture-specific wrapper around that identical dispatch, not a reimplementation.
     /// </summary>
     /// <param name="spPrElement">The picture's own <c>&lt;p:spPr&gt;</c> element.</param>
     /// <param name="widthEmu">The picture's own declared width, in EMU (<see cref="PptxShapeFrame.WidthEmu"/>).</param>
@@ -549,8 +546,7 @@ public sealed partial class PptxDocument
     ///     <see cref="ResolveShapeGeometry"/> - so this method always returns a real path, reusing
     ///     the identical preset/custom-geometry dispatch (<see cref="PptxPresetGeometry.Build"/>/
     ///     <see cref="ResolveCustomGeometry"/>) <see cref="ResolvePictureClipPath"/> itself already
-    ///     reuses, rather than reimplementing it (see <c>pptx-document.md</c>'s "Phase 2 Follow-Up:
-    ///     Picture Own-Stroke Outline Rendering" design section).
+    ///     reuses, rather than reimplementing it.
     /// </summary>
     /// <param name="spPrElement">The picture's own <c>&lt;p:spPr&gt;</c> element.</param>
     /// <param name="widthEmu">The picture's own declared width, in EMU (<see cref="PptxShapeFrame.WidthEmu"/>).</param>
@@ -643,9 +639,7 @@ public sealed partial class PptxDocument
     ///     this codebase already uses, rather than inventing a new clip primitive); each sampled
     ///     source pixel's own alpha channel is then scaled by that mask pixel's alpha (<c>0</c>
     ///     outside the clip geometry, <c>255</c> fully inside it, an anti-aliased in-between value
-    ///     exactly on its edge) before compositing via <see cref="Rgba32.CompositeOver"/> - see
-    ///     <c>pptx-document.md</c>'s "Phase 2 Follow-Up: Picture Preset-Geometry Clipping" design
-    ///     section for the full rationale.
+    ///     exactly on its edge) before compositing via <see cref="Rgba32.CompositeOver"/>.
     /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="surface"/> or <paramref name="image"/> is null.</exception>
     /// <remarks>

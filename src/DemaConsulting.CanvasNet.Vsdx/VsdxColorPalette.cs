@@ -82,8 +82,8 @@ internal static class VsdxColorPalette
     ///     bare <c>THEMEVAL()</c>, or a Visio-internal QuickStyle role-name argument rather than a
     ///     canonical clrScheme slot - overwhelmingly the common real-fixture case). Rather than
     ///     throwing (as the originating Milestone-4 plan report's Assumption #1 had proposed),
-    ///     this falls back to a neutral mid-gray, per <c>canvas-net-vsdx.md</c>'s Risk Control
-    ///     Measures language that an unresolved/unsupported color construct "falls back to a
+    ///     this falls back to a neutral mid-gray, consistent with this package's own convention
+    ///     that an unresolved/unsupported color construct "falls back to a
     ///     neutral color" rather than failing the whole parse. This is a deliberate,
     ///     evidence-based deviation from that earlier plan:
     ///     direct inspection of <c>davehoward-test12-colors.vsdx</c>'s <c>visio/document.xml</c>

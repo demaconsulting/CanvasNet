@@ -41,7 +41,7 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         custom (<c>&lt;a:custGeom&gt;</c>) geometry resolution into the core
 ///         <see cref="Geometry.Path"/> type, and fill/stroke resolution into core
 ///         <c>DemaConsulting.CanvasNet.Drawing</c>/<c>DemaConsulting.CanvasNet.Canvas</c> paint
-///         types - see <c>pptx-document.md</c>'s "Geometry and Paint (Phase 1c)" design section.
+///         types.
 ///         Freeform (non-placeholder) shape *enumeration* from a slide's full <c>&lt;p:spTree&gt;</c>,
 ///         font loading, and a rendering surface still do not exist yet - all deferred to a later
 ///         phase.
@@ -56,8 +56,7 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         placeholder/layout/master <c>&lt;p:txStyles&gt;</c>/theme chain; word-wrap,
 ///         horizontal alignment, vertical anchor, and a three-tier autofit policy; and a
 ///         glyph-ink painting primitive reusing the core <see cref="Fonts.TrueTypeFont"/>/
-///         <see cref="Fonts.SystemFontCatalog"/> infrastructure - see <c>pptx-document.md</c>'s
-///         "Text Layout and Rendering (Phase 1d)" design section. Bullets/numbering, full text
+///         <see cref="Fonts.SystemFontCatalog"/> infrastructure. Bullets/numbering, full text
 ///         justification, <c>spAutoFit</c> shape-resize behavior, kerning, and text clipping on
 ///         overflow are explicitly deferred.
 ///     </para>
@@ -70,10 +69,10 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         cell fill/border/text painting), and recursive, full shape-tree parsing
 ///         (<c>PptxDocument.ShapeTree.cs</c>) across a slide's own <c>&lt;p:sp&gt;</c>/
 ///         <c>&lt;p:pic&gt;</c>/<c>&lt;p:graphicFrame&gt;</c>/<c>&lt;p:grpSp&gt;</c> elements
-///         (including nested <c>&lt;p:grpSp&gt;</c> child-transform composition), exposed as
-///         <see cref="PptxSlide.ShapeTree"/>, with lazy, invoke-on-demand theme resolution so a
-///         shape tree with no <c>&lt;p:graphicFrame&gt;</c> never resolves a theme at all - see
-///         <c>pptx-document.md</c>'s "Images, Tables, and Shape Tree (Phase 1e)" design section.
+///         (including nested <c>&lt;p:grpSp&gt;</c> child-transform composition), exposed
+///         internally as each slide's own shape tree, with lazy, invoke-on-demand theme
+///         resolution so a
+///         shape tree with no <c>&lt;p:graphicFrame&gt;</c> never resolves a theme at all.
 ///         A non-placeholder shape's own background fill via <c>&lt;a:blipFill&gt;</c>/
 ///         <c>&lt;a:pattFill&gt;</c> inside <c>&lt;p:spPr&gt;</c>, picture effects/shadows, nested
 ///         tables, table auto-sizing/banding, master/layout full shape-tree enumeration, and a
@@ -83,15 +82,14 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         <strong>Phase 1f (this release)</strong> adds the public, slide-level
 ///         <see cref="Render(int, int, int, PptxRenderOptions?)"/>/
 ///         <see cref="Render(int, float, PptxRenderOptions?)"/> rendering API
-///         (<c>PptxDocument.Render.cs</c>): a recursive, document-order walk of a slide's full
-///         <see cref="PptxSlide.ShapeTree"/>, composing nested group transforms and dispatching
+///         (<c>PptxDocument.Render.cs</c>): a recursive, document-order walk of a slide's full,
+///         internally-resolved shape tree, composing nested group transforms and dispatching
 ///         each shape/picture/table node to the already-verified Phase 1c/1d/1e resolvers and
-///         painters onto a <see cref="Canvas.Surface"/> of the requested pixel dimensions - see
-///         <c>pptx-document.md</c>'s "Full Slide Rendering (Phase 1f)" design section for the
-///         full per-node-kind dispatch and this phase's documented deferred items (a slide's own
+///         painters onto a <see cref="Canvas.Surface"/> of the requested pixel dimensions. This
+///         phase's documented deferred items include a slide's own
 ///         <c>&lt;p:bg&gt;</c> background fill, <c>&lt;p:cxnSp&gt;</c> connector shapes, nested
 ///         tables, table auto-sizing/banding, group-level style cascading beyond transform
-///         composition, and master/layout full shape-tree rendering). With this phase, the
+///         composition, and master/layout full shape-tree rendering. With this phase, the
 ///         planned PPTX 1.0 feature set is complete; any remaining gaps are candidates for a
 ///         future, corpus-driven hardening pass (<c>pptx-phase-2</c>), not a currently planned
 ///         phase.
@@ -110,9 +108,7 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         best-effort (inheriting Phase 1c's existing linear-only, non-radial/path gradient
 ///         boundary); a pattern or picture background fill remains deferred (inheriting
 ///         <see cref="ResolveFill"/>'s existing <see cref="PptxUnsupportedFeatureException"/>
-///         boundary unchanged) - see <c>pptx-document.md</c>'s "Phase 2 Follow-Up: Slide/Layout/
-///         Master Background Fill (&lt;p:bg&gt;)" design section for the full algorithm and
-///         fidelity boundary.
+///         boundary unchanged).
 ///     </para>
 ///     <para>
 ///         <strong>Phase 2 Follow-Up: Bullets and Numbering Rendering</strong> closes the gap left
@@ -126,9 +122,7 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         the eleven most common Latin-numeral auto-number schemes
 ///         (<c>PptxDocument.Bullets.cs</c>'s <see cref="FormatAutoNumber"/>), and measured and
 ///         painted at the paragraph's own gutter without ever overlapping its text
-///         (<c>PptxDocument.TextLayout.cs</c>) - see <c>pptx-document.md</c>'s "Phase 2 Follow-Up:
-///         Bullets and Numbering Rendering" design section for the full algorithm and fidelity
-///         boundary.
+///         (<c>PptxDocument.TextLayout.cs</c>).
 ///     </para>
 ///     <para>
 ///         <strong>Phase 2 Follow-Up: Connector Shape Rendering</strong> closes the gap left by
@@ -139,10 +133,8 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         straight/elbow/curved line - merging its own line style with its style-reference
 ///         fallback, and orienting an optional stroked or filled arrowhead at either end
 ///         (<c>PptxDocument.Connectors.cs</c>/<c>PptxDocument.Render.cs</c>'s
-///         <c>RenderConnector</c>) - see <c>pptx-document.md</c>'s "Phase 2 Follow-Up: Connector
-///         Shape Rendering (&lt;p:cxnSp&gt;)" design section for the full algorithm and fidelity
-///         boundary (an unrecognized connector preset degrades to "this one connector is
-///         invisible" rather than aborting the slide).
+///         <c>RenderConnector</c>), with an unrecognized connector preset degrading to "this one
+///         connector is invisible" rather than aborting the slide.
 ///     </para>
 ///     <para>
 ///         <strong>Thread safety</strong>: a <see cref="PptxDocument"/> instance is <em>not</em>
@@ -186,9 +178,9 @@ public sealed partial class PptxDocument : IDisposable
     ///     non-writable <see cref="_stream"/> for the lifetime of this instance.
     /// </param>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown when <paramref name="buffer"/> is not a readable ZIP archive, or when the
+    ///     Thrown when <paramref name="buffer"/> is not a readable ZIP archive, when the
     ///     package is missing the required <c>[Content_Types].xml</c> or <c>_rels/.rels</c>
-    ///     parts.
+    ///     parts, or when any required part's XML is malformed.
     /// </exception>
     private PptxDocument(byte[] buffer)
     {
@@ -246,8 +238,11 @@ public sealed partial class PptxDocument : IDisposable
     /// <returns>A new <see cref="PptxDocument"/> instance representing the parsed package.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown when the package cannot be parsed - see the private constructor's remarks for
-    ///     the exact conditions - or when <paramref name="stream"/> supplies more than
+    ///     Thrown when the package cannot be parsed - because it is not a valid ZIP/OPC archive,
+    ///     is missing a required part (<c>[Content_Types].xml</c>, <c>_rels/.rels</c>, or the
+    ///     <c>ppt/presentation.xml</c> part itself), a required part's XML is malformed, or the
+    ///     presentation declares no slide size (<c>&lt;p:sldSz&gt;</c>) or no slides
+    ///     (<c>&lt;p:sldIdLst&gt;</c>) - or when <paramref name="stream"/> supplies more than
     ///     <see cref="MaxPackageBytes"/> bytes (see <see cref="MaxPackageBytes"/>'s own remarks
     ///     for the bound's rationale).
     /// </exception>
