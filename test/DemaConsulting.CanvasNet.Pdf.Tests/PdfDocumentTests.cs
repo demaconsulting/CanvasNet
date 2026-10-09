@@ -5104,6 +5104,53 @@ public class PdfDocumentTests
         Assert.Equal(default, surface[10, 44]);
     }
 
+    /// <summary>
+    ///     Proves that a pending <c>W</c> clip survives a tiling-pattern fill of the very same
+    ///     path: the pattern cell's own nested content-stream execution (which paints its own
+    ///     path(s) via a recursive internal <c>PaintCurrentPath</c> call) must not consume/clear
+    ///     the outer, still-pending clip - a later, unrelated full-page fill issued after the
+    ///     pattern-filled path remains restricted to the clip rectangle.
+    /// </summary>
+    /// <remarks>
+    ///     Regression test: before isolating <c>_pendingClipFillRule</c> per nested content-stream
+    ///     execution, the tile cell's own first path-painting operator would read and clear the
+    ///     outer's still-pending clip flag (both nested and outer execution shared the same field)
+    ///     and install it onto the tile's own throwaway graphics state instead - which is then
+    ///     discarded when the nested execution returns - silently losing the outer clip.
+    /// </remarks>
+    [Fact]
+    public void PdfDocument_Clipping_PendingClipSurvivesTilingPatternFillOfSamePath_RestrictsLaterFill()
+    {
+        // Arrange: a colored tiling pattern whose own cell content paints a solid fill (its own
+        // path-painting operator, with no W of its own). The outer path is both marked as the
+        // pending clip (W) and painted with that pattern (scn + f) in the same painting step -
+        // exactly per PDF 32000-1 §8.5.4's "next painting operator" pairing. A second, unrelated
+        // full-page fill issued afterward should then be restricted to the clip rectangle pdf
+        // (10,10)-(90,90) -> device x [10, 90], device y [10, 90] (y flipped: 100 - pdfY).
+        var cellContent = "1 0 0 rg 0 0 10 10 re f";
+        var patternStream = BuildStreamObjectBody(
+            "/PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 10 10] /XStep 10 /YStep 10",
+            System.Text.Encoding.ASCII.GetBytes(cellContent));
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "10 10 80 80 re W /Pattern cs /P1 scn f 0 g 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: inside the clip rectangle, the second (unrelated) full-page fill's black
+        // overwrites the pattern tile's own red.
+        Assert.Equal(Black, surface[50, 50]);
+
+        // Assert: outside the clip rectangle, the second full-page fill is suppressed - the clip
+        // installed by the pending W survived the pattern-fill painting operator that consumed
+        // it, rather than being silently lost to the pattern cell's own nested execution.
+        Assert.Equal(default, surface[95, 5]);
+    }
+
     #endregion
 
     #region Color

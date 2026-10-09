@@ -644,6 +644,38 @@ public class DashSplitterTests
     }
 
     /// <summary>
+    ///     Regression test proving that when the phase lands exactly on a run of
+    ///     <em>multiple</em> consecutive zero-length "on" entries, every one of them is observed -
+    ///     not just the single dot the previous fix (<see cref="DashSplitter_Split_DashDotPatternWithLeadingZeroLengthOnEntry_EmitsLeadingDot"/>)
+    ///     surfaced via a boolean "was at least one skipped" flag.
+    /// </summary>
+    /// <remarks>
+    ///     With dash pattern <c>[0, 0, 0, 2]</c> (dot=0, gap=0, dot=0, gap=2; pattern length 2)
+    ///     over a 2-unit path (exactly one full repetition) and the default zero dash offset,
+    ///     <c>LocatePhase</c>'s boundary walk skips over <em>two</em> zero-length "on" entries
+    ///     (pattern indices 0 and 2) before settling on index 3 (the 2-unit gap) as the entry in
+    ///     effect. Both skipped entries are real, distinct dots at path position zero - counting
+    ///     (rather than merely flagging) the skipped "on" entries is required to surface both.
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_Split_DashDotPatternWithMultipleLeadingZeroLengthOnEntries_EmitsEveryLeadingDot()
+    {
+        // Arrange: a 2-unit horizontal path with a [0, 0, 0, 2] dash-dot pattern (1 full cycle).
+        var points = new List<Vector2> { new(0, 0), new(2, 0) };
+
+        // Act
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [0f, 0f, 0f, 2f], dashOffset: 0f);
+
+        // Assert: both zero-length "on" entries (pattern indices 0 and 2) emit their own
+        // single-point dot at x=0, rather than only one of them being surfaced.
+        Assert.Multiple(
+            () => Assert.Equal(2, segments.Count),
+            () => Assert.Equal([new Vector2(0, 0)], segments[0].Points),
+            () => Assert.Equal([new Vector2(0, 0)], segments[1].Points),
+            () => Assert.All(segments, segment => Assert.False(segment.IsClosed)));
+    }
+
+    /// <summary>
     ///     Regression test proving that a zero-length "off" (gap) entry remains invisible - the
     ///     fix only changes zero-length "on" entries; zero-length off entries must keep
     ///     contributing no extra interval and no gap.

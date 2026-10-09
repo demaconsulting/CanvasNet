@@ -109,10 +109,11 @@ public sealed partial class PdfDocument
     ///         touch the invoking stream's own saved states - see <see cref="OpPopGraphicsState"/>'s
     ///         own documented leniency toward a bare <c>Q</c>). Once the nested execution returns
     ///         (successfully or via a thrown exception), the invoking stream's own
-    ///         <see cref="_resources"/>, graphics state, and graphics-state stack are restored
-    ///         exactly as they were before this method ran - mutations made inside the Form (CTM,
-    ///         colors, font selection, etc.) never leak back out, matching an implicit <c>q</c>
-    ///         ... <c>Q</c> bracketing. Path-construction state (<see cref="_pathBuilder"/>,
+    ///         <see cref="_resources"/>, graphics state, graphics-state stack, and pending clip
+    ///         fill rule (<see cref="_pendingClipFillRule"/>) are restored exactly as they were
+    ///         before this method ran - mutations made inside the Form (CTM, colors, font
+    ///         selection, an unconsumed <c>W</c>/<c>W*</c>, etc.) never leak back out, matching an
+    ///         implicit <c>q</c> ... <c>Q</c> bracketing. Path-construction state (<see cref="_pathBuilder"/>,
     ///         <see cref="_currentPoint"/>, etc.) and <see cref="_fontCache"/> are deliberately
     ///         <em>not</em> saved/restored: they are not part of the PDF graphics-state stack, and
     ///         any path-painting/surface side effects performed by the Form's content must persist
@@ -148,6 +149,7 @@ public sealed partial class PdfDocument
         var savedResources = _resources;
         var savedGs = _gs;
         var savedGsStack = _gsStack;
+        var savedPendingClipFillRule = _pendingClipFillRule;
         _formNestingDepth++;
         try
         {
@@ -156,6 +158,7 @@ public sealed partial class PdfDocument
             nestedGs.CurrentTransform = formMatrix * savedGs.CurrentTransform;
             _gs = nestedGs;
             _gsStack = new Stack<GraphicsState>();
+            _pendingClipFillRule = null;
             ExecuteOperators(contentBytes);
         }
         finally
@@ -164,6 +167,7 @@ public sealed partial class PdfDocument
             _resources = savedResources;
             _gs = savedGs;
             _gsStack = savedGsStack;
+            _pendingClipFillRule = savedPendingClipFillRule;
         }
     }
 

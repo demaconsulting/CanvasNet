@@ -366,6 +366,31 @@ public class PptxTextTests
         Assert.Equal("1/1/2024", fieldRun.Run.Text);
     }
 
+    /// <summary>
+    ///     Proves an <c>&lt;a:fld type=""&gt;</c> field (an empty, present <c>type</c> attribute)
+    ///     normalizes to a <see langword="null"/> <see cref="PptxRunItem.FieldType"/> - matching
+    ///     its documented contract - rather than storing <see cref="string.Empty"/>, which would
+    ///     let an unpopulated field type be mistaken for a real one by callers that merely check
+    ///     for non-null (e.g. a future field type added without updating every comparison site).
+    /// </summary>
+    [Fact]
+    public void ParseParagraph_FieldRunWithEmptyTypeAttribute_FieldTypeIsNormalizedToNull()
+    {
+        var p = new XElement(
+            DrawingNs + "p",
+            new XElement(
+                DrawingNs + "fld",
+                new XAttribute("id", "{12345678-1234-1234-1234-123456789012}"),
+                new XAttribute("type", string.Empty),
+                new XElement(DrawingNs + "t", "placeholder")));
+
+        var result = PptxDocument.ParseParagraph(p);
+
+        var fieldRun = Assert.IsType<PptxRunItem>(Assert.Single(result.Items));
+        Assert.Null(fieldRun.FieldType);
+        Assert.Equal("placeholder", fieldRun.Run.Text);
+    }
+
     /// <summary>Proves a plain <c>&lt;a:r&gt;</c> run (not an <c>&lt;a:fld&gt;</c>) parses with a <see langword="null"/> <see cref="PptxRunItem.FieldType"/>.</summary>
     [Fact]
     public void ParseParagraph_PlainRun_FieldTypeIsNull()

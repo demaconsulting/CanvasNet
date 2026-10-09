@@ -151,9 +151,12 @@ public sealed partial class PptxDocument
                 // shape as <a:r>, but its <a:t> holds PowerPoint's last-computed cached field
                 // value rather than literal authored text, and its own type attribute (captured
                 // here as FieldType) identifies which field it is - consulted later by
-                // SubstituteSlideNumberField to recognize and replace only "slidenum" fields.
+                // SubstituteSlideNumberField to recognize and replace only "slidenum" fields. An
+                // absent or empty type attribute is normalized to null, matching FieldType's own
+                // documented contract (an empty attribute must not be mistaken for a populated
+                // field type).
                 var fieldType = (string?)child.Attribute("type");
-                items.Add(new PptxRunItem(ParseRun(child), fieldType));
+                items.Add(new PptxRunItem(ParseRun(child), string.IsNullOrEmpty(fieldType) ? null : fieldType));
             }
             else if (child.Name == DrawingNamespace + "br")
             {
