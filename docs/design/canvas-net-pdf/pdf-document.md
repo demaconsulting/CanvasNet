@@ -1305,7 +1305,8 @@ its own distinguishable `Feature` token.
   either color field.
 - **Shading patterns (`PdfDocument.Patterns.cs`/`PdfDocument.Patterns.Shading.cs`, added
   alongside `/Pattern` color-space support)** — a `/PatternType 2` dictionary's `/Shading`
-  resolves `/ShadingType 2` (axial) or `3` (radial); any other `/ShadingType` throws
+  resolves `/ShadingType 2` (axial), `3` (radial) or `4`-`7` (mesh, see _Mesh shadings_ below);
+  any other `/ShadingType` throws
   `Codecs.UnsupportedImageFeatureException` (feature `pdf-shading-type-{n}`). `/ColorSpace` must
   resolve to `DeviceGray`/`DeviceRGB`/`DeviceCMYK` (else feature
   `pdf-shading-colorspace-{family}`); `/Function` accepts either a single function or an array of
@@ -1386,9 +1387,31 @@ its own distinguishable `Feature` token.
   `Drawing/TilePaint.cs`/`Drawing/TilePaintEvaluator.cs`), sampled nearest-neighbor per destination
   pixel by `Drawing.PathFiller`'s new `TilePaint` fill overload, mirroring the existing `Gradient`
   overload's structure exactly.
-- **Scope boundaries (deliberately not implemented this phase)** — `ShadingType` `1`/`4`-`7`
-  (function-based and mesh shadings) and `/FunctionType 4` (PostScript calculator functions)
-  remain unsupported/unchanged, now reachable through two paths — `scn`/`SCN` + `/Pattern` and
+- **Mesh shadings (`PdfDocument.Patterns.Shading.Mesh.cs`, `/ShadingType` 4-7)** — `ResolveMeshShading`
+  requires the shading to be a stream and validates `/BitsPerCoordinate` (1/2/4/8/12/16/24/32),
+  `/BitsPerComponent` (1/2/4/8/12/16), `/BitsPerFlag` (2/4/8; not used by type 5), `/Decode`
+  (4 + 2n finite entries) and `/VerticesPerRow` (type 5, at least 2), plus an optional `/Function`
+  (one parametric component, sampled into a 256-entry lookup table across the `/Decode` t range;
+  `/FunctionType 4` stays unsupported) and `/Background`. Type 4 reads free-form triangles
+  (flag 0 starts a triangle, 1 reuses the previous edge vb-vc, 2 reuses va-vc); type 5 reads a lattice
+  of `/VerticesPerRow` columns; types 6/7 read Coons/tensor patches whose 12/16 control points
+  are mapped into a 4x4 net, with flags 1-3 inheriting the previous patch's edge and two corner
+  colors (types 6 derives the four interior points from the Coons formula). **Every type 4/5 vertex
+  and every patch starts on a byte boundary** (the alignment the Poppler and PDFium renderers use).
+  Patches are
+  evaluated as bicubic Bezier surfaces tessellated at a fixed 16x16 subdivision (a deliberate
+  choice balancing cost and smoothness), triangles are rasterized with barycentric interpolation,
+  no anti-aliasing and pixel-centre sampling, into an offscreen bitmap painted through the
+  pattern's fill/stroke path or the `sh` clip/`/BBox` region. Colors are interpolated in RGB
+  even for `DeviceCMYK` (a documented approximation). `/Background` paints beneath the mesh for
+  pattern use only (not for `sh`). Malformed data (missing/illegal entries, truncated records,
+  bad flags, bad lattice) throws `InvalidDataException`; unsupported color spaces/functions and DoS
+  limits (1,048,576 vertices, 65,536 patches, 2^28 raster-work units) throw
+  `Codecs.UnsupportedImageFeatureException` (`pdf-shading-mesh-too-many-vertices`/
+  `-too-many-patches`/`-too-complex`).
+- **Scope boundaries (deliberately not implemented this phase)** — `ShadingType` `1`
+  (function-based shadings) and `/FunctionType 4` (PostScript calculator functions)
+  remain unsupported/unchanged, reachable through two paths — `scn`/`SCN` + `/Pattern` and
   `sh` — both throwing the identical `Codecs.UnsupportedImageFeatureException` (shared code, not
   a reimplementation); a `/Pattern` color space nested inside another `/Pattern`'s own `PatternBase` is out of scope (the
   `ComponentCount` arm for `Family.Pattern` throws `InvalidOperationException` as a fail-closed

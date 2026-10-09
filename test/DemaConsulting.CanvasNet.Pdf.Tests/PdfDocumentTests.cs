@@ -11061,10 +11061,11 @@ public class PdfDocumentTests
         Assert.InRange(surface[97, 50].R, 185, 215);
     }
 
-    /// <summary>Proves that an unsupported <c>/ShadingType</c> (<c>1</c> or <c>4</c>) throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-shading-type-{n}</c>.</summary>
+    /// <summary>Proves that an unsupported <c>/ShadingType</c> (<c>0</c>, <c>1</c> or <c>8</c>) throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-shading-type-{n}</c>.</summary>
     [Theory]
+    [InlineData(0)]
     [InlineData(1)]
-    [InlineData(4)]
+    [InlineData(8)]
     public void PdfDocument_Patterns_ShadingPattern_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException(int shadingType)
     {
         // Arrange: 5 = patternDict, 6 = shadingDict.
@@ -11428,8 +11429,9 @@ public class PdfDocumentTests
     ///     category.
     /// </summary>
     [Theory]
+    [InlineData(0)]
     [InlineData(1)]
-    [InlineData(4)]
+    [InlineData(8)]
     public void PdfDocument_ShadingOperator_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException(int shadingType)
     {
         // Arrange: 5 = shadingDict.

@@ -1686,13 +1686,14 @@ sections:
           - id: CanvasNetPdf-PdfDocument-ShadingPatternFill
             title: >-
               The PdfDocument class shall fill or stroke a path using a /PatternType 2 (shading)
-              pattern whose /ShadingType is 2 (axial) or 3 (radial), sampling the shading's
+              pattern whose /ShadingType is 2 (axial) or 3 (radial) (mesh types 4-7 are covered by
+              CanvasNetPdf-PdfDocument-MeshShadingFill), sampling the shading's
               /Function (or array of 1-output-component functions) at evenly spaced points across
               /Domain, converting each sample through the shading's own /ColorSpace (restricted to
               DeviceGray/DeviceRGB/DeviceCMYK), and painting a smoothly varying color gradient
               whose geometry is positioned by the pattern's own /Matrix composed with the page's
-              initial (pre-cm) coordinate transform. An unsupported /ShadingType (other than 2 or
-              3) shall throw UnsupportedImageFeatureException with feature
+              initial (pre-cm) coordinate transform. An unsupported /ShadingType (outside 2-7) shall throw
+              UnsupportedImageFeatureException with feature
               pdf-shading-type-{n}; an unsupported shading /ColorSpace shall throw
               UnsupportedImageFeatureException with feature pdf-shading-colorspace-{family}.
               /Extend is approximated as an always-padded (never fully transparent) gradient
@@ -1739,6 +1740,76 @@ sections:
               - PdfDocument_ShadingOperator_UndeclaredShadingName_ThrowsUnsupportedImageFeatureException
               - CanvasNetPdf_SystemIntegration_ShadingOperatorOverBlackFallback_PaintsGradientNotBlack
 
+          - id: CanvasNetPdf-PdfDocument-MeshShadingFill
+            title: >-
+              The PdfDocument class shall fill or stroke a path using a /PatternType 2 pattern
+              whose shading is a mesh (/ShadingType 4 free-form triangles, 5 lattice triangles,
+              6 Coons patches, or 7 tensor-product patches), decoding the shading stream per its
+              /BitsPerCoordinate, /BitsPerComponent, /BitsPerFlag (types 4, 6, 7), /VerticesPerRow
+              (type 5) and /Decode, honoring edge flags 0-3 (including patch continuation and the
+              Coons-derived interior points of type 6), mapping a single parametric color through
+              the optional /Function, converting colors through DeviceGray/DeviceRGB/DeviceCMYK
+              (interpolated in RGB), and painting the interpolated mesh (patches tessellated at a
+              fixed 16x16 subdivision, no anti-aliasing) positioned by the pattern /Matrix; the
+              pattern's /Background shall be painted beneath the mesh for pattern use only.
+            justification: |
+              Mesh shadings are produced by vector-art tools for smooth multi-color gradients;
+              previously every such fill failed closed and the document could not be rendered.
+            tests:
+              - PdfDocument_MeshShading_Type4_Pattern_PaintsOnlyInsideFillAndMesh
+              - PdfDocument_MeshShading_Type4_Flag1_ContinuesStrip
+              - PdfDocument_MeshShading_Type4_Flag2_ContinuesFan
+              - PdfDocument_MeshShading_Type4_Function_MapsParametricValue
+              - PdfDocument_MeshShading_Type4_BitSizeMatrix_RendersSame
+              - PdfDocument_MeshShading_GrayAndCmykColorSpaces_Render
+              - PdfDocument_MeshShading_Type5_Lattice_RendersAllCells
+              - PdfDocument_MeshShading_Type5_NonByteAlignedVertices_AreByteAligned
+              - PdfDocument_MeshShading_Type6_FlatPatch_BilinearCornerColors
+              - PdfDocument_MeshShading_Type6_CurvedEdge_CoversAreaBeyondChord
+              - PdfDocument_MeshShading_Type7_CoonsInteriorPoints_EqualsType6
+              - PdfDocument_MeshShading_PatchContinuation_InheritsEdgeAndColors
+              - PdfDocument_MeshShading_Background_AppliesToPatternsOnly
+              - PdfDocument_MeshShading_PatternMatrix_ShiftsMesh
+              - PdfDocument_MeshShading_PatternStroke_PaintsThroughMesh
+
+          - id: CanvasNetPdf-PdfDocument-MeshShadingOperator
+            title: >-
+              The PdfDocument class shall paint a mesh shading (/ShadingType 4-7) named by the sh
+              operator directly onto the destination surface, restricted to the current clipping
+              path or the shading's /BBox, with the same decoding as the pattern path but without
+              painting /Background.
+            justification: |
+              Producers also paint gradient meshes via sh rather than via a pattern fill.
+            tests:
+              - PdfDocument_MeshShading_Type4_ShOperator_InterpolatesVertexColors
+              - PdfDocument_MeshShading_ShOperator_HonorsBBoxAndClip
+
+          - id: CanvasNetPdf-PdfDocument-MeshShadingFailClosed
+            title: >-
+              The PdfDocument class shall fail closed on mesh shadings: missing or illegal
+              /BitsPerCoordinate, /BitsPerComponent, /BitsPerFlag, /Decode or /VerticesPerRow,
+              a non-stream shading, truncated vertex or patch data, and invalid edge flags shall
+              throw InvalidDataException; an unsupported color space or function shall throw
+              UnsupportedImageFeatureException (pdf-shading-colorspace-{family} or a function
+              feature); and a mesh exceeding the vertex, patch or rasterization-work limits shall
+              throw UnsupportedImageFeatureException with feature
+              pdf-shading-mesh-too-many-vertices, pdf-shading-mesh-too-many-patches or
+              pdf-shading-mesh-too-complex.
+            justification: |
+              Mesh data is untrusted input that can be malformed or sized to exhaust memory/CPU.
+            tests:
+              - PdfDocument_MeshShading_MissingEntry_ThrowsInvalidData
+              - PdfDocument_MeshShading_IllegalBitSizeOrDecode_ThrowsInvalidData
+              - PdfDocument_MeshShading_TruncatedData_ThrowsInvalidData
+              - PdfDocument_MeshShading_PatchCutShort_ThrowsInvalidData
+              - PdfDocument_MeshShading_BadFlags_ThrowInvalidData
+              - PdfDocument_MeshShading_Type5_BadLattice_ThrowsInvalidData
+              - PdfDocument_MeshShading_NotAStream_ThrowsInvalidData
+              - PdfDocument_MeshShading_IndexedColorSpace_ThrowsUnsupported
+              - PdfDocument_MeshShading_FunctionProblems_FailClosed
+              - PdfDocument_MeshShading_TooManyVertices_ThrowsUnsupported
+              - PdfDocument_MeshShading_TooManyPatches_ThrowsUnsupported
+              - PdfDocument_MeshShading_TooMuchRasterWork_ThrowsUnsupported
           - id: CanvasNetPdf-PdfDocument-TilingPatternFill
             title: >-
               The PdfDocument class shall fill or stroke a path using a /PatternType 1 (tiling)

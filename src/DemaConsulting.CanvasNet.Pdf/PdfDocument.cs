@@ -80,7 +80,7 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         has no meaningful generic-family equivalent.
 ///     </para>
 ///     <para>
-///         <c>/Pattern</c>-color-space shading (axial/radial, <c>/ShadingType 2</c>/<c>3</c>,
+///         <c>/Pattern</c>-color-space shading (axial/radial/mesh, <c>/ShadingType 2</c>-<c>7</c>,
 ///         driven by <c>/FunctionType 0</c>/<c>2</c>/<c>3</c> functions) and tiling
 ///         (<c>/PaintType 1</c>/<c>2</c>) pattern fills/strokes are fully supported, as are placed
 ///         Form XObjects: <c>Do</c> on a <c>/Subtype /Form</c> XObject decodes its content stream
@@ -119,8 +119,8 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         <see cref="UnsupportedImageFeatureException.Feature"/> token.
 ///     </para>
 ///     <para>
-///         <strong>Documented scope boundaries</strong> (not currently supported): mesh shadings
-///         (<c>/ShadingType</c> 4-7; axial/radial types 2-3 are supported by the <c>sh</c>
+///         <strong>Documented scope boundaries</strong> (not currently supported): function-based shadings
+///         (<c>/ShadingType</c> 1; types 2-7 are supported by the <c>sh</c>
 ///         operator and shading patterns), <c>/FunctionType 4</c> PostScript-calculator functions,
 ///         transparency groups, and clip text-rendering modes. The <c>sh</c> operator and generic
 ///         path clipping (<c>W</c>/<c>W*</c>) are both supported. Every other keyword

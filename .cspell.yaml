@@ -15,6 +15,8 @@ language: en
 # Project-specific technical terms and tool names
 words:
   - Aabb
+  - functiontype
+  - Poppler
   - AABB
   - Adler
   - AESV

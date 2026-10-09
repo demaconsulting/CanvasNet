@@ -23,8 +23,8 @@ public sealed partial class PdfDocument
     private const int ShadingGradientSampleCount = 32;
 
     /// <summary>
-    ///     The fully resolved, immutable contents of a <c>/ShadingType 2</c>/<c>3</c> shading
-    ///     dictionary, shared by both consumers of a <c>/Shading</c> dictionary: the
+    ///     The fully resolved, immutable contents of a <c>/ShadingType 2</c>-<c>7</c> shading
+    ///     dictionary (or mesh stream), shared by both consumers of a <c>/Shading</c> dictionary: the
     ///     <c>scn</c>/<c>SCN</c> + <c>/Pattern</c> + <c>/PatternType 2</c> path
     ///     (<see cref="BuildShadingPattern"/>, which wraps a shading dictionary in a pattern's own
     ///     <c>/Matrix</c>) and the <c>sh</c> operator (<see cref="OpPaintShading"/>, which paints
@@ -42,13 +42,19 @@ public sealed partial class PdfDocument
     ///     a shading *pattern*'s own fill region is instead whatever path it is painted onto, per
     ///     <see cref="PaintPatternFill"/>.
     /// </param>
+    /// <param name="Mesh">
+    ///     The decoded mesh for <c>/ShadingType 4</c>-<c>7</c> (see <see cref="MeshShading"/>), or
+    ///     <see langword="null"/> for axial/radial shadings (for mesh shadings
+    ///     <paramref name="Coords"/>/<paramref name="Domain"/>/<paramref name="Evaluate"/> are unused).
+    /// </param>
     private readonly record struct ShadingDescriptor(
         int ShadingType,
         PdfColorSpace ColorSpace,
         double[] Coords,
         double[] Domain,
         Func<double, double[]> Evaluate,
-        double[]? BBox);
+        double[]? BBox,
+        MeshShading? Mesh = null);
 
     /// <summary>
     ///     Resolves an already-resolved <c>/Shading</c> dictionary (or stream - some
@@ -64,7 +70,7 @@ public sealed partial class PdfDocument
     ///     cases.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when <c>/ShadingType</c> is not <c>2</c> or <c>3</c> (feature
+    ///     Thrown when <c>/ShadingType</c> is not <c>2</c>-<c>7</c> (feature
     ///     <c>pdf-shading-type-{n}</c>), when the resolved <c>/ColorSpace</c>'s family is not
     ///     <c>DeviceGray</c>/<c>DeviceRGB</c>/<c>DeviceCMYK</c> (feature
     ///     <c>pdf-shading-colorspace-{family}</c>), or propagated from
@@ -74,11 +80,11 @@ public sealed partial class PdfDocument
     private ShadingDescriptor ResolveShadingDescriptor(PdfObject shading)
     {
         var shadingType = RequireIntEntry(shading, "ShadingType");
-        if (shadingType is not (2 or 3))
+        if (shadingType is < 2 or > 7)
         {
             throw new UnsupportedImageFeatureException(
                 $"pdf-shading-type-{shadingType}",
-                $"/ShadingType {shadingType} is not supported; only 2 (axial) and 3 (radial) are supported.");
+                $"/ShadingType {shadingType} is not supported; only 2 (axial), 3 (radial), 4-7 (mesh) are supported.");
         }
 
         var colorSpaceEntry = shading.Get("ColorSpace")
@@ -91,6 +97,21 @@ public sealed partial class PdfDocument
                 $"pdf-shading-colorspace-{colorSpace.Kind}",
                 $"Shading /ColorSpace family '{colorSpace.Kind}' is not supported; only DeviceGray, " +
                 "DeviceRGB, and DeviceCMYK are supported.");
+        }
+
+        // /BBox (PDF 32000-1 §8.7.4.3) is only meaningful to sh (see ShadingDescriptor's own
+        // remarks); it is still validated here, unconditionally, so a malformed /BBox is rejected
+        // identically regardless of which of the two consumers resolved this shading dictionary.
+        var bbox = ResolveOptionalNumberArray(shading, "BBox");
+        if (bbox is not null && bbox.Length != 4)
+        {
+            throw new InvalidDataException("/Shading /BBox must have exactly 4 elements.");
+        }
+
+        if (shadingType >= 4)
+        {
+            var mesh = ResolveMeshShading(shading, shadingType, colorSpace);
+            return new ShadingDescriptor(shadingType, colorSpace, [], [0.0, 1.0], static _ => [], bbox, mesh);
         }
 
         var functionEntry = shading.Get("Function")
@@ -112,15 +133,6 @@ public sealed partial class PdfDocument
         {
             throw new InvalidDataException(
                 $"/Coords must have exactly {expectedCoordCount} elements for /ShadingType {shadingType}.");
-        }
-
-        // /BBox (PDF 32000-1 §8.7.4.3) is only meaningful to sh (see ShadingDescriptor's own
-        // remarks); it is still validated here, unconditionally, so a malformed /BBox is rejected
-        // identically regardless of which of the two consumers resolved this shading dictionary.
-        var bbox = ResolveOptionalNumberArray(shading, "BBox");
-        if (bbox is not null && bbox.Length != 4)
-        {
-            throw new InvalidDataException("/Shading /BBox must have exactly 4 elements.");
         }
 
         return new ShadingDescriptor(shadingType, colorSpace, coords, domain, evaluate, bbox);
@@ -156,6 +168,7 @@ public sealed partial class PdfDocument
             Coords = descriptor.Coords,
             Domain = descriptor.Domain,
             Evaluate = descriptor.Evaluate,
+            Mesh = descriptor.Mesh,
         };
     }
 
@@ -222,8 +235,15 @@ public sealed partial class PdfDocument
             Domain = descriptor.Domain,
             Evaluate = descriptor.Evaluate,
         };
-        var gradient = BuildShadingGradient(pattern, _gs.CurrentTransform);
         var region = BuildShadingPaintRegion(descriptor.BBox);
+        if (descriptor.Mesh is { } mesh)
+        {
+            // /Background applies to shading patterns only, never to sh (PDF 32000-1 §8.7.4.3).
+            PaintMesh(mesh, _gs.CurrentTransform, region, FillRule.NonZero, applyBackground: false);
+            return;
+        }
+
+        var gradient = BuildShadingGradient(pattern, _gs.CurrentTransform);
         PathFiller.Fill(_surface, region, gradient, _gs.Clip, FillRule.NonZero);
     }
 

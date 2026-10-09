@@ -341,7 +341,8 @@ sections:
           The library shall recognize /Pattern as a selectable cs/CS color space and fill/stroke
           a path using the named pattern resolved from the current page's /Resources/Pattern
           dictionary: a /PatternType 2 (shading) pattern sampling its /Function to paint an
-          axial (/ShadingType 2) or radial (/ShadingType 3) color gradient, and a /PatternType 1
+          axial (/ShadingType 2), radial (/ShadingType 3) or mesh (/ShadingType 4-7) color
+          gradient, and a /PatternType 1
           (tiling) pattern rendering its own content stream once into an offscreen tile and
           repeating it (colored or recolored per its /PaintType) across the painted region.
         tags: [system]
@@ -355,6 +356,9 @@ sections:
           - CanvasNetPdf-PdfDocument-ShadingPatternFill
           - CanvasNetPdf-PdfDocument-TilingPatternFill
           - CanvasNetPdf-PdfDocument-ShadingOperator
+          - CanvasNetPdf-PdfDocument-MeshShadingFill
+          - CanvasNetPdf-PdfDocument-MeshShadingOperator
+          - CanvasNetPdf-PdfDocument-MeshShadingFailClosed
         tests:
           - CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors
           - CanvasNetPdf_SystemIntegration_ColoredTilingPatternFill_PaintsRepeatingTileColors

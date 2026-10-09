@@ -1936,7 +1936,7 @@ Every unit test builds a minimal single-page PDF with a declared `/Pattern` reso
 driven by a single `/FunctionType 2` black-to-white function paints near-black at one axis
 endpoint and near-white at the other. Asserts a radial (`/ShadingType 3`) pattern with the same
 function shape paints a visibly different color at the center versus the edge. A `[Theory]`
-asserts `/ShadingType 1`/`4` both throw `Codecs.UnsupportedImageFeatureException` (feature
+asserts `/ShadingType 0`/`1`/`8` all throw `Codecs.UnsupportedImageFeatureException` (feature
 `pdf-shading-type-{n}`). Asserts a `/Function` entry resolving to a `/FunctionType 4` function
 still throws `Codecs.UnsupportedImageFeatureException` (feature `pdf-functiontype-4`) when
 reached through a shading pattern, not only through a direct function-resolution call. Asserts
@@ -1983,6 +1983,63 @@ light-blue-to-white axial gradient painted directly over the identical region vi
 intervening `scn`/Pattern selection at all) - asserting the resulting pixels are not solid black
 and instead show the expected light-blue/white gradient progression, proving the gradient now
 actually overlays the fallback rather than remaining invisibly skipped underneath it.
+
+#### CanvasNetPdf-PdfDocument-MeshShadingFill: Mesh Shadings (Types 4-7) Paint Interpolated Colors
+
+**Tests**: `PdfDocument_MeshShading_Type4_Pattern_PaintsOnlyInsideFillAndMesh`,
+`PdfDocument_MeshShading_Type4_Flag1_ContinuesStrip`, `PdfDocument_MeshShading_Type4_Flag2_ContinuesFan`,
+`PdfDocument_MeshShading_Type4_Function_MapsParametricValue`,
+`PdfDocument_MeshShading_Type4_BitSizeMatrix_RendersSame`,
+`PdfDocument_MeshShading_GrayAndCmykColorSpaces_Render`,
+`PdfDocument_MeshShading_Type5_Lattice_RendersAllCells`,
+`PdfDocument_MeshShading_Type5_NonByteAlignedVertices_AreByteAligned`,
+`PdfDocument_MeshShading_Type6_FlatPatch_BilinearCornerColors`,
+`PdfDocument_MeshShading_Type6_CurvedEdge_CoversAreaBeyondChord`,
+`PdfDocument_MeshShading_Type7_CoonsInteriorPoints_EqualsType6`,
+`PdfDocument_MeshShading_PatchContinuation_InheritsEdgeAndColors`,
+`PdfDocument_MeshShading_Background_AppliesToPatternsOnly`,
+`PdfDocument_MeshShading_PatternMatrix_ShiftsMesh`,
+`PdfDocument_MeshShading_PatternStroke_PaintsThroughMesh`
+
+Every test builds a synthetic single-page PDF whose mesh stream is bit-packed in the test. Asserts
+type 4 triangles interpolate vertex colors only inside the filled area, flags 1 and 2 reuse the
+correct previous edge, `/Function` maps the parametric value through `/Decode`, and a 45-case
+bit-size matrix (coordinate/component/flag sizes) renders identically. Asserts type 5 lattices
+render every cell and that vertices are padded to a byte boundary. Asserts type 6 patches
+interpolate bilinear corner colors and bulge along curved edges, that type 7 with Coons-derived
+interior points matches type 6 (and differs when an interior point moves), and that patch
+continuation flags 1-3 inherit the previous edge and colors. Asserts `/Background` paints beneath
+a pattern fill, and that `/Matrix` and stroking apply to the mesh.
+
+#### CanvasNetPdf-PdfDocument-MeshShadingOperator: sh Paints Mesh Shadings
+
+**Tests**: `PdfDocument_MeshShading_Type4_ShOperator_InterpolatesVertexColors`,
+`PdfDocument_MeshShading_ShOperator_HonorsBBoxAndClip`
+
+Asserts `sh` paints a type 4 mesh directly with interpolated vertex colors and honors both the
+shading `/BBox` and a preceding clip path.
+
+#### CanvasNetPdf-PdfDocument-MeshShadingFailClosed: Malformed or Oversized Mesh Shadings Fail Closed
+
+**Tests**: `PdfDocument_MeshShading_MissingEntry_ThrowsInvalidData`,
+`PdfDocument_MeshShading_IllegalBitSizeOrDecode_ThrowsInvalidData`,
+`PdfDocument_MeshShading_TruncatedData_ThrowsInvalidData`,
+`PdfDocument_MeshShading_PatchCutShort_ThrowsInvalidData`,
+`PdfDocument_MeshShading_BadFlags_ThrowInvalidData`,
+`PdfDocument_MeshShading_Type5_BadLattice_ThrowsInvalidData`,
+`PdfDocument_MeshShading_NotAStream_ThrowsInvalidData`,
+`PdfDocument_MeshShading_IndexedColorSpace_ThrowsUnsupported`,
+`PdfDocument_MeshShading_FunctionProblems_FailClosed`,
+`PdfDocument_MeshShading_TooManyVertices_ThrowsUnsupported`,
+`PdfDocument_MeshShading_TooManyPatches_ThrowsUnsupported`,
+`PdfDocument_MeshShading_TooMuchRasterWork_ThrowsUnsupported`
+
+Asserts missing or illegal bit sizes, `/Decode`, `/VerticesPerRow`, a non-stream shading,
+truncated records and bad edge flags throw `InvalidDataException`; an Indexed color space and
+invalid/FunctionType 4 functions throw `Codecs.UnsupportedImageFeatureException`; and the vertex,
+patch and rasterization-work limits throw `Codecs.UnsupportedImageFeatureException` with features
+`pdf-shading-mesh-too-many-vertices`, `pdf-shading-mesh-too-many-patches` and
+`pdf-shading-mesh-too-complex`.
 
 #### CanvasNetPdf-PdfDocument-TilingPatternFill: Colored/Uncolored Tiling Patterns Paint a Tile, Fail Closed Otherwise
 

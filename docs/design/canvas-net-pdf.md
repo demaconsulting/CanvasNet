@@ -86,7 +86,7 @@ content stream as a nested, implicitly `q`/`Q`-bracketed execution of the same i
 14 replaced the color-space model to add `/CalRGB`, `/ICCBased` (resolved via its `/N` or
 `/Alternate`), and `/Indexed` (a palette lookup over any supported base color space), and
 introduced the `/Pattern` color space: axial/radial shading patterns (`/PatternType 2`,
-`/ShadingType 2`/`3`) reusing a widened Function evaluator that now also supports
+`/ShadingType 2`-`7`) reusing a widened Function evaluator that now also supports
 `/FunctionType 2` (exponential interpolation) and `/FunctionType 3` (stitching) functions in
 addition to `/FunctionType 0` (sampled); and colored/uncolored tiling patterns (`/PatternType 1`,
 each cell rendered through the same nested-execution machinery `/Subtype /Form` XObjects use).
@@ -103,7 +103,7 @@ unrecognized base encoding fails closed); fill (`Tr 0`), stroke (`Tr 1`), fill+s
 and invisible (`Tr 3`) text-rendering modes and the clip modes (`Tr 4`-`7`) are supported (a Type 3
 glyph under a clip mode fails closed); a
 Form XObject's `/BBox` is never used to clip its content and its `/Group` (transparency group)
-entry is never consulted, though the Form itself renders; `/ShadingType` values other than `2`/`3`
+entry is never consulted, though the Form itself renders; `/ShadingType` values outside `2`-`7`
 and `/FunctionType 4` (PostScript calculator) functions fail closed, as does the `sh` operator and
 general path clipping (`W`/`W*`), both of which are silently skipped rather than rejected; no
 `/SMask`/alpha compositing or transparency groups (every decoded image is treated as fully

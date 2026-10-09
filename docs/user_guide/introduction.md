@@ -1102,7 +1102,7 @@ The `PdfDocument` sealed class opens a PDF document, parses its cross-reference 
 page tree, and reports each page's displayed (rotation-adjusted) size and its page count.
 `Render` interprets a page's content stream, painting real path geometry, device color (`rg`/
 `g`/`k`/`cs`/`sc` and related operators, including `/Pattern`-color-space shading and tiling
-pattern fills/strokes - axial/radial (`/ShadingType 2`/`3`) shading patterns driven by
+pattern fills/strokes - axial/radial/mesh (`/ShadingType 2`-`7`) shading patterns driven by
 `/FunctionType 0`/`2`/`3` functions, and colored/uncolored (`/PaintType 1`/`2`) tiling patterns
 rendering a repeating tile), placed image XObjects (`Do`), and text shown with a simple TrueType
 font (`Tf`/`Td`/`Tj` and the other `BT`/`ET` text operators) onto the returned `Surface`. A font
@@ -1131,9 +1131,9 @@ equivalent - it still fails closed with `UnsupportedImageFeatureException`, exac
 non-embedded font of any kind did before this fallback behavior existed. A shading pattern's
 `/Extend` is approximated as always-padded (never fully transparent outside the defining
 geometry), a documented, narrower-than-spec simplification; the `sh` operator and generic path
-clipping (`W`/`W*`) remain unsupported and are silently skipped. **Documented scope
-boundaries**: `/MMType1` fonts, mesh shadings (`/ShadingType 1`/`4`-`7`), `/FunctionType 4`
-(PostScript calculator) functions, the `sh` operator, generic path clipping, transparency groups,
+clipping (`W`/`W*`) are supported. **Documented scope
+boundaries**: `/MMType1` fonts, function-based shadings (`/ShadingType 1`), `/FunctionType 4`
+(PostScript calculator) functions, transparency groups,
 and Type 3 glyphs shown under a clip text-rendering mode (`Tr 4`-`7`; clip modes with outline-based
 fonts are supported) all fail closed with `UnsupportedImageFeatureException`
 rather than being silently skipped or mis-rendered.
