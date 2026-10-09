@@ -1132,10 +1132,15 @@ not spell it out explicitly.
 
 #### Cell-Rect Resolution
 
-`ResolveCellRects(PptxTable table)` resolves each of a table's non-merge-continuation cells (a
-cell with neither `hMerge` nor `vMerge` set) into a `PptxResolvedTableCell` carrying its own
-EMU-space rectangle (`X`, `Y`, `Width`, `Height`), by walking each row's `<a:tc>` entries in
-document order while accumulating a running column offset.
+`ResolveCellRects(PptxTable table, PptxTheme? theme = null, Func<string, bool, bool,
+TrueTypeFont>? fontResolver = null, PptxColorMap? colorMap = null, Func<bool, bool,
+TrueTypeFont>? fallbackFontResolver = null)` resolves each of a table's non-merge-continuation
+cells (a cell with neither `hMerge` nor `vMerge` set) into a `PptxResolvedTableCell` carrying its
+own EMU-space rectangle (`X`, `Y`, `Width`, `Height`), by walking each row's `<a:tc>` entries in
+document order while accumulating a running column offset. A row's own `HeightEmu` consulted
+during this walk is its **effective** height - its own stored `<a:tr h="...">` value, or a grown
+replacement, when a `theme`/`fontResolver` are supplied - see _Phase 2 Follow-Up: Table
+Row-Height Growth_ below for the growth algorithm the new optional parameters enable.
 
 **Merge-continuation column-advancement rule**: each `<a:tc>` XML entry - whether a real cell or
 an `hMerge`/`vMerge` continuation placeholder - represents (in the common, well-formed case) one
@@ -1244,10 +1249,11 @@ design cost:
   the picture's own pixels are painted.
 - **Nested tables** - a table cell's own `<a:txBody>` is painted as plain text only; a cell
   containing another `<a:tbl>` is not specially recognized.
-- **Table auto-sizing to fit overflowing cell content** - `ResolveCellRects` computes each cell's
-  rectangle purely from the table's own declared column widths/row heights; a cell whose text
-  content overflows its own declared row height is not given additional vertical space (beyond
-  the row height the table itself declares) the way PowerPoint's own auto-grow-row behavior does.
+- ~~**Table auto-sizing to fit overflowing cell content** - `ResolveCellRects` computes each
+  cell's rectangle purely from the table's own declared column widths/row heights; a cell whose
+  text content overflows its own declared row height is not given additional vertical space
+  (beyond the row height the table itself declares) the way PowerPoint's own auto-grow-row
+  behavior does.~~ (closed by the _Phase 2 Follow-Up: Table Row-Height Growth_ section below.)
 - ~~**Table style/banding** (`<a:tblPr>`'s `<a:tableStyleId>` and first-row/banded-row
   styling)~~ (closed by the _Phase 2 Follow-Up: Table Style/Banding Resolution_ section below -
   `firstCol`/`lastCol`/`lastRow`/corner-cell style parts, column banding (`band1V`/`band2V`), and
@@ -3022,6 +3028,121 @@ fill/borders, while the cell's remaining, non-overridden edges still fall back t
 interior column boundaries resolve against the style's own `insideV` edge rather than its `left`/
 `right` edges, while the table's two true outer-boundary edges still resolve against `left`/
 `right`).
+
+#### Phase 2 Follow-Up: Table Row-Height Growth to Fit Wrapped Text
+
+**Bug**: a confirmed upstream report observed that `ResolveCellRects` keeps a row at exactly its
+stored `<a:tr h="...">` EMU height, regardless of how much text a cell's own wrapped content
+actually requires. Unlike PowerPoint (which grows a row to fit its own cell content), a cell whose
+text wraps to more lines than its stored row height can fit painted past its own row's bottom
+edge, visibly overlapping the next row's own content - exactly the row-height growth gap this
+unit's own `pptx-document.md` already flagged (see the now-closed _Deferred to a Later Phase
+(Phase 1e)_ bullet above).
+
+**Investigation finding - no new cell-margin plumbing needed**: no `<a:tcPr marL/marR/marT/marB>`
+cell-margin parsing exists anywhere in this unit; a table cell's only margin/inset source is its
+own `<a:txBody>/<a:bodyPr lIns/tIns/rIns/bIns>` - the exact same `PptxTextBodyProperties` fields an
+ordinary shape's text body already uses, already read correctly by `PaintTable`'s existing
+`ResolveTextLayout` call. This removed an open question from the original bug report before any
+code changed.
+
+**Fix - reusing the existing word-wrap/autofit machinery, not reimplementing it**:
+
+- **`PptxDocument.TextLayout.cs`**: `ResolveTextLayout`'s own former steps (1)-(5) - reading
+  `<a:bodyPr>` insets, resolving every paragraph/run's effective properties, resolving the autofit
+  scale, and word-wrapping into `LineBox` lines - are extracted, verbatim (a pure cut-and-paste,
+  no reordering of any expression), into a new private `ResolveWrappedLines(...)` helper.
+  `ResolveTextLayout` itself now calls this helper and then performs only its former step (6)
+  (`PositionLines`) - a zero-behavior-change refactor, confirmed by re-running the full, unchanged
+  `PptxTextLayoutTests.cs` suite. A new, small, additive entry point,
+  `MeasureRequiredTextHeightEmu(PptxTextBody, PptxTheme, float widthEmu, fontResolver, colorMap,
+  fallbackFontResolver)`, builds on `ResolveWrappedLines` to answer "how tall must this text be at
+  its own natural size", returning `insetTop + Σ(LineHeightEmu + LeadingGapEmu) + insetBottom`.
+  - **Why an unbounded height sentinel, not a real candidate height**: `MeasureRequiredTextHeightEmu`
+    passes a new `UnboundedMeasurementHeightEmu` constant (`float.MaxValue / 4f` - the exact same
+    magnitude `ResolveTextLayout` already uses for its own `wrap="none"` infinite-width sentinel,
+    a reused convention, not a new magic number) as the candidate height, instead of a real
+    candidate row height. Passing a real candidate height would feed `ResolveAutofitScale`'s own
+    attribute-less-`normAutofit` shrink loop a real `availableHeight`, which could shrink the
+    measured font size instead of reporting the text's own natural wrapped height - reopening the
+    exact chicken-and-egg circularity ("does the text need to grow the row, or shrink itself, to
+    fit a height we are still trying to determine?") this feature must not reintroduce. The
+    sentinel guarantees the shrink loop's own `totalHeight <= availableHeight` check is `true` on
+    its first (unscaled) iteration and never shrinks, while an _explicit_ `fontScale`/
+    `lnSpcReduction` attribute on `<a:normAutofit>` (a value PowerPoint itself persisted,
+    independent of `availableHeight`) is still honored exactly as before - matching PowerPoint's
+    own table behavior (tables grow rows to fit text at natural size; they do not autofit-shrink
+    cell text the way a text-box shape can).
+- **`PptxDocument.Tables.cs`**: `ResolveCellRects` gained four new optional parameters (`theme`,
+  `fontResolver`, `colorMap`, `fallbackFontResolver`, all defaulting to `null`) - strictly
+  opt-in: a caller omitting `theme`/`fontResolver` (every pre-existing direct-call test, and any
+  future caller not yet updated) gets exactly the pre-existing stored-height behavior,
+  unconditionally. `PaintTable`'s own production call site now passes its own `theme`/
+  `fontResolver`/`colorMap` through, so growth is applied unconditionally for every real render.
+  - The method's former body (the merge-aware column/row walk) is extracted, verbatim, into a new
+    private `WalkResolvedCells(PptxTable, IReadOnlyList<float> rowHeightsEmu)` helper,
+    parameterized on which row-heights array to accumulate from, returning a private `WalkedCell`
+    record (the same fields as `PptxResolvedTableCell`, plus the owning `RowIndex` the growth pass
+    needs internally). `ResolveCellRects` itself becomes: compute `storedHeightsEmu` from the
+    table's own rows; compute `effectiveHeightsEmu` (the stored array unchanged, when no
+    `theme`/`fontResolver` are supplied, or `GrowRowHeightsToFitText`'s own result otherwise); walk
+    once via `WalkResolvedCells(table, effectiveHeightsEmu)`.
+  - **`GrowRowHeightsToFitText` - two passes**: (1) a provisional `WalkResolvedCells` pass over the
+    still-unmodified stored heights learns every governing cell's own resolved `WidthEmu`/
+    `RowIndex` (text wraps within a cell's own width, which growth itself never changes); every
+    cell with a non-null `TextBody` has its own required height measured via
+    `MeasureRequiredTextHeightEmu`. A `RowSpan == 1` cell grows its own single row immediately
+    (`effectiveHeightsEmu[rowIndex] = MathF.Max(effectiveHeightsEmu[rowIndex], requiredHeightEmu)` -
+    never shrink, grow exactly enough to fit); a `RowSpan > 1` cell's own requirement is deferred.
+    (2) each deferred row-spanning cell's own shortfall - its required height minus the (now
+    possibly singly-grown) sum of its spanned rows - is added entirely onto its _last_ spanned row
+    when positive.
+  - **Row-span distribution policy - "grow the last spanned row"** (over proportional
+    distribution across the span): (a) it is the simplest rule that satisfies "never shrink below
+    stored, grow exactly enough to fit"; (b) it mirrors PowerPoint's own commonly-observed
+    behavior of visually expanding the bottom of a merged region rather than redistributing
+    already-fixed interior row boundaries that other, unrelated single-row cells within the same
+    span may themselves depend on (pass 1's own growth of such a row already fixed its height for
+    a reason unrelated to the spanning cell's own content); (c) it keeps the change's blast radius
+    local - only the Y-offset of rows strictly after the span shifts, identical to any other
+    single-row growth elsewhere in the table. This is a documented engineering judgment call, not
+    an independently verified match to PowerPoint's own exact distribution algorithm for
+    row-spanning cells - no real-world fixture exercising a tall row-spanning cell was located in
+    this repository's existing corpus to empirically validate against; a future corpus-driven
+    hardening pass may revisit it if one is found.
+  - The now-dead `SumRowHeights(IReadOnlyList<PptxTableRow>, int, int)` helper (superseded by
+    `WalkResolvedCells` operating purely over `IReadOnlyList<float>` row-heights arrays via the
+    already-existing `SumConsecutive`) is deleted.
+- **`PptxTable.cs`**: `PptxTableRow.HeightEmu`'s XmlDoc now describes it as the row's **minimum**
+  height, not necessarily its final rendered height; `PptxResolvedTableCell.HeightEmu`'s XmlDoc
+  now describes it as the row's resulting **effective** (possibly grown) height.
+
+**Scope decisions (documented, not fixed)**: `ParseTable`'s own pre-existing `rowHeightsEmu`-based
+gradient-fill-sizing peek (used only to position a merged cell's own gradient paint at parse time)
+is unchanged - at parse time, no font resolver/theme-driven text measurement has run yet, and
+restructuring table parsing into a render-time-aware two-pass model is a materially larger,
+separately-scoped change. A cell with both a growing row-spanning text body _and_ a gradient fill
+may show a gradient ramp sized slightly differently than its own now-larger rectangle - a
+pre-existing, narrow, cosmetic approximation this fix does not regress or worsen. No `<a:tcPr>`
+cell-margin parsing is added (not needed - see the Investigation finding above).
+
+**Test coverage**: `PptxTablesTests.cs` gained
+`ResolveCellRects_CellTextRequiresMoreHeightThanStored_GrowsRowAndShiftsNextRowYOffset` (a row
+whose stored height is smaller than its own cell's natural wrapped-text height grows to exactly
+that height, and the next row's own Y-offset reflects the grown value),
+`ResolveCellRects_CellTextFitsWithinStoredHeight_RowHeightUnaffected` (a stored height already
+comfortably exceeding the natural wrapped-text height is left entirely unchanged - the
+regression-safety guarantee),
+`ResolveCellRects_RowSpanCellTextRequiresMoreHeightThanSpanTotal_GrowsLastSpannedRow` (a
+row-spanning cell's own shortfall against its spanned rows' stored sum is added entirely to the
+last spanned row, leaving the first spanned row - which anchors its own unrelated single-row
+cell - unchanged),
+`ResolveCellRects_NoThemeOrFontResolverSupplied_PreservesStoredHeightsUnconditionally` (omitting
+the new optional parameters preserves today's stored-height behavior even for a cell that would
+otherwise require growth), and
+`PaintTable_TwoRowTableWithWrappedTextOverflowingStoredHeight_PaintsSecondRowBelowGrownFirstRow`
+(an end-to-end proof that the next row's own painted fill starts below the grown, not stale
+stored, Y-offset - directly proving the reported overlap symptom is fixed).
 
 #### Phase 2 Follow-Up: Default Tab-Stop Expansion
 

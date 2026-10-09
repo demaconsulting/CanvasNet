@@ -1109,6 +1109,32 @@ the following cell's computed column offset: `ResolveCellRects` now counts the a
 `columnIndex` past any shortfall, so the governing cell's own merged rectangle is unaffected and
 the following, unrelated cell lands at its correct, non-overlapping column offset.
 
+#### CanvasNetPptx-PptxDocument-TableRowHeightGrowth: Row-Height Growth to Fit Wrapped Text
+
+**Tests**:
+`ResolveCellRects_CellTextRequiresMoreHeightThanStored_GrowsRowAndShiftsNextRowYOffset`,
+`ResolveCellRects_CellTextFitsWithinStoredHeight_RowHeightUnaffected`,
+`ResolveCellRects_RowSpanCellTextRequiresMoreHeightThanSpanTotal_GrowsLastSpannedRow`,
+`ResolveCellRects_NoThemeOrFontResolverSupplied_PreservesStoredHeightsUnconditionally`,
+`PaintTable_TwoRowTableWithWrappedTextOverflowingStoredHeight_PaintsSecondRowBelowGrownFirstRow`
+
+Proves `ResolveCellRects` grows a row's own effective height past its stored `<a:tr h="...">`
+value when a single-row cell's own wrapped text requires more vertical space than that stored
+height provides, and that the following row's own computed `Y` offset reflects the grown, not
+stale stored, height - directly proving the reported row-overlap symptom no longer reproduces.
+Proves a stored height already comfortably exceeding a cell's own required text height is left
+entirely unchanged (the regression-safety guarantee: growth only ever enlarges a row, never
+shrinks or otherwise perturbs one that already fits). Proves a row-spanning cell (`RowSpan > 1`)
+whose required text height exceeds its spanned rows' stored height sum has its own shortfall
+added entirely onto the *last* spanned row, leaving an earlier spanned row - which may itself
+anchor an unrelated single-row cell in the same row - unaffected. Proves omitting the new optional
+`theme`/`fontResolver` parameters preserves today's stored-height-only behavior unconditionally,
+even for a cell that would otherwise require growth - confirming the feature is strictly opt-in
+and every pre-existing direct `ResolveCellRects` call site remains unaffected. Proves, end-to-end
+through `PaintTable`, that a two-row table's second row paints its own fill starting below the
+first row's grown (not stored) bottom edge, when the first row's own cell text wraps to more lines
+than its stored height can fit.
+
 #### CanvasNetPptx-PptxDocument-TablePainting: Cell Fill, Border, and Text Painting
 
 **Tests**: `PaintTable_SolidFilledCell_PaintsFillColorAcrossCellRectangle`,

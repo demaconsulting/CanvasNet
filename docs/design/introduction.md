@@ -110,7 +110,7 @@ software items, specifically:
   `<p:bg>` background-fill resolution ahead of that walk, `<a:buChar>`/`<a:buAutoNum>`
   bullet/numbering rendering, and `<p:cxnSp>` connector-shape rendering. Radial/path gradients,
   full text justification, `spAutoFit` shape-resize behavior, kerning, text clipping on overflow,
-  nested tables, and table auto-sizing/banding remain explicitly deferred. Pattern fill (a
+  nested tables remain explicitly deferred. Pattern fill (a
   documented subset of 30 of the 54 named ECMA-376 `ST_PresetPatternVal` preset names, including
   background fills; the remaining 24 are deferred) and picture fill are both implemented — see
   _CanvasNetPptx System Design_ (`canvas-net-pptx.md`) for the full supported/deferred boundary.

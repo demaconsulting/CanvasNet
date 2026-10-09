@@ -700,6 +700,166 @@ public class PptxTablesTests
         Assert.True(anyInk);
     }
 
+    // --- Row-height growth (Phase 2 Follow-Up: Table Row-Height Growth) ----------------------------
+
+    /// <summary>
+    ///     Proves a row whose stored <c>&lt;a:tr h="..."&gt;</c> height is too small to fit its own
+    ///     cell's wrapped-text content is grown to exactly that natural required height, and that
+    ///     the next row's own Y-offset is computed from the grown (not stale stored) height.
+    /// </summary>
+    [Fact]
+    public void ResolveCellRects_CellTextRequiresMoreHeightThanStored_GrowsRowAndShiftsNextRowYOffset()
+    {
+        // sz="100" (1pt) -> 12700 EMU font size; the synthetic font's single 'A' glyph has a
+        // 1000-font-unit advance (UnitsPerEm 1000) -> each "AA" token costs 2 * 12700 = 25400 EMU.
+        // A 30000 EMU-wide cell fits one "AA" token per line but not "AA AA" (50800 EMU) on one
+        // line, so "AA AA" wraps to 2 lines, each 12700 EMU tall (zero line gap/leading) -
+        // a natural required height of 25400 EMU.
+        var cell = PptxDocument.ParseTableCell(BuildTc(txBody: BuildTextBody("AA AA")), BuildTestTheme(), 30000f, 10000f);
+        var table = new PptxTable(
+            [30000f],
+            [
+                new PptxTableRow(10000f, [cell]), // stored height (10000) smaller than the required 25400
+                new PptxTableRow(7000f, [new PptxTableCell(1, 1, false, false, PptxNoFill.Instance, null, null, null, null, null)]),
+            ]);
+
+        var rects = PptxDocument.ResolveCellRects(table, BuildTestTheme(), ConstantFontResolver);
+
+        Assert.Equal(2, rects.Count);
+        Assert.Equal(25400f, rects[0].HeightEmu); // grown to the natural required height, not the smaller stored value
+        Assert.Equal(25400f, rects[1].YEmu); // row 1 starts at the grown (not stale stored) Y-offset
+        Assert.Equal(7000f, rects[1].HeightEmu); // row 1 itself is unaffected (no text, no growth)
+    }
+
+    /// <summary>
+    ///     Proves a row whose stored height already comfortably exceeds its own cell's natural
+    ///     wrapped-text height is left entirely unaffected (the regression-safety guarantee: grow,
+    ///     never shrink, and never grow unnecessarily).
+    /// </summary>
+    [Fact]
+    public void ResolveCellRects_CellTextFitsWithinStoredHeight_RowHeightUnaffected()
+    {
+        // Same wrapped-text shape as the growth test above (natural required height 25400 EMU),
+        // but a stored height (1000000) that already comfortably exceeds it.
+        var cell = PptxDocument.ParseTableCell(BuildTc(txBody: BuildTextBody("AA AA")), BuildTestTheme(), 30000f, 1000000f);
+        var table = new PptxTable(
+            [30000f],
+            [
+                new PptxTableRow(1000000f, [cell]),
+                new PptxTableRow(7000f, [new PptxTableCell(1, 1, false, false, PptxNoFill.Instance, null, null, null, null, null)]),
+            ]);
+
+        var rects = PptxDocument.ResolveCellRects(table, BuildTestTheme(), ConstantFontResolver);
+
+        Assert.Equal(2, rects.Count);
+        Assert.Equal(1000000f, rects[0].HeightEmu); // unchanged - the stored value already fits the text
+        Assert.Equal(1000000f, rects[1].YEmu); // row 1's Y-offset is unaffected
+    }
+
+    /// <summary>
+    ///     Proves a row-spanning cell (<c>RowSpan</c> &gt; 1) whose own wrapped-text natural
+    ///     height exceeds the sum of its spanned rows' stored heights has its shortfall added
+    ///     entirely to its <em>last</em> spanned row - the first spanned row (which may anchor its
+    ///     own unrelated single-row cell) is left at its own stored height, documenting the
+    ///     "grow the last spanned row" distribution policy (see <c>GrowRowHeightsToFitText</c>'s
+    ///     own XmlDoc remarks for the full rationale).
+    /// </summary>
+    [Fact]
+    public void ResolveCellRects_RowSpanCellTextRequiresMoreHeightThanSpanTotal_GrowsLastSpannedRow()
+    {
+        // "AA AA AA AA" (4 "AA" tokens) wraps to 4 lines at 30000 EMU width (one "AA" token per
+        // line, each 12700 EMU tall) -> a natural required height of 4 * 12700 = 50800 EMU,
+        // comfortably exceeding the spanned rows' own stored sum of 5000 + 5000 = 10000 EMU.
+        var spanningCell = PptxDocument.ParseTableCell(
+            BuildTc(rowSpan: 2, txBody: BuildTextBody("AA AA AA AA")), BuildTestTheme(), 30000f, 10000f);
+        var vMergeContinuation = PptxDocument.ParseTableCell(BuildTc(vMerge: true), BuildTestTheme(), 30000f, 5000f);
+        var row0Plain = PptxDocument.ParseTableCell(BuildTc(), BuildTestTheme(), 1000f, 5000f);
+        var row1Plain = PptxDocument.ParseTableCell(BuildTc(), BuildTestTheme(), 1000f, 5000f);
+
+        var table = new PptxTable(
+            [30000f, 1000f],
+            [
+                new PptxTableRow(5000f, [spanningCell, row0Plain]),
+                new PptxTableRow(5000f, [vMergeContinuation, row1Plain]),
+            ]);
+
+        var rects = PptxDocument.ResolveCellRects(table, BuildTestTheme(), ConstantFontResolver);
+
+        Assert.Equal(3, rects.Count); // the vMerge continuation contributes no rectangle of its own
+        // Identified by document-order position (WalkResolvedCells walks row-major, left-to-right
+        // within each row) rather than Cell reference - PptxTableCell is a record, so
+        // row0Plain/row1Plain (identical field values) would otherwise compare equal to each other.
+        var spanningRect = rects[0]; // row 0, column 0: the RowSpan=2 governing cell
+        var row0PlainRect = rects[1]; // row 0, column 1
+        var row1PlainRect = rects[2]; // row 1, column 1 (row 1's own vMerge continuation at column 0 contributes no rectangle)
+
+        Assert.Equal(50800f, spanningRect.HeightEmu); // the merged span's own total equals the natural required height exactly
+        Assert.Equal(5000f, row0PlainRect.HeightEmu); // the first spanned row is unchanged - still its own stored value
+        Assert.Equal(45800f, row1PlainRect.HeightEmu); // the last spanned row absorbs the entire 40800 EMU shortfall (50800 - 10000)
+    }
+
+    /// <summary>
+    ///     Proves growth is strictly opt-in via <see cref="PptxDocument.ResolveCellRects"/>'s new
+    ///     optional <c>theme</c>/<c>fontResolver</c> parameters: a cell carrying a
+    ///     <c>TextBody</c> that would otherwise require growth is left at its stored height when
+    ///     neither parameter is supplied, matching the pre-existing default-path behavior for
+    ///     every caller not yet passing them.
+    /// </summary>
+    [Fact]
+    public void ResolveCellRects_NoThemeOrFontResolverSupplied_PreservesStoredHeightsUnconditionally()
+    {
+        var cell = PptxDocument.ParseTableCell(BuildTc(txBody: BuildTextBody("AA AA")), BuildTestTheme(), 30000f, 10000f);
+        var table = new PptxTable([30000f], [new PptxTableRow(10000f, [cell])]);
+
+        var rects = PptxDocument.ResolveCellRects(table);
+
+        var rect = Assert.Single(rects);
+        Assert.Equal(10000f, rect.HeightEmu); // the stored value, unconditionally - no growth without a theme/font resolver
+    }
+
+    /// <summary>
+    ///     End-to-end proof that <see cref="PptxDocument.PaintTable"/> grows a row to fit wrapped
+    ///     text and paints the next row below the grown (not stale stored) Y-offset - directly
+    ///     proving the reported overlap symptom is fixed, not just at the
+    ///     <see cref="PptxDocument.ResolveCellRects"/> unit level.
+    /// </summary>
+    [Fact]
+    public void PaintTable_TwoRowTableWithWrappedTextOverflowingStoredHeight_PaintsSecondRowBelowGrownFirstRow()
+    {
+        // Row 0's own stored height (10000 EMU) is far smaller than its "AA AA" cell's own
+        // natural required height (25400 EMU, same math as the ResolveCellRects growth test
+        // above). Row 1 is a solid-filled cell with no text of its own, used purely as a probe:
+        // if row 0 is not grown, row 1's stale (stored-height) Y-offset (10000) would sit inside
+        // row 0's own still-overlapping wrapped second line of text; once grown, row 1 starts
+        // comfortably below all of row 0's own glyph ink.
+        var textCell = PptxDocument.ParseTableCell(BuildTc(txBody: BuildTextBody("AA AA")), BuildTestTheme(), 30000f, 10000f);
+        var probeCell = new PptxTableCell(1, 1, false, false, new PptxSolidFill(new Rgba32(10, 20, 30, 255)), null, null, null, null, null);
+        var table = new PptxTable(
+            [30000f],
+            [
+                new PptxTableRow(10000f, [textCell]),
+                new PptxTableRow(5000f, [probeCell]),
+            ]);
+
+        // 1 EMU == 1 surface pixel pre-scale; a 0.25x shapeToSurfaceTransform keeps every
+        // dimension comfortably under Surface's own maximum (8192), while leaving the resolved
+        // EMU math (and this test's own rationale) identical to the 1:1 case.
+        const float scale = 0.25f;
+        using var surface = new Surface(7500, 7600);
+
+        PptxDocument.PaintTable(surface, table, BuildTestTheme(), Matrix3x2.CreateScale(scale), ConstantFontResolver);
+
+        // Row 1's probe fill starts at Y=25400*0.25=6350 (row 0's grown height), not
+        // Y=10000*0.25=2500 (row 0's stale stored height) - sampled comfortably inside row 1's
+        // own fill, just below the grown boundary, proving row 1 was shifted down to avoid
+        // overlapping row 0's own wrapped text.
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[3750, 6375]);
+
+        // Comfortably above the grown boundary (inside row 0's own area, between its two
+        // wrapped-text lines) - the probe's fill color must not have bled upward.
+        Assert.NotEqual(new Rgba32(10, 20, 30, 255), surface[3750, 5000]);
+    }
+
     // --- Table style resolution (Phase 2 Follow-Up: Table Style/Banding Resolution) --------------
 
     /// <summary>
