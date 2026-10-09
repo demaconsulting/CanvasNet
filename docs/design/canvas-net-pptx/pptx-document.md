@@ -593,19 +593,27 @@ convention): resolved body properties plus an ordered list of paragraphs.
   the layout engine (`PptxDocument.TextLayout.cs`) to interpret - body-property parsing does not
   itself implement autofit policy.
 - **`ParseParagraph(XElement pElement)`** resolves `<a:p>` into a `PptxParagraph`: raw paragraph
-  properties (via `ParseParagraphProperties`) plus an ordered list of runs (via `ParseRun`). A
-  paragraph with no recognized child element resolves to an empty run list - a valid, empty
+  properties (via `ParseParagraphProperties`) plus an ordered item list (`<a:r>` runs and `<a:fld>`
+  auto-text fields, each wrapped as a `PptxRunItem`, plus `<a:br>` explicit line breaks). A
+  paragraph with no recognized child element resolves to an empty item list - a valid, empty
   paragraph (a blank line), not an error; `InvalidDataException` is reserved for genuinely
-  malformed structure, not merely sparse/empty content.
+  malformed structure, not merely sparse/empty content. An `<a:fld>` (e.g. `type="slidenum"` or
+  `type="datetime1"`) is parsed the same way as `<a:r>` (same `<a:rPr>`/`<a:t>` shape), additionally
+  capturing its own `type` attribute into `PptxRunItem.FieldType` (`null` for a plain `<a:r>` run) -
+  see _Phase 2 Follow-Up: Slide-Number Field (`<a:fld type="slidenum">`) Substitution_ below for how
+  `FieldType` is later consulted at render time.
 - **`ParseParagraphProperties(XElement? pPrElement)`** resolves `<a:pPr>`'s `algn`, `marL`,
   `indent`, `lnSpc`, `spcBef`, `spcAft`, and `defRPr` child/attributes, each retained **raw and
   unresolved** (a `PptxRawParagraphProperties` record) - resolution against the inheritance chain
   happens later, in `PptxDocument.TextInheritance.cs`, not here. The paragraph's own `lvl`
   attribute (its placeholder/master style level) is clamped to the OOXML schema's documented
   ten-level `[0,8]` range.
-- **`ParseRun(XElement rElement)`** resolves `<a:r>` into a `PptxTextRun`: its own raw,
-  unresolved `<a:rPr>` element (or `null`) plus its `<a:t>` text, defaulting to `string.Empty`
-  when `<a:t>` is absent, per the OOXML schema.
+- **`ParseRun(XElement rElement)`** resolves `<a:r>` (or `<a:fld>`, which shares the same element
+  shape) into a `PptxTextRun`: its own raw, unresolved `<a:rPr>` element (or `null`) plus its
+  `<a:t>` text, defaulting to `string.Empty` when `<a:t>` is absent, per the OOXML schema. As parsed
+  here, an `<a:fld>`'s `<a:t>` still holds PowerPoint's last-computed **cached** field value -
+  `ParseRun` itself performs no field-kind-specific substitution; that happens later, at render
+  time, only for `type="slidenum"` fields (see below).
 
 #### Master `<p:txStyles>` Parsing
 
@@ -3487,3 +3495,99 @@ extension regression case); the pre-existing
 `ResolvePictureSurface_BlipMissingEmbedAndLink_ThrowsInvalidDataException` (no raster fallback and
 no SVG extension at all) continues to pass unchanged, proving that genuinely malformed case is
 unaffected by this fix.
+
+#### Phase 2 Follow-Up: Slide-Number Field (`<a:fld type="slidenum">`) Substitution
+
+**Bug**: a confirmed upstream bug report observed that a slide's own `<a:fld type="slidenum">`
+field (PowerPoint's "Slide Number" footer placeholder) always rendered its cached, last-computed
+placeholder text (e.g. the literal `‹#›` PowerPoint stores in `<a:t>`) verbatim on every slide,
+instead of each slide's own actual 1-based slide number. `ParseParagraph` folded `<a:fld>` into
+the exact same run-parsing branch as `<a:r>`, discarding the field's own `type` attribute entirely;
+nothing downstream ever substituted a field's text before rendering, since `ParseRun` has no
+knowledge of the parent element's own `type` attribute and no later stage ever consulted it.
+
+**Model extension - a nullable property, not a dedicated item type**: `<a:br>` (DrawingML's
+explicit line break) is modeled as a dedicated, stateless `PptxLineBreakItem` subtype (see
+`ParseParagraph`'s own remarks above), appropriate there because a break carries no run-shaped
+payload at all. `<a:fld>`, by contrast, **is** run-shaped (the same
+`<a:rPr>`/`<a:t>` children `ParseRun` already handles) and must keep flowing through every
+existing run-based consumer unchanged - `PptxParagraph.Runs`'s own
+`Items.OfType<PptxRunItem>().Select(item => item.Run)` convenience accessor (consumed by the
+run-property inheritance resolver's/bullet "first run"'s lookup) and `ResolveWrappedLines`'s own
+`((PptxRunItem)item).Run` cast. A dedicated `PptxFieldItem` subtype would silently break the
+`Runs` accessor (it would need updating to flatten both item types back together) for no benefit,
+since a field's `<a:rPr>`-driven styling/inheritance must resolve identically to a plain run's.
+Instead, a nullable `string? FieldType` property was added directly to the existing `PptxRunItem`
+record (`PptxRunItem(PptxTextRun Run, string? FieldType = null)`), the minimal extension: every
+existing `PptxRunItem` call site/pattern-match continues to compile and behave unchanged; only
+`ParseParagraph`'s own `<a:fld>` branch populates the new, optional, default-`null` parameter with
+`(string?)child.Attribute("type")`.
+
+**`SubstituteSlideNumberField` - a pure, render-time-only substitution**: a new internal static
+`PptxDocument.SubstituteSlideNumberField(PptxTextBody textBody, int slideNumber)`
+(`PptxDocument.Text.cs`) returns a new `PptxTextBody` where every `PptxRunItem` whose `FieldType`
+case-insensitively equals the private `SlideNumberFieldType` constant (`"slidenum"`) has its run's
+text replaced with `slideNumber.ToString(CultureInfo.InvariantCulture)` (a plain decimal string, no
+placeholder punctuation); every other item (a plain run, a non-`"slidenum"` field such as
+`"datetime1"`, or a line break) passes through unchanged. Case-insensitive matching is deliberate:
+OOXML field-type values are not reliably authored with consistent casing by every producer.
+Parsing itself (`ParseParagraph`/`ParseRun`) is left untouched - every field type's `<a:t>` still
+holds PowerPoint's cached value exactly as before; only `"slidenum"` is substituted, and only at
+render time, immediately before layout/measurement.
+
+- **The `with`-vs-primary-constructor pitfall**: each affected `PptxParagraph` is rebuilt via its
+  primary constructor (`new PptxParagraph(paragraph.RawProperties, items)`), **not** a `with`
+  expression. `PptxParagraph.Runs` is a property whose backing field is populated once, from the
+  primary constructor's own `Items` parameter, by a property initializer
+  (`Items.OfType<PptxRunItem>().Select(item => item.Run).ToList()`); the compiler-generated `with`
+  copy constructor copies that backing field's **current** value verbatim rather than re-running
+  the initializer, so a `with` expression here would silently leave `Runs` pointing at the
+  pre-substitution run list even though `Items` itself had been correctly updated. `PptxTextBody`
+  itself has no such computed property, so `textBody with { Paragraphs = ... }` is safe for the
+  outer rebuild. A dedicated regression test
+  (`SubstituteSlideNumberField_SlidenumFieldAlongsideLineBreakAndPlainRun_OnlySlidenumItemChanges`,
+  `PptxTextTests.cs`) asserts `Runs` directly (not just `Items`) to guard against regressing this.
+
+**Threading the slide number through the render call chain**: `Render(int slideIndex, ...)`
+already receives a validated, zero-based `slideIndex` - `slideIndex + 1` is exactly PowerPoint's
+own 1-based slide number, computed once (`var slideNumber = slideIndex + 1;`, right after the
+existing range guard) and threaded, unchanged, through all three existing `RenderNode` call sites
+(master/layout/slide shape-tree walks), `RenderNode`'s own recursive group-children call, and its
+`RenderShape` call. `RenderShape` accepts the new `slideNumber` parameter and, immediately after
+`var textBody = ParseTextBody(txBodyElement);`, calls
+`textBody = SubstituteSlideNumberField(textBody, slideNumber);` before the existing
+`ResolveTextLayout`/`PaintTextLayout` calls - so every other already-verified code path
+(geometry/fill/stroke resolution, table/picture/connector rendering) is completely untouched. Only
+the slide's own shape-tree walk's placeholder shapes are real content (a master/layout's own
+placeholder shapes are never painted at all - see _Phase 2 Follow-Up: Master/Layout Decorative
+Shape Rendering_ above), matching the real-world fact that PowerPoint writes a `<p:ph
+type="sldNum">`/`<a:fld type="slidenum">` placeholder onto each slide's own part when the "Slide
+Number" footer option is enabled, not only onto the layout/master.
+
+**Scope decision**: table-cell text bodies (`PptxDocument.Tables.cs`'s own `ParseTextBody` call
+site) are left unchanged - a `<a:fld type="slidenum">` field inside a table cell keeps today's
+cached-text behavior. No real-world corpus fixture places a slidenum field inside a table cell; if
+this gap is reported, it is a separate, additive follow-up to `PptxDocument.Tables.cs`, not a
+revision of this section.
+
+**Test coverage**: `PptxTextTests.cs` gained
+`ParseParagraph_FieldRunDatetime_CapturesDatetimeFieldType` and
+`ParseParagraph_PlainRun_FieldTypeIsNull` (parse-level `FieldType` capture, alongside the updated
+`ParseParagraph_FieldRun_IsPreservedUsingCachedText`), plus a `SubstituteSlideNumberField` region
+covering `SubstituteSlideNumberField_SlidenumField_ReplacesTextWithOneBasedSlideNumber`,
+`SubstituteSlideNumberField_SlidenumFieldUppercaseType_ReplacesTextCaseInsensitively`,
+`SubstituteSlideNumberField_DatetimeField_LeavesCachedTextUnchanged`,
+`SubstituteSlideNumberField_PlainRun_LeavesTextUnchanged`, and the `Runs`-accessor regression test
+above. `PptxRenderTests.cs` gained an optional `additionalSlideSpTreeInnerXmls` parameter on
+`BuildRenderPackage` (defaulting to `null`, preserving every pre-existing single-slide call site
+unchanged) to build a genuine multi-slide deck, plus four end-to-end tests:
+`Render_SlideNumberField_SubstitutesOneBasedSlideNumber` (a single-slide deck's `slidenum` field
+renders pixel-identical to an otherwise-identical plain-run reference shape whose literal text is
+`"1"`), `Render_SlideNumberFieldOnSecondSlideOfTwo_SubstitutesDifferentSlideNumber` (the identical
+field shape on a genuine two-slide deck renders `"1"` on slide 0 and a visibly different `"2"` on
+slide 1 - proving true per-slide substitution, not a value hardcoded from slide 1),
+`Render_DateTimeField_KeepsCachedPlaceholderText` (a `type="datetime1"` field renders pixel-
+identical to its own cached text, completely unaffected), and
+`Render_PlainRunAlongsideSlideNumberField_PlainRunTextUnaffected` (a plain run sharing a paragraph
+with a `slidenum` field renders pixel-identical to a reference shape, proving only the field's own
+run changes).

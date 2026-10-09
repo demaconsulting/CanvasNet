@@ -108,6 +108,12 @@ public sealed partial class PptxDocument
             throw new ArgumentOutOfRangeException(nameof(slideIndex), slideIndex, "Slide index is out of range.");
         }
 
+        // PowerPoint's own 1-based slide number: the deck's zero-based slideIndex plus one. This
+        // is threaded, unchanged, through every RenderNode/RenderShape call below so RenderShape
+        // can substitute it into any <a:fld type="slidenum"> field it encounters (see
+        // SubstituteSlideNumberField) - see this file's own Phase 2 Follow-Up design section.
+        var slideNumber = slideIndex + 1;
+
         var surface = new Surface(width, height);
 
         // Render-time-only picture Surfaces decoded by this single call (via
@@ -157,17 +163,17 @@ public sealed partial class PptxDocument
             // non-placeholder siblings are.
             foreach (var node in master.ShapeTree)
             {
-                RenderNode(surface, node, master.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, skipPlaceholderShapes: true);
+                RenderNode(surface, node, master.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, slideNumber, skipPlaceholderShapes: true);
             }
 
             foreach (var node in layout.ShapeTree)
             {
-                RenderNode(surface, node, layout.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, skipPlaceholderShapes: true);
+                RenderNode(surface, node, layout.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, slideNumber, skipPlaceholderShapes: true);
             }
 
             foreach (var node in slide.ShapeTree)
             {
-                RenderNode(surface, node, slide.PartPath, layout, master, theme, baseTransform, colorMap, renderImages);
+                RenderNode(surface, node, slide.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, slideNumber);
             }
 
             return surface;
@@ -307,6 +313,13 @@ public sealed partial class PptxDocument
     ///     into <see cref="RenderShape"/>/<see cref="RenderPicture"/>/<see cref="RenderConnector"/>
     ///     - see <see cref="ResolveAndTrackPictureSurface"/>.
     /// </param>
+    /// <param name="slideNumber">
+    ///     The slide's own 1-based slide number, computed once in
+    ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/> as <c>slideIndex + 1</c> and
+    ///     threaded unchanged through every recursive call and into <see cref="RenderShape"/>,
+    ///     which substitutes it into any <c>&lt;a:fld type="slidenum"&gt;</c> field a shape's own
+    ///     text body declares - see <see cref="SubstituteSlideNumberField"/>.
+    /// </param>
     /// <param name="skipPlaceholderShapes">
     ///     When <see langword="true"/> (the master/layout decorative-shape walks in
     ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/>), a <see cref="PptxSpShapeNode"/>
@@ -355,6 +368,7 @@ public sealed partial class PptxDocument
         Matrix3x2 parentToSurface,
         PptxColorMap colorMap,
         List<Surface> renderImages,
+        int slideNumber,
         bool skipPlaceholderShapes = false,
         int depth = 0)
     {
@@ -370,7 +384,7 @@ public sealed partial class PptxDocument
                 var childToSurface = group.ChildTransform * parentToSurface;
                 foreach (var child in group.Children)
                 {
-                    RenderNode(surface, child, ownerPartPath, layout, master, theme, childToSurface, colorMap, renderImages, skipPlaceholderShapes, depth + 1);
+                    RenderNode(surface, child, ownerPartPath, layout, master, theme, childToSurface, colorMap, renderImages, slideNumber, skipPlaceholderShapes, depth + 1);
                 }
 
                 break;
@@ -383,7 +397,7 @@ public sealed partial class PptxDocument
 
                 try
                 {
-                    RenderShape(surface, sp, ownerPartPath, layout, master, theme, parentToSurface, colorMap, renderImages);
+                    RenderShape(surface, sp, ownerPartPath, layout, master, theme, parentToSurface, colorMap, renderImages, slideNumber);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {
@@ -449,7 +463,10 @@ public sealed partial class PptxDocument
     /// <summary>
     ///     Renders a <see cref="PptxSpShapeNode"/> (an ordinary or placeholder shape): resolves
     ///     its geometry/fill/stroke via the Phase 1c pipeline and, when it declares a
-    ///     <c>&lt;p:txBody&gt;</c>, its text via the Phase 1d pipeline.
+    ///     <c>&lt;p:txBody&gt;</c>, its text via the Phase 1d pipeline - substituting any
+    ///     <c>&lt;a:fld type="slidenum"&gt;</c> field's cached text with <paramref name="slideNumber"/>
+    ///     immediately after parsing, before layout/measurement (see
+    ///     <see cref="SubstituteSlideNumberField"/>).
     /// </summary>
     private void RenderShape(
         Surface surface,
@@ -460,7 +477,8 @@ public sealed partial class PptxDocument
         PptxTheme theme,
         Matrix3x2 parentToSurface,
         PptxColorMap colorMap,
-        List<Surface> renderImages)
+        List<Surface> renderImages,
+        int slideNumber)
     {
         Surface ResolveBlipImage(XElement blip) => ResolveAndTrackPictureSurface(ownerPartPath, blip, renderImages);
 
@@ -543,6 +561,7 @@ public sealed partial class PptxDocument
         if (txBodyElement is not null)
         {
             var textBody = ParseTextBody(txBodyElement);
+            textBody = SubstituteSlideNumberField(textBody, slideNumber);
             var layoutResult = ResolveTextLayout(
                 textBody, placeholderProperties, theme, placeholderType, frame.WidthEmu, frame.HeightEmu, ResolveTextFont, colorMap);
             PaintTextLayout(surface, layoutResult, localToSurface);

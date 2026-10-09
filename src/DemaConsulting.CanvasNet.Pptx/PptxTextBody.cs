@@ -72,9 +72,19 @@ internal abstract record PptxParagraphItem
     }
 }
 
-/// <summary>A paragraph content item wrapping a parsed <c>&lt;a:r&gt;</c> run.</summary>
+/// <summary>A paragraph content item wrapping a parsed <c>&lt;a:r&gt;</c> run (or <c>&lt;a:fld&gt;</c> field).</summary>
 /// <param name="Run">The wrapped run.</param>
-internal sealed record PptxRunItem(PptxTextRun Run) : PptxParagraphItem;
+/// <param name="FieldType">
+///     The owning <c>&lt;a:fld&gt;</c> element's own <c>type</c> attribute value (e.g.
+///     <c>"slidenum"</c>, <c>"datetime1"</c>), or <see langword="null"/> when this item was
+///     parsed from a plain <c>&lt;a:r&gt;</c> run, or from an <c>&lt;a:fld&gt;</c> with no/empty
+///     <c>type</c> attribute. See <see cref="PptxDocument.ParseParagraph"/>'s remarks for how this
+///     is captured, and <see cref="PptxDocument.SubstituteSlideNumberField"/> for the one field
+///     type (<c>"slidenum"</c>) whose cached <see cref="PptxTextRun.Text"/> is replaced at render
+///     time with the slide's own current 1-based slide number - every other field type (and every
+///     plain run) keeps rendering its parsed <see cref="PptxTextRun.Text"/> unchanged.
+/// </param>
+internal sealed record PptxRunItem(PptxTextRun Run, string? FieldType = null) : PptxParagraphItem;
 
 /// <summary>
 ///     A paragraph content item representing an explicit <c>&lt;a:br&gt;</c> line break -

@@ -124,8 +124,16 @@ public sealed partial class PptxDocument
     ///     stage (<c>PptxDocument.TextLayout.cs</c>) can honor it as an explicit line boundary.
     ///     <c>&lt;a:fld&gt;</c> (auto-text fields such as <c>type="slidenum"</c> or
     ///     <c>type="datetime1"</c>) shares <c>&lt;a:r&gt;</c>'s <c>&lt;a:rPr&gt;</c>/<c>&lt;a:t&gt;</c>
-    ///     structure and is parsed the same way, rendering PowerPoint's cached field text since
-    ///     CanvasNet has no live engine to recompute the field's current value.
+    ///     structure and is parsed the same way, additionally capturing its own <c>type</c>
+    ///     attribute into <see cref="PptxRunItem.FieldType"/> (<see langword="null"/> for a plain
+    ///     <c>&lt;a:r&gt;</c> run). Every field type's <c>&lt;a:t&gt;</c> still holds PowerPoint's
+    ///     last-computed cached value as parsed here - CanvasNet has no live engine to recompute a
+    ///     field's current value at parse time - but <c>type="slidenum"</c> is later substituted
+    ///     with the slide's own current 1-based slide number at render time (see
+    ///     <see cref="SubstituteSlideNumberField"/>, called from
+    ///     <c>PptxDocument.Render.cs</c>'s <c>RenderShape</c>); every other field type
+    ///     (<c>datetime1</c>, etc.) keeps rendering its cached parsed text unchanged, matching how
+    ///     most static OOXML renderers handle fields they cannot live-recompute.
     /// </remarks>
     /// <param name="pElement">The <c>&lt;a:p&gt;</c> element to parse.</param>
     /// <returns>The parsed <see cref="PptxParagraph"/>.</returns>
@@ -135,14 +143,19 @@ public sealed partial class PptxDocument
         var items = new List<PptxParagraphItem>();
         foreach (var child in pElement.Elements())
         {
-            if (child.Name == DrawingNamespace + "r" || child.Name == DrawingNamespace + "fld")
+            if (child.Name == DrawingNamespace + "r")
             {
-                // <a:fld> (e.g. type="slidenum"/"datetime") carries the same <a:rPr>/<a:t>
-                // shape as <a:r>, but its <a:t> holds PowerPoint's last-computed cached field
-                // value rather than literal authored text. CanvasNet has no live PowerPoint
-                // engine to recompute the field, so (matching how most static OOXML renderers
-                // handle fields) the cached text is rendered as-is.
                 items.Add(new PptxRunItem(ParseRun(child)));
+            }
+            else if (child.Name == DrawingNamespace + "fld")
+            {
+                // <a:fld> (e.g. type="slidenum"/"datetime1") carries the same <a:rPr>/<a:t>
+                // shape as <a:r>, but its <a:t> holds PowerPoint's last-computed cached field
+                // value rather than literal authored text, and its own type attribute (captured
+                // here as FieldType) identifies which field it is - consulted later by
+                // SubstituteSlideNumberField to recognize and replace only "slidenum" fields.
+                var fieldType = (string?)child.Attribute("type");
+                items.Add(new PptxRunItem(ParseRun(child), fieldType));
             }
             else if (child.Name == DrawingNamespace + "br")
             {
@@ -151,6 +164,57 @@ public sealed partial class PptxDocument
         }
 
         return new PptxParagraph(properties, items);
+    }
+
+    /// <summary>
+    ///     The <c>&lt;a:fld&gt;</c> field <c>type</c> attribute value (case-insensitive) that
+    ///     <see cref="SubstituteSlideNumberField"/> recognizes and replaces - every other field
+    ///     type keeps rendering its cached parsed text unchanged.
+    /// </summary>
+    private const string SlideNumberFieldType = "slidenum";
+
+    /// <summary>
+    ///     Returns a new <see cref="PptxTextBody"/> equal to <paramref name="textBody"/> except
+    ///     that every <see cref="PptxRunItem"/> whose <see cref="PptxRunItem.FieldType"/>
+    ///     case-insensitively equals <c>"slidenum"</c> has its run's <see cref="PptxTextRun.Text"/>
+    ///     replaced with <paramref name="slideNumber"/>, formatted as a plain decimal string (no
+    ///     placeholder punctuation such as the cached <c>&#8249;#&#8250;</c> text PowerPoint
+    ///     stores). Every other item (a plain run, a non-<c>"slidenum"</c> field such as
+    ///     <c>"datetime1"</c>, or a line break) is returned unchanged. This is a pure function -
+    ///     it mutates nothing and is safe to call once per rendered slide (see
+    ///     <c>PptxDocument.Render.cs</c>'s <c>RenderShape</c>, which calls this immediately after
+    ///     <see cref="ParseTextBody"/> and before layout/measurement).
+    /// </summary>
+    /// <param name="textBody">The parsed text body to substitute within.</param>
+    /// <param name="slideNumber">The slide's own 1-based slide number (the rendered slide's zero-based index plus one).</param>
+    /// <returns>
+    ///     A new <see cref="PptxTextBody"/> with every <c>"slidenum"</c> field's text replaced;
+    ///     structurally identical to <paramref name="textBody"/> otherwise.
+    /// </returns>
+    /// <remarks>
+    ///     Each affected <see cref="PptxParagraph"/> is rebuilt via its primary constructor (not a
+    ///     <c>with</c> expression): <see cref="PptxParagraph.Runs"/> is a property whose backing
+    ///     field is populated once, from the primary constructor's own <c>Items</c> parameter -
+    ///     the compiler-generated <c>with</c> copy constructor copies that backing field's current
+    ///     value verbatim rather than recomputing it, so a <c>with</c> expression here would
+    ///     silently leave <see cref="PptxParagraph.Runs"/> pointing at the pre-substitution run
+    ///     list. <see cref="PptxTextBody"/> itself has no such computed property, so
+    ///     <c>textBody with { Paragraphs = ... }</c> is safe.
+    /// </remarks>
+    internal static PptxTextBody SubstituteSlideNumberField(PptxTextBody textBody, int slideNumber)
+    {
+        var slideNumberText = slideNumber.ToString(CultureInfo.InvariantCulture);
+
+        var paragraphs = textBody.Paragraphs.Select(paragraph =>
+        {
+            var items = paragraph.Items.Select(item => item is PptxRunItem { FieldType: { } fieldType } runItem &&
+                string.Equals(fieldType, SlideNumberFieldType, StringComparison.OrdinalIgnoreCase)
+                    ? runItem with { Run = runItem.Run with { Text = slideNumberText } }
+                    : item).ToList();
+            return new PptxParagraph(paragraph.RawProperties, items);
+        }).ToList();
+
+        return textBody with { Paragraphs = paragraphs };
     }
 
     /// <summary>
