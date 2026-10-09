@@ -188,6 +188,7 @@ sections:
                   - DashSplitter_Split_TinyNegativeOffsetAgainstHugePattern_ProducesCorrectPhase
                   - DashSplitter_Split_TinyNegativeOffsetAgainstAsymmetricHugePattern_ProducesCorrectPhase
                   - DashSplitter_Split_HugeFiniteTotalLengthWithFineDashSpan_FallsBackToSolidStroke
+                  - DashSplitter_Split_ZeroHeavyDashPatternOnLongPath_FallsBackToSolidStrokeWithoutHanging
                   - PathStroker_Stroke_HugeFiniteCoordinatesWithFineDashPattern_CompletesWithoutHanging
 
               - id: CanvasNet-Drawing-PathStroker-NumericRobustness
@@ -279,12 +280,15 @@ sections:
               - id: CanvasNet-Drawing-PathStroker-DashPhaseSemantics
                 title: >-
                   The PathStroker unit shall interpret odd-length dash arrays as repeating on/off
-                  cycles, phase-shift the visible dash runs by the dash offset, and stitch a
-                  closed contour's seam-crossing visible dash run into one contiguous segment.
+                  cycles, phase-shift the visible dash runs by the dash offset, stitch a closed
+                  contour's seam-crossing visible dash run into one contiguous segment, and emit
+                  a zero-length "on" pattern entry (the standard dash-dot "dot" technique) as
+                  exactly one visible zero-length on-interval per pattern repetition rather than
+                  silently omitting it.
                 justification: |
                   Dash patterns are visible public styling behavior; callers expect the same
-                  repeating-cycle and seam-wrapping semantics they see in established vector
-                  graphics systems.
+                  repeating-cycle, seam-wrapping, and dash-dot "dot" semantics they see in
+                  established vector graphics systems (PDF, SVG, CSS).
                 tests:
                   - DashSplitter_Split_NullOrEmptyDashArray_ReturnsWholeSegmentUnchanged
                   - DashSplitter_Split_OddLengthDashArray_DuplicatesArrayConceptually
@@ -294,6 +298,8 @@ sections:
                   - DashSplitter_Split_AllZeroDashArray_TreatedAsSolid
                   - DashSplitter_Split_FineDashPatternOnVeryLongPath_CompletesWithCorrectSegments
                   - DashSplitter_Split_ZeroLengthLeadingDashEntryOnZeroLengthPath_StartsInFollowingOffEntry
+                  - DashSplitter_Split_DashDotPatternWithZeroLengthOnEntry_EmitsDotIntervalAtEachRepetition
+                  - DashSplitter_Split_ZeroLengthOffEntryBetweenPositiveOnEntries_ProducesNoExtraIntervalOrGap
 
               - id: CanvasNet-Drawing-PathStroker-ShellWinding
                 title: >-

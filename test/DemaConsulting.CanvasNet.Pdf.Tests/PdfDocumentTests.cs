@@ -4757,6 +4757,45 @@ public class PdfDocumentTests
         Assert.Equal(default, surface[70, 50]);
     }
 
+    /// <summary>
+    ///     Proves that a dash-dot pattern set via the <c>d</c> operator with a zero-length "on"
+    ///     entry (e.g. <c>[4 8 0 8] 0 d</c>, the standard PDF/SVG/CSS dash-dot "dot" technique)
+    ///     renders the dot as a distinct painted pixel, isolated by unpainted gap pixels on either
+    ///     side, rather than vanishing into the surrounding gap.
+    /// </summary>
+    /// <remarks>
+    ///     Reproduces the reported upstream bug end-to-end: a 4-unit-wide round-cap (<c>1 J</c>)
+    ///     stroke along a horizontal line from <c>(10,50)</c> to <c>(90,50)</c>, dash pattern
+    ///     <c>[4, 8, 0, 8]</c> (dash=4, gap=8, dot=0, gap=8; cycle=20) at offset 0 - the gaps are
+    ///     wide enough (relative to the 4-unit line width's 2-unit round-cap radius) that the
+    ///     dash's and dot's caps do not touch, leaving a genuinely unpainted pixel gap on each
+    ///     side of the dot for this pixel-level assertion to observe. Hand-tracing
+    ///     <c>DashSplitter.BuildOnIntervals</c>'s cost model over the 80-unit path yields dash
+    ///     <c>[10,14]</c>, gap <c>[14,22]</c>, a dot at <c>22</c>, gap <c>[22,30]</c>, dash
+    ///     <c>[30,34]</c>, and so on. Before the fix, the zero-length "on" entry was silently
+    ///     skipped by <c>AdvanceDash</c>, so the dot at <c>x=22</c> was never emitted and that
+    ///     pixel was indistinguishable from the surrounding gap; this test directly proves the fix
+    ///     restores the dot's visibility as a round-cap point distinct from both neighboring
+    ///     dashes.
+    /// </remarks>
+    [Fact]
+    public void PdfDocument_PathOps_DashDotPattern_RendersDistinctDotBetweenDashesAndGaps()
+    {
+        // Arrange
+        const string content = "4 w 1 J [4 8 0 8] 0 d 10 50 m 90 50 l S";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Multiple(
+            () => Assert.Equal(Black, surface[12, 50]), // inside the first dash run
+            () => Assert.Equal(default, surface[18, 50]), // inside the gap immediately before the dot
+            () => Assert.Equal(Black, surface[22, 50]), // the dot itself
+            () => Assert.Equal(default, surface[26, 50]), // inside the gap immediately after the dot
+            () => Assert.Equal(Black, surface[32, 50])); // inside the second dash run
+    }
+
     /// <summary>Proves that <c>b</c> closes the current (still-open) subpath before both filling and stroking it.</summary>
     [Fact]
     public void PdfDocument_PathOps_CloseAndFillAndStroke_PaintsExpectedPixels()
