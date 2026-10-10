@@ -98,6 +98,15 @@
     </None>
   </ItemGroup>
 
+  <!-- Real-encoder grayscale baseline JPEG reused from the core test project (single source of
+       truth; see DemaConsulting.CanvasNet.Tests\JpegFixtures\README.md for provenance), used by
+       the 1-channel DCTDecode /Decode PDF test -->
+  <ItemGroup>
+    <None Include="..\DemaConsulting.CanvasNet.Tests\JpegFixtures\grayscale_baseline.jpg" Link="JpegFixtures\grayscale_baseline.jpg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <!-- Real-encoder JPEG 2000 fixture reused from the core test project (single source of truth;
        linked, not duplicated - see DemaConsulting.CanvasNet.Tests\Jpeg2000Fixtures\README.md for
        provenance), used by the real-encoder /JPXDecode PDF test -->

@@ -467,16 +467,128 @@ public class PdfDocumentJpxTests
         Assert.Equal(128, surface[50, 50].A);
     }
 
-    /// <summary>Proves a non-identity /Decode on a DCTDecode image fails closed.</summary>
+    /// <summary>Proves a non-identity /Decode is applied exactly to a 3-channel DCTDecode image.</summary>
     [Fact]
-    public void PdfDocument_Images_DctWithNonIdentityDecode_ThrowsUnsupportedImageFeatureException()
+    public void PdfDocument_Images_DctRgbWithDecode_InvertsSamples()
     {
         using var source = new Surface(8, 8);
+        source.Clear(new Rgba32(200, 100, 50, 255));
         using var jpegStream = new MemoryStream();
-        JpegCodec.Save(source, jpegStream);
+        JpegCodec.Save(source, jpegStream, quality: 100);
         var image = StreamObject(
             "/Type /XObject /Subtype /Image /Width 8 /Height 8 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Decode [1 0 1 0 1 0]",
             jpegStream.ToArray());
+        using var inverted = Render(image);
+        var plain = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 8 /Height 8 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode",
+            jpegStream.ToArray());
+        using var reference = Render(plain);
+        var expected = reference[50, 50];
+        AssertNear(new Rgba32((byte)(255 - expected.R), (byte)(255 - expected.G), (byte)(255 - expected.B), 255), inverted[50, 50], 1);
+        AssertNear(new Rgba32(55, 155, 205, 255), inverted[50, 50], 3);
+    }
+
+    /// <summary>Proves a non-identity /Decode is applied exactly to a 1-channel (gray) DCTDecode image.</summary>
+    [Fact]
+    public void PdfDocument_Images_DctGrayWithDecode_InvertsSamples()
+    {
+        var jpeg = File.ReadAllBytes(Path.Join(AppContext.BaseDirectory, "JpegFixtures", "grayscale_baseline.jpg"));
+        var info = JpegCodec.GetInfo(new MemoryStream(jpeg));
+        Assert.Equal(1, info.Channels);
+        var dictionary = $"/Type /XObject /Subtype /Image /Width {info.Width} /Height {info.Height} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /DCTDecode";
+        using var reference = Render(StreamObject(dictionary, jpeg));
+        using var inverted = Render(StreamObject(dictionary + " /Decode [1 0]", jpeg));
+        foreach (var (x, y) in new[] { (10, 10), (50, 50), (90, 30) })
+        {
+            AssertNear(new Rgba32((byte)(255 - reference[x, y].R), (byte)(255 - reference[x, y].G), (byte)(255 - reference[x, y].B), 255), inverted[x, y], 1);
+        }
+    }
+
+    /// <summary>Proves a 4-component (CMYK) JPEG with a non-identity /Decode still fails closed (the JPEG codec rejects it).</summary>
+    [Fact]
+    public void PdfDocument_Images_DctFourChannelWithDecode_ThrowsInvalidDataException()
+    {
+        // SOI, SOF0 (8-bit, 8x8, 4 components), EOI: rejected before any pixel decoding.
+        byte[] jpeg =
+        [
+            0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x14, 0x08, 0x00, 0x08, 0x00, 0x08, 0x04,
+            0x01, 0x11, 0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00, 0x04, 0x11, 0x00,
+            0xFF, 0xD9,
+        ];
+        var image = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 8 /Height 8 /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Filter /DCTDecode /Decode [1 0 1 0 1 0 1 0]",
+            jpeg);
+        Assert.Throws<InvalidDataException>(() => Render(image));
+    }
+
+    /// <summary>Proves a 1-bit /SMask supplies a fully transparent and a fully opaque pixel.</summary>
+    [Fact]
+    public void PdfDocument_Images_SMaskOneBit_AppliesBinaryAlpha()
+    {
+        var image = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /SMask 6 0 R",
+            [255, 255]);
+        var mask = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 1",
+            [0b0100_0000]);
+        using var surface = Render(image, mask);
+        Assert.Equal(0, surface[25, 50].A);
+        Assert.Equal(255, surface[75, 50].A);
+    }
+
+    /// <summary>Proves a 16-bit /SMask is applied through its high byte.</summary>
+    [Fact]
+    public void PdfDocument_Images_SMaskSixteenBit_AppliesHighByteAsAlpha()
+    {
+        var image = RawGrayImage("/SMask 6 0 R", [255]);
+        var mask = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 16",
+            [0x80, 0x00]);
+        using var surface = Render(image, mask);
+        Assert.Equal(128, surface[50, 50].A);
+    }
+
+    /// <summary>Proves a 4-bit /SMask honours /Decode and row padding.</summary>
+    [Fact]
+    public void PdfDocument_Images_SMaskFourBitWithDecode_InvertsMask()
+    {
+        var image = RawGrayImage("/SMask 6 0 R", [255]);
+        var mask = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 4 /Decode [1 0]",
+            [0x30]);
+        using var surface = Render(image, mask);
+        Assert.Equal(204, surface[50, 50].A);
+    }
+
+    /// <summary>Proves a 1-bit base image is unpacked MSB first and scaled to full range.</summary>
+    [Fact]
+    public void PdfDocument_Images_RawOneBitGray_UnpacksSamples()
+    {
+        var image = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 1",
+            [0b0100_0000]);
+        using var surface = Render(image);
+        AssertNear(new Rgba32(0, 0, 0, 255), surface[25, 50], 0);
+        AssertNear(new Rgba32(255, 255, 255, 255), surface[75, 50], 0);
+    }
+
+    /// <summary>Proves a truncated sub-byte image fails closed.</summary>
+    [Fact]
+    public void PdfDocument_Images_RawOneBitTruncated_ThrowsInvalidDataException()
+    {
+        var image = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 9 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 1",
+            [0xFF, 0x80, 0xFF]);
+        Assert.Throws<InvalidDataException>(() => Render(image));
+    }
+
+    /// <summary>Proves a 16-bit /Indexed image is rejected.</summary>
+    [Fact]
+    public void PdfDocument_Images_IndexedSixteenBit_ThrowsUnsupportedImageFeatureException()
+    {
+        var image = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [/Indexed /DeviceRGB 1 <FF000000FF00>] /BitsPerComponent 16",
+            [0, 0]);
         Assert.Throws<UnsupportedImageFeatureException>(() => Render(image));
     }
 

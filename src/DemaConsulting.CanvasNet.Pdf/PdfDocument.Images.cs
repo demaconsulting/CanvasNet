@@ -239,8 +239,9 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Decodes an image XObject stream into a fully opaque <see cref="Surface"/> of its
-    ///     declared <c>/Width</c> x <c>/Height</c>.
+    ///     Decodes an image XObject stream into a <see cref="Surface"/> of its declared
+    ///     <c>/Width</c> x <c>/Height</c>: opaque unless the image has an <c>/SMask</c> (or JPX
+    ///     opacity channel), which supplies the alpha channel.
     /// </summary>
     /// <remarks>
     ///     A <c>/Filter /DCTDecode</c> image (and no other filter) is decoded directly via
@@ -264,13 +265,15 @@ public sealed partial class PdfDocument
     ///     case decodes via the general <c>FlateDecode</c>(+predictor) pipeline and interprets
     ///     the resulting raw samples per <c>/ColorSpace</c> (device color spaces, <c>/ICCBased</c>,
     ///     and <c>/Indexed</c> - see <see cref="PdfColorSpace"/>) and <c>/BitsPerComponent</c>
-    ///     (<c>8</c> only). A <c>/Filter /JPXDecode</c> image (and no other filter) is decoded
+    ///     (<c>1</c>, <c>2</c>, <c>4</c>, <c>8</c> or <c>16</c>; 16-bit samples keep their high
+    ///     byte, and <c>/Indexed</c> images may not be 16-bit). A <c>/Filter /JPXDecode</c> image (and no other filter) is decoded
     ///     by <see cref="DecodeJpxImageXObject"/>. An explicit <c>/SMask</c> image (any supported
     ///     encoding, including <c>JPXDecode</c>) supplies the alpha channel, resampled to the
     ///     base image with nearest-neighbor sampling (the mask must be a single-component,
     ///     non-<c>/Indexed</c> image and is multiplied into the base surface in place); the
     ///     <c>/Decode</c> array is applied to the samples of every encoding (including soft-mask
-    ///     images), except that a non-identity one on a <c>DCTDecode</c> image fails closed; <c>/Mask</c> (stencil/color-key masking) and
+    ///     images and <c>DCTDecode</c> images; 4-channel CMYK/YCCK JPEGs are rejected outright by
+    ///     <see cref="JpegCodec"/>, so a <c>/Decode</c> can never be silently ignored on one); <c>/Mask</c> (stencil/color-key masking) and
     ///     <c>/Matte</c> are never consulted, a documented limitation. JPEG 2000 is never
     ///     decoded from an inline image because inline images (<c>BI</c>/<c>ID</c>/<c>EI</c>)
     ///     are not supported at all (the operators are ignored), which also satisfies the
@@ -286,7 +289,7 @@ public sealed partial class PdfDocument
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when <c>/ColorSpace</c> names an unsupported color space, when
-    ///     <c>/BitsPerComponent</c> is not <c>8</c> (for a non-<c>DCTDecode</c>/non-
+    ///     <c>/BitsPerComponent</c> is not <c>1</c>/<c>2</c>/<c>4</c>/<c>8</c>/<c>16</c> (for a non-<c>DCTDecode</c>/non-
     ///     <c>CCITTFaxDecode</c> image), when a <c>CCITTFaxDecode</c> image's resolved
     ///     <c>/ColorSpace</c> has more than 1 component, or propagated from
     ///     <see cref="DecodeCcittFax"/> when <c>/DecodeParms /K</c> is <c>0</c> or greater
@@ -381,16 +384,18 @@ public sealed partial class PdfDocument
             var rawBytes = GetStreamRawBytes(stream);
             var channels = JpegCodec.GetInfo(new MemoryStream(rawBytes)).Channels;
 
-            // The JPEG decoder has already converted to RGB (for CMYK, with its own inversion
-            // handling), so a non-identity /Decode cannot be applied per component faithfully.
-            if (ResolveDecodeArray(stream, channels, indexed: false) is not null)
+
+            // JpegCodec only accepts 1-channel (gray) and 3-channel (YCbCr) JPEGs - a 4-channel
+            // (CMYK/YCCK) JPEG already fails closed in GetInfo above - and both decode to exactly
+            // their component samples, so the shared /Decode path applies exactly.
+            var jpegDecodeRanges = ResolveDecodeArray(stream, channels, indexed: false);
+            var jpegSurface = JpegCodec.Load(new MemoryStream(rawBytes));
+            if (jpegDecodeRanges is not null)
             {
-                throw new UnsupportedImageFeatureException(
-                    "pdf-image-decode-dctdecode",
-                    "A non-identity /Decode array on a DCTDecode image is not supported.");
+                ApplyDecodeToSurface(jpegSurface, channels, jpegDecodeRanges);
             }
 
-            return new DecodedImage(JpegCodec.Load(new MemoryStream(rawBytes)), channels == 1);
+            return new DecodedImage(jpegSurface, channels == 1);
         }
 
         if (filterNames.Contains("DCTDecode"))
@@ -425,19 +430,29 @@ public sealed partial class PdfDocument
         var colorSpace = ResolveColorSpaceValue(Resolve(colorSpaceObject));
 
         var bitsPerComponent = RequireIntEntry(stream, "BitsPerComponent");
-        if (bitsPerComponent != 8)
+        if (bitsPerComponent is not (1 or 2 or 4 or 8 or 16))
         {
             throw new UnsupportedImageFeatureException(
                 $"pdf-image-bitdepth-{bitsPerComponent}",
-                $"Image XObjects with {bitsPerComponent}-bit components are not supported; only 8 is supported.");
+                $"Image XObjects with {bitsPerComponent}-bit components are not supported; only 1, 2, 4, 8 and 16 are supported.");
         }
 
         var componentCount = ComponentCount(colorSpace);
         var indexed = colorSpace.Kind == PdfColorSpace.Family.Indexed;
-        var decodeRanges = ResolveDecodeArray(stream, componentCount, indexed);
+        if (indexed && bitsPerComponent == 16)
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-image-bitdepth-16",
+                "An /Indexed image with 16-bit indices is not supported.");
+        }
+
+        // Normalize every depth to one byte per component (non-indexed samples scaled to 0-255,
+        // /Indexed samples kept as raw palette indices) so /Decode and color conversion share one path.
+        var samples = UnpackSamples(decoded, width, height, componentCount, bitsPerComponent, indexed);
+        var decodeRanges = ResolveDecodeArray(stream, componentCount, indexed, bitsPerComponent);
         if (decodeRanges is not null)
         {
-            decoded = ApplyDecodeArray(decoded, componentCount, decodeRanges, indexed);
+            samples = ApplyDecodeArray(samples, componentCount, decodeRanges, indexed, (1 << bitsPerComponent) - 1);
         }
 
         var surface = new Surface(width, height);
@@ -448,7 +463,7 @@ public sealed partial class PdfDocument
             for (var x = 0; x < width; x++)
             {
                 var pixelOffset = rowOffset + (x * componentCount);
-                surface[x, y] = SamplesToColor(colorSpace, decoded, pixelOffset, componentCount);
+                surface[x, y] = SamplesToColor(colorSpace, samples, pixelOffset, componentCount);
             }
         }
 
@@ -620,7 +635,7 @@ public sealed partial class PdfDocument
     ///     mapping (<c>[0 1]</c> per component, or <c>[0 255]</c> for an <c>/Indexed</c> space).
     /// </returns>
     /// <exception cref="InvalidDataException">Thrown when the array is not <c>2 x components</c> numbers.</exception>
-    private double[]? ResolveDecodeArray(PdfObject stream, int componentCount, bool indexed)
+    private double[]? ResolveDecodeArray(PdfObject stream, int componentCount, bool indexed, int bitsPerComponent = 8)
     {
         var entry = stream.Get("Decode");
         if (entry is null)
@@ -646,7 +661,7 @@ public sealed partial class PdfDocument
             ranges[i] = item.Number;
         }
 
-        var identityMax = indexed ? 255.0 : 1.0;
+        var identityMax = indexed ? (double)((1 << bitsPerComponent) - 1) : 1.0;
         var identity = true;
         for (var c = 0; c < componentCount; c++)
         {
@@ -662,17 +677,109 @@ public sealed partial class PdfDocument
     ///     (for a non-<c>/Indexed</c> space the decode range is <c>[0, 1]</c>-normalized; for
     ///     <c>/Indexed</c> it is in palette-index units).
     /// </summary>
-    private static byte[] ApplyDecodeArray(byte[] samples, int componentCount, double[] ranges, bool indexed)
+    private static byte[] ApplyDecodeArray(
+        byte[] samples, int componentCount, double[] ranges, bool indexed, int indexedMaxSample = 255)
     {
+        var maxSample = indexed ? indexedMaxSample : 255;
         var result = new byte[samples.Length];
         for (var i = 0; i < samples.Length; i++)
         {
             var component = i % componentCount;
             var min = ranges[2 * component];
             var max = ranges[(2 * component) + 1];
-            var value = min + (samples[i] / 255.0 * (max - min));
+            var value = min + (samples[i] / (double)maxSample * (max - min));
             var scaled = indexed ? value : value * 255.0;
             result[i] = (byte)Math.Clamp((int)Math.Round(scaled), 0, 255);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    ///     Applies resolved <c>/Decode</c> ranges, in place, to the component samples of a decoded
+    ///     1-channel (gray) or 3-channel (RGB) <see cref="Surface"/> (a JPEG whose decoder output is
+    ///     exactly its component samples).
+    /// </summary>
+    private static void ApplyDecodeToSurface(Surface surface, int channels, double[] ranges)
+    {
+        var samples = new byte[surface.Width * surface.Height * channels];
+        var index = 0;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                var pixel = surface[x, y];
+                samples[index++] = pixel.R;
+                if (channels == 3)
+                {
+                    samples[index++] = pixel.G;
+                    samples[index++] = pixel.B;
+                }
+            }
+        }
+
+        samples = ApplyDecodeArray(samples, channels, ranges, indexed: false);
+        index = 0;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                var r = samples[index++];
+                if (channels == 3)
+                {
+                    var g = samples[index++];
+                    var b = samples[index++];
+                    surface[x, y] = new Rgba32(r, g, b, 255);
+                }
+                else
+                {
+                    surface[x, y] = new Rgba32(r, r, r, 255);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Unpacks raw image sample data of any supported <c>/BitsPerComponent</c> (1, 2, 4, 8 or
+    ///     16; rows are padded to whole bytes) into one byte per component. Non-<c>/Indexed</c>
+    ///     samples are scaled to the 0-255 range (16-bit samples keep their high byte);
+    ///     <c>/Indexed</c> samples stay raw palette indices.
+    /// </summary>
+    /// <exception cref="InvalidDataException">Thrown when <paramref name="data"/> is shorter than the image needs.</exception>
+    private static byte[] UnpackSamples(
+        byte[] data, int width, int height, int componentCount, int bitsPerComponent, bool indexed)
+    {
+        var perRow = (long)width * componentCount;
+        var rowBytes = ((perRow * bitsPerComponent) + 7) / 8;
+        if (data.Length < rowBytes * height)
+        {
+            throw new InvalidDataException("Image XObject sample data is truncated.");
+        }
+
+        if (bitsPerComponent == 8)
+        {
+            return data;
+        }
+
+        var maxValue = (1 << bitsPerComponent) - 1;
+        var result = new byte[perRow * height];
+        var o = 0;
+        for (var y = 0; y < height; y++)
+        {
+            var rowStart = y * rowBytes;
+            for (var i = 0L; i < perRow; i++)
+            {
+                if (bitsPerComponent == 16)
+                {
+                    result[o++] = data[rowStart + (2 * i)];
+                    continue;
+                }
+
+                var bitOffset = i * bitsPerComponent;
+                var shift = 8 - bitsPerComponent - (int)(bitOffset & 7);
+                var value = (data[rowStart + (bitOffset >> 3)] >> shift) & maxValue;
+                result[o++] = (byte)(indexed ? value : value * 255 / maxValue);
+            }
         }
 
         return result;
