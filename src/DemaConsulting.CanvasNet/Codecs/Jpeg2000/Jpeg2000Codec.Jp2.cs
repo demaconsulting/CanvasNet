@@ -104,6 +104,11 @@ public static partial class Jpeg2000Codec
             throw Malformed("data is neither a JPEG 2000 codestream nor a JP2 file.");
         }
 
+        if (ReadBe32(data, 8) != 0x0D0A870A)
+        {
+            throw Malformed("invalid JP2 signature box content.");
+        }
+
         var info = new Jp2Info();
         var pos = 0;
         var found = false;
@@ -252,7 +257,13 @@ public static partial class Jpeg2000Codec
         var depth = new int[columns];
         for (var i = 0; i < columns; i++)
         {
-            depth[i] = (r.ReadU8() & 0x7F) + 1;
+            var depthByte = r.ReadU8();
+            if ((depthByte & 0x80) != 0)
+            {
+                throw Unsupported("jpeg2000-signed-palette", "palette columns with signed entries.");
+            }
+
+            depth[i] = (depthByte & 0x7F) + 1;
             if (depth[i] > 16)
             {
                 throw Unsupported("jpeg2000-bit-depth", "palette entries deeper than 16 bits.");

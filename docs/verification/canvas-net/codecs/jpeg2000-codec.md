@@ -64,10 +64,15 @@ interest max-shift.
 ##### CanvasNet-Codecs-Jpeg2000Codec-PacketStructure: Tier-2 Packets
 
 **Tests**: the `_Precincts`, `_PerResolutionPrecincts`, `_Layers`, `_ProgressionOrders`,
-`_PositionProgressionWithOffsets` and `_Poc*` (main header, tile header, tile overriding main)
+`_PositionProgressionWithOffsets` and `_Poc*` (main header, tile header, tile overriding main,
+`_PocLaterVolumeLargerLayerEnd`, `_PocTileHeaderLaterVolumeLargerLayerEnd`)
 tests, plus the lossless real-encoder fixture.
 
 Round-trips streams using every progression order, layers, precinct sizes, tiles and offsets.
+The decoder tracks every (component, resolution, precinct, layer) packet in a seen bitmap, so a
+later POC volume with a larger layer end skips packets an earlier volume already sent and reads
+only the new layers (T.800 B.12.2); the `_PocLaterVolumeLargerLayerEnd*` tests use layers 0..1
+followed by layers 0..3 over the same resolutions and components and require an exact round trip.
 The real-encoder fixtures add independent exact-match evidence for the RLCP, RPCL, PCRL and CPRL
 progression orders (marker-verified), three quality layers and reduced decomposition levels.
 
@@ -86,7 +91,10 @@ tolerated marker variants; COD/COC/QCD/QCC/RGN in a later tile-part are rejected
 **Tests**: the `Jpeg2000Codec_Decode_Jp2*` tests.
 
 Checks enumerated color spaces, sYCC conversion, ICC profile reporting, box length forms,
-palettes, and channel definitions (alpha and reordering).
+palettes, and channel definitions (alpha and reordering). `_Jp2BadSignatureContent` proves a
+signature box whose content is not `0D 0A 87 0A` is rejected with `InvalidDataException`, and
+`_Jp2SignedPaletteColumn` proves a palette column with the signed flag set is rejected with
+`UnsupportedImageFeatureException`.
 
 ##### CanvasNet-Codecs-Jpeg2000Codec-GetInfo: Header-Only Information
 

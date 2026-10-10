@@ -821,6 +821,32 @@ public class Jpeg2000CodecTests
         Assert.Equal(0, MaxError(image, jp2));
     }
 
+    /// <summary>Tests that a JP2 signature box with the wrong content bytes is rejected.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_Jp2BadSignatureContent_ThrowsInvalidData()
+    {
+        var image = Img(8, 8, 1);
+        var jp2 = Jpeg2000TestEncoder.WrapJp2(image, Encode(image, Rev(1)), new J2kJp2Options { EnumCs = 17 });
+        _ = Jpeg2000Codec.Decode(jp2);
+        AssertMalformed(Patch(jp2, 8, 0x0D, 0x0A, 0x87, 0x0B), "invalid JP2 signature box content");
+        AssertMalformed(Patch(jp2, 8, 0x00, 0x00, 0x00, 0x00), "invalid JP2 signature box content");
+    }
+
+    /// <summary>Tests that a palette column declared signed is rejected as unsupported.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_Jp2SignedPaletteColumn_ThrowsUnsupported()
+    {
+        var image = Img(12, 9, 1, 4, 1, 0);
+        int[][] palette = Enumerable.Range(0, 16).Select(i => new[] { i }).ToArray();
+
+        // A depth of 129 is written as the byte 0x80: bit depth 1 with the signed flag set.
+        var jp2 = Jpeg2000TestEncoder.WrapJp2(
+            image,
+            Encode(image, Rev(1)),
+            new J2kJp2Options { Palette = palette, PaletteDepths = [129], Cmap = [(0, 1, 0)] });
+        Assert.Throws<UnsupportedImageFeatureException>(() => Jpeg2000Codec.Decode(jp2));
+    }
+
     /// <summary>Tests palette mapping.</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_Jp2Palette_MapsIndicesToColors()
@@ -1530,6 +1556,32 @@ public class Jpeg2000CodecTests
         full.Layers = 2;
         full.Poc = [new J2kPoc(0, 0, 1, 3, 1, 0), new J2kPoc(0, 0, 2, 3, 1, 1)];
         AssertExact(Img(16, 16, 1), full);
+    }
+
+    /// <summary>Tests that a later POC volume with a larger layer end skips already-sent packets and reads only the new layers.</summary>
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(0, 1)]
+    [InlineData(2, 4)]
+    public void Jpeg2000Codec_Decode_PocLaterVolumeLargerLayerEnd_SkipsSentPackets(int firstOrder, int secondOrder)
+    {
+        var o = Rev(2);
+        o.Layers = 4;
+        o.Poc = [new J2kPoc(0, 0, 2, 3, 3, firstOrder), new J2kPoc(0, 0, 4, 3, 3, secondOrder)];
+        AssertExact(Img(32, 32, 3), o);
+    }
+
+    /// <summary>Tests that a later POC volume with a larger layer end skips already-sent packets in a tile-part POC.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_PocTileHeaderLaterVolumeLargerLayerEnd_SkipsSentPackets()
+    {
+        var o = Rev(2);
+        o.Layers = 4;
+        o.Poc = [new J2kPoc(0, 0, 2, 3, 3, 1), new J2kPoc(0, 0, 4, 3, 3, 0)];
+        o.PocInTileHeader = true;
+        o.TileWidth = 16;
+        o.TileHeight = 16;
+        AssertExact(Img(32, 32, 3), o);
     }
 
     /// <summary>Tests that a modest number of repeated progression volumes is deduplicated and still decodes.</summary>

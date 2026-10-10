@@ -157,6 +157,8 @@ streams and decoding them with ImageMagick) or the standard leaves the behavior 
 - TNsot (declared tile-part count) is advisory; see Decoding Pipeline.
 - A repeated channel association for the same channel in the cdef box: the last one wins.
 - A palette index beyond the last palette entry is clamped to the last entry.
+- A JP2 signature box whose content is not `0D 0A 87 0A` is rejected as malformed, and a palette
+  column declared signed (bit 7 of its depth byte) is rejected as unsupported.
 - An enumerated color space other than sRGB, grayscale, sYCC and CMYK is treated as RGB (or
   unknown) without error; ICC profiles are reported but never applied.
 - COD/COC/QCD/QCC/RGN markers are rejected in any tile-part after the first of a tile (the

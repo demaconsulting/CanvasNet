@@ -145,6 +145,8 @@ sections:
                   - Jpeg2000Codec_Decode_Jp2BoxLengthForms_AreHandled
                   - Jpeg2000Codec_Decode_Jp2Palette_MapsIndicesToColors
                   - Jpeg2000Codec_Decode_Jp2PaletteMixedDirectChannel_Maps
+                  - Jpeg2000Codec_Decode_Jp2BadSignatureContent_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_Jp2SignedPaletteColumn_ThrowsUnsupported
                   - Jpeg2000Codec_Decode_BitDepthAndHasPalette_ReportSourceFormat
                   - Jpeg2000Codec_Decode_Jp2Cdef_ProducesAlpha
                   - Jpeg2000Codec_Decode_Jp2CdefReorder_SwapsChannels
@@ -213,6 +215,8 @@ sections:
                   - Jpeg2000Codec_Decode_OverlappingProgressionVolumes_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_TightProgressionLimit_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_PocLeavingPacketsUncovered_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_PocLaterVolumeLargerLayerEnd_SkipsSentPackets
+                  - Jpeg2000Codec_Decode_PocTileHeaderLaterVolumeLargerLayerEnd_SkipsSentPackets
                   - Jpeg2000Codec_Decode_RepeatedPocEntriesWithinCap_DecodesExactly
                   - Jpeg2000Codec_DecodeBudget_IsCumulativeAndScalesWithInput
                   - Jpeg2000Codec_Decode_TightTier1Limit_ThrowsInvalidData
