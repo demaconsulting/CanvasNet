@@ -18,7 +18,7 @@ DEMA Consulting best practices. The system consists of six implemented subsystem
   span-based row access and independent-copy cropping) and the `Rgba32` unit (a single-pixel
   value type, documented inline within `Surface`). See _Canvas Subsystem Design_ (`canvas.md`).
 - **Codecs subsystem** (namespace `DemaConsulting.CanvasNet.Codecs`, folder
-  `src/DemaConsulting.CanvasNet/Codecs/`, flat — no further nesting): five hand-rolled image
+  `src/DemaConsulting.CanvasNet/Codecs/`, flat — no further nesting): six hand-rolled image
   format codecs, each converting to and from a `DemaConsulting.CanvasNet.Canvas.Surface` pixel buffer —
   `BmpCodec` (uncompressed 24-bit/32-bit Windows BMP), `PngCodec` (saves 8-bit-per-channel
   Truecolor and Truecolor-with-alpha, non-interlaced PNG; loads every non-interlaced, spec-valid

@@ -2,7 +2,7 @@
 
 ![Codecs Structure](CodecsView.svg)
 
-The `GifCodec` class is the sixth software unit in CanvasNet's `Codecs` subsystem. It provides
+The `GifCodec` class is a software unit of CanvasNet's `Codecs` subsystem. It provides
 hand-rolled, decode-only loading of a common real-world subset of GIF (GIF87a/GIF89a) files into
 `Surface` pixel buffers.
 

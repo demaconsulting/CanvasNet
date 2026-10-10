@@ -2,7 +2,7 @@
 
 ![Codecs Structure](CodecsView.svg)
 
-The `Jpeg2000Codec` class is the sixth software unit in CanvasNet's `Codecs` subsystem. It
+The `Jpeg2000Codec` class is a software unit of CanvasNet's `Codecs` subsystem. It
 provides a hand-rolled, decode-only implementation of JPEG 2000 Part 1 (ISO/IEC 15444-1 / ITU-T
 T.800): JP2 files and raw codestreams are decoded into `Surface` pixel buffers, or into a
 `Jpeg2000Image` that also exposes the decoded color space and opacity channel.

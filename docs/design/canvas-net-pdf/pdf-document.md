@@ -94,10 +94,11 @@ glyph under a clip mode fails closed); and no additional stream filters were add
 no transparency groups; shading/tiling pattern fills were added (`/ShadingType 2`/`3`,
 `/PatternType 1`/`2` — see _`/Pattern` Color Space (Shading and Tiling Patterns)_ below, reusing
 the `/FunctionType 0` sampled-function evaluator originally landed as Phase 1 groundwork,
-alongside new `/FunctionType 2`/`3` support), `JPXDecode` is decoded (see Image XObjects below; `LZWDecode`/`ASCII85Decode`/
+alongside new `/FunctionType 2`/`3` support), `LZWDecode`/`ASCII85Decode`/
 `ASCIIHexDecode`/`RunLengthDecode` are supported as of Phase 7, and
 `CCITTFaxDecode` - Group 4 (T.6 MMR) only - is supported as of Phase 15, see below), and
-`/Mask`/`/Matte` image masks remain unsupported (an explicit `/SMask` soft mask is applied) — these
+`/Mask`/`/Matte` image masks remain unsupported (`JPXDecode` images and explicit `/SMask` soft masks
+are supported — see _Image XObjects_ below) — these
 remain out of scope for this phase and are silently skipped (any other undefined keyword) or
 explicitly rejected (unsupported color spaces/filters/fonts/encodings/render modes), per the
 operator/exception taxonomy documented below; a later phase is expected to add transparency
@@ -728,22 +729,38 @@ its own distinguishable `Feature` token.
   `/BitsPerComponent` (`8` only — anything else throws
   `Codecs.UnsupportedImageFeatureException`). A bare `/Filter /JPXDecode` image is detected and
   dispatched to `DecodeJpxImageXObject`, which decodes the stream via
-  `Codecs.Jpeg2000Codec.Decode(byte[])` (trusting the decoder's dimensions over `/Width`/`/Height`
-  and mapping any `Jpeg2000Codec` failure to the existing `InvalidDataException`/
-  `UnsupportedImageFeatureException` conventions); `JPXDecode` combined with any other filter
+  `Codecs.Jpeg2000Codec.Decode(byte[], Jpeg2000DecoderLimits)` with explicit limits of
+  `Surface.MaxDimension` in each dimension, checked by the codec while it parses the headers and so
+  before any plane is allocated (trusting the decoder's dimensions over `/Width`/`/Height`, like
+  `DCTDecode`; every `Jpeg2000Codec` failure, including a limit violation, surfaces as the
+  existing `InvalidDataException`/`UnsupportedImageFeatureException` conventions);
+  `JPXDecode` combined with any other filter
   throws `InvalidDataException`. When `/ColorSpace` is absent the JP2's own color space is used
   (gray, sRGB, CMYK, or by channel count; five or more channels need an explicit `/ColorSpace`
   and otherwise throw `UnsupportedImageFeatureException`); when present, `/ColorSpace`
-  (`DeviceGray`/`DeviceRGB`/`DeviceCMYK`, `/Indexed`, `/ICCBased` by component count) overrides it
+  (`DeviceGray`/`DeviceRGB`/`DeviceCMYK`, `/Indexed`, `/ICCBased` by component count; `/Pattern`
+  throws `InvalidDataException`) overrides it
   and its component count must equal the decoded color channel count
   (`InvalidDataException` otherwise); an `/Indexed` override uses the decoded 8-bit samples as
-  indices. An optional `/Decode` array (`DecodeArray`, applied to JPX images only) remaps each
-  8-bit sample; a wrong-length or non-numeric array throws `InvalidDataException`.
+  indices (non-8-bit source samples and JP2 data with its own palette throw
+  `UnsupportedImageFeatureException`). An optional `/Decode` array is applied for **every**
+  encoding (raw, `CCITTFaxDecode`, `JPXDecode`, and `/SMask` images) by the shared
+  `ResolveDecodeArray` (validation; an identity array resolves to none) and `ApplyDecodeArray`
+  (per-component linear remap of the 8-bit samples before the color-space conversion); a
+  wrong-length or non-numeric array throws `InvalidDataException`. A `DCTDecode` image is the one
+  exception: `JpegCodec` has already converted to RGB (for CMYK, with its own inversion handling),
+  so a non-identity `/Decode` there throws `UnsupportedImageFeatureException`
+  (`pdf-image-decode-dctdecode`).
   `/SMaskInData` selects how the codestream's opacity channel is used: `0` ignores it, `1` applies
-  it as straight alpha, `2` un-premultiplies the color and then applies it; other values throw
+  it as straight alpha, `2` un-premultiplies the component samples (`UnpremultiplySamples`,
+  before `/Decode` and before the color-space conversion, since e.g. CMYK to RGB is not linear in
+  the premultiplied values; an `/Indexed` space throws `UnsupportedImageFeatureException`,
+  `pdf-jpx-smaskindata-indexed`) and then applies it; other values throw
   `InvalidDataException`. An explicit `/SMask` image (any filter, including `JPXDecode`; decoded
-  through the same `DecodeImageSamples` path without nested masks) is nearest-neighbor resampled
-  to the base image and its luminance multiplies the base alpha (`ApplySoftMask`), taking
+  through the same `DecodeImageSamples` path without nested masks, and required to be a
+  single-component non-`/Indexed` image, else `InvalidDataException`) is nearest-neighbor resampled
+  to the base image and its luminance multiplies the base alpha in place on the base surface
+  (`ApplySoftMask`), taking
   precedence over `/SMaskInData`; `/Mask` and `/Matte` are not consulted. Inline images (`BI`) are
   not supported at all, which satisfies the PDF rule that `JPXDecode` is not permitted inline.
   `CompositeImageOntoSurface` inverts the CTM (a non-invertible/degenerate CTM silently paints
@@ -757,9 +774,9 @@ its own distinguishable `Feature` token.
   helper (standard Porter-Duff "over" alpha compositing — straight/unassociated alpha in and out,
   `outA = fgA + bgA * (1 - fgA)`, each color channel `outC = (fgC * fgA + bgC * bgA * (1 - fgA)) /
   outA` when `outA != 0` else `0`, round-half-away-from-zero, clamped to `[0, 255]`) rather than
-  overwritten outright — a documented fix (every decoded PDF image XObject is currently always
-  fully opaque per the `/SMask`/`/Mask` limitation noted above, so this matters only for a future
-  phase that decodes a non-opaque alpha channel, or for this same helper's shared reuse by
+  overwritten outright — a documented fix (an image XObject is opaque unless it carries an `/SMask`
+  or a JPX `/SMaskInData` alpha channel, so this matters for those images and for this same
+  helper's shared reuse by
   `DemaConsulting.CanvasNet.Pptx`'s own `PaintPicture`, which does sample genuinely non-opaque
   source pixels today — see that package's own design documentation).
 - **CCITT Group 4 fax decoding (`PdfDocument.CcittFax.cs`, added in Phase 15)** — a from-scratch

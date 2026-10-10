@@ -242,7 +242,15 @@ sections:
           position/size in the rendered output, not merely be silently skipped.
         children:
           - CanvasNetPdf-PdfDocument-ImageXObjects
+          - CanvasNetPdf-PdfDocument-ImageSoftMask
+          - CanvasNetPdf-PdfDocument-ImageSoftMaskInvalid
+          - CanvasNetPdf-PdfDocument-ImageDecodeArray
+          - CanvasNetPdf-PdfDocument-ImageDecodeArrayInvalid
           - CanvasNetPdf-PdfDocument-JpxDecode
+          - CanvasNetPdf-PdfDocument-JpxColorSpace
+          - CanvasNetPdf-PdfDocument-JpxSMaskInData
+          - CanvasNetPdf-PdfDocument-JpxInvalidInput
+          - CanvasNetPdf-PdfDocument-JpxUnsupportedCombination
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels
 

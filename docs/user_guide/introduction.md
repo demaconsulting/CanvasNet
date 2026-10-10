@@ -945,6 +945,8 @@ Decodes to a `Jpeg2000Image` exposing `Width`, `Height`, `ColorSpace` (`Gray`, `
 before 8-bit scaling, and `HasPalette` (whether a JP2 palette was applied to `ColorSamples`).
 Throws the same exceptions as `Load`.
 
+### SvgCodec
+
 `SvgCodec` is distributed via the separate `DemaConsulting.CanvasNet.Svg` NuGet package (namespace
 `DemaConsulting.CanvasNet.Svg`), which references the core `DemaConsulting.CanvasNet` package -
 see the Installation section of the project README.

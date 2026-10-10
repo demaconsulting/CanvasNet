@@ -33,7 +33,7 @@ of CanvasNet's target frameworks.
 
 The `Canvas` subsystem's `Surface` unit is a public API entry point, invoked externally by
 consumers of the CanvasNet package. It is also invoked internally by every unit of the `Codecs`
-subsystem (`BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`), each of which constructs
+subsystem (`BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, `Jpeg2000Codec`), each of which constructs
 a `Surface` when loading and reads its rows when saving — see _Codecs Subsystem Design_
 (`codecs.md`) for details. It is also invoked internally by the `Drawing` subsystem's `PathFiller`
 unit, which composites each rasterized row directly via `Surface.CompositeOverSpan` — see

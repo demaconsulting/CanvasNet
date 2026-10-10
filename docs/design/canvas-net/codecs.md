@@ -43,6 +43,8 @@ subsystem's `Surface` unit for their in-memory pixel representation.
   is used by the PDF renderer for `/JPXDecode` images; see _Jpeg2000Codec Unit Design_
   (`codecs/jpeg2000-codec.md`)
 
+### Shared Types
+
 #### ImageInfo
 
 `ImageInfo` is a `public readonly record struct` shared by all six codecs' `GetInfo` methods:
@@ -58,8 +60,12 @@ public readonly record struct ImageInfo(int Width, int Height, int Channels, boo
 It reports a candidate image's declared width, height, channel count, and alpha presence without
 requiring the caller to decode (or even fully read) the file. It is the return type of every
 `{Codec}.GetInfo(Stream)` / `{Codec}.GetInfo(string)` method across `BmpCodec`, `PngCodec`,
-`TiffCodec`, `JpegCodec`, and `GifCodec` (the `CanvasNetSvg` system's `SvgCodec` unit also returns
-this same shared type, referencing this section rather than duplicating it). `CanDecode` and
+`TiffCodec`, `JpegCodec`, `GifCodec`, and `Jpeg2000Codec` (the `CanvasNetSvg` system's `SvgCodec` unit also returns
+this same shared type, referencing this section rather than duplicating it). For each format
+`Channels`/`HasAlpha` report the file's declared encoding; for `Jpeg2000Codec` `Channels` is the
+number of color channels the decoder would return (after any JP2 palette or channel-definition
+box) plus one when an opacity channel is present, and `HasAlpha` is `true` only when the file
+declares an opacity channel. `CanDecode` and
 `FrameCount` are both
 declared as `init`-only properties outside the primary constructor (rather than positional
 parameters) specifically to avoid changing the compiler-emitted constructor/`Deconstruct`
@@ -146,7 +152,7 @@ _ImageInfo_ section above for the cross-codec invariant these fallbacks exist to
 never throws for an input Load would successfully decode.
 
 **Well-formed but unsupported/undecodable: `UnsupportedImageFeatureException` and
-`ImageInfo.CanDecode == false`.** Investigation across all five raster codecs found exactly one
+`ImageInfo.CanDecode == false`.** Investigation across all six codecs found exactly one
 case where a codec's `Load` refuses a file that is well-formed per its own format specification —
 PNG's Adam7 interlacing (the other codecs conflate "unsupported" and "malformed" at `GetInfo`-time
 already, so this exception type is not currently thrown by them). `GifCodec` is a related, but

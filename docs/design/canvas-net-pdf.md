@@ -107,8 +107,8 @@ entry is never consulted, though the Form itself renders; `/ShadingType` values 
 and `/FunctionType 4` (PostScript calculator) functions fail closed; the `sh` operator and general
 path clipping (`W`/`W*`) are supported; no
 `/Mask`/`/Matte` image masks or transparency groups (an explicit `/SMask` and JPEG 2000
-alpha are applied); `JPXDecode` is decoded (`CCITTFaxDecode` - Group 4 (T.6 MMR) only -
-is supported); `/Separation`/`/DeviceN`/`/CalGray`/`/Lab` color spaces remain unsupported and fail
+alpha are applied); `CCITTFaxDecode` - Group 4 (T.6 MMR) only - is supported and `JPXDecode`
+is decoded; `/Separation`/`/DeviceN`/`/CalGray`/`/Lab` color spaces remain unsupported and fail
 closed; and an encrypted document using any security handler, crypt-filter method, `/V`/`/R`
 combination other than the ones listed above, or whose correct password is not supplied, fails
 closed rather than being decrypted. These remain out of scope and are planned for later phases
@@ -336,7 +336,13 @@ non-empty one is genuinely required), `pdf-encrypted-incorrect-password`,
 `pdf-encrypted-password-non-ascii` (an R2-R4 password outside ASCII 0-127),
 `pdf-colorspace-{name}` (`Separation`/`DeviceN`/`CalGray`/`Lab`), `pdf-colorspace-Pattern`,
 `pdf-colorspace-ICCBased`, `pdf-filter-{name}` (any unrecognized filter),
-`pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}`, `pdf-pattern-not-declared`,
+`pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}`,
+`pdf-image-decode-dctdecode` (a non-identity `/Decode` on a `DCTDecode` image),
+`pdf-jpx-colorspace` (a JPX image of a channel count with no device color space without `/ColorSpace`),
+`pdf-jpx-palette-colorspace` (a `/ColorSpace` override on JP2 data with its own palette),
+`pdf-jpx-indexed-bit-depth` (an `/Indexed` space over non-8-bit JPX samples),
+`pdf-jpx-smaskindata-indexed` (`/SMaskInData 2` over an `/Indexed` space),
+`pdf-pattern-not-declared`,
 `pdf-pattern-type-{n}`, `pdf-pattern-tile-too-large`, `pdf-shading-type-{n}`,
 `pdf-shading-colorspace-{family}`, `pdf-functiontype-{n}`, `pdf-function-multiinput`,
 `pdf-function-bitspersample-{n}`, `pdf-font-subtype-{subtype}` (`MMType1` only),
