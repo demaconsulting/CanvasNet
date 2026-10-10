@@ -890,6 +890,7 @@ sections:
               crash or be silently mis-rendered.
             tests:
               - PdfDocument_Images_Jpx_GrayWithoutColorSpace_UsesJp2ColorSpace
+              - PdfDocument_Images_Jpx_RealEncoderFixture_RendersCloseToSourcePixels
               - PdfDocument_Images_Jpx_RgbWithoutColorSpace_UsesJp2ColorSpace
               - PdfDocument_Images_Jpx_CmykWithoutColorSpace_UsesJp2ColorSpace
               - PdfDocument_Images_Jpx_ExplicitDeviceRgb_HonorsColorSpace

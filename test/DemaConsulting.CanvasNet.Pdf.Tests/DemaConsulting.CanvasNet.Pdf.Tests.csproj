@@ -98,4 +98,13 @@
     </None>
   </ItemGroup>
 
+  <!-- Real-encoder JPEG 2000 fixture reused from the core test project (single source of truth;
+       linked, not duplicated - see DemaConsulting.CanvasNet.Tests\Jpeg2000Fixtures\README.md for
+       provenance), used by the real-encoder /JPXDecode PDF test -->
+  <ItemGroup>
+    <None Include="..\DemaConsulting.CanvasNet.Tests\Jpeg2000Fixtures\*" Link="Jpeg2000Fixtures\%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

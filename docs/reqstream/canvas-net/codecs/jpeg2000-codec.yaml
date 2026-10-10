@@ -24,6 +24,8 @@ sections:
                   - Jpeg2000Codec_Load_Grey_ExpandsToRgb
                   - Jpeg2000Codec_Load_Alpha_PopulatesAlpha
                   - Jpeg2000Codec_Load_Path_ReturnsPixels
+                  - Jpeg2000Codec_Load_RealEncoderLosslessFixture_MatchesSourcePixelsExactly
+                  - Jpeg2000Codec_Load_RealEncoderLossyFixture_HasAcceptablePsnr
 
               - id: CanvasNet-Codecs-Jpeg2000Codec-Decode
                 title: >-
@@ -52,6 +54,7 @@ sections:
                   - Jpeg2000Codec_Decode_SubsampledComponents_UpsamplesToImageGrid
                   - Jpeg2000Codec_Decode_PerComponentLevels_RoundTripsExactly
                   - Jpeg2000Codec_Decode_PerComponentLevelsIrreversible_WithinTolerance
+                  - Jpeg2000Codec_Decode_RealEncoderFixtures_ReportChannelLayout
 
               - id: CanvasNet-Codecs-Jpeg2000Codec-EntropyCoding
                 title: >-
@@ -90,6 +93,7 @@ sections:
                   - Jpeg2000Codec_Decode_PocMainHeaderWithTiles_RoundTripsExactly
                   - Jpeg2000Codec_Decode_PocTileHeader_RoundTripsExactly
                   - Jpeg2000Codec_Decode_PocTileOverridesMain_RoundTripsExactly
+                  - Jpeg2000Codec_Load_RealEncoderLosslessFixture_MatchesSourcePixelsExactly
 
               - id: CanvasNet-Codecs-Jpeg2000Codec-Codestream
                 title: >-
@@ -153,6 +157,7 @@ sections:
                   - Jpeg2000Codec_GetInfo_RawCodestream_ReportsDimensionsAndChannels
                   - Jpeg2000Codec_GetInfo_Jp2WithAlpha_CountsAlphaChannel
                   - Jpeg2000Codec_GetInfo_ImageOffset_ReportsWidthMinusOffset
+                  - Jpeg2000Codec_GetInfo_RealEncoderFixtures_ReportDimensions
 
               - id: CanvasNet-Codecs-Jpeg2000Codec-ArgumentValidation
                 title: >-
@@ -179,6 +184,7 @@ sections:
                 tests:
                   - Jpeg2000Codec_Load_NotJpeg2000_ThrowsInvalidData
                   - Jpeg2000Codec_Load_ExceedsMaxDimension_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_RealEncoderFixtureTruncated_FailsClosed
                   - Jpeg2000Codec_Decode_EveryTruncation_FailsCleanly
                   - Jpeg2000Codec_Decode_RandomBitFlips_FailCleanly
                   - Jpeg2000Codec_Decode_HeaderByteSubstitutions_FailCleanly

@@ -42,9 +42,13 @@ public class PdfDocumentJpxTests
         StreamObject($"/Type /XObject /Subtype /Image /Width 8 /Height 8 /BitsPerComponent 8 /Filter /JPXDecode {entries}", jpx);
 
     /// <summary>Builds a one-page 100x100 PDF placing /Im0 (object 5) over the whole page.</summary>
-    private static byte[] BuildPdf(params byte[][] extraObjects)
+    private static byte[] BuildPdf(params byte[][] extraObjects) =>
+        BuildPdf("100 0 0 100 0 0 cm /Im0 Do", extraObjects);
+
+    /// <summary>Builds a one-page 100x100 PDF with the given page content stream and extra objects from object 5.</summary>
+    private static byte[] BuildPdf(string contentText, byte[][] extraObjects)
     {
-        var content = "100 0 0 100 0 0 cm /Im0 Do"u8.ToArray();
+        var content = Encoding.ASCII.GetBytes(contentText);
         var bodies = new List<byte[]>
         {
             "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
@@ -90,6 +94,41 @@ public class PdfDocumentJpxTests
         Assert.True(Math.Abs(expected.A - actual.A) <= tolerance, $"A expected {expected.A} actual {actual.A}");
     }
 
+    /// <summary>
+    ///     Proves a JPX image produced by a real encoder (ImageMagick/OpenJPEG, not the test-only
+    ///     encoder) embedded as /JPXDecode renders close to the source pixels when placed 1:1 on the page.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Images_Jpx_RealEncoderFixture_RendersCloseToSourcePixels()
+    {
+        // Arrange: a 100x70 real-encoder gray JP2 placed 1:1 at the top of a 100x100 page (PDF y 30..100)
+        var directory = Path.Join(AppContext.BaseDirectory, "Jpeg2000Fixtures");
+        var jpx = File.ReadAllBytes(Path.Join(directory, "gray.jp2"));
+        using var source = PngCodec.Load(Path.Join(directory, "source_gray.png"));
+        var pdf = BuildPdf("100 0 0 70 0 30 cm /Im0 Do", [ImageObject(string.Empty, jpx)]);
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdf));
+        using var surface = document.Render(0, 100, 100, Transparent);
+
+        // Assert: the image fills the top 70 pixel rows (PDF y 30..100). The renderer resamples
+        // the (noisy) image, so compare the mean absolute difference rather than exact pixels
+        double total = 0;
+        var count = 0;
+        for (var y = 1; y < 69; y++)
+        {
+            for (var x = 1; x < 99; x++)
+            {
+                total += Math.Abs(source[x, y].R - surface[x, y].R);
+                count++;
+            }
+        }
+
+        Assert.True(total / count < 8, $"mean absolute difference {total / count:F2} too large");
+
+        // The area below the image stays transparent
+        Assert.Equal(0, surface[50, 90].A);
+    }
     /// <summary>Proves a JPX image without /ColorSpace uses the JP2's own gray color space.</summary>
     [Fact]
     public void PdfDocument_Images_Jpx_GrayWithoutColorSpace_UsesJp2ColorSpace()

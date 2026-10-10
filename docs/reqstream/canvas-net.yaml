@@ -979,6 +979,7 @@ sections:
           - Jpeg2000Codec_Load_Stream_ReturnsPixels
           - Jpeg2000Codec_Load_Path_ReturnsPixels
           - Jpeg2000Codec_Decode_ReversibleLevels_RoundTripsExactly
+          - CanvasNet_SystemIntegration_Jpeg2000Load_ReturnsExpectedPixel
 
       - id: CanvasNet-Lib-Jpeg2000GetInfo
         title: >-

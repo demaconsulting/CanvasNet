@@ -274,6 +274,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Codecs/NamespaceDoc.cs"        # Codecs namespace documentation
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/Jpeg2000CodecTests.cs"      # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/Jpeg2000TestEncoder*.cs"    # test-only JPEG 2000 encoder
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/Jpeg2000FixtureTests.cs"    # real-encoder fixture tests
 
   # CanvasNet-Geometry Review (one per subsystem)
   - id: CanvasNet-Geometry
