@@ -14,7 +14,7 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///         (bypass, reset, termination on each pass, vertically causal contexts, segmentation symbols),
 ///         region-of-interest max-shift, the reversible 5/3 and irreversible 9/7 wavelets, the reversible and
 ///         irreversible component transforms, subsampled components, signed and 1 to 16 bit samples, and
-///         the JP2 colour specification, palette, component mapping, channel definition boxes.
+///         the JP2 color specification, palette, component mapping, channel definition boxes.
 ///     </para>
 ///     <para>
 ///         Samples are scaled to 8 bits per channel. ICC profiles are reported by
@@ -83,7 +83,7 @@ public static partial class Jpeg2000Codec
     ///     The stream to read from. Reading begins at the current position and consumes the remainder of the stream.
     /// </param>
     /// <returns>
-    ///     An <see cref="ImageInfo"/> whose <see cref="ImageInfo.Channels"/> counts the colour channels plus the
+    ///     An <see cref="ImageInfo"/> whose <see cref="ImageInfo.Channels"/> counts the color channels plus the
     ///     alpha channel, if any. <see cref="Surface.MaxDimension"/> is not enforced.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
@@ -132,7 +132,7 @@ public static partial class Jpeg2000Codec
     /// <param name="stream">
     ///     The stream to read from. Reading begins at the current position and consumes the remainder of the stream.
     /// </param>
-    /// <returns>The decoded image with its colour space, alpha plane and ICC profile.</returns>
+    /// <returns>The decoded image with its color space, alpha plane and ICC profile.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the data is malformed, exceeds the decoder resource limits, or is wider or taller than

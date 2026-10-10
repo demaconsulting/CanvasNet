@@ -202,7 +202,7 @@ public static partial class Jpeg2000Codec
     }
 
     // ------------------------------------------------------------------------------------------
-    // Final assembly: upsampling, palette, 8-bit scaling, colour conversion
+    // Final assembly: upsampling, palette, 8-bit scaling, color conversion
     // ------------------------------------------------------------------------------------------
 
     private static Jpeg2000Image Assemble(SizInfo siz, Jp2Info jp2, ChannelLayout layout, ushort[][] planes)

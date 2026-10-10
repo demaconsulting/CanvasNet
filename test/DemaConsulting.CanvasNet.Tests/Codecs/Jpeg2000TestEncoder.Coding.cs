@@ -455,7 +455,7 @@ internal static partial class Jpeg2000TestEncoder
                 return hv >= 2 ? 2 : hv;
             }
 
-            // HL swaps the roles of the horizontal and vertical neighbours.
+            // HL swaps the roles of the horizontal and vertical neighbors.
             var a = _orient == 1 ? v : h;
             var b = _orient == 1 ? h : v;
             if (a == 2)

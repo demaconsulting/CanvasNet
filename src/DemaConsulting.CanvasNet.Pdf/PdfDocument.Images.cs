@@ -423,14 +423,14 @@ public sealed partial class PdfDocument
     ///     <c>/Width</c>/<c>/Height</c> like <c>DCTDecode</c>.
     /// </summary>
     /// <remarks>
-    ///     When <c>/ColorSpace</c> is absent the JPEG 2000 data's own colour space (gray, sRGB/sYCC,
+    ///     When <c>/ColorSpace</c> is absent the JPEG 2000 data's own color space (gray, sRGB/sYCC,
     ///     CMYK, or by channel count) is used; when present it overrides it (device spaces,
     ///     <c>/ICCBased</c> by component count, and <c>/Indexed</c>, where the sample is the raw
     ///     palette index - which requires 8-bit index data, since samples are scaled to 8 bits)
-    ///     and its component count must equal the decoded colour channel count. An optional
+    ///     and its component count must equal the decoded color channel count. An optional
     ///     <c>/Decode</c> array maps each 8-bit sample linearly. <c>/SMaskInData</c> <c>1</c> uses
     ///     the codestream's opacity channel as alpha, <c>2</c> additionally un-premultiplies the
-    ///     colour samples; it is ignored when the image has an explicit <c>/SMask</c>.
+    ///     color samples; it is ignored when the image has an explicit <c>/SMask</c>.
     /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown for malformed JPEG 2000 data, an invalid <c>/Decode</c> or <c>/SMaskInData</c>,
@@ -465,7 +465,7 @@ public sealed partial class PdfDocument
                     4 => PdfColorSpace.DeviceCMYK,
                     _ => throw new UnsupportedImageFeatureException(
                         "pdf-jpx-colorspace",
-                        $"JPXDecode images with {jp2.ColorChannelCount} colour channels need an explicit /ColorSpace."),
+                        $"JPXDecode images with {jp2.ColorChannelCount} color channels need an explicit /ColorSpace."),
                 },
             };
         }
@@ -482,7 +482,7 @@ public sealed partial class PdfDocument
         if (componentCount != jp2.ColorChannelCount)
         {
             throw new InvalidDataException(
-                $"JPXDecode image has {jp2.ColorChannelCount} colour channels but /ColorSpace has {componentCount} components.");
+                $"JPXDecode image has {jp2.ColorChannelCount} color channels but /ColorSpace has {componentCount} components.");
         }
 
         var samples = jp2.ColorSamples;
@@ -503,7 +503,7 @@ public sealed partial class PdfDocument
                 var alpha = jp2.AlphaSamples![i];
                 if (smaskInData == 2 && alpha > 0 && alpha < 255)
                 {
-                    // Un-premultiply the colour samples (stored already multiplied by opacity).
+                    // Un-premultiply the color samples (stored already multiplied by opacity).
                     color = new Rgba32(
                         (byte)Math.Min(255, (color.R * 255 + (alpha / 2)) / alpha),
                         (byte)Math.Min(255, (color.G * 255 + (alpha / 2)) / alpha),

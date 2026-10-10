@@ -8,7 +8,8 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     restricted, dependency-free subset of PNG (<see cref="PngCodec"/>), a restricted,
 ///     dependency-free subset of TIFF (<see cref="TiffCodec"/>), a restricted,
 ///     dependency-free subset of baseline JPEG (<see cref="JpegCodec"/>), and a restricted,
-///     dependency-free, decode-only, first-frame-only subset of GIF (<see cref="GifCodec"/>).
+///     dependency-free, decode-only, first-frame-only subset of GIF (<see cref="GifCodec"/>), and a
+///     dependency-free, decode-only JPEG 2000 Part 1 decoder (<see cref="Jpeg2000Codec"/>).
 ///     Four raster codecs (<see cref="BmpCodec"/>, <see cref="PngCodec"/>,
 ///     <see cref="TiffCodec"/>, and <see cref="JpegCodec"/>) each convert to and from a
 ///     <see cref="DemaConsulting.CanvasNet.Canvas.Surface"/> pixel buffer using only its

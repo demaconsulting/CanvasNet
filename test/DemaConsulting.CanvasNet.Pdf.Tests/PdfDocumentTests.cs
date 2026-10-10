@@ -6041,11 +6041,11 @@ public class PdfDocumentTests
     [Fact]
     public void PdfDocument_Images_UnsupportedFilter_ThrowsUnsupportedImageFeatureException()
     {
-        // Arrange: /JPXDecode remains genuinely unsupported (unlike /LZWDecode and
-        // /CCITTFaxDecode, both of which this library implements - see
+        // Arrange: /JBIG2Decode remains genuinely unsupported (unlike /LZWDecode,
+        // /CCITTFaxDecode and /JPXDecode, all of which this library implements - see
         // PdfFixtures/README.md/design docs).
         var imageStream = BuildStreamObjectBody(
-            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /JPXDecode",
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /JBIG2Decode",
             [1, 2, 3, 4]);
 
         var bytes = BuildSinglePagePdfWithResources(

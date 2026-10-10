@@ -51,7 +51,7 @@ public static partial class Jpeg2000Codec
         /// <summary>Gets or sets the exclusive end of the codestream.</summary>
         public int CodestreamEnd { get; set; }
 
-        /// <summary>Gets or sets the enumerated colour space, or -1 when none was specified.</summary>
+        /// <summary>Gets or sets the enumerated color space, or -1 when none was specified.</summary>
         public int EnumCs { get; set; } = -1;
 
         /// <summary>Gets or sets the embedded ICC profile, if any.</summary>
@@ -73,13 +73,13 @@ public static partial class Jpeg2000Codec
     /// <summary>The resolved interpretation of the channels of an image.</summary>
     internal sealed class ChannelLayout
     {
-        /// <summary>Gets the colour space.</summary>
+        /// <summary>Gets the color space.</summary>
         public Jpeg2000ColorSpace ColorSpace { get; init; }
 
-        /// <summary>Gets a value indicating whether the colour channels are sYCC and must be converted.</summary>
+        /// <summary>Gets a value indicating whether the color channels are sYCC and must be converted.</summary>
         public bool IsSycc { get; init; }
 
-        /// <summary>Gets the colour channel sources in order.</summary>
+        /// <summary>Gets the color channel sources in order.</summary>
         public required ChannelSource[] Color { get; init; }
 
         /// <summary>Gets the alpha channel source, or <see langword="null"/>.</summary>
@@ -226,7 +226,7 @@ public static partial class Jpeg2000Codec
         {
             if (box.End - body < 4)
             {
-                throw Malformed("truncated colour specification box.");
+                throw Malformed("truncated color specification box.");
             }
 
             info.EnumCs = (int)Math.Min(ReadBe32(data, body), int.MaxValue);
@@ -308,7 +308,7 @@ public static partial class Jpeg2000Codec
         }
     }
 
-    /// <summary>Works out which channels are colour and alpha, and in which colour space.</summary>
+    /// <summary>Works out which channels are color and alpha, and in which color space.</summary>
     /// <param name="jp2">The wrapper information (an empty one for raw codestreams).</param>
     /// <param name="componentCount">The number of codestream components.</param>
     /// <returns>The resolved layout.</returns>
@@ -354,7 +354,7 @@ public static partial class Jpeg2000Codec
             {
                 if (assoc != expectedAssoc++)
                 {
-                    throw Malformed("channel definitions leave a gap in the colour channels.");
+                    throw Malformed("channel definitions leave a gap in the color channels.");
                 }
 
                 color.Add(source);
@@ -365,7 +365,7 @@ public static partial class Jpeg2000Codec
             var take = expected > 0 ? expected : DefaultColorCount(channels.Length);
             if (channels.Length < take)
             {
-                throw Malformed("image has fewer channels than its colour space requires.");
+                throw Malformed("image has fewer channels than its color space requires.");
             }
 
             color.AddRange(channels.Take(take));
@@ -373,12 +373,12 @@ public static partial class Jpeg2000Codec
 
         if (expected > 0 && color.Count != expected)
         {
-            throw Malformed("channel count does not match the colour space.");
+            throw Malformed("channel count does not match the color space.");
         }
 
         if (color.Count == 0)
         {
-            throw Malformed("image has no colour channels.");
+            throw Malformed("image has no color channels.");
         }
 
         if (space == Jpeg2000ColorSpace.Unknown)
@@ -392,7 +392,7 @@ public static partial class Jpeg2000Codec
 
         if (color.Count is not (1 or 3 or 4))
         {
-            throw Unsupported("jpeg2000-channels", $"{color.Count} colour channels are not supported.");
+            throw Unsupported("jpeg2000-channels", $"{color.Count} color channels are not supported.");
         }
 
         return new ChannelLayout

@@ -693,7 +693,7 @@ public class Jpeg2000CodecTests
     // JP2 container
     // ------------------------------------------------------------------------------------------
 
-    /// <summary>Tests a JP2 wrapper with an sRGB colour specification.</summary>
+    /// <summary>Tests a JP2 wrapper with an sRGB color specification.</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_Jp2Srgb_ReportsColorSpace()
     {
@@ -705,7 +705,7 @@ public class Jpeg2000CodecTests
         Assert.Equal(0, MaxError(image, jp2));
     }
 
-    /// <summary>Tests a greyscale JP2 and a CMYK JP2.</summary>
+    /// <summary>Tests a grayscale JP2 and a CMYK JP2.</summary>
     [Theory]
     [InlineData(17, 1, Jpeg2000ColorSpace.Gray)]
     [InlineData(12, 4, Jpeg2000ColorSpace.Cmyk)]
@@ -824,7 +824,7 @@ public class Jpeg2000CodecTests
         }
     }
 
-    /// <summary>Tests that cdef can reorder colour channels.</summary>
+    /// <summary>Tests that cdef can reorder color channels.</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_Jp2CdefReorder_SwapsChannels()
     {
@@ -861,7 +861,7 @@ public class Jpeg2000CodecTests
         Assert.Equal(255, p.A);
     }
 
-    /// <summary>Tests Load of a greyscale image.</summary>
+    /// <summary>Tests Load of a grayscale image.</summary>
     [Fact]
     public void Jpeg2000Codec_Load_Grey_ExpandsToRgb()
     {

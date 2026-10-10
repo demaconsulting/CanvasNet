@@ -90,7 +90,7 @@ public class PdfDocumentJpxTests
         Assert.True(Math.Abs(expected.A - actual.A) <= tolerance, $"A expected {expected.A} actual {actual.A}");
     }
 
-    /// <summary>Proves a JPX image without /ColorSpace uses the JP2's own gray colour space.</summary>
+    /// <summary>Proves a JPX image without /ColorSpace uses the JP2's own gray color space.</summary>
     [Fact]
     public void PdfDocument_Images_Jpx_GrayWithoutColorSpace_UsesJp2ColorSpace()
     {
@@ -99,7 +99,7 @@ public class PdfDocumentJpxTests
         AssertNear(new Rgba32(100, 100, 100, 255), surface[50, 50], 0);
     }
 
-    /// <summary>Proves a JPX image without /ColorSpace uses the JP2's own sRGB colour space.</summary>
+    /// <summary>Proves a JPX image without /ColorSpace uses the JP2's own sRGB color space.</summary>
     [Fact]
     public void PdfDocument_Images_Jpx_RgbWithoutColorSpace_UsesJp2ColorSpace()
     {
@@ -117,7 +117,7 @@ public class PdfDocumentJpxTests
         AssertNear(new Rgba32(0, 255, 255, 255), surface[50, 50], 0);
     }
 
-    /// <summary>Proves an explicit /DeviceRGB colour space is honoured when it matches the data.</summary>
+    /// <summary>Proves an explicit /DeviceRGB color space is honoured when it matches the data.</summary>
     [Fact]
     public void PdfDocument_Images_Jpx_ExplicitDeviceRgb_HonorsColorSpace()
     {
@@ -126,7 +126,7 @@ public class PdfDocumentJpxTests
         AssertNear(new Rgba32(10, 20, 30, 255), surface[50, 50], 0);
     }
 
-    /// <summary>Proves an explicit /DeviceCMYK colour space is honoured for four-channel data.</summary>
+    /// <summary>Proves an explicit /DeviceCMYK color space is honoured for four-channel data.</summary>
     [Fact]
     public void PdfDocument_Images_Jpx_ExplicitDeviceCmyk_HonorsColorSpace()
     {
@@ -145,7 +145,7 @@ public class PdfDocumentJpxTests
         AssertNear(new Rgba32(90, 80, 70, 255), surface[50, 50], 0);
     }
 
-    /// <summary>Proves an /Indexed colour space overrides the JP2 colour space: samples are palette indices.</summary>
+    /// <summary>Proves an /Indexed color space overrides the JP2 color space: samples are palette indices.</summary>
     [Fact]
     public void PdfDocument_Images_Jpx_IndexedColorSpace_OverridesJp2ColorSpace()
     {
@@ -183,7 +183,7 @@ public class PdfDocumentJpxTests
         AssertNear(new Rgba32(200, 50, 10, 128), pixel, 3);
     }
 
-    /// <summary>Proves /SMaskInData 2 un-premultiplies the colour samples.</summary>
+    /// <summary>Proves /SMaskInData 2 un-premultiplies the color samples.</summary>
     [Fact]
     public void PdfDocument_Images_Jpx_SMaskInDataTwo_UnpremultipliesColor()
     {
@@ -301,7 +301,7 @@ public class PdfDocumentJpxTests
         Assert.Throws<InvalidDataException>(() => Render(image));
     }
 
-    /// <summary>Builds a four-component JP2 (colour + opacity via cdef) with flat component values.</summary>
+    /// <summary>Builds a four-component JP2 (color + opacity via cdef) with flat component values.</summary>
     private static byte[] AlphaJp2(int r, int g, int b, int a, int type) =>
         Jp2(
             Flat(8, 8, r, g, b, a),

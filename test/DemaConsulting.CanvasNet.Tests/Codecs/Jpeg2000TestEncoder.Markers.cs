@@ -8,7 +8,7 @@ namespace DemaConsulting.CanvasNet.Tests.Codecs;
 /// <summary>JP2 wrapper options of <see cref="Jpeg2000TestEncoder.WrapJp2"/>.</summary>
 internal sealed class J2kJp2Options
 {
-    /// <summary>Gets or sets the enumerated colour space (16 sRGB, 17 greyscale, 18 sYCC, 12 CMYK); ignored when an ICC profile is set.</summary>
+    /// <summary>Gets or sets the enumerated color space (16 sRGB, 17 grayscale, 18 sYCC, 12 CMYK); ignored when an ICC profile is set.</summary>
     public int EnumCs { get; set; } = 16;
 
     /// <summary>Gets or sets an ICC profile written with METH 2, or <see langword="null"/>.</summary>
