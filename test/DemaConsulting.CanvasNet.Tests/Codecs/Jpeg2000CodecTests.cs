@@ -1754,6 +1754,47 @@ public class Jpeg2000CodecTests
         Assert.Equal(256, Jpeg2000Codec.Decode(tiledData, new Jpeg2000DecoderLimits { MaxTiles = 16 }).Width);
     }
 
+    /// <summary>Tests that hostile SIZ geometry (32-bit extremes, wrapping tile counts) is rejected quickly as malformed.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_HostileSizTileGrid_ThrowsInvalidData()
+    {
+        var data = Encode(Img(16, 16, 1), Rev(2));
+        const uint max = 0xFFFFFFFF;
+
+        // Each axis alone has about 2^32 tiles (XTsiz = 1, grid origin equal to the far image offset).
+        var xOnly = PatchSiz(data, (6, max), (14, 0), (22, 1), (30, 0));
+        AssertMalformed(xOnly, "too many tiles");
+        var yOnly = PatchSiz(data, (10, max), (18, 0), (26, 1), (34, 0));
+        AssertMalformed(yOnly, "too many tiles");
+
+        // Both axes huge: the unchecked long product (2^32-1)^2 wraps negative.
+        var both = PatchSiz(data, (6, max), (10, max), (22, 1), (26, 1), (14, 0), (18, 0), (30, 0), (34, 0));
+        AssertMalformed(both, "too many tiles");
+
+        // Each axis is within the format limit but the product is not.
+        AssertMalformed(Resize(data, 300, 300, 1, 1), "too many tiles");
+
+        // Tile size at the 32-bit extreme: one tile per axis, but the image itself exceeds the pixel limit.
+        var wrap = PatchSiz(data, (6, max), (10, max), (14, 0), (18, 0), (22, max), (26, max), (30, 0), (34, 0));
+        AssertMalformed(wrap, "exceed");
+    }
+
+    /// <summary>Patches 32-bit SIZ fields at offsets relative to the SIZ marker.</summary>
+    private static byte[] PatchSiz(byte[] data, params (int Offset, uint Value)[] fields)
+    {
+        var siz = FindMarker(data, 0xFF51);
+        var copy = (byte[])data.Clone();
+        foreach (var (offset, value) in fields)
+        {
+            copy[siz + offset] = (byte)(value >> 24);
+            copy[siz + offset + 1] = (byte)(value >> 16);
+            copy[siz + offset + 2] = (byte)(value >> 8);
+            copy[siz + offset + 3] = (byte)value;
+        }
+
+        return copy;
+    }
+
     /// <summary>Tests the code-block cap of a tile with a tight custom limit and with the default limit at the maximum image size.</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_TooManyCodeBlocks_ThrowsInvalidData()

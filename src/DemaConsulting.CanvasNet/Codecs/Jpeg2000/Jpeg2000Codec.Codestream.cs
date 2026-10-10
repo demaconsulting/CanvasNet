@@ -258,7 +258,9 @@ public static partial class Jpeg2000Codec
                 throw Malformed($"image dimensions {Width}x{Height} exceed the {limits.MaxWidth}x{limits.MaxHeight} pixel limit.");
             }
 
-            if ((long)NumXTiles * NumYTiles > limits.MaxTiles)
+            var tilesX = CeilDiv(Xsiz - XTOsiz, XTsiz);
+            var tilesY = CeilDiv(Ysiz - YTOsiz, YTsiz);
+            if (tilesX > limits.MaxTiles || tilesY > limits.MaxTiles || tilesX > limits.MaxTiles / tilesY)
             {
                 throw Malformed("too many tiles.");
             }
@@ -343,9 +345,11 @@ public static partial class Jpeg2000Codec
             }
 
             // The tile count is bounded here, before any per-tile structure is created.
+            // Each axis is range-checked first, then the product is checked by division, so no
+            // intermediate value can wrap and nothing is cast before it is known to be small.
             var tilesX = CeilDiv(xsiz - xto, xt);
             var tilesY = CeilDiv(ysiz - yto, yt);
-            if (tilesX * tilesY > FormatMaxTiles)
+            if (tilesX > FormatMaxTiles || tilesY > FormatMaxTiles || tilesX > FormatMaxTiles / tilesY)
             {
                 throw Malformed("too many tiles.");
             }

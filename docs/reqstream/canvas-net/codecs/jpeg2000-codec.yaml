@@ -203,6 +203,7 @@ sections:
                   - Jpeg2000Codec_Decode_HeaderByteSubstitutions_FailCleanly
                   - Jpeg2000Codec_Decode_ImageBeyondDimensionLimit_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_TooManyTiles_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_HostileSizTileGrid_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_TooManyCodeBlocks_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_TooManyPrecincts_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_TooManyPackets_ThrowsInvalidData
