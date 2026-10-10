@@ -107,7 +107,9 @@ Limits are enforced during header validation, before the memory they protect is 
    channel reordering). Anything else is treated as a raw codestream.
 2. **Codestream headers**: SIZ, COD/COC, QCD/QCC, RGN, POC, PPM/PPT, TLM/PLM/PLT/CRG/COM are
    handled or skipped; tiles may have arbitrary image and tile origins and may be split into
-   tile-parts; tile-part headers may override coding and quantization parameters.
+   tile-parts; tile-part headers may override coding and quantization parameters, but only in the
+   first tile-part of a tile (COD/COC/QCD/QCC/RGN in a later tile-part is `InvalidDataException`;
+   POC and PPT are accepted in any tile-part).
 3. **Tier-2**: packet headers are decoded (tag trees, inclusion, zero bit-planes, pass counts,
    lengths) for every progression order and quality layer, with optional SOP/EPH markers. Every
    tile must have at least one tile-part; a tile with none (for example a codestream cut at a tile
@@ -157,7 +159,10 @@ streams and decoding them with ImageMagick) or the standard leaves the behavior 
 - A palette index beyond the last palette entry is clamped to the last entry.
 - An enumerated color space other than sRGB, grayscale, sYCC and CMYK is treated as RGB (or
   unknown) without error; ICC profiles are reported but never applied.
-- COD/QCD markers in a non-first tile-part, and a mix of PPM and PPT packed headers, are accepted.
+- COD/COC/QCD/QCC/RGN markers are rejected in any tile-part after the first of a tile (the
+  tile-parts share one coding state, so a later override would apply retroactively; ISO 15444-1
+  A.6.1-A.6.4); POC and PPT remain accepted in every tile-part. A mix of PPM and PPT packed
+  headers is accepted.
 - SOP markers are not required to be present or numbered in sequence, and truncated tile data is
   never decoded leniently (it is InvalidDataException).
 - GetInfo uses the default 256 MiB input limit; it does not take a Jpeg2000DecoderLimits.

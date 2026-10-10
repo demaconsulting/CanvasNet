@@ -1370,6 +1370,63 @@ public class Jpeg2000CodecTests
         }
     }
 
+    /// <summary>Tests that COD, COC, QCD, QCC and RGN are rejected in a tile-part after the first (ISO 15444-1 A.6).</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_ParamMarkersInLaterTilePart_ThrowsInvalidData()
+    {
+        var baseline = Rev(2);
+        baseline.TileParts = 2;
+        var plain = Encode(Img(16, 16, 1), baseline);
+        var cod = MainSegment(plain, 0xFF52);
+        var qcd = MainSegment(plain, 0xFF5C);
+        var coc = Segment(0xFF53, [0, 0, .. cod.Skip(4 + 5)]);
+        var qcc = Segment(0xFF5D, [0, .. qcd.Skip(4)]);
+        var rgn = Segment(0xFF5E, [0, 0, 1]);
+        foreach (var later in new[] { cod, qcd, coc, qcc, rgn })
+        {
+            var o = Rev(2);
+            o.TileParts = 2;
+            o.LaterPartSegments = later;
+            AssertMalformed(Encode(Img(16, 16, 1), o), "first tile-part header");
+        }
+
+        // The same markers in the first tile-part remain valid; the restriction is per tile, not global.
+        var tiled = Rev(2);
+        tiled.TileParts = 2;
+        tiled.TileWidth = 8;
+        tiled.TileHeight = 16;
+        var tiledData = Encode(Img(16, 16, 1), tiled);
+        Assert.NotNull(Jpeg2000Codec.Decode(tiledData));
+        tiled.LaterPartSegments = rgn;
+        AssertMalformed(Encode(Img(16, 16, 1), tiled), "first tile-part header");
+    }
+
+    /// <summary>Tests that POC in a later tile-part extends the progression list and still decodes.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_PocInLaterTilePart_RoundTripsExactly()
+    {
+        var o = Rev(3);
+        o.Layers = 3;
+        o.Poc = TestPoc(3, 3);
+        o.PocInTileHeader = true;
+        o.PocSplitAcrossParts = true;
+        o.TileParts = 2;
+        AssertExact(Img(40, 40, 3), o);
+    }
+
+    private static byte[] Segment(int marker, IEnumerable<byte> payload)
+    {
+        var body = payload.ToArray();
+        return [(byte)(marker >> 8), (byte)marker, (byte)((body.Length + 2) >> 8), (byte)(body.Length + 2), .. body];
+    }
+
+    private static byte[] MainSegment(byte[] data, int marker)
+    {
+        var at = FindMarker(data, marker);
+        var len = (data[at + 2] << 8) | data[at + 3];
+        return data[at..(at + 2 + len)];
+    }
+
     /// <summary>Tests a stream that is only a header, or whose tile data are garbage.</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_GarbageTileData_FailsCleanly()

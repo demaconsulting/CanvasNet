@@ -75,10 +75,11 @@ progression orders (marker-verified), three quality layers and reduced decomposi
 
 **Tests**: the `_Tiles`, `_TileAndImageOffsets`, `_TileHeaderOverrides`, `_SopEph`, `_Ppm`,
 `_Ppt`, `_TileParts`, `_ExtraMarkers_AreSkipped`, `_ZeroPsotMissingEoc`, `_Roi*` and
-`_TilePartIndexes_AreCheckedAndCountIsAdvisory` tests.
+`_TilePartIndexes_AreCheckedAndCountIsAdvisory`, `_ParamMarkersInLaterTilePart_ThrowsInvalidData`
+and `_PocInLaterTilePart_RoundTripsExactly` tests.
 
 Verifies tile-part headers, progression order changes, packed packet headers, SOP/EPH markers and
-tolerated marker variants.
+tolerated marker variants; COD/COC/QCD/QCC/RGN in a later tile-part are rejected, POC is accepted.
 
 ##### CanvasNet-Codecs-Jpeg2000Codec-Jp2Container: JP2 Boxes
 

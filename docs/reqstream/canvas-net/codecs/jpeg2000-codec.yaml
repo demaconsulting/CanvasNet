@@ -119,6 +119,8 @@ sections:
                   - Jpeg2000Codec_Decode_ExtraMarkers_AreSkipped
                   - Jpeg2000Codec_Decode_ZeroPsotMissingEoc_RoundTripsExactly
                   - Jpeg2000Codec_Decode_TilePartIndexes_AreCheckedAndCountIsAdvisory
+                  - Jpeg2000Codec_Decode_ParamMarkersInLaterTilePart_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_PocInLaterTilePart_RoundTripsExactly
                   - Jpeg2000Codec_Decode_RoiMaxShift_RoundTripsExactly
                   - Jpeg2000Codec_Decode_RoiOnSubsetOfComponents_RoundTripsExactly
                   - Jpeg2000Codec_Decode_RoiIrreversible_WithinTolerance

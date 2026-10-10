@@ -1105,7 +1105,8 @@ public static partial class Jpeg2000Codec
                 }
 
                 var segEnd = SegmentEnd(rr, len);
-                ApplyTileMarker(marker, new ByteReader(data, rr.Position, segEnd), state, pptSegments);
+                // CheckTilePartSequence has already counted this part, so Parts > 1 means TPsot > 0 (per tile, not global).
+                ApplyTileMarker(marker, new ByteReader(data, rr.Position, segEnd), state, pptSegments, tile.Parts > 1);
                 rr.Position = segEnd;
             }
 
@@ -1131,8 +1132,16 @@ public static partial class Jpeg2000Codec
             return rr.Position;
         }
 
-        private static void ApplyTileMarker(int marker, ByteReader seg, CodingState state, List<(int Index, byte[] Data)> pptSegments)
+        private static void ApplyTileMarker(int marker, ByteReader seg, CodingState state, List<(int Index, byte[] Data)> pptSegments, bool laterPart)
         {
+            // ISO 15444-1 A.6.1-A.6.4 / A.4.2: COD, COC, QCD, QCC and RGN are allowed only in the first tile-part
+            // header of a tile (the tile-parts share one coding state, so a later override would apply retroactively).
+            // POC and PPT are allowed in any tile-part.
+            if (laterPart && marker is MarkerCod or MarkerCoc or MarkerQcd or MarkerQcc or MarkerRgn)
+            {
+                throw Malformed("marker only allowed in the first tile-part header of a tile.");
+            }
+
             switch (marker)
             {
                 case MarkerCod:

@@ -295,7 +295,19 @@ internal static partial class Jpeg2000TestEncoder
 
                 if (p.Poc is not null && (isOverride || main.PocInTileHeader))
                 {
-                    WritePocMarker(hdr, p.Poc);
+                    WritePocMarker(hdr, main.PocSplitAcrossParts ? [.. p.Poc.Take(1)] : p.Poc);
+                }
+            }
+            else
+            {
+                if (main.PocSplitAcrossParts && part == 1 && p.Poc is { Count: > 1 })
+                {
+                    WritePocMarker(hdr, [.. p.Poc.Skip(1)]);
+                }
+
+                if (main.LaterPartSegments is not null)
+                {
+                    hdr.AddRange(main.LaterPartSegments);
                 }
             }
 

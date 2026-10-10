@@ -155,6 +155,12 @@ internal sealed class J2kOptions
     /// <summary>Gets or sets a value indicating whether the POC marker is placed in the tile-part headers instead of the main header.</summary>
     public bool PocInTileHeader { get; set; }
 
+    /// <summary>Gets or sets a value indicating whether the tile-part POC entries are spread over the tile-part headers (first entry in the first, the rest in the second) instead of all being in the first.</summary>
+    public bool PocSplitAcrossParts { get; set; }
+
+    /// <summary>Gets or sets complete marker segments (marker included) appended to the header of every tile-part after the first.</summary>
+    public byte[]? LaterPartSegments { get; set; }
+
     /// <summary>Gets or sets where packet headers are stored.</summary>
     public J2kHeaderMode HeaderMode { get; set; }
 
