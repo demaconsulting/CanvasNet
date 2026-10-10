@@ -268,7 +268,7 @@ reviews:
       - "docs/verification/canvas-net/codecs/jpeg2000-codec.md"  # unit verification
       - "src/DemaConsulting.CanvasNet/Codecs/Jpeg2000Codec.cs"       # unit source (public API entry point)
       - "src/DemaConsulting.CanvasNet/Codecs/Jpeg2000Image.cs"       # unit source (public decoded-image result type)
-      - "src/DemaConsulting.CanvasNet/Codecs/Jpeg2000ColorSpace.cs"  # unit source (public colour-space enum)
+      - "src/DemaConsulting.CanvasNet/Codecs/Jpeg2000ColorSpace.cs"  # unit source (public color-space enum)
       - "src/DemaConsulting.CanvasNet/Codecs/Jpeg2000/**/*.cs"       # unit source (partial-class implementation files)
       - "src/DemaConsulting.CanvasNet/Codecs/ImageInfo.cs"           # shared header-only probe result type
       - "src/DemaConsulting.CanvasNet/Codecs/NamespaceDoc.cs"        # Codecs namespace documentation
