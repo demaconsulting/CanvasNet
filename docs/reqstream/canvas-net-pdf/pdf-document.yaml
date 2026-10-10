@@ -838,8 +838,9 @@ sections:
           - id: CanvasNetPdf-PdfDocument-ImageXObjects
             title: >-
               The PdfDocument class shall implement the Do operator for a /Subtype /Image
-              XObject, decoding a bare /Filter /DCTDecode image via Codecs.JpegCodec.Load, or interpreting raw
-              DeviceGray/DeviceRGB/DeviceCMYK 8-bit samples, and compositing the
+              XObject, decoding a bare /Filter /DCTDecode image via Codecs.JpegCodec.Load, or interpreting
+              raw DeviceGray/DeviceRGB/DeviceCMYK/Indexed samples of 1, 2, 4, 8 or 16 bits per
+              component, and compositing the
               decoded image onto the destination surface through the current transformation
               matrix (nearest-neighbor sampling, treating every image as fully opaque unless it
               carries alpha via /SMask, and
@@ -866,6 +867,9 @@ sections:
               - PdfDocument_Images_DoOperator_DeviceCmykFlateDecode_PlacesExpectedPixels
               - PdfDocument_Images_DoOperator_DctDecodeJpeg_PlacesExpectedPixels
               - PdfDocument_Images_UnsupportedBitsPerComponent_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Images_RawOneBitGray_UnpacksSamples
+              - PdfDocument_Images_RawOneBitTruncated_ThrowsInvalidDataException
+              - PdfDocument_Images_IndexedSixteenBit_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException
               - CompositeImageOntoSurface_SourceImageWithAlphaChannel_AlphaBlendsOntoExistingBackground
 
@@ -875,15 +879,19 @@ sections:
               (whatever the base image's encoding: raw samples, DCTDecode or JPXDecode) as the
               base image's alpha channel, multiplying the mask's single-component luminance
               into the base alpha (resampling the mask to the base image with nearest-neighbor
-              sampling) and ignoring the mask's own /SMask.
+              sampling; the mask may use any supported bit depth - 1, 2, 4, 8 or 16 bits per
+              component) and ignoring the mask's own /SMask.
             justification: |
               Soft-masked images are the common way PDF producers store transparent raster
-              content; ignoring the mask would render the opaque base image and visibly
-              corrupt the page.
+              content (including 1-bit stencil-style and 16-bit masks); ignoring or rejecting
+              the mask would render the opaque base image or abort the page.
             tests:
               - PdfDocument_Images_SMaskOnRawImage_AppliesLuminanceAsAlpha
               - PdfDocument_Images_SMaskOnDctImage_AppliesLuminanceAsAlpha
               - PdfDocument_Images_Jpx_JpxSMask_AppliesLuminanceAsAlpha
+              - PdfDocument_Images_SMaskOneBit_AppliesBinaryAlpha
+              - PdfDocument_Images_SMaskSixteenBit_AppliesHighByteAsAlpha
+              - PdfDocument_Images_SMaskFourBitWithDecode_InvertsMask
 
           - id: CanvasNetPdf-PdfDocument-ImageSoftMaskInvalid
             title: >-
@@ -900,21 +908,25 @@ sections:
 
           - id: CanvasNetPdf-PdfDocument-ImageDecodeArray
             title: >-
-              The PdfDocument class shall apply an image XObject's /Decode array to the 8-bit
-              samples of every encoding that exposes component samples (raw, CCITTFaxDecode and
-              JPXDecode images, including /SMask images) before color-space conversion, and
-              shall throw UnsupportedImageFeatureException for a non-identity /Decode on a
-              DCTDecode image, whose decoder has already converted to RGB.
+              The PdfDocument class shall apply an image XObject's /Decode array to the
+              samples of every encoding (raw samples of any supported bit depth including
+              /Indexed, CCITTFaxDecode, JPXDecode, and 1- or 3-channel DCTDecode images,
+              including /SMask images) before color-space conversion; a 4-component JPEG, which
+              the JPEG codec rejects, fails closed rather than ignoring /Decode.
             justification: |
               /Decode inverts or remaps samples (for example [1 0] on a mask or a negative
-              image); silently ignoring it for some encodings renders them inverted, and
-              applying it after the JPEG decoder's own CMYK conversion would be wrong.
+              image); silently ignoring it for some encodings renders them inverted, and a
+              fail-closed result is required where it cannot be applied faithfully.
             tests:
               - PdfDocument_Images_RawWithDecode_InvertsSamples
               - PdfDocument_Images_SMaskRawWithDecode_InvertsMask
               - PdfDocument_Images_Jpx_DecodeArray_InvertsSamples
               - PdfDocument_Images_Jpx_JpxSMaskWithDecode_InvertsMask
-              - PdfDocument_Images_DctWithNonIdentityDecode_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Images_DoOperator_CcittFaxWithDecode_InvertsPixels
+              - PdfDocument_Images_DoOperator_IndexedWithDecode_RemapsIndices
+              - PdfDocument_Images_DctRgbWithDecode_InvertsSamples
+              - PdfDocument_Images_DctGrayWithDecode_InvertsSamples
+              - PdfDocument_Images_DctFourChannelWithDecode_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-ImageDecodeArrayInvalid
             title: >-

@@ -371,6 +371,7 @@ The system exposes the following public API to external consumers:
 | `Jpeg2000Codec.Load(...)`                    | Inbound/Outbound | Method call / `Surface` return | Valid JPEG 2000 stream/path   |
 | `Jpeg2000Codec.GetInfo(...)`                 | Inbound/Outbound | Method call / `ImageInfo`      | Valid JPEG 2000 stream/path   |
 | `Jpeg2000Codec.Decode(...)`                  | Inbound/Outbound | Method call / `Jpeg2000Image`  | Valid JPEG 2000 stream/bytes  |
+| `Jpeg2000DecoderLimits`                      | Inbound          | `Decode(...)` argument         | Positive limits               |
 | `Rect.Union(...)`                            | Inbound/Outbound | Method call / `Rect` return    | None                          |
 | `Rect.Intersect(...)`                        | Inbound/Outbound | Method call / `Rect` return    | None                          |
 | `Rect.Transform(Matrix3x2)`                  | Inbound/Outbound | Method call / `Rect` return    | None                          |

@@ -1044,6 +1044,9 @@ bits before each row, rather than the implementation coincidentally tolerating z
 `PdfDocument_Images_DoOperator_DeviceCmykFlateDecode_PlacesExpectedPixels`,
 `PdfDocument_Images_DoOperator_DctDecodeJpeg_PlacesExpectedPixels`,
 `PdfDocument_Images_UnsupportedBitsPerComponent_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Images_RawOneBitGray_UnpacksSamples`,
+`PdfDocument_Images_RawOneBitTruncated_ThrowsInvalidDataException`,
+`PdfDocument_Images_IndexedSixteenBit_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Images_DoOperator_UndefinedXObjectName_ThrowsInvalidDataException`,
 `PdfDocument_Images_DoOperator_MalformedOperandCount_ThrowsInvalidDataException`,
@@ -1057,9 +1060,11 @@ including the PDF image-space row-0-is-top convention). Places a bare `DCTDecode
 XObject (an 8x8 solid-color surface encoded via `Codecs.JpegCodec.Save` at test-run time, quality
 100 - a flat color block's DCT has only a DC coefficient, so the round-trip reproduces it within
 a small per-channel tolerance), asserting the decoded/composited pixel matches within that
-tolerance. Renders an image XObject with an unsupported `/BitsPerComponent` (`1`) and, separately,
+tolerance. Renders an image XObject with an unsupported `/BitsPerComponent` (`3`) and, separately,
 an unsupported `/ColorSpace` (`/Lab`), each asserting
-`Codecs.UnsupportedImageFeatureException`. Renders `Do` with a name undeclared in
+`Codecs.UnsupportedImageFeatureException`. A 1-bit gray image proves MSB-first unpacking and
+full-range scaling, a short sub-byte buffer asserts `InvalidDataException`, and a 16-bit
+`/Indexed` image asserts `UnsupportedImageFeatureException`. Renders `Do` with a name undeclared in
 `/Resources/XObject`, asserting `InvalidDataException`. A `[Theory]`
 renders `Do` with a malformed operand count/type, asserting `InvalidDataException` in every case.
 The end-to-end system-integration test independently proves the same `Do` compositing against a
@@ -1078,12 +1083,17 @@ formula.
 
 **Tests**: `PdfDocument_Images_SMaskOnRawImage_AppliesLuminanceAsAlpha`,
 `PdfDocument_Images_SMaskOnDctImage_AppliesLuminanceAsAlpha`,
-`PdfDocument_Images_Jpx_JpxSMask_AppliesLuminanceAsAlpha`
+`PdfDocument_Images_Jpx_JpxSMask_AppliesLuminanceAsAlpha`,
+`PdfDocument_Images_SMaskOneBit_AppliesBinaryAlpha`,
+`PdfDocument_Images_SMaskSixteenBit_AppliesHighByteAsAlpha`,
+`PdfDocument_Images_SMaskFourBitWithDecode_InvertsMask`
 
 `PdfDocumentJpxTests.cs` builds minimal PDFs at test-run time. A 1x1 raw gray image, an 8x8
 `DCTDecode` image and a JPX image each carry an `/SMask`; the rendered pixel's alpha equals the
 mask luminance (the JPX case uses a 2x1 mask over an 8x8 base to prove nearest-neighbor
-resampling of the mask).
+resampling of the mask). A 1-bit 2x1 mask yields alpha `0` and `255`, a 16-bit mask contributes
+its high byte (`0x8000` gives alpha `128`), and a 4-bit mask with `/Decode [1 0]` yields `204`,
+proving every bit depth flows through the shared sample path instead of failing the page.
 
 #### CanvasNetPdf-PdfDocument-ImageSoftMaskInvalid: Invalid /SMask Entries Fail Closed
 
@@ -1099,11 +1109,19 @@ An `/SMask` referring to a plain dictionary and an `/SMask` image in `DeviceRGB`
 `PdfDocument_Images_SMaskRawWithDecode_InvertsMask`,
 `PdfDocument_Images_Jpx_DecodeArray_InvertsSamples`,
 `PdfDocument_Images_Jpx_JpxSMaskWithDecode_InvertsMask`,
-`PdfDocument_Images_DctWithNonIdentityDecode_ThrowsUnsupportedImageFeatureException`
+`PdfDocument_Images_DoOperator_CcittFaxWithDecode_InvertsPixels`,
+`PdfDocument_Images_DoOperator_IndexedWithDecode_RemapsIndices`,
+`PdfDocument_Images_DctRgbWithDecode_InvertsSamples`,
+`PdfDocument_Images_DctGrayWithDecode_InvertsSamples`,
+`PdfDocument_Images_DctFourChannelWithDecode_ThrowsInvalidDataException`
 
 `/Decode [1 0]` inverts a raw gray image, a raw soft-mask image (alpha `255 - 64`), a JPX image
-and a JPX soft-mask image; a `DCTDecode` image with `/Decode [1 0 1 0 1 0]` asserts
-`UnsupportedImageFeatureException`.
+and a JPX soft-mask image, and a CCITT image (black and white swap). `/Decode [2 0]` over a 2-bit
+`/Indexed` image maps raw indices `0`/`3` to palette entries `2`/`0`. A 3-channel JPEG
+(`/Decode [1 0 1 0 1 0]`, compared with the undecoded render and the exact expected inverted color)
+and a 1-channel real-encoder grayscale JPEG fixture (`/Decode [1 0]`) are remapped exactly. A
+hand-built 4-component JPEG header with a `/Decode` asserts `InvalidDataException` (the JPEG codec
+rejects CMYK/YCCK), proving the decode is never silently ignored.
 
 #### CanvasNetPdf-PdfDocument-ImageDecodeArrayInvalid: Malformed /Decode Fails Closed
 

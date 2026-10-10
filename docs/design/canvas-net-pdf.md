@@ -48,7 +48,8 @@ implemented yet. Phase 3 added real device color (`g`/`G`/`rg`/`RG`/`k`/`K`/`cs`
 `CS`/`sc`/`SC`/`scn`/`SCN`), a generalized `/Filter`/`/DecodeParms` stream-decoding pipeline
 (`FlateDecode` plus PNG/TIFF predictor reversal), and image XObjects (`Do`: `DCTDecode` via the
 `CanvasNet` system's `Codecs.JpegCodec`, `JPXDecode` via `Codecs.Jpeg2000Codec`, or raw
-`DeviceGray`/`DeviceRGB`/`DeviceCMYK` 8-bit samples, composited through the current transformation matrix).
+`DeviceGray`/`DeviceRGB`/`DeviceCMYK`/`Indexed` samples of 1/2/4/8/16 bits, composited through the
+current transformation matrix).
 Phase 4 added real text/font rendering: `BT`/`ET`/`Tc`/`Tw`/`Tz`/`TL`/`Tf`/`Tr`/`Ts`/`Td`/`TD`/`Tm`/`T*`/`Tj`/`'`/`"`/
 `TJ` resolve a simple `/Subtype /TrueType` font from the current page's `/Resources/Font`
 dictionary (requiring an embedded `/FontDescriptor/FontFile2`, loaded via the `CanvasNet`
@@ -336,8 +337,7 @@ non-empty one is genuinely required), `pdf-encrypted-incorrect-password`,
 `pdf-encrypted-password-non-ascii` (an R2-R4 password outside ASCII 0-127),
 `pdf-colorspace-{name}` (`Separation`/`DeviceN`/`CalGray`/`Lab`), `pdf-colorspace-Pattern`,
 `pdf-colorspace-ICCBased`, `pdf-filter-{name}` (any unrecognized filter),
-`pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}`,
-`pdf-image-decode-dctdecode` (a non-identity `/Decode` on a `DCTDecode` image),
+`pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}` (a depth other than 1/2/4/8/16, or a 16-bit `/Indexed` image),
 `pdf-jpx-colorspace` (a JPX image of a channel count with no device color space without `/ColorSpace`),
 `pdf-jpx-palette-colorspace` (a `/ColorSpace` override on JP2 data with its own palette),
 `pdf-jpx-indexed-bit-depth` (an `/Indexed` space over non-8-bit JPX samples),
