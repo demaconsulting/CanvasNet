@@ -509,7 +509,9 @@ public static partial class Jpeg2000Codec
         Precinct precinct, int style, int layer, CodingState st, ByteCursor body, ByteCursor headers,
         List<(CodeBlock Block, Segment Seg, int Length)> pending)
     {
-        // Optional SOP marker segment in front of the packet (always in the body stream).
+        // Optional SOP marker segment in front of the packet (always in the body stream). Deliberately not required:
+        // the Scod SOP bit says markers MAY be present (T.800 A.6.1), so a missing or unnumbered SOP is accepted, as
+        // OpenJPEG does (it only warns). A SOP that is present must have Lsop = 4.
         if (st.Sop && body.Remaining >= 6 && body.Data[body.Pos] == 0xFF && body.Data[body.Pos + 1] == 0x91)
         {
             if (body.Data[body.Pos + 2] != 0 || body.Data[body.Pos + 3] != 4)

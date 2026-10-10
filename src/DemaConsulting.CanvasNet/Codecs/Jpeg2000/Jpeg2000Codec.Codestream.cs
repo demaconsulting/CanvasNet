@@ -17,6 +17,11 @@ public static partial class Jpeg2000Codec
     private const ushort MarkerPoc = 0xFF5F;
     private const ushort MarkerPpm = 0xFF60;
     private const ushort MarkerPpt = 0xFF61;
+    private const ushort MarkerTlm = 0xFF55;
+    private const ushort MarkerPlm = 0xFF57;
+    private const ushort MarkerPlt = 0xFF58;
+    private const ushort MarkerCrg = 0xFF63;
+    private const ushort MarkerSop = 0xFF91;
     private const ushort MarkerSot = 0xFF90;
     private const ushort MarkerSod = 0xFF93;
     private const ushort MarkerEoc = 0xFFD9;
@@ -930,7 +935,7 @@ public static partial class Jpeg2000Codec
                     break;
                 }
 
-                if (marker == MarkerEoc || marker == MarkerSod || marker < 0xFF00)
+                if (marker == MarkerEoc || marker == MarkerSod || marker == MarkerSoc || marker < 0xFF00)
                 {
                     throw Malformed("unexpected marker in main header.");
                 }
@@ -978,15 +983,34 @@ public static partial class Jpeg2000Codec
                 case MarkerCap:
                     throw Unsupported("jpeg2000-extensions", "high-throughput (CAP) codestream.");
                 case MarkerPpm:
-                    var z = seg.ReadU8();
-                    ppmSegments.Add((z, seg.ReadBytes(seg.Remaining)));
+                    AddPackedHeaderSegment(ppmSegments, seg, "PPM");
                     break;
                 case MarkerSiz:
                     throw Malformed("duplicate SIZ marker.");
+                case MarkerPpt:
+                case MarkerPlt:
+                case MarkerSop:
+                    // Tile-part header markers (T.800 A.7.6, A.7.3, A.8.1); OpenJPEG rejects them here as well.
+                    throw Malformed("marker not allowed in the main header.");
                 default:
                     // TLM, PLM, CRG, COM and unknown segments carry nothing the decoder needs.
                     break;
             }
+        }
+
+        /// <summary>
+        ///     Collects one PPM/PPT segment under its index (PPM/PPT index). A repeated index is rejected (OpenJPEG does the
+        ///     same); gaps in the sequence are tolerated, as the segments are simply concatenated in index order.
+        /// </summary>
+        private static void AddPackedHeaderSegment(List<(int Index, byte[] Data)> segments, ByteReader seg, string what)
+        {
+            var index = seg.ReadU8();
+            if (segments.Exists(s => s.Index == index))
+            {
+                throw Malformed($"duplicate {what} segment index.");
+            }
+
+            segments.Add((index, seg.ReadBytes(seg.Remaining)));
         }
 
         private static int SegmentEnd(ByteReader r, int length)
@@ -1216,11 +1240,15 @@ public static partial class Jpeg2000Codec
                     state.ApplyPoc(seg);
                     break;
                 case MarkerPpt:
-                    var z = seg.ReadU8();
-                    pptSegments.Add((z, seg.ReadBytes(seg.Remaining)));
+                    AddPackedHeaderSegment(pptSegments, seg, "PPT");
                     break;
                 case MarkerPpm:
                 case MarkerSiz:
+                case MarkerCap:
+                case MarkerTlm:
+                case MarkerPlm:
+                case MarkerCrg:
+                case MarkerSop:
                     throw Malformed("marker not allowed in a tile-part header.");
                 default:
                     // PLT, COM and unknown segments carry nothing the decoder needs.
