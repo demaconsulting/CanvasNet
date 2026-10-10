@@ -135,7 +135,7 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     The resolved file (or, for AES-256/R5, directly-usable) encryption key, set once by
+    ///     The resolved file (or, for AES-256/R5/R6, directly-usable) encryption key, set once by
     ///     <see cref="InitializeEncryption(PdfObject, string?)"/> when the trailer declares a supported
     ///     <c>/Encrypt</c> shape, or left <see langword="null"/> for an unencrypted document.
     /// </summary>
@@ -199,9 +199,9 @@ public sealed partial class PdfDocument
     ///     <para>
     ///         <strong>Scope boundary</strong>: only the <c>/Filter /Standard</c> security handler
     ///         is supported, and only RC4 (<c>/V 1</c>/<c>/V 2</c>), AES-128 (<c>/V 4</c>/
-    ///         <c>/CFM /AESV2</c>), and AES-256 using the simpler R5 key derivation (<c>/V 5</c>/
-    ///         <c>/R 5</c>/<c>/CFM /AESV3</c>) are supported. Every other shape (a
-    ///         non-<c>/Standard</c> filter, <c>/R 6</c>'s "hardened hash" key derivation, a crypt
+    ///         <c>/CFM /AESV2</c>), and AES-256 (<c>/V 5</c>/<c>/R 5</c> or <c>/R 6</c> "hardened hash" key
+    ///         derivation, ISO 32000-2 Algorithm 2.B/<c>/CFM /AESV3</c>) are supported. Every other shape (a
+    ///         non-<c>/Standard</c> filter, an unknown <c>/R</c>, a crypt
     ///         filter other than the standard <c>/StdCF</c>) fails closed with
     ///         <see cref="UnsupportedImageFeatureException"/> and its own distinguishable
     ///         <see cref="UnsupportedImageFeatureException.Feature"/> token.
@@ -307,14 +307,7 @@ public sealed partial class PdfDocument
                 break;
 
             case 5:
-                if (revision == 6)
-                {
-                    throw new UnsupportedImageFeatureException(
-                        "pdf-encrypted-r6-hardened-hash",
-                        "AES-256 /R 6 (ISO 32000-2 Annex C 'hardened hash' key derivation) is not supported; only /R 5 is supported.");
-                }
-
-                if (revision != 5)
+                if (revision is not (5 or 6))
                 {
                     throw new UnsupportedImageFeatureException(
                         $"pdf-encrypted-r-{revision}",
@@ -325,11 +318,11 @@ public sealed partial class PdfDocument
                 var ueBytes = GetRequiredBytesEntry(encryptDict, "UE");
 
                 byte[] r5PasswordBytes = password is null ? [] : EncodeR5PasswordBytes(password);
-                var r5FileKey = TryComputeFileKeyAlgorithm2A(r5PasswordBytes, uBytes, ueBytes);
+                var r5FileKey = TryComputeFileKeyAlgorithm2A(r5PasswordBytes, uBytes, ueBytes, revision);
                 if (r5FileKey is null && password is not null)
                 {
                     var oeBytes = GetRequiredBytesEntry(encryptDict, "OE");
-                    r5FileKey = TryComputeFileKeyAlgorithm2AOwnerPassword(r5PasswordBytes, oBytes, oeBytes, uBytes);
+                    r5FileKey = TryComputeFileKeyAlgorithm2AOwnerPassword(r5PasswordBytes, oBytes, oeBytes, uBytes, revision);
                 }
 
                 if (r5FileKey is null)
@@ -710,7 +703,7 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Computes the file encryption key for AES-256/R5 by trying <paramref name="passwordBytes"/>
+    ///     Computes the file encryption key for AES-256 (R5/R6) by trying <paramref name="passwordBytes"/>
     ///     as the user password (ISO 32000-2 Algorithm 2.A): validates it against <c>/U</c>'s
     ///     embedded validation salt, then - on success - unwraps <c>/UE</c> using a key derived
     ///     from <c>/U</c>'s embedded key salt.
@@ -725,6 +718,7 @@ public sealed partial class PdfDocument
     ///     validation salt, 8 bytes of key salt.
     /// </param>
     /// <param name="ueBytes">The Encrypt dictionary's 32-byte <c>/UE</c> entry.</param>
+    /// <param name="revision">The security handler revision (5 or 6), selecting the hash function.</param>
     /// <returns>
     ///     The 32-byte file encryption key (used directly, with no further per-object derivation)
     ///     when <paramref name="passwordBytes"/> authenticates against <c>/U</c>'s validation
@@ -734,7 +728,7 @@ public sealed partial class PdfDocument
     ///     Thrown when <paramref name="uBytes"/>/<paramref name="ueBytes"/> are not the lengths
     ///     the specification requires.
     /// </exception>
-    private static byte[]? TryComputeFileKeyAlgorithm2A(byte[] passwordBytes, byte[] uBytes, byte[] ueBytes)
+    private static byte[]? TryComputeFileKeyAlgorithm2A(byte[] passwordBytes, byte[] uBytes, byte[] ueBytes, int revision)
     {
         if (uBytes.Length < 48)
         {
@@ -752,14 +746,14 @@ public sealed partial class PdfDocument
 
         // Step 1: SHA-256(password + validationSalt) - authenticate by comparing against /U's
         // own embedded hash.
-        var computedHash = SHA256.HashData([.. passwordBytes, .. validationSalt]);
+        var computedHash = ComputeHashAlgorithm2B(passwordBytes, validationSalt, [], revision);
         if (!computedHash.AsSpan().SequenceEqual(hash))
         {
             return null;
         }
 
         // Step 2: the intermediate key is SHA-256(password + keySalt).
-        var intermediateKey = SHA256.HashData([.. passwordBytes, .. keySalt]);
+        var intermediateKey = ComputeHashAlgorithm2B(passwordBytes, keySalt, [], revision);
 
         // Step 3: the file encryption key is AES-256-CBC-decrypt(/UE) using the intermediate key,
         // a zero IV, and no padding (/UE decrypts to exactly the raw 32-byte file key).
@@ -767,7 +761,7 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Computes the file encryption key for AES-256/R5 by trying <paramref name="passwordBytes"/>
+    ///     Computes the file encryption key for AES-256 (R5/R6) by trying <paramref name="passwordBytes"/>
     ///     as the owner password - the owner-password variant of ISO 32000-2 Algorithm 2.A: the
     ///     hash/intermediate-key computation is the same shape as
     ///     <see cref="TryComputeFileKeyAlgorithm2A"/>'s user-password version, except the salts
@@ -785,6 +779,7 @@ public sealed partial class PdfDocument
     /// </param>
     /// <param name="oeBytes">The Encrypt dictionary's 32-byte <c>/OE</c> entry.</param>
     /// <param name="uBytes">The Encrypt dictionary's full, raw 48-byte <c>/U</c> entry.</param>
+    /// <param name="revision">The security handler revision (5 or 6), selecting the hash function.</param>
     /// <returns>
     ///     The 32-byte file encryption key when <paramref name="passwordBytes"/> authenticates
     ///     against <c>/O</c>'s validation hash; <see langword="null"/> when it does not.
@@ -793,7 +788,7 @@ public sealed partial class PdfDocument
     ///     Thrown when <paramref name="oBytes"/>/<paramref name="oeBytes"/>/<paramref name="uBytes"/>
     ///     are not the lengths the specification requires.
     /// </exception>
-    private static byte[]? TryComputeFileKeyAlgorithm2AOwnerPassword(byte[] passwordBytes, byte[] oBytes, byte[] oeBytes, byte[] uBytes)
+    private static byte[]? TryComputeFileKeyAlgorithm2AOwnerPassword(byte[] passwordBytes, byte[] oBytes, byte[] oeBytes, byte[] uBytes, int revision)
     {
         if (oBytes.Length < 48)
         {
@@ -817,14 +812,14 @@ public sealed partial class PdfDocument
 
         // Step 1: SHA-256(password + validationSalt + U(48 bytes)) - authenticate by comparing
         // against /O's own embedded hash.
-        var computedHash = SHA256.HashData([.. passwordBytes, .. validationSalt, .. fullU]);
+        var computedHash = ComputeHashAlgorithm2B(passwordBytes, validationSalt, fullU, revision);
         if (!computedHash.AsSpan().SequenceEqual(hash))
         {
             return null;
         }
 
         // Step 2: the intermediate key is SHA-256(password + keySalt + U(48 bytes)).
-        var intermediateKey = SHA256.HashData([.. passwordBytes, .. keySalt, .. fullU]);
+        var intermediateKey = ComputeHashAlgorithm2B(passwordBytes, keySalt, fullU, revision);
 
         // Step 3: the file encryption key is AES-256-CBC-decrypt(/OE) using the intermediate key,
         // a zero IV, and no padding (/OE decrypts to exactly the raw 32-byte file key).
@@ -832,8 +827,73 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
+    ///     Computes the 32-byte password hash used by the AES-256 security handler (ISO 32000-2
+    ///     Algorithm 2.B for <c>/R 6</c>; a single SHA-256 over password + salt + user data for
+    ///     <c>/R 5</c>). Used for the validation hash and the intermediate key, for both the user
+    ///     and owner password variants.
+    /// </summary>
+    /// <param name="password">The UTF-8-encoded, 127-byte-truncated candidate password.</param>
+    /// <param name="salt">The 8-byte validation or key salt.</param>
+    /// <param name="userData">The full 48-byte <c>/U</c> for the owner variant; empty for the user variant.</param>
+    /// <param name="revision">The security handler revision (5 or 6).</param>
+    /// <returns>The 32-byte hash.</returns>
+    /// <exception cref="InvalidDataException">Thrown when the Algorithm 2.B loop does not terminate within a defensive round cap.</exception>
+    private static byte[] ComputeHashAlgorithm2B(byte[] password, ReadOnlySpan<byte> salt, ReadOnlySpan<byte> userData, int revision)
+    {
+        byte[] input = [.. password, .. salt, .. userData];
+        var k = SHA256.HashData(input);
+        if (revision == 5)
+        {
+            return k;
+        }
+
+        // Defensive cap: the loop ends once the last byte of E <= round - 32, so it cannot
+        // legitimately exceed 64 + 255 rounds.
+        const int maxRounds = 64 + 256;
+        for (var round = 0; round < maxRounds; round++)
+        {
+            var unit = new byte[password.Length + k.Length + userData.Length];
+            password.CopyTo(unit, 0);
+            k.CopyTo(unit, password.Length);
+            userData.CopyTo(unit.AsSpan(password.Length + k.Length));
+
+            var k1 = new byte[unit.Length * 64];
+            for (var i = 0; i < 64; i++)
+            {
+                unit.CopyTo(k1, i * unit.Length);
+            }
+
+            byte[] e;
+            using (var aes = Aes.Create())
+            {
+                aes.Key = k.AsSpan(0, 16).ToArray();
+                e = aes.EncryptCbc(k1, k.AsSpan(16, 16), PaddingMode.None);
+            }
+
+            var mod = 0;
+            for (var i = 0; i < 16; i++)
+            {
+                mod += e[i];
+            }
+
+            k = (mod % 3) switch
+            {
+                0 => SHA256.HashData(e),
+                1 => SHA384.HashData(e),
+                _ => SHA512.HashData(e)
+            };
+
+            if (round >= 63 && e[^1] <= round - 31)
+            {
+                return k.AsSpan(0, 32).ToArray();
+            }
+        }
+
+        throw new InvalidDataException("AES-256 /R 6 password hash (Algorithm 2.B) did not terminate.");
+    }
+    /// <summary>
     ///     Computes a per-object encryption key per ISO 32000-1 Algorithm 1, used by RC4 and
-    ///     AES-128/AESV2 (revisions 2-4). AES-256/R5 does not use this - it uses the file
+    ///     AES-128/AESV2 (revisions 2-4). AES-256 does not use this - it uses the file
     ///     encryption key directly for every object (see <see cref="TryComputeFileKeyAlgorithm2A"/>'s
     ///     own remarks).
     /// </summary>

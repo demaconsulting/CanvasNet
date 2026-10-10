@@ -87,6 +87,12 @@ internal sealed class ClipMask
     public int Height { get; }
 
     /// <summary>
+    ///     Gets the whole-pixel rectangle outside which this mask's coverage is zero (zero-sized
+    ///     when the mask covers nothing).
+    /// </summary>
+    public Rect Bounds => new(_originX, _originY, _boundsWidth, _boundsHeight);
+
+    /// <summary>
     ///     Builds a new <see cref="ClipMask"/> whose per-pixel coverage is <paramref name="path"/>'s
     ///     own antialiased fill coverage, interpreted under <paramref name="fillRule"/>, across a
     ///     <paramref name="width"/> x <paramref name="height"/> device pixel extent.

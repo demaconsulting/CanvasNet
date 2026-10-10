@@ -36,7 +36,10 @@ public sealed partial class PdfDocument
         /// </summary>
         internal required Matrix3x2 Matrix { get; init; }
 
-        /// <summary>Gets the shading's <c>/ShadingType</c> (<c>2</c> axial or <c>3</c> radial). Only meaningful when <see cref="Kind"/> is <see cref="PatternKind.Shading"/>.</summary>
+        /// <summary>Gets the decoded mesh for a <c>/ShadingType 4</c>-<c>7</c> shading, or <see langword="null"/> otherwise. Only meaningful when <see cref="Kind"/> is <see cref="PatternKind.Shading"/>.</summary>
+        internal MeshShading? Mesh { get; init; }
+
+        /// <summary>Gets the shading's <c>/ShadingType</c> (<c>2</c> axial, <c>3</c> radial, or <c>4</c>-<c>7</c> mesh). Only meaningful when <see cref="Kind"/> is <see cref="PatternKind.Shading"/>.</summary>
         internal int ShadingType { get; init; }
 
         /// <summary>Gets the shading's resolved <c>/ColorSpace</c> (restricted to <c>DeviceGray</c>/<c>DeviceRGB</c>/<c>DeviceCMYK</c>). Only meaningful when <see cref="Kind"/> is <see cref="PatternKind.Shading"/>.</summary>

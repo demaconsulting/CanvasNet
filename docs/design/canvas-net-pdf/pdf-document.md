@@ -63,11 +63,11 @@ procedures rather than an outline/CFF program) is also resolved and rendered, vi
 dedicated resolution and glyph-painting path (see _Type 3 Font Resolution_/_Type 3 Glyph Painting_
 below). As of Phase 16 (this phase), a document encrypted with the PDF "Standard" security
 handler (`/Filter /Standard`) using RC4 (40 to 128-bit), AES-128 (`/CFM /AESV2`), or AES-256 using
-the simpler R5 key derivation (`/CFM /AESV3`/`/R 5`) and an empty user password is also opened and
+the R5 or R6 (hardened hash) key derivation (`/CFM /AESV3`/`/R 5` or `/R 6`) and an empty user password is also opened and
 rendered transparently, with every indirect object's strings and every stream's raw bytes
 decrypted before any other parsing logic observes them (see _Encryption (Standard Security
 Handler)_ below); every other encrypted-document shape (a non-`/Standard` security handler,
-`/R 6`'s "hardened hash" key derivation, a non-`/StdCF` crypt filter, or a document that genuinely
+an `/R` other than 5/6, a non-`/StdCF` crypt filter, or a document that genuinely
 requires a non-empty password) still fails closed exactly as before. As of Phase 18 (this phase),
 both `LoadType1CFont` (simple `/Type1` fonts) and `LoadCidFontType0Font` (composite `CIDFontType0`
 descendant fonts) resolve a `/FontFile3` stream by sniffing the stream's own decoded bytes for a
@@ -88,8 +88,8 @@ entirely unsupported and fail closed with `Codecs.UnsupportedImageFeatureExcepti
 instead surfaces as `InvalidDataException` via `Fonts.CffTable.Parse`'s own existing rejection);
 only the `/WinAnsiEncoding` and `/MacRomanEncoding` base encodings (plus `/Differences`) are
 supported (an unrecognized base encoding also fails closed); text-rendering modes `0` (fill), `1`
-(stroke), `2` (fill, then stroke), and `3` (invisible) are supported (clip modes `4`-`7` fail
-closed); and no additional stream filters were added for any of these phases.
+(stroke), `2` (fill, then stroke), `3` (invisible), and the clip modes `4`-`7` are supported (a Type 3
+glyph under a clip mode fails closed); and no additional stream filters were added for any of these phases.
 **Phase 3 limitations** (narrowed by Phase 7/13 and the `/Pattern` color-space phase, see below):
 no transparency groups; shading/tiling pattern fills were added (`/ShadingType 2`/`3`,
 `/PatternType 1`/`2` — see _`/Pattern` Color Space (Shading and Tiling Patterns)_ below, reusing
@@ -346,7 +346,7 @@ non-`null` password is supplied, it is first tried as the **user password** (the
 instead of always the empty-password padding constant); if that does not authenticate, the same
 supplied string is tried as the **owner password** — ISO 32000-1 Algorithm 3 (R2-R4: recovers the
 padded user password from `/O`, then re-derives and re-authenticates a candidate file key) or the
-owner-password variant of ISO 32000-2 Algorithm 2.A (R5: recovers the file key directly from
+owner-password variant of ISO 32000-2 Algorithm 2.A (R5/R6: recovers the file key directly from
 `/OE`). If neither attempt authenticates, `Codecs.UnsupportedImageFeatureException` is thrown with
 the new `pdf-encrypted-incorrect-password` feature token (distinguishable from the null-password
 `pdf-encrypted-password-required` token, which is unchanged). **Encoding scope boundary**: R2-R4
@@ -365,10 +365,10 @@ truncation rule.
   `/V`/`/R`/`/Length`/`/O`/`/U`/`/P`/`/EncryptMetadata` and the trailer's `/ID` first element,
   then dispatches on `/V`: `1`/`2` → RC4 via `InitializeRc4OrAesV2Encryption(…, password)`; `4` →
   validates `/CF/StdCF/CFM` is `/AESV2` (else feature `pdf-encrypted-cfm-{name}`) then the same
-  RC4/AESV2 initialization path; `5` → rejects `/R 6` (feature `pdf-encrypted-r6-hardened-hash`)
-  and any other `/R` (feature `pdf-encrypted-r-{revision}`), validates `/CF/StdCF/CFM` is
-  `/AESV3`, computes `passwordBytes` (empty, or `EncodeR5PasswordBytes(password)`), tries
-  `TryComputeFileKeyAlgorithm2A` first and — when `password is not null` and that returns `null`
+  RC4/AESV2 initialization path; `5` → accepts `/R 5` and `/R 6` (hardened hash) and rejects any
+  other `/R` (feature `pdf-encrypted-r-{revision}`), validates `/CF/StdCF/CFM` is
+  `/AESV3`, computes `passwordBytes` (empty, or `EncodeR5PasswordBytes(password)`), passes `revision` to
+  `TryComputeFileKeyAlgorithm2A`, tried first and — when `password is not null` and that returns `null`
   — falls back to `TryComputeFileKeyAlgorithm2AOwnerPassword` (reading `/OE`), throwing the
   appropriate token (`pdf-encrypted-password-required` or `pdf-encrypted-incorrect-password`) if
   both fail; any other `/V` fails with feature `pdf-encrypted-v-{version}`. **Ordering invariant
@@ -429,24 +429,32 @@ truncation rule.
   key plus the object's 3-byte little-endian object number and 2-byte little-endian generation
   number (plus the 4 literal ASCII bytes `sAlT` for AESV2); the per-object key is the first
   `min(fileKeyLength + 5, 16)` bytes of that digest.
-- **`TryComputeFileKeyAlgorithm2A(byte[] passwordBytes, …)`** (ISO 32000-2 Algorithm 2.A, R5/AESV3
-  only, user-password path) — authenticates by comparing `SHA-256(passwordBytes ‖ /U`'s 8-byte
+- **`ComputeHashAlgorithm2B(byte[] password, ReadOnlySpan<byte> salt, ReadOnlySpan<byte> udata, int revision)`**
+  — the password hash used for both the validation hash and the intermediate key. R5: a single
+  `SHA-256(password ‖ salt ‖ udata)`. R6 (ISO 32000-2 Algorithm 2.B): `K = SHA-256(input)`, then
+  rounds of `K1 = (password ‖ K ‖ udata) × 64`, `E = AES-128-CBC(key = K[0..16], iv = K[16..32], K1)`
+  with no padding, `K = SHA-256/384/512(E)` selected by the sum of `E`'s first 16 bytes mod 3; at
+  least 64 rounds, then stop once the last byte of `E` is `<= round - 32`; the result is the
+  first 32 bytes of `K`. The loop is capped (64 + 256 rounds) and throws `InvalidDataException`
+  beyond that, failing closed.
+- **`TryComputeFileKeyAlgorithm2A(byte[] passwordBytes, …, int revision)`** (ISO 32000-2 Algorithm 2.A, R5/R6 AESV3
+  only, user-password path) — authenticates by comparing `ComputeHashAlgorithm2B(passwordBytes, /U`'s 8-byte
   validation salt`)` against `/U`'s own embedded 32-byte hash, returning `null` (instead of
   throwing) on a mismatch, otherwise AES-256-CBC-decrypts `/UE` (zero IV, no padding) using
-  `SHA-256(passwordBytes ‖ /U`'s 8-byte key salt`)` as the key, yielding the 32-byte file
+  `ComputeHashAlgorithm2B(passwordBytes, /U`'s 8-byte key salt`)` as the key, yielding the 32-byte file
   encryption key directly — used as-is for every string/stream, with no further per-object
   derivation (unlike RC4/AESV2).
-- **`TryComputeFileKeyAlgorithm2AOwnerPassword(byte[] passwordBytes, byte[] oBytes, byte[] oeBytes, byte[] uBytes)`**
-  (owner-password variant of ISO 32000-2 Algorithm 2.A, R5/AESV3 only) — hashes/encrypts over
+- **`TryComputeFileKeyAlgorithm2AOwnerPassword(byte[] passwordBytes, byte[] oBytes, byte[] oeBytes, byte[] uBytes, int revision)`**
+  (owner-password variant of ISO 32000-2 Algorithm 2.A, R5/R6 AESV3 only) — hashes/encrypts over
   `passwordBytes ‖ salt ‖ U` where `U` is the **full 48-byte** `/U` value (not a sub-slice):
-  compares `SHA-256(passwordBytes ‖ /O`'s 8-byte validation salt ‖ fullU`)` against `/O`'s own
+  compares `ComputeHashAlgorithm2B(passwordBytes, /O`'s 8-byte validation salt, fullU`)` against `/O`'s own
   32-byte hash, returning `null` on a mismatch, otherwise AES-256-CBC-decrypts `/OE` (not `/UE`,
-  zero IV, no padding) using `SHA-256(passwordBytes ‖ /O`'s 8-byte key salt ‖ fullU`)` as the key,
+  zero IV, no padding) using `ComputeHashAlgorithm2B(passwordBytes, /O`'s 8-byte key salt, fullU`)` as the key,
   yielding the 32-byte file encryption key directly.
 - **`DecryptStreamBytes`/`DecryptStringsInPlace`** — dispatch on `_encryptionCipher`: RC4
   re-derives the per-object key and XORs; AES-128 derives the per-object key with the `sAlT`
   suffix, then AES-128-CBC/PKCS7-decrypts a leading-16-byte-IV-prefixed ciphertext; AES-256
-  (R5) uses `_encryptionKey` directly against the same IV-prefixed wire format. Called,
+  (R5/R6) uses `_encryptionKey` directly against the same IV-prefixed wire format. Called,
   respectively, by `GetStreamRawBytes` (before the generic `/Filter`/`/DecodeParms` pipeline
   runs) and `ParseIndirectObjectAt` (recursing every `PdfKind.String` found anywhere within a
   freshly-parsed top-level indirect object's value, never recursing into `PdfKind.Reference`
@@ -459,11 +467,12 @@ truncation rule.
   decrypts.
 
 **Scope boundary**: only the `/Filter /Standard` security handler is supported, and only RC4
-(`/V 1`/`/V 2`), AES-128 (`/V 4`/`/CFM /AESV2`), and AES-256 using the simpler R5 key derivation
-(`/V 5`/`/R 5`/`/CFM /AESV3`) are supported. A caller-supplied password (R2-R4: Latin-1/ASCII only;
-R5: UTF-8, no SASLprep normalization; both: 127-byte truncation) is tried as the user password
-then the owner password, as described above. Every other shape (a non-`/Standard` filter, `/R 6`'s
-"hardened hash" key derivation, a crypt filter other than the standard `/StdCF`, a document whose
+(`/V 1`/`/V 2`), AES-128 (`/V 4`/`/CFM /AESV2`), and AES-256 using the R5 or R6
+(hardened hash) key derivation (`/V 5`/`/R 5` or `/R 6`/`/CFM /AESV3`) are supported. A caller-supplied password
+(R2-R4: Latin-1/ASCII only;
+R5/R6: UTF-8, no SASLprep normalization; both: 127-byte truncation) is tried as the user password
+then the owner password, as described above. Every other shape (a non-`/Standard` filter, an `/R` other
+than 5/6, a crypt filter other than the standard `/StdCF`, a document whose
 user/owner password does not match the supplied (or default empty) password, or an R2-4 password
 containing a non-ASCII character) fails closed with `Codecs.UnsupportedImageFeatureException` and
 its own distinguishable `Feature` token.
@@ -1168,8 +1177,18 @@ its own distinguishable `Feature` token.
   named font resource via `ResolveFont` and stores it alongside the requested size;
   `OpSetTextRenderMode` (`Tr`) accepts modes `0` (fill, the default), `1` (stroke), `2`
   (fill, then stroke), and `3` (invisible — painted with zero-area geometry, i.e. skipped
-  entirely), throwing `Codecs.UnsupportedImageFeatureException` for the clip modes `4`-`7` (out
-  of this phase's scope) or `InvalidDataException` for any other numeric value. `OpTextMoveTo`/
+  entirely), and `4`-`7` (the clip modes: fill/stroke/fill+stroke/invisible respectively, each
+  additionally accumulating the glyph's device-space outline into `_textClipBuilder` and setting
+  `_textClipPending`, even for outline-less glyphs such as spaces). `OpEndText` (`ET`) then, if a
+  clip is pending, builds the accumulated path, converts it via `ClipMask.FromPath` (non-zero
+  winding) and intersects it into `_gs.Clip`; the clip is therefore not applied until `ET`, and is
+  restored by `Q`. Space-only clip text yields an empty region that clips everything (spec-
+  conformant). `OpBeginText`, `ExecuteContentStream`, and the Form XObject/Type 3/tiling re-entrant
+  executors reset or save/restore the accumulator so nested content cannot clobber it. A Type 3
+  glyph shown under a clip mode throws `Codecs.UnsupportedImageFeatureException` (feature
+  `pdf-text-render-mode-type3-clip`) from `ShowGlyph` since it has no outline; any other numeric
+  value throws `InvalidDataException`. Modes `4`/`6` use the same flat fill color as modes `0`/`2`
+  (the pre-existing no-Pattern-fill simplification). `OpTextMoveTo`/
   `OpTextMoveToSetLeading`/`OpTextNextLine` (`Td`/`TD`/`T*`) and `OpSetTextMatrix` (`Tm`)
   manipulate `_textMatrix`/`_lineMatrix` per the specification's own line-matrix-relative-
   displacement (`Td`/`TD`, `TD` additionally setting `Leading = -ty`) versus direct-replacement
@@ -1286,7 +1305,8 @@ its own distinguishable `Feature` token.
   either color field.
 - **Shading patterns (`PdfDocument.Patterns.cs`/`PdfDocument.Patterns.Shading.cs`, added
   alongside `/Pattern` color-space support)** — a `/PatternType 2` dictionary's `/Shading`
-  resolves `/ShadingType 2` (axial) or `3` (radial); any other `/ShadingType` throws
+  resolves `/ShadingType 2` (axial), `3` (radial) or `4`-`7` (mesh, see _Mesh shadings_ below);
+  any other `/ShadingType` throws
   `Codecs.UnsupportedImageFeatureException` (feature `pdf-shading-type-{n}`). `/ColorSpace` must
   resolve to `DeviceGray`/`DeviceRGB`/`DeviceCMYK` (else feature
   `pdf-shading-colorspace-{family}`); `/Function` accepts either a single function or an array of
@@ -1367,9 +1387,31 @@ its own distinguishable `Feature` token.
   `Drawing/TilePaint.cs`/`Drawing/TilePaintEvaluator.cs`), sampled nearest-neighbor per destination
   pixel by `Drawing.PathFiller`'s new `TilePaint` fill overload, mirroring the existing `Gradient`
   overload's structure exactly.
-- **Scope boundaries (deliberately not implemented this phase)** — `ShadingType` `1`/`4`-`7`
-  (function-based and mesh shadings) and `/FunctionType 4` (PostScript calculator functions)
-  remain unsupported/unchanged, now reachable through two paths — `scn`/`SCN` + `/Pattern` and
+- **Mesh shadings (`PdfDocument.Patterns.Shading.Mesh.cs`, `/ShadingType` 4-7)** — `ResolveMeshShading`
+  requires the shading to be a stream and validates `/BitsPerCoordinate` (1/2/4/8/12/16/24/32),
+  `/BitsPerComponent` (1/2/4/8/12/16), `/BitsPerFlag` (2/4/8; not used by type 5), `/Decode`
+  (4 + 2n finite entries) and `/VerticesPerRow` (type 5, at least 2), plus an optional `/Function`
+  (one parametric component, sampled into a 256-entry lookup table across the `/Decode` t range;
+  `/FunctionType 4` stays unsupported) and `/Background`. Type 4 reads free-form triangles
+  (flag 0 starts a triangle, 1 reuses the previous edge vb-vc, 2 reuses va-vc); type 5 reads a lattice
+  of `/VerticesPerRow` columns; types 6/7 read Coons/tensor patches whose 12/16 control points
+  are mapped into a 4x4 net, with flags 1-3 inheriting the previous patch's edge and two corner
+  colors (types 6 derives the four interior points from the Coons formula). **Every type 4/5 vertex
+  and every patch starts on a byte boundary** (the alignment the Poppler and PDFium renderers use).
+  Patches are
+  evaluated as bicubic Bezier surfaces tessellated at a fixed 16x16 subdivision (a deliberate
+  choice balancing cost and smoothness), triangles are rasterized with barycentric interpolation,
+  no anti-aliasing and pixel-centre sampling, into an offscreen bitmap painted through the
+  pattern's fill/stroke path or the `sh` clip/`/BBox` region. Colors are interpolated in RGB
+  even for `DeviceCMYK` (a documented approximation). `/Background` paints beneath the mesh for
+  pattern use only (not for `sh`). Malformed data (missing/illegal entries, truncated records,
+  bad flags, bad lattice) throws `InvalidDataException`; unsupported color spaces/functions and DoS
+  limits (1,048,576 vertices, 65,536 patches, 2^28 raster-work units) throw
+  `Codecs.UnsupportedImageFeatureException` (`pdf-shading-mesh-too-many-vertices`/
+  `-too-many-patches`/`-too-complex`).
+- **Scope boundaries (deliberately not implemented this phase)** — `ShadingType` `1`
+  (function-based shadings) and `/FunctionType 4` (PostScript calculator functions)
+  remain unsupported/unchanged, reachable through two paths — `scn`/`SCN` + `/Pattern` and
   `sh` — both throwing the identical `Codecs.UnsupportedImageFeatureException` (shared code, not
   a reimplementation); a `/Pattern` color space nested inside another `/Pattern`'s own `PatternBase` is out of scope (the
   `ComponentCount` arm for `Family.Pattern` throws `InvalidOperationException` as a fail-closed
@@ -1451,8 +1493,7 @@ change behavior for any document within normal real-world limits.
   exact convention for malformed data.
 - **`/Encrypt` key present in the trailer, but not the `/Standard` security handler** (feature
   `pdf-encrypted-filter-{name}`), **a `/CF/StdCF/CFM` other than `/AESV2`/`/AESV3`** (feature
-  `pdf-encrypted-cfm-{name}`), **`/V 5` with `/R 6`'s "hardened hash" key derivation** (feature
-  `pdf-encrypted-r6-hardened-hash`), **`/V 5` with any other unsupported `/R`** (feature
+  `pdf-encrypted-cfm-{name}`), **`/V 5` with an unsupported `/R` (not 5 or 6)** (feature
   `pdf-encrypted-r-{revision}`), **an unsupported `/V`** (feature `pdf-encrypted-v-{version}`),
   **a `null` password that fails `/U` (R2-R4) or `/U`'s embedded validation hash (R5)
   authentication, i.e. the document genuinely requires a non-empty password** (feature
@@ -1485,7 +1526,7 @@ change behavior for any document within normal real-world limits.
   component count (`0` when none was declared) — `InvalidDataException`; an undeclared pattern
   name (feature `pdf-pattern-not-declared`) or an unsupported `/PatternType` (anything other than
   `1`/`2`, feature `pdf-pattern-type-{n}`) — `Codecs.UnsupportedImageFeatureException`.
-- **An unsupported shading pattern** — a `/ShadingType` other than `2`/`3` (feature
+- **An unsupported shading pattern** — a `/ShadingType` outside `2`–`7` (feature
   `pdf-shading-type-{n}`), or a `/ColorSpace` other than `DeviceGray`/`DeviceRGB`/`DeviceCMYK`
   (feature `pdf-shading-colorspace-{family}`) — `Codecs.UnsupportedImageFeatureException`. The
   `sh` operator reaching an undeclared shading name throws the same shape, feature
@@ -1605,9 +1646,10 @@ change behavior for any document within normal real-world limits.
 - **An `/Encoding` naming an unrecognized base encoding** (anything other than
   `/WinAnsiEncoding`/`/MacRomanEncoding`/`/StandardEncoding` (the last added in Phase B), or their
   dictionary form's `/BaseEncoding`) — `Codecs.UnsupportedImageFeatureException`.
-- **`Tr` (text-rendering mode) set to `4`-`7`** (the clip modes) —
-  `Codecs.UnsupportedImageFeatureException`; any other numeric value outside `0`-`7` is
-  `InvalidDataException` instead.
+- **A Type 3 glyph shown under a clipping `Tr` mode (`4`-`7`)** —
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-text-render-mode-type3-clip`), raised at
+  show time; `Tr` itself accepts `0`-`7`, and any other numeric value is
+  `InvalidDataException`.
 - **A text-showing operator (`Tj`/`'`/`"`/`TJ`) with no font currently selected** (`Tf` was never
   called), or a malformed operand count/type for any text operator — `InvalidDataException`,
   matching every other operator family's own convention.

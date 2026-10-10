@@ -127,13 +127,13 @@ sections:
         title: >-
           The library shall detect an encrypted document (an /Encrypt key present in the trailer)
           and, for a supported encryption handler/filter shape (/Filter /Standard RC4 /V 1 or 2,
-          AES-128 /V 4/CFM AESV2, or AES-256 /V 5/R 5/CFM AESV3) with a correct (or, when none is
+          AES-128 /V 4/CFM AESV2, or AES-256 /V 5/R 5 or R 6/CFM AESV3) with a correct (or, when none is
           required, absent) password, transparently decrypt every indirect object's strings and
           every stream's raw bytes before any other parsing logic observes them, so the document
           opens and renders exactly as its plaintext equivalent would; it shall instead reject the
           document with UnsupportedImageFeatureException (its own distinguishable feature token)
           when the encryption handler/filter shape itself is unsupported (for example a non-
-          /Standard security handler, AES-256 /R 6 "hardened hash" key derivation, or a crypt
+          /Standard security handler, an AES-256 /R other than 5 or 6, or a crypt
           filter other than the standard /StdCF), or when a password is required but absent or
           does not authenticate as either the user or owner password, rather than silently
           mis-parsing still-encrypted bytes as plaintext content.
@@ -151,6 +151,7 @@ sections:
           - CanvasNetPdf-PdfDocument-EncryptionRc4
           - CanvasNetPdf-PdfDocument-EncryptionAesV2
           - CanvasNetPdf-PdfDocument-EncryptionAesV3R5
+          - CanvasNetPdf-PdfDocument-EncryptionAesV3R6
           - CanvasNetPdf-PdfDocument-UserPasswordAuthentication
           - CanvasNetPdf-PdfDocument-OwnerPasswordAuthentication
           - CanvasNetPdf-PdfDocument-IncorrectPasswordRejection
@@ -340,7 +341,8 @@ sections:
           The library shall recognize /Pattern as a selectable cs/CS color space and fill/stroke
           a path using the named pattern resolved from the current page's /Resources/Pattern
           dictionary: a /PatternType 2 (shading) pattern sampling its /Function to paint an
-          axial (/ShadingType 2) or radial (/ShadingType 3) color gradient, and a /PatternType 1
+          axial (/ShadingType 2), radial (/ShadingType 3) or mesh (/ShadingType 4-7) color
+          gradient, and a /PatternType 1
           (tiling) pattern rendering its own content stream once into an offscreen tile and
           repeating it (colored or recolored per its /PaintType) across the painted region.
         tags: [system]
@@ -354,6 +356,9 @@ sections:
           - CanvasNetPdf-PdfDocument-ShadingPatternFill
           - CanvasNetPdf-PdfDocument-TilingPatternFill
           - CanvasNetPdf-PdfDocument-ShadingOperator
+          - CanvasNetPdf-PdfDocument-MeshShadingFill
+          - CanvasNetPdf-PdfDocument-MeshShadingOperator
+          - CanvasNetPdf-PdfDocument-MeshShadingFailClosed
         tests:
           - CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors
           - CanvasNetPdf_SystemIntegration_ColoredTilingPatternFill_PaintsRepeatingTileColors

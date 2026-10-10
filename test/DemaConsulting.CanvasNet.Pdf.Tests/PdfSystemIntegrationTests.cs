@@ -974,6 +974,68 @@ public class PdfSystemIntegrationTests
         Assert.True(alpha is > 0 and < 255);
     }
 
+    /// <summary>
+    ///     Proves <c>sh</c> paints all four mesh shading types (4 free-form triangles, 5 lattice,
+    ///     6 Coons patch, 7 tensor-product patch) end-to-end from a real fixture, one 200x200
+    ///     quadrant each on a 400x400 page rendered 1:1, and that type 7's interior control points
+    ///     change the interior color relative to the type 6 patch with the same boundary.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_ShOperatorMeshShadingTypes4To7_PaintsExpectedCornerColors()
+    {
+        // Arrange: see PdfFixtures/README.md. Device y = 400 - user y; quadrant origins are
+        // top-left (0,200) type 4, top-right (200,200) type 5, bottom-left (0,0) type 6,
+        // bottom-right (200,0) type 7.
+        using var document = PdfDocument.Open(Fixture("shading-mesh-types-4-5-6-7.pdf"));
+
+        // Act
+        using var surface = document.Render(0, 400, 400, Transparent);
+
+        // Assert: type 4 - red/green near the lower corners, yellow near the apex, and the
+        // upper-left half of the quadrant (outside both triangles) stays unpainted.
+        AssertRed(surface[12, 188]);
+        AssertGreen(surface[185, 188]);
+        AssertYellow(surface[188, 12]);
+        Assert.Equal(0, surface[20, 20].A);
+
+        // Assert: type 5 - lattice vertex colors and the white center vertex.
+        AssertRed(surface[212, 188]);
+        AssertBlue(surface[388, 188]);
+        AssertGreen(surface[212, 12]);
+        AssertYellow(surface[388, 12]);
+        var center = surface[300, 90];
+        Assert.True(center.R > 240 && center.G > 240 && center.B > 240);
+
+        // Assert: type 6 and 7 share corner colors (red, green, blue, yellow).
+        foreach (var offsetX in new[] { 0, 200 })
+        {
+            AssertRed(surface[offsetX + 12, 388]);
+            AssertGreen(surface[offsetX + 12, 215]);
+            AssertBlue(surface[offsetX + 188, 215]);
+            AssertYellow(surface[offsetX + 188, 385]);
+        }
+
+        // Assert: type 7's interior control points change the interior color, and the gap
+        // between quadrants is unpainted.
+        var coons = surface[131, 261];
+        var tensor = surface[331, 261];
+        Assert.True(
+            Math.Abs(coons.R - tensor.R) + Math.Abs(coons.G - tensor.G) + Math.Abs(coons.B - tensor.B) > 50);
+        Assert.Equal(0, surface[200, 200].A);
+    }
+
+    private static void AssertRed(Canvas.Rgba32 pixel) =>
+        Assert.True(pixel.A == 255 && pixel.R > 200 && pixel.G < 60 && pixel.B < 60, $"Expected red but was {pixel}");
+
+    private static void AssertGreen(Canvas.Rgba32 pixel) =>
+        Assert.True(pixel.A == 255 && pixel.G > 200 && pixel.R < 60 && pixel.B < 60, $"Expected green but was {pixel}");
+
+    private static void AssertBlue(Canvas.Rgba32 pixel) =>
+        Assert.True(pixel.A == 255 && pixel.B > 200 && pixel.R < 60 && pixel.G < 60, $"Expected blue but was {pixel}");
+
+    private static void AssertYellow(Canvas.Rgba32 pixel) =>
+        Assert.True(pixel.A == 255 && pixel.R > 200 && pixel.G > 200 && pixel.B < 60, $"Expected yellow but was {pixel}");
+
     /// <summary>Builds a <c>/FunctionType 2</c> stream object body (no sample data - exponential functions carry no <c>/FunctionType 0</c> sample bytes) for <see cref="BuildSyntheticPatternPdf"/>'s own <paramref name="dictionaryEntries"/>-driven extra objects.</summary>
     private static byte[] BuildPatternFunctionStreamBody(string dictionaryEntries) =>
         System.Text.Encoding.ASCII.GetBytes($"<< {dictionaryEntries} /Length 0 >>\nstream\n\nendstream");

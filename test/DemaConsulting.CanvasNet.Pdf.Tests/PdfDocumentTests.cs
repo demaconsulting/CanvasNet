@@ -10397,15 +10397,221 @@ public class PdfDocumentTests
         Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[7, 44]);
     }
 
-    /// <summary>Proves that a defined but unsupported text-rendering mode throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    /// <summary>Proves that the clipping text-rendering modes 4-7 are accepted by <c>Tr</c> on their own.</summary>
     [Theory]
     [InlineData(4)]
     [InlineData(5)]
     [InlineData(6)]
     [InlineData(7)]
-    public void PdfDocument_Text_RenderMode_UnsupportedDefinedMode_ThrowsUnsupportedImageFeatureException(int mode)
+    public void PdfDocument_Text_RenderMode_ClipModes_AcceptedByTr(int mode)
     {
-        Assert.Throws<UnsupportedImageFeatureException>(() => RenderContent($"BT {mode} Tr ET"));
+        var exception = Record.Exception(() => RenderContent($"BT {mode} Tr ET"));
+        Assert.Null(exception);
+    }
+
+    /// <summary>Renders one 'A' (and optionally 'B') glyph page with the given content and returns the surface.</summary>
+    private static Canvas.Surface RenderTextClipContent(string content)
+    {
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1), (66, 2)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(fontBytes);
+        return RenderPdfBytes(BuildSinglePagePdfWithResources(100, 100, content, resourcesBody, extraObjects));
+    }
+
+    /// <summary>Proves that mode 7 paints no glyph ink but clips a later fill to the glyph outline.</summary>
+    [Fact]
+    public void PdfDocument_Text_RenderMode7_ClipOnly_ClipsSubsequentFillToGlyph()
+    {
+        using var surface = RenderTextClipContent(
+            "BT /F1 20 Tf 7 Tr 5 50 Td (A) Tj ET 1 0 0 rg 0 0 100 100 re f");
+
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[11, 44]);
+        Assert.Equal(default, surface[50, 50]);
+        Assert.Equal(default, surface[11, 60]);
+    }
+
+    /// <summary>Proves that mode 7 itself paints nothing when no later painting occurs.</summary>
+    [Fact]
+    public void PdfDocument_Text_RenderMode7_ClipOnly_PaintsNoGlyphInk()
+    {
+        using var surface = RenderTextClipContent("BT /F1 20 Tf 7 Tr 5 50 Td (A) Tj ET");
+
+        Assert.Equal(default, surface[11, 44]);
+    }
+
+    /// <summary>Proves that mode 4 fills the glyph and then clips a later fill to it.</summary>
+    [Fact]
+    public void PdfDocument_Text_RenderMode4_FillAndClip_FillsThenClips()
+    {
+        using var surface = RenderTextClipContent(
+            "0 1 0 rg BT /F1 20 Tf 4 Tr 5 50 Td (A) Tj ET 1 0 0 rg 0 0 100 100 re f");
+
+        // The later red fill covers the glyph; outside the glyph nothing is painted.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[11, 44]);
+        Assert.Equal(default, surface[50, 50]);
+    }
+
+    /// <summary>Proves that mode 4 paints the glyph fill itself.</summary>
+    [Fact]
+    public void PdfDocument_Text_RenderMode4_FillAndClip_PaintsGlyphFill()
+    {
+        using var surface = RenderTextClipContent("0 1 0 rg BT /F1 20 Tf 4 Tr 5 50 Td (A) Tj ET");
+
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[11, 44]);
+    }
+
+    /// <summary>Proves that mode 5 strokes the outline without filling, then clips.</summary>
+    [Fact]
+    public void PdfDocument_Text_RenderMode5_StrokeAndClip_StrokesThenClips()
+    {
+        using var surface = RenderTextClipContent(
+            "BT /F1 20 Tf 2 w 5 Tr 1 0 0 RG 5 50 Td (A) Tj ET");
+
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[7, 44]);
+        Assert.Equal(default, surface[11, 44]);
+
+        using var clipped = RenderTextClipContent(
+            "BT /F1 20 Tf 2 w 5 Tr 1 0 0 RG 5 50 Td (A) Tj ET 0 0 1 rg 0 0 100 100 re f");
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), clipped[11, 44]);
+        Assert.Equal(default, clipped[50, 50]);
+    }
+
+    /// <summary>Proves that mode 6 fills and strokes the glyph, then clips.</summary>
+    [Fact]
+    public void PdfDocument_Text_RenderMode6_FillStrokeClip_PaintsBothThenClips()
+    {
+        using var surface = RenderTextClipContent(
+            "BT /F1 20 Tf 2 w 6 Tr 0 1 0 rg 1 0 0 RG 5 50 Td (A) Tj ET 0 0 1 rg 30 0 70 100 re f");
+
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[11, 44]);
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[7, 44]);
+
+        // The later blue fill lies outside the glyph, so the clip removes it entirely.
+        Assert.Equal(default, surface[50, 50]);
+    }
+
+    /// <summary>Proves that the clip is the union of every glyph shown in one BT/ET.</summary>
+    [Fact]
+    public void PdfDocument_Text_RenderMode7_ClipAccumulatesAcrossMultipleGlyphs()
+    {
+        using var surface = RenderTextClipContent(
+            "BT /F1 20 Tf 7 Tr 5 50 Td (AB) Tj ET 1 0 0 rg 0 0 100 100 re f");
+
+        // 'A' occupies x [7,15), 'B' x [19,27); the gap at x = 17 stays unpainted.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[11, 44]);
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[23, 44]);
+        Assert.Equal(default, surface[17, 44]);
+    }
+
+    /// <summary>Proves that the text clip intersects with an existing clip.</summary>
+    [Fact]
+    public void PdfDocument_Text_RenderMode7_ClipIntersectsWithExistingClip()
+    {
+        // Existing clip covers x [0,12) only, so only the left part of 'A' (x [7,15)) survives.
+        using var surface = RenderTextClipContent(
+            "0 0 12 100 re W n BT /F1 20 Tf 7 Tr 5 50 Td (A) Tj ET 1 0 0 rg 0 0 100 100 re f");
+
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[9, 44]);
+        Assert.Equal(default, surface[13, 44]);
+    }
+
+    /// <summary>Proves that the clip is not applied until <c>ET</c>.</summary>
+    [Fact]
+    public void PdfDocument_Text_RenderMode7_ClipNotAppliedUntilEndText()
+    {
+        using var surface = RenderTextClipContent(
+            "BT /F1 20 Tf 7 Tr 5 50 Td (A) Tj 1 0 0 rg 0 0 100 100 re f ET");
+
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that <c>Q</c> restores the pre-text clip.</summary>
+    [Fact]
+    public void PdfDocument_Text_RenderMode7_ClipRestoredByRestoreState()
+    {
+        using var surface = RenderTextClipContent(
+            "q BT /F1 20 Tf 7 Tr 5 50 Td (A) Tj ET Q 1 0 0 rg 0 0 100 100 re f");
+
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[11, 44]);
+    }
+
+    /// <summary>Proves that clip modes work with a composite (Type 0, Identity-H) font.</summary>
+    [Fact]
+    public void PdfDocument_Text_RenderMode7_ClipWithCompositeFont()
+    {
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1)]);
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(fontBytes);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "BT /F1 20 Tf 7 Tr 5 50 Td <0001> Tj ET 1 0 0 rg 0 0 100 100 re f",
+            resourcesBody,
+            extraObjects);
+
+        using var surface = RenderPdfBytes(bytes);
+
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[11, 44]);
+        Assert.Equal(default, surface[50, 50]);
+    }
+
+    /// <summary>Proves that a Type 3 glyph shown under a clipping mode fails closed.</summary>
+    [Theory]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    public void PdfDocument_Text_RenderMode_ClipModes_Type3Font_ThrowsUnsupportedImageFeatureException(int mode)
+    {
+        var (resourcesBody, extraObjects) = BuildType3FontResources(
+            [("Square", "100 100 400 400 re f"u8.ToArray())],
+            "65 /Square");
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf {mode} Tr 5 5 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that a BT...ET inside a Form XObject invoked mid-BT of an outer clip-mode text block does not clobber the outer text-clip accumulation.</summary>
+    [Fact]
+    public void PdfDocument_Text_RenderMode7_NestedFormXObjectText_DoesNotClobberOuterClip()
+    {
+        // Arrange: the outer block accumulates 'A' under mode 7, then invokes a Form (mid-BT)
+        // whose own BT...ET clips to 'B' further right; the outer ET must still apply 'A' only.
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1), (66, 2)]);
+        var (fontResourcesBody, fontExtraObjects) = BuildSimpleTrueTypeFontResources(fontBytes);
+        var formObjectNumber = 5 + fontExtraObjects.Count;
+        var resourcesBody = fontResourcesBody + $" /XObject << /Fm0 {formObjectNumber} 0 R >>";
+        var extraObjects = new List<byte[]>(fontExtraObjects)
+        {
+            BuildStreamObjectBody(
+                "/Type /XObject /Subtype /Form /BBox [0 0 100 100] /Resources << " +
+                fontResourcesBody + " >>",
+                "BT /F1 20 Tf 7 Tr 60 50 Td (B) Tj ET"u8.ToArray()),
+        };
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "BT /F1 20 Tf 7 Tr 5 50 Td (A) Tj /Fm0 Do ET 1 0 0 rg 0 0 100 100 re f",
+            resourcesBody,
+            extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: only the outer 'A' glyph survives as the clip.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[11, 44]);
+        Assert.Equal(default, surface[50, 50]);
+    }
+
+    /// <summary>Proves that a clip mode with no glyphs shown leaves the clip unchanged.</summary>
+
+    [Fact]
+    public void PdfDocument_Text_RenderMode7_NoGlyphsShown_DoesNotChangeClip()
+    {
+        using var surface = RenderTextClipContent("BT 7 Tr ET 1 0 0 rg 0 0 100 100 re f");
+
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
     }
 
     /// <summary>Proves that a text-rendering mode outside the PDF specification's defined [0, 7] range throws <see cref="InvalidDataException"/>.</summary>
@@ -10855,10 +11061,11 @@ public class PdfDocumentTests
         Assert.InRange(surface[97, 50].R, 185, 215);
     }
 
-    /// <summary>Proves that an unsupported <c>/ShadingType</c> (<c>1</c> or <c>4</c>) throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-shading-type-{n}</c>.</summary>
+    /// <summary>Proves that an unsupported <c>/ShadingType</c> (<c>0</c>, <c>1</c> or <c>8</c>) throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-shading-type-{n}</c>.</summary>
     [Theory]
+    [InlineData(0)]
     [InlineData(1)]
-    [InlineData(4)]
+    [InlineData(8)]
     public void PdfDocument_Patterns_ShadingPattern_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException(int shadingType)
     {
         // Arrange: 5 = patternDict, 6 = shadingDict.
@@ -11222,8 +11429,9 @@ public class PdfDocumentTests
     ///     category.
     /// </summary>
     [Theory]
+    [InlineData(0)]
     [InlineData(1)]
-    [InlineData(4)]
+    [InlineData(8)]
     public void PdfDocument_ShadingOperator_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException(int shadingType)
     {
         // Arrange: 5 = shadingDict.

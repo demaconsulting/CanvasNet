@@ -761,6 +761,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Functions.cs"  # pattern phase 1 (sampled function)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Patterns.cs"         # pattern phase (shared /Pattern dispatch)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Patterns.Shading.cs"  # pattern phase (shading patterns)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Patterns.Shading.Mesh.cs"  # mesh shadings (types 4-7)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Patterns.Tiling.cs"   # pattern phase (tiling patterns)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.FontFallback.cs"  # phase 6 unit source (font fallback)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Text.cs"          # phase 4 unit source (text rendering)
@@ -768,6 +769,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pdf/PdfRenderOptions.cs"         # supporting options type (background color)
       - "src/DemaConsulting.CanvasNet.Pdf/NamespaceDoc.cs"             # Pdf namespace documentation
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentMeshShadingTests.cs"  # mesh shading unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfSystemIntegrationTests.cs"  # integration tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfFixtureTests.cs"   # fixture conformance tests
 

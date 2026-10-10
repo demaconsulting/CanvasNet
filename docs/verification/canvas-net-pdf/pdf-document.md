@@ -390,7 +390,7 @@ traversal rather than looping forever.
 
 **Tests**: `PdfDocument_Open_EncryptedTrailer_ThrowsUnsupportedImageFeatureException`,
 `CanvasNetPdf_SystemIntegration_PdfEncryptDetection_EncryptedTrailerThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Open_EncryptedAesV3_R6_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Open_EncryptedAesV3_UnknownRevision_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Open_EncryptedRc4_WrongUserPasswordHash_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Open_EncryptedAesV3_WrongValidationHash_ThrowsUnsupportedImageFeatureException`
 
@@ -398,9 +398,9 @@ Opens `PdfFixtures/encrypted-trailer.pdf` (a trailer containing an `/Encrypt` ke
 is `/Adobe.PubSec`, not `/Standard`) through the public API and asserts
 `UnsupportedImageFeatureException` is thrown with `Feature == "pdf-encrypted-filter-Adobe.PubSec"`
 (both from `PdfDocumentTests.cs` and, identically, from `PdfSystemIntegrationTests.cs`'s own
-end-to-end copy of the same assertion). Separately builds an in-memory `/V 5`/`/R 6` document and
-asserts `Feature == "pdf-encrypted-r6-hardened-hash"` (AES-256's "hardened hash" key derivation is
-out of scope). Separately builds an in-memory RC4 document with a well-formed `/O` but a
+end-to-end copy of the same assertion). Separately builds an in-memory `/V 5`/`/R 7` document and
+asserts `Feature == "pdf-encrypted-r-7"` (only AES-256 `/R 5` and `/R 6` are supported).
+Separately builds an in-memory RC4 document with a well-formed `/O` but a
 deliberately wrong `/U`, and an in-memory AESV3/R5 document with a deliberately wrong `/U`
 validation hash, asserting both throw with `Feature == "pdf-encrypted-password-required"` when no
 password is supplied (a real, non-empty password is genuinely required to open either document;
@@ -474,13 +474,26 @@ specifies). Opens it through the public API with no password supplied and assert
 produces the expected pixel colors, proving Algorithm 2.A's validation-salt authentication,
 `/UE` unwrapping, and direct-file-key stream decryption all work correctly end-to-end.
 
+#### CanvasNetPdf-PdfDocument-EncryptionAesV3R6: AES-256 R6 (Hardened Hash) Documents
+
+**Tests**: `PdfDocument_Open_EncryptedAesV3_R6_EmptyUserPassword_DecryptsAndRenders`,
+`PdfDocument_Open_EncryptedAesV3_R6_InMemoryEmptyUserPassword_DecryptsAndRenders`
+
+Opens `PdfFixtures/encrypted-aes256-r6-empty-user-password.pdf`, generated independently with
+pypdf (confirmed `/V 5`/`/R 6`; see the fixtures README) with an empty user password, and asserts
+`Render` paints the expected blue rectangle - an independent implementation proves Algorithm 2.B
+is not merely self-consistent. The in-memory test builds `/U`/`/UE` with a separately written
+test-side Algorithm 2.B. Reverting the `/R 6` support makes every R6 test fail.
+
 #### CanvasNetPdf-PdfDocument-UserPasswordAuthentication: Correct User Password Decrypts and Renders
 
 **Tests**: `PdfDocument_Open_EncryptedRc4_CorrectUserPassword_DecryptsAndRenders`,
 `PdfDocument_Open_EncryptedAesV2_CorrectUserPassword_DecryptsAndRenders`,
-`PdfDocument_Open_EncryptedAesV3_CorrectUserPassword_DecryptsAndRenders`
+`PdfDocument_Open_EncryptedAesV3_CorrectUserPassword_DecryptsAndRenders`,
+`PdfDocument_Open_EncryptedAesV3_R6_CorrectUserPassword_DecryptsAndRenders`,
+`PdfDocument_Open_EncryptedAesV3_R6_Utf8UserPassword_DecryptsAndRenders`
 
-The three tests build RC4 (`/V 2`/`/R 3`), AES-128 (`/V 4`/`/R 4`/`/CFM /AESV2`), and AES-256 R5
+The three non-fixture tests build RC4 (`/V 2`/`/R 3`), AES-128 (`/V 4`/`/R 4`/`/CFM /AESV2`), and AES-256 R5
 (`/V 5`/`/R 5`/`/CFM /AESV3`) fixtures whose `/O`/`/U` (or `/U`/`/UE`) are derived from a real,
 non-empty password (`"test"`) rather than the empty-password padding constant, then call
 `PdfDocument.Open(stream, "test")` and assert `Render` produces the expected pixel colors -
@@ -491,7 +504,11 @@ every supported cipher.
 #### CanvasNetPdf-PdfDocument-OwnerPasswordAuthentication: Correct Owner Password Decrypts and Renders
 
 **Tests**: `PdfDocument_Open_EncryptedRc4_CorrectOwnerPassword_DecryptsAndRenders`,
-`PdfDocument_Open_EncryptedAesV3_CorrectOwnerPassword_DecryptsAndRenders`
+`PdfDocument_Open_EncryptedAesV3_CorrectOwnerPassword_DecryptsAndRenders`,
+`PdfDocument_Open_EncryptedAesV3_R6_CorrectOwnerPassword_DecryptsAndRenders`
+
+The R6 owner test opens the pypdf `encrypted-aes256-r6-user-password.pdf` fixture with its owner
+password (`owner-secret`).
 
 `PdfDocument_Open_EncryptedRc4_CorrectOwnerPassword_DecryptsAndRenders` builds an `/R 3` RC4
 fixture whose `/O` is computed from a distinct owner password and a different real user password
@@ -510,7 +527,12 @@ document then renders correctly.
 
 #### CanvasNetPdf-PdfDocument-IncorrectPasswordRejection: Wrong Password Rejected With Distinguishable Feature
 
-**Test**: `PdfDocument_Open_Encrypted_IncorrectPassword_ThrowsUnsupportedImageFeatureException`
+**Tests**: `PdfDocument_Open_Encrypted_IncorrectPassword_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Open_EncryptedAesV3_R6_WrongPassword_ThrowsIncorrectPassword`,
+`PdfDocument_Open_EncryptedAesV3_R6_NoPassword_ThrowsPasswordRequired`
+
+(The two R6 tests use the pypdf user-password fixture: a wrong password throws
+`pdf-encrypted-incorrect-password`; no password throws `pdf-encrypted-password-required`.)
 
 Builds a well-formed `/R 3` RC4 fixture with real, distinct, correct owner and user passwords,
 then calls `Open(stream, "wrong-password")` and asserts `UnsupportedImageFeatureException` is
@@ -1721,7 +1743,7 @@ position/size matches the composed text-rendering matrix formula independently r
 the same font's own metrics (see this class's own pixel-math derivation, confirmed empirically
 against the real rasterizer before being fixed into every position-dependent test's assertions).
 
-#### CanvasNetPdf-PdfDocument-Tr: Tr Supports Fill/Stroke/Fill+Stroke/Invisible Modes, Fails Closed for Clip Modes
+#### CanvasNetPdf-PdfDocument-Tr: Tr Supports Fill/Stroke/Fill+Stroke/Invisible and Clip Modes
 
 **Tests**: `PdfDocument_Text_RenderMode3_Invisible_DoesNotPaintGlyph`,
 `PdfDocument_Text_RenderMode3_Invisible_StillAdvancesTextPosition`,
@@ -1729,7 +1751,21 @@ against the real rasterizer before being fixed into every position-dependent tes
 `PdfDocument_Text_RenderMode2_FillAndStroke_PaintsBothFillAndStroke`,
 `PdfDocument_Text_RenderMode1_StrokePattern_PaintsPatternStroke`,
 `PdfDocument_Fonts_Type3_RenderMode1Or2_BehavesLikeRenderMode0`,
-`PdfDocument_Text_RenderMode_UnsupportedDefinedMode_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Text_RenderMode_ClipModes_AcceptedByTr`,
+`PdfDocument_Text_RenderMode7_ClipOnly_ClipsSubsequentFillToGlyph`,
+`PdfDocument_Text_RenderMode7_ClipOnly_PaintsNoGlyphInk`,
+`PdfDocument_Text_RenderMode4_FillAndClip_FillsThenClips`,
+`PdfDocument_Text_RenderMode4_FillAndClip_PaintsGlyphFill`,
+`PdfDocument_Text_RenderMode5_StrokeAndClip_StrokesThenClips`,
+`PdfDocument_Text_RenderMode6_FillStrokeClip_PaintsBothThenClips`,
+`PdfDocument_Text_RenderMode7_ClipAccumulatesAcrossMultipleGlyphs`,
+`PdfDocument_Text_RenderMode7_ClipIntersectsWithExistingClip`,
+`PdfDocument_Text_RenderMode7_ClipNotAppliedUntilEndText`,
+`PdfDocument_Text_RenderMode7_ClipRestoredByRestoreState`,
+`PdfDocument_Text_RenderMode7_ClipWithCompositeFont`,
+`PdfDocument_Text_RenderMode_ClipModes_Type3Font_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Text_RenderMode7_NoGlyphsShown_DoesNotChangeClip`,
+`PdfDocument_Text_RenderMode7_NestedFormXObjectText_DoesNotClobberOuterClip`,
 `PdfDocument_Text_RenderMode_OutOfDefinedRange_ThrowsInvalidDataException`
 
 Sets `Tr 3` (invisible) and shows a glyph, asserting no ink is painted at its expected position.
@@ -1747,8 +1783,15 @@ glyph stroke step shares the path-painting operators' own `/Pattern`-aware strok
 `[Theory]` shows a Type3 glyph under `Tr 1` and `Tr 2` in turn, asserting its own content-stream
 procedure's ink paints identically to `Tr 0` - proving Type3 glyphs (which have no outline and so
 no fill/stroke distinction) are unaffected by the new mode-aware outline paint logic. A
-`[Theory]` sets `Tr` to each of the defined clip modes (`4`/`5`/`6`/`7`) in turn, asserting
-`Codecs.UnsupportedImageFeatureException` in every case; a separate `[Theory]` sets `Tr` to a
+`[Theory]` sets `Tr` to each clip mode (`4`/`5`/`6`/`7`) alone, asserting it is accepted. Mode `7`
+tests show a glyph then fill the page, asserting only the glyph area receives the later fill and
+that mode `7` itself paints nothing; modes `4`/`5`/`6` assert their fill/stroke ink plus the clip.
+Further tests assert the clip accumulates the union of several glyphs, intersects an existing
+`W n` clip, is not applied until `ET`, is undone by `Q`, works with a composite font, and is
+unchanged when no glyph is shown. A test invokes a Form XObject mid-`BT` of an outer mode `7`
+block, the Form running its own mode `7` `BT`...`ET`, asserting the outer accumulation is not
+clobbered (only the outer glyph survives as the clip). A `[Theory]` shows a Type 3 glyph under each clip mode,
+asserting `Codecs.UnsupportedImageFeatureException`; a separate `[Theory]` sets `Tr` to a
 value outside the specification's defined `0`-`7` range, asserting `InvalidDataException`.
 
 #### CanvasNetPdf-PdfDocument-TextPositioning: Td/TD/Tm/T* Compose the Text and Line Matrices Correctly
@@ -1893,7 +1936,7 @@ Every unit test builds a minimal single-page PDF with a declared `/Pattern` reso
 driven by a single `/FunctionType 2` black-to-white function paints near-black at one axis
 endpoint and near-white at the other. Asserts a radial (`/ShadingType 3`) pattern with the same
 function shape paints a visibly different color at the center versus the edge. A `[Theory]`
-asserts `/ShadingType 1`/`4` both throw `Codecs.UnsupportedImageFeatureException` (feature
+asserts `/ShadingType 0`/`1`/`8` all throw `Codecs.UnsupportedImageFeatureException` (feature
 `pdf-shading-type-{n}`). Asserts a `/Function` entry resolving to a `/FunctionType 4` function
 still throws `Codecs.UnsupportedImageFeatureException` (feature `pdf-functiontype-4`) when
 reached through a shading pattern, not only through a direct function-resolution call. Asserts
@@ -1940,6 +1983,70 @@ light-blue-to-white axial gradient painted directly over the identical region vi
 intervening `scn`/Pattern selection at all) - asserting the resulting pixels are not solid black
 and instead show the expected light-blue/white gradient progression, proving the gradient now
 actually overlays the fallback rather than remaining invisibly skipped underneath it.
+
+#### CanvasNetPdf-PdfDocument-MeshShadingFill: Mesh Shadings (Types 4-7) Paint Interpolated Colors
+
+**Tests**: `PdfDocument_MeshShading_Type4_Pattern_PaintsOnlyInsideFillAndMesh`,
+`PdfDocument_MeshShading_Type4_Flag1_ContinuesStrip`, `PdfDocument_MeshShading_Type4_Flag2_ContinuesFan`,
+`PdfDocument_MeshShading_Type4_Function_MapsParametricValue`,
+`PdfDocument_MeshShading_Type4_BitSizeMatrix_RendersSame`,
+`PdfDocument_MeshShading_GrayAndCmykColorSpaces_Render`,
+`PdfDocument_MeshShading_Type5_Lattice_RendersAllCells`,
+`PdfDocument_MeshShading_Type5_NonByteAlignedVertices_AreByteAligned`,
+`PdfDocument_MeshShading_Type6_FlatPatch_BilinearCornerColors`,
+`PdfDocument_MeshShading_Type6_CurvedEdge_CoversAreaBeyondChord`,
+`PdfDocument_MeshShading_Type7_CoonsInteriorPoints_EqualsType6`,
+`PdfDocument_MeshShading_PatchContinuation_InheritsEdgeAndColors`,
+`PdfDocument_MeshShading_Background_AppliesToPatternsOnly`,
+`PdfDocument_MeshShading_PatternMatrix_ShiftsMesh`,
+`PdfDocument_MeshShading_PatternStroke_PaintsThroughMesh`
+
+Every test builds a synthetic single-page PDF whose mesh stream is bit-packed in the test. Asserts
+type 4 triangles interpolate vertex colors only inside the filled area, flags 1 and 2 reuse the
+correct previous edge, `/Function` maps the parametric value through `/Decode`, and a 45-case
+bit-size matrix (coordinate/component/flag sizes) renders identically. Asserts type 5 lattices
+render every cell and that vertices are padded to a byte boundary. Asserts type 6 patches
+interpolate bilinear corner colors and bulge along curved edges, that type 7 with Coons-derived
+interior points matches type 6 (and differs when an interior point moves), and that patch
+continuation flags 1-3 inherit the previous edge and colors. Asserts `/Background` paints beneath
+a pattern fill, and that `/Matrix` and stroking apply to the mesh.
+
+#### CanvasNetPdf-PdfDocument-MeshShadingOperator: sh Paints Mesh Shadings
+
+**Tests**: `PdfDocument_MeshShading_Type4_ShOperator_InterpolatesVertexColors`,
+`PdfDocument_MeshShading_ShOperator_HonorsBBoxAndClip`,
+`CanvasNetPdf_SystemIntegration_ShOperatorMeshShadingTypes4To7_PaintsExpectedCornerColors`
+
+Asserts `sh` paints a type 4 mesh directly with interpolated vertex colors and honors both the
+shading `/BBox` and a preceding clip path. The system-integration test opens
+`PdfFixtures/shading-mesh-types-4-5-6-7.pdf` (one quadrant per shading type 4, 5, 6 and 7) and
+asserts the expected corner/vertex colors in every quadrant, unpainted pixels outside the type 4
+triangle, and that the type 7 interior control points change the interior color relative to the
+type 6 patch with the same boundary.
+
+#### CanvasNetPdf-PdfDocument-MeshShadingFailClosed: Malformed or Oversized Mesh Shadings Fail Closed
+
+**Tests**: `PdfDocument_MeshShading_MissingEntry_ThrowsInvalidData`,
+`PdfDocument_MeshShading_IllegalBitSizeOrDecode_ThrowsInvalidData`,
+`PdfDocument_MeshShading_TruncatedData_ThrowsInvalidData`,
+`PdfDocument_MeshShading_PatchCutShort_ThrowsInvalidData`,
+`PdfDocument_MeshShading_BadFlags_ThrowInvalidData`,
+`PdfDocument_MeshShading_Type4_ReservedFlagInInitialTriangleVertices_ThrowsInvalidData`,
+`PdfDocument_MeshShading_Type5_BadLattice_ThrowsInvalidData`,
+`PdfDocument_MeshShading_NotAStream_ThrowsInvalidData`,
+`PdfDocument_MeshShading_IndexedColorSpace_ThrowsUnsupported`,
+`PdfDocument_MeshShading_FunctionProblems_FailClosed`,
+`PdfDocument_MeshShading_TooManyVertices_ThrowsUnsupported`,
+`PdfDocument_MeshShading_TooManyPatches_ThrowsUnsupported`,
+`PdfDocument_MeshShading_TooMuchRasterWork_ThrowsUnsupported`
+
+Asserts missing or illegal bit sizes, `/Decode`, `/VerticesPerRow`, a non-stream shading,
+truncated records and bad edge flags (including a reserved flag on the 2nd or 3rd vertex of a
+flag-0 type 4 record) throw `InvalidDataException`; an Indexed color space and
+invalid/FunctionType 4 functions throw `Codecs.UnsupportedImageFeatureException`; and the vertex,
+patch and rasterization-work limits throw `Codecs.UnsupportedImageFeatureException` with features
+`pdf-shading-mesh-too-many-vertices`, `pdf-shading-mesh-too-many-patches` and
+`pdf-shading-mesh-too-complex`.
 
 #### CanvasNetPdf-PdfDocument-TilingPatternFill: Colored/Uncolored Tiling Patterns Paint a Tile, Fail Closed Otherwise
 

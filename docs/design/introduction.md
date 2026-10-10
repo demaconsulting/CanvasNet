@@ -454,6 +454,7 @@ src/DemaConsulting.CanvasNet.Pdf/
 ├── PdfDocument.Functions.cs          — Sampled/exponential/stitching `/FunctionType` evaluation for shading patterns
 ├── PdfDocument.Patterns.cs           — Resolved `/Pattern` resource: dispatches to a shading or tiling pattern
 ├── PdfDocument.Patterns.Shading.cs   — Axial/radial (`/ShadingType` `2`/`3`) shading-pattern construction and painting
+├── PdfDocument.Patterns.Shading.Mesh.cs — Mesh (`/ShadingType` `4`-`7`) decoding, tessellation and rasterization
 ├── PdfDocument.Patterns.Tiling.cs    — Colored/uncolored tiling-pattern (`/PatternType 1`) cell rendering
 ├── PdfPageInfo.cs                    — Standalone supporting record struct (resolved page size/rotation)
 └── NamespaceDoc.cs                   — Namespace-level XML documentation

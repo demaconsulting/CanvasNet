@@ -80,7 +80,7 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         has no meaningful generic-family equivalent.
 ///     </para>
 ///     <para>
-///         <c>/Pattern</c>-color-space shading (axial/radial, <c>/ShadingType 2</c>/<c>3</c>,
+///         <c>/Pattern</c>-color-space shading (axial/radial/mesh, <c>/ShadingType 2</c>-<c>7</c>,
 ///         driven by <c>/FunctionType 0</c>/<c>2</c>/<c>3</c> functions) and tiling
 ///         (<c>/PaintType 1</c>/<c>2</c>) pattern fills/strokes are fully supported, as are placed
 ///         Form XObjects: <c>Do</c> on a <c>/Subtype /Form</c> XObject decodes its content stream
@@ -105,13 +105,13 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         real-world case of an <em>empty user password</em> (a document that is merely
 ///         permission-restricted, not actually password-protected to open): RC4 (40/128-bit,
 ///         <c>/V 1</c>/<c>/V 2</c>), AES-128 (<c>/V 4</c>, <c>/CFM /AESV2</c>), and AES-256 using
-///         the simpler R5 key derivation (<c>/V 5</c>, <c>/R 5</c>, <c>/CFM /AESV3</c>) are all
+///         the R5 or R6 hardened-hash key derivation (<c>/V 5</c>, <c>/R 5</c> or <c>/R 6</c>, <c>/CFM /AESV3</c>) are all
 ///         transparently decrypted (see <c>PdfDocument.Encryption.cs</c>'s own ISO 32000-1
 ///         Algorithm 1/2/4/5, ISO 32000-2 Algorithm 2.A remarks) - a page's content stream,
 ///         every string, and every other encrypted stream all decrypt before any other parsing
 ///         logic ever sees their bytes, so the rest of this class needs no awareness that a
 ///         document was ever encrypted at all. A non-<c>/Standard</c> security handler (for
-///         example <c>/Adobe.PubSec</c>), AES-256 <c>/R 6</c> ("hardened hash" key derivation), a
+///         example <c>/Adobe.PubSec</c>), an AES-256 <c>/R</c> other than 5 or 6, a
 ///         crypt filter other than the standard <c>/StdCF</c> (including <c>/Identity</c>), and a
 ///         document that genuinely requires a non-empty password (there is no API surface to
 ///         supply one) all still fail closed with <see cref="UnsupportedImageFeatureException"/>,
@@ -119,10 +119,11 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         <see cref="UnsupportedImageFeatureException.Feature"/> token.
 ///     </para>
 ///     <para>
-///         <strong>Documented scope boundaries</strong> (not currently supported): mesh shadings
-///         (<c>/ShadingType</c> 4-7; axial/radial types 2-3 are supported by the <c>sh</c>
+///         <strong>Documented scope boundaries</strong> (not currently supported): function-based shadings
+///         (<c>/ShadingType</c> 1; types 2-7 are supported by the <c>sh</c>
 ///         operator and shading patterns), <c>/FunctionType 4</c> PostScript-calculator functions,
-///         transparency groups, and clip text-rendering modes. The <c>sh</c> operator and generic
+///         transparency groups, and Type 3 glyphs shown in the clipping text-rendering modes
+///         (<c>Tr</c> 4-7, which do clip outline-based fonts). The <c>sh</c> operator and generic
 ///         path clipping (<c>W</c>/<c>W*</c>) are both supported. Every other keyword
 ///         not implemented is silently skipped, not an error. A page with no <c>/Contents</c> at
 ///         all still renders a <see cref="Surface"/> cleared to
@@ -211,7 +212,7 @@ public sealed partial class PdfDocument : IDisposable
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when the document's trailer declares an <c>/Encrypt</c> entry whose security
     ///     handler, crypt filter, or revision is unsupported (a non-<c>/Standard</c>
-    ///     security handler, <c>/R 6</c>, a non-<c>/StdCF</c> crypt filter, a genuinely-required
+    ///     security handler, an AES-256 <c>/R</c> other than 5 or 6, a non-<c>/StdCF</c> crypt filter, a genuinely-required
     ///     password that was not supplied, a supplied password that does not authenticate as
     ///     either the user or the owner password, or a non-ASCII password supplied for an
     ///     <c>/R 2</c>-<c>4</c> document), per the class remarks' encryption scope boundary.
@@ -278,7 +279,7 @@ public sealed partial class PdfDocument : IDisposable
     ///     byte-for-byte the same behavior as before this parameter existed. When non-null, it is
     ///     tried first as the user password, then as the owner password, against whichever
     ///     security handler the document's <c>/Encrypt</c> entry declares (RC4, AES-128, or
-    ///     AES-256 with R5 key derivation). Ignored entirely when the document is not encrypted.
+    ///     AES-256 with R5/R6 key derivation). Ignored entirely when the document is not encrypted.
     /// </param>
     /// <returns>A new <see cref="PdfDocument"/> instance representing the parsed document.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
@@ -288,7 +289,7 @@ public sealed partial class PdfDocument : IDisposable
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when the document's trailer declares an <c>/Encrypt</c> entry whose security
     ///     handler, crypt filter, or revision is unsupported (a non-<c>/Standard</c> security
-    ///     handler, <c>/R 6</c>, a non-<c>/StdCF</c> crypt filter, a genuinely-required password
+    ///     handler, an AES-256 <c>/R</c> other than 5 or 6, a non-<c>/StdCF</c> crypt filter, a genuinely-required password
     ///     that was not supplied, a supplied password that does not authenticate as either the
     ///     user or the owner password, or a non-ASCII password supplied for an <c>/R 2</c>-<c>4</c>
     ///     document).

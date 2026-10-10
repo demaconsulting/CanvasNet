@@ -413,6 +413,13 @@ public sealed partial class PdfDocument
 
         if (pattern.Kind == ResolvedPattern.PatternKind.Shading)
         {
+            if (pattern.Mesh is { } mesh)
+            {
+                // Mesh shadings (types 4-7) honor /Background for pattern use (PDF 32000-1 §8.7.4.3).
+                PaintMesh(mesh, patternToDevice, path, fillRule, applyBackground: true);
+                return;
+            }
+
             var gradient = BuildShadingGradient(pattern, patternToDevice);
             PathFiller.Fill(_surface, path, gradient, _gs.Clip, fillRule);
             return;

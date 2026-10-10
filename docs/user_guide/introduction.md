@@ -1102,7 +1102,7 @@ The `PdfDocument` sealed class opens a PDF document, parses its cross-reference 
 page tree, and reports each page's displayed (rotation-adjusted) size and its page count.
 `Render` interprets a page's content stream, painting real path geometry, device color (`rg`/
 `g`/`k`/`cs`/`sc` and related operators, including `/Pattern`-color-space shading and tiling
-pattern fills/strokes - axial/radial (`/ShadingType 2`/`3`) shading patterns driven by
+pattern fills/strokes - axial/radial/mesh (`/ShadingType 2`-`7`) shading patterns driven by
 `/FunctionType 0`/`2`/`3` functions, and colored/uncolored (`/PaintType 1`/`2`) tiling patterns
 rendering a repeating tile), placed image XObjects (`Do`), and text shown with a simple TrueType
 font (`Tf`/`Td`/`Tj` and the other `BT`/`ET` text operators) onto the returned `Surface`. A font
@@ -1131,10 +1131,11 @@ equivalent - it still fails closed with `UnsupportedImageFeatureException`, exac
 non-embedded font of any kind did before this fallback behavior existed. A shading pattern's
 `/Extend` is approximated as always-padded (never fully transparent outside the defining
 geometry), a documented, narrower-than-spec simplification; the `sh` operator and generic path
-clipping (`W`/`W*`) remain unsupported and are silently skipped. **Documented scope
-boundaries**: `/MMType1` fonts, mesh shadings (`/ShadingType 1`/`4`-`7`), `/FunctionType 4`
-(PostScript calculator) functions, the `sh` operator, generic path clipping, transparency groups,
-and clip text-rendering modes all fail closed with `UnsupportedImageFeatureException`
+clipping (`W`/`W*`) are supported. **Documented scope
+boundaries**: `/MMType1` fonts, function-based shadings (`/ShadingType 1`), `/FunctionType 4`
+(PostScript calculator) functions, transparency groups,
+and Type 3 glyphs shown under a clip text-rendering mode (`Tr 4`-`7`; clip modes with outline-based
+fonts are supported) all fail closed with `UnsupportedImageFeatureException`
 rather than being silently skipped or mis-rendered.
 
 ```csharp
@@ -1158,8 +1159,8 @@ The optional `password` parameter defaults to `null`, which preserves the librar
 empty-user-password-only behavior byte-for-byte. When a non-`null` password is supplied, it is
 tried first as the **user password**, then - if that does not authenticate - as the **owner
 password** (ISO 32000-1 Algorithm 3 for RC4/AES-128 documents; the owner-password variant of
-ISO 32000-2 Algorithm 2.A for AES-256/R5 documents). R2-R4 (RC4/AES-128) passwords are encoded as
-Latin-1 (the ASCII range of PDFDocEncoding); R5 (AES-256) passwords are encoded as UTF-8 with no
+ISO 32000-2 Algorithm 2.A for AES-256/R5/R6 documents). R2-R4 (RC4/AES-128) passwords are encoded as
+Latin-1 (the ASCII range of PDFDocEncoding); R5/R6 (AES-256) passwords are encoded as UTF-8 with no
 SASLprep/Unicode normalization applied - both are intentional scope boundaries. Both encodings
 truncate the password's encoded bytes to a maximum of 127 bytes before any hashing.
 
@@ -1171,13 +1172,13 @@ truncate the password's encoded bytes to a maximum of 127 bytes before any hashi
   resolve the document catalog).
 - `UnsupportedImageFeatureException`: Thrown when the document's trailer declares an `/Encrypt`
   entry that this library cannot open: a security handler other than the PDF "Standard" handler,
-  an AES-256 document using the `/R 6` "hardened hash" key derivation, a crypt filter other than
-  the standard `/StdCF` filter (RC4, AES-128/`AESV2`, or AES-256-R5/`AESV3`), a document that
+  an AES-256 document using an `/R` other than 5 or 6, a crypt filter other than
+  the standard `/StdCF` filter (RC4, AES-128/`AESV2`, or AES-256-R5/R6/`AESV3`), a document that
   requires a password but `password` was not supplied (`null`), or a supplied `password` that
   does not authenticate as either the user or the owner password (feature
   `pdf-encrypted-incorrect-password`), or - for an R2-R4 document - contains a character outside
   ASCII 0-127 (feature `pdf-encrypted-password-non-ascii`). A document encrypted with the Standard
-  security handler using RC4 (40-128 bit), AES-128, or AES-256 (R5) and an empty user password -
+  security handler using RC4 (40-128 bit), AES-128, or AES-256 (R5/R6) and an empty user password -
   the vast majority of "owner password"/permission-restricted real-world PDFs - opens and renders
   normally with `password` left at its default `null`; its permission flags are not enforced (this
   library only ever reads for rendering, so copy/print restrictions do not apply).
@@ -1255,7 +1256,7 @@ reproduce the pre-`PdfRenderOptions` fully transparent background, pass
   stream filter, font subtype (`/MMType1`; `/TrueType`, `/Type0`, `/Type1`, and `/Type3` are all
   supported), an otherwise-symbolic font (other than `Symbol`/`ZapfDingbats`, which resolve via a
   bundled Noto substitute instead) with no embedded font data, font encoding, or
-  text-rendering mode.
+  Type 3 glyph under a clip text-rendering mode (`pdf-text-render-mode-type3-clip`).
 - `ObjectDisposedException`: Thrown when called after `Dispose()` has been called.
 
 ##### PdfDocument.Render(int pageIndex, float dpi, PdfRenderOptions? options = null)

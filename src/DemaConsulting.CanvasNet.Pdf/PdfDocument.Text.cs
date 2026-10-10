@@ -38,8 +38,22 @@ public sealed partial class PdfDocument
     private Matrix3x2 _lineMatrix;
 
     /// <summary>
+    ///     Device-space accumulator of the glyph outlines shown under a clipping text-rendering
+    ///     mode (<c>Tr 4</c>-<c>7</c>) since the current <c>BT</c>; <see langword="null"/> until the
+    ///     first such glyph. Applied to the clip, and cleared, by <c>ET</c>.
+    /// </summary>
+    private PathBuilder? _textClipBuilder;
+
+    /// <summary>
+    ///     Whether any glyph (including one with an empty outline, such as a space) has been shown
+    ///     under a clipping mode since the current <c>BT</c>, so <c>ET</c> must intersect the clip.
+    /// </summary>
+    private bool _textClipPending;
+
+    /// <summary>
     ///     Handles the <c>BT</c> operator: resets <see cref="_textMatrix"/>/<see cref="_lineMatrix"/>
-    ///     to the identity matrix. Every other text-state parameter (<see cref="GraphicsState.Font"/>,
+    ///     to the identity matrix and discards any pending text-clip accumulation. Every other
+    ///     text-state parameter (<see cref="GraphicsState.Font"/>,
     ///     etc.) is part of the graphics state and is therefore left untouched - see
     ///     <see cref="_textMatrix"/>'s remarks.
     /// </summary>
@@ -47,19 +61,30 @@ public sealed partial class PdfDocument
     {
         _textMatrix = Matrix3x2.Identity;
         _lineMatrix = Matrix3x2.Identity;
+        _textClipBuilder = null;
+        _textClipPending = false;
     }
 
     /// <summary>
-    ///     Handles the <c>ET</c> operator. Per the PDF specification, ending a text object has no
-    ///     effect on any persisted state (every text-state graphics-state parameter survives
-    ///     unchanged into the next <c>BT</c>, and <see cref="_textMatrix"/>/<see cref="_lineMatrix"/>
-    ///     are simply left stale and unused until the next <c>BT</c> resets them) - this handler
-    ///     exists only so <c>ET</c> is recognized and dispatched (with its own operand-count
-    ///     validation) rather than silently ignored as an unrecognized keyword.
+    ///     Handles the <c>ET</c> operator. If any glyph was shown under a clipping text-rendering
+    ///     mode (<c>Tr 4</c>-<c>7</c>) since <c>BT</c>, the union of those glyph outlines
+    ///     (non-zero winding) is intersected into the current clip. Text consisting only of
+    ///     outline-less glyphs (spaces) yields an empty region and therefore clips everything, per
+    ///     the specification. Otherwise <c>ET</c> has no effect on persisted state
+    ///     (<see cref="_textMatrix"/>/<see cref="_lineMatrix"/> are left stale until the next <c>BT</c>).
     /// </summary>
-    private static void OpEndText()
+    private void OpEndText()
     {
-        // Intentionally a no-op - see remarks.
+        if (!_textClipPending)
+        {
+            return;
+        }
+
+        var path = (_textClipBuilder ?? new PathBuilder()).Build();
+        var mask = ClipMask.FromPath(path, FillRule.NonZero, _surface.Width, _surface.Height);
+        _gs.Clip = _gs.Clip is null ? mask : _gs.Clip.Intersect(mask);
+        _textClipBuilder = null;
+        _textClipPending = false;
     }
 
     /// <summary>Handles the <c>Tc</c> operator: sets the character spacing, in unscaled text-space units.</summary>
@@ -113,43 +138,27 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     Handles the <c>Tr</c> operator: sets the text-rendering mode. Modes <c>0</c> (fill, the
-    ///     PDF specification's default), <c>1</c> (stroke), <c>2</c> (fill, then stroke), and
+    ///     PDF specification's default), <c>1</c> (stroke), <c>2</c> (fill, then stroke),
     ///     <c>3</c> (invisible - glyphs are laid out and advance the text position, but nothing is
-    ///     painted) are all supported; the four clipping variants (<c>4</c>-<c>7</c>, which add a
-    ///     glyph outline to the clipping path alongside modes <c>0</c>-<c>3</c>'s own fill/stroke/
-    ///     invisible behavior) fail closed rather than being silently treated as their non-clipping
-    ///     counterpart.
+    ///     painted) and the four clipping variants <c>4</c>-<c>7</c> (fill, stroke, fill+stroke,
+    ///     invisible - each additionally adding the glyph outline to a text clip applied at
+    ///     <c>ET</c>, see <see cref="OpEndText"/>) are all accepted. A Type 3 glyph shown under a
+    ///     clipping mode fails closed at show time (see <c>ShowGlyph</c>), not here.
     /// </summary>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="operands"/> does not contain exactly 1 number, or when that
-    ///     number is not one of the PDF specification's seven defined render modes (<c>0</c>-<c>7</c>).
-    /// </exception>
-    /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when the mode is a defined but unsupported clipping mode (<c>4</c>-<c>7</c>).
+    ///     number is not one of the PDF specification's eight defined render modes (<c>0</c>-<c>7</c>).
     /// </exception>
     private void OpSetTextRenderMode(IReadOnlyList<PdfObject> operands)
     {
         var mode = (int)RequireNumbers(operands, "Tr", 1)[0];
-        switch (mode)
+        if (mode is < 0 or > 7)
         {
-            case 0:
-            case 1:
-            case 2:
-            case 3:
-                _gs.RenderMode = mode;
-                break;
-
-            case 4 or 5 or 6 or 7:
-                throw new UnsupportedImageFeatureException(
-                    $"pdf-text-render-mode-{mode}",
-                    $"Text-rendering mode {mode} is not supported; only modes 0 (fill), 1 (stroke), " +
-                    "2 (fill+stroke), and 3 (invisible) are supported. Clipping render modes are not " +
-                    "implemented.");
-
-            default:
-                throw new InvalidDataException(
-                    $"Operator 'Tr' requires a render mode in [0, 7]; got {mode}.");
+            throw new InvalidDataException(
+                $"Operator 'Tr' requires a render mode in [0, 7]; got {mode}.");
         }
+
+        _gs.RenderMode = mode;
     }
 
     /// <summary>Handles the <c>Td tx ty</c> operator: moves to the start of the next line, offset by <c>(tx, ty)</c> from the start of the current line.</summary>
@@ -346,12 +355,17 @@ public sealed partial class PdfDocument
     ///     <c>PaintType3Glyph</c>'s own content-stream re-entrance - see
     ///     <c>PdfDocument.Fonts.Type3.cs</c>; a Type 3 glyph procedure has no outline, so it has no
     ///     fill/stroke distinction and paints identically for render modes <c>0</c>-<c>2</c>) or any
-    ///     other concrete implementation (painted via the outline-based path below, mode-aware
-    ///     since the addition of <c>Tr</c> modes <c>1</c>/<c>2</c>: fill for modes <c>0</c>/<c>2</c>,
+    ///     other concrete implementation (painted via the outline-based path below, mode-aware:
+    ///     fill for modes <c>0</c>/<c>2</c>/<c>4</c>/<c>6</c>,
     ///     then stroke - via the same <see cref="PaintStroke"/> helper shared with the
-    ///     path-painting operators - for modes <c>1</c>/<c>2</c>) - the shared trailing
+    ///     path-painting operators - for modes <c>1</c>/<c>2</c>/<c>5</c>/<c>6</c>; modes <c>4</c>-<c>7</c>
+    ///     additionally accumulate the outline into the text clip applied by <c>ET</c>, and a Type 3
+    ///     glyph under those modes throws <see cref="UnsupportedImageFeatureException"/>) - the shared trailing
     ///     displacement/advance logic runs unconditionally either way.
     /// </summary>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown for a Type 3 glyph when the render mode is <c>4</c>-<c>7</c>.
+    /// </exception>
     private void ShowGlyph(IResolvedFont font, int code)
     {
         var (ttf, glyphIndex, w0) = font.Resolve(code);
@@ -363,7 +377,16 @@ public sealed partial class PdfDocument
             // execution, never via the font Resolve returns (which is null for a
             // ResolvedType3Font - see IResolvedFont.Resolve's own remarks). Render-mode-3
             // (invisible) skips glyph-procedure execution entirely, exactly like the non-Type3
-            // branch below skips GetGlyphOutline/fill entirely in that mode.
+            // branch below skips GetGlyphOutline/fill entirely in that mode. A Type 3 glyph has
+            // no outline to add to a text clip, so the clipping modes 4-7 fail closed.
+            if (_gs.RenderMode >= 4)
+            {
+                throw new UnsupportedImageFeatureException(
+                    "pdf-text-render-mode-type3-clip",
+                    $"Text-rendering mode {_gs.RenderMode} (clipping) is not supported for Type 3 fonts; " +
+                    "a Type 3 glyph procedure has no outline to add to the text clip.");
+            }
+
             if (_gs.RenderMode != 3)
             {
                 PaintType3Glyph(type3Font, code);
@@ -375,6 +398,13 @@ public sealed partial class PdfDocument
             // see ResolvedSimpleFont/ResolvedCompositeFont - so this null-forgiving use is safe.
             var resolvedTtf = ttf!;
             var outline = resolvedTtf.GetGlyphOutline(glyphIndex);
+            var clipMode = _gs.RenderMode >= 4;
+            if (clipMode)
+            {
+                // Even an outline-less glyph (a space) marks the text object as clipping.
+                _textClipPending = true;
+            }
+
             if (outline.Subpaths.Count > 0)
             {
                 var trm = ComputeTextRenderingMatrix();
@@ -383,7 +413,13 @@ public sealed partial class PdfDocument
                 AppendTransformedGlyphOutline(builder, outline, glyphMatrix);
                 var path = builder.Build();
 
-                if (_gs.RenderMode is 0 or 2)
+                if (clipMode)
+                {
+                    _textClipBuilder ??= new PathBuilder();
+                    AppendTransformedGlyphOutline(_textClipBuilder, outline, glyphMatrix);
+                }
+
+                if (_gs.RenderMode is 0 or 2 or 4 or 6)
                 {
                     // Known pre-existing simplification, out of scope for this change: unlike
                     // the glyph-stroke step below (which does mirror a Pattern stroke color
@@ -393,7 +429,7 @@ public sealed partial class PdfDocument
                     PathFiller.Fill(_surface, path, _gs.FillColor, _gs.Clip, FillRule.NonZero);
                 }
 
-                if (_gs.RenderMode is 1 or 2)
+                if (_gs.RenderMode is 1 or 2 or 5 or 6)
                 {
                     PaintStroke(path);
                 }
