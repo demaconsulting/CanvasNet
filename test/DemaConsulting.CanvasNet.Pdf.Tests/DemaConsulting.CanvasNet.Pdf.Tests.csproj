@@ -75,6 +75,12 @@
     <Compile Include="..\DemaConsulting.CanvasNet.Tests\TestSupport\**\*.cs" Link="TestSupport\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <!-- Test-only JPEG 2000 encoder reused from the core test project (single source of truth;
+       linked, not duplicated) to generate JPXDecode streams for PdfDocumentJpxTests -->
+  <ItemGroup>
+    <Compile Include="..\DemaConsulting.CanvasNet.Tests\Codecs\Jpeg2000TestEncoder*.cs" Link="TestSupport\Jpeg2000\%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <!-- Hand-authored PDF test fixtures (see PdfFixtures\README.md for provenance) -->
   <ItemGroup>
     <None Include="PdfFixtures\**">
