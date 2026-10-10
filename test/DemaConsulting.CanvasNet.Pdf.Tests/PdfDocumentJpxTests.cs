@@ -129,6 +129,7 @@ public class PdfDocumentJpxTests
         // The area below the image stays transparent
         Assert.Equal(0, surface[50, 90].A);
     }
+
     /// <summary>Proves a JPX image without /ColorSpace uses the JP2's own gray color space.</summary>
     [Fact]
     public void PdfDocument_Images_Jpx_GrayWithoutColorSpace_UsesJp2ColorSpace()
@@ -342,15 +343,148 @@ public class PdfDocumentJpxTests
         Assert.Throws<InvalidDataException>(() => Render(ImageObject(string.Empty, [1, 2, 3, 4, 5, 6, 7, 8])));
     }
 
-    /// <summary>Proves a truncated JPX stream fails closed with a documented exception type.</summary>
+    /// <summary>Proves a truncated JPX stream fails closed with <see cref="InvalidDataException"/>.</summary>
     [Fact]
-    public void PdfDocument_Images_Jpx_TruncatedData_FailsClosed()
+    public void PdfDocument_Images_Jpx_TruncatedData_ThrowsInvalidDataException()
     {
         var jpx = Jp2(Flat(8, 8, 200, 50, 10), new J2kJp2Options { EnumCs = 16 });
         var truncated = jpx[..(jpx.Length / 2)];
-        var exception = Record.Exception(() => Render(ImageObject(string.Empty, truncated)));
-        Assert.True(exception is InvalidDataException or UnsupportedImageFeatureException, $"{exception}");
+        Assert.Throws<InvalidDataException>(() => Render(ImageObject(string.Empty, truncated)));
     }
+
+    /// <summary>Proves a codestream header declaring huge dimensions is rejected without decoding.</summary>
+    [Fact]
+    public void PdfDocument_Images_Jpx_OversizedHeader_ThrowsInvalidDataException()
+    {
+        var jpx = Jp2(Flat(8, 8, 1), new J2kJp2Options { EnumCs = 17 });
+        var siz = jpx.AsSpan().IndexOf(new byte[] { 0xFF, 0x51 });
+        Assert.True(siz > 0);
+
+        // Xsiz and Ysiz follow the marker, Lsiz and Rsiz (big-endian): set both to 100000
+        foreach (var offset in new[] { siz + 6, siz + 10 })
+        {
+            jpx[offset] = 0;
+            jpx[offset + 1] = 1;
+            jpx[offset + 2] = 0x86;
+            jpx[offset + 3] = 0xA0;
+        }
+
+        Assert.Throws<InvalidDataException>(() => Render(ImageObject(string.Empty, jpx)));
+    }
+
+    /// <summary>Proves a /Pattern /ColorSpace on a JPX image is rejected.</summary>
+    [Fact]
+    public void PdfDocument_Images_Jpx_PatternColorSpace_ThrowsInvalidDataException()
+    {
+        var jpx = Jp2(Flat(8, 8, 1), new J2kJp2Options { EnumCs = 17 });
+        Assert.Throws<InvalidDataException>(() => Render(ImageObject("/ColorSpace /Pattern", jpx)));
+    }
+
+    /// <summary>Proves /SMaskInData 2 un-premultiplies CMYK component samples before the color conversion.</summary>
+    [Fact]
+    public void PdfDocument_Images_Jpx_SMaskInDataTwoCmyk_UnpremultipliesBeforeConversion()
+    {
+        // Premultiplied C = 128 at alpha 128 is a full-strength cyan: naive CMYK->RGB gives (0, 255, 255)
+        var jpx = Jp2(
+            Flat(8, 8, 128, 0, 0, 0, 128),
+            new J2kJp2Options { EnumCs = 12, Cdef = [(0, 0, 1), (1, 0, 2), (2, 0, 3), (3, 0, 4), (4, 1, 0)] });
+        using var surface = Render(ImageObject("/ColorSpace /DeviceCMYK /SMaskInData 2", jpx));
+        var pixel = surface[50, 50];
+        Assert.Equal(128, pixel.A);
+        AssertNear(new Rgba32(0, 255, 255, 128), pixel, 1);
+    }
+
+    /// <summary>Proves /SMaskInData 2 over an /Indexed color space fails closed.</summary>
+    [Fact]
+    public void PdfDocument_Images_Jpx_SMaskInDataTwoIndexed_ThrowsUnsupportedImageFeatureException()
+    {
+        var jpx = Jp2(Flat(8, 8, 1, 128), new J2kJp2Options { EnumCs = 17, Cdef = [(0, 0, 1), (1, 1, 0)] });
+        Assert.Throws<UnsupportedImageFeatureException>(
+            () => Render(ImageObject("/ColorSpace [/Indexed /DeviceRGB 1 <FF000000FF00>] /SMaskInData 2", jpx)));
+    }
+
+    /// <summary>Proves a non-stream /SMask fails closed.</summary>
+    [Fact]
+    public void PdfDocument_Images_SMaskNotAStream_ThrowsInvalidDataException()
+    {
+        var image = RawGrayImage("/SMask 6 0 R", [255]);
+        Assert.Throws<InvalidDataException>(() => Render(image, "<< /Type /XObject >>"u8.ToArray()));
+    }
+
+    /// <summary>Proves a non-gray /SMask image fails closed.</summary>
+    [Fact]
+    public void PdfDocument_Images_SMaskNotGray_ThrowsInvalidDataException()
+    {
+        var image = RawGrayImage("/SMask 6 0 R", [255]);
+        var mask = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8",
+            [64, 64, 64]);
+        Assert.Throws<InvalidDataException>(() => Render(image, mask));
+    }
+
+    /// <summary>Proves a raw soft-mask image honours its own /Decode inversion.</summary>
+    [Fact]
+    public void PdfDocument_Images_SMaskRawWithDecode_InvertsMask()
+    {
+        var image = RawGrayImage("/SMask 6 0 R", [255]);
+        var mask = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Decode [1 0]",
+            [64]);
+        using var surface = Render(image, mask);
+        Assert.Equal(191, surface[50, 50].A);
+    }
+
+    /// <summary>Proves /Decode [1 0] inverts a raw gray image (the shared sample path).</summary>
+    [Fact]
+    public void PdfDocument_Images_RawWithDecode_InvertsSamples()
+    {
+        using var surface = Render(RawGrayImage("/Decode [1 0]", [55]));
+        AssertNear(new Rgba32(200, 200, 200, 255), surface[50, 50], 0);
+    }
+
+    /// <summary>Proves a malformed /Decode array on a raw image fails closed.</summary>
+    [Fact]
+    public void PdfDocument_Images_RawWithWrongLengthDecode_ThrowsInvalidDataException()
+    {
+        Assert.Throws<InvalidDataException>(() => Render(RawGrayImage("/Decode [1 0 1 0]", [55])));
+    }
+
+    /// <summary>Proves an /SMask is applied to a DCTDecode image.</summary>
+    [Fact]
+    public void PdfDocument_Images_SMaskOnDctImage_AppliesLuminanceAsAlpha()
+    {
+        using var source = new Surface(8, 8);
+        source.Clear(new Rgba32(200, 200, 200, 255));
+        using var jpegStream = new MemoryStream();
+        JpegCodec.Save(source, jpegStream, quality: 100);
+        var image = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 8 /Height 8 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /SMask 6 0 R",
+            jpegStream.ToArray());
+        var mask = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8",
+            [128]);
+        using var surface = Render(image, mask);
+        Assert.Equal(128, surface[50, 50].A);
+    }
+
+    /// <summary>Proves a non-identity /Decode on a DCTDecode image fails closed.</summary>
+    [Fact]
+    public void PdfDocument_Images_DctWithNonIdentityDecode_ThrowsUnsupportedImageFeatureException()
+    {
+        using var source = new Surface(8, 8);
+        using var jpegStream = new MemoryStream();
+        JpegCodec.Save(source, jpegStream);
+        var image = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 8 /Height 8 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Decode [1 0 1 0 1 0]",
+            jpegStream.ToArray());
+        Assert.Throws<UnsupportedImageFeatureException>(() => Render(image));
+    }
+
+    /// <summary>Builds a 1x1 raw DeviceGray image object (object 5) with extra dictionary entries.</summary>
+    private static byte[] RawGrayImage(string entries, byte[] samples) =>
+        StreamObject(
+            $"/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 {entries}",
+            samples);
 
     /// <summary>Proves JPXDecode combined with another filter fails closed.</summary>
     [Fact]

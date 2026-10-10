@@ -11,9 +11,9 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     into a <see cref="Surface"/>; see this type's remarks for the full reasoning.
 /// </summary>
 /// <remarks>
-///     <c>ImageInfo</c> is a small, shared supporting data type used by all five raster codecs in
+///     <c>ImageInfo</c> is a small, shared supporting data type used by all six codecs in
 ///     this namespace (<see cref="BmpCodec"/>, <see cref="PngCodec"/>, <see cref="TiffCodec"/>,
-///     <see cref="JpegCodec"/>, and <see cref="GifCodec"/>) rather than being owned by any single
+///     <see cref="JpegCodec"/>, <see cref="GifCodec"/>, and <see cref="Jpeg2000Codec"/>) rather than being owned by any single
 ///     one of them, mirroring how
 ///     <see cref="Rgba32"/> is a shared supporting type for <see cref="Surface"/>. It exists to
 ///     let a caller inspect a file's declared width and height - and therefore estimate the
@@ -79,7 +79,7 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     </para>
 ///     <para>
 ///         This type is a plain, immutable data carrier with no behavior beyond its record-struct
-///     value equality; it deliberately has no new struct type per format, since all five raster
+///     value equality; it deliberately has no new struct type per format, since all six
 ///         codecs report the same four properties from their respective header formats:
 ///     </para>
 ///     <list type="bullet">
@@ -136,6 +136,15 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///                 walking the file's blocks to compute <see cref="FrameCount"/>, it never
 ///                 resolves the transparency flag or transparent color index either extension
 ///                 carries (see <see cref="GifCodec.GetInfo(Stream)"/>'s remarks).
+///             </description>
+///         </item>
+///         <item>
+///             <description>
+///                 JPEG 2000: <see cref="Channels"/> is the number of color channels the decoder
+///                 would return (after any JP2 palette or channel-definition box) plus one when
+///                 an opacity channel is present; <see cref="HasAlpha"/> is
+///                 <see langword="true"/> only when the file declares an opacity channel (see
+///                 <see cref="Jpeg2000Codec.GetInfo(Stream)"/>'s remarks).
 ///             </description>
 ///         </item>
 ///     </list>
