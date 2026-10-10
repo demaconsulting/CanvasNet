@@ -251,7 +251,8 @@ The system exposes the following public API to external consumers:
   `ImageInfo` record struct from the container and SIZ header alone, without decoding pixels.
 - **Jpeg2000Codec.Decode(Stream stream)** / **Jpeg2000Codec.Decode(byte[] data)**: Decodes to a
   `Jpeg2000Image` exposing 8-bit color samples, color space, optional opacity samples and ICC
-  profile.
+  profile. Overloads taking a `Jpeg2000DecoderLimits` (a public record of resource limits with a
+  `Default` instance) apply caller-supplied limits.
 - **Rect(float x, float y, float width, float height)**: Constructor; an axis-aligned rectangle in
   position-plus-size form. `Rect.Empty` is a static, publicly readable union-identity sentinel.
 - **Rect.Union(Rect)** / **Rect.Union(Rect, Rect)**: Returns the smallest rectangle enclosing both

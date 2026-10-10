@@ -945,6 +945,23 @@ Decodes to a `Jpeg2000Image` exposing `Width`, `Height`, `ColorSpace` (`Gray`, `
 before 8-bit scaling, and `HasPalette` (whether a JP2 palette was applied to `ColorSamples`).
 Throws the same exceptions as `Load`.
 
+##### Jpeg2000Codec.Decode(..., Jpeg2000DecoderLimits limits)
+
+```csharp
+public static Jpeg2000Image Decode(Stream stream, Jpeg2000DecoderLimits limits)
+public static Jpeg2000Image Decode(byte[] data, Jpeg2000DecoderLimits limits)
+```
+
+Decodes with caller-supplied resource limits, for example tighter limits for untrusted input.
+Throws `ArgumentNullException` for null limits and `ArgumentOutOfRangeException` for a
+non-positive limit. `Jpeg2000DecoderLimits` is a record with `init` properties
+(`MaxInputBytes` 256 MiB, `MaxWidth`/`MaxHeight` `Surface.MaxDimension`, `MaxTotalSamples`
+2^27, `MaxTileSamples` 2^26, `MaxTiles` 65535, `MaxTilePrecincts` 2^18, `MaxTileCodeBlocks`
+2^20, `MaxTilePackets` 2^22, `MaxProgressionChanges` 128, `MaxProgressionSteps` 2^30 and
+`MaxTier1Work` 2^30); `Jpeg2000DecoderLimits.Default` holds the defaults. The progression and
+tier-1 work ceilings additionally scale with the input length, so a small hostile stream cannot
+consume the full budget. Data over a limit fails with `InvalidDataException`.
+
 ### SvgCodec
 
 `SvgCodec` is distributed via the separate `DemaConsulting.CanvasNet.Svg` NuGet package (namespace

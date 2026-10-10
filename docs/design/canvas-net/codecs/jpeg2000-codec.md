@@ -25,8 +25,8 @@ The class is a `static` partial class. The public surface lives in
 | `Jpeg2000Codec.Geometry.cs`   | Tile, component, resolution, subband, precinct and code-block grids |
 | `Jpeg2000Codec.Packets.cs`    | Tier-2 packet headers, tag trees, progression orders                |
 | `Jpeg2000Codec.Mq.cs`         | MQ arithmetic decoder                                               |
-| `Jpeg2000Codec.Tier1.cs`      | EBCOT tier-1 code-block decoding (all code-block styles, ROI)       |
-| `Jpeg2000Codec.Dwt.cs`        | Inverse 5-3 and 9-7 wavelet transforms, dequantization              |
+| `Jpeg2000Codec.Tier1.cs`      | EBCOT tier-1 decoding (all styles, ROI), dequantization on store    |
+| `Jpeg2000Codec.Dwt.cs`        | Inverse 5-3 and 9-7 wavelet transforms                              |
 | `Jpeg2000Codec.Decoder.cs`    | Orchestration, decode budget, inverse component transforms, scaling |
 | `Jpeg2000DecoderLimits.cs`    | Public resource limits applied before any allocation                |
 
@@ -60,13 +60,25 @@ Limits are enforced during header validation, before the memory they protect is 
   and checked before arrays are created. The precinct count is additionally bounded by the amount
   of packet data: every packet needs at least one header bit, so a tile cannot have more packets
   than eight times the bytes of its tile-part data plus packed headers. A few hundred bytes of
-  header can therefore no longer force a large allocation.
+  header can therefore no longer force a large allocation. Precinct and packet counts are charged
+  by a single `GeometryBudget.ChargePrecincts` check that reports distinct causes: more precincts
+  than the limit, more packets than the limit, or more packets than the data can carry.
 - Progression: one decode-wide `DecodeBudget` is charged per candidate packet and per position
   step, cumulatively across tiles and POC entries. Its ceiling is the smaller of
   `MaxProgressionSteps` and a base plus a per-input-byte allowance, so work scales with input size.
   The number of POC entries in effect (main or tile header) is capped by `MaxProgressionChanges`,
-  and a POC volume empty or wholly contained in an earlier one is skipped up front.
-- Tier-1: the same `DecodeBudget` charges entropy-decoding work in sample-passes.
+  and a POC volume empty or wholly contained in an earlier one is skipped up front. After
+  enumeration the number of packets actually covered must equal the tile's packet count; a
+  progression (including POC volumes) that leaves packets uncovered is `InvalidDataException`,
+  since the standard requires every packet to be covered.
+- Tier-1: the same `DecodeBudget` charges entropy-decoding work in sample-passes (block samples
+  times coding passes). Its ceiling is `min(MaxTier1Work, 2^24 + 2^12 x input bytes)` (default
+  `MaxTier1Work` 2^30), so the work a stream may demand scales with its size. The constant was
+  calibrated so that every real-world file tested decodes with a margin of 4 to 8 times, while a
+  hostile 76 KB stream (8192 x 8192, 64 x 64 blocks, maximum passes per block) is rejected in
+  about one second instead of tens of seconds. A pass count is deliberately not compared with
+  the segment length: an MQ-coded pass can legitimately consume far less than one byte, so such a
+  rule would reject valid streams; the work budget is the mitigation.
 - `MaxBitPlanes` (30) is the single bit-plane ceiling. Each band's bit-plane count
   (guard bits + exponent - 1) is validated once during geometry construction: out-of-range values
   are `InvalidDataException`; a count that only exceeds the ceiling once the ROI shift is added
@@ -84,13 +96,17 @@ Limits are enforced during header validation, before the memory they protect is 
 3. **Tier-2**: packet headers are decoded (tag trees, inclusion, zero bit-planes, pass counts,
    lengths) for every progression order and quality layer, with optional SOP/EPH markers. Every
    tile must have at least one tile-part; a tile with none (for example a codestream cut at a tile
-   boundary) is `InvalidDataException`.
+   boundary) is `InvalidDataException`. Tile-parts of a tile must appear in order (TPsot equals
+   the number of tile-parts already seen for that tile); an out-of-sequence index is
+   `InvalidDataException`, as in OpenJPEG. TNsot (the declared tile-part count) is advisory and
+   not enforced, because real encoders emit wrong counts that OpenJPEG only warns about.
 4. **Tier-1**: each code-block is decoded with the MQ decoder through the significance
    propagation, magnitude refinement and cleanup passes, honouring selective arithmetic bypass,
    reset, termination, vertically causal, predictable termination and segmentation symbols (the
    decoded symbol must be 1010), and
    the ROI max-shift.
-5. **Reconstruction**: dequantization, inverse DWT (reversible 5-3 or irreversible 9-7), inverse
+5. **Reconstruction**: dequantization (done as each code-block is stored, in `Tier1.Store`), inverse
+   DWT (reversible 5-3 or irreversible 9-7), inverse
    RCT/ICT, DC level shift, clamping and scaling to 8 bits per sample (1 to 16 bit, signed or
    unsigned, subsampled components upsampled).
 
@@ -115,6 +131,21 @@ specification exists at all (a raw codestream), as a documented heuristic. An sR
 extra channel and no channel definition keeps the three color channels and ignores the extra one.
 
 There is no recovery or partial decoding: a failure always propagates to the caller.
+
+#### Deliberately Lenient Behavior
+
+The following are tolerated rather than rejected. Each matches OpenJPEG (verified by crafting
+streams and decoding them with ImageMagick) or the standard leaves the behavior to the reader:
+
+- TNsot (declared tile-part count) is advisory; see Decoding Pipeline.
+- A repeated channel association for the same channel in the cdef box: the last one wins.
+- A palette index beyond the last palette entry is clamped to the last entry.
+- An enumerated color space other than sRGB, grayscale, sYCC and CMYK is treated as RGB (or
+  unknown) without error; ICC profiles are reported but never applied.
+- COD/QCD markers in a non-first tile-part, and a mix of PPM and PPT packed headers, are accepted.
+- SOP markers are not required to be present or numbered in sequence, and truncated tile data is
+  never decoded leniently (it is InvalidDataException).
+- GetInfo uses the default 256 MiB input limit; it does not take a Jpeg2000DecoderLimits.
 
 #### Dependencies
 

@@ -101,7 +101,9 @@ sections:
                   multiple tiles with arbitrary image and tile origins, tile-parts, tile-header
                   overrides of coding and quantization parameters, packed packet headers (PPM and
                   PPT), SOP and EPH markers, region-of-interest max-shift coding (RGN), ignorable
-                  informational markers, and a missing end-of-codestream marker with zero tile-part
+                  informational markers, tile-part ordering (TPsot, with TNsot advisory), and a missing
+                  end-of-codestream
+                  marker with zero tile-part
                   length.
                 justification: |
                   Producers split and annotate codestreams in many legal ways; a decoder must
@@ -116,6 +118,7 @@ sections:
                   - Jpeg2000Codec_Decode_TileParts_RoundTripsExactly
                   - Jpeg2000Codec_Decode_ExtraMarkers_AreSkipped
                   - Jpeg2000Codec_Decode_ZeroPsotMissingEoc_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_TilePartIndexes_AreCheckedAndCountIsAdvisory
                   - Jpeg2000Codec_Decode_RoiMaxShift_RoundTripsExactly
                   - Jpeg2000Codec_Decode_RoiOnSubsetOfComponents_RoundTripsExactly
                   - Jpeg2000Codec_Decode_RoiIrreversible_WithinTolerance
@@ -177,7 +180,9 @@ sections:
                   The Jpeg2000Codec class shall reject data that is not JPEG 2000, an image whose
                   dimensions or sizes exceed the decoder limits (Jpeg2000DecoderLimits, with
                   Surface.MaxDimension as the default dimension limit), a codestream with a tile
-                  that has no tile-part, and truncated, corrupted or otherwise
+                  that has no tile-part, out-of-sequence tile-parts, a progression that leaves packets uncovered,
+                  work exceeding
+                  the input-scaled entropy-decoding budget, and truncated, corrupted or otherwise
                   malformed data, with InvalidDataException, never an unhandled exception,
                   excessive allocation, or unbounded work.
                 justification: |
@@ -189,18 +194,30 @@ sections:
                   - Jpeg2000Codec_Load_ExceedsMaxDimension_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_RealEncoderFixtureTruncated_FailsClosed
                   - Jpeg2000Codec_Decode_EveryTruncationOfSmallStream_ThrowsInvalidData
-                  - Jpeg2000Codec_Decode_TruncationsOfLargeStreams_FailCleanly
+                  - Jpeg2000Codec_Decode_TruncationsOfLargeStreams_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_RandomBitFlips_FailCleanly
                   - Jpeg2000Codec_Decode_HeaderByteSubstitutions_FailCleanly
-                  - Jpeg2000Codec_Decode_HugeCounts_FailQuickly
-                  - Jpeg2000Codec_Decode_BadMarkerLengths_FailCleanly
+                  - Jpeg2000Codec_Decode_ImageBeyondDimensionLimit_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_TooManyTiles_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_TooManyCodeBlocks_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_TooManyPrecincts_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_TooManyPackets_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_BadMarkerLengths_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_BadTilePartLengths_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_GarbageTileData_FailsCleanly
                   - Jpeg2000Codec_Decode_HostileBoxes_FailCleanly
                   - Jpeg2000Codec_Decode_HostilePoc_FailsCleanly
-                  - Jpeg2000Codec_Decode_ManyIdenticalPocEntries_ThrowsInvalidDataQuickly
+                  - Jpeg2000Codec_Decode_MoreProgressionChangesThanCap_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_OverlappingProgressionVolumes_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_TightProgressionLimit_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_PocLeavingPacketsUncovered_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_RepeatedPocEntriesWithinCap_DecodesExactly
-                  - Jpeg2000Codec_DecodeBudget_IsCumulativeAcrossCharges
-                  - Jpeg2000Codec_Decode_PrecinctsFarExceedingData_ThrowsInvalidDataQuickly
+                  - Jpeg2000Codec_DecodeBudget_IsCumulativeAndScalesWithInput
+                  - Jpeg2000Codec_Decode_TightTier1Limit_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_HostileTier1Work_ThrowsInvalidDataQuickly
+                  - Jpeg2000Codec_Decode_HostileMaximumImageTier1Work_ThrowsInvalidDataQuickly
+                  - Jpeg2000Codec_Decode_SmallHostileShape_Decodes
+                  - Jpeg2000Codec_Decode_TilePartIndexes_AreCheckedAndCountIsAdvisory
                   - Jpeg2000Codec_Decode_MissingTile_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_CustomLimits_AreEnforced
                   - Jpeg2000Codec_Decode_InvalidLimits_ThrowsArgumentOutOfRange

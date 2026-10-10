@@ -45,8 +45,9 @@ alpha and 16-bit channel layouts.
 
 ##### CanvasNet-Codecs-Jpeg2000Codec-Decode: Decode Reconstructs Component Samples
 
-**Tests**: the `Jpeg2000Codec_Decode_Reversible*`, `_FourComponents`, `_CodeBlockSizes`,
-`_DepthAndSign`, `_SignedRct`, `_Irreversible*` and `_SubsampledComponents` tests.
+**Tests**: the `Jpeg2000Codec_Decode_Reversible*`, `_FourComponents`, `_DepthAndSign`,
+`_SignedRct`, `_Irreversible*`, `_SubsampledComponents`, `_PerComponentLevels*` and
+`_RealEncoderFixtures_ReportChannelLayout` tests (the reqstream file lists each by full name).
 
 Round-trips reversible and irreversible streams across decomposition levels, odd sizes, color
 transforms, bit depths, signedness and subsampling.
@@ -62,9 +63,9 @@ interest max-shift.
 
 ##### CanvasNet-Codecs-Jpeg2000Codec-PacketStructure: Tier-2 Packets
 
-**Tests**: the `_Tiles`, `_TileAndImageOffsets`, `_Precincts`, `_PerResolutionPrecincts`,
-`_Layers`, `_ProgressionOrders`, `_PositionProgressionWithOffsets` and `_PerComponentLevels*`
-tests.
+**Tests**: the `_Precincts`, `_PerResolutionPrecincts`, `_Layers`, `_ProgressionOrders`,
+`_PositionProgressionWithOffsets` and `_Poc*` (main header, tile header, tile overriding main)
+tests, plus the lossless real-encoder fixture.
 
 Round-trips streams using every progression order, layers, precinct sizes, tiles and offsets.
 The real-encoder fixtures add independent exact-match evidence for the RLCP, RPCL, PCRL and CPRL
@@ -72,8 +73,9 @@ progression orders (marker-verified), three quality layers and reduced decomposi
 
 ##### CanvasNet-Codecs-Jpeg2000Codec-Codestream: Codestream Headers
 
-**Tests**: the `_TileHeaderOverrides`, `_Poc*`, `_SopEph`, `_Ppm`, `_Ppt`, `_TileParts`,
-`_ExtraMarkers_AreSkipped` and `_ZeroPsotMissingEoc` tests.
+**Tests**: the `_Tiles`, `_TileAndImageOffsets`, `_TileHeaderOverrides`, `_SopEph`, `_Ppm`,
+`_Ppt`, `_TileParts`, `_ExtraMarkers_AreSkipped`, `_ZeroPsotMissingEoc`, `_Roi*` and
+`_TilePartIndexes_AreCheckedAndCountIsAdvisory` tests.
 
 Verifies tile-part headers, progression order changes, packed packet headers, SOP/EPH markers and
 tolerated marker variants.
@@ -105,20 +107,33 @@ Checks the null, empty-path and missing-file exceptions for every public method.
 
 **Tests**: `Jpeg2000Codec_Load_NotJpeg2000_ThrowsInvalidData`,
 `Jpeg2000Codec_Load_ExceedsMaxDimension_ThrowsInvalidData`, and the `_EveryTruncationOfSmallStream`,
-`_TruncationsOfLargeStreams`, `_RandomBitFlips`, `_HeaderByteSubstitutions`, `_HugeCounts`, `_BadMarkerLengths`,
-`_GarbageTileData`, `_HostileBoxes` and `_HostilePoc` tests, plus the resource-limit tests
-`_ManyIdenticalPocEntries`, `_RepeatedPocEntriesWithinCap`, `_DecodeBudget_IsCumulativeAcrossCharges`,
-`_PrecinctsFarExceedingData`, `_MissingTile`, `_CustomLimits`, `_InvalidLimits`, `_HostileExponents`,
+`_TruncationsOfLargeStreams`, `_BadMarkerLengths`, `_BadTilePartLengths`, `_GarbageTileData`,
+`_HostileBoxes` and `_HostilePoc` tests, the random fuzz tests `_RandomBitFlips` and
+`_HeaderByteSubstitutions`, plus the resource-limit tests `_ImageBeyondDimensionLimit`,
+`_TooManyTiles`, `_TooManyCodeBlocks`, `_TooManyPrecincts`, `_TooManyPackets`,
+`_MoreProgressionChangesThanCap`, `_OverlappingProgressionVolumes`, `_TightProgressionLimit`,
+`_PocLeavingPacketsUncovered`, `_RepeatedPocEntriesWithinCap`,
+`Jpeg2000Codec_DecodeBudget_IsCumulativeAndScalesWithInput`, `_TightTier1Limit`,
+`_HostileTier1Work`, `_HostileMaximumImageTier1Work`, `_SmallHostileShape_Decodes`,
+`_MissingTile`, `_CustomLimits`, `_InvalidLimits`, `_HostileExponents`,
 `_WrongSegmentationSymbol` and `_SegmentationSymbols`.
 
 Checks (including Jpeg2000Codec_Decode_RealEncoderFixtureTruncated_FailsClosed on a real-encoder
 file) that corrupt, truncated and hostile data fail with `InvalidDataException` (or an
 unsupported-feature exception) quickly and without unhandled exceptions. Named malformed cases
 assert the exact exception type and that it carries no inner exception, proving the failure came
-from explicit validation and not from the `Guard` backstop. `_EveryTruncationOfSmallStream` tests
+from explicit validation and not from the `Guard` backstop; the assertion also checks that the
+message names the specific cause. Each resource-limit test builds a stream with dimensions within
+the dimension limit (or tight custom `Jpeg2000DecoderLimits`) so that the named cap, and not an
+earlier check, is the one that fires. Only the two random-mutation fuzz tests accept a successful
+decode, because a mutation may leave a stream valid; they still require that any failure is a
+plain `InvalidDataException` or `UnsupportedImageFeatureException`. `_EveryTruncationOfSmallStream` tests
 every prefix length of a small multi-tile stream; the fuzz tests have a few-second time bound.
-Hostile POC streams (thousands of identical entries) and precinct counts far beyond the data fail
-within a time bound, and a codestream cut at a tile boundary fails because the tile is missing.
+Hostile streams (thousands of POC entries, precinct counts far beyond the data, and a maximum-size
+image with maximum coding passes per block) fail within a time bound (the Tier-1 hostile tests
+use generous wall-clock bounds of 10 and 15 seconds because the suite runs under heavy parallel
+load, against about 1 second measured alone and over 20 seconds before the input-scaled budget),
+and a codestream cut at a tile boundary fails because the tile is missing.
 
 ##### CanvasNet-Codecs-Jpeg2000Codec-Unsupported: Unsupported Features
 

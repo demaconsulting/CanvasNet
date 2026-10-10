@@ -1020,7 +1020,7 @@ sections:
           - CanvasNet-Codecs-Jpeg2000UnsupportedFormatValidation
         tests:
           - Jpeg2000Codec_Load_NotJpeg2000_ThrowsInvalidData
-          - Jpeg2000Codec_Decode_EveryTruncation_FailsCleanly
+          - Jpeg2000Codec_Decode_EveryTruncationOfSmallStream_ThrowsInvalidData
           - Jpeg2000Codec_Decode_Part2Capabilities_ThrowsUnsupported
 
   # Note: SVG rasterization is provided by the separate CanvasNetSvg system (its own package,
