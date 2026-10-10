@@ -217,6 +217,7 @@ sections:
                   - Jpeg2000Codec_Decode_HostileTier1Work_ThrowsInvalidDataQuickly
                   - Jpeg2000Codec_Decode_HostileMaximumImageTier1Work_ThrowsInvalidDataQuickly
                   - Jpeg2000Codec_Decode_SmallHostileShape_Decodes
+                  - Jpeg2000Codec_Decode_LargeLosslessSparseImage_DecodesUnderDefaultLimits
                   - Jpeg2000Codec_Decode_TilePartIndexes_AreCheckedAndCountIsAdvisory
                   - Jpeg2000Codec_Decode_MissingTile_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_CustomLimits_AreEnforced

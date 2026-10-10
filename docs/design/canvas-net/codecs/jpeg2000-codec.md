@@ -38,7 +38,7 @@ The class is a `static` partial class. The public surface lives in
   only, without decoding and without enforcing `Surface.MaxDimension`.
 - `Decode(Stream)` / `Decode(byte[])` (and the overloads taking a `Jpeg2000DecoderLimits`) return a
   `Jpeg2000Image` (`Width`, `Height`, `ColorSpace`, `ColorChannelCount`, `ColorSamples`,
-  `AlphaSamples`, `AlphaPremultiplied`, `IccProfile`,
+  `AlphaSamples`, `HasAlpha` (true when `AlphaSamples` is present), `AlphaPremultiplied`, `IccProfile`,
   `BitDepth` (source depth of the first color channel's component, before 8-bit scaling) and
   `HasPalette` (the JP2 palette was applied to `ColorSamples`)) with
   8-bit interleaved samples. `Decode` enforces the resource limits below, including
@@ -72,13 +72,20 @@ Limits are enforced during header validation, before the memory they protect is 
   progression (including POC volumes) that leaves packets uncovered is `InvalidDataException`,
   since the standard requires every packet to be covered.
 - Tier-1: the same `DecodeBudget` charges entropy-decoding work in sample-passes (block samples
-  times coding passes). Its ceiling is `min(MaxTier1Work, 2^24 + 2^12 x input bytes)` (default
-  `MaxTier1Work` 2^30), so the work a stream may demand scales with its size. The constant was
-  calibrated so that every real-world file tested decodes with a margin of 4 to 8 times, while a
-  hostile 76 KB stream (8192 x 8192, 64 x 64 blocks, maximum passes per block) is rejected in
-  about one second instead of tens of seconds. A pass count is deliberately not compared with
-  the segment length: an MQ-coded pass can legitimately consume far less than one byte, so such a
-  rule would reject valid streams; the work budget is the mitigation.
+  times coding passes). Its ceiling is `min(MaxTier1Work, 2^24 + 2^12 x input bytes)`, so the work
+  a stream may demand scales with its size. The per-input-byte term is what bounds hostile input:
+  a hostile 76 KB stream (8192 x 8192, 64 x 64 blocks, maximum passes per block) is rejected after
+  about 2.4 seconds (Debug build, including JIT) instead of tens of seconds. The absolute ceiling
+  `MaxTier1Work` defaults to 2^34, which is at least `MaxTotalSamples` (2^27) times the maximum
+  of 88 passes per block, so no image the default sample limit admits can reach it; it only
+  matters for callers who raise `MaxTotalSamples` or want a hard cap. An earlier default of 2^30
+  rejected valid large lossless images (a 5800 x 5800 16-bit sparse image needs about 1.5 x 10^9
+  sample-passes). The 2^12 figure was measured by bisecting `MaxTier1Work` on streams from the
+  test encoder: very sparse valid streams (a flat plane with isolated pixels) need at most about
+  800 sample-passes per input byte, so 2^12 leaves a margin of about five; denser streams need far
+  less (under 100). A pass count is deliberately not compared with the segment length: an MQ-coded
+  pass can legitimately consume far less than one byte, so such a rule would reject valid streams;
+  the work budget is the mitigation.
 - `MaxBitPlanes` (30) is the single bit-plane ceiling. Each band's bit-plane count
   (guard bits + exponent - 1) is validated once during geometry construction: out-of-range values
   are `InvalidDataException`; a count that only exceeds the ceiling once the ROI shift is added

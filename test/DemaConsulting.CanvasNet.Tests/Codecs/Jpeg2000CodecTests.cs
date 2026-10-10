@@ -1538,8 +1538,45 @@ public class Jpeg2000CodecTests
         tiny.ChargeTier1(1L << 24);
         Assert.Throws<InvalidDataException>(() => tiny.ChargeTier1(1L << 20));
         var large = new Jpeg2000Codec.DecodeBudget(Jpeg2000DecoderLimits.Default, 1L << 20);
-        large.ChargeTier1(1L << 30);
+        large.ChargeTier1((1L << 32) + (1L << 24));
         Assert.Throws<InvalidDataException>(() => large.ChargeTier1(1));
+
+        // A very large input is capped by the absolute ceiling (2^34), which covers every image the default limits allow.
+        var huge = new Jpeg2000Codec.DecodeBudget(Jpeg2000DecoderLimits.Default, 1L << 24);
+        huge.ChargeTier1(1L << 34);
+        Assert.Throws<InvalidDataException>(() => huge.ChargeTier1(1));
+        Assert.True(Jpeg2000DecoderLimits.Default.MaxTier1Work >= Jpeg2000DecoderLimits.Default.MaxTotalSamples * 88);
+    }
+
+    /// <summary>
+    ///     Tests that a large valid lossless image (5800 x 5800, 16 bits, a flat plane with a sparse pattern, so many
+    ///     coding passes per block from little input) decodes under the default limits. Its entropy-decoding work
+    ///     (about 1.5 x 10^9 sample-passes, measured by bisecting <c>MaxTier1Work</c>) exceeds the former 2^30 ceiling.
+    /// </summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_LargeLosslessSparseImage_DecodesUnderDefaultLimits()
+    {
+        const int size = 5800;
+        var image = Img(size, size, 1, depth: 16);
+        var samples = image.Components[0].Samples;
+        Array.Fill(samples, 51_200);
+        for (var i = 0; i < samples.Length; i += 97)
+        {
+            samples[i] = 3000;
+        }
+
+        var o = Rev(5);
+        o.CodeBlockWidthExp = 6;
+        o.CodeBlockHeightExp = 6;
+        var data = Encode(image, o);
+        var decoded = Jpeg2000Codec.Decode(data);
+        Assert.Equal(size, decoded.Width);
+        Assert.Equal(size, decoded.Height);
+        for (var i = 0; i < samples.Length; i += 97)
+        {
+            Assert.Equal(Jpeg2000TestEncoder.ExpectedByte(3000, 16, false), decoded.ColorSamples[i]);
+            Assert.Equal(Jpeg2000TestEncoder.ExpectedByte(51_200, 16, false), decoded.ColorSamples[i + 1]);
+        }
     }
 
     /// <summary>Tests that the entropy-decoding work is bounded by an explicit limit.</summary>

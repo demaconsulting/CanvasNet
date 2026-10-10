@@ -75,9 +75,11 @@ public sealed record Jpeg2000DecoderLimits
 
     /// <summary>
     ///     Gets the absolute ceiling of entropy-decoding work (sample-passes) for one decode. The default is
-    ///     2^30. The effective ceiling is lower for small inputs because it also scales with the input length.
+    ///     2^34 (at least the largest default image, <see cref="MaxTotalSamples"/> samples at 88 passes, so
+    ///     a valid image never reaches it). The effective ceiling is lower for small inputs because it also
+    ///     scales with the input length, which is what bounds hostile streams.
     /// </summary>
-    public long MaxTier1Work { get; init; } = 1L << 30;
+    public long MaxTier1Work { get; init; } = 1L << 34;
 
     /// <summary>Checks that every limit is positive and within the range the decoder can honor.</summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when a limit is not positive or is too large.</exception>

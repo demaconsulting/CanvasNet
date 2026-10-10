@@ -941,7 +941,7 @@ public static Jpeg2000Image Decode(byte[] data)
 
 Decodes to a `Jpeg2000Image` exposing `Width`, `Height`, `ColorSpace` (`Gray`, `Srgb`, `Cmyk` or
 `Unknown`), `ColorChannelCount`, 8-bit interleaved `ColorSamples`, optional `AlphaSamples` (with
-`AlphaPremultiplied`), the `IccProfile` bytes, the source `BitDepth` of the first color channel
+`AlphaPremultiplied`), `HasAlpha` (true when `AlphaSamples` is present), the `IccProfile` bytes, the source `BitDepth` of the first color channel
 before 8-bit scaling, and `HasPalette` (whether a JP2 palette was applied to `ColorSamples`).
 Throws the same exceptions as `Load`.
 
@@ -958,7 +958,7 @@ non-positive limit. `Jpeg2000DecoderLimits` is a record with `init` properties
 (`MaxInputBytes` 256 MiB, `MaxWidth`/`MaxHeight` `Surface.MaxDimension`, `MaxTotalSamples`
 2^27, `MaxTileSamples` 2^26, `MaxTiles` 65535, `MaxTilePrecincts` 2^18, `MaxTileCodeBlocks`
 2^20, `MaxTilePackets` 2^22, `MaxProgressionChanges` 128, `MaxProgressionSteps` 2^30 and
-`MaxTier1Work` 2^30); `Jpeg2000DecoderLimits.Default` holds the defaults. The progression and
+`MaxTier1Work` 2^34); `Jpeg2000DecoderLimits.Default` holds the defaults. The progression and
 tier-1 work ceilings additionally scale with the input length, so a small hostile stream cannot
 consume the full budget. Data over a limit fails with `InvalidDataException`.
 

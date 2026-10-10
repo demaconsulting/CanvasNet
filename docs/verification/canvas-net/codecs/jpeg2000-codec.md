@@ -115,6 +115,9 @@ Checks the null, empty-path and missing-file exceptions for every public method.
 `_PocLeavingPacketsUncovered`, `_RepeatedPocEntriesWithinCap`,
 `Jpeg2000Codec_DecodeBudget_IsCumulativeAndScalesWithInput`, `_TightTier1Limit`,
 `_HostileTier1Work`, `_HostileMaximumImageTier1Work`, `_SmallHostileShape_Decodes`,
+`_LargeLosslessSparseImage_DecodesUnderDefaultLimits` (a 5800 x 5800 16-bit sparse lossless image
+whose work of about 1.5 x 10^9 sample-passes exceeds the former 2^30 ceiling decodes under the
+default limits),
 `_MissingTile`, `_CustomLimits`, `_InvalidLimits`, `_HostileExponents`,
 `_WrongSegmentationSymbol` and `_SegmentationSymbols`.
 
@@ -128,11 +131,12 @@ the dimension limit (or tight custom `Jpeg2000DecoderLimits`) so that the named 
 earlier check, is the one that fires. Only the two random-mutation fuzz tests accept a successful
 decode, because a mutation may leave a stream valid; they still require that any failure is a
 plain `InvalidDataException` or `UnsupportedImageFeatureException`. `_EveryTruncationOfSmallStream` tests
-every prefix length of a small multi-tile stream; the fuzz tests have a few-second time bound.
+every prefix length of a small multi-tile stream; the fuzz tests have a 20 second time bound.
 Hostile streams (thousands of POC entries, precinct counts far beyond the data, and a maximum-size
 image with maximum coding passes per block) fail within a time bound (the Tier-1 hostile tests
 use generous wall-clock bounds of 10 and 15 seconds because the suite runs under heavy parallel
-load, against about 1 second measured alone and over 20 seconds before the input-scaled budget),
+load, against about 2.4 seconds for the 76 KB maximum-image stream measured alone in a Debug build, and over
+20 seconds before the input-scaled budget),
 and a codestream cut at a tile boundary fails because the tile is missing.
 
 ##### CanvasNet-Codecs-Jpeg2000Codec-Unsupported: Unsupported Features
