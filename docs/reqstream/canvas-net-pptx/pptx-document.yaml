@@ -1433,6 +1433,12 @@ sections:
               - ResolveCellRects_RowSpanCellTextRequiresMoreHeightThanSpanTotal_GrowsLastSpannedRow
               - ResolveCellRects_NoThemeOrFontResolverSupplied_PreservesStoredHeightsUnconditionally
               - PaintTable_TwoRowTableWithWrappedTextOverflowingStoredHeight_PaintsSecondRowBelowGrownFirstRow
+              - ResolveCellRects_OneLineRowFitsStoredHeight_KeepsStoredHeight
+              - ResolveCellRects_WrappedTextThreeLines_GrowsByExactlyExtraLines
+              - ResolveCellRects_TopAndBottomMargins_AddedOnceToRequiredHeight
+              - ResolveCellRects_EmptyCellWithSmallEndParaRPr_DoesNotGrowRow
+              - ResolveCellRects_EmptyCellWithLargerEndParaRPr_GrowsToEndParaSize
+              - ResolveCellRects_EmptyCellWithoutEndParaRPr_UsesDefaultFontSizeLine
 
           - id: CanvasNetPptx-PptxDocument-TablePainting
             title: >-

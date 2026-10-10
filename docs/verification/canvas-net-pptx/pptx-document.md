@@ -1151,7 +1151,13 @@ the following, unrelated cell lands at its correct, non-overlapping column offse
 `ResolveCellRects_CellTextFitsWithinStoredHeight_RowHeightUnaffected`,
 `ResolveCellRects_RowSpanCellTextRequiresMoreHeightThanSpanTotal_GrowsLastSpannedRow`,
 `ResolveCellRects_NoThemeOrFontResolverSupplied_PreservesStoredHeightsUnconditionally`,
-`PaintTable_TwoRowTableWithWrappedTextOverflowingStoredHeight_PaintsSecondRowBelowGrownFirstRow`
+`PaintTable_TwoRowTableWithWrappedTextOverflowingStoredHeight_PaintsSecondRowBelowGrownFirstRow`,
+`ResolveCellRects_OneLineRowFitsStoredHeight_KeepsStoredHeight`,
+`ResolveCellRects_WrappedTextThreeLines_GrowsByExactlyExtraLines`,
+`ResolveCellRects_TopAndBottomMargins_AddedOnceToRequiredHeight`,
+`ResolveCellRects_EmptyCellWithSmallEndParaRPr_DoesNotGrowRow`,
+`ResolveCellRects_EmptyCellWithLargerEndParaRPr_GrowsToEndParaSize`,
+`ResolveCellRects_EmptyCellWithoutEndParaRPr_UsesDefaultFontSizeLine`
 
 Proves `ResolveCellRects` grows a row's own effective height past its stored `<a:tr h="...">`
 value when a single-row cell's own wrapped text requires more vertical space than that stored
@@ -1169,6 +1175,9 @@ and every pre-existing direct `ResolveCellRects` call site remains unaffected. P
 through `PaintTable`, that a two-row table's second row paints its own fill starting below the
 first row's grown (not stored) bottom edge, when the first row's own cell text wraps to more lines
 than its stored height can fit.
+Proves a one-line row that fits keeps exactly its stored height, a wrapped row grows by exactly
+its extra lines, top/bottom margins are counted once, and an empty cell is sized from its
+`<a:endParaRPr>` size (the 18 pt default only when absent) so it no longer doubles the row.
 
 #### CanvasNetPptx-PptxDocument-TablePainting: Cell Fill, Border, and Text Painting
 
