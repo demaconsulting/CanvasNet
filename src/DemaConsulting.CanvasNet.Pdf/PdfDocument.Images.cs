@@ -505,8 +505,9 @@ public sealed partial class PdfDocument
     ///     the codestream's opacity channel as alpha, <c>2</c> additionally un-premultiplies the
     ///     component samples (before <c>/Decode</c> and the color conversion; rejected for
     ///     <c>/Indexed</c>); both are ignored when the image has an explicit <c>/SMask</c>. The decode is
-    ///     bounded by the dictionary's <c>/Width</c>/<c>/Height</c> through
-    ///     <see cref="Jpeg2000DecoderLimits"/>, so an oversized codestream is rejected before allocation.
+    ///     bounded by the renderer-wide maximum image dimension (<c>Surface.MaxDimension</c>) through
+    ///     <see cref="Jpeg2000DecoderLimits"/>, so an oversized codestream is rejected before allocation;
+    ///     the dictionary's <c>/Width</c> and <c>/Height</c> are not used as limits.
     /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown for malformed JPEG 2000 data, an invalid <c>/Decode</c> or <c>/SMaskInData</c>,
