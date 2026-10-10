@@ -1330,7 +1330,8 @@ public class Jpeg2000CodecTests
         box[2] = (byte)((box.Length >> 8) & 0xFF);
         box[3] = (byte)(box.Length & 0xFF);
         "free"u8.CopyTo(box.AsSpan(4));
-        var data = jp2[..12].Concat(box).Concat(jp2[12..]).ToArray();
+        var ftypEnd = 12 + (int)BinaryPrimitives.ReadUInt32BigEndian(jp2.AsSpan(12));
+        var data = jp2[..ftypEnd].Concat(box).Concat(jp2[ftypEnd..]).ToArray();
         using var stream = new CountingStream(data, seekable);
         Assert.Equal(11, Jpeg2000Codec.GetInfo(stream).Width);
         if (seekable)

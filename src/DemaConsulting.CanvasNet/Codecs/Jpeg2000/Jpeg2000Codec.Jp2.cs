@@ -7,7 +7,9 @@ public static partial class Jpeg2000Codec
     // ================================================================================================
 
     private const long BoxJp2Signature = 0x6A502020;
+    private const long BoxFileType = 0x66747970;
     private const long BoxJp2Header = 0x6A703268;
+    private const long BoxIhdr = 0x69686472;
     private const long BoxColr = 0x636F6C72;
     private const long BoxPclr = 0x70636C72;
     private const long BoxCmap = 0x636D6170;
@@ -50,6 +52,15 @@ public static partial class Jpeg2000Codec
 
         /// <summary>Gets or sets the exclusive end of the codestream.</summary>
         public int CodestreamEnd { get; set; }
+
+        /// <summary>Gets or sets the image width declared by the <c>ihdr</c> box, or -1 when there is none (a raw codestream).</summary>
+        public long IhdrWidth { get; set; } = -1;
+
+        /// <summary>Gets or sets the image height declared by the <c>ihdr</c> box, or -1 when there is none.</summary>
+        public long IhdrHeight { get; set; } = -1;
+
+        /// <summary>Gets or sets a value indicating whether a <c>jp2h</c> box has been parsed.</summary>
+        public bool HasHeaderBox { get; set; }
 
         /// <summary>Gets or sets the enumerated color space, or -1 when none was specified.</summary>
         public int EnumCs { get; set; } = -1;
@@ -113,17 +124,21 @@ public static partial class Jpeg2000Codec
         }
 
         var info = new Jp2Info();
-        var pos = 0;
+        var ftyp = ReadBoxHeader(data, 12, data.Length);
+        CheckFileTypeBox(ftyp);
+        var pos = ftyp.End;
         var found = false;
         for (var count = 0; count < MaxBoxes && pos < data.Length; count++)
         {
             var box = ReadBoxHeader(data, pos, data.Length);
             if (box.Type == BoxJp2Header)
             {
+                info.HasHeaderBox = true;
                 ParseHeaderBoxes(data, box.ContentStart, box.End, info);
             }
             else if (box.Type == BoxCodestream)
             {
+                CheckHeaderBeforeCodestream(info);
                 info.CodestreamStart = box.ContentStart;
                 info.CodestreamEnd = box.End;
                 found = true;
@@ -139,6 +154,74 @@ public static partial class Jpeg2000Codec
         }
 
         return info;
+    }
+
+    /// <summary>
+    ///     Checks the box that must directly follow the JP2 signature box: <c>ftyp</c> (ITU-T T.800 I.5.2), whose
+    ///     content is the brand, minor version and a compatibility list, so at least 8 bytes and a multiple of 4. The
+    ///     brand and compatibility list are deliberately not interpreted (OpenJPEG does not either).
+    /// </summary>
+    /// <param name="box">The box found after the signature box.</param>
+    private static void CheckFileTypeBox(BoxHeader box)
+    {
+        if (box.Type != BoxFileType)
+        {
+            throw Malformed("the file type box must follow the JP2 signature box.");
+        }
+
+        var length = box.End - box.ContentStart;
+        if (length < 8 || length % 4 != 0)
+        {
+            throw Malformed("invalid file type box length.");
+        }
+    }
+
+    /// <summary>
+    ///     Checks that the header box, and an <c>ihdr</c> box within it, came before the codestream box (T.800 I.5.3).
+    ///     The position of <c>ihdr</c> inside <c>jp2h</c> and the presence of <c>colr</c> are deliberately not
+    ///     enforced: OpenJPEG decodes such files.
+    /// </summary>
+    /// <param name="info">The container information gathered so far.</param>
+    private static void CheckHeaderBeforeCodestream(Jp2Info info)
+    {
+        if (!info.HasHeaderBox)
+        {
+            throw Malformed("JP2 header box must precede the codestream box.");
+        }
+
+        if (info.IhdrWidth < 0)
+        {
+            throw Malformed("JP2 header box has no image header box.");
+        }
+    }
+
+    /// <summary>Checks the <c>ihdr</c> image size against the SIZ image size; a raw codestream has no <c>ihdr</c> and passes.</summary>
+    /// <param name="info">The container information.</param>
+    /// <param name="siz">The validated SIZ information.</param>
+    private static void CheckIhdrAgainstSiz(Jp2Info info, SizInfo siz)
+    {
+        if (info.IhdrWidth >= 0 && (info.IhdrWidth != siz.Width || info.IhdrHeight != siz.Height))
+        {
+            throw Malformed("image header box size does not match the codestream SIZ size.");
+        }
+    }
+
+    /// <summary>Reads the <c>ihdr</c> box: exactly 14 bytes; the first one wins, as in OpenJPEG.</summary>
+    private static void ParseIhdr(byte[] data, BoxHeader box, Jp2Info info)
+    {
+        if (box.End - box.ContentStart != 14)
+        {
+            throw Malformed("invalid image header box length.");
+        }
+
+        if (info.IhdrWidth >= 0)
+        {
+            return;
+        }
+
+        // Height precedes width. NC, BPC, C, UnkC and IPR are deliberately not checked (OpenJPEG only warns).
+        info.IhdrHeight = ReadBe32(data, box.ContentStart);
+        info.IhdrWidth = ReadBe32(data, box.ContentStart + 4);
     }
 
     private static long ReadBe32(byte[] data, int pos) =>
@@ -201,6 +284,9 @@ public static partial class Jpeg2000Codec
     {
         switch (box.Type)
         {
+            case BoxIhdr:
+                ParseIhdr(data, box, info);
+                break;
             case BoxColr:
                 ParseColr(data, box, info);
                 break;

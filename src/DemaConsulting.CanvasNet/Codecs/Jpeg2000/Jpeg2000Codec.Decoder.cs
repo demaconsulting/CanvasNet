@@ -64,6 +64,7 @@ public static partial class Jpeg2000Codec
         var jp2 = ParseContainer(data);
         var cs = Codestream.Parse(data, jp2.CodestreamStart, jp2.CodestreamEnd, limits);
         var siz = cs.Siz;
+        CheckIhdrAgainstSiz(jp2, siz);
         var layout = ResolveLayout(jp2, siz.Csiz);
         CheckOutputLimit(siz, layout, limits);
 

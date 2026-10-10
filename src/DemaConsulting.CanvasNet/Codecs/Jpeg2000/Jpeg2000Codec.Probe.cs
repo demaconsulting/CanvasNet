@@ -178,6 +178,18 @@ public static partial class Jpeg2000Codec
         }
 
         var info = new Jp2Info();
+        var ftyp = ReadProbeBoxHeader(reader, out var ftypToEnd, out var ftypAtEnd);
+        if (ftypAtEnd)
+        {
+            throw Malformed("the file type box must follow the JP2 signature box.");
+        }
+
+        CheckFileTypeBox(ftyp);
+        if (ftypToEnd || !reader.Skip(ftyp.End - ftyp.ContentStart))
+        {
+            throw Malformed("JP2 file has no codestream box.");
+        }
+
         for (var count = 0; count < MaxBoxes; count++)
         {
             var header = ReadProbeBoxHeader(reader, out var toEnd, out var atEnd);
@@ -189,18 +201,22 @@ public static partial class Jpeg2000Codec
             var contentLength = header.End - header.ContentStart;
             if (header.Type == BoxCodestream)
             {
+                CheckHeaderBeforeCodestream(info);
+
                 // Only the SOC and SIZ segments are needed, whatever the length of the codestream.
                 var take = Math.Min(MaxSizPrefix, toEnd ? int.MaxValue : contentLength);
                 var prefix = reader.Read(take);
                 info.CodestreamStart = 0;
                 info.CodestreamEnd = prefix.Length;
                 siz = Codestream.ParseSizOnly(prefix, 0, prefix.Length, out _);
+                CheckIhdrAgainstSiz(info, siz);
                 return info;
             }
 
             if (header.Type == BoxJp2Header)
             {
                 // The header box is walked child by child: only the child headers and the small boxes are read.
+                info.HasHeaderBox = true;
                 ProbeHeaderBox(reader, contentLength, toEnd, info);
                 if (toEnd)
                 {
@@ -299,11 +315,12 @@ public static partial class Jpeg2000Codec
             var read = box.Type switch
             {
                 BoxColr => Math.Min(content, ProbeColrBytes),
+                BoxIhdr => content == 14 ? 14 : throw Malformed("invalid image header box length."),
                 BoxPclr or BoxCmap or BoxCdef => content <= MaxProbeChildBytes ? content : throw Malformed("header box is too large."),
                 _ => 0,
             };
 
-            if (box.Type is BoxColr or BoxPclr or BoxCmap or BoxCdef)
+            if (box.Type is BoxColr or BoxIhdr or BoxPclr or BoxCmap or BoxCdef)
             {
                 var body = reader.Read(read);
                 if (body.Length != read)
