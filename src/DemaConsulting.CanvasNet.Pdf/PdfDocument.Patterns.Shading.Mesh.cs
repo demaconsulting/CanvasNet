@@ -365,7 +365,11 @@ public sealed partial class PdfDocument
                 AddMeshVertex(vertices, vertex);
                 for (var extra = 0; extra < 2; extra++)
                 {
-                    _ = reader.Read(p.BitsPerFlag);
+                    var extraFlag = reader.Read(p.BitsPerFlag);
+                    if (extraFlag > 2)
+                    {
+                        throw new InvalidDataException($"Invalid edge flag {extraFlag} in type 4 mesh shading.");
+                    }
                     AddMeshVertex(vertices, ReadMeshVertex(reader, p));
                 }
 
@@ -556,6 +560,15 @@ public sealed partial class PdfDocument
         var top = (int)Math.Max(0, Math.Floor(Math.Min(bounds.Top, _surface.Height)) - 1);
         var right = (int)Math.Min(_surface.Width, Math.Ceiling(Math.Max(bounds.Right, 0)) + 1);
         var bottom = (int)Math.Min(_surface.Height, Math.Ceiling(Math.Max(bounds.Bottom, 0)) + 1);
+        if (_gs.Clip is { } clip)
+        {
+            var clipBounds = clip.Bounds;
+            left = Math.Max(left, (int)clipBounds.Left - 1);
+            top = Math.Max(top, (int)clipBounds.Top - 1);
+            right = Math.Min(right, (int)Math.Ceiling(clipBounds.Right) + 1);
+            bottom = Math.Min(bottom, (int)Math.Ceiling(clipBounds.Bottom) + 1);
+        }
+
         if (right <= left || bottom <= top)
         {
             return;

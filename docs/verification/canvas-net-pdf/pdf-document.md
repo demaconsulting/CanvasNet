@@ -2031,6 +2031,7 @@ type 6 patch with the same boundary.
 `PdfDocument_MeshShading_TruncatedData_ThrowsInvalidData`,
 `PdfDocument_MeshShading_PatchCutShort_ThrowsInvalidData`,
 `PdfDocument_MeshShading_BadFlags_ThrowInvalidData`,
+`PdfDocument_MeshShading_Type4_ReservedFlagInInitialTriangleVertices_ThrowsInvalidData`,
 `PdfDocument_MeshShading_Type5_BadLattice_ThrowsInvalidData`,
 `PdfDocument_MeshShading_NotAStream_ThrowsInvalidData`,
 `PdfDocument_MeshShading_IndexedColorSpace_ThrowsUnsupported`,
@@ -2040,7 +2041,8 @@ type 6 patch with the same boundary.
 `PdfDocument_MeshShading_TooMuchRasterWork_ThrowsUnsupported`
 
 Asserts missing or illegal bit sizes, `/Decode`, `/VerticesPerRow`, a non-stream shading,
-truncated records and bad edge flags throw `InvalidDataException`; an Indexed color space and
+truncated records and bad edge flags (including a reserved flag on the 2nd or 3rd vertex of a
+flag-0 type 4 record) throw `InvalidDataException`; an Indexed color space and
 invalid/FunctionType 4 functions throw `Codecs.UnsupportedImageFeatureException`; and the vertex,
 patch and rasterization-work limits throw `Codecs.UnsupportedImageFeatureException` with features
 `pdf-shading-mesh-too-many-vertices`, `pdf-shading-mesh-too-many-patches` and

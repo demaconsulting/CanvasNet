@@ -11,6 +11,32 @@ namespace DemaConsulting.CanvasNet.Tests.Drawing;
 public class ClipMaskTests
 {
     /// <summary>
+    ///     Proves <see cref="ClipMask.Bounds"/> reports the clip path's own whole-pixel bounding
+    ///     box, not the full device extent.
+    /// </summary>
+    [Fact]
+    public void ClipMask_Bounds_SmallRectangle_ReportsPathBoundingBox()
+    {
+        // Arrange: a rectangle from (2.5, 3) to (6, 7) on a 100x100 extent
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(2.5f, 3))
+            .LineTo(new Vector2(6, 3))
+            .LineTo(new Vector2(6, 7))
+            .LineTo(new Vector2(2.5f, 7))
+            .Close()
+            .Build();
+
+        // Act
+        var bounds = ClipMask.FromPath(path, FillRule.NonZero, 100, 100).Bounds;
+
+        // Assert: outward-rounded to whole pixels
+        Assert.Equal(2f, bounds.Left);
+        Assert.Equal(3f, bounds.Top);
+        Assert.Equal(6f, bounds.Right);
+        Assert.Equal(7f, bounds.Bottom);
+    }
+
+    /// <summary>
     ///     Proves that <see cref="ClipMask.FromPath"/> rasterizes an axis-aligned rectangle's
     ///     coverage identically to the way <see cref="PathFiller"/> itself would fill it: fully
     ///     opaque (coverage <c>1f</c>) strictly inside, and zero outside.

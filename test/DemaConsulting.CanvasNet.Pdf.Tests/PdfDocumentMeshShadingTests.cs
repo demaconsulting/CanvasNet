@@ -768,6 +768,19 @@ public class PdfDocumentMeshShadingTests
         Assert.Throws<InvalidDataException>(() => RenderMesh(type, data));
     }
 
+    /// <summary>Proves that a reserved edge flag on the 2nd or 3rd vertex of a flag-0 type 4 record throws <see cref="InvalidDataException"/>.</summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void PdfDocument_MeshShading_Type4_ReservedFlagInInitialTriangleVertices_ThrowsInvalidData(int position)
+    {
+        var second = position == 1 ? 3 : 0;
+        var third = position == 2 ? 3 : 0;
+        var data = Type4(Std, (0, 10, 10, 1, 0, 0), (second, 90, 10, 0, 1, 0), (third, 50, 90, 0, 0, 1));
+
+        Assert.Throws<InvalidDataException>(() => RenderMesh(4, data));
+    }
+
     /// <summary>Proves that invalid type 5 lattice shapes throw <see cref="InvalidDataException"/>.</summary>
     [Theory]
     [InlineData(1, 4)]

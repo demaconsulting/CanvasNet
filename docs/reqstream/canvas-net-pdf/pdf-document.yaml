@@ -1804,6 +1804,7 @@ sections:
               - PdfDocument_MeshShading_TruncatedData_ThrowsInvalidData
               - PdfDocument_MeshShading_PatchCutShort_ThrowsInvalidData
               - PdfDocument_MeshShading_BadFlags_ThrowInvalidData
+              - PdfDocument_MeshShading_Type4_ReservedFlagInInitialTriangleVertices_ThrowsInvalidData
               - PdfDocument_MeshShading_Type5_BadLattice_ThrowsInvalidData
               - PdfDocument_MeshShading_NotAStream_ThrowsInvalidData
               - PdfDocument_MeshShading_IndexedColorSpace_ThrowsUnsupported
