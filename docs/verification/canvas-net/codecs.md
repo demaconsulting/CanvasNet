@@ -3,8 +3,8 @@
 This document describes the subsystem-level verification strategy for the `Codecs` subsystem
 (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, and `GifCodec` units).
 
-Note: SVG rasterization verification was previously modeled as a sixth unit of this subsystem's
-verification, but is now provided by the separate `CanvasNetSvg` system (its own package,
+Note: SVG rasterization verification is not part of this subsystem's verification; it is
+provided by the separate `CanvasNetSvg` system (its own package,
 `DemaConsulting.CanvasNet.Svg`) — see _CanvasNetSvg System Verification Design_
 (`../canvas-net-svg.md`) and _SvgCodec Unit Verification Design_
 (`../canvas-net-svg/svg-codec.md`).

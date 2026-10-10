@@ -25,7 +25,7 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         <c>/DecodeParms</c> stream-decoding pipeline, and image XObjects (<c>Do</c>:
 ///         <c>DCTDecode</c> via <see cref="Codecs.JpegCodec"/>, <c>JPXDecode</c> via
 ///         <see cref="Codecs.Jpeg2000Codec"/>, or raw <c>DeviceGray</c>/
-///         <c>DeviceRGB</c>/<c>DeviceCMYK</c> 8-bit samples, composited through the current
+///         <c>DeviceRGB</c>/<c>DeviceCMYK</c> samples of 1, 2, 4, 8 or 16 bits per component, composited through the current
 ///         transformation matrix).
 ///     </para>
 ///     <para>

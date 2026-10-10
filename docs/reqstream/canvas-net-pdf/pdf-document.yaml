@@ -868,6 +868,11 @@ sections:
               - PdfDocument_Images_DoOperator_DctDecodeJpeg_PlacesExpectedPixels
               - PdfDocument_Images_UnsupportedBitsPerComponent_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Images_RawOneBitGray_UnpacksSamples
+              - PdfDocument_Images_RawOneBitMultiRowPadding_UnpacksEachRowFromItsOwnByte
+              - PdfDocument_Images_RawFourBitRgb_UnpacksComponents
+              - PdfDocument_Images_RawTwoBitRgbTwoRows_PadsEachRow
+              - PdfDocument_Images_RawSixteenBit_UsesHighBytes
+              - PdfDocument_Images_RawFourBitIndexed_LooksUpPalette
               - PdfDocument_Images_RawOneBitTruncated_ThrowsInvalidDataException
               - PdfDocument_Images_IndexedSixteenBit_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException

@@ -795,6 +795,9 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentMeshShadingTests.cs"  # mesh shading unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentJpxTests.cs"  # JPXDecode/SMask unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Jpeg2000Fixtures/gray.jp2"  # gray JPX fixture
+      - "test/DemaConsulting.CanvasNet.Tests/Jpeg2000Fixtures/source_gray.png"  # source pixels of gray.jp2
+      - "test/DemaConsulting.CanvasNet.Tests/JpegFixtures/grayscale_baseline.jpg"  # gray DCT fixture
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfSystemIntegrationTests.cs"  # integration tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfFixtureTests.cs"   # fixture conformance tests
 

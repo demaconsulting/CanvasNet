@@ -941,8 +941,9 @@ public static Jpeg2000Image Decode(byte[] data)
 
 Decodes to a `Jpeg2000Image` exposing `Width`, `Height`, `ColorSpace` (`Gray`, `Srgb`, `Cmyk` or
 `Unknown`), `ColorChannelCount`, 8-bit interleaved `ColorSamples`, optional `AlphaSamples` (with
-`AlphaPremultiplied`), `HasAlpha` (true when `AlphaSamples` is present), the `IccProfile` bytes, the source `BitDepth` of the first color channel
-before 8-bit scaling, and `HasPalette` (whether a JP2 palette was applied to `ColorSamples`).
+`AlphaPremultiplied`), `HasAlpha` (true when `AlphaSamples` is present), the `IccProfile` bytes, the
+source `BitDepth` of the first color channel before 8-bit scaling, and `HasPalette` (whether a JP2
+palette was applied to `ColorSamples`).
 Throws the same exceptions as `Load`.
 
 ##### Jpeg2000Codec.Decode(..., Jpeg2000DecoderLimits limits)

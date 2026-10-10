@@ -572,6 +572,85 @@ public class PdfDocumentJpxTests
         AssertNear(new Rgba32(255, 255, 255, 255), surface[75, 50], 0);
     }
 
+    /// <summary>Proves rows of a sub-byte image are padded to whole bytes independently (width 9, height 2).</summary>
+    [Fact]
+    public void PdfDocument_Images_RawOneBitMultiRowPadding_UnpacksEachRowFromItsOwnByte()
+    {
+        // Row 0: sample 0 white; row 1: sample 8 white (first bit of its second byte). Padding bits are ignored.
+        var image = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 9 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 1",
+            [0x80, 0x00, 0x00, 0x80]);
+        using var surface = Render(image);
+        var black = new Rgba32(0, 0, 0, 255);
+        var white = new Rgba32(255, 255, 255, 255);
+        AssertNear(white, surface[5, 25], 0);
+        AssertNear(black, surface[16, 25], 0);
+        AssertNear(black, surface[94, 25], 0);
+        AssertNear(black, surface[5, 75], 0);
+        AssertNear(black, surface[83, 75], 0);
+        AssertNear(white, surface[94, 75], 0);
+    }
+
+    /// <summary>Proves a 4-bit DeviceRGB base image keeps its three components per pixel.</summary>
+    [Fact]
+    public void PdfDocument_Images_RawFourBitRgb_UnpacksComponents()
+    {
+        var image = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 4",
+            [0xF0, 0x00, 0xFF]);
+        using var surface = Render(image);
+        AssertNear(new Rgba32(255, 0, 0, 255), surface[25, 50], 0);
+        AssertNear(new Rgba32(0, 255, 255, 255), surface[75, 50], 0);
+    }
+
+    /// <summary>Proves a 2-bit DeviceRGB base image is padded per row (3 samples of 2 bits fit in one byte, 2 rows).</summary>
+    [Fact]
+    public void PdfDocument_Images_RawTwoBitRgbTwoRows_PadsEachRow()
+    {
+        // 1 pixel wide: 3 samples x 2 bits = 6 bits, padded to one byte per row (the two padding bits are ignored).
+        var image = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 1 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 2",
+            [0b1100_0011, 0b0011_1100]);
+        using var surface = Render(image);
+        AssertNear(new Rgba32(255, 0, 0, 255), surface[50, 25], 0);
+        AssertNear(new Rgba32(0, 255, 255, 255), surface[50, 75], 0);
+    }
+
+    /// <summary>Proves 16-bit gray and RGB base images keep the high byte of each sample.</summary>
+    [Fact]
+    public void PdfDocument_Images_RawSixteenBit_UsesHighBytes()
+    {
+        var gray = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 16",
+            [0x80, 0xFF, 0x40, 0x00]);
+        using (var surface = Render(gray))
+        {
+            AssertNear(new Rgba32(128, 128, 128, 255), surface[25, 50], 0);
+            AssertNear(new Rgba32(64, 64, 64, 255), surface[75, 50], 0);
+        }
+
+        var rgb = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 16",
+            [0xFF, 0x00, 0x80, 0xAA, 0x00, 0xFF]);
+        using var rgbSurface = Render(rgb);
+        AssertNear(new Rgba32(255, 128, 0, 255), rgbSurface[50, 50], 0);
+    }
+
+    /// <summary>Proves a 4-bit /Indexed image looks up raw nibble indices and pads its row.</summary>
+    [Fact]
+    public void PdfDocument_Images_RawFourBitIndexed_LooksUpPalette()
+    {
+        // Three 4-bit indices (0, 1, 2) in two bytes; the last nibble is row padding.
+        var image = StreamObject(
+            "/Type /XObject /Subtype /Image /Width 3 /Height 1 "
+            + "/ColorSpace [/Indexed /DeviceRGB 2 <FF000000FF000000FF>] /BitsPerComponent 4",
+            [0x01, 0x20]);
+        using var surface = Render(image);
+        AssertNear(new Rgba32(255, 0, 0, 255), surface[16, 50], 0);
+        AssertNear(new Rgba32(0, 255, 0, 255), surface[50, 50], 0);
+        AssertNear(new Rgba32(0, 0, 255, 255), surface[83, 50], 0);
+    }
+
     /// <summary>Proves a truncated sub-byte image fails closed.</summary>
     [Fact]
     public void PdfDocument_Images_RawOneBitTruncated_ThrowsInvalidDataException()

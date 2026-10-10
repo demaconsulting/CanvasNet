@@ -384,7 +384,6 @@ public sealed partial class PdfDocument
             var rawBytes = GetStreamRawBytes(stream);
             var channels = JpegCodec.GetInfo(new MemoryStream(rawBytes)).Channels;
 
-
             // JpegCodec only accepts 1-channel (gray) and 3-channel (YCbCr) JPEGs - a 4-channel
             // (CMYK/YCCK) JPEG already fails closed in GetInfo above - and both decode to exactly
             // their component samples, so the shared /Decode path applies exactly.
@@ -452,7 +451,14 @@ public sealed partial class PdfDocument
         var decodeRanges = ResolveDecodeArray(stream, componentCount, indexed, bitsPerComponent);
         if (decodeRanges is not null)
         {
-            samples = ApplyDecodeArray(samples, componentCount, decodeRanges, indexed, (1 << bitsPerComponent) - 1);
+            if (bitsPerComponent == 8)
+            {
+                // UnpackSamples returns the (possibly cached) decoded stream bytes for 8-bit data;
+                // every other depth already produced a private buffer that can be modified in place.
+                samples = (byte[])samples.Clone();
+            }
+
+            ApplyDecodeArray(samples, componentCount, decodeRanges, indexed, (1 << bitsPerComponent) - 1);
         }
 
         var surface = new Surface(width, height);
@@ -590,7 +596,8 @@ public sealed partial class PdfDocument
         var decodeRanges = ResolveDecodeArray(stream, componentCount, indexed);
         if (decodeRanges is not null)
         {
-            samples = ApplyDecodeArray(samples, componentCount, decodeRanges, indexed);
+            // samples is either the codec result (owned by this call) or an unpremultiplied copy.
+            ApplyDecodeArray(samples, componentCount, decodeRanges, indexed);
         }
 
         var surface = new Surface(jp2.Width, jp2.Height);
@@ -672,16 +679,15 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Applies resolved <c>/Decode</c> ranges to interleaved 8-bit samples:
+    ///     Applies resolved <c>/Decode</c> ranges, in place, to interleaved 8-bit samples:
     ///     <c>v' = Dmin + (v / 255) * (Dmax - Dmin)</c> per component, re-quantized to 8 bits
     ///     (for a non-<c>/Indexed</c> space the decode range is <c>[0, 1]</c>-normalized; for
     ///     <c>/Indexed</c> it is in palette-index units).
     /// </summary>
-    private static byte[] ApplyDecodeArray(
+    private static void ApplyDecodeArray(
         byte[] samples, int componentCount, double[] ranges, bool indexed, int indexedMaxSample = 255)
     {
         var maxSample = indexed ? indexedMaxSample : 255;
-        var result = new byte[samples.Length];
         for (var i = 0; i < samples.Length; i++)
         {
             var component = i % componentCount;
@@ -689,10 +695,8 @@ public sealed partial class PdfDocument
             var max = ranges[(2 * component) + 1];
             var value = min + (samples[i] / (double)maxSample * (max - min));
             var scaled = indexed ? value : value * 255.0;
-            result[i] = (byte)Math.Clamp((int)Math.Round(scaled), 0, 255);
+            samples[i] = (byte)Math.Clamp((int)Math.Round(scaled), 0, 255);
         }
-
-        return result;
     }
 
     /// <summary>
@@ -718,7 +722,7 @@ public sealed partial class PdfDocument
             }
         }
 
-        samples = ApplyDecodeArray(samples, channels, ranges, indexed: false);
+        ApplyDecodeArray(samples, channels, ranges, indexed: false);
         index = 0;
         for (var y = 0; y < surface.Height; y++)
         {
@@ -848,7 +852,7 @@ public sealed partial class PdfDocument
         var decodeRanges = ResolveDecodeArray(stream, 1, indexed);
         if (decodeRanges is not null)
         {
-            decoded = ApplyDecodeArray(decoded, 1, decodeRanges, indexed);
+            ApplyDecodeArray(decoded, 1, decodeRanges, indexed);
         }
 
         var surface = new Surface(columns, rows);

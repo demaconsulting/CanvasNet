@@ -12,8 +12,8 @@ decode-only — it loads a `Surface` from the first frame of a GIF file but has 
 `Jpeg2000Codec` is likewise decode-only — it loads a `Surface` from a JPEG 2000 (JP2 or raw
 codestream) image and also exposes the decoded color space and opacity channel via `Decode`.
 
-Note: SVG rasterization was previously modeled as a sixth unit of this subsystem, but is now
-provided by the separate `CanvasNetSvg` system (its own package, `DemaConsulting.CanvasNet.Svg`)
+Note: SVG rasterization is not part of this subsystem; it is provided by the separate
+`CanvasNetSvg` system (its own package, `DemaConsulting.CanvasNet.Svg`)
 — see _CanvasNetSvg System Design_ (`../canvas-net-svg.md`) and _SvgCodec Unit Design_
 (`../canvas-net-svg/svg-codec.md`).
 
