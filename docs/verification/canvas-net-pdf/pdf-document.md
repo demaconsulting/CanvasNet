@@ -1103,10 +1103,11 @@ proving every bit depth flows through the shared sample path instead of failing 
 #### CanvasNetPdf-PdfDocument-ImageSoftMaskInvalid: Invalid /SMask Entries Fail Closed
 
 **Tests**: `PdfDocument_Images_SMaskNotAStream_ThrowsInvalidDataException`,
+`PdfDocument_Images_SMaskNotImageSubtype_ThrowsInvalidDataException`,
 `PdfDocument_Images_SMaskNotGray_ThrowsInvalidDataException`
 
-An `/SMask` referring to a plain dictionary and an `/SMask` image in `DeviceRGB` each assert
-`InvalidDataException`.
+An `/SMask` referring to a plain dictionary, an `/SMask` stream whose `/Subtype` is not `/Image`
+(a gray `/Form` stream), and an `/SMask` image in `DeviceRGB` each assert `InvalidDataException`.
 
 #### CanvasNetPdf-PdfDocument-ImageDecodeArray: /Decode Applies to Every Sample Encoding
 

@@ -312,6 +312,11 @@ public sealed partial class PdfDocument
                 throw new InvalidDataException("Image XObject /SMask must be an image XObject stream.");
             }
 
+            if (GetNameValue(softMask, "Subtype") != "Image")
+            {
+                throw new InvalidDataException("Image XObject /SMask must be an image XObject (/Subtype /Image).");
+            }
+
             // The soft-mask image is decoded through exactly the same sample pipeline (including
             // JPXDecode and /Decode) but its own /SMask, if any, is never consulted (no nested masks).
             var mask = DecodeImageSamples(softMask);

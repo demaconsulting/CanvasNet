@@ -411,6 +411,17 @@ public class PdfDocumentJpxTests
         Assert.Throws<InvalidDataException>(() => Render(image, "<< /Type /XObject >>"u8.ToArray()));
     }
 
+    /// <summary>Proves an /SMask stream lacking /Subtype /Image fails closed.</summary>
+    [Fact]
+    public void PdfDocument_Images_SMaskNotImageSubtype_ThrowsInvalidDataException()
+    {
+        var image = RawGrayImage("/SMask 6 0 R", [255]);
+        var mask = StreamObject(
+            "/Type /XObject /Subtype /Form /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8",
+            [64]);
+        Assert.Throws<InvalidDataException>(() => Render(image, mask));
+    }
+
     /// <summary>Proves a non-gray /SMask image fails closed.</summary>
     [Fact]
     public void PdfDocument_Images_SMaskNotGray_ThrowsInvalidDataException()

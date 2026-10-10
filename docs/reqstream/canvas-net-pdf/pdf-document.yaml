@@ -901,7 +901,7 @@ sections:
           - id: CanvasNetPdf-PdfDocument-ImageSoftMaskInvalid
             title: >-
               The PdfDocument class shall throw InvalidDataException for an image XObject
-              /SMask that is not an image XObject stream or whose image is not a
+              /SMask that is not a stream with /Subtype /Image or whose image is not a
               single-component, non-Indexed (gray) image.
             justification: |
               A soft mask is defined as a DeviceGray image; reading the red channel of an
@@ -909,6 +909,7 @@ sections:
               renderer fails closed instead.
             tests:
               - PdfDocument_Images_SMaskNotAStream_ThrowsInvalidDataException
+              - PdfDocument_Images_SMaskNotImageSubtype_ThrowsInvalidDataException
               - PdfDocument_Images_SMaskNotGray_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-ImageDecodeArray
