@@ -14,7 +14,7 @@ sections:
                 title: >-
                   The Jpeg2000Codec class shall load a Surface from a JPEG 2000 JP2 file or raw
                   codestream, supplied as a stream or a file path, converting the decoded
-                  component samples to 8-bit RGBA pixels (grey expanded to RGB, CMYK converted to
+                  component samples to 8-bit RGBA pixels (gray expanded to RGB, CMYK converted to
                   RGB, an opacity channel mapped to alpha).
                 justification: |
                   Callers need to import existing JPEG 2000 images as pixel buffers for further

@@ -459,7 +459,7 @@ public static partial class Jpeg2000Codec
         CheckColorChannelCount(color.Count, expected);
 
         // Heuristic, documented: only when the file carries no color specification at all (a raw codestream, or a
-        // JP2 file without a usable colr box) are one, three and four color channels taken as grey, RGB and CMYK.
+        // JP2 file without a usable colr box) are one, three and four color channels taken as gray, RGB and CMYK.
         space = InferUnspecifiedColorSpace(jp2, space, color.Count);
 
         if (color.Count is not (1 or 3 or 4))

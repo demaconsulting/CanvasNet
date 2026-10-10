@@ -8,7 +8,7 @@ public enum Jpeg2000ColorSpace
     /// <summary>The color space is not one of the well-known ones; the channel count describes the layout.</summary>
     Unknown = 0,
 
-    /// <summary>A single grey channel.</summary>
+    /// <summary>A single gray channel.</summary>
     Gray = 1,
 
     /// <summary>Three channels in red, green, blue order (sYCC data is converted to this).</summary>

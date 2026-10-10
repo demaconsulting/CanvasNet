@@ -47,7 +47,7 @@ public static partial class Jpeg2000Codec
     ///     The stream to read from. Reading begins at the current position and consumes the remainder of the stream.
     /// </param>
     /// <returns>
-    ///     A new <see cref="Surface"/>. Grey images are expanded to R=G=B, CMYK images are converted to RGB with
+    ///     A new <see cref="Surface"/>. Gray images are expanded to R=G=B, CMYK images are converted to RGB with
     ///     a simple device conversion, and images without alpha are fully opaque.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>

@@ -35,7 +35,7 @@ The class is a `static` partial class. The public surface lives in
 
 #### Public API
 
-- `Load(Stream)` / `Load(string)` decode to a `Surface` (grey expanded to RGB, CMYK converted to
+- `Load(Stream)` / `Load(string)` decode to a `Surface` (gray expanded to RGB, CMYK converted to
   RGB, alpha preserved).
 - `GetInfo(Stream)` / `GetInfo(string)` return an `ImageInfo` from the container and SIZ header
   only, without decoding and without enforcing `Surface.MaxDimension`. They read incrementally

@@ -36,7 +36,7 @@ in-house types.
 **Tests**: `Jpeg2000Codec_Load_Stream_ReturnsPixels`, `Jpeg2000Codec_Load_Grey_ExpandsToRgb`,
 `Jpeg2000Codec_Load_Alpha_PopulatesAlpha`, `Jpeg2000Codec_Load_Path_ReturnsPixels`
 
-Loads encoded images from a stream and a file path and checks the pixels, grey-to-RGB expansion
+Loads encoded images from a stream and a file path and checks the pixels, gray-to-RGB expansion
 and alpha. Jpeg2000Codec_Load_RealEncoderLosslessFixture_MatchesSourcePixelsExactly loads each
 real-encoder lossless fixture and requires pixel-exact equality with its source PNG, and
 Jpeg2000Codec_Load_RealEncoderLossyFixture_HasAcceptablePsnr requires at least 30 dB PSNR for the
