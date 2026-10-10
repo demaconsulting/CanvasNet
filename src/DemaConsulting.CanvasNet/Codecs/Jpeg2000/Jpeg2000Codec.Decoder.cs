@@ -74,7 +74,7 @@ public static partial class Jpeg2000Codec
         {
             var td = cs.Tiles[i];
             DecodeTile(siz, td, i, planes, tier1, budget, limits);
-            td.Body.SetLength(0);
+            td.Release();
         }
 
         return Assemble(siz, jp2, layout, planes);
@@ -115,12 +115,14 @@ public static partial class Jpeg2000Codec
         SizInfo siz, TileData td, int index, ushort[][] planes, Tier1Decoder tier1, DecodeBudget budget, Jpeg2000DecoderLimits limits)
     {
         var st = td.State!;
-        var bodyBytes = td.Body.ToArray();
-        var packedBytes = td.UsesPackedHeaders ? td.PackedHeaders.ToArray() : null;
-        var packetBits = 8L * (bodyBytes.Length + (packedBytes?.Length ?? 0));
+        var body = ByteCursor.FromStream(td.Body);
+        var packed = td.UsesPackedHeaders ? ByteCursor.FromStream(td.PackedHeaders) : null;
+        var packetBits = 8L * (body.End + (packed?.End ?? 0));
         var tile = BuildTile(siz, st, index, limits, packetBits);
-        var body = new ByteCursor(bodyBytes);
-        ReadTilePackets(tile, st, siz, body, packedBytes is null ? body : new ByteCursor(packedBytes), budget);
+        ReadTilePackets(tile, st, siz, body, packed ?? body, budget);
+
+        // The packets are consumed; free the tile's buffers before the (large) sample reconstruction.
+        td.Release();
 
         var count = tile.Comps.Length;
         var ints = new int[count][];

@@ -196,6 +196,13 @@ streams and decoding them with ImageMagick) or the standard leaves the behavior 
   headers is accepted.
 - SOP markers are not required to be present or numbered in sequence, and truncated tile data is
   never decoded leniently (it is InvalidDataException).
+- Bytes remaining after a tile's last packet are ignored rather than rejected (matches OpenJPEG).
+- POC entries from later tile-parts are appended to the tile's progression list in tile-part order,
+  as the standard specifies (covered by `Jpeg2000Codec_Decode_PocInLaterTilePart_RoundTripsExactly`).
+- Memory: tile-part bodies (and PPM/PPT packed headers) are gathered per tile in `MemoryStream`s
+  while parsing. The decoder reads them in place through `ByteCursor.FromStream`
+  (`GetBuffer` plus the stream length), so no second copy is made, and `TileData.Release` drops
+  each tile's buffers as soon as its packets have been read.
 - GetInfo reads incrementally and never buffers the stream: for a raw codestream it reads the SOC
   and SIZ marker segments (at most 65,539 bytes); for JP2 it walks the box headers, reads the `jp2h`
   box whole (it is small) and stops after the SOC and SIZ segments at the start of the `jp2c` box.

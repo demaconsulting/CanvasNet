@@ -816,10 +816,17 @@ public static partial class Jpeg2000Codec
         public CodingState? State { get; set; }
 
         /// <summary>Gets the concatenated tile-part bodies.</summary>
-        public MemoryStream Body { get; } = new();
+        public MemoryStream Body { get; private set; } = new();
 
         /// <summary>Gets the concatenated packed packet headers (from PPM/PPT).</summary>
-        public MemoryStream PackedHeaders { get; } = new();
+        public MemoryStream PackedHeaders { get; private set; } = new();
+
+        /// <summary>Drops the buffered tile-part bodies and packed headers so they can be collected.</summary>
+        public void Release()
+        {
+            Body = new MemoryStream(0);
+            PackedHeaders = new MemoryStream(0);
+        }
 
         /// <summary>Gets or sets a value indicating whether packed packet headers are in use.</summary>
         public bool UsesPackedHeaders { get; set; }

@@ -19,10 +19,23 @@ public static partial class Jpeg2000Codec
         /// <summary>Initializes a new instance of the <see cref="ByteCursor"/> class.</summary>
         /// <param name="data">The backing array.</param>
         public ByteCursor(byte[] data)
+            : this(data, data.Length)
+        {
+        }
+
+        /// <summary>Initializes a new instance of the <see cref="ByteCursor"/> class over a prefix of an array.</summary>
+        /// <param name="data">The backing array.</param>
+        /// <param name="length">The number of valid bytes at the start of the array.</param>
+        public ByteCursor(byte[] data, int length)
         {
             Data = data;
-            End = data.Length;
+            End = length;
         }
+
+        /// <summary>Creates a cursor over the written bytes of a stream without copying them.</summary>
+        /// <param name="stream">A stream created with its own expandable buffer.</param>
+        /// <returns>The cursor.</returns>
+        public static ByteCursor FromStream(MemoryStream stream) => new(stream.GetBuffer(), (int)stream.Length);
 
         /// <summary>Gets the backing array.</summary>
         public byte[] Data { get; }
