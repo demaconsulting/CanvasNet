@@ -204,8 +204,14 @@ streams and decoding them with ImageMagick) or the standard leaves the behavior 
   (`GetBuffer` plus the stream length), so no second copy is made, and `TileData.Release` drops
   each tile's buffers as soon as its packets have been read.
 - GetInfo reads incrementally and never buffers the stream: for a raw codestream it reads the SOC
-  and SIZ marker segments (at most 65,539 bytes); for JP2 it walks the box headers, reads the `jp2h`
-  box whole (it is small) and stops after the SOC and SIZ segments at the start of the `jp2c` box.
+  and SIZ marker segments (at most 65,539 bytes); for JP2 it walks the box headers and walks the
+  children of `jp2h` one by one (the superbox itself is never buffered, so a hostile declared
+  length costs nothing): only child headers and the boxes the parsers interpret (`colr`, `pclr`,
+  `cmap`, `cdef`) are read, each bounded to 1 MiB (the largest valid palette is about 510 KiB, so a
+  larger one is `InvalidDataException`), `colr` is read for its first 256 bytes only (an ICC
+  profile needs just its 128-byte header to classify the color space; a METH 1 box longer than that
+  is malformed anyway), and every other child (`ihdr`, `bpcc`, `res`, unknown) is skipped. It stops after the SOC and SIZ
+  segments at the start of the `jp2c` box.
   The existing box and marker parsers run on the bytes read. Boxes before `jp2c` that are not
   needed are skipped by `Seek` when the stream is seekable and read and discarded in 8 KiB chunks
   otherwise (so a huge skipped box is read on a non-seekable stream, but never buffered). The
@@ -214,6 +220,16 @@ streams and decoding them with ImageMagick) or the standard leaves the behavior 
   consumed. Because the rest of the stream is not read, a codestream box that is longer than the
   data (a truncated file) is only detected on seekable streams; `Load` and `Decode` still buffer
   the whole input and reject it.
+- ICC profiles: the `colr` METH 2 payload is held as a `ReadOnlyMemory<byte>` slice of the
+  already-buffered input while the container is parsed, so no copy is made (and none before limits
+  are checked). `Jpeg2000Image.IccProfile` keeps its `byte[]?` type (the PDF project may read it) and
+  the one copy is made when the image is built, after the decode has succeeded. No
+  `Jpeg2000DecoderLimits` member was added: the profile lies inside the input, which
+  `MaxInputBytes` already bounds, so a cap could only reject files that are valid; a profile is
+  therefore never rejected or dropped for its size. `GetInfo` keeps only the leading bytes.
+- A `cmap` box without a `pclr` box is ignored: component mapping only applies to a palette
+  (ISO 15444-1 I.5.3.5), and OpenJPEG does likewise. The reverse, a `pclr` without `cmap`, is
+  `InvalidDataException`. Pinned by `Jpeg2000Codec_Decode_CmapWithoutPclr_IsIgnored`.
 - Marker precedence follows ITU-T T.800 A.6.2 and A.6.4: a tile-part COC beats a tile-part COD,
   which beats a main COC, which beats the main COD (QCC/QCD likewise). `CloneForTile` therefore
   starts each tile from the main state, and a tile COD or QCD replaces the inherited parameters of

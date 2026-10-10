@@ -1,4 +1,5 @@
 // cspell:ignore bypass termall vcausal segsym pterm ppm ppt tlm plt crg poc cprl rpcl pcrl rlcp lrcp sop eph pclr cmap cdef bpcc colr
+using System.Buffers.Binary;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
@@ -1236,6 +1237,9 @@ public class Jpeg2000CodecTests
 
         public long BytesConsumed { get; private set; }
 
+        /// <summary>Gets the largest single read requested, which bounds the buffer a caller allocates at once.</summary>
+        public int MaxReadRequest { get; private set; }
+
         public override bool CanRead => true;
 
         public override bool CanSeek => seekable;
@@ -1252,6 +1256,7 @@ public class Jpeg2000CodecTests
 
         public override int Read(byte[] buffer, int offset, int count)
         {
+            MaxReadRequest = Math.Max(MaxReadRequest, count);
             var n = _inner.Read(buffer, offset, count);
             BytesConsumed += n;
             return n;
@@ -1345,6 +1350,114 @@ public class Jpeg2000CodecTests
         var data = jp2[..20];
         using var stream = new CountingStream(data, seekable);
         Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.GetInfo(stream));
+    }
+
+    /// <summary>Returns a copy of a JP2 file with a box inserted at the start of its <c>jp2h</c> content.</summary>
+    private static byte[] InsertIntoJp2h(byte[] jp2, byte[] box, uint? declaredJp2hLength = null)
+    {
+        var jp2hStart = 12 + (int)BinaryPrimitives.ReadUInt32BigEndian(jp2.AsSpan(12));
+        var jp2hLength = BinaryPrimitives.ReadUInt32BigEndian(jp2.AsSpan(jp2hStart));
+        var result = jp2[..(jp2hStart + 8)].Concat(box).Concat(jp2[(jp2hStart + 8)..]).ToArray();
+        BinaryPrimitives.WriteUInt32BigEndian(result.AsSpan(jp2hStart), declaredJp2hLength ?? (jp2hLength + (uint)box.Length));
+        return result;
+    }
+
+    /// <summary>Builds a <c>free</c> box of the given total length.</summary>
+    private static byte[] FreeBox(int length)
+    {
+        var box = new byte[length];
+        BinaryPrimitives.WriteUInt32BigEndian(box, (uint)length);
+        "free"u8.CopyTo(box.AsSpan(4));
+        return box;
+    }
+
+    /// <summary>Tests that a large ICC profile in colr is never buffered by GetInfo and the result matches the small-profile case.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Jpeg2000Codec_GetInfo_LargeIccProfile_IsNotBuffered(bool seekable)
+    {
+        var image = Img(11, 12, 3);
+        var codestream = Encode(image, Rev(1));
+        var small = Jpeg2000TestEncoder.WrapJp2(image, codestream, new J2kJp2Options { Icc = IccHeader(64) });
+        var large = Jpeg2000TestEncoder.WrapJp2(image, codestream, new J2kJp2Options { Icc = IccHeader(ProbeTrailer) });
+        var expected = Jpeg2000Codec.GetInfo(new MemoryStream(small));
+        using var stream = new CountingStream(large, seekable);
+        Assert.Equal(expected, Jpeg2000Codec.GetInfo(stream));
+        Assert.True(stream.MaxReadRequest <= 70000);
+        if (seekable)
+        {
+            Assert.InRange(stream.BytesConsumed, 1, 70000);
+        }
+    }
+
+    private static byte[] IccHeader(int length)
+    {
+        var icc = new byte[length];
+        "RGB "u8.CopyTo(icc.AsSpan(16));
+        return icc;
+    }
+
+    /// <summary>Tests that a large unrelated box inside jp2h is skipped, not buffered, and gives the same result.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Jpeg2000Codec_GetInfo_LargeBoxInsideJp2h_IsNotBuffered(bool seekable)
+    {
+        var image = Img(11, 12, 4);
+        var jp2 = Jpeg2000TestEncoder.WrapJp2(
+            image,
+            Encode(image, Rev(1)),
+            new J2kJp2Options { Cdef = [(0, 0, 1), (1, 0, 2), (2, 0, 3), (3, 1, 0)] });
+        var expected = Jpeg2000Codec.GetInfo(new MemoryStream(jp2));
+        using var stream = new CountingStream(InsertIntoJp2h(jp2, FreeBox(ProbeTrailer)), seekable);
+        Assert.Equal(expected, Jpeg2000Codec.GetInfo(stream));
+        Assert.True(stream.MaxReadRequest <= 70000);
+        if (seekable)
+        {
+            Assert.InRange(stream.BytesConsumed, 1, 70000);
+        }
+    }
+
+    /// <summary>Tests that a hostile jp2h length far beyond the data is rejected without reading or allocating it.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Jpeg2000Codec_GetInfo_HostileJp2hLength_ThrowsInvalidDataWithBoundedReads(bool seekable)
+    {
+        var image = Img(11, 12, 3);
+        var jp2 = Jpeg2000TestEncoder.WrapJp2(image, Encode(image, Rev(1)), new J2kJp2Options());
+        var hostile = InsertIntoJp2h(jp2, [], 200u * 1024 * 1024);
+        using var stream = new CountingStream(hostile, seekable);
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.GetInfo(stream));
+        Assert.True(stream.MaxReadRequest <= 70000);
+        Assert.True(stream.BytesConsumed <= hostile.Length);
+    }
+
+    /// <summary>Tests that an oversized palette box inside jp2h is rejected rather than buffered.</summary>
+    [Fact]
+    public void Jpeg2000Codec_GetInfo_OversizedPaletteBox_ThrowsInvalidData()
+    {
+        var image = Img(11, 12, 3);
+        var jp2 = Jpeg2000TestEncoder.WrapJp2(image, Encode(image, Rev(1)), new J2kJp2Options());
+        var box = FreeBox(2 * 1024 * 1024);
+        "pclr"u8.CopyTo(box.AsSpan(4));
+        using var stream = new CountingStream(InsertIntoJp2h(jp2, box), true);
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.GetInfo(stream));
+        Assert.InRange(stream.BytesConsumed, 1, 70000);
+    }
+
+    /// <summary>Tests that a component-mapping box without a palette box is ignored (ISO 15444-1 I.5.3.5; as OpenJPEG).</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_CmapWithoutPclr_IsIgnored()
+    {
+        var image = Img(10, 10, 3);
+        var codestream = Encode(image, Rev(1));
+        var plain = Jpeg2000Codec.Decode(Jpeg2000TestEncoder.WrapJp2(image, codestream, new J2kJp2Options { EnumCs = 16 }));
+        var withCmap = Jpeg2000Codec.Decode(
+            Jpeg2000TestEncoder.WrapJp2(image, codestream, new J2kJp2Options { EnumCs = 16, Cmap = [(2, 0, 0), (1, 0, 0), (0, 0, 0)] }));
+        Assert.Equal(3, withCmap.ColorChannelCount);
+        Assert.Equal(plain.ColorSamples, withCmap.ColorSamples);
     }
 
     /// <summary>Tests that a seekable stream above the input cap is rejected by GetInfo as before.</summary>

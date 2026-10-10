@@ -155,6 +155,7 @@ sections:
                   - Jpeg2000Codec_Decode_Jp2Cdef_ProducesAlpha
                   - Jpeg2000Codec_Decode_Jp2CdefReorder_SwapsChannels
                   - Jpeg2000Codec_Decode_TwoComponentsWithoutCdef_DecodesAsGrey
+                  - Jpeg2000Codec_Decode_CmapWithoutPclr_IsIgnored
 
               - id: CanvasNet-Codecs-Jpeg2000Codec-GetInfo
                 title: >-
@@ -173,6 +174,10 @@ sections:
                   - Jpeg2000Codec_GetInfo_RawCodestream_ReadsOnlyHeaderPrefix
                   - Jpeg2000Codec_GetInfo_Jp2_ReadsOnlyHeaderPrefix
                   - Jpeg2000Codec_GetInfo_LargeSkippedBox_SeekOrDiscard
+                  - Jpeg2000Codec_GetInfo_LargeIccProfile_IsNotBuffered
+                  - Jpeg2000Codec_GetInfo_LargeBoxInsideJp2h_IsNotBuffered
+                  - Jpeg2000Codec_GetInfo_HostileJp2hLength_ThrowsInvalidDataWithBoundedReads
+                  - Jpeg2000Codec_GetInfo_OversizedPaletteBox_ThrowsInvalidData
                   - Jpeg2000Codec_GetInfo_TruncatedBox_ThrowsInvalidData
                   - Jpeg2000Codec_GetInfo_SeekableAboveInputCap_ThrowsInvalidData
 

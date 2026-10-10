@@ -54,8 +54,11 @@ public static partial class Jpeg2000Codec
         /// <summary>Gets or sets the enumerated color space, or -1 when none was specified.</summary>
         public int EnumCs { get; set; } = -1;
 
-        /// <summary>Gets or sets the embedded ICC profile, if any.</summary>
-        public byte[]? IccProfile { get; set; }
+        /// <summary>
+        ///     Gets or sets the embedded ICC profile, if any, as a slice of the already-buffered input (no copy is
+        ///     made until the public image is built). For <c>GetInfo</c> it holds only the leading bytes that were read.
+        /// </summary>
+        public ReadOnlyMemory<byte>? IccProfile { get; set; }
 
         /// <summary>Gets or sets the palette, if any.</summary>
         public PaletteInfo? Palette { get; set; }
@@ -188,33 +191,38 @@ public static partial class Jpeg2000Codec
         for (var count = 0; count < MaxBoxes && pos < end; count++)
         {
             var box = ReadBoxHeader(data, pos, end);
-            switch (box.Type)
-            {
-                case BoxColr:
-                    ParseColr(data, box, info);
-                    break;
-                case BoxPclr:
-                    info.Palette ??= ParsePalette(data, box);
-                    break;
-                case BoxCmap:
-                    if (info.Mappings.Count == 0)
-                    {
-                        ParseCmap(data, box, info);
-                    }
-
-                    break;
-                case BoxCdef:
-                    if (info.Definitions.Count == 0)
-                    {
-                        ParseCdef(data, box, info);
-                    }
-
-                    break;
-                default:
-                    break;
-            }
-
+            ParseHeaderChild(data, box, info);
             pos = box.End;
+        }
+    }
+
+    /// <summary>Interprets one child box of <c>jp2h</c> (the first of each kind wins); other boxes are ignored.</summary>
+    private static void ParseHeaderChild(byte[] data, BoxHeader box, Jp2Info info)
+    {
+        switch (box.Type)
+        {
+            case BoxColr:
+                ParseColr(data, box, info);
+                break;
+            case BoxPclr:
+                info.Palette ??= ParsePalette(data, box);
+                break;
+            case BoxCmap:
+                if (info.Mappings.Count == 0)
+                {
+                    ParseCmap(data, box, info);
+                }
+
+                break;
+            case BoxCdef:
+                if (info.Definitions.Count == 0)
+                {
+                    ParseCdef(data, box, info);
+                }
+
+                break;
+            default:
+                break;
         }
     }
 
@@ -247,9 +255,7 @@ public static partial class Jpeg2000Codec
         }
         else if (method == 2)
         {
-            var profile = new byte[box.End - body];
-            Array.Copy(data, body, profile, 0, profile.Length);
-            info.IccProfile = profile;
+            info.IccProfile = new ReadOnlyMemory<byte>(data, body, box.End - body);
         }
     }
 
@@ -505,7 +511,7 @@ public static partial class Jpeg2000Codec
 
         if (jp2.IccProfile is { Length: >= 20 } icc)
         {
-            return System.Text.Encoding.ASCII.GetString(icc, 16, 4) switch
+            return System.Text.Encoding.ASCII.GetString(icc.Span.Slice(16, 4)) switch
             {
                 "GRAY" => Jpeg2000ColorSpace.Gray,
                 "RGB " => Jpeg2000ColorSpace.Srgb,

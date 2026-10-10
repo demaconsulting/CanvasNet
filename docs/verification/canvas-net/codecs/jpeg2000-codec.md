@@ -100,7 +100,8 @@ Checks enumerated color spaces, sYCC conversion, ICC profile reporting, box leng
 palettes, and channel definitions (alpha and reordering). `_Jp2BadSignatureContent` proves a
 signature box whose content is not `0D 0A 87 0A` is rejected with `InvalidDataException`, and
 `_Jp2SignedPaletteColumn` proves a palette column with the signed flag set is rejected with
-`UnsupportedImageFeatureException`.
+`UnsupportedImageFeatureException`. `Jpeg2000Codec_Decode_CmapWithoutPclr_IsIgnored` proves a `cmap`
+box without a `pclr` box does not remap channels.
 
 ##### CanvasNet-Codecs-Jpeg2000Codec-GetInfo: Header-Only Information
 
@@ -113,7 +114,12 @@ Jpeg2000Codec_GetInfo_RealEncoderFixtures_ReportDimensions for real-encoder file
 `_ReadsOnlyHeaderPrefix` tests wrap a raw codestream and a JP2 file followed by a 4 MiB payload in a
 byte-counting stream (seekable and non-seekable) and require that fewer than 70,000 bytes are read;
 `_LargeSkippedBox_SeekOrDiscard` puts a 4 MiB box before the codestream box (skipped by seeking,
-or discarded when the stream cannot seek); `_TruncatedBox` and `_SeekableAboveInputCap` pin the
+or discarded when the stream cannot seek); `_LargeIccProfile_IsNotBuffered` and
+`_LargeBoxInsideJp2h_IsNotBuffered` (seekable and non-seekable) put a 4 MiB ICC `colr` box or `free`
+box inside `jp2h` and require identical results with no single read above 70,000 bytes (and, when
+seekable, fewer than 70,000 bytes consumed); `_HostileJp2hLength` declares a 200 MiB `jp2h` and
+`_OversizedPaletteBox` a 2 MiB `pclr`, both rejected with `InvalidDataException` and bounded reads;
+`_TruncatedBox` and `_SeekableAboveInputCap` pin the
 error behavior.
 
 ##### CanvasNet-Codecs-Jpeg2000Codec-ArgumentValidation: Argument Validation

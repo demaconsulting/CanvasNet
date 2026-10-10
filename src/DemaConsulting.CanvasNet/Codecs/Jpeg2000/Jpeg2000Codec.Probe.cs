@@ -13,6 +13,16 @@ public static partial class Jpeg2000Codec
     private const int DiscardChunk = 8192;
 
     /// <summary>
+    ///     The most bytes read for one <c>jp2h</c> child box. The largest valid child is a palette
+    ///     (3 + 255 + 1024 x 255 x 2 = about 510 KiB), so no valid file exceeds this; a larger palette, component
+    ///     mapping or channel definition box is malformed, and a larger color specification box is only read in part.
+    /// </summary>
+    private const int MaxProbeChildBytes = 1024 * 1024;
+
+    /// <summary>The leading bytes of a <c>colr</c> box that are read: the method, two reserved bytes, and the start of the ICC profile.</summary>
+    private const int ProbeColrBytes = 256;
+
+    /// <summary>
     ///     A forward-only view of the stream that counts the bytes consumed and enforces the input-size cap
     ///     (<see cref="Jpeg2000DecoderLimits.MaxInputBytes"/>) without ever buffering more than the caller asks for.
     /// </summary>
@@ -190,14 +200,8 @@ public static partial class Jpeg2000Codec
 
             if (header.Type == BoxJp2Header)
             {
-                // The header box is small; it is read whole and parsed by the shared parser.
-                var content = reader.Read(contentLength);
-                if (!toEnd && content.Length != contentLength)
-                {
-                    throw Malformed("invalid box length.");
-                }
-
-                ParseHeaderBoxes(content, 0, content.Length, info);
+                // The header box is walked child by child: only the child headers and the small boxes are read.
+                ProbeHeaderBox(reader, contentLength, toEnd, info);
                 if (toEnd)
                 {
                     break;
@@ -250,5 +254,75 @@ public static partial class Jpeg2000Codec
         toEnd = head.Length >= 4 && ReadBe32(head, 0) == 0;
         var box = ReadBoxHeader(head, 0, (int)Math.Min(limit, int.MaxValue));
         return box;
+    }
+
+    /// <summary>
+    ///     Walks the children of the <c>jp2h</c> superbox without buffering it: each child header is read, the boxes
+    ///     the shared parsers interpret are read (bounded by <see cref="MaxProbeChildBytes"/>) and parsed, and every
+    ///     other box is skipped. A <c>colr</c> box is read only for its leading bytes, so a large ICC profile is
+    ///     never buffered (only the profile header is needed to classify the color space).
+    /// </summary>
+    /// <param name="reader">The probe reader positioned at the first child box.</param>
+    /// <param name="contentLength">The declared content length of <c>jp2h</c>, or the most the stream can hold when <paramref name="toEnd"/>.</param>
+    /// <param name="toEnd">Whether the <c>jp2h</c> box extends to the end of the data.</param>
+    /// <param name="info">Receives the parsed information.</param>
+    private static void ProbeHeaderBox(ProbeReader reader, int contentLength, bool toEnd, Jp2Info info)
+    {
+        var left = (long)contentLength;
+        if (toEnd)
+        {
+            left = reader.Remaining >= 0 ? reader.Remaining : reader.CapLeft;
+        }
+
+        for (var count = 0; count < MaxBoxes && left > 0; count++)
+        {
+            var head = reader.Read(8);
+            if (head.Length == 8 && ReadBe32(head, 0) == 1)
+            {
+                var extra = reader.Read(8);
+                var both = new byte[8 + extra.Length];
+                head.CopyTo(both, 0);
+                extra.CopyTo(both, 8);
+                head = both;
+            }
+
+            if (head.Length == 0 && toEnd)
+            {
+                return;
+            }
+
+            var truncated = head.Length < 8 || (head.Length < 16 && ReadBe32(head, 0) == 1);
+            var box = ReadBoxHeader(head, 0, (int)(truncated ? head.Length : Math.Min(left, int.MaxValue)));
+            var content = box.End - box.ContentStart;
+            left -= box.End;
+
+            var read = box.Type switch
+            {
+                BoxColr => Math.Min(content, ProbeColrBytes),
+                BoxPclr or BoxCmap or BoxCdef => content <= MaxProbeChildBytes ? content : throw Malformed("header box is too large."),
+                _ => 0,
+            };
+
+            if (box.Type is BoxColr or BoxPclr or BoxCmap or BoxCdef)
+            {
+                var body = reader.Read(read);
+                if (body.Length != read)
+                {
+                    throw Malformed("invalid box length.");
+                }
+
+                if (box.Type == BoxColr && content > read && body[0] == 1)
+                {
+                    throw Malformed("color specification box has an invalid length.");
+                }
+
+                ParseHeaderChild(body, new BoxHeader(box.Type, 0, body.Length), info);
+            }
+
+            if (content > read && !reader.Skip(content - read))
+            {
+                throw Malformed("invalid box length.");
+            }
+        }
     }
 }
