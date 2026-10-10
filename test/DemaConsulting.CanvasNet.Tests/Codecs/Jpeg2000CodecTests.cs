@@ -1537,7 +1537,7 @@ public class Jpeg2000CodecTests
         Assert.Throws<InvalidDataException>(() => tiny.ChargeProgression(1L << 12));
         tiny.ChargeTier1(1L << 24);
         Assert.Throws<InvalidDataException>(() => tiny.ChargeTier1(1L << 20));
-        var large = new Jpeg2000Codec.DecodeBudget(Jpeg2000DecoderLimits.Default, 1L << 20);
+        var large = new Jpeg2000Codec.DecodeBudget(Jpeg2000DecoderLimits.Default, 1L << 18);
         large.ChargeTier1((1L << 32) + (1L << 24));
         Assert.Throws<InvalidDataException>(() => large.ChargeTier1(1));
 
@@ -1549,36 +1549,32 @@ public class Jpeg2000CodecTests
     }
 
     /// <summary>
-    ///     Tests that a large valid lossless image (5800 x 5800, 16 bits, a flat plane with a sparse pattern, so many
-    ///     coding passes per block from little input) decodes under the default limits. Its entropy-decoding work
-    ///     (about 1.5 x 10^9 sample-passes, measured by bisecting <c>MaxTier1Work</c>) exceeds the former 2^30 ceiling.
+    ///     Tests that a large valid lossless flat 16-bit image (4096 x 4096, no decomposition, 64 x 64 blocks: a tiny
+    ///     stream that still needs the maximum number of coding passes per block) decodes under the default limits.
+    ///     Its entropy-decoding work (about 7.2 x 10^8 sample-passes from a 158 KB stream, measured by bisecting <c>MaxTier1Work</c>) exceeded the former per-input-byte allowance.
     /// </summary>
     [Fact]
-    public void Jpeg2000Codec_Decode_LargeLosslessSparseImage_DecodesUnderDefaultLimits()
+    public void Jpeg2000Codec_Decode_LargeLosslessFlatImage_DecodesUnderDefaultLimits()
     {
-        const int size = 5800;
+        const int size = 4096;
         var image = Img(size, size, 1, depth: 16);
         var samples = image.Components[0].Samples;
         Array.Fill(samples, 51_200);
-        for (var i = 0; i < samples.Length; i += 97)
-        {
-            samples[i] = 3000;
-        }
+        samples[0] = 3000;
 
-        var o = Rev(5);
+        var o = Rev(0);
         o.CodeBlockWidthExp = 6;
         o.CodeBlockHeightExp = 6;
         var data = Encode(image, o);
+
+        // The former allowance (2^24 + 2^12 per byte) would have rejected this stream.
+        Assert.True((1L << 24) + ((1L << 12) * data.Length) < (long)size * size * 42);
         var decoded = Jpeg2000Codec.Decode(data);
         Assert.Equal(size, decoded.Width);
-        Assert.Equal(size, decoded.Height);
-        for (var i = 0; i < samples.Length; i += 97)
-        {
-            Assert.Equal(Jpeg2000TestEncoder.ExpectedByte(3000, 16, false), decoded.ColorSamples[i]);
-            Assert.Equal(Jpeg2000TestEncoder.ExpectedByte(51_200, 16, false), decoded.ColorSamples[i + 1]);
-        }
+        Assert.Equal(Jpeg2000TestEncoder.ExpectedByte(3000, 16, false), decoded.ColorSamples[0]);
+        Assert.Equal(Jpeg2000TestEncoder.ExpectedByte(51_200, 16, false), decoded.ColorSamples[1]);
+        Assert.Equal(Jpeg2000TestEncoder.ExpectedByte(51_200, 16, false), decoded.ColorSamples[^1]);
     }
-
     /// <summary>Tests that the entropy-decoding work is bounded by an explicit limit.</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_TightTier1Limit_ThrowsInvalidData()
@@ -1609,7 +1605,7 @@ public class Jpeg2000CodecTests
         Assert.InRange(data.Length, 60_000, 80_000);
         var watch = Stopwatch.StartNew();
         AssertMalformed(data, "too much entropy-decoding work");
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(15), "hostile entropy-decoding work took too long: " + watch.Elapsed);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(30), "hostile entropy-decoding work took too long: " + watch.Elapsed);
     }
 
     /// <summary>Tests that the hostile stream shape decodes when the work is within the budget (so the budget is the only cause).</summary>

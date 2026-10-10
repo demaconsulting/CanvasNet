@@ -47,11 +47,11 @@ public static partial class Jpeg2000Codec
     private const long Tier1WorkBase = 1L << 24;
 
     /// <summary>
-    ///     The additional entropy-decoding work (sample-passes) allowed per input byte. Real streams measured at up
-    ///     to about a thousand sample-passes per byte; the allowance leaves a margin over that while keeping the CPU
-    ///     time a tiny hostile stream can demand to about a second.
+    ///     The additional entropy-decoding work (sample-passes) allowed per input byte. The worst valid case measured
+    ///     (a flat 16-bit plane) needs about 4,560 sample-passes per byte; 2^14 leaves a margin of about 3.6 while
+    ///     keeping the CPU time a hostile stream can demand to roughly 55 microseconds per input byte.
     /// </summary>
-    private const long Tier1WorkPerInputByte = 1L << 12;
+    private const long Tier1WorkPerInputByte = 1L << 14;
 
     /// <summary>Creates the exception thrown for malformed JPEG 2000 data.</summary>
     /// <param name="message">A description of what is malformed.</param>

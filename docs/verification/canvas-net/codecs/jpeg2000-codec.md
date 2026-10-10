@@ -115,9 +115,9 @@ Checks the null, empty-path and missing-file exceptions for every public method.
 `_PocLeavingPacketsUncovered`, `_RepeatedPocEntriesWithinCap`,
 `Jpeg2000Codec_DecodeBudget_IsCumulativeAndScalesWithInput`, `_TightTier1Limit`,
 `_HostileTier1Work`, `_HostileMaximumImageTier1Work`, `_SmallHostileShape_Decodes`,
-`_LargeLosslessSparseImage_DecodesUnderDefaultLimits` (a 5800 x 5800 16-bit sparse lossless image
-whose work of about 1.5 x 10^9 sample-passes exceeds the former 2^30 ceiling decodes under the
-default limits),
+`_LargeLosslessFlatImage_DecodesUnderDefaultLimits` (a 4096 x 4096 flat 16-bit lossless image
+whose work of about 7.2 x 10^8 sample-passes from a 158 KB stream exceeded the former 2^12
+per-byte allowance decodes under the default limits),
 `_MissingTile`, `_CustomLimits`, `_InvalidLimits`, `_HostileExponents`,
 `_WrongSegmentationSymbol` and `_SegmentationSymbols`.
 

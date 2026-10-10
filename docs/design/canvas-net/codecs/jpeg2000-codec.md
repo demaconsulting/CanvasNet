@@ -72,18 +72,26 @@ Limits are enforced during header validation, before the memory they protect is 
   progression (including POC volumes) that leaves packets uncovered is `InvalidDataException`,
   since the standard requires every packet to be covered.
 - Tier-1: the same `DecodeBudget` charges entropy-decoding work in sample-passes (block samples
-  times coding passes). Its ceiling is `min(MaxTier1Work, 2^24 + 2^12 x input bytes)`, so the work
+  times coding passes). Its ceiling is `min(MaxTier1Work, 2^24 + 2^14 x input bytes)`, so the work
   a stream may demand scales with its size. The per-input-byte term is what bounds hostile input:
   a hostile 76 KB stream (8192 x 8192, 64 x 64 blocks, maximum passes per block) is rejected after
-  about 2.4 seconds (Debug build, including JIT) instead of tens of seconds. The absolute ceiling
+  about 4 seconds (Release) or 10 seconds (Debug, including JIT) instead of minutes. The absolute ceiling
   `MaxTier1Work` defaults to 2^34, which is at least `MaxTotalSamples` (2^27) times the maximum
   of 88 passes per block, so no image the default sample limit admits can reach it; it only
   matters for callers who raise `MaxTotalSamples` or want a hard cap. An earlier default of 2^30
   rejected valid large lossless images (a 5800 x 5800 16-bit sparse image needs about 1.5 x 10^9
-  sample-passes). The 2^12 figure was measured by bisecting `MaxTier1Work` on streams from the
-  test encoder: very sparse valid streams (a flat plane with isolated pixels) need at most about
-  800 sample-passes per input byte, so 2^12 leaves a margin of about five; denser streams need far
-  less (under 100). A pass count is deliberately not compared with the segment length: an MQ-coded
+  sample-passes). The 2^14 figure was measured by bisecting `MaxTier1Work` on streams from the
+  test encoder. The worst valid case is a flat 16-bit plane with 64 x 64 blocks, which costs
+  about 4,560 sample-passes per input byte regardless of size (1024 to 4096 square, zero or one
+  decomposition level: 4,527 to 4,563; for example 4096 x 4096 needs about 7.2 x 10^8
+  sample-passes from a 158 KB stream), because every block runs all of its bit-plane passes over
+  almost no coded data. 2^14 leaves a margin of about 3.6; an earlier 2^12 rejected such images
+  (8192 x 8192 constant 16-bit, as written by OpenJPEG). Denser streams need far less (under
+  100). Worst-case hostile CPU cost is therefore the allowance times the cost of a sample-pass
+  (about 3.4 ns in a Release build, twice that in Debug): about 55 microseconds per input byte,
+  so a stream of about 1 MB that reaches the 2^34 absolute ceiling costs on the order of a minute
+  of CPU (two or more in Debug). Callers decoding untrusted input should pass tighter
+  `Jpeg2000DecoderLimits` (see the user guide). A pass count is deliberately not compared with the segment length: an MQ-coded
   pass can legitimately consume far less than one byte, so such a rule would reject valid streams;
   the work budget is the mitigation.
 - `MaxBitPlanes` (30) is the single bit-plane ceiling. Each band's bit-plane count
