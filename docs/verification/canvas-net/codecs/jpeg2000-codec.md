@@ -81,10 +81,16 @@ progression orders (marker-verified), three quality layers and reduced decomposi
 **Tests**: the `_Tiles`, `_TileAndImageOffsets`, `_TileHeaderOverrides`, `_SopEph`, `_Ppm`,
 `_Ppt`, `_TileParts`, `_ExtraMarkers_AreSkipped`, `_ZeroPsotMissingEoc`, `_Roi*` and
 `_TilePartIndexes_AreCheckedAndCountIsAdvisory`, `_ParamMarkersInLaterTilePart_ThrowsInvalidData`
-and `_PocInLaterTilePart_RoundTripsExactly` tests.
+and `_PocInLaterTilePart_RoundTripsExactly` tests, plus the marker-precedence tests
+`_TileCodOverridesMainCoc_ForAllComponents`, `_TileCocOverridesTileCod_ForItsComponent`,
+`_NoTileCod_MainCocStillApplies` and `_TilePrecedenceIrreversible`.
 
 Verifies tile-part headers, progression order changes, packed packet headers, SOP/EPH markers and
 tolerated marker variants; COD/COC/QCD/QCC/RGN in a later tile-part are rejected, POC is accepted.
+The precedence tests use the test encoder to build a main COC/QCC for one component together with a
+tile COD/QCD (the tile COD wins for all components), a tile COC/QCC next to a tile COD/QCD (the
+tile COC wins for its component) and a tile without overrides (the main COC still applies); each
+must round-trip exactly, which only holds if the decoder applies the T.800 A.6.2/A.6.4 order.
 
 ##### CanvasNet-Codecs-Jpeg2000Codec-Jp2Container: JP2 Boxes
 
@@ -103,7 +109,12 @@ signature box whose content is not `0D 0A 87 0A` is rejected with `InvalidDataEx
 `Jpeg2000Codec_GetInfo_ImageOffset_ReportsWidthMinusOffset`
 
 Checks dimensions, channel count, alpha presence and image-offset handling, including
-Jpeg2000Codec_GetInfo_RealEncoderFixtures_ReportDimensions for real-encoder files.
+Jpeg2000Codec_GetInfo_RealEncoderFixtures_ReportDimensions for real-encoder files. The
+`_ReadsOnlyHeaderPrefix` tests wrap a raw codestream and a JP2 file followed by a 4 MiB payload in a
+byte-counting stream (seekable and non-seekable) and require that fewer than 70,000 bytes are read;
+`_LargeSkippedBox_SeekOrDiscard` puts a 4 MiB box before the codestream box (skipped by seeking,
+or discarded when the stream cannot seek); `_TruncatedBox` and `_SeekableAboveInputCap` pin the
+error behavior.
 
 ##### CanvasNet-Codecs-Jpeg2000Codec-ArgumentValidation: Argument Validation
 
@@ -130,7 +141,11 @@ per-byte allowance decodes under the default limits),
 `_MissingTile`, `_CustomLimits`, `_InvalidLimits`, `_HostileExponents`,
 `_WrongSegmentationSymbol`, `_SegmentationSymbols`, and the exact-length checks
 `_OddLengthExpoundedQcd`, `_OddLengthExpoundedQcc`, `_DerivedQcdTrailingByte`,
-`_CodestreamSegmentLengthMismatch` (SIZ, COD, COC and RGN with a trailing or missing byte),
+`_MainQuantEntryCountMismatch` / `_TileQuantEntryCountMismatch` (a style-0
+QCD or QCC with extra or missing entries in the main or a tile-part header),
+`_QcdBeforeCod_ValidatedAgainstLaterLevels` (the entry count is checked against the levels of a COD
+that arrives later), `_CodestreamSegmentLengthMismatch` (SIZ, COD, COC and RGN with a trailing or
+missing byte),
 `_SopWrongLength` and `_Jp2BoxLengthMismatch` (colr, pclr and cdef with a trailing byte).
 
 Checks (including Jpeg2000Codec_Decode_RealEncoderFixtureTruncated_FailsClosed on a real-encoder

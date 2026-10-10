@@ -25,6 +25,7 @@ The class is a `static` partial class. The public surface lives in
 | `Jpeg2000Codec.Geometry.cs`   | Tile, component, resolution, subband, precinct and code-block grids |
 | `Jpeg2000Codec.Packets.cs`    | Tier-2 packet headers, tag trees, progression orders                |
 | `Jpeg2000Codec.Mq.cs`         | MQ arithmetic decoder                                               |
+| `Jpeg2000Codec.Probe.cs`      | Incremental header reader behind `GetInfo`                          |
 | `Jpeg2000Codec.Tier1.cs`      | EBCOT tier-1 decoding (all styles, ROI), dequantization on store    |
 | `Jpeg2000Codec.Dwt.cs`        | Inverse 5-3 and 9-7 wavelet transforms                              |
 | `Jpeg2000Codec.Decoder.cs`    | Orchestration, decode budget, inverse component transforms, scaling |
@@ -35,7 +36,8 @@ The class is a `static` partial class. The public surface lives in
 - `Load(Stream)` / `Load(string)` decode to a `Surface` (grey expanded to RGB, CMYK converted to
   RGB, alpha preserved).
 - `GetInfo(Stream)` / `GetInfo(string)` return an `ImageInfo` from the container and SIZ header
-  only, without decoding and without enforcing `Surface.MaxDimension`.
+  only, without decoding and without enforcing `Surface.MaxDimension`. They read incrementally
+  (only the header, never the whole stream; see the notes below).
 - `Decode(Stream)` / `Decode(byte[])` (and the overloads taking a `Jpeg2000DecoderLimits`) return a
   `Jpeg2000Image` (`Width`, `Height`, `ColorSpace`, `ColorChannelCount`, `ColorSamples`,
   `AlphaSamples`, `HasAlpha` (true when `AlphaSamples` is present), `AlphaPremultiplied`, `IccProfile`,
@@ -117,7 +119,7 @@ Limits are enforced during header validation, before the memory they protect is 
    | --- | --- |
    | SIZ | Exactly 38 + 3 x Csiz bytes after the length field |
    | COD / COC | Fixed part plus one precinct byte per resolution when precincts are declared; no trailing bytes |
-   | QCD / QCC, style 0 | One byte per sub-band (at least one) |
+   | QCD / QCC, style 0 | Exactly 3 x levels + 1 entries, checked once the effective levels are known (below) |
    | QCD / QCC, style 1 | Exactly one 16-bit entry |
    | QCD / QCC, style 2 | A non-zero even number of bytes (odd lengths are rejected, not truncated) |
    | RGN | Exactly 3 bytes after the length field (component index below 16 so one byte) |
@@ -193,7 +195,30 @@ streams and decoding them with ImageMagick) or the standard leaves the behavior 
   headers is accepted.
 - SOP markers are not required to be present or numbered in sequence, and truncated tile data is
   never decoded leniently (it is InvalidDataException).
-- GetInfo uses the default 256 MiB input limit; it does not take a Jpeg2000DecoderLimits.
+- GetInfo reads incrementally and never buffers the stream: for a raw codestream it reads the SOC
+  and SIZ marker segments (at most 65,539 bytes); for JP2 it walks the box headers, reads the `jp2h`
+  box whole (it is small) and stops after the SOC and SIZ segments at the start of the `jp2c` box.
+  The existing box and marker parsers run on the bytes read. Boxes before `jp2c` that are not
+  needed are skipped by `Seek` when the stream is seekable and read and discarded in 8 KiB chunks
+  otherwise (so a huge skipped box is read on a non-seekable stream, but never buffered). The
+  default 256 MiB input limit still applies: a seekable stream longer than the limit is rejected up
+  front (as before) and a non-seekable stream is rejected once more than that many bytes have been
+  consumed. Because the rest of the stream is not read, a codestream box that is longer than the
+  data (a truncated file) is only detected on seekable streams; `Load` and `Decode` still buffer
+  the whole input and reject it.
+- Marker precedence follows ITU-T T.800 A.6.2 and A.6.4: a tile-part COC beats a tile-part COD,
+  which beats a main COC, which beats the main COD (QCC/QCD likewise). `CloneForTile` therefore
+  starts each tile from the main state, and a tile COD or QCD replaces the inherited parameters of
+  every component, including those the main header set through a COC or QCC; a tile COC or QCC
+  then overrides that for its component. Without a tile COD, a main COC keeps applying to its
+  component. The tests pin each case using the test encoder.
+- A style-0 (no quantization) QCD or QCC must carry exactly 3 x levels + 1 entries (T.800 A.6.4),
+  where the levels come from the effective COD or COC of the component. The marker order inside a
+  header is free (QCD may precede COD and COC may follow QCD), so the count is validated while the
+  sub-band geometry of each tile component is built, when the effective levels are known, and not
+  while the marker is parsed; both too many and too few entries are `InvalidDataException`. A
+  main-header QCD that every tile overrides is therefore never checked against the main levels.
+  Style 1 and 2 segments are unchanged (style 1 has one entry; style 2 extra entries are ignored).
 
 #### Dependencies
 

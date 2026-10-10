@@ -314,6 +314,14 @@ public static partial class Jpeg2000Codec
         var coding = st.Coding[c]!;
         var quant = st.Quant[c]!;
         var levels = coding.Levels;
+
+        // T.800 A.6.4: no-quantization (style 0) carries exactly one entry per sub-band, 3 * levels + 1. The decomposition
+        // levels of the effective COD/COC are only known here, after any marker ordering (QCD before COD) has settled.
+        if (quant.Style == 0 && quant.Exp.Length != (3 * levels) + 1)
+        {
+            throw Malformed($"quantization segment has {quant.Exp.Length} entries but {(3 * levels) + 1} sub-bands.");
+        }
+
         var tcx0 = CeilDiv(tx0, siz.XR[c]);
         var tcy0 = CeilDiv(ty0, siz.YR[c]);
         var tcx1 = CeilDiv(tx1, siz.XR[c]);

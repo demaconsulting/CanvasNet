@@ -112,6 +112,10 @@ sections:
                   - Jpeg2000Codec_Decode_Tiles_RoundTripsExactly
                   - Jpeg2000Codec_Decode_TileAndImageOffsets_RoundTripsExactly
                   - Jpeg2000Codec_Decode_TileHeaderOverrides_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_TileCodOverridesMainCoc_ForAllComponents
+                  - Jpeg2000Codec_Decode_TileCocOverridesTileCod_ForItsComponent
+                  - Jpeg2000Codec_Decode_NoTileCod_MainCocStillApplies
+                  - Jpeg2000Codec_Decode_TilePrecedenceIrreversible_WithinTolerance
                   - Jpeg2000Codec_Decode_SopEph_RoundTripsExactly
                   - Jpeg2000Codec_Decode_Ppm_RoundTripsExactly
                   - Jpeg2000Codec_Decode_Ppt_RoundTripsExactly
@@ -166,6 +170,11 @@ sections:
                   - Jpeg2000Codec_GetInfo_Jp2WithAlpha_CountsAlphaChannel
                   - Jpeg2000Codec_GetInfo_ImageOffset_ReportsWidthMinusOffset
                   - Jpeg2000Codec_GetInfo_RealEncoderFixtures_ReportDimensions
+                  - Jpeg2000Codec_GetInfo_RawCodestream_ReadsOnlyHeaderPrefix
+                  - Jpeg2000Codec_GetInfo_Jp2_ReadsOnlyHeaderPrefix
+                  - Jpeg2000Codec_GetInfo_LargeSkippedBox_SeekOrDiscard
+                  - Jpeg2000Codec_GetInfo_TruncatedBox_ThrowsInvalidData
+                  - Jpeg2000Codec_GetInfo_SeekableAboveInputCap_ThrowsInvalidData
 
               - id: CanvasNet-Codecs-Jpeg2000Codec-ArgumentValidation
                 title: >-
@@ -233,6 +242,10 @@ sections:
                   - Jpeg2000Codec_Decode_OddLengthExpoundedQcd_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_OddLengthExpoundedQcc_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_DerivedQcdTrailingByte_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_MainQuantEntryCountMismatch_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_TileQuantEntryCountMismatch_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_QuantEntryCountMatches_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_QcdBeforeCod_ValidatedAgainstLaterLevels
                   - Jpeg2000Codec_Decode_CodestreamSegmentLengthMismatch_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_SopWrongLength_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_Jp2BoxLengthMismatch_ThrowsInvalidData

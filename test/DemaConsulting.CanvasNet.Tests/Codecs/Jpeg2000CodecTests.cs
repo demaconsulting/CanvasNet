@@ -569,6 +569,191 @@ public class Jpeg2000CodecTests
     }
 
     // ------------------------------------------------------------------------------------------
+    // Quantization entry counts (style 0) and COD/COC, QCD/QCC precedence
+    // ------------------------------------------------------------------------------------------
+
+    private const int MarkerQcdValue = 0xFF5C;
+    private const int MarkerQccValue = 0xFF5D;
+    private const int MarkerCodValue = 0xFF52;
+
+    /// <summary>Finds the offset of a marker segment in the main header or in the first tile-part header.</summary>
+    private static int FindSegment(byte[] d, int marker, bool inTile)
+    {
+        var pos = 2;
+        var tile = false;
+        while (pos + 4 <= d.Length)
+        {
+            var m = (d[pos] << 8) | d[pos + 1];
+            if (m == 0xFF93)
+            {
+                break;
+            }
+
+            var len = (d[pos + 2] << 8) | d[pos + 3];
+            if (m == marker && tile == inTile)
+            {
+                return pos;
+            }
+
+            tile |= m == 0xFF90;
+            pos += 2 + len;
+        }
+
+        throw new InvalidOperationException("marker segment not found.");
+    }
+
+    /// <summary>Adds (positive) or removes (negative) trailing payload bytes of a marker segment, fixing its length.</summary>
+    private static byte[] ResizeSegment(byte[] d, int marker, bool inTile, int delta)
+    {
+        var pos = FindSegment(d, marker, inTile);
+        var len = (d[pos + 2] << 8) | d[pos + 3];
+        var end = pos + 2 + len;
+        var list = d.ToList();
+        if (delta > 0)
+        {
+            list.InsertRange(end, Enumerable.Repeat((byte)0x40, delta));
+        }
+        else
+        {
+            list.RemoveRange(end + delta, -delta);
+        }
+
+        list[pos + 2] = (byte)((len + delta) >> 8);
+        list[pos + 3] = (byte)(len + delta);
+        return [.. list];
+    }
+
+    /// <summary>Moves the QCD segment of the main header in front of the COD segment.</summary>
+    private static byte[] MoveQcdBeforeCod(byte[] d)
+    {
+        var qcd = FindSegment(d, MarkerQcdValue, false);
+        var qcdLen = 2 + ((d[qcd + 2] << 8) | d[qcd + 3]);
+        var segment = d[qcd..(qcd + qcdLen)];
+        var rest = d[..qcd].Concat(d[(qcd + qcdLen)..]).ToArray();
+        var cod = FindSegment(rest, MarkerCodValue, false);
+        return [.. rest[..cod], .. segment, .. rest[cod..]];
+    }
+
+    /// <summary>A single-tile reversible stream with a main COC/QCC (component 1 has one level) and an optional tile override.</summary>
+    private static byte[] QuantStream(bool tileOverride, bool tileComponentLevels = false)
+    {
+        var o = Rev(2);
+        o.ComponentLevels = [2, 1, 2];
+        o.ZeroPsotOnLast = true;
+        o.OmitEoc = true;
+        if (tileOverride)
+        {
+            var t = o.Clone();
+            t.ComponentLevels = tileComponentLevels ? [2, 1, 2] : null;
+            o.ComponentLevels = [2, 2, 2];
+            o.TileOverrides[0] = t;
+            o.TileWidth = 0;
+        }
+
+        return Encode(Img(40, 30, 3), o);
+    }
+
+    /// <summary>Tests that a style-0 QCD or QCC with extra or missing entries is rejected in the main header.</summary>
+    [Theory]
+    [InlineData(MarkerQcdValue, 1)]
+    [InlineData(MarkerQcdValue, 3)]
+    [InlineData(MarkerQcdValue, -1)]
+    [InlineData(MarkerQccValue, 1)]
+    [InlineData(MarkerQccValue, -1)]
+    public void Jpeg2000Codec_Decode_MainQuantEntryCountMismatch_ThrowsInvalidData(int marker, int delta)
+    {
+        var data = ResizeSegment(QuantStream(false), marker, false, delta);
+        AssertMalformed(data, "quantization segment has");
+    }
+
+    /// <summary>Tests that a style-0 QCD or QCC with extra or missing entries is rejected in a tile-part header.</summary>
+    [Theory]
+    [InlineData(MarkerQcdValue, 1)]
+    [InlineData(MarkerQcdValue, -1)]
+    [InlineData(MarkerQccValue, 1)]
+    [InlineData(MarkerQccValue, -1)]
+    public void Jpeg2000Codec_Decode_TileQuantEntryCountMismatch_ThrowsInvalidData(int marker, int delta)
+    {
+        var data = ResizeSegment(QuantStream(true, true), marker, true, delta);
+        AssertMalformed(data, "quantization segment has");
+    }
+
+    /// <summary>Tests that the unmodified streams used by the mismatch tests decode.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_QuantEntryCountMatches_RoundTripsExactly()
+    {
+        Assert.Equal(40, Jpeg2000Codec.Decode(QuantStream(false)).Width);
+        Assert.Equal(40, Jpeg2000Codec.Decode(QuantStream(true, true)).Width);
+    }
+
+    /// <summary>Tests that a QCD placed before the COD is validated against the levels the COD later signals.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_QcdBeforeCod_ValidatedAgainstLaterLevels()
+    {
+        var image = Img(40, 30, 3);
+        var data = MoveQcdBeforeCod(Encode(image, Rev(2)));
+        Assert.Equal(0, MaxError(image, data));
+
+        AssertMalformed(ResizeSegment(data, MarkerQcdValue, false, 1), "quantization segment has");
+        AssertMalformed(ResizeSegment(data, MarkerQcdValue, false, -1), "quantization segment has");
+    }
+
+    /// <summary>T.800 A.6.2: a tile COD (and QCD) overrides a main COC (and QCC) for all components.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_TileCodOverridesMainCoc_ForAllComponents()
+    {
+        var o = Rev(3);
+        o.ComponentLevels = [3, 1, 3];
+        var tile = o.Clone();
+        tile.Levels = 2;
+        tile.ComponentLevels = null;
+        o.TileOverrides[0] = tile;
+        AssertExact(Img(40, 30, 3), o);
+    }
+
+    /// <summary>T.800 A.6.2: a tile-part COC (and QCC) beats the tile COD (and QCD) for its component.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_TileCocOverridesTileCod_ForItsComponent()
+    {
+        var o = Rev(3);
+        var tile = o.Clone();
+        tile.Levels = 2;
+        tile.ComponentLevels = [2, 1, 2];
+        o.TileOverrides[0] = tile;
+        AssertExact(Img(40, 30, 3), o);
+    }
+
+    /// <summary>Tests that without a tile COD the main COC still applies to its component, in tiles that have no override.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_NoTileCod_MainCocStillApplies()
+    {
+        var o = Rev(3);
+        o.ComponentLevels = [3, 1, 3];
+        o.TileWidth = 32;
+        o.TileHeight = 32;
+        var tile = o.Clone();
+        tile.Levels = 2;
+        tile.ComponentLevels = null;
+        o.TileOverrides[1] = tile;
+        AssertExact(Img(64, 32, 3), o);
+    }
+
+    /// <summary>Tests the same precedence on the irreversible path (expounded QCD/QCC with per-component levels).</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_TilePrecedenceIrreversible_WithinTolerance()
+    {
+        var o = Irrev(3);
+        o.ComponentLevels = [3, 1, 3];
+        o.TileWidth = 32;
+        o.TileHeight = 32;
+        var tile = o.Clone();
+        tile.Levels = 2;
+        tile.ComponentLevels = [2, 2, 1];
+        o.TileOverrides[1] = tile;
+        AssertClose(Img(64, 32, 3), o);
+    }
+
+    // ------------------------------------------------------------------------------------------
     // POC, SOP/EPH, PPM/PPT, tile-parts, misc markers
     // ------------------------------------------------------------------------------------------
 
@@ -1040,6 +1225,158 @@ public class Jpeg2000CodecTests
         var info = Jpeg2000Codec.GetInfo(new MemoryStream(jp2));
         Assert.Equal(4, info.Channels);
         Assert.True(info.HasAlpha);
+    }
+
+    /// <summary>A stream wrapper that counts the bytes consumed (read or skipped) and can hide seekability.</summary>
+    private sealed class CountingStream(byte[] data, bool seekable) : Stream
+    {
+        private readonly MemoryStream _inner = new(data);
+
+        public long BytesConsumed { get; private set; }
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => seekable;
+
+        public override bool CanWrite => false;
+
+        public override long Length => seekable ? _inner.Length : throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => seekable ? _inner.Position : throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var n = _inner.Read(buffer, offset, count);
+            BytesConsumed += n;
+            return n;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            if (!seekable || origin != SeekOrigin.Current)
+            {
+                throw new NotSupportedException();
+            }
+
+            // Skipping is cheap on a seekable stream and does not count as reading the bytes.
+            return _inner.Seek(offset, origin);
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    private const int ProbeTrailer = 4 * 1024 * 1024;
+
+    /// <summary>Tests that GetInfo reads only a small header prefix of a raw codestream followed by a large payload.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Jpeg2000Codec_GetInfo_RawCodestream_ReadsOnlyHeaderPrefix(bool seekable)
+    {
+        var data = Encode(Img(31, 17, 3), Rev(2)).Concat(new byte[ProbeTrailer]).ToArray();
+        using var stream = new CountingStream(data, seekable);
+        var info = Jpeg2000Codec.GetInfo(stream);
+        Assert.Equal(31, info.Width);
+        Assert.Equal(17, info.Height);
+        Assert.InRange(stream.BytesConsumed, 1, 70000);
+    }
+
+    /// <summary>Tests that GetInfo reads only a small header prefix of a JP2 file followed by a large codestream.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Jpeg2000Codec_GetInfo_Jp2_ReadsOnlyHeaderPrefix(bool seekable)
+    {
+        var image = Img(11, 12, 4);
+        var jp2 = Jpeg2000TestEncoder.WrapJp2(
+            image,
+            Encode(image, Rev(1)).Concat(new byte[ProbeTrailer]).ToArray(),
+            new J2kJp2Options { Cdef = [(0, 0, 1), (1, 0, 2), (2, 0, 3), (3, 1, 0)] });
+        using var stream = new CountingStream(jp2, seekable);
+        var info = Jpeg2000Codec.GetInfo(stream);
+        Assert.Equal(4, info.Channels);
+        Assert.True(info.HasAlpha);
+        Assert.InRange(stream.BytesConsumed, 1, 70000);
+    }
+
+    /// <summary>Tests that a large box before the codestream is skipped by seeking when possible and discarded otherwise.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Jpeg2000Codec_GetInfo_LargeSkippedBox_SeekOrDiscard(bool seekable)
+    {
+        var image = Img(11, 12, 3);
+        var jp2 = Jpeg2000TestEncoder.WrapJp2(image, Encode(image, Rev(1)), new J2kJp2Options());
+        var box = new byte[8 + ProbeTrailer];
+        box[0] = (byte)((box.Length >> 24) & 0xFF);
+        box[1] = (byte)((box.Length >> 16) & 0xFF);
+        box[2] = (byte)((box.Length >> 8) & 0xFF);
+        box[3] = (byte)(box.Length & 0xFF);
+        "free"u8.CopyTo(box.AsSpan(4));
+        var data = jp2[..12].Concat(box).Concat(jp2[12..]).ToArray();
+        using var stream = new CountingStream(data, seekable);
+        Assert.Equal(11, Jpeg2000Codec.GetInfo(stream).Width);
+        if (seekable)
+        {
+            Assert.InRange(stream.BytesConsumed, 1, 70000);
+        }
+    }
+
+    /// <summary>Tests that a seekable truncated JP2 box and a truncated non-seekable skipped box are both rejected as invalid.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Jpeg2000Codec_GetInfo_TruncatedBox_ThrowsInvalidData(bool seekable)
+    {
+        var image = Img(11, 12, 3);
+        var jp2 = Jpeg2000TestEncoder.WrapJp2(image, Encode(image, Rev(1)), new J2kJp2Options());
+        var data = jp2[..20];
+        using var stream = new CountingStream(data, seekable);
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.GetInfo(stream));
+    }
+
+    /// <summary>Tests that a seekable stream above the input cap is rejected by GetInfo as before.</summary>
+    [Fact]
+    public void Jpeg2000Codec_GetInfo_SeekableAboveInputCap_ThrowsInvalidData()
+    {
+        using var stream = new SparseStream(Jpeg2000DecoderLimits.Default.MaxInputBytes + 1);
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.GetInfo(stream));
+    }
+
+    /// <summary>A seekable zero-filled stream of a declared length that allocates nothing.</summary>
+    private sealed class SparseStream(long length) : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => true;
+
+        public override bool CanWrite => false;
+
+        public override long Length => length;
+
+        public override long Position { get; set; }
+
+        public override int Read(byte[] buffer, int offset, int count) => 0;
+
+        public override long Seek(long offset, SeekOrigin origin) => Position = offset;
+
+        public override void Flush()
+        {
+        }
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     /// <summary>Tests the image offset is reflected in GetInfo dimensions.</summary>

@@ -929,7 +929,13 @@ public static ImageInfo GetInfo(string path)
 ```
 
 Returns the width, height, channel count and alpha presence from the container and codestream
-header alone, without decoding pixels and without enforcing `Surface.MaxDimension`. Throws the same
+header alone, without decoding pixels and without enforcing `Surface.MaxDimension`. Only the header
+is read: for JP2 the boxes up to the codestream box, then the SOC and SIZ segments (at most about
+64 KiB of the codestream), so the position of the stream afterwards is unspecified and the
+codestream body is never read. A box before the codestream is skipped by seeking when
+`stream.CanSeek` is `true`; on a non-seekable stream it is read and discarded (never buffered), up
+to the 256 MiB input limit. A truncated file whose codestream box is longer than its data is only
+rejected by `Load`/`Decode` (or by `GetInfo` on a seekable stream). Throws the same
 argument and `InvalidDataException` errors as `Load`.
 
 ##### Jpeg2000Codec.Decode(Stream stream) / Jpeg2000Codec.Decode(byte[] data)

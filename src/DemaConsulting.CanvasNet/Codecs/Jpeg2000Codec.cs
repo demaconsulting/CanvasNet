@@ -87,10 +87,14 @@ public static partial class Jpeg2000Codec
     }
 
     /// <summary>
-    ///     Reports the dimensions and channel layout of a JPEG 2000 image without decoding any tile data.
+    ///     Reports the dimensions and channel layout of a JPEG 2000 image without decoding any tile data. Only the
+    ///     header is read: the JP2 boxes up to the codestream box and the SOC and SIZ marker segments, never the
+    ///     codestream body.
     /// </summary>
     /// <param name="stream">
-    ///     The stream to read from. Reading begins at the current position and consumes the remainder of the stream.
+    ///     The stream to read from. Reading begins at the current position and stops once the header has been read;
+    ///     the position afterwards is unspecified. A seekable stream skips unneeded boxes by seeking; a non-seekable
+    ///     stream discards them, so such a box is read (up to the 256 MiB input cap) but never buffered.
     /// </param>
     /// <returns>
     ///     An <see cref="ImageInfo"/> whose <see cref="ImageInfo.Channels"/> counts the color channels plus the
@@ -103,11 +107,9 @@ public static partial class Jpeg2000Codec
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        var data = ReadAllBytes(stream, Jpeg2000DecoderLimits.Default);
         return Guard(() =>
         {
-            var jp2 = ParseContainer(data);
-            var siz = Codestream.ParseSizOnly(data, jp2.CodestreamStart, jp2.CodestreamEnd, out _);
+            var jp2 = ProbeHeaders(stream, Jpeg2000DecoderLimits.Default, out var siz);
             var layout = ResolveLayout(jp2, siz.Csiz);
             var hasAlpha = layout.Alpha is not null;
             return new ImageInfo((int)Math.Min(siz.Width, int.MaxValue), (int)Math.Min(siz.Height, int.MaxValue), layout.Color.Length + (hasAlpha ? 1 : 0), hasAlpha);
