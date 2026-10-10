@@ -1,7 +1,7 @@
 ## Codecs Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Codecs` subsystem
-(the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, and `GifCodec` units).
+(the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, and `Jpeg2000Codec` units).
 
 Note: SVG rasterization verification is not part of this subsystem's verification; it is
 provided by the separate `CanvasNetSvg` system (its own package,
@@ -24,8 +24,8 @@ reuse the corresponding unit and system-integration tests as verification eviden
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
-- **Mocking**: None required; `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, and `GifCodec`'s
-  only dependency is the in-house `Canvas` subsystem's `Surface` unit
+- **Mocking**: None required; `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, and
+  `Jpeg2000Codec`'s only dependency is the in-house `Canvas` subsystem's `Surface` unit
 
 ### Acceptance Criteria
 

@@ -19,7 +19,9 @@ DEMA Consulting best practices. The system consists of six implemented subsystem
   value type, documented inline within `Surface`). See _Canvas Subsystem Design_ (`canvas.md`).
 - **Codecs subsystem** (namespace `DemaConsulting.CanvasNet.Codecs`, folder
   `src/DemaConsulting.CanvasNet/Codecs/`, flat — no further nesting): six hand-rolled image
-  format codecs, each converting to and from a `DemaConsulting.CanvasNet.Canvas.Surface` pixel buffer —
+  format codecs operating on a `DemaConsulting.CanvasNet.Canvas.Surface` pixel buffer (`BmpCodec`,
+  `PngCodec`, `TiffCodec`, and `JpegCodec` convert to and from it; `GifCodec` and `Jpeg2000Codec`
+  are decode-only loaders) —
   `BmpCodec` (uncompressed 24-bit/32-bit Windows BMP), `PngCodec` (saves 8-bit-per-channel
   Truecolor and Truecolor-with-alpha, non-interlaced PNG; loads every non-interlaced, spec-valid
   PNG color type/bit depth combination), `TiffCodec` (8-bit-per-sample RGB, RGBA, and
@@ -400,7 +402,7 @@ CanvasNet has one runtime NuGet dependency: `System.Numerics.Tensors`, used by t
 unit's vectorized bulk pixel operations (`PremultiplyAlpha`, `UnpremultiplyAlpha`,
 `CompositeOver`) for their `TensorPrimitives`-based numeric work — see _Surface Unit Design_
 (`canvas/surface.md`) for details. Every other member of `Surface`, and all of `BmpCodec`,
-`PngCodec`, `TiffCodec`, `JpegCodec`, and `GifCodec`, are implemented exclusively against the
+`PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, and `Jpeg2000Codec`, are implemented exclusively against the
 .NET Base Class
 Library (`Surface`'s remaining use of `Span<T>` and `MemoryMarshal` are BCL APIs available
 natively on every target framework; `BmpCodec` uses only `System.IO` types; `PngCodec` and
