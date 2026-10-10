@@ -909,7 +909,7 @@ public static Surface Load(Stream stream)
 public static Surface Load(string path)
 ```
 
-Decodes the image to an RGBA `Surface` (grey expanded to RGB, CMYK converted to RGB, alpha
+Decodes the image to an RGBA `Surface` (gray expanded to RGB, CMYK converted to RGB, alpha
 preserved).
 
 **Exceptions:**
