@@ -27,7 +27,9 @@ DEMA Consulting best practices. The system consists of six implemented subsystem
   `JpegCodec` (a common real-world subset of JPEG: baseline/progressive decode with
   4:4:4/4:2:2/4:2:0 support, baseline 4:2:0 encode), and `GifCodec` (decode-only load of a GIF's
   first image frame, including LZW decompression and deinterlacing, plus a `GetInfo` that reports
-  the file's true total frame count without resolving later frames into a `Surface`). See
+  the file's true total frame count without resolving later frames into a `Surface`), and
+  `Jpeg2000Codec` (decode-only JPEG 2000 Part 1 decoder for JP2 files and raw codestreams, also
+  exposing the decoded color space and opacity channel for PDF `/JPXDecode` images). See
   _Codecs Subsystem Design_ (`codecs.md`).
 - **Geometry subsystem** (namespace `DemaConsulting.CanvasNet.Geometry`, folder
   `src/DemaConsulting.CanvasNet/Geometry/`, flat — no further nesting): vector-geometry
@@ -82,9 +84,9 @@ DEMA Consulting best practices. The system consists of six implemented subsystem
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces
 and reading/writing rows via `Surface.GetRowSpanBytes`); the `Canvas` subsystem has no dependency
-on `Codecs` or on any other subsystem. Within the `Codecs` subsystem, its five units are flat and
-mutually independent — none of `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, or `GifCodec`
-depends on any other codec. Each codec also exposes a pair of `GetInfo(Stream)`/`GetInfo(string)` overloads
+on `Codecs` or on any other subsystem. Within the `Codecs` subsystem, its six units are flat and
+mutually independent — none of `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`,
+or `Jpeg2000Codec` depends on any other codec. Each codec also exposes a pair of `GetInfo(Stream)`/`GetInfo(string)` overloads
 returning the shared `ImageInfo` record struct (width, height, channel count, and alpha presence)
 without fully decoding pixel data and without enforcing `Surface.MaxDimension` (now a public
 constant, so callers can perform this comparison themselves before ever calling `Load`) — except
@@ -97,7 +99,8 @@ pattern, and _Surface Unit Design_ (`canvas/surface.md`) for `MaxDimension`. See
 _Surface Unit Design_ (`canvas/surface.md`), _BmpCodec Unit Design_
 (`codecs/bmp-codec.md`), _PngCodec Unit Design_ (`codecs/png-codec.md`),
 _TiffCodec Unit Design_ (`codecs/tiff-codec.md`), _JpegCodec Unit Design_
-(`codecs/jpeg-codec.md`), and _GifCodec Unit Design_ (`codecs/gif-codec.md`) for each unit's
+(`codecs/jpeg-codec.md`), _GifCodec Unit Design_ (`codecs/gif-codec.md`), and
+_Jpeg2000Codec Unit Design_ (`codecs/jpeg2000-codec.md`) for each unit's
 internal collaboration.
 
 The `Geometry` subsystem's five units collaborate as follows: `PathBuilder` records raw drawing
@@ -239,6 +242,16 @@ The system exposes the following public API to external consumers:
   `ImageInfo` record struct, additionally reporting the file's true total frame count; unlike
   every other codec's `GetInfo`, this decodes the first frame's LZW-compressed pixel data to
   validate `CanDecode` (but never resolves it into a rendered `Surface`).
+- **Jpeg2000Codec.Load(Stream stream)** / **Jpeg2000Codec.Load(string path)**: Loads a `Surface` from a
+  JPEG 2000 (JP2 or raw codestream) stream or file (decode-only - no save support). Throws
+  `ArgumentNullException` for a null `stream`/`path`, `ArgumentException` for an empty `path`,
+  `FileNotFoundException` for a missing file, `InvalidDataException` for malformed data, and
+  `UnsupportedImageFeatureException` for valid but unsupported JPEG 2000 features.
+- **Jpeg2000Codec.GetInfo(Stream stream)** / **Jpeg2000Codec.GetInfo(string path)**: Returns the shared
+  `ImageInfo` record struct from the container and SIZ header alone, without decoding pixels.
+- **Jpeg2000Codec.Decode(Stream stream)** / **Jpeg2000Codec.Decode(byte[] data)**: Decodes to a
+  `Jpeg2000Image` exposing 8-bit color samples, color space, optional opacity samples and ICC
+  profile.
 - **Rect(float x, float y, float width, float height)**: Constructor; an axis-aligned rectangle in
   position-plus-size form. `Rect.Empty` is a static, publicly readable union-identity sentinel.
 - **Rect.Union(Rect)** / **Rect.Union(Rect, Rect)**: Returns the smallest rectangle enclosing both
@@ -354,6 +367,9 @@ The system exposes the following public API to external consumers:
 | `JpegCodec.Save(...)`                        | Inbound          | Method call                    | `surface` non-null            |
 | `GifCodec.Load(...)`                         | Inbound/Outbound | Method call / `Surface` return | Valid GIF stream or path      |
 | `GifCodec.GetInfo(...)`                      | Inbound/Outbound | Method call / `ImageInfo`      | Valid GIF stream or path      |
+| `Jpeg2000Codec.Load(...)`                    | Inbound/Outbound | Method call / `Surface` return | Valid JPEG 2000 stream/path   |
+| `Jpeg2000Codec.GetInfo(...)`                 | Inbound/Outbound | Method call / `ImageInfo`      | Valid JPEG 2000 stream/path   |
+| `Jpeg2000Codec.Decode(...)`                  | Inbound/Outbound | Method call / `Jpeg2000Image`  | Valid JPEG 2000 stream/bytes  |
 | `Rect.Union(...)`                            | Inbound/Outbound | Method call / `Rect` return    | None                          |
 | `Rect.Intersect(...)`                        | Inbound/Outbound | Method call / `Rect` return    | None                          |
 | `Rect.Transform(Matrix3x2)`                  | Inbound/Outbound | Method call / `Rect` return    | None                          |
@@ -576,6 +592,17 @@ measures (IEC 62304 §5.3.3).
    reports the file's true total frame count (by decoding the first frame to validate `CanDecode`,
    then scanning, without fully decoding, every subsequent frame's own block structure) without
    ever resolving those later frames into a rendered `Surface`
+
+**JPEG 2000 load path:**
+
+1. **Input**: Method parameter `stream`/`path` (or `data` for `Decode`)
+2. **Validation**: `ArgumentNullException` for null arguments, `ArgumentException` for an empty
+   `path`, `InvalidDataException` for malformed data, `UnsupportedImageFeatureException` for
+   unsupported features
+3. **Processing**: Parses the JP2 boxes (if any) and codestream headers, decodes tier-2 packets and
+   tier-1 code-blocks, applies dequantization, the inverse wavelet and component transforms, and
+   scales samples to 8 bits
+4. **Output**: A new `Surface` (`Load`) or a `Jpeg2000Image` (`Decode`)
 
 **TrueType font load and glyph-query path:**
 

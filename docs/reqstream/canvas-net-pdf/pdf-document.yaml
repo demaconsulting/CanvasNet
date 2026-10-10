@@ -838,10 +838,12 @@ sections:
           - id: CanvasNetPdf-PdfDocument-ImageXObjects
             title: >-
               The PdfDocument class shall implement the Do operator for a /Subtype /Image
-              XObject, decoding a bare /Filter /DCTDecode image via Codecs.JpegCodec.Load or
+              XObject, decoding a bare /Filter /DCTDecode image via Codecs.JpegCodec.Load, a
+              bare /Filter /JPXDecode (JPEG 2000) image via Codecs.Jpeg2000Codec.Decode, or
               interpreting raw DeviceGray/DeviceRGB/DeviceCMYK 8-bit samples, and compositing the
               decoded image onto the destination surface through the current transformation
-              matrix (nearest-neighbor sampling, treating every image as fully opaque, and
+              matrix (nearest-neighbor sampling, treating every image as fully opaque unless it
+              carries an /SMask or JPX /SMaskInData alpha channel, and
               alpha-blending each sampled source pixel over the existing destination pixel via
               standard Porter-Duff "over" compositing rather than overwriting it outright); an
               unsupported /ColorSpace or an unsupported /BitsPerComponent shall throw
@@ -867,6 +869,47 @@ sections:
               - PdfDocument_Images_UnsupportedBitsPerComponent_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException
               - CompositeImageOntoSurface_SourceImageWithAlphaChannel_AlphaBlendsOntoExistingBackground
+
+          - id: CanvasNetPdf-PdfDocument-JpxDecode
+            title: >-
+              The PdfDocument class shall decode a bare /Filter /JPXDecode image XObject via
+              Codecs.Jpeg2000Codec.Decode, using the JPEG 2000 data's own color space when
+              /ColorSpace is absent and otherwise honouring /ColorSpace (DeviceGray/RGB/CMYK,
+              Indexed, ICCBased by component count) and /Decode, applying the codestream's
+              opacity channel per /SMaskInData 0/1/2, and applying an explicit /SMask image
+              (including a JPXDecode one) as the base image's alpha channel; a /ColorSpace whose
+              component count differs from the decoded data, an invalid /SMaskInData or /Decode,
+              JPXDecode combined with another filter, or malformed JPEG 2000 data shall throw
+              InvalidDataException, and unsupported JPEG 2000 features
+              UnsupportedImageFeatureException. JPXDecode is never decoded from an inline image
+              because inline images are not supported.
+            justification: |
+              JPEG 2000 is the standard compressed image encoding for many scanned and
+              photographic PDF documents; callers need those images rendered with correct color
+              and transparency, and any malformed or unsupported input to fail closed rather than
+              crash or be silently mis-rendered.
+            tests:
+              - PdfDocument_Images_Jpx_GrayWithoutColorSpace_UsesJp2ColorSpace
+              - PdfDocument_Images_Jpx_RgbWithoutColorSpace_UsesJp2ColorSpace
+              - PdfDocument_Images_Jpx_CmykWithoutColorSpace_UsesJp2ColorSpace
+              - PdfDocument_Images_Jpx_ExplicitDeviceRgb_HonorsColorSpace
+              - PdfDocument_Images_Jpx_ExplicitDeviceCmyk_HonorsColorSpace
+              - PdfDocument_Images_Jpx_IccBasedColorSpace_ResolvesByComponentCount
+              - PdfDocument_Images_Jpx_IndexedColorSpace_OverridesJp2ColorSpace
+              - PdfDocument_Images_Jpx_DecodeArray_InvertsSamples
+              - PdfDocument_Images_Jpx_SMaskInDataZero_IgnoresAlphaChannel
+              - PdfDocument_Images_Jpx_SMaskInDataOne_AppliesAlphaChannel
+              - PdfDocument_Images_Jpx_SMaskInDataTwo_UnpremultipliesColor
+              - PdfDocument_Images_Jpx_JpxSMask_AppliesLuminanceAsAlpha
+              - PdfDocument_Images_Jpx_JpxSMaskWithDecode_InvertsMask
+              - PdfDocument_Images_SMaskOnRawImage_AppliesLuminanceAsAlpha
+              - PdfDocument_Images_Jpx_SMaskAndSMaskInData_SMaskWins
+              - PdfDocument_Images_Jpx_ColorSpaceComponentMismatch_ThrowsInvalidDataException
+              - PdfDocument_Images_Jpx_InvalidSMaskInData_ThrowsInvalidDataException
+              - PdfDocument_Images_Jpx_DecodeArrayWrongLength_ThrowsInvalidDataException
+              - PdfDocument_Images_Jpx_GarbageData_ThrowsInvalidDataException
+              - PdfDocument_Images_Jpx_TruncatedData_FailsClosed
+              - PdfDocument_Images_Jpx_CombinedWithAnotherFilter_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-FormXObjects
             title: >-

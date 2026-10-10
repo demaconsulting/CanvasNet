@@ -47,9 +47,9 @@ size — but every filled/stroked path painted in solid opaque black, since no c
 implemented yet. Phase 3 added real device color (`g`/`G`/`rg`/`RG`/`k`/`K`/`cs`/
 `CS`/`sc`/`SC`/`scn`/`SCN`), a generalized `/Filter`/`/DecodeParms` stream-decoding pipeline
 (`FlateDecode` plus PNG/TIFF predictor reversal), and image XObjects (`Do`: `DCTDecode` via the
-`CanvasNet` system's `Codecs.JpegCodec`, or raw `DeviceGray`/`DeviceRGB`/`DeviceCMYK` 8-bit
-samples, composited through the current transformation matrix). Phase 4 added real text/font
-rendering: `BT`/`ET`/`Tc`/`Tw`/`Tz`/`TL`/`Tf`/`Tr`/`Ts`/`Td`/`TD`/`Tm`/`T*`/`Tj`/`'`/`"`/
+`CanvasNet` system's `Codecs.JpegCodec`, `JPXDecode` via `Codecs.Jpeg2000Codec`, or raw
+`DeviceGray`/`DeviceRGB`/`DeviceCMYK` 8-bit samples, composited through the current transformation matrix).
+Phase 4 added real text/font rendering: `BT`/`ET`/`Tc`/`Tw`/`Tz`/`TL`/`Tf`/`Tr`/`Ts`/`Td`/`TD`/`Tm`/`T*`/`Tj`/`'`/`"`/
 `TJ` resolve a simple `/Subtype /TrueType` font from the current page's `/Resources/Font`
 dictionary (requiring an embedded `/FontDescriptor/FontFile2`, loaded via the `CanvasNet`
 system's `Fonts.TrueTypeFont`), map each shown byte through its `/WinAnsiEncoding`/
@@ -106,8 +106,8 @@ Form XObject's `/BBox` is never used to clip its content and its `/Group` (trans
 entry is never consulted, though the Form itself renders; `/ShadingType` values outside `2`-`7`
 and `/FunctionType 4` (PostScript calculator) functions fail closed; the `sh` operator and general
 path clipping (`W`/`W*`) are supported; no
-`/SMask`/alpha compositing or transparency groups (every decoded image is treated as fully
-opaque); no `JPXDecode` filter decoding (fails closed; `CCITTFaxDecode` - Group 4 (T.6 MMR) only -
+`/Mask`/`/Matte` image masks or transparency groups (an explicit `/SMask` and JPEG 2000
+alpha are applied); `JPXDecode` is decoded (`CCITTFaxDecode` - Group 4 (T.6 MMR) only -
 is supported); `/Separation`/`/DeviceN`/`/CalGray`/`/Lab` color spaces remain unsupported and fail
 closed; and an encrypted document using any security handler, crypt-filter method, `/V`/`/R`
 combination other than the ones listed above, or whose correct password is not supplied, fails
@@ -335,7 +335,7 @@ crypt filter), `pdf-encrypted-r-{revision}`,
 non-empty one is genuinely required), `pdf-encrypted-incorrect-password`,
 `pdf-encrypted-password-non-ascii` (an R2-R4 password outside ASCII 0-127),
 `pdf-colorspace-{name}` (`Separation`/`DeviceN`/`CalGray`/`Lab`), `pdf-colorspace-Pattern`,
-`pdf-colorspace-ICCBased`, `pdf-filter-{name}` (`JPXDecode` and any other unrecognized filter),
+`pdf-colorspace-ICCBased`, `pdf-filter-{name}` (any unrecognized filter),
 `pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}`, `pdf-pattern-not-declared`,
 `pdf-pattern-type-{n}`, `pdf-pattern-tile-too-large`, `pdf-shading-type-{n}`,
 `pdf-shading-colorspace-{family}`, `pdf-functiontype-{n}`, `pdf-function-multiinput`,

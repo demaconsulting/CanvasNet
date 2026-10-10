@@ -890,7 +890,58 @@ path and returns an `ImageInfo`.
 - `ArgumentException`: Thrown when `path` is an empty string.
 - `InvalidDataException`: Thrown for the same conditions as `GetInfo(Stream)`.
 
-### SvgCodec
+### Jpeg2000Codec
+
+The `Jpeg2000Codec` static class decodes JPEG 2000 Part 1 images (JP2 files and raw codestreams)
+into `Surface` pixel buffers. It is decode-only: there is no `Save`. It supports reversible and
+irreversible coding, tiles and tile-parts, quality layers, all five progression orders, precincts,
+every code-block style, regions of interest, 1 to 16 bit samples, subsampled components, and the
+JP2 color, palette and channel-definition boxes. JPEG 2000 Part 2 extensions and High Throughput
+(Part 15) codestreams are rejected with `UnsupportedImageFeatureException`. An embedded ICC profile
+is reported but not applied.
+
+#### Jpeg2000Codec Methods
+
+##### Jpeg2000Codec.Load(Stream stream) / Jpeg2000Codec.Load(string path)
+
+```csharp
+public static Surface Load(Stream stream)
+public static Surface Load(string path)
+```
+
+Decodes the image to an RGBA `Surface` (grey expanded to RGB, CMYK converted to RGB, alpha
+preserved).
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stream` or `path` is null.
+- `ArgumentException`: Thrown when `path` is an empty string.
+- `FileNotFoundException`: Thrown when the file at `path` does not exist.
+- `InvalidDataException`: Thrown when the data is not JPEG 2000, exceeds `Surface.MaxDimension`,
+  or is truncated or corrupt.
+- `UnsupportedImageFeatureException`: Thrown for valid but unsupported JPEG 2000 features.
+
+##### Jpeg2000Codec.GetInfo(Stream stream) / Jpeg2000Codec.GetInfo(string path)
+
+```csharp
+public static ImageInfo GetInfo(Stream stream)
+public static ImageInfo GetInfo(string path)
+```
+
+Returns the width, height, channel count and alpha presence from the container and codestream
+header alone, without decoding pixels and without enforcing `Surface.MaxDimension`. Throws the same
+argument and `InvalidDataException` errors as `Load`.
+
+##### Jpeg2000Codec.Decode(Stream stream) / Jpeg2000Codec.Decode(byte[] data)
+
+```csharp
+public static Jpeg2000Image Decode(Stream stream)
+public static Jpeg2000Image Decode(byte[] data)
+```
+
+Decodes to a `Jpeg2000Image` exposing `Width`, `Height`, `ColorSpace` (`Gray`, `Srgb`, `Cmyk` or
+`Unknown`), `ColorChannelCount`, 8-bit interleaved `ColorSamples`, optional `AlphaSamples` (with
+`AlphaPremultiplied`) and the `IccProfile` bytes. Throws the same exceptions as `Load`.
 
 `SvgCodec` is distributed via the separate `DemaConsulting.CanvasNet.Svg` NuGet package (namespace
 `DemaConsulting.CanvasNet.Svg`), which references the core `DemaConsulting.CanvasNet` package -

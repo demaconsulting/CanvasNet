@@ -96,6 +96,14 @@ Asserts the decoded `Surface`'s dimensions and single pixel match the color sele
 stream's Global Color Table index, confirming the system's public GIF load API integrates
 correctly with `Surface`.
 
+### JPEG 2000 Codec Coverage
+
+The system-level JPEG 2000 requirements (`CanvasNet-Lib-Jpeg2000*`) reuse the `Jpeg2000Codec` unit tests
+(see _Jpeg2000Codec Unit Verification Design_, `canvas-net/codecs/jpeg2000-codec.md`) as evidence,
+since `Jpeg2000Codec` is decode-only and its public `Load`, `GetInfo` and `Decode` API is exercised
+end-to-end against test-encoded streams there. The PDF integration is verified in the
+`CanvasNetPdf` verification design.
+
 ### Integration: Composite Color Over Surface Returns Expected Pixel
 
 **Test**: `CanvasNet_SystemIntegration_CompositeColorOverSurface_ReturnsExpectedPixel`

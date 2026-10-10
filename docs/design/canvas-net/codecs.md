@@ -4,11 +4,13 @@
 
 <!-- cspell:ignore rasterizing unparseable Linq -->
 
-The `Codecs` subsystem is the second software subsystem in CanvasNet. It groups five flat,
-hand-rolled image-format codecs — `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, and
-`GifCodec`. Four raster codecs (`BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec`) each
+The `Codecs` subsystem is the second software subsystem in CanvasNet. It groups six flat,
+hand-rolled image-format codecs — `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`,
+and `Jpeg2000Codec`. Four raster codecs (`BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec`) each
 convert to and from a `DemaConsulting.CanvasNet.Canvas.Surface` pixel buffer; `GifCodec` is
-decode-only — it loads a `Surface` from the first frame of a GIF file but has no `Save` method.
+decode-only — it loads a `Surface` from the first frame of a GIF file but has no `Save` method;
+`Jpeg2000Codec` is likewise decode-only — it loads a `Surface` from a JPEG 2000 (JP2 or raw
+codestream) image and also exposes the decoded color space and opacity channel via `Decode`.
 
 Note: SVG rasterization was previously modeled as a sixth unit of this subsystem, but is now
 provided by the separate `CanvasNetSvg` system (its own package, `DemaConsulting.CanvasNet.Svg`)
@@ -18,8 +20,8 @@ provided by the separate `CanvasNetSvg` system (its own package, `DemaConsulting
 ### Purpose
 
 The `Codecs` subsystem groups the software units responsible for reading and writing pixel data
-in standard image file formats. It is flat: none of its five units depend on one another.
-`BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, and `GifCodec` depend only on the `Canvas`
+in standard image file formats. It is flat: none of its six units depend on one another.
+`BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, and `Jpeg2000Codec` depend only on the `Canvas`
 subsystem's `Surface` unit for their in-memory pixel representation.
 
 ### Units
@@ -36,12 +38,14 @@ subsystem's `Surface` unit for their in-memory pixel representation.
 - **GifCodec** — hand-rolled, decode-only loader for a common real-world subset of GIF files
   (first frame only); `GetInfo` additionally reports the file's true total frame count; see
   _GifCodec Unit Design_ (`codecs/gif-codec.md`)
-
-### Shared Types
+- **Jpeg2000Codec** — hand-rolled, decode-only JPEG 2000 Part 1 decoder (JP2 and raw
+  codestreams); `Decode` additionally exposes the decoded color space and opacity channel, and
+  is used by the PDF renderer for `/JPXDecode` images; see _Jpeg2000Codec Unit Design_
+  (`codecs/jpeg2000-codec.md`)
 
 #### ImageInfo
 
-`ImageInfo` is a `public readonly record struct` shared by all five codecs' `GetInfo` methods:
+`ImageInfo` is a `public readonly record struct` shared by all six codecs' `GetInfo` methods:
 
 ```csharp
 public readonly record struct ImageInfo(int Width, int Height, int Channels, bool HasAlpha)
@@ -75,9 +79,11 @@ participate in its generated value equality like every other member.
 
 ### Header-Only Probing (`GetInfo`)
 
-Each of the five codecs, in addition to its existing `Load` method (and, for four of the five
-raster codecs — all but the decode-only `GifCodec` — `Save`), exposes a pair of `GetInfo`
-overloads:
+Each of the six codecs, in addition to its existing `Load` method (and, for four of the six
+raster codecs — all but the decode-only `GifCodec` and `Jpeg2000Codec` — `Save`), exposes a pair
+of `GetInfo`
+overloads (`Jpeg2000Codec.GetInfo` reads only the container and SIZ header, always reports
+`CanDecode == true` and, like `GifCodec`, does not enforce `Surface.MaxDimension`):
 
 ```csharp
 public static ImageInfo GetInfo(Stream stream);

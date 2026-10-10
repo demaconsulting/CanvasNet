@@ -11,7 +11,7 @@ verification, but is now provided by the separate `CanvasNetSvg` system (its own
 
 ### Verification Approach
 
-The `Codecs` subsystem is verified through its five constituent units' tests (see
+The `Codecs` subsystem is verified through its six constituent units' tests (see
 _BmpCodec Unit Verification Design_, _PngCodec Unit Verification Design_,
 _TiffCodec Unit Verification Design_, _JpegCodec Unit Verification Design_, and
 _GifCodec Unit Verification Design_ under `codecs/`),
@@ -29,16 +29,16 @@ reuse the corresponding unit and system-integration tests as verification eviden
 
 ### Acceptance Criteria
 
-The `Codecs` subsystem's verification passes when every unit test scenario described in the five
+The `Codecs` subsystem's verification passes when every unit test scenario described in the six
 codec unit verification documents under `codecs/`, and every `CanvasNet_SystemIntegration_*`
 round-trip/load test referenced by the `Codecs` subsystem requirements, pass without error or
 unexpected exception.
 
 ### Test Scenarios
 
-The `Codecs` subsystem's test scenarios are those named in each of the five constituent unit
-verification documents under `codecs/` (_BmpCodec_, _PngCodec_, _TiffCodec_, _JpegCodec_, and
-_GifCodec Unit Verification Design_), covering `Load`/`Save`/`GetInfo` normal-path round-trips,
+The `Codecs` subsystem's test scenarios are those named in each of the six constituent unit
+verification documents under `codecs/` (_BmpCodec_, _PngCodec_, _TiffCodec_, _JpegCodec_, _GifCodec_, and
+_Jpeg2000Codec Unit Verification Design_), covering `Load`/`Save`/`GetInfo` normal-path round-trips,
 malformed/truncated-input rejection, and `ImageInfo.CanDecode`/`UnsupportedImageFeatureException`
 well-formed-but-unsupported handling, plus the system-level `CanvasNet_SystemIntegration_*`
 round-trip (or, for `GifCodec`, load-only) tests that exercise each codec end-to-end against a

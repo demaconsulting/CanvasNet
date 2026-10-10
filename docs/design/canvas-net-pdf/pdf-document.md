@@ -34,8 +34,8 @@ filter pipeline, image XObjects (Phase 3), and, as of Phase 4, real embedded-Tru
 rendering: `g`/`G`/`rg`/`RG`/`k`/`K`/`cs`/`CS`/`sc`/`SC`/`scn`/`SCN` set the actual fill/stroke
 color a path paints with; a generalized `/Filter`/`/DecodeParms` pipeline (`FlateDecode` plus
 PNG/TIFF predictor reversal) decodes any stream, not only a page's own `/Contents`; `Do` decodes
-and composites a `/Subtype /Image` XObject (`DCTDecode` via `Codecs.JpegCodec`, or raw
-`DeviceGray`/`DeviceRGB`/`DeviceCMYK` 8-bit samples) through the current transformation matrix;
+and composites a `/Subtype /Image` XObject (`DCTDecode` via `Codecs.JpegCodec`, `JPXDecode` via
+`Codecs.Jpeg2000Codec`, or raw `DeviceGray`/`DeviceRGB`/`DeviceCMYK` 8-bit samples) through the current transformation matrix;
 and `BT`/`ET`/`Tc`/`Tw`/`Tz`/`TL`/`Tf`/`Tr`/`Ts`/`Td`/`TD`/`Tm`/`T*`/`Tj`/`'`/`"`/`TJ` resolve a
 simple (non-composite) TrueType font declared in the current page's `/Resources/Font`
 dictionary, map each shown byte through that font's `/Encoding` to a Unicode codepoint, and paint
@@ -94,10 +94,10 @@ glyph under a clip mode fails closed); and no additional stream filters were add
 no transparency groups; shading/tiling pattern fills were added (`/ShadingType 2`/`3`,
 `/PatternType 1`/`2` — see _`/Pattern` Color Space (Shading and Tiling Patterns)_ below, reusing
 the `/FunctionType 0` sampled-function evaluator originally landed as Phase 1 groundwork,
-alongside new `/FunctionType 2`/`3` support), no `JPX` filter decoding (fails closed;
-`LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/`RunLengthDecode` are supported as of Phase 7, and
-`CCITTFaxDecode` - Group 4 (T.6 MMR) only - is supported as of Phase 15, see below), and no
-`/SMask`/alpha compositing (every decoded image is treated as fully opaque) — these
+alongside new `/FunctionType 2`/`3` support), `JPXDecode` is decoded (see Image XObjects below; `LZWDecode`/`ASCII85Decode`/
+`ASCIIHexDecode`/`RunLengthDecode` are supported as of Phase 7, and
+`CCITTFaxDecode` - Group 4 (T.6 MMR) only - is supported as of Phase 15, see below), and
+`/Mask`/`/Matte` image masks remain unsupported (an explicit `/SMask` soft mask is applied) — these
 remain out of scope for this phase and are silently skipped (any other undefined keyword) or
 explicitly rejected (unsupported color spaces/filters/fonts/encodings/render modes), per the
 operator/exception taxonomy documented below; a later phase is expected to add transparency
@@ -698,8 +698,9 @@ its own distinguishable `Feature` token.
   `Codecs/Png/PngCodec.Filtering.cs`'s `DefilterRow`/`Sub`/`Up`/`Average`/`Paeth`/Paeth-predictor
   algorithm, since those methods are `private` in a different assembly and cannot be reused
   directly).   Any other filter name (including `DCTDecode`/`CCITTFaxDecode`, which `PdfDocument.Images.cs`
-  always detects and bypasses before calling this pipeline; and `JPXDecode`/`JBIG2Decode`/
-  `Crypt`, which remain out of scope) throws
+  always detects and bypasses before calling this pipeline; `JPXDecode` (handled by the dedicated JPX
+  path described below), and
+  `JBIG2Decode`/`Crypt`, which remain out of scope) throws
   `Codecs.UnsupportedImageFeatureException`; a malformed `/Filter`/`/DecodeParms` shape, an
   unrecognized `/Predictor` value, or malformed bytes for any of the five supported filters
   (missing EOD marker, invalid/out-of-range code or character, truncated run, or an out-of-range
@@ -725,8 +726,26 @@ its own distinguishable `Feature` token.
   `ColorFromComponents`; an `/Indexed` sample is passed through `SamplesToColor` as a raw,
   un-normalized palette index rather than divided by `255.0` like every other color space) and
   `/BitsPerComponent` (`8` only — anything else throws
-  `Codecs.UnsupportedImageFeatureException`); `/SMask`/`/Mask` are never consulted (every decoded
-  image is treated as fully opaque, a documented Phase 3 limitation).
+  `Codecs.UnsupportedImageFeatureException`). A bare `/Filter /JPXDecode` image is detected and
+  dispatched to `DecodeJpxImageXObject`, which decodes the stream via
+  `Codecs.Jpeg2000Codec.Decode(byte[])` (trusting the decoder's dimensions over `/Width`/`/Height`
+  and mapping any `Jpeg2000Codec` failure to the existing `InvalidDataException`/
+  `UnsupportedImageFeatureException` conventions); `JPXDecode` combined with any other filter
+  throws `InvalidDataException`. When `/ColorSpace` is absent the JP2's own color space is used
+  (gray, sRGB, CMYK, or by channel count; five or more channels need an explicit `/ColorSpace`
+  and otherwise throw `UnsupportedImageFeatureException`); when present, `/ColorSpace`
+  (`DeviceGray`/`DeviceRGB`/`DeviceCMYK`, `/Indexed`, `/ICCBased` by component count) overrides it
+  and its component count must equal the decoded color channel count
+  (`InvalidDataException` otherwise); an `/Indexed` override uses the decoded 8-bit samples as
+  indices. An optional `/Decode` array (`DecodeArray`, applied to JPX images only) remaps each
+  8-bit sample; a wrong-length or non-numeric array throws `InvalidDataException`.
+  `/SMaskInData` selects how the codestream's opacity channel is used: `0` ignores it, `1` applies
+  it as straight alpha, `2` un-premultiplies the color and then applies it; other values throw
+  `InvalidDataException`. An explicit `/SMask` image (any filter, including `JPXDecode`; decoded
+  through the same `DecodeImageSamples` path without nested masks) is nearest-neighbor resampled
+  to the base image and its luminance multiplies the base alpha (`ApplySoftMask`), taking
+  precedence over `/SMaskInData`; `/Mask` and `/Matte` are not consulted. Inline images (`BI`) are
+  not supported at all, which satisfies the PDF rule that `JPXDecode` is not permitted inline.
   `CompositeImageOntoSurface` inverts the CTM (a non-invertible/degenerate CTM silently paints
   nothing), computes the device-space bounding box of the transformed unit square, and for every
   destination pixel in that box nearest-neighbor-samples the source image (`row = floor((1 - v) *

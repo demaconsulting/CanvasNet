@@ -886,8 +886,8 @@ merely re-deriving the implementation's own output). Repeats the PNG-predictor c
 bytes compressed via `LZWDecode` instead of `FlateDecode` (using a test-only classic-LZW encoder,
 never shipped in `src/`), proving predictor reversal is gated on filter name (`FlateDecode` or
 `LZWDecode`) rather than merely on `/DecodeParms` presence. Renders an image XObject declaring an
-unsupported filter (`/JPXDecode` - still genuinely unsupported, unlike `/LZWDecode`/
-`/CCITTFaxDecode`, both of which this and a later phase respectively implement), asserting
+unsupported filter (`/JBIG2Decode` - still genuinely unsupported, unlike `/LZWDecode`/
+`/CCITTFaxDecode`/`/JPXDecode`, all of which are implemented), asserting
 `Codecs.UnsupportedImageFeatureException`.
 
 #### CanvasNetPdf-PdfDocument-LzwDecodeFilter: LZWDecode Decodes the PDF-Variant Algorithm, Fails Closed on Malformed Input
@@ -1075,7 +1075,23 @@ completely unchanged, a fully opaque source pixel exactly replaces it, and a par
 transparent source pixel blends to the exact expected bytes per the documented Porter-Duff "over"
 formula.
 
-#### CanvasNetPdf-PdfDocument-FormXObjects: Do Executes Nested Form XObject Content Streams
+#### CanvasNetPdf-PdfDocument-JpxDecode: JPXDecode Images Honor Color Space, Alpha and Soft Masks, Failing Closed
+
+**Tests**: the 21 `PdfDocument_Images_Jpx_*` tests and
+`PdfDocument_Images_SMaskOnRawImage_AppliesLuminanceAsAlpha` in `PdfDocumentJpxTests.cs`
+
+`PdfDocumentJpxTests.cs` builds minimal PDFs at test-run time that embed JPEG 2000 streams
+produced by the test-only `Jpeg2000TestEncoder` (linked into the PDF test project from
+`DemaConsulting.CanvasNet.Tests/Codecs`, not duplicated). Gray, RGB and CMYK streams without
+`/ColorSpace` assert the JP2's own color space is used; explicit `DeviceRGB`/`DeviceCMYK`,
+`ICCBased` (by component count) and `Indexed` color spaces assert `/ColorSpace` overrides it;
+`/Decode` asserts sample inversion; `/SMaskInData` 0, 1 and 2 assert the alpha channel is
+ignored, applied, and un-premultiplied respectively; JPX and raw `/SMask` images assert the mask
+luminance (optionally with its own `/Decode`) becomes the base alpha and takes precedence over
+`/SMaskInData`. Fail-closed cases assert `InvalidDataException` for a component-count mismatch,
+an invalid `/SMaskInData`, a wrong-length `/Decode`, garbage and truncated JPEG 2000 data, and
+`JPXDecode` combined with another filter.
+ Do Executes Nested Form XObject Content Streams
 
 **Tests**: `PdfDocument_Images_DoOperator_FormXObject_PaintsNestedContentStream`,
 `PdfDocument_Images_DoOperator_FormXObjectWithMatrix_AppliesMatrixToNestedContent`,
