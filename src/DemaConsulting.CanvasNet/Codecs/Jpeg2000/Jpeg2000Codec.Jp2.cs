@@ -351,35 +351,7 @@ public static partial class Jpeg2000Codec
         var premultiplied = false;
         if (jp2.Definitions.Count > 0)
         {
-            var byAssoc = new SortedDictionary<int, ChannelSource>();
-            foreach (var def in jp2.Definitions)
-            {
-                if (def.Channel >= channels.Length)
-                {
-                    throw Malformed("channel definition refers to a missing channel.");
-                }
-
-                if (def.Type == 0 && def.Association >= 1 && def.Association <= MaxChannels)
-                {
-                    byAssoc[def.Association] = channels[def.Channel];
-                }
-                else if ((def.Type == 1 || def.Type == 2) && alpha is null)
-                {
-                    alpha = channels[def.Channel];
-                    premultiplied = def.Type == 2;
-                }
-            }
-
-            var expectedAssoc = 1;
-            foreach (var (assoc, source) in byAssoc)
-            {
-                if (assoc != expectedAssoc++)
-                {
-                    throw Malformed("channel definitions leave a gap in the color channels.");
-                }
-
-                color.Add(source);
-            }
+            (alpha, premultiplied) = ApplyDefinitions(jp2, channels, color);
         }
         else
         {
@@ -392,26 +364,11 @@ public static partial class Jpeg2000Codec
             color.AddRange(channels.Take(take));
         }
 
-        if (expected > 0 && color.Count != expected)
-        {
-            throw Malformed("channel count does not match the color space.");
-        }
-
-        if (color.Count == 0)
-        {
-            throw Malformed("image has no color channels.");
-        }
+        CheckColorChannelCount(color.Count, expected);
 
         // Heuristic, documented: only when the file carries no color specification at all (a raw codestream, or a
         // JP2 file without a usable colr box) are one, three and four color channels taken as grey, RGB and CMYK.
-        if (space == Jpeg2000ColorSpace.Unknown)
-        {
-            space = color.Count switch { 1 => Jpeg2000ColorSpace.Gray, 3 => Jpeg2000ColorSpace.Srgb, 4 => Jpeg2000ColorSpace.Cmyk, _ => Jpeg2000ColorSpace.Unknown };
-            if (jp2.EnumCs >= 0 || jp2.IccProfile is not null)
-            {
-                space = Jpeg2000ColorSpace.Unknown;
-            }
-        }
+        space = InferUnspecifiedColorSpace(jp2, space, color.Count);
 
         if (color.Count is not (1 or 3 or 4))
         {
@@ -433,6 +390,69 @@ public static partial class Jpeg2000Codec
             Alpha = alpha,
             Premultiplied = premultiplied,
         };
+    }
+
+    /// <summary>Applies the documented heuristic for a file with no color specification at all; otherwise returns the declared space.</summary>
+    private static Jpeg2000ColorSpace InferUnspecifiedColorSpace(Jp2Info jp2, Jpeg2000ColorSpace space, int colorCount)
+    {
+        if (space != Jpeg2000ColorSpace.Unknown || jp2.EnumCs >= 0 || jp2.IccProfile is not null)
+        {
+            return space;
+        }
+
+        return colorCount switch { 1 => Jpeg2000ColorSpace.Gray, 3 => Jpeg2000ColorSpace.Srgb, 4 => Jpeg2000ColorSpace.Cmyk, _ => Jpeg2000ColorSpace.Unknown };
+    }
+
+    /// <summary>Checks the number of color channels against the count the color space requires (0 when unspecified).</summary>
+    private static void CheckColorChannelCount(int count, int expected)
+    {
+        if (expected > 0 && count != expected)
+        {
+            throw Malformed("channel count does not match the color space.");
+        }
+
+        if (count == 0)
+        {
+            throw Malformed("image has no color channels.");
+        }
+    }
+
+    /// <summary>Applies the channel definitions: fills the ordered color channels and returns the alpha channel, if any.</summary>
+    private static (ChannelSource? Alpha, bool Premultiplied) ApplyDefinitions(Jp2Info jp2, ChannelSource[] channels, List<ChannelSource> color)
+    {
+        ChannelSource? alpha = null;
+        var premultiplied = false;
+        var byAssoc = new SortedDictionary<int, ChannelSource>();
+        foreach (var def in jp2.Definitions)
+        {
+            if (def.Channel >= channels.Length)
+            {
+                throw Malformed("channel definition refers to a missing channel.");
+            }
+
+            if (def.Type == 0 && def.Association >= 1 && def.Association <= MaxChannels)
+            {
+                byAssoc[def.Association] = channels[def.Channel];
+            }
+            else if ((def.Type == 1 || def.Type == 2) && alpha is null)
+            {
+                alpha = channels[def.Channel];
+                premultiplied = def.Type == 2;
+            }
+        }
+
+        var expectedAssoc = 1;
+        foreach (var (assoc, source) in byAssoc)
+        {
+            if (assoc != expectedAssoc++)
+            {
+                throw Malformed("channel definitions leave a gap in the color channels.");
+            }
+
+            color.Add(source);
+        }
+
+        return (alpha, premultiplied);
     }
 
     private static int DefaultColorCount(int channelCount) => channelCount switch

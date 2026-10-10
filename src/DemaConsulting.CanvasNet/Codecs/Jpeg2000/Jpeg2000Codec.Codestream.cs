@@ -288,6 +288,27 @@ public static partial class Jpeg2000Codec
             }
         }
 
+        /// <summary>Validates the component count and that the remaining SIZ payload holds exactly one entry per component.</summary>
+        /// <param name="csiz">The component count.</param>
+        /// <param name="remaining">The remaining payload bytes.</param>
+        private static void CheckComponentCount(int csiz, int remaining)
+        {
+            if (csiz < 1 || csiz > 16384)
+            {
+                throw Malformed("invalid component count.");
+            }
+
+            if (csiz > MaxComponents)
+            {
+                throw Unsupported("jpeg2000-component-count", "more than " + MaxComponents + " components.");
+            }
+
+            if (remaining != csiz * 3)
+            {
+                throw Malformed("SIZ segment length does not match the component count.");
+            }
+        }
+
         /// <summary>Parses and validates a SIZ marker segment payload.</summary>
         /// <param name="r">A reader positioned just after the segment length.</param>
         /// <returns>The validated SIZ information.</returns>
@@ -317,20 +338,7 @@ public static partial class Jpeg2000Codec
                 throw Malformed("inconsistent image or tile size.");
             }
 
-            if (csiz < 1 || csiz > 16384)
-            {
-                throw Malformed("invalid component count.");
-            }
-
-            if (csiz > MaxComponents)
-            {
-                throw Unsupported("jpeg2000-component-count", "more than " + MaxComponents + " components.");
-            }
-
-            if (r.Remaining != csiz * 3)
-            {
-                throw Malformed("SIZ segment length does not match the component count.");
-            }
+            CheckComponentCount(csiz, r.Remaining);
 
             var depth = new int[csiz];
             var signed = new bool[csiz];
@@ -874,8 +882,38 @@ public static partial class Jpeg2000Codec
             var r = new ByteReader(data, afterSiz, end);
             var main = new CodingState(siz.Csiz, limits.MaxProgressionChanges);
             var ppmSegments = new List<(int Index, byte[] Data)>();
+            ReadMainHeader(data, r, main, ppmSegments);
 
-            // Main header: process marker segments until the first SOT.
+            if (!main.HasCod || !main.HasQcd)
+            {
+                throw Malformed("main header lacks a COD or QCD marker segment.");
+            }
+
+            for (var c = 0; c < siz.Csiz; c++)
+            {
+                if (main.Coding[c] is null || main.Quant[c] is null)
+                {
+                    throw Malformed("component lacks coding or quantization parameters.");
+                }
+            }
+
+            var tileSlots = new TileData?[siz.NumXTiles * siz.NumYTiles];
+            var ppmChunks = ppmSegments.Count > 0 ? SplitPpm(ppmSegments) : null;
+            ReadTileParts(data, r, end, main, tileSlots, ppmChunks);
+
+            // Fail closed: a codestream cut short or lacking whole tiles must not decode to a partial image.
+            var tiles = new TileData[tileSlots.Length];
+            for (var i = 0; i < tiles.Length; i++)
+            {
+                tiles[i] = tileSlots[i] ?? throw Malformed($"tile {i} has no tile-part (the codestream is incomplete).");
+            }
+
+            return new Codestream { Siz = siz, Main = main, Tiles = tiles };
+        }
+
+        /// <summary>Main header: processes marker segments until the first SOT, which is left unread.</summary>
+        private static void ReadMainHeader(byte[] data, ByteReader r, CodingState main, List<(int Index, byte[] Data)> ppmSegments)
+        {
             while (true)
             {
                 var marker = r.ReadU16();
@@ -906,32 +944,6 @@ public static partial class Jpeg2000Codec
                 ApplyMainMarker(marker, seg, main, ppmSegments);
                 r.Position = segEnd;
             }
-
-            if (!main.HasCod || !main.HasQcd)
-            {
-                throw Malformed("main header lacks a COD or QCD marker segment.");
-            }
-
-            for (var c = 0; c < siz.Csiz; c++)
-            {
-                if (main.Coding[c] is null || main.Quant[c] is null)
-                {
-                    throw Malformed("component lacks coding or quantization parameters.");
-                }
-            }
-
-            var tileSlots = new TileData?[siz.NumXTiles * siz.NumYTiles];
-            var ppmChunks = ppmSegments.Count > 0 ? SplitPpm(ppmSegments) : null;
-            ReadTileParts(data, r, end, main, tileSlots, ppmChunks);
-
-            // Fail closed: a codestream cut short or lacking whole tiles must not decode to a partial image.
-            var tiles = new TileData[tileSlots.Length];
-            for (var i = 0; i < tiles.Length; i++)
-            {
-                tiles[i] = tileSlots[i] ?? throw Malformed($"tile {i} has no tile-part (the codestream is incomplete).");
-            }
-
-            return new Codestream { Siz = siz, Main = main, Tiles = tiles };
         }
 
         private static void ApplyMainMarker(int marker, ByteReader seg, CodingState main, List<(int Index, byte[] Data)> ppmSegments)
@@ -1018,6 +1030,26 @@ public static partial class Jpeg2000Codec
             return chunks;
         }
 
+        /// <summary>Computes the end of a tile-part. Psot of zero means the last tile-part extends to the end of the codestream (minus a trailing EOC).</summary>
+        private static long TilePartEnd(byte[] data, int sotPos, long psot, int end)
+        {
+            long partEnd = sotPos + psot;
+            if (psot == 0)
+            {
+                partEnd = end;
+                if (end - sotPos >= 16 && data[end - 2] == 0xFF && data[end - 1] == 0xD9)
+                {
+                    partEnd = end - 2;
+                }
+            }
+            else if (psot < 14 || partEnd > end)
+            {
+                throw Malformed("tile-part length extends beyond the data.");
+            }
+
+            return partEnd;
+        }
+
         private static void ReadTileParts(byte[] data, ByteReader r, int end, CodingState main, TileData?[] tiles, List<byte[]>? ppm)
         {
             var partCount = 0;
@@ -1046,21 +1078,7 @@ public static partial class Jpeg2000Codec
                     throw Malformed("invalid SOT marker segment.");
                 }
 
-                // Psot of zero means the last tile-part extends to the end of the codestream (minus a trailing EOC).
-                long partEnd = sotPos + psot;
-                if (psot == 0)
-                {
-                    partEnd = end;
-                    if (end - sotPos >= 16 && data[end - 2] == 0xFF && data[end - 1] == 0xD9)
-                    {
-                        partEnd = end - 2;
-                    }
-                }
-                else if (psot < 14 || partEnd > end)
-                {
-                    throw Malformed("tile-part length extends beyond the data.");
-                }
-
+                var partEnd = TilePartEnd(data, sotPos, psot, end);
                 var tile = tiles[isot] ??= new TileData();
                 CheckTilePartSequence(tile, tpsot);
                 tile.State ??= main.CloneForTile();
@@ -1133,6 +1151,13 @@ public static partial class Jpeg2000Codec
                 rr.Position = segEnd;
             }
 
+            AddPackedHeaders(tile, partIndex, ppm, pptSegments);
+            return rr.Position;
+        }
+
+        /// <summary>Appends the PPM (main header) and PPT (tile-part header) packed packet headers of a tile-part to the tile.</summary>
+        private static void AddPackedHeaders(TileData tile, int partIndex, List<byte[]>? ppm, List<(int Index, byte[] Data)> pptSegments)
+        {
             if (ppm is not null)
             {
                 tile.UsesPackedHeaders = true;
@@ -1151,8 +1176,6 @@ public static partial class Jpeg2000Codec
                     tile.PackedHeaders.Write(chunk, 0, chunk.Length);
                 }
             }
-
-            return rr.Position;
         }
 
         private static void ApplyTileMarker(int marker, ByteReader seg, CodingState state, List<(int Index, byte[] Data)> pptSegments, bool laterPart)

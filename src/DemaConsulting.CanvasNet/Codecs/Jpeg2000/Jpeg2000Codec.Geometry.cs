@@ -249,7 +249,7 @@ public static partial class Jpeg2000Codec
         var comps = new TileComp[siz.Csiz];
         for (var c = 0; c < siz.Csiz; c++)
         {
-            comps[c] = BuildTileComp(siz, st, c, tx0, ty0, tx1, ty1, budget);
+            comps[c] = BuildTileComp(siz, st, c, new TileRegion(tx0, ty0, tx1, ty1), budget);
         }
 
         return new Tile { X0 = tx0, Y0 = ty0, X1 = tx1, Y1 = ty1, Comps = comps, TotalPackets = budget.Precincts * st.Layers };
@@ -309,7 +309,10 @@ public static partial class Jpeg2000Codec
         }
     }
 
-    private static TileComp BuildTileComp(SizInfo siz, CodingState st, int c, long tx0, long ty0, long tx1, long ty1, GeometryBudget budget)
+    /// <summary>A rectangle in reference-grid or tile-component coordinates (exclusive upper bounds).</summary>
+    private readonly record struct TileRegion(long X0, long Y0, long X1, long Y1);
+
+    private static TileComp BuildTileComp(SizInfo siz, CodingState st, int c, TileRegion tile, GeometryBudget budget)
     {
         var coding = st.Coding[c]!;
         var quant = st.Quant[c]!;
@@ -322,10 +325,10 @@ public static partial class Jpeg2000Codec
             throw Malformed($"quantization segment has {quant.Exp.Length} entries but {(3 * levels) + 1} sub-bands.");
         }
 
-        var tcx0 = CeilDiv(tx0, siz.XR[c]);
-        var tcy0 = CeilDiv(ty0, siz.YR[c]);
-        var tcx1 = CeilDiv(tx1, siz.XR[c]);
-        var tcy1 = CeilDiv(ty1, siz.YR[c]);
+        var tcx0 = CeilDiv(tile.X0, siz.XR[c]);
+        var tcy0 = CeilDiv(tile.Y0, siz.YR[c]);
+        var tcx1 = CeilDiv(tile.X1, siz.XR[c]);
+        var tcy1 = CeilDiv(tile.Y1, siz.YR[c]);
 
         // Memory cap on the decoded sample planes of the tile.
         budget.Samples += (tcx1 - tcx0) * (tcy1 - tcy0);
@@ -337,29 +340,28 @@ public static partial class Jpeg2000Codec
         var res = new Resolution[levels + 1];
         for (var r = 0; r <= levels; r++)
         {
-            res[r] = BuildResolution(siz, st, c, coding, quant, r, tcx0, tcy0, tcx1, tcy1, r > 0 ? res[r - 1] : null, budget);
+            res[r] = BuildResolution(siz, st, c, r, new TileRegion(tcx0, tcy0, tcx1, tcy1), r > 0 ? res[r - 1] : null, budget);
         }
 
         return new TileComp { X0 = tcx0, Y0 = tcy0, X1 = tcx1, Y1 = tcy1, Coding = coding, RoiShift = st.RoiShift[c], Res = res };
     }
 
-    private static Resolution BuildResolution(
-        SizInfo siz, CodingState st, int c, CodingParams coding, QuantParams quant, int r,
-        long tcx0, long tcy0, long tcx1, long tcy1, Resolution? lower, GeometryBudget budget)
+    private static Resolution BuildResolution(SizInfo siz, CodingState st, int c, int r, TileRegion tc, Resolution? lower, GeometryBudget budget)
     {
+        var coding = st.Coding[c]!;
         var levels = coding.Levels;
         var lvl = levels - r;
-        var rx0 = CeilDivPow2(tcx0, lvl);
-        var ry0 = CeilDivPow2(tcy0, lvl);
-        var rx1 = CeilDivPow2(tcx1, lvl);
-        var ry1 = CeilDivPow2(tcy1, lvl);
+        var rx0 = CeilDivPow2(tc.X0, lvl);
+        var ry0 = CeilDivPow2(tc.Y0, lvl);
+        var rx1 = CeilDivPow2(tc.X1, lvl);
+        var ry1 = CeilDivPow2(tc.Y1, lvl);
 
         // Sub-bands (Annex B.5): LL for resolution 0, else HL, LH and HH at decomposition level nb.
         var bands = new Band[r == 0 ? 1 : 3];
         for (var b = 0; b < bands.Length; b++)
         {
             var orient = r == 0 ? 0 : b + 1;
-            bands[b] = BuildBand(siz.Depth[c], quant, coding.Reversible, st.RoiShift[c], levels, r, orient, tcx0, tcy0, tcx1, tcy1, lower);
+            bands[b] = BuildBand(siz, st, c, r, orient, tc, lower);
         }
 
         // Precinct grid (anchored at the origin of the resolution coordinate system).
@@ -380,7 +382,7 @@ public static partial class Jpeg2000Codec
             {
                 var pxAbs = (rx0 >> ppx) + i;
                 var pyAbs = (ry0 >> ppy) + j;
-                precincts[(j * pw) + i] = BuildPrecinct(coding, st.RoiShift[c], r, bands, ppx, ppy, pxAbs, pyAbs, budget);
+                precincts[(j * pw) + i] = BuildPrecinct(coding, st.RoiShift[c], r, bands, pxAbs, pyAbs, budget);
             }
         }
 
@@ -399,50 +401,21 @@ public static partial class Jpeg2000Codec
         };
     }
 
-    private static Band BuildBand(
-        int depth, QuantParams quant, bool reversible, int roiShift, int levels, int r, int orient,
-        long tcx0, long tcy0, long tcx1, long tcy1, Resolution? lower)
+    private static Band BuildBand(SizInfo siz, CodingState st, int c, int r, int orient, TileRegion tc, Resolution? lower)
     {
-        long x0, y0, x1, y1;
-        int exp, mant, offX = 0, offY = 0;
-        if (r == 0)
+        var coding = st.Coding[c]!;
+        var quant = st.Quant[c]!;
+        var levels = coding.Levels;
+        var (x0, y0, x1, y1) = BandBounds(levels, r, orient, tc);
+        var offX = 0;
+        var offY = 0;
+        if (r > 0)
         {
-            x0 = CeilDivPow2(tcx0, levels);
-            y0 = CeilDivPow2(tcy0, levels);
-            x1 = CeilDivPow2(tcx1, levels);
-            y1 = CeilDivPow2(tcy1, levels);
-        }
-        else
-        {
-            var nb = levels - r + 1;
-            var xob = orient is 1 or 3 ? 1L : 0L;
-            var yob = orient is 2 or 3 ? 1L : 0L;
-            var shift = nb - 1;
-            x0 = CeilDivPow2(tcx0 - (xob << shift), nb);
-            y0 = CeilDivPow2(tcy0 - (yob << shift), nb);
-            x1 = CeilDivPow2(tcx1 - (xob << shift), nb);
-            y1 = CeilDivPow2(tcy1 - (yob << shift), nb);
-            offX = xob == 1 ? lower!.Width : 0;
-            offY = yob == 1 ? lower!.Height : 0;
+            offX = orient is 1 or 3 ? lower!.Width : 0;
+            offY = orient is 2 or 3 ? lower!.Height : 0;
         }
 
-        // Quantization parameters of this band (Annex E): derived style extrapolates from the LL entry.
-        var bandIndex = r == 0 ? 0 : (3 * (r - 1)) + orient;
-        if (quant.Style == 1)
-        {
-            exp = quant.Exp[0] - (r == 0 ? 0 : r - 1);
-            mant = quant.Mant[0];
-        }
-        else
-        {
-            if (bandIndex >= quant.Exp.Length)
-            {
-                throw Malformed("quantization segment has too few entries.");
-            }
-
-            exp = quant.Exp[bandIndex];
-            mant = quant.Mant[bandIndex];
-        }
+        var (exp, mant) = BandQuantization(quant, r, orient);
 
         // The bit-plane count is validated once, here, so tier-2 and tier-1 can rely on it: the magnitude
         // bit-planes Mb must be positive and plausible, and Mb plus the ROI shift must fit the decoder.
@@ -452,19 +425,56 @@ public static partial class Jpeg2000Codec
             throw Malformed("invalid quantization exponent.");
         }
 
-        if (mb + roiShift > MaxBitPlanes)
+        if (mb + st.RoiShift[c] > MaxBitPlanes)
         {
             throw Unsupported("jpeg2000-bitplanes", $"more than {MaxBitPlanes} coded bit-planes.");
         }
 
         var gain = orient switch { 0 => 0, 3 => 2, _ => 1 };
-        var step = reversible ? 1f : (float)(Math.Pow(2, depth + gain - exp) * (1.0 + (mant / 2048.0)));
+        var step = coding.Reversible ? 1f : (float)(Math.Pow(2, siz.Depth[c] + gain - exp) * (1.0 + (mant / 2048.0)));
         return new Band { Orient = orient, X0 = x0, Y0 = y0, X1 = x1, Y1 = y1, Mb = mb, Step = step, OffX = offX, OffY = offY };
     }
 
-    private static Precinct BuildPrecinct(
-        CodingParams coding, int roiShift, int r, Band[] bands, int ppx, int ppy, long pxAbs, long pyAbs, GeometryBudget budget)
+    /// <summary>Computes the sub-band bounds from the tile-component bounds (Annex B.5).</summary>
+    private static (long X0, long Y0, long X1, long Y1) BandBounds(int levels, int r, int orient, TileRegion tc)
     {
+        if (r == 0)
+        {
+            return (CeilDivPow2(tc.X0, levels), CeilDivPow2(tc.Y0, levels), CeilDivPow2(tc.X1, levels), CeilDivPow2(tc.Y1, levels));
+        }
+
+        var nb = levels - r + 1;
+        var xob = orient is 1 or 3 ? 1L : 0L;
+        var yob = orient is 2 or 3 ? 1L : 0L;
+        var shift = nb - 1;
+        return (
+            CeilDivPow2(tc.X0 - (xob << shift), nb),
+            CeilDivPow2(tc.Y0 - (yob << shift), nb),
+            CeilDivPow2(tc.X1 - (xob << shift), nb),
+            CeilDivPow2(tc.Y1 - (yob << shift), nb));
+    }
+
+    /// <summary>Selects the quantization exponent and mantissa of a band (Annex E): derived style extrapolates from the LL entry.</summary>
+    private static (int Exp, int Mant) BandQuantization(QuantParams quant, int r, int orient)
+    {
+        if (quant.Style == 1)
+        {
+            return (quant.Exp[0] - (r == 0 ? 0 : r - 1), quant.Mant[0]);
+        }
+
+        var bandIndex = r == 0 ? 0 : (3 * (r - 1)) + orient;
+        if (bandIndex >= quant.Exp.Length)
+        {
+            throw Malformed("quantization segment has too few entries.");
+        }
+
+        return (quant.Exp[bandIndex], quant.Mant[bandIndex]);
+    }
+    private static Precinct BuildPrecinct(
+        CodingParams coding, int roiShift, int r, Band[] bands, long pxAbs, long pyAbs, GeometryBudget budget)
+    {
+        var ppx = coding.PPx[r];
+        var ppy = coding.PPy[r];
         var parts = new PrecinctBand[bands.Length];
         for (var b = 0; b < bands.Length; b++)
         {

@@ -280,24 +280,13 @@ public static partial class Jpeg2000Codec
             {
                 var plane = planes[sources[k].Component];
                 var row = ymaps[k][y] * compWidths[k];
-                var lut = luts[k];
-                var xmap = xmaps[k];
                 if (k < nColor)
                 {
-                    var o = (y * width * nColor) + k;
-                    for (var x = 0; x < width; x++)
-                    {
-                        color[o] = lut[plane[row + xmap[x]]];
-                        o += nColor;
-                    }
+                    CopyRow(plane, row, xmaps[k], luts[k], color, (y * width * nColor) + k, nColor);
                 }
                 else
                 {
-                    var o = y * width;
-                    for (var x = 0; x < width; x++)
-                    {
-                        alpha![o + x] = lut[plane[row + xmap[x]]];
-                    }
+                    CopyRow(plane, row, xmaps[k], luts[k], alpha!, y * width, 1);
                 }
             }
         }
@@ -312,6 +301,17 @@ public static partial class Jpeg2000Codec
             BitDepth = siz.Depth[layout.Color[0].Component],
             HasPalette = layout.Color.Any(s => s.PaletteColumn >= 0) && jp2.Palette is not null,
         };
+    }
+
+    /// <summary>Copies one row of one channel through its look-up table into the interleaved output.</summary>
+    private static void CopyRow(ushort[] plane, int row, int[] xmap, byte[] lut, byte[] output, int start, int stride)
+    {
+        var o = start;
+        for (var x = 0; x < xmap.Length; x++)
+        {
+            output[o] = lut[plane[row + xmap[x]]];
+            o += stride;
+        }
     }
 
     private static int[] BuildAxisMap(long origin, int length, int subsampling, long compStart, long compEnd)
