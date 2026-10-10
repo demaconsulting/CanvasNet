@@ -559,8 +559,10 @@ public static partial class Jpeg2000Codec
         /// <summary>Gets or sets the POC entries, or <see langword="null"/> when none were signalled.</summary>
         public List<ProgressionChange>? Poc { get; set; }
 
+        private bool _pocInherited;
+
         /// <summary>Creates a copy used as the starting state of a tile.</summary>
-        /// <returns>The copy; POC entries are not inherited (the tile falls back to the main entries).</returns>
+        /// <returns>The copy; main-header POC entries are inherited until the tile-part header signals its own.</returns>
         public CodingState CloneForTile()
         {
             var copy = new CodingState(_components)
@@ -576,6 +578,12 @@ public static partial class Jpeg2000Codec
             Array.Copy(Coding, copy.Coding, _components);
             Array.Copy(Quant, copy.Quant, _components);
             Array.Copy(RoiShift, copy.RoiShift, _components);
+            if (Poc is not null)
+            {
+                copy.Poc = [.. Poc];
+                copy._pocInherited = true;
+            }
+
             return copy;
         }
 
@@ -691,7 +699,13 @@ public static partial class Jpeg2000Codec
         /// <param name="r">The segment payload reader.</param>
         public void ApplyPoc(ByteReader r)
         {
-            Poc ??= [];
+            if (_pocInherited || Poc is null)
+            {
+                // A tile-part POC replaces any entries inherited from the main header.
+                Poc = [];
+                _pocInherited = false;
+            }
+
             if (r.Remaining == 0 || r.Remaining % 7 != 0)
             {
                 throw Malformed("invalid POC segment length.");
