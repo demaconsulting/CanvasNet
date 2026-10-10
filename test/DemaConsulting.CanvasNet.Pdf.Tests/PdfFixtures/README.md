@@ -73,6 +73,7 @@ own entry below for details).
 | `text-embedded-type1-font.pdf` | `/Subtype /Type1`, embedded PostScript `/FontFile` (Phase B) - `Tf`/`Td`/`Tj` |
 | `text-standard14-type1-no-fontfile.pdf` | `/Subtype /Type1`, `/BaseFont /Helvetica`, no `/FontFile*` (Phase B) |
 | `fill-evenodd-nested-rectangles-double-border.pdf` | Even-odd (`f*`) "double border" - four boundaries in one row |
+| `shading-mesh-types-4-5-6-7.pdf` | `sh` painting `/ShadingType` 4, 5, 6 and 7 meshes, one quadrant each |
 | `text-type1c-differences-agl-ligatures.pdf` | Real-world `/Differences` names resolved via embedded font |
 
 For this phase, a real-world third-party PDF sourcing pass was investigated (mirroring
@@ -148,6 +149,15 @@ defect fixed alongside this fixture (see `docs/design/canvas-net/drawing/path-fi
 `ScanlineRasterizerTests`'s own unit-level regressions for the underlying mechanism) - without the
 fix, the affected row folds to materially the wrong coverage; with the fix, it matches an
 independently hand-computed weighted-parity value exactly.
+
+`shading-mesh-types-4-5-6-7.pdf` is a hand-authored 400x400 pt page with four 200x200 quadrants,
+each painted by `sh` (under a `cm` translation) with a 16-bit-coordinate, 8-bit-component
+`/DeviceRGB` mesh with `/Decode [0 200 0 200 0 1 0 1 0 1]`: top-left type 4 (a triangle plus a
+flag-1 continuation triangle), top-right type 5 (3x3 lattice), bottom-left type 6 (one Coons patch
+with curved edges) and bottom-right type 7 (the same boundary as type 6 plus four interior control
+points swapped to the opposite corners of the patch, crossing the Coons-derived positions so the
+two types render visibly different interiors). Corner colors are red, green, blue and
+yellow. It was verified to render equivalently in a web browser's PDF viewer.
 
 `text-type1c-differences-agl-ligatures.pdf` is, unlike every other fixture in this folder, **not**
 hand-authored: it is a trimmed, single-page excerpt of a real-world document (page 4), kept

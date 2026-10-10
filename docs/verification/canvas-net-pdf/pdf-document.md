@@ -2014,10 +2014,15 @@ a pattern fill, and that `/Matrix` and stroking apply to the mesh.
 #### CanvasNetPdf-PdfDocument-MeshShadingOperator: sh Paints Mesh Shadings
 
 **Tests**: `PdfDocument_MeshShading_Type4_ShOperator_InterpolatesVertexColors`,
-`PdfDocument_MeshShading_ShOperator_HonorsBBoxAndClip`
+`PdfDocument_MeshShading_ShOperator_HonorsBBoxAndClip`,
+`CanvasNetPdf_SystemIntegration_ShOperatorMeshShadingTypes4To7_PaintsExpectedCornerColors`
 
 Asserts `sh` paints a type 4 mesh directly with interpolated vertex colors and honors both the
-shading `/BBox` and a preceding clip path.
+shading `/BBox` and a preceding clip path. The system-integration test opens
+`PdfFixtures/shading-mesh-types-4-5-6-7.pdf` (one quadrant per shading type 4, 5, 6 and 7) and
+asserts the expected corner/vertex colors in every quadrant, unpainted pixels outside the type 4
+triangle, and that the type 7 interior control points change the interior color relative to the
+type 6 patch with the same boundary.
 
 #### CanvasNetPdf-PdfDocument-MeshShadingFailClosed: Malformed or Oversized Mesh Shadings Fail Closed
 

@@ -1783,6 +1783,7 @@ sections:
             tests:
               - PdfDocument_MeshShading_Type4_ShOperator_InterpolatesVertexColors
               - PdfDocument_MeshShading_ShOperator_HonorsBBoxAndClip
+              - CanvasNetPdf_SystemIntegration_ShOperatorMeshShadingTypes4To7_PaintsExpectedCornerColors
 
           - id: CanvasNetPdf-PdfDocument-MeshShadingFailClosed
             title: >-
