@@ -1074,6 +1074,7 @@ public static partial class Jpeg2000Codec
 
             tile.Parts++;
         }
+
         private static int ReadTilePartHeader(byte[] data, int start, int partEnd, TileData tile, int partIndex, List<byte[]>? ppm)
         {
             var state = tile.State!;

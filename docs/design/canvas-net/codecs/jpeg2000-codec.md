@@ -91,9 +91,9 @@ Limits are enforced during header validation, before the memory they protect is 
   (about 3.4 ns in a Release build, twice that in Debug): about 55 microseconds per input byte,
   so a stream of about 1 MB that reaches the 2^34 absolute ceiling costs on the order of a minute
   of CPU (two or more in Debug). Callers decoding untrusted input should pass tighter
-  `Jpeg2000DecoderLimits` (see the user guide). A pass count is deliberately not compared with the segment length: an MQ-coded
-  pass can legitimately consume far less than one byte, so such a rule would reject valid streams;
-  the work budget is the mitigation.
+  `Jpeg2000DecoderLimits` (see the user guide). A pass count is deliberately not compared with the
+  segment length: an MQ-coded pass can legitimately consume far less than one byte, so such a rule
+  would reject valid streams; the work budget is the mitigation.
 - `MaxBitPlanes` (30) is the single bit-plane ceiling. Each band's bit-plane count
   (guard bits + exponent - 1) is validated once during geometry construction: out-of-range values
   are `InvalidDataException`; a count that only exceeds the ceiling once the ROI shift is added

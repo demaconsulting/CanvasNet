@@ -1341,6 +1341,7 @@ public class Jpeg2000CodecTests
         // A zero length is legal for the last tile-part (it extends to the end of the data).
         _ = Jpeg2000Codec.Decode(Patch(data, sot + 6, 0, 0, 0, 0));
     }
+
     /// <summary>Tests that tile-parts of a tile must come in order (TPsot) while the advisory count (TNsot) is not enforced.</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_TilePartIndexes_AreCheckedAndCountIsAdvisory()
@@ -1575,6 +1576,7 @@ public class Jpeg2000CodecTests
         Assert.Equal(Jpeg2000TestEncoder.ExpectedByte(51_200, 16, false), decoded.ColorSamples[1]);
         Assert.Equal(Jpeg2000TestEncoder.ExpectedByte(51_200, 16, false), decoded.ColorSamples[^1]);
     }
+
     /// <summary>Tests that the entropy-decoding work is bounded by an explicit limit.</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_TightTier1Limit_ThrowsInvalidData()
@@ -1689,6 +1691,7 @@ public class Jpeg2000CodecTests
         var hostile = Resize(Encode(Img(16, 16, 1), tiny), 512, 512, 512, 512);
         AssertMalformed(hostile, "tile has more packets than its data can carry");
     }
+
     /// <summary>Tests that a codestream missing a whole tile is rejected.</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_MissingTile_ThrowsInvalidData()
