@@ -26,7 +26,8 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///     fonts are all supported, with embedded font programs used directly and non-embedded simple
 ///     fonts automatically substituted with a matching system or bundled font (only
 ///     <c>/MMType1</c> is unsupported) - placed raster image XObjects (<c>DCTDecode</c>/
-///     <c>CCITTFaxDecode</c> (Group 4)/raw samples through the full supported <c>/Filter</c>
+///     <c>CCITTFaxDecode</c> (Group 4)/<c>JPXDecode</c> (JPEG 2000, with <c>/SMask</c> and
+///     <c>/SMaskInData</c> transparency)/raw samples through the full supported <c>/Filter</c>
 ///     pipeline: <c>FlateDecode</c>, <c>LZWDecode</c>, <c>ASCII85Decode</c>,
 ///     <c>ASCIIHexDecode</c>, and <c>RunLengthDecode</c>, each with PNG/TIFF predictor reversal
 ///     where applicable), placed Form XObjects (nested content streams with their own

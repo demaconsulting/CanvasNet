@@ -264,13 +264,20 @@ public sealed partial class PdfDocument
     ///     case decodes via the general <c>FlateDecode</c>(+predictor) pipeline and interprets
     ///     the resulting raw samples per <c>/ColorSpace</c> (device color spaces, <c>/ICCBased</c>,
     ///     and <c>/Indexed</c> - see <see cref="PdfColorSpace"/>) and <c>/BitsPerComponent</c>
-    ///     (<c>8</c> only). <c>/SMask</c>/<c>/Mask</c> are never consulted - every decoded image
-    ///     is treated as fully opaque, a documented Phase 3 limitation.
+    ///     (<c>8</c> only). A <c>/Filter /JPXDecode</c> image (and no other filter) is decoded
+    ///     by <see cref="DecodeJpxImageXObject"/>. An explicit <c>/SMask</c> image (any supported
+    ///     encoding, including <c>JPXDecode</c>) supplies the alpha channel, resampled to the
+    ///     base image with nearest-neighbor sampling; <c>/Mask</c> (stencil/color-key masking) and
+    ///     <c>/Matte</c> are never consulted, a documented limitation. JPEG 2000 is never
+    ///     decoded from an inline image because inline images (<c>BI</c>/<c>ID</c>/<c>EI</c>)
+    ///     are not supported at all (the operators are ignored), which also satisfies the
+    ///     specification's restriction of <c>JPXDecode</c> to image XObjects.
     /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <c>/Width</c>/<c>/Height</c> is missing, not a number, or not positive,
-    ///     when <c>/ColorSpace</c> is missing (for a non-<c>CCITTFaxDecode</c> image), when
-    ///     <c>DCTDecode</c> is combined with any other filter, when <c>CCITTFaxDecode</c> is
+    ///     when <c>/ColorSpace</c> is missing (for a non-<c>CCITTFaxDecode</c>/non-<c>JPXDecode</c> image), when
+    ///     <c>DCTDecode</c> or <c>JPXDecode</c> is combined with any other filter, when
+    ///     <c>CCITTFaxDecode</c> is
     ///     combined with any other filter, or propagated from <see cref="DecodeCcittFax"/> for a
     ///     malformed/truncated CCITT bit stream.
     /// </exception>
@@ -283,6 +290,56 @@ public sealed partial class PdfDocument
     ///     (Group 3) or <c>/EndOfLine</c> is <see langword="true"/>.
     /// </exception>
     private Surface DecodeImageXObject(PdfObject stream)
+    {
+        var surface = DecodeImageSamples(stream);
+        var softMaskEntry = stream.Get("SMask");
+        if (softMaskEntry is null)
+        {
+            return surface;
+        }
+
+        var softMask = Resolve(softMaskEntry);
+        if (softMask.Kind != PdfKind.Stream)
+        {
+            throw new InvalidDataException("Image XObject /SMask must be an image XObject stream.");
+        }
+
+        // The soft-mask image is decoded through exactly the same sample pipeline (including
+        // JPXDecode) but its own /SMask, if any, is never consulted (no nested masks).
+        using var mask = DecodeImageSamples(softMask);
+        var masked = ApplySoftMask(surface, mask);
+        surface.Dispose();
+        return masked;
+    }
+
+    /// <summary>
+    ///     Returns a copy of <paramref name="image"/> whose alpha channel is multiplied by the
+    ///     luminance (red channel of the DeviceGray-decoded mask) of <paramref name="mask"/>,
+    ///     resampling the mask to the image's dimensions with nearest-neighbor sampling.
+    /// </summary>
+    private static Surface ApplySoftMask(Surface image, Surface mask)
+    {
+        var result = new Surface(image.Width, image.Height);
+        for (var y = 0; y < image.Height; y++)
+        {
+            var my = (int)((long)y * mask.Height / image.Height);
+            for (var x = 0; x < image.Width; x++)
+            {
+                var mx = (int)((long)x * mask.Width / image.Width);
+                var pixel = image[x, y];
+                var opacity = mask[mx, my].R;
+                result[x, y] = new Rgba32(pixel.R, pixel.G, pixel.B, (byte)((pixel.A * opacity + 127) / 255));
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    ///     Decodes the sample data of an image XObject stream (everything
+    ///     <see cref="DecodeImageXObject"/> documents except <c>/SMask</c> handling).
+    /// </summary>
+    private Surface DecodeImageSamples(PdfObject stream)
     {
         var width = RequireIntEntry(stream, "Width");
         var height = RequireIntEntry(stream, "Height");
@@ -308,6 +365,16 @@ public sealed partial class PdfDocument
         if (filterNames.Contains("DCTDecode"))
         {
             throw new InvalidDataException("DCTDecode combined with another filter is not supported.");
+        }
+
+        if (filterNames.Count == 1 && filterNames[0] == "JPXDecode")
+        {
+            return DecodeJpxImageXObject(stream);
+        }
+
+        if (filterNames.Contains("JPXDecode"))
+        {
+            throw new InvalidDataException("JPXDecode combined with another filter is not supported.");
         }
 
         if (filterNames.Count == 1 && filterNames[0] == "CCITTFaxDecode")
@@ -348,6 +415,149 @@ public sealed partial class PdfDocument
         }
 
         return surface;
+    }
+
+    /// <summary>
+    ///     Decodes a bare <c>/Filter /JPXDecode</c> image XObject (JPEG 2000) via
+    ///     <see cref="Jpeg2000Codec.Decode(byte[])"/>, trusting the decoded dimensions over
+    ///     <c>/Width</c>/<c>/Height</c> like <c>DCTDecode</c>.
+    /// </summary>
+    /// <remarks>
+    ///     When <c>/ColorSpace</c> is absent the JPEG 2000 data's own colour space (gray, sRGB/sYCC,
+    ///     CMYK, or by channel count) is used; when present it overrides it (device spaces,
+    ///     <c>/ICCBased</c> by component count, and <c>/Indexed</c>, where the sample is the raw
+    ///     palette index - which requires 8-bit index data, since samples are scaled to 8 bits)
+    ///     and its component count must equal the decoded colour channel count. An optional
+    ///     <c>/Decode</c> array maps each 8-bit sample linearly. <c>/SMaskInData</c> <c>1</c> uses
+    ///     the codestream's opacity channel as alpha, <c>2</c> additionally un-premultiplies the
+    ///     colour samples; it is ignored when the image has an explicit <c>/SMask</c>.
+    /// </remarks>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown for malformed JPEG 2000 data, an invalid <c>/Decode</c> or <c>/SMaskInData</c>,
+    ///     or a <c>/ColorSpace</c> whose component count disagrees with the decoded data.
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown for JPEG 2000 features the decoder does not support or an unsupported <c>/ColorSpace</c>.
+    /// </exception>
+    private Surface DecodeJpxImageXObject(PdfObject stream)
+    {
+        var smaskInData = GetIntEntry(stream, "SMaskInData", 0);
+        if (smaskInData is < 0 or > 2)
+        {
+            throw new InvalidDataException("Image XObject /SMaskInData must be 0, 1, or 2.");
+        }
+
+        var jp2 = Jpeg2000Codec.Decode(GetStreamRawBytes(stream));
+
+        var colorSpaceObject = stream.Get("ColorSpace");
+        PdfColorSpace colorSpace;
+        if (colorSpaceObject is null)
+        {
+            colorSpace = jp2.ColorSpace switch
+            {
+                Jpeg2000ColorSpace.Gray => PdfColorSpace.DeviceGray,
+                Jpeg2000ColorSpace.Srgb => PdfColorSpace.DeviceRGB,
+                Jpeg2000ColorSpace.Cmyk => PdfColorSpace.DeviceCMYK,
+                _ => jp2.ColorChannelCount switch
+                {
+                    1 => PdfColorSpace.DeviceGray,
+                    3 => PdfColorSpace.DeviceRGB,
+                    4 => PdfColorSpace.DeviceCMYK,
+                    _ => throw new UnsupportedImageFeatureException(
+                        "pdf-jpx-colorspace",
+                        $"JPXDecode images with {jp2.ColorChannelCount} colour channels need an explicit /ColorSpace."),
+                },
+            };
+        }
+        else
+        {
+            colorSpace = ResolveColorSpaceValue(Resolve(colorSpaceObject));
+            if (colorSpace.Kind == PdfColorSpace.Family.Pattern)
+            {
+                throw new InvalidDataException("Image XObject /ColorSpace must not be /Pattern.");
+            }
+        }
+
+        var componentCount = ComponentCount(colorSpace);
+        if (componentCount != jp2.ColorChannelCount)
+        {
+            throw new InvalidDataException(
+                $"JPXDecode image has {jp2.ColorChannelCount} colour channels but /ColorSpace has {componentCount} components.");
+        }
+
+        var samples = jp2.ColorSamples;
+        var decodeEntry = stream.Get("Decode");
+        if (decodeEntry is not null)
+        {
+            samples = ApplyDecodeArray(samples, componentCount, Resolve(decodeEntry), colorSpace.Kind == PdfColorSpace.Family.Indexed);
+        }
+
+        var useAlpha = smaskInData != 0 && jp2.AlphaSamples is not null && stream.Get("SMask") is null;
+        var surface = new Surface(jp2.Width, jp2.Height);
+        var pixelCount = jp2.Width * jp2.Height;
+        for (var i = 0; i < pixelCount; i++)
+        {
+            var color = SamplesToColor(colorSpace, samples, i * componentCount, componentCount);
+            if (useAlpha)
+            {
+                var alpha = jp2.AlphaSamples![i];
+                if (smaskInData == 2 && alpha > 0 && alpha < 255)
+                {
+                    // Un-premultiply the colour samples (stored already multiplied by opacity).
+                    color = new Rgba32(
+                        (byte)Math.Min(255, (color.R * 255 + (alpha / 2)) / alpha),
+                        (byte)Math.Min(255, (color.G * 255 + (alpha / 2)) / alpha),
+                        (byte)Math.Min(255, (color.B * 255 + (alpha / 2)) / alpha),
+                        255);
+                }
+
+                color.A = alpha;
+            }
+
+            surface[i % jp2.Width, i / jp2.Width] = color;
+        }
+
+        return surface;
+    }
+
+    /// <summary>
+    ///     Applies an image <c>/Decode</c> array to interleaved 8-bit samples:
+    ///     <c>v' = Dmin + (v / 255) * (Dmax - Dmin)</c> per component, re-quantized to 8 bits
+    ///     (for a non-<c>/Indexed</c> space the decode range is <c>[0, 1]</c>-normalized; for
+    ///     <c>/Indexed</c> it is in palette-index units).
+    /// </summary>
+    /// <exception cref="InvalidDataException">Thrown when the array is not <c>2 x components</c> numbers.</exception>
+    private byte[] ApplyDecodeArray(byte[] samples, int componentCount, PdfObject decode, bool indexed)
+    {
+        if (decode.Kind != PdfKind.Array || decode.Items.Count != 2 * componentCount)
+        {
+            throw new InvalidDataException($"Image XObject /Decode must be an array of {2 * componentCount} numbers.");
+        }
+
+        var ranges = new double[2 * componentCount];
+        for (var i = 0; i < ranges.Length; i++)
+        {
+            var item = Resolve(decode.Items[i]);
+            if (item.Kind != PdfKind.Number)
+            {
+                throw new InvalidDataException("Image XObject /Decode must contain only numbers.");
+            }
+
+            ranges[i] = item.Number;
+        }
+
+        var result = new byte[samples.Length];
+        for (var i = 0; i < samples.Length; i++)
+        {
+            var component = i % componentCount;
+            var min = ranges[2 * component];
+            var max = ranges[(2 * component) + 1];
+            var value = min + (samples[i] / 255.0 * (max - min));
+            var scaled = indexed ? value : value * 255.0;
+            result[i] = (byte)Math.Clamp((int)Math.Round(scaled), 0, 255);
+        }
+
+        return result;
     }
 
     /// <summary>
