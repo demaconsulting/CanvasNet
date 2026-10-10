@@ -256,6 +256,27 @@ sections:
                   - Jpeg2000Codec_Decode_Jp2BoxLengthMismatch_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_WrongSegmentationSymbol_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_SegmentationSymbols_RoundTripsExactly
+                  - Jpeg2000Codec_Jp2MissingFileType_IsRejected
+                  - Jpeg2000Codec_Jp2FileTypeNotSecond_IsRejected
+                  - Jpeg2000Codec_Jp2FileTypeLength_IsChecked
+                  - Jpeg2000Codec_Jp2MissingHeaderBox_IsRejected
+                  - Jpeg2000Codec_Jp2HeaderAfterCodestream_IsRejected
+                  - Jpeg2000Codec_Jp2HeaderWithoutIhdr_IsRejected
+                  - Jpeg2000Codec_Jp2IhdrLength_IsChecked
+                  - Jpeg2000Codec_Jp2IhdrSizeMismatch_IsRejected
+                  - Jpeg2000Codec_Jp2Leniency_IsAccepted
+                  - Jpeg2000Codec_Jp2Baseline_IsAccepted
+                  - Jpeg2000Codec_Decode_MarkerNotAllowedInMainHeader_IsRejected
+                  - Jpeg2000Codec_Decode_SkippedMarkerInMainHeader_IsAccepted
+                  - Jpeg2000Codec_Decode_MarkerNotAllowedInTilePartHeader_IsRejected
+                  - Jpeg2000Codec_Decode_SkippedMarkerInTilePartHeader_IsAccepted
+                  - Jpeg2000Codec_Decode_MarkerOrdering_IsEnforced
+                  - Jpeg2000Codec_Decode_MissingSod_IsRejected
+                  - Jpeg2000Codec_Decode_BytesAfterEoc_AreIgnored
+                  - Jpeg2000Codec_Decode_PpmIndexes_RepeatRejectedGapAccepted
+                  - Jpeg2000Codec_Decode_PptIndexes_RepeatRejectedGapAccepted
+                  - Jpeg2000Codec_Decode_InvalidFieldValue_IsRejected
+                  - Jpeg2000Codec_Decode_MaximumCodeBlockArea_IsAccepted
 
               - id: CanvasNet-Codecs-Jpeg2000Codec-Unsupported
                 title: >-

@@ -1,3 +1,5 @@
+<!-- cspell:ignore Spoc Epoc Zppt Zppm Nsop -->
+
 ### Jpeg2000Codec
 
 ![Codecs Structure](CodecsView.svg)
@@ -113,32 +115,49 @@ Limits are enforced during header validation, before the memory they protect is 
    tile-parts; tile-part headers may override coding and quantization parameters, but only in the
    first tile-part of a tile (COD/COC/QCD/QCC/RGN in a later tile-part is `InvalidDataException`;
    POC and PPT are accepted in any tile-part).
-   Every marker-segment and JP2 box parser checks its payload length exactly and rejects a
-   malformed length with `InvalidDataException`, so no byte is silently dropped. The rules are:
+   Every marker-segment and JP2 box parser checks its payload length exactly and every field is
+   range-checked, so no byte is silently dropped and no invalid value is accepted. Every failure is
+   `InvalidDataException`, except valid-but-unsupported features, which are
+   `UnsupportedImageFeatureException`; no other exception type is thrown. The rules, with each
+   deliberate leniency, are:
 
-   | Structure | Length rule |
-   | --- | --- |
-   | SIZ | Exactly 38 + 3 x Csiz bytes after the length field |
-   | COD / COC | Fixed part plus one precinct byte per resolution when precincts are declared; no trailing bytes |
-   | QCD / QCC, style 0 | Exactly 3 x levels + 1 entries, checked once the effective levels are known (below) |
-   | QCD / QCC, style 1 | Exactly one 16-bit entry |
-   | QCD / QCC, style 2 | A non-zero even number of bytes (odd lengths are rejected, not truncated) |
-   | RGN | Exactly 3 bytes after the length field (component index below 16 so one byte) |
-   | POC | A non-zero multiple of 7 bytes |
-   | SOT | Lsot exactly 10; Psot at least 14 and within the data |
-   | SOP | Lsop exactly 4 |
-   | PPM / PPT | At least the one-byte index; PPM chunks must tile the payload exactly |
-   | JP2 colr | At least 3 bytes; METH 1 is exactly 7 bytes except EnumCS 14 and 19, which carry extra parameters |
-   | JP2 pclr | Exactly the header, depth bytes and entries x columns values |
-   | JP2 cmap | A multiple of 4 bytes |
-   | JP2 cdef | Exactly 2 + 6 x N bytes |
+   <!-- markdownlint-disable MD013 -->
 
-   Deliberate lenient exceptions, where the specification permits variable or extra content or the
-   decoder ignores the structure: COM, TLM, PLM, PLT, CRG and unknown marker segments (skipped by
-   their length field only); JP2 colr METH 2 (the ICC profile occupies the rest of the box) and any
-   other METH value; ftyp (the compatibility list is variable); ihdr, bpcc, res and every unknown
-   or non-header box (not interpreted, only skipped by their box length); and a box length of 0
-   or 1 (to end of data, or an extended 64-bit length).
+   | Structure | Validation rule | Deliberate leniency |
+   | --- | --- | --- |
+   | SOC | First marker; a second SOC in the main header is rejected | None |
+   | SIZ | Directly after SOC, at most once, in the main header only; exactly 38 + 3 x Csiz bytes; Csiz 1 to 16384 (more than 16 is unsupported); Xsiz, Ysiz, XTsiz, YTsiz non-zero; XRsiz, YRsiz non-zero; XOsiz < Xsiz and YOsiz < Ysiz; XTOsiz and YTOsiz at most the image offset and tile origin + size beyond it; Ssiz depth above 16 is unsupported; Rsiz Part 2 and HTJ2K bits are unsupported | Other Rsiz profile values are not checked |
+   | COD / COC | Fixed part plus one precinct byte per resolution when precincts are declared, no trailing bytes; levels at most 32; code-block exponents 2 to 10 with xcb + ycb at most 12; precinct exponent 0 only at resolution 0; progression order at most 4; layers at least 1; style bits 6-7 and transform above 1 are unsupported; MCT above 1 is unsupported; MCT needs three equal components | Scod reserved bits 3-7 are ignored; a repeated COD replaces the earlier one (as OpenJPEG) |
+   | QCD / QCC | Style 0 exactly 3 x levels + 1 entries (checked once the effective levels are known); style 1 exactly one 16-bit entry; style 2 a non-zero even number of bytes; style above 2 and an empty segment are rejected; derived exponents must stay in the bit-plane range | Style 2 extra entries are ignored; guard-bit count is not range-checked beyond the bit-plane limits |
+   | RGN | Exactly 3 bytes; component index below Csiz; style must be 0 (else unsupported); shift at most 37 | None |
+   | POC | A non-zero multiple of 7 bytes; RSpoc < REpoc, CSpoc < CEpoc, LYEpoc at least 1, progression at most 4; the progressions must cover every packet; at most the entry cap | A later entry may name a larger layer end (already-sent packets are skipped) |
+   | SOT | Tile-part header only; Lsot exactly 10; Isot below the tile count; Psot 0 (last tile-part) or at least 14 and within the data; TPsot equals the tile-parts already seen | TNsot is advisory; Psot 1 to 13 is rejected, where OpenJPEG warns on 12 |
+   | SOD | Must end every tile-part header; a tile-part without SOD fails | None |
+   | EOC | Ends the codestream | A missing EOC, one trailing byte, and bytes after EOC are ignored |
+   | PPM / PPT | At least the one-byte index; PPM chunks must tile the payload exactly; PPM in the main header only, PPT in tile-part headers only; a repeated Zppm or Zppt index is rejected | A gap in the index sequence is tolerated, as in OpenJPEG; PPM and PPT may be mixed |
+   | TLM / PLM / CRG | Main header only (rejected in a tile-part header) | Skipped by their length field, content not interpreted |
+   | PLT | Tile-part header only (rejected in the main header) | Skipped by length |
+   | COM, unknown markers | Skipped by their length field | Content not interpreted |
+   | SOP | In packet data only; a SOP marker in either header is rejected; when present Lsop exactly 4 | Presence is not required even when the Scod SOP bit is set, and Nsop is not checked (see below) |
+   | Marker order | SIZ first; COD and QCD required in the main header; SOT before SOD; COD/COC/QCD/QCC/RGN only in the first tile-part of a tile | Marker order inside a header is otherwise free |
+   | JP2 signature, jP | Must be the first box with content `0D 0A 87 0A` | None |
+   | JP2 ftyp | Must be the second box; content a multiple of 4 and at least 8 bytes | Brand and compatibility list are not interpreted |
+   | JP2 jp2h | Must precede jp2c and contain an ihdr; its child boxes are read in order | Several jp2h boxes: the first of each child wins; boxes after jp2c are not examined |
+   | JP2 ihdr | Exactly 14 bytes; height and width must equal the SIZ image height and width | NC, BPC, C, UnkC and IPR are not compared with SIZ (OpenJPEG only warns); a second ihdr is ignored; ihdr need not be the first child |
+   | JP2 bpcc | Not interpreted, depths come from SIZ | Always |
+   | JP2 colr | At least 3 bytes; METH 1 is exactly 7 bytes except EnumCS 14 and 19, which carry extra parameters | METH 2 takes the rest of the box as an ICC profile; other METH values are ignored; a missing colr falls back to the heuristic below |
+   | JP2 pclr | Exactly the header, depth bytes and entries x columns values; signed columns are unsupported | Out-of-range palette indexes are clamped |
+   | JP2 cmap | A multiple of 4 bytes | Ignored without a pclr |
+   | JP2 cdef | Exactly 2 + 6 x N bytes | A repeated channel association: the last wins |
+   | JP2 res and unknown boxes | Skipped by their box length | Not interpreted |
+   | JP2 box length | Truncated or oversized boxes are rejected | A length of 0 (to end of data) or 1 (extended 64-bit length) is accepted |
+   | jp2c | Required, with a valid codestream | A raw codestream (no signature box) is accepted without any JP2 box |
+
+   <!-- markdownlint-enable MD013 -->
+
+   The required JP2 boxes (signature, `ftyp`, `jp2h` with an `ihdr`, `jp2c`) are the ones OpenJPEG
+   also insists on; `colr` is not required because OpenJPEG decodes a file without one. The same
+   rule applies to `Decode` and `GetInfo`.
 3. **Tier-2**: packet headers are decoded (tag trees, inclusion, zero bit-planes, pass counts,
    lengths) for every progression order and quality layer, with optional SOP/EPH markers. Every
    tile must have at least one tile-part; a tile with none (for example a codestream cut at a tile
@@ -195,7 +214,9 @@ streams and decoding them with ImageMagick) or the standard leaves the behavior 
   A.6.1-A.6.4); POC and PPT remain accepted in every tile-part. A mix of PPM and PPT packed
   headers is accepted.
 - SOP markers are not required to be present or numbered in sequence, and truncated tile data is
-  never decoded leniently (it is InvalidDataException).
+  never decoded leniently (it is InvalidDataException). A stricter SOP rule was considered and declined:
+  the Scod SOP bit means markers *may* be present (T.800 A.6.1), not that they must be, and OpenJPEG
+  only warns. A SOP marker that is present must still have Lsop 4.
 - Bytes remaining after a tile's last packet are ignored rather than rejected (matches OpenJPEG).
 - POC entries from later tile-parts are appended to the tile's progression list in tile-part order,
   as the standard specifies (covered by `Jpeg2000Codec_Decode_PocInLaterTilePart_RoundTripsExactly`).
@@ -210,7 +231,9 @@ streams and decoding them with ImageMagick) or the standard leaves the behavior 
   `cmap`, `cdef`) are read, each bounded to 1 MiB (the largest valid palette is about 510 KiB, so a
   larger one is `InvalidDataException`), `colr` is read for its first 256 bytes only (an ICC
   profile needs just its 128-byte header to classify the color space; a METH 1 box longer than that
-  is malformed anyway), and every other child (`ihdr`, `bpcc`, `res`, unknown) is skipped. It stops after the SOC and SIZ
+  is malformed anyway), and `ihdr` is read for the same 14-byte and SIZ-dimension checks as `Decode`,
+  `ftyp` is validated and
+  skipped, and every other child (`bpcc`, `res`, unknown) is skipped. It stops after the SOC and SIZ
   segments at the start of the `jp2c` box.
   The existing box and marker parsers run on the bytes read. Boxes before `jp2c` that are not
   needed are skipped by `Seek` when the stream is seekable and read and discarded in 8 KiB chunks

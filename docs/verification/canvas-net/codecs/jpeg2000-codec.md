@@ -101,7 +101,12 @@ palettes, and channel definitions (alpha and reordering). `_Jp2BadSignatureConte
 signature box whose content is not `0D 0A 87 0A` is rejected with `InvalidDataException`, and
 `_Jp2SignedPaletteColumn` proves a palette column with the signed flag set is rejected with
 `UnsupportedImageFeatureException`. `Jpeg2000Codec_Decode_CmapWithoutPclr_IsIgnored` proves a `cmap`
-box without a `pclr` box does not remap channels.
+box without a `pclr` box does not remap channels. The `Jpeg2000Codec_Jp2*` tests (in
+`Jpeg2000ValidationTests`) pin the required-box rule on `Decode` and on `GetInfo` (seekable and
+non-seekable): a missing or misplaced `ftyp`, a bad `ftyp` length, a missing `jp2h`, a `jp2h` after
+`jp2c` or without `ihdr`, a wrong `ihdr` length and an `ihdr` width or height that differs from SIZ
+are `InvalidDataException`, while a missing `colr`, another brand, differing `ihdr` NC/BPC/C/UnkC/IPR
+fields, a second `ihdr` and `ihdr` after `colr` are accepted.
 
 ##### CanvasNet-Codecs-Jpeg2000Codec-GetInfo: Header-Only Information
 
@@ -154,6 +159,13 @@ QCD or QCC with extra or missing entries in the main or a tile-part header),
 that arrives later), `_CodestreamSegmentLengthMismatch` (SIZ, COD, COC and RGN with a trailing or
 missing byte),
 `_SopWrongLength` and `_Jp2BoxLengthMismatch` (colr, pclr and cdef with a trailing byte).
+The `Jpeg2000ValidationTests` class adds the Annex A audit with small hand-patched streams:
+`_MarkerNotAllowedInMainHeader` (SOC, SOD, EOC, SIZ, PPT, PLT, SOP), `_MarkerNotAllowedInTilePartHeader`
+(CAP, SIZ, TLM, PLM, PPM, CRG, SOP), the accepted skipped markers
+(`_SkippedMarkerInMainHeader`, `_SkippedMarkerInTilePartHeader`), `_MarkerOrdering`, `_MissingSod`,
+`_BytesAfterEoc` (leniency), `_PpmIndexes` / `_PptIndexes` (a repeated index is rejected, a gap is
+accepted), `_InvalidFieldValue` (one case per SIZ, COD, QCD, COC, QCC, RGN, POC and SOT field range) and
+`_MaximumCodeBlockArea` (the xcb + ycb = 12 boundary). All assert exception types and are deterministic.
 
 Checks (including Jpeg2000Codec_Decode_RealEncoderFixtureTruncated_FailsClosed on a real-encoder
 file) that corrupt, truncated and hostile data fail with `InvalidDataException` (or an
