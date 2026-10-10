@@ -780,6 +780,26 @@ public class Jpeg2000CodecTests
         }
     }
 
+    /// <summary>Tests that <c>BitDepth</c> reports the source depth and <c>HasPalette</c> reports palette expansion.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_BitDepthAndHasPalette_ReportSourceFormat()
+    {
+        var plain = Img(6, 5, 1, 4, 1, 0);
+        var plainDecoded = Jpeg2000Codec.Decode(Jpeg2000TestEncoder.WrapJp2(plain, Encode(plain, Rev(1)), new J2kJp2Options { EnumCs = 17 }));
+        Assert.Equal(4, plainDecoded.BitDepth);
+        Assert.False(plainDecoded.HasPalette);
+
+        var image = Img(6, 5, 1, 4, 1, 0);
+        int[][] palette = Enumerable.Range(0, 16).Select(i => new[] { i, i, i }).ToArray();
+        var jp2 = Jpeg2000TestEncoder.WrapJp2(
+            image,
+            Encode(image, Rev(1)),
+            new J2kJp2Options { Palette = palette, PaletteDepths = [8, 8, 8], Cmap = [(0, 1, 0), (0, 1, 1), (0, 1, 2)] });
+        var decoded = Jpeg2000Codec.Decode(jp2);
+        Assert.Equal(4, decoded.BitDepth);
+        Assert.True(decoded.HasPalette);
+    }
+
     /// <summary>Tests a mapping that mixes direct and palette channels, with a 16-bit palette column.</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_Jp2PaletteMixedDirectChannel_Maps()

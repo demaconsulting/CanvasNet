@@ -193,6 +193,29 @@ public class PdfDocumentJpxTests
         AssertNear(new Rgba32(0, 255, 0, 255), surface[50, 50], 0);
     }
 
+    /// <summary>Proves an /Indexed color space over non-8-bit JPX samples fails closed (samples are scaled to 8 bits).</summary>
+    [Fact]
+    public void PdfDocument_Images_Jpx_IndexedColorSpaceNonEightBit_ThrowsUnsupportedImageFeatureException()
+    {
+        var jpx = Jp2(Jpeg2000TestEncoder.MakeImage(8, 8, 1, 4, 1, 0), new J2kJp2Options { EnumCs = 17 });
+        Assert.Throws<UnsupportedImageFeatureException>(
+            () => Render(ImageObject("/ColorSpace [/Indexed /DeviceRGB 1 <FF000000FF00>]", jpx)));
+    }
+
+    /// <summary>Proves a PDF /ColorSpace override on JP2 data that carries its own palette fails closed.</summary>
+    [Fact]
+    public void PdfDocument_Images_Jpx_ColorSpaceOverJp2Palette_ThrowsUnsupportedImageFeatureException()
+    {
+        var image = Flat(8, 8, 1);
+        int[][] palette = [[255, 0, 0], [0, 255, 0]];
+        var jpx = Jp2(image, new J2kJp2Options { Palette = palette, PaletteDepths = [8, 8, 8], Cmap = [(0, 1, 0), (0, 1, 1), (0, 1, 2)] });
+        Assert.Throws<UnsupportedImageFeatureException>(() => Render(ImageObject("/ColorSpace /DeviceRGB", jpx)));
+
+        // Without an override the JP2's own palette is honored
+        using var surface = Render(ImageObject(string.Empty, jpx));
+        AssertNear(new Rgba32(0, 255, 0, 255), surface[50, 50], 0);
+    }
+
     /// <summary>Proves /Decode [1 0] inverts a gray JPX image.</summary>
     [Fact]
     public void PdfDocument_Images_Jpx_DecodeArray_InvertsSamples()

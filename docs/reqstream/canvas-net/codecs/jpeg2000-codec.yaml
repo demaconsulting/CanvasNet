@@ -140,6 +140,7 @@ sections:
                   - Jpeg2000Codec_Decode_Jp2BoxLengthForms_AreHandled
                   - Jpeg2000Codec_Decode_Jp2Palette_MapsIndicesToColors
                   - Jpeg2000Codec_Decode_Jp2PaletteMixedDirectChannel_Maps
+                  - Jpeg2000Codec_Decode_BitDepthAndHasPalette_ReportSourceFormat
                   - Jpeg2000Codec_Decode_Jp2Cdef_ProducesAlpha
                   - Jpeg2000Codec_Decode_Jp2CdefReorder_SwapsChannels
                   - Jpeg2000Codec_Decode_TwoComponentsWithoutCdef_DecodesAsGrey

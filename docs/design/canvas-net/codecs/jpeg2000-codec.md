@@ -2,7 +2,7 @@
 
 ![Codecs Structure](CodecsView.svg)
 
-The `Jpeg2000Codec` class is the seventh software unit in CanvasNet's `Codecs` subsystem. It
+The `Jpeg2000Codec` class is the sixth software unit in CanvasNet's `Codecs` subsystem. It
 provides a hand-rolled, decode-only implementation of JPEG 2000 Part 1 (ISO/IEC 15444-1 / ITU-T
 T.800): JP2 files and raw codestreams are decoded into `Surface` pixel buffers, or into a
 `Jpeg2000Image` that also exposes the decoded color space and opacity channel.
@@ -36,7 +36,9 @@ The class is a `static` partial class. The public surface lives in
 - `GetInfo(Stream)` / `GetInfo(string)` return an `ImageInfo` from the container and SIZ header
   only, without decoding and without enforcing `Surface.MaxDimension`.
 - `Decode(Stream)` / `Decode(byte[])` return a `Jpeg2000Image` (`Width`, `Height`, `ColorSpace`,
-  `ColorChannelCount`, `ColorSamples`, `AlphaSamples`, `AlphaPremultiplied`, `IccProfile`) with
+  `ColorChannelCount`, `ColorSamples`, `AlphaSamples`, `AlphaPremultiplied`, `IccProfile`,
+  `BitDepth` (source depth of the first color channel's component, before 8-bit scaling) and
+  `HasPalette` (the JP2 palette was applied to `ColorSamples`)) with
   8-bit interleaved samples. `Decode` enforces `Surface.MaxDimension` on the image size.
 
 #### Decoding Pipeline

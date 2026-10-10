@@ -880,7 +880,9 @@ sections:
               (including a JPXDecode one) as the base image's alpha channel; a /ColorSpace whose
               component count differs from the decoded data, an invalid /SMaskInData or /Decode,
               JPXDecode combined with another filter, or malformed JPEG 2000 data shall throw
-              InvalidDataException, and unsupported JPEG 2000 features
+              InvalidDataException, and unsupported JPEG 2000 features, a /ColorSpace override on
+              JPEG 2000 data that carries its own palette, or an Indexed /ColorSpace over non-8-bit
+              samples shall throw
               UnsupportedImageFeatureException. JPXDecode is never decoded from an inline image
               because inline images are not supported.
             justification: |
@@ -897,6 +899,8 @@ sections:
               - PdfDocument_Images_Jpx_ExplicitDeviceCmyk_HonorsColorSpace
               - PdfDocument_Images_Jpx_IccBasedColorSpace_ResolvesByComponentCount
               - PdfDocument_Images_Jpx_IndexedColorSpace_OverridesJp2ColorSpace
+              - PdfDocument_Images_Jpx_IndexedColorSpaceNonEightBit_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Images_Jpx_ColorSpaceOverJp2Palette_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Images_Jpx_DecodeArray_InvertsSamples
               - PdfDocument_Images_Jpx_SMaskInDataZero_IgnoresAlphaChannel
               - PdfDocument_Images_Jpx_SMaskInDataOne_AppliesAlphaChannel

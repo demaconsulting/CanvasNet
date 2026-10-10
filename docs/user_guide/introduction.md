@@ -941,7 +941,9 @@ public static Jpeg2000Image Decode(byte[] data)
 
 Decodes to a `Jpeg2000Image` exposing `Width`, `Height`, `ColorSpace` (`Gray`, `Srgb`, `Cmyk` or
 `Unknown`), `ColorChannelCount`, 8-bit interleaved `ColorSamples`, optional `AlphaSamples` (with
-`AlphaPremultiplied`) and the `IccProfile` bytes. Throws the same exceptions as `Load`.
+`AlphaPremultiplied`), the `IccProfile` bytes, the source `BitDepth` of the first color channel
+before 8-bit scaling, and `HasPalette` (whether a JP2 palette was applied to `ColorSamples`).
+Throws the same exceptions as `Load`.
 
 `SvgCodec` is distributed via the separate `DemaConsulting.CanvasNet.Svg` NuGet package (namespace
 `DemaConsulting.CanvasNet.Svg`), which references the core `DemaConsulting.CanvasNet` package -

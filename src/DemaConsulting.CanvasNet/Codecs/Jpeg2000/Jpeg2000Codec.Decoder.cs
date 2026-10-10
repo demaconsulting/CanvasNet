@@ -257,7 +257,11 @@ public static partial class Jpeg2000Codec
             ConvertSyccToRgb(color);
         }
 
-        return new Jpeg2000Image(width, height, layout.ColorSpace, nColor, color, alpha, layout.Premultiplied, jp2.IccProfile);
+        return new Jpeg2000Image(width, height, layout.ColorSpace, nColor, color, alpha, layout.Premultiplied, jp2.IccProfile)
+        {
+            BitDepth = siz.Depth[layout.Color[0].Component],
+            HasPalette = layout.Color.Any(s => s.PaletteColumn >= 0) && jp2.Palette is not null,
+        };
     }
 
     private static int[] BuildAxisMap(long origin, int length, int subsampling, long compStart, long compEnd)

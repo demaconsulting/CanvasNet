@@ -13,8 +13,8 @@ verification, but is now provided by the separate `CanvasNetSvg` system (its own
 
 The `Codecs` subsystem is verified through its six constituent units' tests (see
 _BmpCodec Unit Verification Design_, _PngCodec Unit Verification Design_,
-_TiffCodec Unit Verification Design_, _JpegCodec Unit Verification Design_, and
-_GifCodec Unit Verification Design_ under `codecs/`),
+_TiffCodec Unit Verification Design_, _JpegCodec Unit Verification Design_,
+_GifCodec Unit Verification Design_, and _Jpeg2000Codec Unit Verification Design_ under `codecs/`),
 together with the system-level round-trip (or, for the decode-only `GifCodec`,
 load-only) integration tests in `CanvasNetTests.cs` that exercise each codec end-to-end against a
 `Surface`. No separate subsystem-level tests otherwise exist; the subsystem-level requirements

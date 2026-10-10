@@ -427,7 +427,9 @@ public sealed partial class PdfDocument
     ///     CMYK, or by channel count) is used; when present it overrides it (device spaces,
     ///     <c>/ICCBased</c> by component count, and <c>/Indexed</c>, where the sample is the raw
     ///     palette index - which requires 8-bit index data, since samples are scaled to 8 bits)
-    ///     and its component count must equal the decoded color channel count. An optional
+    ///     and its component count must equal the decoded color channel count. An overriding
+    ///     <c>/ColorSpace</c> is rejected when the JP2 data has its own palette (the decoder has
+    ///     already expanded it), and an <c>/Indexed</c> one when the samples are not 8-bit. An optional
     ///     <c>/Decode</c> array maps each 8-bit sample linearly. <c>/SMaskInData</c> <c>1</c> uses
     ///     the codestream's opacity channel as alpha, <c>2</c> additionally un-premultiplies the
     ///     color samples; it is ignored when the image has an explicit <c>/SMask</c>.
@@ -437,7 +439,8 @@ public sealed partial class PdfDocument
     ///     or a <c>/ColorSpace</c> whose component count disagrees with the decoded data.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown for JPEG 2000 features the decoder does not support or an unsupported <c>/ColorSpace</c>.
+    ///     Thrown for JPEG 2000 features the decoder does not support, an unsupported <c>/ColorSpace</c>,
+    ///     a <c>/ColorSpace</c> override on palette-mapped JP2 data, or an <c>/Indexed</c> space over non-8-bit samples.
     /// </exception>
     private Surface DecodeJpxImageXObject(PdfObject stream)
     {
@@ -476,6 +479,20 @@ public sealed partial class PdfDocument
             {
                 throw new InvalidDataException("Image XObject /ColorSpace must not be /Pattern.");
             }
+        }
+
+        if (colorSpaceObject is not null && jp2.HasPalette)
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-jpx-palette-colorspace",
+                "JPXDecode images whose JP2 data has a palette cannot be combined with a PDF /ColorSpace override.");
+        }
+
+        if (colorSpace.Kind == PdfColorSpace.Family.Indexed && jp2.BitDepth != 8)
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-jpx-indexed-bit-depth",
+                $"JPXDecode images with an /Indexed /ColorSpace require 8-bit samples, not {jp2.BitDepth}-bit.");
         }
 
         var componentCount = ComponentCount(colorSpace);

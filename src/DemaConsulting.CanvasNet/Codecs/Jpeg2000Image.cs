@@ -28,4 +28,16 @@ public sealed record Jpeg2000Image(
 {
     /// <summary>Gets a value indicating whether the image carries an alpha channel.</summary>
     public bool HasAlpha => AlphaSamples is not null;
+
+    /// <summary>
+    ///     Gets the bit depth of the first color channel's source component before scaling to 8 bits
+    ///     (for a palette-mapped image, the depth of the palette index component).
+    /// </summary>
+    public int BitDepth { get; init; } = 8;
+
+    /// <summary>
+    ///     Gets a value indicating whether the JP2 file's palette (<c>pclr</c>/<c>cmap</c>) was applied, so
+    ///     <see cref="ColorSamples"/> hold palette colors rather than raw component samples.
+    /// </summary>
+    public bool HasPalette { get; init; }
 }

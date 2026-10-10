@@ -1077,7 +1077,7 @@ formula.
 
 #### CanvasNetPdf-PdfDocument-JpxDecode: JPXDecode Images Honor Color Space, Alpha and Soft Masks, Failing Closed
 
-**Tests**: the 22 `PdfDocument_Images_Jpx_*` tests and
+**Tests**: the 23 `PdfDocument_Images_Jpx_*` tests and
 `PdfDocument_Images_SMaskOnRawImage_AppliesLuminanceAsAlpha` in `PdfDocumentJpxTests.cs`
 
 `PdfDocumentJpxTests.cs` builds minimal PDFs at test-run time that embed JPEG 2000 streams
@@ -1085,7 +1085,10 @@ produced by the test-only `Jpeg2000TestEncoder` (linked into the PDF test projec
 `DemaConsulting.CanvasNet.Tests/Codecs`, not duplicated). Gray, RGB and CMYK streams without
 `/ColorSpace` assert the JP2's own color space is used; explicit `DeviceRGB`/`DeviceCMYK`,
 `ICCBased` (by component count) and `Indexed` color spaces assert `/ColorSpace` overrides it;
-`/Decode` asserts sample inversion; `/SMaskInData` 0, 1 and 2 assert the alpha channel is
+`/Decode` asserts sample inversion; an `Indexed` space over 4-bit samples and any `/ColorSpace` over
+JP2 data with its own palette assert `UnsupportedImageFeatureException` (the decoder scales samples
+to 8 bits and has already expanded the palette), while the palette alone (no override) renders;
+`/SMaskInData` 0, 1 and 2 assert the alpha channel is
 ignored, applied, and un-premultiplied respectively; JPX and raw `/SMask` images assert the mask
 luminance (optionally with its own `/Decode`) becomes the base alpha and takes precedence over
 `/SMaskInData`. Fail-closed cases assert `InvalidDataException` for a component-count mismatch,
