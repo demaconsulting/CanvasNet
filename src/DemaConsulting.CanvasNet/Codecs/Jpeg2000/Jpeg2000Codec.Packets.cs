@@ -469,6 +469,7 @@ public static partial class Jpeg2000Codec
         var seen = new bool[running * layers];
         var changes = st.Poc ?? [new ProgressionChange(0, 0, layers, 33, tile.Comps.Length, st.Progression)];
         var pending = new List<(CodeBlock Block, Segment Seg, int Length)>();
+        long covered = 0;
         foreach (var id in EnumeratePackets(tile, siz, layers, changes, budget))
         {
             var slot = ((bases[id.Comp][id.Res] + id.Precinct) * layers) + id.Layer;
@@ -478,8 +479,16 @@ public static partial class Jpeg2000Codec
             }
 
             seen[slot] = true;
+            covered++;
             var precinct = tile.Comps[id.Comp].Res[id.Res].Precincts[id.Precinct];
             ReadPacket(precinct, tile.Comps[id.Comp].Coding.Style, id.Layer, st, body, headers, pending);
+        }
+
+        // Every packet of the tile must be sent exactly once (B.12): progression volumes that leave packets
+        // uncovered would otherwise silently drop code-blocks and produce a partial image.
+        if (covered != tile.TotalPackets)
+        {
+            throw Malformed("the progression order does not cover every packet of the tile.");
         }
     }
 

@@ -42,6 +42,17 @@ public static partial class Jpeg2000Codec
 
     /// <summary>The additional progression steps allowed per input byte (a packet costs at least one header bit).</summary>
     private const long ProgressionStepsPerInputByte = 64;
+
+    /// <summary>The entropy-decoding work (sample-passes) every decode gets regardless of the input length.</summary>
+    private const long Tier1WorkBase = 1L << 24;
+
+    /// <summary>
+    ///     The additional entropy-decoding work (sample-passes) allowed per input byte. Real streams measured at up
+    ///     to about a thousand sample-passes per byte; the allowance leaves a margin over that while keeping the CPU
+    ///     time a tiny hostile stream can demand to about a second.
+    /// </summary>
+    private const long Tier1WorkPerInputByte = 1L << 12;
+
     /// <summary>Creates the exception thrown for malformed JPEG 2000 data.</summary>
     /// <param name="message">A description of what is malformed.</param>
     /// <returns>A new <see cref="InvalidDataException"/>.</returns>
@@ -781,6 +792,9 @@ public static partial class Jpeg2000Codec
 
         /// <summary>Gets or sets a value indicating whether packed packet headers are in use.</summary>
         public bool UsesPackedHeaders { get; set; }
+
+        /// <summary>Gets or sets the number of tile-parts read so far.</summary>
+        public int Parts { get; set; }
     }
 
     /// <summary>A parsed JPEG 2000 codestream: main header parameters and per-tile data.</summary>
@@ -1002,8 +1016,8 @@ public static partial class Jpeg2000Codec
                 var lsot = r.ReadU16();
                 var isot = r.ReadU16();
                 var psot = r.ReadU32();
-                r.ReadU8(); // TPsot
-                r.ReadU8(); // TNsot
+                var tpsot = r.ReadU8();
+                r.ReadU8(); // TNsot is advisory and not enforced.
                 if (lsot != 10 || isot >= tiles.Length)
                 {
                     throw Malformed("invalid SOT marker segment.");
@@ -1025,6 +1039,7 @@ public static partial class Jpeg2000Codec
                 }
 
                 var tile = tiles[isot] ??= new TileData();
+                CheckTilePartSequence(tile, tpsot);
                 tile.State ??= main.CloneForTile();
                 var bodyStart = ReadTilePartHeader(data, r.Position, (int)partEnd, tile, partCount, ppm);
                 tile.Body.Write(data, bodyStart, (int)partEnd - bodyStart);
@@ -1042,6 +1057,23 @@ public static partial class Jpeg2000Codec
             }
         }
 
+        /// <summary>
+        ///     Checks the tile-part index (TPsot) of the next tile-part of a tile: the tile-parts of a tile must arrive in
+        ///     order. The tile-part count (TNsot) is advisory and deliberately not enforced: real encoders write it
+        ///     incorrectly (for example one too small) and the decoder, which concatenates the tile-parts it finds,
+        ///     does not depend on it.
+        /// </summary>
+        /// <param name="tile">The tile the tile-part belongs to.</param>
+        /// <param name="tpsot">The tile-part index.</param>
+        private static void CheckTilePartSequence(TileData tile, int tpsot)
+        {
+            if (tpsot != tile.Parts)
+            {
+                throw Malformed("tile-part index is out of sequence.");
+            }
+
+            tile.Parts++;
+        }
         private static int ReadTilePartHeader(byte[] data, int start, int partEnd, TileData tile, int partIndex, List<byte[]>? ppm)
         {
             var state = tile.State!;

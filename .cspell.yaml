@@ -53,6 +53,8 @@ words:
   - PCRL
   - Prec
   - Psot
+  - TNsot
+  - TPsot
   - pterm
   - Renorm
   - RLCP
