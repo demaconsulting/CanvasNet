@@ -299,6 +299,9 @@ words:
   - Argb
   - cmap
   - Cmap
+  - Lsop
+  - ftyp
+  - bpcc
   - codepoint
   - Dzik
   - glyf

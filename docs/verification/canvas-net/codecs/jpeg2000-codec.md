@@ -128,7 +128,10 @@ Checks the null, empty-path and missing-file exceptions for every public method.
 whose work of about 7.2 x 10^8 sample-passes from a 158 KB stream exceeded the former 2^12
 per-byte allowance decodes under the default limits),
 `_MissingTile`, `_CustomLimits`, `_InvalidLimits`, `_HostileExponents`,
-`_WrongSegmentationSymbol` and `_SegmentationSymbols`.
+`_WrongSegmentationSymbol`, `_SegmentationSymbols`, and the exact-length checks
+`_OddLengthExpoundedQcd`, `_OddLengthExpoundedQcc`, `_DerivedQcdTrailingByte`,
+`_CodestreamSegmentLengthMismatch` (SIZ, COD, COC and RGN with a trailing or missing byte),
+`_SopWrongLength` and `_Jp2BoxLengthMismatch` (colr, pclr and cdef with a trailing byte).
 
 Checks (including Jpeg2000Codec_Decode_RealEncoderFixtureTruncated_FailsClosed on a real-encoder
 file) that corrupt, truncated and hostile data fail with `InvalidDataException` (or an

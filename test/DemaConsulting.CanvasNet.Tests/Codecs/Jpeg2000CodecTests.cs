@@ -1472,6 +1472,151 @@ public class Jpeg2000CodecTests
         }
     }
 
+    /// <summary>Appends one byte to the first marker segment of the given type and fixes its length field.</summary>
+    private static byte[] GrowSegment(byte[] data, int marker)
+    {
+        var at = FindMarker(data, marker);
+        var len = (data[at + 2] << 8) | data[at + 3];
+        var grown = new byte[data.Length + 1];
+        Array.Copy(data, 0, grown, 0, at + 2 + len);
+        grown[at + 2 + len] = 0;
+        Array.Copy(data, at + 2 + len, grown, at + 3 + len, data.Length - at - 2 - len);
+        grown[at + 2] = (byte)((len + 1) >> 8);
+        grown[at + 3] = (byte)(len + 1);
+        return grown;
+    }
+
+    /// <summary>Removes the last payload byte of the first marker segment of the given type and fixes its length field.</summary>
+    private static byte[] ShrinkSegment(byte[] data, int marker)
+    {
+        var at = FindMarker(data, marker);
+        var len = (data[at + 2] << 8) | data[at + 3];
+        var shrunk = new byte[data.Length - 1];
+        Array.Copy(data, 0, shrunk, 0, at + 1 + len);
+        Array.Copy(data, at + 2 + len, shrunk, at + 1 + len, data.Length - at - 2 - len);
+        shrunk[at + 2] = (byte)((len - 1) >> 8);
+        shrunk[at + 3] = (byte)(len - 1);
+        return shrunk;
+    }
+
+    /// <summary>Appends one byte to the named JP2 header sub-box (and its jp2h parent) and fixes both lengths.</summary>
+    private static byte[] GrowJp2Box(byte[] jp2, string type)
+    {
+        var typeBytes = System.Text.Encoding.ASCII.GetBytes(type);
+        int Find(string t, int from)
+        {
+            var tb = System.Text.Encoding.ASCII.GetBytes(t);
+            for (var i = from; i < jp2.Length - 4; i++)
+            {
+                if (jp2.AsSpan(i, 4).SequenceEqual(tb))
+                {
+                    return i - 4;
+                }
+            }
+
+            return -1;
+        }
+
+        var parent = Find("jp2h", 0);
+        var box = Find(System.Text.Encoding.ASCII.GetString(typeBytes), parent + 8);
+        int Length(int at) => (jp2[at] << 24) | (jp2[at + 1] << 16) | (jp2[at + 2] << 8) | jp2[at + 3];
+        var boxLen = Length(box);
+        var parentLen = Length(parent);
+        var grown = new byte[jp2.Length + 1];
+        Array.Copy(jp2, 0, grown, 0, box + boxLen);
+        Array.Copy(jp2, box + boxLen, grown, box + boxLen + 1, jp2.Length - box - boxLen);
+        foreach (var (at, len) in new[] { (box, boxLen + 1), (parent, parentLen + 1) })
+        {
+            grown[at] = (byte)(len >> 24);
+            grown[at + 1] = (byte)(len >> 16);
+            grown[at + 2] = (byte)(len >> 8);
+            grown[at + 3] = (byte)len;
+        }
+
+        return grown;
+    }
+
+    /// <summary>Tests that an odd-length expounded QCD payload is rejected instead of silently dropping a byte.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_OddLengthExpoundedQcd_ThrowsInvalidData()
+    {
+        var data = Encode(Img(16, 16, 1), Irrev(2));
+        Assert.Equal(2, data[FindMarker(data, 0xFF5C) + 4] & 0x1F);
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(GrowSegment(data, 0xFF5C)));
+    }
+
+    /// <summary>Tests that an odd-length expounded QCC payload is rejected instead of silently dropping a byte.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_OddLengthExpoundedQcc_ThrowsInvalidData()
+    {
+        var o = Irrev(2);
+        o.ComponentLevels = [2, 1, 2];
+        var data = Encode(Img(16, 16, 3), o);
+        Assert.True(FindMarker(data, 0xFF5D) > 0);
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(GrowSegment(data, 0xFF5D)));
+    }
+
+    /// <summary>Tests that a derived-style QCD with a trailing byte is rejected.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_DerivedQcdTrailingByte_ThrowsInvalidData()
+    {
+        var o = Irrev(2);
+        o.QuantStyle = 1;
+        var data = Encode(Img(16, 16, 1), o);
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(GrowSegment(data, 0xFF5C)));
+    }
+
+    /// <summary>Tests that SIZ, COD, RGN and COC segments with trailing or missing bytes are rejected.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_CodestreamSegmentLengthMismatch_ThrowsInvalidData()
+    {
+        var o = Rev(2);
+        o.RoiShift = 3;
+        var plain = Encode(Img(16, 16, 1), o);
+        foreach (var marker in new[] { 0xFF51, 0xFF52, 0xFF5E })
+        {
+            Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(GrowSegment(plain, marker)));
+            Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(ShrinkSegment(plain, marker)));
+        }
+
+        var perComponent = Rev(2);
+        perComponent.ComponentLevels = [2, 1, 2];
+        var coc = Encode(Img(16, 16, 3), perComponent);
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(GrowSegment(coc, 0xFF53)));
+    }
+
+    /// <summary>Tests that an SOP marker segment with a length other than 4 is rejected.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_SopWrongLength_ThrowsInvalidData()
+    {
+        var o = Rev(1);
+        o.Sop = true;
+        var data = Encode(Img(8, 8, 1), o);
+        var sop = FindMarker(data, 0xFF91);
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(Patch(data, sop + 3, 6)));
+    }
+
+    /// <summary>Tests that JP2 colr, pclr and cdef boxes with trailing bytes are rejected.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_Jp2BoxLengthMismatch_ThrowsInvalidData()
+    {
+        var gray = Img(10, 10, 1);
+        var colr = Jpeg2000TestEncoder.WrapJp2(gray, Encode(gray, Rev(1)), new J2kJp2Options { EnumCs = 17 });
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(GrowJp2Box(colr, "colr")));
+
+        var rgb = Img(10, 10, 3);
+        var cdef = Jpeg2000TestEncoder.WrapJp2(rgb, Encode(rgb, Rev(1)), new J2kJp2Options { Cdef = [(0, 0, 1), (1, 0, 2), (2, 0, 3)] });
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(GrowJp2Box(cdef, "cdef")));
+
+        var indexed = Img(12, 9, 1, 4, 1, 0);
+        int[][] palette = Enumerable.Range(0, 16).Select(i => new[] { i }).ToArray();
+        var pclr = Jpeg2000TestEncoder.WrapJp2(
+            indexed,
+            Encode(indexed, Rev(1)),
+            new J2kJp2Options { Palette = palette, PaletteDepths = [8], Cmap = [(0, 1, 0)] });
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(GrowJp2Box(pclr, "pclr")));
+    }
+
     /// <summary>Tests hostile JP2 box structures.</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_HostileBoxes_FailCleanly()

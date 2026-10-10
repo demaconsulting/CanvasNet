@@ -499,6 +499,11 @@ public static partial class Jpeg2000Codec
         // Optional SOP marker segment in front of the packet (always in the body stream).
         if (st.Sop && body.Remaining >= 6 && body.Data[body.Pos] == 0xFF && body.Data[body.Pos + 1] == 0x91)
         {
+            if (body.Data[body.Pos + 2] != 0 || body.Data[body.Pos + 3] != 4)
+            {
+                throw Malformed("invalid SOP marker segment length.");
+            }
+
             body.Pos += 6;
         }
 

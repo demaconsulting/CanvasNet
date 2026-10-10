@@ -230,6 +230,12 @@ sections:
                   - Jpeg2000Codec_Decode_CustomLimits_AreEnforced
                   - Jpeg2000Codec_Decode_InvalidLimits_ThrowsArgumentOutOfRange
                   - Jpeg2000Codec_Decode_HostileExponents_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_OddLengthExpoundedQcd_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_OddLengthExpoundedQcc_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_DerivedQcdTrailingByte_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_CodestreamSegmentLengthMismatch_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_SopWrongLength_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_Jp2BoxLengthMismatch_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_WrongSegmentationSymbol_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_SegmentationSymbols_RoundTripsExactly
 

@@ -110,6 +110,32 @@ Limits are enforced during header validation, before the memory they protect is 
    tile-parts; tile-part headers may override coding and quantization parameters, but only in the
    first tile-part of a tile (COD/COC/QCD/QCC/RGN in a later tile-part is `InvalidDataException`;
    POC and PPT are accepted in any tile-part).
+   Every marker-segment and JP2 box parser checks its payload length exactly and rejects a
+   malformed length with `InvalidDataException`, so no byte is silently dropped. The rules are:
+
+   | Structure | Length rule |
+   | --- | --- |
+   | SIZ | Exactly 38 + 3 x Csiz bytes after the length field |
+   | COD / COC | Fixed part plus one precinct byte per resolution when precincts are declared; no trailing bytes |
+   | QCD / QCC, style 0 | One byte per sub-band (at least one) |
+   | QCD / QCC, style 1 | Exactly one 16-bit entry |
+   | QCD / QCC, style 2 | A non-zero even number of bytes (odd lengths are rejected, not truncated) |
+   | RGN | Exactly 3 bytes after the length field (component index below 16 so one byte) |
+   | POC | A non-zero multiple of 7 bytes |
+   | SOT | Lsot exactly 10; Psot at least 14 and within the data |
+   | SOP | Lsop exactly 4 |
+   | PPM / PPT | At least the one-byte index; PPM chunks must tile the payload exactly |
+   | JP2 colr | At least 3 bytes; METH 1 is exactly 7 bytes except EnumCS 14 and 19, which carry extra parameters |
+   | JP2 pclr | Exactly the header, depth bytes and entries x columns values |
+   | JP2 cmap | A multiple of 4 bytes |
+   | JP2 cdef | Exactly 2 + 6 x N bytes |
+
+   Deliberate lenient exceptions, where the specification permits variable or extra content or the
+   decoder ignores the structure: COM, TLM, PLM, PLT, CRG and unknown marker segments (skipped by
+   their length field only); JP2 colr METH 2 (the ICC profile occupies the rest of the box) and any
+   other METH value; ftyp (the compatibility list is variable); ihdr, bpcc, res and every unknown
+   or non-header box (not interpreted, only skipped by their box length); and a box length of 0
+   or 1 (to end of data, or an extended 64-bit length).
 3. **Tier-2**: packet headers are decoded (tag trees, inclusion, zero bit-planes, pass counts,
    lengths) for every progression order and quality layer, with optional SOP/EPH markers. Every
    tile must have at least one tile-part; a tile with none (for example a codestream cut at a tile

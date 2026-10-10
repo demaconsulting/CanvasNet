@@ -220,7 +220,12 @@ public static partial class Jpeg2000Codec
 
     private static void ParseColr(byte[] data, BoxHeader box, Jp2Info info)
     {
-        if (info.EnumCs >= 0 || info.IccProfile is not null || box.End - box.ContentStart < 3)
+        if (box.End - box.ContentStart < 3)
+        {
+            throw Malformed("truncated color specification box.");
+        }
+
+        if (info.EnumCs >= 0 || info.IccProfile is not null)
         {
             return;
         }
@@ -229,12 +234,16 @@ public static partial class Jpeg2000Codec
         var body = box.ContentStart + 3;
         if (method == 1)
         {
-            if (box.End - body < 4)
+            var length = box.End - body;
+            var enumCs = length >= 4 ? ReadBe32(data, body) : -1;
+
+            // EnumCS 14 (CIELab) and 19 (CIEJab) carry extra parameter bytes; every other enumerated space is exactly 4.
+            if (length < 4 || (length != 4 && enumCs != 14 && enumCs != 19))
             {
-                throw Malformed("truncated color specification box.");
+                throw Malformed("color specification box has an invalid length.");
             }
 
-            info.EnumCs = (int)Math.Min(ReadBe32(data, body), int.MaxValue);
+            info.EnumCs = (int)Math.Min(enumCs, int.MaxValue);
         }
         else if (method == 2)
         {
@@ -279,6 +288,7 @@ public static partial class Jpeg2000Codec
             }
         }
 
+        r.RequireEnd("palette box");
         return new PaletteInfo { Entries = entries, Columns = columns, Depth = depth, Values = values };
     }
 
@@ -308,7 +318,7 @@ public static partial class Jpeg2000Codec
     {
         var r = new ByteReader(data, box.ContentStart, box.End);
         var n = r.ReadU16();
-        if (n > MaxChannels || r.Remaining < n * 6)
+        if (n > MaxChannels || r.Remaining != n * 6)
         {
             throw Malformed("invalid channel definition box.");
         }

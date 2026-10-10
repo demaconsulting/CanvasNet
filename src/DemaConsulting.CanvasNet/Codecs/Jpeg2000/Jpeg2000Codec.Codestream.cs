@@ -109,6 +109,16 @@ public static partial class Jpeg2000Codec
         /// <summary>Gets the number of unread bytes.</summary>
         public int Remaining => _end - Position;
 
+        /// <summary>Requires that every byte of the window has been consumed.</summary>
+        /// <param name="what">The name of the structure being parsed, for the error message.</param>
+        public void RequireEnd(string what)
+        {
+            if (Remaining != 0)
+            {
+                throw Malformed($"{what} has {Remaining} unexpected trailing byte(s).");
+            }
+        }
+
         /// <summary>Reads one byte.</summary>
         /// <returns>The byte value.</returns>
         public int ReadU8()
@@ -317,9 +327,9 @@ public static partial class Jpeg2000Codec
                 throw Unsupported("jpeg2000-component-count", "more than " + MaxComponents + " components.");
             }
 
-            if (r.Remaining < csiz * 3)
+            if (r.Remaining != csiz * 3)
             {
-                throw Malformed("SIZ segment is truncated.");
+                throw Malformed("SIZ segment length does not match the component count.");
             }
 
             var depth = new int[csiz];
@@ -508,9 +518,15 @@ public static partial class Jpeg2000Codec
                 var v = r.ReadU16();
                 exp = [v >> 11];
                 mant = [v & 0x7FF];
+                r.RequireEnd("quantization segment");
             }
             else
             {
+                if (r.Remaining % 2 != 0)
+                {
+                    throw Malformed("expounded quantization segment has an odd payload length.");
+                }
+
                 var n = r.Remaining / 2;
                 exp = new int[n];
                 mant = new int[n];
@@ -650,6 +666,7 @@ public static partial class Jpeg2000Codec
             }
 
             var p = CodingParams.Parse(r, (scod & 1) != 0);
+            r.RequireEnd("COD segment");
             Progression = prog;
             Layers = layers;
             Mct = mct == 1;
@@ -677,6 +694,7 @@ public static partial class Jpeg2000Codec
             }
 
             Coding[c] = CodingParams.Parse(r, (scoc & 1) != 0);
+            r.RequireEnd("COC segment");
             _cocSet[c] = true;
         }
 
@@ -731,6 +749,7 @@ public static partial class Jpeg2000Codec
                 throw Malformed("ROI shift is out of range.");
             }
 
+            r.RequireEnd("RGN segment");
             RoiShift[c] = shift;
         }
 
