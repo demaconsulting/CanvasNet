@@ -1149,7 +1149,7 @@ explicitly in this switch (routing to the same out-of-scope no-op as an unrecogn
 specifically to document the nested-SVG scope decision at the dispatch site itself, rather than
 leaving it to fall through an default case indistinguishably from a genuinely unsupported format.
 A malformed base64 payload (`FormatException`), a raster payload the target codec's own `Load`
-rejects (`InvalidDataException` - every one of the five codecs already documents this as its own
+rejects (`InvalidDataException` - every one of the six codecs already documents this as its own
 malformed/oversized-data exception), an out-of-range decoded dimension
 (`ArgumentOutOfRangeException` - defense-in-depth for `Surface`'s own constructor, normally
 preempted by each codec's own `Surface.MaxDimension` check), or a well-formed but unsupported

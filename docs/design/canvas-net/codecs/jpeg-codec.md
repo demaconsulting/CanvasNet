@@ -2,7 +2,7 @@
 
 ![Codecs Structure](CodecsView.svg)
 
-The `JpegCodec` class is the sixth software unit in CanvasNet, and depends on `Surface` exactly as
+The `JpegCodec` class is a software unit of CanvasNet's `Codecs` subsystem, and depends on `Surface` exactly as
 `BmpCodec`, `PngCodec`, and `TiffCodec` do. It provides hand-rolled loading and saving of a
 common real-world subset of JPEG (ITU-T T.81 / ISO/IEC 10918-1) files to and from `Surface` pixel
 buffers.

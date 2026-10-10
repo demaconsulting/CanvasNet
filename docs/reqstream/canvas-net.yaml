@@ -962,6 +962,67 @@ sections:
           - GifCodec_GetInfo_ZeroWidth_ThrowsInvalidDataException
           - GifCodec_GetInfo_ZeroHeight_ThrowsInvalidDataException
 
+  - title: JPEG 2000 Codec API
+    requirements:
+      - id: CanvasNet-Lib-Jpeg2000Load
+        title: >-
+          The library shall load a Surface from a supported JPEG 2000 (JP2 or raw codestream)
+          file, from either a stream or a file path, and decode it to a Jpeg2000Image exposing
+          the 8-bit color samples, color space and opacity channel.
+        tags: [system]
+        justification: |
+          Callers need to import existing JPEG 2000 images - the format used for photographic
+          content in many PDF documents - as pixel buffers for further processing or display.
+        children:
+          - CanvasNet-Codecs-Jpeg2000Load
+        tests:
+          - Jpeg2000Codec_Load_Stream_ReturnsPixels
+          - Jpeg2000Codec_Load_Path_ReturnsPixels
+          - Jpeg2000Codec_Decode_ReversibleLevels_RoundTripsExactly
+          - CanvasNet_SystemIntegration_Jpeg2000Load_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-Jpeg2000GetInfo
+        title: >-
+          The library shall report a JPEG 2000 image's dimensions, channel count and alpha
+          presence from its headers alone, without decoding pixel data.
+        tags: [system]
+        justification: |
+          Callers triaging an untrusted file need to inspect its dimensions before paying the
+          cost of a full decode.
+        children:
+          - CanvasNet-Codecs-Jpeg2000GetInfo
+        tests:
+          - Jpeg2000Codec_GetInfo_RawCodestream_ReportsDimensionsAndChannels
+          - Jpeg2000Codec_GetInfo_Jp2WithAlpha_CountsAlphaChannel
+
+      - id: CanvasNet-Lib-Jpeg2000ArgumentValidation
+        title: >-
+          The library shall reject null stream, data or path arguments to JPEG 2000 operations
+          with ArgumentNullException, and an empty path with ArgumentException.
+        tags: [system]
+        justification: |
+          Passing null or an empty path is a programming error; throwing immediately surfaces the
+          mistake and prevents obscure failures deeper in the call stack.
+        children:
+          - CanvasNet-Codecs-Jpeg2000ArgumentValidation
+        tests:
+          - Jpeg2000Codec_NullOrEmptyArguments_Throw
+
+      - id: CanvasNet-Lib-Jpeg2000UnsupportedFormatValidation
+        title: >-
+          The library shall reject malformed JPEG 2000 data with InvalidDataException and
+          unsupported JPEG 2000 features with UnsupportedImageFeatureException.
+        tags: [system]
+        justification: |
+          Callers must be able to distinguish a malformed file from a valid but unsupported one,
+          and receive a clear error rather than incorrect pixels or resource exhaustion.
+        children:
+          - CanvasNet-Codecs-Jpeg2000UnsupportedFormatValidation
+        tests:
+          - Jpeg2000Codec_Load_NotJpeg2000_ThrowsInvalidData
+          - Jpeg2000Codec_Decode_EveryTruncationOfSmallStream_ThrowsInvalidData
+          - Jpeg2000Codec_Decode_Part2Capabilities_ThrowsUnsupported
+
   # Note: SVG rasterization is provided by the separate CanvasNetSvg system (its own package,
   # DemaConsulting.CanvasNet.Svg) - see docs/reqstream/canvas-net-svg.yaml, not this system.
 

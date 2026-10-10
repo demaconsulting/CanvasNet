@@ -107,7 +107,8 @@ public sealed partial class PdfDocument
     ///     (including <c>DCTDecode</c> and <c>CCITTFaxDecode</c>, both of which
     ///     <c>PdfDocument.Images.cs</c> always detects and bypasses - decoding each directly via
     ///     <c>Codecs.JpegCodec</c>/<see cref="DecodeCcittFax"/> respectively - before ever calling
-    ///     this method; and <c>JPXDecode</c>, which remains unsupported) is rejected with
+    ///     this method; and <c>JPXDecode</c>, which is likewise detected and bypassed, decoded
+    ///     directly via <c>Codecs.Jpeg2000Codec</c>) is rejected with
     ///     <see cref="UnsupportedImageFeatureException"/>. This is the same behavior Phase 1/2
     ///     already relied on for cross-reference streams, object streams, and page
     ///     <c>/Contents</c> (all of which only ever use a bare <c>FlateDecode</c> filter with no

@@ -347,11 +347,12 @@ public class PdfDocumentTests
         int columns,
         int rows,
         byte[] encodedData,
-        string extraDecodeParms = "")
+        string extraDecodeParms = "",
+        string extraImageEntries = "")
     {
         var imageStream = BuildStreamObjectBody(
             $"/Type /XObject /Subtype /Image /Width {columns} /Height {rows} /ColorSpace /DeviceGray "
-            + $"/BitsPerComponent 8 /Filter /CCITTFaxDecode "
+            + $"/BitsPerComponent 8 {extraImageEntries} /Filter /CCITTFaxDecode "
             + $"/DecodeParms << /K -1 /Columns {columns} /Rows {rows}{extraDecodeParms} >>",
             encodedData);
 
@@ -6041,11 +6042,11 @@ public class PdfDocumentTests
     [Fact]
     public void PdfDocument_Images_UnsupportedFilter_ThrowsUnsupportedImageFeatureException()
     {
-        // Arrange: /JPXDecode remains genuinely unsupported (unlike /LZWDecode and
-        // /CCITTFaxDecode, both of which this library implements - see
+        // Arrange: /JBIG2Decode remains genuinely unsupported (unlike /LZWDecode,
+        // /CCITTFaxDecode and /JPXDecode, all of which this library implements - see
         // PdfFixtures/README.md/design docs).
         var imageStream = BuildStreamObjectBody(
-            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /JPXDecode",
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /JBIG2Decode",
             [1, 2, 3, 4]);
 
         var bytes = BuildSinglePagePdfWithResources(
@@ -7068,6 +7069,60 @@ public class PdfDocumentTests
         Assert.Equal(black, surface[5, 3]);
     }
 
+    /// <summary>Proves that <c>/Decode [1 0]</c> on a <c>CCITTFaxDecode</c> image swaps black and white.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_CcittFaxWithDecode_InvertsPixels()
+    {
+        // Arrange: the same hand-verified 8x4 pattern as the Group 4 test above.
+        var pixels = new bool[8, 4];
+        for (var y = 0; y < 4; y++)
+        {
+            for (var x = 0; x < 8; x++)
+            {
+                pixels[x, y] = y switch
+                {
+                    0 or 1 => x >= 4,
+                    2 => x >= 3,
+                    _ => x >= 5,
+                };
+            }
+        }
+
+        // Act
+        using var surface = RenderCcittFaxImage(8, 4, EncodeCcittGroup4ForTest(pixels), extraImageEntries: "/Decode [1 0]");
+
+        // Assert: black is now white and white is now black.
+        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[0, 0]);
+        Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[4, 0]);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[2, 2]);
+        Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[3, 2]);
+    }
+
+    /// <summary>Proves that <c>/Decode [2 0]</c> on a 2-bit <c>/Indexed</c> image remaps the palette indices.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_IndexedWithDecode_RemapsIndices()
+    {
+        // Arrange: 2x1 image of 2-bit indices (0, 3) over a 3-entry palette (red/green/blue).
+        // /Decode [2 0] maps raw 0 -> 2 and raw 3 (the maximum) -> 0.
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 1 /Decode [2 0] "
+            + "/ColorSpace [/Indexed /DeviceRGB 2 <FF000000FF000000FF>] /BitsPerComponent 2 /Filter /FlateDecode",
+            ZlibCompress([0b0011_0000]));
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 50]);
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[75, 50]);
+    }
+
     /// <summary>Proves that the default (absent) <c>/BlackIs1</c> maps a physically black pixel to packed bit <c>0</c> (and a decoded gray value of <c>0</c>).</summary>
     [Fact]
     public void PdfDocument_Images_DoOperator_CcittFaxBlackIs1Default_MapsZeroBitToBlack()
@@ -7448,7 +7503,7 @@ public class PdfDocumentTests
     {
         // Arrange
         var imageStream = BuildStreamObjectBody(
-            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 1 /Filter /FlateDecode",
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 3 /Filter /FlateDecode",
             ZlibCompress([0x00]));
 
         var bytes = BuildSinglePagePdfWithResources(

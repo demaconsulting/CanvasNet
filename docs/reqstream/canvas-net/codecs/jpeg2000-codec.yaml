@@ -1,0 +1,302 @@
+---
+# Software Unit Requirements for Jpeg2000Codec
+#
+# These requirements describe the design-level behavior of the Jpeg2000Codec unit.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Codecs Requirements
+        sections:
+          - title: Jpeg2000Codec Requirements
+            requirements:
+              - id: CanvasNet-Codecs-Jpeg2000Codec-Load
+                title: >-
+                  The Jpeg2000Codec class shall load a Surface from a JPEG 2000 JP2 file or raw
+                  codestream, supplied as a stream or a file path, converting the decoded
+                  component samples to 8-bit RGBA pixels (gray expanded to RGB, CMYK converted to
+                  RGB, an opacity channel mapped to alpha).
+                justification: |
+                  Callers need to import existing JPEG 2000 images as pixel buffers for further
+                  processing or display using the same Surface-based API as every other codec.
+                tests:
+                  - Jpeg2000Codec_Load_Stream_ReturnsPixels
+                  - Jpeg2000Codec_Load_Grey_ExpandsToRgb
+                  - Jpeg2000Codec_Load_Alpha_PopulatesAlpha
+                  - Jpeg2000Codec_Load_Path_ReturnsPixels
+                  - Jpeg2000Codec_Load_RealEncoderLosslessFixture_MatchesSourcePixelsExactly
+                  - Jpeg2000Codec_Load_RealEncoderLossyFixture_HasAcceptablePsnr
+
+              - id: CanvasNet-Codecs-Jpeg2000Codec-Decode
+                title: >-
+                  The Jpeg2000Codec class shall decode a JPEG 2000 image to a Jpeg2000Image whose
+                  color samples are scaled to 8 bits per sample (1 to 16 bit, signed or
+                  unsigned, and subsampled components), reconstructing exactly for reversible
+                  (5/3 integer wavelet, optional reversible color transform) coding and within
+                  quantization tolerance for irreversible (9/7 wavelet, optional irreversible
+                  color transform) coding, including all quantization styles.
+                justification: |
+                  The decoded samples must match what the encoder wrote; reversible coding is
+                  lossless and so is verified bit-exactly, and irreversible coding is verified
+                  against a tolerance derived from its quantization step.
+                tests:
+                  - Jpeg2000Codec_Decode_ReversibleNoDecomposition_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_ReversibleLevels_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_ReversibleOddSizes_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_ReversibleRct_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_FourComponents_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_DepthAndSign_ScalesToEightBits
+                  - Jpeg2000Codec_Decode_SignedRct_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_Irreversible_WithinTolerance
+                  - Jpeg2000Codec_Decode_IrreversibleIctMantissa_WithinTolerance
+                  - Jpeg2000Codec_Decode_IrreversibleDerivedQuantization_WithinTolerance
+                  - Jpeg2000Codec_Decode_IrreversibleTwelveBit_WithinTolerance
+                  - Jpeg2000Codec_Decode_SubsampledComponents_UpsamplesToImageGrid
+                  - Jpeg2000Codec_Decode_PerComponentLevels_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_PerComponentLevelsIrreversible_WithinTolerance
+                  - Jpeg2000Codec_Decode_RealEncoderFixtures_ReportChannelLayout
+
+              - id: CanvasNet-Codecs-Jpeg2000Codec-EntropyCoding
+                title: >-
+                  The Jpeg2000Codec class shall decode EBCOT tier-1 code-blocks using the MQ
+                  arithmetic decoder (verified against the ITU-T T.88 test sequence), every
+                  code-block size, and every code-block style (selective arithmetic bypass,
+                  context reset, termination on each pass, vertically causal context, predictable
+                  termination, segmentation symbols), alone and combined with multiple layers.
+                justification: |
+                  Tier-1 decoding is the core of JPEG 2000; each code-block style changes the
+                  bitstream structure and must be decoded exactly.
+                tests:
+                  - Jpeg2000Codec_MqEncoder_T88TestSequence_MatchesReferenceCodeStream
+                  - Jpeg2000Codec_MqDecoder_T88ReferenceCodeStream_RecoversTestSequence
+                  - Jpeg2000Codec_Decode_CodeBlockSizes_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_CodeBlockStyle_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_CodeBlockStyleWithLayers_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_IrreversibleBypassTermall_WithinTolerance
+
+              - id: CanvasNet-Codecs-Jpeg2000Codec-PacketStructure
+                title: >-
+                  The Jpeg2000Codec class shall decode tier-2 packet structure for every
+                  progression order (LRCP, RLCP, RPCL, PCRL, CPRL, including with image and tile
+                  offsets), multiple quality layers, default and per-resolution precinct sizes,
+                  and progression order changes (POC) declared in the main or tile-part header.
+                justification: |
+                  Real-world files use all five progression orders, layers and precincts; the
+                  packet iteration order determines which bytes belong to which code-block.
+                tests:
+                  - Jpeg2000Codec_Decode_Precincts_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_PerResolutionPrecincts_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_Layers_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_ProgressionOrders_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_PositionProgressionWithOffsets_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_PocMainHeader_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_PocMainHeaderWithTiles_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_PocTileHeader_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_PocTileOverridesMain_RoundTripsExactly
+                  - Jpeg2000Codec_Load_RealEncoderLosslessFixture_MatchesSourcePixelsExactly
+
+              - id: CanvasNet-Codecs-Jpeg2000Codec-Codestream
+                title: >-
+                  The Jpeg2000Codec class shall parse the codestream main and tile-part headers:
+                  multiple tiles with arbitrary image and tile origins, tile-parts, tile-header
+                  overrides of coding and quantization parameters, packed packet headers (PPM and
+                  PPT), SOP and EPH markers, region-of-interest max-shift coding (RGN), ignorable
+                  informational markers, tile-part ordering (TPsot, with TNsot advisory), and a missing
+                  end-of-codestream
+                  marker with zero tile-part
+                  length.
+                justification: |
+                  Producers split and annotate codestreams in many legal ways; a decoder must
+                  accept all of them and produce identical pixels.
+                tests:
+                  - Jpeg2000Codec_Decode_Tiles_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_TileAndImageOffsets_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_TileHeaderOverrides_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_TileCodOverridesMainCoc_ForAllComponents
+                  - Jpeg2000Codec_Decode_TileCocOverridesTileCod_ForItsComponent
+                  - Jpeg2000Codec_Decode_NoTileCod_MainCocStillApplies
+                  - Jpeg2000Codec_Decode_TilePrecedenceIrreversible_WithinTolerance
+                  - Jpeg2000Codec_Decode_SopEph_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_Ppm_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_Ppt_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_TileParts_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_ExtraMarkers_AreSkipped
+                  - Jpeg2000Codec_Decode_ZeroPsotMissingEoc_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_TilePartIndexes_AreCheckedAndCountIsAdvisory
+                  - Jpeg2000Codec_Decode_ParamMarkersInLaterTilePart_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_PocInLaterTilePart_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_RoiMaxShift_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_RoiOnSubsetOfComponents_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_RoiIrreversible_WithinTolerance
+
+              - id: CanvasNet-Codecs-Jpeg2000Codec-Jp2Container
+                title: >-
+                  The Jpeg2000Codec class shall read the JP2 container boxes needed to interpret
+                  an image: the color specification box (enumerated sRGB, grayscale, sYCC
+                  converted to sRGB, CMYK, and an ICC profile reported but never applied), the
+                  palette and component-mapping boxes (expanded to color channels), the channel
+                  definition box (opacity channels, premultiplication flag and channel
+                  reordering), and every box length form (explicit, extended and to-end-of-file).
+                justification: |
+                  The JP2 container decides how many color channels an image has, what they mean
+                  and whether it carries transparency; callers such as the PDF renderer depend on
+                  this metadata.
+                tests:
+                  - Jpeg2000Codec_Decode_Jp2Srgb_ReportsColorSpace
+                  - Jpeg2000Codec_Decode_Jp2EnumeratedColorSpace_ReportsColorSpace
+                  - Jpeg2000Codec_Decode_Jp2Sycc_ConvertsToSrgb
+                  - Jpeg2000Codec_Decode_Jp2IccProfile_IsReported
+                  - Jpeg2000Codec_Decode_Jp2BoxLengthForms_AreHandled
+                  - Jpeg2000Codec_Decode_Jp2Palette_MapsIndicesToColors
+                  - Jpeg2000Codec_Decode_Jp2PaletteMixedDirectChannel_Maps
+                  - Jpeg2000Codec_Decode_Jp2BadSignatureContent_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_Jp2SignedPaletteColumn_ThrowsUnsupported
+                  - Jpeg2000Codec_Decode_BitDepthAndHasPalette_ReportSourceFormat
+                  - Jpeg2000Codec_Decode_Jp2Cdef_ProducesAlpha
+                  - Jpeg2000Codec_Decode_Jp2CdefReorder_SwapsChannels
+                  - Jpeg2000Codec_Decode_TwoComponentsWithoutCdef_DecodesAsGrey
+                  - Jpeg2000Codec_Decode_CmapWithoutPclr_IsIgnored
+
+              - id: CanvasNet-Codecs-Jpeg2000Codec-GetInfo
+                title: >-
+                  The Jpeg2000Codec class shall report an image's width, height, channel count
+                  and alpha presence from the container and SIZ header alone, without decoding
+                  any pixel data and without enforcing Surface.MaxDimension, from a stream or a
+                  file path.
+                justification: |
+                  Callers triaging an untrusted file need to inspect its dimensions before
+                  paying the cost of a full decode.
+                tests:
+                  - Jpeg2000Codec_GetInfo_RawCodestream_ReportsDimensionsAndChannels
+                  - Jpeg2000Codec_GetInfo_Jp2WithAlpha_CountsAlphaChannel
+                  - Jpeg2000Codec_GetInfo_ImageOffset_ReportsWidthMinusOffset
+                  - Jpeg2000Codec_GetInfo_RealEncoderFixtures_ReportDimensions
+                  - Jpeg2000Codec_GetInfo_RawCodestream_ReadsOnlyHeaderPrefix
+                  - Jpeg2000Codec_GetInfo_Jp2_ReadsOnlyHeaderPrefix
+                  - Jpeg2000Codec_GetInfo_LargeSkippedBox_SeekOrDiscard
+                  - Jpeg2000Codec_GetInfo_LargeIccProfile_IsNotBuffered
+                  - Jpeg2000Codec_GetInfo_LargeBoxInsideJp2h_IsNotBuffered
+                  - Jpeg2000Codec_GetInfo_HostileJp2hLength_ThrowsInvalidDataWithBoundedReads
+                  - Jpeg2000Codec_GetInfo_OversizedPaletteBox_ThrowsInvalidData
+                  - Jpeg2000Codec_GetInfo_TruncatedBox_ThrowsInvalidData
+                  - Jpeg2000Codec_GetInfo_SeekableAboveInputCap_ThrowsInvalidData
+
+              - id: CanvasNet-Codecs-Jpeg2000Codec-ArgumentValidation
+                title: >-
+                  The Jpeg2000Codec class shall reject null stream, data or path arguments with
+                  ArgumentNullException, an empty path with ArgumentException, and a missing file
+                  with FileNotFoundException.
+                justification: |
+                  Passing null or an empty path is a programming error that should be surfaced
+                  immediately with a distinguishable exception.
+                tests:
+                  - Jpeg2000Codec_NullOrEmptyArguments_Throw
+                  - Jpeg2000Codec_Load_MissingFile_ThrowsFileNotFound
+
+              - id: CanvasNet-Codecs-Jpeg2000Codec-Malformed
+                title: >-
+                  The Jpeg2000Codec class shall reject data that is not JPEG 2000, an image whose
+                  dimensions or sizes exceed the decoder limits (Jpeg2000DecoderLimits, with
+                  Surface.MaxDimension as the default dimension limit), a codestream with a tile
+                  that has no tile-part, out-of-sequence tile-parts, a progression that leaves packets uncovered,
+                  work exceeding
+                  the input-scaled entropy-decoding budget, and truncated, corrupted or otherwise
+                  malformed data, with InvalidDataException, never an unhandled exception,
+                  excessive allocation, or unbounded work.
+                justification: |
+                  JPEG 2000 files frequently come from untrusted sources; every size, count and
+                  offset in the file is attacker controlled, so each must be validated and each
+                  resource bounded before it is used.
+                tests:
+                  - Jpeg2000Codec_Load_NotJpeg2000_ThrowsInvalidData
+                  - Jpeg2000Codec_Load_ExceedsMaxDimension_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_RealEncoderFixtureTruncated_FailsClosed
+                  - Jpeg2000Codec_Decode_EveryTruncationOfSmallStream_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_TruncationsOfLargeStreams_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_RandomBitFlips_FailCleanly
+                  - Jpeg2000Codec_Decode_HeaderByteSubstitutions_FailCleanly
+                  - Jpeg2000Codec_Decode_ImageBeyondDimensionLimit_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_TooManyTiles_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_HostileSizTileGrid_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_TooManyCodeBlocks_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_TooManyPrecincts_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_TooManyPackets_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_BadMarkerLengths_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_BadTilePartLengths_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_GarbageTileData_FailsCleanly
+                  - Jpeg2000Codec_Decode_HostileBoxes_FailCleanly
+                  - Jpeg2000Codec_Decode_HostilePoc_FailsCleanly
+                  - Jpeg2000Codec_Decode_MoreProgressionChangesThanCap_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_OverlappingProgressionVolumes_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_TightProgressionLimit_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_PocLeavingPacketsUncovered_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_PocLaterVolumeLargerLayerEnd_SkipsSentPackets
+                  - Jpeg2000Codec_Decode_PocTileHeaderLaterVolumeLargerLayerEnd_SkipsSentPackets
+                  - Jpeg2000Codec_Decode_RepeatedPocEntriesWithinCap_DecodesExactly
+                  - Jpeg2000Codec_DecodeBudget_IsCumulativeAndScalesWithInput
+                  - Jpeg2000Codec_Decode_TightTier1Limit_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_HostileTier1Work_ThrowsInvalidDataWhenOverBudget
+                  - Jpeg2000Codec_Decode_HostileMaximumImageTier1Work_ExceedsDefaultBudget
+                  - Jpeg2000Codec_Decode_SmallHostileShape_Decodes
+                  - Jpeg2000Codec_Decode_LargeLosslessFlatImage_DecodesUnderDefaultLimits
+                  - Jpeg2000Codec_Decode_TilePartIndexes_AreCheckedAndCountIsAdvisory
+                  - Jpeg2000Codec_Decode_MissingTile_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_CustomLimits_AreEnforced
+                  - Jpeg2000Codec_Decode_InvalidLimits_ThrowsArgumentOutOfRange
+                  - Jpeg2000Codec_Decode_HostileExponents_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_OddLengthExpoundedQcd_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_OddLengthExpoundedQcc_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_DerivedQcdTrailingByte_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_MainQuantEntryCountMismatch_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_TileQuantEntryCountMismatch_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_QuantEntryCountMatches_RoundTripsExactly
+                  - Jpeg2000Codec_Decode_QcdBeforeCod_ValidatedAgainstLaterLevels
+                  - Jpeg2000Codec_Decode_CodestreamSegmentLengthMismatch_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_SopWrongLength_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_Jp2BoxLengthMismatch_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_WrongSegmentationSymbol_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_SegmentationSymbols_RoundTripsExactly
+                  - Jpeg2000Codec_Jp2MissingFileType_IsRejected
+                  - Jpeg2000Codec_Jp2FileTypeNotSecond_IsRejected
+                  - Jpeg2000Codec_Jp2FileTypeLength_IsChecked
+                  - Jpeg2000Codec_Jp2MissingHeaderBox_IsRejected
+                  - Jpeg2000Codec_Jp2HeaderAfterCodestream_IsRejected
+                  - Jpeg2000Codec_Jp2HeaderWithoutIhdr_IsRejected
+                  - Jpeg2000Codec_Jp2IhdrLength_IsChecked
+                  - Jpeg2000Codec_Jp2IhdrSizeMismatch_IsRejected
+                  - Jpeg2000Codec_Jp2Leniency_IsAccepted
+                  - Jpeg2000Codec_Jp2Baseline_IsAccepted
+                  - Jpeg2000Codec_Decode_MarkerNotAllowedInMainHeader_IsRejected
+                  - Jpeg2000Codec_Decode_SkippedMarkerInMainHeader_IsAccepted
+                  - Jpeg2000Codec_Decode_MarkerNotAllowedInTilePartHeader_IsRejected
+                  - Jpeg2000Codec_Decode_SkippedMarkerInTilePartHeader_IsAccepted
+                  - Jpeg2000Codec_Decode_MarkerOrdering_IsEnforced
+                  - Jpeg2000Codec_Decode_MissingSod_IsRejected
+                  - Jpeg2000Codec_Decode_BytesAfterEoc_AreIgnored
+                  - Jpeg2000Codec_Decode_PpmIndexes_RepeatRejectedGapAccepted
+                  - Jpeg2000Codec_Decode_PptIndexes_RepeatRejectedGapAccepted
+                  - Jpeg2000Codec_Decode_InvalidFieldValue_IsRejected
+                  - Jpeg2000Codec_Decode_MaximumCodeBlockArea_IsAccepted
+
+              - id: CanvasNet-Codecs-Jpeg2000Codec-Unsupported
+                title: >-
+                  The Jpeg2000Codec class shall reject valid JPEG 2000 features it does not
+                  support (Part 2 extensions, high-throughput JPEG 2000, unknown transforms or
+                  ROI styles, more than 16 components or bit planes, more than 16 bits per sample, four color
+                  channels in a color space other than CMYK, and images with more than four color
+                  channels plus alpha) with UnsupportedImageFeatureException.
+                justification: |
+                  Callers must be able to distinguish a legitimate but unsupported file from a
+                  corrupt one.
+                tests:
+                  - Jpeg2000Codec_Decode_Part2Capabilities_ThrowsUnsupported
+                  - Jpeg2000Codec_Decode_HighThroughput_ThrowsUnsupported
+                  - Jpeg2000Codec_Decode_UnknownTransforms_ThrowsUnsupported
+                  - Jpeg2000Codec_Decode_UnknownRoiStyle_ThrowsUnsupported
+                  - Jpeg2000Codec_Decode_TooManyComponents_ThrowsUnsupported
+                  - Jpeg2000Codec_Decode_RoiShiftBeyondMaxBitPlanes_ThrowsUnsupported
+                  - Jpeg2000Codec_Decode_FourChannelsInUnknownColorSpace_ThrowsUnsupported
+                  - Jpeg2000Codec_Decode_SrgbWithExtraChannelWithoutCdef_IgnoresExtraChannel
+                  - Jpeg2000Codec_Decode_RawFourComponents_IsCmyk
+                  - Jpeg2000Codec_Decode_FiveComponentsWithoutCdef_ThrowsUnsupported
+                  - Jpeg2000Codec_Decode_DepthAbove16_ThrowsUnsupported

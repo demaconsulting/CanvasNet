@@ -31,6 +31,7 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 🖨️ **TIFF Codec** - Load/save 8-bit RGB/RGBA/Grayscale TIFF files
 - 🗜️ **JPEG Codec** - Load baseline/progressive; save baseline JPEG
 - 🎞️ **GIF Codec** - Decode-only load of first GIF frame; `GetInfo` reports the true frame count
+- 🖼️ **JPEG 2000 Codec** - Decode-only load of JP2 files and raw codestreams (Decode also exposes color space and alpha)
 - 📐 **SVG Codec** - Rasterize a common SVG subset to a surface (`DemaConsulting.CanvasNet.Svg`)
 - 📄 **PDF Document** - Open, inspect, and rasterize PDF pages with font substitution (`DemaConsulting.CanvasNet.Pdf`)
 - 📊 **Chart Rendering** - Build and paint Bar/Column/Line/Area/Pie/Doughnut charts (`DemaConsulting.CanvasNet.Charts`)
@@ -88,7 +89,7 @@ PngCodec.Save(surface, "surface.png");
 using var reloaded = PngCodec.Load("surface.png");
 ```
 
-Open a PDF and render a page (BMP/TIFF/JPEG/GIF/SVG codecs, header-only probing, and
+Open a PDF and render a page (BMP/TIFF/JPEG/GIF/JPEG 2000/SVG codecs, header-only probing, and
 feature-detection all follow the same pattern):
 
 ```csharp

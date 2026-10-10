@@ -838,10 +838,12 @@ sections:
           - id: CanvasNetPdf-PdfDocument-ImageXObjects
             title: >-
               The PdfDocument class shall implement the Do operator for a /Subtype /Image
-              XObject, decoding a bare /Filter /DCTDecode image via Codecs.JpegCodec.Load or
-              interpreting raw DeviceGray/DeviceRGB/DeviceCMYK 8-bit samples, and compositing the
+              XObject, decoding a bare /Filter /DCTDecode image via Codecs.JpegCodec.Load, or interpreting
+              raw DeviceGray/DeviceRGB/DeviceCMYK/Indexed samples of 1, 2, 4, 8 or 16 bits per
+              component, and compositing the
               decoded image onto the destination surface through the current transformation
-              matrix (nearest-neighbor sampling, treating every image as fully opaque, and
+              matrix (nearest-neighbor sampling, treating every image as fully opaque unless it
+              carries alpha via /SMask, and
               alpha-blending each sampled source pixel over the existing destination pixel via
               standard Porter-Duff "over" compositing rather than overwriting it outright); an
               unsupported /ColorSpace or an unsupported /BitsPerComponent shall throw
@@ -865,8 +867,161 @@ sections:
               - PdfDocument_Images_DoOperator_DeviceCmykFlateDecode_PlacesExpectedPixels
               - PdfDocument_Images_DoOperator_DctDecodeJpeg_PlacesExpectedPixels
               - PdfDocument_Images_UnsupportedBitsPerComponent_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Images_RawOneBitGray_UnpacksSamples
+              - PdfDocument_Images_RawOneBitMultiRowPadding_UnpacksEachRowFromItsOwnByte
+              - PdfDocument_Images_RawFourBitRgb_UnpacksComponents
+              - PdfDocument_Images_RawTwoBitRgbTwoRows_PadsEachRow
+              - PdfDocument_Images_RawSixteenBit_UsesHighBytes
+              - PdfDocument_Images_RawFourBitIndexed_LooksUpPalette
+              - PdfDocument_Images_RawOneBitTruncated_ThrowsInvalidDataException
+              - PdfDocument_Images_IndexedSixteenBit_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException
               - CompositeImageOntoSurface_SourceImageWithAlphaChannel_AlphaBlendsOntoExistingBackground
+
+          - id: CanvasNetPdf-PdfDocument-ImageSoftMask
+            title: >-
+              The PdfDocument class shall apply an explicit /SMask image of an image XObject
+              (whatever the base image's encoding: raw samples, DCTDecode or JPXDecode) as the
+              base image's alpha channel, multiplying the mask's single-component luminance
+              into the base alpha (resampling the mask to the base image with nearest-neighbor
+              sampling; the mask may use any supported bit depth - 1, 2, 4, 8 or 16 bits per
+              component) and ignoring the mask's own /SMask.
+            justification: |
+              Soft-masked images are the common way PDF producers store transparent raster
+              content (including 1-bit stencil-style and 16-bit masks); ignoring or rejecting
+              the mask would render the opaque base image or abort the page.
+            tests:
+              - PdfDocument_Images_SMaskOnRawImage_AppliesLuminanceAsAlpha
+              - PdfDocument_Images_SMaskOnDctImage_AppliesLuminanceAsAlpha
+              - PdfDocument_Images_Jpx_JpxSMask_AppliesLuminanceAsAlpha
+              - PdfDocument_Images_SMaskOneBit_AppliesBinaryAlpha
+              - PdfDocument_Images_SMaskSixteenBit_AppliesHighByteAsAlpha
+              - PdfDocument_Images_SMaskFourBitWithDecode_InvertsMask
+
+          - id: CanvasNetPdf-PdfDocument-ImageSoftMaskInvalid
+            title: >-
+              The PdfDocument class shall throw InvalidDataException for an image XObject
+              /SMask that is not a stream with /Subtype /Image or whose image is not a
+              single-component, non-Indexed (gray) image.
+            justification: |
+              A soft mask is defined as a DeviceGray image; reading the red channel of an
+              arbitrary color mask would silently produce an unrelated alpha channel, so the
+              renderer fails closed instead.
+            tests:
+              - PdfDocument_Images_SMaskNotAStream_ThrowsInvalidDataException
+              - PdfDocument_Images_SMaskNotImageSubtype_ThrowsInvalidDataException
+              - PdfDocument_Images_SMaskNotGray_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-ImageDecodeArray
+            title: >-
+              The PdfDocument class shall apply an image XObject's /Decode array to the
+              samples of every encoding (raw samples of any supported bit depth including
+              /Indexed, CCITTFaxDecode, JPXDecode, and 1- or 3-channel DCTDecode images,
+              including /SMask images) before color-space conversion; a 4-component JPEG, which
+              the JPEG codec rejects, fails closed rather than ignoring /Decode.
+            justification: |
+              /Decode inverts or remaps samples (for example [1 0] on a mask or a negative
+              image); silently ignoring it for some encodings renders them inverted, and a
+              fail-closed result is required where it cannot be applied faithfully.
+            tests:
+              - PdfDocument_Images_RawWithDecode_InvertsSamples
+              - PdfDocument_Images_SMaskRawWithDecode_InvertsMask
+              - PdfDocument_Images_Jpx_DecodeArray_InvertsSamples
+              - PdfDocument_Images_Jpx_JpxSMaskWithDecode_InvertsMask
+              - PdfDocument_Images_DoOperator_CcittFaxWithDecode_InvertsPixels
+              - PdfDocument_Images_DoOperator_IndexedWithDecode_RemapsIndices
+              - PdfDocument_Images_DctRgbWithDecode_InvertsSamples
+              - PdfDocument_Images_DctGrayWithDecode_InvertsSamples
+              - PdfDocument_Images_DctFourChannelWithDecode_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-ImageDecodeArrayInvalid
+            title: >-
+              The PdfDocument class shall throw InvalidDataException for an image XObject
+              /Decode that is not an array of 2 x components numbers.
+            justification: |
+              A malformed /Decode cannot be interpreted; failing closed is safer than guessing
+              a mapping.
+            tests:
+              - PdfDocument_Images_RawWithWrongLengthDecode_ThrowsInvalidDataException
+              - PdfDocument_Images_Jpx_DecodeArrayWrongLength_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-JpxDecode
+            title: >-
+              The PdfDocument class shall decode a bare /Filter /JPXDecode image XObject via
+              Codecs.Jpeg2000Codec.Decode, bounded by explicit Jpeg2000DecoderLimits derived from
+              Surface.MaxDimension, and composite it like any other image XObject; JPXDecode is
+              never decoded from an inline image because inline images are not supported.
+            justification: |
+              JPEG 2000 is the standard compressed image encoding for many scanned and
+              photographic PDF documents; callers need those images rendered.
+            tests:
+              - PdfDocument_Images_Jpx_RealEncoderFixture_RendersCloseToSourcePixels
+              - PdfDocument_Images_Jpx_GrayWithoutColorSpace_UsesJp2ColorSpace
+
+          - id: CanvasNetPdf-PdfDocument-JpxColorSpace
+            title: >-
+              The PdfDocument class shall use the JPEG 2000 data's own color space for a
+              JPXDecode image without /ColorSpace and otherwise honour /ColorSpace
+              (DeviceGray/RGB/CMYK, Indexed, ICCBased by component count).
+            justification: |
+              The PDF specification makes /ColorSpace optional for JPXDecode and, when present,
+              authoritative; both cases occur in real documents.
+            tests:
+              - PdfDocument_Images_Jpx_RgbWithoutColorSpace_UsesJp2ColorSpace
+              - PdfDocument_Images_Jpx_CmykWithoutColorSpace_UsesJp2ColorSpace
+              - PdfDocument_Images_Jpx_ExplicitDeviceRgb_HonorsColorSpace
+              - PdfDocument_Images_Jpx_ExplicitDeviceCmyk_HonorsColorSpace
+              - PdfDocument_Images_Jpx_IccBasedColorSpace_ResolvesByComponentCount
+              - PdfDocument_Images_Jpx_IndexedColorSpace_OverridesJp2ColorSpace
+
+          - id: CanvasNetPdf-PdfDocument-JpxSMaskInData
+            title: >-
+              The PdfDocument class shall apply the JPEG 2000 codestream's opacity channel to a
+              JPXDecode image per /SMaskInData (0 ignores it, 1 uses it as alpha, 2 additionally
+              un-premultiplies the component samples before /Decode and color-space conversion),
+              with an explicit /SMask taking precedence.
+            justification: |
+              Un-premultiplying must happen on the component samples, because color conversion
+              (notably CMYK to RGB) is not linear in the premultiplied values.
+            tests:
+              - PdfDocument_Images_Jpx_SMaskInDataZero_IgnoresAlphaChannel
+              - PdfDocument_Images_Jpx_SMaskInDataOne_AppliesAlphaChannel
+              - PdfDocument_Images_Jpx_SMaskInDataTwo_UnpremultipliesColor
+              - PdfDocument_Images_Jpx_SMaskInDataTwoCmyk_UnpremultipliesBeforeConversion
+              - PdfDocument_Images_Jpx_SMaskAndSMaskInData_SMaskWins
+
+          - id: CanvasNetPdf-PdfDocument-JpxInvalidInput
+            title: >-
+              The PdfDocument class shall throw InvalidDataException for a JPXDecode image whose
+              data is malformed, truncated or declares dimensions above Surface.MaxDimension,
+              whose /ColorSpace is /Pattern or has a component count that differs from the
+              decoded data, whose /SMaskInData is not 0, 1 or 2, or that is combined with another
+              filter.
+            justification: |
+              Malformed or hostile JPEG 2000 input must fail closed with one documented
+              exception type, before any oversized allocation.
+            tests:
+              - PdfDocument_Images_Jpx_GarbageData_ThrowsInvalidDataException
+              - PdfDocument_Images_Jpx_TruncatedData_ThrowsInvalidDataException
+              - PdfDocument_Images_Jpx_OversizedHeader_ThrowsInvalidDataException
+              - PdfDocument_Images_Jpx_PatternColorSpace_ThrowsInvalidDataException
+              - PdfDocument_Images_Jpx_ColorSpaceComponentMismatch_ThrowsInvalidDataException
+              - PdfDocument_Images_Jpx_InvalidSMaskInData_ThrowsInvalidDataException
+              - PdfDocument_Images_Jpx_CombinedWithAnotherFilter_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-JpxUnsupportedCombination
+            title: >-
+              The PdfDocument class shall throw UnsupportedImageFeatureException for a JPXDecode
+              image with a /ColorSpace override on JPEG 2000 data that carries its own palette,
+              with an Indexed /ColorSpace over non-8-bit samples, or with an Indexed /ColorSpace
+              and /SMaskInData 2.
+            justification: |
+              The decoder has already expanded palettes and scaled samples to 8 bits, so these
+              combinations cannot be interpreted faithfully and must not be silently mis-rendered.
+            tests:
+              - PdfDocument_Images_Jpx_ColorSpaceOverJp2Palette_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Images_Jpx_IndexedColorSpaceNonEightBit_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Images_Jpx_SMaskInDataTwoIndexed_ThrowsUnsupportedImageFeatureException
 
           - id: CanvasNetPdf-PdfDocument-FormXObjects
             title: >-

@@ -75,6 +75,12 @@
     <Compile Include="..\DemaConsulting.CanvasNet.Tests\TestSupport\**\*.cs" Link="TestSupport\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <!-- Test-only JPEG 2000 encoder reused from the core test project (single source of truth;
+       linked, not duplicated) to generate JPXDecode streams for PdfDocumentJpxTests -->
+  <ItemGroup>
+    <Compile Include="..\DemaConsulting.CanvasNet.Tests\Codecs\Jpeg2000TestEncoder*.cs" Link="TestSupport\Jpeg2000\%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <!-- Hand-authored PDF test fixtures (see PdfFixtures\README.md for provenance) -->
   <ItemGroup>
     <None Include="PdfFixtures\**">
@@ -88,6 +94,24 @@
        licensing), used by the real-font PDF integration test -->
   <ItemGroup>
     <None Include="..\DemaConsulting.CanvasNet.Tests\FontFixtures\**" Link="FontFixtures\%(RecursiveDir)%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!-- Real-encoder grayscale baseline JPEG reused from the core test project (single source of
+       truth; see DemaConsulting.CanvasNet.Tests\JpegFixtures\README.md for provenance), used by
+       the 1-channel DCTDecode /Decode PDF test -->
+  <ItemGroup>
+    <None Include="..\DemaConsulting.CanvasNet.Tests\JpegFixtures\grayscale_baseline.jpg" Link="JpegFixtures\grayscale_baseline.jpg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!-- Real-encoder JPEG 2000 fixture reused from the core test project (single source of truth;
+       linked, not duplicated - see DemaConsulting.CanvasNet.Tests\Jpeg2000Fixtures\README.md for
+       provenance), used by the real-encoder /JPXDecode PDF test -->
+  <ItemGroup>
+    <None Include="..\DemaConsulting.CanvasNet.Tests\Jpeg2000Fixtures\*" Link="Jpeg2000Fixtures\%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

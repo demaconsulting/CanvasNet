@@ -14,6 +14,70 @@ language: en
 
 # Project-specific technical terms and tool names
 words:
+  - dctdecode
+  - Lsiz
+  - smaskindata
+  - psnr
+  - bitplanes
+  - bitstream
+  - Cdef
+  - codestreams
+  - coef
+  - Colr
+  - CPRL
+  - csiz
+  - dequantization
+  - Dmax
+  - Dmin
+  - dplanes
+  - EBCOT
+  - fplane
+  - INITDEC
+  - INITENC
+  - Ippm
+  - Irrev
+  - isot
+  - Lblock
+  - LRCP
+  - lsot
+  - luts
+  - Mallat
+  - mant
+  - Memberwise
+  - NLPS
+  - NMPS
+  - Nppm
+  - Osiz
+  - Pclr
+  - Pcoc
+  - PCRL
+  - Prec
+  - Psot
+  - TNsot
+  - TPsot
+  - pterm
+  - Renorm
+  - RLCP
+  - RPCL
+  - rsiz
+  - scoc
+  - scod
+  - segsym
+  - signedness
+  - smask
+  - ssiz
+  - subband
+  - Sycc
+  - Termall
+  - Tsiz
+  - vcausal
+  - vsum
+  - xmap
+  - xmaps
+  - Xsiz
+  - ymaps
+  - ysiz
+  - Zppm
   - Aabb
   - functiontype
   - Poppler
@@ -235,6 +299,10 @@ words:
   - Argb
   - cmap
   - Cmap
+  - Lsop
+  - ftyp
+  - bpcc
+  - superbox
   - codepoint
   - Dzik
   - glyf

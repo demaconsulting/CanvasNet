@@ -30,7 +30,8 @@ constituent software items, specifically:
 - **Canvas (Subsystem)** — Pixel-buffer primitives: the `Surface` unit (mutable, in-memory
   32-bit RGBA pixel buffer with span-based row access) and the `Rgba32` unit
 - **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`,
-  `JpegCodec`, and `GifCodec`, each converting to and from a `Surface` pixel buffer
+  `JpegCodec`, `GifCodec`, and `Jpeg2000Codec`; the first four convert to and from a `Surface`
+  pixel buffer, while `GifCodec` and `Jpeg2000Codec` are decode-only loaders
 - **Geometry (Subsystem)** — Vector-geometry primitives: `Rect`, `Path`, `BezierFlattening`,
   `SvgArcConverter`, and `CornerRoundEffect`
 - **Drawing (Subsystem)** — Vector rasterization and stroke conversion: `PathFiller`,

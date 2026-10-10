@@ -332,6 +332,32 @@ public class CanvasNetTests
     }
 
     /// <summary>
+    ///     Proves that the system can decode a real-encoder JPEG 2000 file into a Surface through
+    ///     the public API and that its pixels equal the PNG source it was generated from.
+    ///     Like <see cref="GifCodec"/>, <see cref="Jpeg2000Codec"/> is decode-only, so the
+    ///     integrated round trip is "load a real OpenJPEG-encoded fixture and compare it to the
+    ///     source image decoded by the system's own PNG codec" (see
+    ///     <c>Jpeg2000Fixtures\README.md</c> for provenance).
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_Jpeg2000Load_ReturnsExpectedPixel()
+    {
+        // Arrange: the fixture directory copied to the test output directory
+        var directory = System.IO.Path.Join(AppContext.BaseDirectory, "Jpeg2000Fixtures");
+        using var expected = PngCodec.Load(System.IO.Path.Join(directory, "source_rgb.png"));
+
+        // Act: load the JPEG 2000 file through the public API
+        using var loaded = Jpeg2000Codec.Load(System.IO.Path.Join(directory, "lossless_rct.jp2"));
+
+        // Assert: the system produces exactly the source image
+        Assert.Equal(expected.Width, loaded.Width);
+        Assert.Equal(expected.Height, loaded.Height);
+        Assert.Equal(expected[0, 0], loaded[0, 0]);
+        Assert.Equal(expected[37, 21], loaded[37, 21]);
+        Assert.Equal(expected[expected.Width - 1, expected.Height - 1], loaded[loaded.Width - 1, loaded.Height - 1]);
+    }
+
+    /// <summary>
     ///     Proves that the system can decode a GIF stream into a Surface through the public API,
     ///     producing the expected integrated pixel result for a single-pixel, single-frame image.
     ///     Unlike the BMP/PNG/TIFF/JPEG system-integration tests above, there is no "Save" half to

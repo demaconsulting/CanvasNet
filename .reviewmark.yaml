@@ -254,6 +254,31 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/GifCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/GifFixtureTests.cs"  # fixture conformance tests
 
+  # CanvasNet-Codecs-Jpeg2000Codec Review (one per unit)
+  - id: CanvasNet-Codecs-Jpeg2000Codec
+    title: Review that CanvasNet Codecs Jpeg2000Codec Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/codecs.md"
+      - "docs/reqstream/canvas-net/codecs.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/codecs/jpeg2000-codec.yaml"    # unit requirements
+      - "docs/design/canvas-net/codecs/jpeg2000-codec.md"        # unit design
+      - "docs/verification/canvas-net/codecs/jpeg2000-codec.md"  # unit verification
+      - "src/DemaConsulting.CanvasNet/Codecs/Jpeg2000Codec.cs"       # unit source (public API entry point)
+      - "src/DemaConsulting.CanvasNet/Codecs/Jpeg2000Image.cs"       # unit source (public decoded-image result type)
+      - "src/DemaConsulting.CanvasNet/Codecs/Jpeg2000ColorSpace.cs"  # unit source (public color-space enum)
+      - "src/DemaConsulting.CanvasNet/Codecs/Jpeg2000DecoderLimits.cs"  # unit source (public decoder resource limits)
+      - "src/DemaConsulting.CanvasNet/Codecs/Jpeg2000/**/*.cs"       # unit source (partial-class implementation files)
+      - "src/DemaConsulting.CanvasNet/Codecs/ImageInfo.cs"           # shared header-only probe result type
+      - "src/DemaConsulting.CanvasNet/Codecs/NamespaceDoc.cs"        # Codecs namespace documentation
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/Jpeg2000CodecTests.cs"      # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/Jpeg2000ValidationTests.cs"  # fail-closed validation tests
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/Jpeg2000TestEncoder*.cs"    # test-only JPEG 2000 encoder
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/Jpeg2000FixtureTests.cs"    # real-encoder fixture tests
+      - "test/DemaConsulting.CanvasNet.Tests/Jpeg2000Fixtures/**"               # real-encoder fixture corpus + README
+
   # CanvasNet-Geometry Review (one per subsystem)
   - id: CanvasNet-Geometry
     title: Review that CanvasNet Geometry Subsystem Implementation is Correct
@@ -770,6 +795,10 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pdf/NamespaceDoc.cs"             # Pdf namespace documentation
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentMeshShadingTests.cs"  # mesh shading unit tests
+      - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentJpxTests.cs"  # JPXDecode/SMask unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Jpeg2000Fixtures/gray.jp2"  # gray JPX fixture
+      - "test/DemaConsulting.CanvasNet.Tests/Jpeg2000Fixtures/source_gray.png"  # source pixels of gray.jp2
+      - "test/DemaConsulting.CanvasNet.Tests/JpegFixtures/grayscale_baseline.jpg"  # gray DCT fixture
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfSystemIntegrationTests.cs"  # integration tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfFixtureTests.cs"   # fixture conformance tests
 

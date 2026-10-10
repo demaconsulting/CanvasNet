@@ -30,8 +30,9 @@ software items, specifically:
 - **Canvas (Subsystem)** — Pixel-buffer primitives: the `Surface` unit (mutable, in-memory
   32-bit RGBA pixel buffer with span-based row access) and the `Rgba32` unit
 - **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, and
-  `JpegCodec`, each converting to and from a `Surface` pixel buffer; and `GifCodec`, a decode-only
-  unit that loads a `Surface` from the first frame of a GIF file
+  `JpegCodec`, each converting to and from a `Surface` pixel buffer; `GifCodec`, a decode-only
+  unit that loads a `Surface` from the first frame of a GIF file; and `Jpeg2000Codec`, a decode-only
+  JPEG 2000 Part 1 decoder (JP2 and raw codestreams) also used for PDF `/JPXDecode` images
 - **Geometry (Subsystem)** — Vector-geometry primitives, distinct from the `Drawing`
   subsystem (which covers rasterization built on top of these primitives): the `Rect` unit
   (axis-aligned bounding rectangle), the `Path` unit (immutable vector path and its
@@ -202,7 +203,7 @@ diagram or the prose below.
 
 CanvasNet is organized into six subsystems under the system level: the `Canvas` subsystem
 (the `Surface` and `Rgba32` units, namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs`
-subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, and `GifCodec` units,
+subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, and `Jpeg2000Codec` units,
 namespace `DemaConsulting.CanvasNet.Codecs`, flat — no further nesting), the
 `Geometry` subsystem (the
 `Rect`, `Path`, `BezierFlattening`, and `SvgArcConverter` units, namespace
@@ -292,8 +293,14 @@ src/DemaConsulting.CanvasNet/
 │   ├── GifCodec.cs               — Decode-only, first-frame-only GIF loader; public API entry
 │   │                                point, partial-class implementation continues under `Gif/`
 │   ├── Gif/                      — `GifCodec` partial-class implementation files (decode, LZW)
+│   ├── Jpeg2000Codec.cs          — Decode-only JPEG 2000 Part 1 decoder; public API entry
+│   │                                point, partial-class implementation continues under `Jpeg2000/`
+│   ├── Jpeg2000/                 — `Jpeg2000Codec` partial-class implementation files (JP2 boxes,
+│   │                                codestream, packets, MQ, tier-1, DWT, decoder)
+│   ├── Jpeg2000Image.cs          — Decoded JPEG 2000 image (samples, color space, alpha)
+│   ├── Jpeg2000ColorSpace.cs     — Color space reported by `Jpeg2000Image`
 │   ├── ImageInfo.cs              — Shared `GetInfo` return type (dimensions, channels, alpha,
-│   │                                `CanDecode`, `FrameCount`) common to all five codecs
+│   │                                `CanDecode`, `FrameCount`) common to all six codecs
 │   ├── UnsupportedImageFeatureException.cs — Thrown by `Load` for a well-formed but
 │   │                                unsupported file feature (for example PNG Adam7
 │   │                                interlacing), distinct from `InvalidDataException`

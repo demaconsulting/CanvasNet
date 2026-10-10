@@ -890,6 +890,100 @@ path and returns an `ImageInfo`.
 - `ArgumentException`: Thrown when `path` is an empty string.
 - `InvalidDataException`: Thrown for the same conditions as `GetInfo(Stream)`.
 
+### Jpeg2000Codec
+
+The `Jpeg2000Codec` static class decodes JPEG 2000 Part 1 images (JP2 files and raw codestreams)
+into `Surface` pixel buffers. It is decode-only: there is no `Save`. It supports reversible and
+irreversible coding, tiles and tile-parts, quality layers, all five progression orders, precincts,
+every code-block style, regions of interest, 1 to 16 bit samples, subsampled components, and the
+JP2 color, palette and channel-definition boxes. JPEG 2000 Part 2 extensions and High Throughput
+(Part 15) codestreams are rejected with `UnsupportedImageFeatureException`. An embedded ICC profile
+is reported but not applied.
+
+#### Jpeg2000Codec Methods
+
+##### Jpeg2000Codec.Load(Stream stream) / Jpeg2000Codec.Load(string path)
+
+```csharp
+public static Surface Load(Stream stream)
+public static Surface Load(string path)
+```
+
+Decodes the image to an RGBA `Surface` (gray expanded to RGB, CMYK converted to RGB, alpha
+preserved).
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stream` or `path` is null.
+- `ArgumentException`: Thrown when `path` is an empty string.
+- `FileNotFoundException`: Thrown when the file at `path` does not exist.
+- `InvalidDataException`: Thrown when the data is not JPEG 2000, exceeds `Surface.MaxDimension`,
+  or is truncated or corrupt.
+- `UnsupportedImageFeatureException`: Thrown for valid but unsupported JPEG 2000 features.
+
+##### Jpeg2000Codec.GetInfo(Stream stream) / Jpeg2000Codec.GetInfo(string path)
+
+```csharp
+public static ImageInfo GetInfo(Stream stream)
+public static ImageInfo GetInfo(string path)
+```
+
+Returns the width, height, channel count and alpha presence from the container and codestream
+header alone, without decoding pixels and without enforcing `Surface.MaxDimension`. Only the header
+is read: for JP2 the boxes up to the codestream box, then the SOC and SIZ segments (at most about
+64 KiB of the codestream), so the position of the stream afterwards is unspecified and the
+codestream body is never read. A box before the codestream is skipped by seeking when
+`stream.CanSeek` is `true`; on a non-seekable stream it is read and discarded (never buffered), up
+to the 256 MiB input limit. A truncated file whose codestream box is longer than its data is only
+rejected by `Load`/`Decode` (or by `GetInfo` on a seekable stream). Throws the same
+argument and `InvalidDataException` errors as `Load`.
+
+##### Jpeg2000Codec.Decode(Stream stream) / Jpeg2000Codec.Decode(byte[] data)
+
+```csharp
+public static Jpeg2000Image Decode(Stream stream)
+public static Jpeg2000Image Decode(byte[] data)
+```
+
+Decodes to a `Jpeg2000Image` exposing `Width`, `Height`, `ColorSpace` (`Gray`, `Srgb`, `Cmyk` or
+`Unknown`), `ColorChannelCount`, 8-bit interleaved `ColorSamples`, optional `AlphaSamples` (with
+`AlphaPremultiplied`), `HasAlpha` (true when `AlphaSamples` is present), the `IccProfile` bytes, the
+source `BitDepth` of the first color channel before 8-bit scaling, and `HasPalette` (whether a JP2
+palette was applied to `ColorSamples`).
+Throws the same exceptions as `Load`.
+
+##### Jpeg2000Codec.Decode(..., Jpeg2000DecoderLimits limits)
+
+```csharp
+public static Jpeg2000Image Decode(Stream stream, Jpeg2000DecoderLimits limits)
+public static Jpeg2000Image Decode(byte[] data, Jpeg2000DecoderLimits limits)
+```
+
+Decodes with caller-supplied resource limits, for example tighter limits for untrusted input.
+Throws `ArgumentNullException` for null limits and `ArgumentOutOfRangeException` for a
+non-positive limit. `Jpeg2000DecoderLimits` is a record with `init` properties
+(`MaxInputBytes` 256 MiB, `MaxWidth`/`MaxHeight` `Surface.MaxDimension`, `MaxTotalSamples`
+2^27, `MaxTileSamples` 2^26, `MaxTiles` 65535, `MaxTilePrecincts` 2^18, `MaxTileCodeBlocks`
+2^20, `MaxTilePackets` 2^22, `MaxProgressionChanges` 128, `MaxProgressionSteps` 2^30 and
+`MaxTier1Work` 2^34); `Jpeg2000DecoderLimits.Default` holds the defaults. The progression and
+tier-1 work ceilings additionally scale with the input length, so a small hostile stream cannot
+consume the full budget. Data over a limit fails with `InvalidDataException`.
+
+The defaults favour accepting every valid image, so a hostile stream can still cost CPU time:
+roughly 50 microseconds per input byte (Release build; about twice that in Debug) up to the
+`MaxTier1Work` ceiling, which at the default is on the order of a minute or more of CPU for a
+stream of about 1 MB. When decoding untrusted input, pass tighter limits sized to what you expect:
+
+```csharp
+var limits = new Jpeg2000DecoderLimits
+{
+    MaxInputBytes = 8 * 1024 * 1024,
+    MaxTotalSamples = 1 << 24,        // about 16 megapixel-samples
+    MaxTier1Work = 1L << 30,          // hard cap on entropy-decoding work
+};
+var image = Jpeg2000Codec.Decode(untrustedBytes, limits);
+```
+
 ### SvgCodec
 
 `SvgCodec` is distributed via the separate `DemaConsulting.CanvasNet.Svg` NuGet package (namespace

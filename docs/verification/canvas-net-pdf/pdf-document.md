@@ -886,8 +886,8 @@ merely re-deriving the implementation's own output). Repeats the PNG-predictor c
 bytes compressed via `LZWDecode` instead of `FlateDecode` (using a test-only classic-LZW encoder,
 never shipped in `src/`), proving predictor reversal is gated on filter name (`FlateDecode` or
 `LZWDecode`) rather than merely on `/DecodeParms` presence. Renders an image XObject declaring an
-unsupported filter (`/JPXDecode` - still genuinely unsupported, unlike `/LZWDecode`/
-`/CCITTFaxDecode`, both of which this and a later phase respectively implement), asserting
+unsupported filter (`/JBIG2Decode` - still genuinely unsupported, unlike `/LZWDecode`/
+`/CCITTFaxDecode`/`/JPXDecode`, all of which are implemented), asserting
 `Codecs.UnsupportedImageFeatureException`.
 
 #### CanvasNetPdf-PdfDocument-LzwDecodeFilter: LZWDecode Decodes the PDF-Variant Algorithm, Fails Closed on Malformed Input
@@ -1044,6 +1044,14 @@ bits before each row, rather than the implementation coincidentally tolerating z
 `PdfDocument_Images_DoOperator_DeviceCmykFlateDecode_PlacesExpectedPixels`,
 `PdfDocument_Images_DoOperator_DctDecodeJpeg_PlacesExpectedPixels`,
 `PdfDocument_Images_UnsupportedBitsPerComponent_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Images_RawOneBitGray_UnpacksSamples`,
+`PdfDocument_Images_RawOneBitMultiRowPadding_UnpacksEachRowFromItsOwnByte` (width 9, height 2),
+`PdfDocument_Images_RawFourBitRgb_UnpacksComponents`,
+`PdfDocument_Images_RawTwoBitRgbTwoRows_PadsEachRow`,
+`PdfDocument_Images_RawSixteenBit_UsesHighBytes` (16-bit gray and RGB base images),
+`PdfDocument_Images_RawFourBitIndexed_LooksUpPalette`,
+`PdfDocument_Images_RawOneBitTruncated_ThrowsInvalidDataException`,
+`PdfDocument_Images_IndexedSixteenBit_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Images_DoOperator_UndefinedXObjectName_ThrowsInvalidDataException`,
 `PdfDocument_Images_DoOperator_MalformedOperandCount_ThrowsInvalidDataException`,
@@ -1057,9 +1065,11 @@ including the PDF image-space row-0-is-top convention). Places a bare `DCTDecode
 XObject (an 8x8 solid-color surface encoded via `Codecs.JpegCodec.Save` at test-run time, quality
 100 - a flat color block's DCT has only a DC coefficient, so the round-trip reproduces it within
 a small per-channel tolerance), asserting the decoded/composited pixel matches within that
-tolerance. Renders an image XObject with an unsupported `/BitsPerComponent` (`1`) and, separately,
+tolerance. Renders an image XObject with an unsupported `/BitsPerComponent` (`3`) and, separately,
 an unsupported `/ColorSpace` (`/Lab`), each asserting
-`Codecs.UnsupportedImageFeatureException`. Renders `Do` with a name undeclared in
+`Codecs.UnsupportedImageFeatureException`. A 1-bit gray image proves MSB-first unpacking and
+full-range scaling, a short sub-byte buffer asserts `InvalidDataException`, and a 16-bit
+`/Indexed` image asserts `UnsupportedImageFeatureException`. Renders `Do` with a name undeclared in
 `/Resources/XObject`, asserting `InvalidDataException`. A `[Theory]`
 renders `Do` with a malformed operand count/type, asserting `InvalidDataException` in every case.
 The end-to-end system-integration test independently proves the same `Do` compositing against a
@@ -1067,13 +1077,129 @@ real, hand-authored fixture, asserting specific composited pixel colors at speci
 matching the fixture's known 2x2 source image, and a pixel outside the placed image's
 device-space footprint remains transparent. A dedicated regression test (regression guard for a
 confirmed real-world raw-overwrite alpha-compositing bug, invoking the private
-`CompositeImageOntoSurface` method directly via reflection, since every image XObject this
-package currently decodes is always fully opaque and so cannot exercise non-opaque sampling
-end-to-end) proves each sampled source pixel is alpha-blended "over" the existing destination
+`CompositeImageOntoSurface` method directly via reflection, which isolates the compositing
+formula from image decoding) proves each sampled source pixel is alpha-blended "over" the existing destination
 pixel - a fully transparent source pixel with a non-matching stored RGB leaves the background
 completely unchanged, a fully opaque source pixel exactly replaces it, and a partially
 transparent source pixel blends to the exact expected bytes per the documented Porter-Duff "over"
 formula.
+
+#### CanvasNetPdf-PdfDocument-ImageSoftMask: /SMask Images Become the Base Image's Alpha
+
+**Tests**: `PdfDocument_Images_SMaskOnRawImage_AppliesLuminanceAsAlpha`,
+`PdfDocument_Images_SMaskOnDctImage_AppliesLuminanceAsAlpha`,
+`PdfDocument_Images_Jpx_JpxSMask_AppliesLuminanceAsAlpha`,
+`PdfDocument_Images_SMaskOneBit_AppliesBinaryAlpha`,
+`PdfDocument_Images_SMaskSixteenBit_AppliesHighByteAsAlpha`,
+`PdfDocument_Images_SMaskFourBitWithDecode_InvertsMask`
+
+`PdfDocumentJpxTests.cs` builds minimal PDFs at test-run time. A 1x1 raw gray image, an 8x8
+`DCTDecode` image and a JPX image each carry an `/SMask`; the rendered pixel's alpha equals the
+mask luminance (the JPX case uses a 2x1 mask over an 8x8 base to prove nearest-neighbor
+resampling of the mask). A 1-bit 2x1 mask yields alpha `0` and `255`, a 16-bit mask contributes
+its high byte (`0x8000` gives alpha `128`), and a 4-bit mask with `/Decode [1 0]` yields `204`,
+proving every bit depth flows through the shared sample path instead of failing the page.
+
+#### CanvasNetPdf-PdfDocument-ImageSoftMaskInvalid: Invalid /SMask Entries Fail Closed
+
+**Tests**: `PdfDocument_Images_SMaskNotAStream_ThrowsInvalidDataException`,
+`PdfDocument_Images_SMaskNotImageSubtype_ThrowsInvalidDataException`,
+`PdfDocument_Images_SMaskNotGray_ThrowsInvalidDataException`
+
+An `/SMask` referring to a plain dictionary, an `/SMask` stream whose `/Subtype` is not `/Image`
+(a gray `/Form` stream), and an `/SMask` image in `DeviceRGB` each assert `InvalidDataException`.
+
+#### CanvasNetPdf-PdfDocument-ImageDecodeArray: /Decode Applies to Every Sample Encoding
+
+**Tests**: `PdfDocument_Images_RawWithDecode_InvertsSamples`,
+`PdfDocument_Images_SMaskRawWithDecode_InvertsMask`,
+`PdfDocument_Images_Jpx_DecodeArray_InvertsSamples`,
+`PdfDocument_Images_Jpx_JpxSMaskWithDecode_InvertsMask`,
+`PdfDocument_Images_DoOperator_CcittFaxWithDecode_InvertsPixels`,
+`PdfDocument_Images_DoOperator_IndexedWithDecode_RemapsIndices`,
+`PdfDocument_Images_DctRgbWithDecode_InvertsSamples`,
+`PdfDocument_Images_DctGrayWithDecode_InvertsSamples`,
+`PdfDocument_Images_DctFourChannelWithDecode_ThrowsInvalidDataException`
+
+`/Decode [1 0]` inverts a raw gray image, a raw soft-mask image (alpha `255 - 64`), a JPX image
+and a JPX soft-mask image, and a CCITT image (black and white swap). `/Decode [2 0]` over a 2-bit
+`/Indexed` image maps raw indices `0`/`3` to palette entries `2`/`0`. A 3-channel JPEG
+(`/Decode [1 0 1 0 1 0]`, compared with the undecoded render and the exact expected inverted color)
+and a 1-channel real-encoder grayscale JPEG fixture (`/Decode [1 0]`) are remapped exactly. A
+hand-built 4-component JPEG header with a `/Decode` asserts `InvalidDataException` (the JPEG codec
+rejects CMYK/YCCK), proving the decode is never silently ignored.
+
+#### CanvasNetPdf-PdfDocument-ImageDecodeArrayInvalid: Malformed /Decode Fails Closed
+
+**Tests**: `PdfDocument_Images_RawWithWrongLengthDecode_ThrowsInvalidDataException`,
+`PdfDocument_Images_Jpx_DecodeArrayWrongLength_ThrowsInvalidDataException`
+
+A `/Decode` array of the wrong length on a raw and on a JPX image each asserts
+`InvalidDataException`.
+
+#### CanvasNetPdf-PdfDocument-JpxDecode: JPXDecode Images Are Decoded and Composited
+
+**Tests**: `PdfDocument_Images_Jpx_RealEncoderFixture_RendersCloseToSourcePixels`,
+`PdfDocument_Images_Jpx_GrayWithoutColorSpace_UsesJp2ColorSpace`
+
+`PdfDocumentJpxTests.cs` embeds JPEG 2000 streams produced by the test-only `Jpeg2000TestEncoder`
+(linked into the PDF test project from `DemaConsulting.CanvasNet.Tests/Codecs`, not duplicated)
+and asserts the composited pixel. `PdfDocument_Images_Jpx_RealEncoderFixture_RendersCloseToSourcePixels`
+embeds a gray JP2 generated by ImageMagick/OpenJPEG (`Jpeg2000Fixtures/gray.jp2`, linked from the
+core test project) and asserts the rendered page matches its source PNG within a mean-absolute-
+difference bound (the renderer resamples) with the area outside the image left transparent.
+
+#### CanvasNetPdf-PdfDocument-JpxColorSpace: JPXDecode Honors the JP2 and PDF Color Spaces
+
+**Tests**: `PdfDocument_Images_Jpx_RgbWithoutColorSpace_UsesJp2ColorSpace`,
+`PdfDocument_Images_Jpx_CmykWithoutColorSpace_UsesJp2ColorSpace`,
+`PdfDocument_Images_Jpx_ExplicitDeviceRgb_HonorsColorSpace`,
+`PdfDocument_Images_Jpx_ExplicitDeviceCmyk_HonorsColorSpace`,
+`PdfDocument_Images_Jpx_IccBasedColorSpace_ResolvesByComponentCount`,
+`PdfDocument_Images_Jpx_IndexedColorSpace_OverridesJp2ColorSpace`
+
+RGB and CMYK streams without `/ColorSpace` assert the JP2's own color space is used; explicit
+`DeviceRGB`/`DeviceCMYK`, `ICCBased` (by component count) and `Indexed` color spaces assert
+`/ColorSpace` overrides it.
+
+#### CanvasNetPdf-PdfDocument-JpxSMaskInData: /SMaskInData Selects How the Opacity Channel Applies
+
+**Tests**: `PdfDocument_Images_Jpx_SMaskInDataZero_IgnoresAlphaChannel`,
+`PdfDocument_Images_Jpx_SMaskInDataOne_AppliesAlphaChannel`,
+`PdfDocument_Images_Jpx_SMaskInDataTwo_UnpremultipliesColor`,
+`PdfDocument_Images_Jpx_SMaskInDataTwoCmyk_UnpremultipliesBeforeConversion`,
+`PdfDocument_Images_Jpx_SMaskAndSMaskInData_SMaskWins`
+
+`/SMaskInData` 0, 1 and 2 assert the alpha channel is ignored, applied, and un-premultiplied. The
+CMYK case premultiplies a full-strength cyan by alpha 128 and asserts the result is the exact cyan
+of the unpremultiplied sample, which would not hold if the un-premultiply ran after the CMYK to
+RGB conversion. An explicit `/SMask` is asserted to win over `/SMaskInData`.
+
+#### CanvasNetPdf-PdfDocument-JpxInvalidInput: Invalid JPXDecode Input Fails Closed with InvalidDataException
+
+**Tests**: `PdfDocument_Images_Jpx_GarbageData_ThrowsInvalidDataException`,
+`PdfDocument_Images_Jpx_TruncatedData_ThrowsInvalidDataException`,
+`PdfDocument_Images_Jpx_OversizedHeader_ThrowsInvalidDataException`,
+`PdfDocument_Images_Jpx_PatternColorSpace_ThrowsInvalidDataException`,
+`PdfDocument_Images_Jpx_ColorSpaceComponentMismatch_ThrowsInvalidDataException`,
+`PdfDocument_Images_Jpx_InvalidSMaskInData_ThrowsInvalidDataException`,
+`PdfDocument_Images_Jpx_CombinedWithAnotherFilter_ThrowsInvalidDataException`
+
+Garbage and truncated JPEG 2000 data, a codestream header patched to 100000x100000 (rejected by
+the explicit decoder limits before any plane is allocated), a `/Pattern` `/ColorSpace`, a
+component-count mismatch, an invalid `/SMaskInData` and `JPXDecode` combined with another filter
+each assert `InvalidDataException` (an exact type, not a set of acceptable types).
+
+#### CanvasNetPdf-PdfDocument-JpxUnsupportedCombination: Unrepresentable JPXDecode Combinations Fail Closed
+
+**Tests**: `PdfDocument_Images_Jpx_ColorSpaceOverJp2Palette_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Images_Jpx_IndexedColorSpaceNonEightBit_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Images_Jpx_SMaskInDataTwoIndexed_ThrowsUnsupportedImageFeatureException`
+
+A `/ColorSpace` over JP2 data with its own palette, an `Indexed` space over 4-bit samples (the
+decoder scales samples to 8 bits) and an `Indexed` space with `/SMaskInData 2` (premultiplied
+indices are meaningless) each assert `UnsupportedImageFeatureException`; the palette alone (no
+override) renders.
 
 #### CanvasNetPdf-PdfDocument-FormXObjects: Do Executes Nested Form XObject Content Streams
 

@@ -898,3 +898,72 @@ sections:
               - GifCodec_GetInfo_BadSignature_ThrowsInvalidDataException
               - GifCodec_GetInfo_ZeroWidth_ThrowsInvalidDataException
               - GifCodec_GetInfo_ZeroHeight_ThrowsInvalidDataException
+
+          - id: CanvasNet-Codecs-Jpeg2000Load
+            title: >-
+              The Codecs subsystem shall load a Surface by decoding a JPEG 2000 JP2 file or raw
+              codestream (ISO/IEC 15444-1), from either a stream or a file path, and shall decode
+              it to a Jpeg2000Image of 8-bit component samples for callers that need the color
+              space and alpha channel, covering reversible and irreversible coding, tiles, layers,
+              progression orders, precincts, code-block styles, regions of interest, and the JP2
+              color, palette and channel-definition boxes.
+            justification: |
+              Callers need to import existing JPEG 2000 images as pixel buffers for further
+              processing or display, since Jpeg2000Codec is decode-only (no Save); the PDF
+              renderer additionally needs the decoded color space and opacity channel.
+            children:
+              - CanvasNet-Codecs-Jpeg2000Codec-Load
+              - CanvasNet-Codecs-Jpeg2000Codec-Decode
+              - CanvasNet-Codecs-Jpeg2000Codec-EntropyCoding
+              - CanvasNet-Codecs-Jpeg2000Codec-PacketStructure
+              - CanvasNet-Codecs-Jpeg2000Codec-Codestream
+              - CanvasNet-Codecs-Jpeg2000Codec-Jp2Container
+            tests:
+              - Jpeg2000Codec_Load_Stream_ReturnsPixels
+              - Jpeg2000Codec_Load_Path_ReturnsPixels
+              - Jpeg2000Codec_Decode_ReversibleLevels_RoundTripsExactly
+
+          - id: CanvasNet-Codecs-Jpeg2000GetInfo
+            title: >-
+              The Codecs subsystem shall report a JPEG 2000 image's dimensions, channel count and
+              alpha presence from its headers alone, without decoding pixel data and without
+              enforcing Surface.MaxDimension.
+            justification: |
+              Callers triaging an untrusted file need to inspect its dimensions before paying the
+              cost of a full decode.
+            children:
+              - CanvasNet-Codecs-Jpeg2000Codec-GetInfo
+            tests:
+              - Jpeg2000Codec_GetInfo_RawCodestream_ReportsDimensionsAndChannels
+              - Jpeg2000Codec_GetInfo_Jp2WithAlpha_CountsAlphaChannel
+
+          - id: CanvasNet-Codecs-Jpeg2000ArgumentValidation
+            title: >-
+              The Codecs subsystem shall reject null stream, data or path arguments to JPEG 2000
+              operations with ArgumentNullException, an empty path with ArgumentException, and a
+              missing file with FileNotFoundException.
+            justification: |
+              Passing null or an empty path to a JPEG 2000 operation is a programming error;
+              throwing immediately surfaces the mistake.
+            children:
+              - CanvasNet-Codecs-Jpeg2000Codec-ArgumentValidation
+            tests:
+              - Jpeg2000Codec_NullOrEmptyArguments_Throw
+              - Jpeg2000Codec_Load_MissingFile_ThrowsFileNotFound
+
+          - id: CanvasNet-Codecs-Jpeg2000UnsupportedFormatValidation
+            title: >-
+              The Codecs subsystem shall reject malformed JPEG 2000 data (not JPEG 2000,
+              dimensions exceeding Surface.MaxDimension, truncated or corrupt data) with
+              InvalidDataException and unsupported JPEG 2000 features with
+              UnsupportedImageFeatureException, without unhandled exceptions or unbounded
+              resource consumption.
+            justification: |
+              Callers must be able to distinguish a malformed file from a valid but unsupported
+              one, and receive a clear error rather than incorrect pixels or resource exhaustion.
+            children:
+              - CanvasNet-Codecs-Jpeg2000Codec-Malformed
+              - CanvasNet-Codecs-Jpeg2000Codec-Unsupported
+            tests:
+              - Jpeg2000Codec_Load_NotJpeg2000_ThrowsInvalidData
+              - Jpeg2000Codec_Decode_Part2Capabilities_ThrowsUnsupported

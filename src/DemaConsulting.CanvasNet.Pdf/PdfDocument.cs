@@ -23,8 +23,9 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         device color (<c>g</c>/<c>G</c>/<c>rg</c>/<c>RG</c>/<c>k</c>/<c>K</c>/<c>cs</c>/
 ///         <c>CS</c>/<c>sc</c>/<c>SC</c>/<c>scn</c>/<c>SCN</c>), a generalized <c>/Filter</c>/
 ///         <c>/DecodeParms</c> stream-decoding pipeline, and image XObjects (<c>Do</c>:
-///         <c>DCTDecode</c> via <see cref="Codecs.JpegCodec"/>, or raw <c>DeviceGray</c>/
-///         <c>DeviceRGB</c>/<c>DeviceCMYK</c> 8-bit samples, composited through the current
+///         <c>DCTDecode</c> via <see cref="Codecs.JpegCodec"/>, <c>JPXDecode</c> via
+///         <see cref="Codecs.Jpeg2000Codec"/>, or raw <c>DeviceGray</c>/
+///         <c>DeviceRGB</c>/<c>DeviceCMYK</c> samples of 1, 2, 4, 8 or 16 bits per component, composited through the current
 ///         transformation matrix).
 ///     </para>
 ///     <para>
@@ -36,9 +37,11 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         two-dimensional only, decoded by <see cref="DecodeCcittFax"/> - see
 ///         <c>PdfDocument.CcittFax.cs</c>) are supported specifically for image XObjects; Group 3
 ///         (<c>/DecodeParms /K</c> zero or greater) and an explicit <c>/EndOfLine true</c> both
-///         fail closed with <see cref="UnsupportedImageFeatureException"/>; and only
-///         <c>JPXDecode</c> (and any other unrecognized filter name) remains entirely unsupported
-///         for image XObjects.
+///         fail closed with <see cref="UnsupportedImageFeatureException"/>; and
+///         <c>JPXDecode</c> (JPEG 2000, decoded by <see cref="Codecs.Jpeg2000Codec"/>, sole filter
+///         only, honouring <c>/ColorSpace</c>, <c>/Decode</c>, <c>/SMaskInData</c>, and an explicit
+///         <c>/SMask</c> image; never inline) is supported for image XObjects, while any other
+///         unrecognized filter name remains entirely unsupported.
 ///     </para>
 ///     <para>
 ///         Text rendering interprets the text object/state/positioning/showing operators
