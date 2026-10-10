@@ -532,8 +532,9 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     Paints <paramref name="mesh"/> through <paramref name="path"/> (honoring the active clip):
-    ///     the mesh is rasterized into an offscreen, surface-sized bitmap (transparent outside the
-    ///     mesh) which is then painted over <paramref name="path"/> with a <see cref="TilePaint"/>.
+    ///     the mesh is rasterized into an offscreen bitmap bounded to the path's device-space extent
+    ///     (transparent outside the mesh) which is then painted over <paramref name="path"/> with a
+    ///     <see cref="TilePaint"/>.
     /// </summary>
     /// <param name="mesh">The decoded mesh.</param>
     /// <param name="toDevice">The transform from the mesh's coordinate space to device space.</param>
@@ -543,7 +544,25 @@ public sealed partial class PdfDocument
     /// <exception cref="UnsupportedImageFeatureException">Thrown (feature <c>pdf-shading-mesh-too-complex</c>) when the raster work budget is exceeded.</exception>
     private void PaintMesh(MeshShading mesh, Matrix3x2 toDevice, Geometry.Path path, FillRule fillRule, bool applyBackground)
     {
-        using var meshSurface = new Surface(_surface.Width, _surface.Height);
+        // Rasterize only the part of the destination the path can touch, so a small painted
+        // region never allocates a page-sized temporary bitmap.
+        var bounds = path.GetBounds();
+        if (bounds.IsEmpty)
+        {
+            return;
+        }
+
+        var left = (int)Math.Max(0, Math.Floor(Math.Min(bounds.Left, _surface.Width)) - 1);
+        var top = (int)Math.Max(0, Math.Floor(Math.Min(bounds.Top, _surface.Height)) - 1);
+        var right = (int)Math.Min(_surface.Width, Math.Ceiling(Math.Max(bounds.Right, 0)) + 1);
+        var bottom = (int)Math.Min(_surface.Height, Math.Ceiling(Math.Max(bounds.Bottom, 0)) + 1);
+        if (right <= left || bottom <= top)
+        {
+            return;
+        }
+
+        toDevice *= Matrix3x2.CreateTranslation(-left, -top);
+        using var meshSurface = new Surface(right - left, bottom - top);
         if (applyBackground && mesh.Background is { } background)
         {
             for (var y = 0; y < meshSurface.Height; y++)
@@ -584,7 +603,7 @@ public sealed partial class PdfDocument
             }
         }
 
-        var tilePaint = new TilePaint(meshSurface, Matrix3x2.Identity, meshSurface.Width, meshSurface.Height);
+        var tilePaint = new TilePaint(meshSurface, Matrix3x2.CreateTranslation(left, top), meshSurface.Width, meshSurface.Height);
         PathFiller.Fill(_surface, path, tilePaint, _gs.Clip, fillRule);
     }
 

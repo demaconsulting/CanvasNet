@@ -104,8 +104,8 @@ and invisible (`Tr 3`) text-rendering modes and the clip modes (`Tr 4`-`7`) are 
 glyph under a clip mode fails closed); a
 Form XObject's `/BBox` is never used to clip its content and its `/Group` (transparency group)
 entry is never consulted, though the Form itself renders; `/ShadingType` values outside `2`-`7`
-and `/FunctionType 4` (PostScript calculator) functions fail closed, as does the `sh` operator and
-general path clipping (`W`/`W*`), both of which are silently skipped rather than rejected; no
+and `/FunctionType 4` (PostScript calculator) functions fail closed; the `sh` operator and general
+path clipping (`W`/`W*`) are supported; no
 `/SMask`/alpha compositing or transparency groups (every decoded image is treated as fully
 opaque); no `JPXDecode` filter decoding (fails closed; `CCITTFaxDecode` - Group 4 (T.6 MMR) only -
 is supported); `/Separation`/`/DeviceN`/`/CalGray`/`/Lab` color spaces remain unsupported and fail
