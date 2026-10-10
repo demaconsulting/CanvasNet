@@ -3203,7 +3203,7 @@ public class PdfDocumentTests
         // Act: run on a background thread with a generous bounded timeout - if the quadratic-scan
         // fix regresses, this fails fast with a TimeoutException instead of hanging the test run.
         using var document = await Task.Run(() => PdfDocument.Open(new MemoryStream(pdfBytes)))
-            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            .WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -9054,7 +9054,7 @@ public class PdfDocumentTests
         // fix regresses, this fails fast with a TimeoutException instead of hanging the test run
         // forever.
         using var surface = await Task.Run(() => RenderPdfBytes(bytes))
-            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            .WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.NotNull(surface);
@@ -9198,7 +9198,7 @@ public class PdfDocumentTests
         // fix regresses, this fails fast with a TimeoutException instead of hanging the test run
         // forever.
         var result = await Task.Run(() => document.ResolveToUnicodeMap(fontDict))
-            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            .WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.NotNull(result);

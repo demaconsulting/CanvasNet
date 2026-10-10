@@ -77,7 +77,8 @@ Limits are enforced during header validation, before the memory they protect is 
   times coding passes). Its ceiling is `min(MaxTier1Work, 2^24 + 2^14 x input bytes)`, so the work
   a stream may demand scales with its size. The per-input-byte term is what bounds hostile input:
   a hostile 76 KB stream (8192 x 8192, 64 x 64 blocks, maximum passes per block) is rejected after
-  about 4 seconds (Release) or 10 seconds (Debug, including JIT) instead of minutes. The absolute ceiling
+  about 4 seconds (Release) or 10 seconds (Debug, including JIT) of CPU instead of minutes (measured manually;
+  no test asserts timings). The absolute ceiling
   `MaxTier1Work` defaults to 2^34, which is at least `MaxTotalSamples` (2^27) times the maximum
   of 88 passes per block, so no image the default sample limit admits can reach it; it only
   matters for callers who raise `MaxTotalSamples` or want a hard cap. An earlier default of 2^30

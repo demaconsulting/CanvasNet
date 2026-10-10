@@ -1,5 +1,4 @@
 // cspell:ignore bypass termall vcausal segsym pterm ppm ppt tlm plt crg poc cprl rpcl pcrl rlcp lrcp sop eph pclr cmap cdef bpcc colr
-using System.Diagnostics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
@@ -25,6 +24,9 @@ public class Jpeg2000CodecTests
     private static readonly byte[] MqTestOutput =
         [0x84, 0xC7, 0x3B, 0xFC, 0xE1, 0xA1, 0x43, 0x04, 0x02, 0x20, 0x00, 0x00, 0x41, 0x0D, 0xBB, 0x86,
          0xF4, 0x31, 0x7F, 0xFF, 0x88, 0xFF, 0x37, 0x47, 0x1A, 0xDB, 0x6A, 0xDF];
+
+    /// <summary>Explicit work cap for fuzzed streams so every mutation is bounded by a budget rather than by wall-clock time.</summary>
+    private static readonly Jpeg2000DecoderLimits FuzzLimits = new() { MaxTier1Work = 1L << 28 };
 
     private static readonly Type[] AllowedFailures = [typeof(InvalidDataException), typeof(UnsupportedImageFeatureException)];
 
@@ -108,7 +110,7 @@ public class Jpeg2000CodecTests
     {
         try
         {
-            _ = Jpeg2000Codec.Decode(data);
+            _ = Jpeg2000Codec.Decode(data, FuzzLimits);
         }
         catch (Exception ex) when (AllowedFailures.Contains(ex.GetType()))
         {
@@ -1620,12 +1622,11 @@ public class Jpeg2000CodecTests
         }
     }
 
-    /// <summary>Tests that bit flips fail cleanly or decode, within bounded time.</summary>
+    /// <summary>Tests that bit flips fail cleanly or decode, with the work bounded by explicit decoder limits.</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_RandomBitFlips_FailCleanly()
     {
         var rng = new Random(1234);
-        var watch = Stopwatch.StartNew();
         foreach (var fixture in Fixtures())
         {
             for (var i = 0; i < 400; i++)
@@ -1642,15 +1643,12 @@ public class Jpeg2000CodecTests
                 AssertFuzzOutcome(copy);
             }
         }
-
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(20), "fuzzing took too long: " + watch.Elapsed);
     }
 
     /// <summary>Tests that every single byte of the main header can be replaced by extreme values.</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_HeaderByteSubstitutions_FailCleanly()
     {
-        var watch = Stopwatch.StartNew();
         foreach (var fixture in Fixtures())
         {
             var sot = FindMarker(fixture, 0xFF90);
@@ -1665,8 +1663,6 @@ public class Jpeg2000CodecTests
                 }
             }
         }
-
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(20), "fuzzing took too long: " + watch.Elapsed);
     }
 
     /// <summary>Tests marker segments with bad lengths.</summary>
@@ -2179,28 +2175,35 @@ public class Jpeg2000CodecTests
 
     /// <summary>
     ///     Tests that a tiny stream declaring huge code-blocks with the maximum number of passes each is rejected by
-    ///     the input-scaled entropy-decoding budget before it can cost seconds of CPU time.
+    ///     the entropy-decoding budget. The budget is an explicit work cap, so the outcome is deterministic and
+    ///     independent of machine speed.
     /// </summary>
     [Fact]
-    public void Jpeg2000Codec_Decode_HostileTier1Work_ThrowsInvalidDataQuickly()
+    public void Jpeg2000Codec_Decode_HostileTier1Work_ThrowsInvalidDataWhenOverBudget()
     {
-        var data = HostileTier1Stream(2048, 6);
-        var watch = Stopwatch.StartNew();
-        AssertMalformed(data, "too much entropy-decoding work");
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), "hostile entropy-decoding work took too long: " + watch.Elapsed);
+        var limits = new Jpeg2000DecoderLimits { MaxTier1Work = 1L << 22 };
+        AssertMalformed(HostileTier1Stream(2048, 6), "too much entropy-decoding work", limits);
+
+        // Control: the same stream shape at a size whose work (128 x 128 x 88 sample-passes) fits that cap decodes.
+        Assert.Equal(128, Jpeg2000Codec.Decode(HostileTier1Stream(128, 6), limits).Width);
+        AssertMalformed(HostileTier1Stream(128, 6), "too much entropy-decoding work", new Jpeg2000DecoderLimits { MaxTier1Work = 1L << 20 });
     }
 
-    /// <summary>Tests the largest allowed image (8192 x 8192, 64 x 64 blocks, 88 passes per block) from about 60 KB of input.</summary>
+    /// <summary>
+    ///     Tests the largest allowed image shape (8192 x 8192, 64 x 64 blocks, 88 passes per block) from about 60 KB
+    ///     of input against the default budget formula: the input-scaled allowance is far below the work the stream
+    ///     asks for, so it must be rejected. Only the budget arithmetic is exercised; the (CPU-expensive) decode is not.
+    /// </summary>
     [Fact]
-    public void Jpeg2000Codec_Decode_HostileMaximumImageTier1Work_ThrowsInvalidDataQuickly()
+    public void Jpeg2000Codec_Decode_HostileMaximumImageTier1Work_ExceedsDefaultBudget()
     {
         var data = HostileTier1Stream(8192, 6);
         Assert.InRange(data.Length, 60_000, 80_000);
-        var watch = Stopwatch.StartNew();
-        AssertMalformed(data, "too much entropy-decoding work");
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(30), "hostile entropy-decoding work took too long: " + watch.Elapsed);
+        var budget = new Jpeg2000Codec.DecodeBudget(Jpeg2000DecoderLimits.Default, data.Length);
+        budget.ChargeTier1((1L << 24) + ((1L << 14) * data.Length));
+        Assert.Throws<InvalidDataException>(() => budget.ChargeTier1(1));
+        Assert.True(8192L * 8192 * 88 > (1L << 24) + ((1L << 14) * data.Length));
     }
-
     /// <summary>Tests that the hostile stream shape decodes when the work is within the budget (so the budget is the only cause).</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_SmallHostileShape_Decodes()

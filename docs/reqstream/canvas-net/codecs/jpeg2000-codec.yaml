@@ -230,8 +230,8 @@ sections:
                   - Jpeg2000Codec_Decode_RepeatedPocEntriesWithinCap_DecodesExactly
                   - Jpeg2000Codec_DecodeBudget_IsCumulativeAndScalesWithInput
                   - Jpeg2000Codec_Decode_TightTier1Limit_ThrowsInvalidData
-                  - Jpeg2000Codec_Decode_HostileTier1Work_ThrowsInvalidDataQuickly
-                  - Jpeg2000Codec_Decode_HostileMaximumImageTier1Work_ThrowsInvalidDataQuickly
+                  - Jpeg2000Codec_Decode_HostileTier1Work_ThrowsInvalidDataWhenOverBudget
+                  - Jpeg2000Codec_Decode_HostileMaximumImageTier1Work_ExceedsDefaultBudget
                   - Jpeg2000Codec_Decode_SmallHostileShape_Decodes
                   - Jpeg2000Codec_Decode_LargeLosslessFlatImage_DecodesUnderDefaultLimits
                   - Jpeg2000Codec_Decode_TilePartIndexes_AreCheckedAndCountIsAdvisory
