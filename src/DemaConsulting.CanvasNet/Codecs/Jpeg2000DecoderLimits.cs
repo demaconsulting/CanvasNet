@@ -73,8 +73,11 @@ public sealed record Jpeg2000DecoderLimits
     /// </summary>
     public long MaxProgressionSteps { get; init; } = 1L << 30;
 
-    /// <summary>Gets the maximum entropy-decoding work (sample-passes) for one decode. The default is 2^32.</summary>
-    public long MaxTier1Work { get; init; } = 1L << 32;
+    /// <summary>
+    ///     Gets the absolute ceiling of entropy-decoding work (sample-passes) for one decode. The default is
+    ///     2^30. The effective ceiling is lower for small inputs because it also scales with the input length.
+    /// </summary>
+    public long MaxTier1Work { get; init; } = 1L << 30;
 
     /// <summary>Checks that every limit is positive and within the range the decoder can honor.</summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when a limit is not positive or is too large.</exception>

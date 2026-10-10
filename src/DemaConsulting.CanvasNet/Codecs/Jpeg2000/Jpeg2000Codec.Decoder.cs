@@ -27,7 +27,9 @@ public static partial class Jpeg2000Codec
             // Visiting a packet costs one unit; a valid packet carries at least one header bit, so the
             // work a genuine stream needs grows with its length, while a tiny hostile one gets only the base.
             _maxProgression = Math.Min(limits.MaxProgressionSteps, ProgressionStepsBase + (ProgressionStepsPerInputByte * inputLength));
-            _maxTier1 = limits.MaxTier1Work;
+            // The entropy-decoding work a genuine stream needs also grows with its length, so a tiny hostile
+            // stream that declares huge blocks and many passes gets only the base allowance.
+            _maxTier1 = Math.Min(limits.MaxTier1Work, Tier1WorkBase + (Tier1WorkPerInputByte * inputLength));
         }
 
         /// <summary>Charges progression-iteration work: candidate packets and position steps.</summary>

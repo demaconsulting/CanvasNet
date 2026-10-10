@@ -235,13 +235,16 @@ public static partial class Jpeg2000Codec
         var ty0 = Math.Max(siz.YTOsiz + (q * siz.YTsiz), siz.YOsiz);
         var ty1 = Math.Min(siz.YTOsiz + ((q + 1L) * siz.YTsiz), siz.Ysiz);
 
-        // Every limit is checked before the structure it bounds is allocated. The precinct bound is the
-        // tightest of the absolute limit, the packet limit and what the tile data could possibly carry.
+        // Every limit is checked before the structure it bounds is allocated. The packet bound is the tighter of the
+        // packet limit and what the tile data could possibly carry.
         var budget = new GeometryBudget
         {
             MaxSamples = limits.MaxTileSamples,
             MaxBlocks = limits.MaxTileCodeBlocks,
-            MaxPrecincts = Math.Min(limits.MaxTilePrecincts, Math.Min(limits.MaxTilePackets, packetBits) / st.Layers),
+            MaxPrecincts = limits.MaxTilePrecincts,
+            MaxPackets = limits.MaxTilePackets,
+            PacketBits = packetBits,
+            Layers = st.Layers,
         };
         var comps = new TileComp[siz.Csiz];
         for (var c = 0; c < siz.Csiz; c++)
@@ -261,6 +264,15 @@ public static partial class Jpeg2000Codec
         /// <summary>Gets the maximum number of precincts of the tile.</summary>
         public long MaxPrecincts { get; init; }
 
+        /// <summary>Gets the maximum number of packets (precincts times layers) of the tile.</summary>
+        public long MaxPackets { get; init; }
+
+        /// <summary>Gets the number of bits the tile data can hold; a packet needs at least one header bit.</summary>
+        public long PacketBits { get; init; }
+
+        /// <summary>Gets the number of layers.</summary>
+        public int Layers { get; init; }
+
         /// <summary>Gets the maximum number of code-blocks of the tile.</summary>
         public long MaxBlocks { get; init; }
 
@@ -272,6 +284,29 @@ public static partial class Jpeg2000Codec
 
         /// <summary>Gets or sets the number of code-blocks created so far.</summary>
         public long Blocks { get; set; }
+
+        /// <summary>Adds precincts to the running count and enforces the precinct and packet bounds before they are allocated.</summary>
+        /// <param name="count">The number of precincts about to be created.</param>
+        public void ChargePrecincts(long count)
+        {
+            Precincts += count;
+            if (Precincts > MaxPrecincts)
+            {
+                throw Malformed("tile has more precincts than the decoder limit.");
+            }
+
+            // Precincts are within the int range here and Layers is at most 65535, so the product cannot overflow.
+            var packets = Precincts * Layers;
+            if (packets > MaxPackets)
+            {
+                throw Malformed("tile has more packets than the decoder limit.");
+            }
+
+            if (packets > PacketBits)
+            {
+                throw Malformed("tile has more packets than its data can carry.");
+            }
+        }
     }
 
     private static TileComp BuildTileComp(SizInfo siz, CodingState st, int c, long tx0, long ty0, long tx1, long ty1, GeometryBudget budget)
@@ -325,11 +360,7 @@ public static partial class Jpeg2000Codec
         var pwLong = rx1 > rx0 ? CeilDivPow2(rx1, ppx) - (rx0 >> ppx) : 0;
         var phLong = ry1 > ry0 ? CeilDivPow2(ry1, ppy) - (ry0 >> ppy) : 0;
         var count = pwLong * phLong;
-        budget.Precincts += count;
-        if (budget.Precincts > budget.MaxPrecincts)
-        {
-            throw Malformed("tile has more precincts or packets than the decoder limits or the tile data allow.");
-        }
+        budget.ChargePrecincts(count);
 
         var pw = (int)pwLong;
         var ph = (int)phLong;
