@@ -1,3 +1,4 @@
+using System.Numerics;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
@@ -22,16 +23,26 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     <c>path-filler.md</c> for the design-level treatment of clip-path support.
 ///     </para>
 ///     <para>
-///     <b>Coverage, not a boolean mask.</b> Every pixel stores a <c>[0, 1]</c> antialiased
+///     <b>Coverage, not a boolean mask.</b> Every pixel has a <c>[0, 1]</c> antialiased
 ///     coverage fraction - identical in meaning to the per-pixel fill coverage
 ///     <see cref="ScanlineRasterizer"/> itself computes - rather than a hard inside/outside bit,
 ///     so a clip path's own edge antialiasing composes smoothly with whatever is painted through
 ///     it, rather than producing a jagged, aliased clip boundary.
 ///     </para>
 ///     <para>
+///     <b>Analytic rectangle plus optional dense coverage.</b> Coverage at a pixel is
+///     <c>dense(x, y) * columnFactor(x) * rowFactor(y)</c>. The column and row factors come from an
+///     analytic device-space rectangle (the exact per-axis fractional overlap of the pixel with the
+///     rectangle), and <c>dense</c> is an optional shared coverage buffer. An axis-aligned
+///     rectangular clip path (by far the most common PDF clip) has no dense buffer at all, so it
+///     costs no allocation and no per-pixel work; a general path keeps a dense buffer over its own
+///     bounding box, and a rectangle restriction (from intersecting it with a rectangle) is applied
+///     lazily through the factors without copying the buffer.
+///     </para>
+///     <para>
 ///     <b>Immutable and reused, never mutated in place.</b> <see cref="FromPath"/> builds a fresh
 ///     mask from a path's own geometry; <see cref="Intersect"/> always returns a new instance
-///     holding the elementwise product of two masks, never modifying either operand - this is
+///     (possibly sharing the immutable dense buffer), never modifying either operand - this is
 ///     what lets <c>PdfDocument.GraphicsState.Clone()</c> safely copy a <see cref="ClipMask"/>
 ///     reference as-is for <c>q</c>/<c>Q</c> save/restore scoping (PDF 32000-1 &#xA7;8.4.2) without
 ///     any risk of one graphics state's clip later being mutated out from under another.
@@ -39,45 +50,67 @@ namespace DemaConsulting.CanvasNet.Drawing;
 /// </remarks>
 internal sealed class ClipMask
 {
+    /// <summary>The tolerance, in pixels, used for rectangle detection and full-surface detection.</summary>
+    private const float Epsilon = 1e-3f;
+
     /// <summary>
-    ///     The per-pixel <c>[0, 1]</c> coverage buffer, row-major, sized
-    ///     <see cref="_boundsWidth"/> * <see cref="_boundsHeight"/> - only the clip path's own
-    ///     bounding box, not the full <see cref="Width"/> x <see cref="Height"/> device pixel
-    ///     extent. A clip path is typically a small fraction of the page (for example, a single
-    ///     table cell or figure), so bounding the buffer this way keeps a clip's memory cost
-    ///     proportional to the area it actually restricts, rather than forcing every clip -
-    ///     however small - to pay for a full-page-sized allocation (and a full-page-sized
-    ///     <see cref="Intersect"/> operation) regardless of its own extent.
+    ///     The optional dense per-pixel <c>[0, 1]</c> coverage buffer, row-major, sized
+    ///     <see cref="_denseWidth"/> * <see cref="_denseHeight"/> (the clip path's own bounding
+    ///     box only). <see langword="null"/> for a pure rectangle (or empty) clip.
     /// </summary>
-    private readonly float[] _coverage;
+    private readonly float[]? _dense;
 
-    /// <summary>The device pixel column <see cref="_coverage"/>'s column <c>0</c> corresponds to.</summary>
+    private readonly int _denseOriginX;
+    private readonly int _denseOriginY;
+    private readonly int _denseWidth;
+    private readonly int _denseHeight;
+
+    // The analytic rectangle, in float device pixel units.
+    private readonly float _left;
+    private readonly float _top;
+    private readonly float _right;
+    private readonly float _bottom;
+
+    // Whole-pixel bounds outside which coverage is zero.
     private readonly int _originX;
-
-    /// <summary>The device pixel row <see cref="_coverage"/>'s row <c>0</c> corresponds to.</summary>
     private readonly int _originY;
-
-    /// <summary>The width, in pixel columns, of <see cref="_coverage"/>'s own bounding box.</summary>
     private readonly int _boundsWidth;
-
-    /// <summary>The height, in pixel rows, of <see cref="_coverage"/>'s own bounding box.</summary>
     private readonly int _boundsHeight;
 
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="ClipMask"/> class directly from an
-    ///     already-computed, bounding-box-restricted coverage buffer - used by both
-    ///     <see cref="FromPath"/> and <see cref="Intersect"/>, which differ only in how they
-    ///     produce that buffer and its bounding box.
-    /// </summary>
-    private ClipMask(float[] coverage, int width, int height, int originX, int originY, int boundsWidth, int boundsHeight)
+    private ClipMask(
+        float[]? dense,
+        int denseOriginX,
+        int denseOriginY,
+        int denseWidth,
+        int denseHeight,
+        float left,
+        float top,
+        float right,
+        float bottom,
+        int width,
+        int height)
     {
-        _coverage = coverage;
-        _originX = originX;
-        _originY = originY;
-        _boundsWidth = boundsWidth;
-        _boundsHeight = boundsHeight;
         Width = width;
         Height = height;
+        if (!(right > left) || !(bottom > top))
+        {
+            // Empty: nothing is visible.
+            return;
+        }
+
+        _dense = dense;
+        _denseOriginX = denseOriginX;
+        _denseOriginY = denseOriginY;
+        _denseWidth = denseWidth;
+        _denseHeight = denseHeight;
+        _left = left;
+        _top = top;
+        _right = right;
+        _bottom = bottom;
+        _originX = (int)MathF.Floor(left);
+        _originY = (int)MathF.Floor(top);
+        _boundsWidth = (int)MathF.Ceiling(right) - _originX;
+        _boundsHeight = (int)MathF.Ceiling(bottom) - _originY;
     }
 
     /// <summary>The device pixel extent's width, in whole pixel columns, this mask covers.</summary>
@@ -92,10 +125,53 @@ internal sealed class ClipMask
     /// </summary>
     public Rect Bounds => new(_originX, _originY, _boundsWidth, _boundsHeight);
 
+    /// <summary>Gets a value indicating whether this mask covers nothing at all.</summary>
+    public bool IsEmpty => _boundsWidth <= 0 || _boundsHeight <= 0;
+
+    /// <summary>
+    ///     Gets a value indicating whether this mask is purely an analytic rectangle (no dense
+    ///     coverage buffer). An empty mask is also reported as a rectangle.
+    /// </summary>
+    public bool IsRectangle => _dense is null;
+
+    /// <summary>Gets a value indicating whether this mask has a dense coverage buffer.</summary>
+    internal bool HasDense => _dense is not null;
+
+    /// <summary>Gets the analytic rectangle's left edge, in device pixels.</summary>
+    internal float RectLeft => _left;
+
+    /// <summary>Gets the analytic rectangle's top edge, in device pixels.</summary>
+    internal float RectTop => _top;
+
+    /// <summary>Gets the analytic rectangle's right edge, in device pixels.</summary>
+    internal float RectRight => _right;
+
+    /// <summary>Gets the analytic rectangle's bottom edge, in device pixels.</summary>
+    internal float RectBottom => _bottom;
+
+    /// <summary>
+    ///     Gets a value indicating whether this mask is a rectangle that covers the whole device
+    ///     pixel extent (so painting through it is identical to painting with no clip).
+    /// </summary>
+    internal bool IsFullSurface =>
+        _dense is null &&
+        !IsEmpty &&
+        _left <= Epsilon &&
+        _top <= Epsilon &&
+        _right >= Width - Epsilon &&
+        _bottom >= Height - Epsilon;
+
+    /// <summary>
+    ///     Gets the dense buffer instance, for reference-sharing checks in tests (<see langword="null"/>
+    ///     for a pure rectangle).
+    /// </summary>
+    internal float[]? DenseBuffer => _dense;
+
     /// <summary>
     ///     Builds a new <see cref="ClipMask"/> whose per-pixel coverage is <paramref name="path"/>'s
     ///     own antialiased fill coverage, interpreted under <paramref name="fillRule"/>, across a
-    ///     <paramref name="width"/> x <paramref name="height"/> device pixel extent.
+    ///     <paramref name="width"/> x <paramref name="height"/> device pixel extent. An
+    ///     axis-aligned rectangle path is represented analytically (no dense buffer).
     /// </summary>
     /// <param name="path">The clipping path's geometry. Must not be <see langword="null"/>.</param>
     /// <param name="fillRule">
@@ -124,49 +200,46 @@ internal sealed class ClipMask
     ///     when <paramref name="width"/> or <paramref name="height"/> is not greater than zero.
     /// </exception>
     public static ClipMask FromPath(Path path, FillRule fillRule, int width, int height, float flattenTolerance = 0.25f)
+        => Build(path, fillRule, width, height, flattenTolerance, allowRectangle: true);
+
+    /// <summary>
+    ///     Same as <see cref="FromPath"/>, but always builds a dense mask (never the analytic
+    ///     rectangle form). Used as the reference implementation by tests.
+    /// </summary>
+    internal static ClipMask FromPathDense(Path path, FillRule fillRule, int width, int height, float flattenTolerance = 0.25f)
+        => Build(path, fillRule, width, height, flattenTolerance, allowRectangle: false);
+
+    /// <summary>
+    ///     Same as <see cref="FromPath"/>, but returns <see langword="null"/> (meaning "no clip")
+    ///     when the clip is a rectangle covering the whole device pixel extent.
+    /// </summary>
+    internal static ClipMask? FromPathOrNull(Path path, FillRule fillRule, int width, int height, float flattenTolerance = 0.25f)
     {
-        ArgumentNullException.ThrowIfNull(path);
-        PathFiller.ValidateFillArgs(fillRule, flattenTolerance);
-        if (width <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(width), width, "Width must be greater than zero.");
-        }
-
-        if (height <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(height), height, "Height must be greater than zero.");
-        }
-
-        var polygons = EdgeFlattener.Flatten(path, flattenTolerance);
-        var pathBounds = PathFiller.GetPolygonBounds(polygons);
-        var extentBounds = new Rect(0, 0, width, height);
-        var clipBounds = Rect.Intersect(pathBounds, extentBounds);
-        if (clipBounds.IsEmpty)
-        {
-            return new ClipMask([], width, height, 0, 0, 0, 0);
-        }
-
-        // Round the (already extent-clipped) float clip bounds outward to the smallest whole
-        // pixel rectangle that contains them, and allocate the coverage buffer sized to only that
-        // rectangle - never the full width x height device pixel extent.
-        var originX = (int)MathF.Floor(clipBounds.Left);
-        var originY = (int)MathF.Floor(clipBounds.Top);
-        var boundsWidth = (int)MathF.Ceiling(clipBounds.Right) - originX;
-        var boundsHeight = (int)MathF.Ceiling(clipBounds.Bottom) - originY;
-
-        var coverage = new float[boundsWidth * boundsHeight];
-        ScanlineRasterizer.AccumulateCoverageMask(polygons, fillRule, clipBounds, coverage, boundsWidth, originX, originY);
-
-        return new ClipMask(coverage, width, height, originX, originY, boundsWidth, boundsHeight);
+        var mask = FromPath(path, fillRule, width, height, flattenTolerance);
+        return mask.IsFullSurface ? null : mask;
     }
 
     /// <summary>
-    ///     Returns a new <see cref="ClipMask"/> holding the elementwise product of this mask's
-    ///     coverage and <paramref name="other"/>'s coverage - the geometric intersection of the
-    ///     two clipping paths (PDF 32000-1 &#xA7;8.5.4: "the new clipping path ... shall be the
-    ///     intersection of the current clipping path and the newly constructed path"), since the
-    ///     product of two <c>[0, 1]</c> coverage fractions is itself a coverage fraction that is
-    ///     never larger than either operand, and is zero wherever either operand is zero.
+    ///     Intersects two optional clips, treating <see langword="null"/> as "no clip" and
+    ///     normalizing a full-surface result to <see langword="null"/>.
+    /// </summary>
+    internal static ClipMask? Combine(ClipMask? current, ClipMask? next)
+    {
+        if (next is null)
+        {
+            return current is { IsFullSurface: true } ? null : current;
+        }
+
+        var result = current is null ? next : current.Intersect(next);
+        return result.IsFullSurface ? null : result;
+    }
+
+    /// <summary>
+    ///     Returns a new <see cref="ClipMask"/> that is the geometric intersection of this mask
+    ///     and <paramref name="other"/> (PDF 32000-1 &#xA7;8.5.4: "the new clipping path ... shall be the
+    ///     intersection of the current clipping path and the newly constructed path"). Rectangle
+    ///     with rectangle is a new rectangle; a rectangle with a dense mask shares the dense buffer
+    ///     and restricts it lazily; two dense masks are multiplied over their overlap only.
     /// </summary>
     /// <param name="other">
     ///     The other clip mask to intersect with. Must not be <see langword="null"/>, and must
@@ -187,35 +260,44 @@ internal sealed class ClipMask
                 "Cannot intersect clip masks covering different device pixel extents.", nameof(other));
         }
 
-        // The elementwise product of two coverage masks is zero everywhere outside either
-        // operand's own bounding box (see GetCoverage), so the result's own bounding box never
-        // needs to extend beyond the two operands' bounding-box overlap - restricting it that way
-        // (rather than to the full device pixel extent) is what keeps a chain of nested clips
-        // (PDF 32000-1 &#xA7;8.4.2 q/Q scoping) from growing memory with each intersection.
-        var minX = Math.Max(_originX, other._originX);
-        var minY = Math.Max(_originY, other._originY);
-        var maxX = Math.Min(_originX + _boundsWidth, other._originX + other._boundsWidth);
-        var maxY = Math.Min(_originY + _boundsHeight, other._originY + other._boundsHeight);
-        if (maxX <= minX || maxY <= minY)
+        if (IsEmpty || other.IsEmpty)
         {
-            return new ClipMask([], Width, Height, 0, 0, 0, 0);
+            return Empty(Width, Height);
         }
 
-        var boundsWidth = maxX - minX;
-        var boundsHeight = maxY - minY;
-        var result = new float[boundsWidth * boundsHeight];
-        for (var y = 0; y < boundsHeight; y++)
+        var left = MathF.Max(_left, other._left);
+        var top = MathF.Max(_top, other._top);
+        var right = MathF.Min(_right, other._right);
+        var bottom = MathF.Min(_bottom, other._bottom);
+        if (!(right > left) || !(bottom > top))
         {
-            var deviceY = minY + y;
-            var rowOffset = y * boundsWidth;
-            for (var x = 0; x < boundsWidth; x++)
-            {
-                var deviceX = minX + x;
-                result[rowOffset + x] = GetCoverage(deviceX, deviceY) * other.GetCoverage(deviceX, deviceY);
-            }
+            return Empty(Width, Height);
         }
 
-        return new ClipMask(result, Width, Height, minX, minY, boundsWidth, boundsHeight);
+        if (_dense is null && other._dense is null)
+        {
+            return new ClipMask(null, 0, 0, 0, 0, left, top, right, bottom, Width, Height);
+        }
+
+        if (_dense is null || other._dense is null)
+        {
+            // Exactly one dense operand: share its buffer and restrict it by the rectangle.
+            var dense = _dense is not null ? this : other;
+            return new ClipMask(
+                dense._dense,
+                dense._denseOriginX,
+                dense._denseOriginY,
+                dense._denseWidth,
+                dense._denseHeight,
+                left,
+                top,
+                right,
+                bottom,
+                Width,
+                Height);
+        }
+
+        return IntersectDense(other, left, top, right, bottom);
     }
 
     /// <summary>
@@ -240,6 +322,185 @@ internal sealed class ClipMask
             return 0f;
         }
 
-        return _coverage[(localY * _boundsWidth) + localX];
+        var factor = GetColumnFactor(x) * GetRowFactor(y);
+        if (_dense is null)
+        {
+            return factor;
+        }
+
+        return _dense[((y - _denseOriginY) * _denseWidth) + (x - _denseOriginX)] * factor;
+    }
+
+    /// <summary>
+    ///     Gets the analytic rectangle's fractional coverage of device pixel column <paramref name="x"/>.
+    /// </summary>
+    internal float GetColumnFactor(int x)
+        => Math.Clamp(MathF.Min(x + 1f, _right) - MathF.Max(x, _left), 0f, 1f);
+
+    /// <summary>
+    ///     Gets the analytic rectangle's fractional coverage of device pixel row <paramref name="y"/>.
+    /// </summary>
+    internal float GetRowFactor(int y)
+        => Math.Clamp(MathF.Min(y + 1f, _bottom) - MathF.Max(y, _top), 0f, 1f);
+
+    /// <summary>
+    ///     Gets the dense buffer's values for <paramref name="count"/> columns starting at
+    ///     device column <paramref name="x"/> in device row <paramref name="y"/>, or an empty span
+    ///     when this mask has no dense buffer. The range must lie within <see cref="Bounds"/>.
+    /// </summary>
+    internal ReadOnlySpan<float> GetDenseRow(int y, int x, int count)
+    {
+        if (_dense is null)
+        {
+            return default;
+        }
+
+        return _dense.AsSpan(((y - _denseOriginY) * _denseWidth) + (x - _denseOriginX), count);
+    }
+
+    private static ClipMask Empty(int width, int height)
+        => new(null, 0, 0, 0, 0, 0, 0, 0, 0, width, height);
+
+    private static ClipMask Build(
+        Path path, FillRule fillRule, int width, int height, float flattenTolerance, bool allowRectangle)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        PathFiller.ValidateFillArgs(fillRule, flattenTolerance);
+        if (width <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), width, "Width must be greater than zero.");
+        }
+
+        if (height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(height), height, "Height must be greater than zero.");
+        }
+
+        var polygons = EdgeFlattener.Flatten(path, flattenTolerance);
+        if (allowRectangle && TryGetAxisAlignedRect(polygons, out var l, out var t, out var r, out var b))
+        {
+            // Fill rule is irrelevant for a single simple rectangle.
+            return new ClipMask(
+                null, 0, 0, 0, 0, MathF.Max(l, 0f), MathF.Max(t, 0f), MathF.Min(r, width), MathF.Min(b, height), width, height);
+        }
+
+        var pathBounds = PathFiller.GetPolygonBounds(polygons);
+        var extentBounds = new Rect(0, 0, width, height);
+        var clipBounds = Rect.Intersect(pathBounds, extentBounds);
+        if (clipBounds.IsEmpty)
+        {
+            return Empty(width, height);
+        }
+
+        // Round the (already extent-clipped) float clip bounds outward to the smallest whole
+        // pixel rectangle that contains them, and allocate the coverage buffer sized to only that
+        // rectangle - never the full width x height device pixel extent.
+        var originX = (int)MathF.Floor(clipBounds.Left);
+        var originY = (int)MathF.Floor(clipBounds.Top);
+        var boundsWidth = (int)MathF.Ceiling(clipBounds.Right) - originX;
+        var boundsHeight = (int)MathF.Ceiling(clipBounds.Bottom) - originY;
+
+        var coverage = new float[boundsWidth * boundsHeight];
+        ScanlineRasterizer.AccumulateCoverageMask(polygons, fillRule, clipBounds, coverage, boundsWidth, originX, originY);
+
+        return new ClipMask(
+            coverage, originX, originY, boundsWidth, boundsHeight, originX, originY, originX + boundsWidth, originY + boundsHeight, width, height);
+    }
+
+    /// <summary>
+    ///     Detects a single closed polygon that is an axis-aligned rectangle (four vertices with
+    ///     alternating horizontal and vertical edges, either winding and either start corner).
+    /// </summary>
+    private static bool TryGetAxisAlignedRect(
+        IReadOnlyList<List<Vector2>> polygons, out float left, out float top, out float right, out float bottom)
+    {
+        left = top = right = bottom = 0f;
+        if (polygons.Count != 1)
+        {
+            return false;
+        }
+
+        var poly = polygons[0];
+        var n = poly.Count;
+        if (n == 5 && Near(poly[0], poly[4]))
+        {
+            n = 4;
+        }
+
+        if (n != 4)
+        {
+            return false;
+        }
+
+        var firstHorizontal = IsHorizontal(poly[0], poly[1]);
+        if (firstHorizontal)
+        {
+            if (!IsVertical(poly[1], poly[2]) || !IsHorizontal(poly[2], poly[3]) || !IsVertical(poly[3], poly[0]))
+            {
+                return false;
+            }
+        }
+        else if (IsVertical(poly[0], poly[1]))
+        {
+            if (!IsHorizontal(poly[1], poly[2]) || !IsVertical(poly[2], poly[3]) || !IsHorizontal(poly[3], poly[0]))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+
+        left = MathF.Min(MathF.Min(poly[0].X, poly[1].X), MathF.Min(poly[2].X, poly[3].X));
+        right = MathF.Max(MathF.Max(poly[0].X, poly[1].X), MathF.Max(poly[2].X, poly[3].X));
+        top = MathF.Min(MathF.Min(poly[0].Y, poly[1].Y), MathF.Min(poly[2].Y, poly[3].Y));
+        bottom = MathF.Max(MathF.Max(poly[0].Y, poly[1].Y), MathF.Max(poly[2].Y, poly[3].Y));
+        return true;
+    }
+
+    private static bool Near(Vector2 a, Vector2 b)
+        => MathF.Abs(a.X - b.X) <= Epsilon && MathF.Abs(a.Y - b.Y) <= Epsilon;
+
+    private static bool IsHorizontal(Vector2 a, Vector2 b)
+        => MathF.Abs(a.Y - b.Y) <= Epsilon;
+
+    private static bool IsVertical(Vector2 a, Vector2 b)
+        => MathF.Abs(a.X - b.X) <= Epsilon;
+
+    /// <summary>
+    ///     Multiplies two dense masks over the overlap of their bounds only, folding both
+    ///     operands' rectangle restrictions in. The result is a pure dense mask.
+    /// </summary>
+    private ClipMask IntersectDense(ClipMask other, float left, float top, float right, float bottom)
+    {
+        var minX = (int)MathF.Floor(left);
+        var minY = (int)MathF.Floor(top);
+        var boundsWidth = (int)MathF.Ceiling(right) - minX;
+        var boundsHeight = (int)MathF.Ceiling(bottom) - minY;
+        var result = new float[boundsWidth * boundsHeight];
+        var lastX = minX + boundsWidth - 1;
+        for (var y = 0; y < boundsHeight; y++)
+        {
+            var deviceY = minY + y;
+            var rowFactor = GetRowFactor(deviceY) * other.GetRowFactor(deviceY);
+            var a = GetDenseRow(deviceY, minX, boundsWidth);
+            var b = other.GetDenseRow(deviceY, minX, boundsWidth);
+            var dest = result.AsSpan(y * boundsWidth, boundsWidth);
+            for (var x = 0; x < dest.Length; x++)
+            {
+                dest[x] = a[x] * b[x] * rowFactor;
+            }
+
+            // Rectangle column factors differ from 1 only on the outermost columns of the bounds.
+            dest[0] *= GetColumnFactor(minX) * other.GetColumnFactor(minX);
+            if (lastX != minX)
+            {
+                dest[^1] *= GetColumnFactor(lastX) * other.GetColumnFactor(lastX);
+            }
+        }
+
+        return new ClipMask(
+            result, minX, minY, boundsWidth, boundsHeight, minX, minY, minX + boundsWidth, minY + boundsHeight, Width, Height);
     }
 }

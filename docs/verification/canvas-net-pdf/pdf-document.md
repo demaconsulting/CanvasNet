@@ -738,7 +738,8 @@ reintroducing the old full-opacity clamp.
 `PdfDocument_Clipping_WStar_UsesEvenOddFillRule`,
 `PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace`,
 `PdfDocument_Clipping_ClipThenImageDo_RestrictsImageToClipRegion`,
-`PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion`
+`PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion`,
+`PdfDocument_Clipping_ManyFullPageRectangleClips_RenderIdenticalToUnclipped`
 
 Every test in this group reuses the existing `RenderContent`/`BuildSinglePagePdfWithResources`
 helpers and asserts against the `Transparent` background sentinel exactly like the
@@ -767,7 +768,11 @@ the equivalent unclipped assertion in `PdfDocument_Images_DoOperator_DeviceGrayF
 `PdfDocument_Text_ShowText_PaintsGlyphAtComposedTextRenderingMatrix`) is suppressed instead -
 proving the active clip is enforced at the two paint call sites (`Do`'s image compositing, and
 glyph fill) that do not route through `Drawing.PathFiller`'s own clip-aware overloads the way
-ordinary fill/stroke does.
+ordinary fill/stroke does. `PdfDocument_Clipping_ManyFullPageRectangleClips_RenderIdenticalToUnclipped`
+wraps 200 fills in `q ... re W n ... Q` blocks whose clips cover the whole page (exactly, or
+slightly larger) and asserts the page renders pixel-identically to the same fills with no clips
+(full-surface rectangle clips are equivalent to no clip), then nests rectangle clips inside a
+partial clip and asserts only the partial region paints; it asserts pixels only, never timing.
 
 #### CanvasNetPdf-PdfDocument-Dispose: Dispose Is Idempotent
 

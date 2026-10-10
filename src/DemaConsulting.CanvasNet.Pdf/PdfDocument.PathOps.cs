@@ -344,8 +344,8 @@ public sealed partial class PdfDocument
 
         if (_pendingClipFillRule is { } clipFillRule)
         {
-            var newClip = ClipMask.FromPath(path, clipFillRule, _surface.Width, _surface.Height);
-            _gs.Clip = _gs.Clip is null ? newClip : _gs.Clip.Intersect(newClip);
+            var newClip = ClipMask.FromPathOrNull(path, clipFillRule, _surface.Width, _surface.Height);
+            _gs.Clip = ClipMask.Combine(_gs.Clip, newClip);
             _pendingClipFillRule = null;
         }
 

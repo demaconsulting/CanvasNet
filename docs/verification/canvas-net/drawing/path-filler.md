@@ -358,9 +358,29 @@ behavior.
 `ClipMask_Intersect_DoesNotMutateEitherOperand`,
 `ClipMask_Intersect_NullOther_ThrowsArgumentNullException`,
 `ClipMask_Intersect_MismatchedExtents_ThrowsArgumentException`,
-`ClipMask_GetCoverage_OutOfBoundsCoordinates_ReturnsZero` (all in `ClipMaskTests.cs`),
+`ClipMask_GetCoverage_OutOfBoundsCoordinates_ReturnsZero`,
+`ClipMask_FromPath_AxisAlignedRectangle_IsRectangleMatchingDenseReference`,
+`ClipMask_FromPath_FractionalEdges_BoundaryCoverageIsFractional`,
+`ClipMask_FromPath_RotatedRectangle_StaysDense`,
+`ClipMask_FromPath_NonRectangles_StayDense`,
+`ClipMask_FromPath_EvenOddAndReverseWinding_AreRectangles`,
+`ClipMask_FromPath_RectangleOffSurface_IsClampedOrEmpty`,
+`ClipMask_Intersect_RectangleWithRectangle_IsRectangleEqualToDenseReference`,
+`ClipMask_Intersect_DisjointRectangles_IsEmpty`,
+`ClipMask_FromPathOrNull_FullSurfaceRectangle_ReturnsNull`,
+`ClipMask_Combine_FullSurfaceAndNull_NormalizesToOtherOperandOrNull`,
+`ClipMask_Intersect_RectangleWithDense_EqualsDenseReferenceAndSharesBuffer`,
+`ClipMask_Intersect_DenseWithDense_EqualsReferenceAndBoundsAreOverlap`,
+`ClipMask_Intersect_RestrictedDenseWithDense_EqualsReference` (all in `ClipMaskTests.cs`),
 `PathFiller_Fill_SolidColorWithClip_RestrictsFillToClipCoverage`,
-`PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload`
+`PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload`,
+`PathFiller_Fill_RectangleClipVersusDenseClip_ProducesSamePixels`
+
+The analytic-rectangle tests assert structural properties (rectangle versus dense representation,
+buffer sharing, bounds) and per-pixel equivalence (within `1e-4`) against a dense reference built
+via `ClipMask.FromPathDense`; the fill test asserts a rectangle clip and the equivalent dense clip
+produce the same pixels (within one level per channel) for both fill rules, including single-column
+and single-row clips. None of these tests asserts wall-clock time.
 
 Per `testing-principles.md`'s "tests MAY exist without a requirement", these tests exist as
 regression/defensive coverage for `ClipMask` and the internal clip-aware `PathFiller.Fill`/

@@ -5040,6 +5040,52 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Proves that many <c>q re W n ... Q</c> wrapped operations whose clips cover the whole
+    ///     page (the pattern emitted by document exporters) render pixel-identically to the same
+    ///     operations without any clips, and that a nested partial clip still restricts painting.
+    ///     Assertions are on pixel results only.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Clipping_ManyFullPageRectangleClips_RenderIdenticalToUnclipped()
+    {
+        // Arrange: 200 wrapped fills at varying positions, half with an exactly page-sized clip
+        // and half with a slightly-larger one; the unclipped twin has no clip operators.
+        var clipped = new System.Text.StringBuilder();
+        var plain = new System.Text.StringBuilder();
+        for (var i = 0; i < 200; i++)
+        {
+            var x = 2 + (i % 20 * 4);
+            var y = 2 + (i / 20 * 9);
+            var fill = $"{(i % 5) / 4.0:0.00} {(i % 3) / 2.0:0.00} 0.5 rg {x} {y} 3 6 re f ";
+            var clip = i % 2 == 0 ? "0 0 100 100 re W n " : "-5 -5 110 110 re W n ";
+            clipped.Append("q ").Append(clip).Append(fill).Append("Q ");
+            plain.Append(fill);
+        }
+
+        // Act
+        using var withClips = RenderContent(clipped.ToString());
+        using var without = RenderContent(plain.ToString());
+
+        // Assert: identical pixels
+        for (var y = 0; y < 100; y++)
+        {
+            for (var x = 0; x < 100; x++)
+            {
+                Assert.Equal(without[x, y], withClips[x, y]);
+            }
+        }
+
+        // Arrange/Act: nested rectangle clips inside a partial clip
+        using var nested = RenderContent(
+            "q 20 20 60 60 re W n q 0 0 100 100 re W n 10 10 80 80 re W n 0 0 100 100 re f Q Q");
+
+        // Assert: only the partial clip region is painted
+        Assert.Equal(Black, nested[50, 50]);
+        Assert.Equal(default, nested[10, 50]);
+        Assert.Equal(default, nested[50, 90]);
+    }
+
+    /// <summary>
     ///     Proves that an active clipping path restricts an image XObject's <c>Do</c> painting
     ///     exactly like it restricts an ordinary fill: the right half of a full-page image
     ///     placement is suppressed by a clip rectangle covering only the left half of the page.

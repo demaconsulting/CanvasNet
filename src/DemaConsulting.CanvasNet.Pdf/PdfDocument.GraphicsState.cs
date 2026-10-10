@@ -167,7 +167,7 @@ public sealed partial class PdfDocument
         ///     after a pending <c>W</c>/<c>W*</c> (see <see cref="PdfDocument._pendingClipFillRule"/>'s
         ///     remarks for why the clip is applied only then, not immediately on <c>W</c>/<c>W*</c>
         ///     themselves) - never set directly by <c>W</c>/<c>W*</c>. A newly computed clip is
-        ///     always intersected with this field's previous value via <see cref="ClipMask.Intersect"/>,
+        ///     always combined with this field's previous value via <see cref="ClipMask.Combine"/>,
         ///     never a wholesale replacement, per PDF 32000-1 &#xA7;8.5.4: "the new clipping path
         ///     ... shall be the intersection of the current clipping path and the newly
         ///     constructed path".

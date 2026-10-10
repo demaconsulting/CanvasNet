@@ -599,14 +599,17 @@ its own distinguishable `Feature` token.
   point for every path-painting operator - applies the pending clip _after_ that operator's own
   fill/stroke painting (so, for example, `W f` still fills using the _previous_ clip, then installs
   the new one for whatever comes next; `W n` paints nothing but still installs the new clip): it
-  rasterizes the just-painted path into a fresh `Drawing.ClipMask` (via `ClipMask.FromPath`, under
-  the pending fill rule, bound to the destination surface's own pixel extent) and assigns
-  `_gs.Clip = _gs.Clip is null ? newMask : _gs.Clip.Intersect(newMask)` - an _intersection_ with any
-  already-active clip, never a wholesale replacement, per the specification's own wording ("the new
+  rasterizes the just-painted path into a fresh `Drawing.ClipMask` (via `ClipMask.FromPathOrNull`,
+  under the pending fill rule, bound to the destination surface's own pixel extent; an
+  axis-aligned rectangle is represented analytically with no dense mask, and a rectangle covering
+  the whole surface yields `null`, i.e. no clip) and assigns
+  `_gs.Clip = ClipMask.Combine(_gs.Clip, newMask)` - an _intersection_ with any
+  already-active clip (with `null` meaning "no clip"), never a wholesale replacement, per the
+  specification's own wording ("the new
   clipping path ... shall be the intersection of the current clipping path and the newly
   constructed path"). `GraphicsState.Clip` (an `internal Drawing.ClipMask?`, `null` meaning "the
   entire output device", i.e. unclipped) is an ordinary graphics-state field, so `Clone()` copies
-  it like any other - `ClipMask` is immutable and `Intersect` always returns a new instance, so
+  it like any other - `ClipMask` is immutable and intersection always returns a new instance, so
   sharing the reference across a `q`/`Q`/Form-XObject/Type3-glyph clone is always safe, with no
   extra save/restore logic required anywhere. The active clip is enforced by multiplying its own
   per-pixel antialiased coverage into every subsequent paint operation's own coverage: `_gs.Clip` is
@@ -1220,8 +1223,9 @@ its own distinguishable `Feature` token.
   entirely), and `4`-`7` (the clip modes: fill/stroke/fill+stroke/invisible respectively, each
   additionally accumulating the glyph's device-space outline into `_textClipBuilder` and setting
   `_textClipPending`, even for outline-less glyphs such as spaces). `OpEndText` (`ET`) then, if a
-  clip is pending, builds the accumulated path, converts it via `ClipMask.FromPath` (non-zero
-  winding) and intersects it into `_gs.Clip`; the clip is therefore not applied until `ET`, and is
+  clip is pending, builds the accumulated path, converts it via `ClipMask.FromPathOrNull` (non-zero
+  winding) and combines it into `_gs.Clip` via `ClipMask.Combine`; the clip is therefore not
+  applied until `ET`, and is
   restored by `Q`. Space-only clip text yields an empty region that clips everything (spec-
   conformant). `OpBeginText`, `ExecuteContentStream`, and the Form XObject/Type 3/tiling re-entrant
   executors reset or save/restore the accumulator so nested content cannot clobber it. A Type 3

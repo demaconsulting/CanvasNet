@@ -408,6 +408,8 @@ internal static class ScanlineRasterizer
         private readonly int _clipMaxX;
         private readonly int _clipMinY;
         private readonly int _clipMaxY;
+        private readonly float _clipLeftFactor = 1f;
+        private readonly float _clipRightFactor = 1f;
         private readonly float[] _cover;
         private readonly float[] _area;
         private readonly float[] _rowCoverage;
@@ -433,6 +435,25 @@ internal static class ScanlineRasterizer
             _clipMaxX = (int)MathF.Ceiling(clipBounds.Right);
             _clipMinY = (int)MathF.Floor(clipBounds.Top);
             _clipMaxY = (int)MathF.Ceiling(clipBounds.Bottom);
+
+            // A clip mask is zero outside its own whole-pixel bounds, so nothing outside them can
+            // ever be visible: restrict the swept range to the overlap (rectangle clips thereby
+            // shrink the rasterized area to the clip rectangle). Edges outside the range are
+            // still handled analytically by the accumulation overflow logic.
+            if (clip != null)
+            {
+                var b = clip.Bounds;
+                _clipMinX = Math.Max(_clipMinX, (int)b.Left);
+                _clipMaxX = Math.Min(_clipMaxX, (int)b.Left + (int)b.Width);
+                _clipMinY = Math.Max(_clipMinY, (int)b.Top);
+                _clipMaxY = Math.Min(_clipMaxY, (int)b.Top + (int)b.Height);
+                if (_clipMaxX > _clipMinX)
+                {
+                    _clipLeftFactor = clip.GetColumnFactor(_clipMinX);
+                    _clipRightFactor = clip.GetColumnFactor(_clipMaxX - 1);
+                }
+            }
+
             Width = _clipMaxX - _clipMinX;
             _currentY = _clipMinY;
 
@@ -714,14 +735,58 @@ internal static class ScanlineRasterizer
             {
                 accumulatedCover += _cover[i];
                 var total = accumulatedCover + _area[i];
-                var coverage = ResolveCoverage(total, _fillRule);
-                if (_clip != null)
-                {
-                    coverage *= _clip.GetCoverage(_clipMinX + i, y);
-                }
-
-                _rowCoverage[i] = coverage;
+                _rowCoverage[i] = ResolveCoverage(total, _fillRule);
             }
+
+            ApplyClip(y);
+        }
+
+        /// <summary>
+        ///     Multiplies the just-resolved <see cref="_rowCoverage"/> by the active clip's
+        ///     coverage for row <paramref name="y"/>: the dense buffer row (if any) per column,
+        ///     plus the clip rectangle's analytic row factor and (outermost columns only) column
+        ///     factors. Interior columns of a rectangle clip need no per-pixel lookup.
+        /// </summary>
+        private void ApplyClip(int y)
+        {
+            if (_clip == null)
+            {
+                return;
+            }
+
+            var row = _rowCoverage.AsSpan(0, Width);
+            var rowFactor = _clip.GetRowFactor(y);
+            if (rowFactor <= 0f)
+            {
+                row.Clear();
+                return;
+            }
+
+            var dense = _clip.GetDenseRow(y, _clipMinX, Width);
+            if (!dense.IsEmpty)
+            {
+                for (var i = 0; i < row.Length; i++)
+                {
+                    row[i] *= dense[i];
+                }
+            }
+
+            if (rowFactor < 1f)
+            {
+                for (var i = 0; i < row.Length; i++)
+                {
+                    row[i] *= rowFactor;
+                }
+            }
+
+            if (Width == 1)
+            {
+                row[0] *= _clipLeftFactor;
+                return;
+            }
+
+            row[0] *= _clipLeftFactor;
+            row[^1] *= _clipRightFactor;
         }
 
         /// <summary>
@@ -859,14 +924,10 @@ internal static class ScanlineRasterizer
 
             for (var i = 0; i < Width; i++)
             {
-                var coverage = _subRowCoverage[i];
-                if (_clip != null)
-                {
-                    coverage *= _clip.GetCoverage(_clipMinX + i, y);
-                }
-
-                _rowCoverage[i] = coverage;
+                _rowCoverage[i] = _subRowCoverage[i];
             }
+
+            ApplyClip(y);
         }
 
         /// <summary>

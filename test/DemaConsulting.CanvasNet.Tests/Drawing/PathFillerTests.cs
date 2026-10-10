@@ -727,5 +727,58 @@ public class PathFillerTests
         Assert.Equal((byte)255, surface[0, 0].A);
         Assert.Equal((byte)255, surface[1, 1].A);
     }
+
+    /// <summary>
+    ///     Proves a clip-aware fill through an analytic rectangle clip produces the same pixels as
+    ///     the same fill through the equivalent dense clip, for fractional and whole-pixel clip
+    ///     rectangles (including single-column and single-row clips), and that the sweep's range
+    ///     does not change the result.
+    /// </summary>
+    [Theory]
+    [InlineData(5f, 6f, 25f, 22f)]
+    [InlineData(5.3f, 6.6f, 25.4f, 22.2f)]
+    [InlineData(7.25f, 3f, 8f, 28f)]
+    [InlineData(3f, 9.5f, 29f, 10.25f)]
+    [InlineData(7.25f, 9.5f, 7.75f, 10.25f)]
+    public void PathFiller_Fill_RectangleClipVersusDenseClip_ProducesSamePixels(float l, float t, float r, float b)
+    {
+        // Arrange: a triangle and a rotated square, filled with both fill rules
+        var clipPath = new PathBuilder()
+            .MoveTo(new Vector2(l, t)).LineTo(new Vector2(r, t)).LineTo(new Vector2(r, b)).LineTo(new Vector2(l, b))
+            .Close().Build();
+        var shape = new PathBuilder()
+            .MoveTo(new Vector2(2, 3)).LineTo(new Vector2(30, 12.5f)).LineTo(new Vector2(9, 29)).Close()
+            .MoveTo(new Vector2(16, 2)).LineTo(new Vector2(28, 14)).LineTo(new Vector2(16, 26)).LineTo(new Vector2(4, 14)).Close()
+            .Build();
+        var rectClip = ClipMask.FromPath(clipPath, FillRule.NonZero, 32, 32);
+        var denseClip = ClipMask.FromPathDense(clipPath, FillRule.NonZero, 32, 32);
+        var color = new Rgba32(200, 40, 90, 255);
+
+        foreach (var rule in new[] { FillRule.NonZero, FillRule.EvenOdd })
+        {
+            using var withRect = new Surface(32, 32);
+            using var withDense = new Surface(32, 32);
+
+            // Act
+            PathFiller.Fill(withRect, shape, color, rectClip, rule);
+            PathFiller.Fill(withDense, shape, color, denseClip, rule);
+
+            // Assert: same pixels within one level per channel
+            Assert.True(rectClip.IsRectangle);
+            Assert.False(denseClip.IsRectangle);
+            for (var y = 0; y < 32; y++)
+            {
+                for (var x = 0; x < 32; x++)
+                {
+                    var p = withRect[x, y];
+                    var q = withDense[x, y];
+                    Assert.InRange(Math.Abs(p.R - q.R), 0, 1);
+                    Assert.InRange(Math.Abs(p.G - q.G), 0, 1);
+                    Assert.InRange(Math.Abs(p.B - q.B), 0, 1);
+                    Assert.InRange(Math.Abs(p.A - q.A), 0, 1);
+                }
+            }
+        }
+    }
 }
 
