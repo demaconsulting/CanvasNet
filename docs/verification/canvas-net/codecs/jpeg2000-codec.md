@@ -104,22 +104,34 @@ Checks the null, empty-path and missing-file exceptions for every public method.
 ##### CanvasNet-Codecs-Jpeg2000Codec-Malformed: Malformed Data
 
 **Tests**: `Jpeg2000Codec_Load_NotJpeg2000_ThrowsInvalidData`,
-`Jpeg2000Codec_Load_ExceedsMaxDimension_ThrowsInvalidData`, and the `_EveryTruncation`,
-`_RandomBitFlips`, `_HeaderByteSubstitutions`, `_HugeCounts`, `_BadMarkerLengths`,
-`_GarbageTileData`, `_HostileBoxes` and `_HostilePoc` tests.
+`Jpeg2000Codec_Load_ExceedsMaxDimension_ThrowsInvalidData`, and the `_EveryTruncationOfSmallStream`,
+`_TruncationsOfLargeStreams`, `_RandomBitFlips`, `_HeaderByteSubstitutions`, `_HugeCounts`, `_BadMarkerLengths`,
+`_GarbageTileData`, `_HostileBoxes` and `_HostilePoc` tests, plus the resource-limit tests
+`_ManyIdenticalPocEntries`, `_RepeatedPocEntriesWithinCap`, `_DecodeBudget_IsCumulativeAcrossCharges`,
+`_PrecinctsFarExceedingData`, `_MissingTile`, `_CustomLimits`, `_InvalidLimits`, `_HostileExponents`,
+`_WrongSegmentationSymbol` and `_SegmentationSymbols`.
 
 Checks (including Jpeg2000Codec_Decode_RealEncoderFixtureTruncated_FailsClosed on a real-encoder
 file) that corrupt, truncated and hostile data fail with `InvalidDataException` (or an
-unsupported-feature exception) quickly and without unhandled exceptions.
+unsupported-feature exception) quickly and without unhandled exceptions. Named malformed cases
+assert the exact exception type and that it carries no inner exception, proving the failure came
+from explicit validation and not from the `Guard` backstop. `_EveryTruncationOfSmallStream` tests
+every prefix length of a small multi-tile stream; the fuzz tests have a few-second time bound.
+Hostile POC streams (thousands of identical entries) and precinct counts far beyond the data fail
+within a time bound, and a codestream cut at a tile boundary fails because the tile is missing.
 
 ##### CanvasNet-Codecs-Jpeg2000Codec-Unsupported: Unsupported Features
 
 **Tests**: `Jpeg2000Codec_Decode_Part2Capabilities_ThrowsUnsupported`,
 `_HighThroughput_ThrowsUnsupported`, `_UnknownTransforms_ThrowsUnsupported`,
 `_UnknownRoiStyle_ThrowsUnsupported`, `_FiveComponentsWithoutCdef_ThrowsUnsupported`,
+`_TooManyComponents_ThrowsUnsupported` (17 components, feature `jpeg2000-component-count`),
+`_RoiShiftBeyondMaxBitPlanes_ThrowsUnsupported`, `_FourChannelsInUnknownColorSpace_ThrowsUnsupported`,
 `_DepthAbove16_ThrowsUnsupported`
 
-Checks that valid but unsupported features raise `UnsupportedImageFeatureException`.
+Checks that valid but unsupported features raise `UnsupportedImageFeatureException`. The CMYK rule
+is also checked: `_RawFourComponents_IsCmyk` (heuristic for unspecified color) and
+`_SrgbWithExtraChannelWithoutCdef_IgnoresExtraChannel`.
 
 #### Requirements Coverage
 

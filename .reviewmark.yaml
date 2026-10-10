@@ -269,12 +269,14 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Codecs/Jpeg2000Codec.cs"       # unit source (public API entry point)
       - "src/DemaConsulting.CanvasNet/Codecs/Jpeg2000Image.cs"       # unit source (public decoded-image result type)
       - "src/DemaConsulting.CanvasNet/Codecs/Jpeg2000ColorSpace.cs"  # unit source (public color-space enum)
+      - "src/DemaConsulting.CanvasNet/Codecs/Jpeg2000DecoderLimits.cs"  # unit source (public decoder resource limits)
       - "src/DemaConsulting.CanvasNet/Codecs/Jpeg2000/**/*.cs"       # unit source (partial-class implementation files)
       - "src/DemaConsulting.CanvasNet/Codecs/ImageInfo.cs"           # shared header-only probe result type
       - "src/DemaConsulting.CanvasNet/Codecs/NamespaceDoc.cs"        # Codecs namespace documentation
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/Jpeg2000CodecTests.cs"      # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/Jpeg2000TestEncoder*.cs"    # test-only JPEG 2000 encoder
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/Jpeg2000FixtureTests.cs"    # real-encoder fixture tests
+      - "test/DemaConsulting.CanvasNet.Tests/Jpeg2000Fixtures/**"               # real-encoder fixture corpus + README
 
   # CanvasNet-Geometry Review (one per subsystem)
   - id: CanvasNet-Geometry

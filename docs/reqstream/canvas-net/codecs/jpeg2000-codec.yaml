@@ -174,8 +174,10 @@ sections:
 
               - id: CanvasNet-Codecs-Jpeg2000Codec-Malformed
                 title: >-
-                  The Jpeg2000Codec class shall reject data that is not JPEG 2000, a Load whose
-                  dimensions exceed Surface.MaxDimension, and truncated, corrupted or otherwise
+                  The Jpeg2000Codec class shall reject data that is not JPEG 2000, an image whose
+                  dimensions or sizes exceed the decoder limits (Jpeg2000DecoderLimits, with
+                  Surface.MaxDimension as the default dimension limit), a codestream with a tile
+                  that has no tile-part, and truncated, corrupted or otherwise
                   malformed data, with InvalidDataException, never an unhandled exception,
                   excessive allocation, or unbounded work.
                 justification: |
@@ -186,7 +188,8 @@ sections:
                   - Jpeg2000Codec_Load_NotJpeg2000_ThrowsInvalidData
                   - Jpeg2000Codec_Load_ExceedsMaxDimension_ThrowsInvalidData
                   - Jpeg2000Codec_Decode_RealEncoderFixtureTruncated_FailsClosed
-                  - Jpeg2000Codec_Decode_EveryTruncation_FailsCleanly
+                  - Jpeg2000Codec_Decode_EveryTruncationOfSmallStream_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_TruncationsOfLargeStreams_FailCleanly
                   - Jpeg2000Codec_Decode_RandomBitFlips_FailCleanly
                   - Jpeg2000Codec_Decode_HeaderByteSubstitutions_FailCleanly
                   - Jpeg2000Codec_Decode_HugeCounts_FailQuickly
@@ -194,12 +197,23 @@ sections:
                   - Jpeg2000Codec_Decode_GarbageTileData_FailsCleanly
                   - Jpeg2000Codec_Decode_HostileBoxes_FailCleanly
                   - Jpeg2000Codec_Decode_HostilePoc_FailsCleanly
+                  - Jpeg2000Codec_Decode_ManyIdenticalPocEntries_ThrowsInvalidDataQuickly
+                  - Jpeg2000Codec_Decode_RepeatedPocEntriesWithinCap_DecodesExactly
+                  - Jpeg2000Codec_DecodeBudget_IsCumulativeAcrossCharges
+                  - Jpeg2000Codec_Decode_PrecinctsFarExceedingData_ThrowsInvalidDataQuickly
+                  - Jpeg2000Codec_Decode_MissingTile_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_CustomLimits_AreEnforced
+                  - Jpeg2000Codec_Decode_InvalidLimits_ThrowsArgumentOutOfRange
+                  - Jpeg2000Codec_Decode_HostileExponents_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_WrongSegmentationSymbol_ThrowsInvalidData
+                  - Jpeg2000Codec_Decode_SegmentationSymbols_RoundTripsExactly
 
               - id: CanvasNet-Codecs-Jpeg2000Codec-Unsupported
                 title: >-
                   The Jpeg2000Codec class shall reject valid JPEG 2000 features it does not
                   support (Part 2 extensions, high-throughput JPEG 2000, unknown transforms or
-                  ROI styles, more than 16 bits per sample, and images with more than four color
+                  ROI styles, more than 16 components or bit planes, more than 16 bits per sample, four color
+                  channels in a color space other than CMYK, and images with more than four color
                   channels plus alpha) with UnsupportedImageFeatureException.
                 justification: |
                   Callers must be able to distinguish a legitimate but unsupported file from a
@@ -209,6 +223,10 @@ sections:
                   - Jpeg2000Codec_Decode_HighThroughput_ThrowsUnsupported
                   - Jpeg2000Codec_Decode_UnknownTransforms_ThrowsUnsupported
                   - Jpeg2000Codec_Decode_UnknownRoiStyle_ThrowsUnsupported
-                  - Jpeg2000Codec_Decode_TooManyComponents_ThrowsUnsupportedOrInvalid
+                  - Jpeg2000Codec_Decode_TooManyComponents_ThrowsUnsupported
+                  - Jpeg2000Codec_Decode_RoiShiftBeyondMaxBitPlanes_ThrowsUnsupported
+                  - Jpeg2000Codec_Decode_FourChannelsInUnknownColorSpace_ThrowsUnsupported
+                  - Jpeg2000Codec_Decode_SrgbWithExtraChannelWithoutCdef_IgnoresExtraChannel
+                  - Jpeg2000Codec_Decode_RawFourComponents_IsCmyk
                   - Jpeg2000Codec_Decode_FiveComponentsWithoutCdef_ThrowsUnsupported
                   - Jpeg2000Codec_Decode_DepthAbove16_ThrowsUnsupported

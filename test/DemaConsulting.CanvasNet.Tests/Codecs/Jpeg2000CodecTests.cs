@@ -1504,4 +1504,5 @@ public class Jpeg2000CodecTests
     /// <summary>Tests that a raw four-component codestream is treated as CMYK by the documented heuristic.</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_RawFourComponents_IsCmyk() =>
-        Assert.Equal(Jpeg2000ColorSpace.Cmyk, Jpeg2000Codec.Decode(Encode(Img(8, 8, 4), Rev(1))).ColorSpace);}
+        Assert.Equal(Jpeg2000ColorSpace.Cmyk, Jpeg2000Codec.Decode(Encode(Img(8, 8, 4), Rev(1))).ColorSpace);
+}

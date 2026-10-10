@@ -27,7 +27,8 @@ The class is a `static` partial class. The public surface lives in
 | `Jpeg2000Codec.Mq.cs`         | MQ arithmetic decoder                                               |
 | `Jpeg2000Codec.Tier1.cs`      | EBCOT tier-1 code-block decoding (all code-block styles, ROI)       |
 | `Jpeg2000Codec.Dwt.cs`        | Inverse 5-3 and 9-7 wavelet transforms, dequantization              |
-| `Jpeg2000Codec.Decoder.cs`    | Orchestration, inverse component transforms, 8-bit scaling          |
+| `Jpeg2000Codec.Decoder.cs`    | Orchestration, decode budget, inverse component transforms, scaling |
+| `Jpeg2000DecoderLimits.cs`    | Public resource limits applied before any allocation                |
 
 #### Public API
 
@@ -35,11 +36,41 @@ The class is a `static` partial class. The public surface lives in
   RGB, alpha preserved).
 - `GetInfo(Stream)` / `GetInfo(string)` return an `ImageInfo` from the container and SIZ header
   only, without decoding and without enforcing `Surface.MaxDimension`.
-- `Decode(Stream)` / `Decode(byte[])` return a `Jpeg2000Image` (`Width`, `Height`, `ColorSpace`,
-  `ColorChannelCount`, `ColorSamples`, `AlphaSamples`, `AlphaPremultiplied`, `IccProfile`,
+- `Decode(Stream)` / `Decode(byte[])` (and the overloads taking a `Jpeg2000DecoderLimits`) return a
+  `Jpeg2000Image` (`Width`, `Height`, `ColorSpace`, `ColorChannelCount`, `ColorSamples`,
+  `AlphaSamples`, `AlphaPremultiplied`, `IccProfile`,
   `BitDepth` (source depth of the first color channel's component, before 8-bit scaling) and
   `HasPalette` (the JP2 palette was applied to `ColorSamples`)) with
-  8-bit interleaved samples. `Decode` enforces `Surface.MaxDimension` on the image size.
+  8-bit interleaved samples. `Decode` enforces the resource limits below, including
+  `Surface.MaxDimension` on the image size.
+- `Jpeg2000DecoderLimits` is a public record of resource limits (maximum input bytes, width, height,
+  total samples, per-tile samples, tiles, precincts, code-blocks and packets, progression-order
+  changes, progression steps and tier-1 work). `Jpeg2000DecoderLimits.Default` is used by every
+  overload that takes no limits; its dimension limit equals `Surface.MaxDimension`. Callers such as
+  the PDF layer may pass tighter limits. Invalid limits throw `ArgumentOutOfRangeException`.
+
+#### Resource Limits
+
+Limits are enforced during header validation, before the memory they protect is allocated:
+
+- SIZ: image dimensions, tile count, and the total plane size (sum over components) are checked
+  against the limits immediately after SIZ is parsed; the output size (width x height x channels)
+  is checked before the planes are allocated.
+- Geometry: per-tile sample, precinct and code-block counts are computed in 64-bit arithmetic
+  and checked before arrays are created. The precinct count is additionally bounded by the amount
+  of packet data: every packet needs at least one header bit, so a tile cannot have more packets
+  than eight times the bytes of its tile-part data plus packed headers. A few hundred bytes of
+  header can therefore no longer force a large allocation.
+- Progression: one decode-wide `DecodeBudget` is charged per candidate packet and per position
+  step, cumulatively across tiles and POC entries. Its ceiling is the smaller of
+  `MaxProgressionSteps` and a base plus a per-input-byte allowance, so work scales with input size.
+  The number of POC entries in effect (main or tile header) is capped by `MaxProgressionChanges`,
+  and a POC volume empty or wholly contained in an earlier one is skipped up front.
+- Tier-1: the same `DecodeBudget` charges entropy-decoding work in sample-passes.
+- `MaxBitPlanes` (30) is the single bit-plane ceiling. Each band's bit-plane count
+  (guard bits + exponent - 1) is validated once during geometry construction: out-of-range values
+  are `InvalidDataException`; a count that only exceeds the ceiling once the ROI shift is added
+  is `UnsupportedImageFeatureException`.
 
 #### Decoding Pipeline
 
@@ -51,10 +82,13 @@ The class is a `static` partial class. The public surface lives in
    handled or skipped; tiles may have arbitrary image and tile origins and may be split into
    tile-parts; tile-part headers may override coding and quantization parameters.
 3. **Tier-2**: packet headers are decoded (tag trees, inclusion, zero bit-planes, pass counts,
-   lengths) for every progression order and quality layer, with optional SOP/EPH markers.
+   lengths) for every progression order and quality layer, with optional SOP/EPH markers. Every
+   tile must have at least one tile-part; a tile with none (for example a codestream cut at a tile
+   boundary) is `InvalidDataException`.
 4. **Tier-1**: each code-block is decoded with the MQ decoder through the significance
    propagation, magnitude refinement and cleanup passes, honouring selective arithmetic bypass,
-   reset, termination, vertically causal, predictable termination and segmentation symbols, and
+   reset, termination, vertically causal, predictable termination and segmentation symbols (the
+   decoded symbol must be 1010), and
    the ROI max-shift.
 5. **Reconstruction**: dequantization, inverse DWT (reversible 5-3 or irreversible 9-7), inverse
    RCT/ICT, DC level shift, clamping and scaling to 8 bits per sample (1 to 16 bit, signed or
@@ -65,12 +99,20 @@ The class is a `static` partial class. The public surface lives in
 - `ArgumentNullException` for null stream, data or path; `ArgumentException` for an empty path;
   `FileNotFoundException` for a missing file.
 - `InvalidDataException` for data that is not JPEG 2000, dimensions above
-  `Surface.MaxDimension`, and truncated or corrupt data. All counts and sizes read from the data
-  are bounds-checked against the available data before any allocation, so hostile files fail
-  quickly rather than exhausting memory or time.
+  a `Jpeg2000DecoderLimits` limit, and truncated or corrupt data. Parse sites validate counts,
+  lengths and indexes explicitly and throw `InvalidDataException`; resource limits are enforced as
+  described above, so hostile files fail quickly rather than exhausting memory or time. A narrow
+  internal backstop (`Guard`) converts only `IndexOutOfRangeException` and `OverflowException`
+  into `InvalidDataException` (keeping the original as the inner exception); it is a last resort,
+  and the robustness tests assert that no documented failure relies on it.
 - `UnsupportedImageFeatureException` for valid but unsupported features: JPEG 2000 Part 2
   extensions, High Throughput (Part 15) codestreams, unknown transforms or ROI styles, five or
-  more components without a channel definition, and bit depths above 16.
+  more components without a channel definition, more than sixteen components, four color channels
+  in a declared color space other than CMYK, and bit depths above 16.
+
+Four color channels are treated as CMYK only when the color space is CMYK, or when no color
+specification exists at all (a raw codestream), as a documented heuristic. An sRGB image with an
+extra channel and no channel definition keeps the three color channels and ignores the extra one.
 
 There is no recovery or partial decoding: a failure always propagates to the caller.
 
@@ -84,7 +126,7 @@ library (`System.IO`). No new NuGet package is introduced.
 
 The codec is verified with a test-only JPEG 2000 encoder (`Jpeg2000TestEncoder`) that produces
 streams exercising each coding feature, the ITU-T T.88 MQ coder test sequence, and robustness
-suites (every truncation, random bit flips, header byte substitutions, huge counts, hostile
+suites (every truncation of a small stream, random bit flips, header byte substitutions, huge counts, hostile
 boxes). No third-party JPEG 2000 corpus is checked in.
 
 #### Callers
