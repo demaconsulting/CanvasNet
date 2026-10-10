@@ -538,7 +538,8 @@ public sealed partial class PdfDocument
     ///     Paints <paramref name="mesh"/> through <paramref name="path"/> (honoring the active clip):
     ///     the mesh is rasterized into an offscreen bitmap bounded to the path's device-space extent
     ///     (transparent outside the mesh) which is then painted over <paramref name="path"/> with a
-    ///     <see cref="TilePaint"/>.
+    ///     <see cref="TilePaint"/>. The bitmap is bounded to the path, the active clip and (when no
+    ///     <c>/Background</c> is painted) the mesh's own transformed geometry.
     /// </summary>
     /// <param name="mesh">The decoded mesh.</param>
     /// <param name="toDevice">The transform from the mesh's coordinate space to device space.</param>
@@ -569,6 +570,23 @@ public sealed partial class PdfDocument
             bottom = Math.Min(bottom, (int)Math.Ceiling(clipBounds.Bottom) + 1);
         }
 
+        if (!(applyBackground && mesh.Background is not null))
+        {
+            // Without a /Background the mesh paints only its own geometry, so the temporary
+            // raster need not extend beyond it (patch control points bound the Bezier surface).
+            if (!TryGetMeshDeviceBounds(mesh, toDevice, out var meshBounds))
+            {
+                return;
+            }
+
+            left = Math.Max(left, (int)Math.Floor(Math.Clamp(meshBounds.MinX, 0, _surface.Width)) - 1);
+            top = Math.Max(top, (int)Math.Floor(Math.Clamp(meshBounds.MinY, 0, _surface.Height)) - 1);
+            right = Math.Min(right, (int)Math.Ceiling(Math.Clamp(meshBounds.MaxX, 0, _surface.Width)) + 1);
+            bottom = Math.Min(bottom, (int)Math.Ceiling(Math.Clamp(meshBounds.MaxY, 0, _surface.Height)) + 1);
+        }
+
+        left = Math.Max(left, 0);
+        top = Math.Max(top, 0);
         if (right <= left || bottom <= top)
         {
             return;
@@ -616,8 +634,65 @@ public sealed partial class PdfDocument
             }
         }
 
+        // The tile repeats outside the temporary bitmap, so confine the fill to its rectangle.
+        var bitmapClip = ClipMask.FromPath(
+            new PathBuilder()
+                .MoveTo(new Vector2(left, top))
+                .LineTo(new Vector2(right, top))
+                .LineTo(new Vector2(right, bottom))
+                .LineTo(new Vector2(left, bottom))
+                .Close()
+                .Build(),
+            FillRule.NonZero,
+            _surface.Width,
+            _surface.Height);
         var tilePaint = new TilePaint(meshSurface, Matrix3x2.CreateTranslation(left, top), meshSurface.Width, meshSurface.Height);
-        PathFiller.Fill(_surface, path, tilePaint, _gs.Clip, fillRule);
+        PathFiller.Fill(_surface, path, tilePaint, _gs.Clip?.Intersect(bitmapClip) ?? bitmapClip, fillRule);
+    }
+
+    /// <summary>
+    ///     Computes the device-space bounding box of a mesh's geometry (vertices, or patch control
+    ///     points, which enclose each Bezier surface).
+    /// </summary>
+    /// <returns><see langword="false"/> when the mesh has no geometry or its bounds are not finite.</returns>
+    private static bool TryGetMeshDeviceBounds(
+        MeshShading mesh, Matrix3x2 toDevice, out (double MinX, double MinY, double MaxX, double MaxY) bounds)
+    {
+        var minX = double.PositiveInfinity;
+        var minY = double.PositiveInfinity;
+        var maxX = double.NegativeInfinity;
+        var maxY = double.NegativeInfinity;
+
+        void Include(double x, double y)
+        {
+            var dx = (x * toDevice.M11) + (y * toDevice.M21) + toDevice.M31;
+            var dy = (x * toDevice.M12) + (y * toDevice.M22) + toDevice.M32;
+            minX = Math.Min(minX, dx);
+            minY = Math.Min(minY, dy);
+            maxX = Math.Max(maxX, dx);
+            maxY = Math.Max(maxY, dy);
+        }
+
+        if (mesh.ShadingType is 4 or 5)
+        {
+            foreach (var vertex in mesh.Vertices)
+            {
+                Include(vertex.X, vertex.Y);
+            }
+        }
+        else
+        {
+            foreach (var patch in mesh.Patches)
+            {
+                for (var i = 0; i < patch.X.Length; i++)
+                {
+                    Include(patch.X[i], patch.Y[i]);
+                }
+            }
+        }
+
+        bounds = (minX, minY, maxX, maxY);
+        return double.IsFinite(minX) && double.IsFinite(minY) && double.IsFinite(maxX) && double.IsFinite(maxY);
     }
 
     /// <summary>Transforms a mesh vertex's position by <paramref name="m"/> (in double precision).</summary>
