@@ -381,6 +381,8 @@ public static partial class Jpeg2000Codec
             throw Malformed("image has no color channels.");
         }
 
+        // Heuristic, documented: only when the file carries no color specification at all (a raw codestream, or a
+        // JP2 file without a usable colr box) are one, three and four color channels taken as grey, RGB and CMYK.
         if (space == Jpeg2000ColorSpace.Unknown)
         {
             space = color.Count switch { 1 => Jpeg2000ColorSpace.Gray, 3 => Jpeg2000ColorSpace.Srgb, 4 => Jpeg2000ColorSpace.Cmyk, _ => Jpeg2000ColorSpace.Unknown };
@@ -393,6 +395,13 @@ public static partial class Jpeg2000Codec
         if (color.Count is not (1 or 3 or 4))
         {
             throw Unsupported("jpeg2000-channels", $"{color.Count} color channels are not supported.");
+        }
+
+        // Four color channels are converted as CMYK, so they must be CMYK: either declared, or (above) the
+        // heuristic for unspecified color. Any other declared color space with four channels is not guessed at.
+        if (color.Count == 4 && space != Jpeg2000ColorSpace.Cmyk)
+        {
+            throw Unsupported("jpeg2000-color-space", "four color channels in a color space other than CMYK.");
         }
 
         return new ChannelLayout

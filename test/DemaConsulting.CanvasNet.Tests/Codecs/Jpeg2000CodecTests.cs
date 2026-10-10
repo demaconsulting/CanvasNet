@@ -96,7 +96,8 @@ public class Jpeg2000CodecTests
         }
         catch (Exception ex) when (AllowedFailures.Contains(ex.GetType()))
         {
-            // Expected failure type.
+            // Expected failure type; it must come from explicit validation, not from the Guard backstop.
+            Assert.Null(ex.InnerException);
         }
     }
 
@@ -1057,12 +1058,11 @@ public class Jpeg2000CodecTests
 
     /// <summary>Tests that more than sixteen components are rejected as unsupported.</summary>
     [Fact]
-    public void Jpeg2000Codec_Decode_TooManyComponents_ThrowsUnsupportedOrInvalid()
+    public void Jpeg2000Codec_Decode_TooManyComponents_ThrowsUnsupported()
     {
-        var image = Img(4, 4, 17);
-        var data = Encode(image, Rev(1));
-        var ex = Record.Exception(() => Jpeg2000Codec.Decode(data));
-        Assert.True(ex is UnsupportedImageFeatureException or InvalidDataException);
+        var data = Encode(Img(4, 4, 17), Rev(1));
+        var ex = Assert.Throws<UnsupportedImageFeatureException>(() => Jpeg2000Codec.Decode(data));
+        Assert.Equal("jpeg2000-component-count", ex.Feature);
     }
 
     /// <summary>Tests that a two-component codestream without a channel definition decodes as grey.</summary>
@@ -1136,9 +1136,32 @@ public class Jpeg2000CodecTests
         yield return Encode(Img(25, 19, 1), ppt);
     }
 
-    /// <summary>Tests that every truncation of a generated stream fails cleanly or decodes.</summary>
+    /// <summary>Tests that every possible truncation of a small stream fails closed with InvalidDataException.</summary>
     [Fact]
-    public void Jpeg2000Codec_Decode_EveryTruncation_FailsCleanly()
+    public void Jpeg2000Codec_Decode_EveryTruncationOfSmallStream_ThrowsInvalidData()
+    {
+        var o = Rev(2);
+        o.Layers = 2;
+        o.TileWidth = 16;
+        o.TileHeight = 16;
+        o.Sop = true;
+        o.Eph = true;
+        var stream = Encode(Img(20, 12, 1), o);
+
+        // Every prefix that loses more than the EOC marker is rejected.
+        for (var len = 0; len < stream.Length - 2; len++)
+        {
+            var prefix = stream[..len];
+            var ex = Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(prefix));
+            Assert.Null(ex.InnerException);
+        }
+
+        _ = Jpeg2000Codec.Decode(stream);
+    }
+
+    /// <summary>Tests that truncations of larger generated streams fail cleanly or decode.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_TruncationsOfLargeStreams_FailCleanly()
     {
         foreach (var fixture in Fixtures())
         {
@@ -1173,7 +1196,7 @@ public class Jpeg2000CodecTests
             }
         }
 
-        Assert.True(watch.Elapsed < TimeSpan.FromMinutes(3), "fuzzing took too long: " + watch.Elapsed);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(20), "fuzzing took too long: " + watch.Elapsed);
     }
 
     /// <summary>Tests that every single byte of the main header can be replaced by extreme values.</summary>
@@ -1196,7 +1219,7 @@ public class Jpeg2000CodecTests
             }
         }
 
-        Assert.True(watch.Elapsed < TimeSpan.FromMinutes(3), "fuzzing took too long: " + watch.Elapsed);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(20), "fuzzing took too long: " + watch.Elapsed);
     }
 
     /// <summary>Tests huge declared dimensions, tile counts and precinct counts.</summary>
@@ -1230,7 +1253,7 @@ public class Jpeg2000CodecTests
         var bigImage = Patch(Patch(p, siz2 + 6, 0x00, 0x40, 0x00, 0x00), siz2 + 10, 0x00, 0x40, 0x00, 0x00);
         bigImage = Patch(Patch(bigImage, siz2 + 22, 0x00, 0x40, 0x00, 0x00), siz2 + 26, 0x00, 0x40, 0x00, 0x00);
         AssertRejectedOrDecoded(bigImage);
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(60), "hostile input took too long: " + watch.Elapsed);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), "hostile input took too long: " + watch.Elapsed);
     }
 
     /// <summary>Tests marker segments with bad lengths.</summary>
@@ -1312,4 +1335,173 @@ public class Jpeg2000CodecTests
             }
         }
     }
-}
+
+    // ------------------------------------------------------------------------------------------
+    // Resource limits and hardening
+    // ------------------------------------------------------------------------------------------
+
+    /// <summary>Tests that a hostile stream with thousands of identical progression changes fails closed quickly.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_ManyIdenticalPocEntries_ThrowsInvalidDataQuickly()
+    {
+        var o = Rev(3);
+        o.Layers = 4;
+        o.Poc = [.. Enumerable.Repeat(new J2kPoc(0, 0, 4, 4, 3, 0), 5000)];
+        var data = Encode(Img(32, 32, 3), o);
+        var watch = Stopwatch.StartNew();
+        var ex = Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(data));
+        Assert.Null(ex.InnerException);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), "hostile POC took too long: " + watch.Elapsed);
+    }
+
+    /// <summary>Tests that a modest number of repeated progression volumes is deduplicated and still decodes.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_RepeatedPocEntriesWithinCap_DecodesExactly()
+    {
+        var o = Rev(2);
+        o.Layers = 2;
+        o.Poc = [.. Enumerable.Repeat(new J2kPoc(0, 0, 2, 3, 1, 0), 20)];
+        AssertExact(Img(16, 16, 1), o);
+    }
+
+    /// <summary>Tests that the decode-wide progression budget is cumulative and fails closed.</summary>
+    [Fact]
+    public void Jpeg2000Codec_DecodeBudget_IsCumulativeAcrossCharges()
+    {
+        var limits = new Jpeg2000DecoderLimits { MaxProgressionSteps = 1000, MaxTier1Work = 100 };
+        var budget = new Jpeg2000Codec.DecodeBudget(limits, 0);
+        budget.ChargeProgression(600);
+        Assert.Throws<InvalidDataException>(() => budget.ChargeProgression(600));
+        budget.ChargeTier1(100);
+        Assert.Throws<InvalidDataException>(() => budget.ChargeTier1(1));
+    }
+
+    /// <summary>Tests that precinct counts are bounded by the amount of input data, before allocation.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_PrecinctsFarExceedingData_ThrowsInvalidDataQuickly()
+    {
+        var o = Rev(0);
+        o.Precincts = [(0, 0)];
+        var p = Encode(Img(16, 16, 1), o);
+        var siz = FindMarker(p, 0xFF51);
+        byte[] size = [0x00, 0x00, 0x40, 0x00];
+        var big = Patch(Patch(Patch(Patch(p, siz + 6, size), siz + 10, size), siz + 22, size), siz + 26, size);
+        var watch = Stopwatch.StartNew();
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(big));
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), "hostile precincts took too long: " + watch.Elapsed);
+    }
+
+    /// <summary>Tests that a codestream missing a whole tile is rejected.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_MissingTile_ThrowsInvalidData()
+    {
+        var o = Rev(2);
+        o.TileWidth = 16;
+        o.TileHeight = 16;
+        var data = Encode(Img(32, 16, 1), o);
+        var first = FindMarker(data, 0xFF90);
+        var second = first + 2;
+        while (!(data[second] == 0xFF && data[second + 1] == 0x90))
+        {
+            second++;
+        }
+
+        byte[] cut = [.. data[..second], 0xFF, 0xD9];
+        var ex = Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(cut));
+        Assert.Null(ex.InnerException);
+        _ = Jpeg2000Codec.Decode(data);
+    }
+
+    /// <summary>Tests custom decoder limits.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_CustomLimits_AreEnforced()
+    {
+        var data = Encode(Img(16, 8, 3), Rev(1));
+        var strict = new Jpeg2000DecoderLimits { MaxWidth = 8 };
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(data, strict));
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(new MemoryStream(data), strict));
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(data, new Jpeg2000DecoderLimits { MaxTotalSamples = 16 }));
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(data, new Jpeg2000DecoderLimits { MaxInputBytes = 10 }));
+        Assert.Equal(16, Jpeg2000Codec.Decode(data, Jpeg2000DecoderLimits.Default).Width);
+    }
+
+    /// <summary>Tests that invalid limits are rejected as argument errors.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_InvalidLimits_ThrowsArgumentOutOfRange()
+    {
+        var data = Encode(Img(8, 8, 1), Rev(1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Jpeg2000Codec.Decode(data, new Jpeg2000DecoderLimits { MaxWidth = 0 }));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Jpeg2000Codec.Decode(data, new Jpeg2000DecoderLimits { MaxTotalSamples = -1 }));
+        Assert.Throws<ArgumentNullException>(() => Jpeg2000Codec.Decode(data, null!));
+    }
+
+    /// <summary>Tests that hostile quantization exponents are rejected during geometry construction.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_HostileExponents_ThrowsInvalidData()
+    {
+        var data = Encode(Img(8, 8, 1), Rev(1));
+        var qcd = FindMarker(data, 0xFF5C);
+        foreach (var exponent in new[] { 31, 40 })
+        {
+            var ex = Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(Patch(data, qcd + 5, (byte)(exponent << 3))));
+            Assert.Null(ex.InnerException);
+        }
+    }
+
+    /// <summary>Tests that a ROI shift pushing the bit-plane count beyond the decoder maximum is unsupported.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_RoiShiftBeyondMaxBitPlanes_ThrowsUnsupported()
+    {
+        var o = Rev(1);
+        o.RoiShift = 13;
+        var data = Encode(Img(8, 8, 1), o);
+        var rgn = FindMarker(data, 0xFF5E);
+        Assert.Throws<UnsupportedImageFeatureException>(() => Jpeg2000Codec.Decode(Patch(data, rgn + 6, 30)));
+    }
+
+    /// <summary>Tests that a segmentation symbol that does not decode as 1010 is rejected.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_WrongSegmentationSymbol_ThrowsInvalidData()
+    {
+        var plain = Encode(Img(16, 16, 1), Rev(1));
+        var cod = FindMarker(plain, 0xFF52);
+        var forced = Patch(plain, cod + 12, 0x20);
+        var ex = Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(forced));
+        Assert.Null(ex.InnerException);
+    }
+
+    /// <summary>Tests that a valid segmentation-symbol stream still decodes exactly.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_SegmentationSymbols_RoundTripsExactly()
+    {
+        var o = Rev(2);
+        o.CodeBlockStyle = 0x20;
+        AssertExact(Img(24, 24, 1), o);
+    }
+
+    /// <summary>Tests that four channels in an unrecognized color space are rejected rather than treated as CMYK.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_FourChannelsInUnknownColorSpace_ThrowsUnsupported()
+    {
+        var image = Img(8, 8, 4);
+        var jp2 = Jpeg2000TestEncoder.WrapJp2(image, Encode(image, Rev(1)), new J2kJp2Options { EnumCs = 99 });
+        var ex = Assert.Throws<UnsupportedImageFeatureException>(() => Jpeg2000Codec.Decode(jp2));
+        Assert.Equal("jpeg2000-color-space", ex.Feature);
+    }
+
+    /// <summary>Tests that an sRGB image with an undeclared fourth channel keeps only the three color channels.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_SrgbWithExtraChannelWithoutCdef_IgnoresExtraChannel()
+    {
+        var image = Img(8, 8, 4);
+        var jp2 = Jpeg2000TestEncoder.WrapJp2(image, Encode(image, Rev(1)), new J2kJp2Options { EnumCs = 16 });
+        var decoded = Jpeg2000Codec.Decode(jp2);
+        Assert.Equal(Jpeg2000ColorSpace.Srgb, decoded.ColorSpace);
+        Assert.Equal(3, decoded.ColorChannelCount);
+        Assert.False(decoded.HasAlpha);
+    }
+
+    /// <summary>Tests that a raw four-component codestream is treated as CMYK by the documented heuristic.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_RawFourComponents_IsCmyk() =>
+        Assert.Equal(Jpeg2000ColorSpace.Cmyk, Jpeg2000Codec.Decode(Encode(Img(8, 8, 4), Rev(1))).ColorSpace);}

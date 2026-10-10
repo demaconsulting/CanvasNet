@@ -21,36 +21,27 @@ public static partial class Jpeg2000Codec
     private const ushort MarkerSod = 0xFF93;
     private const ushort MarkerEoc = 0xFFD9;
 
-    /// <summary>The maximum number of bytes accepted from an input stream (256 MiB).</summary>
-    internal const int MaxInputBytes = 256 * 1024 * 1024;
-
     /// <summary>The maximum number of image components the decoder accepts (more are rejected as unsupported).</summary>
     internal const int MaxComponents = 16;
 
-    /// <summary>The maximum total number of component samples of the whole image held in memory.</summary>
-    internal const long MaxTotalSamples = 1L << 28;
+    /// <summary>The largest number of tiles the format can address (the SOT tile index is 16 bits wide).</summary>
+    private const int FormatMaxTiles = 65535;
 
-    /// <summary>The maximum total number of component samples of a single tile held in memory.</summary>
-    internal const long MaxTileSamples = 1L << 26;
+    /// <summary>The largest number of decomposition levels the format allows.</summary>
+    private const int MaxDecompositionLevels = 32;
 
-    /// <summary>The maximum number of code-blocks of a single tile.</summary>
-    internal const long MaxTileCodeBlocks = 1L << 21;
+    /// <summary>
+    ///     The largest number of magnitude bit-planes of one code-block the decoder handles. It is
+    ///     validated once while the sub-band geometry is built (guard bits, exponent and ROI shift), so
+    ///     every later stage can rely on it.
+    /// </summary>
+    internal const int MaxBitPlanes = 30;
 
-    /// <summary>The maximum number of precincts of a single tile.</summary>
-    internal const long MaxTilePrecincts = 1L << 21;
+    /// <summary>The progression-step allowance every decode gets regardless of the input length.</summary>
+    private const long ProgressionStepsBase = 1L << 22;
 
-    /// <summary>The maximum number of packets (precincts times layers) of a single tile.</summary>
-    internal const long MaxTilePackets = 1L << 24;
-
-    /// <summary>The maximum number of tiles accepted.</summary>
-    internal const int MaxTiles = 65535;
-
-    /// <summary>The maximum work budget (sample-passes of tier-1 decoding) for one image.</summary>
-    internal const long MaxTier1Work = 1L << 33;
-
-    /// <summary>The maximum number of progression-iterator steps for one tile.</summary>
-    internal const long MaxProgressionSteps = 1L << 27;
-
+    /// <summary>The additional progression steps allowed per input byte (a packet costs at least one header bit).</summary>
+    private const long ProgressionStepsPerInputByte = 64;
     /// <summary>Creates the exception thrown for malformed JPEG 2000 data.</summary>
     /// <param name="message">A description of what is malformed.</param>
     /// <returns>A new <see cref="InvalidDataException"/>.</returns>
@@ -244,6 +235,36 @@ public static partial class Jpeg2000Codec
         /// <returns>The component-grid coordinate.</returns>
         public long CompY1(int c) => CeilDiv(Ysiz, YR[c]);
 
+        /// <summary>
+        ///     Checks the declared image against the resource limits. This runs on the SIZ values alone,
+        ///     before any plane, tile or code-block structure is allocated.
+        /// </summary>
+        /// <param name="limits">The limits to enforce.</param>
+        public void CheckLimits(Jpeg2000DecoderLimits limits)
+        {
+            if (Width > limits.MaxWidth || Height > limits.MaxHeight)
+            {
+                throw Malformed($"image dimensions {Width}x{Height} exceed the {limits.MaxWidth}x{limits.MaxHeight} pixel limit.");
+            }
+
+            if ((long)NumXTiles * NumYTiles > limits.MaxTiles)
+            {
+                throw Malformed("too many tiles.");
+            }
+
+            // Width and Height are within int range here, so each plane (at most Width x Height plus a
+            // rounding sample per axis) fits comfortably in a long.
+            long planeSamples = 0;
+            for (var c = 0; c < Csiz; c++)
+            {
+                planeSamples += (CompX1(c) - CompX0(c)) * (CompY1(c) - CompY0(c));
+                if (planeSamples > limits.MaxTotalSamples)
+                {
+                    throw Malformed("image exceeds the decoder sample limit.");
+                }
+            }
+        }
+
         /// <summary>Parses and validates a SIZ marker segment payload.</summary>
         /// <param name="r">A reader positioned just after the segment length.</param>
         /// <returns>The validated SIZ information.</returns>
@@ -313,7 +334,7 @@ public static partial class Jpeg2000Codec
             // The tile count is bounded here, before any per-tile structure is created.
             var tilesX = CeilDiv(xsiz - xto, xt);
             var tilesY = CeilDiv(ysiz - yto, yt);
-            if (tilesX * tilesY > MaxTiles)
+            if (tilesX * tilesY > FormatMaxTiles)
             {
                 throw Malformed("too many tiles.");
             }
@@ -371,7 +392,7 @@ public static partial class Jpeg2000Codec
             var ycb = r.ReadU8() + 2;
             var style = r.ReadU8();
             var transform = r.ReadU8();
-            if (levels > 32)
+            if (levels > MaxDecompositionLevels)
             {
                 throw Malformed("too many decomposition levels.");
             }
@@ -511,14 +532,17 @@ public static partial class Jpeg2000Codec
     internal sealed class CodingState
     {
         private readonly int _components;
+        private readonly int _maxPoc;
         private readonly bool[] _cocSet;
         private readonly bool[] _qccSet;
 
         /// <summary>Initializes an empty state for <paramref name="components"/> components.</summary>
         /// <param name="components">The component count.</param>
-        public CodingState(int components)
+        /// <param name="maxPocEntries">The maximum number of progression-order change entries the state may hold.</param>
+        public CodingState(int components, int maxPocEntries)
         {
             _components = components;
+            _maxPoc = maxPocEntries;
             _cocSet = new bool[components];
             _qccSet = new bool[components];
             Coding = new CodingParams?[components];
@@ -565,7 +589,7 @@ public static partial class Jpeg2000Codec
         /// <returns>The copy; main-header POC entries are inherited until the tile-part header signals its own.</returns>
         public CodingState CloneForTile()
         {
-            var copy = new CodingState(_components)
+            var copy = new CodingState(_components, _maxPoc)
             {
                 Progression = Progression,
                 Layers = Layers,
@@ -729,6 +753,11 @@ public static partial class Jpeg2000Codec
                     throw Malformed("invalid POC entry.");
                 }
 
+                if (Poc.Count >= _maxPoc)
+                {
+                    throw Malformed("too many progression order changes.");
+                }
+
                 Poc.Add(new ProgressionChange(rs, cs, lye, re, ce, order));
             }
         }
@@ -763,8 +792,8 @@ public static partial class Jpeg2000Codec
         /// <summary>Gets the main-header coding state.</summary>
         public required CodingState Main { get; init; }
 
-        /// <summary>Gets the per-tile data, indexed by tile number (entries are null for absent tiles).</summary>
-        public required TileData?[] Tiles { get; init; }
+        /// <summary>Gets the per-tile data, indexed by tile number; every tile has at least one tile-part.</summary>
+        public required TileData[] Tiles { get; init; }
 
         /// <summary>Reads only the SIZ segment of a codestream.</summary>
         /// <param name="data">The buffer holding the codestream.</param>
@@ -799,12 +828,14 @@ public static partial class Jpeg2000Codec
         /// <param name="data">The buffer holding the codestream.</param>
         /// <param name="offset">The offset of the SOC marker.</param>
         /// <param name="end">The exclusive end offset of the codestream.</param>
+        /// <param name="limits">The resource limits; the image size is checked against them before anything is allocated.</param>
         /// <returns>The parsed codestream.</returns>
-        public static Codestream Parse(byte[] data, int offset, int end)
+        public static Codestream Parse(byte[] data, int offset, int end, Jpeg2000DecoderLimits limits)
         {
             var siz = ParseSizOnly(data, offset, end, out var afterSiz);
+            siz.CheckLimits(limits);
             var r = new ByteReader(data, afterSiz, end);
-            var main = new CodingState(siz.Csiz);
+            var main = new CodingState(siz.Csiz, limits.MaxProgressionChanges);
             var ppmSegments = new List<(int Index, byte[] Data)>();
 
             // Main header: process marker segments until the first SOT.
@@ -852,9 +883,17 @@ public static partial class Jpeg2000Codec
                 }
             }
 
-            var tiles = new TileData?[siz.NumXTiles * siz.NumYTiles];
+            var tileSlots = new TileData?[siz.NumXTiles * siz.NumYTiles];
             var ppmChunks = ppmSegments.Count > 0 ? SplitPpm(ppmSegments) : null;
-            ReadTileParts(data, r, end, main, tiles, ppmChunks);
+            ReadTileParts(data, r, end, main, tileSlots, ppmChunks);
+
+            // Fail closed: a codestream cut short or lacking whole tiles must not decode to a partial image.
+            var tiles = new TileData[tileSlots.Length];
+            for (var i = 0; i < tiles.Length; i++)
+            {
+                tiles[i] = tileSlots[i] ?? throw Malformed($"tile {i} has no tile-part (the codestream is incomplete).");
+            }
+
             return new Codestream { Siz = siz, Main = main, Tiles = tiles };
         }
 

@@ -219,8 +219,13 @@ public static partial class Jpeg2000Codec
     /// <param name="siz">The image size information.</param>
     /// <param name="st">The coding state in effect for the tile.</param>
     /// <param name="index">The tile index in raster order.</param>
+    /// <param name="limits">The resource limits.</param>
+    /// <param name="packetBits">
+    ///     The number of bits the tile-part data of the tile can hold. Every packet has a header of at
+    ///     least one bit, so a tile cannot have more packets than this.
+    /// </param>
     /// <returns>The built tile.</returns>
-    private static Tile BuildTile(SizInfo siz, CodingState st, int index)
+    private static Tile BuildTile(SizInfo siz, CodingState st, int index, Jpeg2000DecoderLimits limits, long packetBits)
     {
         var nx = siz.NumXTiles;
         var p = index % nx;
@@ -230,16 +235,18 @@ public static partial class Jpeg2000Codec
         var ty0 = Math.Max(siz.YTOsiz + (q * siz.YTsiz), siz.YOsiz);
         var ty1 = Math.Min(siz.YTOsiz + ((q + 1L) * siz.YTsiz), siz.Ysiz);
 
-        var budget = new GeometryBudget();
+        // Every limit is checked before the structure it bounds is allocated. The precinct bound is the
+        // tightest of the absolute limit, the packet limit and what the tile data could possibly carry.
+        var budget = new GeometryBudget
+        {
+            MaxSamples = limits.MaxTileSamples,
+            MaxBlocks = limits.MaxTileCodeBlocks,
+            MaxPrecincts = Math.Min(limits.MaxTilePrecincts, Math.Min(limits.MaxTilePackets, packetBits) / st.Layers),
+        };
         var comps = new TileComp[siz.Csiz];
         for (var c = 0; c < siz.Csiz; c++)
         {
             comps[c] = BuildTileComp(siz, st, c, tx0, ty0, tx1, ty1, budget);
-        }
-
-        if (budget.Precincts * st.Layers > MaxTilePackets)
-        {
-            throw Malformed("tile has too many packets.");
         }
 
         return new Tile { X0 = tx0, Y0 = ty0, X1 = tx1, Y1 = ty1, Comps = comps, TotalPackets = budget.Precincts * st.Layers };
@@ -248,6 +255,15 @@ public static partial class Jpeg2000Codec
     /// <summary>Running resource counters used while building one tile.</summary>
     private sealed class GeometryBudget
     {
+        /// <summary>Gets the maximum number of samples of the tile.</summary>
+        public long MaxSamples { get; init; }
+
+        /// <summary>Gets the maximum number of precincts of the tile.</summary>
+        public long MaxPrecincts { get; init; }
+
+        /// <summary>Gets the maximum number of code-blocks of the tile.</summary>
+        public long MaxBlocks { get; init; }
+
         /// <summary>Gets or sets the number of samples allocated so far.</summary>
         public long Samples { get; set; }
 
@@ -270,7 +286,7 @@ public static partial class Jpeg2000Codec
 
         // Memory cap on the decoded sample planes of the tile.
         budget.Samples += (tcx1 - tcx0) * (tcy1 - tcy0);
-        if (budget.Samples > MaxTileSamples)
+        if (budget.Samples > budget.MaxSamples)
         {
             throw Malformed("tile exceeds the decoder sample limit.");
         }
@@ -300,20 +316,23 @@ public static partial class Jpeg2000Codec
         for (var b = 0; b < bands.Length; b++)
         {
             var orient = r == 0 ? 0 : b + 1;
-            bands[b] = BuildBand(siz.Depth[c], quant, coding.Reversible, levels, r, orient, tcx0, tcy0, tcx1, tcy1, lower);
+            bands[b] = BuildBand(siz.Depth[c], quant, coding.Reversible, st.RoiShift[c], levels, r, orient, tcx0, tcy0, tcx1, tcy1, lower);
         }
 
         // Precinct grid (anchored at the origin of the resolution coordinate system).
         var ppx = coding.PPx[r];
         var ppy = coding.PPy[r];
-        var pw = rx1 > rx0 ? (int)(CeilDivPow2(rx1, ppx) - (rx0 >> ppx)) : 0;
-        var ph = ry1 > ry0 ? (int)(CeilDivPow2(ry1, ppy) - (ry0 >> ppy)) : 0;
-        var count = (long)pw * ph;
+        var pwLong = rx1 > rx0 ? CeilDivPow2(rx1, ppx) - (rx0 >> ppx) : 0;
+        var phLong = ry1 > ry0 ? CeilDivPow2(ry1, ppy) - (ry0 >> ppy) : 0;
+        var count = pwLong * phLong;
         budget.Precincts += count;
-        if (budget.Precincts > MaxTilePrecincts)
+        if (budget.Precincts > budget.MaxPrecincts)
         {
-            throw Malformed("tile has too many precincts.");
+            throw Malformed("tile has more precincts or packets than the decoder limits or the tile data allow.");
         }
+
+        var pw = (int)pwLong;
+        var ph = (int)phLong;
 
         var precincts = new Precinct[count];
         for (var j = 0; j < ph; j++)
@@ -342,7 +361,7 @@ public static partial class Jpeg2000Codec
     }
 
     private static Band BuildBand(
-        int depth, QuantParams quant, bool reversible, int levels, int r, int orient,
+        int depth, QuantParams quant, bool reversible, int roiShift, int levels, int r, int orient,
         long tcx0, long tcy0, long tcx1, long tcy1, Resolution? lower)
     {
         long x0, y0, x1, y1;
@@ -386,10 +405,17 @@ public static partial class Jpeg2000Codec
             mant = quant.Mant[bandIndex];
         }
 
+        // The bit-plane count is validated once, here, so tier-2 and tier-1 can rely on it: the magnitude
+        // bit-planes Mb must be positive and plausible, and Mb plus the ROI shift must fit the decoder.
         var mb = quant.GuardBits + exp - 1;
-        if (exp < 0 || mb < 0)
+        if (exp < 0 || mb < 0 || mb > MaxBitPlanes)
         {
             throw Malformed("invalid quantization exponent.");
+        }
+
+        if (mb + roiShift > MaxBitPlanes)
+        {
+            throw Unsupported("jpeg2000-bitplanes", $"more than {MaxBitPlanes} coded bit-planes.");
         }
 
         var gain = orient switch { 0 => 0, 3 => 2, _ => 1 };
@@ -424,14 +450,16 @@ public static partial class Jpeg2000Codec
             var ycb = Math.Min(coding.Ycb, sy);
             var cbx0 = x0 >> xcb;
             var cby0 = y0 >> ycb;
-            var cw = (int)(CeilDivPow2(x1, xcb) - cbx0);
-            var ch = (int)(CeilDivPow2(y1, ycb) - cby0);
-            budget.Blocks += (long)cw * ch;
-            if (budget.Blocks > MaxTileCodeBlocks)
+            var cwLong = CeilDivPow2(x1, xcb) - cbx0;
+            var chLong = CeilDivPow2(y1, ycb) - cby0;
+            budget.Blocks += cwLong * chLong;
+            if (budget.Blocks > budget.MaxBlocks)
             {
                 throw Malformed("tile has too many code-blocks.");
             }
 
+            var cw = (int)cwLong;
+            var ch = (int)chLong;
             var blocks = new CodeBlock[cw * ch];
             for (var j = 0; j < ch; j++)
             {

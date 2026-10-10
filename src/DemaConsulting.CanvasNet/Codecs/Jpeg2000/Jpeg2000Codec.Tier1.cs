@@ -33,23 +33,6 @@ public static partial class Jpeg2000Codec
     /// <summary>Code-block style bit: segmentation symbols.</summary>
     private const int StyleSegSym = 0x20;
 
-    /// <summary>A shared work counter that bounds the total tier-1 effort of one decode.</summary>
-    internal sealed class WorkBudget
-    {
-        private long _used;
-
-        /// <summary>Charges <paramref name="amount"/> units of work and fails when the cap is exceeded.</summary>
-        /// <param name="amount">The work to charge.</param>
-        public void Charge(long amount)
-        {
-            _used += amount;
-            if (_used > MaxTier1Work)
-            {
-                throw Malformed("image requires too much entropy-decoding work.");
-            }
-        }
-    }
-
     /// <summary>Decodes code-blocks; one instance owns the scratch buffers and is reused across blocks.</summary>
     internal sealed class Tier1Decoder
     {
@@ -73,10 +56,10 @@ public static partial class Jpeg2000Codec
         /// <param name="ints">The integer plane (reversible path) or <see langword="null"/>.</param>
         /// <param name="floats">The float plane (irreversible path) or <see langword="null"/>.</param>
         /// <param name="planeStride">The row stride of the plane.</param>
-        /// <param name="work">The work budget.</param>
+        /// <param name="budget">The decode-wide budget.</param>
         public void DecodeBlock(
             CodeBlock block, Band band, int style, int roiShift, bool reversible, int[]? ints, float[]? floats, int planeStride,
-            WorkBudget work)
+            DecodeBudget budget)
         {
             if (block.Segments.Count == 0 || block.TotalPasses == 0)
             {
@@ -91,12 +74,8 @@ public static partial class Jpeg2000Codec
                 return;
             }
 
-            if (numPlanes > 30)
-            {
-                throw Unsupported("jpeg2000-bit-depth", "JPEG 2000 code-block has more than 30 magnitude bit-planes.");
-            }
-
-            work.Charge((long)_w * _h * block.TotalPasses);
+            // numPlanes never exceeds MaxBitPlanes: geometry construction validated Mb plus the ROI shift.
+            budget.ChargeTier1((long)_w * _h * block.TotalPasses);
             Prepare(style, band.Orient);
             RunPasses(block, style, numPlanes);
             Store(block, band, roiShift, reversible, ints, floats, planeStride);
@@ -201,12 +180,11 @@ public static partial class Jpeg2000Codec
                     break;
                 default:
                     Cleanup(bp);
-                    if ((style & StyleSegSym) != 0)
+                    // The segmentation symbol is the four decisions 1010 on the uniform context.
+                    if ((style & StyleSegSym) != 0
+                        && (_mq.DecodeBit(18) != 1 || _mq.DecodeBit(18) != 0 || _mq.DecodeBit(18) != 1 || _mq.DecodeBit(18) != 0))
                     {
-                        for (var i = 0; i < 4; i++)
-                        {
-                            _mq.DecodeBit(18);
-                        }
+                        throw Malformed("segmentation symbol is wrong; the code-block is corrupt.");
                     }
 
                     break;

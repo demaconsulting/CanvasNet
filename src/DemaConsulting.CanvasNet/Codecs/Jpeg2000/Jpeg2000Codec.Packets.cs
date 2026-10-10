@@ -182,26 +182,22 @@ public static partial class Jpeg2000Codec
         }
     }
 
-    /// <summary>Counts progression iterator steps and aborts when the budget is exhausted.</summary>
-    private sealed class StepBudget
-    {
-        private long _steps;
-
-        /// <summary>Counts one step.</summary>
-        public void Step()
-        {
-            if (++_steps > MaxProgressionSteps)
-            {
-                throw Malformed("progression order iteration exceeds the decoder limit.");
-            }
-        }
-    }
-
     // ------------------------------------------------------------------------------------------
     // Progression order iteration (Annex B.12)
     // ------------------------------------------------------------------------------------------
 
-    private static IEnumerable<PacketId> EnumeratePackets(Tile tile, SizInfo siz, int layers, List<ProgressionChange> changes, StepBudget steps)
+    /// <summary>
+    ///     Enumerates the packets of a tile in progression order, volume by volume. Every candidate packet and
+    ///     every position step is charged to the decode-wide <paramref name="budget"/>, so the total work is
+    ///     bounded no matter how many tiles or progression changes a hostile stream declares.
+    /// </summary>
+    /// <param name="tile">The built tile geometry.</param>
+    /// <param name="siz">The image size information.</param>
+    /// <param name="layers">The number of layers.</param>
+    /// <param name="changes">The progression volumes in order.</param>
+    /// <param name="budget">The decode-wide budget.</param>
+    /// <returns>The packet identifiers; a packet may appear again in a later volume and must then be skipped.</returns>
+    private static IEnumerable<PacketId> EnumeratePackets(Tile tile, SizInfo siz, int layers, List<ProgressionChange> changes, DecodeBudget budget)
     {
         var maxRes = 0;
         foreach (var tc in tile.Comps)
@@ -223,16 +219,41 @@ public static partial class Jpeg2000Codec
             }
         }
 
+        // A volume is the set of packets (layer, resolution, component, all precincts) it covers. A volume
+        // lying inside an earlier one yields only packets that were already sent, so it is skipped up front.
+        var done = new List<(int ResStart, int CompStart, int LayerEnd, int ResEnd, int CompEnd)>();
         foreach (var ch in changes)
         {
             var layerEnd = Math.Min(ch.LayerEnd, layers);
             var resEnd = Math.Min(ch.ResEnd, maxRes);
             var compEnd = Math.Min(ch.CompEnd, tile.Comps.Length);
+            if (ch.ResStart >= resEnd || ch.CompStart >= compEnd)
+            {
+                continue;
+            }
+
+            var covered = false;
+            foreach (var d in done)
+            {
+                if (ch.ResStart >= d.ResStart && ch.CompStart >= d.CompStart && layerEnd <= d.LayerEnd
+                    && resEnd <= d.ResEnd && compEnd <= d.CompEnd)
+                {
+                    covered = true;
+                    break;
+                }
+            }
+
+            if (covered)
+            {
+                continue;
+            }
+
+            done.Add((ch.ResStart, ch.CompStart, layerEnd, resEnd, compEnd));
             IEnumerable<PacketId> sequence = ch.Order switch
             {
-                0 => EnumerateLrcp(tile, ch, layerEnd, resEnd, compEnd, steps),
-                1 => EnumerateRlcp(tile, ch, layerEnd, resEnd, compEnd, steps),
-                _ => EnumeratePositional(tile, siz, ch, layerEnd, resEnd, compEnd, dx, dy, steps),
+                0 => EnumerateLrcp(tile, ch, layerEnd, resEnd, compEnd, budget),
+                1 => EnumerateRlcp(tile, ch, layerEnd, resEnd, compEnd, budget),
+                _ => EnumeratePositional(tile, siz, ch, layerEnd, resEnd, compEnd, dx, dy, budget),
             };
             foreach (var id in sequence)
             {
@@ -241,7 +262,7 @@ public static partial class Jpeg2000Codec
         }
     }
 
-    private static IEnumerable<PacketId> EnumerateLrcp(Tile tile, ProgressionChange ch, int layerEnd, int resEnd, int compEnd, StepBudget steps)
+    private static IEnumerable<PacketId> EnumerateLrcp(Tile tile, ProgressionChange ch, int layerEnd, int resEnd, int compEnd, DecodeBudget budget)
     {
         for (var l = 0; l < layerEnd; l++)
         {
@@ -249,13 +270,14 @@ public static partial class Jpeg2000Codec
             {
                 for (var c = ch.CompStart; c < compEnd; c++)
                 {
-                    steps.Step();
+                    budget.ChargeProgression(1);
                     if (r >= tile.Comps[c].Res.Length)
                     {
                         continue;
                     }
 
                     var n = tile.Comps[c].Res[r].Precincts.Length;
+                    budget.ChargeProgression(n);
                     for (var k = 0; k < n; k++)
                     {
                         yield return new PacketId(l, r, c, k);
@@ -265,7 +287,7 @@ public static partial class Jpeg2000Codec
         }
     }
 
-    private static IEnumerable<PacketId> EnumerateRlcp(Tile tile, ProgressionChange ch, int layerEnd, int resEnd, int compEnd, StepBudget steps)
+    private static IEnumerable<PacketId> EnumerateRlcp(Tile tile, ProgressionChange ch, int layerEnd, int resEnd, int compEnd, DecodeBudget budget)
     {
         for (var r = ch.ResStart; r < resEnd; r++)
         {
@@ -273,13 +295,14 @@ public static partial class Jpeg2000Codec
             {
                 for (var c = ch.CompStart; c < compEnd; c++)
                 {
-                    steps.Step();
+                    budget.ChargeProgression(1);
                     if (r >= tile.Comps[c].Res.Length)
                     {
                         continue;
                     }
 
                     var n = tile.Comps[c].Res[r].Precincts.Length;
+                    budget.ChargeProgression(n);
                     for (var k = 0; k < n; k++)
                     {
                         yield return new PacketId(l, r, c, k);
@@ -332,7 +355,7 @@ public static partial class Jpeg2000Codec
     }
 
     private static IEnumerable<PacketId> EnumeratePositional(
-        Tile tile, SizInfo siz, ProgressionChange ch, int layerEnd, int resEnd, int compEnd, long dx, long dy, StepBudget steps)
+        Tile tile, SizInfo siz, ProgressionChange ch, int layerEnd, int resEnd, int compEnd, long dx, long dy, DecodeBudget budget)
     {
         // RPCL = 2, PCRL = 3, CPRL = 4: the outer loops differ, the position loops are shared.
         if (ch.Order == 2)
@@ -345,12 +368,13 @@ public static partial class Jpeg2000Codec
                     {
                         for (var c = ch.CompStart; c < compEnd; c++)
                         {
-                            steps.Step();
+                            budget.ChargeProgression(1);
                             if (!TryFindPrecinct(tile, siz, c, r, x, y, out var k))
                             {
                                 continue;
                             }
 
+                            budget.ChargeProgression(layerEnd);
                             for (var l = 0; l < layerEnd; l++)
                             {
                                 yield return new PacketId(l, r, c, k);
@@ -370,12 +394,13 @@ public static partial class Jpeg2000Codec
                     {
                         for (var r = ch.ResStart; r < resEnd; r++)
                         {
-                            steps.Step();
+                            budget.ChargeProgression(1);
                             if (!TryFindPrecinct(tile, siz, c, r, x, y, out var k))
                             {
                                 continue;
                             }
 
+                            budget.ChargeProgression(layerEnd);
                             for (var l = 0; l < layerEnd; l++)
                             {
                                 yield return new PacketId(l, r, c, k);
@@ -395,12 +420,13 @@ public static partial class Jpeg2000Codec
                     {
                         for (var r = ch.ResStart; r < resEnd; r++)
                         {
-                            steps.Step();
+                            budget.ChargeProgression(1);
                             if (!TryFindPrecinct(tile, siz, c, r, x, y, out var k))
                             {
                                 continue;
                             }
 
+                            budget.ChargeProgression(layerEnd);
                             for (var l = 0; l < layerEnd; l++)
                             {
                                 yield return new PacketId(l, r, c, k);
@@ -420,11 +446,11 @@ public static partial class Jpeg2000Codec
     /// <param name="tile">The built tile geometry.</param>
     /// <param name="st">The coding state of the tile.</param>
     /// <param name="siz">The image size information.</param>
-    /// <param name="data">The collected tile-part data.</param>
-    private static void ReadTilePackets(Tile tile, CodingState st, SizInfo siz, TileData data)
+    /// <param name="body">The concatenated tile-part bodies.</param>
+    /// <param name="headers">The packet-header cursor: the packed headers when PPM/PPT are used, otherwise <paramref name="body"/>.</param>
+    /// <param name="budget">The decode-wide budget.</param>
+    private static void ReadTilePackets(Tile tile, CodingState st, SizInfo siz, ByteCursor body, ByteCursor headers, DecodeBudget budget)
     {
-        var body = new ByteCursor(data.Body.ToArray());
-        var headers = data.UsesPackedHeaders ? new ByteCursor(data.PackedHeaders.ToArray()) : body;
 
         // Per (component, resolution) base index so each packet has a unique slot in the "seen" bitmap.
         var bases = new long[tile.Comps.Length][];
@@ -443,7 +469,7 @@ public static partial class Jpeg2000Codec
         var seen = new bool[running * layers];
         var changes = st.Poc ?? [new ProgressionChange(0, 0, layers, 33, tile.Comps.Length, st.Progression)];
         var pending = new List<(CodeBlock Block, Segment Seg, int Length)>();
-        foreach (var id in EnumeratePackets(tile, siz, layers, changes, new StepBudget()))
+        foreach (var id in EnumeratePackets(tile, siz, layers, changes, budget))
         {
             var slot = ((bases[id.Comp][id.Res] + id.Precinct) * layers) + id.Layer;
             if (seen[slot])
@@ -543,9 +569,10 @@ public static partial class Jpeg2000Codec
             {
                 // Number of missing most significant bit-planes: decode the leaf value fully.
                 var i = 1;
+                // The count cannot reach TopPlanes: the block would have no bit-plane left to code.
                 while (!pb.ZeroBits!.DecodeBelow(br, cx, cy, i))
                 {
-                    if (++i > 128)
+                    if (++i > pb.TopPlanes)
                     {
                         throw Malformed("zero bit-plane count is out of range.");
                     }
@@ -565,14 +592,10 @@ public static partial class Jpeg2000Codec
                 }
             }
 
-            // A block can never carry more coding passes than its bit-planes allow.
+            // A block can never carry more coding passes than its bit-planes allow. TopPlanes was validated
+            // against MaxBitPlanes during geometry construction and ZeroBitPlanes is below it.
             var planes = pb.TopPlanes - cb.ZeroBitPlanes;
-            if (planes > 31)
-            {
-                throw Unsupported("jpeg2000-bitplanes", "more than 31 coded bit-planes.");
-            }
-
-            if (planes <= 0 || cb.TotalPasses + passes > (3 * planes) - 2)
+            if (cb.TotalPasses + passes > (3 * planes) - 2)
             {
                 throw Malformed("code-block pass count exceeds its bit-planes.");
             }
