@@ -88,7 +88,23 @@ public class Jpeg2000CodecTests
     private static J2kImage Img(int w, int h, int comps = 3, int depth = 8, int seed = 1, int noise = 24, bool signed = false) =>
         Jpeg2000TestEncoder.MakeImage(w, h, comps, depth, seed, noise, signed);
 
-    private static void AssertRejectedOrDecoded(byte[] data)
+    /// <summary>
+    ///     Asserts that decoding fails with exactly <see cref="InvalidDataException"/>, that the message names the
+    ///     expected cause and that the failure comes from explicit validation (no wrapped inner exception).
+    /// </summary>
+    private static void AssertMalformed(byte[] data, string cause, Jpeg2000DecoderLimits? limits = null)
+    {
+        var ex = Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(data, limits ?? Jpeg2000DecoderLimits.Default));
+        Assert.Contains(cause, ex.Message);
+        Assert.Null(ex.InnerException);
+    }
+
+    /// <summary>
+    ///     Outcome check for randomly mutated streams only. A random mutation of an entropy-coded payload or of an
+    ///     unrelated header field can still be a valid stream, so success is legitimate here; any failure must be
+    ///     one of the documented exception types raised by explicit validation, never a wrapped runtime error.
+    /// </summary>
+    private static void AssertFuzzOutcome(byte[] data)
     {
         try
         {
@@ -96,9 +112,59 @@ public class Jpeg2000CodecTests
         }
         catch (Exception ex) when (AllowedFailures.Contains(ex.GetType()))
         {
-            // Expected failure type; it must come from explicit validation, not from the Guard backstop.
             Assert.Null(ex.InnerException);
         }
+    }
+
+    /// <summary>
+    ///     Builds a hostile one-tile, no-decomposition stream of <paramref name="size"/> x <paramref name="size"/>
+    ///     pixels whose every code-block (<c>2^blockExp</c> square) declares <paramref name="passes"/> (6 to 164) coding
+    ///     passes in a single one-byte segment, with a bit-plane count that allows them. The stream stays tiny
+    ///     compared with the entropy-decoding work it asks for.
+    /// </summary>
+    private static byte[] HostileTier1Stream(int size, int blockExp, int passes = 88)
+    {
+        var o = Rev(0);
+        o.CodeBlockWidthExp = blockExp;
+        o.CodeBlockHeightExp = blockExp;
+        var data = Encode(Img(8, 8, 1), o);
+        var siz = FindMarker(data, 0xFF51);
+        var qcd = FindMarker(data, 0xFF5C);
+        var sot = FindMarker(data, 0xFF90);
+        var sod = FindMarker(data, 0xFF93) + 2;
+        byte[] dim = [(byte)(size >> 24), (byte)(size >> 16), (byte)(size >> 8), (byte)size];
+
+        // Two guard bits and an exponent of 29 give 30 bit-planes: 3 * 30 - 2 = 88 passes are legal.
+        var header = Patch(Patch(Patch(Patch(Patch(Patch(data[..sod], siz + 6, dim), siz + 10, dim), siz + 22, dim), siz + 26, dim), qcd + 4, 0x40, 29 << 3), sot + 6, 0, 0, 0, 0);
+        var blocks = size >> blockExp;
+        var inclusion = new Jpeg2000TestEncoder.TagTreeEncoder(blocks, blocks, new int[blocks * blocks]);
+        var zeroBits = new Jpeg2000TestEncoder.TagTreeEncoder(blocks, blocks, new int[blocks * blocks]);
+        var bits = new Jpeg2000TestEncoder.HeaderBitWriter();
+        bits.Bit(1);
+        for (var y = 0; y < blocks; y++)
+        {
+            for (var x = 0; x < blocks; x++)
+            {
+                inclusion.Encode(bits, x, y, 1);
+                zeroBits.Encode(bits, x, y, 1);
+                if (passes >= 37)
+                {
+                    bits.Bits(0x1FF, 9);
+                    bits.Bits(passes - 37, 7);
+                }
+                else
+                {
+                    bits.Bits(0xF, 4);
+                    bits.Bits(passes - 6, 5);
+                }
+
+                bits.Bit(0);
+                bits.Bits(1, 3 + (31 - int.LeadingZeroCount(passes)));
+            }
+        }
+
+        var packet = bits.Finish();
+        return [.. header, .. packet, .. new byte[blocks * blocks], 0xFF, 0xD9];
     }
 
     // ------------------------------------------------------------------------------------------
@@ -1003,6 +1069,22 @@ public class Jpeg2000CodecTests
         return copy;
     }
 
+    /// <summary>Patches the image size and the tile size of the SIZ marker segment.</summary>
+    private static byte[] Resize(byte[] data, int width, int height, int tileWidth, int tileHeight)
+    {
+        var siz = FindMarker(data, 0xFF51);
+        var copy = (byte[])data.Clone();
+        foreach (var (offset, value) in new[] { (6, width), (10, height), (22, tileWidth), (26, tileHeight) })
+        {
+            copy[siz + offset] = (byte)(value >> 24);
+            copy[siz + offset + 1] = (byte)(value >> 16);
+            copy[siz + offset + 2] = (byte)(value >> 8);
+            copy[siz + offset + 3] = (byte)value;
+        }
+
+        return copy;
+    }
+
     private static int FindMarker(byte[] data, int marker)
     {
         for (var i = 2; i < data.Length - 1; i++)
@@ -1159,16 +1241,18 @@ public class Jpeg2000CodecTests
         _ = Jpeg2000Codec.Decode(stream);
     }
 
-    /// <summary>Tests that truncations of larger generated streams fail cleanly or decode.</summary>
+    /// <summary>Tests that truncations of larger generated streams are always rejected (no partial decoding).</summary>
     [Fact]
-    public void Jpeg2000Codec_Decode_TruncationsOfLargeStreams_FailCleanly()
+    public void Jpeg2000Codec_Decode_TruncationsOfLargeStreams_ThrowsInvalidData()
     {
         foreach (var fixture in Fixtures())
         {
             var step = Math.Max(1, fixture.Length / 400);
-            for (var len = 0; len < fixture.Length; len += step)
+            for (var len = 0; len < fixture.Length - 16; len += step)
             {
-                AssertRejectedOrDecoded(fixture[..len]);
+                var prefix = fixture[..len];
+                var ex = Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(prefix));
+                Assert.Null(ex.InnerException);
             }
         }
     }
@@ -1192,7 +1276,7 @@ public class Jpeg2000CodecTests
                     copy[pos] ^= (byte)(1 << rng.Next(8));
                 }
 
-                AssertRejectedOrDecoded(copy);
+                AssertFuzzOutcome(copy);
             }
         }
 
@@ -1214,7 +1298,7 @@ public class Jpeg2000CodecTests
                 {
                     var copy = (byte[])fixture.Clone();
                     copy[pos] = value;
-                    AssertRejectedOrDecoded(copy);
+                    AssertFuzzOutcome(copy);
                 }
             }
         }
@@ -1222,43 +1306,9 @@ public class Jpeg2000CodecTests
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(20), "fuzzing took too long: " + watch.Elapsed);
     }
 
-    /// <summary>Tests huge declared dimensions, tile counts and precinct counts.</summary>
-    [Fact]
-    public void Jpeg2000Codec_Decode_HugeCounts_FailQuickly()
-    {
-        var data = Encode(Img(16, 16, 1), Rev(2));
-        var siz = FindMarker(data, 0xFF51);
-        var watch = Stopwatch.StartNew();
-        byte[] ff4 = [0xFF, 0xFF, 0xFF, 0xFF];
-        byte[] big = [0x7F, 0xFF, 0xFF, 0xFF];
-        byte[] one = [0, 0, 0, 1];
-        foreach (var field in new[] { 6, 10 })
-        {
-            AssertRejectedOrDecoded(Patch(data, siz + field, ff4));
-            AssertRejectedOrDecoded(Patch(data, siz + field, big));
-        }
-
-        // Huge image with tiny tiles: more than the permitted number of tiles.
-        var tiny = Patch(Patch(Patch(data, siz + 6, 0x00, 0x10, 0x00, 0x00), siz + 10, 0x00, 0x10, 0x00, 0x00), siz + 22, one);
-        tiny = Patch(tiny, siz + 26, one);
-        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(tiny));
-
-        // Huge image, one tile, tiny precincts and code-blocks: more than the permitted number of precincts or blocks.
-        var o = Rev(0);
-        o.Precincts = [(0, 0)];
-        o.CodeBlockWidthExp = 2;
-        o.CodeBlockHeightExp = 2;
-        var p = Encode(Img(16, 16, 1), o);
-        var siz2 = FindMarker(p, 0xFF51);
-        var bigImage = Patch(Patch(p, siz2 + 6, 0x00, 0x40, 0x00, 0x00), siz2 + 10, 0x00, 0x40, 0x00, 0x00);
-        bigImage = Patch(Patch(bigImage, siz2 + 22, 0x00, 0x40, 0x00, 0x00), siz2 + 26, 0x00, 0x40, 0x00, 0x00);
-        AssertRejectedOrDecoded(bigImage);
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), "hostile input took too long: " + watch.Elapsed);
-    }
-
     /// <summary>Tests marker segments with bad lengths.</summary>
     [Fact]
-    public void Jpeg2000Codec_Decode_BadMarkerLengths_FailCleanly()
+    public void Jpeg2000Codec_Decode_BadMarkerLengths_ThrowsInvalidData()
     {
         var data = Encode(Img(16, 16, 3), Rev(2));
         foreach (var marker in new[] { 0xFF51, 0xFF52, 0xFF5C })
@@ -1266,14 +1316,56 @@ public class Jpeg2000CodecTests
             var pos = FindMarker(data, marker);
             foreach (var len in new[] { 0x0000, 0x0001, 0x0002, 0x0003, 0x0100, 0xFFFF })
             {
-                AssertRejectedOrDecoded(Patch(data, pos + 2, (byte)(len >> 8), (byte)len));
+                var broken = Patch(data, pos + 2, (byte)(len >> 8), (byte)len);
+                var ex = Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(broken));
+                Assert.StartsWith("Invalid JPEG 2000 data: ", ex.Message);
+                Assert.Null(ex.InnerException);
             }
         }
+    }
 
+    /// <summary>Tests tile-part lengths that are inconsistent with the data.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_BadTilePartLengths_ThrowsInvalidData()
+    {
+        var data = Encode(Img(16, 16, 3), Rev(2));
         var sot = FindMarker(data, 0xFF90);
-        foreach (var psot in new[] { 0u, 1u, 11u, 13u, 0xFFFFFFFFu, 100000u })
+        foreach (var psot in new[] { 1u, 11u, 13u, 0xFFFFFFFFu, 100000u })
         {
-            AssertRejectedOrDecoded(Patch(data, sot + 6, (byte)(psot >> 24), (byte)(psot >> 16), (byte)(psot >> 8), (byte)psot));
+            var broken = Patch(data, sot + 6, (byte)(psot >> 24), (byte)(psot >> 16), (byte)(psot >> 8), (byte)psot);
+            var ex = Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(broken));
+            Assert.StartsWith("Invalid JPEG 2000 data: ", ex.Message);
+            Assert.Null(ex.InnerException);
+        }
+
+        // A zero length is legal for the last tile-part (it extends to the end of the data).
+        _ = Jpeg2000Codec.Decode(Patch(data, sot + 6, 0, 0, 0, 0));
+    }
+    /// <summary>Tests that tile-parts of a tile must come in order (TPsot) while the advisory count (TNsot) is not enforced.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_TilePartIndexes_AreCheckedAndCountIsAdvisory()
+    {
+        var o = Rev(2);
+        o.TileParts = 2;
+        var data = Encode(Img(16, 16, 1), o);
+        var first = FindMarker(data, 0xFF90);
+        var second = first + 2;
+        while (!(data[second] == 0xFF && data[second + 1] == 0x90))
+        {
+            second++;
+        }
+
+        // Layout of the SOT marker segment: marker, Lsot, Isot, Psot, TPsot (offset 10), TNsot (offset 11).
+        AssertMalformed(Patch(Patch(data, first + 10, 1), second + 10, 0), "tile-part index is out of sequence");
+        AssertMalformed(Patch(data, second + 10, 0), "tile-part index is out of sequence");
+        AssertMalformed(Patch(data, first + 10, 1), "tile-part index is out of sequence");
+
+        // The count is advisory: zero (unknown) and a wrong count decode to the same image.
+        var expected = Jpeg2000Codec.Decode(data).ColorSamples;
+        foreach (var count in new byte[] { 0, 1, 9 })
+        {
+            var counted = Patch(Patch(data, first + 11, count), second + 11, count);
+            Assert.Equal(expected, Jpeg2000Codec.Decode(counted).ColorSamples);
         }
     }
 
@@ -1292,7 +1384,7 @@ public class Jpeg2000CodecTests
                 copy[j] = (byte)rng.Next(256);
             }
 
-            AssertRejectedOrDecoded(copy);
+            AssertFuzzOutcome(copy);
         }
     }
 
@@ -1307,14 +1399,14 @@ public class Jpeg2000CodecTests
         {
             var copy = (byte[])jp2.Clone();
             copy[rng.Next(Math.Min(copy.Length, 220))] = (byte)rng.Next(256);
-            AssertRejectedOrDecoded(copy);
+            AssertFuzzOutcome(copy);
         }
 
         foreach (var len in new byte[][] { [0, 0, 0, 1], [0, 0, 0, 2], [0xFF, 0xFF, 0xFF, 0xFF], [0, 0, 0, 7] })
         {
-            AssertRejectedOrDecoded(Patch(jp2, 0, len));
-            AssertRejectedOrDecoded(Patch(jp2, 12, len));
-            AssertRejectedOrDecoded(Patch(jp2, 32, len));
+            AssertFuzzOutcome(Patch(jp2, 0, len));
+            AssertFuzzOutcome(Patch(jp2, 12, len));
+            AssertFuzzOutcome(Patch(jp2, 32, len));
         }
     }
 
@@ -1331,7 +1423,7 @@ public class Jpeg2000CodecTests
         {
             foreach (var v in new byte[] { 0, 1, 0x7F, 0xFF })
             {
-                AssertRejectedOrDecoded(Patch(data, poc + i, v));
+                AssertFuzzOutcome(Patch(data, poc + i, v));
             }
         }
     }
@@ -1340,18 +1432,46 @@ public class Jpeg2000CodecTests
     // Resource limits and hardening
     // ------------------------------------------------------------------------------------------
 
-    /// <summary>Tests that a hostile stream with thousands of identical progression changes fails closed quickly.</summary>
+    /// <summary>Tests that a stream declaring more progression changes than the cap is rejected when the marker is parsed.</summary>
     [Fact]
-    public void Jpeg2000Codec_Decode_ManyIdenticalPocEntries_ThrowsInvalidDataQuickly()
+    public void Jpeg2000Codec_Decode_MoreProgressionChangesThanCap_ThrowsInvalidData()
     {
         var o = Rev(3);
         o.Layers = 4;
         o.Poc = [.. Enumerable.Repeat(new J2kPoc(0, 0, 4, 4, 3, 0), 5000)];
-        var data = Encode(Img(32, 32, 3), o);
-        var watch = Stopwatch.StartNew();
-        var ex = Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(data));
-        Assert.Null(ex.InnerException);
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), "hostile POC took too long: " + watch.Elapsed);
+        AssertMalformed(Encode(Img(32, 32, 3), o), "too many progression order changes");
+
+        // A tighter custom cap applies as well, and the default cap is exactly reached by 128 entries.
+        o.Poc = [.. Enumerable.Repeat(new J2kPoc(0, 0, 4, 4, 3, 0), 5)];
+        AssertMalformed(Encode(Img(32, 32, 3), o), "too many progression order changes", new Jpeg2000DecoderLimits { MaxProgressionChanges = 4 });
+    }
+
+    /// <summary>Tests that progression volumes leaving packets uncovered are rejected instead of decoding a partial image.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_PocLeavingPacketsUncovered_ThrowsInvalidData()
+    {
+        const string cause = "the progression order does not cover every packet of the tile";
+
+        // Only the first layer is covered.
+        var layers = Rev(2);
+        layers.Layers = 2;
+        layers.Poc = [new J2kPoc(0, 0, 1, 3, 1, 0)];
+        AssertMalformed(Encode(Img(16, 16, 1), layers), cause);
+
+        // Only the first two of three components are covered, and the same applies to a tile-part POC with tiles.
+        var comps = Rev(2);
+        comps.Poc = [new J2kPoc(0, 0, 1, 3, 2, 1)];
+        AssertMalformed(Encode(Img(16, 16, 3), comps), cause);
+        comps.PocInTileHeader = true;
+        comps.TileWidth = 8;
+        comps.TileHeight = 8;
+        AssertMalformed(Encode(Img(16, 16, 3), comps), cause);
+
+        // Complementary volumes together cover everything and decode.
+        var full = Rev(2);
+        full.Layers = 2;
+        full.Poc = [new J2kPoc(0, 0, 1, 3, 1, 0), new J2kPoc(0, 0, 2, 3, 1, 1)];
+        AssertExact(Img(16, 16, 1), full);
     }
 
     /// <summary>Tests that a modest number of repeated progression volumes is deduplicated and still decodes.</summary>
@@ -1364,9 +1484,45 @@ public class Jpeg2000CodecTests
         AssertExact(Img(16, 16, 1), o);
     }
 
-    /// <summary>Tests that the decode-wide progression budget is cumulative and fails closed.</summary>
+    /// <summary>
+    ///     Builds a stream whose many overlapping progression volumes (each one layer longer than the last) make the
+    ///     decoder re-visit the same packets over and over: 1024 one-sample precincts and 128 layers.
+    /// </summary>
+    private static byte[] OverlappingVolumesStream()
+    {
+        var o = Rev(0);
+        o.Layers = 128;
+        o.Precincts = [(0, 0)];
+        o.Poc = [.. Enumerable.Range(1, 128).Select(l => new J2kPoc(0, 0, l, 1, 1, 0))];
+        return Encode(Img(32, 32, 1, noise: 0), o);
+    }
+
+    /// <summary>Tests that the cumulative progression budget rejects repeated visits of the same packets once the ceiling is tight.</summary>
     [Fact]
-    public void Jpeg2000Codec_DecodeBudget_IsCumulativeAcrossCharges()
+    public void Jpeg2000Codec_Decode_OverlappingProgressionVolumes_ThrowsInvalidData()
+    {
+        var data = OverlappingVolumesStream();
+        AssertMalformed(data, "progression order iteration exceeds the decoder limit", new Jpeg2000DecoderLimits { MaxProgressionSteps = 1_000_000 });
+
+        // The default allowance grows with the input (about 64 steps per byte), which a genuine stream of this size
+        // never exceeds, so the stream itself is valid and the ceiling is the only cause of the rejection above.
+        _ = Jpeg2000Codec.Decode(data);
+    }
+
+    /// <summary>Tests the progression ceiling with a tight custom limit on a valid stream.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_TightProgressionLimit_ThrowsInvalidData()
+    {
+        var o = Rev(2);
+        o.Layers = 2;
+        var data = Encode(Img(16, 16, 1), o);
+        AssertMalformed(data, "progression order iteration exceeds the decoder limit", new Jpeg2000DecoderLimits { MaxProgressionSteps = 3 });
+        _ = Jpeg2000Codec.Decode(data);
+    }
+
+    /// <summary>Tests that the decode-wide budget is cumulative, scales with the input and is capped by the limits.</summary>
+    [Fact]
+    public void Jpeg2000Codec_DecodeBudget_IsCumulativeAndScalesWithInput()
     {
         var limits = new Jpeg2000DecoderLimits { MaxProgressionSteps = 1000, MaxTier1Work = 100 };
         var budget = new Jpeg2000Codec.DecodeBudget(limits, 0);
@@ -1374,23 +1530,132 @@ public class Jpeg2000CodecTests
         Assert.Throws<InvalidDataException>(() => budget.ChargeProgression(600));
         budget.ChargeTier1(100);
         Assert.Throws<InvalidDataException>(() => budget.ChargeTier1(1));
+
+        // With the default limits a tiny input gets only the base allowance, a larger input more, and never more than the limit.
+        var tiny = new Jpeg2000Codec.DecodeBudget(Jpeg2000DecoderLimits.Default, 10);
+        tiny.ChargeProgression(1L << 22);
+        Assert.Throws<InvalidDataException>(() => tiny.ChargeProgression(1L << 12));
+        tiny.ChargeTier1(1L << 24);
+        Assert.Throws<InvalidDataException>(() => tiny.ChargeTier1(1L << 20));
+        var large = new Jpeg2000Codec.DecodeBudget(Jpeg2000DecoderLimits.Default, 1L << 20);
+        large.ChargeTier1(1L << 30);
+        Assert.Throws<InvalidDataException>(() => large.ChargeTier1(1));
     }
 
-    /// <summary>Tests that precinct counts are bounded by the amount of input data, before allocation.</summary>
+    /// <summary>Tests that the entropy-decoding work is bounded by an explicit limit.</summary>
     [Fact]
-    public void Jpeg2000Codec_Decode_PrecinctsFarExceedingData_ThrowsInvalidDataQuickly()
+    public void Jpeg2000Codec_Decode_TightTier1Limit_ThrowsInvalidData()
+    {
+        var data = Encode(Img(32, 32, 1), Rev(1));
+        AssertMalformed(data, "too much entropy-decoding work", new Jpeg2000DecoderLimits { MaxTier1Work = 1000 });
+        _ = Jpeg2000Codec.Decode(data);
+    }
+
+    /// <summary>
+    ///     Tests that a tiny stream declaring huge code-blocks with the maximum number of passes each is rejected by
+    ///     the input-scaled entropy-decoding budget before it can cost seconds of CPU time.
+    /// </summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_HostileTier1Work_ThrowsInvalidDataQuickly()
+    {
+        var data = HostileTier1Stream(2048, 6);
+        var watch = Stopwatch.StartNew();
+        AssertMalformed(data, "too much entropy-decoding work");
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), "hostile entropy-decoding work took too long: " + watch.Elapsed);
+    }
+
+    /// <summary>Tests the largest allowed image (8192 x 8192, 64 x 64 blocks, 88 passes per block) from about 60 KB of input.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_HostileMaximumImageTier1Work_ThrowsInvalidDataQuickly()
+    {
+        var data = HostileTier1Stream(8192, 6);
+        Assert.InRange(data.Length, 60_000, 80_000);
+        var watch = Stopwatch.StartNew();
+        AssertMalformed(data, "too much entropy-decoding work");
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(15), "hostile entropy-decoding work took too long: " + watch.Elapsed);
+    }
+
+    /// <summary>Tests that the hostile stream shape decodes when the work is within the budget (so the budget is the only cause).</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_SmallHostileShape_Decodes()
+    {
+        var image = Jpeg2000Codec.Decode(HostileTier1Stream(128, 6, 10));
+        Assert.Equal(128, image.Width);
+    }
+
+    /// <summary>Tests the image-size caps with sizes within the dimension limit so the caps themselves are reached.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_ImageBeyondDimensionLimit_ThrowsInvalidData()
+    {
+        var data = Encode(Img(16, 16, 1), Rev(2));
+        AssertMalformed(Resize(data, 8193, 16, 8193, 16), "pixel limit");
+        AssertMalformed(Resize(data, 16, 0x7FFFFFFF, 16, 0x7FFFFFFF), "pixel limit");
+        AssertMalformed(Resize(data, 4096, 4096, 4096, 4096), "decoder sample limit", new Jpeg2000DecoderLimits { MaxTotalSamples = 1 << 20 });
+        AssertMalformed(Resize(data, 4096, 4096, 4096, 4096), "tile exceeds the decoder sample limit", new Jpeg2000DecoderLimits { MaxTileSamples = 1 << 20 });
+    }
+
+    /// <summary>Tests the tile-count caps: the format maximum at parse time and the configured maximum.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_TooManyTiles_ThrowsInvalidData()
+    {
+        var data = Encode(Img(16, 16, 1), Rev(2));
+        AssertMalformed(Resize(data, 8192, 8192, 1, 1), "too many tiles");
+        AssertMalformed(Resize(data, 256, 256, 64, 64), "too many tiles", new Jpeg2000DecoderLimits { MaxTiles = 10 });
+
+        var tiled = Rev(2);
+        tiled.TileWidth = 64;
+        tiled.TileHeight = 64;
+        var tiledData = Encode(Img(256, 256, 1), tiled);
+        AssertMalformed(tiledData, "too many tiles", new Jpeg2000DecoderLimits { MaxTiles = 15 });
+        Assert.Equal(256, Jpeg2000Codec.Decode(tiledData, new Jpeg2000DecoderLimits { MaxTiles = 16 }).Width);
+    }
+
+    /// <summary>Tests the code-block cap of a tile with a tight custom limit and with the default limit at the maximum image size.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_TooManyCodeBlocks_ThrowsInvalidData()
+    {
+        var o = Rev(0);
+        o.CodeBlockWidthExp = 2;
+        o.CodeBlockHeightExp = 2;
+        var data = Encode(Img(16, 16, 1), o);
+        AssertMalformed(data, "tile has too many code-blocks", new Jpeg2000DecoderLimits { MaxTileCodeBlocks = 15 });
+        _ = Jpeg2000Codec.Decode(data, new Jpeg2000DecoderLimits { MaxTileCodeBlocks = 16 });
+
+        // 8192 x 8192 samples is within every size limit but needs 4 Mi code-blocks of 4 x 4 samples.
+        AssertMalformed(Resize(data, 8192, 8192, 8192, 8192), "tile has too many code-blocks");
+    }
+
+    /// <summary>Tests the precinct cap with a size within the dimension limit.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_TooManyPrecincts_ThrowsInvalidData()
     {
         var o = Rev(0);
         o.Precincts = [(0, 0)];
-        var p = Encode(Img(16, 16, 1), o);
-        var siz = FindMarker(p, 0xFF51);
-        byte[] size = [0x00, 0x00, 0x40, 0x00];
-        var big = Patch(Patch(Patch(Patch(p, siz + 6, size), siz + 10, size), siz + 22, size), siz + 26, size);
-        var watch = Stopwatch.StartNew();
-        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(big));
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), "hostile precincts took too long: " + watch.Elapsed);
+        var data = Encode(Img(16, 16, 1), o);
+
+        // 4096 x 4096 one-sample precincts: 16 Mi precincts against the cap of 256 Ki.
+        AssertMalformed(Resize(data, 4096, 4096, 4096, 4096), "tile has more precincts than the decoder limit");
+        AssertMalformed(data, "tile has more precincts than the decoder limit", new Jpeg2000DecoderLimits { MaxTilePrecincts = 255 });
+        _ = Jpeg2000Codec.Decode(data, new Jpeg2000DecoderLimits { MaxTilePrecincts = 256 });
     }
 
+    /// <summary>Tests the packet cap (precincts times layers) and the bound given by the amount of tile data.</summary>
+    [Fact]
+    public void Jpeg2000Codec_Decode_TooManyPackets_ThrowsInvalidData()
+    {
+        var o = Rev(0);
+        o.Layers = 3;
+        o.Precincts = [(4, 4)];
+        var data = Encode(Img(32, 32, 1), o);
+        AssertMalformed(data, "tile has more packets than the decoder limit", new Jpeg2000DecoderLimits { MaxTilePackets = 11 });
+        _ = Jpeg2000Codec.Decode(data, new Jpeg2000DecoderLimits { MaxTilePackets = 12 });
+
+        // 512 x 512 one-sample precincts are within the precinct cap but far more packets than a few hundred bytes can hold.
+        var tiny = Rev(0);
+        tiny.Precincts = [(0, 0)];
+        var hostile = Resize(Encode(Img(16, 16, 1), tiny), 512, 512, 512, 512);
+        AssertMalformed(hostile, "tile has more packets than its data can carry");
+    }
     /// <summary>Tests that a codestream missing a whole tile is rejected.</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_MissingTile_ThrowsInvalidData()
