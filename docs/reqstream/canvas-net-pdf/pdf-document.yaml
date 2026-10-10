@@ -306,7 +306,8 @@ sections:
               The PdfDocument class shall, when a caller-supplied password does not authenticate
               as the user password, next try it as the owner password (ISO 32000-1 Algorithm 3
               for R2-R4, recovering the padded user password from /O; the owner-password variant
-              of ISO 32000-2 Algorithm 2.A for R5, recovering the file key directly from /OE
+              of ISO 32000-2 Algorithm 2.A for R5 and R6, using the simple SHA-256 hash for R5 and
+              the Algorithm 2.B hardened hash for R6, recovering the file key directly from /OE
               using the full 48-byte /U value), decrypting and rendering the document normally
               when it is the document's correct owner password.
             justification: |

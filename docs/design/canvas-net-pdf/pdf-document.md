@@ -1526,7 +1526,7 @@ change behavior for any document within normal real-world limits.
   component count (`0` when none was declared) — `InvalidDataException`; an undeclared pattern
   name (feature `pdf-pattern-not-declared`) or an unsupported `/PatternType` (anything other than
   `1`/`2`, feature `pdf-pattern-type-{n}`) — `Codecs.UnsupportedImageFeatureException`.
-- **An unsupported shading pattern** — a `/ShadingType` other than `2`/`3` (feature
+- **An unsupported shading pattern** — a `/ShadingType` outside `2`–`7` (feature
   `pdf-shading-type-{n}`), or a `/ColorSpace` other than `DeviceGray`/`DeviceRGB`/`DeviceCMYK`
   (feature `pdf-shading-colorspace-{family}`) — `Codecs.UnsupportedImageFeatureException`. The
   `sh` operator reaching an undeclared shading name throws the same shape, feature
