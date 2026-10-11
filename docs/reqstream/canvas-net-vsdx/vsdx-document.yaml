@@ -818,3 +818,23 @@ sections:
               TxtAngle == 0 case.
             tests:
               - ResolveTextToPixelTransform_ComposesTxtAngleRotationAboutTextBoxPin
+
+          - id: CanvasNetVsdx-VsdxDocument-UnsupportedFeatureReporting
+            title: >-
+              The VsdxDocument class shall never silently degrade a recognized-but-unsupported
+              Visio construct: Render shall report each distinct unsupported feature on the page,
+              once per Render call, to VsdxRenderOptions.UnsupportedFeatureHandler (a stable
+              feature token plus message), and shall throw VsdxUnsupportedFeatureException
+              carrying that token when VsdxRenderOptions.ThrowOnUnsupportedFeature is set, while
+              rendering tolerantly (no throw, no report) under the default options.
+            justification: |
+              A fidelity audit of a real-world schematic found that several constructs (an
+              unrecognized geometry row type, an unmapped arrowhead index) were skipped with no
+              signal at all, so callers could not tell a faithful render from an approximated one.
+              A callback plus an opt-in strict mode makes degradation observable and testable
+              without breaking the existing tolerant-by-default contract.
+            tests:
+              - Render_UnsupportedConstructs_ReportedOncePerDistinctFeaturePerRender
+              - Render_UnsupportedConstructs_DefaultOptionsDoNotThrow
+              - Render_UnsupportedConstructs_StrictModeThrowsWithFeatureToken
+              - Render_FullySupportedPage_ReportsNothing

@@ -112,7 +112,10 @@ public sealed partial class VsdxDocument
                     // recognized row left it, rather than throwing. Confirmed exercised directly
                     // by davehoward-test5-master.vsdx's master1.xml, Shape ID='6', whose rounded-
                     // corner outline alternates recognized LineTo rows with unrecognized NURBSTo
-                    // rows.
+                    // rows. The skip is never silent: it is reported as an unsupported feature.
+                    ReportUnsupported(
+                        $"vsdx-geometry-row-{row.Type}",
+                        $"Geometry row type '{row.Type}' is not supported and was skipped.");
                     break;
             }
         }

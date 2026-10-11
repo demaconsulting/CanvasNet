@@ -65,11 +65,13 @@ public sealed partial class VsdxDocument
     /// </exception>
     /// <remarks>
     ///     A recognized-but-unsupported construct (an unrecognized arrowhead index, a dangling
-    ///     glue target, a non-solid fill pattern) never throws - it degrades to a tolerant,
-    ///     visually-reasonable default instead; every such degradation already happens during
-    ///     shape-tree resolution (see
-    ///     <c>VsdxDocument.Arrowheads.cs</c>/<c>VsdxDocument.Paint.cs</c>), so this method itself
-    ///     never needs to special-case one.
+    ///     glue target, a non-solid fill pattern) never throws by default - it degrades to a
+    ///     tolerant, visually-reasonable default instead, and is surfaced (never silently) through
+    ///     <see cref="VsdxRenderOptions.UnsupportedFeatureHandler"/>, or thrown as a
+    ///     <see cref="VsdxUnsupportedFeatureException"/> when
+    ///     <see cref="VsdxRenderOptions.ThrowOnUnsupportedFeature"/> is set. Every such
+    ///     degradation is detected during shape-tree resolution (see
+    ///     <c>VsdxDocument.Diagnostics.cs</c>).
     /// </remarks>
     public Surface Render(int pageIndex, int width, int height, VsdxRenderOptions? options = null)
     {
@@ -81,11 +83,12 @@ public sealed partial class VsdxDocument
         // tree is not resolved until Render is first called for that page.
         var pageSize = GetPageSize(pageIndex);
         var shapes = GetPageShapes(pageIndex);
+        var resolvedOptions = options ?? VsdxRenderOptions.Default;
+        DeliverUnsupportedFeatures(pageIndex, resolvedOptions);
 
         var surface = new Surface(width, height);
         try
         {
-            var resolvedOptions = options ?? VsdxRenderOptions.Default;
             surface.Clear(resolvedOptions.BackgroundColor);
 
             var widthInches = pageSize.WidthEmu / EmuPerInch;

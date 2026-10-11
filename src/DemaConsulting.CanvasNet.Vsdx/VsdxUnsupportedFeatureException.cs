@@ -5,13 +5,12 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 /// <summary>
 ///     The exception thrown when a <see cref="VsdxDocument"/> shape resolver refuses to resolve
 ///     an otherwise well-formed VisioML construct because it declares a feature not implemented
-///     (a recognized-but-deferred construct, distinct from a tolerant, silent skip, which is
-///     instead used for an unrecognized geometry row type or an unresolved "Themed" color - see
-///     <c>VsdxColorPalette.ThemedFallback</c>'s own remarks for the
-///     evidence-based justification of that choice). Not yet thrown by any resolver in this
-///     package - reserved for a future recognized-but-deferred VisioML construct requiring a hard
-///     failure, exactly mirroring <c>PptxUnsupportedFeatureException</c>'s own established
-///     precedent and contract.
+///     (a recognized-but-deferred construct, distinct from a tolerant, silent skip). Thrown by
+///     <c>VsdxDocument.Render</c> only when the caller opts in via
+///     <see cref="VsdxRenderOptions.ThrowOnUnsupportedFeature"/>; by default the construct is
+///     rendered tolerantly and reported through
+///     <see cref="VsdxRenderOptions.UnsupportedFeatureHandler"/> instead. Mirrors
+///     <c>PptxUnsupportedFeatureException</c>'s own established precedent and contract.
 /// </summary>
 /// <remarks>
 ///     Mirrors the sibling <c>DemaConsulting.CanvasNet.Pptx.PptxUnsupportedFeatureException</c>'s

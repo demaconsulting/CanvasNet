@@ -768,6 +768,21 @@ position/orientation. This is currently a matrix-composition-level unit test onl
 `Render_...`-level test yet proves a full page render of a rotated text box paints glyph ink at
 the rotated pixel location on a `Surface` - a candidate for future end-to-end coverage.
 
+#### CanvasNetVsdx-VsdxDocument-UnsupportedFeatureReporting: Unsupported Constructs Are Reported, Never Silent
+
+**Tests**: `Render_UnsupportedConstructs_ReportedOncePerDistinctFeaturePerRender`,
+`Render_UnsupportedConstructs_DefaultOptionsDoNotThrow`,
+`Render_UnsupportedConstructs_StrictModeThrowsWithFeatureToken`,
+`Render_FullySupportedPage_ReportsNothing`
+
+Arrange a synthetic page with a made-up geometry row type (twice, to prove de-duplication) and a
+connector with an unmapped `EndArrow` index. Rendering twice with a handler yields exactly the
+tokens `vsdx-arrowhead-99` and `vsdx-geometry-row-FutureRowKind` once per `Render` call (the
+second call replays the cached page's diagnostics). Default options neither report nor throw.
+`ThrowOnUnsupportedFeature` throws `VsdxUnsupportedFeatureException` whose `Feature` is the first
+token in ordinal order. A fully supported page reports nothing even in strict mode. No timing
+assertions.
+
 ### Supplementary (Non-Requirement-Mapped) Coverage
 
 Beyond the 43 `CanvasNetVsdx-VsdxDocument-*` requirement-mapped scenarios above, the test project

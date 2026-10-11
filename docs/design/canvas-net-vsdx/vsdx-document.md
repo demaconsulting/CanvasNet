@@ -317,6 +317,17 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   `VsdxPageInfo` size, converts it to pixel dimensions at the requested `dpi`, and delegates to
   the pixel-dimension overload above.
 
+- **Unsupported-feature reporting** (`VsdxDocument.Diagnostics.cs`): resolvers call
+  `ReportUnsupported(token, message)` whenever they degrade a recognized-but-unsupported construct
+  (currently `vsdx-geometry-row-<Type>` for an unrecognized geometry row and
+  `vsdx-arrowhead-<n>` for an unmapped arrowhead index on a 1-D shape). Page resolution is
+  synchronous and cached, so reports go to a thread-static collector scoped to a single
+  `GetPageShapes` resolution; the distinct tokens (first message wins, ordinal order) are stored
+  per page and replayed on every `Render`: to `VsdxRenderOptions.UnsupportedFeatureHandler` once
+  per feature per call, or - when `ThrowOnUnsupportedFeature` is set - as a
+  `VsdxUnsupportedFeatureException` carrying the token. Later rendering-fidelity features register
+  their own tokens through the same channel.
+
 ### Error Handling
 
 `ArgumentNullException` and `ArgumentException` are thrown synchronously from `Open` for a
@@ -326,10 +337,11 @@ converted internally. `ArgumentOutOfRangeException` is thrown synchronously from
 `InvalidDataException` is thrown for malformed package/XML structure that prevents correct
 resolution at all (an unreadable ZIP, a missing required part, a Master/MasterShape or group-
 nesting cycle, or a nesting-depth/shape-count budget exceeded) — these represent input the unit
-cannot safely process at all, as distinct from `VsdxUnsupportedFeatureException`, thrown for a
-recognized-but-deferred construct (see the Data Model section above), which is caught and
-degraded to a tolerant skip at the shape/row level wherever the format research's Risk Control
-Measures call for tolerance, and only propagates to the caller when no safe default exists.
+cannot safely process at all, as distinct from `VsdxUnsupportedFeatureException`, which signals a
+recognized-but-unsupported construct. By default such a construct is degraded to a tolerant skip
+at the shape/row level (per the format research's Risk Control Measures) and reported to
+`VsdxRenderOptions.UnsupportedFeatureHandler`; `VsdxRenderOptions.ThrowOnUnsupportedFeature`
+opts into the exception instead (see _Unsupported-feature reporting_ above).
 
 ### Dependencies
 
