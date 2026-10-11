@@ -18,6 +18,16 @@ words:
   - prefilter
   - prefiltered
   - resampler
+  - Strikethru
+  - Strikethrough
+  - linepattern
+  - initialcaps
+  - Foregnd
+  - THEMEVAL
+  - NURBS
+  - Segoe
+  - Symbola
+  - Noto
   - dctdecode
   - Lsiz
   - smaskindata

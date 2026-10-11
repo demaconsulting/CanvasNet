@@ -42,6 +42,7 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     no-op.
 /// </param>
 /// <param name="EndArrowhead">The shape's resolved <c>EndArrow</c>/<c>EndArrowSize</c> arrowhead - see <see cref="BeginArrowhead"/>'s own remarks.</param>
+/// <param name="DashPattern">The resolved <c>LinePattern</c> as alternating dash/gap lengths in multiples of the line weight (see <c>VsdxLinePattern</c>), or <see langword="null"/> for a solid line.</param>
 internal sealed record VsdxResolvedPaint(
     bool HasLine,
     Rgba32 StrokeColor,
@@ -49,4 +50,5 @@ internal sealed record VsdxResolvedPaint(
     bool HasFill,
     Rgba32 FillColor,
     VsdxArrowhead BeginArrowhead,
-    VsdxArrowhead EndArrowhead);
+    VsdxArrowhead EndArrowhead,
+    float[]? DashPattern = null);

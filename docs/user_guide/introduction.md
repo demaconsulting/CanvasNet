@@ -1404,7 +1404,11 @@ automatically - no separate API is needed to opt into any of them. A `NonPrintin
 own fill/stroke/text/arrowhead paint (but still recurses into its own children); a `HideText` shape
 skips only its own text paint; and a resolved sub-pixel `LineWeight` is floored to a minimum
 visible stroke width rather than vanishing entirely, mirroring Visio's own "always draw a
-perceptible line" rendering convention. **Documented scope boundaries**: embedded images/foreign
+perceptible line" rendering convention. Constructs the renderer recognizes but cannot (fully)
+render are never skipped silently: set `VsdxRenderOptions.UnsupportedFeatureHandler` to receive a
+`VsdxUnsupportedFeature` (stable `Feature` token plus message) once per distinct feature per
+`Render` call, or set `ThrowOnUnsupportedFeature` to get a `VsdxUnsupportedFeatureException`
+instead (rendering is tolerant by default). **Documented scope boundaries**: embedded images/foreign
 shapes, non-trivial theme-variation resolution, non-solid fill-pattern combinations beyond solid
 (including any gradient approximation), the full arrowhead style-index table, and a handful of
 rarely-encountered geometry row types (`NURBSTo`, `InfiniteLine`, `RelCubBezTo`, `SplineStart`/

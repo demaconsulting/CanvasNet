@@ -95,6 +95,7 @@ internal sealed class CmapTable
 
         var numTables = SfntContainer.ReadUInt16(data, tableOffset + 2);
         var candidates = new List<(int Priority, int SubtableOffset, int Format)>();
+        var symbolSubtables = new HashSet<int>();
 
         var recordsEnd = checked((long)8 + (long)numTables * 8);
         if (recordsEnd > tableLength)
@@ -116,6 +117,11 @@ internal sealed class CmapTable
 
             var absoluteSubtableOffset = tableOffset + subtableOffset;
             var format = SfntContainer.ReadUInt16(data, absoluteSubtableOffset);
+
+            if (platformId == 3 && encodingId == 0)
+            {
+                symbolSubtables.Add(absoluteSubtableOffset);
+            }
 
             var priority = ClassifyPriority(platformId, encodingId, format);
             if (priority >= 0)
@@ -141,6 +147,18 @@ internal sealed class CmapTable
 
             if (lookup != null)
             {
+                if (symbolSubtables.Contains(candidate.SubtableOffset))
+                {
+                    // Symbol-encoded fonts map their 8-bit codes into U+F000..U+F0FF; accept the
+                    // plain 8-bit code (what text in a symbol font actually contains) as well.
+                    var inner = lookup;
+                    lookup = codepoint =>
+                    {
+                        var direct = inner(codepoint);
+                        return direct != 0 || codepoint is < 0x20 or > 0xFF ? direct : inner(0xF000 | codepoint);
+                    };
+                }
+
                 return new CmapTable(lookup);
             }
         }
@@ -224,6 +242,12 @@ internal sealed class CmapTable
         if (platformId == 0 && format == 4)
         {
             return 4;
+        }
+
+        // Windows Symbol encoding (Wingdings, Webdings, Symbol ...): see ParseSymbol handling in Parse.
+        if (platformId == 3 && encodingId == 0 && format == 4)
+        {
+            return 5;
         }
 
         return -1;

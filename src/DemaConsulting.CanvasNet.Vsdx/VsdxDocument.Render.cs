@@ -65,11 +65,13 @@ public sealed partial class VsdxDocument
     /// </exception>
     /// <remarks>
     ///     A recognized-but-unsupported construct (an unrecognized arrowhead index, a dangling
-    ///     glue target, a non-solid fill pattern) never throws - it degrades to a tolerant,
-    ///     visually-reasonable default instead; every such degradation already happens during
-    ///     shape-tree resolution (see
-    ///     <c>VsdxDocument.Arrowheads.cs</c>/<c>VsdxDocument.Paint.cs</c>), so this method itself
-    ///     never needs to special-case one.
+    ///     glue target, a non-solid fill pattern) never throws by default - it degrades to a
+    ///     tolerant, visually-reasonable default instead, and is surfaced (never silently) through
+    ///     <see cref="VsdxRenderOptions.UnsupportedFeatureHandler"/>, or thrown as a
+    ///     <see cref="VsdxUnsupportedFeatureException"/> when
+    ///     <see cref="VsdxRenderOptions.ThrowOnUnsupportedFeature"/> is set. Every such
+    ///     degradation is detected during shape-tree resolution (see
+    ///     <c>VsdxDocument.Diagnostics.cs</c>).
     /// </remarks>
     public Surface Render(int pageIndex, int width, int height, VsdxRenderOptions? options = null)
     {
@@ -81,11 +83,12 @@ public sealed partial class VsdxDocument
         // tree is not resolved until Render is first called for that page.
         var pageSize = GetPageSize(pageIndex);
         var shapes = GetPageShapes(pageIndex);
+        var resolvedOptions = options ?? VsdxRenderOptions.Default;
+        DeliverUnsupportedFeatures(pageIndex, resolvedOptions);
 
         var surface = new Surface(width, height);
         try
         {
-            var resolvedOptions = options ?? VsdxRenderOptions.Default;
             surface.Clear(resolvedOptions.BackgroundColor);
 
             var widthInches = pageSize.WidthEmu / EmuPerInch;
@@ -188,6 +191,11 @@ public sealed partial class VsdxDocument
     /// </param>
     private void RenderShapeRecursive(Surface surface, VsdxShapeNode shape, Matrix3x2 parentToPixel, Matrix3x2 pageToPixel)
     {
+        // A shape on only hidden/non-printing layers is not drawn, nor is anything inside it.
+        if (shape.HiddenByLayer)
+        {
+            return;
+        }
         var localToPixel = shape.Transform!.ToPageMatrix() * parentToPixel;
 
         // A NonPrinting shape (Visio's own per-shape, non-inherited "exclude from print/export"
@@ -256,7 +264,7 @@ public sealed partial class VsdxDocument
             if (paint.HasLine && !geometry.NoLine)
             {
                 var strokeWidthPixels = Math.Max((float)(paint.StrokeWidthInches * AverageScale(localToPixel)), MinStrokeWidthPixels);
-                PaintStroke(surface, transformedPath, paint.StrokeColor, strokeWidthPixels);
+                PaintStroke(surface, transformedPath, paint.StrokeColor, strokeWidthPixels, paint.DashPattern);
             }
         }
     }
@@ -357,14 +365,25 @@ public sealed partial class VsdxDocument
     /// <param name="pixelSpacePath">The already pixel-space-transformed path to stroke.</param>
     /// <param name="color">The stroke color.</param>
     /// <param name="strokeWidthPixels">The stroke width, in pixels.</param>
-    private static void PaintStroke(Surface surface, Path pixelSpacePath, Rgba32 color, float strokeWidthPixels)
+    /// <param name="dashPattern">Optional dash/gap lengths in multiples of <paramref name="strokeWidthPixels"/>; <see langword="null"/> for solid.</param>
+    private static void PaintStroke(Surface surface, Path pixelSpacePath, Rgba32 color, float strokeWidthPixels, float[]? dashPattern = null)
     {
         if (!float.IsFinite(strokeWidthPixels) || strokeWidthPixels <= 0f)
         {
             return;
         }
 
-        var outline = PathStroker.Stroke(pixelSpacePath, new StrokeStyle(strokeWidthPixels));
+        float[]? dashArray = null;
+        if (dashPattern is not null)
+        {
+            dashArray = new float[dashPattern.Length];
+            for (var i = 0; i < dashArray.Length; i++)
+            {
+                dashArray[i] = dashPattern[i] * strokeWidthPixels;
+            }
+        }
+
+        var outline = PathStroker.Stroke(pixelSpacePath, new StrokeStyle(strokeWidthPixels, dashArray: dashArray));
         PathFiller.Fill(surface, outline, color);
     }
 

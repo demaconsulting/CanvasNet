@@ -38,12 +38,17 @@ public sealed partial class VsdxDocument
     ///     that bypasses installed-font discovery entirely for deterministic, machine-independent
     ///     assertions, mirroring <c>PptxDocument.ResolveTextLayout</c>'s own test seam.
     /// </param>
+    /// <param name="glyphFallbackResolver">
+    ///     Optional per-glyph fallback: given a code point the run's font lacks (plus the run's
+    ///     bold/italic), returns a font that has it, or <see langword="null"/> when none does.
+    /// </param>
     /// <returns>The resolved <see cref="VsdxTextLayout"/>. Empty (no glyphs) when <paramref name="runs"/> is empty.</returns>
     internal static VsdxTextLayout ResolveTextLayout(
         IReadOnlyList<VsdxEffectiveTextRun> runs,
         VsdxTextBoxTransform textBox,
         VsdxEffectiveTextBoxStyle textBoxStyle,
-        Func<string, bool, bool, TrueTypeFont> fontResolver)
+        Func<string, bool, bool, TrueTypeFont> fontResolver,
+        Func<int, bool, bool, TrueTypeFont?>? glyphFallbackResolver = null)
     {
         if (runs.Count == 0)
         {
@@ -86,7 +91,7 @@ public sealed partial class VsdxDocument
         var lines = new List<LineBox>();
         foreach (var paragraph in SplitIntoParagraphs(runs))
         {
-            lines.AddRange(BuildParagraphLines(paragraph, availableWidth, ResolveFont));
+            lines.AddRange(BuildParagraphLines(paragraph, availableWidth, ResolveFont, glyphFallbackResolver));
         }
 
         return PositionLines(lines, textBoxStyle.VerticalAlign, contentLeft, contentTop, availableWidth, availableHeight);
@@ -134,6 +139,9 @@ public sealed partial class VsdxDocument
     /// <summary>A single laid-out glyph, positioned relative to its own line's start (alignment/indent not yet applied).</summary>
     private readonly record struct LineGlyph(TrueTypeFont Font, int GlyphIndex, double XInLineInches, double SizeInches, Canvas.Rgba32 Color);
 
+    /// <summary>A decoration bar in line-relative coordinates: X range, the decoration kind, and the em size/color/ascent of the run it belongs to.</summary>
+    private readonly record struct LineBar(double X0, double X1, VsdxTextDecoration Kind, double SizeInches, Canvas.Rgba32 Color, double AscentEm);
+
     /// <summary>A single word-wrapped line, ready for alignment/vertical-anchor positioning.</summary>
     private sealed record LineBox(
         IReadOnlyList<LineGlyph> Glyphs,
@@ -142,7 +150,8 @@ public sealed partial class VsdxDocument
         double AscentInches,
         VsdxEffectiveParagraphProperties ParagraphProperties,
         bool IsFirstLineOfParagraph,
-        double LeadingGapInches);
+        double LeadingGapInches,
+        IReadOnlyList<LineBar> Bars);
 
     /// <summary>
     ///     Tokenizes a paragraph piece's text into whitespace/non-whitespace runs, each carrying
@@ -150,7 +159,11 @@ public sealed partial class VsdxDocument
     ///     trimmed of the tab-stop special case (no tab-stop concept exists for VisioML text,
     ///     out of scope for this milestone).
     /// </summary>
-    private static List<ResolvedToken> Tokenize(string text, VsdxEffectiveTextRun run, TrueTypeFont font)
+    private static List<ResolvedToken> Tokenize(
+        string text,
+        VsdxEffectiveTextRun run,
+        TrueTypeFont font,
+        Func<int, bool, bool, TrueTypeFont?>? fallback)
     {
         var tokens = new List<ResolvedToken>();
         var start = 0;
@@ -164,7 +177,7 @@ public sealed partial class VsdxDocument
             }
 
             var token = text[start..end];
-            tokens.Add(new ResolvedToken(token, isWhitespace, run, font, MeasureTokenWidthInches(token, font, run.SizeInches)));
+            tokens.Add(new ResolvedToken(token, isWhitespace, run, font, MeasureTokenWidthInches(token, font, run, isWhitespace ? null : fallback)));
             start = end;
         }
 
@@ -172,16 +185,53 @@ public sealed partial class VsdxDocument
     }
 
     /// <summary>Measures a token's natural advance width, in inches, summing each Unicode scalar value's font-metric advance.</summary>
-    private static double MeasureTokenWidthInches(string text, TrueTypeFont font, double sizeInches)
+    private static double MeasureTokenWidthInches(
+        string text,
+        TrueTypeFont font,
+        VsdxEffectiveTextRun run,
+        Func<int, bool, bool, TrueTypeFont?>? fallback)
     {
         var total = 0d;
         foreach (var rune in text.EnumerateRunes())
         {
-            var glyphIndex = font.GetGlyphIndex(rune.Value);
-            total += font.GetAdvanceWidth(glyphIndex) / (double)font.UnitsPerEm * sizeInches;
+            var glyphFont = SelectGlyphFont(font, rune, run, fallback, out var glyphIndex);
+            total += glyphFont.GetAdvanceWidth(glyphIndex) / (double)glyphFont.UnitsPerEm * run.SizeInches;
         }
 
         return total;
+    }
+
+    /// <summary>
+    ///     Picks the font used to draw one code point: the run's own font when it has a glyph for
+    ///     it, otherwise the per-glyph fallback font (when the fallback supplies one), otherwise
+    ///     the run's font again (drawing its missing-glyph outline). Control and format characters
+    ///     never trigger fallback.
+    /// </summary>
+    private static TrueTypeFont SelectGlyphFont(
+        TrueTypeFont primary,
+        System.Text.Rune rune,
+        VsdxEffectiveTextRun run,
+        Func<int, bool, bool, TrueTypeFont?>? fallback,
+        out int glyphIndex)
+    {
+        glyphIndex = primary.GetGlyphIndex(rune.Value);
+        if (glyphIndex != 0 || fallback is null || Rune.IsControl(rune) || Rune.IsWhiteSpace(rune) ||
+            Rune.GetUnicodeCategory(rune) == System.Globalization.UnicodeCategory.Format)
+        {
+            return primary;
+        }
+
+        var alternate = fallback(rune.Value, run.Bold, run.Italic);
+        if (alternate is null)
+        {
+            ReportUnsupported(
+                "vsdx-text-missing-glyph",
+                $"No installed font has a glyph for U+{rune.Value:X4}; the font's missing-glyph box is drawn instead.");
+            return primary;
+        }
+
+        glyphIndex = alternate.GetGlyphIndex(rune.Value);
+        return alternate;
     }
 
     /// <summary>
@@ -263,7 +313,8 @@ public sealed partial class VsdxDocument
     private static List<LineBox> BuildParagraphLines(
         List<(string Text, VsdxEffectiveTextRun Run)> paragraphPieces,
         double availableWidthInches,
-        Func<string, bool, bool, TrueTypeFont> resolveFont)
+        Func<string, bool, bool, TrueTypeFont> resolveFont,
+        Func<int, bool, bool, TrueTypeFont?>? glyphFallback)
     {
         var paragraphProperties = paragraphPieces.Count > 0 ? paragraphPieces[0].Run.Paragraph : DefaultParagraphProperties;
         var effectiveWidth = Math.Max(0d, availableWidthInches - paragraphProperties.IndLeft - paragraphProperties.IndRight);
@@ -271,7 +322,7 @@ public sealed partial class VsdxDocument
         var tokens = new List<ResolvedToken>();
         foreach (var (text, run) in paragraphPieces)
         {
-            tokens.AddRange(Tokenize(text, run, resolveFont(run.FontFamily, run.Bold, run.Italic)));
+            tokens.AddRange(Tokenize(text, run, resolveFont(run.FontFamily, run.Bold, run.Italic), glyphFallback));
         }
 
         var wrappedLines = PackTokensIntoLines(tokens, effectiveWidth);
@@ -294,12 +345,14 @@ public sealed partial class VsdxDocument
             var isLastLine = lineIndex == wrappedLines.Count - 1;
 
             var lineGlyphs = new List<LineGlyph>();
+            var lineBars = new List<LineBar>();
             var x = isFirstLine ? paragraphProperties.IndFirst : 0d;
             var maxAscent = 0d;
             var maxDescent = 0d;
 
             foreach (var token in lineTokens)
             {
+                var tokenStartX = x;
                 var ascent = token.Font.Ascender / (double)token.Font.UnitsPerEm * token.Run.SizeInches;
                 var descent = -token.Font.Descender / (double)token.Font.UnitsPerEm * token.Run.SizeInches;
                 maxAscent = Math.Max(maxAscent, ascent);
@@ -309,14 +362,39 @@ public sealed partial class VsdxDocument
                 {
                     foreach (var rune in token.Text.EnumerateRunes())
                     {
-                        var glyphIndex = token.Font.GetGlyphIndex(rune.Value);
-                        lineGlyphs.Add(new LineGlyph(token.Font, glyphIndex, x, token.Run.SizeInches, token.Run.Color));
-                        x += token.Font.GetAdvanceWidth(glyphIndex) / (double)token.Font.UnitsPerEm * token.Run.SizeInches;
+                        var glyphFont = SelectGlyphFont(token.Font, rune, token.Run, glyphFallback, out var glyphIndex);
+                        lineGlyphs.Add(new LineGlyph(glyphFont, glyphIndex, x, token.Run.SizeInches, token.Run.Color));
+                        x += glyphFont.GetAdvanceWidth(glyphIndex) / (double)glyphFont.UnitsPerEm * token.Run.SizeInches;
                     }
                 }
                 else
                 {
                     x += token.WidthInches;
+                }
+
+                if (token.Run.Decoration != VsdxTextDecoration.None)
+                {
+                    var ascentEm = token.Font.Ascender / (double)token.Font.UnitsPerEm;
+                    foreach (var kind in new[] { VsdxTextDecoration.Underline, VsdxTextDecoration.Strikethrough, VsdxTextDecoration.DoubleStrikethrough, VsdxTextDecoration.Overline })
+                    {
+                        if ((token.Run.Decoration & kind) == 0)
+                        {
+                            continue;
+                        }
+
+                        // Extend the previous bar when it is the same kind/size/color and abuts this
+                        // token, so a decoration spanning several tokens is one unbroken bar.
+                        var last = lineBars.Count - 1;
+                        if (last >= 0 && lineBars[last].Kind == kind && Math.Abs(lineBars[last].SizeInches - token.Run.SizeInches) < 1e-9 &&
+                            lineBars[last].Color == token.Run.Color && Math.Abs(lineBars[last].X1 - tokenStartX) < 1e-9)
+                        {
+                            lineBars[last] = lineBars[last] with { X1 = x };
+                        }
+                        else
+                        {
+                            lineBars.Add(new LineBar(tokenStartX, x, kind, token.Run.SizeInches, token.Run.Color, ascentEm));
+                        }
+                    }
                 }
             }
 
@@ -340,7 +418,7 @@ public sealed partial class VsdxDocument
             var leadingGap = isFirstLine ? paragraphProperties.SpBefore : 0d;
             var trailingGap = isLastLine ? paragraphProperties.SpAfter : 0d;
 
-            lines.Add(new LineBox(lineGlyphs, x, scaledLineHeight + trailingGap, maxAscent, paragraphProperties, isFirstLine, leadingGap));
+            lines.Add(new LineBox(lineGlyphs, x, scaledLineHeight + trailingGap, maxAscent, paragraphProperties, isFirstLine, leadingGap, lineBars));
         }
 
         return lines;
@@ -375,6 +453,7 @@ public sealed partial class VsdxDocument
         };
 
         var glyphs = new List<VsdxGlyphPlacement>();
+        var bars = new List<VsdxDecorationBar>();
         var runningTopY = startTopY;
 
         foreach (var line in lines)
@@ -394,9 +473,32 @@ public sealed partial class VsdxDocument
                 glyphs.Add(new VsdxGlyphPlacement(glyph.Font, glyph.GlyphIndex, startX + glyph.XInLineInches, baselineY, glyph.SizeInches, glyph.Color));
             }
 
+            foreach (var bar in line.Bars)
+            {
+                var thickness = Math.Max(bar.SizeInches * 0.05d, 0.004d);
+                var centerY = bar.Kind switch
+                {
+                    VsdxTextDecoration.Underline => baselineY - bar.SizeInches * 0.12d,
+                    VsdxTextDecoration.Strikethrough => baselineY + bar.SizeInches * 0.3d,
+                    VsdxTextDecoration.DoubleStrikethrough => baselineY + bar.SizeInches * 0.3d,
+                    _ => baselineY + bar.SizeInches * bar.AscentEm + thickness,
+                };
+
+                if (bar.Kind == VsdxTextDecoration.DoubleStrikethrough)
+                {
+                    var offset = bar.SizeInches * 0.06d;
+                    bars.Add(new VsdxDecorationBar(startX + bar.X0, startX + bar.X1, centerY + offset, thickness, bar.Color));
+                    bars.Add(new VsdxDecorationBar(startX + bar.X0, startX + bar.X1, centerY - offset, thickness, bar.Color));
+                }
+                else
+                {
+                    bars.Add(new VsdxDecorationBar(startX + bar.X0, startX + bar.X1, centerY, thickness, bar.Color));
+                }
+            }
+
             runningTopY -= line.LineHeightInches;
         }
 
-        return new VsdxTextLayout(glyphs);
+        return new VsdxTextLayout(glyphs, bars);
     }
 }

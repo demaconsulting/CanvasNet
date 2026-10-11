@@ -317,6 +317,45 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   `VsdxPageInfo` size, converts it to pixel dimensions at the requested `dpi`, and delegates to
   the pixel-dimension overload above.
 
+- **Unsupported-feature reporting** (`VsdxDocument.Diagnostics.cs`): resolvers call
+  `ReportUnsupported(token, message)` whenever they degrade a recognized-but-unsupported construct
+  (currently `vsdx-geometry-row-<Type>` for an unrecognized geometry row and
+  `vsdx-arrowhead-<n>` for an unmapped arrowhead index on a 1-D shape). Page resolution is
+  synchronous and cached, so reports go to a thread-static collector scoped to a single
+  `GetPageShapes` resolution; the distinct tokens (first message wins, ordinal order) are stored
+  per page and replayed on every `Render`: to `VsdxRenderOptions.UnsupportedFeatureHandler` once
+  per feature per call, or - when `ThrowOnUnsupportedFeature` is set - as a
+  `VsdxUnsupportedFeatureException` carrying the token. Later rendering-fidelity features register
+  their own tokens through the same channel.
+
+- **Line patterns** (`VsdxLinePattern.cs`): the resolved `LinePattern` value (0 none, 1 solid)
+  maps to a dash array in multiples of the line weight, applied by `PaintStroke` through
+  `StrokeStyle.DashArray`. Patterns 2-5 are canonical; 6-22 are approximated (reported as
+  `vsdx-linepattern-<n>-approximated`); 23 (custom) and above draw solid and report
+  `vsdx-linepattern-<n>`. Arrowheads are always painted solid.
+
+- **Text decorations** (`VsdxDocument.TextStyle.cs`/`TextLayout.cs`/`TextRender.cs`): a run's
+  `VsdxTextDecoration` flags come from Character `Style` bit 2 and the `Strikethru`,
+  `DoubleStrikethrough` and `Overline` cells. The layout emits one merged `VsdxDecorationBar` per
+  contiguous decorated span per line (whitespace included) at em-relative offsets from the
+  baseline, painted as filled rectangles before the glyphs. Style bit 3 (small caps) expands a
+  run into capital segments (80% size for lowercase letters), `Case=1` upper-cases, `ColorTrans`
+  lowers the alpha; `Pos` (super/subscript) and initial-caps `Case` are reported as unsupported.
+
+- **Layer visibility** (`VsdxDocument.Pages.cs`): each page's `PageSheet` layer table is parsed
+  (a layer is shown only when neither `Visible` nor `Print` is `0`, since rendering is an
+  export). After a page's shape tree is resolved, a shape whose own `LayerMember` list contains
+  only known hidden layers gets `HiddenByLayer`, and `RenderShapeRecursive` skips it and its
+  subtree. A shape on any shown layer, on no layer, or on unknown layers stays visible. The
+  existing `HideText` and `NonPrinting` handling is unchanged.
+
+- **Glyph fallback** (`VsdxDocument.TextLayout.cs`, `TextRender.cs`): when a non-whitespace code
+  point has no glyph in the run's font, `SelectGlyphFont` asks `ResolveGlyphFallbackFont`
+  (preferred symbol families such as Segoe UI Symbol, Arial Unicode MS, Cambria Math, DejaVu
+  Sans, then any catalog face, then the bundled Liberation faces; results cached) and uses the
+  returned font for both measurement and the placed glyph. No coverage reports
+  `vsdx-text-missing-glyph`. Tests inject their own resolver.
+
 ### Error Handling
 
 `ArgumentNullException` and `ArgumentException` are thrown synchronously from `Open` for a
@@ -326,10 +365,11 @@ converted internally. `ArgumentOutOfRangeException` is thrown synchronously from
 `InvalidDataException` is thrown for malformed package/XML structure that prevents correct
 resolution at all (an unreadable ZIP, a missing required part, a Master/MasterShape or group-
 nesting cycle, or a nesting-depth/shape-count budget exceeded) — these represent input the unit
-cannot safely process at all, as distinct from `VsdxUnsupportedFeatureException`, thrown for a
-recognized-but-deferred construct (see the Data Model section above), which is caught and
-degraded to a tolerant skip at the shape/row level wherever the format research's Risk Control
-Measures call for tolerance, and only propagates to the caller when no safe default exists.
+cannot safely process at all, as distinct from `VsdxUnsupportedFeatureException`, which signals a
+recognized-but-unsupported construct. By default such a construct is degraded to a tolerant skip
+at the shape/row level (per the format research's Risk Control Measures) and reported to
+`VsdxRenderOptions.UnsupportedFeatureHandler`; `VsdxRenderOptions.ThrowOnUnsupportedFeature`
+opts into the exception instead (see _Unsupported-feature reporting_ above).
 
 ### Dependencies
 

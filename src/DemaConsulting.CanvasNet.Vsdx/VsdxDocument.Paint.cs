@@ -76,6 +76,16 @@ public sealed partial class VsdxDocument
             ? parsedWeight
             : 0d;
 
+        var dashPattern = VsdxLinePattern.Resolve(linePattern, out var patternFeature);
+        if (hasLine && patternFeature is not null)
+        {
+            ReportUnsupported(
+                patternFeature,
+                patternFeature.EndsWith("-approximated", StringComparison.Ordinal)
+                    ? $"LinePattern '{linePattern}' is drawn with an approximated dash pattern."
+                    : $"LinePattern '{linePattern}' is not supported; the line is drawn solid.");
+        }
+
         var beginArrowhead = ResolveArrowhead(effectiveCells, lineStyleId, isBegin: true);
         var endArrowhead = ResolveArrowhead(effectiveCells, lineStyleId, isBegin: false);
 
@@ -91,7 +101,8 @@ public sealed partial class VsdxDocument
             HasFill: hasFill,
             FillColor: ApplyTransparency(fillColor, fillTransRaw),
             BeginArrowhead: beginArrowhead,
-            EndArrowhead: endArrowhead);
+            EndArrowhead: endArrowhead,
+            DashPattern: dashPattern);
     }
 
     /// <summary>

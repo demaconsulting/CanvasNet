@@ -87,6 +87,79 @@ public sealed partial class VsdxDocument
     private string? _themePartPath;
 
     /// <summary>
+    ///     Each page's layer table (<c>PageSheet</c>'s <c>Section N="Layer"</c>): layer row index
+    ///     to whether the layer is shown on screen (<c>Visible</c>) and in print/export
+    ///     (<c>Print</c>), in the same order as <see cref="_pages"/>.
+    /// </summary>
+    private IReadOnlyList<IReadOnlyDictionary<int, bool>> _pageLayers = [];
+
+    /// <summary>
+    ///     Parses a <c>&lt;Page&gt;</c>'s layer table. A layer is considered shown (the value
+    ///     <see langword="true"/>) only when both its <c>Visible</c> and <c>Print</c> cells are not
+    ///     <c>0</c> - rendering is an export, which Visio hides non-printing layers from.
+    /// </summary>
+    /// <param name="pageElement">The <c>&lt;Page&gt;</c> element.</param>
+    /// <returns>Layer row index to shown flag.</returns>
+    private static IReadOnlyDictionary<int, bool> ParseLayers(XElement pageElement)
+    {
+        var result = new Dictionary<int, bool>();
+        var section = pageElement
+            .Element(VsdxMainNamespace + "PageSheet")?
+            .Elements(VsdxMainNamespace + "Section")
+            .FirstOrDefault(s => (string?)s.Attribute("N") == "Layer");
+        if (section is null)
+        {
+            return result;
+        }
+
+        foreach (var row in section.Elements(VsdxMainNamespace + "Row"))
+        {
+            if (!int.TryParse((string?)row.Attribute("IX"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var index))
+            {
+                continue;
+            }
+
+            bool CellIsOff(string name) =>
+                row.Elements(VsdxMainNamespace + "Cell").Any(c => (string?)c.Attribute("N") == name && (string?)c.Attribute("V") == "0");
+
+            result[index] = !CellIsOff("Visible") && !CellIsOff("Print");
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    ///     Marks every shape (and, through the recursive render skip, its subtree) whose
+    ///     <c>LayerMember</c> cell lists only hidden layers. A shape on several layers stays
+    ///     visible when at least one of them is shown; a shape on no (or only unknown) layers is
+    ///     always visible.
+    /// </summary>
+    /// <param name="shapes">The page's resolved top-level shapes.</param>
+    /// <param name="layers">The page's layer table.</param>
+    private static void ApplyLayerVisibility(IReadOnlyList<VsdxShapeNode> shapes, IReadOnlyDictionary<int, bool> layers)
+    {
+        if (layers.Count == 0 || layers.Values.All(shown => shown))
+        {
+            return;
+        }
+
+        foreach (var shape in shapes)
+        {
+            var members = (shape.RawCells.TryGet("LayerMember", out var cell) ? cell.Value : null)?
+                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(m => int.TryParse(m, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) && layers.TryGetValue(index, out var shown) ? (bool?)shown : null)
+                .Where(shown => shown.HasValue)
+                .ToList();
+            if (members is { Count: > 0 } && members.All(shown => shown == false))
+            {
+                shape.HiddenByLayer = true;
+            }
+
+            ApplyLayerVisibility(shape.Children, layers);
+        }
+    }
+
+    /// <summary>
     ///     The parsed page index, in document order, set by <see cref="InitializePages"/>.
     /// </summary>
     private IReadOnlyList<VsdxPageInfo> _pages = [];
@@ -214,7 +287,7 @@ public sealed partial class VsdxDocument
         pages.AddRange(pageElements.Select(ParsePage));
 
         _pages = pages;
-
+        _pageLayers = pageElements.Select(ParseLayers).ToList();
         var contentPartPaths = new List<string>(pageElements.Count);
         foreach (var pageElement in pageElements)
         {

@@ -190,6 +190,13 @@ tolerantly skipped, leaving only the surrounding `LineTo` rows) instead of the s
 bar Visio itself renders; re-rendering after this fix confirmed the bar now renders correctly
 rounded.
 
+`Geometry_EllipseRow_ProducesClosedFourQuadrantSubpath` proves an `Ellipse` row (center `X`/`Y`,
+axis points `A`/`B` and `C`/`D`) becomes one closed subpath of four cubic quadrants starting at
+the first axis point; `Geometry_RelativeBezierRows_AreScaledAndKept` proves `RelCubBezTo` and
+`RelQuadBezTo` rows scale their cells by `Width`/`Height` and keep the curve commands. Rows still
+unsupported (`NURBSTo`, `SplineStart`/`SplineKnot`, `PolylineTo`, `InfiniteLine`) remain reported
+as `vsdx-geometry-row-<Type>`.
+
 #### CanvasNetVsdx-VsdxDocument-ShapeTransform: 2-D Shape Transform Order (LocPin, Flip, Rotate, Pin)
 
 **Tests**: `Transform_NoRotationNoFlip_MapsLocalOriginRelativeToPin`,
@@ -767,6 +774,74 @@ own `Angle`, already applied via `localToPixel`) painted its text axis-aligned, 
 position/orientation. This is currently a matrix-composition-level unit test only; no
 `Render_...`-level test yet proves a full page render of a rotated text box paints glyph ink at
 the rotated pixel location on a `Surface` - a candidate for future end-to-end coverage.
+
+#### CanvasNetVsdx-VsdxDocument-UnsupportedFeatureReporting: Unsupported Constructs Are Reported, Never Silent
+
+**Tests**: `Render_UnsupportedConstructs_ReportedOncePerDistinctFeaturePerRender`,
+`Render_UnsupportedConstructs_DefaultOptionsDoNotThrow`,
+`Render_UnsupportedConstructs_StrictModeThrowsWithFeatureToken`,
+`Render_FullySupportedPage_ReportsNothing`,
+`Render_UnresolvableThemedFill_ReportsThemedColor` (a bare `THEMEVAL()` fill reports
+`vsdx-themed-color` instead of silently drawing the gray fallback)
+
+Arrange a synthetic page with a made-up geometry row type (twice, to prove de-duplication) and a
+connector with an unmapped `EndArrow` index. Rendering twice with a handler yields exactly the
+tokens `vsdx-arrowhead-99` and `vsdx-geometry-row-FutureRowKind` once per `Render` call (the
+second call replays the cached page's diagnostics). Default options neither report nor throw.
+`ThrowOnUnsupportedFeature` throws `VsdxUnsupportedFeatureException` whose `Feature` is the first
+token in ordinal order. A fully supported page reports nothing even in strict mode. No timing
+assertions.
+
+#### CanvasNetVsdx-VsdxDocument-LinePattern: Line Patterns Render As Dashes
+
+**Tests**: `Render_LinePatternSolid_IsOneRun`, `Render_LinePatternDashed_IsBrokenIntoRuns`,
+`Render_LinePatternDot_HasMoreRunsThanDash`, `Render_LinePatternCustom_ReportedAndSolid`,
+`Render_LinePatternApproximated_Reported`
+
+Arrange a synthetic horizontal line with each `LinePattern` value, render at 100 DPI and count
+contiguous dark runs along the line's center row: solid yields one run, patterns 2, 3, 4 and 16
+yield many, dots yield more than dashes. Pattern 23 (custom) draws solid and reports
+`vsdx-linepattern-23`; pattern 7 dashes and reports `vsdx-linepattern-7-approximated`. No timing
+assertions.
+
+#### CanvasNetVsdx-VsdxDocument-TextDecoration: Text Decorations And Case Flags
+
+**Tests**: `TextDecoration_StyleBit2_ProducesUnderlineBarBelowBaseline`,
+`TextDecoration_Underline_AddsInkWhenRendered`, `TextDecoration_StrikeDoubleStrikeOverline_ProduceBars`,
+`TextDecoration_None_ProducesNoBars`, `TextCase_SmallCapsAndAllCaps_TransformRuns`,
+`TextColor_Transparency_ReducesAlpha`, `TextPos_Superscript_IsReported`
+
+Arrange synthetic one-shape packages whose Character row sets `Style`, `Strikethru`,
+`DoubleStrikethrough`, `Overline`, `Case`, `ColorTrans` or `Pos`. Assert the resolved run
+decoration flags, the number and vertical order of decoration bars in the text layout (underline
+below the baseline, strike above, overline above the strike, two bars for a double strike), that
+an underlined render has more ink than a plain one, small-caps segmentation at reduced size,
+all-caps upper-casing, alpha reduction, and the `vsdx-text-superscript-subscript` report. No
+timing assertions.
+
+#### CanvasNetVsdx-VsdxDocument-LayerVisibility: Hidden And Non-Printing Layers Are Not Drawn
+
+**Tests**: `Render_LayerMember_HonorsVisibleAndPrint`, `Render_HiddenLayerGroup_HidesChildren`,
+`Render_FullyTransparentText_PaintsNothing`
+
+Arrange a synthetic page whose `PageSheet` has a four-row layer table (shown, not visible, not
+printing, shown) and a filled rectangle carrying various `LayerMember` values. The rectangle's
+center pixel is red only for no layer, layer 0, `1;3` (any shown layer) and an unknown layer;
+layers 1, 2 and `1;2` hide it. A group on a hidden layer hides its child. Text with
+`ColorTrans=1` leaves the page blank while `ColorTrans=0` paints ink. No timing assertions.
+
+#### CanvasNetVsdx-VsdxDocument-GlyphFallback: Missing Glyphs Use A Fallback Font
+
+**Tests**: `GlyphFallback_MissingCodePoint_UsesFallbackFontAndAdvance`,
+`GlyphFallback_CoveredCodePoint_DoesNotConsultFallback`,
+`GlyphFallback_NoFontCoversCodePoint_KeepsPrimaryGlyph`,
+`GlyphFallback_DefaultResolver_ReturnsCoveringFontOrNull`
+
+Synthetic fonts (primary maps only `A`; a second maps only U+2794) and an injected fallback
+resolver prove the placed glyph uses the fallback font, index and advance, that covered glyphs
+never call the fallback, and that a null fallback keeps the primary's glyph 0. The default
+resolver test accepts any machine's installed fonts (a returned font must cover the code point;
+U+10FFFF yields null).
 
 ### Supplementary (Non-Requirement-Mapped) Coverage
 
