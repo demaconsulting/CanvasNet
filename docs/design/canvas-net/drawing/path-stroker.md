@@ -165,7 +165,15 @@ instances directly. Every emitted polygon becomes one closed subpath in the resu
   per-edge direction reversal while building each ring and, when found on the ring that would
   otherwise become the hole, omits that ring entirely rather than emitting it as a hole - matching
   what a true geometric erosion of the contour by that half-width would produce (an empty inner
-  boundary) and leaving the whole interior filled as solid stroke.
+  boundary) and leaving the whole interior filled as solid stroke. The collapse signal is not,
+  however, proof that the whole interior is solid: it also fires when a large contour merely has a
+  short edge (shorter than the stroke lets the offset corners clear) between sharp corners, such as
+  a hairline-stroked clip-art outline, where only that small feature collapses and the interior
+  must stay unfilled. On collapse, `StrokeOutliner` therefore builds the stroke as a union of
+  per-segment bands plus per-vertex join wedges on the locally convex side
+  (`CreateCollapsedClosedStrokePolygons`), all with the same winding. That construction never
+  builds a hole, so it is exact for both cases: a genuinely over-eroded contour is fully covered by
+  its own bands, while a locally collapsed contour keeps its unfilled interior.
   - **Density-relative false-positive/false-negative tolerance (regression fix).** The
     backwards-edge test tolerates a bounded amount of backwards-projected length before concluding
     a ring has genuinely collapsed, and that tolerance is derived **per edge**, from that edge's
