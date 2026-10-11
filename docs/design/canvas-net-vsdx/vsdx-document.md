@@ -342,6 +342,13 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   run into capital segments (80% size for lowercase letters), `Case=1` upper-cases, `ColorTrans`
   lowers the alpha; `Pos` (super/subscript) and initial-caps `Case` are reported as unsupported.
 
+- **Layer visibility** (`VsdxDocument.Pages.cs`): each page's `PageSheet` layer table is parsed
+  (a layer is shown only when neither `Visible` nor `Print` is `0`, since rendering is an
+  export). After a page's shape tree is resolved, a shape whose own `LayerMember` list contains
+  only known hidden layers gets `HiddenByLayer`, and `RenderShapeRecursive` skips it and its
+  subtree. A shape on any shown layer, on no layer, or on unknown layers stays visible. The
+  existing `HideText` and `NonPrinting` handling is unchanged.
+
 ### Error Handling
 
 `ArgumentNullException` and `ArgumentException` are thrown synchronously from `Open` for a

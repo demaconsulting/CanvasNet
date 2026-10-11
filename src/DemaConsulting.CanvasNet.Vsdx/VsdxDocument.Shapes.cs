@@ -89,6 +89,7 @@ public sealed partial class VsdxDocument
         }
 
         _pageUnsupportedFeatures[pageIndex] = features;
+        ApplyLayerVisibility(resolved, _pageLayers[pageIndex]);
         _resolvedPageShapesCache[pageIndex] = resolved;
         return resolved;
     }

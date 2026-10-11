@@ -872,3 +872,17 @@ sections:
               - TextCase_SmallCapsAndAllCaps_TransformRuns
               - TextColor_Transparency_ReducesAlpha
               - TextPos_Superscript_IsReported
+
+          - id: CanvasNetVsdx-VsdxDocument-LayerVisibility
+            title: >-
+              The VsdxDocument class shall not paint a shape, nor anything inside it, whose
+              LayerMember cell places it only on layers that are not Visible or not Print on its
+              page, while a shape on at least one shown layer, on no layer, or on unknown layers
+              remains visible; fully transparent text (ColorTrans=1) shall paint no ink.
+            justification: |
+              Visio's own export omits content on hidden and non-printing layers; a real-world
+              schematic carries annotation text on a non-printing layer that CanvasNet drew.
+            tests:
+              - Render_LayerMember_HonorsVisibleAndPrint
+              - Render_HiddenLayerGroup_HidesChildren
+              - Render_FullyTransparentText_PaintsNothing

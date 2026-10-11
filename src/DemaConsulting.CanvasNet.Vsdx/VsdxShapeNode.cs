@@ -168,4 +168,10 @@ internal sealed class VsdxShapeNode
     ///     re-deriving it from scratch at every level.
     /// </summary>
     public VsdxShapeNode? Parent { get; internal set; }
+
+    /// <summary>
+    ///     Whether the shape's <c>LayerMember</c> places it only on layers that are hidden or
+    ///     non-printing on its page; such a shape and its subtree are not painted.
+    /// </summary>
+    public bool HiddenByLayer { get; internal set; }
 }

@@ -810,6 +810,17 @@ an underlined render has more ink than a plain one, small-caps segmentation at r
 all-caps upper-casing, alpha reduction, and the `vsdx-text-superscript-subscript` report. No
 timing assertions.
 
+#### CanvasNetVsdx-VsdxDocument-LayerVisibility: Hidden And Non-Printing Layers Are Not Drawn
+
+**Tests**: `Render_LayerMember_HonorsVisibleAndPrint`, `Render_HiddenLayerGroup_HidesChildren`,
+`Render_FullyTransparentText_PaintsNothing`
+
+Arrange a synthetic page whose `PageSheet` has a four-row layer table (shown, not visible, not
+printing, shown) and a filled rectangle carrying various `LayerMember` values. The rectangle's
+center pixel is red only for no layer, layer 0, `1;3` (any shown layer) and an unknown layer;
+layers 1, 2 and `1;2` hide it. A group on a hidden layer hides its child. Text with
+`ColorTrans=1` leaves the page blank while `ColorTrans=0` paints ink. No timing assertions.
+
 ### Supplementary (Non-Requirement-Mapped) Coverage
 
 Beyond the 43 `CanvasNetVsdx-VsdxDocument-*` requirement-mapped scenarios above, the test project

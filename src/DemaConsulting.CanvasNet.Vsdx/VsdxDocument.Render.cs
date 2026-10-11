@@ -191,6 +191,11 @@ public sealed partial class VsdxDocument
     /// </param>
     private void RenderShapeRecursive(Surface surface, VsdxShapeNode shape, Matrix3x2 parentToPixel, Matrix3x2 pageToPixel)
     {
+        // A shape on only hidden/non-printing layers is not drawn, nor is anything inside it.
+        if (shape.HiddenByLayer)
+        {
+            return;
+        }
         var localToPixel = shape.Transform!.ToPageMatrix() * parentToPixel;
 
         // A NonPrinting shape (Visio's own per-shape, non-inherited "exclude from print/export"

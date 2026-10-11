@@ -11,6 +11,120 @@ namespace DemaConsulting.CanvasNet.Vsdx.Tests;
 /// </summary>
 public class VsdxFidelityTests
 {
+    /// <summary>Builds a red 2x2 inch filled rectangle at (2,2)-(4,4) on the given layer list (or none when null).</summary>
+    private static string BuildRect(int id, string? layerMember) =>
+        $"""
+        <Shape ID="{id}" Type="Shape">
+          <Cell N="PinX" V="2"/><Cell N="PinY" V="2"/><Cell N="Width" V="2"/><Cell N="Height" V="2"/>
+          <Cell N="LocPinX" V="0"/><Cell N="LocPinY" V="0"/><Cell N="Angle" V="0"/>
+          <Cell N="FillForegnd" V="#FF0000"/><Cell N="FillPattern" V="1"/><Cell N="LinePattern" V="0"/>
+          {(layerMember is null ? string.Empty : $"""<Cell N="LayerMember" V="{layerMember}"/>""")}
+          <Section N="Geometry" IX="0">
+            <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+            <Row T="LineTo" IX="2"><Cell N="X" V="2"/><Cell N="Y" V="0"/></Row>
+            <Row T="LineTo" IX="3"><Cell N="X" V="2"/><Cell N="Y" V="2"/></Row>
+            <Row T="LineTo" IX="4"><Cell N="X" V="0"/><Cell N="Y" V="2"/></Row>
+          </Section>
+        </Shape>
+        """;
+
+    /// <summary>A layer table: 0 shown, 1 not visible, 2 not printing, 3 shown.</summary>
+    private const string Layers =
+        """
+        <Section N="Layer">
+          <Row IX="0"><Cell N="Visible" V="1"/><Cell N="Print" V="1"/></Row>
+          <Row IX="1"><Cell N="Visible" V="0"/><Cell N="Print" V="1"/></Row>
+          <Row IX="2"><Cell N="Visible" V="1"/><Cell N="Print" V="0"/></Row>
+          <Row IX="3"><Cell N="Visible" V="1"/><Cell N="Print" V="1"/></Row>
+        </Section>
+        """;
+
+    /// <summary>Renders a rect on the given layers and reports whether red ink appears at its center.</summary>
+    private static bool IsRectVisible(string? layerMember)
+    {
+        using var stream = VsdxTestPackages.BuildPackage(BuildRect(1, layerMember), pageSheetExtraXml: Layers);
+        using var document = VsdxDocument.Open(stream);
+        using var surface = document.Render(0, 100);
+        var pixel = surface[300, 800];
+        return pixel is { R: 255, G: 0, B: 0 };
+    }
+
+    /// <summary>Layer membership decides visibility: hidden layers hide, any shown layer shows, no layer shows.</summary>
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("0", true)]
+    [InlineData("1", false)]
+    [InlineData("2", false)]
+    [InlineData("1;2", false)]
+    [InlineData("1;3", true)]
+    [InlineData("9", true)]
+    public void Render_LayerMember_HonorsVisibleAndPrint(string? layerMember, bool expectedVisible) =>
+        Assert.Equal(expectedVisible, IsRectVisible(layerMember));
+
+    /// <summary>A hidden-layer group hides its children too; the same group on a shown layer paints them.</summary>
+    [Fact]
+    public void Render_HiddenLayerGroup_HidesChildren()
+    {
+        static bool ChildVisible(string groupLayer)
+        {
+            var group =
+                $"""
+                <Shape ID="10" Type="Group">
+                  <Cell N="PinX" V="0"/><Cell N="PinY" V="0"/><Cell N="Width" V="8"/><Cell N="Height" V="8"/>
+                  <Cell N="LocPinX" V="0"/><Cell N="LocPinY" V="0"/><Cell N="Angle" V="0"/>
+                  <Cell N="LayerMember" V="{groupLayer}"/>
+                  <Shapes>{BuildRect(11, null)}</Shapes>
+                </Shape>
+                """;
+            using var stream = VsdxTestPackages.BuildPackage(group, pageSheetExtraXml: Layers);
+            using var document = VsdxDocument.Open(stream);
+            using var surface = document.Render(0, 100);
+            return surface[300, 800].G == 0;
+        }
+
+        Assert.True(ChildVisible("0"));
+        Assert.False(ChildVisible("1"));
+    }
+
+    /// <summary>Fully transparent text (Character ColorTrans=1) paints no ink.</summary>
+    [Fact]
+    public void Render_FullyTransparentText_PaintsNothing()
+    {
+        static int Ink(string cell)
+        {
+            var shape =
+                $"""
+                <Shape ID="1" Type="Shape">
+                  <Cell N="PinX" V="2"/><Cell N="PinY" V="2"/><Cell N="Width" V="3"/><Cell N="Height" V="1"/>
+                  <Cell N="LocPinX" V="0"/><Cell N="LocPinY" V="0"/><Cell N="Angle" V="0"/>
+                  <Cell N="LinePattern" V="0"/><Cell N="FillPattern" V="0"/>
+                  <Section N="Geometry" IX="0"><Cell N="NoFill" V="1"/><Cell N="NoLine" V="1"/><Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row></Section>
+                  <Section N="Character"><Row IX="0"><Cell N="Font" V="Arial"/><Cell N="Size" V="0.25"/><Cell N="Color" V="#000000"/>{cell}</Row></Section>
+                  <Text><cp IX="0"/>Hello</Text>
+                </Shape>
+                """;
+            using var stream = VsdxTestPackages.BuildPackage(shape);
+            using var document = VsdxDocument.Open(stream);
+            using var surface = document.Render(0, 100);
+            var count = 0;
+            for (var y = 0; y < surface.Height; y++)
+            {
+                for (var x = 0; x < surface.Width; x++)
+                {
+                    if (surface[x, y].R < 250)
+                    {
+                        count++;
+                    }
+                }
+            }
+
+            return count;
+        }
+
+        Assert.True(Ink("""<Cell N="ColorTrans" V="0"/>""") > 0);
+        Assert.Equal(0, Ink("""<Cell N="ColorTrans" V="1"/>"""));
+    }
+
     /// <summary>Builds a horizontal stroked line from x=1 to x=7 inches at y=5.5 inches with the given extra cells.</summary>
     private static string BuildLine(string extraCells) =>
         $"""
