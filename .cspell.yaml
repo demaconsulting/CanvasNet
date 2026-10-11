@@ -20,6 +20,10 @@ words:
   - prefilter
   - prefiltered
   - resampler
+  - Catmull
+  - Lanczos
+  - optimizespeed
+  - sinc
   - Strikethru
   - Strikethrough
   - linepattern

@@ -848,11 +848,13 @@ resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surfac
 - **Painting**: `PaintPicture(Surface destination, Surface image, PptxSrcRect? srcRect, Matrix3x2
   shapeTransform, float widthEmu, float heightEmu, Path? clipPath = null)` composes the crop
   rectangle's own crop-to-unit-square mapping with `shapeTransform` into a single
-  image-to-surface matrix, inverts it once, and for every destination pixel whose inverse-mapped
-  coordinate falls within `[0,1]x[0,1]` samples the source image with nearest-neighbor filtering
-  (no bilinear/anti-aliased resampling this phase - a documented simplification, consistent with
-  this package's existing "no anti-aliasing yet" posture established by `PaintTextLayout`'s own
-  glyph-ink fill). Each sampled source pixel is alpha-blended "over" the existing destination
+  image-to-surface matrix, and for an axis-aligned placement resamples the cropped region once with
+  `SurfaceResampler.TryResampleToDevice` (shared separable engine: `Area` when shrinking, `Bicubic` when
+  enlarging) and composites the resulting device window 1:1. The `srcRect` crop is folded into the
+  mapping, so kernel taps next to a crop edge may read a little from outside the crop (a documented
+  minor limitation). A rotated picture inverts the matrix once and bilinear-samples an area-prefiltered
+  source per destination pixel whose inverse-mapped coordinate falls within `[0,1]x[0,1]`. Each sampled source pixel is
+  alpha-blended "over" the existing destination
   pixel via the shared internal `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)` helper (standard
   Porter-Duff "over" alpha compositing - straight/unassociated alpha in and out, `outA = fgA +
   bgA * (1 - fgA)`, each color channel `outC = (fgC * fgA + bgC * bgA * (1 - fgA)) / outA` when

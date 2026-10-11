@@ -121,3 +121,15 @@ sections:
                   - PathFiller_Fill_TilePaint_NullPath_ThrowsArgumentNullException
                   - PathFiller_Fill_TilePaint_NullPaint_ThrowsArgumentNullException
                   - ScanlineRasterizer_Fill_TilePaint_NullPaint_ThrowsArgumentNullException
+
+              - id: CanvasNet-Drawing-TilePaint-Smoothing
+                title: >-
+                  The TilePaintEvaluator shall sample a magnified tile bilinearly with wrap-around,
+                  replace a minified tile by an area-averaged copy, and keep exact pixel sampling
+                  for tiles drawn at one device pixel per tile pixel.
+                justification: |
+                  Pattern tiles drawn at other than 1:1 scale otherwise look blocky or alias.
+                tests:
+                  - EvaluateRow_MagnifiedTile_IsSmooth
+                  - CreatePlan_OneToOneTile_IsNeitherMagnifiedNorMinified
+                  - EvaluateRow_MinifiedTile_AveragesColors

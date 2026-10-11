@@ -2233,3 +2233,14 @@ sections:
               - ResolveTextLayout_TabCharacter_ExpandsToNextDefaultTabStop
               - ResolveTextLayout_TabCharacter_WrapDecisionUsesExpandedWidthNotGlyphWidth
               - ResolveTextLayout_MultipleTabCharacters_EachAdvancesToItsOwnNextTabStop
+
+          - id: CanvasNetPptx-PptxDocument-PictureSmoothResample
+            title: >-
+              The PptxDocument class shall resample a picture smoothly with the shared engine
+              when it is enlarged or shrunk, keeping rotated pictures on an inverse-mapped
+              bilinear fallback.
+            justification: |
+              Pictures are routinely shown at a size different from their pixel size and must not
+              appear blocky or lose thin details.
+            tests:
+              - PaintPicture_EnlargedPicture_IsSmooth

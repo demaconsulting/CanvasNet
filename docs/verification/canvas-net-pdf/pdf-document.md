@@ -1079,14 +1079,25 @@ bits before each row, rather than the implementation coincidentally tolerating z
 
 **Tests**: `Render_ShrunkImageWithOnePixelLines_KeepsEveryLine`,
 `Render_ShrunkFlippedImage_KeepsEveryLine`, `Render_ShrunkRotatedImage_KeepsEveryLine`,
-`Render_EnlargedImage_RemainsExactBlocks`
+`Render_EnlargedImage_IsSmoothlyInterpolated`
 
 `PdfDocumentImageDownscaleTests.cs` builds a synthetic in-memory PDF with a 1940x4 raw gray image
 containing one-pixel black lines every 24 source pixels, drawn full-page and rendered at 765,
 1020, 1108 and 1303 pixels wide (non-integer reduction ratios), mirrored, and rotated 90 degrees.
 Every line must leave at least 70% of its area-proportional darkness within two pixels of its
-mapped column (point sampling leaves some lines at zero). A 4x1 image enlarged 100x must still
-render exact nearest-neighbor blocks. No timing is asserted.
+mapped column (point sampling leaves some lines at zero). A 4x1 image enlarged 100x must be
+smoothly interpolated (centers keep the source values, boundaries blend, the ramp is monotone).
+`PdfImageResamplingTests.cs` renders a 1940-pixel-wide synthetic grid at nine output sizes (765 to 3672
+pixels wide) and requires that no line goes missing and the ink per line tracks the scale. No timing is asserted.
+
+#### CanvasNetPdf-PdfDocument-ImageSmoothResample: Axis-Aligned Images Are Resampled Once Per Draw
+
+**Tests**: `Render_GridImage_NoLineMissingAtAnySize`, `Render_ShrunkRotatedImage_KeepsEveryLine`
+
+`PdfImageResamplingTests.cs` renders a synthetic one-pixel-line grid at nine output sizes and
+asserts that no line is missing and that the ink per line stays within a band around the
+area-proportional value; the rotated case exercises the inverse-mapped bilinear fallback. No timing is
+asserted.
 
 #### CanvasNetPdf-PdfDocument-ImageXObjects: Do Composites Images, Fails Closed on Unsupported Features
 
@@ -1146,7 +1157,7 @@ formula.
 
 `PdfDocumentJpxTests.cs` builds minimal PDFs at test-run time. A 1x1 raw gray image, an 8x8
 `DCTDecode` image and a JPX image each carry an `/SMask`; the rendered pixel's alpha equals the
-mask luminance (the JPX case uses a 2x1 mask over an 8x8 base to prove nearest-neighbor
+mask luminance (the JPX case uses a 2x1 mask over an 8x8 base to prove smooth (bilinear)
 resampling of the mask). A 1-bit 2x1 mask yields alpha `0` and `255`, a 16-bit mask contributes
 its high byte (`0x8000` gives alpha `128`), and a 4-bit mask with `/Decode [1 0]` yields `204`,
 proving every bit depth flows through the shared sample path instead of failing the page.

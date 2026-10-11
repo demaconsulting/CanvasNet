@@ -1467,6 +1467,16 @@ neither `width` nor `height` present at all (both default to `0`, per this codec
 "no auto-sizing from intrinsic raster dimensions" simplification), each tolerantly render nothing
 rather than throwing or dividing by zero.
 
+#### CanvasNetSvg-SvgCodec-ImageSmoothResample: `image` Is Resampled Smoothly, `image-rendering` Selects Nearest
+
+**Tests**: `Image_Enlarged_IsSmooth`, `Image_RenderingAttribute_IsNearest`, `Image_RenderingStyle_IsNearest`,
+`Image_RenderingStylesheet_IsNearest`, `Image_Shrunk_KeepsOnePixelLine`
+
+`SvgImageResamplingTests.cs` enlarges a 2x1 black/white image to 40x4: by default the row has many
+gray levels; with `image-rendering` `pixelated` or `crisp-edges` (attribute, style declaration or
+stylesheet rule) it has only the two source levels. A 100x1 image with a one-pixel line shrunk to 17
+pixels keeps its area-proportional ink.
+
 #### CanvasNetSvg-SvgCodec-ImageExternalHrefScope: `image` External-Href and Nested-SVG Scope Boundaries
 
 **Tests**: `SvgCodec_Load_ImageExternalFileHref_RendersNothingWithoutFileAccess`,

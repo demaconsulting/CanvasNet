@@ -208,6 +208,38 @@ A new `Surface` containing an independent copy of the requested pixels.
 - `ArgumentOutOfRangeException`: Thrown when any argument is invalid or the region exceeds the
   source surface's bounds.
 
+##### Resize
+
+```csharp
+public Surface Resize(int width, int height, ResamplingMode mode = ResamplingMode.Auto)
+```
+
+Creates a new, independent `Surface` resampled to the requested size. Resampling is done in
+premultiplied alpha, so transparent pixels leave no color fringe, and thin features such as
+one-pixel lines survive a reduction. A request for the current size returns an exact copy.
+
+**Parameters:**
+
+- `width` (int): The new width. Must be between 1 and `Surface.MaxDimension`.
+- `height` (int): The new height. Must be between 1 and `Surface.MaxDimension`.
+- `mode` (`ResamplingMode`): The reconstruction filter. `Auto` (default) uses `Area` on an axis that
+  shrinks and `Bicubic` on an axis that enlarges. The other values are `Nearest`, `Bilinear`,
+  `Bicubic` (Catmull-Rom), `Lanczos3` and `Area`.
+
+**Exceptions:**
+
+- `ArgumentOutOfRangeException`: Thrown when a dimension is out of range or `mode` is not defined.
+- `ObjectDisposedException`: Thrown when the surface has been disposed.
+
+##### ResizeToFit
+
+```csharp
+public Surface ResizeToFit(int maxWidth, int maxHeight, ResamplingMode mode = ResamplingMode.Auto)
+```
+
+Creates a new `Surface` with the aspect ratio preserved that fits inside the given box, enlarging or
+shrinking as needed (each dimension is at least one pixel).
+
 ##### PremultiplyAlpha
 
 ```csharp
@@ -2330,6 +2362,18 @@ using var cropped = surface.Crop(1, 1, 2, 2);
 Console.WriteLine(cropped.Width);  // Output: 2
 Console.WriteLine(cropped.Height); // Output: 2
 Console.WriteLine(cropped[0, 0].G); // Output: 255
+```
+
+## Example 2b: Load, Crop, Resize and Save
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+
+using var original = PngCodec.Load("photo.png");
+using var cropped = original.Crop(10, 10, 200, 100);
+using var thumbnail = cropped.ResizeToFit(64, 64, ResamplingMode.Lanczos3);
+PngCodec.Save(thumbnail, "thumbnail.png");
 ```
 
 ## Example 3: BMP Load/Save

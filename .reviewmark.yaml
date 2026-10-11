@@ -128,9 +128,13 @@ reviews:
       - "docs/verification/canvas-net/canvas/surface.md"      # unit verification
       - "src/DemaConsulting.CanvasNet/Canvas/Surface.cs"          # unit source
       - "src/DemaConsulting.CanvasNet/Canvas/SurfaceResampler.cs"  # internal image resampling helper
+      - "src/DemaConsulting.CanvasNet/Canvas/SurfaceResampler.Engine.cs"  # separable resampling engine
+      - "src/DemaConsulting.CanvasNet/Canvas/ResamplingMode.cs"   # public resampling filter enum
       - "src/DemaConsulting.CanvasNet/Canvas/NamespaceDoc.cs"     # Canvas namespace documentation
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceResamplerTests.cs"  # resampler unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceResizeTests.cs"  # resize unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceResizeCodecRoundTripTests.cs"  # round-trip tests
 
   # CanvasNet-Canvas-Rgba32 Review (one per unit)
   - id: CanvasNet-Canvas-Rgba32
@@ -708,6 +712,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.Filters.Blend.cs"  # phase 8 filter partial
       - "src/DemaConsulting.CanvasNet.Svg/NamespaceDoc.cs"            # Svg namespace documentation
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgCodecTests.cs"    # unit tests
+      - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgImageResamplingTests.cs"  # image resampling unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgFixtureTests.cs"  # fixture conformance tests
 
   # CanvasNetPdf-Architecture Review (one per system)
@@ -801,6 +806,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentJpxTests.cs"  # JPXDecode/SMask unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentThinRuleInkTests.cs"  # thin-rule ink unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentImageDownscaleTests.cs"  # image downscale unit tests
+      - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfImageResamplingTests.cs"  # image resampling grid unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentHairlineStrokeTests.cs"  # hairline stroke unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Jpeg2000Fixtures/gray.jp2"  # gray JPX fixture
       - "test/DemaConsulting.CanvasNet.Tests/Jpeg2000Fixtures/source_gray.png"  # source pixels of gray.jp2

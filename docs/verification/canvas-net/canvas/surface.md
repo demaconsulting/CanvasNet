@@ -416,6 +416,73 @@ pixel with the global average; and rotation uses column norms. No timing is asse
 
 The bilinear sampler returns pixel centres exactly, blends midpoints, and clamps at the edges.
 
+##### CanvasNet-Canvas-Surface-Resize: Resize Filters Behave as Documented
+
+**Tests**: `Resize_Nearest_Upscale_ReplicatesPixels`, `Resize_Bilinear_Upscale_InterpolatesLinearly`,
+`Resize_Area_IntegerReduction_AveragesBlocks`, `Resize_SharpFilters_StepEdge_ClampsToByteRange`,
+`Resize_ConstantImage_StaysConstant`, `Resize_Downscale_PreservesOnePixelLine`,
+`Resize_Upscale_IsSmooth`, `Resize_Auto_ChoosesPerAxis`, `Resize_AllModes_ProduceRequestedSize`
+
+`SurfaceResizeTests.cs` checks exact values on tiny inputs for `Nearest`, `Bilinear` and `Area`,
+that `Bicubic`/`Lanczos3` stay inside the byte range on a step edge, that a constant image stays
+constant at many ratios, that a one-pixel line survives downscaling at ratios from 1.001:1 to 100:1
+(with `Area` conserving its ink to within 10 percent), that enlargement has no jumps, and that `Auto`
+averages on the shrinking axis. No timing is asserted.
+
+##### CanvasNet-Canvas-Surface-ResizeIdentity: Same-Size Resize Is an Exact Copy
+
+**Tests**: `Resize_SameSize_IsExactIndependentCopy`
+
+For every mode a same-size resize returns a different instance with identical pixels, and mutating
+it leaves the source unchanged.
+
+##### CanvasNet-Canvas-Surface-ResizeAlphaPremultiplied: Premultiplied Filtering and Clamping
+
+**Tests**: `Resize_AlphaEdge_HasNoColorFringe`, `Resize_SharpFilters_StepEdge_ClampsToByteRange`
+
+A red region beside fully transparent black keeps its color wherever the result is not transparent.
+
+##### CanvasNet-Canvas-Surface-ResizeInvalid: Invalid Resize Arguments
+
+**Tests**: `Resize_InvalidDimensions_Throws`, `Resize_UndefinedMode_Throws`, `Resize_Disposed_Throws`
+
+Zero, negative and above-`MaxDimension` sizes report the offending parameter name; an undefined mode
+reports `mode`; a disposed surface throws `ObjectDisposedException`.
+
+##### CanvasNet-Canvas-Surface-ResizeBoundedMemory: Extreme Aspect Ratios
+
+**Tests**: `Resize_LargeAndWide_ProducesExpectedShape`
+
+An 8192x1 surface resizes to 1x8192 with the expected content.
+
+##### CanvasNet-Canvas-Surface-ResizeToFit: Aspect-Preserving Fit
+
+**Tests**: `ResizeToFit_KeepsAspectAndFitsBox`, `ResizeToFit_VeryElongated_ClampsToOnePixel`
+
+Wide, tall, enlarging, shrinking and elongated cases produce the expected sizes, never below one pixel.
+`SurfaceResizeCodecRoundTripTests.cs` additionally loads, crops, resizes, saves and reloads through
+`BmpCodec` and `PngCodec`.
+
+##### CanvasNet-Canvas-Surface-ResizeToFitInvalidBox: Invalid Bounding Box
+
+**Tests**: `ResizeToFit_InvalidBox_Throws`
+
+A zero or oversized box dimension reports `maxWidth` or `maxHeight`.
+
+##### CanvasNet-Canvas-Surface-DeviceResample: Device Window Resampling
+
+**Tests**: `TryResampleToDevice_RotatedMatrix_ReturnsFalse`, `TryResampleToDevice_AxisAligned_ReturnsWindowAtOrigin`,
+`TryResampleToDevice_OffScreen_ReturnsTrueWithNullWindow`, `BoxReduce_MatchesAreaResize`
+
+Rotation is declined, an axis-aligned placement yields a window of the expected size and origin, an
+off-screen placement yields no window, and `BoxReduce` equals an `Area` resize.
+
+##### CanvasNet-Canvas-Surface-WrappedBilinear: Wrap-Around Bilinear Sampling
+
+**Tests**: `SampleBilinearWrapped_AtEdge_BlendsWithOppositeSide`
+
+Sampling on the tile seam blends the last and first pixels.
+
 ##### Rgba32 Sanity Checks (no requirement link)
 
 **Tests**: `Rgba32_FieldAssignment_StoresChannelValues`, `Rgba32_Equals_SameChannelValues_ReturnsTrue`

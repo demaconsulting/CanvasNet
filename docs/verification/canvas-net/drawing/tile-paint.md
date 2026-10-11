@@ -97,6 +97,15 @@ checkerboard tile produces both of the tile's own colors in the filled result; t
 reject a null surface, path, or tile paint argument; and they honor the same empty-input/
 no-polygons no-op behavior already established for the solid-color and gradient overloads.
 
+##### TilePaintEvaluator: Magnified and Minified Tiles
+
+**Tests**: `EvaluateRow_MagnifiedTile_IsSmooth`, `CreatePlan_OneToOneTile_IsNeitherMagnifiedNorMinified`,
+`EvaluateRow_MinifiedTile_AveragesColors`
+
+A tile enlarged 4x is sampled bilinearly (many distinct values), a 1:1 tile keeps exact lookup with no
+owned minified copy, and a tile shrunk to a quarter is replaced by an area-averaged copy whose colors
+average the checkerboard.
+
 #### Complexity Verification Policy
 
 No algorithmic complexity properties are newly established by this unit beyond those already

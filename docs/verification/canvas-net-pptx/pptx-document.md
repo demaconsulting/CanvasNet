@@ -1048,6 +1048,12 @@ resolved content type is not a recognized raster format throws `PptxUnsupportedF
 carrying the `"pptx-image-format"` feature token, and proves null argument validation for both
 `picElement`/`document`.
 
+#### CanvasNetPptx-PptxDocument-PictureSmoothResample: Pictures Are Resampled Smoothly
+
+**Tests**: `PaintPicture_EnlargedPicture_IsSmooth`
+
+A 2x1 black/white picture painted at 40x4 contains many distinct gray levels instead of two hard blocks.
+
 #### CanvasNetPptx-PptxDocument-PicturePainting: Picture Compositing Without PDF's Y-Flip
 
 **Tests**: `PaintPicture_IdentityTransformNoCrop_PaintsImagePixelsUnflipped`,

@@ -2024,9 +2024,9 @@ sections:
           - id: CanvasNetPdf-PdfDocument-ImageDownscale
             title: >-
               The PdfDocument class shall filter a raster image that is shrunk on the page,
-              area-averaging it once per draw and sampling the result bilinearly, so one-pixel
-              features are attenuated rather than dropped, while an enlarged or 1:1 image keeps
-              exact nearest-neighbor sampling.
+              resampling it once per draw with a reduction-scaled filter, so one-pixel
+              features are attenuated rather than dropped, while an enlarged image is smoothly
+              interpolated rather than shown as hard blocks.
             justification: |
               Real-world PDFs embed high-resolution raster scans (for example drawing grids) that
               are rendered at a fraction of their native size. Point sampling makes thin lines
@@ -2035,4 +2035,18 @@ sections:
               - Render_ShrunkImageWithOnePixelLines_KeepsEveryLine
               - Render_ShrunkFlippedImage_KeepsEveryLine
               - Render_ShrunkRotatedImage_KeepsEveryLine
-              - Render_EnlargedImage_RemainsExactBlocks
+              - Render_EnlargedImage_IsSmoothlyInterpolated
+
+          - id: CanvasNetPdf-PdfDocument-ImageSmoothResample
+            title: >-
+              The PdfDocument class shall resample a raster image placed axis-aligned on the page
+              once per draw with the shared engine (area filter when shrinking, bicubic when
+              enlarging), falling back to inverse-mapped bilinear sampling of a prefiltered
+              source for rotated or skewed placements, and resize a soft mask smoothly to the
+              image size, so no one-pixel line disappears at any output size.
+            justification: |
+              A single high-quality resample removes the phase-dependent loss of thin grid lines
+              seen when a high-resolution scan is rendered at many zoom levels.
+            tests:
+              - Render_GridImage_NoLineMissingAtAnySize
+              - Render_ShrunkRotatedImage_KeepsEveryLine

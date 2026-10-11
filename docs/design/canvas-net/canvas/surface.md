@@ -3,7 +3,8 @@
 ![Canvas Structure](CanvasView.svg)
 
 The `Surface` class is the second software unit in CanvasNet. It provides a mutable, in-memory
-32-bit RGBA pixel buffer with allocation-free row access, independent-copy cropping, and
+32-bit RGBA pixel buffer with allocation-free row access, independent-copy cropping, resampling (`Resize` /
+`ResizeToFit`), and
 vectorized bulk pixel operations, forming the core pixel-storage primitive on which future
 drawing and codec functionality will build.
 
@@ -170,6 +171,27 @@ both simpler and faster than iterating pixel by pixel for contiguous row data.
 **Throws:**
 
 - `ArgumentOutOfRangeException` — for any of the six invalid conditions listed above
+
+##### Resize(int width, int height, ResamplingMode mode = Auto)
+
+Returns a new, independent `Surface` of size `width` by `height` resampled from this surface.
+Validation order: disposed check (`ObjectDisposedException`), `width` outside `[1, MaxDimension]`
+(`ArgumentOutOfRangeException(nameof(width))`), `height` outside `[1, MaxDimension]`
+(`ArgumentOutOfRangeException(nameof(height))`), then an undefined `mode`
+(`ArgumentOutOfRangeException(nameof(mode))`). A same-size request returns `Crop(0, 0, Width, Height)`,
+an exact independent copy for every filter. Otherwise the work is delegated to the internal
+`SurfaceResampler` engine (see below).
+
+`ResamplingMode` is a public enum: `Auto` (default), `Nearest`, `Bilinear`, `Bicubic`
+(Catmull-Rom), `Lanczos3` and `Area`. `Auto` chooses per axis: `Area` when that axis shrinks and
+`Bicubic` when it enlarges or stays the same.
+
+##### ResizeToFit(int maxWidth, int maxHeight, ResamplingMode mode = Auto)
+
+Validates the box like `Resize` (parameter names `maxWidth` / `maxHeight`), picks the uniform
+scale `min(maxWidth / Width, maxHeight / Height)`, rounds each result dimension and clamps it into
+`[1, box]`, then calls `Resize`. The image is enlarged or shrunk so that one axis touches the box
+(up to rounding) and the aspect ratio is preserved to within pixel rounding.
 
 ##### PremultiplyAlpha()
 
@@ -452,25 +474,28 @@ versus supplied workspace) differs between the public and internal forms. A dedi
 (`Surface_CompositeOverSpan_PerPixelColors_MatchesConstantColorOverload_WhenAllColorsEqual`)
 proves the pre-existing constant-color overload's output is unchanged by this refactor.
 
-#### Internal image-resampling helper (SurfaceResampler)
+#### Internal image-resampling engine (SurfaceResampler)
 
-`Canvas/SurfaceResampler.cs` is an `internal static` helper owned by this unit (visible to the
-`Pdf` and `Pptx` packages) that lets callers draw a decoded raster image while shrinking it
-without dropping thin features. `ComputeFactors` derives per-axis scales from the column norms of
-the pixel-to-device affine matrix and returns integer block sizes (the nearest integer to the
-reduction ratio, at least 1; non-finite, zero or enlarging scales yield 1). `Prefilter` returns
-the source surface unchanged when the image is enlarged or drawn 1:1, when the mapping is
-degenerate or non-finite, or when a shrink is too mild to round to a block factor above 1 (in the
-shrink case it still sets the flag asking the caller to sample bilinearly; for enlargement and 1:1
-the caller keeps its nearest-neighbor lookup, so that path is bit-identical), and otherwise sets
-that flag and returns a new surface
-produced by `BoxReduce`. `BoxReduce` rejects block factors below 1 with
-`ArgumentOutOfRangeException`, makes one O(W x H) pass accumulating premultiplied channel
-sums in checked `long` arithmetic (an overflow throws `OverflowException`), un-premultiplies on
-output (round half away from zero), and
-averages only covered pixels in partial edge blocks; its output is at most the source size, so it
-never exceeds `Surface.MaxDimension` and memory is bounded by one extra surface per draw.
-`SampleBilinear` interpolates the four nearest pixels (centre-aligned, edge-clamped) in
-premultiplied space. The caller builds the reduced surface once per draw, not per destination
-pixel, and disposes it afterwards. `Pptx` and `Svg` keep their own nearest-neighbor loops; adopting
-this helper is a possible follow-up.
+`Canvas/SurfaceResampler.cs` and `Canvas/SurfaceResampler.Engine.cs` hold an `internal static
+partial class` owned by this unit (visible to the `Pdf`, `Pptx` and `Svg` packages through
+`InternalsVisibleTo`) that implements `Surface.Resize` and lets the renderers draw decoded raster
+images smoothly.
+
+**Engine.** `Resample` maps the center of output pixel `o` to source coordinate
+`start + (o + 0.5) * extent / outDim` (a negative extent flips the axis) and builds, per axis, a table
+of tap indices and normalized weights for the chosen filter. When shrinking, the kernel support is
+multiplied by the reduction ratio so every source pixel contributes (thin lines cannot be skipped).
+Taps outside the image fold into the edge pixel, except `Area`, which drops them and renormalizes. An
+axis with scale 1 and an integer start is an exact copy. Work is done in premultiplied alpha as two
+separable passes: a horizontal pass over strips of columns into a float intermediate sized by an
+8 MiB budget, then a vertical pass using `TensorPrimitives` multiply-add. Results are clamped to
+`[0, 255]`, un-premultiplied and rounded; all index and size arithmetic uses `long`/checked math, so
+the working memory is bounded regardless of aspect ratio (8192x1 to 1x8192 included).
+
+**Renderer entry points.** `TryResampleToDevice` resamples a source to the device window covered by
+an axis-aligned image placement (the window is clipped to the visible area) so the renderer can
+composite it 1:1; it returns `false` for rotation, skew or non-finite/degenerate matrices, and `true`
+with no window when nothing is visible. Rotated or skewed placements use `Prefilter` (area-reduce
+by an integer factor) plus `SampleBilinear` (inverse mapped, premultiplied, edge-clamped).
+`SampleBilinearWrapped` is the wrap-around bilinear sampler used for magnified pattern tiles.
+`BoxReduce` is the `Area` mode with integer factors.

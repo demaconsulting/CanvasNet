@@ -176,6 +176,9 @@ The system exposes the following public API to external consumers:
 - **Surface.Crop(int x, int y, int width, int height)**: Returns a new, independent `Surface`
   containing a copy of the specified sub-region. Throws `ArgumentOutOfRangeException` if any
   argument is invalid or the region exceeds the source bounds.
+- **Surface.Resize(int width, int height, ResamplingMode mode = Auto)** / **Surface.ResizeToFit(int maxWidth,
+  int maxHeight, ResamplingMode mode = Auto)**: Return a new, independent, resampled Surface.
+  Throw `ArgumentOutOfRangeException` for dimensions outside 1 to `MaxDimension` or an undefined mode.
 - **Surface.PremultiplyAlpha()**: Converts the surface's pixels from straight (unassociated) alpha
   to premultiplied alpha in place.
 - **Surface.UnpremultiplyAlpha()**: Converts the surface's pixels from premultiplied alpha back to
@@ -355,6 +358,8 @@ The system exposes the following public API to external consumers:
 | `Surface.GetRowSpanBytes(int)`               | Outbound         | `Span<byte>` return            | `y` within bounds             |
 | `Surface.GetRowSpan(int)`                    | Outbound         | `Span<Rgba32>` return          | `y` within bounds             |
 | `Surface.Crop(int,int,int,int)`              | Inbound/Outbound | Method call / `Surface` return | Region within source bounds   |
+| `Surface.Resize(int,int,ResamplingMode)`     | Inbound/Outbound | Method call / `Surface` return | 1..MaxDimension, defined mode |
+| `Surface.ResizeToFit(int,int,ResamplingMode)`| Inbound/Outbound | Method call / `Surface` return | 1..MaxDimension, defined mode |
 | `Surface.PremultiplyAlpha()`                 | Inbound          | Method call                    | None                          |
 | `Surface.UnpremultiplyAlpha()`               | Inbound          | Method call                    | None                          |
 | `Surface.CompositeOver(Surface)`             | Inbound          | Method call                    | Equal dimensions, non-null    |

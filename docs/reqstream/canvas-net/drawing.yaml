@@ -218,6 +218,7 @@ sections:
               - CanvasNet-Drawing-TilePaint-Definition
               - CanvasNet-Drawing-TilePaint-WithTransform
               - CanvasNet-Drawing-TilePaint-Sampling
+              - CanvasNet-Drawing-TilePaint-Smoothing
               - CanvasNet-Drawing-TilePaint-DegenerateTransparent
               - CanvasNet-Drawing-TilePaint-Paint
               - CanvasNet-Drawing-PathFiller-TileFill

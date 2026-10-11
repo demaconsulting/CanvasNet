@@ -130,6 +130,25 @@ public class PptxImagesTests
         return image;
     }
 
+    /// <summary>Proves an enlarged picture is smoothly interpolated rather than painted as hard blocks.</summary>
+    [Fact]
+    public void PaintPicture_EnlargedPicture_IsSmooth()
+    {
+        using var image = new Surface(2, 1);
+        image[0, 0] = new Rgba32(0, 0, 0, 255);
+        image[1, 0] = new Rgba32(255, 255, 255, 255);
+        using var surface = new Surface(40, 4);
+
+        PptxDocument.PaintPicture(surface, image, srcRect: null, Matrix3x2.Identity, widthEmu: 40f, heightEmu: 4f);
+
+        var distinct = new HashSet<byte>();
+        for (var x = 0; x < 40; x++)
+        {
+            distinct.Add(surface[x, 2].R);
+        }
+
+        Assert.True(distinct.Count > 8);
+    }
     /// <summary>Proves an identity-transformed, uncropped picture paints the source image's pixels at the expected destination location, left-to-right unflipped.</summary>
     [Fact]
     public void PaintPicture_IdentityTransformNoCrop_PaintsImagePixelsUnflipped()

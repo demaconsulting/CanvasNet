@@ -229,6 +229,7 @@ sections:
           rather than introducing an unbounded or security-sensitive capability.
         children:
           - CanvasNetSvg-SvgCodec-ImageRendering
+          - CanvasNetSvg-SvgCodec-ImageSmoothResample
           - CanvasNetSvg-SvgCodec-ImageExternalHrefScope
           - CanvasNetSvg-SvgCodec-ImageResourceSafety
         tests:

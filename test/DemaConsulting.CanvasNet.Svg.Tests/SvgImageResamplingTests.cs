@@ -90,6 +90,7 @@ public class SvgImageResamplingTests
             ink += 255 - surface[x, 0].R;
         }
 
-        Assert.InRange(ink, 255 * 0.17 * 0.8, 255 * 0.17 * 1.2 + 1);
+        Assert.InRange(ink, 255 * 0.17 * 0.8, 255 * 0.17 * 1.2 + 1);
+
     }
 }

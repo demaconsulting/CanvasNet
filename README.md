@@ -19,12 +19,14 @@
 
 CanvasNet is a .NET library providing a mutable, span-based 32-bit RGBA pixel buffer along with
 codecs for loading and saving images in common file formats. It's designed for fast, allocation-conscious
-image operations using `Span<T>`, and supports independent-copy cropping for load/crop/save workflows.
+image operations using `Span<T>`, and supports independent-copy cropping and high-quality resizing for
+load/crop/resize/save workflows.
 
 ## Features
 
 - 🖼️ **Pixel Buffer** - Mutable 32-bit RGBA surface with span access
 - ✂️ **Cropping** - Independent-copy crop for load/crop/save workflows
+- 📐 **Resizing** - `Resize`/`ResizeToFit` with Nearest, Bilinear, Bicubic, Lanczos3 and Area filters
 - 🌈 **Compositing** - Alpha premultiply and Porter-Duff "over" compositing
 - 📀 **BMP Codec** - Load/save 24-bit/32-bit uncompressed BMP files
 - 🎨 **PNG Codec** - Load non-interlaced PNGs; save 8-bit RGB/RGBA
@@ -87,6 +89,12 @@ using var cropped = surface.Crop(0, 0, 2, 2);
 // Save as PNG and load it back
 PngCodec.Save(surface, "surface.png");
 using var reloaded = PngCodec.Load("surface.png");
+
+// Load, crop, resize to fit a 64x64 box, and save
+using var photo = PngCodec.Load("photo.png");
+using var region = photo.Crop(10, 10, 200, 100);
+using var thumbnail = region.ResizeToFit(64, 64, ResamplingMode.Lanczos3);
+PngCodec.Save(thumbnail, "thumbnail.png");
 ```
 
 Open a PDF and render a page (BMP/TIFF/JPEG/GIF/JPEG 2000/SVG codecs, header-only probing, and
