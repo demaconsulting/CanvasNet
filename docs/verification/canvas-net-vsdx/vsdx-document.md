@@ -775,7 +775,9 @@ the rotated pixel location on a `Surface` - a candidate for future end-to-end co
 `Render_UnsupportedConstructs_StrictModeThrowsWithFeatureToken`,
 `Render_FullySupportedPage_ReportsNothing`,
 `Render_UnresolvableThemedFill_ReportsThemedColor` (a bare `THEMEVAL()` fill reports
-`vsdx-themed-color` instead of silently drawing the gray fallback) Arrange a synthetic page with a made-up geometry row type (twice, to prove de-duplication) and a
+`vsdx-themed-color` instead of silently drawing the gray fallback)
+
+Arrange a synthetic page with a made-up geometry row type (twice, to prove de-duplication) and a
 connector with an unmapped `EndArrow` index. Rendering twice with a handler yields exactly the
 tokens `vsdx-arrowhead-99` and `vsdx-geometry-row-FutureRowKind` once per `Render` call (the
 second call replays the cached page's diagnostics). Default options neither report nor throw.
