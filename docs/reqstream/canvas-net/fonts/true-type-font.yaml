@@ -205,7 +205,7 @@ sections:
                   U+F000 plus that code.
                 justification: |
                   Wingdings, Webdings and Symbol store their glyphs in the private-use area, while
-                  documents (for example Visio text runs set in Wingdings) carry the plain 8-bit code.
+                  documents (for example diagram text runs set in Wingdings) carry the plain 8-bit code.
                 tests:
                   - CmapTable_SymbolSubtable_PlainEightBitCodeResolvesViaPrivateUseArea
 

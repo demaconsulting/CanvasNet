@@ -14,6 +14,16 @@ language: en
 
 # Project-specific technical terms and tool names
 words:
+  - Strikethru
+  - Strikethrough
+  - linepattern
+  - initialcaps
+  - Foregnd
+  - THEMEVAL
+  - NURBS
+  - Segoe
+  - Symbola
+  - Noto
   - dctdecode
   - Lsiz
   - smaskindata
