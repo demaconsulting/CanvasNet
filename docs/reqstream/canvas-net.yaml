@@ -97,6 +97,7 @@ sections:
         tests:
           - Resize_BmpCodec_RoundTrip
           - Resize_PngCodec_RoundTrip
+          - CanvasNet_SystemIntegration_Resize_ProducesRequestedSizeAndPreservesColor
 
       - id: CanvasNet-Lib-ImageResizeAlpha
         title: The library shall resample images in premultiplied alpha so transparent pixels leave no color fringe.
@@ -108,6 +109,7 @@ sections:
           - CanvasNet-Canvas-ResizeAlpha
         tests:
           - Resize_AlphaEdge_HasNoColorFringe
+          - CanvasNet_SystemIntegration_ResizeAlphaEdge_HasNoColorFringe
 
       - id: CanvasNet-Lib-ImageResizeValidation
         title: The library shall reject invalid resize parameters with ArgumentOutOfRangeException.
@@ -119,6 +121,7 @@ sections:
           - CanvasNet-Canvas-ResizeValidation
         tests:
           - Resize_InvalidDimensions_Throws
+          - CanvasNet_SystemIntegration_ResizeInvalidArguments_ThrowsArgumentOutOfRangeException
 
       - id: CanvasNet-Lib-ImageResizeToFit
         title: The library shall resize an image to fit a bounding box while preserving its aspect ratio.
@@ -130,6 +133,8 @@ sections:
           - CanvasNet-Canvas-ResizeToFit
         tests:
           - ResizeToFit_KeepsAspectAndFitsBox
+          - CanvasNet_SystemIntegration_ResizeToFit_PreservesAspectRatio
+
       - id: CanvasNet-Lib-CanvasPremultiply
         title: >-
           The library shall convert a pixel buffer, in place, between straight (unassociated) and

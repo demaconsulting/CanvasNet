@@ -56,6 +56,99 @@ public class CanvasNetTests
     }
 
     /// <summary>
+    ///     Proves that the system can resample a Surface to a new size through the public API
+    ///     with each reconstruction filter, producing the requested dimensions and preserving a
+    ///     solid color.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_Resize_ProducesRequestedSizeAndPreservesColor()
+    {
+        // Arrange: a solid-color surface
+        using var source = new Surface(6, 4);
+        source.Clear(new Rgba32(40, 80, 120, 255));
+
+        foreach (var mode in new[] { ResamplingMode.Auto, ResamplingMode.Nearest, ResamplingMode.Bilinear, ResamplingMode.Bicubic, ResamplingMode.Area })
+        {
+            // Act: shrink one axis and enlarge the other
+            using var result = source.Resize(3, 8, mode);
+
+            // Assert: requested size, solid color preserved
+            Assert.Equal(3, result.Width);
+            Assert.Equal(8, result.Height);
+            Assert.InRange(result[1, 4].R, 39, 41);
+            Assert.InRange(result[1, 4].G, 79, 81);
+            Assert.InRange(result[1, 4].B, 119, 121);
+            Assert.Equal(255, result[1, 4].A);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that the system can resize a Surface to fit a bounding box while preserving
+    ///     the aspect ratio.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_ResizeToFit_PreservesAspectRatio()
+    {
+        // Arrange: a 100x50 surface and a 20x20 bounding box
+        using var source = new Surface(100, 50);
+
+        // Act
+        using var result = source.ResizeToFit(20, 20);
+
+        // Assert: width-limited, 2:1 aspect preserved
+        Assert.Equal(20, result.Width);
+        Assert.Equal(10, result.Height);
+    }
+
+    /// <summary>
+    ///     Proves that the system resamples in premultiplied alpha so that opaque pixels next to
+    ///     transparent pixels leave no color fringe.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_ResizeAlphaEdge_HasNoColorFringe()
+    {
+        // Arrange: opaque red on the left, transparent black on the right
+        using var source = new Surface(4, 1);
+        source[0, 0] = new Rgba32(255, 0, 0, 255);
+        source[1, 0] = new Rgba32(255, 0, 0, 255);
+        source[2, 0] = new Rgba32(0, 0, 0, 0);
+        source[3, 0] = new Rgba32(0, 0, 0, 0);
+
+        // Act
+        using var result = source.Resize(9, 1, ResamplingMode.Bicubic);
+
+        // Assert: every visible pixel is still red
+        for (var x = 0; x < 9; x++)
+        {
+            var p = result[x, 0];
+            if (p.A > 0)
+            {
+                Assert.InRange(p.R, 250, 255);
+                Assert.InRange(p.G, 0, 5);
+                Assert.InRange(p.B, 0, 5);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that the system rejects invalid resize parameters (non-positive or oversized
+    ///     dimensions, undefined mode, invalid fit box) with ArgumentOutOfRangeException.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_ResizeInvalidArguments_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        using var source = new Surface(4, 4);
+
+        // Act and Assert
+        Assert.Equal("width", Assert.Throws<ArgumentOutOfRangeException>(() => source.Resize(0, 2)).ParamName);
+        Assert.Equal("height", Assert.Throws<ArgumentOutOfRangeException>(() => source.Resize(2, Surface.MaxDimension + 1)).ParamName);
+        Assert.Equal("mode", Assert.Throws<ArgumentOutOfRangeException>(() => source.Resize(2, 2, (ResamplingMode)99)).ParamName);
+        Assert.Equal("maxWidth", Assert.Throws<ArgumentOutOfRangeException>(() => source.ResizeToFit(0, 5)).ParamName);
+        Assert.Equal("maxHeight", Assert.Throws<ArgumentOutOfRangeException>(() => source.ResizeToFit(5, 0)).ParamName);
+    }
+
+    /// <summary>
     ///     Proves that the system can fill an entire Surface with a constant color through the
     ///     public API (<c>Surface.Clear</c>), overwriting pre-existing pixel data, and that the
     ///     fill is observable at every pixel through subsequent reads.

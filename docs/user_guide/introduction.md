@@ -240,6 +240,33 @@ public Surface ResizeToFit(int maxWidth, int maxHeight, ResamplingMode mode = Re
 Creates a new `Surface` with the aspect ratio preserved that fits inside the given box, enlarging or
 shrinking as needed (each dimension is at least one pixel).
 
+**Parameters:**
+
+- `maxWidth` (int): The width of the bounding box. Must be between 1 and `Surface.MaxDimension`.
+- `maxHeight` (int): The height of the bounding box. Must be between 1 and `Surface.MaxDimension`.
+- `mode` (`ResamplingMode`): The reconstruction filter; see `ResamplingMode` below. Defaults to `Auto`.
+
+**Returns:**
+
+A new `Surface` whose aspect ratio matches the source and that fits inside the box.
+
+**Exceptions:**
+
+- `ArgumentOutOfRangeException`: Thrown when `maxWidth` or `maxHeight` is out of range or `mode` is
+  not defined.
+- `ObjectDisposedException`: Thrown when the surface has been disposed.
+
+##### ResamplingMode
+
+The `ResamplingMode` enum selects the reconstruction filter for `Resize` and `ResizeToFit`:
+
+- `Auto`: `Area` on an axis that shrinks, `Bicubic` on an axis that enlarges, exact copy when unchanged.
+- `Nearest`: point sampling; hard edges, but aliases and can drop thin features when shrinking.
+- `Bilinear`: triangle filter; smooth, no overshoot.
+- `Bicubic`: Catmull-Rom cubic; sharper, with clamped overshoot.
+- `Lanczos3`: three-lobe windowed sinc; the sharpest smooth filter, with mild ringing.
+- `Area`: exact area averaging; best for large reductions.
+
 ##### PremultiplyAlpha
 
 ```csharp
@@ -1047,7 +1074,10 @@ paint server, honoring `patternUnits`/`patternContentUnits`, `patternTransform`,
 `viewBox`/`preserveAspectRatio`, and `href`/`xlink:href` tile-content inheritance) - `image`
 elements (a base64-encoded `data:` URI in a supported raster format, decoded through that
 format's own existing codec and drawn into the element's own `x`/`y`/`width`/`height` placement
-rect) - and best-effort,
+rect) - `image-rendering` on an `image` (attribute, `style` declaration or stylesheet rule, inherited
+from ancestors) selects the resampling filter: `pixelated`, `crisp-edges` and `optimizeSpeed` draw with
+hard nearest-pixel edges, any other recognized value (for example `auto` or `optimizeQuality`) smooths,
+and an unrecognized value is ignored so the inherited value applies - and best-effort,
 weight/style-aware `text` rendering against a caller-supplied dictionary of per-family font faces:
 either a single `TrueTypeFont` per family (the legacy shape), or a list of `SvgFontFace` values -
 each pairing a `TrueTypeFont` with the `font-weight`/`font-style` it represents - letting a caller
@@ -1617,7 +1647,7 @@ upward, per the TrueType convention. Callers typically scale that path by the de
 and flip Y before rendering it through `PathFiller` or `PathStroker`. A glyf-flavored font's
 outline uses `LineTo`/`QuadraticBezierTo` segments; a CFF/OpenType font's outline uses
 `LineTo`/`CubicBezierTo` segments instead - callers that support both must handle both command
-kinds (see Example 12 below).
+kinds (see Example 13 below).
 
 ```csharp
 var font = TrueTypeFont.Load("font.ttf");   // also accepts a CFF/OpenType .otf file
@@ -2364,7 +2394,7 @@ Console.WriteLine(cropped.Height); // Output: 2
 Console.WriteLine(cropped[0, 0].G); // Output: 255
 ```
 
-## Example 2b: Load, Crop, Resize and Save
+## Example 3: Load, Crop, Resize and Save
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -2376,7 +2406,7 @@ using var thumbnail = cropped.ResizeToFit(64, 64, ResamplingMode.Lanczos3);
 PngCodec.Save(thumbnail, "thumbnail.png");
 ```
 
-## Example 3: BMP Load/Save
+## Example 4: BMP Load/Save
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -2396,7 +2426,7 @@ using var loaded24 = BmpCodec.Load("surface24.bmp");
 Console.WriteLine(loaded24[0, 0].A); // Output: 255
 ```
 
-## Example 4: PNG Load/Save
+## Example 5: PNG Load/Save
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -2416,7 +2446,7 @@ using var loadedRgb = PngCodec.Load("surface-rgb.png");
 Console.WriteLine(loadedRgb[0, 0].A); // Output: 255
 ```
 
-## Example 5: TIFF Load/Save
+## Example 6: TIFF Load/Save
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -2436,7 +2466,7 @@ using var loadedLzw = TiffCodec.Load("surface-lzw.tiff");
 Console.WriteLine(loadedLzw[0, 0].B); // Output: 255
 ```
 
-## Example 6: JPEG Load/Save
+## Example 7: JPEG Load/Save
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -2454,7 +2484,7 @@ Console.WriteLine(loaded[0, 0].A); // Output: 255
 Console.WriteLine(Math.Abs(loaded[0, 0].R - surface[0, 0].R) <= 15); // Output: True
 ```
 
-## Example 7: Compositing a Semi-Transparent Color Over a Background
+## Example 8: Compositing a Semi-Transparent Color Over a Background
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -2472,7 +2502,7 @@ Console.WriteLine($"{result.R} {result.G} {result.B} {result.A}"); // Output: 12
 // surface rather than a single constant color.
 ```
 
-## Example 8: Header-Only Probing Before Load (Decompression-Bomb Triage)
+## Example 9: Header-Only Probing Before Load (Decompression-Bomb Triage)
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -2544,7 +2574,7 @@ catch (InvalidDataException ex)
 }
 ```
 
-## Example 9: Filling a Vector Path
+## Example 10: Filling a Vector Path
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -2565,7 +2595,7 @@ PathFiller.Fill(canvas, triangle, new Rgba32(0, 128, 255, 255));
 Console.WriteLine(canvas[32, 40].A); // Output: 255 (well inside the triangle)
 ```
 
-## Example 10: Stroking a Vector Path
+## Example 11: Stroking a Vector Path
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -2591,7 +2621,7 @@ PathFiller.Fill(canvas, strokedOutline, new Rgba32(255, 128, 0, 255));
 Console.WriteLine(canvas[20, 32].A); // Output: 255 (on the centerline, inside one visible dash run)
 ```
 
-## Example 11: Filling a Vector Path with a Radial Gradient
+## Example 12: Filling a Vector Path with a Radial Gradient
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -2624,7 +2654,7 @@ PathFiller.Fill(canvas, square, gradient);
 Console.WriteLine(canvas[32, 32].A); // Output: 255 (at the gradient's center)
 ```
 
-## Example 12: Loading a TrueType Font and Filling a Glyph Outline
+## Example 13: Loading a TrueType Font and Filling a Glyph Outline
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -2684,7 +2714,7 @@ PathFiller.Fill(surface, canvasOutline, new Rgba32(20, 120, 255, 255));
 Console.WriteLine(font.GetAdvanceWidth(glyphIndex));
 ```
 
-## Example 13: Decoding and Rasterizing an SVG Document
+## Example 14: Decoding and Rasterizing an SVG Document
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -2710,7 +2740,7 @@ using var surfaceSvg = SvgCodec.Load(loadStream, 64, 64);
 Console.WriteLine(surfaceSvg[32, 32].A); // Output: 255 (well inside the filled rectangle)
 ```
 
-## Example 14: Building and Rendering a Chart
+## Example 15: Building and Rendering a Chart
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -2731,7 +2761,7 @@ using var chartSurface = ChartRenderer.Render(chart, 400, 300);
 Console.WriteLine($"{chartSurface.Width}x{chartSurface.Height}"); // Output: 400x300
 ```
 
-## Example 15: Parsing and Rendering an OOXML Chart
+## Example 16: Parsing and Rendering an OOXML Chart
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -2785,7 +2815,7 @@ using var parsedChartSurface = ChartRenderer.Render(parsedChart, 400, 300);
 Console.WriteLine($"{parsedChartSurface.Width}x{parsedChartSurface.Height}"); // Output: 400x300
 ```
 
-## Example 16: Opening and Rendering a Visio (.vsdx) Diagram
+## Example 17: Opening and Rendering a Visio (.vsdx) Diagram
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;

@@ -97,14 +97,18 @@ checkerboard tile produces both of the tile's own colors in the filled result; t
 reject a null surface, path, or tile paint argument; and they honor the same empty-input/
 no-polygons no-op behavior already established for the solid-color and gradient overloads.
 
-##### TilePaintEvaluator: Magnified and Minified Tiles
+##### CanvasNet-Drawing-TilePaint-Smoothing: Magnified and Minified Tiles
 
 **Tests**: `EvaluateRow_MagnifiedTile_IsSmooth`, `CreatePlan_OneToOneTile_IsNeitherMagnifiedNorMinified`,
-`EvaluateRow_MinifiedTile_AveragesColors`
+`EvaluateRow_MinifiedTile_AveragesColors`, `ClassifyTileScale_MixedAndSingleAxisCases`,
+`CreatePlan_MixedMagnifiedAndMinifiedTile_IsMagnifiedOnly`
 
 A tile enlarged 4x is sampled bilinearly (many distinct values), a 1:1 tile keeps exact lookup with no
 owned minified copy, and a tile shrunk to a quarter is replaced by an area-averaged copy whose colors
-average the checkerboard.
+average the checkerboard. The shared classification handles mixed and single-axis cases: a tile
+magnified on one axis and minified on the other is classified as magnified only (bilinear, no
+minified copy), and a tile scaled on a single axis while the other stays at about 1:1 is classified
+by the scaled axis alone.
 
 #### Complexity Verification Policy
 

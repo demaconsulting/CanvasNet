@@ -929,7 +929,9 @@ public sealed partial class PdfDocument
     ///     inverse-mapped with bilinear sampling. A non-invertible (degenerate) <paramref name="ctm"/> silently paints
     ///     nothing, rather than throwing. Per the PDF specification's image-space convention,
     ///     image sample row <c>0</c> is the <em>top</em> of the unit square (the opposite of
-    ///     user-space's y-up convention): <c>row = floor((1 - v) * image.Height)</c>. Each sampled
+    ///     user-space's y-up convention). The flip is folded into the pixel-to-device matrix handed
+    ///     to <c>TryResampleToDevice</c>; the explicit <c>row = floor((1 - v) * image.Height)</c>
+    ///     formula applies only to the rotated/skewed fallback. Each sampled
     ///     source pixel is alpha-blended "over" the existing destination pixel via
     ///     <see cref="Rgba32.CompositeOver"/> (standard Porter-Duff "over" compositing) rather
     ///     than overwriting it outright, so a source pixel with a non-opaque (including fully

@@ -441,6 +441,7 @@ sections:
               - CanvasNet-Canvas-Surface-ResizeToFitInvalidBox
             tests:
               - ResizeToFit_KeepsAspectAndFitsBox
+
           - id: CanvasNet-Canvas-PixelCompositing
             title: >-
               The Canvas subsystem shall provide a single-pixel Porter-Duff "over" alpha-

@@ -5,8 +5,11 @@ namespace DemaConsulting.CanvasNet.Canvas;
 ///     <see cref="Surface.ResizeToFit"/>.
 /// </summary>
 /// <remarks>
-///     Every mode other than <see cref="Nearest"/> works in premultiplied alpha, clamps its
-///     result to the valid byte range, and clamps at the image edges. The smooth modes
+///     Every mode other than <see cref="Nearest"/> works in premultiplied alpha and clamps its
+///     result to the valid byte range. The smooth filters (<see cref="Bilinear"/>,
+///     <see cref="Bicubic"/>, <see cref="Lanczos3"/>) clamp at the image edges (edge pixels are
+///     replicated), whereas <see cref="Area"/> renormalizes its weights over the source pixels
+///     actually covered. The smooth modes
 ///     (<see cref="Bilinear"/>, <see cref="Bicubic"/>, <see cref="Lanczos3"/>) widen their
 ///     kernel by the reduction ratio when an axis is shrunk, so they act as a true prefilter
 ///     and do not drop thin features the way point sampling does.

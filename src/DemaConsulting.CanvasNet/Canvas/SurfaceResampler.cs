@@ -3,11 +3,16 @@ using System.Numerics;
 namespace DemaConsulting.CanvasNet.Canvas;
 
 /// <summary>
-///     Internal image-resampling helpers owned by the <see cref="Surface"/> unit: an area-average
-///     (box) prefilter used when an image is shrunk on screen, and a bilinear sampler used to
-///     read the prefiltered result.
+///     Internal image-resampling helpers owned by the <see cref="Surface"/> unit. The full
+///     separable resampling engine (filter weights, per-axis passes) lives in
+///     <c>SurfaceResampler.Engine.cs</c> and backs <see cref="Surface.Resize"/> and
+///     <see cref="Surface.ResizeToFit"/>; this file holds the box-reduction prefilter and the
+///     bilinear sampler used for rotated or skewed placements.
 /// </summary>
 /// <remarks>
+///     The engine also provides <c>TryResampleToDevice</c> (single-pass resample of an image
+///     directly into its axis-aligned device rectangle) and the tile-pattern helpers
+///     (<c>ClassifyTileScale</c>, <c>SampleBilinearWrapped</c>).
 ///     Point sampling a source image while shrinking it drops thin features (a one-pixel line in
 ///     a 2.6:1 reduction is hit by roughly one destination sample in 2.6). The prefilter averages
 ///     integer-sized blocks of source pixels (the rounded reduction ratio) once per draw (a single

@@ -1489,6 +1489,11 @@ gray levels; with `image-rendering` `pixelated` or `crisp-edges` (attribute, sty
 stylesheet rule) it has only the two source levels. A 100x1 image with a one-pixel line shrunk to 17
 pixels keeps its area-proportional ink.
 
+`image-rendering` is inherited from an ancestor `g` (`Image_RenderingInheritedFromGroup_IsNearest`).
+An unrecognized value (for example `bogus`) is ignored, so the element keeps inheriting the parent's
+value (`Image_RenderingBogus_InheritsPixelatedFromParent`), while a recognized smooth keyword on the
+element overrides a `pixelated` parent (`Image_RenderingSmoothKeyword_OverridesPixelatedParent`).
+An `feImage` filter primitive always resamples smoothly and ignores `image-rendering`.
 Where the image tests above compare against smoothed output they use a small tolerance, because smoothing
 only changes pixels at or beside a source-pixel boundary; interior pixels are still asserted to their expected colors.
 

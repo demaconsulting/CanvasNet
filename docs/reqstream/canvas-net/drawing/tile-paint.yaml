@@ -62,7 +62,8 @@ sections:
                   TilePaintEvaluator shall map a device-space point back into pattern space via
                   the tile paint's transform, wrap the result modulo the absolute value of the
                   horizontal/vertical repeat pitch, and sample the tile surface by
-                  nearest-neighbor at the corresponding wrapped tile-pixel coordinate, repeating
+                  nearest-neighbor at the corresponding wrapped tile-pixel coordinate at about one
+                  device pixel per tile pixel (see TilePaint-Smoothing otherwise), repeating
                   identically for every subsequent tile repetition regardless of the sign of the
                   repeat pitch.
                 justification: |

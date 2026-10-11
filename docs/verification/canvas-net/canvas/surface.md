@@ -494,10 +494,15 @@ A zero or oversized box dimension reports `maxWidth` or `maxHeight`.
 ##### CanvasNet-Canvas-Surface-DeviceResample: Device Window Resampling
 
 **Tests**: `TryResampleToDevice_RotatedMatrix_ReturnsFalse`, `TryResampleToDevice_AxisAligned_ReturnsWindowAtOrigin`,
-`TryResampleToDevice_OffScreen_ReturnsTrueWithNullWindow`, `BoxReduce_MatchesAreaResize`
+`TryResampleToDevice_OffScreen_ReturnsTrueWithNullWindow`, `BoxReduce_MatchesAreaResize`,
+`BoxReduce_NonDivisibleSize_AveragesOnlyCoveredPixelsInPartialBlock`,
+`BoxReduce_NonDivisibleSizeWithAlpha_PartialBlockUsesCoveredPixelsOnly`
 
 Rotation is declined, an axis-aligned placement yields a window of the expected size and origin, an
-off-screen placement yields no window, and `BoxReduce` equals an `Area` resize.
+off-screen placement yields no window, and `BoxReduce` equals an `Area` resize. When the source size
+is not divisible by the block size, the trailing partial block is averaged over only the source
+pixels it actually covers (including, with alpha, in premultiplied space), so edge pixels are not
+darkened or made transparent by phantom pixels.
 
 ##### CanvasNet-Canvas-Surface-WrappedBilinear: Wrap-Around Bilinear Sampling
 

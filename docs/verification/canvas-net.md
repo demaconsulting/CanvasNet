@@ -46,6 +46,34 @@ Constructs a `Surface`, sets a distinct pixel within a region, crops that region
 source surface. Asserts the cropped result retains the pixel value captured at crop time,
 confirming that `Crop` produces an independent copy at the system level.
 
+### Integration: Resize Produces Requested Size and Preserves Color
+
+**Test**: `CanvasNet_SystemIntegration_Resize_ProducesRequestedSizeAndPreservesColor`
+
+Resizes a solid-color `Surface` (shrinking one axis, enlarging the other) with every
+`ResamplingMode`. Asserts the requested dimensions and that the solid color and alpha are preserved,
+confirming the public resampling API at the system level.
+
+### Integration: ResizeToFit Preserves Aspect Ratio
+
+**Test**: `CanvasNet_SystemIntegration_ResizeToFit_PreservesAspectRatio`
+
+Fits a 100x50 `Surface` into a 20x20 box. Asserts a 20x10 result (width-limited, aspect preserved).
+
+### Integration: Resize Alpha Edge Has No Color Fringe
+
+**Test**: `CanvasNet_SystemIntegration_ResizeAlphaEdge_HasNoColorFringe`
+
+Enlarges a row of opaque red beside transparent black with the bicubic filter. Asserts every pixel
+with nonzero alpha is still red, confirming resampling in premultiplied alpha.
+
+### Integration: Resize Invalid Arguments Throw ArgumentOutOfRangeException
+
+**Test**: `CanvasNet_SystemIntegration_ResizeInvalidArguments_ThrowsArgumentOutOfRangeException`
+
+Calls `Resize` and `ResizeToFit` with a non-positive width/height, an oversized height, an undefined
+mode and an invalid box. Asserts `ArgumentOutOfRangeException` carrying the offending parameter name.
+
 ### Integration: BMP Save Then Load Returns Expected Pixel
 
 **Test**: `CanvasNet_SystemIntegration_BmpSaveThenLoad_ReturnsExpectedPixel`

@@ -93,9 +93,9 @@ supported (an unrecognized base encoding also fails closed); text-rendering mode
 glyph under a clip mode fails closed); and no additional stream filters were added for any of these phases.
 **Phase 3 limitations** (narrowed by Phase 7/13 and the `/Pattern` color-space phase, see below):
 there are no transparency groups, `/Mask` (stencil/color-key) image masks and `/Matte` are not
-consulted, `/ImageMask` stencil images are not rendered (there is no code path for them, so no
-`Nearest` special case applies), and the Phase 3 operator subset is otherwise limited as documented below. These remain
-out of scope and are silently skipped (any other undefined keyword) or explicitly rejected
+consulted, and the Phase 3 operator subset is otherwise limited as documented below. These remain
+out of scope (along with `/ImageMask` stencil images, which are not rendered) and are silently
+skipped (any other undefined keyword) or explicitly rejected
 (unsupported color spaces/filters/fonts/encodings/render modes), per the operator/exception
 taxonomy documented below. Since then the following have been added: shading/tiling pattern fills
 (`/ShadingType 2`/`3`, `/PatternType 1`/`2` — see _`/Pattern` Color Space (Shading and Tiling
