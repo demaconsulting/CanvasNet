@@ -1454,3 +1454,36 @@ sections:
               - SvgCodec_Load_CssMalformedRule_SkipsOnlyThatRuleAndStillLoads
               - SvgCodec_Load_CssMalformedDeclaration_SkipsOnlyThatDeclaration
               - SvgCodec_Load_CssSiblingCombinator_DropsOnlyThatSelectorFromList
+
+          - id: CanvasNetSvg-SvgCodec-ImageSmoothResample
+            title: >-
+              The SvgCodec class shall resample an image element smoothly with the shared engine
+              and use nearest-neighbor sampling when image-rendering is pixelated, crisp-edges or
+              optimizeSpeed, whether given as an attribute, a style declaration or a stylesheet rule.
+            justification: |
+              Smooth resampling keeps thin features of shrunken images, while authors need
+              pixel-art images to stay sharp when enlarged.
+            tests:
+              - Image_Enlarged_IsSmooth
+              - Image_RenderingAttribute_IsNearest
+              - Image_RenderingStyle_IsNearest
+              - Image_RenderingStylesheet_IsNearest
+              - Image_Shrunk_KeepsOnePixelLine
+              - Image_RenderingInheritedFromGroup_IsNearest
+              - Image_RenderingBogus_InheritsPixelatedFromParent
+              - Image_RenderingSmoothKeyword_OverridesPixelatedParent
+              - FeImage_Enlarged_IsSmooth
+              - FeImage_Shrunk_KeepsOnePixelLine
+
+          - id: CanvasNetSvg-SvgCodec-PatternTileSmoothing
+            title: >-
+              The SvgCodec class shall sample a rendered pattern tile smoothly when the tile is
+              magnified (interpolated), area-average it when minified, and copy it exactly when it
+              is drawn at about one device pixel per tile pixel.
+            justification: |
+              Point sampling a scaled pattern tile produces blocky or aliased fills, while the
+              common device-scale case must stay pixel-exact.
+            tests:
+              - SampleTileIntoRegion_MagnifiedTile_IsSmooth
+              - SampleTileIntoRegion_MinifiedTile_IsAreaAveraged
+              - SampleTileIntoRegion_OneToOneTile_IsExactCopy

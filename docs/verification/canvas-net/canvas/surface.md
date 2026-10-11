@@ -389,6 +389,19 @@ through either the public or the internal fill entry point.
 `CompositeOver(Surface)` additionally rejects a disposed `foreground` argument, even when this
 surface itself has not been disposed.
 
+##### CanvasNet-Canvas-Surface-SpanWorkspaceCache: Rented Workspaces Are Reused, Isolated, and Equivalent
+
+**Tests**: `CompositeSpanWorkspace_Rent_NonPositiveCapacity_ThrowsArgumentOutOfRangeException`,
+`CompositeSpanWorkspace_Rent_AfterDispose_ReusesCachedWorkspaceWithSufficientCapacity`,
+`CompositeSpanWorkspace_Rent_WhileAnotherIsInUse_ReturnsDistinctWorkspace`,
+`CompositeSpanWorkspace_Rent_LargerThanCached_GrowsAndCompositesIdenticallyToConstructedWorkspace`
+
+Asserts `Rent` rejects zero and negative capacities; that renting, disposing, and renting again
+on the same thread returns the same instance with sufficient capacity; that two workspaces held
+at once are distinct; and that a workspace rented larger than the cached one (8000 pixels versus
+the 256-pixel minimum) composites a coverage pattern byte-identically to a directly constructed
+workspace. No test asserts timing.
+
 ##### CanvasNet-Canvas-Surface-ImageResampling: Box Prefilter Behaves as Documented
 
 **Tests**: `Prefilter_UpscaleOrIdentity_ReturnsSourceUnchanged`,
@@ -415,6 +428,94 @@ pixel with the global average; and rotation uses column norms. No timing is asse
 **Tests**: `SampleBilinear_CentreAndMidpoint_InterpolatesAndClampsEdges`
 
 The bilinear sampler returns pixel centres exactly, blends midpoints, and clamps at the edges.
+
+##### CanvasNet-Canvas-Surface-Resize: Resize Filters Behave as Documented
+
+**Tests**: `Resize_Nearest_Upscale_ReplicatesPixels`, `Resize_Bilinear_Upscale_InterpolatesLinearly`,
+`Resize_Area_IntegerReduction_AveragesBlocks`, `Resize_SharpFilters_StepEdge_ClampsToByteRange`,
+`Resize_ConstantImage_StaysConstant`, `Resize_Downscale_PreservesOnePixelLine`,
+`Resize_Upscale_IsSmooth`, `Resize_Auto_ChoosesPerAxis`, `Resize_AllModes_ProduceRequestedSize`
+
+`SurfaceResizeTests.cs` checks exact values on tiny inputs for `Nearest`, `Bilinear` and `Area`,
+that `Bicubic`/`Lanczos3` stay inside the byte range on a step edge, that a constant image stays
+constant at many ratios, that a one-pixel line survives downscaling in every mode except `Nearest`
+at ratios from 1.001:1 to 100:1
+(with `Area` conserving its ink to within 10 percent), that enlargement has no jumps, and that `Auto`
+averages on the shrinking axis. No timing is asserted.
+
+##### CanvasNet-Canvas-Surface-ResizeIdentity: Same-Size Resize Is an Exact Copy
+
+**Tests**: `Resize_SameSize_IsExactIndependentCopy`
+
+For every mode a same-size resize returns a different instance with identical pixels, and mutating
+it leaves the source unchanged.
+
+##### CanvasNet-Canvas-Surface-ResizeAlphaPremultiplied: Premultiplied Filtering and Clamping
+
+**Tests**: `Resize_AlphaEdge_HasNoColorFringe`, `Resize_SharpFilters_StepEdge_ClampsToByteRange`
+
+A red region beside fully transparent black keeps its color wherever the result is not transparent.
+
+##### CanvasNet-Canvas-Surface-ResizeInvalid: Invalid Resize Arguments
+
+**Tests**: `Resize_InvalidDimensions_Throws`, `Resize_UndefinedMode_Throws`, `Resize_Disposed_Throws`
+
+Zero, negative and above-`MaxDimension` sizes report the offending parameter name; an undefined mode
+reports `mode`; a disposed surface throws `ObjectDisposedException`.
+
+##### CanvasNet-Canvas-Surface-ResizeBoundedMemory: Extreme Aspect Ratios
+
+**Tests**: `Resize_ExtremeAspectChange_ProducesExpectedShape`, `Resample_TinyIntermediateBudget_MatchesDefaultBudget`,
+`Resample_ExtremeReduction_CompletesWithSaneResult`, `TryResampleToDevice_TinyScale_CompletesWithSaneWindow`,
+`Resample_NormalScaleEdgeFolding_KeepsConstantImageConstant`
+
+An 8192x1 surface resizes to 1x8192 with the expected content. Resampling with intermediate budgets of 1 and
+64 bytes (forcing the multi-strip path) produces output identical to the default budget for Bilinear,
+Lanczos3 and Area. A source mapped at an extreme scale (one source pixel covering about 1e-9 device
+pixels, i.e. a filter footprint of about 1e9 taps) resamples with work bounded by the source size and yields the
+uniform source color for every filter; a constant image magnified past its edges stays exactly constant.
+
+##### CanvasNet-Canvas-Surface-ResizePooledBuffers: Recycled Scratch Buffers Do Not Leak State
+
+**Tests**: `Resample_RepeatedAfterDifferentSizes_IsIdenticalDespiteRecycledBuffers`
+
+Resamples a 37x29 source to 11x8, then to a larger and a mid-sized target (leaving stale data in
+pooled buffers), then to 11x8 again for Area, Bicubic and Lanczos3, and asserts the pixels are identical.
+
+##### CanvasNet-Canvas-Surface-ResizeToFit: Aspect-Preserving Fit
+
+**Tests**: `ResizeToFit_KeepsAspectAndFitsBox`, `ResizeToFit_VeryElongated_ClampsToOnePixel`
+
+Wide, tall, enlarging, shrinking and elongated cases produce the expected sizes, never below one pixel.
+`SurfaceResizeCodecRoundTripTests.cs` additionally loads, crops, resizes, saves and reloads through
+`BmpCodec` and `PngCodec`.
+
+##### CanvasNet-Canvas-Surface-ResizeToFitInvalidBox: Invalid Bounding Box
+
+**Tests**: `ResizeToFit_InvalidBox_Throws`
+
+A zero or oversized box dimension reports `maxWidth` or `maxHeight`.
+
+##### CanvasNet-Canvas-Surface-DeviceResample: Device Window Resampling
+
+**Tests**: `TryResampleToDevice_RotatedMatrix_ReturnsFalse`,
+`TryResampleToDevice_WideImageSmallM12_DeclinedOnlyWhenDriftMatters`,
+`TryResampleToDevice_TallImageSmallM21_DeclinedOnlyWhenDriftMatters`, `TryResampleToDevice_AxisAligned_ReturnsWindowAtOrigin`,
+`TryResampleToDevice_OffScreen_ReturnsTrueWithNullWindow`, `BoxReduce_MatchesAreaResize`,
+`BoxReduce_NonDivisibleSize_AveragesOnlyCoveredPixelsInPartialBlock`,
+`BoxReduce_NonDivisibleSizeWithAlpha_PartialBlockUsesCoveredPixelsOnly`
+
+Rotation is declined, an axis-aligned placement yields a window of the expected size and origin, an
+off-screen placement yields no window, and `BoxReduce` equals an `Area` resize. When the source size
+is not divisible by the block size, the trailing partial block is averaged over only the source
+pixels it actually covers (including, with alpha, in premultiplied space), so edge pixels are not
+darkened or made transparent by phantom pixels.
+
+##### CanvasNet-Canvas-Surface-WrappedBilinear: Wrap-Around Bilinear Sampling
+
+**Tests**: `SampleBilinearWrapped_AtEdge_BlendsWithOppositeSide`
+
+Sampling on the tile seam blends the last and first pixels.
 
 ##### Rgba32 Sanity Checks (no requirement link)
 

@@ -86,6 +86,16 @@ public class PdfDocumentJpxTests
         return document.Render(0, 100, 100, Transparent);
     }
 
+    /// <summary>Asserts that a channel value is within <paramref name="tolerance"/> of <paramref name="expected"/> (images are smoothly resampled).</summary>
+    private static void AssertChannelNear(int expected, int actual, int tolerance = 4) =>
+        Assert.True(Math.Abs(expected - actual) <= tolerance, $"expected {expected} actual {actual}");
+
+    /// <summary>
+    ///     Asserts every channel is within <paramref name="tolerance"/> of <paramref name="expected"/>.
+    ///     Tolerance (rather than exactness) is needed because enlarged images are smoothly resampled,
+    ///     which only alters pixels at or next to a source-pixel boundary; the samples asserted here
+    ///     are interior pixels, so a small tolerance still pins the expected color.
+    /// </summary>
     private static void AssertNear(Rgba32 expected, Rgba32 actual, int tolerance = 2)
     {
         Assert.True(Math.Abs(expected.R - actual.R) <= tolerance, $"R expected {expected.R} actual {actual.R}");
@@ -269,8 +279,8 @@ public class PdfDocumentJpxTests
             "/Type /XObject /Subtype /Image /Width 2 /Height 1 /BitsPerComponent 8 /ColorSpace /DeviceGray /Filter /JPXDecode",
             maskJpx);
         using var surface = Render(ImageObject("/SMask 6 0 R", baseJpx), maskObject);
-        Assert.Equal(0, surface[25, 50].A);
-        AssertNear(new Rgba32(200, 50, 10, 255), surface[75, 50], 0);
+        AssertChannelNear(0, surface[25, 50].A, 16); // soft mask is smoothly resized, so the edge bleeds slightly
+        AssertNear(new Rgba32(200, 50, 10, 255), surface[75, 50], 16);
     }
 
     /// <summary>Proves a JPX /SMask honours its own /Decode inversion.</summary>
@@ -543,8 +553,8 @@ public class PdfDocumentJpxTests
             "/Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 1",
             [0b0100_0000]);
         using var surface = Render(image, mask);
-        Assert.Equal(0, surface[25, 50].A);
-        Assert.Equal(255, surface[75, 50].A);
+        AssertChannelNear(0, surface[25, 50].A, 16); // soft mask is smoothly resized, so the edge bleeds slightly
+        AssertChannelNear(255, surface[75, 50].A);
     }
 
     /// <summary>Proves a 16-bit /SMask is applied through its high byte.</summary>
@@ -579,8 +589,8 @@ public class PdfDocumentJpxTests
             "/Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 1",
             [0b0100_0000]);
         using var surface = Render(image);
-        AssertNear(new Rgba32(0, 0, 0, 255), surface[25, 50], 0);
-        AssertNear(new Rgba32(255, 255, 255, 255), surface[75, 50], 0);
+        AssertNear(new Rgba32(0, 0, 0, 255), surface[25, 50], 3);
+        AssertNear(new Rgba32(255, 255, 255, 255), surface[75, 50], 3);
     }
 
     /// <summary>Proves rows of a sub-byte image are padded to whole bytes independently (width 9, height 2).</summary>
@@ -594,12 +604,12 @@ public class PdfDocumentJpxTests
         using var surface = Render(image);
         var black = new Rgba32(0, 0, 0, 255);
         var white = new Rgba32(255, 255, 255, 255);
-        AssertNear(white, surface[5, 25], 0);
-        AssertNear(black, surface[16, 25], 0);
-        AssertNear(black, surface[94, 25], 0);
-        AssertNear(black, surface[5, 75], 0);
-        AssertNear(black, surface[83, 75], 0);
-        AssertNear(white, surface[94, 75], 0);
+        AssertNear(white, surface[5, 25], 3);
+        AssertNear(black, surface[16, 25], 3);
+        AssertNear(black, surface[94, 25], 3);
+        AssertNear(black, surface[5, 75], 3);
+        AssertNear(black, surface[83, 75], 3);
+        AssertNear(white, surface[94, 75], 3);
     }
 
     /// <summary>Proves a 4-bit DeviceRGB base image keeps its three components per pixel.</summary>
@@ -610,8 +620,8 @@ public class PdfDocumentJpxTests
             "/Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 4",
             [0xF0, 0x00, 0xFF]);
         using var surface = Render(image);
-        AssertNear(new Rgba32(255, 0, 0, 255), surface[25, 50], 0);
-        AssertNear(new Rgba32(0, 255, 255, 255), surface[75, 50], 0);
+        AssertNear(new Rgba32(255, 0, 0, 255), surface[25, 50], 3);
+        AssertNear(new Rgba32(0, 255, 255, 255), surface[75, 50], 3);
     }
 
     /// <summary>Proves a 2-bit DeviceRGB base image is padded per row (3 samples of 2 bits fit in one byte, 2 rows).</summary>
@@ -623,8 +633,8 @@ public class PdfDocumentJpxTests
             "/Type /XObject /Subtype /Image /Width 1 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 2",
             [0b1100_0011, 0b0011_1100]);
         using var surface = Render(image);
-        AssertNear(new Rgba32(255, 0, 0, 255), surface[50, 25], 0);
-        AssertNear(new Rgba32(0, 255, 255, 255), surface[50, 75], 0);
+        AssertNear(new Rgba32(255, 0, 0, 255), surface[50, 25], 3);
+        AssertNear(new Rgba32(0, 255, 255, 255), surface[50, 75], 3);
     }
 
     /// <summary>Proves 16-bit gray and RGB base images keep the high byte of each sample.</summary>
@@ -657,9 +667,9 @@ public class PdfDocumentJpxTests
             + "/ColorSpace [/Indexed /DeviceRGB 2 <FF000000FF000000FF>] /BitsPerComponent 4",
             [0x01, 0x20]);
         using var surface = Render(image);
-        AssertNear(new Rgba32(255, 0, 0, 255), surface[16, 50], 0);
-        AssertNear(new Rgba32(0, 255, 0, 255), surface[50, 50], 0);
-        AssertNear(new Rgba32(0, 0, 255, 255), surface[83, 50], 0);
+        AssertNear(new Rgba32(255, 0, 0, 255), surface[16, 50], 3);
+        AssertNear(new Rgba32(0, 255, 0, 255), surface[50, 50], 3);
+        AssertNear(new Rgba32(0, 0, 255, 255), surface[83, 50], 3);
     }
 
     /// <summary>Proves a truncated sub-byte image fails closed.</summary>

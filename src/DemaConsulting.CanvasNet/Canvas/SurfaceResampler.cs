@@ -3,11 +3,16 @@ using System.Numerics;
 namespace DemaConsulting.CanvasNet.Canvas;
 
 /// <summary>
-///     Internal image-resampling helpers owned by the <see cref="Surface"/> unit: an area-average
-///     (box) prefilter used when an image is shrunk on screen, and a bilinear sampler used to
-///     read the prefiltered result.
+///     Internal image-resampling helpers owned by the <see cref="Surface"/> unit. The full
+///     separable resampling engine (filter weights, per-axis passes) lives in
+///     <c>SurfaceResampler.Engine.cs</c> and backs <see cref="Surface.Resize"/> and
+///     <see cref="Surface.ResizeToFit"/>; this file holds the box-reduction prefilter and the
+///     bilinear sampler used for rotated or skewed placements.
 /// </summary>
 /// <remarks>
+///     The engine also provides <c>TryResampleToDevice</c> (single-pass resample of an image
+///     directly into its axis-aligned device rectangle) and the tile-pattern helpers
+///     (<c>ClassifyTileScale</c>, <c>SampleBilinearWrapped</c>).
 ///     Point sampling a source image while shrinking it drops thin features (a one-pixel line in
 ///     a 2.6:1 reduction is hit by roughly one destination sample in 2.6). The prefilter averages
 ///     integer-sized blocks of source pixels (the rounded reduction ratio) once per draw (a single
@@ -18,7 +23,7 @@ namespace DemaConsulting.CanvasNet.Canvas;
 ///     shrunk (or the shrink is too mild for any block reduction), the source surface is returned
 ///     unchanged so the upscale path is untouched.
 /// </remarks>
-internal static class SurfaceResampler
+internal static partial class SurfaceResampler
 {
     /// <summary>
     ///     Computes the integer box-filter factors for a pixel-space to device-space transform.
@@ -55,8 +60,19 @@ internal static class SurfaceResampler
     ///     caller must not dispose it as a temporary. Otherwise a new surface the caller owns and
     ///     must dispose.
     /// </returns>
-    internal static Surface Prefilter(Surface source, Matrix3x2 pixelToDevice, out bool useBilinear)
+    internal static Surface Prefilter(Surface source, Matrix3x2 pixelToDevice, out bool useBilinear) =>
+        Prefilter(source, pixelToDevice, out useBilinear, out _, out _);
+
+    /// <summary>
+    ///     As <see cref="Prefilter(Surface, Matrix3x2, out bool)"/>, additionally reporting the block
+    ///     factors used, so callers can map source-pixel coordinates onto the reduced surface with
+    ///     <see cref="SampleBilinearReduced"/> (the last block may be partial, so the reduced size
+    ///     does not scale the source size uniformly).
+    /// </summary>
+    internal static Surface Prefilter(Surface source, Matrix3x2 pixelToDevice, out bool useBilinear, out int factorX, out int factorY)
     {
+        factorX = 1;
+        factorY = 1;
         var sx = Math.Sqrt(((double)pixelToDevice.M11 * pixelToDevice.M11) + ((double)pixelToDevice.M12 * pixelToDevice.M12));
         var sy = Math.Sqrt(((double)pixelToDevice.M21 * pixelToDevice.M21) + ((double)pixelToDevice.M22 * pixelToDevice.M22));
         useBilinear = IsShrink(sx) || IsShrink(sy);
@@ -66,7 +82,61 @@ internal static class SurfaceResampler
         }
 
         var (fx, fy) = ComputeFactors(source.Width, source.Height, pixelToDevice);
-        return fx == 1 && fy == 1 ? source : BoxReduce(source, fx, fy);
+        if (fx == 1 && fy == 1)
+        {
+            return source;
+        }
+
+        factorX = fx;
+        factorY = fy;
+        return BoxReduce(source, fx, fy);
+    }
+
+    /// <summary>
+    ///     Samples a <see cref="BoxReduce"/> result bilinearly at a position given in the ORIGINAL
+    ///     (unreduced) pixel coordinates. Reduced pixel <c>i</c> covers original pixels
+    ///     <c>[i * factorX, (i + 1) * factorX)</c> (the last block may be partial). Positions map
+    ///     piecewise through the actual block centers: full blocks map as <c>x / factorX</c>, and
+    ///     the span between the last two block centers is interpolated so the center of a partial
+    ///     last block maps exactly onto that reduced pixel's center.
+    /// </summary>
+    /// <param name="reduced">The box-reduced surface.</param>
+    /// <param name="x">Horizontal position in original pixels.</param>
+    /// <param name="y">Vertical position in original pixels.</param>
+    /// <param name="factorX">Horizontal block size.</param>
+    /// <param name="factorY">Vertical block size.</param>
+    /// <param name="sourceWidth">Width of the original (unreduced) image in pixels.</param>
+    /// <param name="sourceHeight">Height of the original (unreduced) image in pixels.</param>
+    internal static Rgba32 SampleBilinearReduced(Surface reduced, float x, float y, int factorX, int factorY, int sourceWidth, int sourceHeight)
+    {
+        var u = ReducedCoordinate(x, factorX, reduced.Width, sourceWidth) / reduced.Width;
+        var v = ReducedCoordinate(y, factorY, reduced.Height, sourceHeight) / reduced.Height;
+        return SampleBilinear(reduced, u, v);
+    }
+
+    /// <summary>Maps an original-pixel position to reduced-pixel coordinates using actual block centers.</summary>
+    private static float ReducedCoordinate(float position, int factor, int reducedSize, int sourceSize)
+    {
+        if (reducedSize < 2)
+        {
+            return position / factor;
+        }
+
+        // Center of the last full-or-partial block and of the one before it (always a full block)
+        var lastCenter = ((reducedSize - 1) * (double)factor) + ((sourceSize - ((reducedSize - 1) * (double)factor)) / 2.0);
+        var prevCenter = ((reducedSize - 2) * (double)factor) + (factor / 2.0);
+        if (position <= prevCenter)
+        {
+            return position / factor;
+        }
+
+        if (position >= lastCenter)
+        {
+            return reducedSize - 0.5f;
+        }
+
+        var t = (position - prevCenter) / (lastCenter - prevCenter);
+        return (float)(reducedSize - 1.5 + t);
     }
 
     /// <summary>
@@ -79,61 +149,11 @@ internal static class SurfaceResampler
         ArgumentOutOfRangeException.ThrowIfLessThan(fx, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(fy, 1);
 
+        // Each output pixel covers an fx-by-fy block; blocks that overhang the image edge average
+        // only the pixels they cover (the Area filter drops out-of-image coverage and renormalizes)
         var outWidth = checked((source.Width + fx - 1) / fx);
         var outHeight = checked((source.Height + fy - 1) / fy);
-        var result = new Surface(outWidth, outHeight);
-        var sumR = new long[outWidth];
-        var sumG = new long[outWidth];
-        var sumB = new long[outWidth];
-        var sumA = new long[outWidth];
-
-        for (var oy = 0; oy < outHeight; oy++)
-        {
-            Array.Clear(sumR);
-            Array.Clear(sumG);
-            Array.Clear(sumB);
-            Array.Clear(sumA);
-
-            var y0 = oy * fy;
-            var y1 = Math.Min(source.Height, y0 + fy);
-            for (var y = y0; y < y1; y++)
-            {
-                var row = source.GetRowSpan(y);
-                for (var x = 0; x < row.Length; x++)
-                {
-                    var ox = x / fx;
-                    var pixel = row[x];
-                    long a = pixel.A;
-                    checked
-                    {
-                        sumA[ox] += a;
-                        sumR[ox] += pixel.R * a;
-                        sumG[ox] += pixel.G * a;
-                        sumB[ox] += pixel.B * a;
-                    }
-                }
-            }
-
-            var outRow = result.GetRowSpan(oy);
-            for (var ox = 0; ox < outWidth; ox++)
-            {
-                var count = (long)(y1 - y0) * (Math.Min(source.Width, (ox * fx) + fx) - (ox * fx));
-                var alphaSum = sumA[ox];
-                if (alphaSum == 0)
-                {
-                    outRow[ox] = new Rgba32(0, 0, 0, 0);
-                    continue;
-                }
-
-                outRow[ox] = new Rgba32(
-                    DivideRound(sumR[ox], alphaSum),
-                    DivideRound(sumG[ox], alphaSum),
-                    DivideRound(sumB[ox], alphaSum),
-                    DivideRound(alphaSum, count));
-            }
-        }
-
-        return result;
+        return Resample(source, 0, (double)outWidth * fx, 0, (double)outHeight * fy, outWidth, outHeight, ResamplingMode.Area);
     }
 
     /// <summary>
@@ -154,11 +174,15 @@ internal static class SurfaceResampler
         var y0 = Math.Clamp((int)y0f, 0, image.Height - 1);
         var y1 = Math.Clamp((int)y0f + 1, 0, image.Height - 1);
 
-        var p00 = image[x0, y0];
-        var p10 = image[x1, y0];
-        var p01 = image[x0, y1];
-        var p11 = image[x1, y1];
+        return Blend(image[x0, y0], image[x1, y0], image[x0, y1], image[x1, y1], tx, ty);
+    }
 
+    /// <summary>
+    ///     Blends four pixels bilinearly in premultiplied alpha with fractional offsets
+    ///     (<paramref name="tx"/>, <paramref name="ty"/>) from <paramref name="p00"/>.
+    /// </summary>
+    private static Rgba32 Blend(Rgba32 p00, Rgba32 p10, Rgba32 p01, Rgba32 p11, float tx, float ty)
+    {
         var w00 = (1 - tx) * (1 - ty);
         var w10 = tx * (1 - ty);
         var w01 = (1 - tx) * ty;
@@ -200,10 +224,6 @@ internal static class SurfaceResampler
         var factor = Math.Round(1.0 / scale, MidpointRounding.AwayFromZero);
         return factor >= size ? Math.Max(1, size) : Math.Max(1, (int)factor);
     }
-
-    /// <summary>Divides rounding half away from zero (non-negative operands).</summary>
-    private static byte DivideRound(long numerator, long denominator) =>
-        (byte)Math.Min(255L, ((numerator * 2) + denominator) / (denominator * 2));
 
     /// <summary>Rounds a float channel to a byte (half away from zero, clamped).</summary>
     private static byte ToByte(float value) =>

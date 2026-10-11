@@ -94,7 +94,8 @@ glyph under a clip mode fails closed); and no additional stream filters were add
 **Phase 3 limitations** (narrowed by Phase 7/13 and the `/Pattern` color-space phase, see below):
 there are no transparency groups, `/Mask` (stencil/color-key) image masks and `/Matte` are not
 consulted, and the Phase 3 operator subset is otherwise limited as documented below. These remain
-out of scope and are silently skipped (any other undefined keyword) or explicitly rejected
+out of scope (along with `/ImageMask` stencil images, which are not rendered) and are silently
+skipped (any other undefined keyword) or explicitly rejected
 (unsupported color spaces/filters/fonts/encodings/render modes), per the operator/exception
 taxonomy documented below. Since then the following have been added: shading/tiling pattern fills
 (`/ShadingType 2`/`3`, `/PatternType 1`/`2` — see _`/Pattern` Color Space (Shading and Tiling
@@ -672,6 +673,9 @@ its own distinguishable `Feature` token.
     number, resolves `lookup` (a PDF string's raw bytes, or a stream decoded via
     `GetStreamDecodedBytes`), and validates the resolved palette has at least
     `(Hival + 1) * ComponentCount(baseSpace)` bytes (else `InvalidDataException` in each case).
+    Image samples are converted without a per-pixel array: `SamplesToColor` and `IndexedToColor`
+    place the (at most four) components in a `stackalloc` span and call
+    `ColorFromComponentSpan`, which applies the same conversion as the `IReadOnlyList` overload.
     `ComponentCount` reports `1` for `Indexed` (the palette index itself); `ColorFromComponents`
     dispatches an `Indexed` color's single raw (not `[0, 1]`-normalized) index component to
     `IndexedToColor`, which rounds/clamps the index into `[0, Hival]` (an out-of-range index
@@ -768,24 +772,24 @@ its own distinguishable `Feature` token.
   `pdf-jpx-smaskindata-indexed`) and then applies it; other values throw
   `InvalidDataException`. An explicit `/SMask` image (any filter, including `JPXDecode`; decoded
   through the same `DecodeImageSamples` path without nested masks, and required to be a
-  single-component non-`/Indexed` image, else `InvalidDataException`) is nearest-neighbor resampled
+  single-component non-`/Indexed` image, else `InvalidDataException`) is resized smoothly (bilinear)
   to the base image and its luminance multiplies the base alpha in place on the base surface
   (`ApplySoftMask`), taking
   precedence over `/SMaskInData`; `/Mask` and `/Matte` are not consulted. Inline images (`BI`) are
   not supported at all, which satisfies the PDF rule that `JPXDecode` is not permitted inline.
   `CompositeImageOntoSurface` inverts the CTM (a non-invertible/degenerate CTM silently paints
-  nothing), computes the device-space bounding box of the transformed unit square, and for every
-  destination pixel in that box nearest-neighbor-samples the source image (`row = floor((1 - v) *
-  image.Height)`, since image sample row `0` is the _top_ of the unit square per the PDF
-  specification's image-space convention, the opposite of user-space's y-up convention). When the
-  image is enlarged or drawn 1:1 this nearest-neighbor lookup is unchanged. When the pixel-to-device
-  mapping shrinks the image on either axis (local scales are the column norms of the 2x2 part of
-  the matrix), the internal `Canvas.SurfaceResampler` first area-averages the image once per draw
-  (an integer box prefilter, factor = nearest integer to the reduction ratio, premultiplied alpha,
-  output no larger than the source, so memory is bounded by the decoded image) and the result is
-  sampled bilinearly (centre-aligned, edge-clamped); mild shrinks below 1.5:1 use bilinear on the
-  source directly. Thin features such as one-pixel rules are therefore attenuated rather than
-  dropped. `/Interpolate` is not consulted. Each sampled source pixel is alpha-blended "over" the
+  nothing), computes the device-space bounding box of the transformed unit square, and when the
+  placement is axis-aligned (including flips) the internal `Canvas.SurfaceResampler.TryResampleToDevice`
+  resamples the image once per draw to exactly the device window it covers (the shared separable,
+  premultiplied-alpha engine: `Area` when shrinking, `Bicubic` when enlarging, kernel support scaled
+  by the reduction ratio, window clipped to the page so memory is bounded) and the window is composited
+  1:1, with the clip coverage applied (image sample row `0` is the _top_ of the unit square per the PDF
+  specification's image-space convention, the opposite of user-space's y-up convention). A rotated or
+  skewed placement falls back to inverse-mapped bilinear sampling of an area-prefiltered source
+  (`Prefilter` + `SampleBilinear`). Thin features such as one-pixel rules are therefore attenuated
+  rather than dropped, and enlarged images are interpolated rather than shown as blocks.
+  `/Interpolate` is not consulted.
+  Each sampled source pixel is alpha-blended "over" the
   existing destination pixel via the shared internal `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)`
   helper (standard Porter-Duff "over" alpha compositing — straight/unassociated alpha in and out,
   `outA = fgA + bgA * (1 - fgA)`, each color channel `outC = (fgC * fgA + bgC * bgA * (1 - fgA)) /
@@ -1446,8 +1450,9 @@ its own distinguishable `Feature` token.
   caller-supplied tint before compositing, preserving each pixel's own painted alpha exactly (so a
   partially transparent cell stays partially transparent, just recolored). The rendered cell
   becomes a `Drawing.TilePaint` (new `Drawing` subsystem unit — see _Introduction_ and
-  `Drawing/TilePaint.cs`/`Drawing/TilePaintEvaluator.cs`), sampled nearest-neighbor per destination
-  pixel by `Drawing.PathFiller`'s new `TilePaint` fill overload, mirroring the existing `Gradient`
+  `Drawing/TilePaint.cs`/`Drawing/TilePaintEvaluator.cs`), sampled per destination
+  pixel (exact lookup at 1:1, smoothed when magnified or minified) by `Drawing.PathFiller`'s new `TilePaint` fill
+  overload, mirroring the existing `Gradient`
   overload's structure exactly.
 - **Mesh shadings (`PdfDocument.Patterns.Shading.Mesh.cs`, `/ShadingType` 4-7)** — `ResolveMeshShading`
   requires the shading to be a stream and validates `/BitsPerCoordinate` (1/2/4/8/12/16/24/32),

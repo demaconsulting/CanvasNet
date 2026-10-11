@@ -17,9 +17,15 @@ words:
   - Cmaps
   - subtables
   - bilinearly
+  - stackalloc
   - prefilter
   - prefiltered
   - resampler
+  - Catmull
+  - Lanczos
+  - optimizespeed
+  - optimizequality
+  - sinc
   - Strikethru
   - Strikethrough
   - linepattern

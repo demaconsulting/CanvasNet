@@ -94,6 +94,8 @@ Returns an immutable `Path` snapshot of every subpath recorded so far (including
 currently-open subpath, if any, uncommitted state included). The builder remains usable
 afterward: further commands (and further `Build()` calls) do not affect a previously returned
 `Path`. If no commands have ever been issued, returns a `Path` with zero `Subpaths`.
+The builder reuses one scratch list for the current subpath's commands (cleared on each
+`MoveTo`); the snapshot copies the commands, so reuse never alters a previously built `Path`.
 
 ##### PathBuilder.Clear()
 

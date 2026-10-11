@@ -43,7 +43,11 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     surface's pixel dimensions to <see cref="TilePaint.XStep"/>/<see cref="TilePaint.YStep"/>,
 ///     clamped into <c>[0, Width - 1] x [0, Height - 1]</c> (guarding a floating-point edge case
 ///     landing exactly on the width/height boundary), and sampled via nearest-neighbor
-///     (<c>tile.Surface[tx, ty]</c>) - bilinear interpolation is explicitly out of scope.
+///     (<c>tile.Surface[tx, ty]</c>) when the tile is drawn at roughly one device pixel per tile
+///     pixel (within 5 percent, which keeps device-scale pattern cells exact). A magnified tile
+///     is instead sampled bilinearly (wrapping at the tile edges) and a minified tile is replaced,
+///     once per fill, by an area-averaged smaller copy (<c>Minified</c>) that is then sampled
+///     nearest-neighbor, so one-pixel features survive and enlarged tiles are not blocky.
 ///     </para>
 /// </remarks>
 internal static class TilePaintEvaluator
@@ -68,6 +72,22 @@ internal static class TilePaintEvaluator
 
         /// <summary>The inverse of <see cref="TilePaint.Transform"/>, when <see cref="HasInverseTransform"/>.</summary>
         public Matrix3x2 InverseTransform { get; init; }
+
+        /// <summary>
+        ///     When the tile is drawn smaller than one device pixel per tile pixel, a smaller
+        ///     area-averaged copy of the tile owned by this plan (the caller must dispose it via
+        ///     <see cref="Release"/> once the fill is finished); otherwise <see langword="null"/>.
+        /// </summary>
+        public Surface? Minified { get; init; }
+
+        /// <summary>
+        ///     <see langword="true"/> when the tile is magnified and must be sampled bilinearly
+        ///     (wrapping at the tile edges) instead of nearest-neighbor.
+        /// </summary>
+        public bool Magnified { get; init; }
+
+        /// <summary>Releases the plan's owned <see cref="Minified"/> surface, if any.</summary>
+        public void Release() => Minified?.Dispose();
     }
 
     /// <summary>
@@ -83,11 +103,35 @@ internal static class TilePaintEvaluator
 
         var hasInverse = Matrix3x2.Invert(tile.Transform, out var inverse) && IsFinite(inverse);
 
+        if (!hasInverse)
+        {
+            return new TilePaintPlan { Tile = tile, HasInverseTransform = false, InverseTransform = inverse };
+        }
+
+        // Classify the device scale of one tile pixel. A tile drawn near 1:1 (the usual case for
+        // device-scale pattern cells) keeps exact nearest sampling; a magnified tile is sampled
+        // bilinearly; a minified tile is replaced by an area-averaged smaller copy so thin
+        // features survive.
+        var surface = tile.Surface;
+        var tilePixelsPerUnitX = surface.Width / Math.Abs((double)tile.XStep);
+        var tilePixelsPerUnitY = surface.Height / Math.Abs((double)tile.YStep);
+        var m = tile.Transform;
+        var deviceX = Math.Sqrt(((double)m.M11 * m.M11) + ((double)m.M12 * m.M12)) / tilePixelsPerUnitX;
+        var deviceY = Math.Sqrt(((double)m.M21 * m.M21) + ((double)m.M22 * m.M22)) / tilePixelsPerUnitY;
+        Surface? minified = null;
+        var magnified = false;
+        if (SurfaceResampler.ClassifyTileScale(deviceX, deviceY, surface.Width, surface.Height, out magnified, out var width, out var height))
+        {
+            minified = surface.Resize(width, height, ResamplingMode.Area);
+        }
+
         return new TilePaintPlan
         {
             Tile = tile,
-            HasInverseTransform = hasInverse,
+            HasInverseTransform = true,
             InverseTransform = inverse,
+            Minified = minified,
+            Magnified = magnified,
         };
     }
 
@@ -123,7 +167,7 @@ internal static class TilePaintEvaluator
         }
 
         var tile = plan.Tile;
-        var surface = tile.Surface;
+        var surface = plan.Minified ?? tile.Surface;
         var xStep = Math.Abs((double)tile.XStep);
         var yStep = Math.Abs((double)tile.YStep);
         var scaleX = surface.Width / xStep;
@@ -136,6 +180,12 @@ internal static class TilePaintEvaluator
 
             var wrappedX = FloorMod(patternPoint.X, xStep);
             var wrappedY = FloorMod(patternPoint.Y, yStep);
+
+            if (plan.Magnified)
+            {
+                destination[i] = SurfaceResampler.SampleBilinearWrapped(surface, wrappedX * scaleX, wrappedY * scaleY);
+                continue;
+            }
 
             var tx = Math.Clamp((int)(wrappedX * scaleX), 0, surface.Width - 1);
             var ty = Math.Clamp((int)(wrappedY * scaleY), 0, surface.Height - 1);

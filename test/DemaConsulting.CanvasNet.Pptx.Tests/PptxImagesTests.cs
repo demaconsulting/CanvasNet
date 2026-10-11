@@ -130,6 +130,26 @@ public class PptxImagesTests
         return image;
     }
 
+    /// <summary>Proves an enlarged picture is smoothly interpolated rather than painted as hard blocks.</summary>
+    [Fact]
+    public void PaintPicture_EnlargedPicture_IsSmooth()
+    {
+        using var image = new Surface(2, 1);
+        image[0, 0] = new Rgba32(0, 0, 0, 255);
+        image[1, 0] = new Rgba32(255, 255, 255, 255);
+        using var surface = new Surface(40, 4);
+
+        PptxDocument.PaintPicture(surface, image, srcRect: null, Matrix3x2.Identity, widthEmu: 40f, heightEmu: 4f);
+
+        var distinct = new HashSet<byte>();
+        for (var x = 0; x < 40; x++)
+        {
+            distinct.Add(surface[x, 2].R);
+        }
+
+        Assert.True(distinct.Count > 8);
+    }
+
     /// <summary>Proves an identity-transformed, uncropped picture paints the source image's pixels at the expected destination location, left-to-right unflipped.</summary>
     [Fact]
     public void PaintPicture_IdentityTransformNoCrop_PaintsImagePixelsUnflipped()
@@ -168,6 +188,150 @@ public class PptxImagesTests
         Assert.Equal(new Rgba32(0, 255, 255, 255), surface[1, 3]);
     }
 
+    /// <summary>Builds an 8x8 image whose two left columns are bright red and whose other six columns are blue.</summary>
+    private static Surface BuildRedBorderBlueImage()
+    {
+        var image = new Surface(8, 8);
+        for (var y = 0; y < 8; y++)
+        {
+            for (var x = 0; x < 8; x++)
+            {
+                image[x, y] = x < 2 ? new Rgba32(255, 0, 0, 255) : new Rgba32(0, 0, 255, 255);
+            }
+        }
+
+        return image;
+    }
+
+    /// <summary>Proves pixels outside a <see cref="PptxSrcRect"/> crop do not bleed into the crop edge when an axis-aligned picture is enlarged (the smoothing kernel is confined to the cropped window).</summary>
+    [Fact]
+    public void PaintPicture_EnlargedCrop_DoesNotBleedPixelsOutsideCrop()
+    {
+        // Crop away the two bright-red columns (25 percent of the width) and enlarge the rest 6.67x
+        using var image = BuildRedBorderBlueImage();
+        using var surface = new Surface(40, 40);
+        var srcRect = new PptxSrcRect(Left: 0.25f, Top: 0f, Right: 0f, Bottom: 0f);
+
+        PptxDocument.PaintPicture(surface, image, srcRect, Matrix3x2.Identity, widthEmu: 40f, heightEmu: 40f);
+
+        // Every pixel, including the left crop edge, is pure blue: no red leaks in from outside the crop
+        for (var y = 0; y < 40; y++)
+        {
+            for (var x = 0; x < 40; x++)
+            {
+                Assert.Equal(new Rgba32(0, 0, 255, 255), surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>Proves a non-binary fractional crop landing exactly on an integer pixel boundary excludes the neighboring column (right and left edges).</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void PaintPicture_FractionalCropOnIntegerBoundary_NoContaminationFromExcludedColumn(bool cropRight)
+    {
+        // The image is 45 px wide and 40 percent is exactly 18 px. A right crop keeps the first 27 columns
+        // and a left crop keeps the last 27, so the other columns are red and must never leak in.
+        using var image = new Surface(45, 4);
+        var blue = new Rgba32(0, 0, 255, 255);
+        var red = new Rgba32(255, 0, 0, 255);
+        for (var y = 0; y < 4; y++)
+        {
+            for (var x = 0; x < 45; x++)
+            {
+                var excluded = cropRight ? x >= 27 : x < 18;
+                image[x, y] = excluded ? red : blue;
+            }
+        }
+
+        using var surface = new Surface(54, 4);
+        var srcRect = cropRight
+            ? new PptxSrcRect(Left: 0f, Top: 0f, Right: 0.4f, Bottom: 0f)
+            : new PptxSrcRect(Left: 0.4f, Top: 0f, Right: 0f, Bottom: 0f);
+
+        PptxDocument.PaintPicture(surface, image, srcRect, Matrix3x2.Identity, widthEmu: 54f, heightEmu: 4f);
+
+        for (var y = 0; y < 4; y++)
+        {
+            for (var x = 0; x < 54; x++)
+            {
+                Assert.Equal(blue, surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>Proves a fractional crop uses the whole-pixel superset window: a partially covered border pixel still contributes to the crop edge.</summary>
+    [Fact]
+    public void PaintPicture_FractionalCrop_PartiallyCoveredBorderPixelContributes()
+    {
+        // 4x4 image: column 0 black, the rest white; crop left = 12.5 percent (half of column 0 remains)
+        using var image = new Surface(4, 4);
+        image.Clear(new Rgba32(255, 255, 255, 255));
+        for (var y = 0; y < 4; y++)
+        {
+            image[0, y] = new Rgba32(0, 0, 0, 255);
+        }
+
+        using var surface = new Surface(40, 4);
+        var srcRect = new PptxSrcRect(Left: 0.125f, Top: 0f, Right: 0f, Bottom: 0f);
+
+        PptxDocument.PaintPicture(surface, image, srcRect, Matrix3x2.Identity, widthEmu: 40f, heightEmu: 4f);
+
+        // The leftmost painted pixel is dominated by the half-covered black column, the far right is white
+        Assert.InRange(surface[0, 2].R, 0, 127);
+        Assert.Equal(255, surface[39, 2].R);
+    }
+
+    /// <summary>Proves a fractional crop's extra border source pixels (kept for filter taps) never paint outside the picture's own footprint.</summary>
+    [Fact]
+    public void PaintPicture_FractionalCropAtOffset_PaintsOnlyInsideFootprint()
+    {
+        using var image = new Surface(4, 4);
+        image.Clear(new Rgba32(255, 0, 0, 255));
+        using var surface = new Surface(60, 20);
+        var srcRect = new PptxSrcRect(Left: 0.125f, Top: 0.125f, Right: 0.125f, Bottom: 0.125f);
+
+        PptxDocument.PaintPicture(surface, image, srcRect, Matrix3x2.CreateTranslation(10f, 5f), widthEmu: 40f, heightEmu: 8f);
+
+        for (var y = 0; y < 20; y++)
+        {
+            for (var x = 0; x < 60; x++)
+            {
+                var inside = x is >= 10 and < 50 && y is >= 5 and < 13;
+                Assert.Equal(inside, surface[x, y].A != 0);
+            }
+        }
+    }
+
+    /// <summary>Proves the crop also does not bleed for a rotated picture (inverse-mapped bilinear path).</summary>
+    [Fact]
+    public void PaintPicture_RotatedCrop_DoesNotBleedPixelsOutsideCrop()
+    {
+        using var image = BuildRedBorderBlueImage();
+        using var surface = new Surface(40, 40);
+        var srcRect = new PptxSrcRect(Left: 0.25f, Top: 0f, Right: 0f, Bottom: 0f);
+        var transform = Matrix3x2.CreateRotation(MathF.PI / 2f) * Matrix3x2.CreateTranslation(40f, 0f);
+
+        PptxDocument.PaintPicture(surface, image, srcRect, transform, widthEmu: 40f, heightEmu: 40f);
+
+        var painted = 0;
+        for (var y = 0; y < 40; y++)
+        {
+            for (var x = 0; x < 40; x++)
+            {
+                if (surface[x, y].A == 0)
+                {
+                    continue;
+                }
+
+                painted++;
+                Assert.Equal(0, surface[x, y].R);
+            }
+        }
+
+        Assert.True(painted > 1000, "the rotated picture should cover most of the surface");
+    }
+
     /// <summary>Proves a <see cref="PptxSrcRect"/> crop re-maps the sampled region: cropping away the left half of a two-tone image leaves only its right (blue) half visible.</summary>
     [Fact]
     public void PaintPicture_WithSrcRectCroppingLeftHalf_SamplesOnlyRightHalf()
@@ -181,6 +345,35 @@ public class PptxImagesTests
         // The entire painted destination now samples only the image's right (blue) half.
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 5]);
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[8, 5]);
+    }
+
+    /// <summary>Proves negative (overhanging) srcRect edges replicate the source edge pixels across the overhang instead of leaving a transparent band, for an axis-aligned picture.</summary>
+    [Fact]
+    public void PaintPicture_WithNegativeSrcRectEdges_ReplicatesEdgePixelsIntoOverhang()
+    {
+        using var image = BuildTwoToneImage(10, 10);
+        using var surface = new Surface(30, 30);
+
+        // Left/top overhang by half an image, right/bottom by a quarter: the footprint is 1.75x
+        // the image, so the left overhang spans 0.5/1.75 of the surface width.
+        var srcRect = new PptxSrcRect(Left: -0.5f, Top: -0.5f, Right: -0.25f, Bottom: -0.25f);
+
+        PptxDocument.PaintPicture(surface, image, srcRect, Matrix3x2.Identity, widthEmu: 30f, heightEmu: 30f);
+
+        // Left overhang (x < ~8.6) replicates the red left edge; the right overhang (x > ~25.7) the blue right edge
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[2, 15]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[2, 2]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[28, 15]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[28, 28]);
+
+        // No pixel anywhere is left transparent
+        for (var y = 0; y < 30; y++)
+        {
+            for (var x = 0; x < 30; x++)
+            {
+                Assert.Equal(255, surface[x, y].A);
+            }
+        }
     }
 
     /// <summary>Proves a translated shape-to-surface transform shifts the painted footprint accordingly.</summary>

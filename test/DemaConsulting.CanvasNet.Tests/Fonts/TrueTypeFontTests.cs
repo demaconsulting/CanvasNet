@@ -321,6 +321,128 @@ public class TrueTypeFontTests
     }
 
     /// <summary>
+    ///     Proves that repeated GetGlyphOutline calls return the same memoized instance, and that the
+    ///     memoized outline equals the outline decoded by a font that has not cached anything.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetGlyphOutline_RepeatedCalls_ReturnMemoizedOutlineEqualToFreshDecode()
+    {
+        // Arrange: two independent fonts loaded from the same bytes
+        var data = BuildWellFormedFont();
+        using var cachedStream = new MemoryStream(data);
+        using var freshStream = new MemoryStream(data);
+        var cachedFont = TrueTypeFont.Load(cachedStream);
+        var freshFont = TrueTypeFont.Load(freshStream);
+
+        // Act
+        var first = cachedFont.GetGlyphOutline(1);
+        var second = cachedFont.GetGlyphOutline(1);
+        var fresh = freshFont.GetGlyphOutline(1);
+
+        // Assert: one shared instance, with exactly the geometry a cold decode produces
+        Assert.Same(first, second);
+        Assert.Equal(fresh.Subpaths.Count, first.Subpaths.Count);
+        for (var s = 0; s < fresh.Subpaths.Count; s++)
+        {
+            Assert.Equal(fresh.Subpaths[s].Start, first.Subpaths[s].Start);
+            Assert.Equal(fresh.Subpaths[s].IsClosed, first.Subpaths[s].IsClosed);
+            Assert.Equal(fresh.Subpaths[s].Commands.Count, first.Subpaths[s].Commands.Count);
+            for (var c = 0; c < fresh.Subpaths[s].Commands.Count; c++)
+            {
+                Assert.Equal(fresh.Subpaths[s].Commands[c], first.Subpaths[s].Commands[c]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that the glyph outline cache never exceeds its 4096-entry cap, even when many
+    ///     threads request distinct glyphs concurrently, and that every request still succeeds.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetGlyphOutline_ConcurrentDistinctGlyphs_NeverExceedsCacheCap()
+    {
+        // Arrange: a font with more glyphs than the cap, all empty (equal consecutive loca offsets)
+        const int glyphCount = 6000;
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(glyphCount))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 1))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([500], glyphCount - 1))
+            .AddTable("loca", SyntheticFontBuilder.Loca(new int[glyphCount], longFormat: false))
+            .AddTable("glyf", new byte[4])
+            .Build();
+        using var stream = new MemoryStream(data);
+        var font = TrueTypeFont.Load(stream);
+
+        // Act: hammer the cache from many threads
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 8 };
+        Parallel.For(0, glyphCount * 4, options, i => Assert.NotNull(font.GetGlyphOutline(i % glyphCount)));
+
+        // Assert: the private cache is capped exactly
+        var field = typeof(TrueTypeFont).GetField(
+            "_outlineCache",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        var cache = (System.Collections.ICollection)field.GetValue(font)!;
+        Assert.InRange(cache.Count, 1, 4096);
+    }
+
+    /// <summary>
+    ///     Proves that an outline whose geometry cost exceeds the cache's cost budget is not
+    ///     retained, while the same outline is retained under the default budget.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetGlyphOutline_OutlineExceedingCostBudget_IsNotCached()
+    {
+        // Arrange: one font with a budget below the glyph's cost, one with the default budget
+        var data = BuildWellFormedFont();
+        using var smallStream = new MemoryStream(data);
+        using var defaultStream = new MemoryStream(data);
+        var limited = TrueTypeFont.Load(smallStream);
+        var normal = TrueTypeFont.Load(defaultStream);
+        var budget = typeof(TrueTypeFont).GetField(
+            "_outlineCostBudget",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(budget);
+        budget.SetValue(limited, 2L);
+
+        // Act
+        var first = limited.GetGlyphOutline(1);
+        var second = limited.GetGlyphOutline(1);
+
+        // Assert: equal geometry, but not retained; the default budget retains it
+        Assert.NotSame(first, second);
+        Assert.Equal(first.Subpaths.Count, second.Subpaths.Count);
+        Assert.Same(normal.GetGlyphOutline(1), normal.GetGlyphOutline(1));
+    }
+
+    /// <summary>
+    ///     Proves that a malformed glyph is never memoized: every call reports it again.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetGlyphOutline_MalformedGlyph_ThrowsOnEveryCall()
+    {
+        // Arrange: glyph 1 declares an invalid (below -1) contour count
+        var glyph = new byte[12];
+        glyph[0] = 0xFF;
+        glyph[1] = 0xFE;
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(2))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 2))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 500]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([0, glyph.Length], longFormat: false))
+            .AddTable("glyf", glyph)
+            .Build();
+        using var stream = new MemoryStream(data);
+        var font = TrueTypeFont.Load(stream);
+
+        // Act/Assert: the failure is repeatable
+        Assert.Throws<InvalidDataException>(() => font.GetGlyphOutline(1));
+        Assert.Throws<InvalidDataException>(() => font.GetGlyphOutline(1));
+    }
+
+    /// <summary>
     ///     Proves that TrueTypeFont GetAdvanceWidth GlyphIndexTooLarge ThrowsArgumentOutOfRangeException.
     /// </summary>
     [Fact]

@@ -92,6 +92,10 @@
          image-compositing loop - the same Porter-Duff "over" helper DemaConsulting.CanvasNet.Pdf's
          PdfDocument.Images.cs's CompositeImageOntoSurface also reuses. -->
     <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Pptx" />
+    <!-- Grants DemaConsulting.CanvasNet.Svg access to the internal SurfaceResampler engine, reused
+         (not duplicated) by SvgCodec.Image.cs and SvgCodec.Patterns.cs for smooth raster
+         image and pattern-tile resampling. -->
+    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Svg" />
   </ItemGroup>
 
   <ItemGroup>

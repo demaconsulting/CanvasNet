@@ -114,6 +114,7 @@ sections:
                   to trust that the first Path they obtained never changes underneath them.
                 tests:
                   - PathBuilder_Build_ThenMutateBuilder_DoesNotAffectPreviouslyBuiltPath
+                  - PathBuilder_Build_ThenReuseBuilder_EarlierPathsAreUnchanged
 
               - id: CanvasNet-Geometry-Path-BuildEmpty
                 title: >-

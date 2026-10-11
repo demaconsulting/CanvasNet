@@ -739,6 +739,20 @@ public sealed partial class PdfDocument
             _ => throw new InvalidOperationException($"Unreachable: unrecognized color space {colorSpace.Kind}."),
         };
 
+    /// <summary>
+    ///     Allocation-free twin of <see cref="ColorFromComponents(PdfColorSpace, IReadOnlyList{double})"/>
+    ///     for per-pixel image conversion: identical conversion formulas over a span of components.
+    /// </summary>
+    private static Rgba32 ColorFromComponentSpan(PdfColorSpace colorSpace, ReadOnlySpan<double> components) =>
+        colorSpace.Kind switch
+        {
+            PdfColorSpace.Family.DeviceGray => GrayToColor(components[0]),
+            PdfColorSpace.Family.DeviceRGB => RgbToColor(components[0], components[1], components[2]),
+            PdfColorSpace.Family.DeviceCMYK => CmykToColor(components[0], components[1], components[2], components[3]),
+            PdfColorSpace.Family.Indexed => IndexedToColor(colorSpace, components[0]),
+            _ => throw new InvalidOperationException($"Unreachable: unrecognized color space {colorSpace.Kind}."),
+        };
+
     private static Rgba32 GrayToColor(double gray)
     {
         var value = ComponentToByte(gray);
@@ -777,13 +791,13 @@ public sealed partial class PdfDocument
         var componentCount = ComponentCount(baseSpace);
         var offset = index * componentCount;
 
-        var components = new double[componentCount];
+        Span<double> components = componentCount <= 4 ? stackalloc double[componentCount] : new double[componentCount];
         for (var i = 0; i < componentCount; i++)
         {
             components[i] = colorSpace.IndexedPalette[offset + i] / 255.0;
         }
 
-        return ColorFromComponents(baseSpace, components);
+        return ColorFromComponentSpan(baseSpace, components);
     }
 
     /// <summary>Converts a <c>[0, 1]</c> color component (clamped) into a <c>[0, 255]</c> byte value.</summary>

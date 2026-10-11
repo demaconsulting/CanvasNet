@@ -71,10 +71,11 @@ public static partial class SvgCodec
     //     through the ordinary recursive RenderElement walk with elementDepth + 1 - exactly the
     //     same reliance ApplyMask's own remarks document for a mask-reference cycle. No separate
     //     pattern-specific cycle/depth guard is implemented.
-    //   - Tile sampling is nearest-neighbor only (matching this codec's existing "no bilinear
-    //     resampling anywhere" convention); a rotated/skewed patternTransform therefore produces a
-    //     tiled result with the same per-tile-pixel aliasing any other nearest-neighbor sampler
-    //     would.
+    //   - Tile sampling is nearest-neighbor when the rendered tile buffer is drawn at about one
+    //     device pixel per buffer pixel (within 5 percent, the usual device-scale case, which stays
+    //     exact); a magnified tile (for example a rotated/skewed or scaled patternTransform) is
+    //     sampled bilinearly with wrap-around, and a minified tile is first area-averaged to its
+    //     device size by the shared SurfaceResampler engine so thin features are not dropped.
 
     /// <summary>
     ///     The maximum pixel-space dimension (either axis) a single rendered pattern tile buffer
@@ -509,7 +510,8 @@ public static partial class SvgCodec
     ///     time: each destination pixel is inverse-mapped through <paramref name="inverseGridTransform"/>
     ///     back into grid space, wrapped (modulo) by the tile's own <paramref name="tileWidth"/>/
     ///     <paramref name="tileHeight"/>, rescaled into <paramref name="tileBuffer"/>'s own pixel
-    ///     coordinates, and sampled nearest-neighbor - then that sample's own alpha is multiplied by
+    ///     coordinates, and sampled (nearest-neighbor at about 1:1, bilinear when magnified, from an
+    ///     area-averaged copy when minified) - then that sample's own alpha is multiplied by
     ///     <paramref name="coverage"/>'s own alpha at the same destination pixel (a fractional,
     ///     antialiased generalization of <see cref="ApplyCoverageClip"/>'s binary coverage-multiply).
     /// </summary>
@@ -525,7 +527,7 @@ public static partial class SvgCodec
     /// <param name="tileHeight">The tile rectangle's own <c>height</c>, in grid space. Already validated positive.</param>
     /// <param name="inverseGridTransform">The inverse of the composed grid-space-to-pixel-space transform.</param>
     /// <returns>A new region-sized buffer, ready for <see cref="CompositeFilterResultOntoCanvas"/>.</returns>
-    private static Surface SampleTileIntoRegion(
+    internal static Surface SampleTileIntoRegion(
         Surface tileBuffer,
         Surface coverage,
         int pixelX,
@@ -539,6 +541,49 @@ public static partial class SvgCodec
         Matrix3x2 inverseGridTransform)
     {
         var result = new Surface(pixelWidth, pixelHeight);
+
+        // Classify the device scale of one tile-buffer pixel (see this file's sampling remarks)
+        var magnified = false;
+        Surface? minified = null;
+        if (Matrix3x2.Invert(inverseGridTransform, out var gridToPixel))
+        {
+            var deviceX = Math.Sqrt(((double)gridToPixel.M11 * gridToPixel.M11) + ((double)gridToPixel.M12 * gridToPixel.M12)) * tileWidth / tileBuffer.Width;
+            var deviceY = Math.Sqrt(((double)gridToPixel.M21 * gridToPixel.M21) + ((double)gridToPixel.M22 * gridToPixel.M22)) * tileHeight / tileBuffer.Height;
+            if (SurfaceResampler.ClassifyTileScale(deviceX, deviceY, tileBuffer.Width, tileBuffer.Height, out magnified, out var reducedWidth, out var reducedHeight))
+            {
+                minified = tileBuffer.Resize(reducedWidth, reducedHeight, ResamplingMode.Area);
+            }
+        }
+
+        var source = minified ?? tileBuffer;
+        try
+        {
+            FillTileRegion(result, source, coverage, magnified, pixelX, pixelY, tileX, tileY, tileWidth, tileHeight, inverseGridTransform);
+        }
+        finally
+        {
+            minified?.Dispose();
+        }
+
+        return result;
+    }
+
+    /// <summary>The per-pixel loop of <see cref="SampleTileIntoRegion"/>, sampling <paramref name="tileBuffer"/> into <paramref name="result"/>.</summary>
+    private static void FillTileRegion(
+        Surface result,
+        Surface tileBuffer,
+        Surface coverage,
+        bool magnified,
+        int pixelX,
+        int pixelY,
+        float tileX,
+        float tileY,
+        float tileWidth,
+        float tileHeight,
+        Matrix3x2 inverseGridTransform)
+    {
+        var pixelWidth = result.Width;
+        var pixelHeight = result.Height;
         var tilePixelWidth = tileBuffer.Width;
         var tilePixelHeight = tileBuffer.Height;
 
@@ -574,16 +619,22 @@ public static partial class SvgCodec
                 // are related by a single uniform translate-then-scale (see
                 // TryComputeContentRenderTransform's remarks) - so no further transform is needed
                 // beyond this direct fraction rescale
-                var bufferX = Math.Clamp((int)(wrappedX / tileWidth * tilePixelWidth), 0, tilePixelWidth - 1);
-                var bufferY = Math.Clamp((int)(wrappedY / tileHeight * tilePixelHeight), 0, tilePixelHeight - 1);
+                Rgba32 sample;
+                if (magnified)
+                {
+                    sample = SurfaceResampler.SampleBilinearWrapped(tileBuffer, (double)wrappedX / tileWidth * tilePixelWidth, (double)wrappedY / tileHeight * tilePixelHeight);
+                }
+                else
+                {
+                    var bufferX = Math.Clamp((int)(wrappedX / tileWidth * tilePixelWidth), 0, tilePixelWidth - 1);
+                    var bufferY = Math.Clamp((int)(wrappedY / tileHeight * tilePixelHeight), 0, tilePixelHeight - 1);
+                    sample = tileBuffer.GetRowSpan(bufferY)[bufferX];
+                }
 
-                var sample = tileBuffer.GetRowSpan(bufferY)[bufferX];
                 var combinedAlpha = (byte)Math.Clamp(MathF.Round(sample.A * (coverageAlpha / 255f)), 0, 255);
                 resultRow[col] = new Rgba32(sample.R, sample.G, sample.B, combinedAlpha);
             }
         }
-
-        return result;
     }
 
     /// <summary>

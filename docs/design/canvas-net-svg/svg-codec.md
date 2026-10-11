@@ -154,9 +154,9 @@ inherited, only stops/content are" simplification); a rendered tile-buffer cache
 fill/stroke re-renders its own tile from scratch, since a tile's own pixel size depends on the
 referencing shape's own bounding box, not only the `pattern` element itself); a dedicated
 pattern-reference cycle-depth counter (a pattern-content cycle is instead caught for free by the
-pre-existing `MaxElementDepth` guard, mirroring `mask`'s identical reliance); and bilinear/other
-non-nearest-neighbor tile resampling (matching this codec's existing "no resampling filter
-anywhere" convention). Within the supported `image` feature itself, the following are explicitly
+pre-existing `MaxElementDepth` guard, mirroring `mask`'s identical reliance); and per-element
+control of tile resampling beyond the automatic magnified/minified smoothing described below. Within the supported
+`image` feature itself, the following are explicitly
 out of scope (see _Image_ below for the full rationale behind each): an `href`/`xlink:href` that
 is not a base64-encoded `data:` URI - an external file path or URL is tolerantly rendered as
 nothing, since resolving it would require introducing a base-path/resolver mechanism that does
@@ -166,8 +166,9 @@ nested SVG document, whether base64-encoded or not) - tolerantly rendered as not
 same recursive-parsing-complexity reasoning that already excludes `feImage`'s own
 referenced-element case; auto-sizing from the decoded raster's own intrinsic dimensions when
 `width`/`height` are absent (both default to `0`, rendering nothing, rather than inferring a size
-from the decoded content); and bilinear/other non-nearest-neighbor image resampling (matching
-`pattern`'s identical "no resampling filter anywhere" convention).
+from the decoded content); and `image-rendering` values other than the recognized keywords
+(`auto`, `optimizeQuality`, `smooth` and `high-quality` select smooth sampling; `pixelated`,
+`crisp-edges` and `optimizeSpeed` select nearest-neighbor sampling), which are ignored.
 
 A percentage value on a shape/text geometry attribute (`x`, `y`, `width`, `height`, `rx`, `ry`,
 `cx`, `cy`, `r`, `x1`/`y1`/`x2`/`y2`, `font-size`, `stroke-width`, `stroke-dasharray`,
@@ -1103,8 +1104,10 @@ genuinely independent attributes elsewhere in this codec. Third, `SampleTileInto
 the rendered tile buffer into a region-sized destination, one destination pixel at a time: each
 pixel's own center is inverse-transformed back into grid space, wrapped (modulo) into the tile's
 own `[0, width) x [0, height)` extent via `WrapCoordinate`, rescaled into the tile buffer's own
-pixel coordinates, and sampled nearest-neighbor (matching this codec's existing "no bilinear
-resampling anywhere" convention) - new, isolated, well-commented arithmetic with no existing
+pixel coordinates, and sampled according to the tile scale: exact nearest lookup when the tile is drawn at about one
+device pixel per tile pixel (within 5 percent), wrapped bilinear when magnified, and an `Area`-resized copy of the tile
+(disposed after the fill) when minified (the sampling step is internal so that unit tests can exercise
+each scale regime directly) - new, isolated, well-commented arithmetic with no existing
 precedent to reuse, since this is a pure C# rasterizer with no native tiled/bitmap-shader
 primitive of any kind. That sample's own alpha is then multiplied by a freshly rasterized
 antialiased fill/stroke coverage buffer (`PathFiller.Fill` into a fresh `Surface`, the same
@@ -1173,8 +1176,14 @@ to compute a fit transform from the decoded image's own intrinsic pixel size int
 rect, composed as `fitTransform * Matrix3x2.CreateTranslation(x, y) * elementTransform` (matching
 this codec's established left-to-right `A * B` "apply `A` first" composition convention). Each
 destination pixel within the placement rect's own pixel bounds is inverse-transformed back into
-the decoded image's own pixel space and sampled nearest-neighbor (matching this codec's existing
-"no bilinear resampling anywhere" convention) - a pixel whose inverse-transformed coordinate falls
+the decoded image's own pixel space and resampled through the shared engine (`SurfaceResampler.TryResampleToDevice`:
+`Area` when shrinking,
+`Bicubic` when enlarging) for axis-aligned placements, with an inverse-mapped bilinear fallback on a
+prefiltered source for rotated or skewed ones; the `image-rendering` property (attribute, style
+declaration or stylesheet, inherited) set to `pixelated`, `crisp-edges` or `optimizeSpeed` selects
+`Nearest` instead, while `auto`, `optimizeQuality`, `smooth` and `high-quality` select smooth
+resampling and any other (unrecognized) value is ignored, so the element inherits its parent's
+setting (`feImage` always smooths) - a pixel whose inverse-transformed coordinate falls
 outside the decoded image's own `[0, width) x [0, height)` extent (possible under a `slice` fit,
 or simply near the fit rect's own edges) is left untouched rather than wrapped, unlike `pattern`'s
 own deliberate wrap-around tiling. The result is composited onto the real canvas via

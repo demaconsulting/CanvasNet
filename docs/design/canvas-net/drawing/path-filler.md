@@ -222,12 +222,26 @@ approximation converging only as the sample count grows.
    per-pixel `float[]` coverage row for the row's clipped `[minX, maxX)` sub-range is composited
    directly via the internal, workspace-reusing
    `Surface.CompositeOverSpan(y, minX, coverage, color, workspace)` overload - a single
-   `Surface.CompositeSpanWorkspace` is constructed once, sized to the row width, before this
-   method's row loop begins, and reused for every row's composite call, so `CompositeOverSpan`'s
-   scratch buffers are rented from `ArrayPool<T>.Shared` exactly once per `Fill` call rather than
+   `Surface.CompositeSpanWorkspace` is rented (`CompositeSpanWorkspace.Rent`) once, sized to the
+   row width, before this method's row loop begins, and reused for every row's composite call, so
+   `CompositeOverSpan`'s scratch buffers are acquired exactly once per `Fill` call rather than
    once per row (see _Surface Unit Design_, `../canvas/surface.md`, for the workspace type
    itself) - no full-row or full-surface coverage buffer is ever allocated; only the current
    row's `cover`/`area`/coverage arrays exist at any time.
+   - **Touched-window trimming (profile-driven optimization)**: `CoverageSweep.MoveNext` does not
+     yield the full clipped row. For each row, the single-pass path computes the smallest column
+     range `[lo, hi]` any `RowEdge` can touch (falling back to the full range when an edge
+     coordinate is non-finite or beyond `TouchedRangeLimit`), clears and sweeps only that range,
+     fills the constant tail to the right of `hi` with `ResolveCoverage(accumulatedCover)` (no edge
+     contributes there, so `area` is zero), and finally trims leading and trailing columns whose
+     resolved coverage is exactly zero. `MoveNext` yields `(y, x, rowCoverage)` for that trimmed
+     window and skips rows whose window is empty. Zero coverage means "pixel untouched" in
+     `Surface.CompositeOverSpan`, so the trimmed and skipped columns/rows would not have changed
+     any pixel; the result is pixel-identical to compositing the full row. The dense clip multiply
+     (`ApplyClip`) operates on the same window and uses `TensorPrimitives.Multiply`, which is
+     bit-identical to the scalar float multiply. After the clip multiply (and on the multi-breakpoint
+     `EvenOdd` path, which starts from a full-row window) `ApplyClip` trims again, so zero coverage
+     produced by the clip never reaches the compositor; the window length becomes 0 for an empty row.
    - **Why this handles crossing/self-intersecting edges correctly, not merely assumed absent**:
      a prior revision of this algorithm split each row into sub-intervals at every edge's own
      start/end `y`, sorted the edges spanning each sub-interval by `x` once, and relied on that

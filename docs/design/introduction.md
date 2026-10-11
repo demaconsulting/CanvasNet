@@ -270,6 +270,10 @@ and descriptions as follows:
 src/DemaConsulting.CanvasNet/
 ├── Canvas/
 │   ├── Surface.cs               — Mutable, in-memory 32-bit RGBA pixel buffer
+│   ├── ResamplingMode.cs        — Public enum of resampling filters for Resize/ResizeToFit
+│   ├── SurfaceResampler.cs      — Internal box-reduction prefilter and bilinear samplers
+│   ├── SurfaceResampler.Engine.cs — Internal separable resampling engine, device-window and
+│   │                                tile helpers
 │   ├── Rgba32.cs                — Single 32-bit RGBA pixel value type
 │   └── NamespaceDoc.cs          — Namespace-level XML documentation
 ├── Codecs/

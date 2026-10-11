@@ -85,6 +85,57 @@ sections:
         tests:
           - CanvasNet_SystemIntegration_CanvasCrop_ReturnsIndependentSubRegion
 
+      - id: CanvasNet-Lib-ImageResize
+        title: The library shall resample a pixel buffer to a new size with a selectable reconstruction filter.
+        tags: [system]
+        justification: |
+          Callers need to enlarge or shrink decoded images (for example before saving a thumbnail)
+          without writing their own filter, and with the filtering modes (all but Nearest) thin
+          features such as one-pixel lines must survive a reduction rather than being dropped by
+          point sampling.
+        children:
+          - CanvasNet-Canvas-Resize
+        tests:
+          - Resize_BmpCodec_RoundTrip
+          - Resize_PngCodec_RoundTrip
+          - CanvasNet_SystemIntegration_Resize_ProducesRequestedSizeAndPreservesColor
+
+      - id: CanvasNet-Lib-ImageResizeAlpha
+        title: The library shall resample images in premultiplied alpha so transparent pixels leave no color fringe.
+        tags: [system]
+        justification: |
+          Filtering straight-alpha color lets the color of fully transparent pixels bleed into
+          neighboring pixels and produces dark or tinted edges around transparent regions.
+        children:
+          - CanvasNet-Canvas-ResizeAlpha
+        tests:
+          - Resize_AlphaEdge_HasNoColorFringe
+          - CanvasNet_SystemIntegration_ResizeAlphaEdge_HasNoColorFringe
+
+      - id: CanvasNet-Lib-ImageResizeValidation
+        title: The library shall reject invalid resize parameters with ArgumentOutOfRangeException.
+        tags: [system]
+        justification: |
+          Non-positive or oversized dimensions and undefined filter modes cannot describe a valid
+          result and must be rejected before any allocation is attempted.
+        children:
+          - CanvasNet-Canvas-ResizeValidation
+        tests:
+          - Resize_InvalidDimensions_Throws
+          - CanvasNet_SystemIntegration_ResizeInvalidArguments_ThrowsArgumentOutOfRangeException
+
+      - id: CanvasNet-Lib-ImageResizeToFit
+        title: The library shall resize an image to fit a bounding box while preserving its aspect ratio.
+        tags: [system]
+        justification: |
+          Thumbnails and previews are almost always specified as a bounding box rather than exact
+          dimensions, and callers should not have to compute the aspect-preserving size themselves.
+        children:
+          - CanvasNet-Canvas-ResizeToFit
+        tests:
+          - ResizeToFit_KeepsAspectAndFitsBox
+          - CanvasNet_SystemIntegration_ResizeToFit_PreservesAspectRatio
+
       - id: CanvasNet-Lib-CanvasPremultiply
         title: >-
           The library shall convert a pixel buffer, in place, between straight (unassociated) and

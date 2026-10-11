@@ -352,6 +352,23 @@ sections:
                   - Surface_CompositeOverSpan_PerPixelColors_LengthMismatch_ThrowsArgumentException
                   - Surface_CompositeOverSpanWithWorkspace_PerPixelColors_MatchesPublicOverload
 
+              - id: CanvasNet-Canvas-Surface-SpanWorkspaceCache
+                title: >-
+                  The internal CompositeSpanWorkspace shall be obtainable through Rent, which
+                  rejects a non-positive capacity, returns a workspace of at least the requested
+                  capacity, reuses the calling thread's cached workspace after Dispose, never
+                  hands the same instance to two concurrent users on one thread, and composites
+                  identically to a directly constructed workspace.
+                justification: |
+                  Tiny fills such as glyphs would otherwise pay the cost of renting and returning
+                  every scratch array per fill; a per-thread cache removes that cost, but is only
+                  safe if reuse, isolation, and output equivalence are verified.
+                tests:
+                  - CompositeSpanWorkspace_Rent_NonPositiveCapacity_ThrowsArgumentOutOfRangeException
+                  - CompositeSpanWorkspace_Rent_AfterDispose_ReusesCachedWorkspaceWithSufficientCapacity
+                  - CompositeSpanWorkspace_Rent_WhileAnotherIsInUse_ReturnsDistinctWorkspace
+                  - CompositeSpanWorkspace_Rent_LargerThanCached_GrowsAndCompositesIdenticallyToConstructedWorkspace
+
               - id: CanvasNet-Canvas-Surface-Disposal
                 title: >-
                   The Surface class shall implement IDisposable, logically releasing its
@@ -416,3 +433,122 @@ sections:
                   shrink that the integer block factor cannot, without reading outside the image.
                 tests:
                   - SampleBilinear_CentreAndMidpoint_InterpolatesAndClampsEdges
+
+              - id: CanvasNet-Canvas-Surface-Resize
+                title: >-
+                  The Surface class shall return a new surface resampled to the requested size using
+                  the Nearest, Bilinear, Bicubic (Catmull-Rom), Lanczos3 or Area filter, with Auto
+                  choosing Area when shrinking and Bicubic when enlarging per axis, widening the
+                  filter support by the reduction ratio so thin features survive a shrink in every
+                  filtering mode other than Nearest.
+                justification: |
+                  A separable, weight-table based resampler with a reduction-scaled support gives
+                  predictable quality at every ratio and, outside Nearest, never drops one-pixel lines.
+                tests:
+                  - Resize_Nearest_Upscale_ReplicatesPixels
+                  - Resize_Bilinear_Upscale_InterpolatesLinearly
+                  - Resize_Area_IntegerReduction_AveragesBlocks
+                  - Resize_SharpFilters_StepEdge_ClampsToByteRange
+                  - Resize_ConstantImage_StaysConstant
+                  - Resize_Downscale_PreservesOnePixelLine
+                  - Resize_Upscale_IsSmooth
+                  - Resize_Auto_ChoosesPerAxis
+                  - Resize_AllModes_ProduceRequestedSize
+
+              - id: CanvasNet-Canvas-Surface-ResizeIdentity
+                title: >-
+                  The Surface class shall return an exact, independent copy when the requested size equals
+                  the current size.
+                justification: |
+                  A same-size resize must not alter pixel values for any filter and must not share storage.
+                tests:
+                  - Resize_SameSize_IsExactIndependentCopy
+
+              - id: CanvasNet-Canvas-Surface-ResizeAlphaPremultiplied
+                title: The Surface class shall filter in premultiplied alpha and clamp results to the byte range.
+                justification: |
+                  Premultiplied filtering avoids fringes around transparent pixels; clamping contains
+                  the overshoot of the sharpening filters.
+                tests:
+                  - Resize_AlphaEdge_HasNoColorFringe
+                  - Resize_SharpFilters_StepEdge_ClampsToByteRange
+
+              - id: CanvasNet-Canvas-Surface-ResizeInvalid
+                title: >-
+                  The Surface class shall reject a width or height outside 1 to MaxDimension, an
+                  undefined mode, or a disposed surface when resizing.
+                justification: |
+                  Invalid arguments cannot describe a valid result and must be rejected before allocation.
+                tests:
+                  - Resize_InvalidDimensions_Throws
+                  - Resize_UndefinedMode_Throws
+                  - Resize_Disposed_Throws
+
+              - id: CanvasNet-Canvas-Surface-ResizeBoundedMemory
+                title: >-
+                  The Surface class shall resample with working memory bounded independently of the extreme
+                  aspect ratio of the image.
+                justification: |
+                  Resizing an 8192 by 1 image to 1 by 8192 must not allocate an unbounded intermediate buffer;
+                  the engine processes the image in strips sized by an intermediate-buffer budget, and a tiny
+                  budget must give output identical to the default.
+                tests:
+                  - Resize_ExtremeAspectChange_ProducesExpectedShape
+                  - Resample_TinyIntermediateBudget_MatchesDefaultBudget
+                  - Resample_ExtremeReduction_CompletesWithSaneResult
+                  - TryResampleToDevice_TinyScale_CompletesWithSaneWindow
+                  - Resample_NormalScaleEdgeFolding_KeepsConstantImageConstant
+
+              - id: CanvasNet-Canvas-Surface-ResizePooledBuffers
+                title: >-
+                  The Surface resampling engine shall produce output that does not depend on the
+                  prior contents of its recycled intermediate and accumulator buffers.
+                justification: |
+                  The engine rents its large float scratch buffers from a shared pool without
+                  clearing them to avoid per-call allocation; a call repeated after differently
+                  sized calls must still give identical pixels.
+                tests:
+                  - Resample_RepeatedAfterDifferentSizes_IsIdenticalDespiteRecycledBuffers
+
+              - id: CanvasNet-Canvas-Surface-ResizeToFit
+                title: >-
+                  The Surface class shall resize to the largest aspect-preserving size that fits a
+                  box, enlarging or shrinking, never returning a dimension below one pixel.
+                justification: |
+                  Bounding-box sizing must keep the aspect ratio and stay within the box.
+                tests:
+                  - ResizeToFit_KeepsAspectAndFitsBox
+                  - ResizeToFit_VeryElongated_ClampsToOnePixel
+
+              - id: CanvasNet-Canvas-Surface-ResizeToFitInvalidBox
+                title: The Surface class shall reject a bounding box dimension outside 1 to MaxDimension.
+                justification: |
+                  An empty or oversized box cannot produce a valid result.
+                tests:
+                  - ResizeToFit_InvalidBox_Throws
+
+              - id: CanvasNet-Canvas-Surface-DeviceResample
+                title: >-
+                  The Surface unit shall provide an internal helper that resamples a source to the
+                  device window of an axis-aligned image placement, and declines rotated or skewed placements.
+                justification: |
+                  The PDF, PPTX and SVG renderers draw most images axis-aligned and benefit from a
+                  single high-quality resample followed by a 1:1 composite.
+                tests:
+                  - TryResampleToDevice_RotatedMatrix_ReturnsFalse
+                  - TryResampleToDevice_WideImageSmallM12_DeclinedOnlyWhenDriftMatters
+                  - TryResampleToDevice_TallImageSmallM21_DeclinedOnlyWhenDriftMatters
+                  - TryResampleToDevice_AxisAligned_ReturnsWindowAtOrigin
+                  - TryResampleToDevice_OffScreen_ReturnsTrueWithNullWindow
+                  - BoxReduce_MatchesAreaResize
+                  - BoxReduce_NonDivisibleSize_AveragesOnlyCoveredPixelsInPartialBlock
+                  - BoxReduce_NonDivisibleSizeWithAlpha_PartialBlockUsesCoveredPixelsOnly
+
+              - id: CanvasNet-Canvas-Surface-WrappedBilinear
+                title: >-
+                  The Surface unit shall provide an internal bilinear sampler that wraps at the surface edges
+                  for tiled paints.
+                justification: |
+                  Magnified repeating tiles must blend across the tile seam rather than clamp.
+                tests:
+                  - SampleBilinearWrapped_AtEdge_BlendsWithOppositeSide

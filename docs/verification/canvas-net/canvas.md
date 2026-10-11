@@ -7,7 +7,9 @@ This document describes the subsystem-level verification strategy for the `Canva
 
 The `Canvas` subsystem is verified entirely through its constituent unit's tests: the `Surface`
 unit's tests (see _Surface Unit Verification Design_, `canvas/surface.md`) exercise every public
-constructor, property, indexer, span accessor, and the `Crop` method in isolation. No separate
+constructor, property, indexer, span accessor, the `Crop` method, and the `Resize`/`ResizeToFit`
+resampling API (requirements `CanvasNet-Canvas-Resize`, `-ResizeAlpha`, `-ResizeValidation` and
+`-ResizeToFit`) in isolation. No separate
 subsystem-level tests exist; the subsystem-level requirements reuse the same `Surface` unit tests
 as verification evidence, since the `Canvas` subsystem currently contains exactly one unit with
 externally observable behavior.
@@ -29,6 +31,8 @@ exception.
 The `Canvas` subsystem currently contains exactly one unit with externally observable behavior,
 so its test scenarios are exactly those named in _Surface Unit Verification Design_
 (`canvas/surface.md`): construction and invariants, indexer and span-accessor boundary conditions,
-`Crop` normal/boundary/error paths, `PremultiplyAlpha`/`UnpremultiplyAlpha`/`CompositeOver`
+`Crop` normal/boundary/error paths, `Resize`/`ResizeToFit` size, filter, premultiplied-alpha (no color
+fringe) and argument-validation behavior (`CanvasNet-Canvas-Resize*`),
+`PremultiplyAlpha`/`UnpremultiplyAlpha`/`CompositeOver`
 compositing correctness, and `Dispose` idempotency. No subsystem-level test exists beyond this
 unit's own coverage.

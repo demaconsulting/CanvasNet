@@ -671,6 +671,58 @@ public class ScanlineRasterizerTests
     }
 
     /// <summary>
+    ///     Proves that a narrow <c>EvenOdd</c> shape whose rows have several mid-row breakpoints, filled
+    ///     with no clip on a wide surface, changes only the pixels it covers: every column outside the
+    ///     shape and every row it does not reach keeps its original pixel exactly.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_EvenOddMultipleBreakpointsNoClip_LeavesUncoveredPixelsUntouched()
+    {
+        // Arrange: the nested rectangles span only column 0 of a 12-wide opaque blue surface
+        static List<Vector2> Rectangle(float top, float bottom) =>
+        [
+            new Vector2(0, top),
+            new Vector2(1, top),
+            new Vector2(1, bottom),
+            new Vector2(0, bottom),
+            new Vector2(0, top)
+        ];
+
+        var background = new Rgba32(0, 0, 255, 255);
+        using var surface = new Surface(12, 26);
+        for (var y = 0; y < 26; y++)
+        {
+            for (var x = 0; x < 12; x++)
+            {
+                surface[x, y] = background;
+            }
+        }
+
+        var polygons = new List<List<Vector2>>
+        {
+            Rectangle(6.0f, 20f), Rectangle(6.167f, 19.833f), Rectangle(6.333f, 19.667f), Rectangle(6.5f, 19.5f)
+        };
+
+        // Act
+        ScanlineRasterizer.Fill(surface, polygons, new Rgba32(255, 255, 255, 255), FillRule.EvenOdd, new Rect(0, 0, 12, 26));
+
+        // Assert: the covered pixel changed, and everything else is exactly the background
+        Assert.NotEqual(background, surface[0, 6]);
+        for (var y = 0; y < 26; y++)
+        {
+            for (var x = 0; x < 12; x++)
+            {
+                if (x == 0 && y >= 6 && y <= 19)
+                {
+                    continue;
+                }
+
+                Assert.Equal(background, surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
     ///     Proves that <c>NonZero</c>'s resolution of the very same multi-mid-row-breakpoint
     ///     geometry used by <see cref="ScanlineRasterizer_Fill_EvenOdd_FourNestedRectanglesSameRow_ResolvesPartialCoverageNotFullFill"/>
     ///     is completely unaffected by the <c>EvenOdd</c>-only sub-row-splitting fix: the
@@ -945,6 +997,347 @@ public class ScanlineRasterizerTests
                 }
             }
         }
+    }
+
+    /// <summary>
+    ///     The shapes used by the reference-equivalence tests: each is a list of convex polygons
+    ///     (a hole is a separate counter-wound polygon, subtracted by the geometric reference),
+    ///     chosen to exercise sparse rows, fully covered rows, slanted edges, and holes.
+    /// </summary>
+    public static TheoryData<string> ShapeNames =>
+    [
+        "rect",
+        "triangle",
+        "slanted",
+        "hole",
+        "sparse",
+        "full",
+        "outside"
+    ];
+
+    private const int RefWidth = 70;
+    private const int RefHeight = 40;
+
+    private static (List<List<Vector2>> Polygons, List<int> Signs) BuildShape(string name)
+    {
+        List<Vector2> Rect(float l, float t, float r, float b, bool reverse = false)
+        {
+            List<Vector2> p = [new(l, t), new(r, t), new(r, b), new(l, b), new(l, t)];
+            if (reverse)
+            {
+                p.Reverse();
+            }
+
+            return p;
+        }
+
+        return name switch
+        {
+            "rect" => ([Rect(3.3f, 4.6f, 61.7f, 30.2f)], [1]),
+            "triangle" => ([[new(5.2f, 3.1f), new(64.7f, 20.4f), new(10.9f, 36.8f), new(5.2f, 3.1f)]], [1]),
+            "slanted" => ([[new(2.5f, 2.5f), new(9.5f, 2.5f), new(66.5f, 37.5f), new(59.5f, 37.5f), new(2.5f, 2.5f)]], [1]),
+            "hole" => ([Rect(4f, 4f, 66f, 36f), Rect(20.4f, 12.2f, 50.6f, 27.9f, reverse: true)], [1, -1]),
+            "sparse" => ([Rect(66.25f, 36.5f, 68.75f, 38.25f)], [1]),
+            "full" => ([Rect(0f, 0f, RefWidth, RefHeight)], [1]),
+            "outside" => ([Rect(-20f, -9f, 12.5f, 6.5f)], [1]),
+            _ => throw new ArgumentOutOfRangeException(nameof(name))
+        };
+    }
+
+    /// <summary>
+    ///     Exact area of a convex polygon clipped to the unit pixel at (<paramref name="px"/>,
+    ///     <paramref name="py"/>), by Sutherland-Hodgman clipping and the shoelace formula - an
+    ///     independent reference that shares no code with the scanline accumulation.
+    /// </summary>
+    private static double PixelArea(List<Vector2> polygon, int px, int py)
+    {
+        var pts = polygon.Select(p => ((double)p.X, (double)p.Y)).ToList();
+        if (pts.Count > 1 && pts[0] == pts[^1])
+        {
+            pts.RemoveAt(pts.Count - 1);
+        }
+
+        // Clip against x >= px, x <= px+1, y >= py, y <= py+1
+        pts = ClipHalfPlane(pts, p => p.Item1 - px);
+        pts = ClipHalfPlane(pts, p => px + 1 - p.Item1);
+        pts = ClipHalfPlane(pts, p => p.Item2 - py);
+        pts = ClipHalfPlane(pts, p => py + 1 - p.Item2);
+        var area = 0.0;
+        for (var i = 0; i < pts.Count; i++)
+        {
+            var a = pts[i];
+            var b = pts[(i + 1) % pts.Count];
+            area += (a.Item1 * b.Item2) - (b.Item1 * a.Item2);
+        }
+
+        return Math.Abs(area) / 2;
+    }
+
+    private static List<(double, double)> ClipHalfPlane(List<(double, double)> input, Func<(double, double), double> inside)
+    {
+        var output = new List<(double, double)>();
+        for (var i = 0; i < input.Count; i++)
+        {
+            var cur = input[i];
+            var prev = input[(i + input.Count - 1) % input.Count];
+            var dc = inside(cur);
+            var dp = inside(prev);
+            if ((dc >= 0) != (dp >= 0))
+            {
+                var t = dp / (dp - dc);
+                output.Add((prev.Item1 + (t * (cur.Item1 - prev.Item1)), prev.Item2 + (t * (cur.Item2 - prev.Item2))));
+            }
+
+            if (dc >= 0)
+            {
+                output.Add(cur);
+            }
+        }
+
+        return output;
+    }
+
+    private static float[] ReferenceCoverage(List<List<Vector2>> polygons, List<int> signs)
+    {
+        var cover = new float[RefWidth * RefHeight];
+        for (var y = 0; y < RefHeight; y++)
+        {
+            for (var x = 0; x < RefWidth; x++)
+            {
+                var a = 0.0;
+                for (var i = 0; i < polygons.Count; i++)
+                {
+                    a += signs[i] * PixelArea(polygons[i], x, y);
+                }
+
+                cover[(y * RefWidth) + x] = (float)Math.Clamp(a, 0.0, 1.0);
+            }
+        }
+
+        return cover;
+    }
+
+    private static Surface PatternBackground()
+    {
+        // Opaque, semi-transparent and fully transparent background pixels, so the composite
+        // takes every alpha branch.
+        var surface = new Surface(RefWidth, RefHeight);
+        for (var y = 0; y < RefHeight; y++)
+        {
+            for (var x = 0; x < RefWidth; x++)
+            {
+                surface[x, y] = (((x / 7) + y) % 3) switch
+                {
+                    0 => new Rgba32((byte)(x * 3), (byte)(y * 5), 77, 255),
+                    1 => new Rgba32(200, (byte)(x * 2), (byte)(y * 4), 90),
+                    _ => new Rgba32(0, 0, 0, 0)
+                };
+            }
+        }
+
+        return surface;
+    }
+
+    private static void AssertSurfacesEqual(Surface expected, Surface actual)
+    {
+        for (var y = 0; y < RefHeight; y++)
+        {
+            for (var x = 0; x < RefWidth; x++)
+            {
+                Assert.True(expected[x, y] == actual[x, y], $"pixel ({x},{y}): expected {expected[x, y]}, actual {actual[x, y]}");
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves the rasterized coverage matches an independent exact pixel-area reference to a
+    ///     tight tolerance for every shape, including shapes whose rows are sparse, fully covered,
+    ///     or entirely outside the surface (the rows and columns the sweep skips or trims).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ShapeNames))]
+    public void ScanlineRasterizer_AccumulateCoverageMask_Shapes_MatchesExactPixelAreaReference(string shape)
+    {
+        // Arrange
+        var (polygons, signs) = BuildShape(shape);
+        var expected = ReferenceCoverage(polygons, signs);
+        var mask = new float[RefWidth * RefHeight];
+
+        // Act
+        ScanlineRasterizer.AccumulateCoverageMask(polygons, FillRule.NonZero, new Rect(0, 0, RefWidth, RefHeight), mask, RefWidth, 0, 0);
+
+        // Assert
+        for (var i = 0; i < mask.Length; i++)
+        {
+            Assert.True(Math.Abs(expected[i] - mask[i]) <= 1e-4f, $"index {i}: expected {expected[i]}, actual {mask[i]}");
+        }
+    }
+
+    /// <summary>
+    ///     Proves a solid-color fill is pixel-exact against compositing the full-width,
+    ///     zero-padded coverage rows with the public span API - i.e. trimming each row to its
+    ///     touched window and skipping empty rows changes no pixel, over opaque, semi-transparent
+    ///     and transparent backgrounds.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ShapeNames))]
+    public void ScanlineRasterizer_Fill_Shapes_PixelExactAgainstFullWidthCompositeReference(string shape)
+    {
+        // Arrange
+        var (polygons, _) = BuildShape(shape);
+        var color = new Rgba32(210, 40, 130, 200);
+        var bounds = new Rect(0, 0, RefWidth, RefHeight);
+        var mask = new float[RefWidth * RefHeight];
+        ScanlineRasterizer.AccumulateCoverageMask(polygons, FillRule.NonZero, bounds, mask, RefWidth, 0, 0);
+        using var expected = PatternBackground();
+        using var actual = PatternBackground();
+        for (var y = 0; y < RefHeight; y++)
+        {
+            expected.CompositeOverSpan(y, 0, mask.AsSpan(y * RefWidth, RefWidth), color);
+        }
+
+        // Act
+        ScanlineRasterizer.Fill(actual, polygons, color, FillRule.NonZero, bounds);
+
+        // Assert
+        AssertSurfacesEqual(expected, actual);
+    }
+
+    /// <summary>
+    ///     Proves that a dense clip that zeroes part or all of a row's coverage window (so the
+    ///     window is trimmed after the clip multiply) leaves pixel output identical to
+    ///     coverage times clip, for both fill rules (EvenOdd includes the multi-breakpoint path).
+    /// </summary>
+    [Theory]
+    [InlineData("small", true)]
+    [InlineData("small", false)]
+    [InlineData("outside", true)]
+    [InlineData("outside", false)]
+    public void ScanlineRasterizer_Fill_DenseClipZeroingWindow_MatchesCoverageTimesClipForAllShapes(string clipKind, bool evenOdd)
+    {
+        var rule = evenOdd ? FillRule.EvenOdd : FillRule.NonZero;
+        var color = new Rgba32(20, 160, 230, 255);
+        var bounds = new Rect(0, 0, RefWidth, RefHeight);
+        var clipPath = clipKind == "small"
+            ? new PathBuilder().MoveTo(new Vector2(20.4f, 10.2f)).LineTo(new Vector2(30.8f, 12.4f))
+                .LineTo(new Vector2(24.1f, 20.6f)).Close().Build()
+            : new PathBuilder().MoveTo(new Vector2(RefWidth - 3.5f, RefHeight - 3.5f)).LineTo(new Vector2(RefWidth - 1.5f, RefHeight - 3.5f))
+                .LineTo(new Vector2(RefWidth - 2.5f, RefHeight - 1.5f)).Close().Build();
+        var clip = ClipMask.FromPathDense(clipPath, FillRule.NonZero, RefWidth, RefHeight);
+
+        foreach (var shape in ShapeNames.Select(d => d.Data))
+        {
+            var (polygons, _) = BuildShape(shape);
+            var mask = new float[RefWidth * RefHeight];
+            ScanlineRasterizer.AccumulateCoverageMask(polygons, rule, bounds, mask, RefWidth, 0, 0);
+            using var expected = PatternBackground();
+            using var actual = PatternBackground();
+            var row = new float[RefWidth];
+            for (var y = 0; y < RefHeight; y++)
+            {
+                for (var x = 0; x < RefWidth; x++)
+                {
+                    row[x] = mask[(y * RefWidth) + x] * clip.GetCoverage(x, y);
+                }
+
+                expected.CompositeOverSpan(y, 0, row, color);
+            }
+
+            ScanlineRasterizer.Fill(actual, polygons, color, rule, bounds, clip);
+
+            for (var y = 0; y < RefHeight; y++)
+            {
+                for (var x = 0; x < RefWidth; x++)
+                {
+                    var e = expected[x, y];
+                    var a = actual[x, y];
+                    Assert.True(
+                        Math.Abs(e.R - a.R) <= 1 && Math.Abs(e.G - a.G) <= 1 && Math.Abs(e.B - a.B) <= 1 && Math.Abs(e.A - a.A) <= 1,
+                        $"{shape} pixel ({x},{y}): expected {e}, actual {a}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves a fill with a dense (non-rectangular) clip mask is pixel-exact against the
+    ///     product of the unclipped coverage and the clip's own per-pixel coverage.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ShapeNames))]
+    public void ScanlineRasterizer_Fill_DenseClipMask_PixelExactAgainstCoverageTimesClipReference(string shape)
+    {
+        // Arrange
+        var (polygons, _) = BuildShape(shape);
+        var color = new Rgba32(20, 160, 230, 255);
+        var bounds = new Rect(0, 0, RefWidth, RefHeight);
+        var clip = ClipMask.FromPathDense(
+            new PathBuilder()
+                .MoveTo(new Vector2(6.3f, 2.2f)).LineTo(new Vector2(60.8f, 9.4f))
+                .LineTo(new Vector2(33.1f, 38.6f)).Close().Build(),
+            FillRule.NonZero,
+            RefWidth,
+            RefHeight);
+        var mask = new float[RefWidth * RefHeight];
+        ScanlineRasterizer.AccumulateCoverageMask(polygons, FillRule.NonZero, bounds, mask, RefWidth, 0, 0);
+        using var expected = PatternBackground();
+        using var actual = PatternBackground();
+        var row = new float[RefWidth];
+        for (var y = 0; y < RefHeight; y++)
+        {
+            for (var x = 0; x < RefWidth; x++)
+            {
+                row[x] = mask[(y * RefWidth) + x] * clip.GetCoverage(x, y);
+            }
+
+            expected.CompositeOverSpan(y, 0, row, color);
+        }
+
+        // Act
+        ScanlineRasterizer.Fill(actual, polygons, color, FillRule.NonZero, bounds, clip);
+
+        // Assert: coverage*clip may differ from the geometric clip by float rounding only
+        for (var y = 0; y < RefHeight; y++)
+        {
+            for (var x = 0; x < RefWidth; x++)
+            {
+                var e = expected[x, y];
+                var a = actual[x, y];
+                Assert.True(
+                    Math.Abs(e.R - a.R) <= 1 && Math.Abs(e.G - a.G) <= 1 && Math.Abs(e.B - a.B) <= 1 && Math.Abs(e.A - a.A) <= 1,
+                    $"pixel ({x},{y}): expected {e}, actual {a}");
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves the gradient and tile overloads, filled with a constant-color source, are
+    ///     pixel-exact against the solid-color overload for each shape (the trimmed window's
+    ///     per-pixel color evaluation lines up with its coverage).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ShapeNames))]
+    public void ScanlineRasterizer_Fill_ConstantGradientAndTile_PixelExactAgainstSolid(string shape)
+    {
+        // Arrange
+        var (polygons, _) = BuildShape(shape);
+        var color = new Rgba32(90, 200, 60, 210);
+        var bounds = new Rect(0, 0, RefWidth, RefHeight);
+        using var solid = PatternBackground();
+        using var gradient = PatternBackground();
+        using var tile = PatternBackground();
+        using var tileSurface = new Surface(1, 1);
+        tileSurface[0, 0] = color;
+
+        // Act
+        ScanlineRasterizer.Fill(solid, polygons, color, FillRule.NonZero, bounds);
+        ScanlineRasterizer.Fill(
+            gradient, polygons, new LinearGradient(Vector2.Zero, new Vector2(RefWidth, 0), [new GradientStop(0f, color)]), FillRule.NonZero, bounds);
+        ScanlineRasterizer.Fill(tile, polygons, new TilePaint(tileSurface, Matrix3x2.Identity, 1f, 1f), FillRule.NonZero, bounds);
+
+        // Assert
+        AssertSurfacesEqual(solid, gradient);
+        AssertSurfacesEqual(solid, tile);
     }
 }
 

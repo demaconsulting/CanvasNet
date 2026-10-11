@@ -6,8 +6,9 @@
 
 The `TilePaint` unit is the public `TilePaint` type - a pre-rendered one-cell tile `Surface` plus a
 device-space `Transform` and a pattern-space `XStep`/`YStep` repeat pitch - and the internal
-`TilePaintEvaluator` helper that resolves a tiled pattern's color per pixel by nearest-neighbor
-sampling the wrapped-around tile bitmap. It has no independent externally visible behavior of its
+`TilePaintEvaluator` helper that resolves a tiled pattern's color per pixel by sampling the wrapped-around tile bitmap
+(exact pixel lookup at 1:1 scale, wrapped bilinear when magnified, an area-averaged copy when minified). It has no
+independent externally visible behavior of its
 own: it exists to be consumed by `PathFiller`'s tile-paint `Fill(Surface, Path, TilePaint,
 FillRule, float)` overload (see _PathFiller Unit Design_, `path-filler.md`), mirroring
 `GradientPaint`'s own public-type-plus-internal-evaluator shape (see `gradient-paint.md`).
@@ -77,8 +78,12 @@ every row of that fill. The per-pixel evaluation pipeline:
    the ratio of the tile surface's pixel dimensions to `XStep`/`YStep`, clamped into
    `[0, Width - 1] x [0, Height - 1]` (guarding a floating-point edge case landing exactly on the
    width/height boundary).
-4. **Sample the tile `Surface` by nearest-neighbor** at the resolved integer pixel coordinate.
-   Bilinear interpolation is explicitly out of scope.
+4. **Sample the tile `Surface`.** The plan classifies the tile scale (device pixels per tile pixel)
+   once per fill: above 1.05 the tile is _magnified_ and sampled bilinearly with wrap-around
+   (`SurfaceResampler.SampleBilinearWrapped`); below 0.95 it is _minified_ and replaced for the fill by
+   an `Area`-resized copy (owned by the plan and released by `plan.Release()` in a `finally` block
+   of the rasterizer); otherwise the exact tile pixel at the resolved integer coordinate is used, so
+   device-scale pattern cells stay bit-exact.
 
 **Degenerate Transform policy - deliberate divergence from `Gradient`.** When
 `TilePaint.Transform` is not invertible (or its inverse has a non-finite component), every pixel in

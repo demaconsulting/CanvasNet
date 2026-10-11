@@ -848,11 +848,19 @@ resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surfac
 - **Painting**: `PaintPicture(Surface destination, Surface image, PptxSrcRect? srcRect, Matrix3x2
   shapeTransform, float widthEmu, float heightEmu, Path? clipPath = null)` composes the crop
   rectangle's own crop-to-unit-square mapping with `shapeTransform` into a single
-  image-to-surface matrix, inverts it once, and for every destination pixel whose inverse-mapped
-  coordinate falls within `[0,1]x[0,1]` samples the source image with nearest-neighbor filtering
-  (no bilinear/anti-aliased resampling this phase - a documented simplification, consistent with
-  this package's existing "no anti-aliasing yet" posture established by `PaintTextLayout`'s own
-  glyph-ink fill). Each sampled source pixel is alpha-blended "over" the existing destination
+  image-to-surface matrix, and for an axis-aligned placement resamples the cropped region once with
+  `SurfaceResampler.TryResampleToDevice` (shared separable engine: `Area` when shrinking, `Bicubic` when
+  enlarging) and composites the resulting device window 1:1. The `srcRect` crop is isolated first: the smallest
+  whole-pixel window of the source containing the crop is cut out (`Surface.Crop`), so kernel taps next to a
+  crop edge fold into the window's own edge pixels and pixels outside the window never bleed into it. The
+  window is a whole-pixel superset of the (possibly fractional) crop, so a partially covered border pixel
+  still contributes to the crop edge; the
+  fractional crop offset is part of the mapping. A crop that overhangs the image (negative `srcRect`
+  edges) takes the inverse-mapped path below instead, whose edge-clamped sampling replicates the source
+  edge pixels across the overhang. A rotated picture inverts the matrix once and
+  bilinear-samples an area-prefiltered copy of the same cropped window per destination pixel whose
+  inverse-mapped coordinate falls within `[0,1]x[0,1]`. Each sampled source pixel is
+  alpha-blended "over" the existing destination
   pixel via the shared internal `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)` helper (standard
   Porter-Duff "over" alpha compositing - straight/unassociated alpha in and out, `outA = fgA +
   bgA * (1 - fgA)`, each color channel `outC = (fgC * fgA + bgC * bgA * (1 - fgA)) / outA` when

@@ -1386,6 +1386,16 @@ per SVG's own "a pattern with no positive tile area applies no paint" semantics;
 correctly via the ordinary recursive `RenderElement` walk (not a bespoke, feature-limited content
 renderer), proving tile content may freely use this codec's other rendering features.
 
+#### CanvasNetSvg-SvgCodec-PatternTileSmoothing: Pattern Tile Sampling Is Scale-Aware
+
+**Tests**: `SampleTileIntoRegion_MagnifiedTile_IsSmooth`, `SampleTileIntoRegion_MinifiedTile_IsAreaAveraged`,
+`SampleTileIntoRegion_OneToOneTile_IsExactCopy`
+
+`SvgPatternTileSmoothingTests.cs` calls the internal `SampleTileIntoRegion` directly with a one-row tile.
+A 2x1 black/white tile drawn 20x larger (a scaled `patternTransform`) yields a many-level, non-decreasing ramp
+whose tile-pixel boundary is mid-gray. An 8x1 alternating black/white tile drawn at half size is area-averaged to
+uniform mid-gray instead of aliasing to stripes. A 4x1 tile drawn at exactly 1:1 repeats as an exact, bit-for-bit copy.
+
 #### CanvasNetSvg-SvgCodec-PatternHrefInheritance: `pattern` Href Template Inheritance and Cycle Rejection
 
 **Tests**: `SvgCodec_Load_PatternHrefInheritance_InheritsContentFromTemplate`,
@@ -1466,6 +1476,29 @@ semantics; and asserts a zero-width/zero-height placement rect, and an `image` e
 neither `width` nor `height` present at all (both default to `0`, per this codec's documented
 "no auto-sizing from intrinsic raster dimensions" simplification), each tolerantly render nothing
 rather than throwing or dividing by zero.
+
+#### CanvasNetSvg-SvgCodec-ImageSmoothResample: `image` Is Resampled Smoothly, `image-rendering` Selects Nearest
+
+**Tests**: `Image_Enlarged_IsSmooth`, `Image_RenderingAttribute_IsNearest`, `Image_RenderingStyle_IsNearest`,
+`Image_RenderingStylesheet_IsNearest`, `Image_Shrunk_KeepsOnePixelLine`,
+`Image_RenderingInheritedFromGroup_IsNearest`, `Image_RenderingBogus_InheritsPixelatedFromParent`,
+`Image_RenderingSmoothKeyword_OverridesPixelatedParent`, `FeImage_Enlarged_IsSmooth`,
+`FeImage_Shrunk_KeepsOnePixelLine`
+
+`SvgImageResamplingTests.cs` enlarges a 2x1 black/white image to 40x4: by default the row has many
+gray levels; with `image-rendering` `pixelated` or `crisp-edges` (attribute, style declaration or
+stylesheet rule) it has only the two source levels. A 100x1 image with a one-pixel line shrunk to 17
+pixels keeps its area-proportional ink. The same enlarged and shrunk rasters are also rendered through
+an `feImage` primitive (`FeImage_Enlarged_IsSmooth`, `FeImage_Shrunk_KeepsOnePixelLine`) so a regression
+to nearest-neighbor there is detected.
+
+`image-rendering` is inherited from an ancestor `g` (`Image_RenderingInheritedFromGroup_IsNearest`).
+An unrecognized value (for example `bogus`) is ignored, so the element keeps inheriting the parent's
+value (`Image_RenderingBogus_InheritsPixelatedFromParent`), while a recognized smooth keyword on the
+element overrides a `pixelated` parent (`Image_RenderingSmoothKeyword_OverridesPixelatedParent`).
+An `feImage` filter primitive always resamples smoothly and ignores `image-rendering`.
+Where the image tests above compare against smoothed output they use a small tolerance, because smoothing
+only changes pixels at or beside a source-pixel boundary; interior pixels are still asserted to their expected colors.
 
 #### CanvasNetSvg-SvgCodec-ImageExternalHrefScope: `image` External-Href and Nested-SVG Scope Boundaries
 

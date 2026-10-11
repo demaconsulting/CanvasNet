@@ -1,5 +1,6 @@
 // cspell:ignore precomputation
 using System.Numerics;
+using System.Numerics.Tensors;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Geometry;
 
@@ -175,6 +176,12 @@ internal static class ScanlineRasterizer
     private const float NearZeroDisplacement = 1e-6f;
 
     /// <summary>
+    ///     Coordinate magnitude beyond which a row's touched-column range is not trusted and the
+    ///     full clip width is swept instead (also catches non-finite coordinates).
+    /// </summary>
+    private const float TouchedRangeLimit = 1e8f;
+
+    /// <summary>
     ///     Rasterizes <paramref name="polygons"/> onto <paramref name="surface"/>, compositing
     ///     <paramref name="color"/> at each pixel scaled by its analytically computed fill
     ///     coverage, restricted to <paramref name="clipBounds"/>.
@@ -217,11 +224,11 @@ internal static class ScanlineRasterizer
         // CompositeOverSpan call - amortizing the per-row ArrayPool rent/return of
         // Surface.CompositeOverSpan's scratch buffers across the whole fill instead of paying it
         // once per rasterized row.
-        using var compositeWorkspace = new Surface.CompositeSpanWorkspace(sweep.Width);
+        using var compositeWorkspace = Surface.CompositeSpanWorkspace.Rent(sweep.Width);
 
-        while (sweep.MoveNext(out var y, out var rowCoverage))
+        while (sweep.MoveNext(out var y, out var x, out var rowCoverage))
         {
-            surface.CompositeOverSpan(y, sweep.ClipMinX, rowCoverage, color, compositeWorkspace);
+            surface.CompositeOverSpan(y, x, rowCoverage, color, compositeWorkspace);
         }
     }
 
@@ -270,7 +277,7 @@ internal static class ScanlineRasterizer
             return;
         }
 
-        using var compositeWorkspace = new Surface.CompositeSpanWorkspace(sweep.Width);
+        using var compositeWorkspace = Surface.CompositeSpanWorkspace.Rent(sweep.Width);
         var rowColors = new Rgba32[sweep.Width];
 
         // Built once per fill operation, not once per row - the transform inverse and radial
@@ -278,10 +285,11 @@ internal static class ScanlineRasterizer
         // GradientEvaluator's "Per-fill precomputation" remarks).
         var plan = GradientEvaluator.CreatePlan(paint);
 
-        while (sweep.MoveNext(out var y, out var rowCoverage))
+        while (sweep.MoveNext(out var y, out var x, out var rowCoverage))
         {
-            GradientEvaluator.EvaluateRow(in plan, y, sweep.ClipMinX, sweep.Width, rowColors);
-            surface.CompositeOverSpan(y, sweep.ClipMinX, rowCoverage, rowColors, compositeWorkspace);
+            var colors = rowColors.AsSpan(0, rowCoverage.Length);
+            GradientEvaluator.EvaluateRow(in plan, y, x, rowCoverage.Length, rowColors);
+            surface.CompositeOverSpan(y, x, rowCoverage, colors, compositeWorkspace);
         }
     }
 
@@ -329,17 +337,26 @@ internal static class ScanlineRasterizer
             return;
         }
 
-        using var compositeWorkspace = new Surface.CompositeSpanWorkspace(sweep.Width);
+        using var compositeWorkspace = Surface.CompositeSpanWorkspace.Rent(sweep.Width);
         var rowColors = new Rgba32[sweep.Width];
 
         // Built once per fill operation, not once per row - see TilePaintEvaluator's "Per-fill
         // precomputation" remarks.
         var plan = TilePaintEvaluator.CreatePlan(paint);
 
-        while (sweep.MoveNext(out var y, out var rowCoverage))
+        try
         {
-            TilePaintEvaluator.EvaluateRow(in plan, y, sweep.ClipMinX, sweep.Width, rowColors);
-            surface.CompositeOverSpan(y, sweep.ClipMinX, rowCoverage, rowColors, compositeWorkspace);
+            while (sweep.MoveNext(out var y, out var x, out var rowCoverage))
+            {
+                var colors = rowColors.AsSpan(0, rowCoverage.Length);
+                TilePaintEvaluator.EvaluateRow(in plan, y, x, rowCoverage.Length, rowColors);
+                surface.CompositeOverSpan(y, x, rowCoverage, colors, compositeWorkspace);
+            }
+        }
+        finally
+        {
+            // A minified tile copy is owned by the plan
+            plan.Release();
         }
     }
 
@@ -420,9 +437,9 @@ internal static class ScanlineRasterizer
             return;
         }
 
-        while (sweep.MoveNext(out var y, out var rowCoverage))
+        while (sweep.MoveNext(out var y, out var x, out var rowCoverage))
         {
-            var rowOffset = ((y - originY) * maskWidth) + (sweep.ClipMinX - originX);
+            var rowOffset = ((y - originY) * maskWidth) + (x - originX);
             rowCoverage.CopyTo(mask.AsSpan(rowOffset, rowCoverage.Length));
         }
     }
@@ -470,6 +487,8 @@ internal static class ScanlineRasterizer
         private readonly List<RowEdge> _subRowEdges = [];
         private int _nextEdgeIndex;
         private int _currentY;
+        private int _spanStart;
+        private int _spanLength;
 
         public CoverageSweep(IReadOnlyList<List<Vector2>> polygons, FillRule fillRule, Rect clipBounds, ClipMask? clip = null)
         {
@@ -541,17 +560,10 @@ internal static class ScanlineRasterizer
         }
 
         /// <summary>
-        ///     The clipped row width, in pixel columns; also the length of every
+        ///     The clipped row width, in pixel columns; the upper bound on the length of every
         ///     <c>rowCoverage</c> span yielded by <see cref="MoveNext"/>.
         /// </summary>
         public int Width { get; }
-
-        /// <summary>
-        ///     The clipped leftmost pixel column; the <c>x</c> argument every caller should pass
-        ///     to <see cref="Surface.CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32, Surface.CompositeSpanWorkspace)"/>
-        ///     alongside a yielded row.
-        /// </summary>
-        public int ClipMinX => _clipMinX;
 
         /// <summary>
         ///     <see langword="true"/> when this fill operation has no visible rows or edges at
@@ -566,8 +578,14 @@ internal static class ScanlineRasterizer
         ///     <c>[0, 1]</c> coverage span.
         /// </summary>
         /// <param name="y">The zero-based row just computed.</param>
+        /// <param name="x">
+        ///     The zero-based surface column of <paramref name="rowCoverage"/>'s first element
+        ///     (at least the clip's leftmost column).
+        /// </param>
         /// <param name="rowCoverage">
-        ///     The row's coverage span, one value per column starting at <see cref="ClipMinX"/>.
+        ///     The row's coverage span, one value per column starting at <paramref name="x"/>. Every
+        ///     column outside it (left of <paramref name="x"/> or right of the span) has zero
+        ///     coverage, and rows whose coverage is entirely zero are never yielded.
         ///     This span is reused (overwritten) by every call - a caller must fully consume it
         ///     (for example, by compositing it) before calling <see cref="MoveNext"/> again.
         /// </param>
@@ -575,7 +593,7 @@ internal static class ScanlineRasterizer
         ///     <see langword="true"/> if a row was produced; <see langword="false"/> once every
         ///     row in the clip range has been swept.
         /// </returns>
-        public bool MoveNext(out int y, out ReadOnlySpan<float> rowCoverage)
+        public bool MoveNext(out int y, out int x, out ReadOnlySpan<float> rowCoverage)
         {
             while (_currentY < _clipMaxY)
             {
@@ -601,11 +619,20 @@ internal static class ScanlineRasterizer
 
                 AccumulateRowCoverage(y, rowTop, rowBottom);
 
-                rowCoverage = _rowCoverage;
+                if (_spanLength == 0)
+                {
+                    // Every column of this row has zero coverage, which the compositing contract
+                    // defines as "untouched" - nothing to yield.
+                    continue;
+                }
+
+                x = _clipMinX + _spanStart;
+                rowCoverage = new ReadOnlySpan<float>(_rowCoverage, _spanStart, _spanLength);
                 return true;
             }
 
             y = 0;
+            x = 0;
             rowCoverage = default;
             return false;
         }
@@ -754,11 +781,49 @@ internal static class ScanlineRasterizer
         /// </remarks>
         private void AccumulateRowCoverageSinglePass(int y)
         {
+            // Bound the columns this row's edges can possibly touch: every column left of "lo"
+            // has a zero running total (nothing has been accumulated yet) and every column right
+            // of "hi" has a constant running total (no edge contributes there), so only [lo, hi]
+            // needs clearing, accumulating, and per-column resolving - a thin shape on a wide
+            // clip region costs O(shape width), not O(clip width).
+            var minX = float.PositiveInfinity;
+            var maxX = float.NegativeInfinity;
+            foreach (var edge in _rowEdges)
+            {
+                minX = Math.Min(minX, Math.Min(edge.XAtY0, edge.XAtY1));
+                maxX = Math.Max(maxX, Math.Max(edge.XAtY0, edge.XAtY1));
+            }
+
+            int lo;
+            int hi;
+            if (minX > -TouchedRangeLimit && maxX < TouchedRangeLimit)
+            {
+                // "cover" indexes up to floor(x) + 1 (the bank column to the right of an edge's
+                // column), clamped into the Width + 1 slots; the overflow slot is never read.
+                lo = Math.Clamp((int)MathF.Floor(minX) - _clipMinX, 0, Width);
+                hi = Math.Clamp((int)MathF.Floor(maxX) - _clipMinX + 1, 0, Width - 1);
+            }
+            else
+            {
+                // Non-finite or absurdly large coordinates: take the full, always-correct range.
+                lo = 0;
+                hi = Width - 1;
+            }
+
+            if (lo > hi)
+            {
+                // Every edge lies right of the visible range: nothing is visible on this row.
+                _spanStart = 0;
+                _spanLength = 0;
+                return;
+            }
+
             // Accumulate every active edge's row-restricted slice into the shared cell
             // arrays - a single O(edges) pass, with no sorting and no pairing of edges into
-            // "inside gaps".
-            Array.Clear(_cover);
-            Array.Clear(_area);
+            // "inside gaps". Only [lo, hi] is cleared: no edge writes outside it (apart from the
+            // never-read overflow slot), and nothing outside it is read below.
+            Array.Clear(_cover, lo, hi - lo + 1);
+            Array.Clear(_area, lo, hi - lo + 1);
             foreach (var edge in _rowEdges)
             {
                 AccumulateRowEdge(edge, _clipMinX, _clipMaxX, _cover, _area);
@@ -773,18 +838,45 @@ internal static class ScanlineRasterizer
             // was already applied geometrically to the polygons (ApplyRectClip), so it is not
             // multiplied here - that would square coverage where fill and clip edges coincide.
             var accumulatedCover = 0f;
-            for (var i = 0; i < Width; i++)
+            for (var i = lo; i <= hi; i++)
             {
                 accumulatedCover += _cover[i];
                 var total = accumulatedCover + _area[i];
                 _rowCoverage[i] = ResolveCoverage(total, _fillRule);
             }
 
+            // Right of "hi" no edge contributes, so the coverage is the constant resolution of
+            // the final running total (zero for any closed, fully visible shape).
+            var end = hi + 1;
+            if (end < Width)
+            {
+                var tail = ResolveCoverage(accumulatedCover, _fillRule);
+                if (tail > 0f)
+                {
+                    _rowCoverage.AsSpan(end, Width - end).Fill(tail);
+                    end = Width;
+                }
+            }
+
+            // Zero coverage means "untouched" to the compositor, so zero columns at either end of
+            // the window are simply left out of the yielded span.
+            while (lo < end && !(_rowCoverage[lo] > 0f))
+            {
+                lo++;
+            }
+
+            while (end > lo && !(_rowCoverage[end - 1] > 0f))
+            {
+                end--;
+            }
+
+            _spanStart = lo;
+            _spanLength = end - lo;
             ApplyClip(y);
         }
 
         /// <summary>
-        ///     Multiplies the just-resolved <see cref="_rowCoverage"/> by the active clip's
+        ///     Multiplies the just-resolved <see cref="_rowCoverage"/> window by the active clip's
         ///     dense coverage for row <paramref name="y"/>, if any. The clip's analytic rectangle
         ///     was already applied geometrically to the polygons (see <see cref="ApplyRectClip"/>),
         ///     so it contributes no per-pixel factor here: a fill edge coincident with a clip edge
@@ -792,22 +884,37 @@ internal static class ScanlineRasterizer
         /// </summary>
         private void ApplyClip(int y)
         {
-            if (_clip == null)
+            if (_spanLength == 0)
             {
                 return;
             }
 
-            var dense = _clip.GetDenseRow(y, _clipMinX, Width);
-            if (dense.IsEmpty)
+            var dense = _clip == null
+                ? default
+                : _clip.GetDenseRow(y, _clipMinX + _spanStart, _spanLength);
+            if (!dense.IsEmpty)
             {
-                return;
+                // IEEE single-precision multiply, element-wise: bit-identical to the scalar loop.
+                var row = _rowCoverage.AsSpan(_spanStart, _spanLength);
+                TensorPrimitives.Multiply(row, dense, row);
             }
 
-            var row = _rowCoverage.AsSpan(0, Width);
-            for (var i = 0; i < row.Length; i++)
+            // The clip (or, on the multi-breakpoint path, the full-row window) may have zeroed either end (or all) of the window; zero coverage means
+            // "untouched" to the compositor, so trim it out (length 0 when the row is empty).
+            var lo = _spanStart;
+            var end = _spanStart + _spanLength;
+            while (lo < end && !(_rowCoverage[lo] > 0f))
             {
-                row[i] *= dense[i];
+                lo++;
             }
+
+            while (end > lo && !(_rowCoverage[end - 1] > 0f))
+            {
+                end--;
+            }
+
+            _spanStart = lo;
+            _spanLength = end - lo;
         }
 
         /// <summary>
@@ -956,6 +1063,8 @@ internal static class ScanlineRasterizer
                 _rowCoverage[i] = _subRowCoverage[i];
             }
 
+            _spanStart = 0;
+            _spanLength = Width;
             ApplyClip(y);
         }
 

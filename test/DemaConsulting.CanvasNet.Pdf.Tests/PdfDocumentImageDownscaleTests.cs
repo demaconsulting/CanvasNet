@@ -6,7 +6,7 @@ namespace DemaConsulting.CanvasNet.Pdf.Tests;
 /// <summary>
 ///     End-to-end tests proving <see cref="PdfDocument"/> area-averages (rather than point-samples)
 ///     a raster image that is shrunk on the page, so one-pixel lines are never dropped, and that
-///     enlarged images keep their exact nearest-neighbor blocks. Timing is deliberately not asserted.
+///     enlarged images are smoothly interpolated (no blocks). Timing is deliberately not asserted.
 /// </summary>
 public class PdfDocumentImageDownscaleTests
 {
@@ -18,7 +18,7 @@ public class PdfDocumentImageDownscaleTests
     private static readonly PdfRenderOptions White = new() { BackgroundColor = new(255, 255, 255, 255) };
 
     /// <summary>Builds a one-page PDF drawing a raw 8-bit gray image through <paramref name="cm"/>.</summary>
-    private static byte[] BuildPdf(int pageWidth, int pageHeight, string cm, int imageWidth, int imageHeight, byte[] gray)
+    internal static byte[] BuildPdf(int pageWidth, int pageHeight, string cm, int imageWidth, int imageHeight, byte[] gray)
     {
         var content = Encoding.ASCII.GetBytes($"{cm} /Im0 Do");
         var bodies = new List<byte[]>
@@ -54,7 +54,7 @@ public class PdfDocumentImageDownscaleTests
     }
 
     /// <summary>Wraps a dictionary and payload as a stream object body.</summary>
-    private static byte[] Stream(string dictionary, byte[] data)
+    internal static byte[] Stream(string dictionary, byte[] data)
     {
         var bytes = new List<byte>();
         bytes.AddRange(Encoding.ASCII.GetBytes(dictionary + "\nstream\n"));
@@ -152,18 +152,28 @@ public class PdfDocumentImageDownscaleTests
         }
     }
 
-    /// <summary>An enlarged image is still painted as exact nearest-neighbor blocks (no blending).</summary>
+    /// <summary>An enlarged image is smoothly interpolated: centers keep the source values and the boundary blends them.</summary>
     [Fact]
-    public void Render_EnlargedImage_RemainsExactBlocks()
+    public void Render_EnlargedImage_IsSmoothlyInterpolated()
     {
         var pdf = BuildPdf(400, 10, "400 0 0 10 0 0 cm", 4, 1, [0, 80, 160, 240]);
         using var document = PdfDocument.Open(new MemoryStream(pdf));
         using var surface = document.Render(0, 400, 10, White);
 
-        Assert.Equal(0, surface[99, 5].R);
-        Assert.Equal(80, surface[100, 5].R);
-        Assert.Equal(80, surface[199, 5].R);
-        Assert.Equal(160, surface[200, 5].R);
-        Assert.Equal(240, surface[399, 5].R);
+        // Source pixel centers (50, 150, 250, 350) keep (nearly) their exact values
+        Assert.InRange(surface[49, 5].R, 0, 4);
+        Assert.InRange(surface[149, 5].R, 76, 84);
+        Assert.InRange(surface[249, 5].R, 156, 164);
+        Assert.InRange(surface[350, 5].R, 236, 244);
+
+        // The boundary between source pixels 0 and 1 blends them (point sampling would jump 0 -> 80)
+        Assert.InRange(surface[99, 5].R, 30, 50);
+        Assert.InRange(surface[100, 5].R, 30, 50);
+
+        // The ramp never decreases between the first and last source centers (edge taps may overshoot)
+        for (var x = 51; x <= 350; x++)
+        {
+            Assert.True(surface[x, 5].R >= surface[x - 1, 5].R, $"ramp decreased at x={x}");
+        }
     }
 }

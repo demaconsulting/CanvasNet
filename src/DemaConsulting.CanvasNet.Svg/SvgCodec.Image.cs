@@ -65,10 +65,12 @@ public static partial class SvgCodec
     //     (or shared - itself a non-trivial design question) work budgets, and a new
     //     recursion-depth guard distinct from MaxElementDepth/MaxUseDepth - a disproportionate cost
     //     for a rarely-used feature, deferred to a future phase.
-    //   - Only nearest-neighbor sampling is performed (see SampleImageIntoRegion below), matching
-    //     this codec's one existing raster-resampling precedent (SampleTileIntoRegion in
-    //     SvgCodec.Patterns.cs) rather than introducing a second, inconsistent bilinear/bicubic
-    //     quality tier solely for <image>.
+    //   - The raster is resampled smoothly (see SampleImageIntoRegion below): an axis-aligned
+    //     placement is resampled once to its device-pixel rectangle by the shared SurfaceResampler
+    //     engine (area averaging when shrunk, Catmull-Rom bicubic when enlarged); a rotated or
+    //     skewed placement falls back to inverse-mapped bilinear sampling of a prefiltered source.
+    //     The CSS "image-rendering" property values pixelated, crisp-edges and optimizeSpeed select
+    //     nearest-neighbor sampling instead.
     //   - An <image> with no explicit width/height (or an explicit "0") renders nothing: this codec
     //     does not implement SVG2's "auto" intrinsic-size resolution from the decoded raster (i.e.
     //     inferring width/height from the decoded image when the attribute is absent) - a
@@ -247,7 +249,7 @@ public static partial class SvgCodec
         // Sample the decoded raster into a fresh region-sized buffer via non-tiling
         // inverse-transform sampling (see SampleImageIntoRegion), then apply clip-path -> mask ->
         // filter in SVG's defined order, exactly like RenderShapeEffectsPipeline
-        var content = SampleImageIntoRegion(decodedSurface, pixelX, pixelY, pixelWidth, pixelHeight, pixelToImage);
+        var content = SampleImageIntoRegion(decodedSurface, pixelX, pixelY, pixelWidth, pixelHeight, imageToPixel, pixelToImage, state.PixelatedImages);
 
         if (clipPathElement != null)
         {
@@ -369,7 +371,8 @@ public static partial class SvgCodec
     ///     Samples <paramref name="decodedSurface"/> into a fresh region-sized buffer, one pixel at
     ///     a time: each destination pixel is inverse-mapped through
     ///     <paramref name="pixelToImage"/> back into the decoded raster's own intrinsic pixel
-    ///     space and sampled nearest-neighbor, or left fully transparent when the inverse-mapped
+    ///     space and sampled smoothly (nearest-neighbor only for <c>image-rendering: pixelated</c>
+    ///     and its synonyms), or left fully transparent when the inverse-mapped
     ///     point falls outside <c>[0, decodedSurface.Width) x [0, decodedSurface.Height)</c> - the
     ///     letterboxed/pillarboxed (or sliced-away) area a non-<c>none</c>/non-exactly-matching
     ///     <c>preserveAspectRatio</c> fit can leave within the placement rect.
@@ -379,7 +382,9 @@ public static partial class SvgCodec
     /// <param name="pixelY">The painted region's own pixel-space Y origin.</param>
     /// <param name="pixelWidth">The painted region's own pixel width.</param>
     /// <param name="pixelHeight">The painted region's own pixel height.</param>
-    /// <param name="pixelToImage">The inverse of the composed image-content-space-to-pixel-space transform.</param>
+    /// <param name="imageToPixel">The composed image-content-space-to-pixel-space transform.</param>
+    /// <param name="pixelToImage">The inverse of <paramref name="imageToPixel"/>.</param>
+    /// <param name="nearest"><see langword="true"/> to sample nearest-neighbor (<c>image-rendering: pixelated</c>) instead of smoothing.</param>
     /// <returns>A new region-sized buffer, ready for <see cref="CompositeFilterResultOntoCanvas"/> (after any clip/mask/filter is applied).</returns>
     /// <remarks>
     ///     Deliberately distinct from <c>SampleTileIntoRegion</c> (<c>SvgCodec.Patterns.cs</c>): a
@@ -397,11 +402,42 @@ public static partial class SvgCodec
         int pixelY,
         int pixelWidth,
         int pixelHeight,
-        Matrix3x2 pixelToImage)
+        Matrix3x2 imageToPixel,
+        Matrix3x2 pixelToImage,
+        bool nearest)
     {
         var result = new Surface(pixelWidth, pixelHeight);
         var decodedWidth = decodedSurface.Width;
         var decodedHeight = decodedSurface.Height;
+
+        // Axis-aligned placement: resample once to the exact device rectangle and copy it in
+        var imageToRegion = imageToPixel * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
+        if (SurfaceResampler.TryResampleToDevice(
+                decodedSurface, imageToRegion, pixelWidth, pixelHeight,
+                nearest ? ResamplingMode.Nearest : ResamplingMode.Auto, out var window, out var originX, out var originY))
+        {
+            using (window)
+            {
+                if (window is not null)
+                {
+                    for (var row = 0; row < window.Height; row++)
+                    {
+                        window.GetRowSpan(row).CopyTo(result.GetRowSpan(originY + row).Slice(originX, window.Width));
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        // Rotated or skewed: inverse-map each pixel; smooth mode samples a prefiltered source bilinearly
+        var smooth = decodedSurface;
+        var factorX = 1;
+        var factorY = 1;
+        if (!nearest)
+        {
+            smooth = SurfaceResampler.Prefilter(decodedSurface, imageToRegion, out _, out factorX, out factorY);
+        }
 
         for (var row = 0; row < pixelHeight; row++)
         {
@@ -425,10 +461,22 @@ public static partial class SvgCodec
                     continue;
                 }
 
-                var sourceX = Math.Clamp((int)imagePoint.X, 0, decodedWidth - 1);
-                var sourceY = Math.Clamp((int)imagePoint.Y, 0, decodedHeight - 1);
-                resultRow[col] = decodedSurface.GetRowSpan(sourceY)[sourceX];
+                if (nearest)
+                {
+                    var sourceX = Math.Clamp((int)imagePoint.X, 0, decodedWidth - 1);
+                    var sourceY = Math.Clamp((int)imagePoint.Y, 0, decodedHeight - 1);
+                    resultRow[col] = decodedSurface.GetRowSpan(sourceY)[sourceX];
+                }
+                else
+                {
+                    resultRow[col] = SurfaceResampler.SampleBilinearReduced(smooth, imagePoint.X, imagePoint.Y, factorX, factorY, decodedWidth, decodedHeight);
+                }
             }
+        }
+
+        if (!ReferenceEquals(smooth, decodedSurface))
+        {
+            smooth.Dispose();
         }
 
         return result;

@@ -1048,6 +1048,26 @@ resolved content type is not a recognized raster format throws `PptxUnsupportedF
 carrying the `"pptx-image-format"` feature token, and proves null argument validation for both
 `picElement`/`document`.
 
+#### CanvasNetPptx-PptxDocument-PictureSmoothResample: Pictures Are Resampled Smoothly
+
+**Tests**: `PaintPicture_EnlargedPicture_IsSmooth`, `PaintPicture_EnlargedCrop_DoesNotBleedPixelsOutsideCrop`,
+`PaintPicture_RotatedCrop_DoesNotBleedPixelsOutsideCrop`, `PaintPicture_FractionalCrop_PartiallyCoveredBorderPixelContributes`,
+`PaintPicture_FractionalCropOnIntegerBoundary_NoContaminationFromExcludedColumn`,
+`PaintPicture_FractionalCropAtOffset_PaintsOnlyInsideFootprint`,
+`PaintPicture_WithNegativeSrcRectEdges_ReplicatesEdgePixelsIntoOverhang`
+
+A 45-pixel-wide picture with a 40 percent right or left crop (exactly 18 pixels) excludes the neighboring
+column entirely, so the output stays pure blue. A crop with negative edges on all four sides replicates the
+edge pixels into the overhang strips with no transparent band.
+
+A 2x1 black/white picture painted at 40x4 contains many distinct gray levels instead of two hard blocks.
+An 8x8 picture with two bright-red left columns and six blue columns, cropped with `srcRect` left = 25 percent
+and enlarged (axis-aligned) or rotated 90 degrees, paints only pure blue everywhere (the red outside the crop
+never reaches the crop edge); an exact-equality assertion is valid here because the window is isolated
+before resampling and, for whole-pixel crops, holds only pixels inside the crop. With a fractional crop the
+whole-pixel superset window includes the partially covered border pixel, which therefore contributes to the
+crop edge (a 4x4 picture with a black first column and a 12.5 percent left crop paints a dark leftmost pixel).
+
 #### CanvasNetPptx-PptxDocument-PicturePainting: Picture Compositing Without PDF's Y-Flip
 
 **Tests**: `PaintPicture_IdentityTransformNoCrop_PaintsImagePixelsUnflipped`,

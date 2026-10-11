@@ -856,7 +856,8 @@ sections:
               raw DeviceGray/DeviceRGB/DeviceCMYK/Indexed samples of 1, 2, 4, 8 or 16 bits per
               component, and compositing the
               decoded image onto the destination surface through the current transformation
-              matrix (nearest-neighbor sampling, treating every image as fully opaque unless it
+              matrix (resampled once per draw: area averaging when shrinking, bicubic when enlarging,
+               and a bilinear fallback for rotated or skewed placements; treating every image as fully opaque unless it
               carries alpha via /SMask, and
               alpha-blending each sampled source pixel over the existing destination pixel via
               standard Porter-Duff "over" compositing rather than overwriting it outright); an
@@ -897,8 +898,8 @@ sections:
               The PdfDocument class shall apply an explicit /SMask image of an image XObject
               (whatever the base image's encoding: raw samples, DCTDecode or JPXDecode) as the
               base image's alpha channel, multiplying the mask's single-component luminance
-              into the base alpha (resampling the mask to the base image with nearest-neighbor
-              sampling; the mask may use any supported bit depth - 1, 2, 4, 8 or 16 bits per
+              into the base alpha               (resampling the mask to the base image bilinearly when
+              the sizes differ; the mask may use any supported bit depth - 1, 2, 4, 8 or 16 bits per
               component) and ignoring the mask's own /SMask.
             justification: |
               Soft-masked images are the common way PDF producers store transparent raster
@@ -2000,7 +2001,8 @@ sections:
               The PdfDocument class shall fill or stroke a path using a /PatternType 1 (tiling)
               pattern, rendering the pattern's own content stream once into an offscreen tile
               surface (sized from /XStep/YStep scaled by the pattern-to-device transform) and
-              repeating that tile across the painted region, nearest-neighbor sampled. A
+              repeating that tile across the painted region (exact at about one device pixel per tile pixel, smoothed
+               otherwise). A
               /PaintType 1 (colored) pattern paints its own content stream's colors unmodified; a
               /PaintType 2 (uncolored) pattern recolors every painted pixel to the scn/SCN-supplied
               tint while preserving each pixel's own painted alpha. A zero or non-finite
@@ -2024,9 +2026,9 @@ sections:
           - id: CanvasNetPdf-PdfDocument-ImageDownscale
             title: >-
               The PdfDocument class shall filter a raster image that is shrunk on the page,
-              area-averaging it once per draw and sampling the result bilinearly, so one-pixel
-              features are attenuated rather than dropped, while an enlarged or 1:1 image keeps
-              exact nearest-neighbor sampling.
+              resampling it once per draw with a reduction-scaled filter, so one-pixel
+              features are attenuated rather than dropped, while an enlarged image is smoothly
+              interpolated rather than shown as hard blocks.
             justification: |
               Real-world PDFs embed high-resolution raster scans (for example drawing grids) that
               are rendered at a fraction of their native size. Point sampling makes thin lines
@@ -2035,4 +2037,32 @@ sections:
               - Render_ShrunkImageWithOnePixelLines_KeepsEveryLine
               - Render_ShrunkFlippedImage_KeepsEveryLine
               - Render_ShrunkRotatedImage_KeepsEveryLine
-              - Render_EnlargedImage_RemainsExactBlocks
+              - Render_EnlargedImage_IsSmoothlyInterpolated
+
+          - id: CanvasNetPdf-PdfDocument-ImageColorConversion
+            title: >-
+              The PdfDocument class shall convert decoded raster image samples to pixel colors for
+              DeviceGray, DeviceRGB, DeviceCMYK and Indexed color spaces exactly as the general
+              component-list conversion does, without a per-pixel array allocation.
+            justification: |
+              Large images convert millions of samples; the allocation-free path must give
+              pixel-identical output to the original conversion.
+            tests:
+              - PdfDocument_ImageColor_DeviceGray_ConvertsEachSampleExactly
+              - PdfDocument_ImageColor_DeviceRgb_ConvertsEachSampleExactly
+              - PdfDocument_ImageColor_DeviceCmyk_ConvertsEachSampleExactly
+              - PdfDocument_ImageColor_Indexed_LooksUpEachPaletteEntryExactly
+
+          - id: CanvasNetPdf-PdfDocument-ImageSmoothResample
+            title: >-
+              The PdfDocument class shall resample a raster image placed axis-aligned on the page
+              once per draw with the shared engine (area filter when shrinking, bicubic when
+              enlarging), falling back to inverse-mapped bilinear sampling of a prefiltered
+              source for rotated or skewed placements, and resize a soft mask smoothly to the
+              image size, so no one-pixel line disappears at any output size.
+            justification: |
+              A single high-quality resample removes the phase-dependent loss of thin grid lines
+              seen when a high-resolution scan is rendered at many zoom levels.
+            tests:
+              - Render_GridImage_NoLineMissingAtAnySize
+              - Render_ShrunkRotatedImage_KeepsEveryLine

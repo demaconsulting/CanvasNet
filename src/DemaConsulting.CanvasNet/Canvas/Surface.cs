@@ -437,6 +437,126 @@ public sealed class Surface : IDisposable
     }
 
     /// <summary>
+    ///     Returns a new surface containing this surface resampled to the given size.
+    /// </summary>
+    /// <param name="width">The width, in pixels, of the result. Must be between 1 and <see cref="MaxDimension"/>.</param>
+    /// <param name="height">The height, in pixels, of the result. Must be between 1 and <see cref="MaxDimension"/>.</param>
+    /// <param name="mode">
+    ///     The reconstruction filter. <see cref="ResamplingMode.Auto"/> (the default) uses area
+    ///     averaging on an axis that shrinks and Catmull-Rom bicubic on an axis that grows.
+    /// </param>
+    /// <returns>
+    ///     A new, independent <see cref="Surface"/> of size <paramref name="width"/> by
+    ///     <paramref name="height"/>. When the size equals this surface's size the result is an
+    ///     exact copy for every mode.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="width"/> or <paramref name="height"/> is less than one or
+    ///     greater than <see cref="MaxDimension"/>, or <paramref name="mode"/> is not a defined
+    ///     <see cref="ResamplingMode"/> value.
+    /// </exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
+    /// <remarks>
+    ///     Resizing never changes this surface. Filtering is performed in premultiplied alpha,
+    ///     results are clamped to the valid range, and the image edges are clamped (not wrapped).
+    ///     When an axis is reduced with a filtering mode (any mode other than
+    ///     <see cref="ResamplingMode.Nearest"/>) the filter support is widened by the reduction
+    ///     ratio, so thin features are attenuated rather than dropped; <c>Nearest</c> uses point
+    ///     sampling and can drop them. Working memory is bounded independently
+    ///     of the image size. The aspect ratio is not preserved; use <see cref="ResizeToFit"/> for that.
+    /// </remarks>
+    /// <example>
+    ///     <code>
+    ///     var surface = new Surface(200, 100);
+    ///     var thumbnail = surface.Resize(100, 50);
+    ///     Console.WriteLine(thumbnail.Width);  // Output: 100
+    ///     Console.WriteLine(thumbnail.Height); // Output: 50
+    ///     </code>
+    /// </example>
+    public Surface Resize(int width, int height, ResamplingMode mode = ResamplingMode.Auto)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // Validate each argument individually so callers get a precise parameter name
+        if (width < 1 || width > MaxDimension)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), width, $"Width must be between 1 and {MaxDimension}.");
+        }
+
+        if (height < 1 || height > MaxDimension)
+        {
+            throw new ArgumentOutOfRangeException(nameof(height), height, $"Height must be between 1 and {MaxDimension}.");
+        }
+
+        if (!Enum.IsDefined(mode))
+        {
+            throw new ArgumentOutOfRangeException(nameof(mode), mode, "Mode is not a defined resampling mode.");
+        }
+
+        // The same size is an exact independent copy for every filter
+        if (width == Width && height == Height)
+        {
+            return Crop(0, 0, Width, Height);
+        }
+
+        return SurfaceResampler.ResizeFull(this, width, height, mode);
+    }
+
+    /// <summary>
+    ///     Returns a new surface containing this surface resampled, keeping its aspect ratio, to
+    ///     the largest size that fits inside the given box (enlarging or shrinking).
+    /// </summary>
+    /// <param name="maxWidth">The width of the box. Must be between 1 and <see cref="MaxDimension"/>.</param>
+    /// <param name="maxHeight">The height of the box. Must be between 1 and <see cref="MaxDimension"/>.</param>
+    /// <param name="mode">The reconstruction filter; see <see cref="Resize"/>.</param>
+    /// <returns>
+    ///     A new, independent <see cref="Surface"/> no larger than the box on either axis, at
+    ///     least one pixel in each dimension, with the aspect ratio preserved to within pixel rounding.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="maxWidth"/> or <paramref name="maxHeight"/> is less than one
+    ///     or greater than <see cref="MaxDimension"/>, or <paramref name="mode"/> is not defined.
+    /// </exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
+    /// <remarks>
+    ///     One axis of the result always touches the box (up to rounding); a small image is
+    ///     enlarged to fill the box. Very elongated images are clamped to one pixel on the short axis.
+    /// </remarks>
+    /// <example>
+    ///     <code>
+    ///     var surface = new Surface(100, 50);
+    ///     var fitted = surface.ResizeToFit(20, 20);
+    ///     Console.WriteLine($"{fitted.Width}x{fitted.Height}"); // Output: 20x10
+    ///     </code>
+    /// </example>
+    public Surface ResizeToFit(int maxWidth, int maxHeight, ResamplingMode mode = ResamplingMode.Auto)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (maxWidth < 1 || maxWidth > MaxDimension)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxWidth), maxWidth, $"Width must be between 1 and {MaxDimension}.");
+        }
+
+        if (maxHeight < 1 || maxHeight > MaxDimension)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxHeight), maxHeight, $"Height must be between 1 and {MaxDimension}.");
+        }
+
+        if (!Enum.IsDefined(mode))
+        {
+            throw new ArgumentOutOfRangeException(nameof(mode), mode, "Mode is not a defined resampling mode.");
+        }
+
+        // Pick the uniform scale that makes the tighter axis exactly fit, then round and clamp each
+        // dimension into [1, box] so rounding can never exceed the box or produce an empty image
+        var scale = Math.Min((double)maxWidth / Width, (double)maxHeight / Height);
+        var width = (int)Math.Clamp(Math.Round(Width * scale, MidpointRounding.AwayFromZero), 1, maxWidth);
+        var height = (int)Math.Clamp(Math.Round(Height * scale, MidpointRounding.AwayFromZero), 1, maxHeight);
+        return Resize(width, height, mode);
+    }
+
+    /// <summary>
     ///     The value <c>255</c> as a <see cref="float"/>, used throughout the vectorized bulk
     ///     pixel operations to convert between byte-scale (<c>[0, 255]</c>) and normalized
     ///     (<c>[0, 1]</c>) channel representations.
@@ -1411,6 +1531,70 @@ public sealed class Surface : IDisposable
         }
 
         /// <summary>
+        ///     The largest capacity a workspace may have and still be retained in the per-thread
+        ///     cache by <see cref="Dispose"/> (bounds the memory a thread keeps after a large fill).
+        /// </summary>
+        private const int MaxCachedCapacity = 16384;
+
+        /// <summary>
+        ///     The smallest capacity <see cref="Rent"/> creates, so the many small fills (for example
+        ///     glyphs) can all reuse one cached workspace.
+        /// </summary>
+        private const int MinRentedCapacity = 256;
+
+        /// <summary>
+        ///     The per-thread cached workspace, available to <see cref="Rent"/> (taken out of this
+        ///     slot while in use, so a nested or concurrent use on the same thread never shares one).
+        /// </summary>
+        [ThreadStatic]
+        private static CompositeSpanWorkspace? _cached;
+
+        private bool _pooled;
+
+        /// <summary>
+        ///     True while a caller owns the workspace (from construction or <see cref="Rent"/> until
+        ///     <see cref="Dispose"/>); false while cached or after its arrays were released.
+        /// </summary>
+        private bool _inUse = true;
+
+        private static void Cache(CompositeSpanWorkspace workspace) => _cached = workspace;
+
+        /// <summary>
+        ///     Gets a workspace able to serve spans of up to <paramref name="capacity"/> pixels, reusing
+        ///     this thread's cached one when it is large enough. Disposing it hands it back to the
+        ///     cache rather than returning its arrays to <see cref="ArrayPool{T}"/>, which removes the
+        ///     per-fill rent/return churn of every scratch array from tiny fills such as glyphs.
+        /// </summary>
+        /// <param name="capacity">The largest span length to serve. Must be greater than zero.</param>
+        /// <returns>A workspace whose <see cref="Capacity"/> is at least <paramref name="capacity"/>.</returns>
+        public static CompositeSpanWorkspace Rent(int capacity)
+        {
+            if (capacity <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(capacity), capacity, "Capacity must be greater than zero.");
+            }
+
+            var cached = _cached;
+            _cached = null;
+            if (cached != null)
+            {
+                if (cached.Capacity >= capacity)
+                {
+                    cached._inUse = true;
+                    return cached;
+                }
+
+                // Evict: release its arrays exactly once; a later Dispose by a stale holder is a no-op.
+                cached._pooled = false;
+                cached._inUse = true;
+                cached.Dispose();
+            }
+
+            var rented = new CompositeSpanWorkspace(Math.Max(capacity, MinRentedCapacity)) { _pooled = capacity <= MaxCachedCapacity };
+            return rented;
+        }
+
+        /// <summary>
         ///     The largest coverage-span length this workspace's buffers can serve.
         /// </summary>
         public int Capacity { get; }
@@ -1430,6 +1614,21 @@ public sealed class Surface : IDisposable
         /// </summary>
         public void Dispose()
         {
+            if (!_inUse)
+            {
+                // Already cached or released (for example a repeated Dispose, or a Dispose after
+                // eviction from the cache): the arrays must be returned to the pool at most once.
+                return;
+            }
+
+            _inUse = false;
+            if (_pooled && _cached == null)
+            {
+                // Keep the arrays for the next fill on this thread instead of returning them.
+                Cache(this);
+                return;
+            }
+
             Bg.Dispose();
             Fg.Dispose();
             Work.Dispose();

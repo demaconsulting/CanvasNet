@@ -53,6 +53,8 @@ public class TilePaintEvaluatorTests
         {
             Assert.Equal(default, pixel);
         }
+
+        plan.Release();
     }
 
     /// <summary>
@@ -71,6 +73,7 @@ public class TilePaintEvaluatorTests
 
         Assert.Equal(new Rgba32(255, 0, 0, 255), destination[0]);
         Assert.Equal(new Rgba32(0, 0, 255, 255), destination[1]);
+        plan.Release();
     }
 
     /// <summary>
@@ -91,6 +94,7 @@ public class TilePaintEvaluatorTests
         Assert.Equal(destination[0], destination[2]);
         // Columns 1 and 3 both sample pattern-space x in [1,2) -> same wrapped tile pixel.
         Assert.Equal(destination[1], destination[3]);
+        plan.Release();
     }
 
     /// <summary>
@@ -114,5 +118,114 @@ public class TilePaintEvaluatorTests
 
         Assert.Equal(positiveRow[0], negativeRow[0]);
         Assert.Equal(positiveRow[1], negativeRow[1]);
+        positivePlan.Release();
+        negativePlan.Release();
+    }
+
+    /// <summary>A tile enlarged 4x is smoothly interpolated instead of showing hard blocks.</summary>
+    [Fact]
+    public void EvaluateRow_MagnifiedTile_IsSmooth()
+    {
+        using var tileSurface = CreateCheckerboardTileSurface();
+        var tile = new TilePaint(tileSurface, Matrix3x2.CreateScale(4f), 2f, 2f);
+        var plan = TilePaintEvaluator.CreatePlan(tile);
+        try
+        {
+            Assert.True(plan.Magnified);
+            Span<Rgba32> row = stackalloc Rgba32[8];
+            TilePaintEvaluator.EvaluateRow(in plan, 0, 0, 8, row);
+            var distinct = new HashSet<byte>();
+            foreach (var pixel in row)
+            {
+                distinct.Add(pixel.R);
+            }
+
+            Assert.True(distinct.Count > 2);
+        }
+        finally
+        {
+            plan.Release();
+        }
+    }
+
+    /// <summary>Tile scale classification is shared: magnification on either axis wins (mixed case), otherwise only minified axes are reduced.</summary>
+    [Fact]
+    public void ClassifyTileScale_MixedAndSingleAxisCases()
+    {
+        // Mixed: one axis magnified, the other minified -> magnified, no prefilter
+        Assert.False(SurfaceResampler.ClassifyTileScale(2.0, 0.5, 8, 8, out var magnified, out _, out _));
+        Assert.True(magnified);
+
+        // Minified on one axis only: only that axis is reduced
+        Assert.True(SurfaceResampler.ClassifyTileScale(0.5, 1.0, 8, 8, out magnified, out var w, out var h));
+        Assert.False(magnified);
+        Assert.Equal((4, 8), (w, h));
+
+        // Near 1:1 and non-finite/degenerate scales are left untouched
+        Assert.False(SurfaceResampler.ClassifyTileScale(1.04, 0.96, 8, 8, out magnified, out _, out _));
+        Assert.False(magnified);
+        Assert.False(SurfaceResampler.ClassifyTileScale(double.NaN, 0.5, 8, 8, out magnified, out _, out _));
+        Assert.False(magnified);
+    }
+
+    /// <summary>A mixed magnified/minified tile is sampled bilinearly without a prefiltered copy.</summary>
+    [Fact]
+    public void CreatePlan_MixedMagnifiedAndMinifiedTile_IsMagnifiedOnly()
+    {
+        using var tileSurface = CreateCheckerboardTileSurface();
+        var plan = TilePaintEvaluator.CreatePlan(new TilePaint(tileSurface, Matrix3x2.CreateScale(4f, 0.25f), 2f, 2f));
+        try
+        {
+            Assert.True(plan.Magnified);
+            Assert.Null(plan.Minified);
+        }
+        finally
+        {
+            plan.Release();
+        }
+    }
+
+    /// <summary>A tile at exactly one device pixel per tile pixel keeps exact pixel values.</summary>
+    [Fact]
+    public void CreatePlan_OneToOneTile_IsNeitherMagnifiedNorMinified()
+    {
+        using var tileSurface = CreateCheckerboardTileSurface();
+        var plan = TilePaintEvaluator.CreatePlan(new TilePaint(tileSurface, Matrix3x2.Identity, 2f, 2f));
+        try
+        {
+            Assert.False(plan.Magnified);
+            Assert.Null(plan.Minified);
+        }
+        finally
+        {
+            plan.Release();
+        }
+    }
+
+    /// <summary>A tile shrunk to a quarter is replaced by an area-averaged copy that averages the checkerboard.</summary>
+    [Fact]
+    public void EvaluateRow_MinifiedTile_AveragesColors()
+    {
+        using var tileSurface = new Surface(8, 8);
+        for (var y = 0; y < 8; y++)
+        {
+            for (var x = 0; x < 8; x++)
+            {
+                tileSurface[x, y] = ((x + y) & 1) == 0 ? new Rgba32(255, 255, 255, 255) : new Rgba32(0, 0, 0, 255);
+            }
+        }
+
+        var plan = TilePaintEvaluator.CreatePlan(new TilePaint(tileSurface, Matrix3x2.CreateScale(0.25f), 8f, 8f));
+        try
+        {
+            Assert.NotNull(plan.Minified);
+            Span<Rgba32> row = stackalloc Rgba32[2];
+            TilePaintEvaluator.EvaluateRow(in plan, 0, 0, 2, row);
+            Assert.InRange(row[0].R, 100, 155);
+        }
+        finally
+        {
+            plan.Release();
+        }
     }
 }

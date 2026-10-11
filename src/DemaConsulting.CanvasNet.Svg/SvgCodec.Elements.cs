@@ -116,6 +116,11 @@ public static partial class SvgCodec
     ///     <see cref="PercentageAxis.Vertical"/> percentage resolves against. See
     ///     <paramref name="ViewportWidth"/>'s remarks.
     /// </param>
+    /// <param name="PixelatedImages">
+    ///     <see langword="true"/> when the inherited <c>image-rendering</c> property selects
+    ///     <c>pixelated</c>, <c>crisp-edges</c> or <c>optimizeSpeed</c>, so a raster <c>image</c>
+    ///     is drawn with nearest-neighbor sampling instead of smooth resampling.
+    /// </param>
     private sealed record RenderState(
         string Fill,
         string Stroke,
@@ -138,7 +143,8 @@ public static partial class SvgCodec
         string MarkerMid,
         string MarkerEnd,
         float ViewportWidth,
-        float ViewportHeight)
+        float ViewportHeight,
+        bool PixelatedImages = false)
     {
         /// <summary>
         ///     The default render state every document starts with, matching the SVG/CSS initial
@@ -175,7 +181,8 @@ public static partial class SvgCodec
             MarkerMid: "none",
             MarkerEnd: "none",
             ViewportWidth: 300f,
-            ViewportHeight: 150f);
+            ViewportHeight: 150f,
+            PixelatedImages: false);
     }
 
     /// <summary>
@@ -631,7 +638,8 @@ public static partial class SvgCodec
             TextAnchor = ParseTextAnchor(Styled("text-anchor")) ?? parent.TextAnchor,
             MarkerStart = Styled("marker-start") ?? parent.MarkerStart,
             MarkerMid = Styled("marker-mid") ?? parent.MarkerMid,
-            MarkerEnd = Styled("marker-end") ?? parent.MarkerEnd
+            MarkerEnd = Styled("marker-end") ?? parent.MarkerEnd,
+            PixelatedImages = ParseImageRendering(Styled("image-rendering")) ?? parent.PixelatedImages
         };
     }
 
@@ -649,6 +657,20 @@ public static partial class SvgCodec
     ///     <see cref="ParseCoordinate"/>.
     /// </exception>
     private static float? ParseStyledOptionalOpacity(string? raw) => raw == null ? null : ParseOpacityValue(raw);
+
+    /// <summary>Parses an <c>image-rendering</c> keyword into "draw nearest-neighbor" (true) or "smooth" (false).</summary>
+    /// <param name="raw">The raw value, or <see langword="null"/> if absent.</param>
+    /// <returns>
+    ///     <see langword="true"/> for <c>pixelated</c>/<c>crisp-edges</c>/<c>optimizeSpeed</c>,
+    ///     <see langword="false"/> for <c>auto</c>/<c>optimizeQuality</c>/<c>smooth</c>/<c>high-quality</c>,
+    ///     <see langword="null"/> if absent or unrecognized (ignored, inherit).
+    /// </returns>
+    private static bool? ParseImageRendering(string? raw) => raw?.Trim().ToLowerInvariant() switch
+    {
+        "pixelated" or "crisp-edges" or "optimizespeed" => true,
+        "auto" or "optimizequality" or "smooth" or "high-quality" => false,
+        _ => null
+    };
 
     /// <summary>Parses a <c>fill-rule</c>/<c>clip-rule</c>-style keyword.</summary>
     /// <param name="raw">The attribute's raw value, or <see langword="null"/> if absent.</param>

@@ -256,6 +256,20 @@ fails with `InvalidDataException`.
 Covers out-of-range referenced glyphs, truncated glyph bytes, invalid contour counts, and invalid
 `loca` tables, asserting each fails with `InvalidDataException`.
 
+##### CanvasNet-Fonts-TrueTypeFont-GlyphOutlineMemoized: Outlines Are Memoized Without Changing Results
+
+**Tests**: `TrueTypeFont_GetGlyphOutline_RepeatedCalls_ReturnMemoizedOutlineEqualToFreshDecode`,
+`TrueTypeFont_GetGlyphOutline_MalformedGlyph_ThrowsOnEveryCall`,
+`TrueTypeFont_GetGlyphOutline_ConcurrentDistinctGlyphs_NeverExceedsCacheCap`,
+`TrueTypeFont_GetGlyphOutline_OutlineExceedingCostBudget_IsNotCached`
+
+Asserts two calls on one font return the same instance, that its subpaths, start points, closed
+flags and every command equal those decoded by a second font that has cached nothing, and that a
+glyph with an invalid contour count throws `InvalidDataException` on each call. A 6000-glyph font
+requested concurrently from eight threads never holds more than 4096 cached outlines. With the
+geometry-cost budget lowered below one glyph's cost the outline is not cached (each call returns a
+fresh instance), and with the default budget it is cached. No timing is asserted.
+
 ##### CanvasNet-Fonts-TrueTypeFont-GlyphIndexValidation: `GetGlyphOutline` Rejects Out-of-Range Glyph Indices
 
 **Tests**: `TrueTypeFont_GetGlyphOutline_NegativeGlyphIndex_ThrowsArgumentOutOfRangeException`,

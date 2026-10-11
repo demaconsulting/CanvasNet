@@ -95,7 +95,9 @@ public static partial class SvgCodec
                 primitiveSubregion.Y,
                 primitiveSubregion.Width,
                 primitiveSubregion.Height,
-                pixelToImage);
+                imageToPixel,
+                pixelToImage,
+                nearest: false);
             CopySurfaceInto(sampled, output, primitiveSubregion.X, primitiveSubregion.Y);
             return output;
         }

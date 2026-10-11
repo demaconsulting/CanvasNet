@@ -14,8 +14,9 @@ other subsystem: the `Codecs` subsystem depends on `Canvas`, not the other way a
 
 ### Units
 
-- **Surface** — mutable, in-memory 32-bit RGBA pixel buffer with allocation-free row access and
-  independent-copy cropping; see _Surface Unit Design_ (`canvas/surface.md`)
+- **Surface** — mutable, in-memory 32-bit RGBA pixel buffer with allocation-free row access,
+  independent-copy cropping and resampling (`Resize`/`ResizeToFit` with the `ResamplingMode`
+  filters, backed by the internal separable `SurfaceResampler` engine); see _Surface Unit Design_ (`canvas/surface.md`)
 - **Rgba32** — a blittable four-byte value type representing a single RGBA pixel; its channel
   layout is documented inline within the `Surface` unit design and its hex-literal
   `Parse`/`TryParse` methods are covered in _Rgba32 Unit Design_ (`canvas/rgba32.md`)

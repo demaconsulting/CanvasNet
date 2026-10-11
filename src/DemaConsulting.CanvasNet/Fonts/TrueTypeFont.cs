@@ -2,6 +2,7 @@
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO ttcf
 // cspell:ignore macStyle fsSelection usWeightClass isFixedPitch italicAngle nameID
+using System.Collections.Concurrent;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
@@ -123,6 +124,35 @@ public sealed class TrueTypeFont
     private readonly CmapTable _cmap;
     private readonly KernTable _kern;
     private readonly NameTable _name;
+
+    /// <summary>
+    ///     The most outlines <see cref="_outlineCache"/> retains per font. The cache is a pure
+    ///     memoization of <see cref="GetGlyphOutline"/>, so exceeding the limit only means later
+    ///     glyphs are decoded on every call instead of once.
+    /// </summary>
+    private const int MaxCachedOutlines = 4096;
+
+    /// <summary>
+    ///     The default total geometry cost (one unit per subpath plus one per command) the outline
+    ///     cache retains per font, so retained memory is bounded even when individual glyphs are
+    ///     large (the decoder permits up to 200,000 points/commands per glyph).
+    /// </summary>
+    private const long MaxCachedOutlineCost = 1_500_000;
+
+    /// <summary>The cost budget in effect; guarded by <see cref="_outlineCacheLock"/> when admitting.</summary>
+    private readonly long _outlineCostBudget = MaxCachedOutlineCost;
+
+    /// <summary>The summed cost of the cached outlines; guarded by <see cref="_outlineCacheLock"/>.</summary>
+    private long _cachedOutlineCost;
+
+    /// <summary>
+    ///     Decoded outlines by glyph index. A <see cref="Path"/> is immutable, so a cached instance
+    ///     is safely shared by every caller; only successful decodes are stored.
+    /// </summary>
+    private readonly ConcurrentDictionary<int, Path> _outlineCache = new();
+
+    /// <summary>Serializes cache admission so <see cref="MaxCachedOutlines"/> is a strict cap.</summary>
+    private readonly object _outlineCacheLock = new();
 
     /// <summary>
     ///     The number of font design units per em, from <c>head.unitsPerEm</c>.
@@ -465,7 +495,8 @@ public sealed class TrueTypeFont
     }
 
     /// <summary>
-    ///     Decodes a single glyph's outline.
+    ///     Decodes a single glyph's outline. The result is memoized per glyph index (up to a fixed
+    ///     per-font limit): repeated calls return the same immutable <see cref="Path"/> instance.
     /// </summary>
     /// <param name="glyphIndex">The glyph index to decode, as returned by <see cref="GetGlyphIndex"/>.</param>
     /// <returns>
@@ -486,7 +517,47 @@ public sealed class TrueTypeFont
     public Path GetGlyphOutline(int glyphIndex)
     {
         ValidateGlyphIndex(glyphIndex);
-        return _glyphs.GetGlyphOutline(glyphIndex);
+        if (_outlineCache.TryGetValue(glyphIndex, out var cached))
+        {
+            return cached;
+        }
+
+        // A malformed glyph throws here and is therefore never cached: every call reports it again.
+        var outline = _glyphs.GetGlyphOutline(glyphIndex);
+        // Admission is atomic (check + insert under a lock) so concurrent threads can never exceed the cap
+        lock (_outlineCacheLock)
+        {
+            if (_outlineCache.TryGetValue(glyphIndex, out cached))
+            {
+                return cached;
+            }
+
+            // Admit only while both the entry cap and the geometry budget hold; oversized outlines are
+            // simply decoded again on demand
+            if (_outlineCache.Count < MaxCachedOutlines)
+            {
+                var cost = OutlineCost(outline);
+                if (cost <= _outlineCostBudget - _cachedOutlineCost)
+                {
+                    _outlineCache[glyphIndex] = outline;
+                    _cachedOutlineCost += cost;
+                }
+            }
+        }
+
+        return outline;
+    }
+
+    /// <summary>Measures an outline's retained geometry: one unit per subpath plus one per command.</summary>
+    private static long OutlineCost(Path outline)
+    {
+        long cost = 0;
+        foreach (var subpath in outline.Subpaths)
+        {
+            cost += 1 + subpath.Commands.Count;
+        }
+
+        return cost;
     }
 
     /// <summary>

@@ -26,7 +26,7 @@ public sealed class PathBuilder
     ///     Commands accumulated for the subpath currently being built, since the most recent
     ///     <see cref="MoveTo"/>.
     /// </summary>
-    private List<PathCommand> _currentCommands = [];
+    private readonly List<PathCommand> _currentCommands = [];
 
     /// <summary>
     ///     The point the current subpath started at, from the most recent <see cref="MoveTo"/>.
@@ -56,7 +56,10 @@ public sealed class PathBuilder
         CommitCurrentSubpath(isClosed: false);
 
         _currentStart = point;
-        _currentCommands = [];
+
+        // CommitCurrentSubpath already copied the commands into the committed subpath, so the
+        // scratch list is reused rather than reallocated (and regrown) for every subpath.
+        _currentCommands.Clear();
         _hasCurrentSubpath = true;
         return this;
     }

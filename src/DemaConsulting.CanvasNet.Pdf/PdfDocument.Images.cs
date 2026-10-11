@@ -269,7 +269,7 @@ public sealed partial class PdfDocument
     ///     byte, and <c>/Indexed</c> images may not be 16-bit). A <c>/Filter /JPXDecode</c> image (and no other filter) is decoded
     ///     by <see cref="DecodeJpxImageXObject"/>. An explicit <c>/SMask</c> image (any supported
     ///     encoding, including <c>JPXDecode</c>) supplies the alpha channel, resampled to the
-    ///     base image with nearest-neighbor sampling (the mask must be a single-component,
+    ///     base image with bilinear resampling when the sizes differ (the mask must be a single-component,
     ///     non-<c>/Indexed</c> image and is multiplied into the base surface in place); the
     ///     <c>/Decode</c> array is applied to the samples of every encoding (including soft-mask
     ///     images and <c>DCTDecode</c> images; 4-channel CMYK/YCCK JPEGs are rejected outright by
@@ -339,20 +339,31 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Multiplies the alpha channel of <paramref name="image"/>, in place, by the luminance
     ///     (red channel of the DeviceGray-decoded mask) of <paramref name="mask"/>, resampling the
-    ///     mask to the image's dimensions with nearest-neighbor sampling.
+    ///     mask to the image's dimensions with bilinear resampling when the sizes differ.
     /// </summary>
     private static void ApplySoftMask(Surface image, Surface mask)
     {
-        for (var y = 0; y < image.Height; y++)
+        // A mask of a different size is smoothly resampled (bilinear) to the image size first so
+        // a low-resolution soft mask produces smooth edges rather than blocks
+        var resized = mask.Width == image.Width && mask.Height == image.Height
+            ? null
+            : mask.Resize(image.Width, image.Height, ResamplingMode.Bilinear);
+        try
         {
-            var my = (int)((long)y * mask.Height / image.Height);
-            for (var x = 0; x < image.Width; x++)
+            var effective = resized ?? mask;
+            for (var y = 0; y < image.Height; y++)
             {
-                var mx = (int)((long)x * mask.Width / image.Width);
-                var pixel = image[x, y];
-                var opacity = mask[mx, my].R;
-                image[x, y] = new Rgba32(pixel.R, pixel.G, pixel.B, (byte)(((pixel.A * opacity) + 127) / 255));
+                for (var x = 0; x < image.Width; x++)
+                {
+                    var pixel = image[x, y];
+                    var opacity = effective[x, y].R;
+                    image[x, y] = new Rgba32(pixel.R, pixel.G, pixel.B, (byte)(((pixel.A * opacity) + 127) / 255));
+                }
             }
+        }
+        finally
+        {
+            resized?.Dispose();
         }
     }
 
@@ -891,16 +902,16 @@ public sealed partial class PdfDocument
         {
             // An /Indexed sample is a raw palette index, not a [0, 1]-normalized component - do
             // not divide by 255.0 like every other color space below.
-            return ColorFromComponents(colorSpace, [(double)decoded[offset]]);
+            return IndexedToColor(colorSpace, decoded[offset]);
         }
 
-        var components = new double[count];
+        Span<double> components = count <= 4 ? stackalloc double[count] : new double[count];
         for (var i = 0; i < count; i++)
         {
             components[i] = decoded[offset + i] / 255.0;
         }
 
-        return ColorFromComponents(colorSpace, components);
+        return ColorFromComponentSpan(colorSpace, components);
     }
 
     /// <summary>
@@ -910,13 +921,17 @@ public sealed partial class PdfDocument
     ///     device-space bounding box.
     /// </summary>
     /// <remarks>
-    ///     When the image is enlarged or drawn 1:1, the nearest source pixel is sampled (no
-    ///     interpolation). When it is shrunk, it is first (when the reduction is 1.5:1 or more) area-averaged once per draw by
-    ///     <c>SurfaceResampler</c> (an integer box prefilter) and is then sampled bilinearly, so thin
-    ///     features such as one-pixel rules are attenuated rather than dropped. A non-invertible (degenerate) <paramref name="ctm"/> silently paints
+    ///     An axis-aligned image (no rotation or skew) is resampled once per draw by
+    ///     <c>SurfaceResampler</c> to exactly the device pixels it covers (area averaging when
+    ///     shrunk, Catmull-Rom bicubic when enlarged, an exact copy at whole-pixel 1:1) and that
+    ///     window is composited 1:1, so thin features such as one-pixel rules are attenuated rather
+    ///     than dropped. A rotated or skewed image is prefiltered (box reduction when shrunk) and
+    ///     inverse-mapped with bilinear sampling. A non-invertible (degenerate) <paramref name="ctm"/> silently paints
     ///     nothing, rather than throwing. Per the PDF specification's image-space convention,
     ///     image sample row <c>0</c> is the <em>top</em> of the unit square (the opposite of
-    ///     user-space's y-up convention): <c>row = floor((1 - v) * image.Height)</c>. Each sampled
+    ///     user-space's y-up convention). The flip is folded into the pixel-to-device matrix handed
+    ///     to <c>TryResampleToDevice</c>; the explicit <c>row = floor((1 - v) * image.Height)</c>
+    ///     formula applies only to the rotated/skewed fallback. Each sampled
     ///     source pixel is alpha-blended "over" the existing destination pixel via
     ///     <see cref="Rgba32.CompositeOver"/> (standard Porter-Duff "over" compositing) rather
     ///     than overwriting it outright, so a source pixel with a non-opaque (including fully
@@ -943,11 +958,29 @@ public sealed partial class PdfDocument
         }
 
         var pixelToDevice = Matrix3x2.CreateScale(1f / image.Width, -1f / image.Height) * Matrix3x2.CreateTranslation(0f, 1f) * ctm;
-        var sampled = SurfaceResampler.Prefilter(image, pixelToDevice, out var bilinear);
+
+        // Axis-aligned placement (the overwhelmingly common case): resample once to the exact
+        // device-pixel rectangle the image covers, then composite that window 1:1
+        if (SurfaceResampler.TryResampleToDevice(image, pixelToDevice, _surface.Width, _surface.Height, ResamplingMode.Auto, out var window, out var originX, out var originY))
+        {
+            using (window)
+            {
+                if (window is not null)
+                {
+                    CompositeWindow(window, originX, originY);
+                }
+            }
+
+            return;
+        }
+
+        // Rotated or skewed placement: inverse-map each destination pixel and sample a
+        // prefiltered source bilinearly
+        var sampled = SurfaceResampler.Prefilter(image, pixelToDevice, out _, out var factorX, out var factorY);
         var reduced = !ReferenceEquals(sampled, image);
         try
         {
-            CompositeSampledImage(image, sampled, bilinear, ctm, inverse);
+            CompositeSampledImage(sampled, image.Width, image.Height, factorX, factorY, ctm, inverse);
         }
         finally
         {
@@ -958,8 +991,41 @@ public sealed partial class PdfDocument
         }
     }
 
-    /// <summary>Paints <paramref name="sampled"/> (the original or its prefiltered reduction) through <paramref name="ctm"/>.</summary>
-    private void CompositeSampledImage(Surface image, Surface sampled, bool bilinear, Matrix3x2 ctm, Matrix3x2 inverse)
+    /// <summary>
+    ///     Composites a device-aligned resampled image window 1:1 at (<paramref name="originX"/>,
+    ///     <paramref name="originY"/>), scaling each pixel's alpha by the current clip coverage.
+    /// </summary>
+    private void CompositeWindow(Surface window, int originX, int originY)
+    {
+        var clip = _gs?.Clip;
+        for (var y = 0; y < window.Height; y++)
+        {
+            for (var x = 0; x < window.Width; x++)
+            {
+                var dx = originX + x;
+                var dy = originY + y;
+                var clipCoverage = clip?.GetCoverage(dx, dy) ?? 1f;
+                if (clipCoverage <= 0f)
+                {
+                    continue;
+                }
+
+                var sourcePixel = window[x, y];
+                if (clipCoverage < 1f)
+                {
+                    // Round the same way Surface's own compositing pipeline does (AwayFromZero)
+                    sourcePixel = new Rgba32(
+                        sourcePixel.R, sourcePixel.G, sourcePixel.B,
+                        (byte)Math.Round(sourcePixel.A * clipCoverage, MidpointRounding.AwayFromZero));
+                }
+
+                _surface[dx, dy] = Rgba32.CompositeOver(_surface[dx, dy], sourcePixel);
+            }
+        }
+    }
+
+    /// <summary>Paints <paramref name="sampled"/> (the original or its prefiltered reduction by <paramref name="factorX"/> by <paramref name="factorY"/> blocks of the <paramref name="imageWidth"/> by <paramref name="imageHeight"/> original) through <paramref name="ctm"/> with bilinear sampling (the rotated/skewed fallback).</summary>
+    private void CompositeSampledImage(Surface sampled, int imageWidth, int imageHeight, int factorX, int factorY, Matrix3x2 ctm, Matrix3x2 inverse)
     {
         var clip = _gs?.Clip;
         var corner00 = Vector2.Transform(new Vector2(0, 0), ctm);
@@ -996,17 +1062,7 @@ public sealed partial class PdfDocument
                     continue;
                 }
 
-                Rgba32 sourcePixel;
-                if (bilinear)
-                {
-                    sourcePixel = SurfaceResampler.SampleBilinear(sampled, u, 1 - v);
-                }
-                else
-                {
-                    var column = Math.Clamp((int)Math.Floor(u * image.Width), 0, image.Width - 1);
-                    var row = Math.Clamp((int)Math.Floor((1 - v) * image.Height), 0, image.Height - 1);
-                    sourcePixel = image[column, row];
-                }
+                var sourcePixel = SurfaceResampler.SampleBilinearReduced(sampled, u * imageWidth, (1 - v) * imageHeight, factorX, factorY, imageWidth, imageHeight);
 
                 if (clipCoverage < 1f)
                 {

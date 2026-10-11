@@ -15,6 +15,19 @@ namespace DemaConsulting.CanvasNet.Pdf.Tests;
 /// </summary>
 public class PdfSystemIntegrationTests
 {
+    /// <summary>
+    ///     Asserts every channel of <paramref name="actual"/> is within <paramref name="tolerance"/>
+    ///     levels of <paramref name="expected"/>; enlarged images are smoothly resampled, so a
+    ///     sample just off a source pixel's center differs from its exact value by a few levels.
+    /// </summary>
+    private static void AssertNear(Canvas.Rgba32 expected, Canvas.Rgba32 actual, int tolerance = 4)
+    {
+        Assert.True(Math.Abs(expected.R - actual.R) <= tolerance, $"R expected {expected.R} actual {actual.R}");
+        Assert.True(Math.Abs(expected.G - actual.G) <= tolerance, $"G expected {expected.G} actual {actual.G}");
+        Assert.True(Math.Abs(expected.B - actual.B) <= tolerance, $"B expected {expected.B} actual {actual.B}");
+        Assert.True(Math.Abs(expected.A - actual.A) <= tolerance, $"A expected {expected.A} actual {actual.A}");
+    }
+
     private static string FixturesPath => Path.Join(AppContext.BaseDirectory, "PdfFixtures");
 
     private static string Fixture(string name) => Path.Join(FixturesPath, name);
@@ -301,10 +314,10 @@ public class PdfSystemIntegrationTests
         using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: the four source quadrants land in their mathematically correct device pixels.
-        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 40]);
-        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[55, 40]);
-        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
-        Assert.Equal(new Canvas.Rgba32(255, 255, 0, 255), surface[55, 75]);
+        AssertNear(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 40]);
+        AssertNear(new Canvas.Rgba32(0, 255, 0, 255), surface[55, 40]);
+        AssertNear(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
+        AssertNear(new Canvas.Rgba32(255, 255, 0, 255), surface[55, 75]);
 
         // Assert: a pixel outside the placed image's device-space footprint remains transparent.
         Assert.Equal(default, surface[5, 5]);

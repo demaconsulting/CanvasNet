@@ -337,6 +337,7 @@ sections:
               full-row or full-surface buffer merely to hold mostly-untouched pixels.
             children:
               - CanvasNet-Canvas-Surface-CompositeOverSpan
+              - CanvasNet-Canvas-Surface-SpanWorkspaceCache
             tests:
               - Surface_CompositeOverSpan_FullCoverage_MatchesCompositeOverColor
               - Surface_CompositeOverSpan_ZeroCoverage_LeavesBackgroundUnchanged
@@ -395,6 +396,51 @@ sections:
             tests:
               - Rgba32_Parse_6HexUppercase_ReturnsExpectedRgbaWithAlpha255
               - Rgba32_TryParse_ValidInput_ReturnsTrueAndSetsResult
+
+          - id: CanvasNet-Canvas-Resize
+            title: >-
+              The Canvas subsystem shall create a resampled copy of a surface at a requested size using a
+              selectable filter.
+            justification: |
+              Enlarging and shrinking images with a quality filter is a core imaging operation, and
+              the same engine serves the renderer packages that draw raster images.
+            children:
+              - CanvasNet-Canvas-Surface-Resize
+              - CanvasNet-Canvas-Surface-ResizeIdentity
+              - CanvasNet-Canvas-Surface-ResizeBoundedMemory
+              - CanvasNet-Canvas-Surface-ResizePooledBuffers
+              - CanvasNet-Canvas-Surface-DeviceResample
+              - CanvasNet-Canvas-Surface-WrappedBilinear
+            tests:
+              - Resize_AllModes_ProduceRequestedSize
+
+          - id: CanvasNet-Canvas-ResizeAlpha
+            title: The Canvas subsystem shall resample in premultiplied alpha.
+            justification: |
+              Premultiplied filtering prevents color bleeding from transparent pixels.
+            children:
+              - CanvasNet-Canvas-Surface-ResizeAlphaPremultiplied
+            tests:
+              - Resize_AlphaEdge_HasNoColorFringe
+
+          - id: CanvasNet-Canvas-ResizeValidation
+            title: The Canvas subsystem shall reject invalid resize arguments and disposed surfaces.
+            justification: |
+              Invalid arguments must fail fast and predictably before any buffer is allocated.
+            children:
+              - CanvasNet-Canvas-Surface-ResizeInvalid
+            tests:
+              - Resize_InvalidDimensions_Throws
+
+          - id: CanvasNet-Canvas-ResizeToFit
+            title: The Canvas subsystem shall resize a surface to fit a bounding box while preserving its aspect ratio.
+            justification: |
+              Bounding-box sizing is the common way callers request thumbnails and previews.
+            children:
+              - CanvasNet-Canvas-Surface-ResizeToFit
+              - CanvasNet-Canvas-Surface-ResizeToFitInvalidBox
+            tests:
+              - ResizeToFit_KeepsAspectAndFitsBox
 
           - id: CanvasNet-Canvas-PixelCompositing
             title: >-
