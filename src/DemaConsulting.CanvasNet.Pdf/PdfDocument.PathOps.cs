@@ -420,7 +420,7 @@ public sealed partial class PdfDocument
                 return;
             }
 
-            var gradient = BuildShadingGradient(pattern, patternToDevice);
+            var gradient = BuildShadingGradient(pattern, patternToDevice, _surface.Width, _surface.Height);
             PathFiller.Fill(_surface, path, gradient, _gs.Clip, fillRule);
             return;
         }

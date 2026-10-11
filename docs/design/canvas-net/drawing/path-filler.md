@@ -365,7 +365,11 @@ composes smoothly with whatever is painted through it.
   clipping path shall be the intersection of the current clipping path and the newly constructed
   path" (PDF 32000-1 §8.5.4). Rectangle with rectangle is a new rectangle (no allocation, though
   where both edges fall within the same fractional pixel the result is the geometric overlap rather
-  than the product of two coverages - an antialiasing-neutral sub-pixel difference); rectangle
+  than the product of two coverages - an antialiasing-neutral sub-pixel difference; for example
+  two rectangles sharing a pixel covered 0.5 and 0.7 intersect to 0.5, where the product of the
+  dense coverages would give 0.35, an error of up to 0.25 per boundary pixel. This was
+  investigated as a suspected regression against the all-dense product and confirmed as the more
+  accurate result, not a bug; it is pinned by the `ClipMask_Intersect_*` tests); rectangle
   with dense shares the dense buffer and restricts it by the rectangle (no allocation, no product
   pass); dense with dense allocates only over the overlap of the two bounds and multiplies per-row
   spans, folding in each operand's rectangle factors on the outermost columns and rows. Neither

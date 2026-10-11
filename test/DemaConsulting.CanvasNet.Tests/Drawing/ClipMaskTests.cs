@@ -388,7 +388,55 @@ public class ClipMaskTests
         AssertSameCoverage(reference, result, 64, 64);
     }
 
-    /// <summary>Proves disjoint rectangles intersect to an empty mask.</summary>
+    /// <summary>
+    ///     Documents (and guards) the one intentional difference between the analytic rectangle
+    ///     path and a dense-mask product: when two rectangle clips share a pixel with fractional
+    ///     coverage on the same edge, <see cref="ClipMask.Intersect"/> yields the exact geometric
+    ///     overlap of the intersected rectangle, whereas multiplying two independent dense
+    ///     coverages yields the product of the per-clip coverages. The geometric result is the
+    ///     correct area of the intersected clip (PDF 32000-1 &#xA7;8.5.4); the product
+    ///     underestimates it by up to 0.25 (e.g. 0.5 x 0.5 = 0.25 versus a true overlap of 0.5).
+    ///     This is not a bug in the rectangle fast path.
+    /// </summary>
+    [Fact]
+    public void ClipMask_Intersect_RectanglesSharingFractionalEdgePixel_IsExactGeometricOverlapNotProduct()
+    {
+        // Both clips start at x = 10.5 / 10.3: pixel column 10 is covered 0.5 by A and 0.7 by B.
+        var a = ClipMask.FromPath(RectPath(10.5f, 10f, 40f, 40f), FillRule.NonZero, 64, 64);
+        var b = ClipMask.FromPath(RectPath(10.3f, 10f, 40f, 40f), FillRule.NonZero, 64, 64);
+        var denseProduct = ClipMask.FromPathDense(RectPath(10.5f, 10f, 40f, 40f), FillRule.NonZero, 64, 64)
+            .Intersect(ClipMask.FromPathDense(RectPath(10.3f, 10f, 40f, 40f), FillRule.NonZero, 64, 64));
+
+        var result = a.Intersect(b);
+
+        // Exact geometric overlap of the intersected rectangle [10.5, 40] with pixel 10 is 0.5.
+        Assert.Equal(0.5f, result.GetCoverage(10, 20), 1e-4f);
+
+        // The per-clip product (0.5 * 0.7) is smaller, by design of the dense path.
+        Assert.Equal(0.35f, denseProduct.GetCoverage(10, 20), 1e-3f);
+
+        // Worst case: both clips cover exactly half of the pixel: 0.5 geometric versus 0.25 product.
+        var c = ClipMask.FromPath(RectPath(10.5f, 10f, 40f, 40f), FillRule.NonZero, 64, 64);
+        var d = ClipMask.FromPath(RectPath(10.5f, 10f, 40f, 40f), FillRule.NonZero, 64, 64);
+        Assert.Equal(0.5f, c.Intersect(d).GetCoverage(10, 20), 1e-4f);
+    }
+
+    /// <summary>Proves rectangle intersect dense equals the dense-with-dense product when the rectangle's edges are pixel aligned (no shared fractional pixel).</summary>
+    [Fact]
+    public void ClipMask_Intersect_PixelAlignedRectangleWithDense_EqualsDenseWithDense()
+    {
+        var circle = CirclePath(30, 30, 15);
+        var rect = RectPath(20f, 22f, 45f, 50f);
+
+        var fast = ClipMask.FromPath(rect, FillRule.NonZero, 64, 64)
+            .Intersect(ClipMask.FromPath(circle, FillRule.NonZero, 64, 64));
+        var reference = ClipMask.FromPathDense(rect, FillRule.NonZero, 64, 64)
+            .Intersect(ClipMask.FromPathDense(circle, FillRule.NonZero, 64, 64));
+
+        AssertSameCoverage(reference, fast, 64, 64);
+    }
+
+    /// <summary>Proves a disjoint pair of rectangles intersects to an empty mask.</summary>
     [Fact]
     public void ClipMask_Intersect_DisjointRectangles_IsEmpty()
     {

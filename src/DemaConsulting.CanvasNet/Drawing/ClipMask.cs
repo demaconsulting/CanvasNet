@@ -37,7 +37,10 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     rectangular clip path (by far the most common PDF clip) has no dense buffer at all, so it
 ///     costs no allocation and no per-pixel work; a general path keeps a dense buffer over its own
 ///     bounding box, and a rectangle restriction (from intersecting it with a rectangle) is applied
-///     lazily through the factors without copying the buffer.
+///     lazily through the factors without copying the buffer. Intersecting two rectangles yields
+///     their exact geometric overlap, which at a shared fractional edge pixel differs from the
+///     product of the two per-rectangle coverages (by up to 0.25); the geometric overlap is the
+///     more accurate result.
 ///     </para>
 ///     <para>
 ///     <b>Immutable and reused, never mutated in place.</b> <see cref="FromPath"/> builds a fresh

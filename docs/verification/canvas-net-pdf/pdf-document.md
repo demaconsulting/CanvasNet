@@ -2099,7 +2099,26 @@ throws `InvalidDataException`. Asserts an undeclared pattern name throws
 `PdfDocument_Patterns_ShadingPattern_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType4_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Patterns_ShadingPattern_FunctionArrayForm_ThreeOneOutputFunctions_BuildsRgbGradient`,
+`PdfDocument_Patterns_ShadingPattern_AxialNoExtend_LeavesOutsideUnpainted`,
+`PdfDocument_Patterns_ShadingPattern_AxialExtendBoth_HoldsEndColors`,
+`PdfDocument_Patterns_ShadingPattern_AxialExtendOneEnd_ExtendsOnlyThatEnd`,
+`PdfDocument_ShadingOperator_Axial_ExtendHonored`,
+`PdfDocument_Patterns_ShadingPattern_RadialExtendEnd_PaintsOutsideOuterCircleOnlyWhenExtended`,
+`PdfDocument_Patterns_ShadingPattern_RadialExtendStart_FillsInsideStartCircle`,
+`PdfDocument_Patterns_ShadingPattern_MalformedExtend_ThrowsInvalidDataException`,
+`PdfDocument_Patterns_ShadingPattern_LongGradient_UsesAdaptiveSampleCount`,
+`PdfDocument_Patterns_ShadingPattern_FunctionArraySubFunctionDomain_ClampsInputToOwnDomain`,
+`PdfDocument_Patterns_ShadingPattern_FunctionArrayWithWideDomain_ShadingDomainMapsToFunctionInput`,
 `CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors`
+
+The `/Extend` tests assert that an unextended axial/radial shading leaves pixels outside its
+geometry transparent, that `[true true]` (and each single-end variant, also through `sh`) holds
+the end colors, that a radial start extension fills down to the cone vertex, and that a malformed
+`/Extend` throws `InvalidDataException`. The long-gradient test uses a hard-step stitching
+function over a 1000 px gradient and asserts the step is resolved within a few pixels (only
+possible with more than 32 stops); no timing is asserted. The function-array tests assert a
+sub-function narrower than the shading `/Domain` clamps its input and that a wider shading
+`/Domain` maps onto the function input.
 
 Every unit test builds a minimal single-page PDF with a declared `/Pattern` resource
 (`/PatternType 2`) and renders a filled rectangle. Asserts an axial (`/ShadingType 2`) pattern

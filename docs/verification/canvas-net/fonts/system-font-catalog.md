@@ -67,10 +67,22 @@ Accesses `Fonts` twice in succession and asserts the exact same `IReadOnlyList<S
 instance (by reference) is returned both times, proving the underlying scan runs at most once
 per process.
 
+##### CanvasNet-Fonts-SystemFontCatalog-HeaderOnlyScan: Catalog Reads Only Font Headers
+
+**Tests**: `SystemFontCatalog_Fonts_HeaderOnlyScan_MatchesFullLoadForSyntheticFacesAndCollections`,
+`SystemFontCatalog_Fonts_HeaderOnlyScan_MatchesFullLoadForBundledFonts`,
+`SfntHeaderReader_ReadFace_ReadsOnlyHeaderBytesOfLargeFont`
+
+Asserts the catalog entries for synthetic single-face and `.ttc` fonts (with `name`/`OS/2`/`post`
+tables) and for every bundled font equal the metadata a full `TrueTypeFont.Load` reports, and that
+reading one face of a font padded with a 1 MiB glyph table reads under 4 KiB through a byte-counting
+stream wrapper (no timing is asserted).
+
 ##### CanvasNet-Fonts-SystemFontCatalog-ToleratesMissingOrUnparseable: Missing/Unparseable Inputs Are Skipped
 
 **Tests**: `SystemFontCatalog_Fonts_MissingScanDirectory_SkippedWithoutThrowing`,
-`SystemFontCatalog_Fonts_UnparseableCandidateFile_SkippedWithoutThrowing`
+`SystemFontCatalog_Fonts_UnparseableCandidateFile_SkippedWithoutThrowing`,
+`SystemFontCatalog_Fonts_TruncatedAndInconsistentHeaders_AreSkipped`
 
 Calls `BuildCatalogFromRoots` with a root pointing at a directory that does not exist, and
 separately with a root containing a `.ttf`-named file whose bytes are not a valid font, asserting

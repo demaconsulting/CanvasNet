@@ -55,10 +55,21 @@ reference to a plain family-name hint and a set of style booleans before calling
 A property returning `LazyFonts.Value`. Building the catalog scans every well-known font
 directory for the current operating system (see Dependencies/Platform Scan Roots below),
 recursively enumerating `.ttf`/`.ttc`/`.otf` candidate files (case-insensitive extension match)
-and loading every face of every candidate with `TrueTypeFont.GetFaceCount`/`TrueTypeFont.Load`. A
+and reading every face of every candidate through the internal `SfntHeaderReader`. The reader
+opens one `FileStream` per file and reads only the headers it needs (the 12-byte offset table,
+the table directory, the fixed prefix of `head`/`maxp`, the `name` table, and the leading bytes
+of `OS/2`/`post`; for a `.ttc`, the face offset table), never the glyph/outline/metrics data - a
+cold scan of the host fonts therefore no longer reads every font file fully. It applies the same
+structural checks as `SfntContainer.Parse` (every directory entry within the file; `OTTO`
+requires `CFF`) plus presence-only checks for `head`/`maxp`/`hhea`/`hmtx` and `loca`+`glyf` or
+`CFF`, and delegates to the same `NameTable`/`StyleTable` parsers `TrueTypeFont` uses, so a valid
+font yields identical metadata. Behavioral difference: a face with valid headers but corrupt
+glyph data is now listed (it only fails when actually loaded), and a standalone Type 1 program
+with a `.ttf`/`.otf` extension is no longer catalogued. A
 missing or inaccessible directory, an unparseable candidate file, or a single corrupt face within
 an otherwise well-formed `.ttc` is silently skipped (catching `InvalidDataException`,
-`IOException`, and `UnauthorizedAccessException` at the narrowest possible scope) rather than
+`IOException`, `UnauthorizedAccessException`, `ArgumentOutOfRangeException` and
+`OverflowException` at the narrowest possible scope) rather than
 aborting the whole scan - an empty result is a valid, expected outcome (for example on a minimal
 container image with no fonts installed at all), never an error.
 
@@ -126,8 +137,10 @@ build time as embedded resources of this assembly.
 
 #### Dependencies
 
-`SystemFontCatalog` depends on `TrueTypeFont` (`GetFaceCount`, `Load(path[, faceIndex])`,
-`GetNameInfo()`, `IsBold`, `IsItalic`, `IsFixedPitch`) within the same `Fonts` subsystem, and on
+`SystemFontCatalog` depends on the internal `SfntHeaderReader` (header-only face count and
+name/style metadata; it reuses `SfntContainer`'s byte readers and the `NameTable`/`StyleTable`
+parsers), on `TrueTypeFont` (`Load(Stream)` for the bundled fallback fonts) within the same `Fonts`
+subsystem, and on
 `System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform` to select this process's
 well-known font-directory scan roots:
 

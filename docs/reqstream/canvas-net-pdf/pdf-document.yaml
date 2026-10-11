@@ -1864,8 +1864,11 @@ sections:
               UnsupportedImageFeatureException with feature
               pdf-shading-type-{n}; an unsupported shading /ColorSpace shall throw
               UnsupportedImageFeatureException with feature pdf-shading-colorspace-{family}.
-              /Extend is approximated as an always-padded (never fully transparent) gradient
-              extent, a documented, narrower-than-spec simplification.
+              /Extend shall be honored per end (default [false false]: nothing is painted beyond
+              an unextended end; an extended end holds its end color); a malformed /Extend shall
+              throw InvalidDataException. Each /Function array element shall clamp its input to
+              its own /Domain. The gradient shall be sampled with one stop per device pixel of
+              gradient length, clamped to 32..256.
             justification: |
               Axial and radial shading-pattern fills are a common way real-world PDFs render
               smooth-color backgrounds and vector-art gradients; today every such fill throws and
@@ -1876,6 +1879,16 @@ sections:
               - PdfDocument_Patterns_ShadingPattern_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType4_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Patterns_ShadingPattern_FunctionArrayForm_ThreeOneOutputFunctions_BuildsRgbGradient
+              - PdfDocument_Patterns_ShadingPattern_AxialNoExtend_LeavesOutsideUnpainted
+              - PdfDocument_Patterns_ShadingPattern_AxialExtendBoth_HoldsEndColors
+              - PdfDocument_Patterns_ShadingPattern_AxialExtendOneEnd_ExtendsOnlyThatEnd
+              - PdfDocument_ShadingOperator_Axial_ExtendHonored
+              - PdfDocument_Patterns_ShadingPattern_RadialExtendEnd_PaintsOutsideOuterCircleOnlyWhenExtended
+              - PdfDocument_Patterns_ShadingPattern_RadialExtendStart_FillsInsideStartCircle
+              - PdfDocument_Patterns_ShadingPattern_MalformedExtend_ThrowsInvalidDataException
+              - PdfDocument_Patterns_ShadingPattern_LongGradient_UsesAdaptiveSampleCount
+              - PdfDocument_Patterns_ShadingPattern_FunctionArraySubFunctionDomain_ClampsInputToOwnDomain
+              - PdfDocument_Patterns_ShadingPattern_FunctionArrayWithWideDomain_ShadingDomainMapsToFunctionInput
               - CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors
 
           - id: CanvasNetPdf-PdfDocument-ShadingOperator

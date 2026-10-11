@@ -11232,6 +11232,206 @@ public class PdfDocumentTests
         Assert.True(surface[97, 50].R > 200);
     }
 
+    /// <summary>
+    ///     Renders a full-page fill with a shading pattern whose dictionary entries are
+    ///     <paramref name="shadingEntries"/> (object 6) and whose function objects (numbered from 7)
+    ///     are <paramref name="functionObjects"/>.
+    /// </summary>
+    private static Canvas.Surface RenderShadingPatternFill(
+        string shadingEntries,
+        byte[][] functionObjects,
+        int width = 100,
+        int height = 100)
+    {
+        var patternDict = "<< /PatternType 2 /Shading 6 0 R >>"u8.ToArray();
+        var shadingDict = System.Text.Encoding.ASCII.GetBytes($"<< {shadingEntries} >>");
+        var objects = new List<byte[]> { patternDict, shadingDict };
+        objects.AddRange(functionObjects);
+        var bytes = BuildSinglePagePdfWithResources(
+            width,
+            height,
+            $"/Pattern cs /P1 scn 0 0 {width} {height} re f",
+            "/Pattern << /P1 5 0 R >>",
+            [.. objects]);
+        return RenderPdfBytes(bytes, width, height);
+    }
+
+    /// <summary>A black (0) to white (1) linear <c>/FunctionType 2</c> function stream object body.</summary>
+    private static byte[] BuildBlackToWhiteFunction() =>
+        BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []);
+
+    /// <summary>Proves that without <c>/Extend</c> an axial shading paints nothing beyond its start and end coordinates.</summary>
+    [Fact]
+    public void PdfDocument_Patterns_ShadingPattern_AxialNoExtend_LeavesOutsideUnpainted()
+    {
+        // Arrange/Act: axis from x=30 to x=70 on a 100-wide fill, no /Extend.
+        using var surface = RenderShadingPatternFill(
+            "/ShadingType 2 /ColorSpace /DeviceRGB /Coords [30 0 70 0] /Function 7 0 R",
+            [BuildBlackToWhiteFunction()]);
+
+        // Assert: outside [30,70] is untouched (transparent); inside is painted.
+        Assert.Equal(0, surface[10, 50].A);
+        Assert.Equal(0, surface[90, 50].A);
+        Assert.Equal(255, surface[50, 50].A);
+        Assert.Equal(255, surface[32, 50].A);
+        Assert.Equal(255, surface[68, 50].A);
+    }
+
+    /// <summary>Proves that <c>/Extend [true true]</c> holds the end colors beyond both ends of an axial shading.</summary>
+    [Fact]
+    public void PdfDocument_Patterns_ShadingPattern_AxialExtendBoth_HoldsEndColors()
+    {
+        using var surface = RenderShadingPatternFill(
+            "/ShadingType 2 /ColorSpace /DeviceRGB /Coords [30 0 70 0] /Extend [true true] /Function 7 0 R",
+            [BuildBlackToWhiteFunction()]);
+
+        Assert.Equal(255, surface[5, 50].A);
+        Assert.True(surface[5, 50].R < 5);
+        Assert.Equal(255, surface[95, 50].A);
+        Assert.True(surface[95, 50].R > 250);
+        Assert.InRange(surface[50, 50].R, 100, 155);
+    }
+
+    /// <summary>Proves that <c>/Extend</c> is honored independently per end for an axial shading.</summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void PdfDocument_Patterns_ShadingPattern_AxialExtendOneEnd_ExtendsOnlyThatEnd(bool extendStart, bool extendEnd)
+    {
+        using var surface = RenderShadingPatternFill(
+            $"/ShadingType 2 /ColorSpace /DeviceRGB /Coords [30 0 70 0] /Extend [{(extendStart ? "true" : "false")} {(extendEnd ? "true" : "false")}] /Function 7 0 R",
+            [BuildBlackToWhiteFunction()]);
+
+        Assert.Equal(extendStart ? 255 : 0, surface[10, 50].A);
+        Assert.Equal(extendEnd ? 255 : 0, surface[90, 50].A);
+    }
+
+    /// <summary>Proves that <c>/Extend</c> is also honored by the <c>sh</c> operator.</summary>
+    [Fact]
+    public void PdfDocument_ShadingOperator_Axial_ExtendHonored()
+    {
+        var shadingDict = "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [30 0 70 0] /Extend [true false] /Function 6 0 R >>"u8.ToArray();
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [shadingDict, BuildBlackToWhiteFunction()]);
+
+        using var surface = RenderPdfBytes(bytes);
+
+        Assert.Equal(255, surface[10, 50].A);
+        Assert.Equal(0, surface[90, 50].A);
+    }
+
+    /// <summary>Proves that a radial shading honors <c>/Extend</c> at the outer end and leaves the outside unpainted without it.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PdfDocument_Patterns_ShadingPattern_RadialExtendEnd_PaintsOutsideOuterCircleOnlyWhenExtended(bool extend)
+    {
+        using var surface = RenderShadingPatternFill(
+            $"/ShadingType 3 /ColorSpace /DeviceRGB /Coords [50 50 10 50 50 20] /Extend [false {(extend ? "true" : "false")}] /Function 7 0 R",
+            [BuildBlackToWhiteFunction()]);
+
+        // Corner (2,2) is far outside the r=20 end circle; (50,50) is inside the r=10 start circle.
+        Assert.Equal(extend ? 255 : 0, surface[2, 2].A);
+        if (extend)
+        {
+            Assert.True(surface[2, 2].R > 250);
+        }
+
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>Proves that a radial shading with <c>/Extend [true false]</c> and a growing radius fills the inner circle down to the cone vertex, with the start color.</summary>
+    [Fact]
+    public void PdfDocument_Patterns_ShadingPattern_RadialExtendStart_FillsInsideStartCircle()
+    {
+        using var surface = RenderShadingPatternFill(
+            "/ShadingType 3 /ColorSpace /DeviceRGB /Coords [50 50 10 50 50 20] /Extend [true false] /Function 7 0 R",
+            [BuildBlackToWhiteFunction()]);
+
+        Assert.Equal(255, surface[50, 50].A);
+        Assert.True(surface[50, 50].R < 5);
+        Assert.Equal(0, surface[2, 2].A);
+    }
+
+    /// <summary>Proves that a malformed <c>/Extend</c> throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Patterns_ShadingPattern_MalformedExtend_ThrowsInvalidDataException()
+    {
+        var functions = new[] { BuildBlackToWhiteFunction() };
+        Assert.Throws<InvalidDataException>(() => RenderShadingPatternFill(
+            "/ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Extend [true] /Function 7 0 R",
+            functions).Dispose());
+        Assert.Throws<InvalidDataException>(() => RenderShadingPatternFill(
+            "/ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Extend [1 0] /Function 7 0 R",
+            functions).Dispose());
+    }
+
+    /// <summary>
+    ///     Proves that a long gradient is sampled with more than 32 stops: a hard step in a
+    ///     stitching function is resolved to within a few device pixels instead of being smeared
+    ///     over the width of a 32-stop segment (~32 px on a 1000 px gradient).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Patterns_ShadingPattern_LongGradient_UsesAdaptiveSampleCount()
+    {
+        var low = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [0] /N 1", []);
+        var high = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [1] /C1 [1] /N 1", []);
+        var stitch = BuildStreamObjectBody(
+            "/FunctionType 3 /Domain [0 1] /Functions [8 0 R 9 0 R] /Bounds [0.5] /Encode [0 1 0 1]", []);
+
+        using var surface = RenderShadingPatternFill(
+            "/ShadingType 2 /ColorSpace /DeviceGray /Coords [0 0 1000 0] /Function 7 0 R",
+            [stitch, low, high],
+            1000,
+            20);
+
+        // With 32 stops, x=490 would blend ~20% toward white; with 256 stops it is still black.
+        Assert.Equal(0, surface[490, 10].R);
+        Assert.Equal(255, surface[510, 10].R);
+    }
+
+    /// <summary>
+    ///     Proves that each <c>/Function</c>-array sub-function clamps its input to its own
+    ///     <c>/Domain</c> (here narrower than the shading's own <c>/Domain</c>) and that the
+    ///     shading's <c>/Domain</c> maps linearly onto the shading parameter.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Patterns_ShadingPattern_FunctionArraySubFunctionDomain_ClampsInputToOwnDomain()
+    {
+        // Red sub-function: domain [0 0.5], so inputs above 0.5 are clamped to 0.5 (R <= 0.5).
+        var fnR = BuildStreamObjectBody("/FunctionType 2 /Domain [0 0.5] /C0 [0] /C1 [1] /N 1", []);
+        var fnG = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [0] /N 1", []);
+        var fnB = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [0] /N 1", []);
+
+        using var surface = RenderShadingPatternFill(
+            "/ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function [7 0 R 8 0 R 9 0 R]",
+            [fnR, fnG, fnB]);
+
+        Assert.InRange(surface[25, 50].R, 55, 72);   // input ~0.25
+        Assert.InRange(surface[97, 50].R, 120, 135); // clamped at 0.5 -> ~127
+    }
+
+    /// <summary>Proves that a shading <c>/Domain</c> wider than the default maps onto a function-array whose sub-functions share that wider domain.</summary>
+    [Fact]
+    public void PdfDocument_Patterns_ShadingPattern_FunctionArrayWithWideDomain_ShadingDomainMapsToFunctionInput()
+    {
+        var fnR = BuildStreamObjectBody("/FunctionType 2 /Domain [0 2] /C0 [0] /C1 [1] /N 1", []);
+        var fnG = BuildStreamObjectBody("/FunctionType 2 /Domain [0 2] /C0 [0] /C1 [0] /N 1", []);
+        var fnB = BuildStreamObjectBody("/FunctionType 2 /Domain [0 2] /C0 [0] /C1 [0] /N 1", []);
+
+        using var surface = RenderShadingPatternFill(
+            "/ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Domain [0 2] /Function [7 0 R 8 0 R 9 0 R]",
+            [fnR, fnG, fnB]);
+
+        // x=50 -> t=0.5 -> input 1.0 -> R = 1.0 (255); x=25 -> input 0.5 -> R ~ 128.
+        Assert.InRange(surface[25, 50].R, 118, 138);
+        Assert.True(surface[50, 50].R > 245);
+    }
+
     /// <summary>Builds a simple colored (<c>/PaintType 1</c>) tiling pattern stream: a 10x10 cell whose left half is red and whose right half is blue.</summary>
     private static byte[] BuildCheckerboardTilingPatternStream(string extraEntries = "")
     {

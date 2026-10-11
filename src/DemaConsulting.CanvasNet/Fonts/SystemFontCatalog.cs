@@ -399,47 +399,75 @@ public static class SystemFontCatalog
     }
 
     /// <summary>
-    ///     Loads every face of a single candidate font file, appending a <see cref="SystemFontInfo"/>
+    ///     Reads every face of a single candidate font file, appending a <see cref="SystemFontInfo"/>
     ///     for each well-formed face found, and silently skipping the whole file (or, for a
-    ///     <c>.ttc</c>, just the one corrupt face) when it fails to parse.
+    ///     <c>.ttc</c>, just the one corrupt face) when its headers fail to parse.
     /// </summary>
+    /// <remarks>
+    ///     Only the font's headers (offset table, table directory, <c>head</c>, <c>name</c>,
+    ///     <c>OS/2</c>, <c>post</c>) are read, through a single <see cref="FileStream"/> per file,
+    ///     via <see cref="SfntHeaderReader"/>; the glyph data is never loaded. A face whose
+    ///     headers are valid but whose glyph data is corrupt is therefore listed (it would
+    ///     fail later, when actually loaded).
+    /// </remarks>
     private static void AddFacesForFile(string path, List<SystemFontInfo> result)
     {
-        int faceCount;
         try
         {
-            faceCount = TrueTypeFont.GetFaceCount(path);
-        }
-        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
-        {
-            return;
-        }
+            using var stream = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete,
+                bufferSize: 4096,
+                FileOptions.RandomAccess);
 
-        for (var faceIndex = 0; faceIndex < faceCount; faceIndex++)
-        {
-            TrueTypeFont font;
+            int faceCount;
             try
             {
-                font = TrueTypeFont.Load(path, faceIndex);
+                faceCount = SfntHeaderReader.GetFaceCount(stream);
             }
-            catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+            catch (Exception ex) when (IsSkippableFontError(ex))
             {
-                continue;
+                return;
             }
 
-            var nameInfo = font.GetNameInfo();
-            var familyName = nameInfo.FamilyName ?? Path.GetFileNameWithoutExtension(path);
-            var subfamilyName = nameInfo.SubfamilyName ?? string.Empty;
-            result.Add(new SystemFontInfo(
-                familyName,
-                subfamilyName,
-                font.IsBold,
-                font.IsItalic,
-                font.IsFixedPitch,
-                Path.GetFullPath(path),
-                faceIndex));
+            for (var faceIndex = 0; faceIndex < faceCount; faceIndex++)
+            {
+                SfntFaceInfo info;
+                try
+                {
+                    info = SfntHeaderReader.ReadFace(stream, faceIndex);
+                }
+                catch (Exception ex) when (IsSkippableFontError(ex))
+                {
+                    continue;
+                }
+
+                result.Add(new SystemFontInfo(
+                    info.FamilyName ?? Path.GetFileNameWithoutExtension(path),
+                    info.SubfamilyName ?? string.Empty,
+                    info.Bold,
+                    info.Italic,
+                    info.FixedPitch,
+                    Path.GetFullPath(path),
+                    faceIndex));
+            }
+        }
+        catch (Exception ex) when (IsSkippableFontError(ex))
+        {
+            // The file could not be opened (or vanished/was locked while scanning): skip it.
         }
     }
+
+    /// <summary>
+    ///     Reports whether <paramref name="ex"/> is a failure mode that merely means "this
+    ///     candidate font file is unusable" (malformed, truncated, inaccessible) and must not abort
+    ///     the scan.
+    /// </summary>
+    private static bool IsSkippableFontError(Exception ex) =>
+        ex is InvalidDataException or IOException or UnauthorizedAccessException
+            or ArgumentOutOfRangeException or OverflowException;
 
     /// <summary>
     ///     Reports this process's well-known font-directory scan roots for the current operating

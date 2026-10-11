@@ -1364,24 +1364,32 @@ its own distinguishable `Feature` token.
   resolve to `DeviceGray`/`DeviceRGB`/`DeviceCMYK` (else feature
   `pdf-shading-colorspace-{family}`); `/Function` accepts either a single function or an array of
   1-output-component functions (`ResolveFunctionOrFunctionArray`), each resolved through
-  `ResolveFunctionGeneric` above. The resolved shading samples its function(s) at 32 evenly spaced
-  points across `/Domain` (a fixed constant balancing visual smoothness against per-fill
-  allocation/compute cost — no caller needs more precision than this, mirroring
-  `SampledFunction`'s own posture), converts each sample through `ColorFromComponents`, and builds
+  `ResolveFunctionGeneric` above. The resolved shading samples its function(s) at evenly spaced
+  points across `/Domain` — one sample per device pixel of gradient length (axial: the
+  transformed `/Coords` vector; radial: the larger of the sweep length and the diameter sum,
+  scaled by the larger matrix axis scale), rounded up and clamped to 32..256 samples — converts
+  each sample through `ColorFromComponents`, and builds
   one `Drawing.GradientStop` per sample to construct a `Drawing.LinearGradient` (`ShadingType 2`)
   or `Drawing.RadialGradient` (`ShadingType 3`) whose `Transform` is the pattern's own `/Matrix`
   composed with the page's initial (pre-`cm`) CTM (`_pageInitialCtm`, captured once per
   `ExecuteContentStream` call, per PDF 32000-1 §8.7.3.1's default-coordinate-system rule — this is
   the one documented limitation when a pattern is resolved from inside a nested Form XObject's own
   `/Resources/Pattern`: it still composes against the page's own initial CTM, not the Form's own
-  default space). **`/Extend` is approximated as `Drawing.GradientSpread.Pad`** regardless of its
-  actual `[false false]`/`[true true]`/mixed value — a documented, narrower-than-spec
-  simplification: no existing `GradientSpread` value expresses the spec's true
-  "paint nothing outside the defining geometry" default, and implementing that exactly would
-  require clipping the shading's own paint to its defining geometry automatically - distinct from
-  the general-purpose `W`/`W*` clipping-path operators (see _Clipping Paths_ below), which a
-  content stream must invoke explicitly and which this phase does not wire into `/Extend`
-  resolution itself.
+  default space). **`/Extend` is honored per end** (default `[false false]`, validated as exactly two booleans,
+  else `InvalidDataException`) without adding a `GradientSpread` value: the gradient always uses
+  `GradientSpread.Pad`, but its geometry is widened beyond the shading's own `[0, 1]` parameter
+  range (for axial: the new end points are `P0 + tMin*(P1-P0)`/`P0 + tMax*(P1-P0)`; for radial:
+  the circles are interpolated at `tMin`/`tMax`, and the extension is limited so the radius never
+  becomes negative). An extended end gets hold stops repeating the end color out to the widened
+  end, with the extension sized to cover the surface from the shading's anchor points (capped at
+  1e4 times the `[0, 1]` range to bound float precision); a non-extended end gets a small margin
+  and a hard transparent stop, so nothing is painted beyond it. `sh` and the pattern fill share
+  this logic. A radial shading whose radius reaches zero cannot be extended past the cone vertex.
+- **Function-array domains** — each element of a `/Function` array clamps its own input to its own
+  `/Domain` when evaluated (the shading's `/Domain`, default `[0 1]`, maps linearly onto the
+  geometry parameter and is the value passed to every sub-function); the array form's reported
+  domain is the intersection of the sub-function domains. Values outside a sub-function's domain
+  are therefore clamped, not ignored.
 - **Shading operator (`sh`, `PdfDocument.ContentStream.cs`/`PdfDocument.Patterns.Shading.cs`, per
   PDF 32000-1 §8.7.4.2)** — paints a named `/Resources/Shading` dictionary's gradient directly
   onto the destination surface, with no path construction/consumption and no `/Pattern`

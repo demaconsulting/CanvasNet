@@ -569,6 +569,7 @@ reviews:
       - "docs/verification/canvas-net/fonts/system-font-catalog.md"  # unit verification
       - "docs/sysml2/model/canvas-net/fonts/system-font-catalog.sysml"  # unit model
       - "src/DemaConsulting.CanvasNet/Fonts/SystemFontCatalog.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet/Fonts/SfntHeaderReader.cs"   # internal helper source
       - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/README.md"  # bundled-font provenance/licensing documentation
       - "src/DemaConsulting.CanvasNet/DemaConsulting.CanvasNet.csproj"  # embedded-resource/license packaging
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/SystemFontCatalogTests.cs"  # unit tests
