@@ -648,6 +648,15 @@ charstring.
   outside the supported set, is truncated, exceeds the subroutine call depth/step bound, or
   references an out-of-range subroutine index
 
+**Memoization.** Decoded outlines are cached per font in a `ConcurrentDictionary<int, Path>` (at
+most 4096 entries; once full, further glyphs are decoded on demand but not stored). `Path` is
+immutable, so every caller shares one instance. A decode that throws is never cached, so a
+malformed glyph reports its error on every call. The cache is per `TrueTypeFont` instance and
+the PDF renderer builds fonts per render, so it benefits repeated glyphs within one page;
+the static fallback-font cache shares one font (hence the thread-safe dictionary). Profiling
+showed outline decode and path building at roughly 20% of text-heavy page time; the measured
+saving is smaller (about 2 to 6% time, 14 to 28% allocation).
+
 ##### GetAdvanceWidth(int glyphIndex)
 
 Validates `glyphIndex`, then returns the glyph's horizontal advance width from `hmtx`, reusing

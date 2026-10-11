@@ -1433,6 +1433,85 @@ public class SurfaceTests
     }
 
     /// <summary>
+    ///     Proves <c>CompositeSpanWorkspace.Rent</c> rejects a non-positive capacity.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    public void CompositeSpanWorkspace_Rent_NonPositiveCapacity_ThrowsArgumentOutOfRangeException(int capacity)
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => Surface.CompositeSpanWorkspace.Rent(capacity));
+    }
+
+    /// <summary>
+    ///     Proves a rented workspace is large enough for the request and that disposing it and
+    ///     renting again on the same thread reuses the same instance (the per-thread cache).
+    /// </summary>
+    [Fact]
+    public void CompositeSpanWorkspace_Rent_AfterDispose_ReusesCachedWorkspaceWithSufficientCapacity()
+    {
+        // Arrange / Act
+        var first = Surface.CompositeSpanWorkspace.Rent(10);
+        var firstCapacity = first.Capacity;
+        first.Dispose();
+        using var second = Surface.CompositeSpanWorkspace.Rent(10);
+
+        // Assert
+        Assert.True(firstCapacity >= 10);
+        Assert.Same(first, second);
+    }
+
+    /// <summary>
+    ///     Proves two workspaces rented at the same time on one thread are distinct instances,
+    ///     so nested use never shares scratch buffers.
+    /// </summary>
+    [Fact]
+    public void CompositeSpanWorkspace_Rent_WhileAnotherIsInUse_ReturnsDistinctWorkspace()
+    {
+        // Arrange / Act
+        using var outer = Surface.CompositeSpanWorkspace.Rent(10);
+        using var inner = Surface.CompositeSpanWorkspace.Rent(10);
+
+        // Assert
+        Assert.NotSame(outer, inner);
+    }
+
+    /// <summary>
+    ///     Proves a request larger than the cached workspace gets a workspace large enough for it,
+    ///     and that a rented workspace produces the same pixels as a directly constructed one.
+    /// </summary>
+    [Fact]
+    public void CompositeSpanWorkspace_Rent_LargerThanCached_GrowsAndCompositesIdenticallyToConstructedWorkspace()
+    {
+        // Arrange
+        Surface.CompositeSpanWorkspace.Rent(4).Dispose();
+        const int width = 8000;
+        float[] coverage = [.. Enumerable.Range(0, width).Select(i => (i % 5) / 4f)];
+        using var expected = new Surface(width, 1);
+        using var actual = new Surface(width, 1);
+        var color = new Rgba32(10, 120, 240, 180);
+
+        // Act
+        using (var constructed = new Surface.CompositeSpanWorkspace(width))
+        {
+            expected.CompositeOverSpan(0, 0, coverage, color, constructed);
+        }
+
+        using (var rented = Surface.CompositeSpanWorkspace.Rent(width))
+        {
+            Assert.True(rented.Capacity >= width);
+            actual.CompositeOverSpan(0, 0, coverage, color, rented);
+        }
+
+        // Assert
+        for (var x = 0; x < width; x++)
+        {
+            Assert.Equal(expected[x, 0], actual[x, 0]);
+        }
+    }
+
+    /// <summary>
     ///     Proves that the per-pixel-color <c>CompositeOverSpan</c> overload applies each pixel's
     ///     own color, matching the constant-color overload's result at each pixel when every
     ///     entry of the colors span happens to be equal.

@@ -329,6 +329,19 @@ sections:
                   - GlyfLocaReader_Parse_NonMonotonicLocaEntries_ThrowsInvalidDataException
                   - GlyfLocaReader_Parse_TruncatedLoca_ThrowsInvalidDataException
 
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphOutlineMemoized
+                title: >-
+                  The TrueTypeFont class shall memoize decoded glyph outlines so a repeated request
+                  for the same glyph index returns the same geometry as a fresh decode, and shall
+                  not memoize a glyph that fails to decode.
+                justification: |
+                  Text repeats glyphs heavily and decoding plus path building is a measurable share
+                  of render time; caching is only safe if the cached outline equals a cold decode
+                  and malformed glyphs keep reporting their error.
+                tests:
+                  - TrueTypeFont_GetGlyphOutline_RepeatedCalls_ReturnMemoizedOutlineEqualToFreshDecode
+                  - TrueTypeFont_GetGlyphOutline_MalformedGlyph_ThrowsOnEveryCall
+
               - id: CanvasNet-Fonts-TrueTypeFont-GlyphIndexValidation
                 title: >-
                   The TrueTypeFont class shall reject an out-of-range glyph index argument to

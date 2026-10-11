@@ -248,6 +248,7 @@ sections:
           - CanvasNetPdf-PdfDocument-ImageDecodeArrayInvalid
           - CanvasNetPdf-PdfDocument-ImageDownscale
           - CanvasNetPdf-PdfDocument-ImageSmoothResample
+          - CanvasNetPdf-PdfDocument-ImageColorConversion
           - CanvasNetPdf-PdfDocument-JpxDecode
           - CanvasNetPdf-PdfDocument-JpxColorSpace
           - CanvasNetPdf-PdfDocument-JpxSMaskInData

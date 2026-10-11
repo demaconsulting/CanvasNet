@@ -299,6 +299,45 @@ public class SurfaceResamplerTests
         }
     }
 
+    /// <summary>
+    ///     Resampling is deterministic across the pooled scratch buffers: a call repeated after
+    ///     differently sized calls (which leave stale data in recycled buffers) is identical to the first.
+    /// </summary>
+    [Theory]
+    [InlineData(ResamplingMode.Area)]
+    [InlineData(ResamplingMode.Bicubic)]
+    [InlineData(ResamplingMode.Lanczos3)]
+    public void Resample_RepeatedAfterDifferentSizes_IsIdenticalDespiteRecycledBuffers(ResamplingMode mode)
+    {
+        using var source = new Surface(37, 29);
+        for (var y = 0; y < 29; y++)
+        {
+            for (var x = 0; x < 37; x++)
+            {
+                source[x, y] = new Rgba32((byte)((x * 7) + y), (byte)(y * 9), (byte)((x * y) & 255), (byte)(255 - ((x + y) % 6 * 15)));
+            }
+        }
+
+        using var baseline = SurfaceResampler.Resample(source, 0, 37, 0, 29, 11, 8, mode);
+
+        // Churn the pool: a much larger intermediate, then a mid-sized one
+        using (var large = SurfaceResampler.Resample(source, 0, 37, 0, 29, 150, 120, mode))
+        using (var mid = SurfaceResampler.Resample(source, 0, 37, 0, 29, 25, 40, mode))
+        {
+            Assert.Equal(150, large.Width);
+            Assert.Equal(25, mid.Width);
+        }
+
+        using var repeated = SurfaceResampler.Resample(source, 0, 37, 0, 29, 11, 8, mode);
+        for (var y = 0; y < 8; y++)
+        {
+            for (var x = 0; x < 11; x++)
+            {
+                Assert.Equal(baseline[x, y], repeated[x, y]);
+            }
+        }
+    }
+
     /// <summary>Wrapped bilinear sampling wraps across the tile edge.</summary>
     [Fact]
     public void SampleBilinearWrapped_AtEdge_BlendsWithOppositeSide()

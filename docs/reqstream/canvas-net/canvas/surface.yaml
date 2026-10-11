@@ -352,6 +352,23 @@ sections:
                   - Surface_CompositeOverSpan_PerPixelColors_LengthMismatch_ThrowsArgumentException
                   - Surface_CompositeOverSpanWithWorkspace_PerPixelColors_MatchesPublicOverload
 
+              - id: CanvasNet-Canvas-Surface-SpanWorkspaceCache
+                title: >-
+                  The internal CompositeSpanWorkspace shall be obtainable through Rent, which
+                  rejects a non-positive capacity, returns a workspace of at least the requested
+                  capacity, reuses the calling thread's cached workspace after Dispose, never
+                  hands the same instance to two concurrent users on one thread, and composites
+                  identically to a directly constructed workspace.
+                justification: |
+                  Tiny fills such as glyphs would otherwise pay the cost of renting and returning
+                  every scratch array per fill; a per-thread cache removes that cost, but is only
+                  safe if reuse, isolation, and output equivalence are verified.
+                tests:
+                  - CompositeSpanWorkspace_Rent_NonPositiveCapacity_ThrowsArgumentOutOfRangeException
+                  - CompositeSpanWorkspace_Rent_AfterDispose_ReusesCachedWorkspaceWithSufficientCapacity
+                  - CompositeSpanWorkspace_Rent_WhileAnotherIsInUse_ReturnsDistinctWorkspace
+                  - CompositeSpanWorkspace_Rent_LargerThanCached_GrowsAndCompositesIdenticallyToConstructedWorkspace
+
               - id: CanvasNet-Canvas-Surface-Disposal
                 title: >-
                   The Surface class shall implement IDisposable, logically releasing its
@@ -477,6 +494,17 @@ sections:
                 tests:
                   - Resize_ExtremeAspectChange_ProducesExpectedShape
                   - Resample_TinyIntermediateBudget_MatchesDefaultBudget
+
+              - id: CanvasNet-Canvas-Surface-ResizePooledBuffers
+                title: >-
+                  The Surface resampling engine shall produce output that does not depend on the
+                  prior contents of its recycled intermediate and accumulator buffers.
+                justification: |
+                  The engine rents its large float scratch buffers from a shared pool without
+                  clearing them to avoid per-call allocation; a call repeated after differently
+                  sized calls must still give identical pixels.
+                tests:
+                  - Resample_RepeatedAfterDifferentSizes_IsIdenticalDespiteRecycledBuffers
 
               - id: CanvasNet-Canvas-Surface-ResizeToFit
                 title: >-

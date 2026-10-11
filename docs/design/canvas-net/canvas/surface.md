@@ -453,9 +453,11 @@ the same fixed width. To eliminate this, `Surface` exposes an `internal` nested
 `CompositeSpanWorkspace` type bundling one reusable set of these scratch buffers, sized once to a
 caller-chosen capacity, plus an `internal` `CompositeOverSpan(int, int, ReadOnlySpan<float>,
 Rgba32, CompositeSpanWorkspace)` overload that reuses the supplied workspace's buffers instead of
-renting its own. `ScanlineRasterizer.Fill` constructs one `CompositeSpanWorkspace` sized to its
-row width before its row loop, reuses it for every row's `CompositeOverSpan` call, and disposes it
-once after the loop - so the whole fill rents each scratch buffer exactly once, not once per row.
+renting its own. `ScanlineRasterizer.Fill` obtains one `CompositeSpanWorkspace` sized to its
+row width (via `CompositeSpanWorkspace.Rent`, see "Per-thread workspace cache" below) before its
+row loop, reuses it for every row's `CompositeOverSpan` call, and disposes it exactly once after
+the loop - so the whole fill acquires its scratch buffers once, not once per row, and the buffers
+may persist in the per-thread cache for later fills.
 Both overloads share the same private blend body (`CompositeOverSpanCore`); the only difference
 between them is where their `RowChannelBuffers`/`CompositeWorkBuffers` come from, so the blend
 math itself is never duplicated. This overload is `internal`, not `public`: it exposes an
@@ -474,6 +476,18 @@ versus supplied workspace) differs between the public and internal forms. A dedi
 (`Surface_CompositeOverSpan_PerPixelColors_MatchesConstantColorOverload_WhenAllColorsEqual`)
 proves the pre-existing constant-color overload's output is unchanged by this refactor.
 
+**Per-thread workspace cache.** A glyph-heavy page performs thousands of tiny fills, and
+renting and returning every scratch array from `ArrayPool<T>` for each one was measurable
+overhead. `ScanlineRasterizer.Fill` therefore obtains its workspace from
+`CompositeSpanWorkspace.Rent(capacity)`, which hands out the calling thread's cached workspace
+when it is large enough (taking it out of the `[ThreadStatic]` slot while in use, so a nested
+rent gets a distinct instance) and otherwise creates one of at least 256 pixels. Disposing a
+rented workspace whose capacity is at most 16384 pixels returns it to the thread's slot instead
+of releasing its arrays; larger or surplus workspaces release their arrays as before. A
+workspace created directly with its public constructor is never cached. Trade-off: a cached
+workspace keeps the last scratch pixel data in memory (bounded at 16384 pixels per thread)
+instead of clearing it on return.
+
 #### Internal image-resampling engine (SurfaceResampler)
 
 `Canvas/SurfaceResampler.cs` and `Canvas/SurfaceResampler.Engine.cs` hold an `internal static
@@ -490,7 +504,11 @@ axis with scale 1 and an integer start is an exact copy. Work is done in premult
 separable passes: a horizontal pass over strips of columns into a float intermediate sized by an
 8 MiB budget, then a vertical pass using `TensorPrimitives` multiply-add. Results are clamped to
 `[0, 255]`, un-premultiplied and rounded; all index and size arithmetic uses `long`/checked math, so
-the working memory is bounded regardless of aspect ratio (8192x1 to 1x8192 included).
+the working memory is bounded regardless of aspect ratio (8192x1 to 1x8192 included). The float
+intermediate and accumulator are rented from `ArrayPool<float>.Shared` (returned in `finally`)
+and deliberately not cleared: every element read is written first in the same call (the
+horizontal pass fills the whole strip, and the first vertical tap overwrites the accumulator), so
+output never depends on a buffer's previous contents.
 
 **Renderer entry points.** `TryResampleToDevice` resamples a source to the device window covered by
 an axis-aligned image placement (the window is clipped to the visible area) so the renderer can

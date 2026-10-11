@@ -2037,6 +2037,20 @@ sections:
               - Render_ShrunkRotatedImage_KeepsEveryLine
               - Render_EnlargedImage_IsSmoothlyInterpolated
 
+          - id: CanvasNetPdf-PdfDocument-ImageColorConversion
+            title: >-
+              The PdfDocument class shall convert decoded raster image samples to pixel colors for
+              DeviceGray, DeviceRGB, DeviceCMYK and Indexed color spaces exactly as the general
+              component-list conversion does, without a per-pixel array allocation.
+            justification: |
+              Large images convert millions of samples; the allocation-free path must give
+              pixel-identical output to the original conversion.
+            tests:
+              - PdfDocument_ImageColor_DeviceGray_ConvertsEachSampleExactly
+              - PdfDocument_ImageColor_DeviceRgb_ConvertsEachSampleExactly
+              - PdfDocument_ImageColor_DeviceCmyk_ConvertsEachSampleExactly
+              - PdfDocument_ImageColor_Indexed_LooksUpEachPaletteEntryExactly
+
           - id: CanvasNetPdf-PdfDocument-ImageSmoothResample
             title: >-
               The PdfDocument class shall resample a raster image placed axis-aligned on the page

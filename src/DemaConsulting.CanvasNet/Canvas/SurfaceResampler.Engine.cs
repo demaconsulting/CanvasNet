@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Numerics;
 using System.Numerics.Tensors;
 
@@ -82,41 +83,51 @@ internal static partial class SurfaceResampler
         var bytesPerColumn = (long)rows * Channels * sizeof(float);
         var strip = (int)Math.Clamp(intermediateBudgetBytes / bytesPerColumn, 1L, outWidth);
         var rowStride = checked(strip * Channels);
-        var intermediate = new float[checked(rows * rowStride)];
-        var accumulator = new float[rowStride];
+        var intermediate = ArrayPool<float>.Shared.Rent(checked(rows * rowStride));
+        var accumulator = ArrayPool<float>.Shared.Rent(rowStride);
 
-        for (var column0 = 0; column0 < outWidth; column0 += strip)
+        // Pooled buffers are not cleared: every element read below (the strip's rows of the
+        // intermediate, and the accumulator's first Multiply tap) is written first.
+        try
         {
-            var columns = Math.Min(strip, outWidth - column0);
-
-            // Horizontal pass: filter every needed source row into the intermediate strip
-            for (var r = 0; r < rows; r++)
+            for (var column0 = 0; column0 < outWidth; column0 += strip)
             {
-                HorizontalRow(source.GetRowSpan(ys.MinIndex + r), xs, column0, columns, intermediate.AsSpan(r * rowStride, columns * Channels));
-            }
+                var columns = Math.Min(strip, outWidth - column0);
 
-            // Vertical pass: each output row is a weighted sum of intermediate rows
-            var acc = accumulator.AsSpan(0, columns * Channels);
-            for (var oy = 0; oy < outHeight; oy++)
-            {
-                var first = ys.First[oy];
-                var count = ys.Count[oy];
-                var offset = ys.Offset[oy];
-                for (var t = 0; t < count; t++)
+                // Horizontal pass: filter every needed source row into the intermediate strip
+                for (var r = 0; r < rows; r++)
                 {
-                    var row = intermediate.AsSpan((first + t - ys.MinIndex) * rowStride, columns * Channels);
-                    if (t == 0)
-                    {
-                        TensorPrimitives.Multiply(row, ys.Weights[offset], acc);
-                    }
-                    else
-                    {
-                        TensorPrimitives.MultiplyAdd(row, ys.Weights[offset + t], acc, acc);
-                    }
+                    HorizontalRow(source.GetRowSpan(ys.MinIndex + r), xs, column0, columns, intermediate.AsSpan(r * rowStride, columns * Channels));
                 }
 
-                StoreRow(acc, result.GetRowSpan(oy).Slice(column0, columns));
+                // Vertical pass: each output row is a weighted sum of intermediate rows
+                var acc = accumulator.AsSpan(0, columns * Channels);
+                for (var oy = 0; oy < outHeight; oy++)
+                {
+                    var first = ys.First[oy];
+                    var count = ys.Count[oy];
+                    var offset = ys.Offset[oy];
+                    for (var t = 0; t < count; t++)
+                    {
+                        var row = intermediate.AsSpan((first + t - ys.MinIndex) * rowStride, columns * Channels);
+                        if (t == 0)
+                        {
+                            TensorPrimitives.Multiply(row, ys.Weights[offset], acc);
+                        }
+                        else
+                        {
+                            TensorPrimitives.MultiplyAdd(row, ys.Weights[offset + t], acc, acc);
+                        }
+                    }
+
+                    StoreRow(acc, result.GetRowSpan(oy).Slice(column0, columns));
+                }
             }
+        }
+        finally
+        {
+            ArrayPool<float>.Shared.Return(intermediate);
+            ArrayPool<float>.Shared.Return(accumulator);
         }
 
         return result;

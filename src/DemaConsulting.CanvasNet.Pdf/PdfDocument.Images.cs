@@ -902,16 +902,16 @@ public sealed partial class PdfDocument
         {
             // An /Indexed sample is a raw palette index, not a [0, 1]-normalized component - do
             // not divide by 255.0 like every other color space below.
-            return ColorFromComponents(colorSpace, [(double)decoded[offset]]);
+            return IndexedToColor(colorSpace, decoded[offset]);
         }
 
-        var components = new double[count];
+        Span<double> components = count <= 4 ? stackalloc double[count] : new double[count];
         for (var i = 0; i < count; i++)
         {
             components[i] = decoded[offset + i] / 255.0;
         }
 
-        return ColorFromComponents(colorSpace, components);
+        return ColorFromComponentSpan(colorSpace, components);
     }
 
     /// <summary>

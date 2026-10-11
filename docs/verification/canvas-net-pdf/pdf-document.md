@@ -1096,6 +1096,16 @@ pixels wide) and requires that no line goes missing and the ink per line tracks 
 > tolerance (2 to 4 levels, from sampling slightly off a source pixel center) and use a larger tolerance
 > (16 levels) only for the one soft-mask edge-adjacent sample. The expected colors themselves are unchanged.
 
+#### CanvasNetPdf-PdfDocument-ImageColorConversion: Samples Convert Without Per-Pixel Allocation
+
+**Tests**: `PdfDocument_ImageColor_DeviceGray_ConvertsEachSampleExactly`,
+`PdfDocument_ImageColor_DeviceRgb_ConvertsEachSampleExactly`,
+`PdfDocument_ImageColor_DeviceCmyk_ConvertsEachSampleExactly`,
+`PdfDocument_ImageColor_Indexed_LooksUpEachPaletteEntryExactly`
+
+`PdfDocumentImageColorConversionTests.cs` draws a 4x1 image 1:1 for each color space and asserts
+every output pixel against its hand-computed color. No timing is asserted.
+
 #### CanvasNetPdf-PdfDocument-ImageSmoothResample: Axis-Aligned Images Are Resampled Once Per Draw
 
 **Tests**: `Render_GridImage_NoLineMissingAtAnySize`, `Render_ShrunkRotatedImage_KeepsEveryLine`

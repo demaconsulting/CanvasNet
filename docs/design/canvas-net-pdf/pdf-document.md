@@ -673,6 +673,9 @@ its own distinguishable `Feature` token.
     number, resolves `lookup` (a PDF string's raw bytes, or a stream decoded via
     `GetStreamDecodedBytes`), and validates the resolved palette has at least
     `(Hival + 1) * ComponentCount(baseSpace)` bytes (else `InvalidDataException` in each case).
+    Image samples are converted without a per-pixel array: `SamplesToColor` and `IndexedToColor`
+    place the (at most four) components in a `stackalloc` span and call
+    `ColorFromComponentSpan`, which applies the same conversion as the `IReadOnlyList` overload.
     `ComponentCount` reports `1` for `Indexed` (the palette index itself); `ColorFromComponents`
     dispatches an `Indexed` color's single raw (not `[0, 1]`-normalized) index component to
     `IndexedToColor`, which rounds/clamps the index into `[0, Hival]` (an out-of-range index

@@ -434,4 +434,46 @@ public class PathBuilderTests
         var builder = new PathBuilder();
         Assert.Throws<InvalidOperationException>(() => builder.TangentArcTo(new Vector2(10, 0), new Vector2(10, 10), 1f));
     }
+
+    /// <summary>
+    ///     Proves that a built Path is a stable snapshot: later MoveTo/draw/Clear/reuse of the same
+    ///     builder (which recycles its scratch command list) never alters it, and each subpath keeps
+    ///     only its own commands.
+    /// </summary>
+    [Fact]
+    public void PathBuilder_Build_ThenReuseBuilder_EarlierPathsAreUnchanged()
+    {
+        // Arrange: a first path with two subpaths, the second still open when built
+        var builder = new PathBuilder();
+        builder.MoveTo(new Vector2(0, 0)).LineTo(new Vector2(1, 0)).LineTo(new Vector2(1, 1)).Close();
+        builder.MoveTo(new Vector2(5, 5)).LineTo(new Vector2(6, 5));
+        var first = builder.Build();
+
+        // Act: keep drawing on the same builder, then clear it and build something unrelated
+        builder.LineTo(new Vector2(7, 7)).MoveTo(new Vector2(9, 9)).QuadraticBezierTo(new Vector2(10, 9), new Vector2(10, 10));
+        var second = builder.Build();
+        builder.Clear();
+        builder.MoveTo(new Vector2(-1, -1)).LineTo(new Vector2(-2, -2));
+        var third = builder.Build();
+
+        // Assert: the first path still holds exactly what it held when built
+        Assert.Equal(2, first.Subpaths.Count);
+        Assert.Equal(
+            [PathCommandType.LineTo, PathCommandType.LineTo, PathCommandType.Close],
+            first.Subpaths[0].Commands.Select(c => c.Type));
+        Assert.Equal(new Vector2(5, 5), first.Subpaths[1].Start);
+        var open = Assert.Single(first.Subpaths[1].Commands);
+        Assert.Equal(new Vector2(6, 5), open.EndPoint);
+
+        // Assert: the second path has the extended second subpath and the new third subpath
+        Assert.Equal(3, second.Subpaths.Count);
+        Assert.Equal(2, second.Subpaths[1].Commands.Count);
+        Assert.Equal(new Vector2(7, 7), second.Subpaths[1].Commands[1].EndPoint);
+        Assert.Equal(PathCommandType.QuadraticBezierTo, Assert.Single(second.Subpaths[2].Commands).Type);
+
+        // Assert: the reused builder starts from scratch
+        var subpath = Assert.Single(third.Subpaths);
+        Assert.Equal(new Vector2(-1, -1), subpath.Start);
+        Assert.Equal(new Vector2(-2, -2), Assert.Single(subpath.Commands).EndPoint);
+    }
 }

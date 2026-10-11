@@ -275,6 +275,24 @@ sections:
                   - ScanlineRasterizer_Fill_NoPolygons_NoOp
                   - ScanlineRasterizer_Fill_DegeneratePolygon_ContributesZeroCoverage
 
+              - id: CanvasNet-Drawing-PathFiller-ScanlineWindowedCoverage
+                title: >-
+                  The internal ScanlineRasterizer helper shall yield, for each swept row, only the
+                  window of columns its edges can touch (skipping rows with no coverage), such that
+                  the resulting fill is pixel-identical to compositing the full-width coverage row,
+                  for solid color, gradient, tile, and dense-clip fills.
+                justification: |
+                  Trimming each row to its touched window and skipping empty rows removes the
+                  clearing, sweeping, and compositing of pixels that cannot change; because zero
+                  coverage leaves a pixel untouched, the optimization is only valid if it is
+                  provably output-neutral, which an exact-area geometric reference and a
+                  full-width composite reference verify.
+                tests:
+                  - ScanlineRasterizer_AccumulateCoverageMask_Shapes_MatchesExactPixelAreaReference
+                  - ScanlineRasterizer_Fill_Shapes_PixelExactAgainstFullWidthCompositeReference
+                  - ScanlineRasterizer_Fill_DenseClipMask_PixelExactAgainstCoverageTimesClipReference
+                  - ScanlineRasterizer_Fill_ConstantGradientAndTile_PixelExactAgainstSolid
+
               - id: CanvasNet-Drawing-PathFiller-GradientFill
                 title: >-
                   The PathFiller class shall fill a closed path onto a surface with a linear or

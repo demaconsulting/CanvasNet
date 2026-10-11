@@ -321,6 +321,66 @@ public class TrueTypeFontTests
     }
 
     /// <summary>
+    ///     Proves that repeated GetGlyphOutline calls return the same memoized instance, and that the
+    ///     memoized outline equals the outline decoded by a font that has not cached anything.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetGlyphOutline_RepeatedCalls_ReturnMemoizedOutlineEqualToFreshDecode()
+    {
+        // Arrange: two independent fonts loaded from the same bytes
+        var data = BuildWellFormedFont();
+        using var cachedStream = new MemoryStream(data);
+        using var freshStream = new MemoryStream(data);
+        var cachedFont = TrueTypeFont.Load(cachedStream);
+        var freshFont = TrueTypeFont.Load(freshStream);
+
+        // Act
+        var first = cachedFont.GetGlyphOutline(1);
+        var second = cachedFont.GetGlyphOutline(1);
+        var fresh = freshFont.GetGlyphOutline(1);
+
+        // Assert: one shared instance, with exactly the geometry a cold decode produces
+        Assert.Same(first, second);
+        Assert.Equal(fresh.Subpaths.Count, first.Subpaths.Count);
+        for (var s = 0; s < fresh.Subpaths.Count; s++)
+        {
+            Assert.Equal(fresh.Subpaths[s].Start, first.Subpaths[s].Start);
+            Assert.Equal(fresh.Subpaths[s].IsClosed, first.Subpaths[s].IsClosed);
+            Assert.Equal(fresh.Subpaths[s].Commands.Count, first.Subpaths[s].Commands.Count);
+            for (var c = 0; c < fresh.Subpaths[s].Commands.Count; c++)
+            {
+                Assert.Equal(fresh.Subpaths[s].Commands[c], first.Subpaths[s].Commands[c]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that a malformed glyph is never memoized: every call reports it again.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetGlyphOutline_MalformedGlyph_ThrowsOnEveryCall()
+    {
+        // Arrange: glyph 1 declares an invalid (below -1) contour count
+        var glyph = new byte[12];
+        glyph[0] = 0xFF;
+        glyph[1] = 0xFE;
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(2))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 2))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 500]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([0, glyph.Length], longFormat: false))
+            .AddTable("glyf", glyph)
+            .Build();
+        using var stream = new MemoryStream(data);
+        var font = TrueTypeFont.Load(stream);
+
+        // Act/Assert: the failure is repeatable
+        Assert.Throws<InvalidDataException>(() => font.GetGlyphOutline(1));
+        Assert.Throws<InvalidDataException>(() => font.GetGlyphOutline(1));
+    }
+
+    /// <summary>
     ///     Proves that TrueTypeFont GetAdvanceWidth GlyphIndexTooLarge ThrowsArgumentOutOfRangeException.
     /// </summary>
     [Fact]

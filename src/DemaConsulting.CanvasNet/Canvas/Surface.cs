@@ -1529,6 +1529,61 @@ public sealed class Surface : IDisposable
         }
 
         /// <summary>
+        ///     The largest capacity a workspace may have and still be retained in the per-thread
+        ///     cache by <see cref="Dispose"/> (bounds the memory a thread keeps after a large fill).
+        /// </summary>
+        private const int MaxCachedCapacity = 16384;
+
+        /// <summary>
+        ///     The smallest capacity <see cref="Rent"/> creates, so the many small fills (for example
+        ///     glyphs) can all reuse one cached workspace.
+        /// </summary>
+        private const int MinRentedCapacity = 256;
+
+        /// <summary>
+        ///     The per-thread cached workspace, available to <see cref="Rent"/> (taken out of this
+        ///     slot while in use, so a nested or concurrent use on the same thread never shares one).
+        /// </summary>
+        [ThreadStatic]
+        private static CompositeSpanWorkspace? _cached;
+
+        private bool _pooled;
+
+        private static void Cache(CompositeSpanWorkspace workspace) => _cached = workspace;
+
+        /// <summary>
+        ///     Gets a workspace able to serve spans of up to <paramref name="capacity"/> pixels, reusing
+        ///     this thread's cached one when it is large enough. Disposing it hands it back to the
+        ///     cache rather than returning its arrays to <see cref="ArrayPool{T}"/>, which removes the
+        ///     per-fill rent/return churn of every scratch array from tiny fills such as glyphs.
+        /// </summary>
+        /// <param name="capacity">The largest span length to serve. Must be greater than zero.</param>
+        /// <returns>A workspace whose <see cref="Capacity"/> is at least <paramref name="capacity"/>.</returns>
+        public static CompositeSpanWorkspace Rent(int capacity)
+        {
+            if (capacity <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(capacity), capacity, "Capacity must be greater than zero.");
+            }
+
+            var cached = _cached;
+            _cached = null;
+            if (cached != null)
+            {
+                if (cached.Capacity >= capacity)
+                {
+                    return cached;
+                }
+
+                cached._pooled = false;
+                cached.Dispose();
+            }
+
+            var rented = new CompositeSpanWorkspace(Math.Max(capacity, MinRentedCapacity)) { _pooled = capacity <= MaxCachedCapacity };
+            return rented;
+        }
+
+        /// <summary>
         ///     The largest coverage-span length this workspace's buffers can serve.
         /// </summary>
         public int Capacity { get; }
@@ -1548,6 +1603,19 @@ public sealed class Surface : IDisposable
         /// </summary>
         public void Dispose()
         {
+            if (ReferenceEquals(_cached, this))
+            {
+                // Already handed back to the cache: a repeated Dispose must not free its arrays.
+                return;
+            }
+
+            if (_pooled && _cached == null)
+            {
+                // Keep the arrays for the next fill on this thread instead of returning them.
+                Cache(this);
+                return;
+            }
+
             Bg.Dispose();
             Fg.Dispose();
             Work.Dispose();

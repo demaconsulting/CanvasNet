@@ -389,6 +389,19 @@ through either the public or the internal fill entry point.
 `CompositeOver(Surface)` additionally rejects a disposed `foreground` argument, even when this
 surface itself has not been disposed.
 
+##### CanvasNet-Canvas-Surface-SpanWorkspaceCache: Rented Workspaces Are Reused, Isolated, and Equivalent
+
+**Tests**: `CompositeSpanWorkspace_Rent_NonPositiveCapacity_ThrowsArgumentOutOfRangeException`,
+`CompositeSpanWorkspace_Rent_AfterDispose_ReusesCachedWorkspaceWithSufficientCapacity`,
+`CompositeSpanWorkspace_Rent_WhileAnotherIsInUse_ReturnsDistinctWorkspace`,
+`CompositeSpanWorkspace_Rent_LargerThanCached_GrowsAndCompositesIdenticallyToConstructedWorkspace`
+
+Asserts `Rent` rejects zero and negative capacities; that renting, disposing, and renting again
+on the same thread returns the same instance with sufficient capacity; that two workspaces held
+at once are distinct; and that a workspace rented larger than the cached one (8000 pixels versus
+the 256-pixel minimum) composites a coverage pattern byte-identically to a directly constructed
+workspace. No test asserts timing.
+
 ##### CanvasNet-Canvas-Surface-ImageResampling: Box Prefilter Behaves as Documented
 
 **Tests**: `Prefilter_UpscaleOrIdentity_ReturnsSourceUnchanged`,
@@ -456,6 +469,13 @@ reports `mode`; a disposed surface throws `ObjectDisposedException`.
 An 8192x1 surface resizes to 1x8192 with the expected content. Resampling with intermediate budgets of 1 and
 64 bytes (forcing the multi-strip path) produces output identical to the default budget for Bilinear,
 Lanczos3 and Area.
+
+##### CanvasNet-Canvas-Surface-ResizePooledBuffers: Recycled Scratch Buffers Do Not Leak State
+
+**Tests**: `Resample_RepeatedAfterDifferentSizes_IsIdenticalDespiteRecycledBuffers`
+
+Resamples a 37x29 source to 11x8, then to a larger and a mid-sized target (leaving stale data in
+pooled buffers), then to 11x8 again for Area, Bicubic and Lanczos3, and asserts the pixels are identical.
 
 ##### CanvasNet-Canvas-Surface-ResizeToFit: Aspect-Preserving Fit
 

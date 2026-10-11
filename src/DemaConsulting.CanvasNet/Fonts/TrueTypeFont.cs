@@ -2,6 +2,7 @@
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO ttcf
 // cspell:ignore macStyle fsSelection usWeightClass isFixedPitch italicAngle nameID
+using System.Collections.Concurrent;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
@@ -123,6 +124,19 @@ public sealed class TrueTypeFont
     private readonly CmapTable _cmap;
     private readonly KernTable _kern;
     private readonly NameTable _name;
+
+    /// <summary>
+    ///     The most outlines <see cref="_outlineCache"/> retains per font. The cache is a pure
+    ///     memoization of <see cref="GetGlyphOutline"/>, so exceeding the limit only means later
+    ///     glyphs are decoded on every call instead of once.
+    /// </summary>
+    private const int MaxCachedOutlines = 4096;
+
+    /// <summary>
+    ///     Decoded outlines by glyph index. A <see cref="Path"/> is immutable, so a cached instance
+    ///     is safely shared by every caller; only successful decodes are stored.
+    /// </summary>
+    private readonly ConcurrentDictionary<int, Path> _outlineCache = new();
 
     /// <summary>
     ///     The number of font design units per em, from <c>head.unitsPerEm</c>.
@@ -465,7 +479,8 @@ public sealed class TrueTypeFont
     }
 
     /// <summary>
-    ///     Decodes a single glyph's outline.
+    ///     Decodes a single glyph's outline. The result is memoized per glyph index (up to a fixed
+    ///     per-font limit): repeated calls return the same immutable <see cref="Path"/> instance.
     /// </summary>
     /// <param name="glyphIndex">The glyph index to decode, as returned by <see cref="GetGlyphIndex"/>.</param>
     /// <returns>
@@ -486,7 +501,19 @@ public sealed class TrueTypeFont
     public Path GetGlyphOutline(int glyphIndex)
     {
         ValidateGlyphIndex(glyphIndex);
-        return _glyphs.GetGlyphOutline(glyphIndex);
+        if (_outlineCache.TryGetValue(glyphIndex, out var cached))
+        {
+            return cached;
+        }
+
+        // A malformed glyph throws here and is therefore never cached: every call reports it again.
+        var outline = _glyphs.GetGlyphOutline(glyphIndex);
+        if (_outlineCache.Count < MaxCachedOutlines)
+        {
+            outline = _outlineCache.GetOrAdd(glyphIndex, outline);
+        }
+
+        return outline;
     }
 
     /// <summary>

@@ -77,10 +77,13 @@ Calls `Close`, then `LineTo` without an intervening `MoveTo`, and asserts
 
 ##### CanvasNet-Geometry-Path-BuildSnapshotIndependence: Build Returns an Independent Snapshot
 
-**Test**: `PathBuilder_Build_ThenMutateBuilder_DoesNotAffectPreviouslyBuiltPath`
+**Tests**: `PathBuilder_Build_ThenMutateBuilder_DoesNotAffectPreviouslyBuiltPath`,
+`PathBuilder_Build_ThenReuseBuilder_EarlierPathsAreUnchanged`
 
 Builds a `Path`, then issues further commands (including a new `MoveTo`/subpath) on the same
-builder, and asserts the previously built `Path` instance's `Subpaths` are unchanged.
+builder, and asserts the previously built `Path` instance's `Subpaths` are unchanged. The second
+test also builds again, calls `Clear()`, and builds an unrelated path, proving the recycled
+command list never leaks into earlier or later results.
 
 ##### CanvasNet-Geometry-Path-BuildEmpty: Build With No Commands Returns No Subpaths
 

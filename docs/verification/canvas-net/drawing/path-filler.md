@@ -280,6 +280,24 @@ Calls `ScanlineRasterizer.Fill` with an empty polygon list, and separately with 
 reduced to two points (fewer than the edges needed to enclose any area), and asserts the surface
 remains completely unmodified in both cases, without throwing.
 
+##### CanvasNet-Drawing-PathFiller-ScanlineWindowedCoverage: Windowed Row Coverage Is Pixel-Identical to Full-Width Coverage
+
+**Tests**: `ScanlineRasterizer_AccumulateCoverageMask_Shapes_MatchesExactPixelAreaReference`,
+`ScanlineRasterizer_Fill_Shapes_PixelExactAgainstFullWidthCompositeReference`,
+`ScanlineRasterizer_Fill_DenseClipMask_PixelExactAgainstCoverageTimesClipReference`,
+`ScanlineRasterizer_Fill_ConstantGradientAndTile_PixelExactAgainstSolid`
+
+Each is a theory over seven shapes (rectangle, triangle, slanted parallelogram, shape with a
+counter-wound hole, a tiny sparse shape in the far corner, a full-surface rectangle, and a shape
+entirely outside the surface). The first checks the swept coverage against an independent exact
+pixel-area reference (Sutherland-Hodgman clipping plus the shoelace formula) to a tolerance of
+`1e-4`. The second fills a background mixing opaque, semi-transparent, and transparent pixels and
+asserts byte equality against compositing the zero-padded full-width coverage rows with the
+public span API. The third does the same through a dense clip mask, allowing one byte of
+difference per channel for float rounding of the geometric versus multiplied clip. The fourth
+asserts gradient and tile fills with a constant color source are byte-identical to the solid fill.
+No test asserts timing.
+
 ##### CanvasNet-Drawing-PathFiller-GradientFill: Gradient Fill Shares Flattening/Clipping/Fill-Rule Behavior
 
 **Tests**: `PathFiller_Fill_Gradient_HorizontalRectangleWithHorizontalLinearGradient_VariesLeftToRight`,
