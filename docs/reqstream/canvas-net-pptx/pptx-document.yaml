@@ -2246,3 +2246,4 @@ sections:
               - PaintPicture_EnlargedPicture_IsSmooth
               - PaintPicture_EnlargedCrop_DoesNotBleedPixelsOutsideCrop
               - PaintPicture_RotatedCrop_DoesNotBleedPixelsOutsideCrop
+              - PaintPicture_FractionalCrop_PartiallyCoveredBorderPixelContributes

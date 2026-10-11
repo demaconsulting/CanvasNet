@@ -173,6 +173,7 @@ public class SurfaceResamplerTests
         Assert.Equal(new Rgba32(0, 0, 0, 255), SurfaceResampler.SampleBilinear(image, 0f, 0f));
         Assert.Equal(new Rgba32(200, 100, 50, 255), SurfaceResampler.SampleBilinear(image, 0.999f, 0.999f));
     }
+
     /// <summary>Rotation or skew is rejected so callers use the inverse-mapped fallback.</summary>
     [Fact]
     public void TryResampleToDevice_RotatedMatrix_ReturnsFalse()
@@ -206,6 +207,72 @@ public class SurfaceResamplerTests
         var matrix = Matrix3x2.CreateScale(5f) * Matrix3x2.CreateTranslation(100f, 100f);
         Assert.True(SurfaceResampler.TryResampleToDevice(source, matrix, 40, 40, ResamplingMode.Auto, out var window, out _, out _));
         Assert.Null(window);
+    }
+
+    /// <summary>BoxReduce renormalizes partial edge blocks: a 10x1 ramp reduced by 4 ends with the mean of the two covered pixels, not an edge-folded value.</summary>
+    [Fact]
+    public void BoxReduce_NonDivisibleSize_AveragesOnlyCoveredPixelsInPartialBlock()
+    {
+        using var source = new Surface(10, 1);
+        for (var x = 0; x < 10; x++)
+        {
+            var v = (byte)(x * 20);
+            source[x, 0] = new Rgba32(v, v, v, 255);
+        }
+
+        using var reduced = SurfaceResampler.BoxReduce(source, 4, 1);
+        Assert.Equal(3, reduced.Width);
+        Assert.Equal(30, reduced[0, 0].R);
+        Assert.Equal(110, reduced[1, 0].R);
+        Assert.Equal(170, reduced[2, 0].R); // (160 + 180) / 2
+    }
+
+    /// <summary>BoxReduce of a non-divisible size with alpha averages premultiplied color over the covered pixels only.</summary>
+    [Fact]
+    public void BoxReduce_NonDivisibleSizeWithAlpha_PartialBlockUsesCoveredPixelsOnly()
+    {
+        using var source = new Surface(3, 1);
+        source[0, 0] = new Rgba32(0, 0, 0, 0);
+        source[1, 0] = new Rgba32(0, 0, 0, 0);
+        source[2, 0] = new Rgba32(200, 100, 50, 255);
+
+        using var reduced = SurfaceResampler.BoxReduce(source, 2, 1);
+        Assert.Equal(2, reduced.Width);
+        Assert.Equal(new Rgba32(0, 0, 0, 0), reduced[0, 0]);
+        Assert.Equal(new Rgba32(200, 100, 50, 255), reduced[1, 0]); // the partial block covers only the opaque pixel
+    }
+
+    /// <summary>A tiny intermediate budget (multi-strip path) gives output identical to the default budget.</summary>
+    [Theory]
+    [InlineData(ResamplingMode.Bilinear, 1)]
+    [InlineData(ResamplingMode.Bilinear, 64)]
+    [InlineData(ResamplingMode.Lanczos3, 1)]
+    [InlineData(ResamplingMode.Lanczos3, 64)]
+    [InlineData(ResamplingMode.Area, 1)]
+    [InlineData(ResamplingMode.Area, 64)]
+    public void Resample_TinyIntermediateBudget_MatchesDefaultBudget(ResamplingMode mode, int budget)
+    {
+        using var source = new Surface(23, 19);
+        for (var y = 0; y < 19; y++)
+        {
+            for (var x = 0; x < 23; x++)
+            {
+                source[x, y] = new Rgba32((byte)((x * 11) + y), (byte)(y * 13), (byte)((x * y) & 255), (byte)(255 - ((x + y) % 5 * 20)));
+            }
+        }
+
+        foreach (var (w, h) in new[] { (9, 7), (40, 31) })
+        {
+            using var expected = SurfaceResampler.Resample(source, 0, 23, 0, 19, w, h, mode);
+            using var actual = SurfaceResampler.Resample(source, 0, 23, 0, 19, w, h, mode, budget);
+            for (var y = 0; y < h; y++)
+            {
+                for (var x = 0; x < w; x++)
+                {
+                    Assert.Equal(expected[x, y], actual[x, y]);
+                }
+            }
+        }
     }
 
     /// <summary>BoxReduce matches an explicit Area resize.</summary>

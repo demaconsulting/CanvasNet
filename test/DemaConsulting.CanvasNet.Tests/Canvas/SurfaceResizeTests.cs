@@ -66,7 +66,7 @@ public class SurfaceResizeTests
         Assert.InRange(reds[1], 119, 121);
     }
 
-    /// <summary>Bicubic and Lanczos3 keep source values at the pixel centers of an exact 2x enlargement's constant regions and never leave the byte range.</summary>
+    /// <summary>Bicubic and Lanczos3 keep the flat regions of a step edge at their exact values and never leave the byte range (overshoot is clamped).</summary>
     [Theory]
     [InlineData(ResamplingMode.Bicubic)]
     [InlineData(ResamplingMode.Lanczos3)]
@@ -216,7 +216,7 @@ public class SurfaceResizeTests
         {
             for (var x = 0; x < 4; x++)
             {
-                source[x, y] = new Rgba32((byte)(x * 60), (byte)(x * 60), (byte)(x * 60), 255);
+                source[x, y] = new Rgba32((byte)(x * 60), (byte)(y * 100), (byte)(x * 60), 255);
             }
         }
 
@@ -225,6 +225,11 @@ public class SurfaceResizeTests
         Assert.Equal(2, auto.Width);
         Assert.Equal(4, auto.Height);
 
+        // The enlarged (y) axis interpolates the two source rows smoothly: strictly between them, increasing
+        Assert.True(auto[0, 0].G < auto[0, 1].G && auto[0, 1].G < auto[0, 2].G && auto[0, 2].G < auto[0, 3].G);
+        Assert.InRange(auto[0, 0].G, 0, 40);
+        Assert.InRange(auto[0, 3].G, 60, 120);
+
         // The shrunken axis averages pairs: (0+60)/2 and (120+180)/2
         Assert.InRange(auto[0, 1].R, 29, 31);
         Assert.InRange(auto[1, 1].R, 149, 151);
@@ -232,9 +237,9 @@ public class SurfaceResizeTests
         Assert.Equal(explicitArea[0, 0], autoSame[0, 0]);
     }
 
-    /// <summary>The extreme 8192x1 to 1x8192 resize works within bounded memory.</summary>
+    /// <summary>Resizing an extremely wide 8192x1 image to 1x8192 yields the expected shape and content.</summary>
     [Fact]
-    public void Resize_LargeAndWide_ProducesExpectedShape()
+    public void Resize_ExtremeAspectChange_ProducesExpectedShape()
     {
         using var wide = new Surface(8192, 1);
         wide.Clear(new Rgba32(10, 20, 30, 255));

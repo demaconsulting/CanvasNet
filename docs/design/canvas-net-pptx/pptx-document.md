@@ -852,7 +852,9 @@ resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surfac
   `SurfaceResampler.TryResampleToDevice` (shared separable engine: `Area` when shrinking, `Bicubic` when
   enlarging) and composites the resulting device window 1:1. The `srcRect` crop is isolated first: the smallest
   whole-pixel window of the source containing the crop is cut out (`Surface.Crop`), so kernel taps next to a
-  crop edge fold into the window's own edge pixels and pixels outside the crop never bleed into it; the
+  crop edge fold into the window's own edge pixels and pixels outside the window never bleed into it. The
+  window is a whole-pixel superset of the (possibly fractional) crop, so a partially covered border pixel
+  still contributes to the crop edge; the
   fractional crop offset is part of the mapping. A rotated picture inverts the matrix once and
   bilinear-samples an area-prefiltered copy of the same cropped window per destination pixel whose
   inverse-mapped coordinate falls within `[0,1]x[0,1]`. Each sampled source pixel is

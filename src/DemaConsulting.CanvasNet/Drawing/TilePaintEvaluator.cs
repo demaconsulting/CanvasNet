@@ -91,16 +91,6 @@ internal static class TilePaintEvaluator
     }
 
     /// <summary>
-    ///     Device pixels per tile pixel above which the tile is considered magnified (smoothed).
-    /// </summary>
-    private const double MagnifiedThreshold = 1.05;
-
-    /// <summary>
-    ///     Device pixels per tile pixel below which the tile is considered minified (prefiltered).
-    /// </summary>
-    private const double MinifiedThreshold = 0.95;
-
-    /// <summary>
     ///     Computes every per-<paramref name="tile"/> (never per-point) quantity once, for reuse
     ///     across an entire fill operation (every row of a <see cref="ScanlineRasterizer"/> tile
     ///     fill) via <see cref="EvaluateRow"/>.
@@ -130,18 +120,9 @@ internal static class TilePaintEvaluator
         var deviceY = Math.Sqrt(((double)m.M21 * m.M21) + ((double)m.M22 * m.M22)) / tilePixelsPerUnitY;
         Surface? minified = null;
         var magnified = false;
-        if (double.IsFinite(deviceX) && double.IsFinite(deviceY) && deviceX > 0 && deviceY > 0)
+        if (SurfaceResampler.ClassifyTileScale(deviceX, deviceY, surface.Width, surface.Height, out magnified, out var width, out var height))
         {
-            if (deviceX > MagnifiedThreshold || deviceY > MagnifiedThreshold)
-            {
-                magnified = true;
-            }
-            else if (deviceX < MinifiedThreshold || deviceY < MinifiedThreshold)
-            {
-                var width = deviceX < MinifiedThreshold ? Math.Max(1, (int)Math.Round(surface.Width * deviceX)) : surface.Width;
-                var height = deviceY < MinifiedThreshold ? Math.Max(1, (int)Math.Round(surface.Height * deviceY)) : surface.Height;
-                minified = surface.Resize(width, height, ResamplingMode.Area);
-            }
+            minified = surface.Resize(width, height, ResamplingMode.Area);
         }
 
         return new TilePaintPlan

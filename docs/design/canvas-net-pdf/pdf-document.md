@@ -93,7 +93,8 @@ supported (an unrecognized base encoding also fails closed); text-rendering mode
 glyph under a clip mode fails closed); and no additional stream filters were added for any of these phases.
 **Phase 3 limitations** (narrowed by Phase 7/13 and the `/Pattern` color-space phase, see below):
 there are no transparency groups, `/Mask` (stencil/color-key) image masks and `/Matte` are not
-consulted, and the Phase 3 operator subset is otherwise limited as documented below. These remain
+consulted, `/ImageMask` stencil images are not rendered (there is no code path for them, so no
+`Nearest` special case applies), and the Phase 3 operator subset is otherwise limited as documented below. These remain
 out of scope and are silently skipped (any other undefined keyword) or explicitly rejected
 (unsupported color spaces/filters/fonts/encodings/render modes), per the operator/exception
 taxonomy documented below. Since then the following have been added: shading/tiling pattern fills
@@ -783,9 +784,8 @@ its own distinguishable `Feature` token.
   specification's image-space convention, the opposite of user-space's y-up convention). A rotated or
   skewed placement falls back to inverse-mapped bilinear sampling of an area-prefiltered source
   (`Prefilter` + `SampleBilinear`). Thin features such as one-pixel rules are therefore attenuated
-  rather than dropped, and enlarged images are interpolated rather than shown as blocks. `/ImageMask`
-  stencil images are not rendered by this package (there is no code path for them), so no `Nearest` special
-  case applies. `/Interpolate` is not consulted.
+  rather than dropped, and enlarged images are interpolated rather than shown as blocks.
+  `/Interpolate` is not consulted.
   Each sampled source pixel is alpha-blended "over" the
   existing destination pixel via the shared internal `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)`
   helper (standard Porter-Duff "over" alpha compositing — straight/unassociated alpha in and out,

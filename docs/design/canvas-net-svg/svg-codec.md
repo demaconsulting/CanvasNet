@@ -1180,7 +1180,9 @@ the decoded image's own pixel space and resampled through the shared engine (`Su
 `Bicubic` when enlarging) for axis-aligned placements, with an inverse-mapped bilinear fallback on a
 prefiltered source for rotated or skewed ones; the `image-rendering` property (attribute, style
 declaration or stylesheet, inherited) set to `pixelated`, `crisp-edges` or `optimizeSpeed` selects
-`Nearest` instead (`feImage` always smooths) - a pixel whose inverse-transformed coordinate falls
+`Nearest` instead, while `auto`, `optimizeQuality`, `smooth` and `high-quality` select smooth
+resampling and any other (unrecognized) value is ignored, so the element inherits its parent's
+setting (`feImage` always smooths) - a pixel whose inverse-transformed coordinate falls
 outside the decoded image's own `[0, width) x [0, height)` extent (possible under a `slice` fit,
 or simply near the fit rect's own edges) is left untouched rather than wrapped, unlike `pattern`'s
 own deliberate wrap-around tiling. The result is composited onto the real canvas via

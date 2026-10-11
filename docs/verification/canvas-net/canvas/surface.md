@@ -451,9 +451,11 @@ reports `mode`; a disposed surface throws `ObjectDisposedException`.
 
 ##### CanvasNet-Canvas-Surface-ResizeBoundedMemory: Extreme Aspect Ratios
 
-**Tests**: `Resize_LargeAndWide_ProducesExpectedShape`
+**Tests**: `Resize_ExtremeAspectChange_ProducesExpectedShape`, `Resample_TinyIntermediateBudget_MatchesDefaultBudget`
 
-An 8192x1 surface resizes to 1x8192 with the expected content.
+An 8192x1 surface resizes to 1x8192 with the expected content. Resampling with intermediate budgets of 1 and
+64 bytes (forcing the multi-strip path) produces output identical to the default budget for Bilinear,
+Lanczos3 and Area.
 
 ##### CanvasNet-Canvas-Surface-ResizeToFit: Aspect-Preserving Fit
 

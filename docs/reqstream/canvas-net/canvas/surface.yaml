@@ -471,9 +471,12 @@ sections:
                   The Surface class shall resample with working memory bounded independently of the extreme
                   aspect ratio of the image.
                 justification: |
-                  Resizing an 8192 by 1 image to 1 by 8192 must not allocate an unbounded intermediate buffer.
+                  Resizing an 8192 by 1 image to 1 by 8192 must not allocate an unbounded intermediate buffer;
+                  the engine processes the image in strips sized by an intermediate-buffer budget, and a tiny
+                  budget must give output identical to the default.
                 tests:
-                  - Resize_LargeAndWide_ProducesExpectedShape
+                  - Resize_ExtremeAspectChange_ProducesExpectedShape
+                  - Resample_TinyIntermediateBudget_MatchesDefaultBudget
 
               - id: CanvasNet-Canvas-Surface-ResizeToFit
                 title: >-
@@ -504,6 +507,8 @@ sections:
                   - TryResampleToDevice_AxisAligned_ReturnsWindowAtOrigin
                   - TryResampleToDevice_OffScreen_ReturnsTrueWithNullWindow
                   - BoxReduce_MatchesAreaResize
+                  - BoxReduce_NonDivisibleSize_AveragesOnlyCoveredPixelsInPartialBlock
+                  - BoxReduce_NonDivisibleSizeWithAlpha_PartialBlockUsesCoveredPixelsOnly
 
               - id: CanvasNet-Canvas-Surface-WrappedBilinear
                 title: >-

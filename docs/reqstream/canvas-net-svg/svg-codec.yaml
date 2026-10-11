@@ -1469,6 +1469,9 @@ sections:
               - Image_RenderingStyle_IsNearest
               - Image_RenderingStylesheet_IsNearest
               - Image_Shrunk_KeepsOnePixelLine
+              - Image_RenderingInheritedFromGroup_IsNearest
+              - Image_RenderingBogus_InheritsPixelatedFromParent
+              - Image_RenderingSmoothKeyword_OverridesPixelatedParent
 
           - id: CanvasNetSvg-SvgCodec-PatternTileSmoothing
             title: >-

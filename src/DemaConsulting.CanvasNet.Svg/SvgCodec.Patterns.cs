@@ -549,19 +549,9 @@ public static partial class SvgCodec
         {
             var deviceX = Math.Sqrt(((double)gridToPixel.M11 * gridToPixel.M11) + ((double)gridToPixel.M12 * gridToPixel.M12)) * tileWidth / tileBuffer.Width;
             var deviceY = Math.Sqrt(((double)gridToPixel.M21 * gridToPixel.M21) + ((double)gridToPixel.M22 * gridToPixel.M22)) * tileHeight / tileBuffer.Height;
-            if (double.IsFinite(deviceX) && double.IsFinite(deviceY) && deviceX > 0 && deviceY > 0)
+            if (SurfaceResampler.ClassifyTileScale(deviceX, deviceY, tileBuffer.Width, tileBuffer.Height, out magnified, out var reducedWidth, out var reducedHeight))
             {
-                if (deviceX > 1.05 || deviceY > 1.05)
-                {
-                    magnified = true;
-                }
-                else if (deviceX < 0.95 || deviceY < 0.95)
-                {
-                    minified = tileBuffer.Resize(
-                        deviceX < 0.95 ? Math.Max(1, (int)Math.Round(tileBuffer.Width * deviceX)) : tileBuffer.Width,
-                        deviceY < 0.95 ? Math.Max(1, (int)Math.Round(tileBuffer.Height * deviceY)) : tileBuffer.Height,
-                        ResamplingMode.Area);
-                }
+                minified = tileBuffer.Resize(reducedWidth, reducedHeight, ResamplingMode.Area);
             }
         }
 

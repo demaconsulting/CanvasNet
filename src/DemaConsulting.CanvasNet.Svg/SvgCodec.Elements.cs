@@ -662,13 +662,14 @@ public static partial class SvgCodec
     /// <param name="raw">The raw value, or <see langword="null"/> if absent.</param>
     /// <returns>
     ///     <see langword="true"/> for <c>pixelated</c>/<c>crisp-edges</c>/<c>optimizeSpeed</c>,
-    ///     <see langword="false"/> for any other recognized keyword, <see langword="null"/> if absent (inherit).
+    ///     <see langword="false"/> for <c>auto</c>/<c>optimizeQuality</c>/<c>smooth</c>/<c>high-quality</c>,
+    ///     <see langword="null"/> if absent or unrecognized (ignored, inherit).
     /// </returns>
     private static bool? ParseImageRendering(string? raw) => raw?.Trim().ToLowerInvariant() switch
     {
-        null => null,
         "pixelated" or "crisp-edges" or "optimizespeed" => true,
-        _ => false
+        "auto" or "optimizequality" or "smooth" or "high-quality" => false,
+        _ => null
     };
 
     /// <summary>Parses a <c>fill-rule</c>/<c>clip-rule</c>-style keyword.</summary>

@@ -91,6 +91,42 @@ public class SvgImageResamplingTests
         }
 
         Assert.InRange(ink, 255 * 0.17 * 0.8, 255 * 0.17 * 1.2 + 1);
+    }
 
+    /// <summary>Renders the enlarged image inside a group with the given group attributes and image attributes.</summary>
+    private static Surface RenderInGroup(string groupAttributes, string imageAttributes)
+    {
+        var svg = $"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 4'><g {groupAttributes}>" +
+                  $"<image href='{TwoPixelPng()}' x='0' y='0' width='40' height='4' preserveAspectRatio='none' {imageAttributes}/></g></svg>";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(svg));
+        return SvgCodec.Load(stream, 40, 4);
+    }
+
+    /// <summary>image-rendering is inherited from a parent group.</summary>
+    [Fact]
+    public void Image_RenderingInheritedFromGroup_IsNearest()
+    {
+        using var surface = RenderInGroup("image-rendering='pixelated'", string.Empty);
+        Assert.True(DistinctLevels(surface) <= 2);
+    }
+
+    /// <summary>An unrecognized image-rendering value is ignored and the parent's pixelated value is inherited.</summary>
+    [Fact]
+    public void Image_RenderingBogus_InheritsPixelatedFromParent()
+    {
+        using var surface = RenderInGroup("image-rendering='pixelated'", "image-rendering='bogus'");
+        Assert.True(DistinctLevels(surface) <= 2);
+    }
+
+    /// <summary>An explicit smooth keyword overrides a pixelated parent.</summary>
+    [Theory]
+    [InlineData("auto")]
+    [InlineData("optimizeQuality")]
+    [InlineData("smooth")]
+    [InlineData("high-quality")]
+    public void Image_RenderingSmoothKeyword_OverridesPixelatedParent(string value)
+    {
+        using var surface = RenderInGroup("image-rendering='pixelated'", $"image-rendering='{value}'");
+        Assert.True(DistinctLevels(surface) > 8);
     }
 }

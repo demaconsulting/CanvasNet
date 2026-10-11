@@ -53,6 +53,8 @@ public class TilePaintEvaluatorTests
         {
             Assert.Equal(default, pixel);
         }
+
+        plan.Release();
     }
 
     /// <summary>
@@ -71,6 +73,7 @@ public class TilePaintEvaluatorTests
 
         Assert.Equal(new Rgba32(255, 0, 0, 255), destination[0]);
         Assert.Equal(new Rgba32(0, 0, 255, 255), destination[1]);
+        plan.Release();
     }
 
     /// <summary>
@@ -91,6 +94,7 @@ public class TilePaintEvaluatorTests
         Assert.Equal(destination[0], destination[2]);
         // Columns 1 and 3 both sample pattern-space x in [1,2) -> same wrapped tile pixel.
         Assert.Equal(destination[1], destination[3]);
+        plan.Release();
     }
 
     /// <summary>
@@ -114,7 +118,10 @@ public class TilePaintEvaluatorTests
 
         Assert.Equal(positiveRow[0], negativeRow[0]);
         Assert.Equal(positiveRow[1], negativeRow[1]);
+        positivePlan.Release();
+        negativePlan.Release();
     }
+
     /// <summary>A tile enlarged 4x is smoothly interpolated instead of showing hard blocks.</summary>
     [Fact]
     public void EvaluateRow_MagnifiedTile_IsSmooth()
@@ -134,6 +141,43 @@ public class TilePaintEvaluatorTests
             }
 
             Assert.True(distinct.Count > 2);
+        }
+        finally
+        {
+            plan.Release();
+        }
+    }
+
+    /// <summary>Tile scale classification is shared: magnification on either axis wins (mixed case), otherwise only minified axes are reduced.</summary>
+    [Fact]
+    public void ClassifyTileScale_MixedAndSingleAxisCases()
+    {
+        // Mixed: one axis magnified, the other minified -> magnified, no prefilter
+        Assert.False(SurfaceResampler.ClassifyTileScale(2.0, 0.5, 8, 8, out var magnified, out _, out _));
+        Assert.True(magnified);
+
+        // Minified on one axis only: only that axis is reduced
+        Assert.True(SurfaceResampler.ClassifyTileScale(0.5, 1.0, 8, 8, out magnified, out var w, out var h));
+        Assert.False(magnified);
+        Assert.Equal((4, 8), (w, h));
+
+        // Near 1:1 and non-finite/degenerate scales are left untouched
+        Assert.False(SurfaceResampler.ClassifyTileScale(1.04, 0.96, 8, 8, out magnified, out _, out _));
+        Assert.False(magnified);
+        Assert.False(SurfaceResampler.ClassifyTileScale(double.NaN, 0.5, 8, 8, out magnified, out _, out _));
+        Assert.False(magnified);
+    }
+
+    /// <summary>A mixed magnified/minified tile is sampled bilinearly without a prefiltered copy.</summary>
+    [Fact]
+    public void CreatePlan_MixedMagnifiedAndMinifiedTile_IsMagnifiedOnly()
+    {
+        using var tileSurface = CreateCheckerboardTileSurface();
+        var plan = TilePaintEvaluator.CreatePlan(new TilePaint(tileSurface, Matrix3x2.CreateScale(4f, 0.25f), 2f, 2f));
+        try
+        {
+            Assert.True(plan.Magnified);
+            Assert.Null(plan.Minified);
         }
         finally
         {

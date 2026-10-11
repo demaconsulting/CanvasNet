@@ -149,6 +149,7 @@ public class PptxImagesTests
 
         Assert.True(distinct.Count > 8);
     }
+
     /// <summary>Proves an identity-transformed, uncropped picture paints the source image's pixels at the expected destination location, left-to-right unflipped.</summary>
     [Fact]
     public void PaintPicture_IdentityTransformNoCrop_PaintsImagePixelsUnflipped()
@@ -221,6 +222,28 @@ public class PptxImagesTests
                 Assert.Equal(new Rgba32(0, 0, 255, 255), surface[x, y]);
             }
         }
+    }
+
+    /// <summary>Proves a fractional crop uses the whole-pixel superset window: a partially covered border pixel still contributes to the crop edge.</summary>
+    [Fact]
+    public void PaintPicture_FractionalCrop_PartiallyCoveredBorderPixelContributes()
+    {
+        // 4x4 image: column 0 black, the rest white; crop left = 12.5 percent (half of column 0 remains)
+        using var image = new Surface(4, 4);
+        image.Clear(new Rgba32(255, 255, 255, 255));
+        for (var y = 0; y < 4; y++)
+        {
+            image[0, y] = new Rgba32(0, 0, 0, 255);
+        }
+
+        using var surface = new Surface(40, 4);
+        var srcRect = new PptxSrcRect(Left: 0.125f, Top: 0f, Right: 0f, Bottom: 0f);
+
+        PptxDocument.PaintPicture(surface, image, srcRect, Matrix3x2.Identity, widthEmu: 40f, heightEmu: 4f);
+
+        // The leftmost painted pixel is dominated by the half-covered black column, the far right is white
+        Assert.InRange(surface[0, 2].R, 0, 127);
+        Assert.Equal(255, surface[39, 2].R);
     }
 
     /// <summary>Proves the crop also does not bleed for a rotated picture (inverse-mapped bilinear path).</summary>

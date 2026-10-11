@@ -277,6 +277,12 @@ internal static partial class SurfaceResampler
             w.Clear();
             for (var i = los[o]; i <= his[o]; i++)
             {
+                // Area drops out-of-image taps (renormalized below); other filters fold them into the edge pixel
+                if (mode == ResamplingMode.Area && (i < 0 || i > last))
+                {
+                    continue;
+                }
+
                 var index = (int)Math.Clamp(i, 0, last);
                 w[index - first] += Weight(mode, i + 0.5 - c, scale);
             }
@@ -333,6 +339,66 @@ internal static partial class SurfaceResampler
             ResamplingMode.Bicubic => CatmullRom(x),
             _ => x < 3.0 ? Sinc(x) * Sinc(x / 3.0) : 0.0,
         };
+    }
+
+    /// <summary>Device pixels per tile pixel above which a tile is considered magnified (smoothed).</summary>
+    private const double TileMagnifiedThreshold = 1.05;
+
+    /// <summary>Device pixels per tile pixel below which a tile is considered minified (prefiltered).</summary>
+    private const double TileMinifiedThreshold = 0.95;
+
+    /// <summary>
+    ///     Classifies the device scale of one tile pixel. Magnification on either axis wins
+    ///     (the whole tile is then sampled bilinearly, no prefilter); otherwise, when either axis is
+    ///     minified, only the minified axes are reduced (the other keeps its size).
+    /// </summary>
+    /// <param name="deviceX">Device pixels per tile pixel along x.</param>
+    /// <param name="deviceY">Device pixels per tile pixel along y.</param>
+    /// <param name="tileWidth">Tile buffer width in pixels.</param>
+    /// <param name="tileHeight">Tile buffer height in pixels.</param>
+    /// <param name="magnified">Receives <see langword="true"/> when the tile should be sampled bilinearly.</param>
+    /// <param name="reducedWidth">Receives the prefiltered width when minified.</param>
+    /// <param name="reducedHeight">Receives the prefiltered height when minified.</param>
+    /// <returns><see langword="true"/> when the tile should be prefiltered to the reduced size.</returns>
+    internal static bool ClassifyTileScale(
+        double deviceX,
+        double deviceY,
+        int tileWidth,
+        int tileHeight,
+        out bool magnified,
+        out int reducedWidth,
+        out int reducedHeight)
+    {
+        magnified = false;
+        reducedWidth = tileWidth;
+        reducedHeight = tileHeight;
+        if (!double.IsFinite(deviceX) || !double.IsFinite(deviceY) || deviceX <= 0 || deviceY <= 0)
+        {
+            return false;
+        }
+
+        if (deviceX > TileMagnifiedThreshold || deviceY > TileMagnifiedThreshold)
+        {
+            magnified = true;
+            return false;
+        }
+
+        if (deviceX >= TileMinifiedThreshold && deviceY >= TileMinifiedThreshold)
+        {
+            return false;
+        }
+
+        if (deviceX < TileMinifiedThreshold)
+        {
+            reducedWidth = Math.Max(1, (int)Math.Round(tileWidth * deviceX));
+        }
+
+        if (deviceY < TileMinifiedThreshold)
+        {
+            reducedHeight = Math.Max(1, (int)Math.Round(tileHeight * deviceY));
+        }
+
+        return true;
     }
 
     /// <summary>The Catmull-Rom cubic kernel (support two) at non-negative distance <paramref name="x"/>.</summary>

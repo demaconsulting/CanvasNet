@@ -133,3 +133,5 @@ sections:
                   - EvaluateRow_MagnifiedTile_IsSmooth
                   - CreatePlan_OneToOneTile_IsNeitherMagnifiedNorMinified
                   - EvaluateRow_MinifiedTile_AveragesColors
+                  - ClassifyTileScale_MixedAndSingleAxisCases
+                  - CreatePlan_MixedMagnifiedAndMinifiedTile_IsMagnifiedOnly

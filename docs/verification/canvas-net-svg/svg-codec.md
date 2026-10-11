@@ -1480,7 +1480,9 @@ rather than throwing or dividing by zero.
 #### CanvasNetSvg-SvgCodec-ImageSmoothResample: `image` Is Resampled Smoothly, `image-rendering` Selects Nearest
 
 **Tests**: `Image_Enlarged_IsSmooth`, `Image_RenderingAttribute_IsNearest`, `Image_RenderingStyle_IsNearest`,
-`Image_RenderingStylesheet_IsNearest`, `Image_Shrunk_KeepsOnePixelLine`
+`Image_RenderingStylesheet_IsNearest`, `Image_Shrunk_KeepsOnePixelLine`,
+`Image_RenderingInheritedFromGroup_IsNearest`, `Image_RenderingBogus_InheritsPixelatedFromParent`,
+`Image_RenderingSmoothKeyword_OverridesPixelatedParent`
 
 `SvgImageResamplingTests.cs` enlarges a 2x1 black/white image to 40x4: by default the row has many
 gray levels; with `image-rendering` `pixelated` or `crisp-edges` (attribute, style declaration or
