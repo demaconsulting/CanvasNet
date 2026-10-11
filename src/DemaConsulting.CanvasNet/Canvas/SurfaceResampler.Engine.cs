@@ -225,6 +225,14 @@ internal static partial class SurfaceResampler
             mode = ResamplingMode.Nearest;
         }
 
+        // A footprint far larger than the whole image is a global average on every kernel; Area
+        // (which drops out-of-image taps) gives that without folding an astronomically long tail
+        // into an edge pixel
+        if (mode is not (ResamplingMode.Nearest or ResamplingMode.Area) && scale > (16.0 * sourceSize) + 1024.0)
+        {
+            mode = ResamplingMode.Area;
+        }
+
         var radius = mode switch
         {
             ResamplingMode.Bilinear => 1.0,
@@ -249,22 +257,22 @@ internal static partial class SurfaceResampler
             switch (mode)
             {
                 case ResamplingMode.Nearest:
-                    lo = hi = (long)Math.Floor(c);
+                    lo = hi = ToSafeLong(Math.Floor(c));
                     break;
                 case ResamplingMode.Area:
-                    lo = (long)Math.Floor(c - (scale / 2));
-                    hi = (long)Math.Ceiling(c + (scale / 2)) - 1;
+                    lo = ToSafeLong(Math.Floor(c - (scale / 2)));
+                    hi = ToSafeLong(Math.Ceiling(c + (scale / 2))) - 1;
                     break;
                 default:
                     var support = radius * Math.Max(1.0, scale);
-                    lo = (long)Math.Ceiling(c - support - 0.5);
-                    hi = (long)Math.Floor(c + support - 0.5);
+                    lo = ToSafeLong(Math.Ceiling(c - support - 0.5));
+                    hi = ToSafeLong(Math.Floor(c + support - 0.5));
                     break;
             }
 
             if (hi < lo)
             {
-                lo = hi = (long)Math.Floor(c);
+                lo = hi = ToSafeLong(Math.Floor(c));
             }
 
             los[o] = lo;
@@ -360,19 +368,27 @@ internal static partial class SurfaceResampler
         }
 
         // Midpoint rule over MaxExactTailTaps equal buckets, each bucket weighted by its tap count
+        // (bucket bounds are computed in double so a huge tail cannot overflow long)
         var sum = 0.0;
         for (var b = 0; b < MaxExactTailTaps; b++)
         {
-            var b0 = from + (n * b / MaxExactTailTaps);
-            var b1 = from + (n * (b + 1) / MaxExactTailTaps);
+            var b0 = from + (long)Math.Floor((double)n * b / MaxExactTailTaps);
+            var b1 = from + (long)Math.Floor((double)n * (b + 1) / MaxExactTailTaps);
             if (b1 > b0)
             {
-                sum += (b1 - b0) * Weight(mode, ((b0 + b1 - 1) / 2.0) + 0.5 - c, scale);
+                sum += (b1 - b0) * Weight(mode, (((double)b0 + b1 - 1) / 2.0) + 0.5 - c, scale);
             }
         }
 
         return sum;
     }
+
+    /// <summary>The largest tap coordinate magnitude used; keeps every cast and sum well inside long.</summary>
+    private const double MaxTapCoordinate = 4503599627370496.0; // 2^52
+
+    /// <summary>Clamps a finite or infinite double to +-2^52 and converts it to long (NaN becomes zero).</summary>
+    private static long ToSafeLong(double value) =>
+        double.IsNaN(value) ? 0L : (long)Math.Clamp(value, -MaxTapCoordinate, MaxTapCoordinate);
 
     /// <summary>
     ///     Evaluates the filter weight of one source pixel.

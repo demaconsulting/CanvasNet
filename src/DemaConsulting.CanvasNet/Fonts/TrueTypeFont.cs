@@ -133,6 +133,19 @@ public sealed class TrueTypeFont
     private const int MaxCachedOutlines = 4096;
 
     /// <summary>
+    ///     The default total geometry cost (one unit per subpath plus one per command) the outline
+    ///     cache retains per font, so retained memory is bounded even when individual glyphs are
+    ///     large (the decoder permits up to 200,000 points/commands per glyph).
+    /// </summary>
+    private const long MaxCachedOutlineCost = 1_500_000;
+
+    /// <summary>The cost budget in effect; guarded by <see cref="_outlineCacheLock"/> when admitting.</summary>
+    private readonly long _outlineCostBudget = MaxCachedOutlineCost;
+
+    /// <summary>The summed cost of the cached outlines; guarded by <see cref="_outlineCacheLock"/>.</summary>
+    private long _cachedOutlineCost;
+
+    /// <summary>
     ///     Decoded outlines by glyph index. A <see cref="Path"/> is immutable, so a cached instance
     ///     is safely shared by every caller; only successful decodes are stored.
     /// </summary>
@@ -519,13 +532,32 @@ public sealed class TrueTypeFont
                 return cached;
             }
 
+            // Admit only while both the entry cap and the geometry budget hold; oversized outlines are
+            // simply decoded again on demand
             if (_outlineCache.Count < MaxCachedOutlines)
             {
-                _outlineCache[glyphIndex] = outline;
+                var cost = OutlineCost(outline);
+                if (cost <= _outlineCostBudget - _cachedOutlineCost)
+                {
+                    _outlineCache[glyphIndex] = outline;
+                    _cachedOutlineCost += cost;
+                }
             }
         }
 
         return outline;
+    }
+
+    /// <summary>Measures an outline's retained geometry: one unit per subpath plus one per command.</summary>
+    private static long OutlineCost(Path outline)
+    {
+        long cost = 0;
+        foreach (var subpath in outline.Subpaths)
+        {
+            cost += 1 + subpath.Commands.Count;
+        }
+
+        return cost;
     }
 
     /// <summary>

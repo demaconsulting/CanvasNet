@@ -649,8 +649,9 @@ charstring.
   references an out-of-range subroutine index
 
 **Memoization.** Decoded outlines are cached per font in a `ConcurrentDictionary<int, Path>` (at
-most 4096 entries; once full, further glyphs are decoded on demand but not stored; admission is
-checked and inserted under a lock so the cap is strict under concurrency). `Path` is
+most 4096 entries and at most 1,500,000 units of retained geometry, where an outline costs one unit
+per subpath plus one per command; an outline that would exceed either bound is decoded on demand but
+not stored; admission is checked and inserted under a lock so both caps are strict under concurrency). `Path` is
 immutable, so every caller shares one instance. A decode that throws is never cached, so a
 malformed glyph reports its error on every call. The cache is per `TrueTypeFont` instance and
 the PDF renderer builds fonts per render, so it benefits repeated glyphs within one page;

@@ -392,6 +392,78 @@ public class SurfaceResamplerTests
         window?.Dispose();
     }
 
+    /// <summary>
+    ///     A huge source footprint (tiny placement) averages the whole image for every filter,
+    ///     never selecting an edge pixel or overflowing tap arithmetic.
+    /// </summary>
+    [Theory]
+    [InlineData(ResamplingMode.Auto, 1e-19f)]
+    [InlineData(ResamplingMode.Area, 1e-19f)]
+    [InlineData(ResamplingMode.Bilinear, 1e-19f)]
+    [InlineData(ResamplingMode.Bicubic, 1e-19f)]
+    [InlineData(ResamplingMode.Lanczos3, 1e-19f)]
+    [InlineData(ResamplingMode.Bilinear, 1e-12f)]
+    [InlineData(ResamplingMode.Bicubic, 1e-12f)]
+    [InlineData(ResamplingMode.Lanczos3, 1e-12f)]
+    [InlineData(ResamplingMode.Bilinear, 1e-6f)]
+    [InlineData(ResamplingMode.Bicubic, 1e-6f)]
+    [InlineData(ResamplingMode.Lanczos3, 1e-6f)]
+    public void TryResampleToDevice_HugeFootprintTwoTone_YieldsMean(ResamplingMode mode, float scale)
+    {
+        // Left half black, right half R=200 (mean 100), 8192 wide
+        using var source = new Surface(8192, 2);
+        for (var y = 0; y < 2; y++)
+        {
+            for (var x = 0; x < 8192; x++)
+            {
+                source[x, y] = new Rgba32((byte)(x < 4096 ? 0 : 200), 0, 0, 255);
+            }
+        }
+
+        // Only x is tiny (y stays 1:1) so the 2-row image still covers device pixel centers in y
+        var m = new Matrix3x2(scale, 0, 0, 1f, 0.5f, 0f);
+        Assert.True(SurfaceResampler.TryResampleToDevice(source, m, 4, 4, mode, out var window, out var ox, out var oy));
+        Assert.NotNull(window);
+        using (window)
+        {
+            Assert.Equal(0, ox);
+            Assert.Equal(0, oy);
+            Assert.Equal(1, window.Width);
+            Assert.Equal(2, window.Height);
+            Assert.InRange(window[0, 0].R, 98, 102);
+            Assert.Equal(255, window[0, 0].A);
+        }
+    }
+
+    /// <summary>Less extreme tiny scales on a constant image keep the constant color for every filter.</summary>
+    [Theory]
+    [InlineData(ResamplingMode.Bilinear, 1e-4f)]
+    [InlineData(ResamplingMode.Bicubic, 1e-4f)]
+    [InlineData(ResamplingMode.Lanczos3, 1e-4f)]
+    [InlineData(ResamplingMode.Bilinear, 1e-5f)]
+    [InlineData(ResamplingMode.Bicubic, 1e-5f)]
+    [InlineData(ResamplingMode.Lanczos3, 1e-5f)]
+    [InlineData(ResamplingMode.Area, 1e-5f)]
+    public void TryResampleToDevice_LargeFootprintConstantImage_StaysConstant(ResamplingMode mode, float scale)
+    {
+        using var source = new Surface(8192, 2);
+        for (var y = 0; y < 2; y++)
+        {
+            for (var x = 0; x < 8192; x++)
+            {
+                source[x, y] = new Rgba32(40, 80, 120, 255);
+            }
+        }
+
+        var m = new Matrix3x2(scale, 0, 0, scale, 0.5f, 0.5f);
+        Assert.True(SurfaceResampler.TryResampleToDevice(source, m, 4, 4, mode, out var window, out _, out _));
+        Assert.NotNull(window);
+        using (window)
+        {
+            Assert.Equal(new Rgba32(40, 80, 120, 255), window[0, 0]);
+        }
+    }
+
     /// <summary>Folding long out-of-image tails keeps results identical to a direct sum for normal scales.</summary>
     [Fact]
     public void Resample_NormalScaleEdgeFolding_KeepsConstantImageConstant()

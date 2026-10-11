@@ -388,6 +388,35 @@ public class TrueTypeFontTests
     }
 
     /// <summary>
+    ///     Proves that an outline whose geometry cost exceeds the cache's cost budget is not
+    ///     retained, while the same outline is retained under the default budget.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetGlyphOutline_OutlineExceedingCostBudget_IsNotCached()
+    {
+        // Arrange: one font with a budget below the glyph's cost, one with the default budget
+        var data = BuildWellFormedFont();
+        using var smallStream = new MemoryStream(data);
+        using var defaultStream = new MemoryStream(data);
+        var limited = TrueTypeFont.Load(smallStream);
+        var normal = TrueTypeFont.Load(defaultStream);
+        var budget = typeof(TrueTypeFont).GetField(
+            "_outlineCostBudget",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(budget);
+        budget.SetValue(limited, 2L);
+
+        // Act
+        var first = limited.GetGlyphOutline(1);
+        var second = limited.GetGlyphOutline(1);
+
+        // Assert: equal geometry, but not retained; the default budget retains it
+        Assert.NotSame(first, second);
+        Assert.Equal(first.Subpaths.Count, second.Subpaths.Count);
+        Assert.Same(normal.GetGlyphOutline(1), normal.GetGlyphOutline(1));
+    }
+
+    /// <summary>
     ///     Proves that a malformed glyph is never memoized: every call reports it again.
     /// </summary>
     [Fact]
