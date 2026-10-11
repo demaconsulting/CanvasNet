@@ -3160,6 +3160,25 @@ otherwise require growth), and
 (an end-to-end proof that the next row's own painted fill starts below the grown, not stale
 stored, Y-offset - directly proving the reported overlap symptom is fixed).
 
+**Follow-Up Fix - empty cells sized from `<a:endParaRPr>` (rows over-growing)**: a downstream
+report observed that rows whose one-line text fits grew to about twice their stored height. Root
+cause: a table cell with no runs (for example an empty cell carrying only
+`<a:endParaRPr sz="1050"/>`) was measured as a blank line at the nominal 18 pt default
+(`DefaultFontSizeEmu * 1.2` = 21.6 pt, plus 7.2 pt of default insets = 28.8 pt), because the
+paragraph's `<a:endParaRPr>` was never parsed. A single such empty cell therefore grew an
+otherwise-fitting ~18.5 pt row to 28.8 pt. Fix: `PptxParagraph` gained an optional
+`RawEndParaRPr` (parsed by `ParseParagraph`, preserved by `SubstituteSlideNumberField`);
+`ResolveWrappedLines` resolves it through the normal run-property inheritance chain, and
+`BuildLines` uses its font and size for a line with no tokens, falling back to the 18 pt nominal
+line only when no `<a:endParaRPr>` exists. A row therefore grows to
+`max(stored, marT + wrapped line heights + marB)` and rows whose text fits keep their stored
+height. New tests: `ResolveCellRects_OneLineRowFitsStoredHeight_KeepsStoredHeight`,
+`ResolveCellRects_WrappedTextThreeLines_GrowsByExactlyExtraLines`,
+`ResolveCellRects_TopAndBottomMargins_AddedOnceToRequiredHeight`,
+`ResolveCellRects_EmptyCellWithSmallEndParaRPr_DoesNotGrowRow`,
+`ResolveCellRects_EmptyCellWithLargerEndParaRPr_GrowsToEndParaSize`, and
+`ResolveCellRects_EmptyCellWithoutEndParaRPr_UsesDefaultFontSizeLine`.
+
 #### Phase 2 Follow-Up: Default Tab-Stop Expansion
 
 **Bug**: a literal U+0009 TAB character inside a run's text (e.g. a typed `"1\tReference fluid
