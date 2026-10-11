@@ -138,6 +138,9 @@ public sealed class TrueTypeFont
     /// </summary>
     private readonly ConcurrentDictionary<int, Path> _outlineCache = new();
 
+    /// <summary>Serializes cache admission so <see cref="MaxCachedOutlines"/> is a strict cap.</summary>
+    private readonly object _outlineCacheLock = new();
+
     /// <summary>
     ///     The number of font design units per em, from <c>head.unitsPerEm</c>.
     /// </summary>
@@ -508,9 +511,18 @@ public sealed class TrueTypeFont
 
         // A malformed glyph throws here and is therefore never cached: every call reports it again.
         var outline = _glyphs.GetGlyphOutline(glyphIndex);
-        if (_outlineCache.Count < MaxCachedOutlines)
+        // Admission is atomic (check + insert under a lock) so concurrent threads can never exceed the cap
+        lock (_outlineCacheLock)
         {
-            outline = _outlineCache.GetOrAdd(glyphIndex, outline);
+            if (_outlineCache.TryGetValue(glyphIndex, out cached))
+            {
+                return cached;
+            }
+
+            if (_outlineCache.Count < MaxCachedOutlines)
+            {
+                _outlineCache[glyphIndex] = outline;
+            }
         }
 
         return outline;

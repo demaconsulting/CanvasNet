@@ -341,6 +341,7 @@ sections:
                 tests:
                   - TrueTypeFont_GetGlyphOutline_RepeatedCalls_ReturnMemoizedOutlineEqualToFreshDecode
                   - TrueTypeFont_GetGlyphOutline_MalformedGlyph_ThrowsOnEveryCall
+                  - TrueTypeFont_GetGlyphOutline_ConcurrentDistinctGlyphs_NeverExceedsCacheCap
 
               - id: CanvasNet-Fonts-TrueTypeFont-GlyphIndexValidation
                 title: >-

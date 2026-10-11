@@ -285,6 +285,7 @@ remains completely unmodified in both cases, without throwing.
 **Tests**: `ScanlineRasterizer_AccumulateCoverageMask_Shapes_MatchesExactPixelAreaReference`,
 `ScanlineRasterizer_Fill_Shapes_PixelExactAgainstFullWidthCompositeReference`,
 `ScanlineRasterizer_Fill_DenseClipMask_PixelExactAgainstCoverageTimesClipReference`,
+`ScanlineRasterizer_Fill_DenseClipZeroingWindow_MatchesCoverageTimesClipForAllShapes`,
 `ScanlineRasterizer_Fill_ConstantGradientAndTile_PixelExactAgainstSolid`
 
 Each is a theory over seven shapes (rectangle, triangle, slanted parallelogram, shape with a

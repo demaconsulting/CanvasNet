@@ -890,14 +890,29 @@ internal static class ScanlineRasterizer
             }
 
             var dense = _clip.GetDenseRow(y, _clipMinX + _spanStart, _spanLength);
-            if (dense.IsEmpty)
+            if (!dense.IsEmpty)
             {
-                return;
+                // IEEE single-precision multiply, element-wise: bit-identical to the scalar loop.
+                var row = _rowCoverage.AsSpan(_spanStart, _spanLength);
+                TensorPrimitives.Multiply(row, dense, row);
             }
 
-            // IEEE single-precision multiply, element-wise: bit-identical to the scalar loop.
-            var row = _rowCoverage.AsSpan(_spanStart, _spanLength);
-            TensorPrimitives.Multiply(row, dense, row);
+            // The clip (or, on the multi-breakpoint path, the full-row window) may have zeroed either end (or all) of the window; zero coverage means
+            // "untouched" to the compositor, so trim it out (length 0 when the row is empty).
+            var lo = _spanStart;
+            var end = _spanStart + _spanLength;
+            while (lo < end && !(_rowCoverage[lo] > 0f))
+            {
+                lo++;
+            }
+
+            while (end > lo && !(_rowCoverage[end - 1] > 0f))
+            {
+                end--;
+            }
+
+            _spanStart = lo;
+            _spanLength = end - lo;
         }
 
         /// <summary>

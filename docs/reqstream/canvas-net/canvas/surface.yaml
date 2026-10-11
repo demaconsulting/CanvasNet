@@ -494,6 +494,9 @@ sections:
                 tests:
                   - Resize_ExtremeAspectChange_ProducesExpectedShape
                   - Resample_TinyIntermediateBudget_MatchesDefaultBudget
+                  - Resample_ExtremeReduction_CompletesWithSaneResult
+                  - TryResampleToDevice_TinyScale_CompletesWithSaneWindow
+                  - Resample_NormalScaleEdgeFolding_KeepsConstantImageConstant
 
               - id: CanvasNet-Canvas-Surface-ResizePooledBuffers
                 title: >-

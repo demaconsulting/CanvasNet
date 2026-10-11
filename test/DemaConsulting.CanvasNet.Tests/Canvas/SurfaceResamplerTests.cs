@@ -338,6 +338,84 @@ public class SurfaceResamplerTests
         }
     }
 
+    /// <summary>
+    ///     An extreme pixel scale (a crafted placement where one source pixel covers ~1e-9 device
+    ///     pixels) must complete with work bounded by the source size and give a sane result:
+    ///     the output is the (uniform) source color for every filter.
+    /// </summary>
+    [Theory]
+    [InlineData(ResamplingMode.Area)]
+    [InlineData(ResamplingMode.Bilinear)]
+    [InlineData(ResamplingMode.Bicubic)]
+    [InlineData(ResamplingMode.Lanczos3)]
+    public void Resample_ExtremeReduction_CompletesWithSaneResult(ResamplingMode mode)
+    {
+        using var source = new Surface(5, 4);
+        for (var y = 0; y < 4; y++)
+        {
+            for (var x = 0; x < 5; x++)
+            {
+                source[x, y] = new Rgba32(90, 150, 210, 255);
+            }
+        }
+
+        using var result = SurfaceResampler.Resample(source, 0, 1e9, 0, 1e9, 2, 2, mode);
+
+        Assert.Equal(2, result.Width);
+        for (var y = 0; y < 2; y++)
+        {
+            for (var x = 0; x < 2; x++)
+            {
+                var p = result[x, y];
+                Assert.InRange(p.R, 89, 91);
+                Assert.InRange(p.G, 149, 151);
+                Assert.InRange(p.B, 209, 211);
+            }
+        }
+    }
+
+    /// <summary>A tiny image placement via <c>TryResampleToDevice</c> completes with a sane window.</summary>
+    [Fact]
+    public void TryResampleToDevice_TinyScale_CompletesWithSaneWindow()
+    {
+        using var source = new Surface(8, 8);
+        for (var y = 0; y < 8; y++)
+        {
+            for (var x = 0; x < 8; x++)
+            {
+                source[x, y] = new Rgba32(200, 100, 50, 255);
+            }
+        }
+
+        var m = new Matrix3x2(1e-9f, 0, 0, 1e-9f, 0.2f, 0.2f);
+        Assert.True(SurfaceResampler.TryResampleToDevice(source, m, 10, 10, ResamplingMode.Lanczos3, out var window, out _, out _));
+        window?.Dispose();
+    }
+
+    /// <summary>Folding long out-of-image tails keeps results identical to a direct sum for normal scales.</summary>
+    [Fact]
+    public void Resample_NormalScaleEdgeFolding_KeepsConstantImageConstant()
+    {
+        using var source = new Surface(6, 6);
+        for (var y = 0; y < 6; y++)
+        {
+            for (var x = 0; x < 6; x++)
+            {
+                source[x, y] = new Rgba32(40, 80, 120, 255);
+            }
+        }
+
+        // Magnified view whose Lanczos support extends beyond both edges
+        using var result = SurfaceResampler.Resample(source, -3, 12, -3, 12, 30, 30, ResamplingMode.Lanczos3);
+        for (var y = 0; y < 30; y++)
+        {
+            for (var x = 0; x < 30; x++)
+            {
+                Assert.Equal(new Rgba32(40, 80, 120, 255), result[x, y]);
+            }
+        }
+    }
+
     /// <summary>Wrapped bilinear sampling wraps across the tile edge.</summary>
     [Fact]
     public void SampleBilinearWrapped_AtEdge_BlendsWithOppositeSide()

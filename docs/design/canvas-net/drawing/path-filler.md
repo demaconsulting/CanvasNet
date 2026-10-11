@@ -239,7 +239,9 @@ approximation converging only as the sample count grows.
      `Surface.CompositeOverSpan`, so the trimmed and skipped columns/rows would not have changed
      any pixel; the result is pixel-identical to compositing the full row. The dense clip multiply
      (`ApplyClip`) operates on the same window and uses `TensorPrimitives.Multiply`, which is
-     bit-identical to the scalar float multiply.
+     bit-identical to the scalar float multiply. After the clip multiply (and on the multi-breakpoint
+     `EvenOdd` path, which starts from a full-row window) `ApplyClip` trims again, so zero coverage
+     produced by the clip never reaches the compositor; the window length becomes 0 for an empty row.
    - **Why this handles crossing/self-intersecting edges correctly, not merely assumed absent**:
      a prior revision of this algorithm split each row into sub-intervals at every edge's own
      start/end `y`, sorted the edges spanning each sub-interval by `x` once, and relied on that

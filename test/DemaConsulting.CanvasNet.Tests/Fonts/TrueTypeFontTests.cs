@@ -355,6 +355,39 @@ public class TrueTypeFontTests
     }
 
     /// <summary>
+    ///     Proves that the glyph outline cache never exceeds its 4096-entry cap, even when many
+    ///     threads request distinct glyphs concurrently, and that every request still succeeds.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetGlyphOutline_ConcurrentDistinctGlyphs_NeverExceedsCacheCap()
+    {
+        // Arrange: a font with more glyphs than the cap, all empty (equal consecutive loca offsets)
+        const int glyphCount = 6000;
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(glyphCount))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 1))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([500], glyphCount - 1))
+            .AddTable("loca", SyntheticFontBuilder.Loca(new int[glyphCount], longFormat: false))
+            .AddTable("glyf", new byte[4])
+            .Build();
+        using var stream = new MemoryStream(data);
+        var font = TrueTypeFont.Load(stream);
+
+        // Act: hammer the cache from many threads
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 8 };
+        Parallel.For(0, glyphCount * 4, options, i => Assert.NotNull(font.GetGlyphOutline(i % glyphCount)));
+
+        // Assert: the private cache is capped exactly
+        var field = typeof(TrueTypeFont).GetField(
+            "_outlineCache",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        var cache = (System.Collections.ICollection)field.GetValue(font)!;
+        Assert.InRange(cache.Count, 1, 4096);
+    }
+
+    /// <summary>
     ///     Proves that a malformed glyph is never memoized: every call reports it again.
     /// </summary>
     [Fact]

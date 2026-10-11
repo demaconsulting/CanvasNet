@@ -291,6 +291,7 @@ sections:
                   - ScanlineRasterizer_AccumulateCoverageMask_Shapes_MatchesExactPixelAreaReference
                   - ScanlineRasterizer_Fill_Shapes_PixelExactAgainstFullWidthCompositeReference
                   - ScanlineRasterizer_Fill_DenseClipMask_PixelExactAgainstCoverageTimesClipReference
+                  - ScanlineRasterizer_Fill_DenseClipZeroingWindow_MatchesCoverageTimesClipForAllShapes
                   - ScanlineRasterizer_Fill_ConstantGradientAndTile_PixelExactAgainstSolid
 
               - id: CanvasNet-Drawing-PathFiller-GradientFill

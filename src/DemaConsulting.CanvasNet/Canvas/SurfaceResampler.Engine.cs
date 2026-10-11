@@ -40,6 +40,9 @@ internal static partial class SurfaceResampler
     /// <summary>Floats stored per intermediate pixel (premultiplied R, G, B and alpha).</summary>
     private const int Channels = 4;
 
+    /// <summary>The most out-of-image taps summed exactly per folded edge tail; longer tails are sampled.</summary>
+    private const int MaxExactTailTaps = 1024;
+
     /// <summary>Per-axis weight table: for each output index a first source index, a tap count and the weights.</summary>
     /// <param name="First">First source index of each output pixel's taps.</param>
     /// <param name="Count">Number of consecutive taps of each output pixel.</param>
@@ -286,16 +289,26 @@ internal static partial class SurfaceResampler
             var first = firsts[o];
             var w = buffer.AsSpan(0, count);
             w.Clear();
-            for (var i = los[o]; i <= his[o]; i++)
+            var inLo = Math.Max(los[o], 0);
+            var inHi = Math.Min(his[o], last);
+            for (var i = inLo; i <= inHi; i++)
             {
-                // Area drops out-of-image taps (renormalized below); other filters fold them into the edge pixel
-                if (mode == ResamplingMode.Area && (i < 0 || i > last))
+                w[(int)i - first] += Weight(mode, i + 0.5 - c, scale);
+            }
+
+            // Area drops out-of-image taps (renormalized); other filters fold them into the edge pixel.
+            // The folded tails can be enormous for extreme scales, so their work is bounded.
+            if (mode != ResamplingMode.Area)
+            {
+                if (los[o] < 0)
                 {
-                    continue;
+                    w[0 - first] += TailWeight(mode, los[o], Math.Min(his[o], -1L), c, scale);
                 }
 
-                var index = (int)Math.Clamp(i, 0, last);
-                w[index - first] += Weight(mode, i + 0.5 - c, scale);
+                if (his[o] > last)
+                {
+                    w[last - first] += TailWeight(mode, Math.Max(los[o], (long)last + 1), his[o], c, scale);
+                }
             }
 
             var sum = 0.0;
@@ -320,6 +333,45 @@ internal static partial class SurfaceResampler
         }
 
         return new AxisWeights(firsts, counts, offsets, weights, minIndex, maxIndex);
+    }
+
+    /// <summary>
+    ///     Sums the filter weights of the taps <paramref name="from"/> .. <paramref name="to"/> (all outside
+    ///     the image). Short tails are summed exactly; longer ones are sampled at a bounded number of
+    ///     evenly spaced taps so the work never depends on the footprint size.
+    /// </summary>
+    private static double TailWeight(ResamplingMode mode, long from, long to, double c, double scale)
+    {
+        if (to < from)
+        {
+            return 0.0;
+        }
+
+        var n = to - from + 1;
+        if (n <= MaxExactTailTaps)
+        {
+            var exact = 0.0;
+            for (var i = from; i <= to; i++)
+            {
+                exact += Weight(mode, i + 0.5 - c, scale);
+            }
+
+            return exact;
+        }
+
+        // Midpoint rule over MaxExactTailTaps equal buckets, each bucket weighted by its tap count
+        var sum = 0.0;
+        for (var b = 0; b < MaxExactTailTaps; b++)
+        {
+            var b0 = from + (n * b / MaxExactTailTaps);
+            var b1 = from + (n * (b + 1) / MaxExactTailTaps);
+            if (b1 > b0)
+            {
+                sum += (b1 - b0) * Weight(mode, ((b0 + b1 - 1) / 2.0) + 0.5 - c, scale);
+            }
+        }
+
+        return sum;
     }
 
     /// <summary>

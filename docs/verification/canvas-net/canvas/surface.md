@@ -464,11 +464,15 @@ reports `mode`; a disposed surface throws `ObjectDisposedException`.
 
 ##### CanvasNet-Canvas-Surface-ResizeBoundedMemory: Extreme Aspect Ratios
 
-**Tests**: `Resize_ExtremeAspectChange_ProducesExpectedShape`, `Resample_TinyIntermediateBudget_MatchesDefaultBudget`
+**Tests**: `Resize_ExtremeAspectChange_ProducesExpectedShape`, `Resample_TinyIntermediateBudget_MatchesDefaultBudget`,
+`Resample_ExtremeReduction_CompletesWithSaneResult`, `TryResampleToDevice_TinyScale_CompletesWithSaneWindow`,
+`Resample_NormalScaleEdgeFolding_KeepsConstantImageConstant`
 
 An 8192x1 surface resizes to 1x8192 with the expected content. Resampling with intermediate budgets of 1 and
 64 bytes (forcing the multi-strip path) produces output identical to the default budget for Bilinear,
-Lanczos3 and Area.
+Lanczos3 and Area. A source mapped at an extreme scale (one source pixel covering about 1e-9 device
+pixels, i.e. a filter footprint of about 1e9 taps) resamples with work bounded by the source size and yields the
+uniform source color for every filter; a constant image magnified past its edges stays exactly constant.
 
 ##### CanvasNet-Canvas-Surface-ResizePooledBuffers: Recycled Scratch Buffers Do Not Leak State
 

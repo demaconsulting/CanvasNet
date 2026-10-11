@@ -1152,6 +1152,62 @@ public class ScanlineRasterizerTests
     }
 
     /// <summary>
+    ///     Proves that a dense clip that zeroes part or all of a row's coverage window (so the
+    ///     window is trimmed after the clip multiply) leaves pixel output identical to
+    ///     coverage times clip, for both fill rules (EvenOdd includes the multi-breakpoint path).
+    /// </summary>
+    [Theory]
+    [InlineData("small", true)]
+    [InlineData("small", false)]
+    [InlineData("outside", true)]
+    [InlineData("outside", false)]
+    public void ScanlineRasterizer_Fill_DenseClipZeroingWindow_MatchesCoverageTimesClipForAllShapes(string clipKind, bool evenOdd)
+    {
+        var rule = evenOdd ? FillRule.EvenOdd : FillRule.NonZero;
+        var color = new Rgba32(20, 160, 230, 255);
+        var bounds = new Rect(0, 0, RefWidth, RefHeight);
+        var clipPath = clipKind == "small"
+            ? new PathBuilder().MoveTo(new Vector2(20.4f, 10.2f)).LineTo(new Vector2(30.8f, 12.4f))
+                .LineTo(new Vector2(24.1f, 20.6f)).Close().Build()
+            : new PathBuilder().MoveTo(new Vector2(RefWidth - 3.5f, RefHeight - 3.5f)).LineTo(new Vector2(RefWidth - 1.5f, RefHeight - 3.5f))
+                .LineTo(new Vector2(RefWidth - 2.5f, RefHeight - 1.5f)).Close().Build();
+        var clip = ClipMask.FromPathDense(clipPath, FillRule.NonZero, RefWidth, RefHeight);
+
+        foreach (var shape in ShapeNames.Select(d => d.Data))
+        {
+            var (polygons, _) = BuildShape(shape);
+            var mask = new float[RefWidth * RefHeight];
+            ScanlineRasterizer.AccumulateCoverageMask(polygons, rule, bounds, mask, RefWidth, 0, 0);
+            using var expected = PatternBackground();
+            using var actual = PatternBackground();
+            var row = new float[RefWidth];
+            for (var y = 0; y < RefHeight; y++)
+            {
+                for (var x = 0; x < RefWidth; x++)
+                {
+                    row[x] = mask[(y * RefWidth) + x] * clip.GetCoverage(x, y);
+                }
+
+                expected.CompositeOverSpan(y, 0, row, color);
+            }
+
+            ScanlineRasterizer.Fill(actual, polygons, color, rule, bounds, clip);
+
+            for (var y = 0; y < RefHeight; y++)
+            {
+                for (var x = 0; x < RefWidth; x++)
+                {
+                    var e = expected[x, y];
+                    var a = actual[x, y];
+                    Assert.True(
+                        Math.Abs(e.R - a.R) <= 1 && Math.Abs(e.G - a.G) <= 1 && Math.Abs(e.B - a.B) <= 1 && Math.Abs(e.A - a.A) <= 1,
+                        $"{shape} pixel ({x},{y}): expected {e}, actual {a}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
     ///     Proves a fill with a dense (non-rectangular) clip mask is pixel-exact against the
     ///     product of the unclipped coverage and the clip's own per-pixel coverage.
     /// </summary>

@@ -499,7 +499,10 @@ images smoothly.
 `start + (o + 0.5) * extent / outDim` (a negative extent flips the axis) and builds, per axis, a table
 of tap indices and normalized weights for the chosen filter. When shrinking, the kernel support is
 multiplied by the reduction ratio so every source pixel contributes (thin lines cannot be skipped).
-Taps outside the image fold into the edge pixel, except `Area`, which drops them and renormalizes. An
+Taps outside the image fold into the edge pixel, except `Area`, which drops them and renormalizes. Weight
+work is bounded by the source size, not the filter footprint (an extreme scale from a crafted placement can
+imply about 1e9 taps): only the in-image intersection is iterated tap by tap, and each folded out-of-image
+tail is summed exactly up to 1024 taps and otherwise by a 1024-bucket midpoint rule. An
 axis with scale 1 and an integer start is an exact copy. Work is done in premultiplied alpha as two
 separable passes: a horizontal pass over strips of columns into a float intermediate sized by an
 8 MiB budget, then a vertical pass using `TensorPrimitives` multiply-add. Results are clamped to
