@@ -259,7 +259,7 @@ public sealed partial class VsdxDocument
             if (paint.HasLine && !geometry.NoLine)
             {
                 var strokeWidthPixels = Math.Max((float)(paint.StrokeWidthInches * AverageScale(localToPixel)), MinStrokeWidthPixels);
-                PaintStroke(surface, transformedPath, paint.StrokeColor, strokeWidthPixels);
+                PaintStroke(surface, transformedPath, paint.StrokeColor, strokeWidthPixels, paint.DashPattern);
             }
         }
     }
@@ -360,14 +360,25 @@ public sealed partial class VsdxDocument
     /// <param name="pixelSpacePath">The already pixel-space-transformed path to stroke.</param>
     /// <param name="color">The stroke color.</param>
     /// <param name="strokeWidthPixels">The stroke width, in pixels.</param>
-    private static void PaintStroke(Surface surface, Path pixelSpacePath, Rgba32 color, float strokeWidthPixels)
+    /// <param name="dashPattern">Optional dash/gap lengths in multiples of <paramref name="strokeWidthPixels"/>; <see langword="null"/> for solid.</param>
+    private static void PaintStroke(Surface surface, Path pixelSpacePath, Rgba32 color, float strokeWidthPixels, float[]? dashPattern = null)
     {
         if (!float.IsFinite(strokeWidthPixels) || strokeWidthPixels <= 0f)
         {
             return;
         }
 
-        var outline = PathStroker.Stroke(pixelSpacePath, new StrokeStyle(strokeWidthPixels));
+        float[]? dashArray = null;
+        if (dashPattern is not null)
+        {
+            dashArray = new float[dashPattern.Length];
+            for (var i = 0; i < dashArray.Length; i++)
+            {
+                dashArray[i] = dashPattern[i] * strokeWidthPixels;
+            }
+        }
+
+        var outline = PathStroker.Stroke(pixelSpacePath, new StrokeStyle(strokeWidthPixels, dashArray: dashArray));
         PathFiller.Fill(surface, outline, color);
     }
 

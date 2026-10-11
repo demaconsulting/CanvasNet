@@ -838,3 +838,19 @@ sections:
               - Render_UnsupportedConstructs_DefaultOptionsDoNotThrow
               - Render_UnsupportedConstructs_StrictModeThrowsWithFeatureToken
               - Render_FullySupportedPage_ReportsNothing
+
+          - id: CanvasNetVsdx-VsdxDocument-LinePattern
+            title: >-
+              The VsdxDocument class shall render a shape's resolved LinePattern as a dash array
+              scaled by the line weight (solid for 0/1, dash, dot, dash-dot and dash-dot-dot for
+              2-5), and shall report approximated (6-22) and unsupported (custom 23 and above)
+              patterns through the unsupported-feature channel, drawing the latter solid.
+            justification: |
+              A real-world schematic uses dashed container outlines and connectors; drawing them
+              solid misrepresents the diagram.
+            tests:
+              - Render_LinePatternSolid_IsOneRun
+              - Render_LinePatternDashed_IsBrokenIntoRuns
+              - Render_LinePatternDot_HasMoreRunsThanDash
+              - Render_LinePatternCustom_ReportedAndSolid
+              - Render_LinePatternApproximated_Reported

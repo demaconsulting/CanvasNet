@@ -783,6 +783,18 @@ second call replays the cached page's diagnostics). Default options neither repo
 token in ordinal order. A fully supported page reports nothing even in strict mode. No timing
 assertions.
 
+#### CanvasNetVsdx-VsdxDocument-LinePattern: Line Patterns Render As Dashes
+
+**Tests**: `Render_LinePatternSolid_IsOneRun`, `Render_LinePatternDashed_IsBrokenIntoRuns`,
+`Render_LinePatternDot_HasMoreRunsThanDash`, `Render_LinePatternCustom_ReportedAndSolid`,
+`Render_LinePatternApproximated_Reported`
+
+Arrange a synthetic horizontal line with each `LinePattern` value, render at 100 DPI and count
+contiguous dark runs along the line's center row: solid yields one run, patterns 2, 3, 4 and 16
+yield many, dots yield more than dashes. Pattern 23 (custom) draws solid and reports
+`vsdx-linepattern-23`; pattern 7 dashes and reports `vsdx-linepattern-7-approximated`. No timing
+assertions.
+
 ### Supplementary (Non-Requirement-Mapped) Coverage
 
 Beyond the 43 `CanvasNetVsdx-VsdxDocument-*` requirement-mapped scenarios above, the test project

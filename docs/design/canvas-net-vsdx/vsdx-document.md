@@ -328,6 +328,12 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   `VsdxUnsupportedFeatureException` carrying the token. Later rendering-fidelity features register
   their own tokens through the same channel.
 
+- **Line patterns** (`VsdxLinePattern.cs`): the resolved `LinePattern` value (0 none, 1 solid)
+  maps to a dash array in multiples of the line weight, applied by `PaintStroke` through
+  `StrokeStyle.DashArray`. Patterns 2-5 are canonical; 6-22 are approximated (reported as
+  `vsdx-linepattern-<n>-approximated`); 23 (custom) and above draw solid and report
+  `vsdx-linepattern-<n>`. Arrowheads are always painted solid.
+
 ### Error Handling
 
 `ArgumentNullException` and `ArgumentException` are thrown synchronously from `Open` for a
