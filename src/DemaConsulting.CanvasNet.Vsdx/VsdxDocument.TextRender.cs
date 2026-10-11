@@ -103,20 +103,26 @@ public sealed partial class VsdxDocument
 
     private static TrueTypeFont? FindGlyphFallbackFont(int codePoint, bool bold, bool italic)
     {
-        static TrueTypeFont? Load(SystemFontInfo info) =>
-            FallbackFontCache.GetOrAdd((info.FilePath, info.FaceIndex), static key =>
+        static TrueTypeFont? LoadUncached(string path, int face)
+        {
+            try
             {
-                try
-                {
-                    return TrueTypeFont.Load(key.Path, key.Face);
-                }
-                catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException or ArgumentException)
-                {
-                    return null;
-                }
-            });
+                return TrueTypeFont.Load(path, face);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException or ArgumentException)
+            {
+                return null;
+            }
+        }
 
-        IEnumerable<SystemFontInfo> Candidates()
+        // Preferred families are few, so their fonts stay cached; the catalog-wide sweep
+        // loads each face transiently so an uncovered code point cannot pin every font in memory.
+        static TrueTypeFont? Load(SystemFontInfo info, bool cache) =>
+            cache
+                ? FallbackFontCache.GetOrAdd((info.FilePath, info.FaceIndex), static key => LoadUncached(key.Path, key.Face))
+                : LoadUncached(info.FilePath, info.FaceIndex);
+
+        IEnumerable<(SystemFontInfo Info, bool Cache)> Candidates()
         {
             var fonts = SystemFontCatalog.Fonts;
             foreach (var family in FallbackFamilies)
@@ -124,19 +130,19 @@ public sealed partial class VsdxDocument
                 foreach (var info in fonts.Where(f => string.Equals(f.FamilyName, family, StringComparison.OrdinalIgnoreCase))
                              .OrderBy(f => (f.Bold == bold ? 0 : 1) + (f.Italic == italic ? 0 : 1)))
                 {
-                    yield return info;
+                    yield return (info, true);
                 }
             }
 
             foreach (var info in fonts.OrderBy(f => (f.Bold == bold ? 0 : 1) + (f.Italic == italic ? 0 : 1)))
             {
-                yield return info;
+                yield return (info, false);
             }
         }
 
-        foreach (var info in Candidates())
+        foreach (var (info, cache) in Candidates())
         {
-            if (Load(info) is { } font && font.GetGlyphIndex(codePoint) != 0)
+            if (Load(info, cache) is { } font && font.GetGlyphIndex(codePoint) != 0)
             {
                 return font;
             }
