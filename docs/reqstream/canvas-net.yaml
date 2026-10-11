@@ -90,8 +90,9 @@ sections:
         tags: [system]
         justification: |
           Callers need to enlarge or shrink decoded images (for example before saving a thumbnail)
-          without writing their own filter, and thin features such as one-pixel lines must survive
-          a reduction rather than being dropped by point sampling.
+          without writing their own filter, and with the filtering modes (all but Nearest) thin
+          features such as one-pixel lines must survive a reduction rather than being dropped by
+          point sampling.
         children:
           - CanvasNet-Canvas-Resize
         tests:

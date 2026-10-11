@@ -431,7 +431,13 @@ public static partial class SvgCodec
         }
 
         // Rotated or skewed: inverse-map each pixel; smooth mode samples a prefiltered source bilinearly
-        var smooth = nearest ? decodedSurface : SurfaceResampler.Prefilter(decodedSurface, imageToRegion, out _);
+        var smooth = decodedSurface;
+        var factorX = 1;
+        var factorY = 1;
+        if (!nearest)
+        {
+            smooth = SurfaceResampler.Prefilter(decodedSurface, imageToRegion, out _, out factorX, out factorY);
+        }
 
         for (var row = 0; row < pixelHeight; row++)
         {
@@ -463,7 +469,7 @@ public static partial class SvgCodec
                 }
                 else
                 {
-                    resultRow[col] = SurfaceResampler.SampleBilinear(smooth, imagePoint.X / decodedWidth, imagePoint.Y / decodedHeight);
+                    resultRow[col] = SurfaceResampler.SampleBilinearReduced(smooth, imagePoint.X, imagePoint.Y, factorX, factorY);
                 }
             }
         }

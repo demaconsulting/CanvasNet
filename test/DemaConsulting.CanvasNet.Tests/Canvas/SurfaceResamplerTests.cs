@@ -74,6 +74,58 @@ public class SurfaceResamplerTests
         Assert.Equal(200, reduced[2, 0].R); // last block covers only the final pixel
     }
 
+    /// <summary>
+    ///     A reduced surface with a partial last block is sampled by physical position: the boundary
+    ///     between original pixels 2 and 3 (x = 3) lands exactly on the center of reduced pixel 1.
+    /// </summary>
+    [Fact]
+    public void SampleBilinearReduced_PartialLastBlock_MapsByFactorNotByUniformScale()
+    {
+        using var source = new Surface(5, 1);
+        for (var x = 0; x < 5; x++)
+        {
+            source[x, 0] = x < 3 ? new Rgba32(0, 0, 0, 255) : new Rgba32(255, 255, 255, 255);
+        }
+
+        using var reduced = SurfaceResampler.Prefilter(source, Matrix3x2.CreateScale(0.45f, 1f), out _, out var fx, out var fy);
+
+        Assert.Equal(3, reduced.Width);
+        Assert.Equal(2, fx);
+        Assert.Equal(1, fy);
+        Assert.Equal(0, reduced[0, 0].R);
+        Assert.Equal(128, reduced[1, 0].R); // (0 + 255) / 2
+        Assert.Equal(255, reduced[2, 0].R);
+
+        // x = 3 is the center of reduced pixel 1 (covering 2..4): exactly that block's value
+        Assert.Equal(128, SurfaceResampler.SampleBilinearReduced(reduced, 3f, 0.5f, fx, fy).R);
+
+        // x = 1 is the center of reduced pixel 0
+        Assert.Equal(0, SurfaceResampler.SampleBilinearReduced(reduced, 1f, 0.5f, fx, fy).R);
+
+        // Halfway between those centers (x = 2) blends them equally
+        Assert.InRange(SurfaceResampler.SampleBilinearReduced(reduced, 2f, 0.5f, fx, fy).R, 63, 65);
+
+        // Uniform normalization (x / 5) would have returned about 166 at x = 3
+        Assert.NotInRange(SurfaceResampler.SampleBilinear(reduced, 3f / 5f, 0.5f).R, 120, 136);
+    }
+
+    /// <summary>The vertical axis is mapped by its own factor when the last block is partial.</summary>
+    [Fact]
+    public void SampleBilinearReduced_PartialLastBlockVertical_MapsByFactor()
+    {
+        using var source = new Surface(1, 5);
+        for (var y = 0; y < 5; y++)
+        {
+            source[0, y] = y < 3 ? new Rgba32(0, 0, 0, 255) : new Rgba32(255, 255, 255, 255);
+        }
+
+        using var reduced = SurfaceResampler.Prefilter(source, Matrix3x2.CreateScale(1f, 0.45f), out _, out var fx, out var fy);
+
+        Assert.Equal(1, fx);
+        Assert.Equal(2, fy);
+        Assert.Equal(128, SurfaceResampler.SampleBilinearReduced(reduced, 0.5f, 3f, fx, fy).R);
+    }
+
     /// <summary>Averaging is premultiplied: a transparent pixel contributes no color.</summary>
     [Fact]
     public void Prefilter_PremultipliedAlpha_TransparentPixelsDoNotBleedColor()

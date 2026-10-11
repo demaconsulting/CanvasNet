@@ -215,8 +215,9 @@ public Surface Resize(int width, int height, ResamplingMode mode = ResamplingMod
 ```
 
 Creates a new, independent `Surface` resampled to the requested size. Resampling is done in
-premultiplied alpha, so transparent pixels leave no color fringe, and thin features such as
-one-pixel lines survive a reduction. A request for the current size returns an exact copy.
+premultiplied alpha, so transparent pixels leave no color fringe, and with any filtering mode other
+than `Nearest` thin features such as one-pixel lines survive a reduction (`Nearest` uses point
+sampling and can drop them). A request for the current size returns an exact copy.
 
 **Parameters:**
 

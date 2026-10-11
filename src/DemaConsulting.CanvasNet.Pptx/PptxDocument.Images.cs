@@ -748,7 +748,7 @@ public sealed partial class PptxDocument
 
         // Rotated or skewed pictures: inverse-map each destination pixel and sample the
         // source window (prefiltered when shrinking) bilinearly.
-        var prefiltered = SurfaceResampler.Prefilter(source, pixelToSurface, out _);
+        var prefiltered = SurfaceResampler.Prefilter(source, pixelToSurface, out _, out var factorX, out var factorY);
         try
         {
             for (var y = startY; y <= endY; y++)
@@ -771,9 +771,9 @@ public sealed partial class PptxDocument
                     }
 
                     // Remap the unit-square sample point through the srcRect crop; no (1 - v) flip
-                    var imageU = (float)((cropLeftPx - windowX0 + (u * cropWidthPx)) / windowW);
-                    var imageV = (float)((cropTopPx - windowY0 + (v * cropHeightPx)) / windowH);
-                    var sourcePixel = SurfaceResampler.SampleBilinear(prefiltered, imageU, imageV);
+                    var imageX = (float)(cropLeftPx - windowX0 + (u * cropWidthPx));
+                    var imageY = (float)(cropTopPx - windowY0 + (v * cropHeightPx));
+                    var sourcePixel = SurfaceResampler.SampleBilinearReduced(prefiltered, imageX, imageY, factorX, factorY);
                     surface[x, y] = Rgba32.CompositeOver(surface[x, y], ScaleAlpha(sourcePixel, maskAlpha));
                 }
             }

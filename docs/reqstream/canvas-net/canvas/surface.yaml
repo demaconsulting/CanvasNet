@@ -439,10 +439,11 @@ sections:
                   The Surface class shall return a new surface resampled to the requested size using
                   the Nearest, Bilinear, Bicubic (Catmull-Rom), Lanczos3 or Area filter, with Auto
                   choosing Area when shrinking and Bicubic when enlarging per axis, widening the
-                  filter support by the reduction ratio so thin features survive a shrink.
+                  filter support by the reduction ratio so thin features survive a shrink in every
+                  filtering mode other than Nearest.
                 justification: |
                   A separable, weight-table based resampler with a reduction-scaled support gives
-                  predictable quality at every ratio and never drops one-pixel lines.
+                  predictable quality at every ratio and, outside Nearest, never drops one-pixel lines.
                 tests:
                   - Resize_Nearest_Upscale_ReplicatesPixels
                   - Resize_Bilinear_Upscale_InterpolatesLinearly

@@ -976,11 +976,11 @@ public sealed partial class PdfDocument
 
         // Rotated or skewed placement: inverse-map each destination pixel and sample a
         // prefiltered source bilinearly
-        var sampled = SurfaceResampler.Prefilter(image, pixelToDevice, out _);
+        var sampled = SurfaceResampler.Prefilter(image, pixelToDevice, out _, out var factorX, out var factorY);
         var reduced = !ReferenceEquals(sampled, image);
         try
         {
-            CompositeSampledImage(sampled, ctm, inverse);
+            CompositeSampledImage(sampled, image.Width, image.Height, factorX, factorY, ctm, inverse);
         }
         finally
         {
@@ -1024,8 +1024,8 @@ public sealed partial class PdfDocument
         }
     }
 
-    /// <summary>Paints <paramref name="sampled"/> (the original or its prefiltered reduction) through <paramref name="ctm"/> with bilinear sampling (the rotated/skewed fallback).</summary>
-    private void CompositeSampledImage(Surface sampled, Matrix3x2 ctm, Matrix3x2 inverse)
+    /// <summary>Paints <paramref name="sampled"/> (the original or its prefiltered reduction by <paramref name="factorX"/> by <paramref name="factorY"/> blocks of the <paramref name="imageWidth"/> by <paramref name="imageHeight"/> original) through <paramref name="ctm"/> with bilinear sampling (the rotated/skewed fallback).</summary>
+    private void CompositeSampledImage(Surface sampled, int imageWidth, int imageHeight, int factorX, int factorY, Matrix3x2 ctm, Matrix3x2 inverse)
     {
         var clip = _gs?.Clip;
         var corner00 = Vector2.Transform(new Vector2(0, 0), ctm);
@@ -1062,7 +1062,7 @@ public sealed partial class PdfDocument
                     continue;
                 }
 
-                var sourcePixel = SurfaceResampler.SampleBilinear(sampled, u, 1 - v);
+                var sourcePixel = SurfaceResampler.SampleBilinearReduced(sampled, u * imageWidth, (1 - v) * imageHeight, factorX, factorY);
 
                 if (clipCoverage < 1f)
                 {

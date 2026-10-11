@@ -60,8 +60,19 @@ internal static partial class SurfaceResampler
     ///     caller must not dispose it as a temporary. Otherwise a new surface the caller owns and
     ///     must dispose.
     /// </returns>
-    internal static Surface Prefilter(Surface source, Matrix3x2 pixelToDevice, out bool useBilinear)
+    internal static Surface Prefilter(Surface source, Matrix3x2 pixelToDevice, out bool useBilinear) =>
+        Prefilter(source, pixelToDevice, out useBilinear, out _, out _);
+
+    /// <summary>
+    ///     As <see cref="Prefilter(Surface, Matrix3x2, out bool)"/>, additionally reporting the block
+    ///     factors used, so callers can map source-pixel coordinates onto the reduced surface with
+    ///     <see cref="SampleBilinearReduced"/> (the last block may be partial, so the reduced size
+    ///     does not scale the source size uniformly).
+    /// </summary>
+    internal static Surface Prefilter(Surface source, Matrix3x2 pixelToDevice, out bool useBilinear, out int factorX, out int factorY)
     {
+        factorX = 1;
+        factorY = 1;
         var sx = Math.Sqrt(((double)pixelToDevice.M11 * pixelToDevice.M11) + ((double)pixelToDevice.M12 * pixelToDevice.M12));
         var sy = Math.Sqrt(((double)pixelToDevice.M21 * pixelToDevice.M21) + ((double)pixelToDevice.M22 * pixelToDevice.M22));
         useBilinear = IsShrink(sx) || IsShrink(sy);
@@ -71,7 +82,27 @@ internal static partial class SurfaceResampler
         }
 
         var (fx, fy) = ComputeFactors(source.Width, source.Height, pixelToDevice);
-        return fx == 1 && fy == 1 ? source : BoxReduce(source, fx, fy);
+        if (fx == 1 && fy == 1)
+        {
+            return source;
+        }
+
+        factorX = fx;
+        factorY = fy;
+        return BoxReduce(source, fx, fy);
+    }
+
+    /// <summary>
+    ///     Samples a <see cref="BoxReduce"/> result bilinearly at a position given in the ORIGINAL
+    ///     (unreduced) pixel coordinates. Reduced pixel <c>i</c> covers original pixels
+    ///     <c>[i * factorX, (i + 1) * factorX)</c>, so the position maps to <c>x / factorX</c> in
+    ///     reduced pixels regardless of a partial last block.
+    /// </summary>
+    internal static Rgba32 SampleBilinearReduced(Surface reduced, float x, float y, int factorX, int factorY)
+    {
+        var u = x / factorX / reduced.Width;
+        var v = y / factorY / reduced.Height;
+        return SampleBilinear(reduced, u, v);
     }
 
     /// <summary>

@@ -459,8 +459,10 @@ public sealed class Surface : IDisposable
     /// <remarks>
     ///     Resizing never changes this surface. Filtering is performed in premultiplied alpha,
     ///     results are clamped to the valid range, and the image edges are clamped (not wrapped).
-    ///     When an axis is reduced the filter support is widened by the reduction ratio, so thin
-    ///     features are attenuated rather than dropped. Working memory is bounded independently
+    ///     When an axis is reduced with a filtering mode (any mode other than
+    ///     <see cref="ResamplingMode.Nearest"/>) the filter support is widened by the reduction
+    ///     ratio, so thin features are attenuated rather than dropped; <c>Nearest</c> uses point
+    ///     sampling and can drop them. Working memory is bounded independently
     ///     of the image size. The aspect ratio is not preserved; use <see cref="ResizeToFit"/> for that.
     /// </remarks>
     /// <example>
