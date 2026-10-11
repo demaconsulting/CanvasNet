@@ -186,7 +186,7 @@ public styling values are preserved exactly.
 - `StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedClosedContour_ProducesValidThinRing`
 - `StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedSmallCircleThickStroke_CollapsesToSolid`
 - `StrokeOutliner_Outline_SmallCircleRealisticTessellation_HalfWidthJustOverInradius_CollapsesToSolid`
-
+- `StrokeOutliner_Outline_LargeClosedContourWithTinyEdge_KeepsInteriorUnfilled`
 These tests verify the intermediate geometry contracts that feed the public API: preserving
 open/closed state, applying SVG-style dash semantics (including a zero-length "on" entry - the
 dash-dot "dot" technique - correctly emitting one visible zero-length on-interval per pattern
@@ -208,7 +208,11 @@ flattened source-segment length, not from the whole contour's bounding-box span,
 backwards-offset-edge signal it is compared against shrinks proportionally to tessellation density
 (`1/N`) independent of how far the stroke half-width exceeds the inradius - a small shape at a
 realistic (not unrealistically fine) tessellation density, stroked only 1% over its own inradius,
-must still correctly collapse to a solid fill (`...SmallCircleRealisticTessellation_...`).
+must still correctly collapse to a solid fill (`...SmallCircleRealisticTessellation_...`). The
+collapsed-ring cases assert that the interior is covered by the union of the emitted same-wound
+bands (not by a single outer ring). The final test covers a false collapse on a large contour with
+a tiny edge between sharp corners (a hairline-stroked clip-art outline): the interior must stay
+unfilled while the boundary is inked.
 
 #### Complexity Verification Policy
 
