@@ -166,8 +166,9 @@ nested SVG document, whether base64-encoded or not) - tolerantly rendered as not
 same recursive-parsing-complexity reasoning that already excludes `feImage`'s own
 referenced-element case; auto-sizing from the decoded raster's own intrinsic dimensions when
 `width`/`height` are absent (both default to `0`, rendering nothing, rather than inferring a size
-from the decoded content); and `image-rendering` values other than the automatic, `pixelated`,
-`crisp-edges` and `optimizeSpeed` keywords.
+from the decoded content); and `image-rendering` values other than the recognized keywords
+(`auto`, `optimizeQuality`, `smooth` and `high-quality` select smooth sampling; `pixelated`,
+`crisp-edges` and `optimizeSpeed` select nearest-neighbor sampling), which are ignored.
 
 A percentage value on a shape/text geometry attribute (`x`, `y`, `width`, `height`, `rx`, `ry`,
 `cx`, `cy`, `r`, `x1`/`y1`/`x2`/`y2`, `font-size`, `stroke-width`, `stroke-dasharray`,
