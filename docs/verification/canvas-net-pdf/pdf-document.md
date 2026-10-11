@@ -746,7 +746,9 @@ under-inking.
 `PdfDocumentHairlineStrokeTests.cs`) fills a closed clip-art outline with two sub-stroke-width
 edges pale blue and then hairline strokes it black, asserting an interior pixel remains the fill
 color (the stroke is not painted solid) while pixels on the outline are inked. It is deterministic
-and asserts no timing.: W/W* Clip, Enforce, and Scope the Active Clipping Path
+and asserts no timing.
+
+#### CanvasNetPdf-PdfDocument-ClippingPath: W/W* Clip, Enforce, and Scope the Active Clipping Path
 
 **Tests**: `PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion`,
 `PdfDocument_Clipping_SetInsideQQ_DoesNotLeakPastQ`,

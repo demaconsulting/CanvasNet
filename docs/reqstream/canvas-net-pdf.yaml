@@ -246,6 +246,7 @@ sections:
           - CanvasNetPdf-PdfDocument-ImageSoftMaskInvalid
           - CanvasNetPdf-PdfDocument-ImageDecodeArray
           - CanvasNetPdf-PdfDocument-ImageDecodeArrayInvalid
+          - CanvasNetPdf-PdfDocument-ImageDownscale
           - CanvasNetPdf-PdfDocument-JpxDecode
           - CanvasNetPdf-PdfDocument-JpxColorSpace
           - CanvasNetPdf-PdfDocument-JpxSMaskInData

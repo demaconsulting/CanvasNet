@@ -192,6 +192,8 @@ sections:
         children:
           - CanvasNetVsdx-VsdxDocument-TextRunParsing
           - CanvasNetVsdx-VsdxDocument-TextBoxPositioning
+          - CanvasNetVsdx-VsdxDocument-TextDecoration
+          - CanvasNetVsdx-VsdxDocument-GlyphFallback
           - CanvasNetVsdx-VsdxDocument-GlyphRendering
         tests:
           - CanvasNetVsdx_SystemIntegration_Text_RendersShapeLabel
@@ -260,6 +262,9 @@ sections:
           - CanvasNetVsdx-VsdxDocument-HideTextSuppression
           - CanvasNetVsdx-VsdxDocument-MinimumVisibleStrokeWidth
           - CanvasNetVsdx-VsdxDocument-TextBoxRotationRendering
+          - CanvasNetVsdx-VsdxDocument-LinePattern
+          - CanvasNetVsdx-VsdxDocument-LayerVisibility
+          - CanvasNetVsdx-VsdxDocument-UnsupportedFeatureReporting
         tests:
           - CanvasNetVsdx_SystemIntegration_Render_PixelDimensionsOverload_PaintsExpectedSurface
           - CanvasNetVsdx_SystemIntegration_Render_DpiOverload_ComputesExpectedPixelDimensions

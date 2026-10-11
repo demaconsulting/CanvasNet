@@ -358,8 +358,9 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   point has no glyph in the run's font, `SelectGlyphFont` asks `ResolveGlyphFallbackFont`
   (preferred symbol families such as Segoe UI Symbol, Arial Unicode MS, Cambria Math, DejaVu
   Sans, then any catalog face, then the bundled Liberation faces; results cached) and uses the
-  returned font for both measurement and the placed glyph. No coverage reports
-  `vsdx-text-missing-glyph`. Tests inject their own resolver.
+  returned font for both measurement and the placed glyph. When no font covers the code point,
+  `SelectGlyphFont` reports `vsdx-text-missing-glyph` through the unsupported-feature handler and
+  keeps the run's own font. Tests inject their own resolver.
 
 ### Error Handling
 
