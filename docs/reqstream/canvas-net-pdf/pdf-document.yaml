@@ -2005,3 +2005,19 @@ sections:
               - PdfDocument_Patterns_TilingPattern_ZeroXStep_ThrowsInvalidDataException
               - PdfDocument_Patterns_TilingPattern_NestingDepthExceeded_ThrowsInvalidDataException
               - CanvasNetPdf_SystemIntegration_ColoredTilingPatternFill_PaintsRepeatingTileColors
+
+          - id: CanvasNetPdf-PdfDocument-ImageDownscale
+            title: >-
+              The PdfDocument class shall filter a raster image that is shrunk on the page,
+              area-averaging it once per draw and sampling the result bilinearly, so one-pixel
+              features are attenuated rather than dropped, while an enlarged or 1:1 image keeps
+              exact nearest-neighbor sampling.
+            justification: |
+              Real-world PDFs embed high-resolution raster scans (for example drawing grids) that
+              are rendered at a fraction of their native size. Point sampling makes thin lines
+              appear or vanish depending on phase; filtering keeps them visible.
+            tests:
+              - Render_ShrunkImageWithOnePixelLines_KeepsEveryLine
+              - Render_ShrunkFlippedImage_KeepsEveryLine
+              - Render_ShrunkRotatedImage_KeepsEveryLine
+              - Render_EnlargedImage_RemainsExactBlocks

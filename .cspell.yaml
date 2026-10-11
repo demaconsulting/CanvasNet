@@ -14,6 +14,10 @@ language: en
 
 # Project-specific technical terms and tool names
 words:
+  - bilinearly
+  - prefilter
+  - prefiltered
+  - resampler
   - dctdecode
   - Lsiz
   - smaskindata
