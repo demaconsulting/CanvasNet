@@ -1412,8 +1412,8 @@ render are never skipped silently: set `VsdxRenderOptions.UnsupportedFeatureHand
 instead (rendering is tolerant by default). **Documented scope boundaries**: embedded images/foreign
 shapes, non-trivial theme-variation resolution, non-solid fill-pattern combinations beyond solid
 (including any gradient approximation), the full arrowhead style-index table, and a handful of
-rarely-encountered geometry row types (`NURBSTo`, `InfiniteLine`, `RelCubBezTo`, `SplineStart`/
-`SplineKnot`, `PolylineTo`, `Ellipse`) are tolerated (the row/feature is skipped, never thrown) but
+rarely-encountered geometry row types (`NURBSTo`, `InfiniteLine`, `SplineStart`/
+`SplineKnot`, `PolylineTo`) are tolerated (the row/feature is skipped, never thrown) but
 not resolved into their own path segments or paint - see `canvas-net-vsdx.md`'s Design Constraints
 section for the complete deferred-feature boundary.
 

@@ -14,10 +14,10 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     <see cref="VsdxTextLayout"/>'s glyph ink onto a <see cref="Surface"/>, and the
 ///     system/bundled font-resolution helper <see cref="ResolveTextFont"/> this milestone's
 ///     <c>fontResolver</c> delegate is driven with. A direct structural trim of
-///     <c>PptxDocument.TextRender.cs</c>'s own glyph-painting pattern - no run-level outline
-///     stroke or underline support exists in the resolved <see cref="VsdxTextLayout"/> model this
-///     milestone produces, so neither is painted here (out of scope - see the originating plan
-///     report's Scope section). Wired into the shipped public rendering pipeline since
+///     <c>PptxDocument.TextRender.cs</c>'s own glyph-painting pattern. No run-level outline stroke exists in the resolved <see cref="VsdxTextLayout"/>
+///     model, so none is painted (out of scope - see the originating plan report's Scope
+///     section); underline, strikethrough and overline <c>DecorationBars</c> are painted before
+///     the glyphs. Wired into the shipped public rendering pipeline since
 ///     Milestone 7: <c>VsdxDocument.Render.cs</c>'s <c>RenderShapeRecursive</c> calls
 ///     <see cref="PaintTextLayout"/> for every resolved shape whose effective <c>HideText</c>
 ///     cell does not suppress it.
