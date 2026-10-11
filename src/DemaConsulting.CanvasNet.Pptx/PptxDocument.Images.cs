@@ -598,10 +598,14 @@ public sealed partial class PptxDocument
     ///     Composites a decoded picture <paramref name="image"/> onto <paramref name="surface"/>,
     ///     mapping its (optionally <paramref name="srcRect"/>-cropped) unit square through a
     ///     <c>CreateScale(widthEmu, heightEmu) * shapeToSurfaceTransform</c> transform and
-    ///     nearest-neighbor sampling the source pixel for every destination pixel in the
-    ///     transformed footprint's device-space bounding box - mirroring
+    ///     smoothly resampling the source for every destination pixel in the transformed
+    ///     footprint's device-space bounding box: an axis-aligned picture is resampled once
+    ///     (<see cref="ResamplingMode.Auto"/>: area averaging when shrunk, Catmull-Rom bicubic when
+    ///     enlarged) to the exact device rectangle it covers, while a rotated or skewed picture
+    ///     inverse-maps each destination pixel and samples a prefiltered source bilinearly -
+    ///     mirroring
     ///     <c>DemaConsulting.CanvasNet.Pdf</c>'s <c>PdfDocument.Images.cs</c>'s own
-    ///     <c>CompositeImageOntoSurface</c> bounding-box rasterization loop exactly, with one
+    ///     <c>CompositeImageOntoSurface</c> approach, with one
     ///     deliberate difference: <strong>no <c>(1 - v)</c> row flip</strong> is applied, because
     ///     (unlike PDF's own y-up image-space convention) this package's shape-local/surface space
     ///     is already y-down (see <c>PaintTextLayout</c>'s own documented y-down convention) -
@@ -697,46 +701,96 @@ public sealed partial class PptxDocument
             PathFiller.Fill(clipMask, transformedClip, new Rgba32(255, 255, 255, 255));
         }
 
-        for (var y = startY; y <= endY; y++)
+        // Axis-aligned pictures (the overwhelmingly common case) are resampled once to the exact
+        // device-pixel rectangle they cover and composited 1:1; the srcRect crop becomes part of
+        // the pixel-to-device mapping.
+        var cropWidth = Math.Max(1e-6f, 1f - left - right);
+        var cropHeight = Math.Max(1e-6f, 1f - top - bottom);
+        var pixelToUnit = new Matrix3x2(
+            1f / (image.Width * cropWidth), 0f,
+            0f, 1f / (image.Height * cropHeight),
+            -left / cropWidth, -top / cropHeight);
+        var pixelToSurface = pixelToUnit * unitToSurface;
+        if (SurfaceResampler.TryResampleToDevice(image, pixelToSurface, surface.Width, surface.Height, ResamplingMode.Auto, out var window, out var originX, out var originY))
         {
-            for (var x = startX; x <= endX; x++)
+            using (window)
             {
-                var devicePoint = new Vector2(x + 0.5f, y + 0.5f);
-                var unitPoint = Vector2.Transform(devicePoint, surfaceToUnit);
-                var u = unitPoint.X;
-                var v = unitPoint.Y;
-                if (u < 0 || u >= 1 || v < 0 || v >= 1)
+                if (window is not null)
                 {
-                    continue;
+                    CompositeWindow(surface, window, originX, originY, clipMask);
                 }
+            }
 
-                byte maskAlpha = 255;
-                if (clipMask is not null)
+            return;
+        }
+
+        // Rotated or skewed pictures: inverse-map each destination pixel and sample the
+        // source (prefiltered when shrinking) bilinearly.
+        var prefiltered = SurfaceResampler.Prefilter(image, pixelToSurface, out _);
+        try
+        {
+            for (var y = startY; y <= endY; y++)
+            {
+                for (var x = startX; x <= endX; x++)
                 {
-                    maskAlpha = clipMask[x, y].A;
+                    var devicePoint = new Vector2(x + 0.5f, y + 0.5f);
+                    var unitPoint = Vector2.Transform(devicePoint, surfaceToUnit);
+                    var u = unitPoint.X;
+                    var v = unitPoint.Y;
+                    if (u < 0 || u >= 1 || v < 0 || v >= 1)
+                    {
+                        continue;
+                    }
+
+                    var maskAlpha = clipMask is null ? (byte)255 : clipMask[x, y].A;
                     if (maskAlpha == 0)
                     {
                         continue;
                     }
+
+                    // Remap the unit-square sample point through the srcRect crop; no (1 - v) flip
+                    var imageU = left + (u * (1f - left - right));
+                    var imageV = top + (v * (1f - top - bottom));
+                    var sourcePixel = SurfaceResampler.SampleBilinear(prefiltered, imageU, imageV);
+                    surface[x, y] = Rgba32.CompositeOver(surface[x, y], ScaleAlpha(sourcePixel, maskAlpha));
                 }
-
-                // Remap the unit-square sample point through the srcRect crop: imageU/imageV are
-                // the fraction of the way across the *uncropped* source image this destination
-                // pixel samples from - no (1 - v) flip, per this method's own remarks.
-                var imageU = left + u * (1f - left - right);
-                var imageV = top + v * (1f - top - bottom);
-
-                var column = Math.Clamp((int)MathF.Floor(imageU * image.Width), 0, image.Width - 1);
-                var row = Math.Clamp((int)MathF.Floor(imageV * image.Height), 0, image.Height - 1);
-                var sourcePixel = image[column, row];
-                if (maskAlpha != 255)
-                {
-                    var scaledAlpha = (byte)Math.Clamp(MathF.Round(sourcePixel.A * (maskAlpha / 255f)), 0, 255);
-                    sourcePixel = new Rgba32(sourcePixel.R, sourcePixel.G, sourcePixel.B, scaledAlpha);
-                }
-
-                surface[x, y] = Rgba32.CompositeOver(surface[x, y], sourcePixel);
+            }
+        }
+        finally
+        {
+            if (!ReferenceEquals(prefiltered, image))
+            {
+                prefiltered.Dispose();
             }
         }
     }
+
+    /// <summary>
+    ///     Composites a device-aligned resampled picture window onto <paramref name="surface"/>
+    ///     one pixel at a time (Porter-Duff "over"), scaling alpha by the optional clip mask.
+    /// </summary>
+    private static void CompositeWindow(Surface surface, Surface window, int originX, int originY, Surface? clipMask)
+    {
+        for (var y = 0; y < window.Height; y++)
+        {
+            for (var x = 0; x < window.Width; x++)
+            {
+                var dx = originX + x;
+                var dy = originY + y;
+                var maskAlpha = clipMask is null ? (byte)255 : clipMask[dx, dy].A;
+                if (maskAlpha == 0)
+                {
+                    continue;
+                }
+
+                surface[dx, dy] = Rgba32.CompositeOver(surface[dx, dy], ScaleAlpha(window[x, y], maskAlpha));
+            }
+        }
+    }
+
+    /// <summary>Scales a pixel's alpha by <paramref name="maskAlpha"/> / 255.</summary>
+    private static Rgba32 ScaleAlpha(Rgba32 pixel, byte maskAlpha) =>
+        maskAlpha == 255
+            ? pixel
+            : new Rgba32(pixel.R, pixel.G, pixel.B, (byte)Math.Clamp(MathF.Round(pixel.A * (maskAlpha / 255f)), 0, 255));
 }

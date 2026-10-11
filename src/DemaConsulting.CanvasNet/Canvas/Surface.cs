@@ -437,6 +437,124 @@ public sealed class Surface : IDisposable
     }
 
     /// <summary>
+    ///     Returns a new surface containing this surface resampled to the given size.
+    /// </summary>
+    /// <param name="width">The width, in pixels, of the result. Must be between 1 and <see cref="MaxDimension"/>.</param>
+    /// <param name="height">The height, in pixels, of the result. Must be between 1 and <see cref="MaxDimension"/>.</param>
+    /// <param name="mode">
+    ///     The reconstruction filter. <see cref="ResamplingMode.Auto"/> (the default) uses area
+    ///     averaging on an axis that shrinks and Catmull-Rom bicubic on an axis that grows.
+    /// </param>
+    /// <returns>
+    ///     A new, independent <see cref="Surface"/> of size <paramref name="width"/> by
+    ///     <paramref name="height"/>. When the size equals this surface's size the result is an
+    ///     exact copy for every mode.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="width"/> or <paramref name="height"/> is less than one or
+    ///     greater than <see cref="MaxDimension"/>, or <paramref name="mode"/> is not a defined
+    ///     <see cref="ResamplingMode"/> value.
+    /// </exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
+    /// <remarks>
+    ///     Resizing never changes this surface. Filtering is performed in premultiplied alpha,
+    ///     results are clamped to the valid range, and the image edges are clamped (not wrapped).
+    ///     When an axis is reduced the filter support is widened by the reduction ratio, so thin
+    ///     features are attenuated rather than dropped. Working memory is bounded independently
+    ///     of the image size. The aspect ratio is not preserved; use <see cref="ResizeToFit"/> for that.
+    /// </remarks>
+    /// <example>
+    ///     <code>
+    ///     var surface = new Surface(200, 100);
+    ///     var thumbnail = surface.Resize(100, 50);
+    ///     Console.WriteLine(thumbnail.Width);  // Output: 100
+    ///     Console.WriteLine(thumbnail.Height); // Output: 50
+    ///     </code>
+    /// </example>
+    public Surface Resize(int width, int height, ResamplingMode mode = ResamplingMode.Auto)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // Validate each argument individually so callers get a precise parameter name
+        if (width < 1 || width > MaxDimension)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), width, $"Width must be between 1 and {MaxDimension}.");
+        }
+
+        if (height < 1 || height > MaxDimension)
+        {
+            throw new ArgumentOutOfRangeException(nameof(height), height, $"Height must be between 1 and {MaxDimension}.");
+        }
+
+        if (!Enum.IsDefined(mode))
+        {
+            throw new ArgumentOutOfRangeException(nameof(mode), mode, "Mode is not a defined resampling mode.");
+        }
+
+        // The same size is an exact independent copy for every filter
+        if (width == Width && height == Height)
+        {
+            return Crop(0, 0, Width, Height);
+        }
+
+        return SurfaceResampler.ResizeFull(this, width, height, mode);
+    }
+
+    /// <summary>
+    ///     Returns a new surface containing this surface resampled, keeping its aspect ratio, to
+    ///     the largest size that fits inside the given box (enlarging or shrinking).
+    /// </summary>
+    /// <param name="maxWidth">The width of the box. Must be between 1 and <see cref="MaxDimension"/>.</param>
+    /// <param name="maxHeight">The height of the box. Must be between 1 and <see cref="MaxDimension"/>.</param>
+    /// <param name="mode">The reconstruction filter; see <see cref="Resize"/>.</param>
+    /// <returns>
+    ///     A new, independent <see cref="Surface"/> no larger than the box on either axis, at
+    ///     least one pixel in each dimension, with the aspect ratio preserved to within pixel rounding.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="maxWidth"/> or <paramref name="maxHeight"/> is less than one
+    ///     or greater than <see cref="MaxDimension"/>, or <paramref name="mode"/> is not defined.
+    /// </exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
+    /// <remarks>
+    ///     One axis of the result always touches the box (up to rounding); a small image is
+    ///     enlarged to fill the box. Very elongated images are clamped to one pixel on the short axis.
+    /// </remarks>
+    /// <example>
+    ///     <code>
+    ///     var surface = new Surface(100, 50);
+    ///     var fitted = surface.ResizeToFit(20, 20);
+    ///     Console.WriteLine($"{fitted.Width}x{fitted.Height}"); // Output: 20x10
+    ///     </code>
+    /// </example>
+    public Surface ResizeToFit(int maxWidth, int maxHeight, ResamplingMode mode = ResamplingMode.Auto)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (maxWidth < 1 || maxWidth > MaxDimension)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxWidth), maxWidth, $"Width must be between 1 and {MaxDimension}.");
+        }
+
+        if (maxHeight < 1 || maxHeight > MaxDimension)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxHeight), maxHeight, $"Height must be between 1 and {MaxDimension}.");
+        }
+
+        if (!Enum.IsDefined(mode))
+        {
+            throw new ArgumentOutOfRangeException(nameof(mode), mode, "Mode is not a defined resampling mode.");
+        }
+
+        // Pick the uniform scale that makes the tighter axis exactly fit, then round and clamp each
+        // dimension into [1, box] so rounding can never exceed the box or produce an empty image
+        var scale = Math.Min((double)maxWidth / Width, (double)maxHeight / Height);
+        var width = (int)Math.Clamp(Math.Round(Width * scale, MidpointRounding.AwayFromZero), 1, maxWidth);
+        var height = (int)Math.Clamp(Math.Round(Height * scale, MidpointRounding.AwayFromZero), 1, maxHeight);
+        return Resize(width, height, mode);
+    }
+
+    /// <summary>
     ///     The value <c>255</c> as a <see cref="float"/>, used throughout the vectorized bulk
     ///     pixel operations to convert between byte-scale (<c>[0, 255]</c>) and normalized
     ///     (<c>[0, 1]</c>) channel representations.

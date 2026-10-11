@@ -21,6 +21,20 @@ namespace DemaConsulting.CanvasNet.Pdf.Tests;
 /// </summary>
 public class PdfDocumentTests
 {
+    /// <summary>
+    ///     Asserts that every channel of <paramref name="actual"/> is within <paramref name="tolerance"/>
+    ///     levels of <paramref name="expected"/>. Images are now smoothly resampled (Catmull-Rom
+    ///     when enlarged) rather than point sampled, so a sample taken just off the center of an
+    ///     enlarged source pixel differs from that pixel's exact value by a couple of levels.
+    /// </summary>
+    private static void AssertNear(Canvas.Rgba32 expected, Canvas.Rgba32 actual, int tolerance = 4)
+    {
+        Assert.True(Math.Abs(expected.R - actual.R) <= tolerance, $"R expected {expected.R} actual {actual.R}");
+        Assert.True(Math.Abs(expected.G - actual.G) <= tolerance, $"G expected {expected.G} actual {actual.G}");
+        Assert.True(Math.Abs(expected.B - actual.B) <= tolerance, $"B expected {expected.B} actual {actual.B}");
+        Assert.True(Math.Abs(expected.A - actual.A) <= tolerance, $"A expected {expected.A} actual {actual.A}");
+    }
+
     /// <summary>The directory containing the hand-authored PDF fixtures (see <c>PdfFixtures\README.md</c>).</summary>
     private static string FixturesPath => Path.Join(AppContext.BaseDirectory, "PdfFixtures");
 
@@ -5114,7 +5128,7 @@ public class PdfDocumentTests
 
         // Assert: inside the clip (left half), the image's own top-right-quadrant-adjacent pixel
         // still paints its expected sample value.
-        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[25, 25]);
+        AssertNear(new Canvas.Rgba32(0, 0, 0, 255), surface[25, 25]);
 
         // Assert: outside the clip (right half), the image no longer paints - compare against
         // PdfDocument_Images_DoOperator_DeviceGrayFlateDecode_PlacesExpectedPixels, where this
@@ -5854,10 +5868,10 @@ public class PdfDocumentTests
         using var surface = RenderPdfBytes(bytes);
 
         // Assert: row 0 (top of unit square) -> device top half; row 1 -> device bottom half.
-        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 25]);
-        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[75, 25]);
-        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
-        Assert.Equal(new Canvas.Rgba32(255, 255, 0, 255), surface[75, 75]);
+        AssertNear(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 25]);
+        AssertNear(new Canvas.Rgba32(0, 255, 0, 255), surface[75, 25]);
+        AssertNear(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
+        AssertNear(new Canvas.Rgba32(255, 255, 0, 255), surface[75, 75]);
     }
 
     /// <summary>
@@ -5898,10 +5912,10 @@ public class PdfDocumentTests
         using var surface = RenderPdfBytes(bytes);
 
         // Assert: row 0 (top of unit square) -> device top half; row 1 -> device bottom half.
-        Assert.Equal(new Canvas.Rgba32(10, 10, 10, 255), surface[25, 25]);
-        Assert.Equal(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 25]);
-        Assert.Equal(new Canvas.Rgba32(50, 50, 50, 255), surface[25, 75]);
-        Assert.Equal(new Canvas.Rgba32(90, 90, 90, 255), surface[75, 75]);
+        AssertNear(new Canvas.Rgba32(10, 10, 10, 255), surface[25, 25]);
+        AssertNear(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 25]);
+        AssertNear(new Canvas.Rgba32(50, 50, 50, 255), surface[25, 75]);
+        AssertNear(new Canvas.Rgba32(90, 90, 90, 255), surface[75, 75]);
     }
 
     /// <summary>
@@ -5962,10 +5976,10 @@ public class PdfDocumentTests
         using var surface = RenderPdfBytes(bytes);
 
         // Assert: both source pixels in a row decode to (10) then (200); both rows identical.
-        Assert.Equal(new Canvas.Rgba32(10, 10, 10, 255), surface[25, 25]);
-        Assert.Equal(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 25]);
-        Assert.Equal(new Canvas.Rgba32(10, 10, 10, 255), surface[25, 75]);
-        Assert.Equal(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 75]);
+        AssertNear(new Canvas.Rgba32(10, 10, 10, 255), surface[25, 25]);
+        AssertNear(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 25]);
+        AssertNear(new Canvas.Rgba32(10, 10, 10, 255), surface[25, 75]);
+        AssertNear(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 75]);
     }
 
     /// <summary>
@@ -6143,10 +6157,10 @@ public class PdfDocumentTests
         using var surface = RenderPdfBytes(bytes);
 
         // Assert: row 0 (top of unit square) -> device top half; row 1 -> device bottom half.
-        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 25]);
-        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[75, 25]);
-        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
-        Assert.Equal(new Canvas.Rgba32(255, 255, 0, 255), surface[75, 75]);
+        AssertNear(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 25]);
+        AssertNear(new Canvas.Rgba32(0, 255, 0, 255), surface[75, 25]);
+        AssertNear(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
+        AssertNear(new Canvas.Rgba32(255, 255, 0, 255), surface[75, 75]);
     }
 
     /// <summary>Proves that a plain (unpredicted) <c>LZWDecode</c> image XObject decodes and places the expected pixels via <c>Do</c>.</summary>
@@ -6172,8 +6186,8 @@ public class PdfDocumentTests
         using var surface = RenderPdfBytes(bytes);
 
         // Assert
-        Assert.Equal(new Canvas.Rgba32(10, 10, 10, 255), surface[25, 50]);
-        Assert.Equal(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 50]);
+        AssertNear(new Canvas.Rgba32(10, 10, 10, 255), surface[25, 50]);
+        AssertNear(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 50]);
     }
 
     /// <summary>
@@ -6821,10 +6835,10 @@ public class PdfDocumentTests
         using var surface = RenderPdfBytes(bytes);
 
         // Assert
-        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[25, 25]);
-        Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[75, 25]);
-        Assert.Equal(new Canvas.Rgba32(64, 64, 64, 255), surface[25, 75]);
-        Assert.Equal(new Canvas.Rgba32(192, 192, 192, 255), surface[75, 75]);
+        AssertNear(new Canvas.Rgba32(0, 0, 0, 255), surface[25, 25]);
+        AssertNear(new Canvas.Rgba32(255, 255, 255, 255), surface[75, 25]);
+        AssertNear(new Canvas.Rgba32(64, 64, 64, 255), surface[25, 75]);
+        AssertNear(new Canvas.Rgba32(192, 192, 192, 255), surface[75, 75]);
     }
 
     /// <summary>
@@ -6857,10 +6871,10 @@ public class PdfDocumentTests
         using var surface = RenderPdfBytes(bytes);
 
         // Assert: decoded exactly as if the checksum had been correct.
-        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[25, 25]);
-        Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[75, 25]);
-        Assert.Equal(new Canvas.Rgba32(64, 64, 64, 255), surface[25, 75]);
-        Assert.Equal(new Canvas.Rgba32(192, 192, 192, 255), surface[75, 75]);
+        AssertNear(new Canvas.Rgba32(0, 0, 0, 255), surface[25, 25]);
+        AssertNear(new Canvas.Rgba32(255, 255, 255, 255), surface[75, 25]);
+        AssertNear(new Canvas.Rgba32(64, 64, 64, 255), surface[25, 75]);
+        AssertNear(new Canvas.Rgba32(192, 192, 192, 255), surface[75, 75]);
     }
 
     /// <summary>Proves that <c>Do</c> decodes and places a raw 8-bit <c>DeviceRGB</c> <c>FlateDecode</c> image XObject at the expected device pixels.</summary>
@@ -6886,10 +6900,10 @@ public class PdfDocumentTests
         using var surface = RenderPdfBytes(bytes);
 
         // Assert
-        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 25]);
-        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[75, 25]);
-        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
-        Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[75, 75]);
+        AssertNear(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 25]);
+        AssertNear(new Canvas.Rgba32(0, 255, 0, 255), surface[75, 25]);
+        AssertNear(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
+        AssertNear(new Canvas.Rgba32(255, 255, 255, 255), surface[75, 75]);
     }
 
     /// <summary>Proves that <c>Do</c> decodes and places a raw 8-bit <c>DeviceCMYK</c> <c>FlateDecode</c> image XObject at the expected device pixels.</summary>
@@ -6943,10 +6957,10 @@ public class PdfDocumentTests
         using var surface = RenderPdfBytes(bytes);
 
         // Assert
-        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 25]);
-        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[75, 25]);
-        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
-        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[75, 75]);
+        AssertNear(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 25]);
+        AssertNear(new Canvas.Rgba32(0, 255, 0, 255), surface[75, 25]);
+        AssertNear(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
+        AssertNear(new Canvas.Rgba32(0, 0, 255, 255), surface[75, 75]);
     }
 
     /// <summary>Proves that <c>Do</c> decodes a bare <c>DCTDecode</c> (JPEG) image XObject via <see cref="JpegCodec.Load(Stream)"/> and places the expected (solid-color, lossless-for-flat-blocks) pixels.</summary>
@@ -7165,8 +7179,8 @@ public class PdfDocumentTests
         using var surface = RenderPdfBytes(bytes);
 
         // Assert
-        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 50]);
-        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[75, 50]);
+        AssertNear(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 50]);
+        AssertNear(new Canvas.Rgba32(255, 0, 0, 255), surface[75, 50]);
     }
 
     /// <summary>Proves that the default (absent) <c>/BlackIs1</c> maps a physically black pixel to packed bit <c>0</c> (and a decoded gray value of <c>0</c>).</summary>

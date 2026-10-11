@@ -18,7 +18,7 @@ namespace DemaConsulting.CanvasNet.Canvas;
 ///     shrunk (or the shrink is too mild for any block reduction), the source surface is returned
 ///     unchanged so the upscale path is untouched.
 /// </remarks>
-internal static class SurfaceResampler
+internal static partial class SurfaceResampler
 {
     /// <summary>
     ///     Computes the integer box-filter factors for a pixel-space to device-space transform.
@@ -79,61 +79,11 @@ internal static class SurfaceResampler
         ArgumentOutOfRangeException.ThrowIfLessThan(fx, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(fy, 1);
 
+        // Each output pixel covers an fx-by-fy block; blocks that overhang the image edge average
+        // only the pixels they cover (the Area filter drops out-of-image coverage and renormalizes)
         var outWidth = checked((source.Width + fx - 1) / fx);
         var outHeight = checked((source.Height + fy - 1) / fy);
-        var result = new Surface(outWidth, outHeight);
-        var sumR = new long[outWidth];
-        var sumG = new long[outWidth];
-        var sumB = new long[outWidth];
-        var sumA = new long[outWidth];
-
-        for (var oy = 0; oy < outHeight; oy++)
-        {
-            Array.Clear(sumR);
-            Array.Clear(sumG);
-            Array.Clear(sumB);
-            Array.Clear(sumA);
-
-            var y0 = oy * fy;
-            var y1 = Math.Min(source.Height, y0 + fy);
-            for (var y = y0; y < y1; y++)
-            {
-                var row = source.GetRowSpan(y);
-                for (var x = 0; x < row.Length; x++)
-                {
-                    var ox = x / fx;
-                    var pixel = row[x];
-                    long a = pixel.A;
-                    checked
-                    {
-                        sumA[ox] += a;
-                        sumR[ox] += pixel.R * a;
-                        sumG[ox] += pixel.G * a;
-                        sumB[ox] += pixel.B * a;
-                    }
-                }
-            }
-
-            var outRow = result.GetRowSpan(oy);
-            for (var ox = 0; ox < outWidth; ox++)
-            {
-                var count = (long)(y1 - y0) * (Math.Min(source.Width, (ox * fx) + fx) - (ox * fx));
-                var alphaSum = sumA[ox];
-                if (alphaSum == 0)
-                {
-                    outRow[ox] = new Rgba32(0, 0, 0, 0);
-                    continue;
-                }
-
-                outRow[ox] = new Rgba32(
-                    DivideRound(sumR[ox], alphaSum),
-                    DivideRound(sumG[ox], alphaSum),
-                    DivideRound(sumB[ox], alphaSum),
-                    DivideRound(alphaSum, count));
-            }
-        }
-
-        return result;
+        return Resample(source, 0, (double)outWidth * fx, 0, (double)outHeight * fy, outWidth, outHeight, ResamplingMode.Area);
     }
 
     /// <summary>
@@ -154,11 +104,15 @@ internal static class SurfaceResampler
         var y0 = Math.Clamp((int)y0f, 0, image.Height - 1);
         var y1 = Math.Clamp((int)y0f + 1, 0, image.Height - 1);
 
-        var p00 = image[x0, y0];
-        var p10 = image[x1, y0];
-        var p01 = image[x0, y1];
-        var p11 = image[x1, y1];
+        return Blend(image[x0, y0], image[x1, y0], image[x0, y1], image[x1, y1], tx, ty);
+    }
 
+    /// <summary>
+    ///     Blends four pixels bilinearly in premultiplied alpha with fractional offsets
+    ///     (<paramref name="tx"/>, <paramref name="ty"/>) from <paramref name="p00"/>.
+    /// </summary>
+    private static Rgba32 Blend(Rgba32 p00, Rgba32 p10, Rgba32 p01, Rgba32 p11, float tx, float ty)
+    {
         var w00 = (1 - tx) * (1 - ty);
         var w10 = tx * (1 - ty);
         var w01 = (1 - tx) * ty;
@@ -200,10 +154,6 @@ internal static class SurfaceResampler
         var factor = Math.Round(1.0 / scale, MidpointRounding.AwayFromZero);
         return factor >= size ? Math.Max(1, size) : Math.Max(1, (int)factor);
     }
-
-    /// <summary>Divides rounding half away from zero (non-negative operands).</summary>
-    private static byte DivideRound(long numerator, long denominator) =>
-        (byte)Math.Min(255L, ((numerator * 2) + denominator) / (denominator * 2));
 
     /// <summary>Rounds a float channel to a byte (half away from zero, clamped).</summary>
     private static byte ToByte(float value) =>

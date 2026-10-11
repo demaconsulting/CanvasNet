@@ -336,10 +336,18 @@ internal static class ScanlineRasterizer
         // precomputation" remarks.
         var plan = TilePaintEvaluator.CreatePlan(paint);
 
-        while (sweep.MoveNext(out var y, out var rowCoverage))
+        try
         {
-            TilePaintEvaluator.EvaluateRow(in plan, y, sweep.ClipMinX, sweep.Width, rowColors);
-            surface.CompositeOverSpan(y, sweep.ClipMinX, rowCoverage, rowColors, compositeWorkspace);
+            while (sweep.MoveNext(out var y, out var rowCoverage))
+            {
+                TilePaintEvaluator.EvaluateRow(in plan, y, sweep.ClipMinX, sweep.Width, rowColors);
+                surface.CompositeOverSpan(y, sweep.ClipMinX, rowCoverage, rowColors, compositeWorkspace);
+            }
+        }
+        finally
+        {
+            // A minified tile copy is owned by the plan
+            plan.Release();
         }
     }
 

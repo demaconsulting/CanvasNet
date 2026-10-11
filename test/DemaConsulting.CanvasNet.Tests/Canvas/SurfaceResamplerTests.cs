@@ -173,4 +173,73 @@ public class SurfaceResamplerTests
         Assert.Equal(new Rgba32(0, 0, 0, 255), SurfaceResampler.SampleBilinear(image, 0f, 0f));
         Assert.Equal(new Rgba32(200, 100, 50, 255), SurfaceResampler.SampleBilinear(image, 0.999f, 0.999f));
     }
+    /// <summary>Rotation or skew is rejected so callers use the inverse-mapped fallback.</summary>
+    [Fact]
+    public void TryResampleToDevice_RotatedMatrix_ReturnsFalse()
+    {
+        using var source = new Surface(4, 4);
+        Assert.False(SurfaceResampler.TryResampleToDevice(source, Matrix3x2.CreateRotation(0.5f), 20, 20, ResamplingMode.Auto, out var window, out _, out _));
+        Assert.Null(window);
+    }
+
+    /// <summary>An axis-aligned enlargement yields a window covering exactly the image rectangle.</summary>
+    [Fact]
+    public void TryResampleToDevice_AxisAligned_ReturnsWindowAtOrigin()
+    {
+        using var source = new Surface(2, 2);
+        source.Clear(new Rgba32(10, 20, 30, 255));
+        var matrix = Matrix3x2.CreateScale(5f) * Matrix3x2.CreateTranslation(3f, 4f);
+        Assert.True(SurfaceResampler.TryResampleToDevice(source, matrix, 40, 40, ResamplingMode.Auto, out var window, out var ox, out var oy));
+        using (window)
+        {
+            Assert.NotNull(window);
+            Assert.Equal((3, 4), (ox, oy));
+            Assert.Equal((10, 10), (window.Width, window.Height));
+        }
+    }
+
+    /// <summary>An image entirely outside the visible area succeeds with no window.</summary>
+    [Fact]
+    public void TryResampleToDevice_OffScreen_ReturnsTrueWithNullWindow()
+    {
+        using var source = new Surface(2, 2);
+        var matrix = Matrix3x2.CreateScale(5f) * Matrix3x2.CreateTranslation(100f, 100f);
+        Assert.True(SurfaceResampler.TryResampleToDevice(source, matrix, 40, 40, ResamplingMode.Auto, out var window, out _, out _));
+        Assert.Null(window);
+    }
+
+    /// <summary>BoxReduce matches an explicit Area resize.</summary>
+    [Fact]
+    public void BoxReduce_MatchesAreaResize()
+    {
+        using var source = new Surface(6, 4);
+        for (var y = 0; y < 4; y++)
+        {
+            for (var x = 0; x < 6; x++)
+            {
+                source[x, y] = new Rgba32((byte)(x * 40), (byte)(y * 60), 9, 255);
+            }
+        }
+
+        using var reduced = SurfaceResampler.BoxReduce(source, 2, 2);
+        using var area = source.Resize(3, 2, ResamplingMode.Area);
+        for (var y = 0; y < 2; y++)
+        {
+            for (var x = 0; x < 3; x++)
+            {
+                Assert.Equal(area[x, y], reduced[x, y]);
+            }
+        }
+    }
+
+    /// <summary>Wrapped bilinear sampling wraps across the tile edge.</summary>
+    [Fact]
+    public void SampleBilinearWrapped_AtEdge_BlendsWithOppositeSide()
+    {
+        using var source = new Surface(2, 1);
+        source[0, 0] = new Rgba32(0, 0, 0, 255);
+        source[1, 0] = new Rgba32(200, 200, 200, 255);
+        var p = SurfaceResampler.SampleBilinearWrapped(source, 0.0, 0.5);
+        Assert.InRange(p.R, 99, 101);
+    }
 }

@@ -115,4 +115,73 @@ public class TilePaintEvaluatorTests
         Assert.Equal(positiveRow[0], negativeRow[0]);
         Assert.Equal(positiveRow[1], negativeRow[1]);
     }
+    /// <summary>A tile enlarged 4x is smoothly interpolated instead of showing hard blocks.</summary>
+    [Fact]
+    public void EvaluateRow_MagnifiedTile_IsSmooth()
+    {
+        using var tileSurface = CreateCheckerboardTileSurface();
+        var tile = new TilePaint(tileSurface, Matrix3x2.CreateScale(4f), 2f, 2f);
+        var plan = TilePaintEvaluator.CreatePlan(tile);
+        try
+        {
+            Assert.True(plan.Magnified);
+            Span<Rgba32> row = stackalloc Rgba32[8];
+            TilePaintEvaluator.EvaluateRow(in plan, 0, 0, 8, row);
+            var distinct = new HashSet<byte>();
+            foreach (var pixel in row)
+            {
+                distinct.Add(pixel.R);
+            }
+
+            Assert.True(distinct.Count > 2);
+        }
+        finally
+        {
+            plan.Release();
+        }
+    }
+
+    /// <summary>A tile at exactly one device pixel per tile pixel keeps exact pixel values.</summary>
+    [Fact]
+    public void CreatePlan_OneToOneTile_IsNeitherMagnifiedNorMinified()
+    {
+        using var tileSurface = CreateCheckerboardTileSurface();
+        var plan = TilePaintEvaluator.CreatePlan(new TilePaint(tileSurface, Matrix3x2.Identity, 2f, 2f));
+        try
+        {
+            Assert.False(plan.Magnified);
+            Assert.Null(plan.Minified);
+        }
+        finally
+        {
+            plan.Release();
+        }
+    }
+
+    /// <summary>A tile shrunk to a quarter is replaced by an area-averaged copy that averages the checkerboard.</summary>
+    [Fact]
+    public void EvaluateRow_MinifiedTile_AveragesColors()
+    {
+        using var tileSurface = new Surface(8, 8);
+        for (var y = 0; y < 8; y++)
+        {
+            for (var x = 0; x < 8; x++)
+            {
+                tileSurface[x, y] = ((x + y) & 1) == 0 ? new Rgba32(255, 255, 255, 255) : new Rgba32(0, 0, 0, 255);
+            }
+        }
+
+        var plan = TilePaintEvaluator.CreatePlan(new TilePaint(tileSurface, Matrix3x2.CreateScale(0.25f), 8f, 8f));
+        try
+        {
+            Assert.NotNull(plan.Minified);
+            Span<Rgba32> row = stackalloc Rgba32[2];
+            TilePaintEvaluator.EvaluateRow(in plan, 0, 0, 2, row);
+            Assert.InRange(row[0].R, 100, 155);
+        }
+        finally
+        {
+            plan.Release();
+        }
+    }
 }
