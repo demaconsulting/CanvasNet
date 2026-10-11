@@ -795,6 +795,21 @@ yield many, dots yield more than dashes. Pattern 23 (custom) draws solid and rep
 `vsdx-linepattern-23`; pattern 7 dashes and reports `vsdx-linepattern-7-approximated`. No timing
 assertions.
 
+#### CanvasNetVsdx-VsdxDocument-TextDecoration: Text Decorations And Case Flags
+
+**Tests**: `TextDecoration_StyleBit2_ProducesUnderlineBarBelowBaseline`,
+`TextDecoration_Underline_AddsInkWhenRendered`, `TextDecoration_StrikeDoubleStrikeOverline_ProduceBars`,
+`TextDecoration_None_ProducesNoBars`, `TextCase_SmallCapsAndAllCaps_TransformRuns`,
+`TextColor_Transparency_ReducesAlpha`, `TextPos_Superscript_IsReported`
+
+Arrange synthetic one-shape packages whose Character row sets `Style`, `Strikethru`,
+`DoubleStrikethrough`, `Overline`, `Case`, `ColorTrans` or `Pos`. Assert the resolved run
+decoration flags, the number and vertical order of decoration bars in the text layout (underline
+below the baseline, strike above, overline above the strike, two bars for a double strike), that
+an underlined render has more ink than a plain one, small-caps segmentation at reduced size,
+all-caps upper-casing, alpha reduction, and the `vsdx-text-superscript-subscript` report. No
+timing assertions.
+
 ### Supplementary (Non-Requirement-Mapped) Coverage
 
 Beyond the 43 `CanvasNetVsdx-VsdxDocument-*` requirement-mapped scenarios above, the test project

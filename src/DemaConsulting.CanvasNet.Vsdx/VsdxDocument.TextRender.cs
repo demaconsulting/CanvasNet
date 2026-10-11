@@ -38,6 +38,19 @@ public sealed partial class VsdxDocument
     /// <param name="shapeToSurfaceTransform">The transform mapping the owning shape's own local coordinate space into surface pixel space.</param>
     internal static void PaintTextLayout(Surface surface, VsdxTextLayout layout, Matrix3x2 shapeToSurfaceTransform)
     {
+        foreach (var bar in layout.DecorationBars)
+        {
+            var half = (float)(bar.ThicknessInches / 2d);
+            var cy = (float)bar.CenterYInches;
+            var barBuilder = new PathBuilder();
+            barBuilder.MoveTo(new Vector2((float)bar.X0Inches, cy - half));
+            barBuilder.LineTo(new Vector2((float)bar.X1Inches, cy - half));
+            barBuilder.LineTo(new Vector2((float)bar.X1Inches, cy + half));
+            barBuilder.LineTo(new Vector2((float)bar.X0Inches, cy + half));
+            barBuilder.Close();
+            PathFiller.Fill(surface, barBuilder.Build().Transform(shapeToSurfaceTransform), bar.Color, FillRule.NonZero);
+        }
+
         foreach (var glyph in layout.Glyphs)
         {
             var outline = glyph.Font.GetGlyphOutline(glyph.GlyphIndex);

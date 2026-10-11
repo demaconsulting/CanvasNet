@@ -17,7 +17,20 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     shape's own local, unrotated/unflipped coordinate space (the same space
 ///     <see cref="VsdxShapeTransform"/> maps from).
 /// </param>
-internal sealed record VsdxTextLayout(IReadOnlyList<VsdxGlyphPlacement> Glyphs);
+/// <param name="Decorations">Positioned underline/strikethrough/overline bars, in the same shape-local space as <paramref name="Glyphs"/>.</param>
+internal sealed record VsdxTextLayout(IReadOnlyList<VsdxGlyphPlacement> Glyphs, IReadOnlyList<VsdxDecorationBar>? Decorations = null)
+{
+    /// <summary>The decoration bars, never <see langword="null"/>.</summary>
+    public IReadOnlyList<VsdxDecorationBar> DecorationBars => Decorations ?? [];
+}
+
+/// <summary>A single filled horizontal decoration bar (underline/strikethrough/overline), in shape-local inches.</summary>
+/// <param name="X0Inches">Left edge.</param>
+/// <param name="X1Inches">Right edge.</param>
+/// <param name="CenterYInches">Vertical center of the bar.</param>
+/// <param name="ThicknessInches">Bar thickness.</param>
+/// <param name="Color">Bar color.</param>
+internal sealed record VsdxDecorationBar(double X0Inches, double X1Inches, double CenterYInches, double ThicknessInches, Rgba32 Color);
 
 /// <summary>A single resolved, positioned glyph ready for <c>VsdxDocument.TextRender.cs</c>'s <c>PaintTextLayout</c> to paint.</summary>
 /// <param name="Font">The resolved <see cref="TrueTypeFont"/> supplying this glyph's outline.</param>

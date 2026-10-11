@@ -854,3 +854,21 @@ sections:
               - Render_LinePatternDot_HasMoreRunsThanDash
               - Render_LinePatternCustom_ReportedAndSolid
               - Render_LinePatternApproximated_Reported
+
+          - id: CanvasNetVsdx-VsdxDocument-TextDecoration
+            title: >-
+              The VsdxDocument class shall render the Character section's underline (Style bit 2),
+              Strikethru, DoubleStrikethrough and Overline as filled bars spanning the decorated
+              text (including spaces), apply small caps (Style bit 3), Case=1 all caps and
+              ColorTrans, and report unsupported Pos and initial-caps cells.
+            justification: |
+              A real-world schematic underlines its headings; dropping decorations changes the
+              meaning and appearance of the text.
+            tests:
+              - TextDecoration_StyleBit2_ProducesUnderlineBarBelowBaseline
+              - TextDecoration_Underline_AddsInkWhenRendered
+              - TextDecoration_StrikeDoubleStrikeOverline_ProduceBars
+              - TextDecoration_None_ProducesNoBars
+              - TextCase_SmallCapsAndAllCaps_TransformRuns
+              - TextColor_Transparency_ReducesAlpha
+              - TextPos_Superscript_IsReported

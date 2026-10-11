@@ -132,7 +132,7 @@ public sealed partial class VsdxDocument
         var effectiveParagraphRows = MergeTextSectionRows(shape.RawParagraphRows, masterShape?.RawParagraphRows);
 
         var textRuns = effectiveRawText.Runs
-            .Select(run => ResolveEffectiveRun(run, effectiveCharacterRows, effectiveParagraphRows, effectiveTextStyleId))
+            .SelectMany(run => ExpandSmallCaps(ResolveEffectiveRun(run, effectiveCharacterRows, effectiveParagraphRows, effectiveTextStyleId)))
             .ToList();
         shape.TextRuns = textRuns;
         shape.TextBox = BuildTextBox(effectiveCells, shape.Transform);

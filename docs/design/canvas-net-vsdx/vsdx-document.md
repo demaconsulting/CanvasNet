@@ -334,6 +334,14 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   `vsdx-linepattern-<n>-approximated`); 23 (custom) and above draw solid and report
   `vsdx-linepattern-<n>`. Arrowheads are always painted solid.
 
+- **Text decorations** (`VsdxDocument.TextStyle.cs`/`TextLayout.cs`/`TextRender.cs`): a run's
+  `VsdxTextDecoration` flags come from Character `Style` bit 2 and the `Strikethru`,
+  `DoubleStrikethrough` and `Overline` cells. The layout emits one merged `VsdxDecorationBar` per
+  contiguous decorated span per line (whitespace included) at em-relative offsets from the
+  baseline, painted as filled rectangles before the glyphs. Style bit 3 (small caps) expands a
+  run into capital segments (80% size for lowercase letters), `Case=1` upper-cases, `ColorTrans`
+  lowers the alpha; `Pos` (super/subscript) and initial-caps `Case` are reported as unsupported.
+
 ### Error Handling
 
 `ArgumentNullException` and `ArgumentException` are thrown synchronously from `Open` for a
