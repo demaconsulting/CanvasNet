@@ -93,6 +93,50 @@ public class SvgImageResamplingTests
         Assert.InRange(ink, 255 * 0.17 * 0.8, 255 * 0.17 * 1.2 + 1);
     }
 
+    /// <summary>Renders a data-URI raster through an <c>feImage</c> primitive filling the whole canvas.</summary>
+    private static Surface RenderFeImage(string uri, int width, int height)
+    {
+        var svg = $"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {width} {height}'>" +
+                  "<defs><filter id='f' x='0' y='0' width='1' height='1'>" +
+                  $"<feImage href='{uri}' x='0' y='0' width='1' height='1' preserveAspectRatio='none'/></filter></defs>" +
+                  $"<rect x='0' y='0' width='{width}' height='{height}' fill='black' filter='url(#f)'/></svg>";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(svg));
+        return SvgCodec.Load(stream, width, height);
+    }
+
+    /// <summary>An enlarged raster <c>feImage</c> is smoothly interpolated, not nearest-neighbor.</summary>
+    [Fact]
+    public void FeImage_Enlarged_IsSmooth()
+    {
+        using var surface = RenderFeImage(TwoPixelPng(), 40, 4);
+
+        Assert.True(DistinctLevels(surface) > 8);
+        Assert.InRange(surface[20, 2].R, 1, 254);
+        Assert.Equal(0, surface[2, 2].R);
+        Assert.Equal(255, surface[37, 2].R);
+    }
+
+    /// <summary>A shrunken raster <c>feImage</c> keeps a one-pixel line by area averaging.</summary>
+    [Fact]
+    public void FeImage_Shrunk_KeepsOnePixelLine()
+    {
+        using var source = new Surface(100, 1);
+        source.Clear(new Rgba32(255, 255, 255, 255));
+        source[37, 0] = new Rgba32(0, 0, 0, 255);
+        using var stream = new MemoryStream();
+        PngCodec.Save(source, stream);
+        var uri = "data:image/png;base64," + Convert.ToBase64String(stream.ToArray());
+        using var surface = RenderFeImage(uri, 17, 1);
+
+        double ink = 0;
+        for (var x = 0; x < 17; x++)
+        {
+            ink += 255 - surface[x, 0].R;
+        }
+
+        Assert.InRange(ink, 255 * 0.17 * 0.8, 255 * 0.17 * 1.2 + 1);
+    }
+
     /// <summary>Renders the enlarged image inside a group with the given group attributes and image attributes.</summary>
     private static Surface RenderInGroup(string groupAttributes, string imageAttributes)
     {

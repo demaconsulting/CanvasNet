@@ -438,7 +438,8 @@ The bilinear sampler returns pixel centres exactly, blends midpoints, and clamps
 
 `SurfaceResizeTests.cs` checks exact values on tiny inputs for `Nearest`, `Bilinear` and `Area`,
 that `Bicubic`/`Lanczos3` stay inside the byte range on a step edge, that a constant image stays
-constant at many ratios, that a one-pixel line survives downscaling at ratios from 1.001:1 to 100:1
+constant at many ratios, that a one-pixel line survives downscaling in every mode except `Nearest`
+at ratios from 1.001:1 to 100:1
 (with `Area` conserving its ink to within 10 percent), that enlargement has no jumps, and that `Auto`
 averages on the shrinking axis. No timing is asserted.
 

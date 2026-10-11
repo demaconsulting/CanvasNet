@@ -1482,12 +1482,15 @@ rather than throwing or dividing by zero.
 **Tests**: `Image_Enlarged_IsSmooth`, `Image_RenderingAttribute_IsNearest`, `Image_RenderingStyle_IsNearest`,
 `Image_RenderingStylesheet_IsNearest`, `Image_Shrunk_KeepsOnePixelLine`,
 `Image_RenderingInheritedFromGroup_IsNearest`, `Image_RenderingBogus_InheritsPixelatedFromParent`,
-`Image_RenderingSmoothKeyword_OverridesPixelatedParent`
+`Image_RenderingSmoothKeyword_OverridesPixelatedParent`, `FeImage_Enlarged_IsSmooth`,
+`FeImage_Shrunk_KeepsOnePixelLine`
 
 `SvgImageResamplingTests.cs` enlarges a 2x1 black/white image to 40x4: by default the row has many
 gray levels; with `image-rendering` `pixelated` or `crisp-edges` (attribute, style declaration or
 stylesheet rule) it has only the two source levels. A 100x1 image with a one-pixel line shrunk to 17
-pixels keeps its area-proportional ink.
+pixels keeps its area-proportional ink. The same enlarged and shrunk rasters are also rendered through
+an `feImage` primitive (`FeImage_Enlarged_IsSmooth`, `FeImage_Shrunk_KeepsOnePixelLine`) so a regression
+to nearest-neighbor there is detected.
 
 `image-rendering` is inherited from an ancestor `g` (`Image_RenderingInheritedFromGroup_IsNearest`).
 An unrecognized value (for example `bogus`) is ignored, so the element keeps inheriting the parent's

@@ -498,7 +498,8 @@ images smoothly.
 **Engine.** `Resample` maps the center of output pixel `o` to source coordinate
 `start + (o + 0.5) * extent / outDim` (a negative extent flips the axis) and builds, per axis, a table
 of tap indices and normalized weights for the chosen filter. When shrinking, the kernel support is
-multiplied by the reduction ratio so every source pixel contributes (thin lines cannot be skipped).
+multiplied by the reduction ratio so every source pixel contributes (thin lines cannot be skipped by
+the filtering modes; `Nearest` point-samples and can skip them).
 Taps outside the image fold into the edge pixel, except `Area`, which drops them and renormalizes. Weight
 work is bounded by the source size, not the filter footprint (an extreme scale from a crafted placement can
 imply about 1e9 taps): only the in-image intersection is iterated tap by tap, and each folded out-of-image

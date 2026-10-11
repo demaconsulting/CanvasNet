@@ -1463,6 +1463,35 @@ public class SurfaceTests
     }
 
     /// <summary>
+    ///     Proves that disposing a workspace, having it evicted from the thread cache by a larger
+    ///     rent, and disposing it again (plus a double Dispose) returns its arrays to the pool at
+    ///     most once, so later concurrent rents never lease the same scratch array.
+    /// </summary>
+    [Fact]
+    public void CompositeSpanWorkspace_DisposeEvictDispose_ReturnsArraysAtMostOnce()
+    {
+        // Arrange
+        var held = Surface.CompositeSpanWorkspace.Rent(10);
+        held.Dispose();
+        held.Dispose();
+
+        // Act - a larger rent evicts the cached instance; the stale holder disposes again
+        var large = Surface.CompositeSpanWorkspace.Rent(100000);
+        held.Dispose();
+        held.Dispose();
+        large.Dispose();
+        using var first = Surface.CompositeSpanWorkspace.Rent(10);
+        using var second = Surface.CompositeSpanWorkspace.Rent(10);
+
+        // Assert
+        Assert.NotSame(first, second);
+        Assert.NotSame(first.Bg.RFloat, second.Bg.RFloat);
+        Assert.NotSame(first.Fg.RFloat, second.Fg.RFloat);
+        Assert.NotSame(first.Work.OutR, second.Work.OutR);
+        Assert.NotSame(first.Bg.RBytes, second.Bg.RBytes);
+    }
+
+    /// <summary>
     ///     Proves two workspaces rented at the same time on one thread are distinct instances,
     ///     so nested use never shares scratch buffers.
     /// </summary>

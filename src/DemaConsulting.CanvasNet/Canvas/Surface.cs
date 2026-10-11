@@ -1551,6 +1551,12 @@ public sealed class Surface : IDisposable
 
         private bool _pooled;
 
+        /// <summary>
+        ///     True while a caller owns the workspace (from construction or <see cref="Rent"/> until
+        ///     <see cref="Dispose"/>); false while cached or after its arrays were released.
+        /// </summary>
+        private bool _inUse = true;
+
         private static void Cache(CompositeSpanWorkspace workspace) => _cached = workspace;
 
         /// <summary>
@@ -1574,10 +1580,13 @@ public sealed class Surface : IDisposable
             {
                 if (cached.Capacity >= capacity)
                 {
+                    cached._inUse = true;
                     return cached;
                 }
 
+                // Evict: release its arrays exactly once; a later Dispose by a stale holder is a no-op.
                 cached._pooled = false;
+                cached._inUse = true;
                 cached.Dispose();
             }
 
@@ -1605,12 +1614,14 @@ public sealed class Surface : IDisposable
         /// </summary>
         public void Dispose()
         {
-            if (ReferenceEquals(_cached, this))
+            if (!_inUse)
             {
-                // Already handed back to the cache: a repeated Dispose must not free its arrays.
+                // Already cached or released (for example a repeated Dispose, or a Dispose after
+                // eviction from the cache): the arrays must be returned to the pool at most once.
                 return;
             }
 
+            _inUse = false;
             if (_pooled && _cached == null)
             {
                 // Keep the arrays for the next fill on this thread instead of returning them.
