@@ -1223,8 +1223,9 @@ never substituted this way, since a symbol/dingbat glyph set with no bundled sub
 meaningful generic-family
 equivalent - it still fails closed with `UnsupportedImageFeatureException`, exactly as a
 non-embedded font of any kind did before this fallback behavior existed. A shading pattern's
-`/Extend` is approximated as always-padded (never fully transparent outside the defining
-geometry), a documented, narrower-than-spec simplification; the `sh` operator and generic path
+`/Extend` is honored per end (PDF 32000-1 §8.7.4.5.2): an extended end repeats its end color
+beyond the defining geometry, while a non-extended end (the default) paints nothing past it; the
+`sh` operator and generic path
 clipping (`W`/`W*`) are supported. **Documented scope
 boundaries**: `/MMType1` fonts, function-based shadings (`/ShadingType 1`), `/FunctionType 4`
 (PostScript calculator) functions, transparency groups,

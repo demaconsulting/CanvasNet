@@ -388,9 +388,9 @@ sections:
                 title: >-
                   The Surface unit shall provide an internal image-resampling helper that
                   box-averages a source surface by integer per-axis factors in premultiplied alpha
-                  when it is shrunk, returns the source unchanged when it is enlarged or drawn 1:1
-                  or when the mapping is degenerate or non-finite, and samples a surface bilinearly
-                  with clamped edges.
+                  when it is shrunk, and otherwise returns the source unchanged (when it is
+                  enlarged, drawn 1:1, shrunk too mildly for a block factor above 1, or when the
+                  mapping is degenerate or non-finite), rejecting block factors below 1.
                 justification: |
                   Point sampling a shrunk raster image drops thin features such as one-pixel rules.
                   A single area-averaging pass per draw, bounded by the source size, preserves those
@@ -403,5 +403,16 @@ sections:
                   - Prefilter_PremultipliedAlpha_TransparentPixelsDoNotBleedColor
                   - Prefilter_ExtremeRatio_ReducesToOnePixel
                   - Prefilter_MildShrink_ReturnsSourceButRequestsBilinear
+                  - Prefilter_MixedAxisShrinkAndEnlarge_ReducesOnlyShrunkAxis
+                  - BoxReduce_FactorBelowOne_ThrowsArgumentOutOfRange
                   - ComputeFactors_Rotated_UsesColumnNorms
+
+              - id: CanvasNet-Canvas-Surface-BilinearSampling
+                title: >-
+                  The Surface unit shall provide an internal bilinear sampler that interpolates the
+                  four nearest pixels of a surface in premultiplied alpha with clamped edges.
+                justification: |
+                  Sampling the box-reduced surface bilinearly covers the fractional part of a
+                  shrink that the integer block factor cannot, without reading outside the image.
+                tests:
                   - SampleBilinear_CentreAndMidpoint_InterpolatesAndClampsEdges

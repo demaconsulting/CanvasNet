@@ -555,6 +555,7 @@ sections:
               - PdfDocument_ThinRules_ThinStrokedRules_InkMatchesGeometry
               - PdfDocument_ThinRules_ThinFilledBar_InkMatchesGeometry
               - PdfDocument_ThinRules_ZeroWidthStroke_PaintsHairline
+              - PdfDocument_Render_HairlineStrokeOfClosedOutlineWithTinyEdges_KeepsInteriorFilled
 
           - id: CanvasNetPdf-PdfDocument-ClippingPath
             title: >-
@@ -586,6 +587,7 @@ sections:
               - PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace
               - PdfDocument_Clipping_ClipThenImageDo_RestrictsImageToClipRegion
               - PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion
+              - PdfDocument_Clipping_ManyFullPageRectangleClips_RenderIdenticalToUnclipped
               - PdfDocument_ThinRules_DoubleRuleWithCoincidentClip_InkMatchesGeometry
               - PdfDocument_ThinRules_DoubleRuleWithWiderClip_InkMatchesGeometry
               - PdfDocument_ThinRules_DoubleRule_GapBetweenBarsRemainsTransparent

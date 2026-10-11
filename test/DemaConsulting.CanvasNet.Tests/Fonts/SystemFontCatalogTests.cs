@@ -401,6 +401,65 @@ public class SystemFontCatalogTests
         Assert.True(counting.BytesRead < 4096, $"Read {counting.BytesRead} bytes of {font.Length}.");
     }
 
+    /// <summary>
+    ///     Proves that structurally inconsistent headers - an <c>OTTO</c> font without <c>CFF </c>,
+    ///     a missing required table, a <c>maxp</c> inconsistent with the outline flavor, a zero
+    ///     <c>unitsPerEm</c>, an invalid <c>indexToLocFormat</c>, a table or TTC face offset beyond
+    ///     the end of the file, and an out-of-range face index - are each rejected by the header
+    ///     reader.
+    /// </summary>
+    [Fact]
+    public void SfntHeaderReader_ReadFace_InconsistentHeaders_ThrowInvalidData()
+    {
+        var glyph = SyntheticFontBuilder.SimpleGlyph([[(0, 0, true), (10, 0, true), (10, 10, true), (0, 10, true)]]);
+        SyntheticFontBuilder Complete(int unitsPerEm = 1000, int locFormat = 0, uint maxpVersion = 0x00010000) =>
+            new SyntheticFontBuilder()
+                .AddTable("head", SyntheticFontBuilder.Head(unitsPerEm, locFormat))
+                .AddTable("maxp", SyntheticFontBuilder.Maxp(1, maxpVersion))
+                .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 1))
+                .AddTable("hmtx", SyntheticFontBuilder.Hmtx([500]))
+                .AddTable("loca", SyntheticFontBuilder.Loca([0, glyph.Length], longFormat: false))
+                .AddTable("glyf", glyph);
+
+        var tableBeyondEof = Complete().Build();
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(tableBeyondEof.AsSpan(12 + 12), 0x7FFFFFFF);
+        var ttcFaceBeyondEof = SyntheticFontBuilder.Ttc([Complete().Build()]);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(ttcFaceBeyondEof.AsSpan(12), 0x7FFFFFF0);
+
+        var cases = new (string Name, byte[] Data, int FaceIndex)[]
+        {
+            ("OTTO without CFF", Complete().WithSfntVersion(0x4F54544F).Build(), 0),
+            (
+                "missing hmtx",
+                new SyntheticFontBuilder()
+                    .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+                    .AddTable("maxp", SyntheticFontBuilder.Maxp(1))
+                    .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 1))
+                    .AddTable("loca", SyntheticFontBuilder.Loca([0, glyph.Length], longFormat: false))
+                    .AddTable("glyf", glyph)
+                    .Build(),
+                0),
+            ("maxp version mismatch", Complete(maxpVersion: 0x00005000).Build(), 0),
+            ("zero unitsPerEm", Complete(unitsPerEm: 0).Build(), 0),
+            ("invalid indexToLocFormat", Complete(locFormat: 5).Build(), 0),
+            ("table beyond end of file", tableBeyondEof, 0),
+            ("TTC face offset beyond end of file", ttcFaceBeyondEof, 0),
+            ("face index on non-collection", Complete().Build(), 1),
+            ("face index beyond collection", SyntheticFontBuilder.Ttc([Complete().Build()]), 3),
+        };
+
+        foreach (var (name, data, faceIndex) in cases)
+        {
+            using var stream = new MemoryStream(data);
+            Assert.True(
+                Assert.ThrowsAny<Exception>(() => SfntHeaderReader.ReadFace(stream, faceIndex)) is InvalidDataException,
+                $"Case '{name}' did not throw InvalidDataException.");
+        }
+
+        // The valid baseline is accepted, so each rejection above is caused by its own defect.
+        using var valid = new MemoryStream(Complete().Build());
+    }
+
     /// <summary>Proves that truncated and structurally inconsistent fonts are rejected by the header reader and skipped by the scan.</summary>
     [Fact]
     public void SystemFontCatalog_Fonts_TruncatedAndInconsistentHeaders_AreSkipped()
@@ -414,6 +473,9 @@ public class SystemFontCatalogTests
             File.WriteAllBytes(Path.Combine(root, "Truncated.ttf"), valid[..40]);
             File.WriteAllBytes(Path.Combine(root, "TruncatedTtc.ttc"), SyntheticFontBuilder.Ttc([valid])[..14]);
             File.WriteAllBytes(Path.Combine(root, "Empty.otf"), []);
+            var ottoWithoutCff = (byte[])valid.Clone();
+            "OTTO"u8.CopyTo(ottoWithoutCff);
+            File.WriteAllBytes(Path.Combine(root, "OttoWithoutCff.otf"), ottoWithoutCff);
             File.WriteAllBytes(Path.Combine(root, "Valid.ttf"), valid);
 
             var result = SystemFontCatalog.BuildCatalogFromRoots([root]);

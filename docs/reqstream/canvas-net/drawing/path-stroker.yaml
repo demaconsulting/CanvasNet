@@ -105,6 +105,7 @@ sections:
                   - StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedSmallCircleThickStroke_CollapsesToSolid
                   - StrokeOutliner_Outline_SmallCircleRealisticTessellation_HalfWidthJustOverInradius_CollapsesToSolid
                   - StrokeOutliner_Outline_LargeClosedContourWithTinyEdge_KeepsInteriorUnfilled
+                  - StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_RoundAndBevelJoinsCoverInterior
 
               - id: CanvasNet-Drawing-PathStroker-DegenerateClosedContours
                 title: >-

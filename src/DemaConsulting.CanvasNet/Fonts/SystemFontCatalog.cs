@@ -370,8 +370,9 @@ public static class SystemFontCatalog
 
     /// <summary>
     ///     Builds <see cref="Fonts"/>'s backing catalog: scans every well-known font directory for
-    ///     this operating system, loading every well-formed face of every candidate
-    ///     <c>.ttf</c>/<c>.ttc</c>/<c>.otf</c> file found.
+    ///     this operating system, enumerating every well-formed face of every candidate
+    ///     <c>.ttf</c>/<c>.ttc</c>/<c>.otf</c> file found by reading only its header-level
+    ///     metadata (the font is not fully loaded).
     /// </summary>
     private static IReadOnlyList<SystemFontInfo> BuildCatalog() => BuildCatalogFromRoots(GetScanRoots());
 

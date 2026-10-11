@@ -544,7 +544,9 @@ public sealed partial class PdfDocument
     /// </summary>
     /// <param name="functionEntry">The (possibly indirect-reference) <c>/Function</c> entry to resolve.</param>
     /// <returns>
-    ///     The input domain to sample across (2 elements), and a delegate evaluating the
+    ///     A nominal <c>[0, 1]</c> domain for the array form (or the single function's own
+    ///     <c>/Domain</c>) - callers sample across the shading's own <c>/Domain</c> instead and
+    ///     ignore it - and a delegate evaluating the
     ///     function(s) at a single input value, returning one output value per color component.
     /// </returns>
     /// <exception cref="InvalidDataException">
@@ -566,8 +568,6 @@ public sealed partial class PdfDocument
             }
 
             var subFunctions = new IPdfFunction[resolved.Items.Count];
-            var domainMin = double.NegativeInfinity;
-            var domainMax = double.PositiveInfinity;
             for (var i = 0; i < subFunctions.Length; i++)
             {
                 var sub = ResolveFunctionGeneric(resolved.Items[i]);
@@ -577,17 +577,8 @@ public sealed partial class PdfDocument
                         "Each /Function array element must be a 1-output function.");
                 }
 
+                // Each sub-function clamps its own input to its own /Domain when evaluated.
                 subFunctions[i] = sub;
-
-                // Each sub-function clamps its own input to its own /Domain when evaluated; the
-                // reported domain is the intersection of all of them (the range in which every
-                // sub-function is unclamped).
-                var subDomain = ResolveOptionalNumberArray(Resolve(resolved.Items[i]), "Domain");
-                if (subDomain is { Length: 2 })
-                {
-                    domainMin = Math.Max(domainMin, subDomain[0]);
-                    domainMax = Math.Min(domainMax, subDomain[1]);
-                }
             }
 
             double[] EvaluateArray(double input)
@@ -601,10 +592,7 @@ public sealed partial class PdfDocument
                 return outputs;
             }
 
-            var arrayDomain = double.IsFinite(domainMin) && double.IsFinite(domainMax)
-                ? new[] { domainMin, domainMax }
-                : [0.0, 1.0];
-            return (arrayDomain, EvaluateArray);
+            return ([0.0, 1.0], EvaluateArray);
         }
 
         var function = ResolveFunctionGeneric(functionEntry);

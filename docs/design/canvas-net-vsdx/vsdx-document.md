@@ -64,12 +64,14 @@ unit's own delivery follows.
   mirroring `PptxRenderOptions`'s own precedent).
 - **Supporting exception type**: `VsdxUnsupportedFeatureException` — defined (mirroring
   `PptxUnsupportedFeatureException`'s own precedent, see _PptxDocument Unit Design_,
-  `canvas-net-pptx/pptx-document.md`) for a future recognized-but-deferred VisioML construct
-  requiring a hard failure, carrying a stable feature-token string. Not currently thrown by any
-  resolver in this delivery: a non-solid `FillPattern` beyond the documented subset, an
-  unrecognized `BeginArrow`/`EndArrow` index, an unrecognized geometry row
-  type, and a dangling `Connect` target all instead degrade to a tolerant, no-effect skip — per
-  the Risk Control Measures in _CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`).
+  `canvas-net-pptx/pptx-document.md`) for a recognized-but-unsupported VisioML construct,
+  carrying a stable feature-token string. It is thrown only when
+  `VsdxRenderOptions.ThrowOnUnsupportedFeature` opts into strict mode; by default the construct
+  degrades tolerantly and is reported through the unsupported-feature handler (see
+  _Unsupported-feature reporting_ below). A non-solid `FillPattern` beyond the documented subset
+  (drawn as solid fill) and a dangling `Connect` target (glue resolution skipped) are documented
+  tolerant degradations that are not reported — per the Risk Control Measures in _CanvasNetVsdx
+  System Design_ (`canvas-net-vsdx.md`).
 
 **Invariants**: `PageCount` and `GetPageSize` are available immediately after `Open` succeeds,
 with no page shape tree resolved yet. A `VsdxShapeNode`'s effective cell set is always fully
@@ -319,8 +321,11 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
 
 - **Unsupported-feature reporting** (`VsdxDocument.Diagnostics.cs`): resolvers call
   `ReportUnsupported(token, message)` whenever they degrade a recognized-but-unsupported construct
-  (currently `vsdx-geometry-row-<Type>` for an unrecognized geometry row and
-  `vsdx-arrowhead-<n>` for an unmapped arrowhead index on a 1-D shape). Page resolution is
+  (currently `vsdx-geometry-row-<Type>` for an unrecognized geometry row,
+  `vsdx-arrowhead-<n>` for an unmapped arrowhead index on a 1-D shape, `vsdx-themed-color` for an
+  unresolvable themed color, `vsdx-linepattern-<n>` and `vsdx-linepattern-<n>-approximated` for
+  line patterns, `vsdx-text-case-initialcaps` and `vsdx-text-superscript-subscript` for
+  unsupported character cells, and `vsdx-text-missing-glyph` for a glyph no font covers). Page resolution is
   synchronous and cached, so reports go to a thread-static collector scoped to a single
   `GetPageShapes` resolution; the distinct tokens (first message wins, ordinal order) are stored
   per page and replayed on every `Render`: to `VsdxRenderOptions.UnsupportedFeatureHandler` once

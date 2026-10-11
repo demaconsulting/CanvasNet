@@ -808,7 +808,8 @@ assertions.
 
 **Tests**: `TextDecoration_StyleBit2_ProducesUnderlineBarBelowBaseline`,
 `TextDecoration_Underline_AddsInkWhenRendered`, `TextDecoration_StrikeDoubleStrikeOverline_ProduceBars`,
-`TextDecoration_None_ProducesNoBars`, `TextCase_SmallCapsAndAllCaps_TransformRuns`,
+`TextDecoration_None_ProducesNoBars`, `TextDecoration_MultipleDecorationsAcrossTokens_OneBarPerKind`,
+`TextDecoration_UnderlineAcrossSmallCaps_IsOneBar`, `TextCase_SmallCapsAndAllCaps_TransformRuns`,
 `TextColor_Transparency_ReducesAlpha`, `TextPos_Superscript_IsReported`
 
 Arrange synthetic one-shape packages whose Character row sets `Style`, `Strikethru`,
@@ -845,7 +846,7 @@ U+10FFFF yields null).
 
 ### Supplementary (Non-Requirement-Mapped) Coverage
 
-Beyond the 43 `CanvasNetVsdx-VsdxDocument-*` requirement-mapped scenarios above, the test project
+Beyond the 48 `CanvasNetVsdx-VsdxDocument-*` requirement-mapped scenarios above, the test project
 carries additional smoke-level and fixture-conformance tiers that increase confidence without
 mapping to a single dedicated requirement each:
 

@@ -83,7 +83,9 @@ as a brand-new `Path`:
    - **Open segments** produce one closed polygon built from the left side, an end cap, the right
      side in reverse, and the start cap.
    - **Closed contours** produce two closed rings (outer and inner) wound in opposite directions
-     so `FillRule.NonZero` fills only the shell between them.
+     so `FillRule.NonZero` fills only the shell between them. The exception is a contour whose
+     inner ring collapses (see the collapse discussion below), which is emitted as a union of
+     same-wound per-segment bands and join wedges with no hole.
    - **Outer-outline winding normalization.** `Stroke` appends every stroked subpath's outline(s)
      as independent closed subpaths in one output `Path`, and the whole result is documented to be
      filled with `FillRule.NonZero`. Because NonZero only reinforces (unions) two overlapping
@@ -215,6 +217,8 @@ instances directly. Every emitted polygon becomes one closed subpath in the resu
     `StrokeOutlinerTests.StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_ProducesNoInvalidHole`,
     `StrokeOutlinerTests.StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedClosedContour_ProducesValidThinRing`,
     `StrokeOutlinerTests.StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedSmallCircleThickStroke_CollapsesToSolid`,
+    `StrokeOutlinerTests.StrokeOutliner_Outline_LargeClosedContourWithTinyEdge_KeepsInteriorUnfilled`
+    (the locally collapsed contour that must keep its interior unfilled),
     and
     `StrokeOutlinerTests.StrokeOutliner_Outline_SmallCircleRealisticTessellation_HalfWidthJustOverInradius_CollapsesToSolid`.
 - **Degenerate subpaths.** A single point (or a path collapsed to one effective point after

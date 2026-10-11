@@ -81,9 +81,10 @@ public static class PathFiller
     /// <param name="path">The path to fill. Must not be <see langword="null"/>.</param>
     /// <param name="color">The solid color to paint, scaled per pixel by antialiased fill coverage.</param>
     /// <param name="clip">
-    ///     The active PDF clipping path's antialiased coverage mask, or <see langword="null"/> if
-    ///     no clip is active - see <see cref="ClipMask"/>'s remarks for how its coverage is
-    ///     multiplied, pixel by pixel, into this fill's own coverage.
+    ///     The active PDF clipping path's mask, or <see langword="null"/> if no clip is active - see
+    ///     <see cref="ClipMask"/>'s remarks. A rectangular clip is applied geometrically (the fill
+    ///     is intersected with the rectangle); a dense clip's per-pixel coverage is multiplied
+    ///     into this fill's own coverage.
     /// </param>
     /// <param name="fillRule">
     ///     The rule used to resolve overlapping or self-intersecting geometry. Defaults to
@@ -187,9 +188,10 @@ public static class PathFiller
     /// <param name="path">The path to fill. Must not be <see langword="null"/>.</param>
     /// <param name="paint">The gradient to paint. Must not be <see langword="null"/>.</param>
     /// <param name="clip">
-    ///     The active PDF clipping path's antialiased coverage mask, or <see langword="null"/> if
-    ///     no clip is active - see <see cref="ClipMask"/>'s remarks for how its coverage is
-    ///     multiplied, pixel by pixel, into this fill's own coverage.
+    ///     The active PDF clipping path's mask, or <see langword="null"/> if no clip is active - see
+    ///     <see cref="ClipMask"/>'s remarks. A rectangular clip is applied geometrically (the fill
+    ///     is intersected with the rectangle); a dense clip's per-pixel coverage is multiplied
+    ///     into this fill's own coverage.
     /// </param>
     /// <param name="fillRule">
     ///     The rule used to resolve overlapping or self-intersecting geometry. Defaults to
@@ -288,9 +290,10 @@ public static class PathFiller
     /// <param name="path">The path to fill. Must not be <see langword="null"/>.</param>
     /// <param name="paint">The tile paint to sample. Must not be <see langword="null"/>.</param>
     /// <param name="clip">
-    ///     The active PDF clipping path's antialiased coverage mask, or <see langword="null"/> if
-    ///     no clip is active - see <see cref="ClipMask"/>'s remarks for how its coverage is
-    ///     multiplied, pixel by pixel, into this fill's own coverage.
+    ///     The active PDF clipping path's mask, or <see langword="null"/> if no clip is active - see
+    ///     <see cref="ClipMask"/>'s remarks. A rectangular clip is applied geometrically (the fill
+    ///     is intersected with the rectangle); a dense clip's per-pixel coverage is multiplied
+    ///     into this fill's own coverage.
     /// </param>
     /// <param name="fillRule">
     ///     The rule used to resolve overlapping or self-intersecting geometry. Defaults to

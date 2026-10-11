@@ -64,14 +64,17 @@ public sealed partial class VsdxDocument
     ///     group-nesting depth/resolved-shape-count budget exceeded).
     /// </exception>
     /// <remarks>
-    ///     A recognized-but-unsupported construct (an unrecognized arrowhead index, a dangling
-    ///     glue target, a non-solid fill pattern) never throws by default - it degrades to a
+    ///     A recognized-but-unsupported construct (an unrecognized arrowhead index or geometry row
+    ///     type, an unsupported or approximated line pattern, an unsupported text feature, an
+    ///     unresolvable themed color) never throws by default - it degrades to a
     ///     tolerant, visually-reasonable default instead, and is surfaced (never silently) through
     ///     <see cref="VsdxRenderOptions.UnsupportedFeatureHandler"/>, or thrown as a
     ///     <see cref="VsdxUnsupportedFeatureException"/> when
     ///     <see cref="VsdxRenderOptions.ThrowOnUnsupportedFeature"/> is set. Every such
     ///     degradation is detected during shape-tree resolution (see
-    ///     <c>VsdxDocument.Diagnostics.cs</c>).
+    ///     <c>VsdxDocument.Diagnostics.cs</c>). A non-solid fill pattern (drawn as a solid fill)
+    ///     and a dangling glue target (skipped) are documented tolerant degradations that are not
+    ///     reported.
     /// </remarks>
     public Surface Render(int pageIndex, int width, int height, VsdxRenderOptions? options = null)
     {

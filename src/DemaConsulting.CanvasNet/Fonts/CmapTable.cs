@@ -12,8 +12,11 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///     <para>
 ///     Subtable selection is priority-ordered, first match wins: <c>(3,10)</c> format 12,
 ///     <c>(0,4)</c>/<c>(0,6)</c> format 12, <c>(3,1)</c> format 4, <c>(0,3)</c> format 4, then any
-///     remaining <c>(0,x)</c> format 4. Format 0/2/6, symbol encoding <c>(3,0)</c>, and any
-///     non-Unicode platform/encoding pair are never selected. If no supported subtable is present,
+///     remaining <c>(0,x)</c> format 4, and finally the Windows Symbol encoding <c>(3,0)</c>
+///     format 4 as a last resort. For a symbol subtable, a plain 8-bit code (U+0020..U+00FF) with no
+///     direct mapping falls back to <c>U+F000 | code</c>, where symbol fonts store their glyphs.
+///     Format 0/2/6 and any other non-Unicode platform/encoding pair are never selected. If no
+///     supported subtable is present,
 ///     or the <c>cmap</c> table itself is missing, malformed, or truncated, <see cref="GetGlyphIndex"/>
 ///     always returns <c>0</c> (<c>.notdef</c>) - this class never throws.
 ///     </para>
@@ -244,7 +247,8 @@ internal sealed class CmapTable
             return 4;
         }
 
-        // Windows Symbol encoding (Wingdings, Webdings, Symbol ...): see ParseSymbol handling in Parse.
+        // Windows Symbol encoding (Wingdings, Webdings, Symbol ...): Parse wraps the lookup of
+        // these subtables (tracked in symbolSubtables) with the U+F000 | code fallback.
         if (platformId == 3 && encodingId == 0 && format == 4)
         {
             return 5;

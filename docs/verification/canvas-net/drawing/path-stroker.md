@@ -187,6 +187,7 @@ public styling values are preserved exactly.
 - `StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedSmallCircleThickStroke_CollapsesToSolid`
 - `StrokeOutliner_Outline_SmallCircleRealisticTessellation_HalfWidthJustOverInradius_CollapsesToSolid`
 - `StrokeOutliner_Outline_LargeClosedContourWithTinyEdge_KeepsInteriorUnfilled`
+- `StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_RoundAndBevelJoinsCoverInterior`
 These tests verify the intermediate geometry contracts that feed the public API: preserving
 open/closed state, applying SVG-style dash semantics (including a zero-length "on" entry - the
 dash-dot "dot" technique - correctly emitting one visible zero-length on-interval per pattern

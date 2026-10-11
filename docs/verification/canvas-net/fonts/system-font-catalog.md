@@ -82,12 +82,19 @@ stream wrapper (no timing is asserted).
 
 **Tests**: `SystemFontCatalog_Fonts_MissingScanDirectory_SkippedWithoutThrowing`,
 `SystemFontCatalog_Fonts_UnparseableCandidateFile_SkippedWithoutThrowing`,
-`SystemFontCatalog_Fonts_TruncatedAndInconsistentHeaders_AreSkipped`
+`SystemFontCatalog_Fonts_TruncatedAndInconsistentHeaders_AreSkipped`,
+`SfntHeaderReader_ReadFace_InconsistentHeaders_ThrowInvalidData`
 
 Calls `BuildCatalogFromRoots` with a root pointing at a directory that does not exist, and
 separately with a root containing a `.ttf`-named file whose bytes are not a valid font, asserting
 in both cases the call returns normally (an empty or otherwise unaffected result) rather than
-throwing.
+throwing. The truncated/inconsistent-headers test places truncated files, an empty file, and an
+`OTTO` file without a `CFF` table beside one valid font and asserts only the valid font is
+catalogued. The header-reader test asserts `SfntHeaderReader.ReadFace` throws
+`InvalidDataException` for each of: `OTTO` without `CFF`, a missing required table, a `maxp`
+version inconsistent with the outline flavor, a zero `unitsPerEm`, an invalid `indexToLocFormat`,
+a table offset beyond the end of the file, a TTC face offset beyond the end of the file, and an
+out-of-range face index (with a valid baseline accepted).
 
 ##### CanvasNet-Fonts-SystemFontCatalog-FindBestMatchExactFamily: Exact Family-Name Matching Is Case-Insensitive and Style-Aware
 

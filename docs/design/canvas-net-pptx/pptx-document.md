@@ -3170,7 +3170,9 @@ otherwise-fitting ~18.5 pt row to 28.8 pt. Fix: `PptxParagraph` gained an option
 `RawEndParaRPr` (parsed by `ParseParagraph`, preserved by `SubstituteSlideNumberField`);
 `ResolveWrappedLines` resolves it through the normal run-property inheritance chain, and
 `BuildLines` uses its font and size for a line with no tokens, falling back to the 18 pt nominal
-line only when no `<a:endParaRPr>` exists. A row therefore grows to
+line only when no `<a:endParaRPr>` exists. This applies to every text body that is measured through
+`BuildLines` (shapes, text boxes and placeholders as well as table cells), not only to tables, so
+an empty paragraph anywhere is sized from its own `<a:endParaRPr>` when present. A row therefore grows to
 `max(stored, marT + wrapped line heights + marB)` and rows whose text fits keep their stored
 height. New tests: `ResolveCellRects_OneLineRowFitsStoredHeight_KeepsStoredHeight`,
 `ResolveCellRects_WrappedTextThreeLines_GrowsByExactlyExtraLines`,

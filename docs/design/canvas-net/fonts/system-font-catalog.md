@@ -62,7 +62,9 @@ of `OS/2`/`post`; for a `.ttc`, the face offset table), never the glyph/outline/
 cold scan of the host fonts therefore no longer reads every font file fully. It applies the same
 structural checks as `SfntContainer.Parse` (every directory entry within the file; `OTTO`
 requires `CFF`) plus presence-only checks for `head`/`maxp`/`hhea`/`hmtx` and `loca`+`glyf` or
-`CFF`, and delegates to the same `NameTable`/`StyleTable` parsers `TrueTypeFont` uses, so a valid
+`CFF`, a non-zero `head.unitsPerEm`, a `maxp` version consistent with the outline flavor, and (for
+glyf-flavored faces) a valid `head.indexToLocFormat` (matching `TrueTypeFont.Load`), and delegates
+to the same `NameTable`/`StyleTable` parsers `TrueTypeFont` uses, so a valid
 font yields identical metadata. Behavioral difference: a face with valid headers but corrupt
 glyph data is now listed (it only fails when actually loaded), and a standalone Type 1 program
 with a `.ttf`/`.otf` extension is no longer catalogued. A

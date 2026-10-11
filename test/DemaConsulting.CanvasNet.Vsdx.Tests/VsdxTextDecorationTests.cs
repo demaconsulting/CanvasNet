@@ -90,6 +90,28 @@ public class VsdxTextDecorationTests
         Assert.True(overLayout.DecorationBars[0].CenterYInches > strikeLayout.DecorationBars[0].CenterYInches);
     }
 
+    /// <summary>Several simultaneous decorations across several tokens each merge into one unbroken bar per kind.</summary>
+    [Fact]
+    public void TextDecoration_MultipleDecorationsAcrossTokens_OneBarPerKind()
+    {
+        using var document = Open("""<Cell N="Style" V="4"/><Cell N="Strikethru" V="1"/><Cell N="Overline" V="1"/>""", "ab cd ef");
+
+        var bars = document.GetPageShapes(0)[0].TextLayout!.DecorationBars;
+
+        Assert.Equal(3, bars.Count);
+    }
+
+    /// <summary>An underline spanning small-caps size changes stays one unbroken bar.</summary>
+    [Fact]
+    public void TextDecoration_UnderlineAcrossSmallCaps_IsOneBar()
+    {
+        using var document = Open("""<Cell N="Style" V="12"/>""", "Abc");
+
+        var bar = Assert.Single(document.GetPageShapes(0)[0].TextLayout!.DecorationBars);
+
+        Assert.True(bar.X1Inches > bar.X0Inches);
+    }
+
     /// <summary>With no decoration cells, no bars are produced.</summary>
     [Fact]
     public void TextDecoration_None_ProducesNoBars()

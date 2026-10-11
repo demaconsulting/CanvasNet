@@ -15,7 +15,7 @@ sections:
                 title: >-
                   The SystemFontCatalog type shall discover every font file installed on the host
                   operating system by directory-scanning a documented set of well-known font
-                  directories (Windows/macOS/Linux, no Windows registry), loading every face of
+                  directories (Windows/macOS/Linux, no Windows registry), enumerating every face of
                   every candidate .ttf/.ttc/.otf file found.
                 justification: |
                   Callers substituting a non-embedded font need to know what fonts are actually
@@ -54,6 +54,7 @@ sections:
                   - SystemFontCatalog_Fonts_MissingScanDirectory_SkippedWithoutThrowing
                   - SystemFontCatalog_Fonts_UnparseableCandidateFile_SkippedWithoutThrowing
                   - SystemFontCatalog_Fonts_TruncatedAndInconsistentHeaders_AreSkipped
+                  - SfntHeaderReader_ReadFace_InconsistentHeaders_ThrowInvalidData
 
               - id: CanvasNet-Fonts-SystemFontCatalog-HeaderOnlyScan
                 title: >-

@@ -31,7 +31,9 @@ internal readonly record struct SfntFaceInfo(
 ///     table directory entry must lie within the file; <c>OTTO</c> requires <c>CFF </c>), plus
 ///     presence-only checks for the tables <see cref="TrueTypeFont"/> requires
 ///     (<c>head</c>/<c>maxp</c>/<c>hhea</c>/<c>hmtx</c> and <c>loca</c>+<c>glyf</c> or
-///     <c>CFF </c>). The glyph data itself is not validated, so a face whose headers are well
+///     <c>CFF </c>), a non-zero <c>head.unitsPerEm</c>, a valid <c>head.indexToLocFormat</c> for
+///     glyf-flavored faces, and a <c>maxp</c> version consistent with the outline flavor. The
+///     glyph data itself is not validated, so a face whose headers are well
 ///     formed but whose outline data is corrupt is catalogued here and only fails when it is
 ///     actually loaded.
 ///     </para>
@@ -167,6 +169,16 @@ internal static class SfntHeaderReader
         if (SfntContainer.ReadUInt16(headBytes, 18) == 0)
         {
             throw new InvalidDataException("'head.unitsPerEm' must not be zero.");
+        }
+
+        // Mirrors TrueTypeFont.Load: a glyf-flavored face needs a valid loca format selector.
+        if (!isCff)
+        {
+            var indexToLocFormat = SfntContainer.ReadInt16(headBytes, 50);
+            if (indexToLocFormat != 0 && indexToLocFormat != 1)
+            {
+                throw new InvalidDataException($"'head.indexToLocFormat' has an unsupported value ({indexToLocFormat}).");
+            }
         }
 
         var macStyle = SfntContainer.ReadUInt16(headBytes, 44);

@@ -801,6 +801,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentJpxTests.cs"  # JPXDecode/SMask unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentThinRuleInkTests.cs"  # thin-rule ink unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentImageDownscaleTests.cs"  # image downscale unit tests
+      - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentHairlineStrokeTests.cs"  # hairline stroke unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Jpeg2000Fixtures/gray.jp2"  # gray JPX fixture
       - "test/DemaConsulting.CanvasNet.Tests/Jpeg2000Fixtures/source_gray.png"  # source pixels of gray.jp2
       - "test/DemaConsulting.CanvasNet.Tests/JpegFixtures/grayscale_baseline.jpg"  # gray DCT fixture

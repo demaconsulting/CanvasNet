@@ -823,12 +823,17 @@ sections:
 
           - id: CanvasNetVsdx-VsdxDocument-UnsupportedFeatureReporting
             title: >-
-              The VsdxDocument class shall never silently degrade a recognized-but-unsupported
-              Visio construct: Render shall report each distinct unsupported feature on the page,
+              The VsdxDocument class shall never silently degrade a detected unsupported Visio
+              construct (an unrecognized geometry row type, an unmapped arrowhead index, an
+              unsupported or approximated LinePattern, unsupported text features, or an
+              unresolvable themed color): Render shall report each distinct unsupported feature on
+              the page,
               once per Render call, to VsdxRenderOptions.UnsupportedFeatureHandler (a stable
               feature token plus message), and shall throw VsdxUnsupportedFeatureException
               carrying that token when VsdxRenderOptions.ThrowOnUnsupportedFeature is set, while
-              rendering tolerantly (no throw, no report) under the default options.
+              rendering tolerantly (no throw, no report) under the default options. A non-solid
+              FillPattern (solid-fill degradation) and a dangling Connect target (skipped glue
+              resolution) are documented tolerant degradations and are not reported.
             justification: |
               A fidelity audit of a real-world schematic found that several constructs (an
               unrecognized geometry row type, an unmapped arrowhead index) were skipped with no
@@ -872,6 +877,8 @@ sections:
               - TextDecoration_Underline_AddsInkWhenRendered
               - TextDecoration_StrikeDoubleStrikeOverline_ProduceBars
               - TextDecoration_None_ProducesNoBars
+              - TextDecoration_MultipleDecorationsAcrossTokens_OneBarPerKind
+              - TextDecoration_UnderlineAcrossSmallCaps_IsOneBar
               - TextCase_SmallCapsAndAllCaps_TransformRuns
               - TextColor_Transparency_ReducesAlpha
               - TextPos_Superscript_IsReported

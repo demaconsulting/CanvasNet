@@ -135,7 +135,8 @@ public sealed partial class VsdxDocument
 
                 default:
                     // Unrecognized geometry row type (for example NURBSTo, InfiniteLine,
-                    // RelCubBezTo, Ellipse, SplineStart/SplineKnot, PolylineTo): per
+                    // SplineStart/SplineKnot, PolylineTo; Ellipse and RelCubBezTo are recognized
+                    // above): per
                     // canvas-net-vsdx.md's Risk Control Measures ("an unrecognized ... construct
                     // is tolerantly skipped rather than failing the whole parse"), this row is
                     // silently skipped, leaving the pen position exactly where the previous

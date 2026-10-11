@@ -1387,8 +1387,9 @@ its own distinguishable `Feature` token.
   this logic. A radial shading whose radius reaches zero cannot be extended past the cone vertex.
 - **Function-array domains** — each element of a `/Function` array clamps its own input to its own
   `/Domain` when evaluated (the shading's `/Domain`, default `[0 1]`, maps linearly onto the
-  geometry parameter and is the value passed to every sub-function); the array form's reported
-  domain is the intersection of the sub-function domains. Values outside a sub-function's domain
+  geometry parameter and is the value passed to every sub-function); the array form does not
+  report a combined domain (callers use the shading's own `/Domain`). Values outside a
+  sub-function's domain
   are therefore clamped, not ignored.
 - **Shading operator (`sh`, `PdfDocument.ContentStream.cs`/`PdfDocument.Patterns.Shading.cs`, per
   PDF 32000-1 §8.7.4.2)** — paints a named `/Resources/Shading` dictionary's gradient directly

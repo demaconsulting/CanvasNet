@@ -119,6 +119,36 @@ public class SurfaceResamplerTests
         Assert.True(bilinear);
     }
 
+    /// <summary>Block factors below 1 are rejected.</summary>
+    [Fact]
+    public void BoxReduce_FactorBelowOne_ThrowsArgumentOutOfRange()
+    {
+        using var source = new Surface(4, 4);
+        Assert.Throws<ArgumentOutOfRangeException>(() => SurfaceResampler.BoxReduce(source, 0, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SurfaceResampler.BoxReduce(source, 1, -1));
+    }
+
+    /// <summary>A shrink on one axis and an enlargement on the other reduces only the shrunk axis and requests bilinear sampling.</summary>
+    [Fact]
+    public void Prefilter_MixedAxisShrinkAndEnlarge_ReducesOnlyShrunkAxis()
+    {
+        using var source = new Surface(4, 2);
+        for (var x = 0; x < 4; x++)
+        {
+            source[x, 0] = x < 2 ? new Rgba32(0, 0, 0, 255) : new Rgba32(200, 200, 200, 255);
+            source[x, 1] = source[x, 0];
+        }
+
+        using var reduced = SurfaceResampler.Prefilter(source, Matrix3x2.CreateScale(0.5f, 2f), out var bilinear);
+
+        Assert.True(bilinear);
+        Assert.NotSame(source, reduced);
+        Assert.Equal(2, reduced.Width);
+        Assert.Equal(2, reduced.Height);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), reduced[0, 1]);
+        Assert.Equal(new Rgba32(200, 200, 200, 255), reduced[1, 1]);
+    }
+
     /// <summary>Rotating the mapping by 90 degrees still detects the shrink via column norms.</summary>
     [Fact]
     public void ComputeFactors_Rotated_UsesColumnNorms()

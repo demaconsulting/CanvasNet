@@ -382,13 +382,28 @@ public sealed partial class VsdxDocument
                             continue;
                         }
 
-                        // Extend the previous bar when it is the same kind/size/color and abuts this
-                        // token, so a decoration spanning several tokens is one unbroken bar.
-                        var last = lineBars.Count - 1;
-                        if (last >= 0 && lineBars[last].Kind == kind && Math.Abs(lineBars[last].SizeInches - token.Run.SizeInches) < 1e-9 &&
-                            lineBars[last].Color == token.Run.Color && Math.Abs(lineBars[last].X1 - tokenStartX) < 1e-9)
+                        // Extend this kind's open bar when it has the same color and abuts this
+                        // token, so a decoration spanning several tokens is one unbroken bar. Each
+                        // decoration kind tracks its own open bar (searching backward), so several
+                        // simultaneous decorations all merge; differing sizes (small caps) merge
+                        // too, keeping the larger size so the bar sits at the nominal position.
+                        var open = -1;
+                        for (var barIndex = lineBars.Count - 1; barIndex >= 0; barIndex--)
                         {
-                            lineBars[last] = lineBars[last] with { X1 = x };
+                            if (lineBars[barIndex].Kind == kind)
+                            {
+                                open = barIndex;
+                                break;
+                            }
+                        }
+
+                        if (open >= 0 && lineBars[open].Color == token.Run.Color && Math.Abs(lineBars[open].X1 - tokenStartX) < 1e-9)
+                        {
+                            lineBars[open] = lineBars[open] with
+                            {
+                                X1 = x,
+                                SizeInches = Math.Max(lineBars[open].SizeInches, token.Run.SizeInches),
+                            };
                         }
                         else
                         {

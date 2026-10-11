@@ -389,7 +389,7 @@ through either the public or the internal fill entry point.
 `CompositeOver(Surface)` additionally rejects a disposed `foreground` argument, even when this
 surface itself has not been disposed.
 
-##### CanvasNet-Canvas-Surface-ImageResampling: Box Prefilter and Bilinear Sampler Behave as Documented
+##### CanvasNet-Canvas-Surface-ImageResampling: Box Prefilter Behaves as Documented
 
 **Tests**: `Prefilter_UpscaleOrIdentity_ReturnsSourceUnchanged`,
 `Prefilter_NonFiniteOrDegenerateMatrix_ReturnsSourceUnchanged`,
@@ -397,15 +397,24 @@ surface itself has not been disposed.
 `Prefilter_FractionalAnisotropic_UsesRoundedFactorsAndPartialEdgeBlocks`,
 `Prefilter_PremultipliedAlpha_TransparentPixelsDoNotBleedColor`,
 `Prefilter_ExtremeRatio_ReducesToOnePixel`, `Prefilter_MildShrink_ReturnsSourceButRequestsBilinear`,
-`ComputeFactors_Rotated_UsesColumnNorms`, `SampleBilinear_CentreAndMidpoint_InterpolatesAndClampsEdges`
+`Prefilter_MixedAxisShrinkAndEnlarge_ReducesOnlyShrunkAxis`,
+`BoxReduce_FactorBelowOne_ThrowsArgumentOutOfRange`, `ComputeFactors_Rotated_UsesColumnNorms`
 
 `SurfaceResamplerTests.cs` (internal access via `InternalsVisibleTo`) checks that enlargement,
-1:1 and non-finite/degenerate matrices return the same surface instance; an exact 2:1 reduction
+1:1 and non-finite/degenerate matrices return the same surface instance; a mild shrink also
+returns the same instance while requesting bilinear sampling; an exact 2:1 reduction
 averages 2x2 blocks to expected bytes; fractional and anisotropic ratios yield the documented
-per-axis integer factors and a partial edge block averages only its covered pixels; a transparent
+per-axis integer factors and a partial edge block averages only its covered pixels; a shrink on
+one axis combined with an enlargement on the other reduces only the shrunk axis; block factors
+below 1 throw `ArgumentOutOfRangeException`; a transparent
 pixel contributes no color to a premultiplied average; an extreme ratio collapses to a single
-pixel with the global average; rotation uses column norms; and the bilinear sampler returns pixel
-centres exactly, blends midpoints, and clamps at the edges. No timing is asserted.
+pixel with the global average; and rotation uses column norms. No timing is asserted.
+
+##### CanvasNet-Canvas-Surface-BilinearSampling: Bilinear Sampler Behaves as Documented
+
+**Tests**: `SampleBilinear_CentreAndMidpoint_InterpolatesAndClampsEdges`
+
+The bilinear sampler returns pixel centres exactly, blends midpoints, and clamps at the edges.
 
 ##### Rgba32 Sanity Checks (no requirement link)
 

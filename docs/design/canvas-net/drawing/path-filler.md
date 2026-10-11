@@ -344,16 +344,16 @@ composes smoothly with whatever is painted through it.
   coverage of an axis-aligned rectangle. Anything else (rotated rectangles, curves, several
   subpaths) keeps the dense form: the polygons' bounds are intersected with the `width` x `height`
   extent and, when non-empty, the internal `ScanlineRasterizer.AccumulateCoverageMask(polygons,
-  fillRule, clipBounds, mask, maskWidth)` entry point runs an independent, clip-less
+  fillRule, clipBounds, mask, maskWidth, originX, originY)` entry point runs an independent, clip-less
   `CoverageSweep` and copies each resolved row's coverage into a `float[]` over the clip's own
-  bounding box. `ClipMask.FromPathDense` always builds the dense form (a reference for tests).
+  bounding box (`originX`/`originY` give the device pixel the mask's column/row `0` corresponds to).
+  `ClipMask.FromPathDense` always builds the dense form (a reference for tests).
 - **Representation.** Coverage at a pixel (as `GetCoverage` reports it, used for images) is
   `dense(x, y) * columnFactor(x) * rowFactor(y)`, where the factors are the analytic rectangle's
-  exact per-axis overlap with the pixel and `dense` is an
-  optional shared buffer. For fills the rectangle is instead applied geometrically (see below via
-  `TryClipPolygonsToRect`) and only `dense` is multiplied. A pure rectangle has no `dense`; a
-  dense mask has a rectangle equal to
-  its buffer bounds (all factors `1`); a dense mask restricted by a rectangle shares the buffer
+  exact per-axis overlap with the pixel and `dense` is an optional shared buffer. For fills the
+  rectangle is instead applied geometrically (via `TryClipPolygonsToRect`, described below) and
+  only `dense` is multiplied. A pure rectangle has no `dense`; a dense mask has a rectangle equal
+  to its buffer bounds (all factors `1`); a dense mask restricted by a rectangle shares the buffer
   and applies the restriction lazily through the factors.
 - **`ClipMask.FromPathOrNull` / `ClipMask.Combine`.** `FromPathOrNull` returns `null` ("no clip")
   when the clip is a rectangle covering the whole surface (within `1e-3` pixels), which is what
@@ -363,14 +363,14 @@ composes smoothly with whatever is painted through it.
 - **`ClipMask.Intersect(ClipMask other)`** returns a new `ClipMask` that is the geometric
   intersection of the two (both must share the same `Width`/`Height`), implementing "the new
   clipping path shall be the intersection of the current clipping path and the newly constructed
-  path" (PDF 32000-1 §8.5.4). Rectangle with rectangle is a new rectangle (no allocation, though
+  path" (PDF 32000-1 §8.5.4). Rectangle with rectangle is a new rectangle (no dense buffer allocation, though
   where both edges fall within the same fractional pixel the result is the geometric overlap rather
   than the product of two coverages - an antialiasing-neutral sub-pixel difference; for example
   two rectangles sharing a pixel covered 0.5 and 0.7 intersect to 0.5, where the product of the
   dense coverages would give 0.35, an error of up to 0.25 per boundary pixel. This was
   investigated as a suspected regression against the all-dense product and confirmed as the more
   accurate result, not a bug; it is pinned by the `ClipMask_Intersect_*` tests); rectangle
-  with dense shares the dense buffer and restricts it by the rectangle (no allocation, no product
+  with dense shares the dense buffer and restricts it by the rectangle (no dense buffer allocation, no product
   pass); dense with dense allocates only over the overlap of the two bounds and multiplies per-row
   spans, folding in each operand's rectangle factors on the outermost columns and rows. Neither
   operand is ever mutated, which is what lets `PdfDocument.GraphicsState.Clone()` safely copy a

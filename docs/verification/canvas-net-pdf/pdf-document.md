@@ -742,13 +742,18 @@ at least one full pixel per column (0.95 to 1.4 of the column count). They are d
 (no timing) and guard against both a minimum-width floor that over-inks thin strokes and any
 under-inking.
 
-#### CanvasNetPdf-PdfDocument-ClippingPath: W/W* Clip, Enforce, and Scope the Active Clipping Path
+`PdfDocument_Render_HairlineStrokeOfClosedOutlineWithTinyEdges_KeepsInteriorFilled` (in
+`PdfDocumentHairlineStrokeTests.cs`) fills a closed clip-art outline with two sub-stroke-width
+edges pale blue and then hairline strokes it black, asserting an interior pixel remains the fill
+color (the stroke is not painted solid) while pixels on the outline are inked. It is deterministic
+and asserts no timing.: W/W* Clip, Enforce, and Scope the Active Clipping Path
 
 **Tests**: `PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion`,
 `PdfDocument_Clipping_SetInsideQQ_DoesNotLeakPastQ`,
 `PdfDocument_Clipping_WStar_UsesEvenOddFillRule`,
 `PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace`,
 `PdfDocument_Clipping_ClipThenImageDo_RestrictsImageToClipRegion`,
+`PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion`,
 `PdfDocument_Clipping_ManyFullPageRectangleClips_RenderIdenticalToUnclipped`,
 `PdfDocument_ThinRules_DoubleRuleWithCoincidentClip_InkMatchesGeometry`,
 `PdfDocument_ThinRules_DoubleRuleWithWiderClip_InkMatchesGeometry`,

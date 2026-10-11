@@ -10,11 +10,13 @@ namespace DemaConsulting.CanvasNet.Canvas;
 /// <remarks>
 ///     Point sampling a source image while shrinking it drops thin features (a one-pixel line in
 ///     a 2.6:1 reduction is hit by roughly one destination sample in 2.6). The prefilter averages
-///     integer-sized blocks of source pixels (the rounded reduction ratio) once per draw (a single O(W*H) pass and one output
-///     allocation no larger than the source), and the caller then samples the reduced surface
+///     integer-sized blocks of source pixels (the rounded reduction ratio) once per draw (a single
+///     O(W*H) pass and one output allocation no larger than the source), and the caller then
+///     samples the reduced surface
 ///     bilinearly, which covers the remaining fractional part of the reduction. Averaging is done
 ///     in premultiplied alpha with checked <see cref="long"/> accumulators. When the image is not
-///     shrunk, the source surface is returned unchanged so the upscale path is untouched.
+///     shrunk (or the shrink is too mild for any block reduction), the source surface is returned
+///     unchanged so the upscale path is untouched.
 /// </remarks>
 internal static class SurfaceResampler
 {
@@ -47,8 +49,11 @@ internal static class SurfaceResampler
     ///     enlargement or 1:1 (nearest-neighbor sampling of the unchanged source).
     /// </param>
     /// <returns>
-    ///     <paramref name="source"/> when no block reduction is needed (the caller must not
-    ///     dispose it as a temporary); otherwise a new surface the caller owns and must dispose.
+    ///     <paramref name="source"/> when no block reduction is needed - enlargement, 1:1, a
+    ///     degenerate or non-finite mapping, or a shrink too mild to round to a block factor above 1
+    ///     (in which case <paramref name="useBilinear"/> is still <see langword="true"/>); the
+    ///     caller must not dispose it as a temporary. Otherwise a new surface the caller owns and
+    ///     must dispose.
     /// </returns>
     internal static Surface Prefilter(Surface source, Matrix3x2 pixelToDevice, out bool useBilinear)
     {

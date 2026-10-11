@@ -426,6 +426,34 @@ public class StrokeOutlinerTests
     }
 
     /// <summary>
+    ///     Proves that the collapsed-closed-contour path also covers the whole interior of an
+    ///     over-eroded square when the join style is Round or Bevel (not only the default Miter).
+    /// </summary>
+    /// <param name="join">The line join style under test.</param>
+    [Theory]
+    [InlineData(LineJoin.Round)]
+    [InlineData(LineJoin.Bevel)]
+    public void StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_RoundAndBevelJoinsCoverInterior(LineJoin join)
+    {
+        // Arrange: a 4x4 square (inradius 2) stroked with half-width 5 and a non-miter join.
+        var points = new List<Vector2> { new(2, 2), new(6, 2), new(6, 6), new(2, 6) };
+        var style = new StrokeStyle(10f, join: join);
+
+        // Act
+        var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
+
+        // Assert: no hole - the whole square interior is covered by the stroke
+        Assert.NotEmpty(polygons);
+        Vector2[] mustBeCovered = [new(4, 4), new(2.5f, 2.5f), new(5.5f, 2.5f), new(5.5f, 5.5f), new(2.5f, 5.5f)];
+        foreach (var point in mustBeCovered)
+        {
+            Assert.True(
+                polygons.Any(polygon => IsPointInPolygon(point, polygon)),
+                $"Expected {point} to be covered by the {join} join stroke band, but it was not.");
+        }
+    }
+
+    /// <summary>
     ///     Proves that a half-width comfortably NEAR but still below the contour's inradius still
     ///     produces the correct, valid (non-collapsed) hole - the fix for over-erosion must not
     ///     regress the ordinary case where the inner ring remains geometrically valid.
