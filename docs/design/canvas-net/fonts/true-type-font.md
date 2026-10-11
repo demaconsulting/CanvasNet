@@ -433,7 +433,9 @@ zero-padding.
 
 `CmapTable` chooses exactly one supported subtable using this priority order: `(3,10)`
 format 12, `(0,4)`/`(0,6)` format 12, `(3,1)` format 4, `(0,3)` format 4, then any remaining
-`(0,x)` format 4.
+`(0,x)` format 4, and finally the Windows Symbol `(3,0)` format 4. A `(3,0)` lookup of a plain
+8-bit code (`0x20`-`0xFF`) that is unmapped falls back to `U+F000 | code`, the private-use
+slot symbol fonts (Wingdings, Webdings, Symbol) really use.
 
 ##### `kern` Table Layout Used
 

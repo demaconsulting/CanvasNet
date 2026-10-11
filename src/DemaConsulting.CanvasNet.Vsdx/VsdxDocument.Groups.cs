@@ -137,7 +137,7 @@ public sealed partial class VsdxDocument
         shape.TextRuns = textRuns;
         shape.TextBox = BuildTextBox(effectiveCells, shape.Transform);
         var textBoxStyle = ResolveTextBoxStyle(effectiveCells, effectiveTextStyleId);
-        shape.TextLayout = ResolveTextLayout(textRuns, shape.TextBox, textBoxStyle, ResolveTextFont);
+        shape.TextLayout = ResolveTextLayout(textRuns, shape.TextBox, textBoxStyle, ResolveTextFont, ResolveGlyphFallbackFont);
 
         if (shape.Children.Count == 0)
         {

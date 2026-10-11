@@ -821,6 +821,19 @@ center pixel is red only for no layer, layer 0, `1;3` (any shown layer) and an u
 layers 1, 2 and `1;2` hide it. A group on a hidden layer hides its child. Text with
 `ColorTrans=1` leaves the page blank while `ColorTrans=0` paints ink. No timing assertions.
 
+#### CanvasNetVsdx-VsdxDocument-GlyphFallback: Missing Glyphs Use A Fallback Font
+
+**Tests**: `GlyphFallback_MissingCodePoint_UsesFallbackFontAndAdvance`,
+`GlyphFallback_CoveredCodePoint_DoesNotConsultFallback`,
+`GlyphFallback_NoFontCoversCodePoint_KeepsPrimaryGlyph`,
+`GlyphFallback_DefaultResolver_ReturnsCoveringFontOrNull`
+
+Synthetic fonts (primary maps only `A`; a second maps only U+2794) and an injected fallback
+resolver prove the placed glyph uses the fallback font, index and advance, that covered glyphs
+never call the fallback, and that a null fallback keeps the primary's glyph 0. The default
+resolver test accepts any machine's installed fonts (a returned font must cover the code point;
+U+10FFFF yields null).
+
 ### Supplementary (Non-Requirement-Mapped) Coverage
 
 Beyond the 43 `CanvasNetVsdx-VsdxDocument-*` requirement-mapped scenarios above, the test project

@@ -114,6 +114,21 @@ public class CmapTableTests
     }
 
     /// <summary>
+    ///     Proves that a Windows Symbol (3,0) subtable resolves plain 8-bit codes via U+F000..U+F0FF.
+    /// </summary>
+    [Fact]
+    public void CmapTable_SymbolSubtable_PlainEightBitCodeResolvesViaPrivateUseArea()
+    {
+        var table = SyntheticFontBuilder.CmapFormat4(3, 0, [(0xF0E0, 7)]);
+
+        var cmap = CmapTable.Parse(table, 0, table.Length);
+
+        Assert.Equal(7, cmap.GetGlyphIndex(0xE0));
+        Assert.Equal(7, cmap.GetGlyphIndex(0xF0E0));
+        Assert.Equal(0, cmap.GetGlyphIndex(0xE1));
+    }
+
+    /// <summary>
     ///     Proves that CmapTable Empty GetGlyphIndexReturnsZero.
     /// </summary>
     [Fact]

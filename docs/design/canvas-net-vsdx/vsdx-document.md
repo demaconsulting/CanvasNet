@@ -349,6 +349,13 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   subtree. A shape on any shown layer, on no layer, or on unknown layers stays visible. The
   existing `HideText` and `NonPrinting` handling is unchanged.
 
+- **Glyph fallback** (`VsdxDocument.TextLayout.cs`, `TextRender.cs`): when a non-whitespace code
+  point has no glyph in the run's font, `SelectGlyphFont` asks `ResolveGlyphFallbackFont`
+  (preferred symbol families such as Segoe UI Symbol, Arial Unicode MS, Cambria Math, DejaVu
+  Sans, then any catalog face, then the bundled Liberation faces; results cached) and uses the
+  returned font for both measurement and the placed glyph. No coverage reports
+  `vsdx-text-missing-glyph`. Tests inject their own resolver.
+
 ### Error Handling
 
 `ArgumentNullException` and `ArgumentException` are thrown synchronously from `Open` for a

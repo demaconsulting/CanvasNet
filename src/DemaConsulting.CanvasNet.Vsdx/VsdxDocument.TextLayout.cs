@@ -38,12 +38,17 @@ public sealed partial class VsdxDocument
     ///     that bypasses installed-font discovery entirely for deterministic, machine-independent
     ///     assertions, mirroring <c>PptxDocument.ResolveTextLayout</c>'s own test seam.
     /// </param>
+    /// <param name="glyphFallbackResolver">
+    ///     Optional per-glyph fallback: given a code point the run's font lacks (plus the run's
+    ///     bold/italic), returns a font that has it, or <see langword="null"/> when none does.
+    /// </param>
     /// <returns>The resolved <see cref="VsdxTextLayout"/>. Empty (no glyphs) when <paramref name="runs"/> is empty.</returns>
     internal static VsdxTextLayout ResolveTextLayout(
         IReadOnlyList<VsdxEffectiveTextRun> runs,
         VsdxTextBoxTransform textBox,
         VsdxEffectiveTextBoxStyle textBoxStyle,
-        Func<string, bool, bool, TrueTypeFont> fontResolver)
+        Func<string, bool, bool, TrueTypeFont> fontResolver,
+        Func<int, bool, bool, TrueTypeFont?>? glyphFallbackResolver = null)
     {
         if (runs.Count == 0)
         {
@@ -86,7 +91,7 @@ public sealed partial class VsdxDocument
         var lines = new List<LineBox>();
         foreach (var paragraph in SplitIntoParagraphs(runs))
         {
-            lines.AddRange(BuildParagraphLines(paragraph, availableWidth, ResolveFont));
+            lines.AddRange(BuildParagraphLines(paragraph, availableWidth, ResolveFont, glyphFallbackResolver));
         }
 
         return PositionLines(lines, textBoxStyle.VerticalAlign, contentLeft, contentTop, availableWidth, availableHeight);
@@ -154,7 +159,11 @@ public sealed partial class VsdxDocument
     ///     trimmed of the tab-stop special case (no tab-stop concept exists for VisioML text,
     ///     out of scope for this milestone).
     /// </summary>
-    private static List<ResolvedToken> Tokenize(string text, VsdxEffectiveTextRun run, TrueTypeFont font)
+    private static List<ResolvedToken> Tokenize(
+        string text,
+        VsdxEffectiveTextRun run,
+        TrueTypeFont font,
+        Func<int, bool, bool, TrueTypeFont?>? fallback)
     {
         var tokens = new List<ResolvedToken>();
         var start = 0;
@@ -168,7 +177,7 @@ public sealed partial class VsdxDocument
             }
 
             var token = text[start..end];
-            tokens.Add(new ResolvedToken(token, isWhitespace, run, font, MeasureTokenWidthInches(token, font, run.SizeInches)));
+            tokens.Add(new ResolvedToken(token, isWhitespace, run, font, MeasureTokenWidthInches(token, font, run, isWhitespace ? null : fallback)));
             start = end;
         }
 
@@ -176,16 +185,53 @@ public sealed partial class VsdxDocument
     }
 
     /// <summary>Measures a token's natural advance width, in inches, summing each Unicode scalar value's font-metric advance.</summary>
-    private static double MeasureTokenWidthInches(string text, TrueTypeFont font, double sizeInches)
+    private static double MeasureTokenWidthInches(
+        string text,
+        TrueTypeFont font,
+        VsdxEffectiveTextRun run,
+        Func<int, bool, bool, TrueTypeFont?>? fallback)
     {
         var total = 0d;
         foreach (var rune in text.EnumerateRunes())
         {
-            var glyphIndex = font.GetGlyphIndex(rune.Value);
-            total += font.GetAdvanceWidth(glyphIndex) / (double)font.UnitsPerEm * sizeInches;
+            var glyphFont = SelectGlyphFont(font, rune, run, fallback, out var glyphIndex);
+            total += glyphFont.GetAdvanceWidth(glyphIndex) / (double)glyphFont.UnitsPerEm * run.SizeInches;
         }
 
         return total;
+    }
+
+    /// <summary>
+    ///     Picks the font used to draw one code point: the run's own font when it has a glyph for
+    ///     it, otherwise the per-glyph fallback font (when the fallback supplies one), otherwise
+    ///     the run's font again (drawing its missing-glyph outline). Control and format characters
+    ///     never trigger fallback.
+    /// </summary>
+    private static TrueTypeFont SelectGlyphFont(
+        TrueTypeFont primary,
+        System.Text.Rune rune,
+        VsdxEffectiveTextRun run,
+        Func<int, bool, bool, TrueTypeFont?>? fallback,
+        out int glyphIndex)
+    {
+        glyphIndex = primary.GetGlyphIndex(rune.Value);
+        if (glyphIndex != 0 || fallback is null || Rune.IsControl(rune) || Rune.IsWhiteSpace(rune) ||
+            Rune.GetUnicodeCategory(rune) == System.Globalization.UnicodeCategory.Format)
+        {
+            return primary;
+        }
+
+        var alternate = fallback(rune.Value, run.Bold, run.Italic);
+        if (alternate is null)
+        {
+            ReportUnsupported(
+                "vsdx-text-missing-glyph",
+                $"No installed font has a glyph for U+{rune.Value:X4}; the font's missing-glyph box is drawn instead.");
+            return primary;
+        }
+
+        glyphIndex = alternate.GetGlyphIndex(rune.Value);
+        return alternate;
     }
 
     /// <summary>
@@ -267,7 +313,8 @@ public sealed partial class VsdxDocument
     private static List<LineBox> BuildParagraphLines(
         List<(string Text, VsdxEffectiveTextRun Run)> paragraphPieces,
         double availableWidthInches,
-        Func<string, bool, bool, TrueTypeFont> resolveFont)
+        Func<string, bool, bool, TrueTypeFont> resolveFont,
+        Func<int, bool, bool, TrueTypeFont?>? glyphFallback)
     {
         var paragraphProperties = paragraphPieces.Count > 0 ? paragraphPieces[0].Run.Paragraph : DefaultParagraphProperties;
         var effectiveWidth = Math.Max(0d, availableWidthInches - paragraphProperties.IndLeft - paragraphProperties.IndRight);
@@ -275,7 +322,7 @@ public sealed partial class VsdxDocument
         var tokens = new List<ResolvedToken>();
         foreach (var (text, run) in paragraphPieces)
         {
-            tokens.AddRange(Tokenize(text, run, resolveFont(run.FontFamily, run.Bold, run.Italic)));
+            tokens.AddRange(Tokenize(text, run, resolveFont(run.FontFamily, run.Bold, run.Italic), glyphFallback));
         }
 
         var wrappedLines = PackTokensIntoLines(tokens, effectiveWidth);
@@ -315,9 +362,9 @@ public sealed partial class VsdxDocument
                 {
                     foreach (var rune in token.Text.EnumerateRunes())
                     {
-                        var glyphIndex = token.Font.GetGlyphIndex(rune.Value);
-                        lineGlyphs.Add(new LineGlyph(token.Font, glyphIndex, x, token.Run.SizeInches, token.Run.Color));
-                        x += token.Font.GetAdvanceWidth(glyphIndex) / (double)token.Font.UnitsPerEm * token.Run.SizeInches;
+                        var glyphFont = SelectGlyphFont(token.Font, rune, token.Run, glyphFallback, out var glyphIndex);
+                        lineGlyphs.Add(new LineGlyph(glyphFont, glyphIndex, x, token.Run.SizeInches, token.Run.Color));
+                        x += glyphFont.GetAdvanceWidth(glyphIndex) / (double)glyphFont.UnitsPerEm * token.Run.SizeInches;
                     }
                 }
                 else

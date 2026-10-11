@@ -79,6 +79,73 @@ public sealed partial class VsdxDocument
         }
     }
 
+    /// <summary>Preferred glyph-fallback families, searched in order before any other installed font.</summary>
+    private static readonly string[] FallbackFamilies =
+    [
+        "Segoe UI Symbol", "Segoe UI Emoji", "Arial Unicode MS", "Cambria Math", "DejaVu Sans", "Noto Sans Symbols",
+        "Noto Sans Symbols2", "Noto Sans", "Symbola", "Apple Symbols", "Segoe UI", "Arial", "Liberation Sans",
+    ];
+
+    /// <summary>Per-(code point, bold, italic) fallback results (null = nothing covers it), shared by all documents.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(int CodePoint, bool Bold, bool Italic), TrueTypeFont?> FallbackResults = new();
+
+    /// <summary>Loaded fallback fonts by file/face, <see langword="null"/> when the file cannot be parsed.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Path, int Face), TrueTypeFont?> FallbackFontCache = new();
+
+    /// <summary>
+    ///     Default per-glyph fallback: finds an installed font (preferred symbol/Unicode families
+    ///     first, then every other catalog face, then the bundled Liberation faces) that has a
+    ///     glyph for <paramref name="codePoint"/>, preferring the requested bold/italic style.
+    ///     Results are cached; <see langword="null"/> means no font covers the code point.
+    /// </summary>
+    internal static TrueTypeFont? ResolveGlyphFallbackFont(int codePoint, bool bold, bool italic) =>
+        FallbackResults.GetOrAdd((codePoint, bold, italic), static key => FindGlyphFallbackFont(key.CodePoint, key.Bold, key.Italic));
+
+    private static TrueTypeFont? FindGlyphFallbackFont(int codePoint, bool bold, bool italic)
+    {
+        static TrueTypeFont? Load(SystemFontInfo info) =>
+            FallbackFontCache.GetOrAdd((info.FilePath, info.FaceIndex), static key =>
+            {
+                try
+                {
+                    return TrueTypeFont.Load(key.Path, key.Face);
+                }
+                catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException or ArgumentException)
+                {
+                    return null;
+                }
+            });
+
+        IEnumerable<SystemFontInfo> Candidates()
+        {
+            var fonts = SystemFontCatalog.Fonts;
+            foreach (var family in FallbackFamilies)
+            {
+                foreach (var info in fonts.Where(f => string.Equals(f.FamilyName, family, StringComparison.OrdinalIgnoreCase))
+                             .OrderBy(f => (f.Bold == bold ? 0 : 1) + (f.Italic == italic ? 0 : 1)))
+                {
+                    yield return info;
+                }
+            }
+
+            foreach (var info in fonts.OrderBy(f => (f.Bold == bold ? 0 : 1) + (f.Italic == italic ? 0 : 1)))
+            {
+                yield return info;
+            }
+        }
+
+        foreach (var info in Candidates())
+        {
+            if (Load(info) is { } font && font.GetGlyphIndex(codePoint) != 0)
+            {
+                return font;
+            }
+        }
+
+        var bundled = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic);
+        return bundled.GetGlyphIndex(codePoint) != 0 ? bundled : null;
+    }
+
     /// <summary>
     ///     Resolves a VisioML <c>Font</c> cell's family-name hint to a run's <see cref="TrueTypeFont"/>:
     ///     searches the host operating system's installed fonts via
