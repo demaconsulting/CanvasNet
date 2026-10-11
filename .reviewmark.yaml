@@ -127,8 +127,10 @@ reviews:
       - "docs/design/canvas-net/canvas/surface.md"            # unit design
       - "docs/verification/canvas-net/canvas/surface.md"      # unit verification
       - "src/DemaConsulting.CanvasNet/Canvas/Surface.cs"          # unit source
+      - "src/DemaConsulting.CanvasNet/Canvas/SurfaceResampler.cs"  # internal image resampling helper
       - "src/DemaConsulting.CanvasNet/Canvas/NamespaceDoc.cs"     # Canvas namespace documentation
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceResamplerTests.cs"  # resampler unit tests
 
   # CanvasNet-Canvas-Rgba32 Review (one per unit)
   - id: CanvasNet-Canvas-Rgba32
@@ -796,6 +798,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentMeshShadingTests.cs"  # mesh shading unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentJpxTests.cs"  # JPXDecode/SMask unit tests
+      - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentImageDownscaleTests.cs"  # image downscale unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Jpeg2000Fixtures/gray.jp2"  # gray JPX fixture
       - "test/DemaConsulting.CanvasNet.Tests/Jpeg2000Fixtures/source_gray.png"  # source pixels of gray.jp2
       - "test/DemaConsulting.CanvasNet.Tests/JpegFixtures/grayscale_baseline.jpg"  # gray DCT fixture

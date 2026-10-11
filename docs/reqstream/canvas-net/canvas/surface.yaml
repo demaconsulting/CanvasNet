@@ -383,3 +383,25 @@ sections:
                   - Surface_CompositeOverSpanWithWorkspace_AfterDispose_ThrowsObjectDisposedException
                   - Surface_CompositeOverSpanWithWorkspacePerPixelColors_AfterDispose_ThrowsObjectDisposedException
                   - Surface_Clear_AfterDispose_ThrowsObjectDisposedException
+
+              - id: CanvasNet-Canvas-Surface-ImageResampling
+                title: >-
+                  The Surface unit shall provide an internal image-resampling helper that
+                  box-averages a source surface by integer per-axis factors in premultiplied alpha
+                  when it is shrunk, returns the source unchanged when it is enlarged or drawn 1:1
+                  or when the mapping is degenerate or non-finite, and samples a surface bilinearly
+                  with clamped edges.
+                justification: |
+                  Point sampling a shrunk raster image drops thin features such as one-pixel rules.
+                  A single area-averaging pass per draw, bounded by the source size, preserves those
+                  features without changing enlargement behavior or risking unbounded allocation.
+                tests:
+                  - Prefilter_UpscaleOrIdentity_ReturnsSourceUnchanged
+                  - Prefilter_NonFiniteOrDegenerateMatrix_ReturnsSourceUnchanged
+                  - Prefilter_ExactTwoToOne_AveragesBlocks
+                  - Prefilter_FractionalAnisotropic_UsesRoundedFactorsAndPartialEdgeBlocks
+                  - Prefilter_PremultipliedAlpha_TransparentPixelsDoNotBleedColor
+                  - Prefilter_ExtremeRatio_ReducesToOnePixel
+                  - Prefilter_MildShrink_ReturnsSourceButRequestsBilinear
+                  - ComputeFactors_Rotated_UsesColumnNorms
+                  - SampleBilinear_CentreAndMidpoint_InterpolatesAndClampsEdges

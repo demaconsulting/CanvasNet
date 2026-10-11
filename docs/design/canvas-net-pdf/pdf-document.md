@@ -771,9 +771,15 @@ its own distinguishable `Feature` token.
   nothing), computes the device-space bounding box of the transformed unit square, and for every
   destination pixel in that box nearest-neighbor-samples the source image (`row = floor((1 - v) *
   image.Height)`, since image sample row `0` is the _top_ of the unit square per the PDF
-  specification's image-space convention, the opposite of user-space's y-up convention) — no
-  bilinear interpolation, a documented Phase 3 simplification consistent with Phase 2's own
-  stroke-width simplification precedent. Each sampled source pixel is alpha-blended "over" the
+  specification's image-space convention, the opposite of user-space's y-up convention). When the
+  image is enlarged or drawn 1:1 this nearest-neighbor lookup is unchanged. When the pixel-to-device
+  mapping shrinks the image on either axis (local scales are the column norms of the 2x2 part of
+  the matrix), the internal `Canvas.SurfaceResampler` first area-averages the image once per draw
+  (an integer box prefilter, factor = nearest integer to the reduction ratio, premultiplied alpha,
+  output no larger than the source, so memory is bounded by the decoded image) and the result is
+  sampled bilinearly (centre-aligned, edge-clamped); mild shrinks below 1.5:1 use bilinear on the
+  source directly. Thin features such as one-pixel rules are therefore attenuated rather than
+  dropped. `/Interpolate` is not consulted. Each sampled source pixel is alpha-blended "over" the
   existing destination pixel via the shared internal `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)`
   helper (standard Porter-Duff "over" alpha compositing — straight/unassociated alpha in and out,
   `outA = fgA + bgA * (1 - fgA)`, each color channel `outC = (fgC * fgA + bgC * bgA * (1 - fgA)) /

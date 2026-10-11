@@ -389,6 +389,24 @@ through either the public or the internal fill entry point.
 `CompositeOver(Surface)` additionally rejects a disposed `foreground` argument, even when this
 surface itself has not been disposed.
 
+##### CanvasNet-Canvas-Surface-ImageResampling: Box Prefilter and Bilinear Sampler Behave as Documented
+
+**Tests**: `Prefilter_UpscaleOrIdentity_ReturnsSourceUnchanged`,
+`Prefilter_NonFiniteOrDegenerateMatrix_ReturnsSourceUnchanged`,
+`Prefilter_ExactTwoToOne_AveragesBlocks`,
+`Prefilter_FractionalAnisotropic_UsesRoundedFactorsAndPartialEdgeBlocks`,
+`Prefilter_PremultipliedAlpha_TransparentPixelsDoNotBleedColor`,
+`Prefilter_ExtremeRatio_ReducesToOnePixel`, `Prefilter_MildShrink_ReturnsSourceButRequestsBilinear`,
+`ComputeFactors_Rotated_UsesColumnNorms`, `SampleBilinear_CentreAndMidpoint_InterpolatesAndClampsEdges`
+
+`SurfaceResamplerTests.cs` (internal access via `InternalsVisibleTo`) checks that enlargement,
+1:1 and non-finite/degenerate matrices return the same surface instance; an exact 2:1 reduction
+averages 2x2 blocks to expected bytes; fractional and anisotropic ratios yield the documented
+per-axis integer factors and a partial edge block averages only its covered pixels; a transparent
+pixel contributes no color to a premultiplied average; an extreme ratio collapses to a single
+pixel with the global average; rotation uses column norms; and the bilinear sampler returns pixel
+centres exactly, blends midpoints, and clamps at the edges. No timing is asserted.
+
 ##### Rgba32 Sanity Checks (no requirement link)
 
 **Tests**: `Rgba32_FieldAssignment_StoresChannelValues`, `Rgba32_Equals_SameChannelValues_ReturnsTrue`

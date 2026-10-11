@@ -1037,6 +1037,19 @@ between row 0 and row 1 and sets `/EncodedByteAlign true`, asserting the decoder
 the exact same expected pixels - proving `AlignToByte` is actually invoked to skip the garbage
 bits before each row, rather than the implementation coincidentally tolerating zero padding only.
 
+#### CanvasNetPdf-PdfDocument-ImageDownscale: Shrunk Images Are Filtered, Enlarged Images Stay Exact
+
+**Tests**: `Render_ShrunkImageWithOnePixelLines_KeepsEveryLine`,
+`Render_ShrunkFlippedImage_KeepsEveryLine`, `Render_ShrunkRotatedImage_KeepsEveryLine`,
+`Render_EnlargedImage_RemainsExactBlocks`
+
+`PdfDocumentImageDownscaleTests.cs` builds a synthetic in-memory PDF with a 1940x4 raw gray image
+containing one-pixel black lines every 24 source pixels, drawn full-page and rendered at 765,
+1020, 1108 and 1303 pixels wide (non-integer reduction ratios), mirrored, and rotated 90 degrees.
+Every line must leave at least 70% of its area-proportional darkness within two pixels of its
+mapped column (point sampling leaves some lines at zero). A 4x1 image enlarged 100x must still
+render exact nearest-neighbor blocks. No timing is asserted.
+
 #### CanvasNetPdf-PdfDocument-ImageXObjects: Do Composites Images, Fails Closed on Unsupported Features
 
 **Tests**: `PdfDocument_Images_DoOperator_DeviceGrayFlateDecode_PlacesExpectedPixels`,
