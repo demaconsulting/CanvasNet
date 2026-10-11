@@ -282,6 +282,27 @@ public class PptxImagesTests
         Assert.Equal(255, surface[39, 2].R);
     }
 
+    /// <summary>Proves a fractional crop's extra border source pixels (kept for filter taps) never paint outside the picture's own footprint.</summary>
+    [Fact]
+    public void PaintPicture_FractionalCropAtOffset_PaintsOnlyInsideFootprint()
+    {
+        using var image = new Surface(4, 4);
+        image.Clear(new Rgba32(255, 0, 0, 255));
+        using var surface = new Surface(60, 20);
+        var srcRect = new PptxSrcRect(Left: 0.125f, Top: 0.125f, Right: 0.125f, Bottom: 0.125f);
+
+        PptxDocument.PaintPicture(surface, image, srcRect, Matrix3x2.CreateTranslation(10f, 5f), widthEmu: 40f, heightEmu: 8f);
+
+        for (var y = 0; y < 20; y++)
+        {
+            for (var x = 0; x < 60; x++)
+            {
+                var inside = x is >= 10 and < 50 && y is >= 5 and < 13;
+                Assert.Equal(inside, surface[x, y].A != 0);
+            }
+        }
+    }
+
     /// <summary>Proves the crop also does not bleed for a rotated picture (inverse-mapped bilinear path).</summary>
     [Fact]
     public void PaintPicture_RotatedCrop_DoesNotBleedPixelsOutsideCrop()

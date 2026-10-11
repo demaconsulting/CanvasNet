@@ -757,7 +757,7 @@ public sealed partial class PptxDocument
             {
                 if (window is not null)
                 {
-                    CompositeWindow(surface, window, originX, originY, clipMask);
+                    CompositeWindow(surface, window, originX, originY, clipMask, surfaceToUnit);
                 }
             }
 
@@ -808,8 +808,10 @@ public sealed partial class PptxDocument
     /// <summary>
     ///     Composites a device-aligned resampled picture window onto <paramref name="surface"/>
     ///     one pixel at a time (Porter-Duff "over"), scaling alpha by the optional clip mask.
+    ///     Pixels whose centers fall outside the picture's unit-square footprint (the window may
+    ///     include whole border source pixels beyond a fractional crop) are skipped.
     /// </summary>
-    private static void CompositeWindow(Surface surface, Surface window, int originX, int originY, Surface? clipMask)
+    private static void CompositeWindow(Surface surface, Surface window, int originX, int originY, Surface? clipMask, Matrix3x2 surfaceToUnit)
     {
         for (var y = 0; y < window.Height; y++)
         {
@@ -817,6 +819,12 @@ public sealed partial class PptxDocument
             {
                 var dx = originX + x;
                 var dy = originY + y;
+                var unitPoint = Vector2.Transform(new Vector2(dx + 0.5f, dy + 0.5f), surfaceToUnit);
+                if (unitPoint.X < 0 || unitPoint.X >= 1 || unitPoint.Y < 0 || unitPoint.Y >= 1)
+                {
+                    continue;
+                }
+
                 var maskAlpha = clipMask is null ? (byte)255 : clipMask[dx, dy].A;
                 if (maskAlpha == 0)
                 {

@@ -1053,6 +1053,7 @@ carrying the `"pptx-image-format"` feature token, and proves null argument valid
 **Tests**: `PaintPicture_EnlargedPicture_IsSmooth`, `PaintPicture_EnlargedCrop_DoesNotBleedPixelsOutsideCrop`,
 `PaintPicture_RotatedCrop_DoesNotBleedPixelsOutsideCrop`, `PaintPicture_FractionalCrop_PartiallyCoveredBorderPixelContributes`,
 `PaintPicture_FractionalCropOnIntegerBoundary_NoContaminationFromExcludedColumn`,
+`PaintPicture_FractionalCropAtOffset_PaintsOnlyInsideFootprint`,
 `PaintPicture_WithNegativeSrcRectEdges_ReplicatesEdgePixelsIntoOverhang`
 
 A 45-pixel-wide picture with a 40 percent right or left crop (exactly 18 pixels) excludes the neighboring

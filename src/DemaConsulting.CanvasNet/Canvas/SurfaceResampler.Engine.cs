@@ -544,8 +544,9 @@ internal static partial class SurfaceResampler
             return false;
         }
 
-        // Rotation/skew is tolerated only while it moves no pixel by more than a hundredth of a device pixel
-        if (Math.Abs(m12) * source.Height > 0.01 || Math.Abs(m21) * source.Width > 0.01)
+        // Rotation/skew is tolerated only while it moves no pixel by more than a hundredth of a device pixel.
+        // Row-vector convention: device y gets M12 * (source x) and device x gets M21 * (source y).
+        if (Math.Abs(m12) * source.Width > 0.01 || Math.Abs(m21) * source.Height > 0.01)
         {
             return false;
         }

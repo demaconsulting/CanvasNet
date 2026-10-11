@@ -498,7 +498,9 @@ A zero or oversized box dimension reports `maxWidth` or `maxHeight`.
 
 ##### CanvasNet-Canvas-Surface-DeviceResample: Device Window Resampling
 
-**Tests**: `TryResampleToDevice_RotatedMatrix_ReturnsFalse`, `TryResampleToDevice_AxisAligned_ReturnsWindowAtOrigin`,
+**Tests**: `TryResampleToDevice_RotatedMatrix_ReturnsFalse`,
+`TryResampleToDevice_WideImageSmallM12_DeclinedOnlyWhenDriftMatters`,
+`TryResampleToDevice_TallImageSmallM21_DeclinedOnlyWhenDriftMatters`, `TryResampleToDevice_AxisAligned_ReturnsWindowAtOrigin`,
 `TryResampleToDevice_OffScreen_ReturnsTrueWithNullWindow`, `BoxReduce_MatchesAreaResize`,
 `BoxReduce_NonDivisibleSize_AveragesOnlyCoveredPixelsInPartialBlock`,
 `BoxReduce_NonDivisibleSizeWithAlpha_PartialBlockUsesCoveredPixelsOnly`

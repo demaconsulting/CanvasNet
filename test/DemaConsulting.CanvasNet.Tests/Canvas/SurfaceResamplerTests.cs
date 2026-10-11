@@ -285,6 +285,30 @@ public class SurfaceResamplerTests
         Assert.Null(window);
     }
 
+    /// <summary>A wide image whose M12 shifts its far edge a full device pixel vertically is declined; negligible drift is accepted.</summary>
+    [Fact]
+    public void TryResampleToDevice_WideImageSmallM12_DeclinedOnlyWhenDriftMatters()
+    {
+        using var source = new Surface(1000, 1);
+        Assert.False(SurfaceResampler.TryResampleToDevice(source, new Matrix3x2(1f, 0.001f, 0f, 1f, 0f, 0f), 2000, 20, ResamplingMode.Auto, out var window, out _, out _));
+        Assert.Null(window);
+
+        Assert.True(SurfaceResampler.TryResampleToDevice(source, new Matrix3x2(1f, 0.000001f, 0f, 1f, 0f, 0f), 2000, 20, ResamplingMode.Auto, out var okWindow, out _, out _));
+        okWindow?.Dispose();
+    }
+
+    /// <summary>A tall image whose M21 shifts its far edge a full device pixel horizontally is declined; negligible drift is accepted.</summary>
+    [Fact]
+    public void TryResampleToDevice_TallImageSmallM21_DeclinedOnlyWhenDriftMatters()
+    {
+        using var source = new Surface(1, 1000);
+        Assert.False(SurfaceResampler.TryResampleToDevice(source, new Matrix3x2(1f, 0f, 0.001f, 1f, 0f, 0f), 20, 2000, ResamplingMode.Auto, out var window, out _, out _));
+        Assert.Null(window);
+
+        Assert.True(SurfaceResampler.TryResampleToDevice(source, new Matrix3x2(1f, 0f, 0.000001f, 1f, 0f, 0f), 20, 2000, ResamplingMode.Auto, out var okWindow, out _, out _));
+        okWindow?.Dispose();
+    }
+
     /// <summary>An axis-aligned enlargement yields a window covering exactly the image rectangle.</summary>
     [Fact]
     public void TryResampleToDevice_AxisAligned_ReturnsWindowAtOrigin()
