@@ -469,7 +469,7 @@ public static partial class SvgCodec
                 }
                 else
                 {
-                    resultRow[col] = SurfaceResampler.SampleBilinearReduced(smooth, imagePoint.X, imagePoint.Y, factorX, factorY);
+                    resultRow[col] = SurfaceResampler.SampleBilinearReduced(smooth, imagePoint.X, imagePoint.Y, factorX, factorY, decodedWidth, decodedHeight);
                 }
             }
         }

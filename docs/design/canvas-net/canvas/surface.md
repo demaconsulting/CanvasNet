@@ -520,6 +520,8 @@ composite it 1:1; it returns `false` for rotation, skew or non-finite/degenerate
 rotation/skew component is tolerated only while it moves no pixel by more than 0.01 device pixel,
 i.e. `|M12|*height` and `|M21|*width` are each at most 0.01), and `true`
 with no window when nothing is visible. Rotated or skewed placements use `Prefilter` (area-reduce
-by an integer factor) plus `SampleBilinear` (inverse mapped, premultiplied, edge-clamped).
+by an integer factor) plus `SampleBilinear` (inverse mapped, premultiplied, edge-clamped);
+`SampleBilinearReduced` maps original-pixel positions onto the reduced surface through the actual block
+centers, so a partial last block is sampled at its own center rather than blended with its neighbor.
 `SampleBilinearWrapped` is the wrap-around bilinear sampler used for magnified pattern tiles.
 `BoxReduce` is the `Area` mode with integer factors.

@@ -290,6 +290,35 @@ public class PptxImagesTests
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[8, 5]);
     }
 
+    /// <summary>Proves negative (overhanging) srcRect edges replicate the source edge pixels across the overhang instead of leaving a transparent band, for an axis-aligned picture.</summary>
+    [Fact]
+    public void PaintPicture_WithNegativeSrcRectEdges_ReplicatesEdgePixelsIntoOverhang()
+    {
+        using var image = BuildTwoToneImage(10, 10);
+        using var surface = new Surface(30, 30);
+
+        // Left/top overhang by half an image, right/bottom by a quarter: the footprint is 1.75x
+        // the image, so the left overhang spans 0.5/1.75 of the surface width.
+        var srcRect = new PptxSrcRect(Left: -0.5f, Top: -0.5f, Right: -0.25f, Bottom: -0.25f);
+
+        PptxDocument.PaintPicture(surface, image, srcRect, Matrix3x2.Identity, widthEmu: 30f, heightEmu: 30f);
+
+        // Left overhang (x < ~8.6) replicates the red left edge; the right overhang (x > ~25.7) the blue right edge
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[2, 15]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[2, 2]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[28, 15]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[28, 28]);
+
+        // No pixel anywhere is left transparent
+        for (var y = 0; y < 30; y++)
+        {
+            for (var x = 0; x < 30; x++)
+            {
+                Assert.Equal(255, surface[x, y].A);
+            }
+        }
+    }
+
     /// <summary>Proves a translated shape-to-surface transform shifts the painted footprint accordingly.</summary>
     [Fact]
     public void PaintPicture_TranslatedTransform_ShiftsPaintedFootprint()

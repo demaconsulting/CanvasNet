@@ -97,13 +97,19 @@ public class SurfaceResamplerTests
         Assert.Equal(255, reduced[2, 0].R);
 
         // x = 3 is the center of reduced pixel 1 (covering 2..4): exactly that block's value
-        Assert.Equal(128, SurfaceResampler.SampleBilinearReduced(reduced, 3f, 0.5f, fx, fy).R);
+        Assert.Equal(128, SurfaceResampler.SampleBilinearReduced(reduced, 3f, 0.5f, fx, fy, 5, 1).R);
 
         // x = 1 is the center of reduced pixel 0
-        Assert.Equal(0, SurfaceResampler.SampleBilinearReduced(reduced, 1f, 0.5f, fx, fy).R);
+        Assert.Equal(0, SurfaceResampler.SampleBilinearReduced(reduced, 1f, 0.5f, fx, fy, 5, 1).R);
 
         // Halfway between those centers (x = 2) blends them equally
-        Assert.InRange(SurfaceResampler.SampleBilinearReduced(reduced, 2f, 0.5f, fx, fy).R, 63, 65);
+        Assert.InRange(SurfaceResampler.SampleBilinearReduced(reduced, 2f, 0.5f, fx, fy, 5, 1).R, 63, 65);
+
+        // The last (partial, one-pixel) block's center x = 4.5 is exactly that reduced pixel
+        Assert.Equal(255, SurfaceResampler.SampleBilinearReduced(reduced, 4.5f, 0.5f, fx, fy, 5, 1).R);
+
+        // Halfway between block 1's center (3) and the last block's center (4.5) blends them equally
+        Assert.InRange(SurfaceResampler.SampleBilinearReduced(reduced, 3.75f, 0.5f, fx, fy, 5, 1).R, 190, 192);
 
         // Uniform normalization (x / 5) would have returned about 166 at x = 3
         Assert.NotInRange(SurfaceResampler.SampleBilinear(reduced, 3f / 5f, 0.5f).R, 120, 136);
@@ -123,7 +129,51 @@ public class SurfaceResamplerTests
 
         Assert.Equal(1, fx);
         Assert.Equal(2, fy);
-        Assert.Equal(128, SurfaceResampler.SampleBilinearReduced(reduced, 0.5f, 3f, fx, fy).R);
+        Assert.Equal(128, SurfaceResampler.SampleBilinearReduced(reduced, 0.5f, 3f, fx, fy, 1, 5).R);
+        Assert.Equal(255, SurfaceResampler.SampleBilinearReduced(reduced, 0.5f, 4.5f, fx, fy, 1, 5).R);
+    }
+
+    /// <summary>Factor 3 over width 7 (blocks 3, 3, 1): the one-pixel last block's center and the transition map by actual block centers.</summary>
+    [Fact]
+    public void SampleBilinearReduced_Factor3Width7_LastBlockCenterExact()
+    {
+        using var source = new Surface(7, 1);
+        for (var x = 0; x < 7; x++)
+        {
+            source[x, 0] = x < 6 ? new Rgba32(0, 0, 0, 255) : new Rgba32(255, 255, 255, 255);
+        }
+
+        using var reduced = SurfaceResampler.Prefilter(source, Matrix3x2.CreateScale(0.33f, 1f), out _, out var fx, out var fy);
+
+        Assert.Equal(3, fx);
+        Assert.Equal(3, reduced.Width);
+        Assert.Equal(255, SurfaceResampler.SampleBilinearReduced(reduced, 6.5f, 0.5f, fx, fy, 7, 1).R);
+        Assert.Equal(0, SurfaceResampler.SampleBilinearReduced(reduced, 4.5f, 0.5f, fx, fy, 7, 1).R);
+
+        // Halfway between centers 4.5 and 6.5 (x = 5.5) blends equally
+        Assert.InRange(SurfaceResampler.SampleBilinearReduced(reduced, 5.5f, 0.5f, fx, fy, 7, 1).R, 127, 129);
+    }
+
+    /// <summary>The rotated/skewed fallback path samples a partial last block at its own center rather than blending in the previous block.</summary>
+    [Fact]
+    public void SampleBilinearReduced_FallbackPathScenario_LastPixelDoesNotBleedPreviousBlock()
+    {
+        using var source = new Surface(5, 5);
+        for (var y = 0; y < 5; y++)
+        {
+            for (var x = 0; x < 5; x++)
+            {
+                source[x, y] = x == 4 ? new Rgba32(255, 255, 255, 255) : new Rgba32(0, 0, 0, 255);
+            }
+        }
+
+        // Rotated and shrunk: no axis-aligned fast path applies, so callers use the prefilter + sampler
+        var transform = Matrix3x2.CreateScale(0.45f) * Matrix3x2.CreateRotation(0.3f);
+        using var reduced = SurfaceResampler.Prefilter(source, transform, out _, out var fx, out var fy);
+
+        Assert.Equal(2, fx);
+        Assert.Equal(2, fy);
+        Assert.Equal(255, SurfaceResampler.SampleBilinearReduced(reduced, 4.5f, 2.5f, fx, fy, 5, 5).R);
     }
 
     /// <summary>Averaging is premultiplied: a transparent pixel contributes no color.</summary>

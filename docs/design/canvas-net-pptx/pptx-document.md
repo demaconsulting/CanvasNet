@@ -855,7 +855,9 @@ resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surfac
   crop edge fold into the window's own edge pixels and pixels outside the window never bleed into it. The
   window is a whole-pixel superset of the (possibly fractional) crop, so a partially covered border pixel
   still contributes to the crop edge; the
-  fractional crop offset is part of the mapping. A rotated picture inverts the matrix once and
+  fractional crop offset is part of the mapping. A crop that overhangs the image (negative `srcRect`
+  edges) takes the inverse-mapped path below instead, whose edge-clamped sampling replicates the source
+  edge pixels across the overhang. A rotated picture inverts the matrix once and
   bilinear-samples an area-prefiltered copy of the same cropped window per destination pixel whose
   inverse-mapped coordinate falls within `[0,1]x[0,1]`. Each sampled source pixel is
   alpha-blended "over" the existing destination

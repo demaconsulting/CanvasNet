@@ -95,14 +95,48 @@ internal static partial class SurfaceResampler
     /// <summary>
     ///     Samples a <see cref="BoxReduce"/> result bilinearly at a position given in the ORIGINAL
     ///     (unreduced) pixel coordinates. Reduced pixel <c>i</c> covers original pixels
-    ///     <c>[i * factorX, (i + 1) * factorX)</c>, so the position maps to <c>x / factorX</c> in
-    ///     reduced pixels regardless of a partial last block.
+    ///     <c>[i * factorX, (i + 1) * factorX)</c> (the last block may be partial). Positions map
+    ///     piecewise through the actual block centers: full blocks map as <c>x / factorX</c>, and
+    ///     the span between the last two block centers is interpolated so the center of a partial
+    ///     last block maps exactly onto that reduced pixel's center.
     /// </summary>
-    internal static Rgba32 SampleBilinearReduced(Surface reduced, float x, float y, int factorX, int factorY)
+    /// <param name="reduced">The box-reduced surface.</param>
+    /// <param name="x">Horizontal position in original pixels.</param>
+    /// <param name="y">Vertical position in original pixels.</param>
+    /// <param name="factorX">Horizontal block size.</param>
+    /// <param name="factorY">Vertical block size.</param>
+    /// <param name="sourceWidth">Width of the original (unreduced) image in pixels.</param>
+    /// <param name="sourceHeight">Height of the original (unreduced) image in pixels.</param>
+    internal static Rgba32 SampleBilinearReduced(Surface reduced, float x, float y, int factorX, int factorY, int sourceWidth, int sourceHeight)
     {
-        var u = x / factorX / reduced.Width;
-        var v = y / factorY / reduced.Height;
+        var u = ReducedCoordinate(x, factorX, reduced.Width, sourceWidth) / reduced.Width;
+        var v = ReducedCoordinate(y, factorY, reduced.Height, sourceHeight) / reduced.Height;
         return SampleBilinear(reduced, u, v);
+    }
+
+    /// <summary>Maps an original-pixel position to reduced-pixel coordinates using actual block centers.</summary>
+    private static float ReducedCoordinate(float position, int factor, int reducedSize, int sourceSize)
+    {
+        if (reducedSize < 2)
+        {
+            return position / factor;
+        }
+
+        // Center of the last full-or-partial block and of the one before it (always a full block)
+        var lastCenter = ((reducedSize - 1) * (double)factor) + ((sourceSize - ((reducedSize - 1) * (double)factor)) / 2.0);
+        var prevCenter = ((reducedSize - 2) * (double)factor) + (factor / 2.0);
+        if (position <= prevCenter)
+        {
+            return position / factor;
+        }
+
+        if (position >= lastCenter)
+        {
+            return reducedSize - 0.5f;
+        }
+
+        var t = (position - prevCenter) / (lastCenter - prevCenter);
+        return (float)(reducedSize - 1.5 + t);
     }
 
     /// <summary>

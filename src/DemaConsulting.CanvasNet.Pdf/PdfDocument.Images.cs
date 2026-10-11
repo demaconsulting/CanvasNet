@@ -1062,7 +1062,7 @@ public sealed partial class PdfDocument
                     continue;
                 }
 
-                var sourcePixel = SurfaceResampler.SampleBilinearReduced(sampled, u * imageWidth, (1 - v) * imageHeight, factorX, factorY);
+                var sourcePixel = SurfaceResampler.SampleBilinearReduced(sampled, u * imageWidth, (1 - v) * imageHeight, factorX, factorY, imageWidth, imageHeight);
 
                 if (clipCoverage < 1f)
                 {

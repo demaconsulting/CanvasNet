@@ -733,7 +733,14 @@ public sealed partial class PptxDocument
             0f, (float)(1.0 / cropHeightPx),
             (float)((windowX0 - cropLeftPx) / cropWidthPx), (float)((windowY0 - cropTopPx) / cropHeightPx));
         var pixelToSurface = pixelToUnit * unitToSurface;
-        if (SurfaceResampler.TryResampleToDevice(source, pixelToSurface, surface.Width, surface.Height, ResamplingMode.Auto, out var window, out var originX, out var originY))
+        // A crop reaching beyond the image (negative srcRect edges) must replicate the edge pixels
+        // across the overhang, which the edge-clamped inverse-mapped path below does and the
+        // window-only resample would not (it would leave the overhang transparent).
+        var cropOverhangs = cropLeftPx < 0 || cropTopPx < 0
+            || cropLeftPx + cropWidthPx > image.Width + 1e-6
+            || cropTopPx + cropHeightPx > image.Height + 1e-6;
+        if (!cropOverhangs
+            && SurfaceResampler.TryResampleToDevice(source, pixelToSurface, surface.Width, surface.Height, ResamplingMode.Auto, out var window, out var originX, out var originY))
         {
             using (window)
             {
@@ -773,7 +780,7 @@ public sealed partial class PptxDocument
                     // Remap the unit-square sample point through the srcRect crop; no (1 - v) flip
                     var imageX = (float)(cropLeftPx - windowX0 + (u * cropWidthPx));
                     var imageY = (float)(cropTopPx - windowY0 + (v * cropHeightPx));
-                    var sourcePixel = SurfaceResampler.SampleBilinearReduced(prefiltered, imageX, imageY, factorX, factorY);
+                    var sourcePixel = SurfaceResampler.SampleBilinearReduced(prefiltered, imageX, imageY, factorX, factorY, source.Width, source.Height);
                     surface[x, y] = Rgba32.CompositeOver(surface[x, y], ScaleAlpha(sourcePixel, maskAlpha));
                 }
             }
