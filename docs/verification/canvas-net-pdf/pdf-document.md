@@ -731,6 +731,17 @@ the third renders a `0.001 w` stroke (below the numerical-safety floor) and asse
 still carries nonzero alpha, proving the floor avoids a degenerate/invisible stroke rather than
 reintroducing the old full-opacity clamp.
 
+`PdfDocument_ThinRules_ThinStrokedRules_InkMatchesGeometry`,
+`PdfDocument_ThinRules_ThinFilledBar_InkMatchesGeometry`, and
+`PdfDocument_ThinRules_ZeroWidthStroke_PaintsHairline` (in `PdfDocumentThinRuleInkTests.cs`) render
+under the HTML-to-PDF CTM (`1 0 0 -1 0 792 cm 0.75 0 0 0.75 0 0 cm`) at 16 page sizes (so rule
+edges land at many sub-pixel phases) and compare the summed alpha ("ink") against the geometric
+area (`length * width * 0.5625` square points scaled to device pixels): 0.75 and 1 unit strokes at
+fractional positions within 2 %, a 0.75 unit filled bar within 1 %, and a zero-width stroke paints
+at least one full pixel per column (0.95 to 1.4 of the column count). They are deterministic
+(no timing) and guard against both a minimum-width floor that over-inks thin strokes and any
+under-inking.
+
 #### CanvasNetPdf-PdfDocument-ClippingPath: W/W* Clip, Enforce, and Scope the Active Clipping Path
 
 **Tests**: `PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion`,
@@ -738,8 +749,23 @@ reintroducing the old full-opacity clamp.
 `PdfDocument_Clipping_WStar_UsesEvenOddFillRule`,
 `PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace`,
 `PdfDocument_Clipping_ClipThenImageDo_RestrictsImageToClipRegion`,
-`PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion`,
-`PdfDocument_Clipping_ManyFullPageRectangleClips_RenderIdenticalToUnclipped`
+`PdfDocument_Clipping_ManyFullPageRectangleClips_RenderIdenticalToUnclipped`,
+`PdfDocument_ThinRules_DoubleRuleWithCoincidentClip_InkMatchesGeometry`,
+`PdfDocument_ThinRules_DoubleRuleWithWiderClip_InkMatchesGeometry`,
+`PdfDocument_ThinRules_DoubleRule_GapBetweenBarsRemainsTransparent`,
+`PdfDocument_ThinRules_FooterRule_InkMatchesGeometry`
+
+The `PdfDocument_ThinRules_*` tests (in `PdfDocumentThinRuleInkTests.cs`, with their own minimal
+single-page PDF builder) reproduce a WeasyPrint-style `border: double` rule and a 1-unit footer
+rule: a thin rectangular clip band (`m l l l W* n`) whose edges coincide with the edges of an
+even-odd `f*` fill of nested rectangles, under the `1 0 0 -1 0 792 cm 0.75 0 0 0.75 0 0 cm` CTM.
+Each renders at 16 page sizes (including 765x990, 1040x1345, 1303x1686) on a transparent
+background and requires the summed alpha ("ink") to equal the analytic geometric area within 2 %
+(1 % for the wider-clip variant, where no edges coincide), and the gap between the double rule's
+bars to remain transparent. Before the fix these ratios were as low as 0.64 (footer) and 0.92
+(double rule) because clip coverage was multiplied into the edge-pixel fill coverage; they also
+exposed a related EvenOdd defect with coincident mid-row edges. All are deterministic and assert
+no timing. Known residual: non-rectangular (dense) clips still multiply coverage.
 
 Every test in this group reuses the existing `RenderContent`/`BuildSinglePagePdfWithResources`
 helpers and asserts against the `Transparent` background sentinel exactly like the

@@ -347,9 +347,12 @@ composes smoothly with whatever is painted through it.
   fillRule, clipBounds, mask, maskWidth)` entry point runs an independent, clip-less
   `CoverageSweep` and copies each resolved row's coverage into a `float[]` over the clip's own
   bounding box. `ClipMask.FromPathDense` always builds the dense form (a reference for tests).
-- **Representation.** Coverage at a pixel is `dense(x, y) * columnFactor(x) * rowFactor(y)`, where
-  the factors are the analytic rectangle's exact per-axis overlap with the pixel and `dense` is an
-  optional shared buffer. A pure rectangle has no `dense`; a dense mask has a rectangle equal to
+- **Representation.** Coverage at a pixel (as `GetCoverage` reports it, used for images) is
+  `dense(x, y) * columnFactor(x) * rowFactor(y)`, where the factors are the analytic rectangle's
+  exact per-axis overlap with the pixel and `dense` is an
+  optional shared buffer. For fills the rectangle is instead applied geometrically (see below via
+  `TryClipPolygonsToRect`) and only `dense` is multiplied. A pure rectangle has no `dense`; a
+  dense mask has a rectangle equal to
   its buffer bounds (all factors `1`); a dense mask restricted by a rectangle shares the buffer
   and applies the restriction lazily through the factors.
 - **`ClipMask.FromPathOrNull` / `ClipMask.Combine`.** `FromPathOrNull` returns `null` ("no clip")
@@ -382,12 +385,34 @@ so the public API's signatures/behavior/docs are entirely unchanged, while the n
 overloads carry the real clip-aware implementation and are the ones `PdfDocument` actually calls.
 `ScanlineRasterizer.Fill`'s own 3 overloads (already fully internal) instead gained an optional
 `ClipMask? clip = null` parameter directly, threaded into a new `CoverageSweep` constructor
-parameter. When non-null, `CoverageSweep` first restricts its swept column/row range to the clip's
+parameter. When non-null, each overload first applies the clip's analytic rectangle
+_geometrically_: `ClipMask.TryClipPolygonsToRect` clips every fill polygon to the rectangle
+(Sutherland-Hodgman against the four axis-aligned half-planes, in `double` math with intersection
+coordinates snapped exactly onto the boundary; polygons fully inside are passed through without
+allocation, disjoint or degenerate ones are dropped, and clipped output is re-closed explicitly as
+the edge table requires), and the sweep's bounds are narrowed to the clipped polygons' bounds.
+Clipping a closed chain against a half-plane preserves the winding number of every point inside
+it, so both `NonZero` and `EvenOdd` stay correct. The reason is ink fidelity: multiplying fill
+coverage by rectangle-clip coverage squares the edge-pixel coverage `f` to `f^2` wherever a fill
+edge coincides with a clip edge (the common case for CSS borders, double rules and footer rules,
+where a clip band is cut exactly to the stroked/filled rule), which made 0.75-1.25 pt rules lose
+10-60 % of their ink. Clipping geometrically yields exactly one coverage value for any relationship
+between fill edge and clip edge (coincident, crossing or unrelated), because the rasterizer itself
+conserves area. `CoverageSweep` then restricts its swept column/row range to the clip's
 whole-pixel bounds (edges outside the range are still handled analytically by the accumulation
-overflow logic), so a rectangle clip shrinks the rasterized area to the clip rectangle. After each
-row's coverage is resolved it then applies the clip once per row: the dense buffer's row (if any)
-multiplied per column, the rectangle's row factor, and the rectangle's column factors on the
-outermost two columns only - interior columns of a rectangle clip need no per-pixel lookup.
+overflow logic) and, after each row's coverage is resolved, multiplies _only_ the dense buffer's
+row (if any) per column. Known residual: a dense (non-rectangular) clip still multiplies, which
+is an independence approximation (as in Skia/AGG antialiased clip masks), so a fill edge coincident
+with a non-rectangular clip edge keeps some edge attenuation. Rectangle-clipped images still use
+the per-pixel `GetCoverage` product (`PdfDocument.Images.cs`).
+
+A related rasterizer fix: for `EvenOdd`, `CoverageSweep` now routes a row to the exact sub-row
+splitting path whenever two or more edge boundaries fall strictly inside the row, _even when they
+coincide at one y_ (previously coincident boundaries were merged before counting). Several edges
+starting at the same y in one column (for example nested rectangles all clipped to one common top
+edge) change that column's winding by two or more at once, which the single scalar fold of the
+row integral cannot resolve (it yielded 25 % coverage where 0 is correct). The cost is limited to
+the affected rows.
 
 #### Error Handling
 

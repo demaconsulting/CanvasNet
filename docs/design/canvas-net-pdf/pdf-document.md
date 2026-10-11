@@ -611,8 +611,11 @@ its own distinguishable `Feature` token.
   entire output device", i.e. unclipped) is an ordinary graphics-state field, so `Clone()` copies
   it like any other - `ClipMask` is immutable and intersection always returns a new instance, so
   sharing the reference across a `q`/`Q`/Form-XObject/Type3-glyph clone is always safe, with no
-  extra save/restore logic required anywhere. The active clip is enforced by multiplying its own
-  per-pixel antialiased coverage into every subsequent paint operation's own coverage: `_gs.Clip` is
+  extra save/restore logic required anywhere. The active clip is enforced by applying it to every
+  subsequent paint operation: its analytic rectangle is intersected with the painted polygons
+  geometrically (so a rule whose edge coincides with a clip edge keeps its exact ink, instead of
+  having its edge-pixel coverage squared) and any dense per-pixel antialiased coverage is
+  multiplied in: `_gs.Clip` is
   threaded as a `Drawing.ClipMask?` argument into every `Drawing.PathFiller.Fill` call site this
   class owns (ordinary fill/stroke/pattern fill in `PaintCurrentPath`/`PaintStroke`/
   `PaintPatternFill`, and glyph fill in `PdfDocument.Text.cs`'s `ShowGlyph`), and - since

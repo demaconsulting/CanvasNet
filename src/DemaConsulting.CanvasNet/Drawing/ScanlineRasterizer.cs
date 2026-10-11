@@ -119,7 +119,7 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     row first runs <see cref="CoverageSweep.CollectMidRowBreakpoints"/>, which scans every active edge's
 ///     <c>Y0</c>/<c>Y1</c> for values landing strictly inside the row (not merely at its top/bottom
 ///     boundary, which is the common case and needs no special handling). When fewer than two
-///     distinct breakpoints are found, or the fill rule is <see cref="FillRule.NonZero"/>, the row
+///     edge boundaries (counting coincident ones separately) are found, or the fill rule is <see cref="FillRule.NonZero"/>, the row
 ///     is accumulated exactly as before via <see cref="CoverageSweep.AccumulateRowCoverageSinglePass"/> - the
 ///     original, unmodified single-pass method, same code, same output, bit-for-bit, for the
 ///     overwhelming common case. Only when <see cref="FillRule.EvenOdd"/> and two or more
@@ -195,12 +195,17 @@ internal static class ScanlineRasterizer
     /// </param>
     /// <param name="clip">
     ///     An optional PDF clipping path coverage mask (see <see cref="ClipMask"/>) whose per-pixel
-    ///     coverage is multiplied into this fill's own antialiased coverage before compositing, or
+    ///     coverage is applied to this fill before compositing (its rectangle geometrically, any dense part multiplied), or
     ///     <see langword="null"/> when no clip is active. Defaults to <see langword="null"/> so
     ///     every pre-existing call site (none of which know about clipping) is unaffected.
     /// </param>
     internal static void Fill(Surface surface, IReadOnlyList<List<Vector2>> polygons, Rgba32 color, FillRule fillRule, Rect clipBounds, ClipMask? clip = null)
     {
+        if (!ApplyRectClip(clip, ref polygons, ref clipBounds))
+        {
+            return;
+        }
+
         var sweep = new CoverageSweep(polygons, fillRule, clipBounds, clip);
         if (sweep.IsEmpty)
         {
@@ -237,7 +242,7 @@ internal static class ScanlineRasterizer
     /// </param>
     /// <param name="clip">
     ///     An optional PDF clipping path coverage mask (see <see cref="ClipMask"/>) whose per-pixel
-    ///     coverage is multiplied into this fill's own antialiased coverage before compositing, or
+    ///     coverage is applied to this fill before compositing (its rectangle geometrically, any dense part multiplied), or
     ///     <see langword="null"/> when no clip is active. Defaults to <see langword="null"/>.
     /// </param>
     /// <remarks>
@@ -253,6 +258,11 @@ internal static class ScanlineRasterizer
     internal static void Fill(Surface surface, IReadOnlyList<List<Vector2>> polygons, Gradient paint, FillRule fillRule, Rect clipBounds, ClipMask? clip = null)
     {
         ArgumentNullException.ThrowIfNull(paint);
+
+        if (!ApplyRectClip(clip, ref polygons, ref clipBounds))
+        {
+            return;
+        }
 
         var sweep = new CoverageSweep(polygons, fillRule, clipBounds, clip);
         if (sweep.IsEmpty)
@@ -292,7 +302,7 @@ internal static class ScanlineRasterizer
     /// </param>
     /// <param name="clip">
     ///     An optional PDF clipping path coverage mask (see <see cref="ClipMask"/>) whose per-pixel
-    ///     coverage is multiplied into this fill's own antialiased coverage before compositing, or
+    ///     coverage is applied to this fill before compositing (its rectangle geometrically, any dense part multiplied), or
     ///     <see langword="null"/> when no clip is active. Defaults to <see langword="null"/>.
     /// </param>
     /// <remarks>
@@ -307,6 +317,11 @@ internal static class ScanlineRasterizer
     internal static void Fill(Surface surface, IReadOnlyList<List<Vector2>> polygons, TilePaint paint, FillRule fillRule, Rect clipBounds, ClipMask? clip = null)
     {
         ArgumentNullException.ThrowIfNull(paint);
+
+        if (!ApplyRectClip(clip, ref polygons, ref clipBounds))
+        {
+            return;
+        }
 
         var sweep = new CoverageSweep(polygons, fillRule, clipBounds, clip);
         if (sweep.IsEmpty)
@@ -326,6 +341,37 @@ internal static class ScanlineRasterizer
             TilePaintEvaluator.EvaluateRow(in plan, y, sweep.ClipMinX, sweep.Width, rowColors);
             surface.CompositeOverSpan(y, sweep.ClipMinX, rowCoverage, rowColors, compositeWorkspace);
         }
+    }
+
+    /// <summary>
+    ///     Applies the analytic rectangle of <paramref name="clip"/> geometrically: clips the
+    ///     polygons to it and narrows the bounds, so the sweep need only multiply the clip's
+    ///     dense coverage (if any). Returns <see langword="false"/> when nothing is visible.
+    /// </summary>
+    private static bool ApplyRectClip(ClipMask? clip, ref IReadOnlyList<List<Vector2>> polygons, ref Rect clipBounds)
+    {
+        if (clip == null)
+        {
+            return true;
+        }
+
+        if (!clip.TryClipPolygonsToRect(polygons, out var clipped, out var bounds))
+        {
+            return false;
+        }
+
+        polygons = clipped;
+        var left = Math.Max(clipBounds.Left, bounds.Left);
+        var top = Math.Max(clipBounds.Top, bounds.Top);
+        var right = Math.Min(clipBounds.Right, bounds.Right);
+        var bottom = Math.Min(clipBounds.Bottom, bounds.Bottom);
+        if (!(right > left) || !(bottom > top))
+        {
+            return false;
+        }
+
+        clipBounds = new Rect(left, top, right - left, bottom - top);
+        return true;
     }
 
     /// <summary>
@@ -394,8 +440,11 @@ internal static class ScanlineRasterizer
     /// <remarks>
     ///     When constructed with a non-<see langword="null"/> <c>clip</c> (see <see cref="ClipMask"/>),
     ///     every resolved row-coverage value is additionally multiplied by that clip's own
-    ///     per-pixel coverage at the same device pixel, in <see cref="AccumulateRowCoverage"/> -
-    ///     this is the single place a PDF clipping path (PDF 32000-1 &#xA7;8.5.4) is enforced
+    ///     dense per-pixel coverage (if it has one) at the same device pixel, in <see cref="AccumulateRowCoverage"/>.
+    ///     The clip's analytic rectangle is not multiplied: the <c>Fill</c> overloads clip the
+    ///     polygons to it geometrically first (<see cref="ClipMask.TryClipPolygonsToRect"/>), so a
+    ///     fill edge coincident with a clip edge yields a single, exact coverage value.
+    ///     This is the single place a PDF clipping path (PDF 32000-1 &#xA7;8.5.4) is enforced
     ///     against painted fill coverage, regardless of which <c>Fill</c> overload or paint source
     ///     (solid color, gradient, tile) is in use.
     /// </remarks>
@@ -408,8 +457,6 @@ internal static class ScanlineRasterizer
         private readonly int _clipMaxX;
         private readonly int _clipMinY;
         private readonly int _clipMaxY;
-        private readonly float _clipLeftFactor = 1f;
-        private readonly float _clipRightFactor = 1f;
         private readonly float[] _cover;
         private readonly float[] _area;
         private readonly float[] _rowCoverage;
@@ -447,11 +494,6 @@ internal static class ScanlineRasterizer
                 _clipMaxX = Math.Min(_clipMaxX, (int)b.Left + (int)b.Width);
                 _clipMinY = Math.Max(_clipMinY, (int)b.Top);
                 _clipMaxY = Math.Min(_clipMaxY, (int)b.Top + (int)b.Height);
-                if (_clipMaxX > _clipMinX)
-                {
-                    _clipLeftFactor = clip.GetColumnFactor(_clipMinX);
-                    _clipRightFactor = clip.GetColumnFactor(_clipMaxX - 1);
-                }
             }
 
             Width = _clipMaxX - _clipMinX;
@@ -727,9 +769,9 @@ internal static class ScanlineRasterizer
             // "cover[x]", then the updated running total plus this column's own partial-edge
             // geometry ("area[x]") is resolved to a [0, 1] coverage fraction per fill rule. When
             // a PDF clipping path (see this class's remarks and ClipMask) is active, that same
-            // column's own clip coverage is then multiplied in - intersecting the two coverage
-            // fractions, exactly as PDF 32000-1 8.5.4 requires painting to be restricted to the
-            // current clipping path "in addition to" (not instead of) the geometry being painted.
+            // column's own dense clip coverage (if any) is then multiplied in. A rectangular clip
+            // was already applied geometrically to the polygons (ApplyRectClip), so it is not
+            // multiplied here - that would square coverage where fill and clip edges coincide.
             var accumulatedCover = 0f;
             for (var i = 0; i < Width; i++)
             {
@@ -743,9 +785,10 @@ internal static class ScanlineRasterizer
 
         /// <summary>
         ///     Multiplies the just-resolved <see cref="_rowCoverage"/> by the active clip's
-        ///     coverage for row <paramref name="y"/>: the dense buffer row (if any) per column,
-        ///     plus the clip rectangle's analytic row factor and (outermost columns only) column
-        ///     factors. Interior columns of a rectangle clip need no per-pixel lookup.
+        ///     dense coverage for row <paramref name="y"/>, if any. The clip's analytic rectangle
+        ///     was already applied geometrically to the polygons (see <see cref="ApplyRectClip"/>),
+        ///     so it contributes no per-pixel factor here: a fill edge coincident with a clip edge
+        ///     is therefore counted once, not squared.
         /// </summary>
         private void ApplyClip(int y)
         {
@@ -754,39 +797,17 @@ internal static class ScanlineRasterizer
                 return;
             }
 
-            var row = _rowCoverage.AsSpan(0, Width);
-            var rowFactor = _clip.GetRowFactor(y);
-            if (rowFactor <= 0f)
-            {
-                row.Clear();
-                return;
-            }
-
             var dense = _clip.GetDenseRow(y, _clipMinX, Width);
-            if (!dense.IsEmpty)
+            if (dense.IsEmpty)
             {
-                for (var i = 0; i < row.Length; i++)
-                {
-                    row[i] *= dense[i];
-                }
-            }
-
-            if (rowFactor < 1f)
-            {
-                for (var i = 0; i < row.Length; i++)
-                {
-                    row[i] *= rowFactor;
-                }
-            }
-
-            if (Width == 1)
-            {
-                row[0] *= _clipLeftFactor;
                 return;
             }
 
-            row[0] *= _clipLeftFactor;
-            row[^1] *= _clipRightFactor;
+            var row = _rowCoverage.AsSpan(0, Width);
+            for (var i = 0; i < row.Length; i++)
+            {
+                row[i] *= dense[i];
+            }
         }
 
         /// <summary>
@@ -799,7 +820,10 @@ internal static class ScanlineRasterizer
         /// </summary>
         /// <param name="rowTop">This device row's top y-coordinate, in path-space units.</param>
         /// <param name="rowBottom">This device row's bottom y-coordinate, in path-space units.</param>
-        /// <returns>The number of distinct mid-row breakpoints found (0, 1, or more).</returns>
+        /// <returns>
+        ///     The number of mid-row edge boundaries found (0, 1, or more), counted before
+        ///     deduplication; <see cref="_rowBreakpoints"/> holds the distinct values.
+        /// </returns>
         /// <remarks>
         ///     Uses the same <see cref="NearZeroDisplacement"/> tolerance the rest of this class
         ///     uses for "is this y effectively at a given boundary" comparisons, both to decide
@@ -833,6 +857,11 @@ internal static class ScanlineRasterizer
                 return _rowBreakpoints.Count;
             }
 
+            // Two or more edge boundaries strictly inside the row (even when they coincide at one
+            // y) may change the winding number of a single column by 2 or more at once (e.g. four
+            // nested rectangles clipped to a common top edge), which the single scalar fold cannot
+            // resolve exactly. Report the raw boundary count so the dispatcher splits the row.
+            var boundaryCount = _rowBreakpoints.Count;
             _rowBreakpoints.Sort();
 
             var writeIndex = 1;
@@ -846,7 +875,7 @@ internal static class ScanlineRasterizer
             }
 
             _rowBreakpoints.RemoveRange(writeIndex, _rowBreakpoints.Count - writeIndex);
-            return _rowBreakpoints.Count;
+            return boundaryCount;
         }
 
         /// <summary>

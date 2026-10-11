@@ -358,6 +358,207 @@ internal sealed class ClipMask
         return _dense.AsSpan(((y - _denseOriginY) * _denseWidth) + (x - _denseOriginX), count);
     }
 
+    /// <summary>
+    ///     Geometrically clips <paramref name="polygons"/> to this mask's analytic rectangle
+    ///     (Sutherland-Hodgman against the four axis-aligned half-planes), so a fill edge that
+    ///     coincides with a clip edge is rasterized once (exact area coverage) rather than having
+    ///     its edge-pixel coverage multiplied by the clip's own edge-pixel coverage.
+    /// </summary>
+    /// <param name="polygons">The closed polygons to clip.</param>
+    /// <param name="clipped">
+    ///     The clipped polygons: the original <paramref name="polygons"/> instance when every
+    ///     polygon lies fully inside the rectangle, otherwise a new list.
+    /// </param>
+    /// <param name="clippedBounds">The bounding box of <paramref name="clipped"/>.</param>
+    /// <returns><see langword="true"/> when anything remains visible; otherwise <see langword="false"/>.</returns>
+    /// <remarks>
+    ///     Clipping a closed polygon chain against a half-plane preserves the winding number of every
+    ///     point inside the half-plane, so both fill rules remain correct. Any dense coverage is
+    ///     still multiplied separately by the rasterizer.
+    /// </remarks>
+    internal bool TryClipPolygonsToRect(
+        IReadOnlyList<List<Vector2>> polygons, out IReadOnlyList<List<Vector2>> clipped, out Rect clippedBounds)
+    {
+        clipped = polygons;
+        clippedBounds = default;
+        if (IsEmpty || !(_right > _left) || !(_bottom > _top))
+        {
+            return false;
+        }
+
+        List<List<Vector2>>? result = null;
+        var minX = float.PositiveInfinity;
+        var minY = float.PositiveInfinity;
+        var maxX = float.NegativeInfinity;
+        var maxY = float.NegativeInfinity;
+
+        for (var p = 0; p < polygons.Count; p++)
+        {
+            var polygon = polygons[p];
+            if (polygon.Count < 3)
+            {
+                if (result is null)
+                {
+                    result = CopyPrefix(polygons, p);
+                }
+
+                continue;
+            }
+
+            float pMinX = float.PositiveInfinity, pMinY = float.PositiveInfinity;
+            float pMaxX = float.NegativeInfinity, pMaxY = float.NegativeInfinity;
+            foreach (var v in polygon)
+            {
+                pMinX = Math.Min(pMinX, v.X);
+                pMaxX = Math.Max(pMaxX, v.X);
+                pMinY = Math.Min(pMinY, v.Y);
+                pMaxY = Math.Max(pMaxY, v.Y);
+            }
+
+            List<Vector2>? output;
+            if (pMinX >= _left && pMaxX <= _right && pMinY >= _top && pMaxY <= _bottom)
+            {
+                output = polygon;
+            }
+            else if (pMaxX <= _left || pMinX >= _right || pMaxY <= _top || pMinY >= _bottom)
+            {
+                output = null;
+            }
+            else
+            {
+                output = ClipPolygon(polygon, _left, _top, _right, _bottom);
+                if (output is not null)
+                {
+                    pMinX = float.PositiveInfinity;
+                    pMinY = float.PositiveInfinity;
+                    pMaxX = float.NegativeInfinity;
+                    pMaxY = float.NegativeInfinity;
+                    foreach (var v in output)
+                    {
+                        pMinX = Math.Min(pMinX, v.X);
+                        pMaxX = Math.Max(pMaxX, v.X);
+                        pMinY = Math.Min(pMinY, v.Y);
+                        pMaxY = Math.Max(pMaxY, v.Y);
+                    }
+
+                    if (!(pMaxX > pMinX) || !(pMaxY > pMinY))
+                    {
+                        output = null;
+                    }
+                }
+            }
+
+            if (output is null || !ReferenceEquals(output, polygon))
+            {
+                result ??= CopyPrefix(polygons, p);
+            }
+
+            if (output is null)
+            {
+                continue;
+            }
+
+            result?.Add(output);
+            minX = Math.Min(minX, pMinX);
+            minY = Math.Min(minY, pMinY);
+            maxX = Math.Max(maxX, pMaxX);
+            maxY = Math.Max(maxY, pMaxY);
+        }
+
+        if (float.IsPositiveInfinity(minX))
+        {
+            return false;
+        }
+
+        if (result is not null)
+        {
+            clipped = result;
+        }
+
+        clippedBounds = new Rect(minX, minY, maxX - minX, maxY - minY);
+        return true;
+    }
+
+    /// <summary>Copies the first <paramref name="count"/> polygons of <paramref name="polygons"/> into a new list.</summary>
+    private static List<List<Vector2>> CopyPrefix(IReadOnlyList<List<Vector2>> polygons, int count)
+    {
+        var list = new List<List<Vector2>>(polygons.Count);
+        for (var i = 0; i < count; i++)
+        {
+            list.Add(polygons[i]);
+        }
+
+        return list;
+    }
+
+    /// <summary>Sutherland-Hodgman clip of one closed polygon against an axis-aligned rectangle.</summary>
+    private static List<Vector2>? ClipPolygon(List<Vector2> polygon, float left, float top, float right, float bottom)
+    {
+        var current = new List<Vector2>(polygon);
+        var next = new List<Vector2>(polygon.Count + 4);
+        for (var side = 0; side < 4 && current.Count >= 3; side++)
+        {
+            next.Clear();
+            var prev = current[^1];
+            var prevIn = Inside(prev, side, left, top, right, bottom);
+            foreach (var cur in current)
+            {
+                var curIn = Inside(cur, side, left, top, right, bottom);
+                if (curIn != prevIn)
+                {
+                    next.Add(Intersection(prev, cur, side, left, top, right, bottom));
+                }
+
+                if (curIn)
+                {
+                    next.Add(cur);
+                }
+
+                prev = cur;
+                prevIn = curIn;
+            }
+
+            (current, next) = (next, current);
+        }
+
+        if (current.Count < 3)
+        {
+            return null;
+        }
+
+        // The rasterizer's edge table requires explicitly closed polygons (last vertex == first).
+        if (current[0] != current[^1])
+        {
+            current.Add(current[0]);
+        }
+
+        return current;
+    }
+
+    private static bool Inside(Vector2 v, int side, float left, float top, float right, float bottom)
+        => side switch
+        {
+            0 => v.X >= left,
+            1 => v.X <= right,
+            2 => v.Y >= top,
+            _ => v.Y <= bottom,
+        };
+
+    private static Vector2 Intersection(Vector2 a, Vector2 b, int side, float left, float top, float right, float bottom)
+    {
+        double ax = a.X, ay = a.Y, bx = b.X, by = b.Y;
+        if (side < 2)
+        {
+            var x = side == 0 ? left : right;
+            var t = (x - ax) / (bx - ax);
+            return new Vector2(x, (float)(ay + (t * (by - ay))));
+        }
+
+        var y = side == 2 ? top : bottom;
+        var u = (y - ay) / (by - ay);
+        return new Vector2((float)(ax + (u * (bx - ax))), y);
+    }
+
     private static ClipMask Empty(int width, int height)
         => new(null, 0, 0, 0, 0, 0, 0, 0, 0, width, height);
 

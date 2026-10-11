@@ -374,13 +374,37 @@ behavior.
 `ClipMask_Intersect_RestrictedDenseWithDense_EqualsReference` (all in `ClipMaskTests.cs`),
 `PathFiller_Fill_SolidColorWithClip_RestrictsFillToClipCoverage`,
 `PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload`,
-`PathFiller_Fill_RectangleClipVersusDenseClip_ProducesSamePixels`
+`PathFiller_Fill_RectangleClipVersusDenseClip_ProducesSamePixels`,
+`PathFiller_Fill_RectangleClipCoincidentWithFill_DoesNotAttenuateEdges`,
+`PathFiller_Fill_NarrowerRectangleClip_PaintsGeometricIntersection`,
+`PathFiller_Fill_DenseClipRestrictedByRectangle_AppliesRectangleOnce`,
+`ClipMask_TryClipPolygonsToRect_PolygonInside_ReturnsSameInstances`,
+`ClipMask_TryClipPolygonsToRect_PolygonOutsideOrTouching_ReturnsFalse`,
+`ClipMask_TryClipPolygonsToRect_CrossingSides_AreaEqualsAnalyticIntersection`,
+`ClipMask_TryClipPolygonsToRect_ConcavePolygon_AreaEqualsAnalyticIntersection`,
+`ClipMask_TryClipPolygonsToRect_HoleAndNonZero_PreserveFillRuleCoverage`,
+`ClipMask_TryClipPolygonsToRect_DegenerateResult_IsDropped`,
+`ScanlineRasterizer_AccumulateCoverageMask_SubPixelRectangles_ConserveArea`,
+`ScanlineRasterizer_AccumulateCoverageMask_EvenOddCoincidentMidRowEdges_ConservesArea`,
+`ScanlineRasterizer_Fill_CoincidentRectangleClip_EqualsUnclippedFill`
 
 The analytic-rectangle tests assert structural properties (rectangle versus dense representation,
 buffer sharing, bounds) and per-pixel equivalence (within `1e-4`) against a dense reference built
-via `ClipMask.FromPathDense`; the fill test asserts a rectangle clip and the equivalent dense clip
-produce the same pixels (within one level per channel) for both fill rules, including single-column
-and single-row clips. None of these tests asserts wall-clock time.
+via `ClipMask.FromPathDense`. The rectangle-versus-dense fill test asserts that, away from the clip's
+own edge pixels, the rectangle clip and the equivalent dense clip produce the same pixels (within
+one level per channel) for both fill rules, including single-column and single-row clips. On edge
+pixels the two are _no longer expected to be equal_: the rectangle clip is now applied geometrically
+(exact intersection area) while the dense reference multiplies coverages, so the test instead
+asserts the exact value never exceeds the unclipped fill's coverage and nothing paints outside the
+clip's pixel bounds. Its shape was also changed from a triangle plus a crossing diamond to a
+triangle plus a nested rectangle, because EvenOdd edges crossing inside one pixel are a known
+independent rasterizer approximation (both results differ from the true value there) that this
+comparison must not depend on. The new tests assert exactness: area conservation of the rasterizer
+within `1e-3` over sub-pixel offsets and sizes for both fill rules, Sutherland-Hodgman clip area
+against the analytic intersection (inside, outside, crossing one/two/four sides, concave,
+hole with both fill rules, degenerate), coincident-edge clips equal to the unclipped fill, a
+rectangle-plus-dense clip applying the rectangle factor once, and EvenOdd area conservation for
+coincident mid-row edges. None of these tests asserts wall-clock time.
 
 Per `testing-principles.md`'s "tests MAY exist without a requirement", these tests exist as
 regression/defensive coverage for `ClipMask` and the internal clip-aware `PathFiller.Fill`/
@@ -404,8 +428,8 @@ out-of-bounds coordinates, and that `FromPath` itself rejects a `null` path, a n
 same exception types `PathFiller.Fill`'s own validation uses.
 `PathFiller_Fill_SolidColorWithClip_RestrictsFillToClipCoverage` fills a full-surface rectangle
 through an internal clip-aware `Fill` overload call with a narrower `ClipMask` supplied, asserting
-the fill paints only where the clip mask itself has non-zero coverage - directly exercising the
-`CoverageSweep`-level `clip.GetCoverage(x, y)` multiplication described in _PathFiller Unit
+the fill paints only where the clip mask itself has non-zero coverage - exercising the
+rectangle geometric clip and dense multiply described in _PathFiller Unit
 Design_'s `ClipMask` subsection. `PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload`
 calls the same internal overload with an explicit `null` clip and asserts the result is pixel-for-
 pixel identical to calling the public, clip-less `Fill` overload - proving `clip: null` is a

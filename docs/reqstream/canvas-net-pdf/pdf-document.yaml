@@ -552,6 +552,9 @@ sections:
               - PdfDocument_PathOps_Stroke_ZeroWidth_RendersFullOpacityHairline
               - PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke
               - PdfDocument_PathOps_Stroke_SubEpsilonWidth_RendersVisibleLine
+              - PdfDocument_ThinRules_ThinStrokedRules_InkMatchesGeometry
+              - PdfDocument_ThinRules_ThinFilledBar_InkMatchesGeometry
+              - PdfDocument_ThinRules_ZeroWidthStroke_PaintsHairline
 
           - id: CanvasNetPdf-PdfDocument-ClippingPath
             title: >-
@@ -562,15 +565,20 @@ sections:
               clipping path with any already-active clipping path rather than replacing it, scope
               the active clipping path as part of the graphics state so it is saved/restored by
               q/Q (and by Form XObject/Type3 glyph re-entry, both of which clone the graphics
-              state identically), and enforce the active clipping path against every subsequent
+              state identically), enforce the active clipping path against every subsequent
               fill, stroke, image XObject (Do), and glyph-fill paint until it is changed or
-              restored.
+              restored, and apply an axis-aligned rectangular clipping path without attenuating
+              the painted geometry's own edge coverage, so that thin rules, double rules and
+              borders whose edges coincide with the clip's edges keep their full geometric ink.
             justification: |
               PDF 32000-1 section 8.5.4 documents W/W* as deferred, intersecting, graphics-state-
               scoped clip-path updates; a reader that silently ignores them (as this class
               previously did) renders fill/stroke/image/glyph content outside a document's
               intended clipping region, producing visibly wrong output for any content stream
-              relying on clipping to mask painted geometry.
+              relying on clipping to mask painted geometry. A reader that multiplies the fill's
+              edge-pixel coverage by the clip's edge-pixel coverage squares the coverage wherever
+              the two edges coincide (typical for HTML-to-PDF borders and rules), drawing thin
+              rules 10-60 percent too light.
             tests:
               - PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion
               - PdfDocument_Clipping_SetInsideQQ_DoesNotLeakPastQ
@@ -578,6 +586,10 @@ sections:
               - PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace
               - PdfDocument_Clipping_ClipThenImageDo_RestrictsImageToClipRegion
               - PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion
+              - PdfDocument_ThinRules_DoubleRuleWithCoincidentClip_InkMatchesGeometry
+              - PdfDocument_ThinRules_DoubleRuleWithWiderClip_InkMatchesGeometry
+              - PdfDocument_ThinRules_DoubleRule_GapBetweenBarsRemainsTransparent
+              - PdfDocument_ThinRules_FooterRule_InkMatchesGeometry
 
           - id: CanvasNetPdf-PdfDocument-Dispose
             title: >-

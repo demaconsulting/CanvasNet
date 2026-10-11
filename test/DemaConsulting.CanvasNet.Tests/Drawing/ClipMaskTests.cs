@@ -488,4 +488,143 @@ public class ClipMaskTests
     }
 
     #endregion
+
+    #region Geometric rectangle clipping
+
+    /// <summary>Builds an explicitly closed rectangle polygon (last vertex equals the first).</summary>
+    private static List<Vector2> ClosedRect(float l, float t, float r, float b) =>
+        [new(l, t), new(r, t), new(r, b), new(l, b), new(l, t)];
+
+    /// <summary>Absolute shoelace area of one closed polygon.</summary>
+    private static double PolygonArea(List<Vector2> polygon)
+    {
+        double sum = 0;
+        for (var i = 0; i + 1 < polygon.Count; i++)
+        {
+            sum += ((double)polygon[i].X * polygon[i + 1].Y) - ((double)polygon[i + 1].X * polygon[i].Y);
+        }
+
+        return Math.Abs(sum) / 2;
+    }
+
+    /// <summary>Total of <see cref="PolygonArea"/> over a polygon list (valid for non-overlapping polygons).</summary>
+    private static double TotalArea(IReadOnlyList<List<Vector2>> polygons)
+    {
+        double total = 0;
+        foreach (var p in polygons)
+        {
+            total += PolygonArea(p);
+        }
+
+        return total;
+    }
+
+    private static double OverlapArea(float l1, float t1, float r1, float b1, float l2, float t2, float r2, float b2) =>
+        Math.Max(0.0, Math.Min(r1, r2) - Math.Max(l1, l2)) * Math.Max(0.0, Math.Min(b1, b2) - Math.Max(t1, t2));
+
+    private static ClipMask RectClip(float l, float t, float r, float b) =>
+        ClipMask.FromPath(RectPath(l, t, r, b), FillRule.NonZero, 64, 64);
+
+    /// <summary>Proves a polygon fully inside the clip rectangle is returned untouched (same list instances).</summary>
+    [Fact]
+    public void ClipMask_TryClipPolygonsToRect_PolygonInside_ReturnsSameInstances()
+    {
+        var clip = RectClip(5.25f, 6.5f, 40.75f, 38.25f);
+        var polygons = new List<List<Vector2>> { ClosedRect(10, 10, 20, 20) };
+
+        var ok = clip.TryClipPolygonsToRect(polygons, out var clipped, out var bounds);
+
+        Assert.True(ok);
+        Assert.Same(polygons, clipped);
+        Assert.Equal(10f, bounds.Left);
+        Assert.Equal(20f, bounds.Bottom);
+    }
+
+    /// <summary>Proves polygons wholly outside (or only touching) the clip rectangle report nothing visible.</summary>
+    [Fact]
+    public void ClipMask_TryClipPolygonsToRect_PolygonOutsideOrTouching_ReturnsFalse()
+    {
+        var clip = RectClip(5.25f, 6.5f, 40.75f, 38.25f);
+
+        Assert.False(clip.TryClipPolygonsToRect([ClosedRect(50, 10, 60, 20)], out _, out _));
+        Assert.False(clip.TryClipPolygonsToRect([ClosedRect(40.75f, 10, 50, 20)], out _, out _));
+        Assert.False(clip.TryClipPolygonsToRect([ClosedRect(0, 0, 3, 3), ClosedRect(10, 60, 20, 63)], out _, out _));
+    }
+
+    /// <summary>Proves the clipped area equals the analytic intersection for polygons crossing one, two, or all four sides.</summary>
+    [Theory]
+    [InlineData(0f, 10f, 20f, 20f)] // crosses left only
+    [InlineData(30f, 10f, 50f, 20f)] // crosses right only
+    [InlineData(0f, 0f, 20f, 20f)] // crosses left and top
+    [InlineData(0f, 10.3f, 60f, 20.9f)] // crosses left and right
+    [InlineData(-5f, -5f, 60f, 60f)] // swallows the clip on all four sides
+    public void ClipMask_TryClipPolygonsToRect_CrossingSides_AreaEqualsAnalyticIntersection(float l, float t, float r, float b)
+    {
+        var clip = RectClip(5.25f, 6.5f, 40.75f, 38.25f);
+        var polygons = new List<List<Vector2>> { ClosedRect(l, t, r, b) };
+
+        var ok = clip.TryClipPolygonsToRect(polygons, out var clipped, out var bounds);
+
+        Assert.True(ok);
+        var expected = OverlapArea(l, t, r, b, 5.25f, 6.5f, 40.75f, 38.25f);
+        Assert.Equal(expected, TotalArea(clipped), 1e-4);
+        Assert.True(bounds.Left >= 5.25f && bounds.Right <= 40.75f && bounds.Top >= 6.5f && bounds.Bottom <= 38.25f);
+        foreach (var polygon in clipped)
+        {
+            Assert.Equal(polygon[0], polygon[^1]);
+        }
+    }
+
+    /// <summary>Proves a concave (L-shaped) polygon is clipped to the exact analytic area.</summary>
+    [Fact]
+    public void ClipMask_TryClipPolygonsToRect_ConcavePolygon_AreaEqualsAnalyticIntersection()
+    {
+        // L shape: 30x30 square minus its top-right 20x20 quadrant, offset to (0, 0)
+        List<Vector2> l = [new(0, 0), new(10, 0), new(10, 20), new(30, 20), new(30, 30), new(0, 30), new(0, 0)];
+        var clip = RectClip(5.5f, 5.5f, 25.5f, 25.5f);
+
+        var ok = clip.TryClipPolygonsToRect([l], out var clipped, out _);
+
+        // Expected: the L minus its missing quadrant, intersected with the clip (20x20): the clip square
+        // minus the part with x>10, y<20 -> 20*20 - (25.5-10)*(20-5.5)
+        Assert.True(ok);
+        Assert.Equal((20.0 * 20.0) - (15.5 * 14.5), TotalArea(clipped), 1e-4);
+    }
+
+    /// <summary>Proves both fill rules stay correct after clipping a polygon set containing a hole.</summary>
+    [Fact]
+    public void ClipMask_TryClipPolygonsToRect_HoleAndNonZero_PreserveFillRuleCoverage()
+    {
+        var clip = RectClip(8f, 8f, 28f, 28f);
+        List<Vector2> outer = ClosedRect(2, 2, 40, 40);
+        List<Vector2> hole = ClosedRect(12, 12, 20, 20);
+
+        var ok = clip.TryClipPolygonsToRect([outer, hole], out var clipped, out var bounds);
+        Assert.True(ok);
+
+        // Rasterize the clipped polygons with both rules; the hole only subtracts for even-odd (same winding).
+        var maskWidth = 32;
+        var evenOdd = new float[maskWidth * maskWidth];
+        var nonZero = new float[maskWidth * maskWidth];
+        ScanlineRasterizer.AccumulateCoverageMask(clipped, FillRule.EvenOdd, bounds, evenOdd, maskWidth, 0, 0);
+        ScanlineRasterizer.AccumulateCoverageMask(clipped, FillRule.NonZero, bounds, nonZero, maskWidth, 0, 0);
+
+        Assert.Equal(20.0 * 20.0 - 8.0 * 8.0, evenOdd.Sum(v => (double)v), 1e-3);
+        Assert.Equal(20.0 * 20.0, nonZero.Sum(v => (double)v), 1e-3);
+    }
+
+    /// <summary>Proves polygons whose clipped result is degenerate (a sliver on the boundary) are dropped.</summary>
+    [Fact]
+    public void ClipMask_TryClipPolygonsToRect_DegenerateResult_IsDropped()
+    {
+        var clip = RectClip(5.25f, 6.5f, 40.75f, 38.25f);
+        List<Vector2> triangle = [new(0, 0), new(5.25f, 0), new(5.25f, 10), new(0, 0)];
+        List<Vector2> twoPoints = [new(10, 10), new(20, 20)];
+
+        var ok = clip.TryClipPolygonsToRect([triangle, twoPoints], out _, out _);
+
+        Assert.False(ok);
+    }
+
+    #endregion
 }
