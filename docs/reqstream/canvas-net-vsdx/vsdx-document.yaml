@@ -193,6 +193,8 @@ sections:
               - Geometry_EllipticalArcToRow_ConvertsToArcReachingDestination
               - Geometry_ArcToRow_ConvertsToArcWithBowDerivedRadius
               - Geometry_ArcToRow_ZeroBow_DegradesToLineTo
+              - Geometry_EllipseRow_ProducesClosedFourQuadrantSubpath
+              - Geometry_RelativeBezierRows_AreScaledAndKept
 
           - id: CanvasNetVsdx-VsdxDocument-ShapeTransform
             title: >-

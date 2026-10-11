@@ -103,6 +103,36 @@ public sealed partial class VsdxDocument
 
                     break;
 
+                case "Ellipse":
+                    currentPoint = AppendEllipse(builder, row.Cells);
+                    hasOpenSubpath = true;
+                    break;
+
+                case "RelCubBezTo":
+                    if (hasOpenSubpath)
+                    {
+                        var cubicEnd = ToLocalPoint(row.Cells.GetDouble("X") * width, row.Cells.GetDouble("Y") * height);
+                        builder.CubicBezierTo(
+                            ToLocalPoint(row.Cells.GetDouble("A") * width, row.Cells.GetDouble("B") * height),
+                            ToLocalPoint(row.Cells.GetDouble("C") * width, row.Cells.GetDouble("D") * height),
+                            cubicEnd);
+                        currentPoint = cubicEnd;
+                    }
+
+                    break;
+
+                case "RelQuadBezTo":
+                    if (hasOpenSubpath)
+                    {
+                        var quadEnd = ToLocalPoint(row.Cells.GetDouble("X") * width, row.Cells.GetDouble("Y") * height);
+                        builder.QuadraticBezierTo(
+                            ToLocalPoint(row.Cells.GetDouble("A") * width, row.Cells.GetDouble("B") * height),
+                            quadEnd);
+                        currentPoint = quadEnd;
+                    }
+
+                    break;
+
                 default:
                     // Unrecognized geometry row type (for example NURBSTo, InfiniteLine,
                     // RelCubBezTo, Ellipse, SplineStart/SplineKnot, PolylineTo): per
@@ -280,6 +310,32 @@ public sealed partial class VsdxDocument
 
         builder.ArcTo(new Vector2(radius, radius), 0f, largeArc, sweep, end);
         return end;
+    }
+
+    /// <summary>
+    ///     Appends an <c>Ellipse</c> row: <c>X</c>/<c>Y</c> is the center, <c>A</c>/<c>B</c> a point
+    ///     on one axis and <c>C</c>/<c>D</c> a point on the other (conjugate semi-diameters, so a
+    ///     rotated or skewed ellipse is handled too). Emitted as a closed subpath of four cubic
+    ///     Bezier quadrants.
+    /// </summary>
+    /// <param name="builder">The path builder to append to.</param>
+    /// <param name="cells">The row's own cell bag.</param>
+    /// <returns>The pen position after the closed subpath (the first axis point).</returns>
+    private static Vector2 AppendEllipse(PathBuilder builder, VsdxCellBag cells)
+    {
+        const float kappa = 0.5522847498f;
+        var center = ToLocalPoint(cells.GetDouble("X"), cells.GetDouble("Y"));
+        var u = ToLocalPoint(cells.GetDouble("A"), cells.GetDouble("B")) - center;
+        var v = ToLocalPoint(cells.GetDouble("C"), cells.GetDouble("D")) - center;
+
+        var start = center + u;
+        builder.MoveTo(start);
+        builder.CubicBezierTo(center + u + (kappa * v), center + v + (kappa * u), center + v);
+        builder.CubicBezierTo(center + v - (kappa * u), center - u + (kappa * v), center - u);
+        builder.CubicBezierTo(center - u - (kappa * v), center - v - (kappa * u), center - v);
+        builder.CubicBezierTo(center - v + (kappa * u), center + u - (kappa * v), start);
+        builder.Close();
+        return start;
     }
 
     /// <summary>Converts a shape-local X/Y pair (inches) into the <see cref="Vector2"/> coordinate <see cref="PathBuilder"/> expects.</summary>

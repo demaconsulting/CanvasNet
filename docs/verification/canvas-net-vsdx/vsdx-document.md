@@ -190,6 +190,13 @@ tolerantly skipped, leaving only the surrounding `LineTo` rows) instead of the s
 bar Visio itself renders; re-rendering after this fix confirmed the bar now renders correctly
 rounded.
 
+`Geometry_EllipseRow_ProducesClosedFourQuadrantSubpath` proves an `Ellipse` row (center `X`/`Y`,
+axis points `A`/`B` and `C`/`D`) becomes one closed subpath of four cubic quadrants starting at
+the first axis point; `Geometry_RelativeBezierRows_AreScaledAndKept` proves `RelCubBezTo` and
+`RelQuadBezTo` rows scale their cells by `Width`/`Height` and keep the curve commands. Rows still
+unsupported (`NURBSTo`, `SplineStart`/`SplineKnot`, `PolylineTo`, `InfiniteLine`) remain reported
+as `vsdx-geometry-row-<Type>`.
+
 #### CanvasNetVsdx-VsdxDocument-ShapeTransform: 2-D Shape Transform Order (LocPin, Flip, Rotate, Pin)
 
 **Tests**: `Transform_NoRotationNoFlip_MapsLocalOriginRelativeToPin`,

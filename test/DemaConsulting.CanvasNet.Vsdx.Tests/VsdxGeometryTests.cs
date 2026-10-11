@@ -257,4 +257,59 @@ public class VsdxGeometryTests
         Assert.True(section.NoLine);
         Assert.False(section.NoShow);
     }
+
+    /// <summary>An Ellipse row becomes one closed subpath of four cubic quadrants starting at the first axis point.</summary>
+    [Fact]
+    public void Geometry_EllipseRow_ProducesClosedFourQuadrantSubpath()
+    {
+        var shapeXml =
+            $"""
+            <Shape ID="1" Type="Shape">
+              {ShapeCellsXml}
+              <Section N="Geometry" IX="0">
+                <Row T="Ellipse" IX="1"><Cell N="X" V="1"/><Cell N="Y" V="0.5"/><Cell N="A" V="2"/><Cell N="B" V="0.5"/><Cell N="C" V="1"/><Cell N="D" V="1"/></Row>
+              </Section>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        var subpath = Assert.Single(document.GetPageShapes(0)[0].Geometries![0].Path.Subpaths);
+
+        Assert.Equal(2f, subpath.Start.X, 3);
+        Assert.Equal(0.5f, subpath.Start.Y, 3);
+        Assert.Equal(4, subpath.Commands.Count(c => c.Type == PathCommandType.CubicBezierTo));
+        Assert.Equal(PathCommandType.Close, subpath.Commands[^1].Type);
+        Assert.Equal(1f, subpath.Commands[0].EndPoint.X, 3);
+        Assert.Equal(1f, subpath.Commands[0].EndPoint.Y, 3);
+    }
+
+    /// <summary>RelCubBezTo and RelQuadBezTo rows scale their relative cells by Width/Height and keep the curve.</summary>
+    [Fact]
+    public void Geometry_RelativeBezierRows_AreScaledAndKept()
+    {
+        var shapeXml =
+            $"""
+            <Shape ID="1" Type="Shape">
+              {ShapeCellsXml}
+              <Section N="Geometry" IX="0">
+                <Row T="RelMoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+                <Row T="RelCubBezTo" IX="2"><Cell N="X" V="1"/><Cell N="Y" V="1"/><Cell N="A" V="0.25"/><Cell N="B" V="0"/><Cell N="C" V="0.75"/><Cell N="D" V="1"/></Row>
+                <Row T="RelQuadBezTo" IX="3"><Cell N="X" V="0"/><Cell N="Y" V="0"/><Cell N="A" V="0.5"/><Cell N="B" V="0.5"/></Row>
+              </Section>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shapeXml);
+        using var document = VsdxDocument.Open(stream);
+
+        var subpath = Assert.Single(document.GetPageShapes(0)[0].Geometries![0].Path.Subpaths);
+
+        Assert.Equal(PathCommandType.CubicBezierTo, subpath.Commands[0].Type);
+        Assert.Equal(2f, subpath.Commands[0].EndPoint.X, 3);
+        Assert.Equal(1f, subpath.Commands[0].EndPoint.Y, 3);
+        Assert.Equal(0.5f, subpath.Commands[0].Control1.X, 3);
+        Assert.Equal(1.5f, subpath.Commands[0].Control2.X, 3);
+        Assert.Equal(PathCommandType.QuadraticBezierTo, subpath.Commands[1].Type);
+        Assert.Equal(1f, subpath.Commands[1].Control1.X, 3);
+    }
 }
