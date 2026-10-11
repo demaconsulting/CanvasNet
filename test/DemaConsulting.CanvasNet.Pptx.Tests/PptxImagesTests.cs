@@ -224,6 +224,42 @@ public class PptxImagesTests
         }
     }
 
+    /// <summary>Proves a non-binary fractional crop landing exactly on an integer pixel boundary excludes the neighboring column (right and left edges).</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void PaintPicture_FractionalCropOnIntegerBoundary_NoContaminationFromExcludedColumn(bool cropRight)
+    {
+        // The image is 45 px wide and 40 percent is exactly 18 px. A right crop keeps the first 27 columns
+        // and a left crop keeps the last 27, so the other columns are red and must never leak in.
+        using var image = new Surface(45, 4);
+        var blue = new Rgba32(0, 0, 255, 255);
+        var red = new Rgba32(255, 0, 0, 255);
+        for (var y = 0; y < 4; y++)
+        {
+            for (var x = 0; x < 45; x++)
+            {
+                var excluded = cropRight ? x >= 27 : x < 18;
+                image[x, y] = excluded ? red : blue;
+            }
+        }
+
+        using var surface = new Surface(54, 4);
+        var srcRect = cropRight
+            ? new PptxSrcRect(Left: 0f, Top: 0f, Right: 0.4f, Bottom: 0f)
+            : new PptxSrcRect(Left: 0.4f, Top: 0f, Right: 0f, Bottom: 0f);
+
+        PptxDocument.PaintPicture(surface, image, srcRect, Matrix3x2.Identity, widthEmu: 54f, heightEmu: 4f);
+
+        for (var y = 0; y < 4; y++)
+        {
+            for (var x = 0; x < 54; x++)
+            {
+                Assert.Equal(blue, surface[x, y]);
+            }
+        }
+    }
+
     /// <summary>Proves a fractional crop uses the whole-pixel superset window: a partially covered border pixel still contributes to the crop edge.</summary>
     [Fact]
     public void PaintPicture_FractionalCrop_PartiallyCoveredBorderPixelContributes()

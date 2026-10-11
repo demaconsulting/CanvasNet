@@ -704,8 +704,10 @@ public sealed partial class PptxDocument
         // Axis-aligned pictures (the overwhelmingly common case) are resampled once to the exact
         // device-pixel rectangle they cover and composited 1:1; the srcRect crop becomes part of
         // the pixel-to-device mapping.
-        var cropWidth = Math.Max(1e-6f, 1f - left - right);
-        var cropHeight = Math.Max(1e-6f, 1f - top - bottom);
+        // The fraction math is done in double: float rounding (e.g. 0.6f) can push an exact
+        // integer pixel boundary a hair past the integer and pull in a whole excluded column.
+        var cropWidth = Math.Max(1e-6, 1.0 - left - right);
+        var cropHeight = Math.Max(1e-6, 1.0 - top - bottom);
 
         // The srcRect crop must be isolated from the rest of the image. Otherwise the bicubic or
         // area kernel reads adjacent pixels outside the crop and they bleed into its edge.
@@ -713,12 +715,21 @@ public sealed partial class PptxDocument
         // folds taps beyond that window into the window's own edge pixels.
         var cropLeftPx = (double)left * image.Width;
         var cropTopPx = (double)top * image.Height;
-        var cropWidthPx = (double)cropWidth * image.Width;
-        var cropHeightPx = (double)cropHeight * image.Height;
-        var windowX0 = Math.Clamp((int)Math.Floor(cropLeftPx + 1e-6), 0, image.Width - 1);
-        var windowY0 = Math.Clamp((int)Math.Floor(cropTopPx + 1e-6), 0, image.Height - 1);
-        var windowX1 = Math.Clamp((int)Math.Ceiling(cropLeftPx + cropWidthPx - 1e-6) - 1, windowX0, image.Width - 1);
-        var windowY1 = Math.Clamp((int)Math.Ceiling(cropTopPx + cropHeightPx - 1e-6) - 1, windowY0, image.Height - 1);
+        var cropWidthPx = cropWidth * image.Width;
+        var cropHeightPx = cropHeight * image.Height;
+
+        // Values within 1e-4 px of an integer are snapped to it so a boundary that is integral
+        // up to float parse error never includes a source column/row that is entirely outside.
+        static double Snap(double v)
+        {
+            var nearest = Math.Round(v);
+            return Math.Abs(v - nearest) < 1e-4 ? nearest : v;
+        }
+
+        var windowX0 = Math.Clamp((int)Math.Floor(Snap(cropLeftPx)), 0, image.Width - 1);
+        var windowY0 = Math.Clamp((int)Math.Floor(Snap(cropTopPx)), 0, image.Height - 1);
+        var windowX1 = Math.Clamp((int)Math.Ceiling(Snap(cropLeftPx + cropWidthPx)) - 1, windowX0, image.Width - 1);
+        var windowY1 = Math.Clamp((int)Math.Ceiling(Snap(cropTopPx + cropHeightPx)) - 1, windowY0, image.Height - 1);
         var windowW = windowX1 - windowX0 + 1;
         var windowH = windowY1 - windowY0 + 1;
         var cropped = windowW == image.Width && windowH == image.Height
