@@ -157,6 +157,9 @@ internal static class VsdxColorPalette
                 return themeColor;
             }
 
+            VsdxDocument.ReportUnsupported(
+                "vsdx-themed-color",
+                "A 'Themed' color could not be resolved against the document theme; a neutral gray is drawn instead.");
             return ThemedFallback;
         }
 

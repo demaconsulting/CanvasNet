@@ -83,6 +83,32 @@ public class VsdxUnsupportedFeatureTests
         Assert.Equal("vsdx-geometry-row-FutureRowKind", exception.Feature);
     }
 
+    /// <summary>A bare THEMEVAL() fill cannot be resolved, so the gray fallback is reported rather than silent.</summary>
+    [Fact]
+    public void Render_UnresolvableThemedFill_ReportsThemedColor()
+    {
+        const string shape =
+            """
+            <Shape ID="1" Type="Shape">
+              <Cell N="PinX" V="1"/><Cell N="PinY" V="1"/><Cell N="Width" V="1"/><Cell N="Height" V="1"/>
+              <Cell N="LocPinX" V="0"/><Cell N="LocPinY" V="0"/><Cell N="Angle" V="0"/>
+              <Cell N="FillForegnd" V="Themed" F="THEMEVAL()"/><Cell N="FillPattern" V="1"/>
+              <Section N="Geometry" IX="0">
+                <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+                <Row T="LineTo" IX="2"><Cell N="X" V="1"/><Cell N="Y" V="0"/></Row>
+                <Row T="LineTo" IX="3"><Cell N="X" V="1"/><Cell N="Y" V="1"/></Row>
+              </Section>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shape);
+        using var document = VsdxDocument.Open(stream);
+        var received = new List<VsdxUnsupportedFeature>();
+
+        using var surface = document.Render(0, 20, 20, new VsdxRenderOptions { UnsupportedFeatureHandler = received.Add });
+
+        Assert.Contains(received, f => f.Feature == "vsdx-themed-color");
+    }
+
     /// <summary>A page with only supported constructs reports nothing and strict mode does not throw.</summary>
     [Fact]
     public void Render_FullySupportedPage_ReportsNothing()

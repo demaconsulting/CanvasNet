@@ -838,6 +838,7 @@ sections:
               - Render_UnsupportedConstructs_DefaultOptionsDoNotThrow
               - Render_UnsupportedConstructs_StrictModeThrowsWithFeatureToken
               - Render_FullySupportedPage_ReportsNothing
+              - Render_UnresolvableThemedFill_ReportsThemedColor
 
           - id: CanvasNetVsdx-VsdxDocument-LinePattern
             title: >-
