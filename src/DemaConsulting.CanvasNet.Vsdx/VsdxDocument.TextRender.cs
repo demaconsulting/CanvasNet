@@ -14,10 +14,10 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     <see cref="VsdxTextLayout"/>'s glyph ink onto a <see cref="Surface"/>, and the
 ///     system/bundled font-resolution helper <see cref="ResolveTextFont"/> this milestone's
 ///     <c>fontResolver</c> delegate is driven with. A direct structural trim of
-///     <c>PptxDocument.TextRender.cs</c>'s own glyph-painting pattern - no run-level outline
-///     stroke or underline support exists in the resolved <see cref="VsdxTextLayout"/> model this
-///     milestone produces, so neither is painted here (out of scope - see the originating plan
-///     report's Scope section). Wired into the shipped public rendering pipeline since
+///     <c>PptxDocument.TextRender.cs</c>'s own glyph-painting pattern. No run-level outline stroke exists in the resolved <see cref="VsdxTextLayout"/>
+///     model, so none is painted (out of scope - see the originating plan report's Scope
+///     section); underline, strikethrough and overline <c>DecorationBars</c> are painted before
+///     the glyphs. Wired into the shipped public rendering pipeline since
 ///     Milestone 7: <c>VsdxDocument.Render.cs</c>'s <c>RenderShapeRecursive</c> calls
 ///     <see cref="PaintTextLayout"/> for every resolved shape whose effective <c>HideText</c>
 ///     cell does not suppress it.
@@ -38,6 +38,19 @@ public sealed partial class VsdxDocument
     /// <param name="shapeToSurfaceTransform">The transform mapping the owning shape's own local coordinate space into surface pixel space.</param>
     internal static void PaintTextLayout(Surface surface, VsdxTextLayout layout, Matrix3x2 shapeToSurfaceTransform)
     {
+        foreach (var bar in layout.DecorationBars)
+        {
+            var half = (float)(bar.ThicknessInches / 2d);
+            var cy = (float)bar.CenterYInches;
+            var barBuilder = new PathBuilder();
+            barBuilder.MoveTo(new Vector2((float)bar.X0Inches, cy - half));
+            barBuilder.LineTo(new Vector2((float)bar.X1Inches, cy - half));
+            barBuilder.LineTo(new Vector2((float)bar.X1Inches, cy + half));
+            barBuilder.LineTo(new Vector2((float)bar.X0Inches, cy + half));
+            barBuilder.Close();
+            PathFiller.Fill(surface, barBuilder.Build().Transform(shapeToSurfaceTransform), bar.Color, FillRule.NonZero);
+        }
+
         foreach (var glyph in layout.Glyphs)
         {
             var outline = glyph.Font.GetGlyphOutline(glyph.GlyphIndex);
@@ -64,6 +77,79 @@ public sealed partial class VsdxDocument
 
             PathFiller.Fill(surface, localPath.Transform(shapeToSurfaceTransform), glyph.Color, FillRule.NonZero);
         }
+    }
+
+    /// <summary>Preferred glyph-fallback families, searched in order before any other installed font.</summary>
+    private static readonly string[] FallbackFamilies =
+    [
+        "Segoe UI Symbol", "Segoe UI Emoji", "Arial Unicode MS", "Cambria Math", "DejaVu Sans", "Noto Sans Symbols",
+        "Noto Sans Symbols2", "Noto Sans", "Symbola", "Apple Symbols", "Segoe UI", "Arial", "Liberation Sans",
+    ];
+
+    /// <summary>Per-(code point, bold, italic) fallback results (null = nothing covers it), shared by all documents.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(int CodePoint, bool Bold, bool Italic), TrueTypeFont?> FallbackResults = new();
+
+    /// <summary>Loaded fallback fonts by file/face, <see langword="null"/> when the file cannot be parsed.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Path, int Face), TrueTypeFont?> FallbackFontCache = new();
+
+    /// <summary>
+    ///     Default per-glyph fallback: finds an installed font (preferred symbol/Unicode families
+    ///     first, then every other catalog face, then the bundled Liberation faces) that has a
+    ///     glyph for <paramref name="codePoint"/>, preferring the requested bold/italic style.
+    ///     Results are cached; <see langword="null"/> means no font covers the code point.
+    /// </summary>
+    internal static TrueTypeFont? ResolveGlyphFallbackFont(int codePoint, bool bold, bool italic) =>
+        FallbackResults.GetOrAdd((codePoint, bold, italic), static key => FindGlyphFallbackFont(key.CodePoint, key.Bold, key.Italic));
+
+    private static TrueTypeFont? FindGlyphFallbackFont(int codePoint, bool bold, bool italic)
+    {
+        static TrueTypeFont? LoadUncached(string path, int face)
+        {
+            try
+            {
+                return TrueTypeFont.Load(path, face);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException or ArgumentException)
+            {
+                return null;
+            }
+        }
+
+        // Preferred families are few, so their fonts stay cached; the catalog-wide sweep
+        // loads each face transiently so an uncovered code point cannot pin every font in memory.
+        static TrueTypeFont? Load(SystemFontInfo info, bool cache) =>
+            cache
+                ? FallbackFontCache.GetOrAdd((info.FilePath, info.FaceIndex), static key => LoadUncached(key.Path, key.Face))
+                : LoadUncached(info.FilePath, info.FaceIndex);
+
+        IEnumerable<(SystemFontInfo Info, bool Cache)> Candidates()
+        {
+            var fonts = SystemFontCatalog.Fonts;
+            foreach (var family in FallbackFamilies)
+            {
+                foreach (var info in fonts.Where(f => string.Equals(f.FamilyName, family, StringComparison.OrdinalIgnoreCase))
+                             .OrderBy(f => (f.Bold == bold ? 0 : 1) + (f.Italic == italic ? 0 : 1)))
+                {
+                    yield return (info, true);
+                }
+            }
+
+            foreach (var info in fonts.OrderBy(f => (f.Bold == bold ? 0 : 1) + (f.Italic == italic ? 0 : 1)))
+            {
+                yield return (info, false);
+            }
+        }
+
+        foreach (var (info, cache) in Candidates())
+        {
+            if (Load(info, cache) is { } font && font.GetGlyphIndex(codePoint) != 0)
+            {
+                return font;
+            }
+        }
+
+        var bundled = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic);
+        return bundled.GetGlyphIndex(codePoint) != 0 ? bundled : null;
     }
 
     /// <summary>

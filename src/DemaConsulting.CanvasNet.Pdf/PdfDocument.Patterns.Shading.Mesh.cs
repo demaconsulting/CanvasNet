@@ -635,7 +635,7 @@ public sealed partial class PdfDocument
         }
 
         // The tile repeats outside the temporary bitmap, so confine the fill to its rectangle.
-        var bitmapClip = ClipMask.FromPath(
+        var bitmapClip = ClipMask.FromPathOrNull(
             new PathBuilder()
                 .MoveTo(new Vector2(left, top))
                 .LineTo(new Vector2(right, top))
@@ -647,7 +647,7 @@ public sealed partial class PdfDocument
             _surface.Width,
             _surface.Height);
         var tilePaint = new TilePaint(meshSurface, Matrix3x2.CreateTranslation(left, top), meshSurface.Width, meshSurface.Height);
-        PathFiller.Fill(_surface, path, tilePaint, _gs.Clip?.Intersect(bitmapClip) ?? bitmapClip, fillRule);
+        PathFiller.Fill(_surface, path, tilePaint, ClipMask.Combine(_gs.Clip, bitmapClip), fillRule);
     }
 
     /// <summary>

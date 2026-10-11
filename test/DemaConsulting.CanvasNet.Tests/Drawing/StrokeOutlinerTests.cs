@@ -401,11 +401,12 @@ public class StrokeOutlinerTests
         // Act
         var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
 
-        // Assert: exactly one polygon (no hole) - the whole square interior renders as stroke.
-        var polygon = Assert.Single(polygons);
+        // Assert: the stroke is a union of same-wound bands (no hole) - the whole square
+        // interior renders as stroke.
+        Assert.NotEmpty(polygons);
 
         // The entire original square, and a reasonable margin around it, must lie within the
-        // single outer polygon (no unfilled hole anywhere within the square).
+        // stroke (no unfilled hole anywhere within the square).
         Vector2[] mustBeCovered =
         [
             new(4, 4), // center
@@ -419,8 +420,36 @@ public class StrokeOutlinerTests
         foreach (var point in mustBeCovered)
         {
             Assert.True(
-                IsPointInPolygon(point, polygon),
+                polygons.Any(polygon => IsPointInPolygon(point, polygon)),
                 $"Expected {point} to be covered by the stroke band (no unfilled hole), but it was not.");
+        }
+    }
+
+    /// <summary>
+    ///     Proves that the collapsed-closed-contour path also covers the whole interior of an
+    ///     over-eroded square when the join style is Round or Bevel (not only the default Miter).
+    /// </summary>
+    /// <param name="join">The line join style under test.</param>
+    [Theory]
+    [InlineData(LineJoin.Round)]
+    [InlineData(LineJoin.Bevel)]
+    public void StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_RoundAndBevelJoinsCoverInterior(LineJoin join)
+    {
+        // Arrange: a 4x4 square (inradius 2) stroked with half-width 5 and a non-miter join.
+        var points = new List<Vector2> { new(2, 2), new(6, 2), new(6, 6), new(2, 6) };
+        var style = new StrokeStyle(10f, join: join);
+
+        // Act
+        var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
+
+        // Assert: no hole - the whole square interior is covered by the stroke
+        Assert.NotEmpty(polygons);
+        Vector2[] mustBeCovered = [new(4, 4), new(2.5f, 2.5f), new(5.5f, 2.5f), new(5.5f, 5.5f), new(2.5f, 5.5f)];
+        foreach (var point in mustBeCovered)
+        {
+            Assert.True(
+                polygons.Any(polygon => IsPointInPolygon(point, polygon)),
+                $"Expected {point} to be covered by the {join} join stroke band, but it was not.");
         }
     }
 
@@ -732,10 +761,9 @@ public class StrokeOutlinerTests
         // Act
         var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
 
-        // Assert: exactly one polygon (no hole) - the whole circle interior renders as solid
-        // stroke, and the circle's own center is covered by it.
-        var polygon = Assert.Single(polygons);
-        Assert.True(IsPointInPolygon(center, polygon));
+        // Assert: no hole - the circle's own center is covered by one of the same-wound bands.
+        Assert.NotEmpty(polygons);
+        Assert.Contains(polygons, polygon => IsPointInPolygon(center, polygon));
     }
 
     /// <summary>
@@ -781,11 +809,73 @@ public class StrokeOutlinerTests
         // Act
         var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
 
-        // Assert: exactly one polygon (no hole) - the whole circle interior renders as solid
-        // stroke, and the circle's own center is covered by it. A spurious/invalid inner ring
-        // being retained instead (e.g. two polygons, or one polygon that does not cover the
-        // center) indicates the collapse was not detected.
-        var polygon = Assert.Single(polygons);
-        Assert.True(IsPointInPolygon(center, polygon));
+        // Assert: no hole - the circle's own center is covered by one of the same-wound bands. A
+        // spurious/invalid inner ring being retained instead (one that leaves the center
+        // uncovered) indicates the collapse was not detected.
+        Assert.NotEmpty(polygons);
+        Assert.Contains(polygons, polygon => IsPointInPolygon(center, polygon));
+    }
+
+    /// <summary>
+    ///     Proves that a closed contour that is large overall but has a tiny edge (shorter than
+    ///     the stroke width) between two sharp corners - the shape of a hairline-stroked
+    ///     clip-art outline - is stroked as a thin outline, not painted solid.
+    /// </summary>
+    /// <remarks>
+    ///     The tiny edge makes the inner offset ring's adjacent forced-intersection corners run
+    ///     backwards, which used to flag the whole ring as collapsed and discard the hole,
+    ///     filling the entire interior.
+    /// </remarks>
+    [Fact]
+    public void StrokeOutliner_Outline_LargeClosedContourWithTinyEdge_KeepsInteriorUnfilled()
+    {
+        // Arrange: a large (~85x95) closed contour, shaped like the screen of a clip-art laptop,
+        // with two edges shorter than the stroke width (1.5) between sharp corners.
+        var points = new List<Vector2>
+        {
+            new(1.94f, 41.4f),
+            new(17.2f, 92.98f),
+            new(16.5f, 93.4f),
+            new(83.5f, 54.7f),
+            new(67.9f, 1.6f),
+            new(68.3f, 2.4f),
+        };
+        var style = new StrokeStyle(1.5f);
+
+        // Act
+        var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
+
+        // Assert: under NonZero fill the boundary is covered but the interior is not.
+        Assert.NotEqual(0, WindingNumber(new Vector2(17.2f, 92.98f), polygons));
+        Assert.NotEqual(0, WindingNumber(new Vector2(83.5f, 54.7f), polygons));
+        Assert.Equal(0, WindingNumber(new Vector2(45f, 50f), polygons));
+    }
+
+    /// <summary>
+    ///     Computes the combined non-zero winding number of <paramref name="point"/> across every
+    ///     polygon in <paramref name="polygons"/>.
+    /// </summary>
+    private static int WindingNumber(Vector2 point, IEnumerable<IReadOnlyList<Vector2>> polygons)
+    {
+        var winding = 0;
+        foreach (var polygon in polygons)
+        {
+            for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
+            {
+                var a = polygon[j];
+                var b = polygon[i];
+                var side = (b.X - a.X) * (point.Y - a.Y) - (point.X - a.X) * (b.Y - a.Y);
+                if (a.Y <= point.Y && b.Y > point.Y && side > 0)
+                {
+                    winding++;
+                }
+                else if (a.Y > point.Y && b.Y <= point.Y && side < 0)
+                {
+                    winding--;
+                }
+            }
+        }
+
+        return winding;
     }
 }

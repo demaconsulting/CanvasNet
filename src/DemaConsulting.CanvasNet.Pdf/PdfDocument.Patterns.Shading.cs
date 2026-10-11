@@ -10,17 +10,30 @@ namespace DemaConsulting.CanvasNet.Pdf;
 public sealed partial class PdfDocument
 {
     /// <summary>
-    ///     The number of evenly spaced points across a shading's own function-input domain that
-    ///     <see cref="BuildShadingGradient"/> samples to build a <see cref="Gradient"/>'s own
-    ///     <see cref="GradientStop"/> list.
+    ///     The minimum number of evenly spaced points across a shading's own function-input domain
+    ///     that <see cref="BuildShadingGradient"/> samples to build a <see cref="Gradient"/>'s own
+    ///     <see cref="GradientStop"/> list (used for short on-device gradients).
     /// </summary>
-    /// <remarks>
-    ///     32 balances visual smoothness against allocation/compute cost per fill - no caller of
-    ///     this evaluator needs more precision than this, matching <see cref="SampledFunction"/>'s
-    ///     own "no caller needs more precision than this" posture toward its own evaluation
-    ///     granularity.
-    /// </remarks>
-    private const int ShadingGradientSampleCount = 32;
+    private const int ShadingGradientMinSampleCount = 32;
+
+    /// <summary>
+    ///     The maximum number of sample points (see <see cref="ShadingGradientMinSampleCount"/>);
+    ///     the actual count is one sample per device pixel of gradient length, clamped to
+    ///     <c>[ShadingGradientMinSampleCount, ShadingGradientMaxSampleCount]</c>.
+    /// </summary>
+    private const int ShadingGradientMaxSampleCount = 256;
+
+    /// <summary>
+    ///     The largest extension (in multiples of the shading's own <c>[0, 1]</c> parameter range)
+    ///     applied beyond either end for <c>/Extend</c>; bounds float precision of the widened ramp.
+    /// </summary>
+    private const double ShadingMaxExtension = 1e4;
+
+    /// <summary>
+    ///     The small parameter margin (relative to the <c>[0, 1]</c> range) placed beyond an
+    ///     un-extended end so a hard transparent stop can sit outside the painted range.
+    /// </summary>
+    private const double ShadingEdgeMargin = 1e-3;
 
     /// <summary>
     ///     The fully resolved, immutable contents of a <c>/ShadingType 2</c>-<c>7</c> shading
@@ -47,6 +60,7 @@ public sealed partial class PdfDocument
     ///     <see langword="null"/> for axial/radial shadings (for mesh shadings
     ///     <paramref name="Coords"/>/<paramref name="Domain"/>/<paramref name="Evaluate"/> are unused).
     /// </param>
+    /// <param name="Extend">The shading's <c>/Extend</c> flags (start, end); <see langword="null"/> means <c>[false false]</c>.</param>
     private readonly record struct ShadingDescriptor(
         int ShadingType,
         PdfColorSpace ColorSpace,
@@ -54,7 +68,8 @@ public sealed partial class PdfDocument
         double[] Domain,
         Func<double, double[]> Evaluate,
         double[]? BBox,
-        MeshShading? Mesh = null);
+        MeshShading? Mesh = null,
+        bool[]? Extend = null);
 
     /// <summary>
     ///     Resolves an already-resolved <c>/Shading</c> dictionary (or stream - some
@@ -135,7 +150,42 @@ public sealed partial class PdfDocument
                 $"/Coords must have exactly {expectedCoordCount} elements for /ShadingType {shadingType}.");
         }
 
-        return new ShadingDescriptor(shadingType, colorSpace, coords, domain, evaluate, bbox);
+        var extend = ResolveExtend(shading);
+        return new ShadingDescriptor(shadingType, colorSpace, coords, domain, evaluate, bbox, null, extend);
+    }
+
+    /// <summary>
+    ///     Reads a shading's optional <c>/Extend</c> (PDF 32000-1 &#xA7;8.7.4.5.2), defaulting to
+    ///     <c>[false false]</c>.
+    /// </summary>
+    /// <exception cref="InvalidDataException">Thrown when <c>/Extend</c> is not an array of exactly 2 booleans.</exception>
+    private bool[] ResolveExtend(PdfObject shading)
+    {
+        var entry = shading.Get("Extend");
+        if (entry is null)
+        {
+            return [false, false];
+        }
+
+        var resolved = Resolve(entry);
+        if (resolved.Kind != PdfKind.Array || resolved.Items.Count != 2)
+        {
+            throw new InvalidDataException("/Shading /Extend must be an array of exactly 2 booleans.");
+        }
+
+        var result = new bool[2];
+        for (var i = 0; i < 2; i++)
+        {
+            var item = Resolve(resolved.Items[i]);
+            if (item.Kind != PdfKind.Boolean)
+            {
+                throw new InvalidDataException("/Shading /Extend must be an array of exactly 2 booleans.");
+            }
+
+            result[i] = item.Boolean;
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -168,6 +218,7 @@ public sealed partial class PdfDocument
             Coords = descriptor.Coords,
             Domain = descriptor.Domain,
             Evaluate = descriptor.Evaluate,
+            Extend = descriptor.Extend,
             Mesh = descriptor.Mesh,
         };
     }
@@ -234,6 +285,7 @@ public sealed partial class PdfDocument
             Coords = descriptor.Coords,
             Domain = descriptor.Domain,
             Evaluate = descriptor.Evaluate,
+            Extend = descriptor.Extend,
         };
         var region = BuildShadingPaintRegion(descriptor.BBox);
         if (descriptor.Mesh is { } mesh)
@@ -243,7 +295,7 @@ public sealed partial class PdfDocument
             return;
         }
 
-        var gradient = BuildShadingGradient(pattern, _gs.CurrentTransform);
+        var gradient = BuildShadingGradient(pattern, _gs.CurrentTransform, _surface.Width, _surface.Height);
         PathFiller.Fill(_surface, region, gradient, _gs.Clip, FillRule.NonZero);
     }
 
@@ -299,62 +351,188 @@ public sealed partial class PdfDocument
     ///     Builds a <see cref="Gradient"/> (<see cref="LinearGradient"/> for
     ///     <c>/ShadingType 2</c>, <see cref="RadialGradient"/> for <c>/ShadingType 3</c>) from
     ///     <paramref name="pattern"/>'s resolved shading descriptor, sampling its resolved
-    ///     function(s) at <see cref="ShadingGradientSampleCount"/> evenly spaced points across
-    ///     <see cref="ResolvedPattern.Domain"/> and converting each sampled output through
-    ///     <see cref="ResolvedPattern.ShadingColorSpace"/> via <see cref="ColorFromComponents"/>.
+    ///     function(s) at evenly spaced points across <see cref="ResolvedPattern.Domain"/> and
+    ///     converting each sampled output through <see cref="ResolvedPattern.ShadingColorSpace"/>
+    ///     via <see cref="ColorFromComponents"/>.
     /// </summary>
     /// <param name="pattern">The resolved shading pattern. Must have <see cref="ResolvedPattern.Kind"/> of <see cref="ResolvedPattern.PatternKind.Shading"/>.</param>
     /// <param name="patternToDevice">The pattern-space-to-device-space transform (see <see cref="PatternToDeviceTransform"/>), used as the gradient's own <see cref="Gradient.Transform"/>.</param>
+    /// <param name="surfaceWidth">The destination surface width in device pixels (bounds how far an extended end must reach).</param>
+    /// <param name="surfaceHeight">The destination surface height in device pixels.</param>
     /// <returns>The constructed gradient, ready to pass to <c>PathFiller.Fill(Surface, Path, Gradient, FillRule, float)</c>.</returns>
     /// <remarks>
-    ///     <c>/Extend</c> (PDF 32000-1 §8.7.4.5.3, defaulting to <c>[false false]</c> - "paint
-    ///     nothing outside the shading's own defining geometry") has no existing
-    ///     <see cref="GradientSpread"/> equivalent (only <see cref="GradientSpread.Pad"/>/
-    ///     <see cref="GradientSpread.Reflect"/>/<see cref="GradientSpread.Repeat"/> exist, none of
-    ///     which is "transparent outside"). This method always uses
-    ///     <see cref="GradientSpread.Pad"/> regardless of the shading's own declared
-    ///     <c>/Extend</c> value - a documented, narrower-than-spec approximation. This is distinct
-    ///     from the current clipping path (<c>W</c>/<c>W*</c>, applied via <see cref="GraphicsState.Clip"/>
-    ///     and already honored by <see cref="OpPaintShading"/>'s <c>PathFiller.Fill</c> call): a
-    ///     true "unextended" shading would instead need to clip the gradient to its own defining
-    ///     geometry (the shading's domain/coordinate bounds) independently of any current clipping
-    ///     path, which remains out of scope.
+    ///     <para>
+    ///     <b>Sample count.</b> One sample per device pixel of gradient length (axial: the
+    ///     transformed <c>/Coords</c> vector; radial: the larger of the sweep length and the
+    ///     diameter sum, scaled by the larger matrix axis scale), rounded up and clamped to
+    ///     <see cref="ShadingGradientMinSampleCount"/>..<see cref="ShadingGradientMaxSampleCount"/>.
+    ///     </para>
+    ///     <para>
+    ///     <b>/Extend</b> (PDF 32000-1 &#xA7;8.7.4.5.2, default <c>[false false]</c>) is honored per
+    ///     end without any new <see cref="GradientSpread"/>: the gradient's geometry is widened
+    ///     beyond the shading's own <c>[0, 1]</c> parameter range (by enough to cover the surface,
+    ///     capped by <see cref="ShadingMaxExtension"/>; for radial shadings also limited so the
+    ///     interpolated radius never goes negative), and the widened part is filled with the end
+    ///     color when that end is extended, or with a hard transparent stop when it is not. The
+    ///     gradient always uses <see cref="GradientSpread.Pad"/> over the widened range.
+    ///     </para>
     /// </remarks>
-    private static Gradient BuildShadingGradient(ResolvedPattern pattern, Matrix3x2 patternToDevice)
+    private static Gradient BuildShadingGradient(
+        ResolvedPattern pattern,
+        Matrix3x2 patternToDevice,
+        float surfaceWidth,
+        float surfaceHeight)
     {
         var domain = pattern.Domain!;
         var evaluate = pattern.Evaluate!;
         var colorSpace = pattern.ShadingColorSpace!;
         var coords = pattern.Coords!;
+        var extend0 = pattern.Extend is { Length: 2 } && pattern.Extend[0];
+        var extend1 = pattern.Extend is { Length: 2 } && pattern.Extend[1];
+        var isAxial = pattern.ShadingType == 2;
 
-        var stops = new GradientStop[ShadingGradientSampleCount];
-        for (var i = 0; i < ShadingGradientSampleCount; i++)
+        // Geometry in pattern space.
+        var p0 = new Vector2((float)coords[0], (float)coords[1]);
+        var p1 = isAxial ? new Vector2((float)coords[2], (float)coords[3]) : new Vector2((float)coords[3], (float)coords[4]);
+        var r0 = isAxial ? 0.0 : coords[2];
+        var r1 = isAxial ? 0.0 : coords[5];
+        var dr = r1 - r0;
+        var sweep = (p1 - p0).Length();
+
+        // Device-space length of one unit of t, and of the whole ramp (for the sample count).
+        var scale = Math.Max(
+            Vector2.TransformNormal(new Vector2(1f, 0f), patternToDevice).Length(),
+            Vector2.TransformNormal(new Vector2(0f, 1f), patternToDevice).Length());
+        double unitLength;
+        double rampLength;
+        if (isAxial)
         {
-            var t = (float)i / (ShadingGradientSampleCount - 1);
-            var domainValue = domain[0] + (t * (domain[1] - domain[0]));
-            var components = evaluate(domainValue);
-            var color = ColorFromComponents(colorSpace, components);
-            stops[i] = new GradientStop(t, color);
+            unitLength = Vector2.TransformNormal(p1 - p0, patternToDevice).Length();
+            rampLength = unitLength;
+        }
+        else
+        {
+            unitLength = (sweep + Math.Abs(dr)) * scale;
+            rampLength = Math.Max(unitLength, (Math.Abs(r0) + Math.Abs(r1)) * scale);
         }
 
-        if (pattern.ShadingType == 2)
+        var count = double.IsFinite(rampLength)
+            ? (int)Math.Clamp(Math.Ceiling(rampLength), ShadingGradientMinSampleCount, ShadingGradientMaxSampleCount)
+            : ShadingGradientMinSampleCount;
+
+        // How far (in t units) an extended end must reach to cover the surface.
+        var reach = MaxDeviceDistance(p0, p1, patternToDevice, surfaceWidth, surfaceHeight);
+        var extension = unitLength > 1e-9 && double.IsFinite(reach)
+            ? Math.Min((reach / unitLength) + 1.0, ShadingMaxExtension)
+            : ShadingMaxExtension;
+
+        // Radial: the radius must stay non-negative over the widened range.
+        var startLimit = double.PositiveInfinity;
+        var endLimit = double.PositiveInfinity;
+        if (!isAxial)
         {
+            if (dr > 0.0)
+            {
+                startLimit = Math.Max(r0, 0.0) / dr;
+            }
+            else if (dr < 0.0)
+            {
+                endLimit = Math.Max(r1, 0.0) / -dr;
+            }
+        }
+
+        var before = extend0 ? Math.Min(extension, startLimit) : Math.Min(ShadingEdgeMargin, startLimit);
+        var after = extend1 ? Math.Min(extension, endLimit) : Math.Min(ShadingEdgeMargin, endLimit);
+        if (before < 1e-6)
+        {
+            before = 0.0;
+        }
+
+        if (after < 1e-6)
+        {
+            after = 0.0;
+        }
+
+        var tMin = -before;
+        var tMax = 1.0 + after;
+        var span = tMax - tMin;
+        float Offset(double t) => (float)Math.Clamp((t - tMin) / span, 0.0, 1.0);
+
+        var transparent = new Rgba32(0, 0, 0, 0);
+        var stops = new List<GradientStop>(count + 4);
+        for (var i = 0; i < count; i++)
+        {
+            var t = (double)i / (count - 1);
+            var domainValue = domain[0] + (t * (domain[1] - domain[0]));
+            var color = ColorFromComponents(colorSpace, evaluate(domainValue));
+            var offset = Offset(t);
+
+            if (i == 0 && before > 0.0)
+            {
+                var fill = extend0 ? color : transparent;
+                stops.Add(new GradientStop(0f, fill));
+                stops.Add(new GradientStop(offset, fill));
+            }
+
+            stops.Add(new GradientStop(offset, color));
+
+            if (i == count - 1 && after > 0.0)
+            {
+                var fill = extend1 ? color : transparent;
+                stops.Add(new GradientStop(offset, fill));
+                stops.Add(new GradientStop(1f, fill));
+            }
+        }
+
+        if (isAxial)
+        {
+            var dir = p1 - p0;
             return new LinearGradient(
-                new Vector2((float)coords[0], (float)coords[1]),
-                new Vector2((float)coords[2], (float)coords[3]),
+                p0 + ((float)tMin * dir),
+                p0 + ((float)tMax * dir),
                 stops,
                 GradientSpread.Pad,
                 patternToDevice);
         }
 
+        var dc = p1 - p0;
         return new RadialGradient(
-            new Vector2((float)coords[0], (float)coords[1]),
-            (float)coords[2],
-            new Vector2((float)coords[3], (float)coords[4]),
-            (float)coords[5],
+            p0 + ((float)tMin * dc),
+            (float)Math.Max(r0 + (tMin * dr), 0.0),
+            p0 + ((float)tMax * dc),
+            (float)Math.Max(r0 + (tMax * dr), 0.0),
             stops,
             GradientSpread.Pad,
             patternToDevice);
+    }
+
+    /// <summary>
+    ///     Returns the largest device-space distance from either of the two pattern-space anchor
+    ///     points to any corner of the surface.
+    /// </summary>
+    private static double MaxDeviceDistance(
+        Vector2 p0,
+        Vector2 p1,
+        Matrix3x2 patternToDevice,
+        float surfaceWidth,
+        float surfaceHeight)
+    {
+        var a = Vector2.Transform(p0, patternToDevice);
+        var b = Vector2.Transform(p1, patternToDevice);
+        Span<Vector2> corners =
+        [
+            new(0f, 0f),
+            new(surfaceWidth, 0f),
+            new(0f, surfaceHeight),
+            new(surfaceWidth, surfaceHeight),
+        ];
+        double max = 0.0;
+        foreach (var corner in corners)
+        {
+            max = Math.Max(max, Math.Max(Vector2.Distance(a, corner), Vector2.Distance(b, corner)));
+        }
+
+        return max;
     }
 
     /// <summary>
@@ -366,7 +544,9 @@ public sealed partial class PdfDocument
     /// </summary>
     /// <param name="functionEntry">The (possibly indirect-reference) <c>/Function</c> entry to resolve.</param>
     /// <returns>
-    ///     The input domain to sample across (2 elements), and a delegate evaluating the
+    ///     A nominal <c>[0, 1]</c> domain for the array form (or the single function's own
+    ///     <c>/Domain</c>) - callers sample across the shading's own <c>/Domain</c> instead and
+    ///     ignore it - and a delegate evaluating the
     ///     function(s) at a single input value, returning one output value per color component.
     /// </returns>
     /// <exception cref="InvalidDataException">
@@ -397,6 +577,7 @@ public sealed partial class PdfDocument
                         "Each /Function array element must be a 1-output function.");
                 }
 
+                // Each sub-function clamps its own input to its own /Domain when evaluated.
                 subFunctions[i] = sub;
             }
 

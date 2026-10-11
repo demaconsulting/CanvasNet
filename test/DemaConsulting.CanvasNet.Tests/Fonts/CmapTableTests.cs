@@ -114,6 +114,77 @@ public class CmapTableTests
     }
 
     /// <summary>
+    ///     Proves that a Windows Symbol (3,0) subtable resolves plain 8-bit codes via U+F000..U+F0FF.
+    /// </summary>
+    [Fact]
+    public void CmapTable_SymbolSubtable_PlainEightBitCodeResolvesViaPrivateUseArea()
+    {
+        var table = SyntheticFontBuilder.CmapFormat4(3, 0, [(0xF0E0, 7)]);
+
+        var cmap = CmapTable.Parse(table, 0, table.Length);
+
+        Assert.Equal(7, cmap.GetGlyphIndex(0xE0));
+        Assert.Equal(7, cmap.GetGlyphIndex(0xF0E0));
+        Assert.Equal(0, cmap.GetGlyphIndex(0xE1));
+    }
+
+    /// <summary>
+    ///     Proves that a Windows Symbol (3,0) subtable does not remap codes below U+0020 or above
+    ///     U+00FF into the U+F000 private-use range, and that a direct hit beats the remapped code.
+    /// </summary>
+    [Fact]
+    public void CmapTable_SymbolSubtable_OutOfRangeCodesNotRemappedAndDirectHitWins()
+    {
+        var table = SyntheticFontBuilder.CmapFormat4(3, 0, [(0xF01F, 3), (0xF100, 4), (0x41, 2), (0xF041, 9)]);
+
+        var cmap = CmapTable.Parse(table, 0, table.Length);
+
+        Assert.Equal(0, cmap.GetGlyphIndex(0x1F));
+        Assert.Equal(0, cmap.GetGlyphIndex(0x100));
+        Assert.Equal(3, cmap.GetGlyphIndex(0xF01F));
+        Assert.Equal(2, cmap.GetGlyphIndex(0x41));
+        Assert.Equal(9, cmap.GetGlyphIndex(0xF041));
+    }
+
+    /// <summary>
+    ///     Proves that when a font has both a (3,1) Unicode and a (3,0) Symbol subtable, the
+    ///     (3,1) subtable is preferred and the symbol remapping is not applied to it.
+    /// </summary>
+    [Fact]
+    public void CmapTable_SymbolAndUnicodeSubtables_PrefersUnicodeSubtable()
+    {
+        var unicode = SyntheticFontBuilder.CmapFormat4(3, 1, [(0x41, 5)]);
+        var symbol = SyntheticFontBuilder.CmapFormat4(3, 0, [(0xF041, 9), (0xF042, 8)]);
+        var table = CombineSingleSubtableCmaps(symbol, unicode);
+
+        var cmap = CmapTable.Parse(table, 0, table.Length);
+
+        Assert.Equal(5, cmap.GetGlyphIndex(0x41));
+        Assert.Equal(0, cmap.GetGlyphIndex(0x42));
+    }
+
+    /// <summary>
+    ///     Merges two single-subtable <c>cmap</c> tables (12-byte header plus one subtable each)
+    ///     into one table with two encoding records.
+    /// </summary>
+    private static byte[] CombineSingleSubtableCmaps(byte[] first, byte[] second)
+    {
+        const int HeaderSize = 12;
+        var firstSubtable = first[HeaderSize..];
+        var secondSubtable = second[HeaderSize..];
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteUInt16(buf, 0);
+        SyntheticFontBuilder.WriteUInt16(buf, 2);
+        buf.AddRange(first[4..8]);
+        SyntheticFontBuilder.WriteUInt32(buf, 20);
+        buf.AddRange(second[4..8]);
+        SyntheticFontBuilder.WriteUInt32(buf, (uint)(20 + firstSubtable.Length));
+        buf.AddRange(firstSubtable);
+        buf.AddRange(secondSubtable);
+        return [.. buf];
+    }
+
+    /// <summary>
     ///     Proves that CmapTable Empty GetGlyphIndexReturnsZero.
     /// </summary>
     [Fact]

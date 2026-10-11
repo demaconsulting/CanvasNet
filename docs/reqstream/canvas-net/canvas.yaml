@@ -411,6 +411,8 @@ sections:
               own row-based CompositeOver formula.
             children:
               - CanvasNet-Canvas-Rgba32-CompositeOver
+              - CanvasNet-Canvas-Surface-ImageResampling
+              - CanvasNet-Canvas-Surface-BilinearSampling
             tests:
               - Rgba32_CompositeOver_PartiallyTransparentForegroundOverOpaqueBackground_BlendsExactly
 

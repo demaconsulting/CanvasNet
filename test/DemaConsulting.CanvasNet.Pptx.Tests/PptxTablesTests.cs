@@ -829,6 +829,82 @@ public class PptxTablesTests
     }
 
     /// <summary>
+    ///     Builds a single-paragraph <c>&lt;a:txBody&gt;</c> with the given insets, optional run
+    ///     text (sz=100, i.e. 1pt) and optional <c>&lt;a:endParaRPr sz="..."&gt;</c>.
+    /// </summary>
+    private static XElement BuildTextBodyWithInsets(string? text, int? endParaSize = null, int tIns = 0, int bIns = 0)
+    {
+        var p = new XElement(A + "p");
+        if (text is not null)
+        {
+            p.Add(new XElement(A + "r", new XElement(A + "rPr", new XAttribute("sz", 100)), new XElement(A + "t", text)));
+        }
+
+        if (endParaSize is not null)
+        {
+            p.Add(new XElement(A + "endParaRPr", new XAttribute("sz", endParaSize.Value)));
+        }
+
+        return new XElement(A + "txBody",
+            new XElement(A + "bodyPr", new XAttribute("lIns", 0), new XAttribute("tIns", tIns), new XAttribute("rIns", 0), new XAttribute("bIns", bIns)),
+            p);
+    }
+
+    /// <summary>Resolves a one-row, one-or-more-cell table (30000 EMU columns) and returns the first rect's height.</summary>
+    private static float ResolveSingleRowHeight(float storedHeightEmu, params XElement[] txBodies)
+    {
+        var cells = txBodies.Select(body => PptxDocument.ParseTableCell(BuildTc(txBody: body), BuildTestTheme(), 30000f, storedHeightEmu)).ToList();
+        var table = new PptxTable(cells.Select(_ => 30000f).ToList(), [new PptxTableRow(storedHeightEmu, cells)]);
+        return PptxDocument.ResolveCellRects(table, BuildTestTheme(), ConstantFontResolver)[0].HeightEmu;
+    }
+
+    /// <summary>Proves a one-line row whose text fits keeps exactly its stored height.</summary>
+    [Fact]
+    public void ResolveCellRects_OneLineRowFitsStoredHeight_KeepsStoredHeight()
+    {
+        Assert.Equal(20000f, ResolveSingleRowHeight(20000f, BuildTextBodyWithInsets("AA")));
+    }
+
+    /// <summary>Proves a row grows by exactly the extra wrapped lines (3 lines of 12700 EMU).</summary>
+    [Fact]
+    public void ResolveCellRects_WrappedTextThreeLines_GrowsByExactlyExtraLines()
+    {
+        Assert.Equal(3 * 12700f, ResolveSingleRowHeight(5000f, BuildTextBodyWithInsets("AA AA AA")));
+    }
+
+    /// <summary>Proves the cell's top and bottom margins are counted once each in the required height.</summary>
+    [Fact]
+    public void ResolveCellRects_TopAndBottomMargins_AddedOnceToRequiredHeight()
+    {
+        Assert.Equal(12700f + 1000f + 2000f, ResolveSingleRowHeight(5000f, BuildTextBodyWithInsets("AA", tIns: 1000, bIns: 2000)));
+    }
+
+    /// <summary>
+    ///     Regression for rows doubling in height: an empty cell whose paragraph declares only
+    ///     <c>&lt;a:endParaRPr sz="100"&gt;</c> must be sized from that 1pt size (12700 EMU), not
+    ///     the 18pt default, so it neither grows the row nor overrides a sibling's one-line text.
+    /// </summary>
+    [Fact]
+    public void ResolveCellRects_EmptyCellWithSmallEndParaRPr_DoesNotGrowRow()
+    {
+        Assert.Equal(20000f, ResolveSingleRowHeight(20000f, BuildTextBodyWithInsets("AA"), BuildTextBodyWithInsets(null, endParaSize: 100)));
+    }
+
+    /// <summary>Proves an empty cell's required height follows its <c>endParaRPr</c> size (2pt = 25400 EMU).</summary>
+    [Fact]
+    public void ResolveCellRects_EmptyCellWithLargerEndParaRPr_GrowsToEndParaSize()
+    {
+        Assert.Equal(25400f, ResolveSingleRowHeight(10000f, BuildTextBodyWithInsets(null, endParaSize: 200)));
+    }
+
+    /// <summary>Proves an empty paragraph with no <c>endParaRPr</c> still falls back to the nominal 18pt line (18pt * 1.2).</summary>
+    [Fact]
+    public void ResolveCellRects_EmptyCellWithoutEndParaRPr_UsesDefaultFontSizeLine()
+    {
+        Assert.Equal(18f * 12700f * 1.2f, ResolveSingleRowHeight(10000f, BuildTextBodyWithInsets(null)), 1);
+    }
+
+    /// <summary>
     ///     Proves a row-spanning cell (<c>RowSpan</c> &gt; 1) whose own wrapped-text natural
     ///     height exceeds the sum of its spanned rows' stored heights has its shortfall added
     ///     entirely to its <em>last</em> spanned row - the first spanned row (which may anchor its

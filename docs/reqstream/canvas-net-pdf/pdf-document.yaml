@@ -552,6 +552,10 @@ sections:
               - PdfDocument_PathOps_Stroke_ZeroWidth_RendersFullOpacityHairline
               - PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke
               - PdfDocument_PathOps_Stroke_SubEpsilonWidth_RendersVisibleLine
+              - PdfDocument_ThinRules_ThinStrokedRules_InkMatchesGeometry
+              - PdfDocument_ThinRules_ThinFilledBar_InkMatchesGeometry
+              - PdfDocument_ThinRules_ZeroWidthStroke_PaintsHairline
+              - PdfDocument_Render_HairlineStrokeOfClosedOutlineWithTinyEdges_KeepsInteriorFilled
 
           - id: CanvasNetPdf-PdfDocument-ClippingPath
             title: >-
@@ -562,15 +566,20 @@ sections:
               clipping path with any already-active clipping path rather than replacing it, scope
               the active clipping path as part of the graphics state so it is saved/restored by
               q/Q (and by Form XObject/Type3 glyph re-entry, both of which clone the graphics
-              state identically), and enforce the active clipping path against every subsequent
+              state identically), enforce the active clipping path against every subsequent
               fill, stroke, image XObject (Do), and glyph-fill paint until it is changed or
-              restored.
+              restored, and apply an axis-aligned rectangular clipping path without attenuating
+              the painted geometry's own edge coverage, so that thin rules, double rules and
+              borders whose edges coincide with the clip's edges keep their full geometric ink.
             justification: |
               PDF 32000-1 section 8.5.4 documents W/W* as deferred, intersecting, graphics-state-
               scoped clip-path updates; a reader that silently ignores them (as this class
               previously did) renders fill/stroke/image/glyph content outside a document's
               intended clipping region, producing visibly wrong output for any content stream
-              relying on clipping to mask painted geometry.
+              relying on clipping to mask painted geometry. A reader that multiplies the fill's
+              edge-pixel coverage by the clip's edge-pixel coverage squares the coverage wherever
+              the two edges coincide (typical for HTML-to-PDF borders and rules), drawing thin
+              rules 10-60 percent too light.
             tests:
               - PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion
               - PdfDocument_Clipping_SetInsideQQ_DoesNotLeakPastQ
@@ -578,6 +587,11 @@ sections:
               - PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace
               - PdfDocument_Clipping_ClipThenImageDo_RestrictsImageToClipRegion
               - PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion
+              - PdfDocument_Clipping_ManyFullPageRectangleClips_RenderIdenticalToUnclipped
+              - PdfDocument_ThinRules_DoubleRuleWithCoincidentClip_InkMatchesGeometry
+              - PdfDocument_ThinRules_DoubleRuleWithWiderClip_InkMatchesGeometry
+              - PdfDocument_ThinRules_DoubleRule_GapBetweenBarsRemainsTransparent
+              - PdfDocument_ThinRules_FooterRule_InkMatchesGeometry
 
           - id: CanvasNetPdf-PdfDocument-Dispose
             title: >-
@@ -1852,8 +1866,11 @@ sections:
               UnsupportedImageFeatureException with feature
               pdf-shading-type-{n}; an unsupported shading /ColorSpace shall throw
               UnsupportedImageFeatureException with feature pdf-shading-colorspace-{family}.
-              /Extend is approximated as an always-padded (never fully transparent) gradient
-              extent, a documented, narrower-than-spec simplification.
+              /Extend shall be honored per end (default [false false]: nothing is painted beyond
+              an unextended end; an extended end holds its end color); a malformed /Extend shall
+              throw InvalidDataException. Each /Function array element shall clamp its input to
+              its own /Domain. The gradient shall be sampled with one stop per device pixel of
+              gradient length, clamped to 32..256.
             justification: |
               Axial and radial shading-pattern fills are a common way real-world PDFs render
               smooth-color backgrounds and vector-art gradients; today every such fill throws and
@@ -1864,6 +1881,16 @@ sections:
               - PdfDocument_Patterns_ShadingPattern_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType4_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Patterns_ShadingPattern_FunctionArrayForm_ThreeOneOutputFunctions_BuildsRgbGradient
+              - PdfDocument_Patterns_ShadingPattern_AxialNoExtend_LeavesOutsideUnpainted
+              - PdfDocument_Patterns_ShadingPattern_AxialExtendBoth_HoldsEndColors
+              - PdfDocument_Patterns_ShadingPattern_AxialExtendOneEnd_ExtendsOnlyThatEnd
+              - PdfDocument_ShadingOperator_Axial_ExtendHonored
+              - PdfDocument_Patterns_ShadingPattern_RadialExtendEnd_PaintsOutsideOuterCircleOnlyWhenExtended
+              - PdfDocument_Patterns_ShadingPattern_RadialExtendStart_FillsInsideStartCircle
+              - PdfDocument_Patterns_ShadingPattern_MalformedExtend_ThrowsInvalidDataException
+              - PdfDocument_Patterns_ShadingPattern_LongGradient_UsesAdaptiveSampleCount
+              - PdfDocument_Patterns_ShadingPattern_FunctionArraySubFunctionDomain_ClampsInputToOwnDomain
+              - PdfDocument_Patterns_ShadingPattern_FunctionArrayWithWideDomain_ShadingDomainMapsToFunctionInput
               - CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors
 
           - id: CanvasNetPdf-PdfDocument-ShadingOperator
@@ -1993,3 +2020,19 @@ sections:
               - PdfDocument_Patterns_TilingPattern_ZeroXStep_ThrowsInvalidDataException
               - PdfDocument_Patterns_TilingPattern_NestingDepthExceeded_ThrowsInvalidDataException
               - CanvasNetPdf_SystemIntegration_ColoredTilingPatternFill_PaintsRepeatingTileColors
+
+          - id: CanvasNetPdf-PdfDocument-ImageDownscale
+            title: >-
+              The PdfDocument class shall filter a raster image that is shrunk on the page,
+              area-averaging it once per draw and sampling the result bilinearly, so one-pixel
+              features are attenuated rather than dropped, while an enlarged or 1:1 image keeps
+              exact nearest-neighbor sampling.
+            justification: |
+              Real-world PDFs embed high-resolution raster scans (for example drawing grids) that
+              are rendered at a fraction of their native size. Point sampling makes thin lines
+              appear or vanish depending on phase; filtering keeps them visible.
+            tests:
+              - Render_ShrunkImageWithOnePixelLines_KeepsEveryLine
+              - Render_ShrunkFlippedImage_KeepsEveryLine
+              - Render_ShrunkRotatedImage_KeepsEveryLine
+              - Render_EnlargedImage_RemainsExactBlocks

@@ -54,6 +54,9 @@ public sealed partial class PdfDocument
         /// <summary>Gets the resolved function (or function-array) evaluation delegate. Only meaningful when <see cref="Kind"/> is <see cref="PatternKind.Shading"/>.</summary>
         internal Func<double, double[]>? Evaluate { get; init; }
 
+        /// <summary>Gets the shading's <c>/Extend</c> flags (2 elements: extend at the start and at the end). <see langword="null"/> means <c>[false false]</c>. Only meaningful when <see cref="Kind"/> is <see cref="PatternKind.Shading"/>.</summary>
+        internal bool[]? Extend { get; init; }
+
         /// <summary>Gets the tiling pattern's <c>/BBox</c> (4 elements: <c>[llx lly urx ury]</c>). Only meaningful when <see cref="Kind"/> is <see cref="PatternKind.Tiling"/>.</summary>
         internal double[]? BBox { get; init; }
 

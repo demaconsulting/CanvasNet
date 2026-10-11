@@ -381,10 +381,21 @@ internal static class StrokeOutliner
         // innerRingCollapsed. Feeding such a ring to the NonZero fill as a hole would carve out a
         // nonsensical region (potentially larger than the source contour itself, and wound so it
         // no longer nests inside the outer ring) instead of correctly leaving the entire interior
-        // filled. Omit the hole entirely in that case, so the whole interior renders as solid
-        // stroke - the same outcome a true geometric erosion of the contour by half-width would
-        // produce once half-width exceeds the inradius (an empty inner boundary).
-        if (innerRing.Count < 3 || innerRingCollapsed)
+        // filled. Never emit that ring as a hole. A collapsed inner ring does NOT, however, imply
+        // the whole interior is solid stroke: the same signal also fires for a contour that is
+        // large overall but has a short edge (shorter than the stroke width allows the offset
+        // corners to clear) next to sharp corners - for example a hairline-stroked closed
+        // clip-art outline - where only a feature smaller than the stroke width collapses and the
+        // interior must stay unfilled. Emitting the single outer ring in that case painted the
+        // whole shape solid. The stroke is therefore rebuilt as the union of per-segment bands
+        // and corner joins, which is exact in both situations (a genuinely over-eroded contour is
+        // fully covered by its own bands; a locally collapsed contour keeps its interior).
+        if (innerRingCollapsed)
+        {
+            return CreateCollapsedClosedStrokePolygons(points, style, halfWidth, flattenTolerance);
+        }
+
+        if (innerRing.Count < 3)
         {
             return [outerRing];
         }
@@ -423,6 +434,72 @@ internal static class StrokeOutliner
         }
 
         return [outerRing, innerRing];
+    }
+
+    /// <summary>
+    ///     Builds a closed contour's stroke as the union of independent per-segment bands and
+    ///     per-vertex join wedges, for the case where the offset-ring construction used by
+    ///     <see cref="CreateClosedStrokePolygons"/> is not a valid inward offset (its inner ring
+    ///     collapsed).
+    /// </summary>
+    /// <remarks>
+    ///     Every emitted polygon carries the same (positive) winding, so under
+    ///     <see cref="FillRule.NonZero"/> they only ever reinforce each other. Each segment
+    ///     contributes the rectangle of half-width <paramref name="halfWidth"/> around it; each
+    ///     non-collinear vertex contributes a wedge on its locally convex side bounded by the
+    ///     requested <see cref="StrokeStyle.Join"/> (the concave side is already covered by the
+    ///     overlapping adjacent bands). No hole is ever constructed, so there is no inner ring to
+    ///     invert: the result is exactly the set of points within half-width of the contour,
+    ///     whether the contour is genuinely thinner than the stroke (interior fully covered) or
+    ///     merely has a feature smaller than the stroke (interior left unfilled).
+    /// </remarks>
+    private static List<List<Vector2>> CreateCollapsedClosedStrokePolygons(
+        IReadOnlyList<Vector2> points,
+        StrokeStyle style,
+        float halfWidth,
+        float flattenTolerance)
+    {
+        var frames = BuildSegmentFrames(points, isClosed: true);
+        var polygons = new List<List<Vector2>>(points.Count * 2);
+
+        for (var i = 0; i < points.Count; i++)
+        {
+            var next = points[(i + 1) % points.Count];
+            var offset = frames[i].Normal * halfWidth;
+            var band = new List<Vector2> { points[i] + offset, next + offset, next - offset, points[i] - offset };
+            NormalizeOuterWinding(band);
+            polygons.Add(band);
+        }
+
+        for (var i = 0; i < points.Count; i++)
+        {
+            var previousFrame = frames[(i + frames.Length - 1) % frames.Length];
+            var nextFrame = frames[i];
+            var turn = Cross(previousFrame.Tangent, nextFrame.Tangent);
+            var dot = Vector2.Dot(previousFrame.Tangent, nextFrame.Tangent);
+            if (MathF.Abs(turn) <= NearZeroDistance && dot > 0f)
+            {
+                continue;
+            }
+
+            // The locally convex side is the one for which turn * sideSign < 0.
+            var sideSign = turn < 0f ? +1f : -1f;
+            var geometry = new StrokeSideGeometry(sideSign, style, halfWidth, flattenTolerance);
+            var wedge = new List<Vector2> { points[i] };
+            AddPointIfDistinct(wedge, points[i] + sideSign * previousFrame.Normal * halfWidth);
+            AppendStyledJoin(wedge, points[i], previousFrame, nextFrame, geometry);
+            AddPointIfDistinct(wedge, points[i] + sideSign * nextFrame.Normal * halfWidth);
+            RemoveTrailingDuplicateOfFirst(wedge);
+            if (wedge.Count < 3)
+            {
+                continue;
+            }
+
+            NormalizeOuterWinding(wedge);
+            polygons.Add(wedge);
+        }
+
+        return polygons;
     }
 
     /// <summary>

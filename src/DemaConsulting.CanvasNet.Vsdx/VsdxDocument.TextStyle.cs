@@ -144,10 +144,56 @@ public sealed partial class VsdxDocument
             : fontRaw;
 
         var color = VsdxColorPalette.Resolve(ResolveCharacterCell("Color"), DefaultTextColor);
+        var colorTrans = ParseDouble(ResolveCharacterCell("ColorTrans"));
+        if (colorTrans > 0d)
+        {
+            color = ApplyTransparency(color, ResolveCharacterCell("ColorTrans"));
+        }
+
         var sizeInches = ParseDouble(ResolveCharacterCell("Size"), DefaultFontSizeInches);
         var styleBits = ParseInt(ResolveCharacterCell("Style"));
         var bold = (styleBits & 0x1) != 0;
         var italic = (styleBits & 0x2) != 0;
+
+        // Style bit 2 = underline; Strikethru/DoubleStrikethrough/Overline are separate cells.
+        var decoration = VsdxTextDecoration.None;
+        if ((styleBits & 0x4) != 0)
+        {
+            decoration |= VsdxTextDecoration.Underline;
+        }
+
+        if (ParseInt(ResolveCharacterCell("Strikethru")) != 0)
+        {
+            decoration |= VsdxTextDecoration.Strikethrough;
+        }
+
+        if (ParseInt(ResolveCharacterCell("DoubleStrikethrough")) != 0)
+        {
+            decoration |= VsdxTextDecoration.DoubleStrikethrough;
+        }
+
+        if (ParseInt(ResolveCharacterCell("Overline")) != 0)
+        {
+            decoration |= VsdxTextDecoration.Overline;
+        }
+
+        var text = raw.Text;
+        var caseValue = ParseInt(ResolveCharacterCell("Case"));
+        if (caseValue == 1)
+        {
+            text = text.ToUpperInvariant();
+        }
+        else if (caseValue != 0)
+        {
+            ReportUnsupported("vsdx-text-case-initialcaps", "Character Case 'initial caps' is not supported; text is drawn as authored.");
+        }
+
+        if (ParseInt(ResolveCharacterCell("Pos")) != 0)
+        {
+            ReportUnsupported("vsdx-text-superscript-subscript", "Character Pos (superscript/subscript) is not supported; text is drawn on the baseline.");
+        }
+
+        var smallCaps = (styleBits & 0x8) != 0;
 
         var horzAlign = ResolveParagraphCell("HorzAlign") == "1" ? VsdxHorizontalAlign.Center : VsdxHorizontalAlign.Left;
         var paragraph = new VsdxEffectiveParagraphProperties(
@@ -159,7 +205,46 @@ public sealed partial class VsdxDocument
             ParseDouble(ResolveParagraphCell("IndLeft")),
             ParseDouble(ResolveParagraphCell("IndRight")));
 
-        return new VsdxEffectiveTextRun(raw.Text, fontFamily, sizeInches, bold, italic, color, paragraph);
+        return new VsdxEffectiveTextRun(text, fontFamily, sizeInches, bold, italic, color, paragraph, decoration, smallCaps);
+    }
+
+    /// <summary>
+    ///     Expands a small-caps run into segments: each lowercase letter becomes its capital at
+    ///     80% of the run's size, every other character is kept as is. A non-small-caps run is
+    ///     returned unchanged.
+    /// </summary>
+    /// <param name="run">The resolved run.</param>
+    /// <returns>One or more runs replacing <paramref name="run"/>.</returns>
+    private static IEnumerable<VsdxEffectiveTextRun> ExpandSmallCaps(VsdxEffectiveTextRun run)
+    {
+        if (!run.SmallCaps || run.Text.Length == 0)
+        {
+            yield return run;
+            yield break;
+        }
+
+        var segment = new System.Text.StringBuilder();
+        var segmentIsLower = false;
+        foreach (var ch in run.Text)
+        {
+            var isLower = char.IsLower(ch);
+            if (segment.Length > 0 && isLower != segmentIsLower)
+            {
+                yield return Segment();
+                segment.Clear();
+            }
+
+            segmentIsLower = isLower;
+            segment.Append(isLower ? char.ToUpperInvariant(ch) : ch);
+        }
+
+        if (segment.Length > 0)
+        {
+            yield return Segment();
+        }
+
+        VsdxEffectiveTextRun Segment() =>
+            run with { Text = segment.ToString(), SizeInches = segmentIsLower ? run.SizeInches * 0.8d : run.SizeInches, SmallCaps = false };
     }
 
     /// <summary>Parses a raw cell string as a culture-invariant, finite <see cref="double"/>, returning <paramref name="defaultValue"/> otherwise.</summary>

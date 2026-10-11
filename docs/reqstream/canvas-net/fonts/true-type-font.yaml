@@ -198,6 +198,19 @@ sections:
                   - CmapTable_Empty_GetGlyphIndexReturnsZero
                   - TrueTypeFont_Load_NoCmapOrKern_FallsBackGracefully
 
+              - id: CanvasNet-Fonts-TrueTypeFont-SymbolCharacterMap
+                title: >-
+                  The TrueTypeFont class shall, for a font whose only usable character map is the
+                  Windows Symbol (3,0) encoding, resolve a plain 8-bit code to the glyph mapped at
+                  U+F000 plus that code.
+                justification: |
+                  Wingdings, Webdings and Symbol store their glyphs in the private-use area, while
+                  documents (for example diagram text runs set in Wingdings) carry the plain 8-bit code.
+                tests:
+                  - CmapTable_SymbolSubtable_PlainEightBitCodeResolvesViaPrivateUseArea
+                  - CmapTable_SymbolSubtable_OutOfRangeCodesNotRemappedAndDirectHitWins
+                  - CmapTable_SymbolAndUnicodeSubtables_PrefersUnicodeSubtable
+
               - id: CanvasNet-Fonts-TrueTypeFont-GlyphOutlineSimple
                 title: >-
                   The TrueTypeFont class shall decode a simple glyph's outline via GetGlyphOutline as

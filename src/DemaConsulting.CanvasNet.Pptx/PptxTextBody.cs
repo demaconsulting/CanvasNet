@@ -49,7 +49,12 @@ internal sealed record PptxBodyProperties(
 ///     (<see cref="PptxRunItem"/>) or an explicit <c>&lt;a:br&gt;</c> line break
 ///     (<see cref="PptxLineBreakItem"/>). An empty paragraph is valid DrawingML - a blank line.
 /// </param>
-internal sealed record PptxParagraph(PptxRawParagraphProperties RawProperties, IReadOnlyList<PptxParagraphItem> Items)
+/// <param name="RawEndParaRPr">
+///     The paragraph's own <c>&lt;a:endParaRPr&gt;</c> element, or <see langword="null"/> when
+///     absent. It carries the run properties (notably <c>sz</c>) PowerPoint applies to the
+///     paragraph's end mark, which sizes an otherwise-empty line (for example an empty table cell).
+/// </param>
+internal sealed record PptxParagraph(PptxRawParagraphProperties RawProperties, IReadOnlyList<PptxParagraphItem> Items, XElement? RawEndParaRPr = null)
 {
     /// <summary>
     ///     The paragraph's ordered <c>&lt;a:r&gt;</c> runs only, with any interleaved

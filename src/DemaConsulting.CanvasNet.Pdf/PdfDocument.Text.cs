@@ -81,8 +81,8 @@ public sealed partial class PdfDocument
         }
 
         var path = (_textClipBuilder ?? new PathBuilder()).Build();
-        var mask = ClipMask.FromPath(path, FillRule.NonZero, _surface.Width, _surface.Height);
-        _gs.Clip = _gs.Clip is null ? mask : _gs.Clip.Intersect(mask);
+        var mask = ClipMask.FromPathOrNull(path, FillRule.NonZero, _surface.Width, _surface.Height);
+        _gs.Clip = ClipMask.Combine(_gs.Clip, mask);
         _textClipBuilder = null;
         _textClipPending = false;
     }

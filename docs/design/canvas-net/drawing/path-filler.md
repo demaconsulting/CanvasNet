@@ -53,7 +53,7 @@ precise geometric question once cell boundaries are pinned to integer path coord
 | `FillRule`           | Public enum: `NonZero`, `EvenOdd` - selects winding-count resolution. |
 | `EdgeFlattener`      | Internal static class: converts a `Path`'s subpaths into polygons.    |
 | `ScanlineRasterizer` | Internal static class: rasterizes polygons into row coverage.         |
-| `ClipMask`           | Internal sealed class: immutable per-pixel clip coverage mask.        |
+| `ClipMask`           | Internal sealed class: immutable analytic-rectangle/dense clip mask.  |
 | `PathFiller`         | Public static class: the single `Fill` entry point.                   |
 
 `FillRule.NonZero` (the default) treats a pixel as filled whenever the accumulated signed winding
@@ -336,25 +336,50 @@ composes smoothly with whatever is painted through it.
 - **`ClipMask.FromPath(Path path, FillRule fillRule, int width, int height, float flattenTolerance)`**
   validates its arguments via the same `PathFiller.ValidateFillArgs`/`GetPolygonBounds` helpers
   `PathFiller.Fill` itself uses (both widened from `private` to `internal` for exactly this
-  reuse), flattens `path` via `EdgeFlattener.Flatten`, intersects the flattened polygons' own
-  bounds with the `width` x `height` extent, and - when that intersection is non-empty - calls a
-  new internal `ScanlineRasterizer.AccumulateCoverageMask(polygons, fillRule, clipBounds, mask,
-  maskWidth)` entry point that runs an independent, clip-less `CoverageSweep` and copies each
-  resolved row's coverage directly into the caller-supplied dense `float[]` mask buffer, reusing
-  the exact same sweep algorithm described above rather than re-implementing scanline math a
-  second time.
-- **`ClipMask.Intersect(ClipMask other)`** returns a new `ClipMask` holding the elementwise
-  product of this mask's and `other`'s own coverage (both must share the same `Width`/`Height`) -
-  implementing "the new clipping path shall be the intersection of the current clipping path and
-  the newly constructed path" (PDF 32000-1 §8.5.4) purely via per-pixel multiplication, since the
-  product of two `[0, 1]` coverage fractions is itself a coverage fraction no larger than either
-  operand. Neither operand is ever mutated - `Intersect` always allocates a fresh result - which is
-  what lets `PdfDocument.GraphicsState.Clone()` safely copy a `ClipMask` reference as-is for
-  `q`/`Q` save/restore scoping, with no risk of one graphics state's clip later being mutated out
-  from under another.
+  reuse) and flattens `path` via `EdgeFlattener.Flatten`. If the flattened geometry is a single
+  axis-aligned rectangle (one polygon of four vertices, optionally with a repeated closing vertex,
+  whose edges alternate horizontal and vertical within a `1e-3` pixel tolerance, in either winding;
+  the fill rule is irrelevant for it), the result is an _analytic rectangle_ with no dense buffer:
+  coverage is the product of per-axis fractional overlaps, which equals the rasterized area
+  coverage of an axis-aligned rectangle. Anything else (rotated rectangles, curves, several
+  subpaths) keeps the dense form: the polygons' bounds are intersected with the `width` x `height`
+  extent and, when non-empty, the internal `ScanlineRasterizer.AccumulateCoverageMask(polygons,
+  fillRule, clipBounds, mask, maskWidth, originX, originY)` entry point runs an independent, clip-less
+  `CoverageSweep` and copies each resolved row's coverage into a `float[]` over the clip's own
+  bounding box (`originX`/`originY` give the device pixel the mask's column/row `0` corresponds to).
+  `ClipMask.FromPathDense` always builds the dense form (a reference for tests).
+- **Representation.** Coverage at a pixel (as `GetCoverage` reports it, used for images) is
+  `dense(x, y) * columnFactor(x) * rowFactor(y)`, where the factors are the analytic rectangle's
+  exact per-axis overlap with the pixel and `dense` is an optional shared buffer. For fills the
+  rectangle is instead applied geometrically (via `TryClipPolygonsToRect`, described below) and
+  only `dense` is multiplied. A pure rectangle has no `dense`; a dense mask has a rectangle equal
+  to its buffer bounds (all factors `1`); a dense mask restricted by a rectangle shares the buffer
+  and applies the restriction lazily through the factors.
+- **`ClipMask.FromPathOrNull` / `ClipMask.Combine`.** `FromPathOrNull` returns `null` ("no clip")
+  when the clip is a rectangle covering the whole surface (within `1e-3` pixels), which is what
+  Word and other document exporters emit around most operations. `Combine(current, next)` treats `null` as
+  "no clip", intersects otherwise, and normalizes a full-surface result to `null`. An empty clip
+  stays a non-null empty mask so that painting is suppressed.
+- **`ClipMask.Intersect(ClipMask other)`** returns a new `ClipMask` that is the geometric
+  intersection of the two (both must share the same `Width`/`Height`), implementing "the new
+  clipping path shall be the intersection of the current clipping path and the newly constructed
+  path" (PDF 32000-1 §8.5.4). Rectangle with rectangle is a new rectangle (no dense buffer allocation, though
+  where both edges fall within the same fractional pixel the result is the geometric overlap rather
+  than the product of two coverages - an antialiasing-neutral sub-pixel difference; for example
+  two rectangles sharing a pixel covered 0.5 and 0.7 intersect to 0.5, where the product of the
+  dense coverages would give 0.35, an error of up to 0.25 per boundary pixel. This was
+  investigated as a suspected regression against the all-dense product and confirmed as the more
+  accurate result, not a bug; it is pinned by the `ClipMask_Intersect_*` tests); rectangle
+  with dense shares the dense buffer and restricts it by the rectangle (no dense buffer allocation, no product
+  pass); dense with dense allocates only over the overlap of the two bounds and multiplies per-row
+  spans, folding in each operand's rectangle factors on the outermost columns and rows. Neither
+  operand is ever mutated, which is what lets `PdfDocument.GraphicsState.Clone()` safely copy a
+  `ClipMask` reference as-is for `q`/`Q` save/restore scoping. Dense buffers are plain arrays
+  rather than pooled ones: they are shared across saved graphics states with no disposal point,
+  so returning them to a pool could cause use-after-return.
 - **`ClipMask.GetCoverage(int x, int y)`** returns `0f` for any out-of-bounds `(x, y)`, otherwise
-  the stored coverage - so a clip mask can only ever restrict paint, never grant coverage beyond
-  what it was built for.
+  the coverage - so a clip mask can only ever restrict paint, never grant coverage beyond what
+  it was built for.
 
 To thread an active `ClipMask?` through rasterization without widening `PathFiller.Fill`'s public
 contract, each of the 3 public `Fill` overloads (`Rgba32`/`Gradient`/`TilePaint` paint) was
@@ -364,11 +389,34 @@ so the public API's signatures/behavior/docs are entirely unchanged, while the n
 overloads carry the real clip-aware implementation and are the ones `PdfDocument` actually calls.
 `ScanlineRasterizer.Fill`'s own 3 overloads (already fully internal) instead gained an optional
 `ClipMask? clip = null` parameter directly, threaded into a new `CoverageSweep` constructor
-parameter: when non-null, `CoverageSweep` multiplies each column's own resolved fill coverage by
-`clip.GetCoverage(x, y)` immediately after `ResolveCoverage`, before compositing the row - the
-exact same "multiply coverage fractions together" technique `ClipMask.Intersect` itself uses, just
-applied between a path's own fill coverage and the active clip's coverage instead of between two
-clip masks.
+parameter. When non-null, each overload first applies the clip's analytic rectangle
+_geometrically_: `ClipMask.TryClipPolygonsToRect` clips every fill polygon to the rectangle
+(Sutherland-Hodgman against the four axis-aligned half-planes, in `double` math with intersection
+coordinates snapped exactly onto the boundary; polygons fully inside are passed through without
+allocation, disjoint or degenerate ones are dropped, and clipped output is re-closed explicitly as
+the edge table requires), and the sweep's bounds are narrowed to the clipped polygons' bounds.
+Clipping a closed chain against a half-plane preserves the winding number of every point inside
+it, so both `NonZero` and `EvenOdd` stay correct. The reason is ink fidelity: multiplying fill
+coverage by rectangle-clip coverage squares the edge-pixel coverage `f` to `f^2` wherever a fill
+edge coincides with a clip edge (the common case for CSS borders, double rules and footer rules,
+where a clip band is cut exactly to the stroked/filled rule), which made 0.75-1.25 pt rules lose
+10-60 % of their ink. Clipping geometrically yields exactly one coverage value for any relationship
+between fill edge and clip edge (coincident, crossing or unrelated), because the rasterizer itself
+conserves area. `CoverageSweep` then restricts its swept column/row range to the clip's
+whole-pixel bounds (edges outside the range are still handled analytically by the accumulation
+overflow logic) and, after each row's coverage is resolved, multiplies _only_ the dense buffer's
+row (if any) per column. Known residual: a dense (non-rectangular) clip still multiplies, which
+is an independence approximation (as in Skia/AGG antialiased clip masks), so a fill edge coincident
+with a non-rectangular clip edge keeps some edge attenuation. Rectangle-clipped images still use
+the per-pixel `GetCoverage` product (`PdfDocument.Images.cs`).
+
+A related rasterizer fix: for `EvenOdd`, `CoverageSweep` now routes a row to the exact sub-row
+splitting path whenever two or more edge boundaries fall strictly inside the row, _even when they
+coincide at one y_ (previously coincident boundaries were merged before counting). Several edges
+starting at the same y in one column (for example nested rectangles all clipped to one common top
+edge) change that column's winding by two or more at once, which the single scalar fold of the
+row integral cannot resolve (it yielded 25 % coverage where 0 is correct). The cost is limited to
+the affected rows.
 
 #### Error Handling
 

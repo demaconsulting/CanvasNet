@@ -51,4 +51,20 @@ public sealed class VsdxRenderOptions
     ///     determines the rendered background.
     /// </remarks>
     public Rgba32 BackgroundColor { get; init; } = new(255, 255, 255, 255);
+
+    /// <summary>
+    ///     An optional callback invoked once per distinct unsupported-or-approximated Visio
+    ///     construct (see <see cref="VsdxUnsupportedFeature"/>) the rendered page contains, before
+    ///     painting. Rendering stays tolerant and unaffected; this only makes the degradation
+    ///     visible rather than silent. <see langword="null"/> (default) disables reporting.
+    /// </summary>
+    public Action<VsdxUnsupportedFeature>? UnsupportedFeatureHandler { get; init; }
+
+    /// <summary>
+    ///     When <see langword="true"/>, <c>Render</c> throws a
+    ///     <see cref="VsdxUnsupportedFeatureException"/> (carrying the feature token) for the
+    ///     first unsupported construct on the page instead of degrading silently. Defaults to
+    ///     <see langword="false"/> (tolerant rendering).
+    /// </summary>
+    public bool ThrowOnUnsupportedFeature { get; init; }
 }

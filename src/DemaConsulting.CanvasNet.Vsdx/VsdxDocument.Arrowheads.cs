@@ -37,6 +37,17 @@ public sealed partial class VsdxDocument
         var sizeRaw = ResolveLineCellValue(effectiveCells, sizeCellName, lineStyleId)?.Value;
 
         var style = ParseArrowheadStyle(styleRaw);
+
+        // Only a 1-D (connector) shape ever paints an arrowhead, so only report an unmapped
+        // code for one - a 2-D shape inheriting an arrow cell from its style is not a degradation.
+        if (style == VsdxArrowheadStyle.None &&
+            effectiveCells.TryGet("BeginX", out _) &&
+            int.TryParse(styleRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var rawIndex) &&
+            rawIndex != 0)
+        {
+            ReportUnsupported($"vsdx-arrowhead-{rawIndex}", $"Arrowhead style index {rawIndex} is not supported; no arrowhead is drawn.");
+        }
+
         return style == VsdxArrowheadStyle.None
             ? VsdxArrowhead.NoArrowhead
             : new VsdxArrowhead(style, ParseArrowheadSizeIndex(sizeRaw));

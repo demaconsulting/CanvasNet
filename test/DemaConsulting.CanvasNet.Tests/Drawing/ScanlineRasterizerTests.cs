@@ -839,5 +839,112 @@ public class ScanlineRasterizerTests
         // all-or-nothing match that would trivially satisfy the equality check above
         Assert.InRange(aloneSurface[1, 6].A, (byte)1, (byte)254);
     }
+
+    /// <summary>
+    ///     Proves the rasterizer conserves area for axis-aligned rectangles across many sub-pixel
+    ///     offsets and sizes (including rectangles thinner than one pixel row): the summed coverage
+    ///     equals the geometric area within 1e-3, for both fill rules. Reads the float coverage
+    ///     buffer, so there is no 8-bit quantization.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_AccumulateCoverageMask_SubPixelRectangles_ConserveArea()
+    {
+        float[] offsets = [0f, 0.1f, 0.25f, 0.5f, 0.75f, 0.999f];
+        float[] sizes = [0.2f, 0.5f, 0.75f, 1f, 1.25f, 1.667f, 2.5f, 7.3f];
+
+        foreach (var rule in new[] { FillRule.NonZero, FillRule.EvenOdd })
+        {
+            foreach (var ox in offsets)
+            {
+                foreach (var oy in offsets)
+                {
+                    AssertRectangleAreaConserved(rule, 3 + ox, 4 + oy, sizes);
+                }
+            }
+        }
+    }
+
+    private static void AssertRectangleAreaConserved(FillRule rule, float x, float y, float[] sizes)
+    {
+        const int Extent = 32;
+        foreach (var w in sizes)
+        {
+            foreach (var h in sizes)
+            {
+                List<Vector2> rect = [new(x, y), new(x + w, y), new(x + w, y + h), new(x, y + h), new(x, y)];
+                var mask = new float[Extent * Extent];
+                ScanlineRasterizer.AccumulateCoverageMask(
+                    [rect], rule, new Rect(0, 0, Extent, Extent), mask, Extent, 0, 0);
+
+                Assert.Equal((double)w * h, mask.Sum(v => (double)v), 1e-3);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves even-odd fills conserve area when several coincident edges start in the same
+    ///     pixel row (nested rectangles sharing one clipped top edge): the row's winding number
+    ///     jumps by more than one at once, which a single fold of the row integral cannot resolve.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_AccumulateCoverageMask_EvenOddCoincidentMidRowEdges_ConservesArea()
+    {
+        for (var k = 0; k < 40; k++)
+        {
+            var top = 10 + (k * 0.0137f);
+            float[] bottoms = [top + 1.5625f, top + 3.125f, top + 4.6875f, 40f];
+            List<List<Vector2>> polygons = [];
+            foreach (var bottom in bottoms)
+            {
+                polygons.Add([new(2, top), new(20, top), new(20, bottom), new(2, bottom), new(2, top)]);
+            }
+
+            var mask = new float[64 * 64];
+            ScanlineRasterizer.AccumulateCoverageMask(
+                polygons, FillRule.EvenOdd, new Rect(0, 0, 64, 64), mask, 64, 0, 0);
+
+            // Regions by number of covering rectangles: [top,b0) 4, [b0,b1) 3, [b1,b2) 2, [b2,40) 1
+            var expected = 18.0 * ((bottoms[1] - bottoms[0]) + (bottoms[3] - bottoms[2]));
+            Assert.Equal(expected, mask.Sum(v => (double)v), 1e-3);
+        }
+    }
+
+    /// <summary>
+    ///     Proves a rectangle fill clipped by a rectangle clip whose edge coincides with the
+    ///     fill's own edge yields the same coverage as the unclipped fill (a single coverage
+    ///     value, not the product of two), for fractional edge positions.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_CoincidentRectangleClip_EqualsUnclippedFill()
+    {
+        for (var i = 0; i < 60; i++)
+        {
+            var top = 4 + (i * 0.0173f);
+            var height = 0.3f + (i * 0.037f);
+            var left = 2 + (i * 0.0111f);
+            List<Vector2> rect = [new(left, top), new(30, top), new(30, top + height), new(left, top + height), new(left, top)];
+            var bounds = new Rect(0, 0, 32, 32);
+            var clip = ClipMask.FromPath(
+                new PathBuilder()
+                    .MoveTo(new Vector2(left, top)).LineTo(new Vector2(30, top))
+                    .LineTo(new Vector2(30, top + height)).LineTo(new Vector2(left, top + height)).Close().Build(),
+                FillRule.NonZero,
+                32,
+                32);
+            using var plain = new Surface(32, 32);
+            using var clipped = new Surface(32, 32);
+
+            ScanlineRasterizer.Fill(plain, [rect], new Rgba32(0, 0, 0, 255), FillRule.NonZero, bounds);
+            ScanlineRasterizer.Fill(clipped, [rect], new Rgba32(0, 0, 0, 255), FillRule.NonZero, bounds, clip);
+
+            for (var y = 0; y < 32; y++)
+            {
+                for (var x = 0; x < 32; x++)
+                {
+                    Assert.Equal(plain[x, y].A, clipped[x, y].A);
+                }
+            }
+        }
+    }
 }
 

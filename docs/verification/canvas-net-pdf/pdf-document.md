@@ -731,6 +731,23 @@ the third renders a `0.001 w` stroke (below the numerical-safety floor) and asse
 still carries nonzero alpha, proving the floor avoids a degenerate/invisible stroke rather than
 reintroducing the old full-opacity clamp.
 
+`PdfDocument_ThinRules_ThinStrokedRules_InkMatchesGeometry`,
+`PdfDocument_ThinRules_ThinFilledBar_InkMatchesGeometry`, and
+`PdfDocument_ThinRules_ZeroWidthStroke_PaintsHairline` (in `PdfDocumentThinRuleInkTests.cs`) render
+under the HTML-to-PDF CTM (`1 0 0 -1 0 792 cm 0.75 0 0 0.75 0 0 cm`) at 16 page sizes (so rule
+edges land at many sub-pixel phases) and compare the summed alpha ("ink") against the geometric
+area (`length * width * 0.5625` square points scaled to device pixels): 0.75 and 1 unit strokes at
+fractional positions within 2 %, a 0.75 unit filled bar within 1 %, and a zero-width stroke paints
+at least one full pixel per column (0.95 to 1.4 of the column count). They are deterministic
+(no timing) and guard against both a minimum-width floor that over-inks thin strokes and any
+under-inking.
+
+`PdfDocument_Render_HairlineStrokeOfClosedOutlineWithTinyEdges_KeepsInteriorFilled` (in
+`PdfDocumentHairlineStrokeTests.cs`) fills a closed clip-art outline with two sub-stroke-width
+edges pale blue and then hairline strokes it black, asserting an interior pixel remains the fill
+color (the stroke is not painted solid) while pixels on the outline are inked. It is deterministic
+and asserts no timing.
+
 #### CanvasNetPdf-PdfDocument-ClippingPath: W/W* Clip, Enforce, and Scope the Active Clipping Path
 
 **Tests**: `PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion`,
@@ -738,7 +755,24 @@ reintroducing the old full-opacity clamp.
 `PdfDocument_Clipping_WStar_UsesEvenOddFillRule`,
 `PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace`,
 `PdfDocument_Clipping_ClipThenImageDo_RestrictsImageToClipRegion`,
-`PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion`
+`PdfDocument_Clipping_ClipThenShowText_RestrictsGlyphToClipRegion`,
+`PdfDocument_Clipping_ManyFullPageRectangleClips_RenderIdenticalToUnclipped`,
+`PdfDocument_ThinRules_DoubleRuleWithCoincidentClip_InkMatchesGeometry`,
+`PdfDocument_ThinRules_DoubleRuleWithWiderClip_InkMatchesGeometry`,
+`PdfDocument_ThinRules_DoubleRule_GapBetweenBarsRemainsTransparent`,
+`PdfDocument_ThinRules_FooterRule_InkMatchesGeometry`
+
+The `PdfDocument_ThinRules_*` tests (in `PdfDocumentThinRuleInkTests.cs`, with their own minimal
+single-page PDF builder) reproduce a WeasyPrint-style `border: double` rule and a 1-unit footer
+rule: a thin rectangular clip band (`m l l l W* n`) whose edges coincide with the edges of an
+even-odd `f*` fill of nested rectangles, under the `1 0 0 -1 0 792 cm 0.75 0 0 0.75 0 0 cm` CTM.
+Each renders at 16 page sizes (including 765x990, 1040x1345, 1303x1686) on a transparent
+background and requires the summed alpha ("ink") to equal the analytic geometric area within 2 %
+(1 % for the wider-clip variant, where no edges coincide), and the gap between the double rule's
+bars to remain transparent. Before the fix these ratios were as low as 0.64 (footer) and 0.92
+(double rule) because clip coverage was multiplied into the edge-pixel fill coverage; they also
+exposed a related EvenOdd defect with coincident mid-row edges. All are deterministic and assert
+no timing. Known residual: non-rectangular (dense) clips still multiply coverage.
 
 Every test in this group reuses the existing `RenderContent`/`BuildSinglePagePdfWithResources`
 helpers and asserts against the `Transparent` background sentinel exactly like the
@@ -767,7 +801,11 @@ the equivalent unclipped assertion in `PdfDocument_Images_DoOperator_DeviceGrayF
 `PdfDocument_Text_ShowText_PaintsGlyphAtComposedTextRenderingMatrix`) is suppressed instead -
 proving the active clip is enforced at the two paint call sites (`Do`'s image compositing, and
 glyph fill) that do not route through `Drawing.PathFiller`'s own clip-aware overloads the way
-ordinary fill/stroke does.
+ordinary fill/stroke does. `PdfDocument_Clipping_ManyFullPageRectangleClips_RenderIdenticalToUnclipped`
+wraps 200 fills in `q ... re W n ... Q` blocks whose clips cover the whole page (exactly, or
+slightly larger) and asserts the page renders pixel-identically to the same fills with no clips
+(full-surface rectangle clips are equivalent to no clip), then nests rectangle clips inside a
+partial clip and asserts only the partial region paints; it asserts pixels only, never timing.
 
 #### CanvasNetPdf-PdfDocument-Dispose: Dispose Is Idempotent
 
@@ -1036,6 +1074,19 @@ reuses that same pattern's bit encoding but inserts deliberately non-zero garbag
 between row 0 and row 1 and sets `/EncodedByteAlign true`, asserting the decoder still recovers
 the exact same expected pixels - proving `AlignToByte` is actually invoked to skip the garbage
 bits before each row, rather than the implementation coincidentally tolerating zero padding only.
+
+#### CanvasNetPdf-PdfDocument-ImageDownscale: Shrunk Images Are Filtered, Enlarged Images Stay Exact
+
+**Tests**: `Render_ShrunkImageWithOnePixelLines_KeepsEveryLine`,
+`Render_ShrunkFlippedImage_KeepsEveryLine`, `Render_ShrunkRotatedImage_KeepsEveryLine`,
+`Render_EnlargedImage_RemainsExactBlocks`
+
+`PdfDocumentImageDownscaleTests.cs` builds a synthetic in-memory PDF with a 1940x4 raw gray image
+containing one-pixel black lines every 24 source pixels, drawn full-page and rendered at 765,
+1020, 1108 and 1303 pixels wide (non-integer reduction ratios), mirrored, and rotated 90 degrees.
+Every line must leave at least 70% of its area-proportional darkness within two pixels of its
+mapped column (point sampling leaves some lines at zero). A 4x1 image enlarged 100x must still
+render exact nearest-neighbor blocks. No timing is asserted.
 
 #### CanvasNetPdf-PdfDocument-ImageXObjects: Do Composites Images, Fails Closed on Unsupported Features
 
@@ -2055,7 +2106,26 @@ throws `InvalidDataException`. Asserts an undeclared pattern name throws
 `PdfDocument_Patterns_ShadingPattern_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType4_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Patterns_ShadingPattern_FunctionArrayForm_ThreeOneOutputFunctions_BuildsRgbGradient`,
+`PdfDocument_Patterns_ShadingPattern_AxialNoExtend_LeavesOutsideUnpainted`,
+`PdfDocument_Patterns_ShadingPattern_AxialExtendBoth_HoldsEndColors`,
+`PdfDocument_Patterns_ShadingPattern_AxialExtendOneEnd_ExtendsOnlyThatEnd`,
+`PdfDocument_ShadingOperator_Axial_ExtendHonored`,
+`PdfDocument_Patterns_ShadingPattern_RadialExtendEnd_PaintsOutsideOuterCircleOnlyWhenExtended`,
+`PdfDocument_Patterns_ShadingPattern_RadialExtendStart_FillsInsideStartCircle`,
+`PdfDocument_Patterns_ShadingPattern_MalformedExtend_ThrowsInvalidDataException`,
+`PdfDocument_Patterns_ShadingPattern_LongGradient_UsesAdaptiveSampleCount`,
+`PdfDocument_Patterns_ShadingPattern_FunctionArraySubFunctionDomain_ClampsInputToOwnDomain`,
+`PdfDocument_Patterns_ShadingPattern_FunctionArrayWithWideDomain_ShadingDomainMapsToFunctionInput`,
 `CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors`
+
+The `/Extend` tests assert that an unextended axial/radial shading leaves pixels outside its
+geometry transparent, that `[true true]` (and each single-end variant, also through `sh`) holds
+the end colors, that a radial start extension fills down to the cone vertex, and that a malformed
+`/Extend` throws `InvalidDataException`. The long-gradient test uses a hard-step stitching
+function over a 1000 px gradient and asserts the step is resolved within a few pixels (only
+possible with more than 32 stops); no timing is asserted. The function-array tests assert a
+sub-function narrower than the shading `/Domain` clamps its input and that a wider shading
+`/Domain` maps onto the function input.
 
 Every unit test builds a minimal single-page PDF with a declared `/Pattern` resource
 (`/PatternType 2`) and renders a filled rectangle. Asserts an axial (`/ShadingType 2`) pattern

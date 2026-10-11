@@ -168,6 +168,18 @@ codepoints without throwing.
 Covers the absence of a usable `cmap` table at the helper and end-to-end levels, asserting
 lookup falls back to `0` rather than failing load.
 
+##### CanvasNet-Fonts-TrueTypeFont-SymbolCharacterMap: Symbol (3,0) Maps Plain 8-Bit Codes
+
+**Tests**: `CmapTable_SymbolSubtable_PlainEightBitCodeResolvesViaPrivateUseArea`,
+`CmapTable_SymbolSubtable_OutOfRangeCodesNotRemappedAndDirectHitWins`,
+`CmapTable_SymbolAndUnicodeSubtables_PrefersUnicodeSubtable`
+
+A synthetic `(3,0)` subtable maps only `U+F0E0`; asserts code `0xE0` and `0xF0E0` both resolve and
+an unmapped code returns `0`. A second `(3,0)` subtable asserts codes below `0x20` or above `0xFF`
+are not remapped into the private-use area and that a direct hit beats the `U+F000 | code`
+fallback. A font with both `(3,1)` and `(3,0)` subtables asserts the `(3,1)` subtable is selected
+and the symbol fallback is not applied.
+
 ##### CanvasNet-Fonts-TrueTypeFont-GlyphOutlineSimple: Simple Glyphs Decode to Lines and Quadratics
 
 **Tests**: `GlyfLocaReader_SimpleGlyph_AllOnCurve_ProducesLineSegments`,

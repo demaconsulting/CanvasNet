@@ -36,7 +36,7 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 📄 **PDF Document** - Open, inspect, and rasterize PDF pages with font substitution (`DemaConsulting.CanvasNet.Pdf`)
 - 📊 **Chart Rendering** - Build and paint Bar/Column/Line/Area/Pie/Doughnut charts (`DemaConsulting.CanvasNet.Charts`)
 - 📈 **OOXML Chart Parsing** - Parse ECMA-376 DrawingML charts, including from `.pptx` slides (`DemaConsulting.CanvasNet.Charts`)
-- 📊 **Visio (.vsdx) Diagram Rendering** - Open and rasterize Visio diagrams, including styles and connectors (`DemaConsulting.CanvasNet.Vsdx`)
+- 📊 **Visio (.vsdx) Rendering** - Rasterize Visio diagrams; unsupported constructs are reported (`DemaConsulting.CanvasNet.Vsdx`)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines

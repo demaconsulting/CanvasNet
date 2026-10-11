@@ -309,7 +309,7 @@ src/DemaConsulting.CanvasNet/
 │   ├── FillRule.cs                — Nonzero/even-odd fill-rule enumeration
 │   ├── EdgeFlattener.cs           — Converts a Path's subpaths into closed polygons
 │   ├── ScanlineRasterizer.cs      — Analytic coverage-accumulation scanline rasterizer
-│   ├── ClipMask.cs                — Precomputed per-pixel clip coverage for clip-aware fills
+│   ├── ClipMask.cs                — Analytic-rectangle/dense clip coverage for clip-aware fills
 │   ├── PathFiller.cs              — Public entry point: fills a Path onto a Surface
 │   ├── LineCap.cs                 — Stroke end-cap enumeration
 │   ├── LineJoin.cs                — Stroke corner-join enumeration

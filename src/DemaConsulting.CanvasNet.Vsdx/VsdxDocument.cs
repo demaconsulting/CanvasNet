@@ -66,14 +66,15 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///         directly in the parent group's own local box. An embedded Foreign shape (image/OLE
 ///         object) carries no distinct Type-based handling at all and is resolved exactly like
 ///         any other <c>&lt;Shape&gt;</c> element - its own geometry/paint/text, when present,
-///         render normally; <see cref="VsdxUnsupportedFeatureException"/> is not currently thrown
-///         by any resolver for this delivery, reserved for a future recognized-but-deferred
-///         construct. A non-solid <c>FillPattern</c> beyond the documented subset instead
+///         render normally; <see cref="VsdxUnsupportedFeatureException"/> is thrown only when
+///         <see cref="VsdxRenderOptions.ThrowOnUnsupportedFeature"/> opts into strict mode for a
+///         detected unsupported construct. A non-solid <c>FillPattern</c> beyond the documented
+///         subset instead
 ///         degrades to the same solid-fill treatment as <c>FillPattern="1"</c>, using the
 ///         shape's own resolved <c>FillForegnd</c> color, never throwing. Non-trivial Themed
 ///         theme-variation resolution, the full <c>BeginArrow</c>/<c>EndArrow</c> style-index
-///         table, and the <c>RelCubBezTo</c>/<c>SplineStart</c>/<c>SplineKnot</c>/
-///         <c>PolylineTo</c>/<c>Ellipse</c> geometry row types remain explicitly deferred.
+///         table, and the <c>SplineStart</c>/<c>SplineKnot</c>/<c>PolylineTo</c> geometry row
+///         types remain explicitly deferred.
 ///     </para>
 ///     <para>
 ///         <strong>Thread safety</strong>: a <see cref="VsdxDocument"/> instance is <em>not</em>

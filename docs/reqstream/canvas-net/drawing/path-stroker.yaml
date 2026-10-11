@@ -92,7 +92,11 @@ sections:
                   against shrinks proportionally to tessellation density independent of how far the
                   half-width exceeds the inradius; otherwise a small shape at a realistic
                   tessellation density stroked only slightly over its own inradius would silently
-                  retain an invalid inner ring instead of collapsing to a solid fill.
+                  retain an invalid inner ring instead of collapsing to a solid fill. A collapsed
+                  inner ring must not however paint the whole interior solid when the contour is
+                  large and only a small feature (a tiny edge between sharp corners, as in a
+                  hairline-stroked clip-art outline) collapses: the stroke is then rebuilt from
+                  per-segment bands and joins, leaving the interior unfilled.
                 tests:
                   - PathStroker_Stroke_ClosedRectangle_FillsRingLeavingInteriorAndExteriorUnfilled
                   - StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_ProducesNoInvalidHole
@@ -100,6 +104,8 @@ sections:
                   - StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedClosedContour_ProducesValidThinRing
                   - StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedSmallCircleThickStroke_CollapsesToSolid
                   - StrokeOutliner_Outline_SmallCircleRealisticTessellation_HalfWidthJustOverInradius_CollapsesToSolid
+                  - StrokeOutliner_Outline_LargeClosedContourWithTinyEdge_KeepsInteriorUnfilled
+                  - StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_RoundAndBevelJoinsCoverInterior
 
               - id: CanvasNet-Drawing-PathStroker-DegenerateClosedContours
                 title: >-

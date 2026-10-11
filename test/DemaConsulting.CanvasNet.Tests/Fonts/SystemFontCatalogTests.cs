@@ -298,6 +298,286 @@ public class SystemFontCatalogTests
     }
 
     /// <summary>
+    ///     Proves that the header-only scan yields exactly the same metadata as a full
+    ///     <see cref="TrueTypeFont.Load(string, int)"/> for synthetic faces carrying
+    ///     <c>name</c>/<c>OS/2</c>/<c>post</c> tables, including both faces of a <c>.ttc</c>.
+    /// </summary>
+    [Fact]
+    public void SystemFontCatalog_Fonts_HeaderOnlyScan_MatchesFullLoadForSyntheticFacesAndCollections()
+    {
+        var root = Directory.CreateDirectory(
+            Path.Combine(Path.GetTempPath(), "canvasnet-test-headers-" + Guid.NewGuid())).FullName;
+
+        try
+        {
+            var regular = BuildStyledFont("Alpha", "Regular", 400, 0x40, 0);
+            var boldItalic = BuildStyledFont("Beta", "Bold Italic", 700, 0x21, 1);
+            File.WriteAllBytes(Path.Combine(root, "Single.ttf"), regular);
+            File.WriteAllBytes(Path.Combine(root, "Collection.ttc"), SyntheticFontBuilder.Ttc([regular, boldItalic]));
+
+            var result = SystemFontCatalog.BuildCatalogFromRoots([root]);
+
+            Assert.Equal(3, result.Count);
+            foreach (var entry in result)
+            {
+                var full = TrueTypeFont.Load(entry.FilePath, entry.FaceIndex);
+                var name = full.GetNameInfo();
+                Assert.Equal(name.FamilyName, entry.FamilyName);
+                Assert.Equal(name.SubfamilyName, entry.SubfamilyName);
+                Assert.Equal(full.IsBold, entry.Bold);
+                Assert.Equal(full.IsItalic, entry.Italic);
+                Assert.Equal(full.IsFixedPitch, entry.FixedPitch);
+            }
+
+            Assert.Contains(result, e => e.FamilyName == "Beta" && e.FaceIndex == 1 && e.Bold && e.Italic && e.FixedPitch);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that the header-only scan yields exactly the same metadata as a full load for
+    ///     every real bundled font.
+    /// </summary>
+    [Fact]
+    public void SystemFontCatalog_Fonts_HeaderOnlyScan_MatchesFullLoadForBundledFonts()
+    {
+        var root = Directory.CreateDirectory(
+            Path.Combine(Path.GetTempPath(), "canvasnet-test-bundled-" + Guid.NewGuid())).FullName;
+
+        try
+        {
+            var assembly = typeof(SystemFontCatalog).Assembly;
+            var prefix = "DemaConsulting.CanvasNet.Fonts.BundledFonts.";
+            var count = 0;
+            foreach (var resource in assembly.GetManifestResourceNames().Where(
+                n => n.StartsWith(prefix, StringComparison.Ordinal) && n.EndsWith(".ttf", StringComparison.Ordinal)))
+            {
+                using var source = assembly.GetManifestResourceStream(resource)!;
+                using var target = File.Create(Path.Combine(root, resource[prefix.Length..]));
+                source.CopyTo(target);
+                count++;
+            }
+
+            Assert.True(count > 0);
+
+            var result = SystemFontCatalog.BuildCatalogFromRoots([root]);
+
+            Assert.Equal(count, result.Count);
+            foreach (var entry in result)
+            {
+                var full = TrueTypeFont.Load(entry.FilePath, entry.FaceIndex);
+                var name = full.GetNameInfo();
+                Assert.Equal(name.FamilyName ?? Path.GetFileNameWithoutExtension(entry.FilePath), entry.FamilyName);
+                Assert.Equal(name.SubfamilyName ?? string.Empty, entry.SubfamilyName);
+                Assert.Equal(full.IsBold, entry.Bold);
+                Assert.Equal(full.IsItalic, entry.Italic);
+                Assert.Equal(full.IsFixedPitch, entry.FixedPitch);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that reading a face's catalog metadata touches only a small part of a large
+    ///     font file (here, a font padded with a 1 MiB glyph table), counting bytes actually read
+    ///     through the stream rather than measuring time.
+    /// </summary>
+    [Fact]
+    public void SfntHeaderReader_ReadFace_ReadsOnlyHeaderBytesOfLargeFont()
+    {
+        var font = BuildStyledFont("Big", "Regular", 400, 0x40, 0, glyfPadding: 1 << 20);
+        using var counting = new CountingStream(new MemoryStream(font));
+
+        var info = SfntHeaderReader.ReadFace(counting, 0);
+
+        Assert.Equal("Big", info.FamilyName);
+        Assert.True(font.Length > (1 << 20));
+        Assert.True(counting.BytesRead < 4096, $"Read {counting.BytesRead} bytes of {font.Length}.");
+    }
+
+    /// <summary>
+    ///     Proves that structurally inconsistent headers - an <c>OTTO</c> font without <c>CFF </c>,
+    ///     a missing required table, a <c>maxp</c> inconsistent with the outline flavor, a zero
+    ///     <c>unitsPerEm</c>, an invalid <c>indexToLocFormat</c>, a table or TTC face offset beyond
+    ///     the end of the file, and an out-of-range face index - are each rejected by the header
+    ///     reader.
+    /// </summary>
+    [Fact]
+    public void SfntHeaderReader_ReadFace_InconsistentHeaders_ThrowInvalidData()
+    {
+        var glyph = SyntheticFontBuilder.SimpleGlyph([[(0, 0, true), (10, 0, true), (10, 10, true), (0, 10, true)]]);
+        SyntheticFontBuilder Complete(int unitsPerEm = 1000, int locFormat = 0, uint maxpVersion = 0x00010000) =>
+            new SyntheticFontBuilder()
+                .AddTable("head", SyntheticFontBuilder.Head(unitsPerEm, locFormat))
+                .AddTable("maxp", SyntheticFontBuilder.Maxp(1, maxpVersion))
+                .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 1))
+                .AddTable("hmtx", SyntheticFontBuilder.Hmtx([500]))
+                .AddTable("loca", SyntheticFontBuilder.Loca([0, glyph.Length], longFormat: false))
+                .AddTable("glyf", glyph);
+
+        var tableBeyondEof = Complete().Build();
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(tableBeyondEof.AsSpan(12 + 12), 0x7FFFFFFF);
+        var ttcFaceBeyondEof = SyntheticFontBuilder.Ttc([Complete().Build()]);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(ttcFaceBeyondEof.AsSpan(12), 0x7FFFFFF0);
+
+        var cases = new (string Name, byte[] Data, int FaceIndex)[]
+        {
+            ("OTTO without CFF", Complete().WithSfntVersion(0x4F54544F).Build(), 0),
+            (
+                "missing hmtx",
+                new SyntheticFontBuilder()
+                    .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+                    .AddTable("maxp", SyntheticFontBuilder.Maxp(1))
+                    .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 1))
+                    .AddTable("loca", SyntheticFontBuilder.Loca([0, glyph.Length], longFormat: false))
+                    .AddTable("glyf", glyph)
+                    .Build(),
+                0),
+            ("maxp version mismatch", Complete(maxpVersion: 0x00005000).Build(), 0),
+            ("zero unitsPerEm", Complete(unitsPerEm: 0).Build(), 0),
+            ("invalid indexToLocFormat", Complete(locFormat: 5).Build(), 0),
+            ("table beyond end of file", tableBeyondEof, 0),
+            ("TTC face offset beyond end of file", ttcFaceBeyondEof, 0),
+            ("face index on non-collection", Complete().Build(), 1),
+            ("face index beyond collection", SyntheticFontBuilder.Ttc([Complete().Build()]), 3),
+        };
+
+        foreach (var (name, data, faceIndex) in cases)
+        {
+            using var stream = new MemoryStream(data);
+            Assert.True(
+                Assert.ThrowsAny<Exception>(() => SfntHeaderReader.ReadFace(stream, faceIndex)) is InvalidDataException,
+                $"Case '{name}' did not throw InvalidDataException.");
+        }
+
+        // The valid baseline is accepted, so each rejection above is caused by its own defect.
+        using var valid = new MemoryStream(Complete().Build());
+    }
+
+    /// <summary>Proves that truncated and structurally inconsistent fonts are rejected by the header reader and skipped by the scan.</summary>
+    [Fact]
+    public void SystemFontCatalog_Fonts_TruncatedAndInconsistentHeaders_AreSkipped()
+    {
+        var root = Directory.CreateDirectory(
+            Path.Combine(Path.GetTempPath(), "canvasnet-test-truncated-" + Guid.NewGuid())).FullName;
+
+        try
+        {
+            var valid = BuildMinimalValidFont();
+            File.WriteAllBytes(Path.Combine(root, "Truncated.ttf"), valid[..40]);
+            File.WriteAllBytes(Path.Combine(root, "TruncatedTtc.ttc"), SyntheticFontBuilder.Ttc([valid])[..14]);
+            File.WriteAllBytes(Path.Combine(root, "Empty.otf"), []);
+            var ottoWithoutCff = (byte[])valid.Clone();
+            "OTTO"u8.CopyTo(ottoWithoutCff);
+            File.WriteAllBytes(Path.Combine(root, "OttoWithoutCff.otf"), ottoWithoutCff);
+            File.WriteAllBytes(Path.Combine(root, "Valid.ttf"), valid);
+
+            var result = SystemFontCatalog.BuildCatalogFromRoots([root]);
+
+            var entry = Assert.Single(result);
+            Assert.Equal(Path.Combine(root, "Valid.ttf"), entry.FilePath);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>Builds a complete font with <c>name</c>, <c>OS/2</c> and <c>post</c> tables (optionally padding the <c>glyf</c> table).</summary>
+    private static byte[] BuildStyledFont(
+        string family,
+        string subfamily,
+        int weight,
+        int fsSelection,
+        int isFixedPitch,
+        int glyfPadding = 0)
+    {
+        var glyph = SyntheticFontBuilder.SimpleGlyph(
+        [
+            [(0, 0, true), (10, 0, true), (10, 10, true), (0, 10, true)]
+        ]);
+        var glyf = new byte[glyph.Length + glyfPadding];
+        glyph.CopyTo(glyf, 0);
+
+        return new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(1))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 1))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([500]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([0, glyph.Length], longFormat: false))
+            .AddTable("glyf", glyf)
+            .AddTable("name", SyntheticFontBuilder.Name(
+            [
+                new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 1, family),
+                new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 2, subfamily),
+            ]))
+            .AddTable("OS/2", SyntheticFontBuilder.Os2(weight, fsSelection))
+            .AddTable("post", SyntheticFontBuilder.Post(isFixedPitch))
+            .Build();
+    }
+
+    /// <summary>A read-only seekable stream wrapper that counts the bytes read through it.</summary>
+    private sealed class CountingStream(Stream inner) : Stream
+    {
+        /// <summary>Gets the total number of bytes returned by <c>Read</c> calls.</summary>
+        public long BytesRead { get; private set; }
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => true;
+
+        public override bool CanWrite => false;
+
+        public override long Length => inner.Length;
+
+        public override long Position
+        {
+            get => inner.Position;
+            set => inner.Position = value;
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var read = inner.Read(buffer, offset, count);
+            BytesRead += read;
+            return read;
+        }
+
+        public override int Read(Span<byte> buffer)
+        {
+            var read = inner.Read(buffer);
+            BytesRead += read;
+            return read;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+    }
+
+    /// <summary>
     ///     Builds a minimal, complete, well-formed synthetic font's raw bytes (mirroring
     ///     <c>TrueTypeFontTests.BuildWellFormedFont</c>), suitable for writing to a temporary file
     ///     and loading via <see cref="TrueTypeFont"/>-backed catalog-scanning code.

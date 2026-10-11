@@ -73,12 +73,23 @@ public sealed partial class VsdxDocument
 
         var resolved = new List<VsdxShapeNode>(rawShapes.Count);
         var resolvedShapeCount = 0;
-        foreach (var shape in rawShapes)
+        var features = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        var previousFeatures = SwapActiveFeatures(features);
+        try
         {
-            ResolveShapeRecursive(shape, ResolveMasterShape(shape.MasterId), parent: null, depth: 0, ref resolvedShapeCount);
-            resolved.Add(shape);
+            foreach (var shape in rawShapes)
+            {
+                ResolveShapeRecursive(shape, ResolveMasterShape(shape.MasterId), parent: null, depth: 0, ref resolvedShapeCount);
+                resolved.Add(shape);
+            }
+        }
+        finally
+        {
+            SwapActiveFeatures(previousFeatures);
         }
 
+        _pageUnsupportedFeatures[pageIndex] = features;
+        ApplyLayerVisibility(resolved, _pageLayers[pageIndex]);
         _resolvedPageShapesCache[pageIndex] = resolved;
         return resolved;
     }

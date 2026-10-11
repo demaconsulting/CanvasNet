@@ -137,6 +137,8 @@ internal sealed record VsdxEffectiveTextBoxStyle(
 /// <param name="Italic">Whether the run is resolved italic (<c>Style</c> bit 1).</param>
 /// <param name="Color">The resolved ink color (see <c>VsdxColorPalette.Resolve</c>).</param>
 /// <param name="Paragraph">The owning paragraph's resolved effective properties.</param>
+/// <param name="Decoration">The resolved text-decoration flags (underline, strikethrough, overline).</param>
+/// <param name="SmallCaps">Whether the run is small-caps (<c>Style</c> bit 3); expanded into upper-case segments by <c>ExpandSmallCaps</c>.</param>
 internal sealed record VsdxEffectiveTextRun(
     string Text,
     string FontFamily,
@@ -144,4 +146,29 @@ internal sealed record VsdxEffectiveTextRun(
     bool Bold,
     bool Italic,
     Rgba32 Color,
-    VsdxEffectiveParagraphProperties Paragraph);
+    VsdxEffectiveParagraphProperties Paragraph,
+    VsdxTextDecoration Decoration = VsdxTextDecoration.None,
+    bool SmallCaps = false);
+
+/// <summary>
+///     The text decorations a run can carry, resolved from the Character section's <c>Style</c>
+///     bit 2 (underline), <c>Strikethru</c>, <c>DoubleStrikethrough</c> and <c>Overline</c> cells.
+/// </summary>
+[Flags]
+internal enum VsdxTextDecoration
+{
+    /// <summary>No decoration.</summary>
+    None = 0,
+
+    /// <summary>A single underline.</summary>
+    Underline = 1,
+
+    /// <summary>A single strikethrough.</summary>
+    Strikethrough = 2,
+
+    /// <summary>A double strikethrough.</summary>
+    DoubleStrikethrough = 4,
+
+    /// <summary>An overline.</summary>
+    Overline = 8,
+}

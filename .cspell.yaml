@@ -14,6 +14,22 @@ language: en
 
 # Project-specific technical terms and tool names
 words:
+  - Cmaps
+  - subtables
+  - bilinearly
+  - prefilter
+  - prefiltered
+  - resampler
+  - Strikethru
+  - Strikethrough
+  - linepattern
+  - initialcaps
+  - Foregnd
+  - THEMEVAL
+  - NURBS
+  - Segoe
+  - Symbola
+  - Noto
   - dctdecode
   - Lsiz
   - smaskindata
@@ -128,6 +144,7 @@ words:
   - Casteljau
   - chokepoint
   - CMYK
+  - Hodgman
   - CCITT
   - coeffs
   - combinators

@@ -164,7 +164,7 @@ public sealed partial class PptxDocument
             }
         }
 
-        return new PptxParagraph(properties, items);
+        return new PptxParagraph(properties, items, pElement.Element(DrawingNamespace + "endParaRPr"));
     }
 
     /// <summary>
@@ -212,7 +212,7 @@ public sealed partial class PptxDocument
                 string.Equals(fieldType, SlideNumberFieldType, StringComparison.OrdinalIgnoreCase)
                     ? runItem with { Run = runItem.Run with { Text = slideNumberText } }
                     : item).ToList();
-            return new PptxParagraph(paragraph.RawProperties, items);
+            return new PptxParagraph(paragraph.RawProperties, items, paragraph.RawEndParaRPr);
         }).ToList();
 
         return textBody with { Paragraphs = paragraphs };

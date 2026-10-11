@@ -83,7 +83,9 @@ as a brand-new `Path`:
    - **Open segments** produce one closed polygon built from the left side, an end cap, the right
      side in reverse, and the start cap.
    - **Closed contours** produce two closed rings (outer and inner) wound in opposite directions
-     so `FillRule.NonZero` fills only the shell between them.
+     so `FillRule.NonZero` fills only the shell between them. The exception is a contour whose
+     inner ring collapses (see the collapse discussion below), which is emitted as a union of
+     same-wound per-segment bands and join wedges with no hole.
    - **Outer-outline winding normalization.** `Stroke` appends every stroked subpath's outline(s)
      as independent closed subpaths in one output `Path`, and the whole result is documented to be
      filled with `FillRule.NonZero`. Because NonZero only reinforces (unions) two overlapping
@@ -165,7 +167,15 @@ instances directly. Every emitted polygon becomes one closed subpath in the resu
   per-edge direction reversal while building each ring and, when found on the ring that would
   otherwise become the hole, omits that ring entirely rather than emitting it as a hole - matching
   what a true geometric erosion of the contour by that half-width would produce (an empty inner
-  boundary) and leaving the whole interior filled as solid stroke.
+  boundary) and leaving the whole interior filled as solid stroke. The collapse signal is not,
+  however, proof that the whole interior is solid: it also fires when a large contour merely has a
+  short edge (shorter than the stroke lets the offset corners clear) between sharp corners, such as
+  a hairline-stroked clip-art outline, where only that small feature collapses and the interior
+  must stay unfilled. On collapse, `StrokeOutliner` therefore builds the stroke as a union of
+  per-segment bands plus per-vertex join wedges on the locally convex side
+  (`CreateCollapsedClosedStrokePolygons`), all with the same winding. That construction never
+  builds a hole, so it is exact for both cases: a genuinely over-eroded contour is fully covered by
+  its own bands, while a locally collapsed contour keeps its unfilled interior.
   - **Density-relative false-positive/false-negative tolerance (regression fix).** The
     backwards-edge test tolerates a bounded amount of backwards-projected length before concluding
     a ring has genuinely collapsed, and that tolerance is derived **per edge**, from that edge's
@@ -207,6 +217,8 @@ instances directly. Every emitted polygon becomes one closed subpath in the resu
     `StrokeOutlinerTests.StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_ProducesNoInvalidHole`,
     `StrokeOutlinerTests.StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedClosedContour_ProducesValidThinRing`,
     `StrokeOutlinerTests.StrokeOutliner_Outline_LargeCoordinateFinelyTessellatedSmallCircleThickStroke_CollapsesToSolid`,
+    `StrokeOutlinerTests.StrokeOutliner_Outline_LargeClosedContourWithTinyEdge_KeepsInteriorUnfilled`
+    (the locally collapsed contour that must keep its interior unfilled),
     and
     `StrokeOutlinerTests.StrokeOutliner_Outline_SmallCircleRealisticTessellation_HalfWidthJustOverInradius_CollapsesToSolid`.
 - **Degenerate subpaths.** A single point (or a path collapsed to one effective point after

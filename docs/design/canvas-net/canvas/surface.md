@@ -451,3 +451,26 @@ between the constant-color and per-pixel-color forms, and only the scratch-buffe
 versus supplied workspace) differs between the public and internal forms. A dedicated unit test
 (`Surface_CompositeOverSpan_PerPixelColors_MatchesConstantColorOverload_WhenAllColorsEqual`)
 proves the pre-existing constant-color overload's output is unchanged by this refactor.
+
+#### Internal image-resampling helper (SurfaceResampler)
+
+`Canvas/SurfaceResampler.cs` is an `internal static` helper owned by this unit (visible to the
+`Pdf` and `Pptx` packages) that lets callers draw a decoded raster image while shrinking it
+without dropping thin features. `ComputeFactors` derives per-axis scales from the column norms of
+the pixel-to-device affine matrix and returns integer block sizes (the nearest integer to the
+reduction ratio, at least 1; non-finite, zero or enlarging scales yield 1). `Prefilter` returns
+the source surface unchanged when the image is enlarged or drawn 1:1, when the mapping is
+degenerate or non-finite, or when a shrink is too mild to round to a block factor above 1 (in the
+shrink case it still sets the flag asking the caller to sample bilinearly; for enlargement and 1:1
+the caller keeps its nearest-neighbor lookup, so that path is bit-identical), and otherwise sets
+that flag and returns a new surface
+produced by `BoxReduce`. `BoxReduce` rejects block factors below 1 with
+`ArgumentOutOfRangeException`, makes one O(W x H) pass accumulating premultiplied channel
+sums in checked `long` arithmetic (an overflow throws `OverflowException`), un-premultiplies on
+output (round half away from zero), and
+averages only covered pixels in partial edge blocks; its output is at most the source size, so it
+never exceeds `Surface.MaxDimension` and memory is bounded by one extra surface per draw.
+`SampleBilinear` interpolates the four nearest pixels (centre-aligned, edge-clamped) in
+premultiplied space. The caller builds the reduced surface once per draw, not per destination
+pixel, and disposes it afterwards. `Pptx` and `Svg` keep their own nearest-neighbor loops; adopting
+this helper is a possible follow-up.

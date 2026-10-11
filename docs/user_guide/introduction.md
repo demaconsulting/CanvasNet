@@ -1223,8 +1223,9 @@ never substituted this way, since a symbol/dingbat glyph set with no bundled sub
 meaningful generic-family
 equivalent - it still fails closed with `UnsupportedImageFeatureException`, exactly as a
 non-embedded font of any kind did before this fallback behavior existed. A shading pattern's
-`/Extend` is approximated as always-padded (never fully transparent outside the defining
-geometry), a documented, narrower-than-spec simplification; the `sh` operator and generic path
+`/Extend` is honored per end (PDF 32000-1 §8.7.4.5.2): an extended end repeats its end color
+beyond the defining geometry, while a non-extended end (the default) paints nothing past it; the
+`sh` operator and generic path
 clipping (`W`/`W*`) are supported. **Documented scope
 boundaries**: `/MMType1` fonts, function-based shadings (`/ShadingType 1`), `/FunctionType 4`
 (PostScript calculator) functions, transparency groups,
@@ -1404,11 +1405,15 @@ automatically - no separate API is needed to opt into any of them. A `NonPrintin
 own fill/stroke/text/arrowhead paint (but still recurses into its own children); a `HideText` shape
 skips only its own text paint; and a resolved sub-pixel `LineWeight` is floored to a minimum
 visible stroke width rather than vanishing entirely, mirroring Visio's own "always draw a
-perceptible line" rendering convention. **Documented scope boundaries**: embedded images/foreign
+perceptible line" rendering convention. Constructs the renderer recognizes but cannot (fully)
+render are never skipped silently: set `VsdxRenderOptions.UnsupportedFeatureHandler` to receive a
+`VsdxUnsupportedFeature` (stable `Feature` token plus message) once per distinct feature per
+`Render` call, or set `ThrowOnUnsupportedFeature` to get a `VsdxUnsupportedFeatureException`
+instead (rendering is tolerant by default). **Documented scope boundaries**: embedded images/foreign
 shapes, non-trivial theme-variation resolution, non-solid fill-pattern combinations beyond solid
 (including any gradient approximation), the full arrowhead style-index table, and a handful of
-rarely-encountered geometry row types (`NURBSTo`, `InfiniteLine`, `RelCubBezTo`, `SplineStart`/
-`SplineKnot`, `PolylineTo`, `Ellipse`) are tolerated (the row/feature is skipped, never thrown) but
+rarely-encountered geometry row types (`NURBSTo`, `InfiniteLine`, `SplineStart`/
+`SplineKnot`, `PolylineTo`) are tolerated (the row/feature is skipped, never thrown) but
 not resolved into their own path segments or paint - see `canvas-net-vsdx.md`'s Design Constraints
 section for the complete deferred-feature boundary.
 

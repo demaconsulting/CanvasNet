@@ -599,17 +599,23 @@ its own distinguishable `Feature` token.
   point for every path-painting operator - applies the pending clip _after_ that operator's own
   fill/stroke painting (so, for example, `W f` still fills using the _previous_ clip, then installs
   the new one for whatever comes next; `W n` paints nothing but still installs the new clip): it
-  rasterizes the just-painted path into a fresh `Drawing.ClipMask` (via `ClipMask.FromPath`, under
-  the pending fill rule, bound to the destination surface's own pixel extent) and assigns
-  `_gs.Clip = _gs.Clip is null ? newMask : _gs.Clip.Intersect(newMask)` - an _intersection_ with any
-  already-active clip, never a wholesale replacement, per the specification's own wording ("the new
+  rasterizes the just-painted path into a fresh `Drawing.ClipMask` (via `ClipMask.FromPathOrNull`,
+  under the pending fill rule, bound to the destination surface's own pixel extent; an
+  axis-aligned rectangle is represented analytically with no dense mask, and a rectangle covering
+  the whole surface yields `null`, i.e. no clip) and assigns
+  `_gs.Clip = ClipMask.Combine(_gs.Clip, newMask)` - an _intersection_ with any
+  already-active clip (with `null` meaning "no clip"), never a wholesale replacement, per the
+  specification's own wording ("the new
   clipping path ... shall be the intersection of the current clipping path and the newly
   constructed path"). `GraphicsState.Clip` (an `internal Drawing.ClipMask?`, `null` meaning "the
   entire output device", i.e. unclipped) is an ordinary graphics-state field, so `Clone()` copies
-  it like any other - `ClipMask` is immutable and `Intersect` always returns a new instance, so
+  it like any other - `ClipMask` is immutable and intersection always returns a new instance, so
   sharing the reference across a `q`/`Q`/Form-XObject/Type3-glyph clone is always safe, with no
-  extra save/restore logic required anywhere. The active clip is enforced by multiplying its own
-  per-pixel antialiased coverage into every subsequent paint operation's own coverage: `_gs.Clip` is
+  extra save/restore logic required anywhere. The active clip is enforced by applying it to every
+  subsequent paint operation: its analytic rectangle is intersected with the painted polygons
+  geometrically (so a rule whose edge coincides with a clip edge keeps its exact ink, instead of
+  having its edge-pixel coverage squared) and any dense per-pixel antialiased coverage is
+  multiplied in: `_gs.Clip` is
   threaded as a `Drawing.ClipMask?` argument into every `Drawing.PathFiller.Fill` call site this
   class owns (ordinary fill/stroke/pattern fill in `PaintCurrentPath`/`PaintStroke`/
   `PaintPatternFill`, and glyph fill in `PdfDocument.Text.cs`'s `ShowGlyph`), and - since
@@ -771,9 +777,15 @@ its own distinguishable `Feature` token.
   nothing), computes the device-space bounding box of the transformed unit square, and for every
   destination pixel in that box nearest-neighbor-samples the source image (`row = floor((1 - v) *
   image.Height)`, since image sample row `0` is the _top_ of the unit square per the PDF
-  specification's image-space convention, the opposite of user-space's y-up convention) — no
-  bilinear interpolation, a documented Phase 3 simplification consistent with Phase 2's own
-  stroke-width simplification precedent. Each sampled source pixel is alpha-blended "over" the
+  specification's image-space convention, the opposite of user-space's y-up convention). When the
+  image is enlarged or drawn 1:1 this nearest-neighbor lookup is unchanged. When the pixel-to-device
+  mapping shrinks the image on either axis (local scales are the column norms of the 2x2 part of
+  the matrix), the internal `Canvas.SurfaceResampler` first area-averages the image once per draw
+  (an integer box prefilter, factor = nearest integer to the reduction ratio, premultiplied alpha,
+  output no larger than the source, so memory is bounded by the decoded image) and the result is
+  sampled bilinearly (centre-aligned, edge-clamped); mild shrinks below 1.5:1 use bilinear on the
+  source directly. Thin features such as one-pixel rules are therefore attenuated rather than
+  dropped. `/Interpolate` is not consulted. Each sampled source pixel is alpha-blended "over" the
   existing destination pixel via the shared internal `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)`
   helper (standard Porter-Duff "over" alpha compositing — straight/unassociated alpha in and out,
   `outA = fgA + bgA * (1 - fgA)`, each color channel `outC = (fgC * fgA + bgC * bgA * (1 - fgA)) /
@@ -1220,8 +1232,9 @@ its own distinguishable `Feature` token.
   entirely), and `4`-`7` (the clip modes: fill/stroke/fill+stroke/invisible respectively, each
   additionally accumulating the glyph's device-space outline into `_textClipBuilder` and setting
   `_textClipPending`, even for outline-less glyphs such as spaces). `OpEndText` (`ET`) then, if a
-  clip is pending, builds the accumulated path, converts it via `ClipMask.FromPath` (non-zero
-  winding) and intersects it into `_gs.Clip`; the clip is therefore not applied until `ET`, and is
+  clip is pending, builds the accumulated path, converts it via `ClipMask.FromPathOrNull` (non-zero
+  winding) and combines it into `_gs.Clip` via `ClipMask.Combine`; the clip is therefore not
+  applied until `ET`, and is
   restored by `Q`. Space-only clip text yields an empty region that clips everything (spec-
   conformant). `OpBeginText`, `ExecuteContentStream`, and the Form XObject/Type 3/tiling re-entrant
   executors reset or save/restore the accumulator so nested content cannot clobber it. A Type 3
@@ -1351,24 +1364,33 @@ its own distinguishable `Feature` token.
   resolve to `DeviceGray`/`DeviceRGB`/`DeviceCMYK` (else feature
   `pdf-shading-colorspace-{family}`); `/Function` accepts either a single function or an array of
   1-output-component functions (`ResolveFunctionOrFunctionArray`), each resolved through
-  `ResolveFunctionGeneric` above. The resolved shading samples its function(s) at 32 evenly spaced
-  points across `/Domain` (a fixed constant balancing visual smoothness against per-fill
-  allocation/compute cost — no caller needs more precision than this, mirroring
-  `SampledFunction`'s own posture), converts each sample through `ColorFromComponents`, and builds
+  `ResolveFunctionGeneric` above. The resolved shading samples its function(s) at evenly spaced
+  points across `/Domain` — one sample per device pixel of gradient length (axial: the
+  transformed `/Coords` vector; radial: the larger of the sweep length and the diameter sum,
+  scaled by the larger matrix axis scale), rounded up and clamped to 32..256 samples — converts
+  each sample through `ColorFromComponents`, and builds
   one `Drawing.GradientStop` per sample to construct a `Drawing.LinearGradient` (`ShadingType 2`)
   or `Drawing.RadialGradient` (`ShadingType 3`) whose `Transform` is the pattern's own `/Matrix`
   composed with the page's initial (pre-`cm`) CTM (`_pageInitialCtm`, captured once per
   `ExecuteContentStream` call, per PDF 32000-1 §8.7.3.1's default-coordinate-system rule — this is
   the one documented limitation when a pattern is resolved from inside a nested Form XObject's own
   `/Resources/Pattern`: it still composes against the page's own initial CTM, not the Form's own
-  default space). **`/Extend` is approximated as `Drawing.GradientSpread.Pad`** regardless of its
-  actual `[false false]`/`[true true]`/mixed value — a documented, narrower-than-spec
-  simplification: no existing `GradientSpread` value expresses the spec's true
-  "paint nothing outside the defining geometry" default, and implementing that exactly would
-  require clipping the shading's own paint to its defining geometry automatically - distinct from
-  the general-purpose `W`/`W*` clipping-path operators (see _Clipping Paths_ below), which a
-  content stream must invoke explicitly and which this phase does not wire into `/Extend`
-  resolution itself.
+  default space). **`/Extend` is honored per end** (default `[false false]`, validated as exactly two booleans,
+  else `InvalidDataException`) without adding a `GradientSpread` value: the gradient always uses
+  `GradientSpread.Pad`, but its geometry is widened beyond the shading's own `[0, 1]` parameter
+  range (for axial: the new end points are `P0 + tMin*(P1-P0)`/`P0 + tMax*(P1-P0)`; for radial:
+  the circles are interpolated at `tMin`/`tMax`, and the extension is limited so the radius never
+  becomes negative). An extended end gets hold stops repeating the end color out to the widened
+  end, with the extension sized to cover the surface from the shading's anchor points (capped at
+  1e4 times the `[0, 1]` range to bound float precision); a non-extended end gets a small margin
+  and a hard transparent stop, so nothing is painted beyond it. `sh` and the pattern fill share
+  this logic. A radial shading whose radius reaches zero cannot be extended past the cone vertex.
+- **Function-array domains** — each element of a `/Function` array clamps its own input to its own
+  `/Domain` when evaluated (the shading's `/Domain`, default `[0 1]`, maps linearly onto the
+  geometry parameter and is the value passed to every sub-function); the array form does not
+  report a combined domain (callers use the shading's own `/Domain`). Values outside a
+  sub-function's domain
+  are therefore clamped, not ignored.
 - **Shading operator (`sh`, `PdfDocument.ContentStream.cs`/`PdfDocument.Patterns.Shading.cs`, per
   PDF 32000-1 §8.7.4.2)** — paints a named `/Resources/Shading` dictionary's gradient directly
   onto the destination surface, with no path construction/consumption and no `/Pattern`

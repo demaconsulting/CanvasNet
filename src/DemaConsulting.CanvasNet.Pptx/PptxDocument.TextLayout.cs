@@ -261,7 +261,15 @@ public sealed partial class PptxDocument
                     .ToList();
                 var firstRunProperties = runProperties.Count > 0 ? runProperties[0] : null;
                 var paragraphProperties = ResolveEffectiveParagraphProperties(paragraph, placeholderProperties, placeholderType, firstRunProperties, colorMap);
-                return new ResolvedParagraph(paragraph, paragraphProperties, runProperties);
+
+                // A paragraph's <a:endParaRPr> supplies the font size (and font) of its own
+                // otherwise-empty line, exactly as PowerPoint sizes a blank line/table cell - see
+                // BuildLines' blank-line branch. Resolved through the same inheritance chain as a
+                // zero-length run carrying those properties.
+                var endRunProperties = paragraph.RawEndParaRPr is { } endParaRPr
+                    ? ResolveEffectiveRunProperties(new PptxTextRun(endParaRPr, string.Empty), paragraph, placeholderProperties, theme, placeholderType, colorMap)
+                    : null;
+                return new ResolvedParagraph(paragraph, paragraphProperties, runProperties, endRunProperties);
             })
             .ToList();
 
@@ -531,7 +539,8 @@ public sealed partial class PptxDocument
     private sealed record ResolvedParagraph(
         PptxParagraph Paragraph,
         PptxEffectiveParagraphProperties ParagraphProperties,
-        IReadOnlyList<PptxEffectiveRunProperties> RunProperties);
+        IReadOnlyList<PptxEffectiveRunProperties> RunProperties,
+        PptxEffectiveRunProperties? EndRunProperties = null);
 
     /// <summary>
     ///     Computes a resolved token's natural advance width, in EMU, summing each Unicode scalar
@@ -781,6 +790,14 @@ public sealed partial class PptxDocument
                 if (pendingUnderlineSpan is { } finalSpan)
                 {
                     underlineSpans.Add(finalSpan);
+                }
+
+                // A blank line takes its metrics from the paragraph's own <a:endParaRPr>, when
+                // present, instead of the nominal default font size.
+                if (tallestFont is null && resolvedParagraph.EndRunProperties is { } endProps)
+                {
+                    tallestFont = resolveFont(endProps.FontFamily, endProps.Bold, endProps.Italic);
+                    tallestSize = endProps.SizeEmu * fontScale;
                 }
 
                 float lineHeight;

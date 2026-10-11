@@ -358,9 +358,65 @@ behavior.
 `ClipMask_Intersect_DoesNotMutateEitherOperand`,
 `ClipMask_Intersect_NullOther_ThrowsArgumentNullException`,
 `ClipMask_Intersect_MismatchedExtents_ThrowsArgumentException`,
-`ClipMask_GetCoverage_OutOfBoundsCoordinates_ReturnsZero` (all in `ClipMaskTests.cs`),
+`ClipMask_GetCoverage_OutOfBoundsCoordinates_ReturnsZero`,
+`ClipMask_FromPath_AxisAlignedRectangle_IsRectangleMatchingDenseReference`,
+`ClipMask_FromPath_FractionalEdges_BoundaryCoverageIsFractional`,
+`ClipMask_FromPath_RotatedRectangle_StaysDense`,
+`ClipMask_FromPath_NonRectangles_StayDense`,
+`ClipMask_FromPath_EvenOddAndReverseWinding_AreRectangles`,
+`ClipMask_FromPath_RectangleOffSurface_IsClampedOrEmpty`,
+`ClipMask_Intersect_RectangleWithRectangle_IsRectangleEqualToDenseReference`,
+`ClipMask_Intersect_DisjointRectangles_IsEmpty`,
+`ClipMask_Intersect_RectanglesSharingFractionalEdgePixel_IsExactGeometricOverlapNotProduct`,
+`ClipMask_Intersect_PixelAlignedRectangleWithDense_EqualsDenseWithDense`,
+`ClipMask_FromPathOrNull_FullSurfaceRectangle_ReturnsNull`,
+`ClipMask_Combine_FullSurfaceAndNull_NormalizesToOtherOperandOrNull`,
+`ClipMask_Intersect_RectangleWithDense_EqualsDenseReferenceAndSharesBuffer`,
+`ClipMask_Intersect_DenseWithDense_EqualsReferenceAndBoundsAreOverlap`,
+`ClipMask_Intersect_RestrictedDenseWithDense_EqualsReference` (all in `ClipMaskTests.cs`),
 `PathFiller_Fill_SolidColorWithClip_RestrictsFillToClipCoverage`,
-`PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload`
+`PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload`,
+`PathFiller_Fill_RectangleClipVersusDenseClip_InteriorMatchesAndEdgesAreBounded`,
+`PathFiller_Fill_RectangleClipCoincidentWithFill_DoesNotAttenuateEdges`,
+`PathFiller_Fill_NarrowerRectangleClip_PaintsGeometricIntersection`,
+`PathFiller_Fill_DenseClipRestrictedByRectangle_AppliesRectangleOnce`,
+`PathFiller_Fill_GradientWithRectangleClip_MatchesUnclippedInsideAndDenseClip`,
+`PathFiller_Fill_GradientWithFractionalRectangleClip_PaintsGeometricEdgeCoverage`,
+`PathFiller_Fill_GradientRectangleClipCoincidentWithFill_DoesNotAttenuateEdges`,
+`PathFiller_Fill_TileWithRectangleClip_MatchesUnclippedInsideAndDenseClip`,
+`PathFiller_Fill_TileRectangleClipCoincidentWithFill_DoesNotAttenuateEdges`,
+`ClipMask_TryClipPolygonsToRect_PolygonInside_ReturnsSameInstances`,
+`ClipMask_TryClipPolygonsToRect_PolygonOutsideOrTouching_ReturnsFalse`,
+`ClipMask_TryClipPolygonsToRect_CrossingSides_AreaEqualsAnalyticIntersection`,
+`ClipMask_TryClipPolygonsToRect_ConcavePolygon_AreaEqualsAnalyticIntersection`,
+`ClipMask_TryClipPolygonsToRect_HoleAndNonZero_PreserveFillRuleCoverage`,
+`ClipMask_TryClipPolygonsToRect_DegenerateResult_IsDropped`,
+`ScanlineRasterizer_AccumulateCoverageMask_SubPixelRectangles_ConserveArea`,
+`ScanlineRasterizer_AccumulateCoverageMask_EvenOddCoincidentMidRowEdges_ConservesArea`,
+`ScanlineRasterizer_Fill_CoincidentRectangleClip_EqualsUnclippedFill`
+
+The analytic-rectangle tests assert structural properties (rectangle versus dense representation,
+buffer sharing, bounds) and per-pixel equivalence (within `1e-4`) against a dense reference built
+via `ClipMask.FromPathDense`. The rectangle-versus-dense fill test asserts that, away from the clip's
+own edge pixels, the rectangle clip and the equivalent dense clip produce the same pixels (within
+one level per channel) for both fill rules, including single-column and single-row clips. On edge
+pixels the two are _no longer expected to be equal_: the rectangle clip is now applied geometrically
+(exact intersection area) while the dense reference multiplies coverages, so the test instead
+asserts the exact value never exceeds the unclipped fill's coverage and nothing paints outside the
+clip's pixel bounds. Its shape was also changed from a triangle plus a crossing diamond to a
+triangle plus a nested rectangle, because EvenOdd edges crossing inside one pixel are a known
+independent rasterizer approximation (both results differ from the true value there) that this
+comparison must not depend on. The clipped gradient and tile `Fill` overloads are covered by tests
+that fill a full-surface rectangle through a whole-pixel rectangle clip (so the sweep starts at a
+non-zero column) and assert pixel equality with the unclipped fill inside the clip, an empty
+result outside, and equality with the dense-clip result; a fractional-edge gradient test asserts
+half coverage on a half-pixel clip edge; and coincident fill/clip rectangle tests for both paints
+assert that total coverage equals the unclipped fill's. The new tests assert exactness: area conservation of the rasterizer
+within `1e-3` over sub-pixel offsets and sizes for both fill rules, Sutherland-Hodgman clip area
+against the analytic intersection (inside, outside, crossing one/two/four sides, concave,
+hole with both fill rules, degenerate), coincident-edge clips equal to the unclipped fill, a
+rectangle-plus-dense clip applying the rectangle factor once, and EvenOdd area conservation for
+coincident mid-row edges. None of these tests asserts wall-clock time.
 
 Per `testing-principles.md`'s "tests MAY exist without a requirement", these tests exist as
 regression/defensive coverage for `ClipMask` and the internal clip-aware `PathFiller.Fill`/
@@ -375,17 +431,17 @@ the one genuinely observable, testable behavior change - clipping enforced in re
 narrative). `ClipMaskTests.cs` builds a rectangular `Path`, rasterizes it via `FromPath` under both
 `FillRule` values, and asserts interior/exterior/boundary pixel coverage directly against
 hand-computed expected fractions exactly like `PathFillerTests`'s own antialiasing tests; it
-separately asserts `Intersect` produces the elementwise product of two independently-constructed,
+separately asserts `Intersect` yields the geometric intersection of two independently-constructed,
 only-partially-overlapping rectangular masks (a pixel covered by only one operand, or by neither,
-resolves to zero exactly as a product with a `0` factor must) without mutating either operand, that mismatched
+resolves to zero exactly as an empty overlap must) without mutating either operand, that mismatched
 `Width`/`Height` operands throw `ArgumentException`, that `GetCoverage` returns `0f` for
 out-of-bounds coordinates, and that `FromPath` itself rejects a `null` path, a non-defined
 `FillRule`, and non-positive/non-finite `flattenTolerance`/`width`/`height` arguments with the
 same exception types `PathFiller.Fill`'s own validation uses.
 `PathFiller_Fill_SolidColorWithClip_RestrictsFillToClipCoverage` fills a full-surface rectangle
 through an internal clip-aware `Fill` overload call with a narrower `ClipMask` supplied, asserting
-the fill paints only where the clip mask itself has non-zero coverage - directly exercising the
-`CoverageSweep`-level `clip.GetCoverage(x, y)` multiplication described in _PathFiller Unit
+the fill paints only where the clip mask itself has non-zero coverage - exercising the
+rectangle geometric clip and dense multiply described in _PathFiller Unit
 Design_'s `ClipMask` subsection. `PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload`
 calls the same internal overload with an explicit `null` clip and asserts the result is pixel-for-
 pixel identical to calling the public, clip-less `Fill` overload - proving `clip: null` is a

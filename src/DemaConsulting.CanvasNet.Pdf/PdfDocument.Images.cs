@@ -906,12 +906,14 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Composites a decoded image onto the destination surface, mapping the image's unit
     ///     square (<c>[0, 1] x [0, 1]</c>) through <paramref name="ctm"/> onto device space and
-    ///     sampling the nearest source pixel for every destination pixel in the transformed
-    ///     footprint's device-space bounding box.
+    ///     sampling the source for every destination pixel in the transformed footprint's
+    ///     device-space bounding box.
     /// </summary>
     /// <remarks>
-    ///     Nearest-neighbor sampling only - no bilinear interpolation - a documented Phase 3
-    ///     simplification. A non-invertible (degenerate) <paramref name="ctm"/> silently paints
+    ///     When the image is enlarged or drawn 1:1, the nearest source pixel is sampled (no
+    ///     interpolation). When it is shrunk, it is first (when the reduction is 1.5:1 or more) area-averaged once per draw by
+    ///     <c>SurfaceResampler</c> (an integer box prefilter) and is then sampled bilinearly, so thin
+    ///     features such as one-pixel rules are attenuated rather than dropped. A non-invertible (degenerate) <paramref name="ctm"/> silently paints
     ///     nothing, rather than throwing. Per the PDF specification's image-space convention,
     ///     image sample row <c>0</c> is the <em>top</em> of the unit square (the opposite of
     ///     user-space's y-up convention): <c>row = floor((1 - v) * image.Height)</c>. Each sampled
@@ -940,6 +942,25 @@ public sealed partial class PdfDocument
             return;
         }
 
+        var pixelToDevice = Matrix3x2.CreateScale(1f / image.Width, -1f / image.Height) * Matrix3x2.CreateTranslation(0f, 1f) * ctm;
+        var sampled = SurfaceResampler.Prefilter(image, pixelToDevice, out var bilinear);
+        var reduced = !ReferenceEquals(sampled, image);
+        try
+        {
+            CompositeSampledImage(image, sampled, bilinear, ctm, inverse);
+        }
+        finally
+        {
+            if (reduced)
+            {
+                sampled.Dispose();
+            }
+        }
+    }
+
+    /// <summary>Paints <paramref name="sampled"/> (the original or its prefiltered reduction) through <paramref name="ctm"/>.</summary>
+    private void CompositeSampledImage(Surface image, Surface sampled, bool bilinear, Matrix3x2 ctm, Matrix3x2 inverse)
+    {
         var clip = _gs?.Clip;
         var corner00 = Vector2.Transform(new Vector2(0, 0), ctm);
         var corner10 = Vector2.Transform(new Vector2(1, 0), ctm);
@@ -975,9 +996,18 @@ public sealed partial class PdfDocument
                     continue;
                 }
 
-                var column = Math.Clamp((int)Math.Floor(u * image.Width), 0, image.Width - 1);
-                var row = Math.Clamp((int)Math.Floor((1 - v) * image.Height), 0, image.Height - 1);
-                var sourcePixel = image[column, row];
+                Rgba32 sourcePixel;
+                if (bilinear)
+                {
+                    sourcePixel = SurfaceResampler.SampleBilinear(sampled, u, 1 - v);
+                }
+                else
+                {
+                    var column = Math.Clamp((int)Math.Floor(u * image.Width), 0, image.Width - 1);
+                    var row = Math.Clamp((int)Math.Floor((1 - v) * image.Height), 0, image.Height - 1);
+                    sourcePixel = image[column, row];
+                }
+
                 if (clipCoverage < 1f)
                 {
                     // Round the same way Surface's own compositing pipeline does (AwayFromZero,

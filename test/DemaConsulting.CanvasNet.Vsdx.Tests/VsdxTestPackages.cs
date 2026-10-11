@@ -57,12 +57,12 @@ internal static class VsdxTestPackages
         """;
 
     /// <summary>Builds a one-page <c>visio/pages/pages.xml</c>, whose single <c>&lt;Page&gt;</c> declares a <c>&lt;Rel r:id="rId1"/&gt;</c> to its own content part.</summary>
-    public static string BuildPagesXml() =>
-        """
+    public static string BuildPagesXml(string? pageSheetExtraXml = null) =>
+        $"""
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <Pages xmlns="http://schemas.microsoft.com/office/visio/2012/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
           <Page ID="0" Name="Page-1" NameU="Page-1">
-            <PageSheet><Cell N="PageWidth" V="8.5"/><Cell N="PageHeight" V="11"/></PageSheet>
+            <PageSheet><Cell N="PageWidth" V="8.5"/><Cell N="PageHeight" V="11"/>{pageSheetExtraXml}</PageSheet>
             <Rel r:id="rId1"/>
           </Page>
         </Pages>
@@ -167,7 +167,8 @@ internal static class VsdxTestPackages
     /// <param name="mastersXml">The optional literal <c>&lt;Shape&gt;</c> markup for a single Master (<c>ID="1"</c>); when supplied, the package also declares the <c>masters</c> relationship and parts.</param>
     /// <param name="connectsXml">The optional literal <c>&lt;Connect .../&gt;</c> markup for the page's <c>&lt;Connects&gt;</c> section - see <see cref="BuildPageContentXml"/>.</param>
     /// <param name="theme1Xml">The optional literal <c>&lt;a:theme&gt;...&lt;/a:theme&gt;</c> markup for <c>visio/theme/theme1.xml</c>; when supplied, the package also declares the <c>theme</c> relationship and part.</param>
-    public static Stream BuildPackage(string pageShapesXml, string? styleSheetsXml = null, string? mastersXml = null, string? connectsXml = null, string? theme1Xml = null)
+    /// <param name="pageSheetExtraXml">Optional extra markup appended inside the page's <c>&lt;PageSheet&gt;</c> (for example a <c>Section N="Layer"</c>).</param>
+    public static Stream BuildPackage(string pageShapesXml, string? styleSheetsXml = null, string? mastersXml = null, string? connectsXml = null, string? theme1Xml = null, string? pageSheetExtraXml = null)
     {
         var entries = new List<(string Name, string Content)>
         {
@@ -175,7 +176,7 @@ internal static class VsdxTestPackages
             ("_rels/.rels", PackageRelsXml),
             ("visio/document.xml", BuildDocumentXml(styleSheetsXml)),
             ("visio/_rels/document.xml.rels", BuildDocumentRelsXml(includeMasters: mastersXml is not null, includeTheme: theme1Xml is not null)),
-            ("visio/pages/pages.xml", BuildPagesXml()),
+            ("visio/pages/pages.xml", BuildPagesXml(pageSheetExtraXml)),
             ("visio/pages/_rels/pages.xml.rels", BuildPagesRelsXml()),
             ("visio/pages/page1.xml", BuildPageContentXml(pageShapesXml, connectsXml))
         };

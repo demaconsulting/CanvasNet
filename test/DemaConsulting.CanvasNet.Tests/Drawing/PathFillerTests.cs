@@ -727,5 +727,324 @@ public class PathFillerTests
         Assert.Equal((byte)255, surface[0, 0].A);
         Assert.Equal((byte)255, surface[1, 1].A);
     }
+
+    /// <summary>
+    ///     Proves a clip-aware fill through an analytic rectangle clip matches the same fill through
+    ///     the equivalent dense clip away from the clip's edge pixels (within one level per
+    ///     channel), and that on edge pixels the rectangle result never exceeds the unclipped fill's
+    ///     coverage and nothing paints outside the clip's pixel bounds. Covers fractional and
+    ///     whole-pixel clip rectangles, including single-column, single-row, and single-pixel clips
+    ///     (for which every pixel is an edge pixel, so only the bounded-edge and outside-is-empty
+    ///     assertions apply).
+    /// </summary>
+    [Theory]
+    [InlineData(5f, 6f, 25f, 22f)]
+    [InlineData(5.3f, 6.6f, 25.4f, 22.2f)]
+    [InlineData(7.25f, 3f, 8f, 28f)]
+    [InlineData(3f, 9.5f, 29f, 10.25f)]
+    [InlineData(7.25f, 9.5f, 7.75f, 10.25f)]
+    public void PathFiller_Fill_RectangleClipVersusDenseClip_InteriorMatchesAndEdgesAreBounded(float l, float t, float r, float b)
+    {
+        // Arrange: a triangle with a (non-crossing) rectangular subpath, filled with both fill rules
+        var clipPath = new PathBuilder()
+            .MoveTo(new Vector2(l, t)).LineTo(new Vector2(r, t)).LineTo(new Vector2(r, b)).LineTo(new Vector2(l, b))
+            .Close().Build();
+        var shape = new PathBuilder()
+            .MoveTo(new Vector2(2, 3)).LineTo(new Vector2(30, 12.5f)).LineTo(new Vector2(9, 29)).Close()
+            .MoveTo(new Vector2(10.3f, 10.2f)).LineTo(new Vector2(18.4f, 10.2f)).LineTo(new Vector2(18.4f, 16.1f)).LineTo(new Vector2(10.3f, 16.1f)).Close()
+            .Build();
+        var rectClip = ClipMask.FromPath(clipPath, FillRule.NonZero, 32, 32);
+        var denseClip = ClipMask.FromPathDense(clipPath, FillRule.NonZero, 32, 32);
+        var color = new Rgba32(200, 40, 90, 255);
+
+        foreach (var rule in new[] { FillRule.NonZero, FillRule.EvenOdd })
+        {
+            using var withRect = new Surface(32, 32);
+            using var withDense = new Surface(32, 32);
+
+            // Act
+            PathFiller.Fill(withRect, shape, color, rectClip, rule);
+            PathFiller.Fill(withDense, shape, color, denseClip, rule);
+
+            // Assert: away from the clip's own edge pixels the two clips are identical within one
+            // level per channel. On edge pixels the rectangle clip is now applied geometrically
+            // (exact area of fill-intersect-clip), whereas the dense reference multiplies fill
+            // coverage by clip coverage (an independence approximation that can be higher or lower
+            // than the exact value). The exact value can never exceed the unclipped fill's own
+            // coverage, and nothing is painted outside the clip's pixel bounds.
+            Assert.True(rectClip.IsRectangle);
+            Assert.False(denseClip.IsRectangle);
+            using var unclipped = new Surface(32, 32);
+            PathFiller.Fill(unclipped, shape, color, null, rule);
+            var minX = (int)MathF.Floor(l);
+            var maxX = (int)MathF.Ceiling(r) - 1;
+            var minY = (int)MathF.Floor(t);
+            var maxY = (int)MathF.Ceiling(b) - 1;
+            for (var y = 0; y < 32; y++)
+            {
+                for (var x = 0; x < 32; x++)
+                {
+                    var p = withRect[x, y];
+                    var q = withDense[x, y];
+                    var onEdge = x <= minX || x >= maxX || y <= minY || y >= maxY;
+                    if (x < minX || x > maxX || y < minY || y > maxY)
+                    {
+                        Assert.Equal(default, p);
+                    }
+                    else if (onEdge)
+                    {
+                        Assert.True(p.A <= unclipped[x, y].A + 1, $"{rule} edge ({x},{y}) rect={p.A} dense={q.A} plain={unclipped[x, y].A}");
+                    }
+                    else
+                    {
+                        Assert.InRange(Math.Abs(p.R - q.R), 0, 1);
+                        Assert.InRange(Math.Abs(p.G - q.G), 0, 1);
+                        Assert.InRange(Math.Abs(p.B - q.B), 0, 1);
+                        Assert.True(Math.Abs(p.A - q.A) <= 1, $"{rule} ({x},{y}) rect={p.A} dense={q.A} plain={unclipped[x, y].A}");
+                    }
+                }
+            }
+        }
+    }
+
+    private static Path RectanglePath(float l, float t, float r, float b) =>
+        new PathBuilder()
+            .MoveTo(new Vector2(l, t)).LineTo(new Vector2(r, t)).LineTo(new Vector2(r, b)).LineTo(new Vector2(l, b))
+            .Close().Build();
+
+    private static double AlphaSum(Surface surface)
+    {
+        double sum = 0;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                sum += surface[x, y].A / 255.0;
+            }
+        }
+
+        return sum;
+    }
+
+    /// <summary>
+    ///     Proves a rectangle clip coincident with the fill's rectangle (fractional edges) does not
+    ///     attenuate the edge pixels: edge pixel coverage equals the unclipped fill's, rather than
+    ///     its square.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_RectangleClipCoincidentWithFill_DoesNotAttenuateEdges()
+    {
+        for (var i = 0; i < 50; i++)
+        {
+            var t = 5 + (i * 0.019f);
+            var b = t + 0.4f + (i * 0.021f);
+            var path = RectanglePath(3.3f, t, 28.6f, b);
+            var clip = ClipMask.FromPath(path, FillRule.NonZero, 32, 32);
+            using var plain = new Surface(32, 32);
+            using var clipped = new Surface(32, 32);
+
+            PathFiller.Fill(plain, path, new Rgba32(0, 0, 0, 255), null, FillRule.NonZero);
+            PathFiller.Fill(clipped, path, new Rgba32(0, 0, 0, 255), clip, FillRule.NonZero);
+
+            Assert.Equal(AlphaSum(plain), AlphaSum(clipped), 1e-9);
+            Assert.Equal(plain[3, 5].A, clipped[3, 5].A);
+        }
+    }
+
+    /// <summary>
+    ///     Proves a clip narrower than the fill paints exactly the geometric intersection area
+    ///     (within 8-bit quantization), for fractional clip and fill edges.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_NarrowerRectangleClip_PaintsGeometricIntersection()
+    {
+        var fill = RectanglePath(2.2f, 5.35f, 29.7f, 7.1f);
+        var clip = ClipMask.FromPath(RectanglePath(6.4f, 5.9f, 20.3f, 12.5f), FillRule.NonZero, 32, 32);
+        using var surface = new Surface(32, 32);
+
+        PathFiller.Fill(surface, fill, new Rgba32(0, 0, 0, 255), clip, FillRule.NonZero);
+
+        var expected = (20.3 - 6.4) * (7.1 - 5.9);
+        Assert.Equal(expected, AlphaSum(surface), 0.1);
+    }
+
+    /// <summary>
+    ///     Proves that for a clip combining a dense mask with a rectangle, the rectangle is not
+    ///     counted twice at a coincident fill edge: only one rectangle factor (from the geometry)
+    ///     appears, the dense mask contributes its own coverage.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_DenseClipRestrictedByRectangle_AppliesRectangleOnce()
+    {
+        var circle = new PathBuilder();
+        const float Cx = 32;
+        const float Cy = 32;
+        const float Radius = 30;
+        circle.MoveTo(new Vector2(Cx + Radius, Cy));
+        for (var i = 1; i <= 96; i++)
+        {
+            var a = i * MathF.PI * 2 / 96;
+            circle.LineTo(new Vector2(Cx + (Radius * MathF.Cos(a)), Cy + (Radius * MathF.Sin(a))));
+        }
+
+        var dense = ClipMask.FromPathDense(circle.Close().Build(), FillRule.NonZero, 64, 64);
+        var rectPath = RectanglePath(20.5f, 22.5f, 44.25f, 40f);
+        var clip = dense.Intersect(ClipMask.FromPath(rectPath, FillRule.NonZero, 64, 64));
+        using var surface = new Surface(64, 64);
+
+        PathFiller.Fill(surface, rectPath, new Rgba32(0, 0, 0, 255), clip, FillRule.NonZero);
+
+        // Left edge column 20 has fractional coverage 0.5 (not 0.25), interior is opaque
+        Assert.InRange(surface[20, 30].A, 127, 129);
+        Assert.Equal(255, surface[30, 30].A);
+        Assert.InRange(surface[30, 22].A, 127, 129);
+        Assert.Equal(0, surface[19, 30].A);
+    }
+
+    private static LinearGradient CreateHorizontalGradient() =>
+        new(new Vector2(0, 0), new Vector2(32, 0),
+        [
+            new GradientStop(0f, new Rgba32(255, 0, 0, 255)),
+            new GradientStop(1f, new Rgba32(0, 0, 255, 255)),
+        ]);
+
+    private static TilePaint CreateTilePaint()
+    {
+        var tileSurface = new Surface(2, 2);
+        tileSurface[0, 0] = new Rgba32(255, 0, 0, 255);
+        tileSurface[1, 0] = new Rgba32(0, 0, 255, 255);
+        tileSurface[0, 1] = new Rgba32(0, 0, 255, 255);
+        tileSurface[1, 1] = new Rgba32(255, 0, 0, 255);
+        return new TilePaint(tileSurface, Matrix3x2.Identity, 2f, 2f);
+    }
+
+    /// <summary>
+    ///     Proves a gradient fill through a whole-pixel rectangle clip (so the sweep starts at a
+    ///     non-zero column) paints exactly the unclipped gradient's pixels inside the clip and
+    ///     nothing outside, matching the dense-clip result.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_GradientWithRectangleClip_MatchesUnclippedInsideAndDenseClip()
+    {
+        var full = RectanglePath(0, 0, 32, 32);
+        var clipPath = RectanglePath(8, 4, 20, 12);
+        var rectClip = ClipMask.FromPath(clipPath, FillRule.NonZero, 32, 32);
+        var denseClip = ClipMask.FromPathDense(clipPath, FillRule.NonZero, 32, 32);
+        var gradient = CreateHorizontalGradient();
+        using var plain = new Surface(32, 32);
+        using var withRect = new Surface(32, 32);
+        using var withDense = new Surface(32, 32);
+
+        PathFiller.Fill(plain, full, gradient, null, FillRule.NonZero);
+        PathFiller.Fill(withRect, full, gradient, rectClip, FillRule.NonZero);
+        PathFiller.Fill(withDense, full, gradient, denseClip, FillRule.NonZero);
+
+        Assert.True(rectClip.IsRectangle);
+        for (var y = 0; y < 32; y++)
+        {
+            for (var x = 0; x < 32; x++)
+            {
+                var inside = x >= 8 && x < 20 && y >= 4 && y < 12;
+                Assert.Equal(inside ? plain[x, y] : default, withRect[x, y]);
+                Assert.Equal(withDense[x, y], withRect[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves a gradient fill through a fractional rectangle clip paints the geometric
+    ///     intersection coverage on the clip's edge pixels (half coverage for a half-pixel edge)
+    ///     and the gradient color at the shifted column.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_GradientWithFractionalRectangleClip_PaintsGeometricEdgeCoverage()
+    {
+        var full = RectanglePath(0, 0, 32, 32);
+        var clip = ClipMask.FromPath(RectanglePath(8.5f, 4, 20, 12), FillRule.NonZero, 32, 32);
+        using var plain = new Surface(32, 32);
+        using var clipped = new Surface(32, 32);
+
+        PathFiller.Fill(plain, full, CreateHorizontalGradient(), null, FillRule.NonZero);
+        PathFiller.Fill(clipped, full, CreateHorizontalGradient(), clip, FillRule.NonZero);
+
+        Assert.Equal(0, clipped[7, 6].A);
+        Assert.InRange(clipped[8, 6].A, 127, 129);
+        Assert.Equal(plain[9, 6], clipped[9, 6]);
+        Assert.Equal(plain[19, 6], clipped[19, 6]);
+        Assert.Equal(0, clipped[20, 6].A);
+    }
+
+    /// <summary>
+    ///     Proves a gradient fill whose rectangle is coincident with a fractional rectangle clip
+    ///     is not attenuated at the shared edges: total coverage equals the unclipped fill's.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_GradientRectangleClipCoincidentWithFill_DoesNotAttenuateEdges()
+    {
+        var path = RectanglePath(3.3f, 5.2f, 28.6f, 9.7f);
+        var clip = ClipMask.FromPath(path, FillRule.NonZero, 32, 32);
+        using var plain = new Surface(32, 32);
+        using var clipped = new Surface(32, 32);
+
+        PathFiller.Fill(plain, path, CreateHorizontalGradient(), null, FillRule.NonZero);
+        PathFiller.Fill(clipped, path, CreateHorizontalGradient(), clip, FillRule.NonZero);
+
+        Assert.Equal(AlphaSum(plain), AlphaSum(clipped), 1e-9);
+        Assert.Equal(plain[3, 6].A, clipped[3, 6].A);
+    }
+
+    /// <summary>
+    ///     Proves a tile-paint fill through a whole-pixel rectangle clip paints exactly the
+    ///     unclipped tile pixels inside the clip and nothing outside, matching the dense-clip
+    ///     result.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_TileWithRectangleClip_MatchesUnclippedInsideAndDenseClip()
+    {
+        var full = RectanglePath(0, 0, 32, 32);
+        var clipPath = RectanglePath(7, 5, 19, 13);
+        var rectClip = ClipMask.FromPath(clipPath, FillRule.NonZero, 32, 32);
+        var denseClip = ClipMask.FromPathDense(clipPath, FillRule.NonZero, 32, 32);
+        var paint = CreateTilePaint();
+        using var plain = new Surface(32, 32);
+        using var withRect = new Surface(32, 32);
+        using var withDense = new Surface(32, 32);
+
+        PathFiller.Fill(plain, full, paint, null, FillRule.NonZero);
+        PathFiller.Fill(withRect, full, paint, rectClip, FillRule.NonZero);
+        PathFiller.Fill(withDense, full, paint, denseClip, FillRule.NonZero);
+
+        for (var y = 0; y < 32; y++)
+        {
+            for (var x = 0; x < 32; x++)
+            {
+                var inside = x >= 7 && x < 19 && y >= 5 && y < 13;
+                Assert.Equal(inside ? plain[x, y] : default, withRect[x, y]);
+                Assert.Equal(withDense[x, y], withRect[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves a tile-paint fill whose rectangle is coincident with a fractional rectangle clip
+    ///     is not attenuated at the shared edges: total coverage equals the unclipped fill's.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_TileRectangleClipCoincidentWithFill_DoesNotAttenuateEdges()
+    {
+        var path = RectanglePath(3.3f, 5.2f, 28.6f, 9.7f);
+        var clip = ClipMask.FromPath(path, FillRule.NonZero, 32, 32);
+        var paint = CreateTilePaint();
+        using var plain = new Surface(32, 32);
+        using var clipped = new Surface(32, 32);
+
+        PathFiller.Fill(plain, path, paint, null, FillRule.NonZero);
+        PathFiller.Fill(clipped, path, paint, clip, FillRule.NonZero);
+
+        Assert.Equal(AlphaSum(plain), AlphaSum(clipped), 1e-9);
+        Assert.Equal(plain[3, 6].A, clipped[3, 6].A);
+    }
 }
+
+
 

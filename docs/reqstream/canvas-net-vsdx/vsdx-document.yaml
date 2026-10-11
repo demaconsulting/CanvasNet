@@ -193,6 +193,8 @@ sections:
               - Geometry_EllipticalArcToRow_ConvertsToArcReachingDestination
               - Geometry_ArcToRow_ConvertsToArcWithBowDerivedRadius
               - Geometry_ArcToRow_ZeroBow_DegradesToLineTo
+              - Geometry_EllipseRow_ProducesClosedFourQuadrantSubpath
+              - Geometry_RelativeBezierRows_AreScaledAndKept
 
           - id: CanvasNetVsdx-VsdxDocument-ShapeTransform
             title: >-
@@ -818,3 +820,93 @@ sections:
               TxtAngle == 0 case.
             tests:
               - ResolveTextToPixelTransform_ComposesTxtAngleRotationAboutTextBoxPin
+
+          - id: CanvasNetVsdx-VsdxDocument-UnsupportedFeatureReporting
+            title: >-
+              The VsdxDocument class shall never silently degrade a detected unsupported Visio
+              construct (an unrecognized geometry row type, an unmapped arrowhead index, an
+              unsupported or approximated LinePattern, unsupported text features, or an
+              unresolvable themed color): Render shall report each distinct unsupported feature on
+              the page,
+              once per Render call, to VsdxRenderOptions.UnsupportedFeatureHandler (a stable
+              feature token plus message), and shall throw VsdxUnsupportedFeatureException
+              carrying that token when VsdxRenderOptions.ThrowOnUnsupportedFeature is set, while
+              rendering tolerantly (no throw, no report) under the default options. A non-solid
+              FillPattern (solid-fill degradation) and a dangling Connect target (skipped glue
+              resolution) are documented tolerant degradations and are not reported.
+            justification: |
+              A fidelity audit of a real-world schematic found that several constructs (an
+              unrecognized geometry row type, an unmapped arrowhead index) were skipped with no
+              signal at all, so callers could not tell a faithful render from an approximated one.
+              A callback plus an opt-in strict mode makes degradation observable and testable
+              without breaking the existing tolerant-by-default contract.
+            tests:
+              - Render_UnsupportedConstructs_ReportedOncePerDistinctFeaturePerRender
+              - Render_UnsupportedConstructs_DefaultOptionsDoNotThrow
+              - Render_UnsupportedConstructs_StrictModeThrowsWithFeatureToken
+              - Render_FullySupportedPage_ReportsNothing
+              - Render_UnresolvableThemedFill_ReportsThemedColor
+
+          - id: CanvasNetVsdx-VsdxDocument-LinePattern
+            title: >-
+              The VsdxDocument class shall render a shape's resolved LinePattern as a dash array
+              scaled by the line weight (solid for 0/1, dash, dot, dash-dot and dash-dot-dot for
+              2-5), and shall report approximated (6-22) and unsupported (custom 23 and above)
+              patterns through the unsupported-feature channel, drawing the latter solid.
+            justification: |
+              A real-world schematic uses dashed container outlines and connectors; drawing them
+              solid misrepresents the diagram.
+            tests:
+              - Render_LinePatternSolid_IsOneRun
+              - Render_LinePatternDashed_IsBrokenIntoRuns
+              - Render_LinePatternDot_HasMoreRunsThanDash
+              - Render_LinePatternCustom_ReportedAndSolid
+              - Render_LinePatternApproximated_Reported
+
+          - id: CanvasNetVsdx-VsdxDocument-TextDecoration
+            title: >-
+              The VsdxDocument class shall render the Character section's underline (Style bit 2),
+              Strikethru, DoubleStrikethrough and Overline as filled bars spanning the decorated
+              text (including spaces), apply small caps (Style bit 3), Case=1 all caps and
+              ColorTrans, and report unsupported Pos and initial-caps cells.
+            justification: |
+              A real-world schematic underlines its headings; dropping decorations changes the
+              meaning and appearance of the text.
+            tests:
+              - TextDecoration_StyleBit2_ProducesUnderlineBarBelowBaseline
+              - TextDecoration_Underline_AddsInkWhenRendered
+              - TextDecoration_StrikeDoubleStrikeOverline_ProduceBars
+              - TextDecoration_None_ProducesNoBars
+              - TextDecoration_MultipleDecorationsAcrossTokens_OneBarPerKind
+              - TextDecoration_UnderlineAcrossSmallCaps_IsOneBar
+              - TextCase_SmallCapsAndAllCaps_TransformRuns
+              - TextColor_Transparency_ReducesAlpha
+              - TextPos_Superscript_IsReported
+
+          - id: CanvasNetVsdx-VsdxDocument-GlyphFallback
+            title: >-
+              The VsdxDocument class shall draw and measure a code point that a run's font lacks
+              with a fallback font that covers it (searched in the installed-font catalog) rather
+              than the missing-glyph box, and report vsdx-text-missing-glyph when no font does.
+            justification: |
+              Symbols such as U+2794 are commonly typed in Calibri/Arial runs that lack them;
+              Visio substitutes a font per glyph.
+            tests:
+              - GlyphFallback_MissingCodePoint_UsesFallbackFontAndAdvance
+              - GlyphFallback_CoveredCodePoint_DoesNotConsultFallback
+              - GlyphFallback_NoFontCoversCodePoint_KeepsPrimaryGlyph
+              - GlyphFallback_DefaultResolver_ReturnsCoveringFontOrNull
+
+          - id: CanvasNetVsdx-VsdxDocument-LayerVisibility
+            title: >-
+              The VsdxDocument class shall not paint a shape, nor anything inside it, whose
+              LayerMember cell places it only on layers that are not Visible or not Print on its
+              page, while a shape on at least one shown layer, on no layer, or on unknown layers
+              remains visible; fully transparent text (ColorTrans=1) shall paint no ink.
+            justification: |
+              Visio's own export omits content on hidden and non-printing layers; a real-world
+              schematic carries annotation text on a non-printing layer that CanvasNet drew.
+            tests:
+              - Render_LayerMember_HonorsVisibleAndPrint
+              - Render_HiddenLayerGroup_HidesChildren
+              - Render_FullyTransparentText_PaintsNothing
