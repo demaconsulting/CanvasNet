@@ -117,7 +117,8 @@ public class CanvasNetTests
         // Act
         using var result = source.Resize(9, 1, ResamplingMode.Bicubic);
 
-        // Assert: every visible pixel is still red
+        // Assert: the left edge is clearly visible, and every visible pixel is still red
+        Assert.InRange(result[0, 0].A, 250, 255);
         for (var x = 0; x < 9; x++)
         {
             var p = result[x, 0];

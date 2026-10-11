@@ -671,6 +671,58 @@ public class ScanlineRasterizerTests
     }
 
     /// <summary>
+    ///     Proves that a narrow <c>EvenOdd</c> shape whose rows have several mid-row breakpoints, filled
+    ///     with no clip on a wide surface, changes only the pixels it covers: every column outside the
+    ///     shape and every row it does not reach keeps its original pixel exactly.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_EvenOddMultipleBreakpointsNoClip_LeavesUncoveredPixelsUntouched()
+    {
+        // Arrange: the nested rectangles span only column 0 of a 12-wide opaque blue surface
+        static List<Vector2> Rectangle(float top, float bottom) =>
+        [
+            new Vector2(0, top),
+            new Vector2(1, top),
+            new Vector2(1, bottom),
+            new Vector2(0, bottom),
+            new Vector2(0, top)
+        ];
+
+        var background = new Rgba32(0, 0, 255, 255);
+        using var surface = new Surface(12, 26);
+        for (var y = 0; y < 26; y++)
+        {
+            for (var x = 0; x < 12; x++)
+            {
+                surface[x, y] = background;
+            }
+        }
+
+        var polygons = new List<List<Vector2>>
+        {
+            Rectangle(6.0f, 20f), Rectangle(6.167f, 19.833f), Rectangle(6.333f, 19.667f), Rectangle(6.5f, 19.5f)
+        };
+
+        // Act
+        ScanlineRasterizer.Fill(surface, polygons, new Rgba32(255, 255, 255, 255), FillRule.EvenOdd, new Rect(0, 0, 12, 26));
+
+        // Assert: the covered pixel changed, and everything else is exactly the background
+        Assert.NotEqual(background, surface[0, 6]);
+        for (var y = 0; y < 26; y++)
+        {
+            for (var x = 0; x < 12; x++)
+            {
+                if (x == 0 && y >= 6 && y <= 19)
+                {
+                    continue;
+                }
+
+                Assert.Equal(background, surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
     ///     Proves that <c>NonZero</c>'s resolution of the very same multi-mid-row-breakpoint
     ///     geometry used by <see cref="ScanlineRasterizer_Fill_EvenOdd_FourNestedRectanglesSameRow_ResolvesPartialCoverageNotFullFill"/>
     ///     is completely unaffected by the <c>EvenOdd</c>-only sub-row-splitting fix: the

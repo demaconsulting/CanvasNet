@@ -884,12 +884,14 @@ internal static class ScanlineRasterizer
         /// </summary>
         private void ApplyClip(int y)
         {
-            if (_clip == null || _spanLength == 0)
+            if (_spanLength == 0)
             {
                 return;
             }
 
-            var dense = _clip.GetDenseRow(y, _clipMinX + _spanStart, _spanLength);
+            var dense = _clip == null
+                ? default
+                : _clip.GetDenseRow(y, _clipMinX + _spanStart, _spanLength);
             if (!dense.IsEmpty)
             {
                 // IEEE single-precision multiply, element-wise: bit-identical to the scalar loop.

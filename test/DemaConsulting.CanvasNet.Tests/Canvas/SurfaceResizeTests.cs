@@ -195,6 +195,7 @@ public class SurfaceResizeTests
         source[2, 0] = new Rgba32(0, 0, 0, 0);
         source[3, 0] = new Rgba32(0, 0, 0, 0);
         using var result = source.Resize(9, 1, mode);
+        Assert.InRange(result[0, 0].A, 250, 255);
         for (var x = 0; x < 9; x++)
         {
             var p = result[x, 0];
