@@ -2247,3 +2247,5 @@ sections:
               - PaintPicture_EnlargedCrop_DoesNotBleedPixelsOutsideCrop
               - PaintPicture_RotatedCrop_DoesNotBleedPixelsOutsideCrop
               - PaintPicture_FractionalCrop_PartiallyCoveredBorderPixelContributes
+              - PaintPicture_FractionalCropOnIntegerBoundary_NoContaminationFromExcludedColumn
+              - PaintPicture_WithNegativeSrcRectEdges_ReplicatesEdgePixelsIntoOverhang

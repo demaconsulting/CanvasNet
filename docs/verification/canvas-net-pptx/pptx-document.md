@@ -1051,7 +1051,13 @@ carrying the `"pptx-image-format"` feature token, and proves null argument valid
 #### CanvasNetPptx-PptxDocument-PictureSmoothResample: Pictures Are Resampled Smoothly
 
 **Tests**: `PaintPicture_EnlargedPicture_IsSmooth`, `PaintPicture_EnlargedCrop_DoesNotBleedPixelsOutsideCrop`,
-`PaintPicture_RotatedCrop_DoesNotBleedPixelsOutsideCrop`, `PaintPicture_FractionalCrop_PartiallyCoveredBorderPixelContributes`
+`PaintPicture_RotatedCrop_DoesNotBleedPixelsOutsideCrop`, `PaintPicture_FractionalCrop_PartiallyCoveredBorderPixelContributes`,
+`PaintPicture_FractionalCropOnIntegerBoundary_NoContaminationFromExcludedColumn`,
+`PaintPicture_WithNegativeSrcRectEdges_ReplicatesEdgePixelsIntoOverhang`
+
+A 45-pixel-wide picture with a 40 percent right or left crop (exactly 18 pixels) excludes the neighboring
+column entirely, so the output stays pure blue. A crop with negative edges on all four sides replicates the
+edge pixels into the overhang strips with no transparent band.
 
 A 2x1 black/white picture painted at 40x4 contains many distinct gray levels instead of two hard blocks.
 An 8x8 picture with two bright-red left columns and six blue columns, cropped with `srcRect` left = 25 percent
