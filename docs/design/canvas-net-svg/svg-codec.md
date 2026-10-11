@@ -1105,7 +1105,8 @@ pixel's own center is inverse-transformed back into grid space, wrapped (modulo)
 own `[0, width) x [0, height)` extent via `WrapCoordinate`, rescaled into the tile buffer's own
 pixel coordinates, and sampled according to the tile scale: exact nearest lookup when the tile is drawn at about one
 device pixel per tile pixel (within 5 percent), wrapped bilinear when magnified, and an `Area`-resized copy of the tile
-(disposed after the fill) when minified - new, isolated, well-commented arithmetic with no existing
+(disposed after the fill) when minified (the sampling step is internal so that unit tests can exercise
+each scale regime directly) - new, isolated, well-commented arithmetic with no existing
 precedent to reuse, since this is a pure C# rasterizer with no native tiled/bitmap-shader
 primitive of any kind. That sample's own alpha is then multiplied by a freshly rasterized
 antialiased fill/stroke coverage buffer (`PathFiller.Fill` into a fresh `Surface`, the same

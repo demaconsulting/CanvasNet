@@ -1050,9 +1050,14 @@ carrying the `"pptx-image-format"` feature token, and proves null argument valid
 
 #### CanvasNetPptx-PptxDocument-PictureSmoothResample: Pictures Are Resampled Smoothly
 
-**Tests**: `PaintPicture_EnlargedPicture_IsSmooth`
+**Tests**: `PaintPicture_EnlargedPicture_IsSmooth`, `PaintPicture_EnlargedCrop_DoesNotBleedPixelsOutsideCrop`,
+`PaintPicture_RotatedCrop_DoesNotBleedPixelsOutsideCrop`
 
 A 2x1 black/white picture painted at 40x4 contains many distinct gray levels instead of two hard blocks.
+An 8x8 picture with two bright-red left columns and six blue columns, cropped with `srcRect` left = 25 percent
+and enlarged (axis-aligned) or rotated 90 degrees, paints only pure blue everywhere (the red outside the crop
+never reaches the crop edge); an exact-equality assertion is valid here because the crop window is isolated
+before resampling.
 
 #### CanvasNetPptx-PptxDocument-PicturePainting: Picture Compositing Without PDF's Y-Flip
 

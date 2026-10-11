@@ -90,6 +90,12 @@ public class PdfDocumentJpxTests
     private static void AssertChannelNear(int expected, int actual, int tolerance = 4) =>
         Assert.True(Math.Abs(expected - actual) <= tolerance, $"expected {expected} actual {actual}");
 
+    /// <summary>
+    ///     Asserts every channel is within <paramref name="tolerance"/> of <paramref name="expected"/>.
+    ///     Tolerance (rather than exactness) is needed because enlarged images are smoothly resampled,
+    ///     which only alters pixels at or next to a source-pixel boundary; the samples asserted here
+    ///     are interior pixels, so a small tolerance still pins the expected color.
+    /// </summary>
     private static void AssertNear(Rgba32 expected, Rgba32 actual, int tolerance = 2)
     {
         Assert.True(Math.Abs(expected.R - actual.R) <= tolerance, $"R expected {expected.R} actual {actual.R}");

@@ -187,6 +187,71 @@ public class PptxImagesTests
         Assert.Equal(new Rgba32(0, 255, 255, 255), surface[1, 3]);
     }
 
+    /// <summary>Builds an 8x8 image whose two left columns are bright red and whose other six columns are blue.</summary>
+    private static Surface BuildRedBorderBlueImage()
+    {
+        var image = new Surface(8, 8);
+        for (var y = 0; y < 8; y++)
+        {
+            for (var x = 0; x < 8; x++)
+            {
+                image[x, y] = x < 2 ? new Rgba32(255, 0, 0, 255) : new Rgba32(0, 0, 255, 255);
+            }
+        }
+
+        return image;
+    }
+
+    /// <summary>Proves pixels outside a <see cref="PptxSrcRect"/> crop do not bleed into the crop edge when an axis-aligned picture is enlarged (the smoothing kernel is confined to the cropped window).</summary>
+    [Fact]
+    public void PaintPicture_EnlargedCrop_DoesNotBleedPixelsOutsideCrop()
+    {
+        // Crop away the two bright-red columns (25 percent of the width) and enlarge the rest 6.67x
+        using var image = BuildRedBorderBlueImage();
+        using var surface = new Surface(40, 40);
+        var srcRect = new PptxSrcRect(Left: 0.25f, Top: 0f, Right: 0f, Bottom: 0f);
+
+        PptxDocument.PaintPicture(surface, image, srcRect, Matrix3x2.Identity, widthEmu: 40f, heightEmu: 40f);
+
+        // Every pixel, including the left crop edge, is pure blue: no red leaks in from outside the crop
+        for (var y = 0; y < 40; y++)
+        {
+            for (var x = 0; x < 40; x++)
+            {
+                Assert.Equal(new Rgba32(0, 0, 255, 255), surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>Proves the crop also does not bleed for a rotated picture (inverse-mapped bilinear path).</summary>
+    [Fact]
+    public void PaintPicture_RotatedCrop_DoesNotBleedPixelsOutsideCrop()
+    {
+        using var image = BuildRedBorderBlueImage();
+        using var surface = new Surface(40, 40);
+        var srcRect = new PptxSrcRect(Left: 0.25f, Top: 0f, Right: 0f, Bottom: 0f);
+        var transform = Matrix3x2.CreateRotation(MathF.PI / 2f) * Matrix3x2.CreateTranslation(40f, 0f);
+
+        PptxDocument.PaintPicture(surface, image, srcRect, transform, widthEmu: 40f, heightEmu: 40f);
+
+        var painted = 0;
+        for (var y = 0; y < 40; y++)
+        {
+            for (var x = 0; x < 40; x++)
+            {
+                if (surface[x, y].A == 0)
+                {
+                    continue;
+                }
+
+                painted++;
+                Assert.Equal(0, surface[x, y].R);
+            }
+        }
+
+        Assert.True(painted > 1000, "the rotated picture should cover most of the surface");
+    }
+
     /// <summary>Proves a <see cref="PptxSrcRect"/> crop re-maps the sampled region: cropping away the left half of a two-tone image leaves only its right (blue) half visible.</summary>
     [Fact]
     public void PaintPicture_WithSrcRectCroppingLeftHalf_SamplesOnlyRightHalf()

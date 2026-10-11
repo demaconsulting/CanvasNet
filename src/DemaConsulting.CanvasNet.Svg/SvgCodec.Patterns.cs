@@ -527,7 +527,7 @@ public static partial class SvgCodec
     /// <param name="tileHeight">The tile rectangle's own <c>height</c>, in grid space. Already validated positive.</param>
     /// <param name="inverseGridTransform">The inverse of the composed grid-space-to-pixel-space transform.</param>
     /// <returns>A new region-sized buffer, ready for <see cref="CompositeFilterResultOntoCanvas"/>.</returns>
-    private static Surface SampleTileIntoRegion(
+    internal static Surface SampleTileIntoRegion(
         Surface tileBuffer,
         Surface coverage,
         int pixelX,

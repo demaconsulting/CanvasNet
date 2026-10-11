@@ -706,12 +706,34 @@ public sealed partial class PptxDocument
         // the pixel-to-device mapping.
         var cropWidth = Math.Max(1e-6f, 1f - left - right);
         var cropHeight = Math.Max(1e-6f, 1f - top - bottom);
+
+        // The srcRect crop must be isolated from the rest of the image. Otherwise the bicubic or
+        // area kernel reads adjacent pixels outside the crop and they bleed into its edge.
+        // So first cut the smallest whole-pixel window containing the crop, and the resampler
+        // folds taps beyond that window into the window's own edge pixels.
+        var cropLeftPx = (double)left * image.Width;
+        var cropTopPx = (double)top * image.Height;
+        var cropWidthPx = (double)cropWidth * image.Width;
+        var cropHeightPx = (double)cropHeight * image.Height;
+        var windowX0 = Math.Clamp((int)Math.Floor(cropLeftPx + 1e-6), 0, image.Width - 1);
+        var windowY0 = Math.Clamp((int)Math.Floor(cropTopPx + 1e-6), 0, image.Height - 1);
+        var windowX1 = Math.Clamp((int)Math.Ceiling(cropLeftPx + cropWidthPx - 1e-6) - 1, windowX0, image.Width - 1);
+        var windowY1 = Math.Clamp((int)Math.Ceiling(cropTopPx + cropHeightPx - 1e-6) - 1, windowY0, image.Height - 1);
+        var windowW = windowX1 - windowX0 + 1;
+        var windowH = windowY1 - windowY0 + 1;
+        var cropped = windowW == image.Width && windowH == image.Height
+            ? null
+            : image.Crop(windowX0, windowY0, windowW, windowH);
+        var source = cropped ?? image;
+        using var croppedOwner = cropped;
+
+        // Maps a source-window pixel to the unit square: add the window origin, subtract the crop origin, divide by the crop size
         var pixelToUnit = new Matrix3x2(
-            1f / (image.Width * cropWidth), 0f,
-            0f, 1f / (image.Height * cropHeight),
-            -left / cropWidth, -top / cropHeight);
+            (float)(1.0 / cropWidthPx), 0f,
+            0f, (float)(1.0 / cropHeightPx),
+            (float)((windowX0 - cropLeftPx) / cropWidthPx), (float)((windowY0 - cropTopPx) / cropHeightPx));
         var pixelToSurface = pixelToUnit * unitToSurface;
-        if (SurfaceResampler.TryResampleToDevice(image, pixelToSurface, surface.Width, surface.Height, ResamplingMode.Auto, out var window, out var originX, out var originY))
+        if (SurfaceResampler.TryResampleToDevice(source, pixelToSurface, surface.Width, surface.Height, ResamplingMode.Auto, out var window, out var originX, out var originY))
         {
             using (window)
             {
@@ -725,8 +747,8 @@ public sealed partial class PptxDocument
         }
 
         // Rotated or skewed pictures: inverse-map each destination pixel and sample the
-        // source (prefiltered when shrinking) bilinearly.
-        var prefiltered = SurfaceResampler.Prefilter(image, pixelToSurface, out _);
+        // source window (prefiltered when shrinking) bilinearly.
+        var prefiltered = SurfaceResampler.Prefilter(source, pixelToSurface, out _);
         try
         {
             for (var y = startY; y <= endY; y++)
@@ -749,8 +771,8 @@ public sealed partial class PptxDocument
                     }
 
                     // Remap the unit-square sample point through the srcRect crop; no (1 - v) flip
-                    var imageU = left + (u * (1f - left - right));
-                    var imageV = top + (v * (1f - top - bottom));
+                    var imageU = (float)((cropLeftPx - windowX0 + (u * cropWidthPx)) / windowW);
+                    var imageV = (float)((cropTopPx - windowY0 + (v * cropHeightPx)) / windowH);
                     var sourcePixel = SurfaceResampler.SampleBilinear(prefiltered, imageU, imageV);
                     surface[x, y] = Rgba32.CompositeOver(surface[x, y], ScaleAlpha(sourcePixel, maskAlpha));
                 }
@@ -758,7 +780,7 @@ public sealed partial class PptxDocument
         }
         finally
         {
-            if (!ReferenceEquals(prefiltered, image))
+            if (!ReferenceEquals(prefiltered, source))
             {
                 prefiltered.Dispose();
             }

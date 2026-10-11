@@ -1469,3 +1469,16 @@ sections:
               - Image_RenderingStyle_IsNearest
               - Image_RenderingStylesheet_IsNearest
               - Image_Shrunk_KeepsOnePixelLine
+
+          - id: CanvasNetSvg-SvgCodec-PatternTileSmoothing
+            title: >-
+              The SvgCodec class shall sample a rendered pattern tile smoothly when the tile is
+              magnified (interpolated), area-average it when minified, and copy it exactly when it
+              is drawn at about one device pixel per tile pixel.
+            justification: |
+              Point sampling a scaled pattern tile produces blocky or aliased fills, while the
+              common device-scale case must stay pixel-exact.
+            tests:
+              - SampleTileIntoRegion_MagnifiedTile_IsSmooth
+              - SampleTileIntoRegion_MinifiedTile_IsAreaAveraged
+              - SampleTileIntoRegion_OneToOneTile_IsExactCopy

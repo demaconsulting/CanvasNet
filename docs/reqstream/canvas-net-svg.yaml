@@ -183,6 +183,7 @@ sections:
           (gradient) and effect (clip-path/mask) support.
         children:
           - CanvasNetSvg-SvgCodec-PatternRendering
+          - CanvasNetSvg-SvgCodec-PatternTileSmoothing
           - CanvasNetSvg-SvgCodec-PatternHrefInheritance
           - CanvasNetSvg-SvgCodec-PatternResourceSafety
         tests:

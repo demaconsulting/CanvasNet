@@ -1090,6 +1090,12 @@ smoothly interpolated (centers keep the source values, boundaries blend, the ram
 `PdfImageResamplingTests.cs` renders a 1940-pixel-wide synthetic grid at nine output sizes (765 to 3672
 pixels wide) and requires that no line goes missing and the ink per line tracks the scale. No timing is asserted.
 
+> **Note on tolerances**: before smooth resampling, image tests compared sampled pixels exactly. Smooth
+> resampling (Catmull-Rom when enlarged, area averaging when shrunk) only alters pixels at or beside a
+> source-pixel boundary or the image edge, so those tests now assert interior samples with a small per-channel
+> tolerance (2 to 4 levels, from sampling slightly off a source pixel center) and use a larger tolerance
+> (16 levels) only for the one soft-mask edge-adjacent sample. The expected colors themselves are unchanged.
+
 #### CanvasNetPdf-PdfDocument-ImageSmoothResample: Axis-Aligned Images Are Resampled Once Per Draw
 
 **Tests**: `Render_GridImage_NoLineMissingAtAnySize`, `Render_ShrunkRotatedImage_KeepsEveryLine`

@@ -783,8 +783,9 @@ its own distinguishable `Feature` token.
   specification's image-space convention, the opposite of user-space's y-up convention). A rotated or
   skewed placement falls back to inverse-mapped bilinear sampling of an area-prefiltered source
   (`Prefilter` + `SampleBilinear`). Thin features such as one-pixel rules are therefore attenuated
-  rather than dropped, and enlarged images are interpolated rather than shown as blocks. Stencil
-  `/ImageMask` images are not implemented, so no `Nearest` special case exists yet. `/Interpolate` is not consulted.
+  rather than dropped, and enlarged images are interpolated rather than shown as blocks. `/ImageMask`
+  stencil images are not rendered by this package (there is no code path for them), so no `Nearest` special
+  case applies. `/Interpolate` is not consulted.
   Each sampled source pixel is alpha-blended "over" the
   existing destination pixel via the shared internal `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)`
   helper (standard Porter-Duff "over" alpha compositing — straight/unassociated alpha in and out,
