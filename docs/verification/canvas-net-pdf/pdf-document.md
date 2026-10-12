@@ -2244,12 +2244,20 @@ throws `InvalidDataException`. Asserts an undeclared pattern name throws
 `PdfDocument_Patterns_ShadingPattern_LongGradient_UsesAdaptiveSampleCount`,
 `PdfDocument_Patterns_ShadingPattern_FunctionArraySubFunctionDomain_ClampsInputToOwnDomain`,
 `PdfDocument_Patterns_ShadingPattern_FunctionArrayWithWideDomain_ShadingDomainMapsToFunctionInput`,
+`PdfDocument_Shading_RadialShrinkingRadius_ExtendsPerEnd`,
+`PdfDocument_Shading_StitchingBound_IsAnExactHardTransition`,
+`PdfDocument_Shading_NestedStitchingBound_IsAnExactHardTransition`,
+`PdfDocument_Shading_FunctionArrayWithDifferentDomains_ClampsEachElementIndependently`,
 `CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors`
 
 The `/Extend` tests assert that an unextended axial/radial shading leaves pixels outside its
 geometry transparent, that `[true true]` (and each single-end variant, also through `sh`) holds
-the end colors, that a radial start extension fills down to the cone vertex, and that a malformed
-`/Extend` throws `InvalidDataException`. The long-gradient test uses a hard-step stitching
+the end colors, that a radial start extension fills down to the cone vertex, that a radial
+shading whose radius shrinks extends its start outward and its end inward independently, and that
+a malformed `/Extend` throws `InvalidDataException`. The stitching-bound tests render a
+1000 px gradient (uniform sample spacing of about 3.9 px) whose black/white switch falls between
+two uniform samples and assert the last pixel before the bound is pure black and the first after
+is pure white, also for a nested stitching function's inner bound. The long-gradient test uses a hard-step stitching
 function over a 1000 px gradient and asserts the step is resolved within a few pixels (only
 possible with more than 32 stops); no timing is asserted. The function-array tests assert a
 sub-function narrower than the shading `/Domain` clamps its input and that a wider shading
@@ -2313,6 +2321,10 @@ actually overlays the fallback rather than remaining invisibly skipped underneat
 **Tests**: `PdfDocument_MeshShading_Type4_Pattern_PaintsOnlyInsideFillAndMesh`,
 `PdfDocument_MeshShading_Type4_Flag1_ContinuesStrip`, `PdfDocument_MeshShading_Type4_Flag2_ContinuesFan`,
 `PdfDocument_MeshShading_Type4_Function_MapsParametricValue`,
+`PdfDocument_MeshShading_Function_NonlinearFunctionAppliedToInterpolatedParameter`,
+`PdfDocument_MeshShading_Function_LookupTableIsInterpolatedBetweenEntries`,
+`PdfDocument_MeshShading_LabColorSpace_VertexColorsAreNaturalUnits`,
+`CanvasNetPdf_SystemIntegration_MeshShadingWithNonlinearFunction_AppliesFunctionToInterpolatedParameter`,
 `PdfDocument_MeshShading_Type4_BitSizeMatrix_RendersSame`,
 `PdfDocument_MeshShading_GrayAndCmykColorSpaces_Render`,
 `PdfDocument_MeshShading_Type5_Lattice_RendersAllCells`,
@@ -2333,7 +2345,12 @@ render every cell and that vertices are padded to a byte boundary. Asserts type 
 interpolate bilinear corner colors and bulge along curved edges, that type 7 with Coons-derived
 interior points matches type 6 (and differs when an interior point moves), and that patch
 continuation flags 1-3 inherit the previous edge and colors. Asserts `/Background` paints beneath
-a pattern fill, and that `/Matrix` and stroking apply to the mesh.
+a pattern fill, and that `/Matrix` and stroking apply to the mesh. A nonlinear function
+(`f(t) = t^2`) test, in both a unit and a system-integration form, asserts the function is applied
+to the interpolated parameter (midpoint maps to about 0.25, not the 0.5 of a vertex-color blend).
+A steep stitched ramp, probed at a parameter halfway between two table entries, asserts the
+256-entry color table is linearly interpolated rather than snapped to the nearest entry. A `/Lab`
+mesh asserts vertex components are read in natural Lab units (L 0-100) and converted to sRGB.
 
 #### CanvasNetPdf-PdfDocument-MeshShadingOperator: sh Paints Mesh Shadings
 

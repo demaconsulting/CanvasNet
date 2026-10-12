@@ -1409,7 +1409,11 @@ its own distinguishable `Feature` token.
   `ResolveFunctionGeneric` above. The resolved shading samples its function(s) at evenly spaced
   points across `/Domain` — one sample per device pixel of gradient length (axial: the
   transformed `/Coords` vector; radial: the larger of the sweep length and the diameter sum,
-  scaled by the larger matrix axis scale), rounded up and clamped to 32..256 samples — converts
+  scaled by the larger matrix axis scale), rounded up and clamped to 32..256 samples — plus an exact
+  hard stop (a sample just before and one at the boundary) at every function breakpoint
+  (`IPdfFunction.Breakpoints`: a stitching function's `/Bounds`, including nested stitching
+  functions mapped back through `/Encode`, and the union over a `/Function` array's elements; capped
+  at 256) so abrupt transitions stay sharp between uniform samples — converts
   each sample through `ColorFromComponents`, and builds
   one `Drawing.GradientStop` per sample to construct a `Drawing.LinearGradient` (`ShadingType 2`)
   or `Drawing.RadialGradient` (`ShadingType 3`) whose `Transform` is the pattern's own `/Matrix`
@@ -1496,7 +1500,9 @@ its own distinguishable `Feature` token.
   requires the shading to be a stream and validates `/BitsPerCoordinate` (1/2/4/8/12/16/24/32),
   `/BitsPerComponent` (1/2/4/8/12/16), `/BitsPerFlag` (2/4/8; not used by type 5), `/Decode`
   (4 + 2n finite entries) and `/VerticesPerRow` (type 5, at least 2), plus an optional `/Function`
-  (one parametric component, sampled into a 256-entry lookup table across the `/Decode` t range;
+  (one parametric component, sampled into a 256-entry lookup table across the `/Decode` t range and
+  linearly interpolated between adjacent entries per pixel; the function is applied to the
+  _interpolated_ t, per PDF 32000-1 §8.7.4.5.5-.8, never to the vertices beforehand;
   Type 4 functions are accepted when single-input) and `/Background`. An `/Indexed` mesh color space is accepted
   only without a `/Function` (vertex components are palette indices). Type 4 reads free-form triangles
   (flag 0 starts a triangle, 1 reuses the previous edge vb-vc, 2 reuses va-vc); type 5 reads a lattice

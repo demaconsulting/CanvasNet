@@ -376,4 +376,5 @@ sections:
           - CanvasNetPdf-PdfDocument-MeshShadingFailClosed
         tests:
           - CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors
+          - CanvasNetPdf_SystemIntegration_MeshShadingWithNonlinearFunction_AppliesFunctionToInterpolatedParameter
           - CanvasNetPdf_SystemIntegration_ColoredTilingPatternFill_PaintsRepeatingTileColors

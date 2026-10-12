@@ -31,7 +31,10 @@ public sealed partial class PdfDocument
     /// </summary>
     internal const long MaxMeshRasterPixels = 1L << 28;
 
-    /// <summary>The number of entries in the color lookup table used for meshes with a <c>/Function</c>.</summary>
+    /// <summary>
+    ///     The number of entries in the color lookup table used for meshes with a <c>/Function</c>;
+    ///     adjacent entries are linearly interpolated when a pixel's parametric value falls between them.
+    /// </summary>
     private const int MeshFunctionLutSize = 256;
 
     /// <summary>
@@ -843,13 +846,24 @@ public sealed partial class PdfDocument
         {
             if (_lut is not null)
             {
+                // Linear interpolation between adjacent table entries (not nearest-entry).
                 var fraction = _tRange == 0 ? 0 : (a - _tMin) / _tRange;
-                var index = (int)Math.Round(Math.Clamp(fraction, 0, 1) * (_lut.Length - 1));
-                return _lut[index];
+                var position = Math.Clamp(fraction, 0, 1) * (_lut.Length - 1);
+                var lower = (int)Math.Floor(position);
+                var upper = Math.Min(lower + 1, _lut.Length - 1);
+                var weight = position - lower;
+                var lo = _lut[lower];
+                var hi = _lut[upper];
+                return weight <= 0
+                    ? lo
+                    : new Rgba32(Lerp(lo.R, hi.R, weight), Lerp(lo.G, hi.G, weight), Lerp(lo.B, hi.B, weight), Lerp(lo.A, hi.A, weight));
             }
 
             return new Rgba32(ClampByte(a), ClampByte(b), ClampByte(c), 255);
         }
+
+        private static byte Lerp(byte from, byte to, double weight) =>
+            (byte)Math.Clamp(Math.Round(from + ((to - from) * weight)), 0, 255);
 
         private static byte ClampByte(double value) => (byte)Math.Clamp(Math.Round(value), 0, 255);
     }

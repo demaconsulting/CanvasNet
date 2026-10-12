@@ -24,6 +24,13 @@ public sealed partial class PdfDocument
     private const int ShadingGradientMaxSampleCount = 256;
 
     /// <summary>
+    ///     The maximum number of function breakpoints (stitching <c>/Bounds</c>) that
+    ///     <see cref="BuildShadingGradient"/> turns into exact hard stops (each adds 2 samples on
+    ///     top of the uniform grid, bounding the stop list to <c>256 + 2 * 256</c> entries).
+    /// </summary>
+    private const int ShadingGradientMaxBreakpoints = 256;
+
+    /// <summary>
     ///     The largest extension (in multiples of the shading's own <c>[0, 1]</c> parameter range)
     ///     applied beyond either end for <c>/Extend</c>; bounds float precision of the widened ramp.
     /// </summary>
@@ -61,6 +68,7 @@ public sealed partial class PdfDocument
     ///     <paramref name="Coords"/>/<paramref name="Domain"/>/<paramref name="Evaluate"/> are unused).
     /// </param>
     /// <param name="Extend">The shading's <c>/Extend</c> flags (start, end); <see langword="null"/> means <c>[false false]</c>.</param>
+    /// <param name="Breakpoints">The function's interior breakpoints in function-input space (see <see cref="IPdfFunction.Breakpoints"/>); <see langword="null"/> means none.</param>
     private readonly record struct ShadingDescriptor(
         int ShadingType,
         PdfColorSpace ColorSpace,
@@ -69,7 +77,8 @@ public sealed partial class PdfDocument
         Func<double, double[]> Evaluate,
         double[]? BBox,
         MeshShading? Mesh = null,
-        bool[]? Extend = null);
+        bool[]? Extend = null,
+        IReadOnlyList<double>? Breakpoints = null);
 
     /// <summary>
     ///     Resolves an already-resolved <c>/Shading</c> dictionary (or stream - some
@@ -139,7 +148,7 @@ public sealed partial class PdfDocument
 
         var functionEntry = shading.Get("Function")
             ?? throw new InvalidDataException("/Shading is missing required /Function.");
-        var (_, evaluate) = ResolveFunctionOrFunctionArray(functionEntry);
+        var (breakpoints, evaluate) = ResolveFunctionOrFunctionArray(functionEntry);
 
         // The shading's own /Domain (PDF 32000-1 §8.7.4.5.3, default [0, 1]) parametrizes
         // position along the /Coords geometry; it is distinct from - and must not be confused
@@ -159,7 +168,7 @@ public sealed partial class PdfDocument
         }
 
         var extend = ResolveExtend(shading);
-        return new ShadingDescriptor(shadingType, colorSpace, coords, domain, evaluate, bbox, null, extend);
+        return new ShadingDescriptor(shadingType, colorSpace, coords, domain, evaluate, bbox, null, extend, breakpoints);
     }
 
     /// <summary>
@@ -227,6 +236,7 @@ public sealed partial class PdfDocument
             Domain = descriptor.Domain,
             Evaluate = descriptor.Evaluate,
             Extend = descriptor.Extend,
+            Breakpoints = descriptor.Breakpoints,
             Mesh = descriptor.Mesh,
         };
     }
@@ -294,6 +304,7 @@ public sealed partial class PdfDocument
             Domain = descriptor.Domain,
             Evaluate = descriptor.Evaluate,
             Extend = descriptor.Extend,
+            Breakpoints = descriptor.Breakpoints,
         };
         var region = BuildShadingPaintRegion(descriptor.BBox);
         if (descriptor.Mesh is { } mesh)
@@ -374,6 +385,10 @@ public sealed partial class PdfDocument
     ///     transformed <c>/Coords</c> vector; radial: the larger of the sweep length and the
     ///     diameter sum, scaled by the larger matrix axis scale), rounded up and clamped to
     ///     <see cref="ShadingGradientMinSampleCount"/>..<see cref="ShadingGradientMaxSampleCount"/>.
+    ///     In addition, every function breakpoint (<see cref="IPdfFunction.Breakpoints"/>, i.e.
+    ///     stitching <c>/Bounds</c>) inside the parameter range contributes an exact hard stop (a
+    ///     sample just before and one at the breakpoint), so abrupt transitions stay sharp
+    ///     regardless of the uniform sample spacing.
     ///     </para>
     ///     <para>
     ///     <b>/Extend</b> (PDF 32000-1 &#xA7;8.7.4.5.2, default <c>[false false]</c>) is honored per
@@ -467,13 +482,63 @@ public sealed partial class PdfDocument
         float Offset(double t) => (float)Math.Clamp((t - tMin) / span, 0.0, 1.0);
 
         var transparent = new Rgba32(0, 0, 0, 0);
-        var stops = new List<GradientStop>(count + 4);
+
+        // Sample positions: the uniform grid plus an exact hard stop (a "before" and an "after"
+        // sample at the same t) at every function breakpoint inside (0, 1). Uniform samples that
+        // coincide with a breakpoint are replaced by that pair.
+        var samples = new List<(double T, Rgba32 Color)>(count + 8);
+        var domainSpan = domain[1] - domain[0];
+        var interiorBreakpoints = new List<double>();
+        if (pattern.Breakpoints is { Count: > 0 } breakpoints && Math.Abs(domainSpan) > 1e-12)
+        {
+            foreach (var breakpoint in breakpoints)
+            {
+                var t = (breakpoint - domain[0]) / domainSpan;
+                if (double.IsFinite(t) && t > 1e-9 && t < 1.0 - 1e-9)
+                {
+                    interiorBreakpoints.Add(t);
+                }
+            }
+
+            interiorBreakpoints.Sort();
+            if (interiorBreakpoints.Count > ShadingGradientMaxBreakpoints)
+            {
+                interiorBreakpoints.RemoveRange(
+                    ShadingGradientMaxBreakpoints, interiorBreakpoints.Count - ShadingGradientMaxBreakpoints);
+            }
+        }
+
+        Rgba32 ColorAtDomain(double domainValue) => ColorFromComponents(colorSpace, evaluate(domainValue));
+        var nextBreakpoint = 0;
         for (var i = 0; i < count; i++)
         {
             var t = (double)i / (count - 1);
-            var domainValue = domain[0] + (t * (domain[1] - domain[0]));
-            var color = ColorFromComponents(colorSpace, evaluate(domainValue));
-            var offset = Offset(t);
+            while (nextBreakpoint < interiorBreakpoints.Count && interiorBreakpoints[nextBreakpoint] <= t + 1e-12)
+            {
+                var b = interiorBreakpoints[nextBreakpoint++];
+                if (samples.Count > 0 && b <= samples[^1].T + 1e-12)
+                {
+                    continue;
+                }
+
+                var breakDomain = domain[0] + (b * domainSpan);
+                samples.Add((b, ColorAtDomain(domainSpan > 0 ? Math.BitDecrement(breakDomain) : Math.BitIncrement(breakDomain))));
+                samples.Add((b, ColorAtDomain(breakDomain)));
+            }
+
+            if (i < count - 1 && nextBreakpoint > 0 && Math.Abs(interiorBreakpoints[nextBreakpoint - 1] - t) <= 1e-12)
+            {
+                continue;
+            }
+
+            samples.Add((t, ColorAtDomain(domain[0] + (t * domainSpan))));
+        }
+
+        var stops = new List<GradientStop>(samples.Count + 4);
+        for (var i = 0; i < samples.Count; i++)
+        {
+            var color = samples[i].Color;
+            var offset = Offset(samples[i].T);
 
             if (i == 0 && before > 0.0)
             {
@@ -484,7 +549,7 @@ public sealed partial class PdfDocument
 
             stops.Add(new GradientStop(offset, color));
 
-            if (i == count - 1 && after > 0.0)
+            if (i == samples.Count - 1 && after > 0.0)
             {
                 var fill = extend1 ? color : transparent;
                 stops.Add(new GradientStop(offset, fill));
@@ -552,10 +617,12 @@ public sealed partial class PdfDocument
     /// </summary>
     /// <param name="functionEntry">The (possibly indirect-reference) <c>/Function</c> entry to resolve.</param>
     /// <returns>
-    ///     A nominal <c>[0, 1]</c> domain for the array form (or the single function's own
-    ///     <c>/Domain</c>) - callers sample across the shading's own <c>/Domain</c> instead and
-    ///     ignore it - and a delegate evaluating the
+    ///     A <c>(Breakpoints, Evaluate)</c> pair: the sorted interior function-input values at which
+    ///     the function(s) may change abruptly (see <see cref="IPdfFunction.Breakpoints"/>; the
+    ///     union over the array elements for the array form), and a delegate evaluating the
     ///     function(s) at a single input value, returning one output value per color component.
+    ///     The function's own <c>/Domain</c> is not returned: callers sample across the shading's
+    ///     own <c>/Domain</c>, and every function clamps its input to its own domain.
     /// </returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the array form is empty, when any array element is not a 1-output
@@ -565,7 +632,7 @@ public sealed partial class PdfDocument
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Propagated from <see cref="ResolveFunctionGeneric"/> for an unsupported function type.
     /// </exception>
-    private (double[] Domain, Func<double, double[]> Evaluate) ResolveFunctionOrFunctionArray(PdfObject functionEntry)
+    private (IReadOnlyList<double> Breakpoints, Func<double, double[]> Evaluate) ResolveFunctionOrFunctionArray(PdfObject functionEntry)
     {
         var resolved = Resolve(functionEntry);
         if (resolved.Kind == PdfKind.Array)
@@ -576,6 +643,7 @@ public sealed partial class PdfDocument
             }
 
             var subFunctions = new IPdfFunction[resolved.Items.Count];
+            var breakpoints = new SortedSet<double>();
             for (var i = 0; i < subFunctions.Length; i++)
             {
                 var sub = ResolveFunctionGeneric(resolved.Items[i]);
@@ -585,8 +653,10 @@ public sealed partial class PdfDocument
                         "Each /Function array element must be a 1-output function.");
                 }
 
-                // Each sub-function clamps its own input to its own /Domain when evaluated.
+                // Each sub-function clamps its own input to its own /Domain when evaluated;
+                // all of them are evaluated at the same shading parameter value.
                 subFunctions[i] = sub;
+                breakpoints.UnionWith(sub.Breakpoints);
             }
 
             double[] EvaluateArray(double input)
@@ -600,7 +670,7 @@ public sealed partial class PdfDocument
                 return outputs;
             }
 
-            return ([0.0, 1.0], EvaluateArray);
+            return ([.. breakpoints], EvaluateArray);
         }
 
         var function = ResolveFunctionGeneric(functionEntry);
@@ -610,6 +680,6 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("/Domain must have exactly 2 elements for a 1-input function.");
         }
 
-        return (domain, function.Evaluate);
+        return (function.Breakpoints, function.Evaluate);
     }
 }

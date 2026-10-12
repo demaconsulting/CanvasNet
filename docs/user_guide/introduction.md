@@ -1287,7 +1287,10 @@ meaningful generic-family
 equivalent - it still fails closed with `UnsupportedImageFeatureException`, exactly as a
 non-embedded font of any kind did before this fallback behavior existed. A shading pattern's
 `/Extend` is honored per end (PDF 32000-1 §8.7.4.5.2): an extended end repeats its end color
-beyond the defining geometry, while a non-extended end (the default) paints nothing past it; the
+beyond the defining geometry, while a non-extended end (the default) paints nothing past it;
+stitching-function boundaries render as sharp transitions, and a mesh shading's `/Function` is
+applied to the interpolated parametric value (with the 256-entry color table linearly
+interpolated); the
 `sh` operator and generic path
 clipping (`W`/`W*`) are supported. `/CalGray`, `/CalRGB` and `/Lab` color spaces are converted to
 sRGB through a CIE XYZ pipeline (note: `/CalRGB` was previously treated as plain `DeviceRGB`, so

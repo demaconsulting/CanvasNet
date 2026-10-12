@@ -863,6 +863,107 @@ public class PdfDocumentMeshShadingTests
         Assert.Equal("pdf-functiontype-5", ex.Feature);
     }
 
+    /// <summary>Proves that a mesh without a <c>/Function</c> in a <c>/Lab</c> color space reads its vertex colors in natural Lab units (L 0-100 via <c>/Decode</c>) and converts them to sRGB.</summary>
+    [Theory]
+    [InlineData(0.0, 0)]
+    [InlineData(0.5, 119)]
+    [InlineData(1.0, 255)]
+    public void PdfDocument_MeshShading_LabColorSpace_VertexColorsAreNaturalUnits(double lightness, int expectedGray)
+    {
+        // Arrange: a uniform-color triangle; L decodes over 0-100, a/b decode over -128..127 and sit at ~0.
+        var format = new Fmt(16, 16, 8);
+        var entries = Entries(
+            4,
+            compBits: "16",
+            colorSpace: "[/Lab << /WhitePoint [0.9505 1.0 1.089] /Range [-128 127 -128 127] >>]",
+            decode: "[0 100 0 100 0 100 -128 127 -128 127]");
+        var p = new BitPacker();
+        WriteVertex(p, format, 0, 10, 10, lightness, 0.50196, 0.50196);
+        WriteVertex(p, format, 0, 90, 10, lightness, 0.50196, 0.50196);
+        WriteVertex(p, format, 0, 50, 90, lightness, 0.50196, 0.50196);
+
+        // Act
+        using var surface = RenderMesh(4, p.ToArray(), entries: entries);
+
+        // Assert
+        AssertNear(At(surface, 50, 40), expectedGray, expectedGray, expectedGray, 3);
+    }
+
+    /// <summary>
+    ///     Proves that a function-based mesh interpolates the parametric value <c>t</c> across the
+    ///     triangle and applies a nonlinear function to the interpolated value (<c>f(t) = t^2</c>:
+    ///     the midpoint of 0 and 1 maps to 0.25, not the 0.5 a pre-mapped vertex-color blend would give).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_MeshShading_Function_NonlinearFunctionAppliedToInterpolatedParameter()
+    {
+        // Arrange: t is 0 at the left vertices and 1 at the right vertex, so t = (x - 10) / 80 on every row.
+        var entries = Entries(4, decode: "[0 100 0 100 0 1]", extra: "/Function 6 0 R");
+        var p = new BitPacker();
+        WriteVertex(p, Std, 0, 10, 10, 0);
+        WriteVertex(p, Std, 0, 90, 10, 1);
+        WriteVertex(p, Std, 0, 10, 90, 0);
+        var bytes = BuildSinglePage(
+            "/Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [
+                BuildStream(entries, p.ToArray()),
+                BuildStream("/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 2", []),
+            ]);
+
+        // Act
+        using var surface = Render(bytes);
+
+        // Assert: pixel centers are at x + 0.5, so t = 0.256 / 0.506 / 0.756 and f(t) = 0.066 / 0.256 / 0.572
+        // (a linear blend would give 65 / 129 / 193).
+        AssertNear(At(surface, 30, 12), 17, 17, 17, 3);
+        AssertNear(At(surface, 50, 12), 65, 65, 65, 3);
+        AssertNear(At(surface, 70, 12), 146, 146, 146, 3);
+    }
+
+    /// <summary>
+    ///     Proves that the mesh function lookup table is linearly interpolated between entries
+    ///     rather than snapped to the nearest entry: a steep ramp sampled halfway between two table
+    ///     entries must produce the in-between value.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_MeshShading_Function_LookupTableIsInterpolatedBetweenEntries()
+    {
+        // Arrange: f ramps 0 -> 1 over t in [0.4, 0.6] (stitched), so adjacent 256-entry table
+        // values differ by about 5 levels. Pick the right vertex's t so the pixel at x = 40.5 has
+        // t exactly halfway between table entries 102 and 103.
+        var format = new Fmt(16, 16, 8);
+        var targetT = 102.5 / 255.0;
+        var rightT = Math.Round(targetT / 0.405 * 65535) / 65535;
+        var t = rightT * 40.5 / 100.0;
+        var expected = Math.Clamp((t - 0.4) / 0.2, 0, 1) * 255.0;
+
+        var entries = Entries(4, compBits: "16", decode: "[0 100 0 100 0 1]", extra: "/Function 6 0 R");
+        var p = new BitPacker();
+        WriteVertex(p, format, 0, 0, 10, 0);
+        WriteVertex(p, format, 0, 100, 10, rightT);
+        WriteVertex(p, format, 0, 0, 90, 0);
+        var bytes = BuildSinglePage(
+            "/Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [
+                BuildStream(entries, p.ToArray()),
+                BuildStream(
+                    "/FunctionType 3 /Domain [0 1] /Bounds [0.4 0.6] /Encode [0 1 0 1 0 1] /Functions [7 0 R 8 0 R 9 0 R]",
+                    []),
+                BuildStream("/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [0 0 0] /N 1", []),
+                BuildStream("/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []),
+                BuildStream("/FunctionType 2 /Domain [0 1] /C0 [1 1 1] /C1 [1 1 1] /N 1", []),
+            ]);
+
+        // Act
+        using var surface = Render(bytes);
+
+        // Assert: nearest-entry lookup would give 0 or 5 here; interpolation gives ~2.5.
+        var actual = At(surface, 40.5, 12).R;
+        Assert.InRange(actual, expected - 0.8, expected + 0.8);
+    }
+
     /// <summary>Proves that exceeding the vertex limit throws <see cref="UnsupportedImageFeatureException"/> (<c>pdf-shading-mesh-too-many-vertices</c>).</summary>
     [Fact]
     public void PdfDocument_MeshShading_TooManyVertices_ThrowsUnsupported()

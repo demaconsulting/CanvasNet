@@ -808,6 +808,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentMeshShadingTests.cs"  # mesh shading unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentColorSpaceTests.cs"  # calibrated color tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTintTests.cs"  # Separation/DeviceN/Type 4 tests
+      - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentShadingFidelityTests.cs"  # shading fidelity tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentJpxTests.cs"  # JPXDecode/SMask unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentThinRuleInkTests.cs"  # thin-rule ink unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentImageDownscaleTests.cs"  # image downscale unit tests

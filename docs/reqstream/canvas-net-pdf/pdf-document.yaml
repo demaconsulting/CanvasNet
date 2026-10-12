@@ -1992,7 +1992,9 @@ sections:
               an unextended end; an extended end holds its end color); a malformed /Extend shall
               throw InvalidDataException. Each /Function array element shall clamp its input to
               its own /Domain. The gradient shall be sampled with one stop per device pixel of
-              gradient length, clamped to 32..256.
+              gradient length, clamped to 32..256, plus an exact hard stop at every stitching
+              function /Bounds (including nested stitching functions) so abrupt transitions stay
+              sharp regardless of the sample spacing.
             justification: |
               Axial and radial shading-pattern fills are a common way real-world PDFs render
               smooth-color backgrounds and vector-art gradients; today every such fill throws and
@@ -2013,6 +2015,10 @@ sections:
               - PdfDocument_Patterns_ShadingPattern_LongGradient_UsesAdaptiveSampleCount
               - PdfDocument_Patterns_ShadingPattern_FunctionArraySubFunctionDomain_ClampsInputToOwnDomain
               - PdfDocument_Patterns_ShadingPattern_FunctionArrayWithWideDomain_ShadingDomainMapsToFunctionInput
+              - PdfDocument_Shading_RadialShrinkingRadius_ExtendsPerEnd
+              - PdfDocument_Shading_StitchingBound_IsAnExactHardTransition
+              - PdfDocument_Shading_NestedStitchingBound_IsAnExactHardTransition
+              - PdfDocument_Shading_FunctionArrayWithDifferentDomains_ClampsEachElementIndependently
               - CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors
 
           - id: CanvasNetPdf-PdfDocument-ShadingOperator
@@ -2053,8 +2059,12 @@ sections:
               /BitsPerCoordinate, /BitsPerComponent, /BitsPerFlag (types 4, 6, 7), /VerticesPerRow
               (type 5) and /Decode, honoring edge flags 0-3 (including patch continuation and the
               Coons-derived interior points of type 6), mapping a single parametric color through
-              the optional /Function, converting colors through DeviceGray/DeviceRGB/DeviceCMYK
-              (interpolated in RGB), and painting the interpolated mesh (patches tessellated at a
+              the optional /Function (the parametric value t is interpolated across each triangle
+              or patch and the function - which may be nonlinear - is applied to the interpolated
+              t through a 256-entry color table whose adjacent entries are linearly interpolated),
+              converting colors through any resolvable non-Pattern color space (including
+              DeviceGray/DeviceRGB/DeviceCMYK and Lab; interpolated in RGB), and painting the interpolated mesh
+              (patches tessellated at a
               fixed 16x16 subdivision, no anti-aliasing) positioned by the pattern /Matrix; the
               pattern's /Background shall be painted beneath the mesh for pattern use only.
             justification: |
@@ -2065,6 +2075,10 @@ sections:
               - PdfDocument_MeshShading_Type4_Flag1_ContinuesStrip
               - PdfDocument_MeshShading_Type4_Flag2_ContinuesFan
               - PdfDocument_MeshShading_Type4_Function_MapsParametricValue
+              - PdfDocument_MeshShading_Function_NonlinearFunctionAppliedToInterpolatedParameter
+              - PdfDocument_MeshShading_Function_LookupTableIsInterpolatedBetweenEntries
+              - PdfDocument_MeshShading_LabColorSpace_VertexColorsAreNaturalUnits
+              - CanvasNetPdf_SystemIntegration_MeshShadingWithNonlinearFunction_AppliesFunctionToInterpolatedParameter
               - PdfDocument_MeshShading_Type4_BitSizeMatrix_RendersSame
               - PdfDocument_MeshShading_GrayAndCmykColorSpaces_Render
               - PdfDocument_MeshShading_Type5_Lattice_RendersAllCells

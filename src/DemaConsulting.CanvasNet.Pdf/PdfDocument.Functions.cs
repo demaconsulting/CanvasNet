@@ -19,6 +19,15 @@ public sealed partial class PdfDocument
 
         /// <summary>Evaluates this function at <paramref name="input"/>, returning one value per output (<see cref="OutputCount"/> elements).</summary>
         double[] Evaluate(double input);
+
+        /// <summary>
+        ///     Gets the interior input values at which the function may be discontinuous or change
+        ///     slope abruptly (the <c>/Bounds</c> of a stitching function, including those of nested
+        ///     stitching sub-functions), in increasing order; empty for smooth functions. Shading
+        ///     sampling adds exact hard stops at these values so sharp transitions are not smeared
+        ///     between uniform samples.
+        /// </summary>
+        IReadOnlyList<double> Breakpoints => [];
     }
 
     /// <summary>
@@ -406,6 +415,48 @@ public sealed partial class PdfDocument
 
         /// <inheritdoc/>
         public int OutputCount => Functions.Count > 0 ? Functions[0].OutputCount : 0;
+
+        /// <inheritdoc/>
+        /// <remarks>
+        ///     The interior <see cref="Bounds"/> plus, for each sub-function, its own breakpoints
+        ///     mapped back from its <see cref="Encode"/>d range into this function's input domain.
+        /// </remarks>
+        public IReadOnlyList<double> Breakpoints
+        {
+            get
+            {
+                var result = new SortedSet<double>(Bounds.Where(double.IsFinite));
+                var k = Functions.Count;
+                for (var i = 0; i < k; i++)
+                {
+                    var subBreakpoints = Functions[i].Breakpoints;
+                    if (subBreakpoints.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    var low = i == 0 ? Domain[0] : Bounds[i - 1];
+                    var high = i == k - 1 ? Domain[1] : Bounds[i];
+                    var encodedLow = Encode[2 * i];
+                    var encodedSpan = Encode[(2 * i) + 1] - encodedLow;
+                    if (Math.Abs(encodedSpan) < double.Epsilon)
+                    {
+                        continue;
+                    }
+
+                    foreach (var encoded in subBreakpoints)
+                    {
+                        var mapped = low + ((encoded - encodedLow) * (high - low) / encodedSpan);
+                        if (double.IsFinite(mapped) && mapped > Math.Min(low, high) && mapped < Math.Max(low, high))
+                        {
+                            result.Add(mapped);
+                        }
+                    }
+                }
+
+                return [.. result];
+            }
+        }
 
         /// <inheritdoc/>
         public double[] Evaluate(double input)

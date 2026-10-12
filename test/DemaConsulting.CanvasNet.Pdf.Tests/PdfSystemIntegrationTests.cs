@@ -1037,6 +1037,43 @@ public class PdfSystemIntegrationTests
         Assert.Equal(0, surface[200, 200].A);
     }
 
+    /// <summary>
+    ///     Proves the <c>sh</c> operator applies a nonlinear <c>/Function</c> (<c>f(t) = t^2</c>) to
+    ///     the parametric value interpolated across a mesh triangle (end-to-end through the public
+    ///     API, from a synthetic in-memory PDF): the midpoint of <c>t = 0</c> and <c>t = 1</c> maps to
+    ///     about 0.25, not the 0.5 a vertex-color blend would give.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_MeshShadingWithNonlinearFunction_AppliesFunctionToInterpolatedParameter()
+    {
+        // Arrange: 8-bit coordinates/t/flags; vertices (x=25, y=25, t=0), (x=229, y=25, t=1), (x=25, y=229, t=0).
+        byte[] meshData = [0, 25, 25, 0, 0, 229, 25, 255, 0, 25, 229, 0];
+        byte[] meshStream =
+        [
+            .. System.Text.Encoding.ASCII.GetBytes(
+                "<< /ShadingType 4 /ColorSpace /DeviceGray /BitsPerCoordinate 8 /BitsPerComponent 8 /BitsPerFlag 8 " +
+                $"/Decode [0 100 0 100 0 1] /Function 6 0 R /Length {meshData.Length} >>\nstream\n"),
+            .. meshData,
+            .. "\nendstream"u8.ToArray(),
+        ];
+        var bytes = BuildSyntheticPatternPdf(
+            "/Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [
+                meshStream,
+                BuildPatternFunctionStreamBody("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [1] /N 2"),
+            ]);
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var surface = document.Render(0, 100, 100, Transparent);
+
+        // Assert: pixel x = 50 (center 50.5) has t = (50.5 - 9.8) / 80 = 0.509, f = 0.259 -> ~66.
+        var pixel = surface[50, 85];
+        Assert.Equal(255, pixel.A);
+        Assert.InRange(pixel.R, 66 - 6, 66 + 6);
+    }
+
     private static void AssertRed(Canvas.Rgba32 pixel) =>
         Assert.True(pixel.A == 255 && pixel.R > 200 && pixel.G < 60 && pixel.B < 60, $"Expected red but was {pixel}");
 
