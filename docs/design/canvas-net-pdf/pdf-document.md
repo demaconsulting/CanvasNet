@@ -1320,7 +1320,9 @@ its own distinguishable `Feature` token.
 - **Sampled Function Evaluation (`PdfDocument.Functions.cs`, added in Phase 1 of the `/Pattern`
   color-space roadmap)** — `ResolveFunction` resolves a `/Function` entry restricted to
   `/FunctionType 0` (sampled function) with exactly 1 input (a 2-element `/Domain`) into a
-  `SampledFunction`, parsing `/Size` (a single element, since this is a 1-input function),
+  `SampledFunction`, parsing `/Size` (a single element, since this is a 1-input function; every `/Size` entry, in this and
+  the multi-input parser, and `/FunctionType`/`/BitsPerSample` must be an exact integer - a fractional
+  or non-finite value is malformed and throws `InvalidDataException` instead of being truncated),
   `/BitsPerSample` (`8` or `16` only), `/Encode` (defaulting to `[0, Size[0] - 1]` when absent),
   and `/Decode` (defaulting to `/Range` when absent), and decoding the function stream's own bytes
   via `GetStreamDecodedBytes` (already filter-aware — no new filter code needed, since every

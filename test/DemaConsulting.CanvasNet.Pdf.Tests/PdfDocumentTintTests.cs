@@ -390,6 +390,23 @@ public class PdfDocumentTintTests
         AssertNear(new Rgba32((byte)r, (byte)g, 0, 255), pixel, 1);
     }
 
+    /// <summary>Proves that a multi-input Type 0 sampled function with a fractional /Size entry (1.5 2) is rejected as malformed instead of being truncated to (1 2).</summary>
+    [Fact]
+    public void PdfDocument_Tint_DeviceNMultiInputSampledFractionalSize_ThrowsInvalidDataException()
+    {
+        // Arrange
+        byte[] samples = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        var fn = Stream(
+            $"<< /FunctionType 0 /Domain [0 1 0 1] /Range [0 1 0 1 0 1] /Size [1.5 2] /BitsPerSample 8 /Length {samples.Length} >>",
+            samples);
+        var bytes = BuildPdf(
+            "/CS0 cs 0.5 0.5 sc 10 10 80 80 re f", "/ColorSpace << /CS0 [/DeviceN [/A /B] /DeviceRGB 5 0 R] >>", fn);
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(() => Render(bytes));
+        Assert.Contains("/Size", exception.Message, StringComparison.Ordinal);
+    }
+
     /// <summary>Proves that DeviceN with all colorants /None paints nothing.</summary>
     [Fact]
     public void PdfDocument_Tint_DeviceNAllNone_LeavesBackgroundUntouched()

@@ -12006,6 +12006,47 @@ public class PdfDocumentTests
         Assert.Contains("/Size", exception.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>Proves that a fractional <c>/Size</c> entry (<c>1.5</c>) is rejected as malformed in the single-input sampled-function parser instead of being truncated to <c>1</c>.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_FractionalSize_ThrowsInvalidDataException()
+    {
+        // Act & Assert
+        var single = Assert.Throws<InvalidDataException>(
+            () => ResolveTestFunction(
+                "/FunctionType 0 /Domain [0 1] /Range [0 255] /Size [1.5] /BitsPerSample 8",
+                [10, 250]));
+        Assert.Contains("/Size", single.Message, StringComparison.Ordinal);
+
+    }
+
+    /// <summary>Proves that an integral real <c>/Size</c> (<c>2.0</c>) is still accepted and evaluates normally.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_IntegralRealSize_StillAccepted()
+    {
+        // Arrange
+        var function = ResolveTestFunction(
+            "/FunctionType 0 /Domain [0 1] /Range [0 255] /Size [2.0] /BitsPerSample 8",
+            [10, 250]);
+
+        // Act
+        var atDomainMax = function.Evaluate(1);
+
+        // Assert
+        Assert.Equal(250.0, atDomainMax[0]);
+    }
+
+    /// <summary>Proves that a fractional <c>/BitsPerSample</c> (<c>8.5</c>) is rejected instead of being truncated to a supported width.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_FractionalBitsPerSample_ThrowsInvalidDataException()
+    {
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(
+            () => ResolveTestFunction(
+                "/FunctionType 0 /Domain [0 1] /Range [0 255] /Size [2] /BitsPerSample 8.5",
+                [10, 250]));
+        Assert.Contains("/BitsPerSample", exception.Message, StringComparison.Ordinal);
+    }
+
     /// <summary>
     ///     Resolves a <c>/Function</c> entry (any of the 3 supported <c>/FunctionType</c>s) whose
     ///     dictionary is a new indirect object (number 5, matching

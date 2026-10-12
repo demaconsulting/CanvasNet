@@ -563,7 +563,7 @@ public sealed partial class PdfDocument
         try
         {
             var function = Resolve(functionEntry);
-            var functionType = RequireIntEntry(function, "FunctionType");
+            var functionType = RequireStrictIntEntry(function, "FunctionType");
             return functionType switch
             {
                 0 => ResolveFunction(functionEntry),
@@ -613,7 +613,7 @@ public sealed partial class PdfDocument
         try
         {
             var function = Resolve(functionEntry);
-            var functionType = RequireIntEntry(function, "FunctionType");
+            var functionType = RequireStrictIntEntry(function, "FunctionType");
             return functionType switch
             {
                 0 => ResolveMultiSampledFunction(function),
@@ -663,8 +663,9 @@ public sealed partial class PdfDocument
 
         var outputCount = range.Length / 2;
         var sizeValues = RequireNumberArray(function, "Size");
-        if (sizeValues.Length != inputCount || sizeValues.Any(static s => !double.IsFinite(s) || s < 1 || s > int.MaxValue))
+        if (sizeValues.Length != inputCount || sizeValues.Any(static s => !IsIntegralInRange(s, 1, int.MaxValue)))
         {
+            // A fractional entry (for example 1.5) is malformed, never silently truncated.
             throw new InvalidDataException("/Size must have one positive integer per input.");
         }
 
@@ -680,7 +681,7 @@ public sealed partial class PdfDocument
             }
         }
 
-        var bitsPerSample = RequireIntEntry(function, "BitsPerSample");
+        var bitsPerSample = RequireStrictIntEntry(function, "BitsPerSample");
         if (bitsPerSample is not (1 or 2 or 4 or 8 or 12 or 16 or 24 or 32))
         {
             throw new UnsupportedImageFeatureException(
@@ -865,7 +866,7 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("/Function must resolve to a stream (only /FunctionType 0 is supported).");
         }
 
-        var functionType = RequireIntEntry(function, "FunctionType");
+        var functionType = RequireStrictIntEntry(function, "FunctionType");
         if (functionType != 0)
         {
             throw new UnsupportedImageFeatureException(
@@ -894,22 +895,18 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("/Size must have exactly 1 element for a 1-input function.");
         }
 
-        // Reject a non-finite /Size element before casting it to int - NaN/Infinity cast to int
-        // is an unchecked, unspecified-magnitude conversion in C# (not an exception), so a
-        // crafted function dictionary could otherwise smuggle a garbage `size` value past the
-        // `size < 1` check below and corrupt downstream sample-index arithmetic.
-        if (!double.IsFinite(sizeArray[0]))
-        {
-            throw new InvalidDataException("/Size must be a finite number.");
-        }
-
-        var size = (int)sizeArray[0];
-        if (size < 1)
+        // Reject a non-finite, fractional or out-of-range /Size element before casting it to int:
+        // NaN/Infinity cast to int is an unchecked, unspecified-magnitude conversion in C#, and a
+        // fractional value (for example 1.5) would be silently truncated, so a crafted function
+        // dictionary could otherwise smuggle a wrong `size` past the checks.
+        if (!IsIntegralInRange(sizeArray[0], 1, int.MaxValue))
         {
             throw new InvalidDataException("/Size must be a positive integer.");
         }
 
-        var bitsPerSample = RequireIntEntry(function, "BitsPerSample");
+        var size = (int)sizeArray[0];
+
+        var bitsPerSample = RequireStrictIntEntry(function, "BitsPerSample");
         if (bitsPerSample is not (8 or 16))
         {
             throw new UnsupportedImageFeatureException(
@@ -991,5 +988,29 @@ public sealed partial class PdfDocument
         }
 
         return result;
+    }
+
+    /// <summary>Gets a value indicating whether <paramref name="value"/> is finite, has no fractional part, and lies in [<paramref name="min"/>, <paramref name="max"/>].</summary>
+    private static bool IsIntegralInRange(double value, double min, double max)
+        => double.IsFinite(value) && double.IsInteger(value) && value >= min && value <= max;
+
+    /// <summary>
+    ///     Reads a required integer function-dictionary entry, rejecting a fractional, non-finite or
+    ///     out-of-range number instead of silently truncating it.
+    /// </summary>
+    /// <param name="dictionary">The function dictionary or stream.</param>
+    /// <param name="key">The entry name.</param>
+    /// <returns>The exact integer value.</returns>
+    /// <exception cref="InvalidDataException">Thrown when the entry is missing or not an exact integer.</exception>
+    private int RequireStrictIntEntry(PdfObject dictionary, string key)
+    {
+        var entry = dictionary.Get(key) ?? throw new InvalidDataException($"Stream is missing required /{key}.");
+        var resolved = Resolve(entry);
+        if (resolved.Kind != PdfKind.Number || !IsIntegralInRange(resolved.Number, int.MinValue, int.MaxValue))
+        {
+            throw new InvalidDataException($"/{key} must be an integer.");
+        }
+
+        return (int)resolved.Number;
     }
 }

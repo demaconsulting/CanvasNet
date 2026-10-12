@@ -1069,14 +1069,17 @@ each width. No timing assertions are used.
 `PdfDocument_Functions_Type4_ResourceCaps_ThrowInvalidDataException`,
 `PdfDocument_Functions_Type4_NotAStream_ThrowsInvalidDataException`,
 `PdfDocument_Tint_AxialShadingWithType4Function_EvaluatesProgram`,
-`PdfDocument_Tint_DeviceNMultiInputSampled_InterpolatesMultilinearly`
+`PdfDocument_Tint_DeviceNMultiInputSampled_InterpolatesMultilinearly`,
+`PdfDocument_Tint_DeviceNMultiInputSampledFractionalSize_ThrowsInvalidDataException`
 
 Resolves hand-built Type 4 streams through `ResolveFunctionGeneric` and evaluates operator
 programs (`idiv`/`mod` with negatives, `atan` quadrants, round-half-up, `cvi`, `roll`/`copy`/`index`,
 `if`/`ifelse`, boolean and bit operators), comparing against values derived from the specification.
 Malformed programs (underflow, division by zero, domain error, unknown token, missing or extra
 brace, a block without `if`/`ifelse`) and programs exceeding the stack, nesting or instruction/
-execution caps throw `InvalidDataException`. No timing assertions are used.
+execution caps throw `InvalidDataException`. A multi-input sampled function whose `/Size` holds a
+fractional entry (`1.5 2`) is rejected with `InvalidDataException` rather than truncated to `1 2`.
+No timing assertions are used.
 
 #### CanvasNetPdf-PdfDocument-IndexedColorSpace: /Indexed Resolves as a Palette Lookup, Clamps Out-of-Range Indices
 
@@ -2246,7 +2249,10 @@ matching every other operator family's own established convention.
 `PdfDocument_Functions_Type0_EightBitSamples_EvaluatesCorrectly`,
 `PdfDocument_Functions_Type0_SixteenBitSamples_EvaluatesCorrectly`,
 `PdfDocument_Functions_Type0_UnsupportedFunctionType_ThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Functions_Type0_MultiInputDomain_ThrowsUnsupportedImageFeatureException`
+`PdfDocument_Functions_Type0_MultiInputDomain_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Functions_Type0_FractionalSize_ThrowsInvalidDataException`,
+`PdfDocument_Functions_Type0_IntegralRealSize_StillAccepted`,
+`PdfDocument_Functions_Type0_FractionalBitsPerSample_ThrowsInvalidDataException`
 
 Every test resolves a hand-built `/FunctionType 0` function stream (an indirect object appended to
 a minimal single-page document, mirroring the `/ToUnicode` CMap tests' own "build a minimal
@@ -2268,7 +2274,9 @@ resolver (`ResolveFunction`) only; the general resolver (`ResolveFunctionGeneric
 `CanvasNetPdf-PdfDocument-FunctionType2And3` and `CanvasNetPdf-PdfDocument-FunctionType4AndMultiInput`.
 Resolves a 2-input `/FunctionType 0` function (a 4-element
 `/Domain`) through that same narrow resolver, asserting `Codecs.UnsupportedImageFeatureException` (feature
-`pdf-function-multiinput`).
+`pdf-function-multiinput`). A fractional `/Size` (`1.5`) and a fractional `/BitsPerSample` (`8.5`)
+throw `InvalidDataException` instead of being truncated, while an integral real `/Size` (`2.0`) is
+still accepted.
 
 #### CanvasNetPdf-PdfDocument-FunctionType2And3: /FunctionType 2/3 Evaluate Correctly, Unknown Types Fail Closed
 

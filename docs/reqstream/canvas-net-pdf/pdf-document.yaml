@@ -1956,6 +1956,9 @@ sections:
               - PdfDocument_Functions_Type0_SixteenBitSamples_EvaluatesCorrectly
               - PdfDocument_Functions_Type0_UnsupportedFunctionType_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Functions_Type0_MultiInputDomain_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Functions_Type0_FractionalSize_ThrowsInvalidDataException
+              - PdfDocument_Functions_Type0_IntegralRealSize_StillAccepted
+              - PdfDocument_Functions_Type0_FractionalBitsPerSample_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-FunctionType2And3
             title: >-
@@ -2008,6 +2011,7 @@ sections:
               - PdfDocument_Functions_Type4_NotAStream_ThrowsInvalidDataException
               - PdfDocument_Tint_AxialShadingWithType4Function_EvaluatesProgram
               - PdfDocument_Tint_DeviceNMultiInputSampled_InterpolatesMultilinearly
+              - PdfDocument_Tint_DeviceNMultiInputSampledFractionalSize_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-PatternColorSpace
             title: >-
