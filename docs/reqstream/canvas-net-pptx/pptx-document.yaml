@@ -445,7 +445,7 @@ sections:
               A slide-level placeholder frequently declares an empty, self-closing <a:lstStyle/> (no
               <a:lvl{N}pPr> children at all) while its matched layout placeholder declares a real
               override (for example a large title defRPr sz) - confirmed against a real-world deck
-              ("ERF IWF Breadboard Peer Review.pptx", a ctrTitle placeholder) where this
+              (a ctrTitle placeholder) where this
               empty-but-present element silently blocked the layout's 60pt title-size override,
               causing text to render at a smaller, further-downstream fallback size (~28pt) instead.
               This is the exact same bug class PlaceholderXfrmGeometryInheritance already fixed for
@@ -1282,8 +1282,7 @@ sections:
               preserving the original unclipped full-bounding-box-rectangle behavior when
               <p:spPr> declares no geometry at all or explicitly declares the "rect" preset.
             justification: |
-              A confirmed real-world corpus fixture ("ERF IWF and Reagent Probe Breadboard Motion
-              System Overview.pptx") contains <p:pic> picture shapes whose own <a:prstGeom>
+              A confirmed real-world corpus fixture contains <p:pic> picture shapes whose own <a:prstGeom>
               declares a non-rect preset (for example "ellipse"); PowerPoint's own rendering
               visibly crops the embedded image to that shape, while this package previously
               painted every picture as a plain, unclipped full rectangle regardless of its own
@@ -1480,8 +1479,7 @@ sections:
               existing ResolveFill/ResolveLineStyle resolvers for every style-tier color (including
               schemeClr) unchanged.
             justification: |
-              A confirmed real-world corpus fixture ("ERF IWF and Reagent Probe Breadboard Motion
-              System Overview.pptx", slide 23) declares a <a:tbl> with <a:tblPr firstRow="1"
+              A confirmed real-world corpus fixture (slide 23) declares a <a:tbl> with <a:tblPr firstRow="1"
               bandRow="1"><a:tableStyleId>{GUID}</a:tableStyleId></a:tblPr>; PowerPoint's own
               rendering shows a shaded header row, alternating banded row fills, and style-defined
               cell borders, while this package's Phase 1e TableParsing never resolved
@@ -2182,8 +2180,7 @@ sections:
               to the run's own font size, with a double-underline style painting two thinner,
               gapped rectangles instead of one.
             justification: |
-              A real-world corpus fixture ("ERF IWF Breadboard Motion System Overview.pptx",
-              slide 23 "Configurations") contains text runs declaring <a:rPr u="sng"/> that
+              A real-world corpus fixture (slide 23 "Configurations") contains text runs declaring <a:rPr u="sng"/> that
               PowerPoint's own ground-truth rendering shows with a visible single underline, while
               CanvasNet rendered no underline at all: GetUnderline parsed the u attribute into a
               boolean PptxEffectiveRunProperties.Underline, but nothing downstream (layout or
@@ -2235,7 +2232,7 @@ sections:
               cursor by at least a minimal, non-zero amount even when it already sits exactly on a
               tab-stop boundary.
             justification: |
-              A real-world corpus fixture ("ERF IWF Breadboard Peer Review.pptx", slide 9
+              A real-world corpus fixture (slide 9
               "Requirements", the single highest-divergence slide in a full 73-slide pixel-diff
               pass) contains 19 paragraphs whose "numbers" are literal typed digits separated from
               their sentence text by a literal tab character, not a buAutoNum bullet. Tokenize/

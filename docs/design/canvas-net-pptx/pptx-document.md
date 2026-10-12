@@ -1559,7 +1559,7 @@ an already-correct, merely-undocumented behavior and two of which were genuine, 
     `PptxRenderTests.cs`) both documenting the two mechanisms' confirmed-correct behavior in
     isolation and guarding against a future regression of either.
 - **Genuine bug 4 - `<a:lstStyle>` level-override inheritance broken by an empty, but present,
-  `<a:lstStyle/>`.** Reported from a real-world deck ("ERF IWF Breadboard Peer Review.pptx", not
+  `<a:lstStyle/>`.** Reported from a real-world deck (not
   in this repository): a `ctrTitle` placeholder rendered its title at roughly 28pt instead of its
   layout's declared 60pt. Root cause: the exact same structural mechanism as Genuine bug 2, but
   for `<p:txBody>/<a:lstStyle>` instead of `<p:spPr>`/`<a:xfrm>`/geometry - `ResolvePlaceholderProperties`
@@ -2556,7 +2556,7 @@ slide 1 was untested.
 
 #### Phase 2 Follow-Up: Underline Rendering (`<a:rPr u="…">`)
 
-A real-world corpus fixture ("ERF IWF Breadboard Motion System Overview.pptx", slide 23
+A real-world corpus fixture (slide 23
 "Configurations") contains text runs declaring `<a:rPr u="sng"/>` that PowerPoint's own
 ground-truth rendering shows with a visible single underline, while CanvasNet rendered no
 underline at all. Root cause: `GetUnderline` (in `PptxDocument.TextInheritance.cs`) parsed the
@@ -2641,7 +2641,7 @@ own baseline, spanning its full rendered width, in the same color as the text it
 
 #### Phase 2 Follow-Up: Picture Preset-Geometry Clipping (`<a:prstGeom>` on `<p:pic>`)
 
-A real-world corpus fixture ("ERF IWF and Reagent Probe Breadboard Motion System Overview.pptx")
+A real-world corpus fixture
 contains `<p:pic>` picture shapes whose own `<p:spPr>/<a:prstGeom prst="...">` declares a
 non-`rect` preset (for example `ellipse` or `roundRect`) - PowerPoint's own ground-truth rendering
 visibly crops the embedded image to that preset's own shape, while CanvasNet previously painted
@@ -2813,7 +2813,7 @@ complete, correctly-closed red ellipse outline fully framing the same pale ellip
 
 #### Phase 2 Follow-Up: Run Text Outline Rendering (`<a:ln>` on `<a:rPr>`/`<a:defRPr>`)
 
-A user-reported real-world corpus fixture ("ERF IWF Breadboard Peer Review.pptx", slide 3
+A user-reported real-world corpus fixture (slide 3
 "Objective") contains two large numbered-badge runs whose own `<a:rPr>` declares `<a:ln
 w="9525"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:ln>` (a solid purple stroke)
 alongside a `<a:solidFill>` of `<a:srgbClr val="70AD47"><a:tint val="1000"/></a:srgbClr>` - a
@@ -3223,9 +3223,8 @@ the "Bullets and Numbering Rendering" follow-up above (`"its 'numbers' are liter
 separated from the following word by a literal tab character... a distinct, pre-existing,
 out-of-scope defect (tab-stop support)"`) - this follow-up closes that deferred item.
 
-**Root cause confirmation and chosen default interval**: a real-world corpus file ("ERF IWF
-Breadboard Peer Review.pptx", slide 9, the single highest-divergence slide in a full 73-slide
-pixel-diff pass) contains 19 literal tab characters, each between a literal digit run and its
+**Root cause confirmation and chosen default interval**: a real-world corpus file (slide 9, the single highest-divergence
+slide in a full 73-slide pixel-diff pass) contains 19 literal tab characters, each between a literal digit run and its
 sentence text, with no `<a:tabLst>` anywhere in the slide, its layout, or its master. Both the
 slide master's `<p:txStyles>` and the presentation's own `<p:defaultTextStyle>` declare
 `defTabSz="914400"` (exactly 1 inch) on every list level. Independent ground-truth pixel
@@ -3467,7 +3466,7 @@ not "Chart 2") alongside the new, narrower "Chart 2"-isolation fact above.
 
 #### Phase 2 Follow-Up: SVG-Only Picture Blip Rendering
 
-**Root cause**: a user-reported real-world deck ("ERF IWF Breadboard Peer Review.pptx") places its
+**Root cause**: a user-reported real-world deck places its
 company logo as a `<p:pic>` directly on `ppt/slideMasters/slideMaster1.xml` (a master-owned
 decorative shape - see _Phase 2 Follow-Up: Master/Layout Decorative Shape Rendering_ above). That
 logo's own `<a:blip>` declares **no raster `r:embed`/`r:link`** at all - only the Microsoft SVG
@@ -3534,7 +3533,7 @@ existing transform/compositing pipeline (`PaintPicture`), exactly like every oth
 `SvgCodec.Load` requires, so the SVG-only case is instead handled by a distinct branch in
 `ResolvePictureSurface`, before `ResolveRasterDecoder` is ever consulted for this blip.
 
-**Real-file regression scenario**: the "ERF IWF Breadboard Peer Review.pptx" master-logo scenario
+**Real-file regression scenario**: the real-world master-logo scenario
 described above is reproduced synthetically (no corpus fixture file is added, consistent with how
 every other real-world scenario referenced in this unit's own prose is verified - see, for
 example, the Master/Layout Decorative Shape Rendering follow-up's own synthetic repro pattern) by

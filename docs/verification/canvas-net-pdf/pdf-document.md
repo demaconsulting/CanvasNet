@@ -791,7 +791,7 @@ interior fill. The tests are described in detail under
 
 The `PdfDocument_ClipEdge_*` tests (in `PdfDocumentClipEdgeInkTests.cs`, own minimal PDF builder)
 render on white and compare summed darkness against the analytic area. They reproduce the
-DocPilot header rule (an even-odd fill of four rectangles whose outer lower bar edge coincides with
+real-world header rule (an even-odd fill of four rectangles whose outer lower bar edge coincides with
 the edge of a `W*` clip built from several rectangles, so a non-rectangular clip) at 1147x1484,
 1020x1320, 1108x1434, 612x792 and 765x990 and require ink within [0.985, 1.03] of exact (before the
 fix the rectangle-union clip gave 0.58-0.84 because the dense clip's edge coverage was multiplied

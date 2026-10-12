@@ -2143,8 +2143,8 @@ public class PptxRenderTests
 
     /// <summary>
     ///     Proves a ctrTitle placeholder whose slide-level <c>&lt;a:lstStyle/&gt;</c> is present but
-    ///     empty (no level-override child - the exact shape reported from "ERF IWF Breadboard Peer
-    ///     Review.pptx") resolves its run's effective font size from the idx-matched layout
+    ///     empty (no level-override child - the exact shape reported from a real-world deck)
+    ///     resolves its run's effective font size from the idx-matched layout
     ///     placeholder's own <c>&lt;a:lstStyle&gt;</c>/<c>&lt;a:lvl1pPr&gt;</c>/<c>&lt;a:defRPr
     ///     sz="6000"&gt;</c> (60pt), not the master's <c>&lt;p:titleStyle&gt;</c> fallback (28pt) -
     ///     the exact pre-fix symptom magnitude described in the bug report.
@@ -3277,7 +3277,7 @@ public class PptxRenderTests
 
     /// <summary>
     ///     Regression test (see <c>pptx-document.md</c>'s "Phase 2 Follow-Up: SVG-Only Picture
-    ///     Blip Rendering" section, mirroring the real-world "ERF IWF Breadboard Peer Review.pptx"
+    ///     Blip Rendering" section, mirroring a real-world deck's
     ///     master-logo scenario): a master-owned "SVG-only" <c>&lt;p:pic&gt;</c> (no raster
     ///     <c>r:embed</c>/<c>r:link</c> at all, only a Microsoft SVG extension
     ///     <c>&lt;asvg:svgBlip r:embed="..."/&gt;</c> referencing an <c>.svg</c> media part) now

@@ -365,7 +365,7 @@ finding generalizes to genuine third-party-generated files, not merely a hand-au
 
 The first resolver-level test proves a slide's own empty, self-closing `<a:lstStyle/>` (no
 `<a:lvl1pPr>`..`<a:lvl9pPr>` level-override child at all - the exact real-world shape reported
-from "ERF IWF Breadboard Peer Review.pptx") does not "win" `PlaceholderInheritancePerCategory`'s
+from a real-world deck) does not "win" `PlaceholderInheritancePerCategory`'s
 own whole-element fallback: the idx-matched layout placeholder's own, level-bearing
 `<a:lstStyle>` is selected instead. The second resolver-level test is a regression guard proving
 the pre-existing, correct behavior is preserved - when the slide-level `<a:lstStyle>` DOES declare
@@ -1579,8 +1579,8 @@ only to master/layout-owned shapes (and, separately, to EMF/WMF pictures - see
 referencing a non-metafile unsupported format still hard-fails `Render` with
 `PptxUnsupportedFeatureException`, exactly as before this containment was added. Proves, as a
 regression guard for the Phase 2
-Follow-Up "SVG-Only Picture Blip Rendering" fix (mirroring the real-world "ERF IWF Breadboard Peer
-Review.pptx" master-logo scenario), that a master-owned "SVG-only" `<p:pic>` (no raster
+Follow-Up "SVG-Only Picture Blip Rendering" fix (mirroring a real-world deck's
+master-logo scenario), that a master-owned "SVG-only" `<p:pic>` (no raster
 `r:embed`/`r:link` at all, only a Microsoft `<asvg:svgBlip r:embed="...">` extension referencing an
 `.svg` media part) now actually paints its own rasterized pixels on every slide using that master,
 instead of being silently caught and skipped by the same graceful-skip containment described

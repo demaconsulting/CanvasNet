@@ -72,7 +72,7 @@ public class PdfDocumentClipEdgeInkTests
 
     private static string Rect(double x, double y, double w, double h) => $"{F(x)} {F(y)} {F(w)} {F(h)} re ";
 
-    /// <summary>The DocPilot header rule: even-odd ring of four rects, clip band touching the outer lower bar edge.</summary>
+    /// <summary>A real-world header rule: even-odd ring of four rects, clip band touching the outer lower bar edge.</summary>
     private const string Ctm = "1 0 0 -1 0 792 cm 0.75 0 0 0.75 0 0 cm\n";
 
     private static string HeaderRule(string clipBand) =>
