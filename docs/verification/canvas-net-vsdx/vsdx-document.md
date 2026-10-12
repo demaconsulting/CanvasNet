@@ -832,8 +832,12 @@ the rotated pixel location on a `Surface` - a candidate for future end-to-end co
 `Render_UnsupportedConstructs_DefaultOptionsDoNotThrow`,
 `Render_UnsupportedConstructs_StrictModeThrowsWithFeatureToken`,
 `Render_FullySupportedPage_ReportsNothing`,
-`Render_UnresolvableThemedFill_ReportsThemedColor` (a bare `THEMEVAL()` fill reports
-`vsdx-themed-color` instead of silently drawing the gray fallback)
+`Render_UnresolvableThemedFill_ReportsThemedColor` (a bare `THEMEVAL()` fill with no resolvable
+"No Style" value reports `vsdx-themed-color` instead of silently drawing the gray fallback),
+`Render_NonSolidFillPattern_ReportsDistinctToken` (a `FillPattern` above 1 reports
+`vsdx-fill-pattern-<n>` while patterns 0 and 1 report nothing; curve rows that cannot be evaluated
+report `vsdx-geometry-spline-approximated` or `vsdx-geometry-row-<Type>`, covered by
+`VsdxCurveGeometryTests`)
 
 Arrange a synthetic page with a made-up geometry row type (twice, to prove de-duplication) and a
 connector with an unmapped `EndArrow` index. Rendering twice with a handler yields exactly the

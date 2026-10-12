@@ -78,6 +78,14 @@ public sealed partial class VsdxDocument
             : 0d;
 
         var dashPattern = VsdxLinePattern.Resolve(linePattern, out var patternFeature);
+        if (hasFill &&
+            int.TryParse(fillPattern, NumberStyles.Integer, CultureInfo.InvariantCulture, out var fillPatternIndex) &&
+            fillPatternIndex > 1)
+        {
+            ReportUnsupported(
+                $"vsdx-fill-pattern-{fillPatternIndex}",
+                $"FillPattern {fillPatternIndex} (gradient/hatch) is not supported; the shape is filled solid with its foreground color.");
+        }
         if (hasLine && patternFeature is not null)
         {
             ReportUnsupported(

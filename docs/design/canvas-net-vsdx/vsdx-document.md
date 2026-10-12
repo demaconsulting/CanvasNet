@@ -71,9 +71,9 @@ unit's own delivery follows.
   `VsdxRenderOptions.ThrowOnUnsupportedFeature` opts into strict mode; by default the construct
   degrades tolerantly and is reported through the unsupported-feature handler (see
   _Unsupported-feature reporting_ below). A non-solid `FillPattern` beyond the documented subset
-  (drawn as solid fill) and a dangling `Connect` target (glue resolution skipped) are documented
-  tolerant degradations that are not reported — per the Risk Control Measures in _CanvasNetVsdx
-  System Design_ (`canvas-net-vsdx.md`).
+  (drawn as solid fill) is reported as `vsdx-fill-pattern-<n>`; a dangling `Connect` target (glue
+  resolution skipped) is a documented tolerant degradation that is not reported — per the Risk
+  Control Measures in _CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`).
 
 **Invariants**: `PageCount` and `GetPageSize` are available immediately after `Open` succeeds,
 with no page shape tree resolved yet. A `VsdxShapeNode`'s effective cell set is always fully
@@ -347,7 +347,9 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
 
 - **Unsupported-feature reporting** (`VsdxDocument.Diagnostics.cs`): resolvers call
   `ReportUnsupported(token, message)` whenever they degrade a recognized-but-unsupported construct
-  (currently `vsdx-geometry-row-<Type>` for an unrecognized geometry row,
+  (currently `vsdx-geometry-row-<Type>` for an unrecognized or malformed/over-cap geometry row,
+  `vsdx-geometry-spline-approximated` for a spline drawn as a polyline,
+  `vsdx-fill-pattern-<n>` for a gradient/hatch `FillPattern` drawn solid,
   `vsdx-arrowhead-<n>` for an unmapped arrowhead index on a 1-D shape, `vsdx-themed-color` for an
   unresolvable themed color, `vsdx-linepattern-<n>` and `vsdx-linepattern-<n>-approximated` for
   line patterns, `vsdx-text-case-initialcaps` and `vsdx-text-superscript-subscript` for
