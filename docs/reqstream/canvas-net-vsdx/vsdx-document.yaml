@@ -194,6 +194,9 @@ sections:
               - Geometry_SplineWithInvalidKnots_FallsBackToPolylineAndReports
               - Geometry_SplineDegreeOutOfRange_IsClampedWithoutThrowing
               - Geometry_SplineKnotsBeyondCap_AreTruncatedAndReported
+              - Geometry_SplineStartMissingCell_SkippedAndReported
+              - Geometry_SplineKnotMalformedCell_SkippedAndReported
+              - Geometry_NurbsTo_InvalidWeight_FallsBackToPolylineAndReports
               - Geometry_NurbsTo_LocalCoordinatesQuadratic
               - Geometry_NurbsTo_RelativeCoordinatesScaleByWidthAndHeight
               - Geometry_NurbsTo_WeightPullsCurveTowardControlPoint
@@ -576,6 +579,7 @@ sections:
               - ThemedPaint_DeclaredOnShape_ResolvesToNoStyleValues
               - ThemedPaint_OwnLiteralValue_IsNotReplaced
               - ThemedTextColor_InheritedFromThemeStyle_ResolvesToNoStyleColor
+              - ThemedTextColor_WithResolvableThemeSlot_ResolvesToThemeColor
 
           - id: CanvasNetVsdx-VsdxDocument-ThemedFontResolution
             title: >-
@@ -591,6 +595,7 @@ sections:
             tests:
               - ThemedFont_WithThemeMinorFont_ResolvesToThemeTypeface
               - ThemedFont_WithoutTheme_ResolvesToNoStyleFont
+              - MissingFont_WithThemeMinorFont_KeepsDefaultFont
 
           - id: CanvasNetVsdx-VsdxDocument-FillPatternDeferral
             title: >-

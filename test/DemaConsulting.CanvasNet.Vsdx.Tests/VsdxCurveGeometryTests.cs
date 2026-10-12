@@ -123,6 +123,55 @@ public class VsdxCurveGeometryTests
         Assert.Contains("vsdx-geometry-spline-approximated", features);
     }
 
+    /// <summary>A SplineStart missing a required cell is skipped and reported instead of drawing a zero-filled curve.</summary>
+    [Fact]
+    public void Geometry_SplineStartMissingCell_SkippedAndReported()
+    {
+        var subpath = ResolveSubpath(
+            """
+            <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+            <Row T="SplineStart" IX="2"><Cell N="X" V="1"/><Cell N="Y" V="abc"/><Cell N="A" V="0"/><Cell N="B" V="0"/><Cell N="C" V="1"/><Cell N="D" V="2"/></Row>
+            <Row T="LineTo" IX="3"><Cell N="X" V="2"/><Cell N="Y" V="1"/></Row>
+            """,
+            out var features);
+
+        Assert.Single(subpath.Commands);
+        Assert.Contains("vsdx-geometry-row-SplineStart", features);
+    }
+
+    /// <summary>A SplineKnot with a malformed required cell is skipped and reported; the remaining spline still resolves.</summary>
+    [Fact]
+    public void Geometry_SplineKnotMalformedCell_SkippedAndReported()
+    {
+        var subpath = ResolveSubpath(
+            """
+            <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+            <Row T="SplineStart" IX="2"><Cell N="X" V="1"/><Cell N="Y" V="1"/><Cell N="A" V="0"/><Cell N="B" V="0"/><Cell N="C" V="1"/><Cell N="D" V="2"/></Row>
+            <Row T="SplineKnot" IX="3"><Cell N="X" V="2"/><Cell N="Y" V="0"/><Cell N="A" V="0"/></Row>
+            <Row T="SplineKnot" IX="4"><Cell N="X" V="NaN"/><Cell N="Y" V="0"/><Cell N="A" V="0"/></Row>
+            """,
+            out var features);
+
+        Assert.Contains("vsdx-geometry-row-SplineKnot", features);
+        Assert.Equal(2f, subpath.Commands[^1].EndPoint.X, 3);
+        Assert.Equal(0.5f, PointNearX(subpath, 1f).Y, 2);
+    }
+
+    /// <summary>A NURBSTo with a non-positive weight falls back to a reported control-point polyline instead of silently using weight 1.</summary>
+    [Fact]
+    public void Geometry_NurbsTo_InvalidWeight_FallsBackToPolylineAndReports()
+    {
+        var subpath = ResolveSubpath(
+            """
+            <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+            <Row T="NURBSTo" IX="2"><Cell N="X" V="2"/><Cell N="Y" V="0"/><Cell N="A" V="0"/><Cell N="B" V="1"/><Cell N="C" V="0"/><Cell N="D" V="1"/><Cell N="E" V="0" F="NURBS(1,2,1,1,1,1,0,-2)"/></Row>
+            """,
+            out var features);
+
+        Assert.Equal(2, subpath.Commands.Count);
+        Assert.Contains("vsdx-geometry-spline-approximated", features);
+    }
+
     /// <summary>A degree above the cap is clamped and a degree above the point count is reduced; resolution never throws.</summary>
     [Fact]
     public void Geometry_SplineDegreeOutOfRange_IsClampedWithoutThrowing()

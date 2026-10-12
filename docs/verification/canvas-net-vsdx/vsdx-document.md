@@ -204,7 +204,10 @@ as `vsdx-geometry-row-<Type>`.
 `Geometry_SplineKnotWithoutStart_ReportedAndSkipped`,
 `Geometry_SplineWithInvalidKnots_FallsBackToPolylineAndReports`,
 `Geometry_SplineDegreeOutOfRange_IsClampedWithoutThrowing`,
-`Geometry_SplineKnotsBeyondCap_AreTruncatedAndReported`, `Geometry_NurbsTo_LocalCoordinatesQuadratic`,
+`Geometry_SplineKnotsBeyondCap_AreTruncatedAndReported`,
+`Geometry_SplineStartMissingCell_SkippedAndReported`,
+`Geometry_SplineKnotMalformedCell_SkippedAndReported`,
+`Geometry_NurbsTo_InvalidWeight_FallsBackToPolylineAndReports`, `Geometry_NurbsTo_LocalCoordinatesQuadratic`,
 `Geometry_NurbsTo_RelativeCoordinatesScaleByWidthAndHeight`,
 `Geometry_NurbsTo_WeightPullsCurveTowardControlPoint`,
 `Geometry_NurbsTo_MalformedFormula_SkippedAndReported`, `Geometry_NurbsTo_OverPointCap_SkippedAndReported`,
@@ -216,7 +219,10 @@ quadratic spline/NURBS passes through the analytic curve midpoint and ends at it
 point; a heavier weight pulls the curve toward its control point; `xType`/`yType` of `0` scale by
 `Width`/`Height`; a following row continues from the curve end; invalid knots fall back to a
 polyline and report `vsdx-geometry-spline-approximated`; out-of-range degree never throws; and a
-malformed, oversized or orphan row is skipped and reported as `vsdx-geometry-row-<Type>`, with
+malformed, oversized or orphan row is skipped and reported as `vsdx-geometry-row-<Type>` (including a
+`SplineStart`/`SplineKnot` whose required cell is missing, malformed or non-finite, and a NURBS
+row with a non-positive or non-finite weight, which falls back to the reported control-point
+polyline instead of silently using weight 1), with
 control-point and segment counts bounded by the documented caps. The expected values are derived
 analytically; no timing is asserted. Real-file confidence for `NURBSTo`/`PolylineTo` is limited:
 the only real-world sample available used `SplineStart`/`SplineKnot`.
@@ -568,21 +574,24 @@ as neutral gray; the note is retained as history.
 **Tests**: `ThemedPaint_InheritedFromThemeStyle_ResolvesToNoStyleValues`,
 `ThemedPaint_DeclaredOnShape_ResolvesToNoStyleValues`,
 `ThemedPaint_OwnLiteralValue_IsNotReplaced`,
-`ThemedTextColor_InheritedFromThemeStyle_ResolvesToNoStyleColor`
+`ThemedTextColor_InheritedFromThemeStyle_ResolvesToNoStyleColor`,
+`ThemedTextColor_WithResolvableThemeSlot_ResolvesToThemeColor`
 
 Builds a synthetic package whose shape chains through a "Theme" StyleSheet of bare
 `THEMEVAL()` cells and asserts the resolved paint is a black 0.0104 in outline with a white solid
 fill and black text, that a shape's own themed cells behave the same, and that an own literal
-color is never replaced.
+color is never replaced. A themed text color whose formula is `THEMEVAL("accent1")` resolves to the
+theme's accent color; the "No Style" color applies only when the slot cannot be resolved.
 
 #### CanvasNetVsdx-VsdxDocument-ThemedFontResolution: Bare "Themed" Font Resolves To The Theme Or No Style Typeface
 
 **Tests**: `ThemedFont_WithThemeMinorFont_ResolvesToThemeTypeface`,
-`ThemedFont_WithoutTheme_ResolvesToNoStyleFont`
+`ThemedFont_WithoutTheme_ResolvesToNoStyleFont`, `MissingFont_WithThemeMinorFont_KeepsDefaultFont`
 
 Builds a synthetic package whose character `Font` is a bare `THEMEVAL()` inherited from a "Theme"
 StyleSheet. Asserts the run's font family is the theme's minor Latin typeface when a font scheme
-is present, and the "No Style" StyleSheet's `Font` when no theme part exists.
+is present, and the "No Style" StyleSheet's `Font` when no theme part exists. A shape with no
+resolvable `Font` cell keeps the default font even when the theme supplies a minor font.
 
 #### CanvasNetVsdx-VsdxDocument-FillPatternDeferral: Solid Resolves Directly, Any Other Value Degrades
 

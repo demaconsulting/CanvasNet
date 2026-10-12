@@ -258,8 +258,12 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   supplies no literal value. The `QuickStyle*` theme-index and matrix cells are still not honored.
   A bare `"Themed"` character `Font` cell (inherited from the same "Theme" StyleSheet) resolves to
   the theme's minor Latin typeface (`VsdxTheme.MinorLatinFont`, from
-  `a:fontScheme/a:minorFont/a:latin`), then to StyleSheet `0`'s `Font`, and only then to the
-  neutral default (`Arial`); previously it always used the neutral default, so Calibri was never
+  `a:fontScheme/a:minorFont/a:latin`) only for a literal `"Themed"` value, then to StyleSheet `0`'s
+  `Font`, and only then to the neutral default (`Arial`); a missing `Font` cell keeps the neutral
+  default. A themed character `Color` whose formula names a resolvable theme slot (for example
+  `THEMEVAL("accent1")`) resolves to that theme color; the "No Style" color applies only when the
+  slot cannot be resolved, as in the paint path. Previously the `Themed` font always used the
+  neutral default, so Calibri was never
   requested. The resolved name is looked up through the ordinary font catalog, unchanged.
   Milestone 10 additionally resolves `FillForegndTrans`/`LineColorTrans` through this same
   `FillStyle`/`LineStyle` chain (a literal `"0..1"` transparency fraction, `0` fully opaque, `1`
@@ -300,7 +304,10 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   unit rule. Hard caps bound the work: 1024 control points, degree 25 and 4096 flattened
   segments. Invalid knots, weights or degree degrade the curve to a polyline through its control
   points and report `vsdx-geometry-spline-approximated`; a malformed or over-cap row is skipped
-  and reported as `vsdx-geometry-row-{Type}`. A group child that has its own `Master` reference
+  and reported as `vsdx-geometry-row-{Type}`; a `SplineStart` (cells `X`/`Y`/`A`/`B`/`C`) or
+  `SplineKnot` (`X`/`Y`/`A`) row whose required cell is missing, malformed or non-finite is
+  likewise skipped and reported rather than accumulated as zero. A non-positive or non-finite
+  weight makes flattening fail, taking the reported polyline fallback. A group child that has its own `Master` reference
   and no `MasterShape` match in its parent's master resolves against that master's shape.
   `InfiniteLine` and any other row type are still skipped (not throwing on) and reported.
 - **`ResolveConnectors(VsdxDocument document, IReadOnlyList<XElement> connects)`** (internal):

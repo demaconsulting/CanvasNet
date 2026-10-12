@@ -51,18 +51,42 @@ public sealed partial class VsdxDocument
     /// <param name="pen">The pen position, the spline's first control point.</param>
     /// <param name="cells">The <c>SplineStart</c> row cells.</param>
     /// <returns>The new accumulator.</returns>
-    private static SplineAccumulator BeginSpline(Vector2 pen, VsdxCellBag cells)
+    /// <returns>The new accumulator, or <see langword="null"/> (after reporting) when a required cell is missing, malformed or non-finite.</returns>
+    private static SplineAccumulator? BeginSpline(Vector2 pen, VsdxCellBag cells)
     {
+        if (!TryGetFinite(cells, "X", out var x) || !TryGetFinite(cells, "Y", out var y) ||
+            !TryGetFinite(cells, "A", out var firstKnot) || !TryGetFinite(cells, "B", out var secondKnot) ||
+            !TryGetFinite(cells, "C", out var lastKnot))
+        {
+            ReportUnsupported(
+                "vsdx-geometry-row-SplineStart",
+                "A SplineStart row has a missing, malformed or non-finite X, Y, A, B or C cell and was skipped.");
+            return null;
+        }
+
         var spline = new SplineAccumulator
         {
-            LastKnot = cells.GetDouble("C"),
+            LastKnot = lastKnot,
             Degree = (int)Math.Clamp(Math.Round(cells.GetDouble("D", 3d)), 1d, MaxCurveDegree),
         };
         spline.Points.Add(pen);
-        spline.Points.Add(ToLocalPoint(cells.GetDouble("X"), cells.GetDouble("Y")));
-        spline.Knots.Add(cells.GetDouble("B"));
-        spline.Knots.Add(cells.GetDouble("A"));
+        spline.Points.Add(ToLocalPoint(x, y));
+        spline.Knots.Add(secondKnot);
+        spline.Knots.Add(firstKnot);
         return spline;
+    }
+
+    /// <summary>Reads cell <paramref name="name"/> as a finite number.</summary>
+    /// <param name="cells">The row's cells.</param>
+    /// <param name="name">The cell name.</param>
+    /// <param name="value">The parsed value when this method returns <see langword="true"/>.</param>
+    /// <returns><see langword="true"/> when the cell is present and holds a finite number.</returns>
+    private static bool TryGetFinite(VsdxCellBag cells, string name, out double value)
+    {
+        value = 0d;
+        return cells.TryGet(name, out var cell) &&
+               double.TryParse(cell.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out value) &&
+               double.IsFinite(value);
     }
 
     /// <summary>Adds the <c>SplineKnot</c> row <paramref name="cells"/> to <paramref name="spline"/>, reporting and ignoring it past the control-point cap.</summary>
@@ -78,8 +102,16 @@ public sealed partial class VsdxDocument
             return;
         }
 
-        spline.Points.Add(ToLocalPoint(cells.GetDouble("X"), cells.GetDouble("Y")));
-        spline.Knots.Add(cells.GetDouble("A"));
+        if (!TryGetFinite(cells, "X", out var x) || !TryGetFinite(cells, "Y", out var y) || !TryGetFinite(cells, "A", out var knot))
+        {
+            ReportUnsupported(
+                "vsdx-geometry-row-SplineKnot",
+                "A SplineKnot row has a missing, malformed or non-finite X, Y or A cell and was skipped.");
+            return;
+        }
+
+        spline.Points.Add(ToLocalPoint(x, y));
+        spline.Knots.Add(knot);
     }
 
     /// <summary>Flattens a finished spline into <paramref name="builder"/> and returns the new pen position.</summary>
@@ -290,7 +322,7 @@ public sealed partial class VsdxDocument
             w[i] = weights is null ? 1d : weights[i];
             if (!double.IsFinite(w[i]) || w[i] <= 0d)
             {
-                w[i] = 1d;
+                return null;
             }
         }
 

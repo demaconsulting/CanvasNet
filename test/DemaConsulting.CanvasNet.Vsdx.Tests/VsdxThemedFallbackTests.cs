@@ -128,6 +128,59 @@ public class VsdxThemedFallbackTests
         Assert.Equal("Calibri", run.FontFamily);
     }
 
+    /// <summary>A themed text color whose THEMEVAL formula names a resolvable theme slot resolves to the theme color, not the "No Style" color.</summary>
+    [Fact]
+    public void ThemedTextColor_WithResolvableThemeSlot_ResolvesToThemeColor()
+    {
+        const string styles =
+            """
+            <StyleSheets>
+              <StyleSheet ID="0" Name="No Style">
+                <Section N="Character"><Row IX="0"><Cell N="Color" V="0"/></Row></Section>
+              </StyleSheet>
+            </StyleSheets>
+            """;
+        const string shape =
+            """
+            <Shape ID="1" Type="Shape" TextStyle="0">
+              <Cell N="PinX" V="1"/><Cell N="PinY" V="1"/><Cell N="Width" V="1"/><Cell N="Height" V="1"/>
+              <Cell N="LocPinX" V="0.5"/><Cell N="LocPinY" V="0.5"/><Cell N="Angle" V="0"/>
+              <Section N="Character"><Row IX="0"><Cell N="Color" V="Themed" F="THEMEVAL(&quot;accent1&quot;)"/></Row></Section>
+              <Text>Hello</Text>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shape, styles, theme1Xml: VsdxTestPackages.BuildTheme1Xml("accent1", "3366CC"));
+        using var document = VsdxDocument.Open(stream);
+
+        var run = document.GetPageShapes(0)[0].TextRuns![0];
+
+        Assert.Equal(new Rgba32(0x33, 0x66, 0xCC, 255), run.Color);
+    }
+
+    /// <summary>A missing <c>Font</c> cell keeps the default font even when the theme supplies a minor font.</summary>
+    [Fact]
+    public void MissingFont_WithThemeMinorFont_KeepsDefaultFont()
+    {
+        var theme = VsdxTestPackages.BuildTheme1Xml("dk1", "000000").Replace(
+            "</a:themeElements>",
+            "<a:fontScheme name=\"T\"><a:minorFont><a:latin typeface=\"Constantia\"/></a:minorFont></a:fontScheme></a:themeElements>",
+            StringComparison.Ordinal);
+        const string shape =
+            """
+            <Shape ID="1" Type="Shape">
+              <Cell N="PinX" V="1"/><Cell N="PinY" V="1"/><Cell N="Width" V="1"/><Cell N="Height" V="1"/>
+              <Cell N="LocPinX" V="0.5"/><Cell N="LocPinY" V="0.5"/><Cell N="Angle" V="0"/>
+              <Text>Hello</Text>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shape, theme1Xml: theme);
+        using var document = VsdxDocument.Open(stream);
+
+        var run = document.GetPageShapes(0)[0].TextRuns![0];
+
+        Assert.NotEqual("Constantia", run.FontFamily);
+    }
+
     /// <summary>Builds a one-shape package with a themed <c>Font</c> and an optional theme font scheme.</summary>
     private static VsdxDocument OpenFontShape(string? themeMinorFont)
     {
