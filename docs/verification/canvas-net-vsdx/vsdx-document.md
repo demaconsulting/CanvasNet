@@ -558,8 +558,10 @@ smoke-test harness confirmed a second, independent real-world instance of the do
 fallback limitation (`canvas-net-vsdx.md`'s Design Constraints section): `60973.vsdx`'s
 `Nwwww`/`Neeeee` rack-slot bars resolve a bare `THEMEVAL()` formula through this same
 unresolvable-scheme path, rendering gray rather than Visio's own orange/blue fill. No code change
-was made; recorded purely as confirmed evidence this documented gap is real and already correctly
-tolerated at a second site.
+was made at the time; recorded purely as confirmed evidence this documented gap is real and already correctly
+tolerated at a second site. **Superseded**: a bare `THEMEVAL()` cell now resolves to the "No Style"
+values (see `CanvasNetVsdx-VsdxDocument-ThemedNoStyleFallback` below), so those bars no longer render
+as neutral gray; the note is retained as history.
 
 #### CanvasNetVsdx-VsdxDocument-ThemedNoStyleFallback: Bare "Themed" Resolves To The "No Style" Value
 

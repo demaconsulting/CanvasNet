@@ -1260,7 +1260,8 @@ page tree, and reports each page's displayed (rotation-adjusted) size and its pa
 `Render` interprets a page's content stream, painting real path geometry, device color (`rg`/
 `g`/`k`/`cs`/`sc` and related operators, including `/Pattern`-color-space shading and tiling
 pattern fills/strokes - axial/radial/mesh (`/ShadingType 2`-`7`) shading patterns driven by
-`/FunctionType 0`/`2`/`3` functions, and colored/uncolored (`/PaintType 1`/`2`) tiling patterns
+`/FunctionType 0` (including multi-input), `2`, `3` and `4` (PostScript calculator) functions, and
+colored/uncolored (`/PaintType 1`/`2`) tiling patterns
 rendering a repeating tile), placed image XObjects (`Do`), and text shown with a simple TrueType
 font (`Tf`/`Td`/`Tj` and the other `BT`/`ET` text operators) onto the returned `Surface`. A font
 with an embedded `/FontDescriptor/FontFile2` stream is always used directly;
@@ -1292,7 +1293,9 @@ stitching-function boundaries render as sharp transitions, and a mesh shading's 
 applied to the interpolated parametric value (with the 256-entry color table linearly
 interpolated); the
 `sh` operator and generic path
-clipping (`W`/`W*`) are supported. `/CalGray`, `/CalRGB` and `/Lab` color spaces are converted to
+clipping (`W`/`W*`) are supported. Device, `/CalGray`, `/CalRGB`, `/Lab`, `/ICCBased`, `/Indexed`,
+`/Separation`, `/DeviceN` and `/Pattern` color spaces are supported; `/CalGray`, `/CalRGB` and `/Lab`
+color spaces are converted to
 sRGB through a CIE XYZ pipeline (note: `/CalRGB` was previously treated as plain `DeviceRGB`, so
 colors in such documents may now differ). `/ICCBased` spaces are resolved by their `/N` component
 count (or a matching `/Alternate`); the ICC profile data itself is not applied. An image in a `/Lab`
@@ -1303,9 +1306,10 @@ PostScript calculator, under hard resource limits) and converted via the alterna
 `/None` colorants paint nothing, and an alternate that is itself Pattern/Indexed/Separation/DeviceN
 fails closed.
 A multi-component `/DeviceN` image has a bounded per-image tint-evaluation budget; an image whose
-distinct pixels would exceed it fails closed (feature `pdf-image-tint-budget`).
-boundaries**: `/MMType1` fonts, function-based shadings (`/ShadingType 1`), ICC profile application
-(only `/N`/`/Alternate` are used), transparency groups,
+distinct pixels would exceed it fails closed (feature `pdf-image-tint-budget`). ICC profile data is
+never applied - only `/N`/`/Alternate` are used - and this is silent (no exception is thrown).
+**Documented scope boundaries**: `/MMType1` fonts, function-based shadings (`/ShadingType 1`),
+transparency groups,
 and Type 3 glyphs shown under a clip text-rendering mode (`Tr 4`-`7`; clip modes with outline-based
 fonts are supported) all fail closed with `UnsupportedImageFeatureException`
 rather than being silently skipped or mis-rendered.

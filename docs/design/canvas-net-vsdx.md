@@ -154,9 +154,11 @@ _CanvasNetSvg System Design_, `canvas-net-svg.md`):
 
 - **Tolerantly skipped, no-effect constructs** — an unrecognized geometry row type (for example
   `InfiniteLine`), a malformed or over-cap `NURBSTo`/`PolylineTo`/`SplineKnot` row, an unresolvable
-  `Connect` target, or a well-formed but out-of-scope construct (a non-solid `FillPattern`, a
-  non-default `Themed` color with no theme part present) degrades that one shape/row/connector to
-  a safe default (skip the row, render with no fill/stroke, or fall back to a neutral color)
+  `Connect` target, or a well-formed but out-of-scope construct (a non-solid `FillPattern`, which
+  is drawn solid and reported as `vsdx-fill-pattern-<n>`; a non-default `Themed` color with no
+  resolvable theme entry, which resolves to the built-in "No Style" value) degrades that one
+  shape/row/connector to a safe default (skip the row, render with no fill/stroke, or fall back
+  to a neutral value)
   rather than aborting the whole page's render.
 - **Rejected structural cycles** — a Master/MasterShape or group-nesting chain that resolves back
   to itself is explicitly detected and rejected with a thrown `InvalidDataException`, rather than
@@ -227,8 +229,10 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
     bare `V="Themed" F="THEMEVAL()"` line/fill/text-color cell (the built-in "Theme" StyleSheet,
     ID `6`) now resolves to the built-in "No Style" StyleSheet's (ID `0`) value for that cell
     instead of neutral gray, matching Visio's reference render of equipment shapes (unfilled
-    circles, black outlines and text). The historical findings below predate that change and
-    still describe the Quick-Style-variation-matrix gap, which remains unimplemented. — no inspected
+    circles, black outlines and text); a `THEMEVAL` text cell likewise resolves to the "No Style"
+    color and the theme minor font. **The historical findings below (neutral gray fallback for
+    `test.vsdx`, `60973.vsdx` and others) are superseded by that change** and are retained only as
+    background on the Quick-Style-variation-matrix gap, which remains unimplemented. — no inspected
     sample exercises a shape whose resolved color is genuinely theme-driven (every sample with a
     theme part uses explicit hex colors instead); `VsdxDocument` parses a present `theme1.xml`
     (reusing the existing PPTX DrawingML theme-parsing infrastructure, since both are OOXML
@@ -276,13 +280,15 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
   - **Non-solid `FillPattern` values (built-in hatch/gradient combinations)** and the full
     `BeginArrow`/`EndArrow` arrowhead-style index table — neither is fully enumerable from the
     format research's sample corpus; `VsdxDocument` supports `FillPattern` 0 (none) and 1 (solid)
-    directly, and degrades any other numeric `FillPattern` value to the same solid-fill treatment
-    (using the resolved `FillForegnd` color), and supports a documented subset of common arrowhead
+    directly, and draws any other numeric `FillPattern` value as a solid fill (using the resolved
+    `FillForegnd` color) while reporting it as the unsupported feature `vsdx-fill-pattern-<n>`
+    (through `VsdxRenderOptions.UnsupportedFeatureHandler`, or a thrown exception under
+    `ThrowOnUnsupportedFeature`), and supports a documented subset of common arrowhead
     styles, with an unrecognized arrowhead index degrading to a plain, unadorned line end, never
     throwing. An earlier revision of this design anticipated a best-effort linear-gradient
     approximation for a non-solid `FillPattern`; this was never implemented — direct inspection of
-    `VsdxDocument.Paint.cs` confirms every non-zero, non-one `FillPattern` value has always
-    degraded to solid fill, and no `Gradient`/`LinearGradient` type from the core `Drawing`
+    `VsdxDocument.Paint.cs` confirms every non-zero, non-one `FillPattern` value is drawn as solid
+    fill and reported, and no `Gradient`/`LinearGradient` type from the core `Drawing`
     subsystem is referenced anywhere in this package's source.
   - **`InfiniteLine` geometry rows** — documented VisioML vocabulary not observed in the
     inspected sample corpus; the row type is skipped (see Risk Control Measures above) and
@@ -364,8 +370,11 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
     header-bar fixes above using the same code path) but the frame remains invisible for the
     separate, already-documented Themed-color reason, compounded by one of the frame's own rail
     sub-shapes using a non-solid, gradient-flagged `FillPattern` (`36`, `FillGradientEnabled="1"`)
-    that this design's documented `FillPattern` deferral (below) also degrades to solid fill using
-    a resolved color that itself cannot be resolved. No further code change was made for this
+    that this design's documented `FillPattern` deferral (below) draws as solid fill using
+    a resolved color that itself cannot be resolved. **Superseded**: the `THEMEVAL` cells now
+    resolve to the "No Style" values (see `CanvasNetVsdx-VsdxDocument-ThemedNoStyleFallback`) and a
+    non-solid `FillPattern` is reported as `vsdx-fill-pattern-<n>`; the narrative is kept as
+    history. No further code change was made for this
     sample in Milestone 12; it is recorded here as confirmed evidence that the frame's continued
     non-rendering is explained by these two already-documented, deliberately-deferred limitations
     compounding, not a new or distinct defect, and not a regression risk from this milestone's own

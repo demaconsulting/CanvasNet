@@ -751,6 +751,25 @@ edges pale blue and then hairline strokes it black, asserting an interior pixel 
 color (the stroke is not painted solid) while pixels on the outline are inked. It is deterministic
 and asserts no timing.
 
+#### CanvasNetPdf-PdfDocument-StrokeLineWidthFidelity: Stroke Width Reflects Resolved Device-Space Line Width
+
+**Tests**: `PdfDocument_PathOps_Stroke_ZeroWidth_RendersFullOpacityHairline`,
+`PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke`,
+`PdfDocument_PathOps_Stroke_SubEpsilonWidth_RendersVisibleLine`,
+`PdfDocument_ThinRules_ThinStrokedRules_InkMatchesGeometry`,
+`PdfDocument_ThinRules_ThinFilledBar_InkMatchesGeometry`,
+`PdfDocument_ThinRules_ZeroWidthStroke_PaintsHairline`,
+`PdfDocument_Render_HairlineStrokeOfClosedOutlineWithTinyEdges_KeepsInteriorFilled`
+
+Proves that a literal (or effectively zero) user-space line width still paints a visible,
+full-opacity, one-device-pixel line, while a genuinely positive thin width paints with its own
+antialiased sub-pixel coverage (lighter than a wide stroke, with at least one partially
+transparent pixel) rather than being floored to full opacity, that a sub-epsilon width still
+carries nonzero alpha, that summed ink for thin rules and bars matches the geometric area at many
+sub-pixel phases, and that a hairline stroke of a closed outline with tiny edges keeps its
+interior fill. The tests are described in detail under
+`CanvasNetPdf-PdfDocument-PathPainting` above; all are deterministic and assert no timing.
+
 #### CanvasNetPdf-PdfDocument-ClippingPath: W/W* Clip, Enforce, and Scope the Active Clipping Path
 
 **Tests**: `PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion`,
@@ -2208,8 +2227,12 @@ still clipped to) a wider `/Range`. Asserts a sample-index position that falls b
 linearly interpolates between them. Asserts both 8-bit and 16-bit `/BitsPerSample` widths read
 their raw sample values correctly (16-bit via 2-byte big-endian packing). A `[Theory]` resolves a
 `/FunctionType` `2`/`3`/`4` function, asserting `Codecs.UnsupportedImageFeatureException` (feature
-`pdf-functiontype-{n}`) in every case. Resolves a 2-input `/FunctionType 0` function (a 4-element
-`/Domain`), asserting `Codecs.UnsupportedImageFeatureException` (feature
+`pdf-functiontype-{n}`) in every case - this is the narrow, single-input `/FunctionType 0`
+resolver (`ResolveFunction`) only; the general resolver (`ResolveFunctionGeneric`) evaluates types
+2, 3 and 4 and the multi-input resolver evaluates multi-input type 0, as verified under
+`CanvasNetPdf-PdfDocument-FunctionType2And3` and `CanvasNetPdf-PdfDocument-FunctionType4AndMultiInput`.
+Resolves a 2-input `/FunctionType 0` function (a 4-element
+`/Domain`) through that same narrow resolver, asserting `Codecs.UnsupportedImageFeatureException` (feature
 `pdf-function-multiinput`).
 
 #### CanvasNetPdf-PdfDocument-FunctionType2And3: /FunctionType 2/3 Evaluate Correctly, Unknown Types Fail Closed
