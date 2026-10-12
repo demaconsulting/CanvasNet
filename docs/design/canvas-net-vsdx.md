@@ -224,7 +224,12 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
     geometry/paint/text, when present, render normally; what remains deferred is decoding and
     rasterizing the embedded image/OLE object's own binary payload, which this delivery never
     attempts.
-  - **`Themed` color resolution against a non-trivial `theme1.xml` variation** — no inspected
+  - **`Themed` color resolution against a non-trivial `theme1.xml` variation** — _update_: a
+    bare `V="Themed" F="THEMEVAL()"` line/fill/text-color cell (the built-in "Theme" StyleSheet,
+    ID `6`) now resolves to the built-in "No Style" StyleSheet's (ID `0`) value for that cell
+    instead of neutral gray, matching Visio's reference render of equipment shapes (unfilled
+    circles, black outlines and text). The historical findings below predate that change and
+    still describe the Quick-Style-variation-matrix gap, which remains unimplemented. — no inspected
     sample exercises a shape whose resolved color is genuinely theme-driven (every sample with a
     theme part uses explicit hex colors instead); `VsdxDocument` parses a present `theme1.xml`
     (reusing the existing PPTX DrawingML theme-parsing infrastructure, since both are OOXML

@@ -515,6 +515,24 @@ sections:
               - VsdxDocument_ThemedCellResolution_FallsBackToNeutralDefaultWhenNoThemePart
               - VsdxDocument_ThemedCellResolution_ResolvesAgainstParsedTheme
 
+          - id: CanvasNetVsdx-VsdxDocument-ThemedNoStyleFallback
+            title: >-
+              The VsdxDocument class shall resolve a line, fill or text-color cell whose value is
+              the bare literal "Themed" sentinel (a THEMEVAL() formula naming no theme slot, as
+              inherited from the built-in "Theme" StyleSheet) to the same cell's value in the
+              built-in "No Style" StyleSheet (ID 0) rather than to a neutral gray, retaining the
+              neutral gray only when that StyleSheet supplies no literal value.
+            justification: |
+              Real-world Visio equipment shapes inherit from the built-in "Theme" StyleSheet,
+              whose cells are all a bare THEMEVAL(). Visio renders such shapes with the unthemed
+              base values (black outline, black text, white or absent fill); resolving them to
+              gray painted solid gray discs and gray text.
+            tests:
+              - ThemedPaint_InheritedFromThemeStyle_ResolvesToNoStyleValues
+              - ThemedPaint_DeclaredOnShape_ResolvesToNoStyleValues
+              - ThemedPaint_OwnLiteralValue_IsNotReplaced
+              - ThemedTextColor_InheritedFromThemeStyle_ResolvesToNoStyleColor
+
           - id: CanvasNetVsdx-VsdxDocument-FillPatternDeferral
             title: >-
               The VsdxDocument class shall resolve a solid FillPattern value (1) directly, and

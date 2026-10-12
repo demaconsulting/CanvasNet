@@ -19,7 +19,8 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     remarks for the design-doc citation), and the literal sentinel <c>"Themed"</c> color value
 ///     resolves against the document's parsed theme (<c>VsdxDocument.Theme.cs</c>) when the
 ///     cell's own formula carries a recognized <c>THEMEVAL("slotName")</c> reference, falling back
-///     to <see cref="VsdxColorPalette.ThemedFallback"/> otherwise (see that member's own remarks
+///     to the built-in "No Style" StyleSheet's value for a bare <c>THEMEVAL()</c> cell (see
+///     <see cref="ApplyUnthemedFallback"/>) and finally to <see cref="VsdxColorPalette.ThemedFallback"/> (see that member's own remarks
 ///     for the fixture evidence motivating this deliberate deviation from the originating
 ///     Milestone-4 plan report).
 ///     Also resolves <c>BeginArrow</c>/<c>EndArrow</c> (and their paired
@@ -159,9 +160,51 @@ public sealed partial class VsdxDocument
     /// <param name="lineStyleId">The shape's effective <c>LineStyle</c> StyleSheet ID.</param>
     /// <returns>The resolved cell (carrying both its raw value and formula, for theme-aware callers), or <see langword="null"/> when unresolved anywhere.</returns>
     private VsdxCell? ResolveLineCellValue(VsdxCellBag effectiveCells, string cellName, string? lineStyleId) =>
-        effectiveCells.TryGetLiteral(cellName, out var cell)
-            ? cell
-            : ResolveStyleCellValue(lineStyleId, cellName, style => style.LineStyleParentId);
+        ApplyUnthemedFallback(
+            effectiveCells.TryGetLiteral(cellName, out var cell)
+                ? cell
+                : ResolveStyleCellValue(lineStyleId, cellName, style => style.LineStyleParentId),
+            cellName);
+
+    /// <summary>
+    ///     Replaces an unresolvable <c>"Themed"</c> cell (a host-cell <c>THEMEVAL()</c> whose
+    ///     value Visio would compute from the document theme's QuickStyle state) with the same
+    ///     cell's value from the built-in "No Style" StyleSheet (ID <c>0</c>) - the document's
+    ///     unthemed base appearance (black line, white solid fill, 0.75 pt weight, black text).
+    /// </summary>
+    /// <remarks>
+    ///     Verified against a real diagram whose equipment shapes all inherit <c>"Themed"</c>
+    ///     paint from the built-in "Theme" StyleSheet (ID <c>6</c>): Visio's own render shows
+    ///     black outlines, black text and a fill that is invisible on the white page, whereas
+    ///     the previous neutral gray substitution painted solid gray discs and gray text.
+    ///     A cell whose formula names a canonical clrScheme slot that the theme resolves (see
+    ///     <see cref="VsdxColorPalette.Resolve(string?, string?, VsdxTheme?, Rgba32)"/>) is left
+    ///     untouched, as is a cell for which the "No Style" StyleSheet supplies no literal value
+    ///     of its own (the existing gray fallback and diagnostic then still apply).
+    ///     Honoring a non-default <c>QuickStyle*Color</c> index (<c>0</c>-<c>7</c>) is not
+    ///     implemented.
+    /// </remarks>
+    /// <param name="cell">The resolved cell, or <see langword="null"/>.</param>
+    /// <param name="cellName">The cell's name.</param>
+    /// <returns>The "No Style" cell when <paramref name="cell"/> is an unresolvable <c>"Themed"</c> sentinel and that cell supplies a non-themed value; otherwise <paramref name="cell"/>.</returns>
+    private VsdxCell? ApplyUnthemedFallback(VsdxCell? cell, string cellName)
+    {
+        if (cell is not { } themed || !string.Equals(themed.Value, "Themed", StringComparison.Ordinal))
+        {
+            return cell;
+        }
+
+        if (VsdxColorPalette.ResolvesThemeSlot(themed.Formula, GetTheme()))
+        {
+            return cell;
+        }
+
+        return GetStyleSheets().TryGetValue("0", out var noStyle) &&
+               noStyle.Cells.TryGetLiteral(cellName, out var baseCell) &&
+               !string.Equals(baseCell.Value, "Themed", StringComparison.Ordinal)
+            ? baseCell
+            : themed;
+    }
 
     /// <summary>Resolves a <c>Fill*</c>-category cell: the shape's own literal value, or the StyleSheet chain walked via the <c>FillStyle</c> parent pointer.</summary>
     /// <param name="effectiveCells">The shape's merged flat cell bag.</param>
@@ -169,7 +212,9 @@ public sealed partial class VsdxDocument
     /// <param name="fillStyleId">The shape's effective <c>FillStyle</c> StyleSheet ID.</param>
     /// <returns>The resolved cell (carrying both its raw value and formula, for theme-aware callers), or <see langword="null"/> when unresolved anywhere.</returns>
     private VsdxCell? ResolveFillCellValue(VsdxCellBag effectiveCells, string cellName, string? fillStyleId) =>
-        effectiveCells.TryGetLiteral(cellName, out var cell)
-            ? cell
-            : ResolveStyleCellValue(fillStyleId, cellName, style => style.FillStyleParentId);
+        ApplyUnthemedFallback(
+            effectiveCells.TryGetLiteral(cellName, out var cell)
+                ? cell
+                : ResolveStyleCellValue(fillStyleId, cellName, style => style.FillStyleParentId),
+            cellName);
 }

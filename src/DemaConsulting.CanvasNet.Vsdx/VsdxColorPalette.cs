@@ -179,6 +179,17 @@ internal static class VsdxColorPalette
     }
 
     /// <summary>
+    ///     Determines whether <paramref name="formula"/> is a <c>THEMEVAL("slotName")</c>
+    ///     reference that <see cref="Resolve(string?, string?, VsdxTheme?, Rgba32)"/> resolves
+    ///     against <paramref name="theme"/>.
+    /// </summary>
+    /// <param name="formula">The cell's raw <c>F</c> value, or <see langword="null"/>.</param>
+    /// <param name="theme">The document's parsed theme, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when the formula names a canonical slot the theme resolves.</returns>
+    public static bool ResolvesThemeSlot(string? formula, VsdxTheme? theme) =>
+        theme is not null && formula is not null && TryMatchThemeValSlot(formula, theme, out _);
+
+    /// <summary>
     ///     Searches <paramref name="formula"/> for the exact literal substring
     ///     <c>THEMEVAL("slotName")</c> (double-quoted, case-sensitive) for one of the 12 canonical
     ///     clrScheme slot names, resolving it against <paramref name="theme"/> when found - see

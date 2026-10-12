@@ -70,6 +70,25 @@ public sealed partial class VsdxDocument
     }
 
     /// <summary>
+    ///     Resolves a <c>Section N="Character"</c> cell from the built-in "No Style" StyleSheet
+    ///     (ID <c>0</c>, row <c>0</c>) - the document's unthemed base text appearance, used in
+    ///     place of an unresolvable <c>"Themed"</c> host-cell <c>THEMEVAL()</c> value (see
+    ///     <see cref="ApplyUnthemedFallback"/>).
+    /// </summary>
+    /// <param name="cellName">The character cell name.</param>
+    /// <returns>The "No Style" row-0 value when it is a non-themed literal; otherwise <see langword="null"/>.</returns>
+    private string? ResolveUnthemedCharacterCell(string cellName)
+    {
+        var value = GetStyleSheets().TryGetValue("0", out var noStyle) &&
+                    noStyle.CharacterRows.TryGetValue(0, out var row) &&
+                    row.TryGetLiteral(cellName, out var cell)
+            ? cell.Value
+            : null;
+
+        return string.Equals(value, "Themed", StringComparison.Ordinal) ? null : value;
+    }
+
+    /// <summary>
     ///     Resolves a shape's flat <c>VerticalAlign</c>/margin cells: the shape's own literal
     ///     value, or the <c>TextStyle</c> StyleSheet chain walked via <c>ResolveStyleCellValue</c>
     ///     (the existing Milestone-3 helper, reused verbatim with a new <c>TextStyleParentId</c>
@@ -128,10 +147,16 @@ public sealed partial class VsdxDocument
         var characterRowIndex = raw.CharacterRowIndex ?? 0;
         var paragraphRowIndex = raw.ParagraphRowIndex ?? 0;
 
-        string? ResolveCharacterCell(string cellName) =>
-            shapeCharacterRows.TryGetValue(characterRowIndex, out var row) && row.TryGetLiteral(cellName, out var cell)
+        string? ResolveCharacterCell(string cellName)
+        {
+            var value = shapeCharacterRows.TryGetValue(characterRowIndex, out var row) && row.TryGetLiteral(cellName, out var cell)
                 ? cell.Value
                 : ResolveTextRowCellValue(textStyleId, characterRowIndex, cellName, style => style.CharacterRows);
+
+            return string.Equals(value, "Themed", StringComparison.Ordinal) && cellName == "Color"
+                ? ResolveUnthemedCharacterCell(cellName) ?? value
+                : value;
+        }
 
         string? ResolveParagraphCell(string cellName) =>
             shapeParagraphRows.TryGetValue(paragraphRowIndex, out var row) && row.TryGetLiteral(cellName, out var cell)

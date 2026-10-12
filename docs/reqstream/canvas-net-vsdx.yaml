@@ -173,6 +173,7 @@ sections:
         children:
           - CanvasNetVsdx-VsdxDocument-ColorTableResolution
           - CanvasNetVsdx-VsdxDocument-ThemedCellResolution
+          - CanvasNetVsdx-VsdxDocument-ThemedNoStyleFallback
           - CanvasNetVsdx-VsdxDocument-FillPatternDeferral
         tests:
           - CanvasNetVsdx_SystemIntegration_ColorFill_ResolvesBuiltInPaletteIndexAndHexColors

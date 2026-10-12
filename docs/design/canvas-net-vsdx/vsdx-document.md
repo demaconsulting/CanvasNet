@@ -247,7 +247,13 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   `0` ("No Style"), which the format research confirms has no `F="Inh"` cells of its own. A
   literal value of `"Themed"` resolves through the optional parsed theme instead, falling back to
   a neutral default when no theme part is present or the referenced scheme entry is absent (see
-  the Design Constraints deferral in _CanvasNetVsdx System Design_, `canvas-net-vsdx.md`).
+  the Design Constraints deferral in _CanvasNetVsdx System Design_, `canvas-net-vsdx.md`). A
+  _bare_ `"Themed"` line, fill or character-color cell (a `THEMEVAL()` formula that names no
+  theme slot, as in the built-in "Theme" StyleSheet, ID `6`, that real equipment shapes inherit)
+  instead takes the same cell's value from the built-in "No Style" StyleSheet (ID `0`: black
+  line and text, white solid fill, 0.0104 in weight) via `ApplyUnthemedFallback`; this matches
+  Visio's own rendering of such shapes. The neutral gray remains only when StyleSheet `0`
+  supplies no literal value. The `QuickStyle*` theme-index and matrix cells are still not honored.
   Milestone 10 additionally resolves `FillForegndTrans`/`LineColorTrans` through this same
   `FillStyle`/`LineStyle` chain (a literal `"0..1"` transparency fraction, `0` fully opaque, `1`
   fully transparent) and modulates the resolved `FillForegnd`/`LineColor` color's own alpha

@@ -130,13 +130,14 @@ public class VsdxStyleResolutionTests
     }
 
     /// <summary>
-    ///     Proves the literal sentinel color value <c>"Themed"</c> resolves through
-    ///     <see cref="VsdxColorPalette.ThemedFallback"/> rather than throwing - the deliberate,
-    ///     evidence-based deviation from the originating plan report's Assumption #1 (see
-    ///     <see cref="VsdxColorPalette.ThemedFallback"/>'s own remarks for the fixture evidence).
+    ///     Proves the literal sentinel color value <c>"Themed"</c> resolves without throwing, to
+    ///     the built-in "No Style" StyleSheet's own value for the same cell (white fill here)
+    ///     rather than the neutral gray <see cref="VsdxColorPalette.ThemedFallback"/>, which only
+    ///     remains the terminal case when no such value exists (see
+    ///     <see cref="VsdxThemedFallbackTests"/>).
     /// </summary>
     [Fact]
-    public void StyleResolution_ThemedColorSentinel_ResolvesToNeutralFallbackWithoutThrowing()
+    public void StyleResolution_ThemedColorSentinel_ResolvesToNoStyleValueWithoutThrowing()
     {
         // Arrange
         var shapeXml =
@@ -159,7 +160,7 @@ public class VsdxStyleResolutionTests
         // Assert
         Assert.Null(exception);
         var paint = document.GetPageShapes(0)[0].Paint!;
-        Assert.Equal(VsdxColorPalette.ThemedFallback, paint.FillColor);
+        Assert.Equal(new DemaConsulting.CanvasNet.Canvas.Rgba32(255, 255, 255, 255), paint.FillColor);
     }
 
     /// <summary>

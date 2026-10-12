@@ -531,6 +531,18 @@ unresolvable-scheme path, rendering gray rather than Visio's own orange/blue fil
 was made; recorded purely as confirmed evidence this documented gap is real and already correctly
 tolerated at a second site.
 
+#### CanvasNetVsdx-VsdxDocument-ThemedNoStyleFallback: Bare "Themed" Resolves To The "No Style" Value
+
+**Tests**: `ThemedPaint_InheritedFromThemeStyle_ResolvesToNoStyleValues`,
+`ThemedPaint_DeclaredOnShape_ResolvesToNoStyleValues`,
+`ThemedPaint_OwnLiteralValue_IsNotReplaced`,
+`ThemedTextColor_InheritedFromThemeStyle_ResolvesToNoStyleColor`
+
+Builds a synthetic package whose shape chains through a "Theme" StyleSheet of bare
+`THEMEVAL()` cells and asserts the resolved paint is a black 0.0104 in outline with a white solid
+fill and black text, that a shape's own themed cells behave the same, and that an own literal
+color is never replaced.
+
 #### CanvasNetVsdx-VsdxDocument-FillPatternDeferral: Solid Resolves Directly, Any Other Value Degrades
 
 **Tests**: `StyleResolution_FillPatternZero_ResolvesNoFill`,
