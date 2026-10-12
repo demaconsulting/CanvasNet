@@ -1297,10 +1297,11 @@ pixel painted is produced by an already-verified Phase 1c/1d/1e resolver or pain
 
 #### Rendering Options
 
-`PptxRenderOptions` mirrors `PdfRenderOptions`'s own shape: a `sealed` class with a single
-`init`-only `BackgroundColor` property (defaulting to opaque white) and a `Default` static
-instance, so future rendering options can be added as new properties without a breaking change
-to `Render`'s own signature.
+`PptxRenderOptions` mirrors `PdfRenderOptions`'s own shape: a `sealed` class with `init`-only
+properties - `BackgroundColor` (defaulting to opaque white), `StrictUnsupportedPictures`
+(default `false`) and `OnUnsupportedPictureSkipped` (optional callback, default `null`) - and a
+`Default` static instance, so future rendering options can be added as new properties without a
+breaking change to `Render`'s own signature.
 
 #### Base Transform
 
@@ -1861,8 +1862,21 @@ already-deferred feature used by a decorative master/layout shape (for example a
 would abort rendering for every slide using that master/layout - a severe regression versus the
 pre-existing behavior where master/layout shape trees were never walked at all. See
 `Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent`
-and `Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException` in
+and `Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException` in
 `PptxRenderTests.cs` for the regression coverage proving both halves of this boundary.
+
+**EMF/WMF pictures on a slide are skipped (`CanvasNetPptx-PptxDocument-MetafilePictureTolerance`)**:
+a `<p:pic>` whose media content type is `image/x-emf`, `image/emf`, `image/x-wmf` or `image/wmf`
+makes `ResolvePictureSurface` throw `PptxUnsupportedFeatureException` with the distinct feature
+token `"pptx-image-metafile"` (every other unsupported content type keeps `"pptx-image-format"`).
+`RenderNode`'s `PptxPictureShapeNode` arm catches exactly that token, unless
+`PptxRenderOptions.StrictUnsupportedPictures` is `true`, so only that one picture is skipped - the
+image is resolved before any compositing, so nothing is partly painted - and the rest of the slide
+renders. Each skip is reported by invoking the optional `PptxRenderOptions.OnUnsupportedPictureSkipped`
+callback with the exception (this package has no other diagnostics channel). In strict mode the
+exception propagates unchanged. `options` is threaded through `RenderNode`'s recursion so group-
+nested pictures behave identically. **Known gap**: EMF/WMF content is never drawn (not even a
+placeholder); a pasted chart/diagram stored as a metafile therefore leaves its area unpainted.
 
 **Fidelity achieved**:
 
@@ -1904,8 +1918,8 @@ silently: `Render_MasterNonPlaceholderPicture_PaintsOnEverySlideUsingThatMasterR
 Two further regression tests cover the graceful-skip containment fix described above:
 `Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent`
 (a master's own EMF picture shape is skipped and the slide's own content still paints) and
-`Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException` (a
-slide's own EMF picture shape still hard-fails `Render`, proving the containment is scoped to
+`Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException` (a
+slide's own non-metafile unsupported picture still hard-fails `Render`, proving the containment is scoped to
 master/layout-owned shapes only).
 
 #### Phase 2 Follow-Up: Bullets and Numbering Rendering

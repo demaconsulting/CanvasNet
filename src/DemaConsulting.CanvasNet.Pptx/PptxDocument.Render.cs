@@ -69,7 +69,9 @@ public sealed partial class PptxDocument
     ///     unsupported <c>&lt;a:prstGeom&gt;</c> preset (including on a <c>&lt;p:pic&gt;</c>'s own
     ///     clip geometry), a pattern fill or a radial/path gradient, or
     ///     an unsupported picture condition (a linked, non-embedded image, or an unsupported
-    ///     raster image format).
+    ///     raster image format). A slide's own EMF/WMF picture is the exception: it is skipped
+    ///     (and reported via <see cref="PptxRenderOptions.OnUnsupportedPictureSkipped"/>) unless
+    ///     <see cref="PptxRenderOptions.StrictUnsupportedPictures"/> is set.
     /// </exception>
     /// <exception cref="ObjectDisposedException">Thrown when this document has been disposed.</exception>
     /// <remarks>
@@ -152,17 +154,17 @@ public sealed partial class PptxDocument
             // non-placeholder siblings are.
             foreach (var node in master.ShapeTree)
             {
-                RenderNode(surface, node, master.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, slideNumber, skipPlaceholderShapes: true);
+                RenderNode(surface, node, master.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, slideNumber, skipPlaceholderShapes: true, options: options);
             }
 
             foreach (var node in layout.ShapeTree)
             {
-                RenderNode(surface, node, layout.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, slideNumber, skipPlaceholderShapes: true);
+                RenderNode(surface, node, layout.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, slideNumber, skipPlaceholderShapes: true, options: options);
             }
 
             foreach (var node in slide.ShapeTree)
             {
-                RenderNode(surface, node, slide.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, slideNumber);
+                RenderNode(surface, node, slide.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, slideNumber, options: options);
             }
 
             return surface;
@@ -342,6 +344,11 @@ public sealed partial class PptxDocument
     ///     rendered many times, so this walker must not rely solely on the parser's own cap having
     ///     run first.
     /// </param>
+    /// <param name="options">
+    ///     The render options, consulted for <see cref="PptxRenderOptions.StrictUnsupportedPictures"/>
+    ///     and <see cref="PptxRenderOptions.OnUnsupportedPictureSkipped"/> when a picture shape's
+    ///     media is an EMF/WMF metafile; <see langword="null"/> means the tolerant defaults.
+    /// </param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when a <see cref="PptxGroupShapeNode"/> is nested more than
     ///     <see cref="MaxGroupShapeNestingDepth"/> levels deep.
@@ -358,7 +365,8 @@ public sealed partial class PptxDocument
         List<Surface> renderImages,
         int slideNumber,
         bool skipPlaceholderShapes = false,
-        int depth = 0)
+        int depth = 0,
+        PptxRenderOptions? options = null)
     {
         switch (node)
         {
@@ -372,7 +380,7 @@ public sealed partial class PptxDocument
                 var childToSurface = group.ChildTransform * parentToSurface;
                 foreach (var child in group.Children)
                 {
-                    RenderNode(surface, child, ownerPartPath, layout, master, theme, childToSurface, colorMap, renderImages, slideNumber, skipPlaceholderShapes, depth + 1);
+                    RenderNode(surface, child, ownerPartPath, layout, master, theme, childToSurface, colorMap, renderImages, slideNumber, skipPlaceholderShapes, depth + 1, options);
                 }
 
                 break;
@@ -403,6 +411,15 @@ public sealed partial class PptxDocument
                 try
                 {
                     RenderPicture(surface, pic, ownerPartPath, theme, parentToSurface, colorMap, renderImages);
+                }
+                catch (PptxUnsupportedFeatureException ex) when (
+                    ex.Feature == MetafileFeatureToken && !(options?.StrictUnsupportedPictures ?? false))
+                {
+                    // An EMF/WMF vector picture cannot be decoded; skip just this picture (nothing
+                    // has been painted for it yet - the image is resolved before compositing) and
+                    // report it, so the rest of the slide still renders. Strict mode filters this
+                    // clause out and the exception propagates.
+                    options?.OnUnsupportedPictureSkipped?.Invoke(ex);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {

@@ -3591,30 +3591,99 @@ public class PptxRenderTests
     }
 
     /// <summary>
-    ///     Regression test (see the companion planning report's bug-fix rationale): a
-    ///     <strong>slide's own</strong> (not a master/layout's) <c>&lt;p:pic&gt;</c> referencing an
-    ///     unsupported raster format must still hard-fail <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>
-    ///     with <see cref="PptxUnsupportedFeatureException"/>, exactly as before the master/layout
-    ///     graceful-skip containment was added - proving the containment is scoped to master/
-    ///     layout-owned shapes only.
+    ///     Regression test: a <strong>slide's own</strong> <c>&lt;p:pic&gt;</c> referencing an
+    ///     EMF/WMF metafile is skipped by default (tolerant mode) - the rest of the slide still
+    ///     paints - and the skip is reported via
+    ///     <see cref="PptxRenderOptions.OnUnsupportedPictureSkipped"/>.
     /// </summary>
-    [Fact]
-    public void Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException()
+    [Theory]
+    [InlineData("emf", "image/x-emf")]
+    [InlineData("wmf", "image/x-wmf")]
+    public void Render_SlideOwnMetafilePicture_SkipsPictureReportsItAndRendersRestOfSlide(string extension, string contentType)
     {
-        const string spTreeInnerXml =
-            """
-            <p:pic>
-              <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
-              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
-              <p:spPr>
-                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
-                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
-              </p:spPr>
-            </p:pic>
+        var spTreeInnerXml = FullSlideShapeXml("SlideShape", "0000FF") + MetafilePictureXml(0, 0, 4572000, 6858000);
+        using var stream = BuildRenderPackage(spTreeInnerXml, media: (extension, contentType, [1, 2, 3, 4]));
+        using var document = PptxDocument.Open(stream);
+        var skipped = new List<PptxUnsupportedFeatureException>();
+
+        using var surface = document.Render(0, 20, 20, new PptxRenderOptions { OnUnsupportedPictureSkipped = skipped.Add });
+
+        // The slide's own shape still paints (including under the skipped picture's footprint).
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[10, 10]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[2, 10]);
+        var report = Assert.Single(skipped);
+        Assert.Equal("pptx-image-metafile", report.Feature);
+    }
+
+    /// <summary>Proves the skip also applies to a metafile picture nested in a group, and renders with default options.</summary>
+    [Fact]
+    public void Render_MetafilePictureInsideGroup_DefaultOptions_SkipsPictureAndRendersRestOfSlide()
+    {
+        var groupXml =
+            $$"""
+            <p:grpSp>
+              <p:nvGrpSpPr><p:cNvPr id="9" name="Group"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+              <p:grpSpPr>
+                <a:xfrm>
+                  <a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/>
+                  <a:chOff x="0" y="0"/><a:chExt cx="9144000" cy="6858000"/>
+                </a:xfrm>
+              </p:grpSpPr>
+              {{MetafilePictureXml(0, 0, 4572000, 6858000)}}
+            </p:grpSp>
             """;
-        using var stream = BuildRenderPackage(spTreeInnerXml, media: ("emf", "image/x-emf", [1, 2, 3, 4]));
+        using var stream = BuildRenderPackage(FullSlideShapeXml("SlideShape", "0000FF") + groupXml, media: ("emf", "image/x-emf", [1, 2, 3, 4]));
         using var document = PptxDocument.Open(stream);
 
-        Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(0, 20, 20));
+        using var surface = document.Render(0, 20, 20);
+
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[10, 10]);
     }
+
+    /// <summary>
+    ///     Proves strict mode keeps throwing <see cref="PptxUnsupportedFeatureException"/> for a
+    ///     slide's own metafile picture, without invoking the skip callback.
+    /// </summary>
+    [Fact]
+    public void Render_SlideOwnMetafilePicture_StrictMode_ThrowsPptxUnsupportedFeatureException()
+    {
+        var spTreeInnerXml = FullSlideShapeXml("SlideShape", "0000FF") + MetafilePictureXml(0, 0, 4572000, 6858000);
+        using var stream = BuildRenderPackage(spTreeInnerXml, media: ("emf", "image/x-emf", [1, 2, 3, 4]));
+        using var document = PptxDocument.Open(stream);
+        var skipped = new List<PptxUnsupportedFeatureException>();
+        var options = new PptxRenderOptions { StrictUnsupportedPictures = true, OnUnsupportedPictureSkipped = skipped.Add };
+
+        var ex = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(0, 20, 20, options));
+
+        Assert.Equal("pptx-image-metafile", ex.Feature);
+        Assert.Empty(skipped);
+    }
+
+    /// <summary>
+    ///     Proves a slide's own picture with an unsupported non-metafile format still hard-fails
+    ///     (only EMF/WMF is tolerated).
+    /// </summary>
+    [Fact]
+    public void Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException()
+    {
+        using var stream = BuildRenderPackage(MetafilePictureXml(0, 0, 9144000, 6858000), media: ("bin", "application/octet-stream", [1, 2, 3, 4]));
+        using var document = PptxDocument.Open(stream);
+
+        var ex = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(0, 20, 20));
+
+        Assert.Equal("pptx-image-format", ex.Feature);
+    }
+
+    /// <summary>Builds a <c>&lt;p:pic&gt;</c> referencing the slide's <c>rId2</c> media part.</summary>
+    private static string MetafilePictureXml(int x, int y, int cx, int cy) =>
+        $$"""
+        <p:pic>
+          <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+          <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+          <p:spPr>
+            <a:xfrm><a:off x="{{x}}" y="{{y}}"/><a:ext cx="{{cx}}" cy="{{cy}}"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+          </p:spPr>
+        </p:pic>
+        """;
 }

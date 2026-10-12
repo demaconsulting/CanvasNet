@@ -1192,7 +1192,8 @@ sections:
               extension present but with no r:embed of its own with InvalidDataException,
               rejecting a <a:blip> with neither an embed/link attribute nor any recognized
               extension fallback with InvalidDataException, rejecting an unsupported content type
-              with PptxUnsupportedFeatureException (feature token "pptx-image-format"), and shall
+              with PptxUnsupportedFeatureException (feature token "pptx-image-format", or
+              "pptx-image-metafile" for an EMF/WMF content type), and shall
               resolve a <p:blipFill>'s optional <a:srcRect> into a normalized, scaled-fraction
               PptxSrcRect crop rectangle (each edge defaulting to zero/full-extent when its own
               attribute is absent).
@@ -1231,6 +1232,7 @@ sections:
               - ResolvePictureSurface_SvgOnlyBlipExtension_ReturnsDecodedSurfaceFromAsvgSvgBlipEmbed
               - ResolvePictureSurface_SvgBlipExtensionMissingEmbed_ThrowsInvalidDataException
               - ResolvePictureSurface_UnsupportedContentType_ThrowsPptxUnsupportedFeatureExceptionWithImageFormatToken
+              - ResolvePictureSurface_MetafileContentType_ThrowsPptxUnsupportedFeatureExceptionWithMetafileToken
               - ResolvePictureSurface_NullArguments_ThrowsArgumentNullException
 
           - id: CanvasNetPptx-PptxDocument-PicturePainting
@@ -1815,9 +1817,38 @@ sections:
               - Render_MasterPlaceholderShape_DoesNotRenderItsOwnPromptContent
               - Render_LayoutPlaceholderShape_DoesNotRenderItsOwnPromptContent
               - Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent
-              - Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException
+              - Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException
               - Render_MasterSvgOnlyLogoPicture_PaintsVisiblePixelsInsteadOfBeingSkipped
               - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0AndSlide1PaintContent
+
+          - id: CanvasNetPptx-PptxDocument-MetafilePictureTolerance
+            title: >-
+              The PptxDocument class's Render methods shall, by default, skip a slide's own (or a
+              group-nested) <p:pic> picture shape whose media part has an EMF or WMF content type
+              (image/x-emf, image/emf, image/x-wmf, image/wmf) - painting nothing for that one
+              picture while every other shape of the slide still renders - and shall report each
+              skipped picture by invoking the optional PptxRenderOptions.OnUnsupportedPictureSkipped
+              callback with a PptxUnsupportedFeatureException carrying feature token
+              "pptx-image-metafile"; when PptxRenderOptions.StrictUnsupportedPictures is true, the
+              same picture shall instead make Render throw that PptxUnsupportedFeatureException
+              without invoking the callback. A picture with any other unsupported content type
+              shall continue to throw PptxUnsupportedFeatureException (feature token
+              "pptx-image-format") regardless of the option. Rendering EMF/WMF content is a known,
+              documented gap.
+            justification: |
+              PowerPoint commonly embeds pasted charts and diagrams as EMF/WMF pictures. Refusing an
+              entire slide because of one such picture discards every other correctly renderable
+              element, so tolerant skipping gives callers a mostly complete image, while the
+              callback keeps the omission observable and the strict option preserves the previous
+              fail-closed behavior for callers that require it. A distinct feature token lets the
+              tolerance apply to exactly this well-understood case without swallowing other
+              unsupported-format failures.
+            tests:
+              - ResolvePictureSurface_MetafileContentType_ThrowsPptxUnsupportedFeatureExceptionWithMetafileToken
+              - Render_SlideOwnMetafilePicture_SkipsPictureReportsItAndRendersRestOfSlide
+              - Render_MetafilePictureInsideGroup_DefaultOptions_SkipsPictureAndRendersRestOfSlide
+              - Render_SlideOwnMetafilePicture_StrictMode_ThrowsPptxUnsupportedFeatureException
+              - Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException
 
           - id: CanvasNetPptx-PptxDocument-BulletProperties
             title: >-

@@ -1551,7 +1551,7 @@ pipeline verbatim rather than introducing a background-specific gradient path.
 `Render_MasterPlaceholderShape_DoesNotRenderItsOwnPromptContent`,
 `Render_LayoutPlaceholderShape_DoesNotRenderItsOwnPromptContent`,
 `Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent`,
-`Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException`,
+`Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException`,
 `Render_MasterSvgOnlyLogoPicture_PaintsVisiblePixelsInsteadOfBeingSkipped`,
 `PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature`
 
@@ -1574,9 +1574,11 @@ graceful-skip containment fix, that a master's own non-placeholder picture shape
 unsupported raster format (an EMF vector picture) is caught and skipped - rendering continues and
 the slide's own content still paints normally over the full slide footprint - rather than
 aborting the whole render; and, as the matching counter-proof that this containment is scoped
-only to master/layout-owned shapes, that a **slide's own** picture shape referencing the same
-unsupported raster format still hard-fails `Render` with `PptxUnsupportedFeatureException`,
-exactly as before this containment was added. Proves, as a regression guard for the Phase 2
+only to master/layout-owned shapes (and, separately, to EMF/WMF pictures - see
+`CanvasNetPptx-PptxDocument-MetafilePictureTolerance`), that a **slide's own** picture shape
+referencing a non-metafile unsupported format still hard-fails `Render` with
+`PptxUnsupportedFeatureException`, exactly as before this containment was added. Proves, as a
+regression guard for the Phase 2
 Follow-Up "SVG-Only Picture Blip Rendering" fix (mirroring the real-world "ERF IWF Breadboard Peer
 Review.pptx" master-logo scenario), that a master-owned "SVG-only" `<p:pic>` (no raster
 `r:embed`/`r:link` at all, only a Microsoft `<asvg:svgBlip r:embed="...">` extension referencing an
@@ -1594,6 +1596,24 @@ of its own bounding box is unfilled background with anti-aliased edges) - this f
 a dramatic visual contrast on its own, since its own `bg1` theme color and its own slide master
 background both already resolve to the same pure white this freeform shape itself is filled, so
 the synthetic tests above carry the primary, deliberately-contrasting-color proof instead.
+
+#### CanvasNetPptx-PptxDocument-MetafilePictureTolerance: EMF/WMF Picture Tolerance
+
+**Tests**: `ResolvePictureSurface_MetafileContentType_ThrowsPptxUnsupportedFeatureExceptionWithMetafileToken`,
+`Render_SlideOwnMetafilePicture_SkipsPictureReportsItAndRendersRestOfSlide`,
+`Render_MetafilePictureInsideGroup_DefaultOptions_SkipsPictureAndRendersRestOfSlide`,
+`Render_SlideOwnMetafilePicture_StrictMode_ThrowsPptxUnsupportedFeatureException`,
+`Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException`
+
+Proves, with synthetic minimal packages (placeholder media bytes - the metafile is never parsed),
+that all four EMF/WMF content types raise the distinct `"pptx-image-metafile"` feature token; that
+by default a slide's own metafile picture is skipped while the slide's other shape still paints
+(sampled under and beside the skipped picture's footprint) and exactly one report reaches
+`OnUnsupportedPictureSkipped`; that the same holds for a picture nested in a group; that
+`StrictUnsupportedPictures = true` makes `Render` throw `PptxUnsupportedFeatureException` with the
+metafile token and never invokes the callback; and that a non-metafile unsupported content type
+still throws with the `"pptx-image-format"` token, proving the tolerance is scoped to EMF/WMF.
+No EMF/WMF rendering is verified because none exists (known gap).
 
 #### CanvasNetPptx-PptxDocument-BulletProperties: Bullet/Numbering Property Parsing and Choice-Group Inheritance
 

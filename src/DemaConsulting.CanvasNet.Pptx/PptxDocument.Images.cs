@@ -79,8 +79,10 @@ public sealed partial class PptxDocument
     ///     an <c>r:link</c> (a linked, non-embedded image - requires external/network resolution,
     ///     out of scope this phase), or (feature token <c>"pptx-image-format"</c>) when the
     ///     resolved media part's content type is not one of the five raster formats this package's
-    ///     codecs decode (for example an EMF/WMF vector picture - a common PowerPoint picture
-    ///     format this phase's raster-only codecs cannot decode).
+    ///     codecs decode (for example an unknown vector format), or (feature token
+    ///     <c>"pptx-image-metafile"</c>) when it is an EMF/WMF vector metafile - which
+    ///     <c>Render</c> tolerates for a slide's own picture shape by skipping that one picture
+    ///     (see <see cref="PptxRenderOptions.StrictUnsupportedPictures"/>).
     /// </exception>
     /// <remarks>
     ///     A codec decode failure (corrupt image bytes) is <em>not</em> wrapped here - it
@@ -121,9 +123,20 @@ public sealed partial class PptxDocument
 
         var mediaPartPath = ResolveRelationship(ownerPartPath, embedId);
         var contentType = ResolvePart(mediaPartPath);
-        var decoder = ResolveRasterDecoder(contentType) ?? throw new PptxUnsupportedFeatureException(
-            "pptx-image-format",
-            $"Image content type '{contentType}' is not a supported raster format.");
+        var decoder = ResolveRasterDecoder(contentType);
+        if (decoder is null)
+        {
+            // EMF/WMF vector metafiles get their own feature token so Render can tolerate exactly
+            // this (very common) picture kind - skipping just that picture - without also
+            // swallowing every other unsupported-format failure.
+            throw IsMetafileContentType(contentType)
+                ? new PptxUnsupportedFeatureException(
+                    MetafileFeatureToken,
+                    $"Image content type '{contentType}' (EMF/WMF vector metafile) is not supported.")
+                : new PptxUnsupportedFeatureException(
+                    "pptx-image-format",
+                    $"Image content type '{contentType}' is not a supported raster format.");
+        }
 
         var bytes = GetPartBytes(mediaPartPath);
         using var stream = new MemoryStream(bytes);
@@ -221,6 +234,21 @@ public sealed partial class PptxDocument
         "image/gif" => GifCodec.Load,
         _ => null
     };
+
+    /// <summary>
+    ///     The <see cref="PptxUnsupportedFeatureException.Feature"/> token thrown for an EMF/WMF
+    ///     vector metafile picture, which <c>Render</c> skips (rather than failing the slide)
+    ///     unless <see cref="PptxRenderOptions.StrictUnsupportedPictures"/> is set.
+    /// </summary>
+    internal const string MetafileFeatureToken = "pptx-image-metafile";
+
+    /// <summary>
+    ///     Determines whether an OPC content type names an EMF or WMF vector metafile.
+    /// </summary>
+    /// <param name="contentType">The media part's resolved OPC content type.</param>
+    /// <returns><see langword="true"/> for an EMF/WMF content type; otherwise <see langword="false"/>.</returns>
+    private static bool IsMetafileContentType(string contentType) => contentType is
+        "image/x-emf" or "image/emf" or "image/x-wmf" or "image/wmf";
 
     /// <summary>
     ///     Detects the Microsoft "SVG-only" <c>&lt;a:blip&gt;</c> fallback pattern - an

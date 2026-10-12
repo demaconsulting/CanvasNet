@@ -1041,16 +1041,32 @@ public class PptxImagesTests
         Assert.Equal(Surface.MaxDimension, surface.Height);
     }
 
-    /// <summary>Proves an unrecognized media content type (for example an EMF vector picture) throws <see cref="PptxUnsupportedFeatureException"/> with feature token <c>"pptx-image-format"</c>.</summary>
+    /// <summary>Proves an unrecognized media content type throws <see cref="PptxUnsupportedFeatureException"/> with feature token <c>"pptx-image-format"</c>.</summary>
     [Fact]
     public void ResolvePictureSurface_UnsupportedContentType_ThrowsPptxUnsupportedFeatureExceptionWithImageFormatToken()
     {
-        var (package, slidePartPath) = BuildMinimalImagePackage("emf", "image/x-emf", [1, 2, 3, 4]);
+        var (package, slidePartPath) = BuildMinimalImagePackage("bin", "application/octet-stream", [1, 2, 3, 4]);
         using var stream = package;
         using var document = PptxDocument.Open(stream);
 
         var ex = Assert.Throws<PptxUnsupportedFeatureException>(() => document.ResolvePictureSurface(slidePartPath, BuildBlipFillEmbed()));
         Assert.Equal("pptx-image-format", ex.Feature);
+    }
+
+    /// <summary>Proves an EMF or WMF media content type throws <see cref="PptxUnsupportedFeatureException"/> with feature token <c>"pptx-image-metafile"</c>.</summary>
+    [Theory]
+    [InlineData("emf", "image/x-emf")]
+    [InlineData("emf", "image/emf")]
+    [InlineData("wmf", "image/x-wmf")]
+    [InlineData("wmf", "image/wmf")]
+    public void ResolvePictureSurface_MetafileContentType_ThrowsPptxUnsupportedFeatureExceptionWithMetafileToken(string extension, string contentType)
+    {
+        var (package, slidePartPath) = BuildMinimalImagePackage(extension, contentType, [1, 2, 3, 4]);
+        using var stream = package;
+        using var document = PptxDocument.Open(stream);
+
+        var ex = Assert.Throws<PptxUnsupportedFeatureException>(() => document.ResolvePictureSurface(slidePartPath, BuildBlipFillEmbed()));
+        Assert.Equal("pptx-image-metafile", ex.Feature);
     }
 
     /// <summary>Proves <see cref="PptxDocument.ResolvePictureSurface"/> rejects a null argument.</summary>

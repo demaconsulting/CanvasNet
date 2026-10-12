@@ -52,4 +52,28 @@ public sealed class PptxRenderOptions
     ///     <c>&lt;p:bg&gt;</c> at all.
     /// </remarks>
     public Rgba32 BackgroundColor { get; init; } = new(255, 255, 255, 255);
+
+    /// <summary>
+    ///     When <see langword="false"/> (the default), a slide's own <c>&lt;p:pic&gt;</c> picture
+    ///     shape whose media is an EMF/WMF vector metafile (not decodable by this package) is
+    ///     skipped - nothing is drawn for that one picture - and the rest of the slide still
+    ///     renders. When <see langword="true"/>, such a picture makes <c>Render</c> throw
+    ///     <see cref="PptxUnsupportedFeatureException"/> (feature token
+    ///     <c>"pptx-image-metafile"</c>), as it did before this option existed.
+    /// </summary>
+    /// <remarks>
+    ///     Rendering EMF/WMF content is a known gap. Master/layout pictures are always skipped
+    ///     regardless of this option.
+    /// </remarks>
+    public bool StrictUnsupportedPictures { get; init; }
+
+    /// <summary>
+    ///     Optional callback invoked once for each EMF/WMF picture skipped under the default
+    ///     tolerant mode, receiving the <see cref="PptxUnsupportedFeatureException"/> that
+    ///     describes the skipped picture (its <see cref="PptxUnsupportedFeatureException.Feature"/>
+    ///     is <c>"pptx-image-metafile"</c>). Never invoked when
+    ///     <see cref="StrictUnsupportedPictures"/> is <see langword="true"/> (the exception is
+    ///     thrown instead).
+    /// </summary>
+    public Action<PptxUnsupportedFeatureException>? OnUnsupportedPictureSkipped { get; init; }
 }
