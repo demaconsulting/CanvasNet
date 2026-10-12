@@ -105,4 +105,59 @@ public class VsdxThemedFallbackTests
 
         Assert.Equal(new Rgba32(0, 0, 0, 255), run.Color);
     }
+
+    /// <summary>A bare themed <c>Font</c> resolves to the theme's minor Latin typeface.</summary>
+    [Fact]
+    public void ThemedFont_WithThemeMinorFont_ResolvesToThemeTypeface()
+    {
+        using var document = OpenFontShape(themeMinorFont: "Constantia");
+
+        var run = document.GetPageShapes(0)[0].TextRuns![0];
+
+        Assert.Equal("Constantia", run.FontFamily);
+    }
+
+    /// <summary>Without a theme part, a bare themed <c>Font</c> resolves to the "No Style" Font.</summary>
+    [Fact]
+    public void ThemedFont_WithoutTheme_ResolvesToNoStyleFont()
+    {
+        using var document = OpenFontShape(themeMinorFont: null);
+
+        var run = document.GetPageShapes(0)[0].TextRuns![0];
+
+        Assert.Equal("Calibri", run.FontFamily);
+    }
+
+    /// <summary>Builds a one-shape package with a themed <c>Font</c> and an optional theme font scheme.</summary>
+    private static VsdxDocument OpenFontShape(string? themeMinorFont)
+    {
+        const string styles =
+            """
+            <StyleSheets>
+              <StyleSheet ID="0" Name="No Style">
+                <Section N="Character"><Row IX="0"><Cell N="Font" V="Calibri"/><Cell N="Color" V="0"/></Row></Section>
+              </StyleSheet>
+              <StyleSheet ID="3" Name="Normal" LineStyle="6" FillStyle="6" TextStyle="6"></StyleSheet>
+              <StyleSheet ID="6" Name="Theme" LineStyle="0" FillStyle="0" TextStyle="0">
+                <Section N="Character"><Row IX="0"><Cell N="Font" V="Themed" F="THEMEVAL()"/></Row></Section>
+              </StyleSheet>
+            </StyleSheets>
+            """;
+        const string shape =
+            """
+            <Shape ID="1" Type="Shape" LineStyle="3" FillStyle="3" TextStyle="3">
+              <Cell N="PinX" V="1"/><Cell N="PinY" V="1"/><Cell N="Width" V="1"/><Cell N="Height" V="1"/>
+              <Cell N="LocPinX" V="0.5"/><Cell N="LocPinY" V="0.5"/><Cell N="Angle" V="0"/>
+              <Text>Hello</Text>
+            </Shape>
+            """;
+        var theme = themeMinorFont is null
+            ? null
+            : VsdxTestPackages.BuildTheme1Xml("dk1", "000000").Replace(
+                "</a:themeElements>",
+                $"<a:fontScheme name=\"T\"><a:minorFont><a:latin typeface=\"{themeMinorFont}\"/></a:minorFont></a:fontScheme></a:themeElements>",
+                StringComparison.Ordinal);
+        using var stream = VsdxTestPackages.BuildPackage(shape, styles, theme1Xml: theme);
+        return VsdxDocument.Open(stream);
+    }
 }

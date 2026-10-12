@@ -543,6 +543,15 @@ Builds a synthetic package whose shape chains through a "Theme" StyleSheet of ba
 fill and black text, that a shape's own themed cells behave the same, and that an own literal
 color is never replaced.
 
+#### CanvasNetVsdx-VsdxDocument-ThemedFontResolution: Bare "Themed" Font Resolves To The Theme Or No Style Typeface
+
+**Tests**: `ThemedFont_WithThemeMinorFont_ResolvesToThemeTypeface`,
+`ThemedFont_WithoutTheme_ResolvesToNoStyleFont`
+
+Builds a synthetic package whose character `Font` is a bare `THEMEVAL()` inherited from a "Theme"
+StyleSheet. Asserts the run's font family is the theme's minor Latin typeface when a font scheme
+is present, and the "No Style" StyleSheet's `Font` when no theme part exists.
+
 #### CanvasNetVsdx-VsdxDocument-FillPatternDeferral: Solid Resolves Directly, Any Other Value Degrades
 
 **Tests**: `StyleResolution_FillPatternZero_ResolvesNoFill`,

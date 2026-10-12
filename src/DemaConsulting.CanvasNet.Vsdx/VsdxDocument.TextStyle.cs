@@ -16,7 +16,7 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 /// </summary>
 public sealed partial class VsdxDocument
 {
-    /// <summary>The neutral default typeface substituted when no literal <c>Font</c> cell can be resolved anywhere in the chain, or it resolves to the <c>"Themed"</c> sentinel (document-theme font resolution is deferred to Milestone 6, mirroring <see cref="VsdxColorPalette.ThemedFallback"/>'s own deferral).</summary>
+    /// <summary>The neutral default typeface substituted when no literal <c>Font</c> cell can be resolved anywhere in the chain; a <c>"Themed"</c> <c>Font</c> first resolves to the theme's minor Latin typeface, then to the "No Style" StyleSheet's own <c>Font</c>, and only then to this default.</summary>
     private const string DefaultFontFamily = "Arial";
 
     /// <summary>The default font em-height, in inches, substituted when no literal <c>Size</c> cell can be resolved anywhere in the chain (12pt, Visio's own common default).</summary>
@@ -165,7 +165,7 @@ public sealed partial class VsdxDocument
 
         var fontRaw = ResolveCharacterCell("Font");
         var fontFamily = string.IsNullOrEmpty(fontRaw) || string.Equals(fontRaw, "Themed", StringComparison.Ordinal)
-            ? DefaultFontFamily
+            ? GetTheme()?.MinorLatinFont ?? ResolveUnthemedCharacterCell("Font") ?? DefaultFontFamily
             : fontRaw;
 
         var color = VsdxColorPalette.Resolve(ResolveCharacterCell("Color"), DefaultTextColor);

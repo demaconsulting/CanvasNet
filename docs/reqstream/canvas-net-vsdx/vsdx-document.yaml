@@ -533,6 +533,21 @@ sections:
               - ThemedPaint_OwnLiteralValue_IsNotReplaced
               - ThemedTextColor_InheritedFromThemeStyle_ResolvesToNoStyleColor
 
+          - id: CanvasNetVsdx-VsdxDocument-ThemedFontResolution
+            title: >-
+              The VsdxDocument class shall resolve a bare "Themed" character Font cell to the
+              parsed theme's minor Latin typeface (a:fontScheme/a:minorFont/a:latin), else to the
+              built-in "No Style" StyleSheet's Font, and only then to the neutral default
+              typeface.
+            justification: |
+              Real-world Visio equipment shapes inherit a bare THEMEVAL() Font from the built-in
+              "Theme" StyleSheet; the document's theme (and its No Style StyleSheet) names Calibri,
+              but the previous resolution always substituted a neutral default typeface, so text
+              never used the installed Calibri font.
+            tests:
+              - ThemedFont_WithThemeMinorFont_ResolvesToThemeTypeface
+              - ThemedFont_WithoutTheme_ResolvesToNoStyleFont
+
           - id: CanvasNetVsdx-VsdxDocument-FillPatternDeferral
             title: >-
               The VsdxDocument class shall resolve a solid FillPattern value (1) directly, and

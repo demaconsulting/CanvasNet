@@ -194,6 +194,7 @@ sections:
           - CanvasNetVsdx-VsdxDocument-TextRunParsing
           - CanvasNetVsdx-VsdxDocument-TextBoxPositioning
           - CanvasNetVsdx-VsdxDocument-TextDecoration
+          - CanvasNetVsdx-VsdxDocument-ThemedFontResolution
           - CanvasNetVsdx-VsdxDocument-GlyphFallback
           - CanvasNetVsdx-VsdxDocument-GlyphRendering
         tests:

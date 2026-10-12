@@ -254,6 +254,11 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   line and text, white solid fill, 0.0104 in weight) via `ApplyUnthemedFallback`; this matches
   Visio's own rendering of such shapes. The neutral gray remains only when StyleSheet `0`
   supplies no literal value. The `QuickStyle*` theme-index and matrix cells are still not honored.
+  A bare `"Themed"` character `Font` cell (inherited from the same "Theme" StyleSheet) resolves to
+  the theme's minor Latin typeface (`VsdxTheme.MinorLatinFont`, from
+  `a:fontScheme/a:minorFont/a:latin`), then to StyleSheet `0`'s `Font`, and only then to the
+  neutral default (`Arial`); previously it always used the neutral default, so Calibri was never
+  requested. The resolved name is looked up through the ordinary font catalog, unchanged.
   Milestone 10 additionally resolves `FillForegndTrans`/`LineColorTrans` through this same
   `FillStyle`/`LineStyle` chain (a literal `"0..1"` transparency fraction, `0` fully opaque, `1`
   fully transparent) and modulates the resolved `FillForegnd`/`LineColor` color's own alpha

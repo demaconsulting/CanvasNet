@@ -40,6 +40,9 @@ internal sealed record VsdxTheme(
     Rgba32? Hlink,
     Rgba32? FolHlink)
 {
+    /// <summary>The theme's minor (body) Latin typeface (<c>a:fontScheme/a:minorFont/a:latin@typeface</c>), or <see langword="null"/> when absent or empty; used for a bare <c>"Themed"</c> character <c>Font</c> cell.</summary>
+    public string? MinorLatinFont { get; init; }
+
     /// <summary>The XML namespace used by DrawingML elements (<c>&lt;a:...&gt;</c>), including theme contents - identical to the OOXML namespace already used by <c>PptxDocument.Theme.cs</c>.</summary>
     private static readonly XNamespace DrawingNamespace =
         "http://schemas.openxmlformats.org/drawingml/2006/main";
@@ -67,9 +70,20 @@ internal sealed record VsdxTheme(
             .Element(DrawingNamespace + "themeElements")?
             .Element(DrawingNamespace + "clrScheme");
 
+        var minorFont = (string?)themeRoot
+            .Element(DrawingNamespace + "themeElements")?
+            .Element(DrawingNamespace + "fontScheme")?
+            .Element(DrawingNamespace + "minorFont")?
+            .Element(DrawingNamespace + "latin")?
+            .Attribute("typeface");
+        minorFont = string.IsNullOrWhiteSpace(minorFont) ? null : minorFont;
+
         if (clrSchemeElement is null)
         {
-            return new VsdxTheme(null, null, null, null, null, null, null, null, null, null, null, null);
+            return new VsdxTheme(null, null, null, null, null, null, null, null, null, null, null, null)
+            {
+                MinorLatinFont = minorFont,
+            };
         }
 
         return new VsdxTheme(
@@ -84,7 +98,10 @@ internal sealed record VsdxTheme(
             ParseSchemeColor(clrSchemeElement, "accent5"),
             ParseSchemeColor(clrSchemeElement, "accent6"),
             ParseSchemeColor(clrSchemeElement, "hlink"),
-            ParseSchemeColor(clrSchemeElement, "folHlink"));
+            ParseSchemeColor(clrSchemeElement, "folHlink"))
+        {
+            MinorLatinFont = minorFont,
+        };
     }
 
     /// <summary>
