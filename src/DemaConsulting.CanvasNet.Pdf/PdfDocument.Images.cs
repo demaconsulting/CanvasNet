@@ -485,7 +485,8 @@ public sealed partial class PdfDocument
         // calibrated/gamma spaces are not recomputed per pixel. Multi-component CIE-based images
         // memoize the previous pixel, since neighboring samples are frequently identical.
         var lut = componentCount == 1 ? BuildSampleLookup(colorSpace) : null;
-        var memoizing = componentCount > 1 && colorSpace.Kind is PdfColorSpace.Family.CalRGB or PdfColorSpace.Family.Lab;
+        var memoizing = componentCount > 1
+            && colorSpace.Kind is PdfColorSpace.Family.CalRGB or PdfColorSpace.Family.Lab or PdfColorSpace.Family.DeviceN;
         var previousOffset = -1;
         var previousColor = default(Rgba32);
         for (var y = 0; y < height; y++)

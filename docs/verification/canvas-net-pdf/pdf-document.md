@@ -851,7 +851,7 @@ asserting `InvalidDataException` in every case.
 `PdfDocument_Color_SetColorFillUsingCurrentColorSpace_Sc_PaintsExpectedColor`,
 `PdfDocument_Color_SetColorStrokeUsingCurrentColorSpace_SC_PaintsExpectedColor`,
 `PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException` (`[Theory]`:
-Separation/DeviceN/ICCBased),
+unknown family/ICCBased without `/N`),
 `PdfDocument_Color_CalRgbColorSpace_AppliesCalibration`,
 `CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels`
 
@@ -934,6 +934,61 @@ A Lab image with any explicit `/Decode` throws `UnsupportedImageFeatureException
 `/Range`) throw `InvalidDataException`; a CalGray image used as an `/SMask` is rejected while a
 DeviceGray one is still applied. No timing assertions are used.
 
+#### CanvasNetPdf-PdfDocument-SeparationDeviceNColorSpaces: Separation/DeviceN Evaluate Their Tint Transform
+
+**Tests**: `PdfDocument_Tint_SeparationType2ToCmyk_MatchesDirectCmyk` (`[Theory]`),
+`PdfDocument_Tint_SetColorSpace_InitialTintIsOne`,
+`PdfDocument_Tint_SeparationStroke_MatchesDirectCmyk`,
+`PdfDocument_Tint_SeparationType4ToRgb_EvaluatesProgram`,
+`PdfDocument_Tint_SeparationNone_LeavesBackgroundUntouched`,
+`PdfDocument_Tint_SeparationAll_UsesTintTransform`,
+`PdfDocument_Tint_TransformOutputMismatch_ThrowsInvalidDataException`,
+`PdfDocument_Tint_UnsupportedAlternate_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Tint_DeviceNType4_EvaluatesBothTints`,
+`PdfDocument_Tint_DeviceNMultiInputSampled_InterpolatesMultilinearly`,
+`PdfDocument_Tint_DeviceNAllNone_LeavesBackgroundUntouched`,
+`PdfDocument_Tint_DeviceNOperandCountMismatch_ThrowsInvalidDataException`,
+`PdfDocument_Tint_DeviceNTooManyColorants_ThrowsInvalidDataException`,
+`PdfDocument_Tint_IndexedOverSeparation_MatchesDirectCmyk`,
+`PdfDocument_Tint_IndexedOverDeviceN_EvaluatesTransform`,
+`PdfDocument_Tint_SeparationImage_MatchesDirectCmyk`,
+`PdfDocument_Tint_DeviceNImage_EvaluatesTransform`,
+`PdfDocument_Tint_SeparationImageAsSoftMask_ThrowsInvalidDataException`,
+`PdfDocument_Tint_AxialShadingInSeparation_MatchesDirectCmyk`,
+`PdfDocument_Tint_AxialShadingInIndexed_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_MeshShading_IndexedColorSpaceWithoutFunction_PaintsPaletteEntry`,
+`PdfDocument_MeshShading_IndexedColorSpaceWithFunction_ThrowsUnsupported`,
+`PdfDocument_Load_SeparationDeviceNFixture_PaintsTintsAndSkipsNone`
+
+All tests but the mesh and fixture ones are in `PdfDocumentTintTests.cs`. Expected colors are
+obtained by painting the same color through the alternate space directly (for example a Separation
+with a Type 2 tint to CMYK against `k`), or from the spec formula of the tint program (a Type 4
+program, a hand-built 2x2 two-input Type 0 grid interpolated multilinearly, within ±1). `/None`
+Separation and all-`/None` DeviceN are asserted to leave the background pixel untouched; `/All` uses
+its tint transform; the initial color after `cs` equals tint 1.0. Arity mismatches, wrong operand
+counts and more than 32 colorants throw `InvalidDataException`; Pattern/Indexed alternates and an
+axial shading in an Indexed space throw `UnsupportedImageFeatureException`; a Separation image used
+as `/SMask` is rejected. The fixture `color-separation-devicen.pdf` is synthetic. No timing
+assertions are used.
+
+#### CanvasNetPdf-PdfDocument-FunctionType4AndMultiInput: PostScript and Multi-Input Functions Evaluate
+
+**Tests**: `PdfDocument_Functions_Type4_Operator_ProducesSpecResult` (`[Theory]`),
+`PdfDocument_Functions_Type4_StackOperators_ProduceSpecStack` (`[Theory]`),
+`PdfDocument_Functions_Type4_OutputBeyondRange_IsClamped`,
+`PdfDocument_Functions_Type4_MalformedProgram_ThrowsInvalidDataException` (`[Theory]`),
+`PdfDocument_Functions_Type4_ResourceCaps_ThrowInvalidDataException`,
+`PdfDocument_Functions_Type4_NotAStream_ThrowsInvalidDataException`,
+`PdfDocument_Tint_AxialShadingWithType4Function_EvaluatesProgram`,
+`PdfDocument_Tint_DeviceNMultiInputSampled_InterpolatesMultilinearly`
+
+Resolves hand-built Type 4 streams through `ResolveFunctionGeneric` and evaluates operator
+programs (`idiv`/`mod` with negatives, `atan` quadrants, round-half-up, `cvi`, `roll`/`copy`/`index`,
+`if`/`ifelse`, boolean and bit operators), comparing against values derived from the specification.
+Malformed programs (underflow, division by zero, domain error, unknown token, missing or extra
+brace, a block without `if`/`ifelse`) and programs exceeding the stack, nesting or instruction/
+execution caps throw `InvalidDataException`. No timing assertions are used.
+
 #### CanvasNetPdf-PdfDocument-IndexedColorSpace: /Indexed Resolves as a Palette Lookup, Clamps Out-of-Range Indices
 
 **Tests**: `PdfDocument_Images_DoOperator_IndexedColorSpace_PlacesExpectedPaletteColors`,
@@ -951,7 +1006,7 @@ rectangle via `scn 1` (1 numeric operand, the index), asserting the painted colo
 palette entry - proving the same `/Indexed` resolution is shared identically between the image
 XObject and `cs`/`scn` paths. Repeats with `scn 5` (an index past `Hival = 1`), asserting the
 painted color is still the green (highest valid, `Hival`) palette entry rather than throwing.
-Declares `/CS0 [/Indexed [/Separation /Spot /DeviceGray 4 0 R] 1 <...>]` (an unsupported base
+Declares `/CS0 [/Indexed [/Bogus /Spot] 1 <...>]` (an unsupported base
 color space); asserts `cs` throws `Codecs.UnsupportedImageFeatureException`, propagated from the
 base color space's own resolution before `/Hival`/the lookup table are ever consulted.
 
@@ -2122,11 +2177,11 @@ their raw sample values correctly (16-bit via 2-byte big-endian packing). A `[Th
 `/Domain`), asserting `Codecs.UnsupportedImageFeatureException` (feature
 `pdf-function-multiinput`).
 
-#### CanvasNetPdf-PdfDocument-FunctionType2And3: /FunctionType 2/3 Evaluate Correctly, /FunctionType 4 Fails Closed
+#### CanvasNetPdf-PdfDocument-FunctionType2And3: /FunctionType 2/3 Evaluate Correctly, Unknown Types Fail Closed
 
 **Tests**: `PdfDocument_Functions_Type2_Exponential_EvaluatesExpectedInterpolatedOutput`,
 `PdfDocument_Functions_Type3_Stitching_EvaluatesExpectedSubFunctionOutput`,
-`PdfDocument_Functions_Type4_PostScriptCalculator_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Functions_UnknownFunctionType_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Functions_Type3_Stitching_NestingDepthExceeded_ThrowsInvalidDataException`
 
 Every test resolves a hand-built function stream via the new `ResolveFunctionGeneric` entry point
@@ -2137,10 +2192,10 @@ linear (`N=1`) and a quadratic (`N=2`) exponent, asserting the literal spec form
 interpolated output at a known input. A `[Theory]` resolves a `/FunctionType 3` stitching
 function with 2 `/FunctionType 2` sub-functions split at a single `/Bounds` partition point,
 asserting the correct sub-function is selected (and its own `/Encode` remap applied) for inputs
-falling in each of the 2 partitions. A final test resolves a `/FunctionType 4` function through
+falling in each of the 2 partitions. A further test resolves a `/FunctionType 5` function through
 `ResolveFunctionGeneric`, asserting `Codecs.UnsupportedImageFeatureException` (feature
-`pdf-functiontype-4`) is still thrown (regression guard - `/FunctionType 4` remains unsupported
-even through the new generic resolver). A final regression test resolves a self-referencing
+`pdf-functiontype-5`) is thrown (regression guard for unknown types; type 4 is now supported, see
+below). A final regression test resolves a self-referencing
 `/FunctionType 3` object (its own `/Functions` array references itself) through
 `ResolveFunctionGeneric`, asserting `InvalidDataException` is thrown once the new
 `MaxFunctionRecursionDepth` (32) bound is reached, rather than the process' call stack being
@@ -2177,7 +2232,7 @@ throws `InvalidDataException`. Asserts an undeclared pattern name throws
 **Tests**: `PdfDocument_Patterns_ShadingPattern_AxialFunctionType2_FillsVisiblyVaryingGradient`,
 `PdfDocument_Patterns_ShadingPattern_RadialFunctionType2_FillsVisiblyVaryingGradient`,
 `PdfDocument_Patterns_ShadingPattern_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType4_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Patterns_ShadingPattern_FunctionArrayForm_ThreeOneOutputFunctions_BuildsRgbGradient`,
 `PdfDocument_Patterns_ShadingPattern_AxialNoExtend_LeavesOutsideUnpainted`,
 `PdfDocument_Patterns_ShadingPattern_AxialExtendBoth_HoldsEndColors`,
@@ -2206,8 +2261,8 @@ driven by a single `/FunctionType 2` black-to-white function paints near-black a
 endpoint and near-white at the other. Asserts a radial (`/ShadingType 3`) pattern with the same
 function shape paints a visibly different color at the center versus the edge. A `[Theory]`
 asserts `/ShadingType 0`/`1`/`8` all throw `Codecs.UnsupportedImageFeatureException` (feature
-`pdf-shading-type-{n}`). Asserts a `/Function` entry resolving to a `/FunctionType 4` function
-still throws `Codecs.UnsupportedImageFeatureException` (feature `pdf-functiontype-4`) when
+`pdf-shading-type-{n}`). Asserts a `/Function` entry resolving to an unknown `/FunctionType` (5)
+still throws `Codecs.UnsupportedImageFeatureException` (feature `pdf-functiontype-5`) when
 reached through a shading pattern, not only through a direct function-resolution call. Asserts
 the `/Function [fn0 fn1 fn2]` array-of-1-output-functions form builds a correct RGB gradient. The
 system-integration test additionally proves the same axial-gradient fill end-to-end through the
@@ -2303,7 +2358,8 @@ type 6 patch with the same boundary.
 `PdfDocument_MeshShading_Type4_ReservedFlagInInitialTriangleVertices_ThrowsInvalidData`,
 `PdfDocument_MeshShading_Type5_BadLattice_ThrowsInvalidData`,
 `PdfDocument_MeshShading_NotAStream_ThrowsInvalidData`,
-`PdfDocument_MeshShading_IndexedColorSpace_ThrowsUnsupported`,
+`PdfDocument_MeshShading_IndexedColorSpaceWithFunction_ThrowsUnsupported`,
+`PdfDocument_MeshShading_IndexedColorSpaceWithoutFunction_PaintsPaletteEntry`,
 `PdfDocument_MeshShading_FunctionProblems_FailClosed`,
 `PdfDocument_MeshShading_TooManyVertices_ThrowsUnsupported`,
 `PdfDocument_MeshShading_TooManyPatches_ThrowsUnsupported`,
@@ -2311,8 +2367,9 @@ type 6 patch with the same boundary.
 
 Asserts missing or illegal bit sizes, `/Decode`, `/VerticesPerRow`, a non-stream shading,
 truncated records and bad edge flags (including a reserved flag on the 2nd or 3rd vertex of a
-flag-0 type 4 record) throw `InvalidDataException`; an Indexed color space and
-invalid/FunctionType 4 functions throw `Codecs.UnsupportedImageFeatureException`; and the vertex,
+flag-0 type 4 record) throw `InvalidDataException`; an Indexed color space combined with a `/Function`
+and an unknown function type throw `Codecs.UnsupportedImageFeatureException`, while an Indexed mesh
+without a `/Function` paints its palette entry; and the vertex,
 patch and rasterization-work limits throw `Codecs.UnsupportedImageFeatureException` with features
 `pdf-shading-mesh-too-many-vertices`, `pdf-shading-mesh-too-many-patches` and
 `pdf-shading-mesh-too-complex`.

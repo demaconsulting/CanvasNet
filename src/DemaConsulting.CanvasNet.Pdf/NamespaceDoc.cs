@@ -36,9 +36,10 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///     mesh types 4-7) and tiling pattern fills/strokes. Opening a document encrypted with the PDF
 ///     <c>/Filter /Standard</c> security handler (RC4, AES-128, or AES-256/R5/R6) is also supported.
 ///     See <see cref="PdfDocument"/>'s own remarks for the complete, current feature list and its
-///     documented scope boundaries (for example function-based shadings, <c>/FunctionType 4</c>
-///     PostScript-calculator functions, transparency groups, and Type 3 glyphs shown in the
-///     clipping text-rendering modes).
+///     documented scope boundaries (for example function-based shadings, ICC profile application,
+///     transparency groups, and Type 3 glyphs shown in the
+///     clipping text-rendering modes). <c>/Separation</c> and <c>/DeviceN</c> colors are evaluated
+///     through their tint-transform functions (including <c>/FunctionType 4</c> PostScript calculator functions).
 /// </remarks>
 /// <example>
 ///     Rendering every page of a PDF document to a 300 DPI PNG file, using

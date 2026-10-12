@@ -145,6 +145,30 @@ public class PdfFixtureTests
     }
 
     /// <summary>
+    ///     Proves <c>color-separation-devicen.pdf</c> paints a <c>Separation</c> tint (red via CMYK), a
+    ///     <c>DeviceN</c> two-colorant PostScript tint and leaves a <c>/None</c> Separation swatch unpainted.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Load_SeparationDeviceNFixture_PaintsTintsAndSkipsNone()
+    {
+        // Arrange & Act
+        using var document = PdfDocument.Open(Fixture("color-separation-devicen.pdf"));
+        using var surface = document.Render(0, 100, 100, Transparent);
+
+        // Assert
+        var spot = surface[17, 40];
+        Assert.True(spot.R >= 254 && spot.G <= 1 && spot.B <= 1 && spot.A == 255);
+
+        var deviceN = surface[50, 40];
+        Assert.InRange(deviceN.R, 50, 52);
+        Assert.InRange(deviceN.G, 203, 205);
+        Assert.Equal(0, deviceN.B);
+        Assert.Equal(255, deviceN.A);
+
+        Assert.Equal(0, surface[82, 40].A);
+    }
+
+    /// <summary>
     ///     Proves <c>image-xobject-devicergb-flate.pdf</c> (Phase 3 <c>/Subtype /Image</c> XObject)
     ///     renders a visible, non-transparent painted region.
     /// </summary>

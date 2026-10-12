@@ -14,12 +14,14 @@ public sealed partial class PdfDocument
     ///     (converted to sRGB by <c>PdfDocument.ColorKernel.cs</c>), <c>/ICCBased</c> (resolved to
     ///     a device or CIE-based color space via <see cref="ResolveIccBasedColorSpace"/>, never by
     ///     applying the ICC profile itself) and <c>/Indexed</c> (a palette lookup over any of the
-    ///     above, resolved via <see cref="ResolveIndexedColorSpace"/>).
+    ///     above, resolved via <see cref="ResolveIndexedColorSpace"/>), and <c>/Separation</c>/
+    ///     <c>/DeviceN</c> (a tint-transform function into a device or CIE-based alternate,
+    ///     resolved via <see cref="ResolveTintColorSpace"/>).
     /// </summary>
     /// <remarks>
-    ///     Every other PDF color space (<c>Separation</c>, <c>DeviceN</c>) is out of this phase's
-    ///     scope and is rejected with <see cref="UnsupportedImageFeatureException"/> - a well-formed
-    ///     but unsupported color space, not a malformed one. Within the supported color spaces,
+    ///     Any other PDF color space is rejected with <see cref="UnsupportedImageFeatureException"/>
+    ///     - a well-formed but unsupported color space, not a malformed one. Within the supported
+    ///     color spaces,
     ///     two further edge cases are likewise rejected with
     ///     <see cref="UnsupportedImageFeatureException"/>: an <c>/ICCBased</c> stream whose <c>/N</c>
     ///     is not <c>1</c>/<c>3</c>/<c>4</c> and has no usable <c>/Alternate</c>, and an
@@ -77,7 +79,50 @@ public sealed partial class PdfDocument
             ///     <c>L*</c> in <c>[0, 100]</c>, <c>a*</c>/<c>b*</c> within <see cref="LabRange"/>.
             /// </summary>
             Lab,
+
+            /// <summary>
+            ///     A single-colorant <c>[/Separation name alternate tintTransform]</c> space (PDF 32000-1
+            ///     §8.6.6.4): one tint in <c>[0, 1]</c> mapped through <see cref="TintFunction"/> into
+            ///     <see cref="TintAlternate"/>. The reserved colorant <c>/None</c> paints nothing.
+            /// </summary>
+            Separation,
+
+            /// <summary>
+            ///     A multi-colorant <c>[/DeviceN names alternate tintTransform]</c> space (PDF 32000-1
+            ///     §8.6.6.5): one tint per name in <see cref="ColorantNames"/> mapped through
+            ///     <see cref="TintFunction"/> into <see cref="TintAlternate"/>.
+            /// </summary>
+            DeviceN,
         }
+
+        /// <summary>
+        ///     Gets the colorant names (one for <see cref="Family.Separation"/>, one per component for
+        ///     <see cref="Family.DeviceN"/>).
+        /// </summary>
+        internal string[] ColorantNames { get; private init; } = [];
+
+        /// <summary>Gets the alternate color space the tint transform outputs into, for <see cref="Family.Separation"/>/<see cref="Family.DeviceN"/>.</summary>
+        internal PdfColorSpace? TintAlternate { get; private init; }
+
+        /// <summary>Gets the resolved tint-transform function, for <see cref="Family.Separation"/>/<see cref="Family.DeviceN"/>.</summary>
+        internal IPdfMultiFunction? TintFunction { get; private init; }
+
+        /// <summary>
+        ///     Gets a value indicating whether every colorant is the reserved name <c>/None</c>, so
+        ///     painting in this space marks nothing (it yields a fully transparent color).
+        /// </summary>
+        internal bool PaintsNothing { get; private init; }
+
+        /// <summary>Creates a <c>/Separation</c> or <c>/DeviceN</c> color-space instance.</summary>
+        internal static PdfColorSpace Tint(
+            Family kind, string[] names, PdfColorSpace alternate, IPdfMultiFunction function) => new()
+            {
+                Kind = kind,
+                ColorantNames = names,
+                TintAlternate = alternate,
+                TintFunction = function,
+                PaintsNothing = names.All(static n => n == "None"),
+            };
 
         /// <summary>Gets the family of color space this instance represents.</summary>
         internal Family Kind { get; private init; }
@@ -253,7 +298,7 @@ public sealed partial class PdfDocument
     private void OpSetColorSpaceFill(IReadOnlyList<PdfObject> operands)
     {
         _gs.FillColorSpace = ResolveColorSpaceOperand(operands, "cs");
-        _gs.FillColor = new Rgba32(0, 0, 0, 255);
+        _gs.FillColor = InitialColor(_gs.FillColorSpace);
         _gs.FillPattern = null;
     }
 
@@ -271,8 +316,24 @@ public sealed partial class PdfDocument
     private void OpSetColorSpaceStroke(IReadOnlyList<PdfObject> operands)
     {
         _gs.StrokeColorSpace = ResolveColorSpaceOperand(operands, "CS");
-        _gs.StrokeColor = new Rgba32(0, 0, 0, 255);
+        _gs.StrokeColor = InitialColor(_gs.StrokeColorSpace);
         _gs.StrokePattern = null;
+    }
+
+    /// <summary>
+    ///     Gets the initial color after a <c>cs</c>/<c>CS</c> operator: opaque black, except for
+    ///     <c>Separation</c>/<c>DeviceN</c> whose initial tints are all <c>1.0</c> (PDF 32000-1 §8.6.6.4).
+    /// </summary>
+    private static Rgba32 InitialColor(PdfColorSpace colorSpace)
+    {
+        if (colorSpace.Kind is PdfColorSpace.Family.Separation or PdfColorSpace.Family.DeviceN)
+        {
+            var ones = new double[ComponentCount(colorSpace)];
+            Array.Fill(ones, 1.0);
+            return ColorFromComponentSpan(colorSpace, ones);
+        }
+
+        return new Rgba32(0, 0, 0, 255);
     }
 
     /// <summary>
@@ -497,7 +558,7 @@ public sealed partial class PdfDocument
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when the name is not one of the three device names and either cannot be
     ///     resolved via <c>/Resources/ColorSpace</c> at all, or resolves to an unsupported color
-    ///     space (<c>Separation</c>/<c>DeviceN</c>/anything else, or an
+    ///     space (any family other than the supported ones, or an
     ///     <c>/ICCBased</c>/<c>/Indexed</c> edge case documented on <see cref="PdfColorSpace"/>) -
     ///     <c>CalGray</c>/<c>CalRGB</c>/<c>Lab</c> are supported, see <see cref="ResolveColorSpaceValue"/>.
     /// </exception>
@@ -551,7 +612,7 @@ public sealed partial class PdfDocument
     ///     <c>[/CalGray dict]</c>, <c>[/CalRGB dict]</c> and <c>[/Lab dict]</c> (PDF 32000-1
     ///     §8.6.5.2-§8.6.5.4) are resolved through <see cref="ResolveCalibratedColorSpace"/> into
     ///     the CIE-based families, converted to sRGB by the kernel in <c>PdfDocument.ColorKernel.cs</c>.
-    ///     <c>Separation</c> and <c>DeviceN</c> remain unsupported (thrown below).
+    ///     <c>Separation</c> and <c>DeviceN</c> are resolved through <see cref="ResolveTintColorSpace"/>.
     /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="value"/> is neither a <c>Name</c> nor an <c>Array</c>,
@@ -589,6 +650,9 @@ public sealed partial class PdfDocument
                 case "CalRGB":
                 case "Lab":
                     return ResolveCalibratedColorSpace(value, name);
+                case "Separation":
+                case "DeviceN":
+                    return ResolveTintColorSpace(value, name);
             }
 
             throw new UnsupportedImageFeatureException(
@@ -678,6 +742,111 @@ public sealed partial class PdfDocument
                     return PdfColorSpace.Lab(white, range);
                 }
         }
+    }
+
+    /// <summary>
+    ///     The maximum number of colorants a <c>/DeviceN</c> color space may declare (a resource
+    ///     bound on per-color-evaluation work and stack use).
+    /// </summary>
+    private const int MaxDeviceNComponents = 32;
+
+    /// <summary>
+    ///     Resolves a <c>[/Separation name alternate tintTransform]</c> or
+    ///     <c>[/DeviceN names alternate tintTransform attributes?]</c> array. The tint transform is
+    ///     authoritative; the <c>/DeviceN</c> attributes dictionary (<c>/Process</c>,
+    ///     <c>/Colorants</c>) is ignored. A colorant named <c>/All</c> is treated like any other
+    ///     (the tint transform approximates it, as the specification permits).
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown for a wrong element count, a non-name colorant, an empty or oversized
+    ///     <c>/DeviceN</c> name list, or a tint transform whose input/output counts do not match
+    ///     the colorant count and alternate component count.
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown (feature <c>pdf-colorspace-{name}-alternate</c>) when the alternate is
+    ///     <c>Pattern</c>, <c>Indexed</c>, <c>Separation</c> or <c>DeviceN</c>, or propagated from
+    ///     the alternate's or the tint transform's own resolution.
+    /// </exception>
+    private PdfColorSpace ResolveTintColorSpace(PdfObject array, string name)
+    {
+        var isSeparation = name == "Separation";
+        if (array.Items.Count != 4 && (isSeparation || array.Items.Count != 5))
+        {
+            throw new InvalidDataException($"Color space '/{name}' has an invalid number of array elements.");
+        }
+
+        string[] names;
+        var namesValue = Resolve(array.Items[1]);
+        if (isSeparation)
+        {
+            if (namesValue.Kind != PdfKind.Name)
+            {
+                throw new InvalidDataException("Color space '/Separation' requires a colorant name.");
+            }
+
+            names = [namesValue.Text];
+        }
+        else
+        {
+            if (namesValue.Kind != PdfKind.Array || namesValue.Items.Count is 0 or > MaxDeviceNComponents)
+            {
+                throw new InvalidDataException(
+                    $"Color space '/DeviceN' requires 1 to {MaxDeviceNComponents} colorant names.");
+            }
+
+            names = new string[namesValue.Items.Count];
+            for (var i = 0; i < names.Length; i++)
+            {
+                var item = Resolve(namesValue.Items[i]);
+                if (item.Kind != PdfKind.Name)
+                {
+                    throw new InvalidDataException("Color space '/DeviceN' colorant names must all be names.");
+                }
+
+                names[i] = item.Text;
+            }
+        }
+
+        if (_colorSpaceRecursionDepth >= MaxColorSpaceRecursionDepth)
+        {
+            throw new InvalidDataException(
+                $"Color space '{name}' alternate resolution exceeds the maximum supported nesting depth of {MaxColorSpaceRecursionDepth}.");
+        }
+
+        PdfColorSpace alternate;
+        _colorSpaceRecursionDepth++;
+        try
+        {
+            alternate = ResolveColorSpaceValue(Resolve(array.Items[2]));
+        }
+        finally
+        {
+            _colorSpaceRecursionDepth--;
+        }
+
+        if (alternate.Kind is PdfColorSpace.Family.Pattern or PdfColorSpace.Family.Indexed
+            or PdfColorSpace.Family.Separation or PdfColorSpace.Family.DeviceN)
+        {
+            throw new UnsupportedImageFeatureException(
+                $"pdf-colorspace-{name}-alternate",
+                $"Color space '/{name}' alternate '{alternate.Kind}' is not supported.");
+        }
+
+        var function = ResolveMultiInputFunction(array.Items[3]);
+        if (function.InputCount != names.Length)
+        {
+            throw new InvalidDataException(
+                $"Color space '/{name}' tint transform has {function.InputCount} input(s); expected {names.Length}.");
+        }
+
+        if (function.OutputCount != ComponentCount(alternate))
+        {
+            throw new InvalidDataException(
+                $"Color space '/{name}' tint transform has {function.OutputCount} output(s); the alternate needs {ComponentCount(alternate)}.");
+        }
+
+        return PdfColorSpace.Tint(
+            isSeparation ? PdfColorSpace.Family.Separation : PdfColorSpace.Family.DeviceN, names, alternate, function);
     }
 
     /// <summary>
@@ -790,7 +959,8 @@ public sealed partial class PdfDocument
             try
             {
                 var alternateSpace = ResolveColorSpaceValue(Resolve(alternate));
-                if (alternateSpace.Kind is not (PdfColorSpace.Family.Indexed or PdfColorSpace.Family.Pattern)
+                if (alternateSpace.Kind is not (PdfColorSpace.Family.Indexed or PdfColorSpace.Family.Pattern
+                        or PdfColorSpace.Family.Separation or PdfColorSpace.Family.DeviceN)
                     && (!nIsValid || ComponentCount(alternateSpace) == n))
                 {
                     return alternateSpace;
@@ -888,6 +1058,8 @@ public sealed partial class PdfDocument
         PdfColorSpace.Family.CalGray => 1,
         PdfColorSpace.Family.CalRGB => 3,
         PdfColorSpace.Family.Lab => 3,
+        PdfColorSpace.Family.Separation => 1,
+        PdfColorSpace.Family.DeviceN => colorSpace.ColorantNames.Length,
         PdfColorSpace.Family.Pattern => throw new InvalidOperationException(
             "ComponentCount is not defined for the Pattern color space; use the dedicated scn/SCN pattern-operand path instead."),
         _ => throw new InvalidOperationException($"Unreachable: unrecognized color space {colorSpace.Kind}."),
@@ -917,6 +1089,7 @@ public sealed partial class PdfDocument
             PdfColorSpace.Family.CalGray => CalGrayToColor(colorSpace, components[0]),
             PdfColorSpace.Family.CalRGB => CalRgbToColor(colorSpace, components[0], components[1], components[2]),
             PdfColorSpace.Family.Lab => LabToColor(colorSpace, components[0], components[1], components[2]),
+            PdfColorSpace.Family.Separation or PdfColorSpace.Family.DeviceN => TintToColor(colorSpace, components.ToArray()),
             _ => throw new InvalidOperationException($"Unreachable: unrecognized color space {colorSpace.Kind}."),
         };
 
@@ -935,6 +1108,7 @@ public sealed partial class PdfDocument
             PdfColorSpace.Family.CalGray => CalGrayToColor(colorSpace, components[0]),
             PdfColorSpace.Family.CalRGB => CalRgbToColor(colorSpace, components[0], components[1], components[2]),
             PdfColorSpace.Family.Lab => LabToColor(colorSpace, components[0], components[1], components[2]),
+            PdfColorSpace.Family.Separation or PdfColorSpace.Family.DeviceN => TintToColor(colorSpace, components),
             _ => throw new InvalidOperationException($"Unreachable: unrecognized color space {colorSpace.Kind}."),
         };
 

@@ -794,6 +794,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.ToUnicode.cs"  # phase 10 unit source (ToUnicode CMap)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Encryption.cs"  # encryption/decryption (RC4, AESV2, AESV3 R5/R6)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Functions.cs"  # pattern phase 1 (sampled function)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Functions.PostScript.cs"  # FunctionType 4 calculator
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Patterns.cs"         # pattern phase (shared /Pattern dispatch)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Patterns.Shading.cs"  # pattern phase (shading patterns)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Patterns.Shading.Mesh.cs"  # mesh shadings (types 4-7)
@@ -806,6 +807,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentMeshShadingTests.cs"  # mesh shading unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentColorSpaceTests.cs"  # calibrated color tests
+      - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTintTests.cs"  # Separation/DeviceN/Type 4 tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentJpxTests.cs"  # JPXDecode/SMask unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentThinRuleInkTests.cs"  # thin-rule ink unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentImageDownscaleTests.cs"  # image downscale unit tests

@@ -5627,21 +5627,18 @@ public class PdfDocumentTests
 
     /// <summary>Proves that an unsupported named color space (resolved via <c>/Resources/ColorSpace</c>) throws <see cref="UnsupportedImageFeatureException"/> when selected with <c>cs</c>.</summary>
     [Theory]
-    [InlineData("[/Separation /Spot /DeviceGray 4 0 R]")]
-    [InlineData("[/DeviceN [/Spot] /DeviceGray 4 0 R]")]
+    [InlineData("[/Bogus /Spot]")]
     [InlineData("[/ICCBased 4 0 R]")]
     public void PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException(string colorSpaceArray)
     {
-        // Arrange: an unused placeholder function stream, referenced only when the color space
-        // array under test declares /Separation or /DeviceN (both name a tint-transform function
-        // by indirect reference); the other cases in this theory never dereference object 5.
-        var functionStream = BuildStreamObjectBody("/FunctionType 4", "{ }"u8.ToArray());
+        // Arrange: an unknown color-space family, and an /ICCBased stream with neither a usable
+        // /N nor /Alternate (object 4 is the page content stream).
         var bytes = BuildSinglePagePdfWithResources(
             100,
             100,
             "/CS0 cs",
             $"/ColorSpace << /CS0 {colorSpaceArray} >>",
-            [functionStream]);
+            []);
 
         // Act & Assert
         Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
@@ -5799,13 +5796,13 @@ public class PdfDocumentTests
     [Fact]
     public void PdfDocument_Color_IndexedColorSpace_UnsupportedBase_ThrowsUnsupportedImageFeatureException()
     {
-        // Arrange: the base color space (/Separation) is unsupported, and is rejected before the
+        // Arrange: the base color space (an unknown family) is unsupported, and is rejected before the
         // /Hival/lookup table are ever consulted.
         var bytes = BuildSinglePagePdfWithResources(
             100,
             100,
             "/CS0 cs",
-            "/ColorSpace << /CS0 [/Indexed [/Separation /Spot /DeviceGray 4 0 R] 1 <00>] >>",
+            "/ColorSpace << /CS0 [/Indexed [/Bogus /Spot] 1 <00>] >>",
             []);
 
         // Act & Assert
@@ -7583,10 +7580,10 @@ public class PdfDocumentTests
     [Fact]
     public void PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException()
     {
-        // Arrange: /Separation remains unsupported (unlike /CalRGB, /CalGray and /Lab - see
-        // PdfDocumentColorSpaceTests).
+        // Arrange: an unknown color-space family is unsupported (unlike /CalRGB, /CalGray, /Lab,
+        // /Separation and /DeviceN - see PdfDocumentColorSpaceTests).
         var imageStream = BuildStreamObjectBody(
-            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [/Separation /Spot /DeviceGray << /FunctionType 2 /Domain [0 1] /N 1 >>] /BitsPerComponent 8 /Filter /FlateDecode",
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [/Bogus /Spot] /BitsPerComponent 8 /Filter /FlateDecode",
             ZlibCompress([0x00]));
 
         var bytes = BuildSinglePagePdfWithResources(
@@ -11198,14 +11195,14 @@ public class PdfDocumentTests
         Assert.Equal($"pdf-shading-type-{shadingType}", exception.Feature);
     }
 
-    /// <summary>Proves that a shading pattern whose <c>/Function</c> is <c>/FunctionType 4</c> throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-functiontype-4</c> (regression guard: still rejected even when reached through a shading pattern).</summary>
+    /// <summary>Proves that a shading pattern whose <c>/Function</c> is an unknown <c>/FunctionType</c> (5) throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-functiontype-5</c> (regression guard: still rejected even when reached through a shading pattern).</summary>
     [Fact]
-    public void PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType4_ThrowsUnsupportedImageFeatureException()
+    public void PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType_ThrowsUnsupportedImageFeatureException()
     {
         // Arrange: 5 = patternDict, 6 = shadingDict, 7 = functionStream.
         var patternDict = "<< /PatternType 2 /Shading 6 0 R >>"u8.ToArray();
         var shadingDict = "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function 7 0 R >>"u8.ToArray();
-        var functionStream = BuildStreamObjectBody("/FunctionType 4", "{ }"u8.ToArray());
+        var functionStream = BuildStreamObjectBody("/FunctionType 5", "{ }"u8.ToArray());
         var bytes = BuildSinglePagePdfWithResources(
             100,
             100,
@@ -11215,7 +11212,7 @@ public class PdfDocumentTests
 
         // Act & Assert
         var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
-        Assert.Equal("pdf-functiontype-4", exception.Feature);
+        Assert.Equal("pdf-functiontype-5", exception.Feature);
     }
 
     /// <summary>Proves that a shading pattern's <c>/Function</c> array-of-1-output-functions form (3 separate <c>/FunctionType 2</c> functions, one per RGB component) builds a working gradient.</summary>
@@ -12064,14 +12061,14 @@ public class PdfDocumentTests
         Assert.Equal(expected, result[0], 5);
     }
 
-    /// <summary>Proves that <c>/FunctionType 4</c> (PostScript calculator) still throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-functiontype-4</c> through the generic resolver (regression guard, updated message content).</summary>
+    /// <summary>Proves that an unknown <c>/FunctionType</c> (5) throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-functiontype-5</c> through the generic resolver (regression guard; type 4 is now supported).</summary>
     [Fact]
-    public void PdfDocument_Functions_Type4_PostScriptCalculator_ThrowsUnsupportedImageFeatureException()
+    public void PdfDocument_Functions_UnknownFunctionType_ThrowsUnsupportedImageFeatureException()
     {
         // Act & Assert
         var exception = Assert.Throws<UnsupportedImageFeatureException>(
-            () => ResolveTestFunctionGeneric("/FunctionType 4", "{ }"u8.ToArray()));
-        Assert.Equal("pdf-functiontype-4", exception.Feature);
+            () => ResolveTestFunctionGeneric("/FunctionType 5", "{ }"u8.ToArray()));
+        Assert.Equal("pdf-functiontype-5", exception.Feature);
     }
 
     /// <summary>Proves that a <c>/FunctionType 3</c> stitching function whose own <c>/Functions</c> array references itself triggers the new <c>MaxFunctionRecursionDepth</c> guard with <see cref="InvalidDataException"/>, rather than exhausting the process' call stack with an uncatchable <see cref="StackOverflowException"/>.</summary>

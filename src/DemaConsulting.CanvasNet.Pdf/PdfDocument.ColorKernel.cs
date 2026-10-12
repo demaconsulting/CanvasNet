@@ -84,6 +84,44 @@ public sealed partial class PdfDocument
         return result;
     }
 
+    /// <summary>
+    ///     Converts <c>Separation</c>/<c>DeviceN</c> tint values (each clamped to <c>[0, 1]</c>) to
+    ///     sRGB: a space whose colorants are all <c>/None</c> yields a fully transparent color
+    ///     (alpha <c>0</c>, so painting is a no-op); otherwise the tint transform maps the tints
+    ///     into the alternate space's natural units.
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="tints"/> does not have one value per colorant, or when the
+    ///     tint transform fails (for example a malformed PostScript calculator program).
+    /// </exception>
+    private static Rgba32 TintToColor(PdfColorSpace colorSpace, ReadOnlySpan<double> tints)
+    {
+        if (tints.Length != colorSpace.ColorantNames.Length)
+        {
+            throw new InvalidDataException(
+                $"A {colorSpace.Kind} color needs {colorSpace.ColorantNames.Length} component(s); got {tints.Length}.");
+        }
+
+        if (colorSpace.PaintsNothing)
+        {
+            return new Rgba32(0, 0, 0, 0);
+        }
+
+        var function = colorSpace.TintFunction!;
+        Span<double> input = tints.Length <= 8 ? stackalloc double[8] : new double[tints.Length];
+        input = input[..tints.Length];
+        for (var i = 0; i < tints.Length; i++)
+        {
+            input[i] = Clamp01(tints[i]);
+        }
+
+        var outputCount = function.OutputCount;
+        Span<double> output = outputCount <= 8 ? stackalloc double[8] : new double[outputCount];
+        output = output[..outputCount];
+        function.Evaluate(input, output);
+        return ColorFromComponentSpan(colorSpace.TintAlternate!, output);
+    }
+
     /// <summary>Converts a <c>CalGray</c> value <c>A</c> (clamped to <c>[0, 1]</c>) to sRGB.</summary>
     private static Rgba32 CalGrayToColor(PdfColorSpace colorSpace, double gray)
     {

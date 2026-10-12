@@ -105,12 +105,13 @@ and invisible (`Tr 3`) text-rendering modes and the clip modes (`Tr 4`-`7`) are 
 glyph under a clip mode fails closed); a
 Form XObject's `/BBox` is never used to clip its content and its `/Group` (transparency group)
 entry is never consulted, though the Form itself renders; `/ShadingType` values outside `2`-`7`
-and `/FunctionType 4` (PostScript calculator) functions fail closed; the `sh` operator and general
+and `/FunctionType` values other than `0`/`2`/`3`/`4` fail closed; the `sh` operator and general
 path clipping (`W`/`W*`) are supported; no
 `/Mask`/`/Matte` image masks or transparency groups (an explicit `/SMask` and JPEG 2000
 alpha are applied); `CCITTFaxDecode` - Group 4 (T.6 MMR) only - is supported and `JPXDecode`
-is decoded; `/Separation`/`/DeviceN` color spaces remain unsupported and fail
-closed; and an encrypted document using any security handler, crypt-filter method, `/V`/`/R`
+is decoded; `/Separation`/`/DeviceN` color spaces are evaluated through their tint transform
+(an alternate space that is `Pattern`/`Indexed`/`Separation`/`DeviceN` fails closed; ICC profile
+data is still not applied); an encrypted document using any security handler, crypt-filter method, `/V`/`/R`
 combination other than the ones listed above, or whose correct password is not supplied, fails
 closed rather than being decrypted. These remain out of scope and are planned for later phases
 (see Risk Control Measures below for the complete, currently-thrown `Feature` string taxonomy).
@@ -307,7 +308,9 @@ to clip its content and its `/Group` transparency-group entry is never consulted
 content simply paints unclipped). Phase 14 replaced the color-space model: `/CalRGB`, `/ICCBased`
 (resolved via its `/N` or `/Alternate`, feature `"pdf-colorspace-ICCBased"` for an unsupported
 shape), and `/Indexed` (a palette lookup over any supported base space) are all now supported,
-narrowing the unsupported-color-space set to `Separation`/`DeviceN` (`/CalGray`, `/CalRGB` and `/Lab`
+narrowing the unsupported-color-space set (`/Separation` and `/DeviceN` were later resolved through their
+tint-transform function, an alternate of `Pattern`/`Indexed`/`Separation`/`DeviceN` failing closed with feature
+`"pdf-colorspace-{name}-alternate"`) (`/CalGray`, `/CalRGB` and `/Lab`
 are now converted to sRGB through a CIE XYZ kernel with Bradford adaptation — see
 `PdfDocument.ColorKernel.cs`; ICC profile data is never applied, only `/N`/`/Alternate`; an image in a
 `/Lab` color space with an explicit `/Decode` fails closed, feature `"pdf-image-lab-decode"`) (feature
@@ -319,8 +322,10 @@ feature `"pdf-colorspace-Pattern"`), axial/radial shading patterns (an unsupport
 `"pdf-shading-colorspace-{family}"`), tiling patterns (an oversized rendered tile, feature
 `"pdf-pattern-tile-too-large"`), and a Function evaluator widened from `/FunctionType 0`
 (sampled) alone to also resolve `/FunctionType 2` (exponential) and `/FunctionType 3`
-(stitching); any other `/FunctionType` (including `4`, PostScript calculator) still fails closed
-(feature `"pdf-functiontype-{n}"`), as does a multi-input `/FunctionType 0` function (feature
+(stitching); any other `/FunctionType` (other than `4`, PostScript calculator, added with the tint-transform
+support) fails closed
+(feature `"pdf-functiontype-{n}"`), as does a multi-input `/FunctionType 0` function reaching the single-input
+resolver (feature
 `"pdf-function-multiinput"`) and an unsupported `/BitsPerSample` (feature
 `"pdf-function-bitspersample-{n}"`). Phase 15 added `CCITTFaxDecode` (Group 4/T.6 MMR only) image
 decoding: a non-negative `/K` (Group 3, feature `"pdf-ccittfax-group3"`), `/EndOfLine true`

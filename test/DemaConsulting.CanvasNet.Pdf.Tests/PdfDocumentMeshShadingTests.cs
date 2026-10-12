@@ -805,17 +805,35 @@ public class PdfDocumentMeshShadingTests
         Assert.Throws<InvalidDataException>(() => Render(BuildPdf(string.Empty, [], false, shadingBody: body)));
     }
 
-    /// <summary>Proves that a non-Device mesh <c>/ColorSpace</c> throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    /// <summary>Proves that a type 4 mesh in an <c>/Indexed</c> color space without a <c>/Function</c> is accepted and paints the palette entry.</summary>
     [Fact]
-    public void PdfDocument_MeshShading_IndexedColorSpace_ThrowsUnsupported()
+    public void PdfDocument_MeshShading_IndexedColorSpaceWithoutFunction_PaintsPaletteEntry()
     {
+        // Arrange: all three vertices carry index 1 (white).
         var entries = Entries(4, colorSpace: "[/Indexed /DeviceRGB 1 <000000FFFFFF>]", decode: "[0 100 0 100 0 1]");
+        var p = new BitPacker();
+        WriteVertex(p, Std, 0, 10, 10, 1);
+        WriteVertex(p, Std, 0, 90, 10, 1);
+        WriteVertex(p, Std, 0, 50, 90, 1);
+
+        // Act
+        using var surface = RenderMesh(4, p.ToArray(), entries: entries);
+
+        // Assert
+        AssertNear(At(surface, 50, 40), 255, 255, 255, 1);
+    }
+
+    /// <summary>Proves that an <c>/Indexed</c> mesh <c>/ColorSpace</c> combined with a <c>/Function</c> throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    [Fact]
+    public void PdfDocument_MeshShading_IndexedColorSpaceWithFunction_ThrowsUnsupported()
+    {
+        var entries = Entries(4, colorSpace: "[/Indexed /DeviceRGB 1 <000000FFFFFF>]", decode: "[0 100 0 100 0 1]", extra: "/Function 6 0 R");
 
         var ex = Assert.Throws<UnsupportedImageFeatureException>(() => RenderMesh(4, RgbTriangleData(Std), entries: entries));
         Assert.Equal("pdf-shading-colorspace-Indexed", ex.Feature);
     }
 
-    /// <summary>Proves that a <c>/Function</c> with the wrong output arity throws <see cref="InvalidDataException"/> and a Type 4 function stays unsupported.</summary>
+    /// <summary>Proves that a <c>/Function</c> with the wrong output arity throws <see cref="InvalidDataException"/> and an unknown function type stays unsupported.</summary>
     [Fact]
     public void PdfDocument_MeshShading_FunctionProblems_FailClosed()
     {
@@ -839,10 +857,10 @@ public class PdfDocumentMeshShadingTests
             "/Shading << /Sh1 5 0 R >>",
             [
                 BuildStream(arity.Replace("{FN}", "6", StringComparison.Ordinal), data),
-                BuildStream("/FunctionType 4", "{ }"u8.ToArray()),
+                BuildStream("/FunctionType 5", "{ }"u8.ToArray()),
             ]);
         var ex = Assert.Throws<UnsupportedImageFeatureException>(() => Render(type4));
-        Assert.Equal("pdf-functiontype-4", ex.Feature);
+        Assert.Equal("pdf-functiontype-5", ex.Feature);
     }
 
     /// <summary>Proves that exceeding the vertex limit throws <see cref="UnsupportedImageFeatureException"/> (<c>pdf-shading-mesh-too-many-vertices</c>).</summary>

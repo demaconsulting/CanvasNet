@@ -645,8 +645,17 @@ its own distinguishable `Feature` token.
   `ResolveColorSpaceValue` to `ResolveIccBasedColorSpace` (`/ICCBased`) or
   `ResolveIndexedColorSpace` (`/Indexed`, Phase 14 — see below), or `ResolveCalibratedColorSpace`
   (`[/CalGray dict]`, `[/CalRGB dict]`, `[/Lab dict]`, see the calibrated bullet below); any
-  other resolved color space (`Separation`/`DeviceN`, or an undeclared name) throws
-  `Codecs.UnsupportedImageFeatureException`, naming the unsupported space; a `/Pattern` array
+  other resolved color space (an `/ICCBased` space with no usable `/N`/`/Alternate`, or an undeclared name) throws
+  `Codecs.UnsupportedImageFeatureException`, naming the unsupported space; `[/Separation ...]`/`[/DeviceN ...]`
+  are dispatched to `ResolveTintColorSpace`, which resolves the alternate space and the tint-transform
+  function (through `ResolveMultiInputFunction`), requires its input count to equal the colorant count
+  (1, or 1-32 for `DeviceN`) and its output count to equal the alternate's component count
+  (`InvalidDataException` otherwise), and rejects a `Pattern`/`Indexed`/`Separation`/`DeviceN` alternate
+  (feature `pdf-colorspace-{name}-alternate`); `TintToColor` clamps the tints, evaluates the function and
+  converts through the alternate; `/None` (or all-`/None` `DeviceN`) yields a fully transparent color so
+  nothing is painted (mesh vertices keep only RGB, so this is lost there); `/All` is treated like any
+  colorant; the initial color after `cs`/`CS` for these spaces is all tints `1.0` (other spaces: opaque
+  black); a `/Pattern` array
   form is dispatched instead to `PdfColorSpace.Pattern` (see _`/Pattern` Color Space (Shading and
   Tiling Patterns)_ below). `OpSetColorFill`/`OpSetColorStroke` (`sc`/`SC`/`scn`/`SCN`) require
   exactly `ComponentCount` numeric operands for the current color space when it is not
@@ -1314,9 +1323,9 @@ its own distinguishable `Feature` token.
   reader (`ReadBits`, shared by both the 8-bit and 16-bit cases), and maps each interpolated raw
   value through `/Decode`, clipped to `/Range`. A `/FunctionType` other than `0` throws
   `Codecs.UnsupportedImageFeatureException` (feature `pdf-functiontype-{n}`); a multi-input
-  `/FunctionType 0` function (a `/Domain` with more than 2 elements — the `/DeviceN`/`/Separation`
-  tint-transform shape, itself already out of scope, see _Content-Stream Interpreter_'s color-space
-  discussion above) throws the same exception type (feature `pdf-function-multiinput`); a
+  `/FunctionType 0` function (a `/Domain` with more than 2 elements) reaching this single-input
+  resolver throws the same exception type (feature `pdf-function-multiinput`; multi-input functions
+  are resolved by `ResolveMultiInputFunction`, below); a
   `/BitsPerSample` other than `8`/`16` likewise throws (feature `pdf-function-bitspersample-{n}`).
   This was originally landed as resolved-but-unconsumed groundwork (Phase 1 of the `/Pattern`
   color-space roadmap); it is now consumed directly by shading-pattern gradient construction (see
@@ -1340,10 +1349,23 @@ its own distinguishable `Feature` token.
   `InvalidDataException` when a self-referencing or excessively deep `/Functions` chain would
   otherwise recurse until the process' call stack is exhausted — `/Bounds`
   — the `k - 1` partition points for `k` sub-functions — and `/Encode` — `2k` elements remapping
-  each selected sub-domain into its own sub-function's `/Domain` before delegating). `/FunctionType
-  4` (PostScript calculator functions) continues to throw
-  `Codecs.UnsupportedImageFeatureException` (feature `pdf-functiontype-4`) — the exception
-  message now reads "only /FunctionType 0, 2, and 3 are supported".
+  each selected sub-domain into its own sub-function's `/Domain` before delegating). Any
+  `/FunctionType` other than `0`/`2`/`3`/`4` throws
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-functiontype-{n}`).
+- **PostScript Calculator and Multi-Input Functions (`PdfDocument.Functions.PostScript.cs`,
+  `PdfDocument.Functions.cs`)** — `IPdfMultiFunction` (`InputCount`, `OutputCount`,
+  `Evaluate(ReadOnlySpan<double>, Span<double>)`) generalizes `IPdfFunction`;
+  `ResolveMultiInputFunction` handles types `0` (`MultiSampledFunction`: multilinear interpolation over up
+  to 8 inputs, 1/2/4/8/12/16/24/32 bits per sample, at most 2^22 samples and 32 outputs), `2`/`3`
+  (through a single-input adapter) and `4` (`PostScriptFunction`), bounded by the same recursion guard.
+  `PostScriptFunction` compiles the `{ ... }` program once into a flat instruction array (`if`/`ifelse`
+  blocks become relative jumps; a block must be directly followed by `if`/`ifelse`) and executes it on a
+  fixed-size value stack that tracks int/real/bool types, implementing the complete specification operator
+  set (including `idiv`/`mod` truncation semantics, `atan` in 0..360, round-half-up, `cvi`/`cvr`, `roll`/
+  `copy`/`index`, bitwise and boolean forms of `and`/`or`/`xor`/`not`, `bitshift`). Hard caps: stack 100,
+  8192 instructions, 16 nesting levels, 65536 executed instructions, 256 KiB of source; outputs clamp to
+  `/Range`. Any syntax error, underflow/overflow, type or domain error, or exceeded cap throws
+  `InvalidDataException`.
 
 ### `/Pattern` Color Space (Shading and Tiling Patterns)
 
@@ -1475,7 +1497,8 @@ its own distinguishable `Feature` token.
   `/BitsPerComponent` (1/2/4/8/12/16), `/BitsPerFlag` (2/4/8; not used by type 5), `/Decode`
   (4 + 2n finite entries) and `/VerticesPerRow` (type 5, at least 2), plus an optional `/Function`
   (one parametric component, sampled into a 256-entry lookup table across the `/Decode` t range;
-  `/FunctionType 4` stays unsupported) and `/Background`. Type 4 reads free-form triangles
+  Type 4 functions are accepted when single-input) and `/Background`. An `/Indexed` mesh color space is accepted
+  only without a `/Function` (vertex components are palette indices). Type 4 reads free-form triangles
   (flag 0 starts a triangle, 1 reuses the previous edge vb-vc, 2 reuses va-vc); type 5 reads a lattice
   of `/VerticesPerRow` columns; types 6/7 read Coons/tensor patches whose 12/16 control points
   are mapped into a 4x4 net, with flags 1-3 inheriting the previous patch's edge and two corner
@@ -1493,7 +1516,7 @@ its own distinguishable `Feature` token.
   `Codecs.UnsupportedImageFeatureException` (`pdf-shading-mesh-too-many-vertices`/
   `-too-many-patches`/`-too-complex`).
 - **Scope boundaries (deliberately not implemented this phase)** — `ShadingType` `1`
-  (function-based shadings) and `/FunctionType 4` (PostScript calculator functions)
+  (function-based shadings)
   remain unsupported/unchanged, reachable through two paths — `scn`/`SCN` + `/Pattern` and
   `sh` — both throwing the identical `Codecs.UnsupportedImageFeatureException` (shared code, not
   a reimplementation); a `/Pattern` color space nested inside another `/Pattern`'s own `PatternBase` is out of scope (the
@@ -1599,7 +1622,8 @@ change behavior for any document within normal real-world limits.
   Interpreter_ above); an unbalanced `Q` with no matching prior `q` is likewise tolerated as a
   documented no-op, not an error.
 - **An unsupported color space** (`cs`/`CS`, or an image XObject's `/ColorSpace`:
-  `Separation`/`DeviceN`, an undeclared `/Resources/ColorSpace` name, an
+  `/Separation` or `/DeviceN` with a `Pattern`/`Indexed`/`Separation`/`DeviceN` alternate or a tint transform
+  with the wrong input/output count (the latter `InvalidDataException`), an undeclared `/Resources/ColorSpace` name, an
   `/ICCBased` stream whose `/N` is not `1`/`3`/`4` with no usable `/Alternate`, an `/Indexed` color
   space whose base color space is itself unsupported, a `/Pattern` array form with an element
   count other than 1 or 2 (feature `pdf-colorspace-Pattern`), or any other unrecognized value) —
@@ -1610,7 +1634,8 @@ change behavior for any document within normal real-world limits.
   name (feature `pdf-pattern-not-declared`) or an unsupported `/PatternType` (anything other than
   `1`/`2`, feature `pdf-pattern-type-{n}`) — `Codecs.UnsupportedImageFeatureException`.
 - **An unsupported shading pattern** — a `/ShadingType` outside `2`–`7` (feature
-  `pdf-shading-type-{n}`), or a `/ColorSpace` other than `DeviceGray`/`DeviceRGB`/`DeviceCMYK`
+  `pdf-shading-type-{n}`), or a `/ColorSpace` of `Pattern`, or `Indexed` for an axial/radial shading or a
+  mesh with a `/Function`
   (feature `pdf-shading-colorspace-{family}`) — `Codecs.UnsupportedImageFeatureException`. The
   `sh` operator reaching an undeclared shading name throws the same shape, feature
   `pdf-shading-not-declared` (mirroring the existing `pdf-pattern-not-declared` feature exactly);
@@ -1623,9 +1648,9 @@ change behavior for any document within normal real-world limits.
   exceeding `MaxTileSurfaceDimension` — `Codecs.UnsupportedImageFeatureException` (feature
   `pdf-pattern-tile-too-large`).
 - **`ResolveFunction`/`ResolveFunctionGeneric`'s `/Function` entry** — a `/FunctionType` other
-  than `0`/`2`/`3`, a multi-input `/FunctionType 0` function (a `/Domain` with more than 2
-  elements), a `/BitsPerSample` other than `8`/`16`, or a `/FunctionType 4` (PostScript
-  calculator) function (feature `pdf-functiontype-4`) — `Codecs.UnsupportedImageFeatureException`;
+  than `0`/`2`/`3`/`4`, a multi-input `/FunctionType 0` function reaching the single-input resolver (a
+  `/Domain` with more than 2
+  elements), or a `/BitsPerSample` other than `8`/`16` there — `Codecs.UnsupportedImageFeatureException`;
   a `/Function` that does not resolve to a stream/dictionary, or a missing/malformed
   `/Domain`/`/Range`/`/Size`/`/Encode`/`/Decode`/`/C0`/`/C1`/`/N`/`/Functions`/`/Bounds` entry —
   `InvalidDataException` instead (malformed, not merely unsupported).

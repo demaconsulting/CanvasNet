@@ -19,6 +19,14 @@ words:
   - bilinearly
   - stackalloc
   - Lindbloom
+  - colorant
+  - colorants
+  - devicen
+  - ifelse
+  - idiv
+  - bitshift
+  - multilinear
+  - multilinearly
   - amax
   - bmin
   - bmax

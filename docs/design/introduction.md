@@ -437,8 +437,9 @@ src/DemaConsulting.CanvasNet.Pdf/
 │                                        (`f`/`F`/`f*`/`S`/`s`/`B`/`B*`/`b`/`b*`/`n`)
 ├── PdfDocument.Color.cs              — Device color operators
 │                                        (`g`/`G`/`rg`/`RG`/`k`/`K`/`cs`/`CS`/`sc`/`SC`/`scn`/`SCN`), calibrated
-│                                        (CalGray/CalRGB/Lab), ICC-fallback and Indexed color spaces
-├── PdfDocument.ColorKernel.cs        — CIE XYZ/Lab to sRGB conversion kernel
+│                                        (CalGray/CalRGB/Lab), ICC-fallback, Indexed and Separation/DeviceN color spaces
+├── PdfDocument.ColorKernel.cs        — CIE XYZ/Lab to sRGB conversion kernel and tint-transform conversion
+├── PdfDocument.Functions.PostScript.cs — `/FunctionType 4` PostScript calculator parser and bounded executor
 ├── PdfDocument.Filters.cs            — Generalized `/Filter`/`/DecodeParms` pipeline dispatch, `FlateDecode` plus
 │                                        PNG/TIFF predictor reversal
 ├── PdfDocument.Filters.Lzw.cs        — `LZWDecode` filter (PDF-variant early-change LZW)

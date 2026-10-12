@@ -86,10 +86,10 @@ public sealed partial class PdfDocument
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when <c>/ShadingType</c> is not <c>2</c>-<c>7</c> (feature
-    ///     <c>pdf-shading-type-{n}</c>), when the resolved <c>/ColorSpace</c>'s family is not
-    ///     <c>DeviceGray</c>/<c>DeviceRGB</c>/<c>DeviceCMYK</c> (feature
-    ///     <c>pdf-shading-colorspace-{family}</c>) - the device spaces and the CIE-based
-    ///     <c>CalGray</c>/<c>CalRGB</c>/<c>Lab</c> spaces are accepted - or propagated from
+    ///     <c>pdf-shading-type-{n}</c>), when the resolved <c>/ColorSpace</c> is <c>Pattern</c>, or
+    ///     <c>Indexed</c> other than for a mesh shading without <c>/Function</c> (feature
+    ///     <c>pdf-shading-colorspace-{family}</c>) - every other supported space, including
+    ///     <c>CalGray</c>/<c>CalRGB</c>/<c>Lab</c> and <c>Separation</c>/<c>DeviceN</c>, is accepted - or propagated from
     ///     <see cref="ResolveColorSpaceValue"/>/<see cref="ResolveFunctionOrFunctionArray"/> for
     ///     their own documented unsupported-feature cases.
     /// </exception>
@@ -106,14 +106,20 @@ public sealed partial class PdfDocument
         var colorSpaceEntry = shading.Get("ColorSpace")
             ?? throw new InvalidDataException("/Shading is missing required /ColorSpace.");
         var colorSpace = ResolveColorSpaceValue(Resolve(colorSpaceEntry));
-        if (colorSpace.Kind is not (
-            PdfColorSpace.Family.DeviceGray or PdfColorSpace.Family.DeviceRGB or PdfColorSpace.Family.DeviceCMYK
-                or PdfColorSpace.Family.CalGray or PdfColorSpace.Family.CalRGB or PdfColorSpace.Family.Lab))
+        if (colorSpace.Kind == PdfColorSpace.Family.Pattern)
         {
             throw new UnsupportedImageFeatureException(
                 $"pdf-shading-colorspace-{colorSpace.Kind}",
-                $"Shading /ColorSpace family '{colorSpace.Kind}' is not supported; only the device and " +
-                "CIE-based (CalGray, CalRGB, Lab) color spaces are supported.");
+                "A shading /ColorSpace must not be the /Pattern color space.");
+        }
+
+        // An /Indexed shading color space is only legal for a mesh shading without /Function
+        // (PDF 32000-1 §8.7.4.3): the vertex colors are then palette indices.
+        if (colorSpace.Kind == PdfColorSpace.Family.Indexed && (shadingType < 4 || shading.Get("Function") is not null))
+        {
+            throw new UnsupportedImageFeatureException(
+                $"pdf-shading-colorspace-{colorSpace.Kind}",
+                "An /Indexed shading /ColorSpace is only valid for a mesh shading without a /Function.");
         }
 
         // /BBox (PDF 32000-1 §8.7.4.3) is only meaningful to sh (see ShadingDescriptor's own
