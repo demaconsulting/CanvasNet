@@ -164,4 +164,114 @@ public class PdfDocumentClipEdgeInkTests
         // (250, 50): inside the rectangle but outside the triangle (x + y > 300) -> unpainted
         Assert.Equal(255, surface[250, 50].R);
     }
+
+    /// <summary>
+    ///     Proves a <c>W*</c> clip made of many (beyond the former subpath cap) rectangles, with a fill
+    ///     of the same rectangles whose edges coincide with the clip edges, keeps its exact area.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ClipEdge_LargeRectangleUnionClipCoincidentWithFill_InkMatchesGeometry()
+    {
+        var rects = new StringBuilder();
+        for (var i = 0; i < 40; i++)
+        {
+            rects.Append(Rect(10.3 + (12 * i), 100.3, 10.4, 99.6));
+        }
+
+        var content = rects + "W* n\n0 g " + rects + "f*\n";
+        var area = 40 * 10.4 * 99.6;
+        foreach (var (w, h) in ReportedSizes)
+        {
+            var ratio = RenderDarkness(content, w, h, 0) / (area * (w / PageWidth) * (h / PageHeight));
+            Assert.True(ratio is >= 0.985 and <= 1.015, $"{w}x{h}: ink/exact = {ratio:F4}");
+        }
+    }
+
+    private static byte[] BuildImagePdf(string content)
+    {
+        // A 2x2 opaque black DeviceGray image as object 5
+        var contentBytes = Encoding.ASCII.GetBytes(content);
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Resources << /XObject << /Im0 5 0 R >> >> >>"u8.ToArray(),
+            Encoding.ASCII.GetBytes($"<< /Length {contentBytes.Length} >>\nstream\n{content}\nendstream"),
+            Encoding.Latin1.GetBytes("<< /Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 4 >>\nstream\n\0\0\0\0\nendstream"),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        var offsets = new List<int>();
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            offsets.Add(buffer.Count);
+            buffer.AddRange(Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var xref = buffer.Count;
+        buffer.AddRange(Encoding.ASCII.GetBytes($"xref\n0 {bodies.Count + 1}\n0000000000 65535 f \n"));
+        foreach (var offset in offsets)
+        {
+            buffer.AddRange(Encoding.ASCII.GetBytes($"{offset:D10} 00000 n \n"));
+        }
+
+        buffer.AddRange(Encoding.ASCII.GetBytes(
+            $"trailer\n<< /Size {bodies.Count + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    private static double RenderImageDarkness(string content, int width, int height)
+    {
+        using var document = PdfDocument.Open(new MemoryStream(BuildImagePdf(content)));
+        using var surface = document.Render(0, width, height, new PdfRenderOptions { BackgroundColor = new(255, 255, 255, 255) });
+        double sum = 0;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                sum += 255 - surface[x, y].R;
+            }
+        }
+
+        return sum / 255.0;
+    }
+
+    /// <summary>
+    ///     Proves an image whose placement rectangle coincides with a fractional rectangle clip is painted
+    ///     exactly as without the clip (the clip edge is not applied on top of the image edge), for a
+    ///     rectangle clip and for a rectangle-union clip.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PdfDocument_ClipEdge_ImageCoincidentWithRectangleClip_InkEqualsUnclippedInk(bool union)
+    {
+        var place = "10.3 0 0 20.6 100.4 200.2 cm /Im0 Do\n";
+        var clip = Rect(100.4, 200.2, 10.3, 20.6) + (union ? Rect(300, 300, 10.5, 10.5) : string.Empty) + "W* n\n";
+        foreach (var (w, h) in ReportedSizes)
+        {
+            var unclipped = RenderImageDarkness("q\n" + place + "Q\n", w, h);
+            var clipped = RenderImageDarkness("q\n" + clip + place + "Q\n", w, h);
+            Assert.True(unclipped > 0);
+            Assert.True(Math.Abs((clipped / unclipped) - 1) <= 0.002, $"{w}x{h}: clipped/unclipped = {clipped / unclipped:F4}");
+        }
+    }
+
+    /// <summary>Proves an image under a rectangle clip that cuts it at a fractional position keeps the exact fractional edge pixel.</summary>
+    [Fact]
+    public void PdfDocument_ClipEdge_ImageCutByRectangleClip_InkMatchesGeometry()
+    {
+        var place = "40.4 0 0 30.6 100.4 200.2 cm /Im0 Do\n";
+        var clip = Rect(100.4, 200.2, 20.2, 30.6) + "W n\n";
+        foreach (var (w, h) in ReportedSizes)
+        {
+            var full = RenderImageDarkness("q\n" + place + "Q\n", w, h);
+            var clipped = RenderImageDarkness("q\n" + clip + place + "Q\n", w, h);
+            var expected = full * (20.2 / 40.4);
+            Assert.True(Math.Abs((clipped / expected) - 1) <= 0.06, $"{w}x{h}: clipped/expected = {clipped / expected:F4}");
+        }
+    }
 }

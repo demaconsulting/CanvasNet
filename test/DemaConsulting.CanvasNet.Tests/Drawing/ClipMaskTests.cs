@@ -797,5 +797,75 @@ public class ClipMaskTests
         AssertSameCoverage(ClipMask.FromPathDense(path, FillRule.EvenOdd, 64, 64), clip, 64, 64);
     }
 
+    /// <summary>Proves a rectangle union well beyond the former subpath cap (100 rectangles) is decomposed into pieces and matches the dense reference.</summary>
+    [Fact]
+    public void ClipMask_LargeRectangleUnion_HasPiecesAndMatchesDenseReference()
+    {
+        var rects = new List<(float L, float T, float R, float B)>();
+        for (var row = 0; row < 10; row++)
+        {
+            for (var col = 0; col < 10; col++)
+            {
+                rects.Add((2.25f + (col * 6f), 3.5f + (row * 6f), 6.75f + (col * 6f), 7.5f + (row * 6f)));
+            }
+        }
+
+        var path = MultiRectPath([.. rects]);
+        var clip = ClipMask.FromPath(path, FillRule.EvenOdd, 80, 80);
+
+        Assert.True(clip.HasPieces);
+        AssertSameCoverage(ClipMask.FromPathDense(path, FillRule.EvenOdd, 80, 80), clip, 80, 80);
+    }
+
+    /// <summary>Proves overlapping rectangles decompose under both fill rules like the dense reference (sweep decomposition).</summary>
+    [Theory]
+    [InlineData(FillRule.EvenOdd)]
+    [InlineData(FillRule.NonZero)]
+    public void ClipMask_OverlappingRectangleUnion_DecompositionMatchesDenseReference(FillRule rule)
+    {
+        var path = MultiRectPath((2.25f, 3.5f, 20.75f, 9.5f), (10.5f, 5.25f, 30.5f, 15.75f), (12f, 1f, 14f, 40f), (1f, 20f, 50f, 22.5f));
+        var clip = ClipMask.FromPath(path, rule, 64, 64);
+
+        Assert.True(clip.HasPieces);
+        AssertSameCoverage(ClipMask.FromPathDense(path, rule, 64, 64), clip, 64, 64);
+    }
+
+    /// <summary>Proves the shape-aware coverage counts a shape edge coincident with a rectangle clip edge once.</summary>
+    [Fact]
+    public void ClipMask_GetCoverageWithinShape_CoincidentRectangleEdge_IsFullCoverage()
+    {
+        var clip = ClipMask.FromPath(MultiRectPath((10.25f, 10.25f, 20.5f, 20.5f)), FillRule.NonZero, 64, 64);
+
+        // The shape equals the clip: every touched pixel is fully inside the shape-and-clip region
+        var shape = (10.25f, 10.25f, 20.5f, 20.5f);
+        Assert.Equal(1f, clip.GetCoverageWithinShape(10, 10, shape), 1e-4f);
+        Assert.Equal(1f, clip.GetCoverageWithinShape(20, 20, shape), 1e-4f);
+
+        // The plain product-style coverage is fractional there
+        Assert.True(clip.GetCoverage(10, 10) < 1f);
+    }
+
+    /// <summary>Proves the shape-aware coverage applies a clip that cuts the shape at a fractional position exactly.</summary>
+    [Fact]
+    public void ClipMask_GetCoverageWithinShape_ClipCuttingShape_ReturnsExactFraction()
+    {
+        var clip = ClipMask.FromPath(MultiRectPath((0f, 0f, 15.5f, 64f)), FillRule.NonZero, 64, 64);
+
+        // Shape spans x 10..20; the clip keeps half of pixel 15
+        Assert.Equal(0.5f, clip.GetCoverageWithinShape(15, 5, (10f, 0f, 20f, 64f)), 1e-4f);
+        Assert.Equal(0f, clip.GetCoverageWithinShape(17, 5, (10f, 0f, 20f, 64f)), 1e-4f);
+    }
+
+    /// <summary>Proves a curved (dense, non-rectangle-union) clip yields no geometric rectangles and falls back to its own coverage.</summary>
+    [Fact]
+    public void ClipMask_GetRectsWithinShape_CurvedClip_ReturnsNullAndFallsBack()
+    {
+        var builder = new PathBuilder();
+        builder.MoveTo(new Vector2(30, 30)).LineTo(new Vector2(50, 32)).LineTo(new Vector2(40, 50)).Close();
+        var clip = ClipMask.FromPath(builder.Build(), FillRule.NonZero, 64, 64);
+
+        Assert.Null(clip.GetRectsWithinShape((0f, 0f, 64f, 64f)));
+        Assert.Equal(clip.GetCoverage(40, 40), clip.GetCoverageWithinShape(40, 40, (0f, 0f, 64f, 64f)));
+    }
     #endregion
 }

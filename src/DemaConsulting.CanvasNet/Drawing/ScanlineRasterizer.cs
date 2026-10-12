@@ -90,7 +90,7 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     <see cref="CoverageSweep.ResolveCoverage"/> folds it back into <c>[0, 1]</c> - this is the same
 ///     documented, accepted behavior of AGG/FreeType/<c>stb_truetype</c> for coincident contours,
 ///     and is a materially rarer case in practice than ordinary self-intersecting geometry, which
-///     is why this trade-off is accepted in exchange for fixing the crossing-edge bug.
+///     is why this trade-off is accepted in exchange for fixing the crossing-edge bug. Under <see cref="FillRule.EvenOdd"/> the trade-off no longer applies to vertical edges: a cell holding two or more vertical edges that each span the whole row (or sub-row interval) is resolved exactly by toggling winding parity at the sorted in-cell edge positions (<c>TryResolveDirtyCell</c>), which fixes stacked or nested same-x rectangles whose edges fall at a fractional x. Cells that also hold a slanted or partial-height edge, or whose incoming winding is not integral, still use the fold.
 ///     </para>
 ///     <para>
 ///     <b>Why a single fold is insufficient when multiple edges toggle inside one row under
@@ -485,6 +485,12 @@ internal static class ScanlineRasterizer
         private readonly List<RowEdge> _rowEdges = [];
         private readonly List<float> _rowBreakpoints = [];
         private readonly List<RowEdge> _subRowEdges = [];
+        private readonly bool _evenOdd;
+        private readonly int[] _cellEdgeCount;
+        private readonly int[] _cellUnsafe;
+        private readonly List<(int Column, float Fraction)> _cellEntries = [];
+        private int _dirtyCount;
+        private int _entryPointer;
         private int _nextEdgeIndex;
         private int _currentY;
         private int _spanStart;
@@ -493,6 +499,7 @@ internal static class ScanlineRasterizer
         public CoverageSweep(IReadOnlyList<List<Vector2>> polygons, FillRule fillRule, Rect clipBounds, ClipMask? clip = null)
         {
             _fillRule = fillRule;
+            _evenOdd = fillRule == FillRule.EvenOdd;
             _clip = clip;
 
             // Round the (already surface-clipped) float clip bounds outward to whole pixel rows
@@ -527,6 +534,8 @@ internal static class ScanlineRasterizer
                 _area = [];
                 _rowCoverage = [];
                 _subRowCoverage = [];
+                _cellEdgeCount = [];
+                _cellUnsafe = [];
                 return;
             }
 
@@ -539,6 +548,8 @@ internal static class ScanlineRasterizer
                 _area = [];
                 _rowCoverage = [];
                 _subRowCoverage = [];
+                _cellEdgeCount = [];
+                _cellUnsafe = [];
                 return;
             }
 
@@ -556,6 +567,11 @@ internal static class ScanlineRasterizer
             _area = new float[Width];
             _rowCoverage = new float[Width];
             _subRowCoverage = new float[Width];
+
+            // Per-cell edge bookkeeping used only by EvenOdd, to resolve cells holding several
+            // vertical edges exactly (see TryResolveDirtyCell); never allocated for NonZero.
+            _cellEdgeCount = _evenOdd ? new int[Width + 1] : [];
+            _cellUnsafe = _evenOdd ? new int[Width + 1] : [];
             _expiringEdgeIds = new List<int>?[_clipMaxY - _clipMinY];
         }
 
@@ -824,10 +840,19 @@ internal static class ScanlineRasterizer
             // never-read overflow slot), and nothing outside it is read below.
             Array.Clear(_cover, lo, hi - lo + 1);
             Array.Clear(_area, lo, hi - lo + 1);
+            if (_evenOdd)
+            {
+                Array.Clear(_cellEdgeCount, lo, hi - lo + 1);
+                Array.Clear(_cellUnsafe, lo, hi - lo + 1);
+                BeginCellTracking();
+            }
+
             foreach (var edge in _rowEdges)
             {
-                AccumulateRowEdge(edge, _clipMinX, _clipMaxX, _cover, _area);
+                AccumulateEdge(edge, 1f);
             }
+
+            EndCellTracking();
 
             // Single left-to-right sweep: "accumulatedCover" is the running winding total. At
             // each column, "accumulatedCover" is first advanced by this column's own
@@ -842,7 +867,9 @@ internal static class ScanlineRasterizer
             {
                 accumulatedCover += _cover[i];
                 var total = accumulatedCover + _area[i];
-                _rowCoverage[i] = ResolveCoverage(total, _fillRule);
+                _rowCoverage[i] = _dirtyCount > 0 && TryResolveDirtyCell(i, accumulatedCover, 1f, out var exact)
+                    ? exact
+                    : ResolveCoverage(total, _fillRule);
             }
 
             // Right of "hi" no edge contributes, so the coverage is the constant resolution of
@@ -1118,10 +1145,15 @@ internal static class ScanlineRasterizer
 
             Array.Clear(_cover);
             Array.Clear(_area);
+            Array.Clear(_cellEdgeCount);
+            Array.Clear(_cellUnsafe);
+            BeginCellTracking();
             foreach (var edge in _subRowEdges)
             {
-                AccumulateRowEdge(edge, _clipMinX, _clipMaxX, _cover, _area);
+                AccumulateEdge(edge, height);
             }
+
+            EndCellTracking();
 
             var accumulatedCover = 0f;
             for (var i = 0; i < Width; i++)
@@ -1129,9 +1161,129 @@ internal static class ScanlineRasterizer
                 accumulatedCover += _cover[i];
                 var total = accumulatedCover + _area[i];
                 var density = total / height;
-                var coverage = ResolveCoverage(density, FillRule.EvenOdd);
+                var coverage = _dirtyCount > 0 && TryResolveDirtyCell(i, accumulatedCover, height, out var exact)
+                    ? exact
+                    : ResolveCoverage(density, FillRule.EvenOdd);
                 _subRowCoverage[i] += coverage * height;
             }
+        }
+
+        /// <summary>
+        ///     Resets the per-row multi-edge cell bookkeeping (EvenOdd only).
+        /// </summary>
+        private void BeginCellTracking()
+        {
+            _cellEntries.Clear();
+            _dirtyCount = 0;
+            _entryPointer = 0;
+        }
+
+        /// <summary>
+        ///     Orders the recorded single-column edge entries by column then in-cell x, but only
+        ///     when at least one cell holds two or more of them.
+        /// </summary>
+        private void EndCellTracking()
+        {
+            if (_dirtyCount > 0)
+            {
+                _cellEntries.Sort();
+            }
+        }
+
+        /// <summary>
+        ///     Accumulates one row-restricted edge via <see cref="AccumulateRowEdge"/> and, for
+        ///     EvenOdd, records which cells hold several vertical edges that each span the whole
+        ///     (sub-)interval of height <paramref name="height"/> (candidates for exact parity
+        ///     resolution) and which cells are touched by a slanted or partial-height edge
+        ///     (which keep the fold).
+        /// </summary>
+        private void AccumulateEdge(RowEdge edge, float height)
+        {
+            if (_evenOdd)
+            {
+                if (MathF.Abs(edge.XAtY1 - edge.XAtY0) <= NearZeroDisplacement)
+                {
+                    var column = (int)MathF.Floor(edge.XAtY0);
+                    if (column >= _clipMinX && column < _clipMaxX)
+                    {
+                        var index = column - _clipMinX;
+                        if (edge.Y1 - edge.Y0 >= height * 0.9999f)
+                        {
+                            if (++_cellEdgeCount[index] == 2)
+                            {
+                                _dirtyCount++;
+                            }
+
+                            _cellEntries.Add((index, edge.XAtY0 - column));
+                        }
+                        else
+                        {
+                            _cellUnsafe[index]++;
+                        }
+                    }
+                }
+                else
+                {
+                    var first = Math.Max((int)MathF.Floor(Math.Min(edge.XAtY0, edge.XAtY1)) - _clipMinX, 0);
+                    var last = Math.Min((int)MathF.Floor(Math.Max(edge.XAtY0, edge.XAtY1)) - _clipMinX, Width - 1);
+                    for (var i = first; i <= last; i++)
+                    {
+                        _cellUnsafe[i]++;
+                    }
+                }
+            }
+
+            AccumulateRowEdge(edge, _clipMinX, _clipMaxX, _cover, _area);
+        }
+
+        /// <summary>
+        ///     Exactly resolves an EvenOdd cell holding two or more vertical edges that each span
+        ///     the whole interval: the winding parity left of the cell is toggled at each edge's
+        ///     in-cell x (sorted), and the odd-parity length is the coverage. This is exact for
+        ///     coincident or nested edges, where folding the summed cover/area is not.
+        /// </summary>
+        private bool TryResolveDirtyCell(int index, float accumulatedCover, float height, out float coverage)
+        {
+            coverage = 0f;
+            if (_cellEdgeCount[index] < 2 || _cellUnsafe[index] != 0)
+            {
+                return false;
+            }
+
+            var winding = accumulatedCover / height;
+            var rounded = MathF.Round(winding);
+            if (MathF.Abs(winding - rounded) > 0.01f)
+            {
+                return false;
+            }
+
+            var odd = ((int)MathF.Abs(rounded) & 1) == 1;
+            while (_entryPointer < _cellEntries.Count && _cellEntries[_entryPointer].Column < index)
+            {
+                _entryPointer++;
+            }
+
+            var previous = 0f;
+            var sum = 0f;
+            for (var p = _entryPointer; p < _cellEntries.Count && _cellEntries[p].Column == index; p++)
+            {
+                var fraction = _cellEntries[p].Fraction;
+                if (odd)
+                {
+                    sum += fraction - previous;
+                }
+
+                odd = !odd;
+                previous = fraction;
+            }
+
+            if (odd)
+            {
+                sum += 1f - previous;
+            }
+
+            coverage = sum;
+            return true;
         }
 
         /// <summary>

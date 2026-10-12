@@ -598,6 +598,43 @@ sections:
               - PdfDocument_ClipEdge_NestedIdenticalFractionalRectClips_InkMatchesGeometry
               - PdfDocument_ClipEdge_OrthogonalFractionalRectClips_InkMatchesGeometry
               - PdfDocument_ClipEdge_RectangleInsideTriangleClip_RestrictsToBoth
+            children:
+              - CanvasNetPdf-PdfDocument-ThinBarInkFidelity
+              - CanvasNetPdf-PdfDocument-ClipGeometricCoverage
+
+          - id: CanvasNetPdf-PdfDocument-ThinBarInkFidelity
+            title: >-
+              The PdfDocument class shall paint thin filled bars, with or without a rectangle clip,
+              and even-odd stacks of rectangles sharing an edge at a fractional device position,
+              with a total ink within 1.5 percent below and 3 percent above the exact geometric
+              area at every device size, without residual ink along a shared edge.
+            justification: |
+              Thin rules are rendered at many device sizes, so their edges fall at every sub-pixel
+              phase; ink that depends on the phase (a full-height column of ink along a shared even-odd
+              rectangle edge made a header rule up to 19 percent too dark at some sizes) is a visible
+              fidelity defect.
+            tests:
+              - PdfDocument_ThinBar_HorizontalFill_InkMatchesGeometry
+              - PdfDocument_ThinBar_VerticalFill_InkMatchesGeometry
+              - PdfDocument_ThinBar_OverlappingEvenOddRects_InkMatchesEvenOddArea
+              - PdfDocument_ThinBar_OverlappingEvenOddRects_LuminanceInkMatchesEvenOddArea
+
+          - id: CanvasNetPdf-PdfDocument-ClipGeometricCoverage
+            title: >-
+              The PdfDocument class shall apply a clipping path made only of axis-aligned
+              rectangles, including a union of up to 256 rectangles, geometrically to fills and to
+              axis-aligned image XObjects, so a fill or image edge coincident with a clip edge is
+              counted once; a curved or otherwise dense clip, and a rotated or skewed image under any
+              clip, keep the per-pixel coverage product (error confined to edge pixels).
+            justification: |
+              Multiplying the edge-pixel coverage of a shape by the edge-pixel coverage of a clip
+              coincident with it squares the coverage and paints rules and images too light at the
+              clip boundary. Rectangle-only clips are by far the most common, so they are evaluated
+              exactly; the dense product is retained as a documented limit for the remaining cases.
+            tests:
+              - PdfDocument_ClipEdge_LargeRectangleUnionClipCoincidentWithFill_InkMatchesGeometry
+              - PdfDocument_ClipEdge_ImageCoincidentWithRectangleClip_InkEqualsUnclippedInk
+              - PdfDocument_ClipEdge_ImageCutByRectangleClip_InkMatchesGeometry
 
           - id: CanvasNetPdf-PdfDocument-Dispose
             title: >-

@@ -815,8 +815,11 @@ its own distinguishable `Feature` token.
   resamples the image once per draw to exactly the device window it covers (the shared separable,
   premultiplied-alpha engine: `Area` when shrinking, `Bicubic` when enlarging, kernel support scaled
   by the reduction ratio, window clipped to the page so memory is bounded) and the window is composited
-  1:1, with the clip coverage applied (image sample row `0` is the _top_ of the unit square per the PDF
-  specification's image-space convention, the opposite of user-space's y-up convention). A rotated or
+  1:1, with the clip coverage applied (for a rectangle or rectangle-union clip as the geometric
+  coverage of image-and-clip divided by coverage of the image, so an image edge coincident with a
+  clip edge is not attenuated twice; a dense clip keeps the per-pixel product) (image sample row `0`
+  is the _top_ of the unit square per the PDF specification's image-space convention, the opposite
+  of user-space's y-up convention). A rotated or
   skewed placement falls back to inverse-mapped bilinear sampling of an area-prefiltered source
   (`Prefilter` + `SampleBilinear`). Thin features such as one-pixel rules are therefore attenuated
   rather than dropped, and enlarged images are interpolated rather than shown as blocks.

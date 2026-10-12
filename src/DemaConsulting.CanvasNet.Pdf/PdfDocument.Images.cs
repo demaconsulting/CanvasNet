@@ -1130,7 +1130,12 @@ public sealed partial class PdfDocument
             {
                 if (window is not null)
                 {
-                    CompositeWindow(window, originX, originY);
+                    var left = pixelToDevice.M31;
+                    var right = left + (pixelToDevice.M11 * image.Width);
+                    var top = pixelToDevice.M32;
+                    var bottom = top + (pixelToDevice.M22 * image.Height);
+                    CompositeWindow(
+                        window, originX, originY, (MathF.Min(left, right), MathF.Min(top, bottom), MathF.Max(left, right), MathF.Max(top, bottom)));
                 }
             }
 
@@ -1158,16 +1163,48 @@ public sealed partial class PdfDocument
     ///     Composites a device-aligned resampled image window 1:1 at (<paramref name="originX"/>,
     ///     <paramref name="originY"/>), scaling each pixel's alpha by the current clip coverage.
     /// </summary>
-    private void CompositeWindow(Surface window, int originX, int originY)
+    private void CompositeWindow(Surface window, int originX, int originY, (float Left, float Top, float Right, float Bottom) shape)
     {
         var clip = _gs?.Clip;
+
+        // A rectangle or rectangle-union clip is evaluated geometrically against the device
+        // rectangle of the image (coverage of image-and-clip divided by coverage of the image), so
+        // an image edge coincident with a clip edge is counted once instead of being attenuated by
+        // the edge-pixel coverage of the clip on top of it. Dense (curved) clips keep the
+        // per-pixel product; rotated or skewed images never reach this method.
+        var shapeRects = clip?.GetRectsWithinShape(shape);
+        var rowRects = new List<float>();
         for (var y = 0; y < window.Height; y++)
         {
+            var dy = originY + y;
+            float[]? rowRectArray = null;
+            if (shapeRects is not null)
+            {
+                rowRects.Clear();
+                for (var i = 0; i < shapeRects.Length; i += 4)
+                {
+                    if (shapeRects[i + 1] < dy + 1f && shapeRects[i + 3] > dy)
+                    {
+                        rowRects.AddRange(shapeRects.AsSpan(i, 4));
+                    }
+                }
+
+                rowRectArray = [.. rowRects];
+            }
+
+            var rowShape = Drawing.ClipMask.AxisOverlap(dy, shape.Top, shape.Bottom);
             for (var x = 0; x < window.Width; x++)
             {
                 var dx = originX + x;
-                var dy = originY + y;
-                var clipCoverage = clip?.GetCoverage(dx, dy) ?? 1f;
+                var clipCoverage = 1f;
+                if (clip is not null)
+                {
+                    var shapeArea = Drawing.ClipMask.AxisOverlap(dx, shape.Left, shape.Right) * rowShape;
+                    clipCoverage = rowRectArray is not null && shapeArea > 1e-6f
+                        ? Math.Min(1f, Drawing.ClipMask.RectsCoverage(rowRectArray, dx, dy) / shapeArea)
+                        : clip.GetCoverage(dx, dy);
+                }
+
                 if (clipCoverage <= 0f)
                 {
                     continue;
