@@ -419,7 +419,18 @@ between fill edge and clip edge (coincident, crossing or unrelated), because the
 conserves area. `CoverageSweep` then restricts its swept column/row range to the clip's
 whole-pixel bounds (edges outside the range are still handled analytically by the accumulation
 overflow logic) and, after each row's coverage is resolved, multiplies _only_ the dense buffer's
-row (if any) per column. Known residual: a dense (non-rectangular) clip still multiplies, which
+row (if any) per column. A clip made only of axis-aligned rectangles (an even-odd ring or band,
+overlapping non-zero rectangles; up to 32 rectangle subpaths) is additionally decomposed, by
+coordinate compression and run merging, into at most 64 _disjoint pieces_ (`HasPieces`).
+`TryClipPolygonsToRect` then clips the fill polygons to each piece and concatenates the results
+(pieces are disjoint, so the rasterizer's signed-area accumulation sums coverage exactly across
+shared piece edges) and the dense buffer is _not_ multiplied for fills (it still backs
+`GetCoverage` for images). `Intersect` keeps pieces for rectangle x union (each piece restricted)
+and union x union (pairwise overlap, falling back to the dense product above 64 pieces); any
+operand with curves or rotated edges drops them. This fixed a reported header rule (an even-odd
+fill whose outer bar edge coincides with a `W*` rectangle-band clip) that lost up to 40 % of its
+ink at some render sizes because the dense clip's edge coverage was multiplied into the fill's.
+Known residual: a true dense (curved/rotated) clip still multiplies, which
 is an independence approximation (as in Skia/AGG antialiased clip masks), so a fill edge coincident
 with a non-rectangular clip edge keeps some edge attenuation. Rectangle-clipped images still use
 the per-pixel `GetCoverage` product (`PdfDocument.Images.cs`).

@@ -763,7 +763,24 @@ and asserts no timing.
 `PdfDocument_ThinRules_DoubleRuleWithCoincidentClip_InkMatchesGeometry`,
 `PdfDocument_ThinRules_DoubleRuleWithWiderClip_InkMatchesGeometry`,
 `PdfDocument_ThinRules_DoubleRule_GapBetweenBarsRemainsTransparent`,
-`PdfDocument_ThinRules_FooterRule_InkMatchesGeometry`
+`PdfDocument_ThinRules_FooterRule_InkMatchesGeometry`,
+`PdfDocument_ClipEdge_RectangleUnionClipCoincidentWithFillEdge_InkMatchesGeometry`,
+`PdfDocument_ClipEdge_SingleRectangleClipCoincidentWithFillEdge_InkMatchesGeometry`,
+`PdfDocument_ClipEdge_NestedIdenticalFractionalRectClips_InkMatchesGeometry`,
+`PdfDocument_ClipEdge_OrthogonalFractionalRectClips_InkMatchesGeometry`,
+`PdfDocument_ClipEdge_RectangleInsideTriangleClip_RestrictsToBoth`
+
+The `PdfDocument_ClipEdge_*` tests (in `PdfDocumentClipEdgeInkTests.cs`, own minimal PDF builder)
+render on white and compare summed darkness against the analytic area. They reproduce the
+DocPilot header rule (an even-odd fill of four rectangles whose outer lower bar edge coincides with
+the edge of a `W*` clip built from several rectangles, so a non-rectangular clip) at 1147x1484,
+1020x1320, 1108x1434, 612x792 and 765x990 and require ink within [0.985, 1.03] of exact (before the
+fix the rectangle-union clip gave 0.58-0.84 because the dense clip's edge coverage was multiplied
+into the fill's); the single-rectangle variant pins agreement with the analytic rectangle clip;
+nested identical and orthogonal fractional rectangle clips must yield the exact geometric area
+(within 0.5 %); and a rectangle clip nested in a triangle clip must paint only inside both. All
+are deterministic and assert no timing. Known residual: clips mixing curves or rotated edges
+(true dense clips) still multiply coverage.
 
 The `PdfDocument_ThinRules_*` tests (in `PdfDocumentThinRuleInkTests.cs`, with their own minimal
 single-page PDF builder) reproduce a WeasyPrint-style `border: double` rule and a 1-unit footer

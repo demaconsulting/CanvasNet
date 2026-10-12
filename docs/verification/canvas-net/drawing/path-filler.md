@@ -392,7 +392,15 @@ behavior.
 `ClipMask_Combine_FullSurfaceAndNull_NormalizesToOtherOperandOrNull`,
 `ClipMask_Intersect_RectangleWithDense_EqualsDenseReferenceAndSharesBuffer`,
 `ClipMask_Intersect_DenseWithDense_EqualsReferenceAndBoundsAreOverlap`,
-`ClipMask_Intersect_RestrictedDenseWithDense_EqualsReference` (all in `ClipMaskTests.cs`),
+`ClipMask_Intersect_RestrictedDenseWithDense_EqualsReference`,
+`ClipMask_FromPath_EvenOddRectangleRing_IsRectangleUnionWithExactFillArea`,
+`ClipMask_RectangleUnion_FillEdgeCoincidentWithClipEdge_CoverageIsExact`,
+`ClipMask_FromPath_NonZeroOverlappingRectangles_UnionAreaIsExact`,
+`ClipMask_Intersect_RectangleUnionWithRectangle_RestrictsPieces`,
+`ClipMask_Intersect_RectangleUnionWithRectangleUnion_IsExactOverlap`,
+`ClipMask_Intersect_RectangleUnionWithCircle_FallsBackToDense`,
+`ClipMask_FromPath_RectanglePlusCircle_HasNoPieces`,
+`ClipMask_RectangleUnion_GetCoverage_MatchesDenseReference` (all in `ClipMaskTests.cs`),
 `PathFiller_Fill_SolidColorWithClip_RestrictsFillToClipCoverage`,
 `PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload`,
 `PathFiller_Fill_RectangleClipVersusDenseClip_InteriorMatchesAndEdgesAreBounded`,
@@ -434,7 +442,9 @@ assert that total coverage equals the unclipped fill's. The new tests assert exa
 within `1e-3` over sub-pixel offsets and sizes for both fill rules, Sutherland-Hodgman clip area
 against the analytic intersection (inside, outside, crossing one/two/four sides, concave,
 hole with both fill rules, degenerate), coincident-edge clips equal to the unclipped fill, a
-rectangle-plus-dense clip applying the rectangle factor once, and EvenOdd area conservation for
+rectangle-plus-dense clip applying the rectangle factor once, rectangle-union clips (even-odd rings,
+overlapping non-zero rectangles, pairwise union intersections) giving exact fill areas with the
+dense fallback for non-rectangle operands, and EvenOdd area conservation for
 coincident mid-row edges. None of these tests asserts wall-clock time.
 
 Per `testing-principles.md`'s "tests MAY exist without a requirement", these tests exist as

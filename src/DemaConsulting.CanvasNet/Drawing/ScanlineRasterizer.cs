@@ -889,7 +889,7 @@ internal static class ScanlineRasterizer
                 return;
             }
 
-            var dense = _clip == null
+            var dense = _clip == null || _clip.HasPieces
                 ? default
                 : _clip.GetDenseRow(y, _clipMinX + _spanStart, _spanLength);
             if (!dense.IsEmpty)

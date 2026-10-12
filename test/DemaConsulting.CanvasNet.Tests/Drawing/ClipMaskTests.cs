@@ -674,5 +674,128 @@ public class ClipMaskTests
         Assert.False(ok);
     }
 
+    private static Path MultiRectPath(params (float L, float T, float R, float B)[] rects)
+    {
+        var builder = new PathBuilder();
+        foreach (var (l, t, r, b) in rects)
+        {
+            builder.MoveTo(new Vector2(l, t)).LineTo(new Vector2(r, t)).LineTo(new Vector2(r, b)).LineTo(new Vector2(l, b)).Close();
+        }
+
+        return builder.Build();
+    }
+
+    /// <summary>Total coverage (sum of fill coverage) of <paramref name="polygons"/> under <paramref name="rule"/> over a 64x64 extent.</summary>
+    private static double FillCoverageSum(IReadOnlyList<List<Vector2>> polygons, FillRule rule)
+    {
+        var buffer = new float[64 * 64];
+        ScanlineRasterizer.AccumulateCoverageMask(polygons, rule, new Rect(0, 0, 64, 64), buffer, 64, 0, 0);
+        return buffer.Sum(v => (double)v);
+    }
+
+    /// <summary>Proves an even-odd ring of rectangles is kept as a rectangle union and clipping a fill to it gives the exact area.</summary>
+    [Fact]
+    public void ClipMask_FromPath_EvenOddRectangleRing_IsRectangleUnionWithExactFillArea()
+    {
+        var outer = (L: 4.3f, T: 5.6f, R: 40.7f, B: 30.2f);
+        var inner = (L: 4.3f, T: 7.1f, R: 40.7f, B: 28.9f);
+        var clip = ClipMask.FromPath(MultiRectPath(outer, inner), FillRule.EvenOdd, 64, 64);
+
+        Assert.True(clip.HasPieces);
+        Assert.True(clip.TryClipPolygonsToRect([ClosedRect(0, 0, 64, 64)], out var clipped, out _));
+
+        var expected = ((outer.R - outer.L) * (outer.B - outer.T)) - ((inner.R - inner.L) * (inner.B - inner.T));
+        Assert.Equal(expected, FillCoverageSum(clipped, FillRule.NonZero), 1e-2);
+    }
+
+    /// <summary>Proves a fill edge coincident with a rectangle-union clip edge is covered exactly (not squared).</summary>
+    [Fact]
+    public void ClipMask_RectangleUnion_FillEdgeCoincidentWithClipEdge_CoverageIsExact()
+    {
+        var clip = ClipMask.FromPath(MultiRectPath((10.5f, 20.25f, 30.5f, 21.75f), (40, 40, 50, 50)), FillRule.EvenOdd, 64, 64);
+
+        // A fill whose top and bottom edges coincide with the first clip rectangle's fractional edges
+        Assert.True(clip.TryClipPolygonsToRect([ClosedRect(10.5f, 20.25f, 30.5f, 21.75f)], out var clipped, out _));
+
+        Assert.Equal(20.0 * 1.5, FillCoverageSum(clipped, FillRule.NonZero), 1e-3);
+    }
+
+    /// <summary>Proves non-zero overlapping rectangles decompose into a disjoint union with the exact union area.</summary>
+    [Fact]
+    public void ClipMask_FromPath_NonZeroOverlappingRectangles_UnionAreaIsExact()
+    {
+        var clip = ClipMask.FromPath(
+            MultiRectPath((5.5f, 5.5f, 25.5f, 20.5f), (15.5f, 10.25f, 35.5f, 30.75f)), FillRule.NonZero, 64, 64);
+
+        Assert.True(clip.HasPieces);
+        Assert.True(clip.TryClipPolygonsToRect([ClosedRect(0, 0, 64, 64)], out var clipped, out _));
+
+        var union = (20.0 * 15.0) + (20.0 * 20.5) - OverlapArea(5.5f, 5.5f, 25.5f, 20.5f, 15.5f, 10.25f, 35.5f, 30.75f);
+        Assert.Equal(union, FillCoverageSum(clipped, FillRule.NonZero), 1e-2);
+    }
+
+    /// <summary>Proves a rectangle-union clip intersected with a rectangle stays a rectangle union restricted to it.</summary>
+    [Fact]
+    public void ClipMask_Intersect_RectangleUnionWithRectangle_RestrictsPieces()
+    {
+        var union = ClipMask.FromPath(MultiRectPath((0, 0, 20, 10), (30, 0, 50, 10)), FillRule.NonZero, 64, 64);
+        var rect = RectClip(10.5f, 2.5f, 40.5f, 8.5f);
+
+        var result = union.Intersect(rect);
+
+        Assert.True(result.HasPieces);
+        Assert.True(result.TryClipPolygonsToRect([ClosedRect(0, 0, 64, 64)], out var clipped, out _));
+        Assert.Equal((9.5 * 6) + (10.5 * 6), FillCoverageSum(clipped, FillRule.NonZero), 1e-3);
+    }
+
+    /// <summary>Proves two rectangle-union clips intersect pairwise to their exact overlap area.</summary>
+    [Fact]
+    public void ClipMask_Intersect_RectangleUnionWithRectangleUnion_IsExactOverlap()
+    {
+        var a = ClipMask.FromPath(MultiRectPath((0, 0, 20, 10), (30, 0, 50, 10)), FillRule.NonZero, 64, 64);
+        var b = ClipMask.FromPath(MultiRectPath((10.5f, 0, 35.5f, 4.25f), (60, 60, 62, 62)), FillRule.NonZero, 64, 64);
+
+        var result = a.Intersect(b);
+
+        Assert.True(result.HasPieces);
+        Assert.True(result.TryClipPolygonsToRect([ClosedRect(0, 0, 64, 64)], out var clipped, out _));
+        Assert.Equal((9.5 * 4.25) + (5.5 * 4.25), FillCoverageSum(clipped, FillRule.NonZero), 1e-3);
+    }
+
+    /// <summary>Proves a rectangle-union clip with a non-rectangular clip keeps the multiplicative dense semantics (no pieces).</summary>
+    [Fact]
+    public void ClipMask_Intersect_RectangleUnionWithCircle_FallsBackToDense()
+    {
+        var union = ClipMask.FromPath(MultiRectPath((0, 0, 20, 10), (30, 0, 50, 10)), FillRule.NonZero, 64, 64);
+        var circle = ClipMask.FromPath(CirclePath(20, 8, 6), FillRule.NonZero, 64, 64);
+
+        var result = union.Intersect(circle);
+
+        Assert.False(result.HasPieces);
+        Assert.Equal(0f, result.GetCoverage(40, 5));
+        Assert.Equal(union.GetCoverage(18, 8) * circle.GetCoverage(18, 8), result.GetCoverage(18, 8), 1e-6);
+    }
+
+    /// <summary>Proves a path that is not purely rectangles is never decomposed into pieces.</summary>
+    [Fact]
+    public void ClipMask_FromPath_RectanglePlusCircle_HasNoPieces()
+    {
+        var builder = new PathBuilder();
+        builder.MoveTo(new Vector2(0, 0)).LineTo(new Vector2(10, 0)).LineTo(new Vector2(10, 10)).LineTo(new Vector2(0, 10)).Close();
+        builder.MoveTo(new Vector2(30, 30)).LineTo(new Vector2(40, 32)).LineTo(new Vector2(35, 40)).Close();
+
+        Assert.False(ClipMask.FromPath(builder.Build(), FillRule.NonZero, 64, 64).HasPieces);
+    }
+
+    /// <summary>Proves the dense coverage of a rectangle union (used for non-fill consumers) still matches the reference.</summary>
+    [Fact]
+    public void ClipMask_RectangleUnion_GetCoverage_MatchesDenseReference()
+    {
+        var path = MultiRectPath((2.25f, 3.5f, 20.75f, 9.5f), (2.25f, 4.5f, 20.75f, 8.5f));
+        var clip = ClipMask.FromPath(path, FillRule.EvenOdd, 64, 64);
+
+        AssertSameCoverage(ClipMask.FromPathDense(path, FillRule.EvenOdd, 64, 64), clip, 64, 64);
+    }
+
     #endregion
 }

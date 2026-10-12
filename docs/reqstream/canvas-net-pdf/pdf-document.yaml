@@ -568,7 +568,8 @@ sections:
               q/Q (and by Form XObject/Type3 glyph re-entry, both of which clone the graphics
               state identically), enforce the active clipping path against every subsequent
               fill, stroke, image XObject (Do), and glyph-fill paint until it is changed or
-              restored, and apply an axis-aligned rectangular clipping path without attenuating
+              restored, and apply an axis-aligned rectangular clipping path, or a clipping path
+              made only of axis-aligned rectangles (for example a W* band), without attenuating
               the painted geometry's own edge coverage, so that thin rules, double rules and
               borders whose edges coincide with the clip's edges keep their full geometric ink.
             justification: |
@@ -592,6 +593,11 @@ sections:
               - PdfDocument_ThinRules_DoubleRuleWithWiderClip_InkMatchesGeometry
               - PdfDocument_ThinRules_DoubleRule_GapBetweenBarsRemainsTransparent
               - PdfDocument_ThinRules_FooterRule_InkMatchesGeometry
+              - PdfDocument_ClipEdge_RectangleUnionClipCoincidentWithFillEdge_InkMatchesGeometry
+              - PdfDocument_ClipEdge_SingleRectangleClipCoincidentWithFillEdge_InkMatchesGeometry
+              - PdfDocument_ClipEdge_NestedIdenticalFractionalRectClips_InkMatchesGeometry
+              - PdfDocument_ClipEdge_OrthogonalFractionalRectClips_InkMatchesGeometry
+              - PdfDocument_ClipEdge_RectangleInsideTriangleClip_RestrictsToBoth
 
           - id: CanvasNetPdf-PdfDocument-Dispose
             title: >-
