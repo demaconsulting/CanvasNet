@@ -988,7 +988,25 @@ axial shading in an Indexed space throw `UnsupportedImageFeatureException`; a Se
 as `/SMask` is rejected. The fixture `color-separation-devicen.pdf` is synthetic. No timing
 assertions are used.
 
+#### CanvasNetPdf-PdfDocument-TintImageWorkBound: DeviceN Image Tint Evaluation Is Memoized and Budgeted
+
+**Tests**: `PdfDocument_Tint_NoisyDeviceNImage_ExceedsBudget_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Tint_DeviceNImageCache_MatchesUncachedConversion`,
+`PdfDocument_Tint_DeviceNImageCache_IsBounded`,
+`PdfDocument_Tint_SampledFunctionReadSample_FastPathMatchesBitwise` (`[Theory]`: 8/12/16/24/32 bits),
+`PdfDocument_Tint_DeviceNImage_EvaluatesTransform`
+
+The tests drive `TintImageConverter` directly with a Type 4 tint function. The budget test grants
+exactly ten evaluations' worth of cost and feeds distinct noisy pixels: the converter must throw
+feature `pdf-image-tint-budget` with `EvaluationCount` equal to 10 (a counter, not timing). The cache
+test converts repeated palette pixels with and without the cache and asserts identical colors and a
+bounded evaluation count; the bound test feeds more distinct pixels than the 65536-entry cap and
+asserts the cache stops growing. The reader test compares `ReadSample` with `ReadSampleBitwise` for
+each width. No timing assertions are used.
+
 #### CanvasNetPdf-PdfDocument-FunctionType4AndMultiInput: PostScript and Multi-Input Functions Evaluate
+
+ PostScript and Multi-Input Functions Evaluate
 
 **Tests**: `PdfDocument_Functions_Type4_Operator_ProducesSpecResult` (`[Theory]`),
 `PdfDocument_Functions_Type4_StackOperators_ProduceSpecStack` (`[Theory]`),

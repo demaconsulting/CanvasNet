@@ -1302,7 +1302,8 @@ evaluated through their tint-transform function (types 0 including multi-input, 
 PostScript calculator, under hard resource limits) and converted via the alternate space;
 `/None` colorants paint nothing, and an alternate that is itself Pattern/Indexed/Separation/DeviceN
 fails closed.
-**Documented scope
+A multi-component `/DeviceN` image has a bounded per-image tint-evaluation budget; an image whose
+distinct pixels would exceed it fails closed (feature `pdf-image-tint-budget`).
 boundaries**: `/MMType1` fonts, function-based shadings (`/ShadingType 1`), ICC profile application
 (only `/N`/`/Alternate` are used), transparency groups,
 and Type 3 glyphs shown under a clip text-rendering mode (`Tr 4`-`7`; clip modes with outline-based

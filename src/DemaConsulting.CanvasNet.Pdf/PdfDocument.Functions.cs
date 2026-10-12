@@ -49,6 +49,13 @@ public sealed partial class PdfDocument
         ///     <paramref name="output"/>.
         /// </summary>
         void Evaluate(ReadOnlySpan<double> input, Span<double> output);
+
+        /// <summary>
+        ///     An upper-bound estimate of the work of one <see cref="Evaluate"/> call in abstract
+        ///     cost units (roughly one unit per elementary operation), used to budget per-pixel
+        ///     tint evaluation.
+        /// </summary>
+        long EstimatedCost => 1L + InputCount + OutputCount;
     }
 
     /// <summary>Adapts a single-input <see cref="IPdfFunction"/> (type 2 or 3) to <see cref="IPdfMultiFunction"/>.</summary>
@@ -83,7 +90,7 @@ public sealed partial class PdfDocument
     ///     (<c>/Order 1</c>), with <c>/Encode</c>, <c>/Decode</c> and <c>/Range</c> applied; supports
     ///     <c>/BitsPerSample</c> <c>1, 2, 4, 8, 12, 16, 24, 32</c>.
     /// </summary>
-    private sealed class MultiSampledFunction : IPdfMultiFunction
+    internal sealed class MultiSampledFunction : IPdfMultiFunction
     {
         /// <summary>The <c>2m</c>-element input domain.</summary>
         internal required double[] Domain { get; init; }
@@ -111,6 +118,9 @@ public sealed partial class PdfDocument
 
         /// <inheritdoc/>
         public int OutputCount => Range.Length / 2;
+
+        /// <inheritdoc/>
+        public long EstimatedCost => ((1L << Size.Length) * (Size.Length + OutputCount) * 4) + 16;
 
         /// <inheritdoc/>
         public void Evaluate(ReadOnlySpan<double> input, Span<double> output)
@@ -183,7 +193,8 @@ public sealed partial class PdfDocument
         }
 
         /// <summary>Reads the raw sample at the given flat sample index (most-significant bit first).</summary>
-        private double ReadSample(long sampleIndex)
+        /// <remarks>Byte-aligned widths (8/16/24/32 bits) take a direct big-endian fast path; the rest use the bitwise path.</remarks>
+        internal double ReadSample(long sampleIndex)
         {
             var bitOffset = sampleIndex * BitsPerSample;
             if (((bitOffset + BitsPerSample - 1) >> 3) >= Samples.Length)
@@ -192,6 +203,24 @@ public sealed partial class PdfDocument
                     "Sampled function stream does not contain enough sample bytes for its declared /Size.");
             }
 
+            if ((BitsPerSample & 7) == 0)
+            {
+                var at = (int)(bitOffset >> 3);
+                long fast = 0;
+                for (var i = 0; i < BitsPerSample >> 3; i++)
+                {
+                    fast = (fast << 8) | Samples[at + i];
+                }
+
+                return fast;
+            }
+
+            return ReadSampleBitwise(bitOffset);
+        }
+
+        /// <summary>Reads one raw sample bit by bit (any width).</summary>
+        internal double ReadSampleBitwise(long bitOffset)
+        {
             long value = 0;
             for (var i = 0; i < BitsPerSample; i++)
             {

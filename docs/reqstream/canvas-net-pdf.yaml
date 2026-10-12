@@ -207,6 +207,7 @@ sections:
           - CanvasNetPdf-PdfDocument-IccBasedColorSpace
           - CanvasNetPdf-PdfDocument-CalibratedColorSpaces
           - CanvasNetPdf-PdfDocument-SeparationDeviceNColorSpaces
+          - CanvasNetPdf-PdfDocument-TintImageWorkBound
           - CanvasNetPdf-PdfDocument-IndexedColorSpace
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels

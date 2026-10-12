@@ -675,7 +675,14 @@ its own distinguishable `Feature` token.
     per `/Range`), while image samples and `/Indexed` palette bytes are normalized (`v/255`) and
     rescaled for Lab by `ColorFromNormalizedSpan`. An explicit `/Decode` on a Lab image fails closed
     (`pdf-image-lab-decode`) because its default decode is not the identity. 1-component raw images use a
-    256-entry lookup table and CalRGB/Lab images memoize the previous pixel. Only a
+    256-entry lookup table and CalRGB/Lab images memoize the previous pixel. A multi-component
+    `DeviceN` image goes through `PdfDocument.TintImageConverter`: results are memoized by raw sample
+    tuple in a cache capped at `MaxTintImageCacheEntries` (65536), and each uncached evaluation is
+    charged `IPdfMultiFunction.EstimatedCost` (program length for type 4; `2^m * (m + n) * 4` for
+    multi-input sampled) against `MaxTintImageEvaluationCost` (2^30 units per image); exceeding it
+    fails closed (`pdf-image-tint-budget`, `UnsupportedImageFeatureException`). Sampled-function
+    `ReadSample` reads byte-aligned widths (8/16/24/32) directly, other widths bitwise. Shading and
+    mesh tint lookups are already bounded by their fixed sampling and are not budgeted. Only a
     `DeviceGray` image is accepted as an `/SMask`. ICC profile data is never applied.
   - **`/ICCBased`/`/Indexed` color-space resolution (`PdfDocument.Color.cs`, Phase 14; `/N`
     authoritative since M2)** — `ResolveIccBasedColorSpace` validates a 2-element `[/ICCBased streamRef]` array

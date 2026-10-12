@@ -486,7 +486,13 @@ public sealed partial class PdfDocument
         // memoize the previous pixel, since neighboring samples are frequently identical.
         var lut = componentCount == 1 ? BuildSampleLookup(colorSpace) : null;
         var memoizing = componentCount > 1
-            && colorSpace.Kind is PdfColorSpace.Family.CalRGB or PdfColorSpace.Family.Lab or PdfColorSpace.Family.DeviceN;
+            && colorSpace.Kind is PdfColorSpace.Family.CalRGB or PdfColorSpace.Family.Lab;
+
+        // A multi-component DeviceN image evaluates a tint-transform function per distinct pixel:
+        // bound the work with a memo cache and a per-image evaluation budget (fail closed).
+        var tintConverter = componentCount > 1 && colorSpace.Kind == PdfColorSpace.Family.DeviceN
+            ? new TintImageConverter(colorSpace, MaxTintImageEvaluationCost)
+            : null;
         var previousOffset = -1;
         var previousColor = default(Rgba32);
         for (var y = 0; y < height; y++)
@@ -506,6 +512,12 @@ public sealed partial class PdfDocument
                     continue;
                 }
 
+                if (tintConverter is not null)
+                {
+                    surface[x, y] = tintConverter.Convert(samples, pixelOffset);
+                    continue;
+                }
+
                 if (memoizing && previousOffset >= 0 && pixelOffset + componentCount <= samples.Length
                     && samples.AsSpan(pixelOffset, componentCount).SequenceEqual(samples.AsSpan(previousOffset, componentCount)))
                 {
@@ -521,6 +533,89 @@ public sealed partial class PdfDocument
         }
 
         return new DecodedImage(surface, colorSpace.Kind == PdfColorSpace.Family.DeviceGray);
+    }
+
+    /// <summary>
+    ///     The per-image budget for uncached tint-transform evaluations of a multi-component
+    ///     <c>/DeviceN</c> image, in estimated function-cost units (see
+    ///     <see cref="IPdfMultiFunction.EstimatedCost"/>); exceeding it fails closed with feature
+    ///     <c>pdf-image-tint-budget</c>.
+    /// </summary>
+    internal const long MaxTintImageEvaluationCost = 1L << 30;
+
+    /// <summary>The maximum number of distinct sample tuples memoized per image by <see cref="TintImageConverter"/>.</summary>
+    internal const int MaxTintImageCacheEntries = 1 << 16;
+
+    /// <summary>
+    ///     Converts the pixels of a multi-component <c>/DeviceN</c> image through its tint transform,
+    ///     memoizing results by the raw sample tuple in a bounded cache and charging every uncached
+    ///     evaluation against a work budget.
+    /// </summary>
+    internal sealed class TintImageConverter(PdfColorSpace colorSpace, long budget)
+    {
+        private readonly Dictionary<(ulong, ulong, ulong, ulong), Rgba32> _cache = [];
+        private readonly int _count = colorSpace.ColorantNames.Length;
+        private readonly long _costPerEvaluation = Math.Max(1L, colorSpace.TintFunction?.EstimatedCost ?? 1L);
+        private long _spent;
+
+        /// <summary>The number of uncached tint-function evaluations performed so far.</summary>
+        internal int EvaluationCount { get; private set; }
+
+        /// <summary>The number of entries currently memoized.</summary>
+        internal int CacheCount => _cache.Count;
+
+        /// <summary>Converts the pixel whose component samples start at <paramref name="offset"/>.</summary>
+        /// <exception cref="UnsupportedImageFeatureException">Thrown (feature <c>pdf-image-tint-budget</c>) when the evaluation budget is exceeded.</exception>
+        internal Rgba32 Convert(byte[] samples, int offset) => Convert(samples, offset, useCache: true);
+
+        /// <summary>Converts a pixel, optionally bypassing the memo cache (used to prove cache transparency).</summary>
+        internal Rgba32 Convert(byte[] samples, int offset, bool useCache)
+        {
+            if (offset < 0 || offset + _count > samples.Length)
+            {
+                throw new InvalidDataException("Image XObject sample data is truncated.");
+            }
+
+            var key = default((ulong, ulong, ulong, ulong));
+            if (useCache)
+            {
+                ulong a = 0, b = 0, c = 0, d = 0;
+                for (var i = 0; i < _count; i++)
+                {
+                    var v = (ulong)samples[offset + i] << (8 * (i & 7));
+                    switch (i >> 3)
+                    {
+                        case 0: a |= v; break;
+                        case 1: b |= v; break;
+                        case 2: c |= v; break;
+                        default: d |= v; break;
+                    }
+                }
+
+                key = (a, b, c, d);
+                if (_cache.TryGetValue(key, out var hit))
+                {
+                    return hit;
+                }
+            }
+
+            _spent += _costPerEvaluation;
+            if (_spent > budget)
+            {
+                throw new UnsupportedImageFeatureException(
+                    "pdf-image-tint-budget",
+                    "A /DeviceN image requires more tint-transform work than the per-image budget allows.");
+            }
+
+            EvaluationCount++;
+            var color = SamplesToColor(colorSpace, samples, offset, _count);
+            if (useCache && _cache.Count < MaxTintImageCacheEntries)
+            {
+                _cache[key] = color;
+            }
+
+            return color;
+        }
     }
 
     /// <summary>

@@ -779,6 +779,28 @@ sections:
               - PdfDocument_MeshShading_IndexedColorSpaceWithFunction_ThrowsUnsupported
               - PdfDocument_Load_SeparationDeviceNFixture_PaintsTintsAndSkipsNone
 
+          - id: CanvasNetPdf-PdfDocument-TintImageWorkBound
+            title: >-
+              The PdfDocument class shall bound the tint-transform work of a multi-component
+              /DeviceN image XObject: results shall be memoized per distinct raw sample tuple in a
+              cache capped at 65536 entries (with output identical to uncached evaluation), every
+              uncached evaluation shall be charged its estimated cost against a per-image budget
+              of 2^30 cost units, and exceeding that budget shall throw
+              UnsupportedImageFeatureException (feature pdf-image-tint-budget); sampled
+              (/FunctionType 0) functions shall read byte-aligned samples through a fast path
+              that returns the same values as the bitwise reader.
+            justification: |
+              A hostile image with a costly tint transform (a 8192-instruction type 4 program or a
+              multi-input sampled function) and noisy samples would otherwise perform an
+              unbounded amount of synchronous work per pixel; a deterministic work budget fails
+              closed instead, while the cache keeps ordinary images fast.
+            tests:
+              - PdfDocument_Tint_NoisyDeviceNImage_ExceedsBudget_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Tint_DeviceNImageCache_MatchesUncachedConversion
+              - PdfDocument_Tint_DeviceNImageCache_IsBounded
+              - PdfDocument_Tint_SampledFunctionReadSample_FastPathMatchesBitwise
+              - PdfDocument_Tint_DeviceNImage_EvaluatesTransform
+
           - id: CanvasNetPdf-PdfDocument-IndexedColorSpace
             title: >-
               The PdfDocument class shall resolve an /Indexed color space (base color space,

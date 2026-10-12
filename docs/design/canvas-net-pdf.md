@@ -343,7 +343,7 @@ crypt filter), `pdf-encrypted-r-{revision}`,
 `pdf-encrypted-v-{version}`, `pdf-encrypted-password-required` (a `null` password when a
 non-empty one is genuinely required), `pdf-encrypted-incorrect-password`,
 `pdf-encrypted-password-non-ascii` (an R2-R4 password outside ASCII 0-127),
-`pdf-colorspace-{name}` (`Separation`/`DeviceN`), `pdf-image-lab-decode`, `pdf-colorspace-Pattern`,
+`pdf-colorspace-{name}` (`Separation`/`DeviceN`), `pdf-image-lab-decode`, `pdf-image-tint-budget`, `pdf-colorspace-Pattern`,
 `pdf-colorspace-ICCBased`, `pdf-filter-{name}` (any unrecognized filter),
 `pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}` (a depth other than 1/2/4/8/16, or a 16-bit `/Indexed` image),
 `pdf-jpx-colorspace` (a JPX image of a channel count with no device color space without `/ColorSpace`),

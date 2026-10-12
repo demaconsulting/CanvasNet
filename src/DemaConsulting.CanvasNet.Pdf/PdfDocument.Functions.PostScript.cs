@@ -157,6 +157,9 @@ public sealed partial class PdfDocument
         public int OutputCount => _range.Length / 2;
 
         /// <inheritdoc/>
+        public long EstimatedCost => _code.Length + InputCount + OutputCount + 1L;
+
+        /// <inheritdoc/>
         public void Evaluate(ReadOnlySpan<double> input, Span<double> output)
         {
             Span<PsValue> stack = stackalloc PsValue[MaxPostScriptStackDepth];

@@ -556,4 +556,132 @@ public class PdfDocumentTintTests
         // Assert
         AssertNear(new Rgba32(128, 0, 0, 255), surface[50, 50], 3);
     }
+
+    // ---- Bounded per-image tint evaluation ----
+
+    private static PdfDocument.PdfColorSpace TwoColorantSpace(int inputs = 2)
+    {
+        var program = Encoding.ASCII.GetBytes(inputs == 2 ? "{ 0 }" : "{ }");
+        var fn = new PdfDocument.PostScriptFunction(
+            program,
+            [.. Enumerable.Repeat(new[] { 0.0, 1.0 }, inputs).SelectMany(static a => a)],
+            [0, 1, 0, 1, 0, 1]);
+        return PdfDocument.PdfColorSpace.Tint(
+            PdfDocument.PdfColorSpace.Family.DeviceN,
+            [.. Enumerable.Range(0, inputs).Select(static i => "C" + i)],
+            PdfDocument.PdfColorSpace.DeviceRGB,
+            fn);
+    }
+
+    /// <summary>Proves that a noisy DeviceN image exhausts the evaluation budget deterministically (counted evaluations, no timing).</summary>
+    [Fact]
+    public void PdfDocument_Tint_NoisyDeviceNImage_ExceedsBudget_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange: budget for exactly 10 uncached evaluations; every pixel distinct.
+        var space = TwoColorantSpace();
+        var cost = space.TintFunction!.EstimatedCost;
+        var converter = new PdfDocument.TintImageConverter(space, cost * 10);
+        var samples = new byte[2 * 100];
+        for (var i = 0; i < 100; i++)
+        {
+            samples[2 * i] = (byte)i;
+            samples[(2 * i) + 1] = (byte)(255 - i);
+        }
+
+        // Act
+        var ex = Assert.Throws<UnsupportedImageFeatureException>(() =>
+        {
+            for (var i = 0; i < 100; i++)
+            {
+                converter.Convert(samples, 2 * i);
+            }
+        });
+
+        // Assert
+        Assert.Equal("pdf-image-tint-budget", ex.Feature);
+        Assert.Equal(10, converter.EvaluationCount);
+    }
+
+    /// <summary>Proves that the memo cache yields identical pixels to uncached evaluation and bounds the evaluation count.</summary>
+    [Fact]
+    public void PdfDocument_Tint_DeviceNImageCache_MatchesUncachedConversion()
+    {
+        // Arrange: 5000 pixels drawn from a small noisy palette (many repeats).
+        var space = TwoColorantSpace();
+        var cached = new PdfDocument.TintImageConverter(space, long.MaxValue);
+        var uncached = new PdfDocument.TintImageConverter(space, long.MaxValue);
+        var random = new Random(1234);
+        var samples = new byte[2 * 5000];
+        for (var i = 0; i < samples.Length; i++)
+        {
+            samples[i] = (byte)(random.Next(16) * 17);
+        }
+
+        // Act & Assert
+        for (var i = 0; i < 5000; i++)
+        {
+            Assert.Equal(uncached.Convert(samples, 2 * i, useCache: false), cached.Convert(samples, 2 * i));
+        }
+
+        Assert.Equal(5000, uncached.EvaluationCount);
+        Assert.Equal(cached.CacheCount, cached.EvaluationCount);
+        Assert.True(cached.EvaluationCount <= 256);
+    }
+
+    /// <summary>Proves that the memo cache never grows past its cap while conversion stays correct.</summary>
+    [Fact]
+    public void PdfDocument_Tint_DeviceNImageCache_IsBounded()
+    {
+        // Arrange: 3 colorants, more distinct pixels than the cap.
+        var space = TwoColorantSpace(3);
+        var converter = new PdfDocument.TintImageConverter(space, long.MaxValue);
+        var count = PdfDocument.MaxTintImageCacheEntries + 100;
+        var samples = new byte[3 * count];
+        for (var i = 0; i < count; i++)
+        {
+            samples[3 * i] = (byte)i;
+            samples[(3 * i) + 1] = (byte)(i >> 8);
+            samples[(3 * i) + 2] = (byte)(i >> 16);
+        }
+
+        // Act
+        for (var i = 0; i < count; i++)
+        {
+            converter.Convert(samples, 3 * i);
+        }
+
+        // Assert
+        Assert.Equal(PdfDocument.MaxTintImageCacheEntries, converter.CacheCount);
+        Assert.Equal(count, converter.EvaluationCount);
+    }
+
+    /// <summary>Proves that the byte-aligned fast path of the sampled-function sample reader equals the bitwise path.</summary>
+    [Theory]
+    [InlineData(8)]
+    [InlineData(16)]
+    [InlineData(24)]
+    [InlineData(32)]
+    [InlineData(12)]
+    public void PdfDocument_Tint_SampledFunctionReadSample_FastPathMatchesBitwise(int bitsPerSample)
+    {
+        // Arrange
+        var bytes = new byte[bitsPerSample * 6];
+        new Random(bitsPerSample).NextBytes(bytes);
+        var function = new PdfDocument.MultiSampledFunction
+        {
+            Domain = [0, 1, 0, 1],
+            Range = [0, 1],
+            Encode = [0, 1, 0, 1],
+            Decode = [0, 1],
+            Size = [2, 3],
+            BitsPerSample = bitsPerSample,
+            Samples = bytes,
+        };
+
+        // Act & Assert
+        for (var i = 0; i < 6 * 8 / bitsPerSample; i++)
+        {
+            Assert.Equal(function.ReadSampleBitwise((long)i * bitsPerSample), function.ReadSample(i));
+        }
+    }
 }
