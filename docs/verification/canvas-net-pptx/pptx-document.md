@@ -1048,6 +1048,15 @@ resolved content type is not a recognized raster format throws `PptxUnsupportedF
 carrying the `"pptx-image-format"` feature token, and proves null argument validation for both
 `picElement`/`document`.
 
+#### CanvasNetPptx-PptxDocument-ShapeOwnListStyle: Non-Placeholder Shape Own `<a:lstStyle>`
+
+**Tests**: `Render_MasterNonPlaceholderTextBoxWithOwnLstStyle_HonorsListStyleFontSize`
+
+A synthetic master footer box (2594110 x 365125 EMU, a datetime field, own `<a:lstStyle>` declaring
+`lvl1pPr/defRPr sz="1200"` and no run size) renders pixel-identical to the same box with an explicit
+`sz="1200"` on the run and an empty list style, and paints visible text. Without the fix the list style is
+ignored, the text falls back to 18pt, wraps to a second line, and the two surfaces differ.
+
 #### CanvasNetPptx-PptxDocument-PictureSmoothResample: Pictures Are Resampled Smoothly
 
 **Tests**: `PaintPicture_EnlargedPicture_IsSmooth`, `PaintPicture_EnlargedCrop_DoesNotBleedPixelsOutsideCrop`,

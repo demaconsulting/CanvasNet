@@ -3369,6 +3369,58 @@ public class PptxRenderTests
     }
 
     /// <summary>
+    ///     Proves a non-placeholder master text box (the common "date + slide number" footer box)
+    ///     honors its own <c>&lt;a:lstStyle&gt;</c> <c>lvl1pPr/defRPr sz="1200"</c>: a 12pt datetime
+    ///     field in a box just wide enough for it stays on one line, pixel-identical to the same
+    ///     text with an explicit run size, rather than falling back to the 18pt schema default and
+    ///     wrapping to a second line. Synthetic fixture only.
+    /// </summary>
+    [Fact]
+    public void Render_MasterNonPlaceholderTextBoxWithOwnLstStyle_HonorsListStyleFontSize()
+    {
+        static string FooterShape(string lstStyleXml, string runPropertiesXml) =>
+            $$"""
+            <p:sp>
+              <p:nvSpPr><p:cNvPr id="9" name="Date Box"/><p:cNvSpPr txBox="1"/><p:nvPr userDrawn="1"/></p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="2594110" cy="365125"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+              <p:txBody>
+                <a:bodyPr vert="horz" lIns="91440" tIns="45720" rIns="91440" bIns="45720" rtlCol="0" anchor="t"/>
+                <a:lstStyle>{{lstStyleXml}}</a:lstStyle>
+                <a:p><a:fld id="{6989146F-CFD6-A24A-9091-F32FF9483642}" type="datetime2">{{runPropertiesXml}}<a:t>Wednesday, September 9, 2026</a:t></a:fld></a:p>
+              </p:txBody>
+            </p:sp>
+            """;
+
+        using var listStyleStream = BuildRenderPackage(
+            string.Empty, masterShapeTreeXml: FooterShape("""<a:lvl1pPr algn="r"><a:defRPr sz="1200"/></a:lvl1pPr>""", "<a:rPr lang=\"en-US\"/>"));
+        using var listStyleDocument = PptxDocument.Open(listStyleStream);
+        using var listStyleSurface = listStyleDocument.Render(0, 400, 300);
+
+        using var referenceStream = BuildRenderPackage(
+            string.Empty, masterShapeTreeXml: FooterShape("""<a:lvl1pPr algn="r"/>""", "<a:rPr lang=\"en-US\" sz=\"1200\"/>"));
+        using var referenceDocument = PptxDocument.Open(referenceStream);
+        using var referenceSurface = referenceDocument.Render(0, 400, 300);
+
+        var inkPixels = 0;
+        for (var y = 0; y < 300; y++)
+        {
+            for (var x = 0; x < 400; x++)
+            {
+                Assert.Equal(referenceSurface[x, y], listStyleSurface[x, y]);
+                if (listStyleSurface[x, y] != listStyleSurface[399, 299])
+                {
+                    inkPixels++;
+                }
+            }
+        }
+
+        Assert.True(inkPixels > 0, "The footer text must paint.");
+    }
+
+    /// <summary>
     ///     Proves a master's own placeholder shape never paints its own prompt content, while a
     ///     sibling non-placeholder decorative shape on the same master still renders normally.
     /// </summary>

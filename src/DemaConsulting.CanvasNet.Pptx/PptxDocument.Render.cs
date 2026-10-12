@@ -493,7 +493,13 @@ public sealed partial class PptxDocument
         }
         else
         {
-            placeholderProperties = new PptxPlaceholderProperties(null, null, theme, master.TxStyles);
+            // A non-placeholder shape has no layout/master ancestor to inherit from, but its own
+            // <p:txBody>/<a:lstStyle> still sits between its paragraphs/runs and the master's
+            // otherStyle (ECMA-376 21.1.2.4.12) - PowerPoint honors it, so it is the tier-one
+            // list style here. Ignoring it dropped e.g. a master's 12pt date/slide-number text
+            // box back to the 18pt schema default, wrapping it off the slide bottom.
+            var ownListStyle = node.ShapeElement.Element(PresentationNamespace + "txBody")?.Element(DrawingNamespace + "lstStyle");
+            placeholderProperties = new PptxPlaceholderProperties(null, ownListStyle, theme, master.TxStyles);
             spPrElement = node.ShapeElement.Element(PresentationNamespace + "spPr");
             xfrmElement = spPrElement?.Element(DrawingNamespace + "xfrm");
             geometrySpPrElement = spPrElement;

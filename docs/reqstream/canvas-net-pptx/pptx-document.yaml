@@ -2250,3 +2250,18 @@ sections:
               - PaintPicture_FractionalCropAtOffset_PaintsOnlyInsideFootprint
               - PaintPicture_FractionalCropOnIntegerBoundary_NoContaminationFromExcludedColumn
               - PaintPicture_WithNegativeSrcRectEdges_ReplicatesEdgePixelsIntoOverhang
+
+          - id: CanvasNetPptx-PptxDocument-ShapeOwnListStyle
+            title: >-
+              The PptxDocument class shall honor a non-placeholder shape's own
+              <p:txBody>/<a:lstStyle> level properties (for example lvl1pPr/defRPr sz and algn)
+              when resolving its text, ranking them above the master's otherStyle and below the
+              paragraph's and run's own properties.
+            justification: |
+              A slide master's date and slide-number text box is an ordinary, non-placeholder
+              shape whose 12pt size is declared only in its own lstStyle. Ignoring that list
+              style dropped such a box to the 18pt schema default, so its date field wrapped to
+              a second line and ran off the bottom of the slide, while PowerPoint shows it on
+              one line at 12pt.
+            tests:
+              - Render_MasterNonPlaceholderTextBoxWithOwnLstStyle_HonorsListStyleFontSize

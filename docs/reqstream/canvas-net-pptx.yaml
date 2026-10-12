@@ -250,6 +250,7 @@ sections:
           - CanvasNetPptx-PptxDocument-UnderlineRendering
           - CanvasNetPptx-PptxDocument-TabStopExpansion
           - CanvasNetPptx-PptxDocument-SlideNumberFieldSubstitution
+          - CanvasNetPptx-PptxDocument-ShapeOwnListStyle
         tests:
           - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
           - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd

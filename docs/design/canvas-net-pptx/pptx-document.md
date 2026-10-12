@@ -1343,8 +1343,10 @@ color at paint time, not only a table's own cell fills. It then walks the slide'
   a layout/master placeholder's own text, which supplies styling only, never content (confirmed
   by a dedicated test, `Render_PlaceholderShape_ReadsTextFromSlideLevelShapeNotLayout`). A
   non-placeholder shape's text resolves its placeholder properties as
-  `new PptxPlaceholderProperties(null, null, theme, master.TxStyles)` - the fuller form carrying
-  the master's own text styles, distinct from `PaintTable`'s own narrower, cell-scoped
+  `new PptxPlaceholderProperties(null, ownListStyle, theme, master.TxStyles)`, where `ownListStyle` is the
+  shape's own `<p:txBody>/<a:lstStyle>` (ranked above the master's `otherStyle`, below paragraph/run
+  properties; a master date/slide-number box declares its 12pt size only there) - the fuller form
+  carrying the master's own text styles, distinct from `PaintTable`'s own narrower, cell-scoped
   `new PptxPlaceholderProperties(null, null, theme)`.
 - **`PptxPictureShapeNode`**: resolves and composites its embedded image via
   `ResolvePictureSurface`/`ResolveSrcRect`/`PaintPicture` (Phase 1e).
