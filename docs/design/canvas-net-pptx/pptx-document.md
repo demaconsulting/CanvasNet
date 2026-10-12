@@ -2155,7 +2155,7 @@ pre-existing `ResolveTextLayout_BulletedParagraph_TextStartsAtMarLGutterHoldsBul
 **Closed risk (`buAutoNum` gutter-clearance minimum gap)**: a follow-up real-world report against
 the same gutter-clearance clamp above found it, while correct for `buChar`, still insufficient for
 `buAutoNum`: CanvasNet rendered an auto-numbered marker immediately touching the paragraph's own
-first word (e.g. `"1.3 custom tip geometries"`, `"2.QO Reagent durable probe (J18604)"`), whereas
+first word (e.g. `"1.3 sample item text"`, `"2.Q1 sample item text"`), whereas
 real PowerPoint shows a clear, word-space-sized gap after the marker (e.g. `"1."` then a visible
 gap then `"3 custom tip geometries"` - the `"3"` is the paragraph's own typed first word, not part
 of the marker). Investigation confirmed `BuildBulletGlyphs` already measures a multi-character

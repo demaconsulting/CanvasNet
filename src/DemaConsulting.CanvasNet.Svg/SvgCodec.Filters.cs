@@ -327,7 +327,7 @@ public static partial class SvgCodec
         // Per SVG's defined ordering, clip-path is applied before mask, and both before filter
         if (clipPathElement != null)
         {
-            ApplyClipPath(clipPathElement, content, rawBounds, pixelX, pixelY, transform, state, context, workBudget);
+            ApplyClipPath(clipPathElement, content, rawBounds, pixelX, pixelY, transform, state, context, workBudget, filterWorkBudget);
         }
 
         if (maskElement != null)
@@ -1102,7 +1102,7 @@ public static partial class SvgCodec
         // Per SVG's defined ordering, clip-path is applied before mask, and both before filter
         if (clipPathElement != null)
         {
-            ApplyClipPath(clipPathElement, content, localBounds, pixelX, pixelY, childrenTransform, state, context, workBudget);
+            ApplyClipPath(clipPathElement, content, localBounds, pixelX, pixelY, childrenTransform, state, context, workBudget, filterWorkBudget);
         }
 
         if (maskElement != null)
@@ -1653,6 +1653,12 @@ public static partial class SvgCodec
         Surface? previousResult = null;
         Surface? sourceAlpha = null;
 
+        Surface BuildTrackedSourceAlpha()
+        {
+            filterWorkBudget.RecordSurfaceAllocated(sourceGraphic.Width, sourceGraphic.Height);
+            return BuildSourceAlpha(sourceGraphic);
+        }
+
         Surface ResolveInput(string? name, out PixelRect subregion)
         {
             if (string.IsNullOrEmpty(name))
@@ -1670,7 +1676,7 @@ public static partial class SvgCodec
             if (string.Equals(name, "SourceAlpha", StringComparison.Ordinal))
             {
                 subregion = fullRegion;
-                return sourceAlpha ??= BuildSourceAlpha(sourceGraphic);
+                return sourceAlpha ??= BuildTrackedSourceAlpha();
             }
 
             if (results.TryGetValue(name, out var namedResult))
@@ -1795,8 +1801,16 @@ public static partial class SvgCodec
                     break;
             }
 
+            // Every primitive that produces a new buffer allocates one region-sized surface;
+            // a pass-through (the unrecognized-primitive default) allocates nothing.
+            if (!ReferenceEquals(output, input))
+            {
+                filterWorkBudget.RecordSurfaceAllocated(sourceGraphic.Width, sourceGraphic.Height);
+            }
+
             if (primitiveHasSubregion)
             {
+                filterWorkBudget.RecordSurfaceAllocated(sourceGraphic.Width, sourceGraphic.Height);
                 output = ClipPrimitiveOutputToSubregion(output, primitiveSubregion);
                 outputSubregion = primitiveSubregion;
             }

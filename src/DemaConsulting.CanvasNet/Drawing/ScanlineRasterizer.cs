@@ -1250,6 +1250,9 @@ internal static class ScanlineRasterizer
                 return false;
             }
 
+            // Vertical edges bank their cover in the next column (AccumulateSingleColumn), so
+            // accumulatedCover here holds only the winding entering this cell; this cell's own
+            // edges must not be subtracted again.
             var winding = accumulatedCover / height;
             var rounded = MathF.Round(winding);
             if (MathF.Abs(winding - rounded) > 0.01f)

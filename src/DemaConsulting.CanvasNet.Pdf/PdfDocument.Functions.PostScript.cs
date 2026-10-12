@@ -465,6 +465,9 @@ public sealed partial class PdfDocument
                             {
                                 PsOp.Ceiling => Math.Ceiling(a.Value),
                                 PsOp.Floor => Math.Floor(a.Value),
+                                // PDF 32000-1 section 7.10.5 (round): the integer nearest to the operand; when
+                                // equally close to two integers, the greater one (so -2.5 -> -2, 2.5 -> 3),
+                                // which is exactly floor(x + 0.5).
                                 PsOp.Round => Math.Floor(a.Value + 0.5),
                                 _ => Math.Truncate(a.Value),
                             };

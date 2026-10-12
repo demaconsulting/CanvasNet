@@ -441,7 +441,7 @@ conserves area. `CoverageSweep` then restricts its swept column/row range to the
 whole-pixel bounds (edges outside the range are still handled analytically by the accumulation
 overflow logic) and, after each row's coverage is resolved, multiplies _only_ the dense buffer's
 row (if any) per column. A clip made only of axis-aligned rectangles (an even-odd ring or band,
-overlapping non-zero rectangles; up to 32 rectangle subpaths) is additionally decomposed, by
+overlapping non-zero rectangles; up to 256 rectangle subpaths) is additionally decomposed, by
 a sweep over horizontal slabs (sorted open/close events per slab, then run merging), into at most
 1024 _disjoint pieces_ (`HasPieces`; up to 256 rectangle subpaths).
 `TryClipPolygonsToRect` then clips the fill polygons to each piece overlapping the polygons' bounding box

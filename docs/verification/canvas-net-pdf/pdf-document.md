@@ -816,37 +816,6 @@ bars to remain transparent. Before the fix these ratios were as low as 0.64 (foo
 exposed a related EvenOdd defect with coincident mid-row edges. All are deterministic and assert
 no timing. Known residual: non-rectangular (dense) clips still multiply coverage.
 
-#### CanvasNetPdf-PdfDocument-ThinBarInkFidelity: Thin Bars and Even-Odd Stacks Keep Exact Ink At Every Size
-
-**Tests**: `PdfDocument_ThinBar_HorizontalFill_InkMatchesGeometry`,
-`PdfDocument_ThinBar_VerticalFill_InkMatchesGeometry`,
-`PdfDocument_ThinBar_OverlappingEvenOddRects_InkMatchesEvenOddArea`,
-`PdfDocument_ThinBar_OverlappingEvenOddRects_LuminanceInkMatchesEvenOddArea`
-
-The `PdfDocument_ThinBar_*` tests (in `PdfDocumentThinBarInkTests.cs`, own minimal PDF builder) render
-synthetic thin bars and four stacked even-odd rectangles sharing one left edge at 1147x1484,
-1020x1320, 1108x1434, 765x990, 612x792, 919x1189, 1303x1686 and 500x647, with and without a
-rectangle clip, and require the summed ink (alpha on transparent, and gray-over-white luminance) to be
-within [0.985, 1.03] of the exact geometric area. Before the multi-edge-cell fix the stacked
-rectangles measured 1.07-1.19 at several sizes because the shared left edge painted a full-height
-column of ink wherever its x was not pixel-aligned. All are deterministic and assert no timing.
-
-#### CanvasNetPdf-PdfDocument-ClipGeometricCoverage: Rectangle Clips Are Applied Geometrically To Fills And Images
-
-**Tests**: `PdfDocument_ClipEdge_LargeRectangleUnionClipCoincidentWithFill_InkMatchesGeometry`,
-`PdfDocument_ClipEdge_ImageCoincidentWithRectangleClip_InkEqualsUnclippedInk`,
-`PdfDocument_ClipEdge_ImageCutByRectangleClip_InkMatchesGeometry`
-
-A 40-rectangle `W*` union (beyond the former 32-subpath cap) with a coincident `f*` fill must keep
-its exact ink; an axis-aligned image whose placement equals a fractional rectangle (or rectangle
-union) clip must paint exactly as without the clip (before the fix it lost about 2 %); an image cut
-by a rectangle clip at a fractional position must keep the exact fraction of its ink. The unit-level
-`ClipMask_*` tests (`ClipMask_LargeRectangleUnion_HasPiecesAndMatchesDenseReference`,
-`ClipMask_OverlappingRectangleUnion_DecompositionMatchesDenseReference`,
-`ClipMask_GetCoverageWithinShape_*`, `ClipMask_GetRectsWithinShape_CurvedClip_ReturnsNullAndFallsBack`)
-cover the decomposition and shape-aware helper. Known limits: curved or other dense clips,
-rectangle unions beyond 256 subpaths or 1024 pieces, and rotated or skewed images keep the per-pixel
-coverage product (edge pixels only).
 Every test in this group reuses the existing `RenderContent`/`BuildSinglePagePdfWithResources`
 helpers and asserts against the `Transparent` background sentinel exactly like the
 `PathPainting` group above, so a clipped-away pixel is distinguishable from a painted one with no
@@ -879,6 +848,38 @@ wraps 200 fills in `q ... re W n ... Q` blocks whose clips cover the whole page 
 slightly larger) and asserts the page renders pixel-identically to the same fills with no clips
 (full-surface rectangle clips are equivalent to no clip), then nests rectangle clips inside a
 partial clip and asserts only the partial region paints; it asserts pixels only, never timing.
+
+#### CanvasNetPdf-PdfDocument-ThinBarInkFidelity: Thin Bars and Even-Odd Stacks Keep Exact Ink At Every Size
+
+**Tests**: `PdfDocument_ThinBar_HorizontalFill_InkMatchesGeometry`,
+`PdfDocument_ThinBar_VerticalFill_InkMatchesGeometry`,
+`PdfDocument_ThinBar_OverlappingEvenOddRects_InkMatchesEvenOddArea`,
+`PdfDocument_ThinBar_OverlappingEvenOddRects_LuminanceInkMatchesEvenOddArea`
+
+The `PdfDocument_ThinBar_*` tests (in `PdfDocumentThinBarInkTests.cs`, own minimal PDF builder) render
+synthetic thin bars and four stacked even-odd rectangles sharing one left edge at 1147x1484,
+1020x1320, 1108x1434, 765x990, 612x792, 919x1189, 1303x1686 and 500x647, with and without a
+rectangle clip, and require the summed ink (alpha on transparent, and gray-over-white luminance) to be
+within [0.985, 1.03] of the exact geometric area. Before the multi-edge-cell fix the stacked
+rectangles measured 1.07-1.19 at several sizes because the shared left edge painted a full-height
+column of ink wherever its x was not pixel-aligned. All are deterministic and assert no timing.
+
+#### CanvasNetPdf-PdfDocument-ClipGeometricCoverage: Rectangle Clips Are Applied Geometrically To Fills And Images
+
+**Tests**: `PdfDocument_ClipEdge_LargeRectangleUnionClipCoincidentWithFill_InkMatchesGeometry`,
+`PdfDocument_ClipEdge_ImageCoincidentWithRectangleClip_InkEqualsUnclippedInk`,
+`PdfDocument_ClipEdge_ImageCutByRectangleClip_InkMatchesGeometry`
+
+A 40-rectangle `W*` union (beyond the former 32-subpath cap) with a coincident `f*` fill must keep
+its exact ink; an axis-aligned image whose placement equals a fractional rectangle (or rectangle
+union) clip must paint exactly as without the clip (before the fix it lost about 2 %); an image cut
+by a rectangle clip at a fractional position must keep the exact fraction of its ink. The unit-level
+`ClipMask_*` tests (`ClipMask_LargeRectangleUnion_HasPiecesAndMatchesDenseReference`,
+`ClipMask_OverlappingRectangleUnion_DecompositionMatchesDenseReference`,
+`ClipMask_GetCoverageWithinShape_*`, `ClipMask_GetRectsWithinShape_CurvedClip_ReturnsNullAndFallsBack`)
+cover the decomposition and shape-aware helper. Known limits: curved or other dense clips,
+rectangle unions beyond 256 subpaths or 1024 pieces, and rotated or skewed images keep the per-pixel
+coverage product (edge pixels only).
 
 #### CanvasNetPdf-PdfDocument-Dispose: Dispose Is Idempotent
 

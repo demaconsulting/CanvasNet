@@ -177,9 +177,12 @@ sections:
               The VsdxDocument class shall resolve a geometry section's PolylineTo, NURBSTo and
               SplineStart/SplineKnot rows into line segments (curves flattened from a clamped
               rational B-spline), honoring the documented xType/yType coordinate-unit selector and
-              the spline degree, degrading a spline with invalid knots, weights or degree to a
+              the spline degree, degrading a spline with invalid knots or degree to a
               polyline through its control points (reported as vsdx-geometry-spline-approximated),
-              skipping and reporting a malformed or oversized row, and bounding every curve by hard
+              skipping and reporting a malformed or oversized row (a NURBSTo row with a missing,
+              non-finite or non-positive-weight cell is skipped atomically, with no partial
+              geometry; an orphan SplineStart or SplineKnot is reported, never silently dropped),
+              and bounding every curve by hard
               caps on control points, degree and flattened segments.
             justification: |
               A real-world connector master ("Line-curve connector") draws its curve with
@@ -191,6 +194,7 @@ sections:
               - Geometry_SplineStartKnot_QuadraticFlattensToCurve
               - Geometry_SplineGroup_FollowingRowContinuesFromLastControlPoint
               - Geometry_SplineKnotWithoutStart_ReportedAndSkipped
+              - Geometry_SplineKnotBeforeMoveTo_ReportedAndSkipped
               - Geometry_SplineWithInvalidKnots_FallsBackToPolylineAndReports
               - Geometry_SplineDegreeOutOfRange_IsClampedWithoutThrowing
               - Geometry_SplineKnotsBeyondCap_AreTruncatedAndReported

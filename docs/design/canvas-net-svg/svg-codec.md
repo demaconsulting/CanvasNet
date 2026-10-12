@@ -714,7 +714,9 @@ multiple of a single filter's own bound), every further filter application for t
 that `Load` call tolerantly falls back to unfiltered rendering instead - the same fallback
 behavior as every other filter resource bound, never a thrown exception. Deterministic work
 counters (`SvgCodec.RenderDiagnostics`: work units charged, charges rejected, effects surfaces and
-pixels allocated) are updated by that same `FilterWorkBudget` through an internal-only
+pixels allocated; the surfaces counter covers every effects-pipeline surface - content, clip
+coverage, mask source, `SourceAlpha` and each primitive output - while work units are charged
+separately) are updated by that same `FilterWorkBudget` through an internal-only
 `LoadWithDiagnostics` entry point (visible to the test assembly via `InternalsVisibleTo`; the
 public API is unchanged and the counters are per-call, never static), so resource-bound tests
 assert work performed instead of measuring elapsed time. A

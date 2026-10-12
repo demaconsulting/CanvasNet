@@ -302,18 +302,22 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   scale a formula point by `Width`/`Height`, `1` means local coordinates. A `PolylineTo` row's
   `A` cell formula `POLYLINE(xType, yType, x, y, ...)` produces `LineTo` segments with the same
   unit rule. Hard caps bound the work: 1024 control points, degree 25 and 4096 flattened
-  segments. Invalid knots, weights or degree degrade the curve to a polyline through its control
-  points and report `vsdx-geometry-spline-approximated`; a malformed or over-cap row is skipped
+  segments. Invalid knots or degree (for example decreasing knots) degrade the curve to a polyline
+  through its control points and report `vsdx-geometry-spline-approximated`; a malformed or
+  over-cap row is skipped
   and reported as `vsdx-geometry-row-{Type}`; a `SplineStart` (cells `X`/`Y`/`A`/`B`/`C`) or
   `SplineKnot` (`X`/`Y`/`A`) row whose required cell is missing, malformed or non-finite is
-  likewise skipped and reported rather than accumulated as zero. A `SplineStart` with no valid
+  likewise skipped and reported rather than accumulated as zero. A `SplineKnot` with no
+  preceding `SplineStart` (including one before the first `MoveTo`) is reported as
+  `vsdx-geometry-row-SplineKnot`. A `SplineStart` with no valid
   following `SplineKnot` rows is reported as `vsdx-geometry-row-SplineStart` and adds no geometry.
   A `NURBSTo` row is validated before anything is appended: its `X`, `Y`, `A`, `B`, `C` and `D`
-  cells must be present and finite, and the cell and formula weights positive, otherwise the row is
+  cells must be present and finite, and the cell and formula weights positive (a non-positive
+  weight is never flattened or substituted), otherwise the row is
   skipped atomically and reported as `vsdx-geometry-row-NURBSTo`. A `PolylineTo` row whose `X`/`Y`
   end point is missing or non-finite is likewise skipped and reported, never drawn to (0, 0).
-  Weights that pass this check but still fail flattening (for example decreasing knots) take the
-  reported polyline fallback. A group child that has its own `Master` reference
+  Only knot or degree failures that pass this validation take the reported polyline fallback.
+  A group child that has its own `Master` reference
   and no `MasterShape` match in its parent's master resolves against that master's shape.
   `InfiniteLine` and any other row type are still skipped (not throwing on) and reported.
 - **`ResolveConnectors(VsdxDocument document, IReadOnlyList<XElement> connects)`** (internal):

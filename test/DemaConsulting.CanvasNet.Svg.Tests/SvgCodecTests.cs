@@ -4355,7 +4355,7 @@ public class SvgCodecTests
         // Assert: bounded work - the cumulative budget rejects excess filter applications before
         // any of their own SourceGraphic/filter-chain work begins, so only the 10 filtered shapes
         // allocated a surface and the charged total never exceeded the 50,000,000 ceiling
-        Assert.Equal(filteredShapeCount, diagnostics.EffectSurfacesAllocated);
+        // each filtered shape allocates its content buffer plus the feFlood primitive's output\n        Assert.Equal(filteredShapeCount * 2, diagnostics.EffectSurfacesAllocated);
         Assert.Equal(shapeCount - filteredShapeCount, diagnostics.BudgetRejections);
         Assert.Equal(50_000_000L, diagnostics.WorkCharged);
     }
@@ -5099,9 +5099,39 @@ public class SvgCodecTests
         }
 
         // Assert: bounded work - the excess filters were skipped rather than evaluated
-        Assert.Equal(filteredShapeCount, diagnostics.EffectSurfacesAllocated);
+        // each filtered shape allocates its content buffer plus the feFlood primitive's output\n        Assert.Equal(filteredShapeCount * 2, diagnostics.EffectSurfacesAllocated);
         Assert.Equal(shapeCount - filteredShapeCount, diagnostics.BudgetRejections);
         Assert.Equal(50_000_000L, diagnostics.WorkCharged);
+    }
+
+    /// <summary>
+    ///     Proves <c>EffectSurfacesAllocated</c> counts every effects-pipeline surface: the content
+    ///     buffer, the clip-path coverage buffer, the mask source buffer and each filter
+    ///     primitive's output buffer (deterministic counts, no timing).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipMaskAndFilter_CountsEveryEffectSurface()
+    {
+        // Arrange: one rect with a clip-path, a mask and a single-primitive filter
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'><rect x='0' y='0' width='100' height='100'/></clipPath>
+                <mask id='m'><rect x='0' y='0' width='100' height='100' fill='white'/></mask>
+                <filter id='f'><feOffset dx='1' dy='1'/></filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' clip-path='url(#c)' mask='url(#m)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        var diagnostics = new SvgCodec.RenderDiagnostics();
+        using var stream = ToStream(svg);
+        SvgCodec.LoadWithDiagnostics(stream, 100, 100, diagnostics);
+
+        // Assert: content + clip coverage + mask source + feOffset output
+        Assert.Equal(4, diagnostics.EffectSurfacesAllocated);
+        Assert.True(diagnostics.EffectPixelsAllocated > 0L);
     }
 
     /// <summary>

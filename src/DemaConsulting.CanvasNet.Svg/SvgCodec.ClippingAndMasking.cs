@@ -196,6 +196,7 @@ public static partial class SvgCodec
     ///     The shared geometry-parsing work budget, charged by each clip child's own
     ///     <c>Build*Path</c> call exactly as it would be for an ordinarily rendered shape.
     /// </param>
+    /// <param name="filterWorkBudget">The shared effects budget, used here only to record the clip coverage buffer in the effect-surface diagnostics.</param>
     /// <remarks>
     ///     Per <c>clipPathUnits</c> (default <c>userSpaceOnUse</c>), an <c>objectBoundingBox</c>
     ///     value prepends <see cref="ComputeObjectBoundingBoxMap(Rect)"/> (evaluated against
@@ -225,7 +226,8 @@ public static partial class SvgCodec
         Matrix3x2 transform,
         RenderState state,
         RenderContext context,
-        GeometryWorkBudget workBudget)
+        GeometryWorkBudget workBudget,
+        FilterWorkBudget filterWorkBudget)
     {
         var isObjectBoundingBox = string.Equals(
             (string?)clipPathElement.Attribute("clipPathUnits"), "objectBoundingBox", StringComparison.Ordinal);
@@ -234,6 +236,7 @@ public static partial class SvgCodec
             : transform;
         var localToTemp = contentTransform * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
 
+        filterWorkBudget.RecordSurfaceAllocated(content.Width, content.Height);
         var coverage = new Surface(content.Width, content.Height);
 
         // clip-path content does not inherit the referencing element's own cascaded presentation
@@ -434,6 +437,7 @@ public static partial class SvgCodec
             : transform;
         var localToTemp = contentTransform * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
 
+        filterWorkBudget.RecordSurfaceAllocated(content.Width, content.Height);
         var maskSource = new Surface(content.Width, content.Height);
         var maskContext = context with { Surface = maskSource };
         var maskState = RenderState.Initial with { ViewportWidth = state.ViewportWidth, ViewportHeight = state.ViewportHeight };

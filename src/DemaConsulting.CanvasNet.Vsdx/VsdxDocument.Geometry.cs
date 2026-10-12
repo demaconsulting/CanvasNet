@@ -80,8 +80,10 @@ public sealed partial class VsdxDocument
                     {
                         AddSplineKnot(spline, row.Cells);
                     }
-                    else if (hasOpenSubpath)
+                    else
                     {
+                        // Reported whether or not a subpath is open (a knot before the first
+                        // MoveTo is just as orphaned).
                         ReportUnsupported(
                             "vsdx-geometry-row-SplineKnot",
                             "A SplineKnot row without a preceding SplineStart row is not supported and was skipped.");

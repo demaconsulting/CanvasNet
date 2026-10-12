@@ -1173,24 +1173,25 @@ public sealed partial class PdfDocument
         // the edge-pixel coverage of the clip on top of it. Dense (curved) clips keep the
         // per-pixel product; rotated or skewed images never reach this method.
         var shapeRects = clip?.GetRectsWithinShape(shape);
-        var rowRects = new List<float>();
+        // One scratch buffer reused for every row (no per-row list or array allocation).
+        var rowRectBuffer = shapeRects is null ? [] : new float[shapeRects.Length];
         for (var y = 0; y < window.Height; y++)
         {
             var dy = originY + y;
-            float[]? rowRectArray = null;
+            var rowRectCount = 0;
             if (shapeRects is not null)
             {
-                rowRects.Clear();
                 for (var i = 0; i < shapeRects.Length; i += 4)
                 {
                     if (shapeRects[i + 1] < dy + 1f && shapeRects[i + 3] > dy)
                     {
-                        rowRects.AddRange(shapeRects.AsSpan(i, 4));
+                        shapeRects.AsSpan(i, 4).CopyTo(rowRectBuffer.AsSpan(rowRectCount));
+                        rowRectCount += 4;
                     }
                 }
-
-                rowRectArray = [.. rowRects];
             }
+
+            var rowRectSpan = rowRectBuffer.AsSpan(0, rowRectCount);
 
             var rowShape = Drawing.ClipMask.AxisOverlap(dy, shape.Top, shape.Bottom);
             for (var x = 0; x < window.Width; x++)
@@ -1200,8 +1201,8 @@ public sealed partial class PdfDocument
                 if (clip is not null)
                 {
                     var shapeArea = Drawing.ClipMask.AxisOverlap(dx, shape.Left, shape.Right) * rowShape;
-                    clipCoverage = rowRectArray is not null && shapeArea > 1e-6f
-                        ? Math.Min(1f, Drawing.ClipMask.RectsCoverage(rowRectArray, dx, dy) / shapeArea)
+                    clipCoverage = shapeRects is not null && shapeArea > 1e-6f
+                        ? Math.Min(1f, Drawing.ClipMask.RectsCoverage(rowRectSpan, dx, dy) / shapeArea)
                         : clip.GetCoverage(dx, dy);
                 }
 

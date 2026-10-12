@@ -460,6 +460,7 @@ internal sealed class ClipMask
                 rows.Add((yv[yi], yv[yi + 1], runs));
             }
         }
+
         // Merge vertically adjacent rows with identical runs.
         var pieces = new List<float>();
         var merged = new List<(float T, float B, List<(float L, float R)> Runs)>();
@@ -620,7 +621,7 @@ internal sealed class ClipMask
     }
 
     /// <summary>Gets the total area of device pixel (<paramref name="x"/>, <paramref name="y"/>) covered by the disjoint <paramref name="rects"/>.</summary>
-    internal static float RectsCoverage(float[] rects, int x, int y)
+    internal static float RectsCoverage(ReadOnlySpan<float> rects, int x, int y)
     {
         var sum = 0f;
         for (var i = 0; i < rects.Length; i += 4)
@@ -733,6 +734,14 @@ internal sealed class ClipMask
         return true;
     }
 
+    /// <summary>
+    ///     Computes the bounding box of every vertex of <paramref name="polygons"/>.
+    /// </summary>
+    /// <param name="polygons">The polygons to measure.</param>
+    /// <param name="left">The smallest X (positive infinity when there are no vertices).</param>
+    /// <param name="top">The smallest Y (positive infinity when there are no vertices).</param>
+    /// <param name="right">The largest X (negative infinity when there are no vertices).</param>
+    /// <param name="bottom">The largest Y (negative infinity when there are no vertices).</param>
     private static void GetPolygonExtent(
         IReadOnlyList<List<Vector2>> polygons, out float left, out float top, out float right, out float bottom)
     {

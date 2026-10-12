@@ -105,6 +105,22 @@ public class VsdxCurveGeometryTests
         Assert.Contains("vsdx-geometry-row-SplineKnot", features);
     }
 
+    /// <summary>A SplineKnot before the first MoveTo (no open subpath) is reported as an orphan knot, not silently discarded.</summary>
+    [Fact]
+    public void Geometry_SplineKnotBeforeMoveTo_ReportedAndSkipped()
+    {
+        var subpath = ResolveSubpath(
+            """
+            <Row T="SplineKnot" IX="1"><Cell N="X" V="2"/><Cell N="Y" V="0"/><Cell N="A" V="0"/></Row>
+            <Row T="MoveTo" IX="2"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+            <Row T="LineTo" IX="3"><Cell N="X" V="1"/><Cell N="Y" V="1"/></Row>
+            """,
+            out var features);
+
+        Assert.Single(subpath.Commands);
+        Assert.Contains("vsdx-geometry-row-SplineKnot", features);
+    }
+
     /// <summary>A spline with decreasing knots degrades to a polyline through the control points and reports a distinct token.</summary>
     [Fact]
     public void Geometry_SplineWithInvalidKnots_FallsBackToPolylineAndReports()

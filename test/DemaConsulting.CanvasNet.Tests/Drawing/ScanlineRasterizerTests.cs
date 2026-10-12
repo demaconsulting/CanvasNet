@@ -136,6 +136,51 @@ public class ScanlineRasterizerTests
     }
 
     /// <summary>
+    ///     Proves three full-span vertical edges at fractional x positions in one cell, starting
+    ///     from zero incoming winding, resolve to the exact even-odd area (0.1 + 0.1 = 0.2 in the
+    ///     shared cell), not the complement caused by counting the cell's own cover as incoming.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_ThreeEdgesInOneCellEvenOdd_ZeroIncomingWinding_MatchesExactArea()
+    {
+        // Arrange: left edges at x = 0.2, 0.3 and 0.9, all right edges at x = 3 (outside the surface)
+        var rectangles = new[] { 0.2f, 0.3f, 0.9f }
+            .Select(x => new List<Vector2> { new(x, 0f), new(3f, 0f), new(3f, 1f), new(x, 1f), new(x, 0f) })
+            .ToList();
+        var surface = new Surface(3, 1);
+
+        // Act
+        ScanlineRasterizer.Fill(surface, rectangles, new Rgba32(0, 0, 0, 255), FillRule.EvenOdd, new Rect(0, 0, 3, 1));
+
+        // Assert: odd winding over [0.2, 0.3) and [0.9, 1) -> 0.2 * 255 = 51; winding 3 (odd) to the right
+        Assert.InRange(surface[0, 0].A, (byte)50, (byte)52);
+        Assert.Equal((byte)255, surface[1, 0].A);
+        Assert.Equal((byte)255, surface[2, 0].A);
+    }
+
+    /// <summary>
+    ///     Proves three full-span vertical edges in one cell that already has a nonzero (odd)
+    ///     incoming winding resolve to the exact even-odd area (0.2 + 0.6 = 0.8).
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_ThreeEdgesInOneCellEvenOdd_NonzeroIncomingWinding_MatchesExactArea()
+    {
+        // Arrange: a base rectangle from x = 0 gives incoming winding 1 to cell 1; three more edges at 1.2, 1.3, 1.9
+        List<Vector2> Rectangle(float x) => [new(x, 0f), new(4f, 0f), new(4f, 1f), new(x, 1f), new(x, 0f)];
+        var rectangles = new[] { 0f, 1.2f, 1.3f, 1.9f }.Select(Rectangle).ToList();
+        var surface = new Surface(4, 1);
+
+        // Act
+        ScanlineRasterizer.Fill(surface, rectangles, new Rgba32(0, 0, 0, 255), FillRule.EvenOdd, new Rect(0, 0, 4, 1));
+
+        // Assert: cell 1 is odd over [1, 1.2) and [1.3, 1.9) -> 0.8 * 255 = 204; winding 4 (even) beyond
+        Assert.Equal((byte)255, surface[0, 0].A);
+        Assert.InRange(surface[1, 0].A, (byte)203, (byte)205);
+        Assert.Equal((byte)0, surface[2, 0].A);
+        Assert.Equal((byte)0, surface[3, 0].A);
+    }
+
+    /// <summary>
     ///     Proves two nested same-direction rectangles whose left edges share one cell resolve to
     ///     the exact even-odd area (the ring between them), not the folded sum.
     /// </summary>

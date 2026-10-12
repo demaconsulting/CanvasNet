@@ -505,7 +505,12 @@ public static partial class SvgCodec
         /// <summary>Gets the number of charges rejected because the cumulative budget was exhausted.</summary>
         public int BudgetRejections { get; internal set; }
 
-        /// <summary>Gets the number of effects-pipeline offscreen surfaces allocated.</summary>
+        /// <summary>
+        ///     Gets the number of effects-pipeline offscreen surfaces allocated: the content
+        ///     buffer, the clip-path coverage buffer, the mask source buffer, <c>SourceAlpha</c>,
+        ///     and each filter primitive's (and subregion clip's) output buffer. Scratch buffers
+        ///     internal to one primitive are not counted. Independent of <see cref="WorkCharged"/>.
+        /// </summary>
         public int EffectSurfacesAllocated { get; internal set; }
 
         /// <summary>Gets the total pixel count of all effects-pipeline offscreen surfaces allocated.</summary>

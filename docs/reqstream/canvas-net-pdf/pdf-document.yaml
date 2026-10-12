@@ -580,7 +580,9 @@ sections:
               relying on clipping to mask painted geometry. A reader that multiplies the fill's
               edge-pixel coverage by the clip's edge-pixel coverage squares the coverage wherever
               the two edges coincide (typical for HTML-to-PDF borders and rules), drawing thin
-              rules 10-60 percent too light.
+              rules 10-60 percent too light. The same applies to a device-aligned image whose edge
+              coincides with a rectangular clip edge: its coverage is evaluated geometrically
+              against the image rectangle so the edge pixels are not attenuated twice.
             tests:
               - PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion
               - PdfDocument_Clipping_SetInsideQQ_DoesNotLeakPastQ

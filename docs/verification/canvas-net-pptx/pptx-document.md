@@ -1753,7 +1753,7 @@ the fix's clamp is a no-op for the already-correct, sufficiently-negative-indent
 
 A follow-up real-world report found that same clamp, while correct for `buChar`, still
 insufficient for `buAutoNum`: CanvasNet rendered an auto-numbered marker immediately touching the
-paragraph's own first word (e.g. `"1.3 custom tip geometries"`), whereas real PowerPoint shows a
+paragraph's own first word (e.g. `"1.3 sample item text"`), whereas real PowerPoint shows a
 clear, word-space-sized gap after the marker. The updated
 `ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth` now asserts the clamped
 text-start-X includes both the bullet string's own measured width and a `buAutoNum`-only minimum

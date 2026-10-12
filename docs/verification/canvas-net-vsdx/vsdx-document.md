@@ -202,6 +202,7 @@ as `vsdx-geometry-row-<Type>`.
 **Tests**: `Geometry_SplineStartKnot_QuadraticFlattensToCurve`,
 `Geometry_SplineGroup_FollowingRowContinuesFromLastControlPoint`,
 `Geometry_SplineKnotWithoutStart_ReportedAndSkipped`,
+`Geometry_SplineKnotBeforeMoveTo_ReportedAndSkipped`,
 `Geometry_SplineWithInvalidKnots_FallsBackToPolylineAndReports`,
 `Geometry_SplineDegreeOutOfRange_IsClampedWithoutThrowing`,
 `Geometry_SplineKnotsBeyondCap_AreTruncatedAndReported`,

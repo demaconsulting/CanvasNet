@@ -249,11 +249,12 @@ public static partial class SvgCodec
         // Sample the decoded raster into a fresh region-sized buffer via non-tiling
         // inverse-transform sampling (see SampleImageIntoRegion), then apply clip-path -> mask ->
         // filter in SVG's defined order, exactly like RenderShapeEffectsPipeline
+        filterWorkBudget.RecordSurfaceAllocated(pixelWidth, pixelHeight);
         var content = SampleImageIntoRegion(decodedSurface, pixelX, pixelY, pixelWidth, pixelHeight, imageToPixel, pixelToImage, state.PixelatedImages);
 
         if (clipPathElement != null)
         {
-            ApplyClipPath(clipPathElement, content, placementRect, pixelX, pixelY, transform, state, context, workBudget);
+            ApplyClipPath(clipPathElement, content, placementRect, pixelX, pixelY, transform, state, context, workBudget, filterWorkBudget);
         }
 
         if (maskElement != null)

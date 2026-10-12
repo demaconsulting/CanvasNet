@@ -269,6 +269,8 @@ sections:
                   - ScanlineRasterizer_Fill_SubPixelOffsetDuplicatePolygons_EvenOddIsExactlyEmptyNonZeroIsOpaque
                   - ScanlineRasterizer_Fill_FourCoincidentFractionalEdgesEvenOdd_ProducesNoInk
                   - ScanlineRasterizer_Fill_NestedEdgesInOneCellEvenOdd_MatchesExactArea
+                  - ScanlineRasterizer_Fill_ThreeEdgesInOneCellEvenOdd_ZeroIncomingWinding_MatchesExactArea
+                  - ScanlineRasterizer_Fill_ThreeEdgesInOneCellEvenOdd_NonzeroIncomingWinding_MatchesExactArea
                   - ScanlineRasterizer_Fill_OverlappingSubPixelSquares_ResolvesExactPerFillRule
                   - ScanlineRasterizer_Fill_SlantedEdgeSharingCellWithVerticalEdgeEvenOdd_StaysWithinRange
               - id: CanvasNet-Drawing-PathFiller-ScanlineActiveEdgeList

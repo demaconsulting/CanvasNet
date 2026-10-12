@@ -2929,7 +2929,7 @@ public class PptxRenderTests
     ///     reference (no explicit <c>&lt;p:spPr&gt;</c> fill at all) resolves its fill entirely from
     ///     the theme's <c>&lt;a:fmtScheme&gt;/&lt;a:fillStyleLst&gt;</c>, substituting the
     ///     <c>&lt;a:fillRef&gt;</c>'s own color child for the matched entry's <c>phClr</c> token -
-    ///     the direct regression test for the customer-reported "Shape Styles gallery" symptom.
+    ///     the direct regression test for the user-reported "Shape Styles gallery" symptom.
     /// </summary>
     [Fact]
     public void Render_ShapeWithOnlyStyleFillRefNoExplicitSpPrFill_RendersResolvedTintedAccentColor()

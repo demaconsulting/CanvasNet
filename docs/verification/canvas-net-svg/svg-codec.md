@@ -807,7 +807,8 @@ operator.
 `SvgCodec_Load_FilterPathologicallyLargeBlurStdDeviation_ClampsRatherThanUnboundedWork`,
 `SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork`,
 `SvgCodec_Load_FeMergeExcessiveNodeCount_SkipsFilterRatherThanUnboundedWork`,
-`SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes`
+`SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes`,
+`SvgCodec_Load_ClipMaskAndFilter_CountsEveryEffectSurface`
 
 Asserts a `filter="url(#id)"` reference to a nonexistent id renders the element normally, exactly
 as if no `filter` attribute were present, matching this codec's general dangling-reference
@@ -847,7 +848,14 @@ cumulative total over that ceiling and tolerantly fall back to unfiltered render
 plain fill color) instead of throwing - proving the new cumulative, per-`Load`-call budget bounds
 total filter-evaluation work across the whole document, a dimension neither
 `MaxFilterPrimitiveWorkUnits` (per-filter-application only) nor `MaxTotalRenderedElements`
-(counts a filtered shape identically to an unfiltered one) previously covered.
+(counts a filtered shape identically to an unfiltered one) previously covered. The
+`RenderDiagnostics.EffectSurfacesAllocated` counter means "all effects-pipeline surfaces
+allocated" (the content buffer, the clip-path coverage buffer, the mask source buffer,
+`SourceAlpha`, and each primitive's or subregion clip's output buffer; scratch buffers inside one
+primitive are not counted), so each filtered shape in these tests contributes two (content plus
+the `feFlood` output); the separate `SvgCodec_Load_ClipMaskAndFilter_CountsEveryEffectSurface`
+test asserts a clipped, masked and filtered element counts four. `WorkCharged` is tracked
+independently.
 
 #### CanvasNetSvg-SvgCodec-GroupFilterRendering: Group-Level Filter Rendering on g/symbol/use
 
