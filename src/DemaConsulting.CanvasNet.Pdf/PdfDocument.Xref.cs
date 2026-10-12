@@ -562,7 +562,7 @@ public sealed partial class PdfDocument
 
         while (i < buffer.Length)
         {
-            var afterNonSyntax = AdvancePastNonSyntax(buffer, i, ref unterminatedStringEncountered);
+            var afterNonSyntax = AdvancePastNonSyntax(buffer, i, ref unterminatedStringEncountered, ref LinearScanStepCount);
             if (afterNonSyntax != i)
             {
                 i = afterNonSyntax;
@@ -1202,8 +1202,16 @@ public sealed partial class PdfDocument
     ///         or hang, not to recover a perfect result from every conceivable corruption.
     ///     </para>
     /// </remarks>
-    private static int AdvancePastNonSyntax(byte[] buffer, int position, ref bool unterminatedStringEncountered)
+    /// <param name="scanSteps">
+    ///     Running deterministic work counter (see <c>LinearScanStepCount</c>), incremented by one
+    ///     per call plus the bytes examined by any comment/string skip.
+    /// </param>
+    private static int AdvancePastNonSyntax(byte[] buffer, int position, ref bool unterminatedStringEncountered, ref long scanSteps)
     {
+        // One step for this call itself (every scan-loop iteration makes exactly one call), plus
+        // the bytes examined by any comment/string skip below. Deterministic work accounting that
+        // lets tests assert the scan stays linear without any timing measurement.
+        scanSteps++;
         var b = buffer[position];
         if (b == (byte)'%')
         {
@@ -1213,6 +1221,7 @@ public sealed partial class PdfDocument
                 end++;
             }
 
+            scanSteps += end - position;
             return end;
         }
 
@@ -1225,6 +1234,7 @@ public sealed partial class PdfDocument
         {
             var after = SkipLiteralString(buffer, position);
             unterminatedStringEncountered = after == position;
+            scanSteps += (after == position ? buffer.Length : after) - position;
             return after;
         }
 
@@ -1239,6 +1249,7 @@ public sealed partial class PdfDocument
         {
             var after = SkipHexString(buffer, position);
             unterminatedStringEncountered = after == position;
+            scanSteps += (after == position ? buffer.Length : after) - position;
             return after;
         }
 
@@ -1545,7 +1556,7 @@ public sealed partial class PdfDocument
                 continue;
             }
 
-            var afterNonSyntax = AdvancePastNonSyntax(buffer, i, ref unterminatedStringEncountered);
+            var afterNonSyntax = AdvancePastNonSyntax(buffer, i, ref unterminatedStringEncountered, ref LinearScanStepCount);
             if (afterNonSyntax != i)
             {
                 i = afterNonSyntax;

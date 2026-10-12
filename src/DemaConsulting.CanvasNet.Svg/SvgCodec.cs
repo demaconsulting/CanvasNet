@@ -349,43 +349,7 @@ public static partial class SvgCodec
         int width,
         int height,
         IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? fonts)
-    {
-        ArgumentNullException.ThrowIfNull(stream);
-
-        var surface = new Surface(width, height);
-        var root = LoadRootElement(stream);
-
-        try
-        {
-            var (origin, size) = ResolveViewBoxOrSize(root);
-            var fitTransform = ComputeFitTransform(root, origin, size, surface.Width, surface.Height);
-
-            // A tiny-but-positive, finite resolved viewBox/width/height (for example a subnormal
-            // float) passes ResolveViewBoxOrSize's own "must be positive" check but can still
-            // overflow ComputeFitTransform's own division to a non-finite scale. Left without a
-            // check here, the resulting non-finite fitTransform would silently fail IsFiniteTransform's
-            // per-element check for every single element in the document, rendering a blank,
-            // fully-transparent surface with no exception at all - a worse "quiet" failure than
-            // the sibling non-positive-viewBox case already throws for. Treat a degenerate fit
-            // scale as the same class of malformed-sizing-data error instead.
-            if (!IsFiniteTransform(fitTransform))
-            {
-                throw new InvalidDataException(
-                    "The SVG document's resolved viewBox/width/height produces a non-finite fit transform.");
-            }
-
-            var idIndex = BuildIdIndex(root);
-            var stylesheet = BuildStylesheet(root);
-            var context = new RenderContext(surface, idIndex, fonts, stylesheet);
-            RenderDocument(root, fitTransform, size, context);
-        }
-        catch (FormatException ex)
-        {
-            throw new InvalidDataException("The SVG document contains invalid numeric data.", ex);
-        }
-
-        return surface;
-    }
+        => LoadCore(stream, width, height, fonts, diagnostics: null);
 
     /// <summary>
     ///     Rasterizes an SVG document loaded from a file path onto a new <see cref="Surface"/> of
@@ -425,6 +389,75 @@ public static partial class SvgCodec
 
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
         return LoadWithFontFaces(stream, width, height, fonts);
+    }
+
+    /// <summary>
+    ///     Internal test seam: identical to <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>
+    ///     but records deterministic work counters into <paramref name="diagnostics"/>, so
+    ///     resource-bound tests can assert work performed instead of elapsed time.
+    /// </summary>
+    /// <param name="stream">The stream to read the SVG document from.</param>
+    /// <param name="width">The width, in pixels, of the returned surface.</param>
+    /// <param name="height">The height, in pixels, of the returned surface.</param>
+    /// <param name="diagnostics">The per-call work-counter sink; must not be null.</param>
+    /// <returns>A new <see cref="Surface"/> containing the rasterized document.</returns>
+    internal static Surface LoadWithDiagnostics(Stream stream, int width, int height, RenderDiagnostics diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        return LoadCore(stream, width, height, fonts: null, diagnostics);
+    }
+
+    /// <summary>
+    ///     Shared implementation of the stream-based load entry points.
+    /// </summary>
+    /// <param name="stream">The stream to read the SVG document from.</param>
+    /// <param name="width">The width, in pixels, of the returned surface.</param>
+    /// <param name="height">The height, in pixels, of the returned surface.</param>
+    /// <param name="fonts">The optional font-face registry.</param>
+    /// <param name="diagnostics">The optional work-counter sink.</param>
+    /// <returns>A new <see cref="Surface"/> containing the rasterized document.</returns>
+    private static Surface LoadCore(
+        Stream stream,
+        int width,
+        int height,
+        IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? fonts,
+        RenderDiagnostics? diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+
+        var surface = new Surface(width, height);
+        var root = LoadRootElement(stream);
+
+        try
+        {
+            var (origin, size) = ResolveViewBoxOrSize(root);
+            var fitTransform = ComputeFitTransform(root, origin, size, surface.Width, surface.Height);
+
+            // A tiny-but-positive, finite resolved viewBox/width/height (for example a subnormal
+            // float) passes ResolveViewBoxOrSize's own "must be positive" check but can still
+            // overflow ComputeFitTransform's own division to a non-finite scale. Left without a
+            // check here, the resulting non-finite fitTransform would silently fail IsFiniteTransform's
+            // per-element check for every single element in the document, rendering a blank,
+            // fully-transparent surface with no exception at all - a worse "quiet" failure than
+            // the sibling non-positive-viewBox case already throws for. Treat a degenerate fit
+            // scale as the same class of malformed-sizing-data error instead.
+            if (!IsFiniteTransform(fitTransform))
+            {
+                throw new InvalidDataException(
+                    "The SVG document's resolved viewBox/width/height produces a non-finite fit transform.");
+            }
+
+            var idIndex = BuildIdIndex(root);
+            var stylesheet = BuildStylesheet(root);
+            var context = new RenderContext(surface, idIndex, fonts, stylesheet);
+            RenderDocument(root, fitTransform, size, context, diagnostics);
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidDataException("The SVG document contains invalid numeric data.", ex);
+        }
+
+        return surface;
     }
 
     /// <summary>

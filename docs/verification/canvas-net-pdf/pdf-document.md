@@ -256,9 +256,12 @@ immediately following a genuine `<<` is never reached, because the second `<` is
 recognized as dictionary syntax (by also checking the *preceding* byte, not only the following
 one) rather than mistaken for the start of a `<...>` hex string whose premature, early-closing
 `>` would otherwise expose the decoy to keyword matching.
-`PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly` confirms
-the fallback scan completes in bounded, linear time even when fed a long run of unmatched `(`
-bytes: rather than re-scanning the entire remaining buffer from every failed literal/hex-string
+`PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_ScanWorkIsLinear` confirms
+the fallback scan performs work bounded linearly by the buffer size even when fed a long run of
+unmatched `(` bytes. The test asserts a deterministic work counter (`LinearScanStepCount`: scan
+iterations plus bytes examined while skipping strings/comments) stays within a small constant
+multiple of the buffer length, with no timing assertion: rather than re-scanning the entire
+remaining buffer from every failed literal/hex-string
 open position (which is quadratic in a crafted file's size and so a CPU/timeout
 denial-of-service), the scan permanently stops attempting further string opens for the remainder
 of a single pass once any one string scan fails to find its close before EOF. This is a

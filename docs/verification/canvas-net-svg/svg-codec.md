@@ -822,10 +822,11 @@ enormous `SourceGraphic` surface for a filter that, having no primitives, could 
 rendered output; asserts an `feGaussianBlur` `stdDeviation` many orders
 of magnitude larger than the fixed `MaxFilterBlurStdDeviationPixels` bound is clamped rather than
 causing unbounded work - the box-blur implementation's own cost does not scale with the requested
-radius, so this completes promptly and produces a heavily diluted (rather than crashing or
-hanging) result; and asserts a filter chain with an excessive number of primitives (5,000 chained
+radius, so the work stays bounded and a heavily diluted (rather than crashing or
+hanging) result is produced; and asserts a filter chain with an excessive number of primitives (5,000 chained
 `feGaussianBlur` primitives, mirroring a reported repro that took ~26 seconds prior to this bound)
-is tolerantly skipped entirely rather than evaluated, completing promptly instead of performing
+is tolerantly skipped entirely rather than evaluated - the internal `RenderDiagnostics` counters
+(no timing assertions) show zero effects surfaces allocated and zero work charged, instead of
 5,000 region-sized blur passes - bounding the primitive-count × region-area cost dimension that
 `MaxTotalRenderedElements`/`GeometryWorkBudget` do not cover, since neither tracks a single
 filter's own per-primitive, region-sized buffer cost. Also asserts a `feMerge` primitive with an

@@ -712,7 +712,12 @@ generous enough that a real document reusing one filter across a modest number o
 rejected, while still keeping worst-case total filter-evaluation work bounded to a small, fixed
 multiple of a single filter's own bound), every further filter application for the remainder of
 that `Load` call tolerantly falls back to unfiltered rendering instead - the same fallback
-behavior as every other filter resource bound, never a thrown exception. A
+behavior as every other filter resource bound, never a thrown exception. Deterministic work
+counters (`SvgCodec.RenderDiagnostics`: work units charged, charges rejected, effects surfaces and
+pixels allocated) are updated by that same `FilterWorkBudget` through an internal-only
+`LoadWithDiagnostics` entry point (visible to the test assembly via `InternalsVisibleTo`; the
+public API is unchanged and the counters are per-call, never static), so resource-bound tests
+assert work performed instead of measuring elapsed time. A
 `filter` element with zero primitive children is likewise tolerantly skipped, identically to an
 out-of-budget chain and checked in the same guard, before `SourceGraphic` is allocated - because
 a filter with no primitives to evaluate can never change the rendered output, regardless of how

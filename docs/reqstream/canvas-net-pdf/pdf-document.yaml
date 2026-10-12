@@ -140,7 +140,7 @@ sections:
               - PdfDocument_Open_LinearScanFallback_ObjectNumberAsTokenSuffix_DoesNotCorruptOffset
               - PdfDocument_Open_LinearScanFallback_ObjectNumberAsNameToken_DoesNotCorruptOffset
               - PdfDocument_Open_LinearScanFallback_SecondAngleBracketAsHexStringStart_DoesNotCorruptOffset
-              - PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly
+              - PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_ScanWorkIsLinear
               - PdfDocument_Open_ClassicXref_StartxrefAsTokenSuffix_DoesNotRedirectToBogusOffset
               - PdfDocument_Open_ClassicXref_StartxrefAsNameToken_DoesNotRedirectToBogusOffset
               - PdfDocument_Open_LinearScanFallback_CommentBeforeEndobj_DoesNotCorruptOffsets

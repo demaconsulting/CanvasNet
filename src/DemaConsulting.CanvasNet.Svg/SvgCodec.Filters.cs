@@ -312,6 +312,7 @@ public static partial class SvgCodec
             return;
         }
 
+        filterWorkBudget.RecordSurfaceAllocated(pixelWidth, pixelHeight);
         var content = new Surface(pixelWidth, pixelHeight);
         var localToTemp = transform * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
         var tempContext = context with { Surface = content };
@@ -1085,6 +1086,7 @@ public static partial class SvgCodec
             return;
         }
 
+        filterWorkBudget.RecordSurfaceAllocated(pixelWidth, pixelHeight);
         var content = new Surface(pixelWidth, pixelHeight);
         var localToTemp = childrenTransform * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
         var tempContext = context with { Surface = content };

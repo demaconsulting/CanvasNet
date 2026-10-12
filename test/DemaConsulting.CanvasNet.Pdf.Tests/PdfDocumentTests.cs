@@ -3202,24 +3202,28 @@ public class PdfDocumentTests
     /// <summary>
     ///     Proves that a long run of unmatched, never-closing literal-string <c>(</c> bytes (see
     ///     <see cref="BuildLinearScanFallbackWithLongUnterminatedLiteralStringRun"/>) is handled
-    ///     in time bounded by the buffer size rather than quadratic in the run's length: without
+    ///     in total scan work bounded linearly by the buffer size rather than quadratic in the run's
+    ///     length (asserted deterministically via <c>LinearScanStepCount</c>, not by timing): without
     ///     that bound, a crafted or corrupted file could make this heuristic fallback scanner
     ///     consume CPU far out of proportion to the file's size - a denial-of-service risk, not
     ///     merely a completeness limitation. The real object 3 (the page) must still resolve and
     ///     render correctly.
     /// </summary>
     [Fact]
-    public async Task PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly()
+    public void PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_ScanWorkIsLinear()
     {
         // Arrange
         var pdfBytes = BuildLinearScanFallbackWithLongUnterminatedLiteralStringRun();
 
-        // Act: run on a background thread with a generous bounded timeout - if the quadratic-scan
-        // fix regresses, this fails fast with a TimeoutException instead of hanging the test run.
-        using var document = await Task.Run(() => PdfDocument.Open(new MemoryStream(pdfBytes)))
-            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
 
-        // Assert
+        // Assert: total scan work stays within a small constant multiple of the buffer size (the
+        // quadratic behavior would be ~200,000 x 200,000 steps)
+        Assert.True(document.LinearScanStepCount > 0, "The linear-scan fallback must have run.");
+        Assert.True(
+            document.LinearScanStepCount <= 8L * pdfBytes.Length,
+            $"Scan work {document.LinearScanStepCount} exceeded linear bound for {pdfBytes.Length} bytes.");
         Assert.Equal(1, document.PageCount);
         using var surface = document.Render(0, 100, 100, Transparent);
         Assert.Equal(Black, surface[30, 70]);
@@ -3280,7 +3284,7 @@ public class PdfDocumentTests
     ///     does not prevent the fallback scanner from recovering every genuine object header that
     ///     follows it: once a string-opening attempt fails to find its close, the scanner must
     ///     keep searching the remainder of the buffer for real markers (bounded, via <see
-    ///     cref="PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly"/>,
+    ///     cref="PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_ScanWorkIsLinear"/>,
     ///     to at most one further failed string-opening attempt), rather than abandoning recovery
     ///     of the rest of an otherwise perfectly valid document. Real-world corrupted or recovered
     ///     PDFs routinely contain unrelated binary noise with stray unmatched delimiters well
@@ -9100,7 +9104,7 @@ public class PdfDocumentTests
     ///     exit condition.
     /// </summary>
     [Fact]
-    public async Task PdfDocument_Fonts_Type0_Widths_WArrayRangeFormCLastAtInt32MaxValue_Terminates()
+    public void PdfDocument_Fonts_Type0_Widths_WArrayRangeFormCLastAtInt32MaxValue_Terminates()
     {
         // Arrange: a small, in-bounds span [int.MaxValue - 2, int.MaxValue].
         var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
@@ -9110,11 +9114,10 @@ public class PdfDocumentTests
         var bytes = BuildSinglePagePdfWithResources(
             100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
 
-        // Act: run on a background thread with a generous bounded timeout - if the loop-termination
-        // fix regresses, this fails fast with a TimeoutException instead of hanging the test run
-        // forever.
-        using var surface = await Task.Run(() => RenderPdfBytes(bytes))
-            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        // Act: called synchronously with no timing assertion - a regression to an int-typed loop
+        // counter would never return, which the test harness / CI job-level timeout reports as a
+        // hung run (see the design notes on deterministic test guards).
+        using var surface = RenderPdfBytes(bytes);
 
         // Assert
         Assert.NotNull(surface);
@@ -9242,7 +9245,7 @@ public class PdfDocumentTests
     ///     never satisfy its own exit condition.
     /// </summary>
     [Fact]
-    public async Task PdfDocument_Fonts_ToUnicode_BfRangeHexForm_SrcAtInt32MaxValue_TerminatesAndMapsSingleCode()
+    public void PdfDocument_Fonts_ToUnicode_BfRangeHexForm_SrcAtInt32MaxValue_TerminatesAndMapsSingleCode()
     {
         // Arrange
         var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<7FFFFFFF> <7FFFFFFF> <0048>\nendbfrange");
@@ -9254,11 +9257,10 @@ public class PdfDocumentTests
             ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
         });
 
-        // Act: run on a background thread with a generous bounded timeout - if the loop-termination
-        // fix regresses, this fails fast with a TimeoutException instead of hanging the test run
-        // forever.
-        var result = await Task.Run(() => document.ResolveToUnicodeMap(fontDict))
-            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        // Act: called synchronously with no timing assertion - a regression to an int-typed loop
+        // counter would never return, which the test harness / CI job-level timeout reports as a
+        // hung run.
+        var result = document.ResolveToUnicodeMap(fontDict);
 
         // Assert
         Assert.NotNull(result);

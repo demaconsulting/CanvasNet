@@ -330,13 +330,17 @@ public static partial class SvgCodec
     ///     descendant inherits until a <c>symbol</c> referenced via <c>use</c> establishes a new one.
     /// </param>
     /// <param name="context">The fixed per-document render context.</param>
-    private static void RenderDocument(XElement root, Matrix3x2 fitTransform, Vector2 viewportSize, RenderContext context)
+    /// <param name="diagnostics">
+    ///     The optional work-counter sink (see <see cref="RenderDiagnostics"/>), or
+    ///     <see langword="null"/> for none.
+    /// </param>
+    private static void RenderDocument(XElement root, Matrix3x2 fitTransform, Vector2 viewportSize, RenderContext context, RenderDiagnostics? diagnostics = null)
     {
         var initialState = RenderState.Initial with { ViewportWidth = viewportSize.X, ViewportHeight = viewportSize.Y };
         var rootState = ApplyPresentationAttributes(initialState, root, context);
         var totalElements = 0;
         var workBudget = new GeometryWorkBudget();
-        var filterWorkBudget = new FilterWorkBudget();
+        var filterWorkBudget = new FilterWorkBudget(diagnostics);
         var boundsPrePassBudget = new BoundsPrePassWorkBudget();
         foreach (var child in root.Elements())
         {

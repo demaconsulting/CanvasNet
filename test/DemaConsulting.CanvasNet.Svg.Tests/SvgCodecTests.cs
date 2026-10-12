@@ -3,7 +3,6 @@
 // cspell:ignore miterlimit
 // cspell:ignore unparseable overpainted bbox moveto lineto rects unrotated unclipped
 // cspell:ignore pillarbox Pillarboxes sizeless basi unswapped
-using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 using System.Xml.Linq;
@@ -4221,19 +4220,20 @@ public class SvgCodecTests
             </svg>
             """;
 
-        // Act: must complete promptly, without attempting to allocate a huge SourceGraphic
-        // surface for a filter that has no primitives to evaluate
-        var stopwatch = Stopwatch.StartNew();
+        // Act: must not attempt to allocate a huge SourceGraphic surface for a filter that has no
+        // primitives to evaluate
+        var diagnostics = new SvgCodec.RenderDiagnostics();
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 100, 100);
-        stopwatch.Stop();
+        var surface = SvgCodec.LoadWithDiagnostics(stream, 100, 100, diagnostics);
 
         // Assert: the rect rendered its own normal blue fill - the (skipped) empty filter had no
         // effect, the same tolerant per-element fallback used for every other filter resource bound
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
 
-        // Assert: completed promptly, proving no huge temporary surface was ever allocated
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the zero-primitive huge-region filter to be skipped promptly, but it took {stopwatch.Elapsed}.");
+        // Assert: bounded work - no effects surface was ever allocated and no work was charged
+        Assert.Equal(0, diagnostics.EffectSurfacesAllocated);
+        Assert.Equal(0L, diagnostics.EffectPixelsAllocated);
+        Assert.Equal(0L, diagnostics.WorkCharged);
     }
 
     /// <summary>
@@ -4261,23 +4261,20 @@ public class SvgCodecTests
             </svg>
             """;
 
-        // Act: must complete quickly rather than performing 5,000 region-sized blur passes - the
-        // 5-second threshold sits far below the ~26-second pathological baseline this bound
-        // eliminates, while remaining comfortably above normal test-execution variance (a
-        // rejected chain here does no per-primitive work at all: just one cheap element count
-        // plus one multiply/compare, so a healthy run completes in well under a second)
-        var stopwatch = Stopwatch.StartNew();
+        // Act: a rejected chain does no per-primitive work at all (one cheap element count plus
+        // one multiply/compare), so no effects surface may be allocated and nothing charged
+        var diagnostics = new SvgCodec.RenderDiagnostics();
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 100, 100);
-        stopwatch.Stop();
+        var surface = SvgCodec.LoadWithDiagnostics(stream, 100, 100, diagnostics);
 
         // Assert: the rect rendered its own normal blue fill - the (skipped) filter had no
         // effect, the same tolerant per-element fallback used for every other filter resource
         // bound
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
 
-        // Assert: completed promptly, proving the filter was skipped rather than evaluated
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the excessive-primitive-count filter to be skipped promptly, but it took {stopwatch.Elapsed}.");
+        // Assert: bounded work - the filter was skipped rather than evaluated
+        Assert.Equal(0, diagnostics.EffectSurfacesAllocated);
+        Assert.Equal(0L, diagnostics.WorkCharged);
     }
 
     /// <summary>
@@ -4329,13 +4326,12 @@ public class SvgCodecTests
             </svg>
             """;
 
-        // Act: render the whole document - must complete promptly, and must not throw despite the
-        // cumulative filter work total across all 13 shapes (65,000,000) far exceeding the new
-        // cumulative ceiling (50,000,000)
-        var stopwatch = Stopwatch.StartNew();
+        // Act: render the whole document - must not throw despite the cumulative filter work
+        // total across all 13 shapes (65,000,000) far exceeding the new cumulative ceiling
+        // (50,000,000)
+        var diagnostics = new SvgCodec.RenderDiagnostics();
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 2000, 120);
-        stopwatch.Stop();
+        var surface = SvgCodec.LoadWithDiagnostics(stream, 2000, 120, diagnostics);
 
         // Assert: the first 10 shapes (cumulative total staying within the new 50,000,000
         // ceiling) were actually filtered - each rendered as the feFlood's solid red, not its own
@@ -4356,10 +4352,12 @@ public class SvgCodecTests
             Assert.Equal(new Rgba32(0, 0, 255, 255), surface[sampleX, 30]);
         }
 
-        // Assert: completed promptly - the cumulative budget rejects excess filter applications
-        // before any of their own SourceGraphic/filter-chain work begins, so this document's total
-        // work stays proportional to only the 10 shapes actually filtered
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1), $"Expected the cumulative-filter-work-budget document to render promptly, but it took {stopwatch.Elapsed}.");
+        // Assert: bounded work - the cumulative budget rejects excess filter applications before
+        // any of their own SourceGraphic/filter-chain work begins, so only the 10 filtered shapes
+        // allocated a surface and the charged total never exceeded the 50,000,000 ceiling
+        Assert.Equal(filteredShapeCount, diagnostics.EffectSurfacesAllocated);
+        Assert.Equal(shapeCount - filteredShapeCount, diagnostics.BudgetRejections);
+        Assert.Equal(50_000_000L, diagnostics.WorkCharged);
     }
 
     /// <summary>
@@ -4391,17 +4389,17 @@ public class SvgCodecTests
             </svg>
             """;
 
-        // Act: must complete quickly rather than performing 5,000 region-sized composite passes
-        var stopwatch = Stopwatch.StartNew();
+        // Act: must not perform 5,000 region-sized composite passes
+        var diagnostics = new SvgCodec.RenderDiagnostics();
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 100, 100);
-        stopwatch.Stop();
+        var surface = SvgCodec.LoadWithDiagnostics(stream, 100, 100, diagnostics);
 
         // Assert: the rect rendered its own normal blue fill - the (skipped) filter had no effect
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
 
-        // Assert: completed promptly, proving the feMerge was skipped rather than evaluated
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the excessive-feMergeNode-count filter to be skipped promptly, but it took {stopwatch.Elapsed}.");
+        // Assert: bounded work - the feMerge was skipped rather than evaluated
+        Assert.Equal(0, diagnostics.EffectSurfacesAllocated);
+        Assert.Equal(0L, diagnostics.WorkCharged);
     }
 
     /// <summary>
@@ -5077,11 +5075,10 @@ public class SvgCodecTests
             </svg>
             """;
 
-        // Act: render the whole document - must complete promptly, and must not throw
-        var stopwatch = Stopwatch.StartNew();
+        // Act: render the whole document - must not throw
+        var diagnostics = new SvgCodec.RenderDiagnostics();
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 2000, 120);
-        stopwatch.Stop();
+        var surface = SvgCodec.LoadWithDiagnostics(stream, 2000, 120, diagnostics);
 
         // Assert: the first 10 uses (cumulative total staying within the ceiling) were actually
         // filtered - each rendered as the feFlood's solid red, not the referenced rect's own blue
@@ -5101,9 +5098,10 @@ public class SvgCodecTests
             Assert.Equal(new Rgba32(0, 0, 255, 255), surface[sampleX, 30]);
         }
 
-        // Assert: completed promptly, proving the excess filters were skipped rather than
-        // evaluated
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the excessive cumulative group-filter work to be skipped promptly, but it took {stopwatch.Elapsed}.");
+        // Assert: bounded work - the excess filters were skipped rather than evaluated
+        Assert.Equal(filteredShapeCount, diagnostics.EffectSurfacesAllocated);
+        Assert.Equal(shapeCount - filteredShapeCount, diagnostics.BudgetRejections);
+        Assert.Equal(50_000_000L, diagnostics.WorkCharged);
     }
 
     /// <summary>

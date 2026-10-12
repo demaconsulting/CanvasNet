@@ -154,6 +154,14 @@ public sealed partial class PdfDocument : IDisposable
     private readonly byte[] _buffer;
 
     /// <summary>
+    ///     Deterministic work counter for the linear-scan fallback (<see cref="BuildLinearScanFallback"/>):
+    ///     the number of scan-loop iterations plus bytes examined while skipping comments and
+    ///     literal/hex strings. Exists so tests can assert the fallback stays linear in the buffer
+    ///     size without any timing measurement. Always <c>0</c> unless the fallback ran.
+    /// </summary>
+    internal long LinearScanStepCount;
+
+    /// <summary>
     ///     The resolved cross-reference table: maps an indirect object number to where its value
     ///     can be found (a direct byte offset in <see cref="_buffer"/>, or a compressed-object
     ///     location within an object stream).
