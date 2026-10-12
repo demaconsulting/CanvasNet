@@ -121,6 +121,33 @@ public class VsdxCurveGeometryTests
         Assert.Contains("vsdx-geometry-row-SplineKnot", features);
     }
 
+    /// <summary>
+    ///     A subpath-continuing row (NURBSTo, PolylineTo, LineTo, arcs, relative curves, SplineStart) before
+    ///     any MoveTo has no open subpath to extend: it adds no geometry and is reported, never silently dropped.
+    /// </summary>
+    [Theory]
+    [InlineData("NURBSTo")]
+    [InlineData("PolylineTo")]
+    [InlineData("LineTo")]
+    [InlineData("RelLineTo")]
+    [InlineData("ArcTo")]
+    [InlineData("EllipticalArcTo")]
+    [InlineData("RelCubBezTo")]
+    [InlineData("RelQuadBezTo")]
+    [InlineData("SplineStart")]
+    public void Geometry_ContinuationRowBeforeMoveTo_ReportedAndSkipped(string rowType)
+    {
+        var subpath = ResolveSubpath(
+            $"""
+            <Row T="{rowType}" IX="1"><Cell N="X" V="2"/><Cell N="Y" V="2"/><Cell N="A" V="1"/><Cell N="B" V="1"/><Cell N="C" V="1"/><Cell N="D" V="1"/></Row>
+            <Row T="MoveTo" IX="2"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+            """,
+            out var features);
+
+        Assert.Empty(subpath.Commands);
+        Assert.Contains($"vsdx-geometry-row-{rowType}", features);
+    }
+
     /// <summary>A spline with decreasing knots degrades to a polyline through the control points and reports a distinct token.</summary>
     [Fact]
     public void Geometry_SplineWithInvalidKnots_FallsBackToPolylineAndReports()

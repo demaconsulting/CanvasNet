@@ -305,7 +305,7 @@ public static partial class SvgCodec
         // ComputeEffectsPipelineWorkUnits's remarks for why a single one-buffer charge previously
         // under-charged a combined clip+mask (or clip/mask+filter) element.
         var workUnits = ComputeEffectsPipelineWorkUnits(
-            filterApplies, primitiveCount, clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
+            filterApplies, primitiveCount, filterElement != null && FilterUsesSourceAlpha(filterElement), clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
         if (!filterWorkBudget.TryCharge(workUnits))
         {
             RenderShape(localPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
@@ -1075,7 +1075,7 @@ public static partial class SvgCodec
         // Load call, and the charge covers every offscreen buffer this application will actually
         // allocate - see ComputeEffectsPipelineWorkUnits's remarks
         var workUnits = ComputeEffectsPipelineWorkUnits(
-            filterApplies, primitiveCount, clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
+            filterApplies, primitiveCount, filterElement != null && FilterUsesSourceAlpha(filterElement), clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
         if (!filterWorkBudget.TryCharge(workUnits))
         {
             foreach (var child in children)
@@ -1377,6 +1377,10 @@ public static partial class SvgCodec
     ///     <see cref="CountFilterPrimitiveWorkUnits"/>; ignored when <paramref name="filterApplies"/>
     ///     is <see langword="false"/>.
     /// </param>
+    /// <param name="sourceAlphaUsed">
+    ///     Whether any primitive references <c>SourceAlpha</c>, which allocates one more shared
+    ///     region-area-sized buffer; ignored when <paramref name="filterApplies"/> is <see langword="false"/>.
+    /// </param>
     /// <param name="clipPathApplies">
     ///     Whether a <c>clip-path</c> element is present and will therefore cause
     ///     <see cref="ApplyClipPath"/> to allocate its own additional region-area-sized <c>coverage</c>
@@ -1395,6 +1399,7 @@ public static partial class SvgCodec
     private static long ComputeEffectsPipelineWorkUnits(
         bool filterApplies,
         int primitiveCount,
+        bool sourceAlphaUsed,
         bool clipPathApplies,
         bool maskApplies,
         int pixelWidth,
@@ -1405,7 +1410,17 @@ public static partial class SvgCodec
         // The "content"/SourceGraphic buffer's own portion - scaled by the filter's own primitive
         // count when a filter applies, exactly as this codec charged before Phase 2 introduced
         // combinable clip-path/mask
-        var contentWorkUnits = filterApplies ? (long)primitiveCount * regionArea : regionArea;
+        // The content buffer itself is one further region-area unit on top of the primitive units
+        // (primitive outputs and subregion clip copies), plus one for the lazily built SourceAlpha
+        // buffer when a primitive references it. These fixed units are deliberately NOT part of
+        // primitiveCount, so they never count toward MaxFilterPrimitivesPerFilter.
+        var contentSurfaces = filterApplies ? (long)primitiveCount + 1 : 1;
+        if (filterApplies && sourceAlphaUsed)
+        {
+            contentSurfaces++;
+        }
+
+        var contentWorkUnits = contentSurfaces * regionArea;
 
         // One additional flat region-area unit for each of clip-path/mask's own separate
         // offscreen buffer, since neither buffer's cost scales with the filter's primitive count
@@ -1603,6 +1618,17 @@ public static partial class SvgCodec
             // A primitive with an explicit x/y/width/height subregion additionally allocates one
             // region-sized clip copy (ClipPrimitiveOutputToSubregion), so it is charged one more unit.
             + (PrimitiveDeclaresSubregion(primitive) ? 1 : 0));
+
+    /// <summary>
+    ///     Determines whether any primitive of <paramref name="filterElement"/> names <c>SourceAlpha</c>
+    ///     as its <c>in</c> or <c>in2</c> input (which builds one shared region-sized alpha buffer).
+    /// </summary>
+    /// <param name="filterElement">The resolved <c>filter</c> element.</param>
+    /// <returns><see langword="true"/> if <c>SourceAlpha</c> is referenced.</returns>
+    private static bool FilterUsesSourceAlpha(XElement filterElement) =>
+        filterElement.Elements().Any(primitive =>
+            string.Equals((string?)primitive.Attribute("in"), "SourceAlpha", StringComparison.Ordinal) ||
+            string.Equals((string?)primitive.Attribute("in2"), "SourceAlpha", StringComparison.Ordinal));
 
     /// <summary>
     ///     Evaluates <paramref name="filterElement"/>'s <c>fe*</c> primitive children, in document

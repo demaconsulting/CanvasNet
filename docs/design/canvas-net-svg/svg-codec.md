@@ -824,7 +824,12 @@ tolerant fallback paths that simply render unfiltered once the requested total w
 A primitive that declares an explicit `x`/`y`/`width`/`height` subregion allocates one further
 region-sized copy when its output is clipped (`ClipPrimitiveOutputToSubregion`); the work-unit
 count behind both the per-filter check and the cumulative charge adds one unit for each such
-primitive, so every surface counted by `EffectSurfacesAllocated` is also charged.
+primitive, so every surface counted by `EffectSurfacesAllocated` is also charged. The filter's own
+content buffer is likewise one further unit on top of the primitive units (and one more when a
+primitive references `SourceAlpha`, which builds a shared alpha buffer); these fixed units are added
+in `ComputeEffectsPipelineWorkUnits` and deliberately are not part of the primitive count, so they never
+count toward `MaxFilterPrimitivesPerFilter`. The charge therefore covers every filter surface:
+content, `SourceAlpha`, clip-path/mask buffers, primitive outputs and subregion clip copies.
 
 `feDiffuseLighting` and `feSpecularLighting` relight a surface described by SourceAlpha (or
 another primitive's own alpha channel) as if it were a bump map. Both share a single surface-normal
@@ -1048,7 +1053,8 @@ offscreen-allocation budget) keeps one resource dimension's ceiling from being e
 `RenderShapeEffectsPipeline`/`RenderGroupWithEffects` makes before allocating its own "content"
 buffer (via the shared `ComputeEffectsPipelineWorkUnits` helper) charges one region-area unit for
 every offscreen buffer this element will actually allocate - the "content"/`SourceGraphic` buffer
-always, plus one additional region-area unit each for `ApplyClipPath`'s own `coverage` buffer and
+always (and, when a filter applies, one unit per filter primitive output and subregion clip copy plus one for
+`SourceAlpha` if referenced), plus one additional region-area unit each for `ApplyClipPath`'s own `coverage` buffer and
 `ApplyMask`'s own `maskSource` buffer when a clip-path/mask respectively applies - so an element
 combining clip-path and mask (or either with a filter) is charged for every buffer it allocates,
 not just one. A mask region whose pixel-space dimensions

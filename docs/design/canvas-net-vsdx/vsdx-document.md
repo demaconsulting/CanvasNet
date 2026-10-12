@@ -317,6 +317,10 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   skipped atomically and reported as `vsdx-geometry-row-NURBSTo`. A `PolylineTo` row whose `X`/`Y`
   end point is missing or non-finite is likewise skipped and reported, never drawn to (0, 0).
   Only knot or degree failures that pass this validation take the reported polyline fallback.
+  More generally, any subpath-continuing row (`LineTo`, `RelLineTo`, `ArcTo`, `EllipticalArcTo`,
+  `RelCubBezTo`, `RelQuadBezTo`, `NURBSTo`, `PolylineTo`, `SplineStart`) that appears before the
+  first `MoveTo`/`RelMoveTo`/`Ellipse` row has no open subpath to extend; it is skipped and reported
+  as `vsdx-geometry-row-{Type}` rather than dropped silently.
   A group child that has its own `Master` reference
   and no `MasterShape` match in its parent's master resolves against that master's shape.
   `InfiniteLine` and any other row type are still skipped (not throwing on) and reported.

@@ -43,6 +43,16 @@ public sealed partial class VsdxDocument
         return result;
     }
 
+    /// <summary>
+    ///     Determines whether <paramref name="rowType"/> extends an already-open subpath (so it is
+    ///     meaningless before the first <c>MoveTo</c>/<c>RelMoveTo</c>/<c>Ellipse</c> row).
+    /// </summary>
+    /// <param name="rowType">The geometry row type.</param>
+    /// <returns><see langword="true"/> for continuation rows; otherwise <see langword="false"/>.</returns>
+    private static bool IsSubpathContinuationRow(string rowType) =>
+        rowType is "SplineStart" or "NURBSTo" or "PolylineTo" or "LineTo" or "RelLineTo"
+            or "EllipticalArcTo" or "ArcTo" or "RelCubBezTo" or "RelQuadBezTo";
+
     /// <summary>Builds a single resolved <see cref="VsdxGeometrySection"/> from its merged raw section.</summary>
     /// <param name="section">The merged raw section.</param>
     /// <param name="width">The owning shape's resolved <c>Width</c> cell, in inches (normalizes <c>RelMoveTo</c>/<c>RelLineTo</c> rows).</param>
@@ -63,6 +73,17 @@ public sealed partial class VsdxDocument
             {
                 currentPoint = FlushSpline(builder, spline);
                 spline = null;
+            }
+
+            // A row that continues a subpath (everything except the MoveTo-like rows and the
+            // SplineKnot, which has its own orphan report) before any MoveTo/RelMoveTo/Ellipse has
+            // opened one has nothing to extend: skip it and report it rather than dropping it silently.
+            if (!hasOpenSubpath && IsSubpathContinuationRow(row.Type))
+            {
+                ReportUnsupported(
+                    $"vsdx-geometry-row-{row.Type}",
+                    $"A {row.Type} row with no preceding MoveTo/RelMoveTo/Ellipse row (no open subpath) is not supported and was skipped.");
+                continue;
             }
 
             switch (row.Type)

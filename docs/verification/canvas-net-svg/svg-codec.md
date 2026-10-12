@@ -809,7 +809,8 @@ operator.
 `SvgCodec_Load_FeMergeExcessiveNodeCount_SkipsFilterRatherThanUnboundedWork`,
 `SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes`,
 `SvgCodec_Load_ClipMaskAndFilter_CountsEveryEffectSurface`,
-`SvgCodec_Load_SubregionPrimitiveChain_ChargesClipCopies`
+`SvgCodec_Load_SubregionPrimitiveChain_ChargesClipCopies`,
+`SvgCodec_Load_FilterCharge_IncludesContentBufferUnit`
 
 Asserts a `filter="url(#id)"` reference to a nonexistent id renders the element normally, exactly
 as if no `filter` attribute were present, matching this codec's general dangling-reference
@@ -841,7 +842,8 @@ regression test for a code-review finding that the per-filter `MaxFilterPrimitiv
 ceiling is enforced independently for every individual filtered element, so a single `filter`
 definition referenced by many shapes could be charged that same ceiling once per reference with no
 bound on the total number of references: 13 shapes reference one filter chain that individually
-charges exactly the per-filter ceiling (500 primitives against a 100×100 region) every time - the
+charges exactly the per-filter ceiling (499 primitive units plus the content buffer, against a 100×100
+region) every time - the
 first 10 references' cumulative total stays within the new `FilterWorkBudget`'s
 `MaxCumulativeFilterWorkUnits` ceiling (50,000,000) and are genuinely filtered (rendering the
 chain's trailing `feFlood` solid color), while the 11th through 13th references would push the
@@ -859,7 +861,11 @@ test asserts a clipped, masked and filtered element counts four. A primitive wit
 subregion allocates one further region-sized clip copy, which is both counted and charged:
 `SvgCodec_Load_SubregionPrimitiveChain_ChargesClipCopies` compares a three-primitive chain with and
 without subregions and asserts the surface count rises from four to seven and the charged work
-doubles. `WorkCharged` is tracked independently.
+rises in the same 4:7 ratio. `WorkCharged` is tracked independently. The charge for a filter is
+(primitive units + 1 content unit [+ 1 for `SourceAlpha`]) region areas, so a one-`feFlood` filter is
+charged two areas and a two-`feFlood` filter three (`SvgCodec_Load_FilterCharge_IncludesContentBufferUnit`);
+the cumulative-budget tests use 498 no-op primitives plus a flood so each application is exactly five
+million units, and the subregion chain test compares the 4-to-7 unit ratio.
 
 #### CanvasNetSvg-SvgCodec-GroupFilterRendering: Group-Level Filter Rendering on g/symbol/use
 

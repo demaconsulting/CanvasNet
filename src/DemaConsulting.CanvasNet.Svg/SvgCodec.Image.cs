@@ -202,7 +202,7 @@ public static partial class SvgCodec
         // Charge the shared cumulative FilterWorkBudget BEFORE the base64 decode/raster Load is
         // attempted - see this method's own remarks on the additional base64-length term
         var workUnits = ComputeEffectsPipelineWorkUnits(
-            filterApplies, primitiveCount, clipPathElement != null, maskElement != null, pixelWidth, pixelHeight)
+            filterApplies, primitiveCount, filterElement != null && FilterUsesSourceAlpha(filterElement), clipPathElement != null, maskElement != null, pixelWidth, pixelHeight)
             + base64Payload.Length;
         if (!filterWorkBudget.TryCharge(workUnits))
         {

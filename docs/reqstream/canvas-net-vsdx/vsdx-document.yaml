@@ -181,7 +181,8 @@ sections:
               polyline through its control points (reported as vsdx-geometry-spline-approximated),
               skipping and reporting a malformed or oversized row (a NURBSTo row with a missing,
               non-finite or non-positive-weight cell is skipped atomically, with no partial
-              geometry; an orphan SplineStart or SplineKnot is reported, never silently dropped),
+              geometry; an orphan SplineStart or SplineKnot, or any continuation row before the first MoveTo, is
+              reported, never silently dropped),
               and bounding every curve by hard
               caps on control points, degree and flattened segments.
             justification: |
@@ -195,6 +196,7 @@ sections:
               - Geometry_SplineGroup_FollowingRowContinuesFromLastControlPoint
               - Geometry_SplineKnotWithoutStart_ReportedAndSkipped
               - Geometry_SplineKnotBeforeMoveTo_ReportedAndSkipped
+              - Geometry_ContinuationRowBeforeMoveTo_ReportedAndSkipped
               - Geometry_SplineWithInvalidKnots_FallsBackToPolylineAndReports
               - Geometry_SplineDegreeOutOfRange_IsClampedWithoutThrowing
               - Geometry_SplineKnotsBeyondCap_AreTruncatedAndReported

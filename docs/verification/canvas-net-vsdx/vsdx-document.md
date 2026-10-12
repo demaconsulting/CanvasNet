@@ -203,6 +203,7 @@ as `vsdx-geometry-row-<Type>`.
 `Geometry_SplineGroup_FollowingRowContinuesFromLastControlPoint`,
 `Geometry_SplineKnotWithoutStart_ReportedAndSkipped`,
 `Geometry_SplineKnotBeforeMoveTo_ReportedAndSkipped`,
+`Geometry_ContinuationRowBeforeMoveTo_ReportedAndSkipped`,
 `Geometry_SplineWithInvalidKnots_FallsBackToPolylineAndReports`,
 `Geometry_SplineDegreeOutOfRange_IsClampedWithoutThrowing`,
 `Geometry_SplineKnotsBeyondCap_AreTruncatedAndReported`,

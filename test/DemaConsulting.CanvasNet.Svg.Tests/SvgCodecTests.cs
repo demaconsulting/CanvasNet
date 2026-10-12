@@ -4295,11 +4295,12 @@ public class SvgCodecTests
     [Fact]
     public void SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes()
     {
-        // Arrange: a filter chain of 499 no-op (unrecognized primitive name) children plus one
-        // trailing feFlood - 500 primitive-equivalent work units total - evaluated against a
+        // Arrange: a filter chain of 498 no-op (unrecognized primitive name) children plus one
+        // trailing feFlood - 499 primitive-equivalent work units, plus one content-buffer unit
+        // (500 charged surfaces in all) - evaluated against a
         // filter region sized (via explicit 250% width/height overrides on a 40x40 rect) to
         // exactly 100x100 pixels, so each individual application charges exactly
-        // 500 * 100 * 100 = 5,000,000 work units, precisely at (never over) the per-filter
+        // (499 + 1 content) * 100 * 100 = 5,000,000 work units, precisely at (never over) the per-filter
         // MaxFilterPrimitiveWorkUnits ceiling. The unknown primitives are cheap no-op passthrough steps
         // (no per-pixel work at all - see EvaluateFilterChain's remarks), and feFlood's own cost
         // is a single cheap fill over the small 100x100 region, so evaluating this filter even
@@ -4311,7 +4312,7 @@ public class SvgCodecTests
         // must tolerantly fall back to unfiltered rendering instead of throwing.
         const int shapeCount = 13;
         const int filteredShapeCount = 10;
-        var noOpPrimitives = string.Concat(Enumerable.Repeat("<feUnsupportedNoOp/>", 499));
+        var noOpPrimitives = string.Concat(Enumerable.Repeat("<feUnsupportedNoOp/>", 498));
         var rects = string.Concat(Enumerable.Range(0, shapeCount).Select(i =>
             $"<rect x='{10 + (i * 150)}' y='10' width='40' height='40' fill='blue' filter='url(#f)'/>"));
         var svg = $"""
@@ -5050,7 +5051,7 @@ public class SvgCodecTests
     public void SvgCodec_Load_GroupFilterReferencedByManyUsesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessUses()
     {
         // Arrange: identical filter-cost shape (a 40x40 rect, wrapped in a shared <g> target) and
-        // filter chain (499 no-op primitives + a trailing feFlood, region forced to exactly
+        // filter chain (498 no-op primitives + a trailing feFlood, region forced to exactly
         // 100x100 pixels) as the single-shape cumulative-budget test, but each of the 13
         // non-overlapping placements is a <use filter="url(#f)"> referencing the shared <g>
         // rather than a directly-filtered rect. The first 10 charge a running cumulative total of
@@ -5058,7 +5059,7 @@ public class SvgCodecTests
         // the total over budget and must tolerantly fall back to unfiltered rendering
         const int shapeCount = 13;
         const int filteredShapeCount = 10;
-        var noOpPrimitives = string.Concat(Enumerable.Repeat("<feUnsupportedNoOp/>", 499));
+        var noOpPrimitives = string.Concat(Enumerable.Repeat("<feUnsupportedNoOp/>", 498));
         var uses = string.Concat(Enumerable.Range(0, shapeCount).Select(i =>
             $"<use x='{10 + (i * 150)}' y='10' filter='url(#f)' href='#grp'/>"));
         var svg = $"""
@@ -5107,8 +5108,42 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves the work charge covers the filter pipeline's content buffer as well as every
+    ///     primitive output: a one-feFlood filter is charged two region areas (content + output) and a
+    ///     two-feFlood filter three, matching the surface counts (deterministic, no timing).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterCharge_IncludesContentBufferUnit()
+    {
+        // Arrange
+        const string one = "<svg viewBox='0 0 100 100'><defs><filter id='f'><feFlood flood-color='red'/></filter></defs>" +
+            "<rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/></svg>";
+        const string two = "<svg viewBox='0 0 100 100'><defs><filter id='f'><feFlood flood-color='red'/><feFlood flood-color='green'/></filter></defs>" +
+            "<rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/></svg>";
+
+        // Act
+        var oneDiagnostics = new SvgCodec.RenderDiagnostics();
+        using (var stream = ToStream(one))
+        {
+            SvgCodec.LoadWithDiagnostics(stream, 100, 100, oneDiagnostics);
+        }
+
+        var twoDiagnostics = new SvgCodec.RenderDiagnostics();
+        using (var stream = ToStream(two))
+        {
+            SvgCodec.LoadWithDiagnostics(stream, 100, 100, twoDiagnostics);
+        }
+
+        // Assert: charge = (primitives + 1) region areas, in step with the allocated surfaces
+        Assert.Equal(2, oneDiagnostics.EffectSurfacesAllocated);
+        Assert.Equal(3, twoDiagnostics.EffectSurfacesAllocated);
+        Assert.True(oneDiagnostics.WorkCharged > 0L);
+        Assert.Equal(oneDiagnostics.WorkCharged * 3, twoDiagnostics.WorkCharged * 2);
+    }
+
+    /// <summary>
     ///     Proves a chain of subregion primitives is charged for the extra region-sized clip copy each
-    ///     one allocates: the same three-primitive chain costs twice the work units with explicit
+    ///     one allocates: the same three-primitive chain costs 7/4 the work units with explicit
     ///     subregions as without (one clip copy per primitive), and the surface counter reports the
     ///     content buffer, each output and each clip copy (deterministic counts, no timing).
     /// </summary>
@@ -5155,8 +5190,9 @@ public class SvgCodecTests
         // Assert: content + 3 outputs without subregions; plus 3 clip copies with them
         Assert.Equal(4, plainDiagnostics.EffectSurfacesAllocated);
         Assert.Equal(7, subregionDiagnostics.EffectSurfacesAllocated);
+        // Work charged is (primitive units + 1 content unit) region areas: 4 plain, 7 with clip copies
         Assert.True(plainDiagnostics.WorkCharged > 0L);
-        Assert.Equal(plainDiagnostics.WorkCharged * 2, subregionDiagnostics.WorkCharged);
+        Assert.Equal(plainDiagnostics.WorkCharged * 7, subregionDiagnostics.WorkCharged * 4);
     }
 
     /// <summary>
