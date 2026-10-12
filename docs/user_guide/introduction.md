@@ -1289,7 +1289,12 @@ non-embedded font of any kind did before this fallback behavior existed. A shadi
 `/Extend` is honored per end (PDF 32000-1 §8.7.4.5.2): an extended end repeats its end color
 beyond the defining geometry, while a non-extended end (the default) paints nothing past it; the
 `sh` operator and generic path
-clipping (`W`/`W*`) are supported. **Documented scope
+clipping (`W`/`W*`) are supported. `/CalGray`, `/CalRGB` and `/Lab` color spaces are converted to
+sRGB through a CIE XYZ pipeline (note: `/CalRGB` was previously treated as plain `DeviceRGB`, so
+colors in such documents may now differ). `/ICCBased` spaces are resolved by their `/N` component
+count (or a matching `/Alternate`); the ICC profile data itself is not applied. An image in a `/Lab`
+color space with an explicit `/Decode` array fails closed (feature `pdf-image-lab-decode`).
+**Documented scope
 boundaries**: `/MMType1` fonts, function-based shadings (`/ShadingType 1`), `/FunctionType 4`
 (PostScript calculator) functions, transparency groups,
 and Type 3 glyphs shown under a clip text-rendering mode (`Tr 4`-`7`; clip modes with outline-based

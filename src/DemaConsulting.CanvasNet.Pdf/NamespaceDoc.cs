@@ -20,7 +20,8 @@ namespace DemaConsulting.CanvasNet.Pdf;
 /// <remarks>
 ///     <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> fully interprets a page's content stream:
 ///     vector path construction/painting with real device color (<c>DeviceGray</c>/
-///     <c>DeviceRGB</c>/<c>DeviceCMYK</c>, <c>CalRGB</c>, ICC-based, and <c>/Indexed</c> color
+///     <c>DeviceRGB</c>/<c>DeviceCMYK</c>, <c>CalGray</c>/<c>CalRGB</c>/<c>Lab</c> (converted through a CIE
+///     XYZ kernel), ICC-based (via <c>/N</c>/<c>/Alternate</c>; the profile data is not applied), and <c>/Indexed</c> color
 ///     spaces), text shown with a resolved font - simple <c>/Subtype /TrueType</c>/<c>/Type1</c>
 ///     fonts, composite <c>/Subtype /Type0</c> fonts, and procedure-painted <c>/Subtype /Type3</c>
 ///     fonts are all supported, with embedded font programs used directly and non-embedded simple

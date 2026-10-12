@@ -454,6 +454,7 @@ public sealed partial class PdfDocument
 
         var componentCount = ComponentCount(colorSpace);
         var indexed = colorSpace.Kind == PdfColorSpace.Family.Indexed;
+        RejectExplicitLabDecode(stream, colorSpace);
         if (indexed && bitsPerComponent == 16)
         {
             throw new UnsupportedImageFeatureException(
@@ -479,17 +480,62 @@ public sealed partial class PdfDocument
 
         var surface = new Surface(width, height);
         var rowBytes = componentCount * width;
+
+        // A 1-component image only has 256 possible sample values: convert each once (exact), so
+        // calibrated/gamma spaces are not recomputed per pixel. Multi-component CIE-based images
+        // memoize the previous pixel, since neighboring samples are frequently identical.
+        var lut = componentCount == 1 ? BuildSampleLookup(colorSpace) : null;
+        var memoizing = componentCount > 1 && colorSpace.Kind is PdfColorSpace.Family.CalRGB or PdfColorSpace.Family.Lab;
+        var previousOffset = -1;
+        var previousColor = default(Rgba32);
         for (var y = 0; y < height; y++)
         {
             var rowOffset = y * rowBytes;
             for (var x = 0; x < width; x++)
             {
                 var pixelOffset = rowOffset + (x * componentCount);
-                surface[x, y] = SamplesToColor(colorSpace, samples, pixelOffset, componentCount);
+                if (lut is not null)
+                {
+                    if (pixelOffset >= samples.Length)
+                    {
+                        throw new InvalidDataException("Image XObject sample data is truncated.");
+                    }
+
+                    surface[x, y] = lut[samples[pixelOffset]];
+                    continue;
+                }
+
+                if (memoizing && previousOffset >= 0 && pixelOffset + componentCount <= samples.Length
+                    && samples.AsSpan(pixelOffset, componentCount).SequenceEqual(samples.AsSpan(previousOffset, componentCount)))
+                {
+                    surface[x, y] = previousColor;
+                    continue;
+                }
+
+                var color = SamplesToColor(colorSpace, samples, pixelOffset, componentCount);
+                surface[x, y] = color;
+                previousOffset = pixelOffset;
+                previousColor = color;
             }
         }
 
-        return new DecodedImage(surface, componentCount == 1 && !indexed);
+        return new DecodedImage(surface, colorSpace.Kind == PdfColorSpace.Family.DeviceGray);
+    }
+
+    /// <summary>
+    ///     Builds the exact 256-entry sample-to-color table of a single-component color space.
+    /// </summary>
+    private static Rgba32[] BuildSampleLookup(PdfColorSpace colorSpace)
+    {
+        var table = new Rgba32[256];
+        var one = new byte[1];
+        for (var i = 0; i < table.Length; i++)
+        {
+            one[0] = (byte)i;
+            table[i] = SamplesToColor(colorSpace, one, 0, 1);
+        }
+
+        return table;
     }
 
     /// <summary>The decoder limits for JPX images: the renderer's maximum image dimensions.</summary>
@@ -593,6 +639,7 @@ public sealed partial class PdfDocument
         }
 
         var indexed = colorSpace.Kind == PdfColorSpace.Family.Indexed;
+        RejectExplicitLabDecode(stream, colorSpace);
         var samples = jp2.ColorSamples;
         var useAlpha = smaskInData != 0 && jp2.AlphaSamples is not null && stream.Get("SMask") is null;
         if (useAlpha && smaskInData == 2)
@@ -630,7 +677,7 @@ public sealed partial class PdfDocument
             surface[i % jp2.Width, i / jp2.Width] = color;
         }
 
-        return new DecodedImage(surface, componentCount == 1 && !indexed);
+        return new DecodedImage(surface, colorSpace.Kind == PdfColorSpace.Family.DeviceGray);
     }
 
     /// <summary>
@@ -882,7 +929,7 @@ public sealed partial class PdfDocument
             }
         }
 
-        return new DecodedImage(surface, !indexed);
+        return new DecodedImage(surface, colorSpace.Kind == PdfColorSpace.Family.DeviceGray);
     }
 
     /// <summary>
@@ -911,7 +958,27 @@ public sealed partial class PdfDocument
             components[i] = decoded[offset + i] / 255.0;
         }
 
-        return ColorFromComponentSpan(colorSpace, components);
+        return ColorFromNormalizedSpan(colorSpace, components);
+    }
+
+    /// <summary>
+    ///     Rejects an explicit <c>/Decode</c> array on a <c>Lab</c> image: <c>Lab</c>'s default
+    ///     decode is <c>[0 100 amin amax bmin bmax]</c> rather than the identity, so an explicit
+    ///     array would need conversion into the normalized-sample convention; that is not
+    ///     implemented and fails closed instead of risking silently wrong colors.
+    /// </summary>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown (feature <c>pdf-image-lab-decode</c>) when <paramref name="colorSpace"/> is
+    ///     <c>Lab</c> and <paramref name="stream"/> has a <c>/Decode</c> entry.
+    /// </exception>
+    private static void RejectExplicitLabDecode(PdfObject stream, PdfColorSpace colorSpace)
+    {
+        if (colorSpace.Kind == PdfColorSpace.Family.Lab && stream.Get("Decode") is not null)
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-image-lab-decode",
+                "An explicit /Decode array on a /Lab image is not supported.");
+        }
     }
 
     /// <summary>

@@ -88,7 +88,8 @@ public sealed partial class PdfDocument
     ///     Thrown when <c>/ShadingType</c> is not <c>2</c>-<c>7</c> (feature
     ///     <c>pdf-shading-type-{n}</c>), when the resolved <c>/ColorSpace</c>'s family is not
     ///     <c>DeviceGray</c>/<c>DeviceRGB</c>/<c>DeviceCMYK</c> (feature
-    ///     <c>pdf-shading-colorspace-{family}</c>), or propagated from
+    ///     <c>pdf-shading-colorspace-{family}</c>) - the device spaces and the CIE-based
+    ///     <c>CalGray</c>/<c>CalRGB</c>/<c>Lab</c> spaces are accepted - or propagated from
     ///     <see cref="ResolveColorSpaceValue"/>/<see cref="ResolveFunctionOrFunctionArray"/> for
     ///     their own documented unsupported-feature cases.
     /// </exception>
@@ -106,12 +107,13 @@ public sealed partial class PdfDocument
             ?? throw new InvalidDataException("/Shading is missing required /ColorSpace.");
         var colorSpace = ResolveColorSpaceValue(Resolve(colorSpaceEntry));
         if (colorSpace.Kind is not (
-            PdfColorSpace.Family.DeviceGray or PdfColorSpace.Family.DeviceRGB or PdfColorSpace.Family.DeviceCMYK))
+            PdfColorSpace.Family.DeviceGray or PdfColorSpace.Family.DeviceRGB or PdfColorSpace.Family.DeviceCMYK
+                or PdfColorSpace.Family.CalGray or PdfColorSpace.Family.CalRGB or PdfColorSpace.Family.Lab))
         {
             throw new UnsupportedImageFeatureException(
                 $"pdf-shading-colorspace-{colorSpace.Kind}",
-                $"Shading /ColorSpace family '{colorSpace.Kind}' is not supported; only DeviceGray, " +
-                "DeviceRGB, and DeviceCMYK are supported.");
+                $"Shading /ColorSpace family '{colorSpace.Kind}' is not supported; only the device and " +
+                "CIE-based (CalGray, CalRGB, Lab) color spaces are supported.");
         }
 
         // /BBox (PDF 32000-1 §8.7.4.3) is only meaningful to sh (see ShadingDescriptor's own

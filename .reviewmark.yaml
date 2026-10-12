@@ -780,6 +780,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.GraphicsState.cs"  # phase 2 unit source (graphics state)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.PathOps.cs"        # phase 2 unit source (path ops)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Color.cs"          # phase 3 unit source (device color)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.ColorKernel.cs"    # CIE color kernel (CalGray/CalRGB/Lab)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Filters.cs"        # phase 3 unit source (filter pipeline)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Filters.Lzw.cs"       # phase 7 unit source (filters)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Filters.Ascii.cs"     # phase 7 unit source (filters)
@@ -804,6 +805,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pdf/NamespaceDoc.cs"             # Pdf namespace documentation
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentMeshShadingTests.cs"  # mesh shading unit tests
+      - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentColorSpaceTests.cs"  # calibrated color tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentJpxTests.cs"  # JPXDecode/SMask unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentThinRuleInkTests.cs"  # thin-rule ink unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentImageDownscaleTests.cs"  # image downscale unit tests

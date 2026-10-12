@@ -643,9 +643,9 @@ its own distinguishable `Feature` token.
   (`ResolveColorSpaceByName`), resetting color to opaque black (the PDF specification's own
   documented `cs`/`CS` reset rule) — an array-shaped color space is dispatched by
   `ResolveColorSpaceValue` to `ResolveIccBasedColorSpace` (`/ICCBased`) or
-  `ResolveIndexedColorSpace` (`/Indexed`, Phase 14 — see below), or resolved directly to
-  `DeviceRGB` for `[/CalRGB dict]` (ignoring its own `/WhitePoint`/`/Gamma`/`/Matrix` entries); any
-  other resolved color space (`Separation`/`DeviceN`/`CalGray`/`Lab`, or an undeclared name) throws
+  `ResolveIndexedColorSpace` (`/Indexed`, Phase 14 — see below), or `ResolveCalibratedColorSpace`
+  (`[/CalGray dict]`, `[/CalRGB dict]`, `[/Lab dict]`, see the calibrated bullet below); any
+  other resolved color space (`Separation`/`DeviceN`, or an undeclared name) throws
   `Codecs.UnsupportedImageFeatureException`, naming the unsupported space; a `/Pattern` array
   form is dispatched instead to `PdfColorSpace.Pattern` (see _`/Pattern` Color Space (Shading and
   Tiling Patterns)_ below). `OpSetColorFill`/`OpSetColorStroke` (`sc`/`SC`/`scn`/`SCN`) require
@@ -654,17 +654,33 @@ its own distinguishable `Feature` token.
   specification never pairs with a pattern name) to the dedicated pattern-operand path described
   below. Every malformed operand count/type throws `InvalidDataException`, matching every other
   operator in this class.
-  - **`/ICCBased`/`/Indexed` color-space resolution (`PdfDocument.Color.cs`, Phase 14 — this
-    phase)** — `ResolveIccBasedColorSpace` validates a 2-element `[/ICCBased streamRef]` array
+  - **Calibrated color spaces (`PdfDocument.Color.cs`/`PdfDocument.ColorKernel.cs`, M2)** —
+    `ResolveCalibratedColorSpace` requires a 2-element array whose second element is a
+    dictionary with a `/WhitePoint` of 3 positive finite numbers (missing or malformed throws
+    `InvalidDataException`); `/Gamma` (1 number for `CalGray`, 3 for `CalRGB`, default 1),
+    `/Matrix` (9 numbers, default identity) and `/Range` (`Lab`, default `[-100 100 -100 100]`)
+    are validated. The static kernel converts through CIE XYZ, adapting the declared white point
+    to D65 with a Bradford matrix and then applying the XYZ-to-linear-sRGB matrix and sRGB
+    transfer function; Lab uses the standard inverse f-function. Two unit conventions apply:
+    operator operands and function/shading outputs are in natural units (Lab `L` 0–100, `a`/`b`
+    per `/Range`), while image samples and `/Indexed` palette bytes are normalized (`v/255`) and
+    rescaled for Lab by `ColorFromNormalizedSpan`. An explicit `/Decode` on a Lab image fails closed
+    (`pdf-image-lab-decode`) because its default decode is not the identity. 1-component raw images use a
+    256-entry lookup table and CalRGB/Lab images memoize the previous pixel. Only a
+    `DeviceGray` image is accepted as an `/SMask`. ICC profile data is never applied.
+  - **`/ICCBased`/`/Indexed` color-space resolution (`PdfDocument.Color.cs`, Phase 14; `/N`
+    authoritative since M2)** — `ResolveIccBasedColorSpace` validates a 2-element `[/ICCBased streamRef]` array
     whose 2nd element resolves to a stream (else `Codecs.UnsupportedImageFeatureException` — a
     malformed-but-still-rejected-as-unsupported case, not `InvalidDataException`, matching this
-    color space's own "well-formed PDF, out-of-scope feature" posture), then prefers the stream's
-    `/Alternate` entry when present and itself resolves (via a recursive `ResolveColorSpaceValue`
-    call) to a supported color space, deliberately catching only
-    `Codecs.UnsupportedImageFeatureException` from that recursive call to fall back to `/N`-based
-    resolution (an `InvalidDataException` from a structurally malformed `/Alternate` is allowed to
-    propagate unmodified — a different, non-swallowed failure class) — falling back maps the
-    stream's `/N` (`1`/`3`/`4`) to `DeviceGray`/`DeviceRGB`/`DeviceCMYK`, else throws
+    color space's own "well-formed PDF, out-of-scope feature" posture). A valid `/N` (`1`/`3`/`4`)
+    is authoritative: the stream's `/Alternate` is used only when it resolves (via a recursive
+    `ResolveColorSpaceValue` call) to a non-Indexed, non-Pattern space whose `ComponentCount`
+    equals `/N` (or when `/N` is absent or invalid, in which case a usable `/Alternate` is used
+    as-is), deliberately catching only
+    `Codecs.UnsupportedImageFeatureException` from that recursive call (an
+    `InvalidDataException` from a structurally malformed `/Alternate` is allowed to
+    propagate unmodified — a different, non-swallowed failure class); otherwise `/N` maps to
+    `DeviceGray`/`DeviceRGB`/`DeviceCMYK`, else throws
     `Codecs.UnsupportedImageFeatureException`. `ResolveIndexedColorSpace` validates a 4-element
     `[/Indexed baseSpace hival lookup]` array (else `InvalidDataException` — a wrong array shape
     is structurally malformed PDF, unlike `/ICCBased`'s own convention), resolves `baseSpace`
@@ -1583,7 +1599,7 @@ change behavior for any document within normal real-world limits.
   Interpreter_ above); an unbalanced `Q` with no matching prior `q` is likewise tolerated as a
   documented no-op, not an error.
 - **An unsupported color space** (`cs`/`CS`, or an image XObject's `/ColorSpace`:
-  `Separation`/`DeviceN`/`CalGray`/`Lab`, an undeclared `/Resources/ColorSpace` name, an
+  `Separation`/`DeviceN`, an undeclared `/Resources/ColorSpace` name, an
   `/ICCBased` stream whose `/N` is not `1`/`3`/`4` with no usable `/Alternate`, an `/Indexed` color
   space whose base color space is itself unsupported, a `/Pattern` array form with an element
   count other than 1 or 2 (feature `pdf-colorspace-Pattern`), or any other unrecognized value) —

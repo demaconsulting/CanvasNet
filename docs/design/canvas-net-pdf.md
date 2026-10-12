@@ -109,7 +109,7 @@ and `/FunctionType 4` (PostScript calculator) functions fail closed; the `sh` op
 path clipping (`W`/`W*`) are supported; no
 `/Mask`/`/Matte` image masks or transparency groups (an explicit `/SMask` and JPEG 2000
 alpha are applied); `CCITTFaxDecode` - Group 4 (T.6 MMR) only - is supported and `JPXDecode`
-is decoded; `/Separation`/`/DeviceN`/`/CalGray`/`/Lab` color spaces remain unsupported and fail
+is decoded; `/Separation`/`/DeviceN` color spaces remain unsupported and fail
 closed; and an encrypted document using any security handler, crypt-filter method, `/V`/`/R`
 combination other than the ones listed above, or whose correct password is not supplied, fails
 closed rather than being decrypted. These remain out of scope and are planned for later phases
@@ -307,7 +307,10 @@ to clip its content and its `/Group` transparency-group entry is never consulted
 content simply paints unclipped). Phase 14 replaced the color-space model: `/CalRGB`, `/ICCBased`
 (resolved via its `/N` or `/Alternate`, feature `"pdf-colorspace-ICCBased"` for an unsupported
 shape), and `/Indexed` (a palette lookup over any supported base space) are all now supported,
-narrowing the unsupported-color-space set to `Separation`/`DeviceN`/`CalGray`/`Lab` (feature
+narrowing the unsupported-color-space set to `Separation`/`DeviceN` (`/CalGray`, `/CalRGB` and `/Lab`
+are now converted to sRGB through a CIE XYZ kernel with Bradford adaptation — see
+`PdfDocument.ColorKernel.cs`; ICC profile data is never applied, only `/N`/`/Alternate`; an image in a
+`/Lab` color space with an explicit `/Decode` fails closed, feature `"pdf-image-lab-decode"`) (feature
 `"pdf-colorspace-{name}"`); the same phase introduced the `/Pattern` color space and `scn`/`SCN`
 pattern operands (an undeclared pattern name, feature `"pdf-pattern-not-declared"`; an
 unsupported `/PatternType`, feature `"pdf-pattern-type-{n}"`; a malformed `/Pattern` array shape,
@@ -335,7 +338,7 @@ crypt filter), `pdf-encrypted-r-{revision}`,
 `pdf-encrypted-v-{version}`, `pdf-encrypted-password-required` (a `null` password when a
 non-empty one is genuinely required), `pdf-encrypted-incorrect-password`,
 `pdf-encrypted-password-non-ascii` (an R2-R4 password outside ASCII 0-127),
-`pdf-colorspace-{name}` (`Separation`/`DeviceN`/`CalGray`/`Lab`), `pdf-colorspace-Pattern`,
+`pdf-colorspace-{name}` (`Separation`/`DeviceN`), `pdf-image-lab-decode`, `pdf-colorspace-Pattern`,
 `pdf-colorspace-ICCBased`, `pdf-filter-{name}` (any unrecognized filter),
 `pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}` (a depth other than 1/2/4/8/16, or a 16-bit `/Indexed` image),
 `pdf-jpx-colorspace` (a JPX image of a channel count with no device color space without `/ColorSpace`),

@@ -120,6 +120,31 @@ public class PdfFixtureTests
     }
 
     /// <summary>
+    ///     Proves <c>color-spaces-calibrated.pdf</c> (<c>CalGray</c>/<c>CalRGB</c>/<c>Lab</c> swatches)
+    ///     paints a neutral mid gray, an sRGB-primary blue and a green-dominant Lab color.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Load_CalibratedColorSpacesFixture_PaintsConvertedSwatches()
+    {
+        // Arrange & Act
+        using var document = PdfDocument.Open(Fixture("color-spaces-calibrated.pdf"));
+        using var surface = document.Render(0, 100, 100, Transparent);
+
+        // Assert: CalGray 0.5 (gamma 2.2) is a neutral mid gray; CalRGB 0 0 1 with sRGB primaries is
+        // blue; Lab 70 -50 60 is green-dominant.
+        var gray = surface[17, 40];
+        Assert.InRange(gray.R, 120, 135);
+        Assert.Equal(gray.R, gray.G);
+        Assert.Equal(gray.R, gray.B);
+
+        var blue = surface[50, 40];
+        Assert.True(blue.B >= 254 && blue.R <= 1 && blue.G <= 1);
+
+        var green = surface[82, 40];
+        Assert.True(green.G > green.R && green.G > green.B && green.A == 255);
+    }
+
+    /// <summary>
     ///     Proves <c>image-xobject-devicergb-flate.pdf</c> (Phase 3 <c>/Subtype /Image</c> XObject)
     ///     renders a visible, non-transparent painted region.
     /// </summary>

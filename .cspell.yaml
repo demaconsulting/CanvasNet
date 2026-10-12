@@ -18,6 +18,10 @@ words:
   - subtables
   - bilinearly
   - stackalloc
+  - Lindbloom
+  - amax
+  - bmin
+  - bmax
   - prefilter
   - prefiltered
   - resampler

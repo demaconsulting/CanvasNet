@@ -851,8 +851,8 @@ asserting `InvalidDataException` in every case.
 `PdfDocument_Color_SetColorFillUsingCurrentColorSpace_Sc_PaintsExpectedColor`,
 `PdfDocument_Color_SetColorStrokeUsingCurrentColorSpace_SC_PaintsExpectedColor`,
 `PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException` (`[Theory]`:
-Separation/DeviceN/ICCBased/CalGray/Lab),
-`PdfDocument_Color_CalRgbColorSpace_ResolvesToDeviceRgb`,
+Separation/DeviceN/ICCBased),
+`PdfDocument_Color_CalRgbColorSpace_AppliesCalibration`,
 `CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels`
 
 Renders a red-filled rectangle, then a `cs`/`CS` device-name switch (asserted, for all three
@@ -872,24 +872,67 @@ longer a fail-closed case - a `/Pattern` color space resolves and paints the nam
 *CanvasNetPdf-PdfDocument-TilingPatternFill* below for that coverage (including the still-rejected
 malformed/undeclared/unsupported-pattern-type shapes).
 
-#### CanvasNetPdf-PdfDocument-IccBasedColorSpace: /ICCBased Resolves via /Alternate or /N, Fails Closed Otherwise
+#### CanvasNetPdf-PdfDocument-IccBasedColorSpace: /ICCBased Resolves via /N (Matching /Alternate Kept)
 
 **Tests**: `PdfDocument_Color_IccBasedN3_ResolvesAsDeviceRgb`,
 `PdfDocument_Color_IccBasedWithAlternate_PrefersAlternateOverN`,
-`PdfDocument_Color_IccBasedUnsupportedN_ThrowsUnsupportedImageFeatureException`
+`PdfDocument_Color_IccBasedUnsupportedN_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_ColorSpace_IccBased_BogusN_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_ColorSpace_IccBased_N1AndN4_ResolveAsDeviceSpaces`,
+`PdfDocument_ColorSpace_IccBased_NMismatchesAlternate_PrefersN`,
+`PdfDocument_ColorSpace_IccBased_LabAlternateWithN3_UsesLab`,
+`PdfDocument_ColorSpace_IccBased_CalGrayAlternateWithN1_UsesCalGray`
+
+The first three tests below were written for the pre-M2 rule; since M2 `/N` is authoritative and
+an `/Alternate` is honored only when its component count matches (the `/N 3 /Alternate /DeviceRGB`
+case still resolves via the alternate; a mismatching alternate is ignored, covered by
+`..._NMismatchesAlternate_PrefersN`). The M2 tests cover `/N 1`/`/N 4` with no alternate, a bogus
+`/N 2` (fails closed), and Lab/CalGray alternates whose component count matches `/N`.
 
 Declares `/CS0 [/ICCBased 5 0 R]` in `/Resources/ColorSpace`, where object `5` is a stream whose
 dictionary is `<< /N 3 >>` (no `/Alternate`); selects it via `cs` and paints via `scn` with 3
 operands, asserting the painted pixel matches exactly what `DeviceRGB` would paint - proving `/N
 3` resolves as `DeviceRGB` (including that `scn`'s own operand-count validation reused
 `ComponentCount` correctly for the resolved space, not the array's own shape). Repeats with
-object `5`'s dictionary as `<< /N 1 /Alternate /DeviceRGB >>` (an /N that implies `DeviceGray`,
-1 component, deliberately contradicting the /Alternate): `scn` with 3 operands succeeds and paints
-red, which is only possible if `/Alternate` won over `/N` (had `/N` been used instead, 3 operands
-would mismatch the expected 1 and throw `InvalidDataException`), making the precedence
-deterministically auditable. Declares object `5`'s dictionary as `<< /N 2 >>` (no `/Alternate`,
+object `5`'s dictionary as `<< /N 3 /Alternate /DeviceRGB >>` (matching component count):
+`scn` with 3 operands succeeds and paints red via the alternate. Declares object `5`'s dictionary as `<< /N 2 >>` (no `/Alternate`,
 and `2` maps to no device color space); asserts `cs` throws
 `Codecs.UnsupportedImageFeatureException`.
+
+#### CanvasNetPdf-PdfDocument-CalibratedColorSpaces: CalGray/CalRGB/Lab Convert to sRGB, Lab /Decode Fails Closed
+
+**Tests**: `PdfDocument_Color_CalRgbColorSpace_AppliesCalibration`,
+`PdfDocument_ColorSpace_CalGray_EndpointsExactAndMidFollowsGamma`,
+`PdfDocument_ColorSpace_CalGray_StrokeOperators_UseConversion`,
+`PdfDocument_ColorSpace_CalRgb_SrgbPrimaries_MatchDeviceRgb`,
+`PdfDocument_ColorSpace_CalRgb_LinearGamma_AppliesSrgbTransferFunction`,
+`PdfDocument_ColorSpace_Lab_WhiteAndBlack_MapExactly`,
+`PdfDocument_ColorSpace_Lab_ChromaticColor_MatchesReference`,
+`PdfDocument_ColorSpace_Lab_OutOfRangeAB_ClampsToRange`,
+`PdfDocument_ColorSpace_CalibratedSpaces_InitialColorIsBlack`,
+`PdfDocument_ColorSpace_MalformedCalibratedDictionary_ThrowsInvalidDataException`,
+`PdfDocument_ColorSpace_LabImage_DefaultDecode_MapsNormalizedSamples`,
+`PdfDocument_ColorSpace_LabImage_ChromaticSample_MatchesReference`,
+`PdfDocument_ColorSpace_LabImage_ExplicitDecode_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_ColorSpace_CalGrayImage_ConvertsSamplesLikeOperator`,
+`PdfDocument_ColorSpace_CalRgbImage_SrgbPrimaries_MatchesDeviceRgbEndpoints`,
+`PdfDocument_ColorSpace_CalGrayImage_AsSoftMask_ThrowsInvalidDataException`,
+`PdfDocument_ColorSpace_DeviceGrayImage_AsSoftMask_StillApplies`,
+`PdfDocument_ColorSpace_IndexedOverLab_Scn_NormalizesPaletteBytes`,
+`PdfDocument_ColorSpace_IndexedOverCalRgb_Image_ConvertsPalette`,
+`PdfDocument_ColorSpace_AxialShadingInLab_InterpolatesNaturalUnits`,
+`PdfDocument_Load_CalibratedColorSpacesFixture_PaintsConvertedSwatches`
+
+All tests are in `PdfDocumentColorSpaceTests.cs` except the CalRgb test (`PdfDocumentTests.cs`) and
+the fixture test (`PdfFixtureTests.cs`, using `color-spaces-calibrated.pdf`). Lab white/black and
+CalGray endpoints are asserted exactly; chromatic Lab colors are compared (within ±2) with an
+independent reference computed from published (Lindbloom) constants; CalRGB with sRGB primaries is
+compared (±1) with DeviceRGB, and linear gamma 0.5 yields 188. Raw image paths are checked against
+the operator path, including the 1-component lookup table and the CalRGB/Lab previous-pixel memo.
+A Lab image with any explicit `/Decode` throws `UnsupportedImageFeatureException` (feature
+`pdf-image-lab-decode`); malformed dictionaries (missing `/WhitePoint`, bad `/Gamma`, `/Matrix`,
+`/Range`) throw `InvalidDataException`; a CalGray image used as an `/SMask` is rejected while a
+DeviceGray one is still applied. No timing assertions are used.
 
 #### CanvasNetPdf-PdfDocument-IndexedColorSpace: /Indexed Resolves as a Palette Lookup, Clamps Out-of-Range Indices
 

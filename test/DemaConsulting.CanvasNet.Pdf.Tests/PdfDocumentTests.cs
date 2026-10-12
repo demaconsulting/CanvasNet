@@ -5630,8 +5630,6 @@ public class PdfDocumentTests
     [InlineData("[/Separation /Spot /DeviceGray 4 0 R]")]
     [InlineData("[/DeviceN [/Spot] /DeviceGray 4 0 R]")]
     [InlineData("[/ICCBased 4 0 R]")]
-    [InlineData("[/CalGray << >>]")]
-    [InlineData("[/Lab << >>]")]
     public void PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException(string colorSpaceArray)
     {
         // Arrange: an unused placeholder function stream, referenced only when the color space
@@ -5694,16 +5692,14 @@ public class PdfDocumentTests
     }
 
     /// <summary>
-    ///     Proves that a <c>[/CalRGB dict]</c> color space resolves/paints identically to
-    ///     <c>DeviceRGB</c>, ignoring its own <c>/WhitePoint</c>/<c>/Gamma</c>/<c>/Matrix</c>
-    ///     entries entirely - a corpus-observed gap (PDFTest's <c>sample01</c>-<c>sample08.pdf</c>
-    ///     and <c>pdf-sample.pdf</c> all declare page content color spaces this way).
+    ///     Proves that a <c>[/CalRGB dict]</c> color space is converted through its
+    ///     <c>/WhitePoint</c>/<c>/Gamma</c>/<c>/Matrix</c> (no longer ignored as <c>DeviceRGB</c>):
+    ///     a non-trivial space paints a color different from the same operands in <c>DeviceRGB</c>.
     /// </summary>
     [Fact]
-    public void PdfDocument_Color_CalRgbColorSpace_ResolvesToDeviceRgb()
+    public void PdfDocument_Color_CalRgbColorSpace_AppliesCalibration()
     {
-        // Arrange: a /CalRGB color space declaring a non-trivial /WhitePoint/Gamma/Matrix, which
-        // this renderer deliberately ignores (see ResolveColorSpaceValue's own remarks).
+        // Arrange: a /CalRGB color space declaring a non-trivial /WhitePoint/Gamma/Matrix.
         var bytes = BuildSinglePagePdfWithResources(
             100,
             100,
@@ -5715,19 +5711,21 @@ public class PdfDocumentTests
         // Act
         using var surface = RenderPdfBytes(bytes);
 
-        // Assert: 3 operands were accepted (CalRGB's component count matches DeviceRGB's) and
-        // the fill painted blue, exactly like DeviceRGB would.
-        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[50, 50]);
+        // Assert: 3 operands were accepted and the fill is a blue-dominant color that is not
+        // identical to the DeviceRGB result (the matrix is not exactly the sRGB primaries).
+        var pixel = surface[50, 50];
+        Assert.True(pixel.B > 200 && pixel.R < 60);
+        Assert.NotEqual(new Canvas.Rgba32(0, 0, 255, 255), pixel);
     }
 
-    /// <summary>Proves that an <c>/ICCBased</c> color space prefers a present, supported <c>/Alternate</c> over its own <c>/N</c>.</summary>
+    /// <summary>Proves that an <c>/ICCBased</c> color space prefers a present, supported <c>/Alternate</c> over its own <c>/N</c> when their component counts agree.</summary>
     [Fact]
     public void PdfDocument_Color_IccBasedWithAlternate_PrefersAlternateOverN()
     {
-        // Arrange: object 5 declares /N 1 (DeviceGray, 1 component) but /Alternate /DeviceRGB (3
-        // components). Supplying 3 operands to 'scn' only succeeds if /Alternate won: had /N been
-        // used instead, 3 operands would mismatch the expected 1 and throw InvalidDataException.
-        var iccStream = BuildStreamObjectBody("/N 1 /Alternate /DeviceRGB", [0x00]);
+        // Arrange: object 5 declares /N 3 and /Alternate /DeviceRGB (3 components, agreeing). A
+        // 3-operand 'scn' paints red through the alternate; a mismatching /Alternate is covered by
+        // the /N-authoritative test in PdfDocumentColorSpaceTests.
+        var iccStream = BuildStreamObjectBody("/N 3 /Alternate /DeviceRGB", [0x00]);
         var bytes = BuildSinglePagePdfWithResources(
             100,
             100,
@@ -7585,10 +7583,10 @@ public class PdfDocumentTests
     [Fact]
     public void PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException()
     {
-        // Arrange: /Lab remains unsupported (unlike /CalRGB - see
-        // PdfDocument_Color_CalRgbColorSpace_ResolvesToDeviceRgb).
+        // Arrange: /Separation remains unsupported (unlike /CalRGB, /CalGray and /Lab - see
+        // PdfDocumentColorSpaceTests).
         var imageStream = BuildStreamObjectBody(
-            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [/Lab << >>] /BitsPerComponent 8 /Filter /FlateDecode",
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [/Separation /Spot /DeviceGray << /FunctionType 2 /Domain [0 1] /N 1 >>] /BitsPerComponent 8 /Filter /FlateDecode",
             ZlibCompress([0x00]));
 
         var bytes = BuildSinglePagePdfWithResources(

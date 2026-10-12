@@ -204,6 +204,7 @@ sections:
           - CanvasNetPdf-PdfDocument-FunctionType0
           - CanvasNetPdf-PdfDocument-FunctionType2And3
           - CanvasNetPdf-PdfDocument-IccBasedColorSpace
+          - CanvasNetPdf-PdfDocument-CalibratedColorSpaces
           - CanvasNetPdf-PdfDocument-IndexedColorSpace
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels
