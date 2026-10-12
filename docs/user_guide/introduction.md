@@ -1292,7 +1292,12 @@ beyond the defining geometry, while a non-extended end (the default) paints noth
 stitching-function boundaries render as sharp transitions, and a mesh shading's `/Function` is
 applied to the interpolated parametric value (through a 4096-entry color table whose entries are
 each converted from the function output at their exact parameter, so nonlinear color spaces are
-converted after evaluation); the
+converted after evaluation). A function-less mesh in `/CalGray`, `/CalRGB` or `/Lab` interpolates the
+vertex components in that space and converts per pixel; other mesh color spaces (including
+`/DeviceCMYK`, `/Separation`, `/DeviceN`) convert each vertex first and blend the RGB result, an
+approximation. Axial and radial shadings convert up to 256 samples exactly and blend only between
+adjacent samples (within about 3 color levels of direct conversion for `/Lab`). A non-integral
+`/N` of an `/ICCBased` space or `/Hival` of an `/Indexed` space is rejected as malformed. The
 `sh` operator and generic path
 clipping (`W`/`W*`) are supported. Device, `/CalGray`, `/CalRGB`, `/Lab`, `/ICCBased`, `/Indexed`,
 `/Separation`, `/DeviceN` and `/Pattern` color spaces are supported; `/CalGray`, `/CalRGB` and `/Lab`

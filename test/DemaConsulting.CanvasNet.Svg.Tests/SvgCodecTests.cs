@@ -5107,6 +5107,59 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves a chain of subregion primitives is charged for the extra region-sized clip copy each
+    ///     one allocates: the same three-primitive chain costs twice the work units with explicit
+    ///     subregions as without (one clip copy per primitive), and the surface counter reports the
+    ///     content buffer, each output and each clip copy (deterministic counts, no timing).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_SubregionPrimitiveChain_ChargesClipCopies()
+    {
+        // Arrange: identical three-primitive chains, one with subregions and one without
+        const string plain = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feOffset dx='1' dy='0'/><feOffset dx='1' dy='0'/><feOffset dx='1' dy='0'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+        const string subregions = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feOffset dx='1' dy='0' x='0' y='0' width='100' height='100'/>
+                  <feOffset dx='1' dy='0' x='0' y='0' width='100' height='100'/>
+                  <feOffset dx='1' dy='0' x='0' y='0' width='100' height='100'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        var plainDiagnostics = new SvgCodec.RenderDiagnostics();
+        using (var stream = ToStream(plain))
+        {
+            SvgCodec.LoadWithDiagnostics(stream, 100, 100, plainDiagnostics);
+        }
+
+        var subregionDiagnostics = new SvgCodec.RenderDiagnostics();
+        using (var stream = ToStream(subregions))
+        {
+            SvgCodec.LoadWithDiagnostics(stream, 100, 100, subregionDiagnostics);
+        }
+
+        // Assert: content + 3 outputs without subregions; plus 3 clip copies with them
+        Assert.Equal(4, plainDiagnostics.EffectSurfacesAllocated);
+        Assert.Equal(7, subregionDiagnostics.EffectSurfacesAllocated);
+        Assert.True(plainDiagnostics.WorkCharged > 0L);
+        Assert.Equal(plainDiagnostics.WorkCharged * 2, subregionDiagnostics.WorkCharged);
+    }
+
+    /// <summary>
     ///     Proves <c>EffectSurfacesAllocated</c> counts every effects-pipeline surface: the content
     ///     buffer, the clip-path coverage buffer, the mask source buffer and each filter
     ///     primitive's output buffer (deterministic counts, no timing).

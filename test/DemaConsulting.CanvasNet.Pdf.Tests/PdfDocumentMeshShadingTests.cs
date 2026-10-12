@@ -890,6 +890,34 @@ public class PdfDocumentMeshShadingTests
     }
 
     /// <summary>
+    ///     Proves that a function-less mesh in a nonlinear color space interpolates the vertex
+    ///     components in that space and converts per pixel: halfway between L* = 0 and L* = 100 the
+    ///     color is L* = 50 (about 119 gray), not the 128 a blend of already converted vertex colors gives.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_MeshShading_LabColorSpace_InterpolatesComponentsBeforeConversion()
+    {
+        // Arrange: L* is 0 on the bottom edge and 100 at the apex, so L* = 50 at (50, 50).
+        var format = new Fmt(16, 16, 8);
+        var entries = Entries(
+            4,
+            compBits: "16",
+            colorSpace: "[/Lab << /WhitePoint [0.9505 1.0 1.089] /Range [-128 127 -128 127] >>]",
+            decode: "[0 100 0 100 0 100 -128 127 -128 127]");
+        var p = new BitPacker();
+        WriteVertex(p, format, 0, 10, 10, 0, 0.50196, 0.50196);
+        WriteVertex(p, format, 0, 90, 10, 0, 0.50196, 0.50196);
+        WriteVertex(p, format, 0, 50, 90, 1, 0.50196, 0.50196);
+
+        // Act
+        using var surface = RenderMesh(4, p.ToArray(), entries: entries);
+
+        // Assert: converting the interpolated components gives ~119; blending converted colors would give 128.
+        var pixel = At(surface, 50, 50);
+        AssertNear(pixel, 119, 119, 119, 3);
+    }
+
+    /// <summary>
     ///     Proves that a function-based mesh interpolates the parametric value <c>t</c> across the
     ///     triangle and applies a nonlinear function to the interpolated value (<c>f(t) = t^2</c>:
     ///     the midpoint of 0 and 1 maps to 0.25, not the 0.5 a pre-mapped vertex-color blend would give).

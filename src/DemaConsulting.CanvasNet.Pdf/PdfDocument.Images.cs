@@ -1048,7 +1048,7 @@ public sealed partial class PdfDocument
             return IndexedToColor(colorSpace, decoded[offset]);
         }
 
-        Span<double> components = count <= 4 ? stackalloc double[count] : new double[count];
+        Span<double> components = count <= MaxStackColorComponents ? stackalloc double[count] : new double[count];
         for (var i = 0; i < count; i++)
         {
             components[i] = decoded[offset + i] / 255.0;

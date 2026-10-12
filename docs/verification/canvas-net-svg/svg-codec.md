@@ -808,7 +808,8 @@ operator.
 `SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork`,
 `SvgCodec_Load_FeMergeExcessiveNodeCount_SkipsFilterRatherThanUnboundedWork`,
 `SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes`,
-`SvgCodec_Load_ClipMaskAndFilter_CountsEveryEffectSurface`
+`SvgCodec_Load_ClipMaskAndFilter_CountsEveryEffectSurface`,
+`SvgCodec_Load_SubregionPrimitiveChain_ChargesClipCopies`
 
 Asserts a `filter="url(#id)"` reference to a nonexistent id renders the element normally, exactly
 as if no `filter` attribute were present, matching this codec's general dangling-reference
@@ -854,8 +855,11 @@ allocated" (the content buffer, the clip-path coverage buffer, the mask source b
 `SourceAlpha`, and each primitive's or subregion clip's output buffer; scratch buffers inside one
 primitive are not counted), so each filtered shape in these tests contributes two (content plus
 the `feFlood` output); the separate `SvgCodec_Load_ClipMaskAndFilter_CountsEveryEffectSurface`
-test asserts a clipped, masked and filtered element counts four. `WorkCharged` is tracked
-independently.
+test asserts a clipped, masked and filtered element counts four. A primitive with an explicit
+subregion allocates one further region-sized clip copy, which is both counted and charged:
+`SvgCodec_Load_SubregionPrimitiveChain_ChargesClipCopies` compares a three-primitive chain with and
+without subregions and asserts the surface count rises from four to seven and the charged work
+doubles. `WorkCharged` is tracked independently.
 
 #### CanvasNetSvg-SvgCodec-GroupFilterRendering: Group-Level Filter Rendering on g/symbol/use
 

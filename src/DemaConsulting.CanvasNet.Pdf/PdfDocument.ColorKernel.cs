@@ -11,6 +11,14 @@ public sealed partial class PdfDocument
     // adaptation to D65, the linear-sRGB matrix, and the sRGB transfer function. The ICC profile
     // of an /ICCBased space is never applied (see ResolveIccBasedColorSpace).
 
+    /// <summary>
+    ///     The largest component count whose per-color scratch span is stack-allocated (the
+    ///     DeviceN colorant and function-output cap), so no per-pixel heap array is needed for any
+    ///     supported color space; the stack frame cost is a fixed 256 bytes per scratch span and
+    ///     the buffers are local, so conversion stays thread-safe.
+    /// </summary>
+    private const int MaxStackColorComponents = 32;
+
     /// <summary>The Bradford cone-response matrix (row-major).</summary>
     private static readonly double[] BradfordMatrix =
     [
@@ -108,7 +116,7 @@ public sealed partial class PdfDocument
         }
 
         var function = colorSpace.TintFunction!;
-        Span<double> input = tints.Length <= 8 ? stackalloc double[8] : new double[tints.Length];
+        Span<double> input = tints.Length <= MaxStackColorComponents ? stackalloc double[MaxStackColorComponents] : new double[tints.Length];
         input = input[..tints.Length];
         for (var i = 0; i < tints.Length; i++)
         {
@@ -116,7 +124,7 @@ public sealed partial class PdfDocument
         }
 
         var outputCount = function.OutputCount;
-        Span<double> output = outputCount <= 8 ? stackalloc double[8] : new double[outputCount];
+        Span<double> output = outputCount <= MaxStackColorComponents ? stackalloc double[MaxStackColorComponents] : new double[outputCount];
         output = output[..outputCount];
         function.Evaluate(input, output);
         return ColorFromComponentSpan(colorSpace.TintAlternate!, output);

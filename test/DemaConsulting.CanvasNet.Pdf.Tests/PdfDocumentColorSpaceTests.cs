@@ -490,6 +490,33 @@ public class PdfDocumentColorSpaceTests
         Assert.Equal(new Rgba32(0, 0, 0, 255), cmykBlack);
     }
 
+    /// <summary>Proves a fractional /N (1.5) is malformed and never truncated to 1: with no usable /Alternate it fails closed, and an integral real /N (3.0) is still accepted.</summary>
+    [Fact]
+    public void PdfDocument_ColorSpace_IccBased_FractionalN_RejectedAndIntegralRealAccepted()
+    {
+        // Arrange
+        var pdf = BuildPdf(100, 100, "/CS0 cs", "/ColorSpace << /CS0 [/ICCBased 5 0 R] >>", Icc("/N 1.5"));
+
+        // Act
+        var rgb = PaintCenter("[/ICCBased 5 0 R]", "/CS0 cs 0 0 1 sc", Icc("/N 3.0"));
+
+        // Assert
+        Assert.Throws<UnsupportedImageFeatureException>(() => Render(pdf));
+        Assert.Equal(new Rgba32(0, 0, 255, 255), rgb);
+    }
+
+    /// <summary>Proves a fractional /Indexed /Hival (1.5) is rejected instead of being truncated to 1.</summary>
+    [Fact]
+    public void PdfDocument_ColorSpace_Indexed_FractionalHival_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdf = BuildPdf(
+            100, 100, "/CS0 cs 0 sc", "/ColorSpace << /CS0 [/Indexed /DeviceRGB 1.5 <FF000000FF00>] >>", []);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => Render(pdf));
+    }
+
     /// <summary>Proves a bogus /N with no usable /Alternate fails closed.</summary>
     [Fact]
     public void PdfDocument_ColorSpace_IccBased_BogusN_ThrowsUnsupportedImageFeatureException()
@@ -564,5 +591,27 @@ public class PdfDocumentColorSpaceTests
         Assert.InRange(Math.Abs(middle.R - middle.B), 0, 2);
         Assert.True(right.R > 230);
         Assert.True(left.R < 40);
+    }
+
+    /// <summary>Proves the 256-sample axial ramp (adjacent converted samples are blended in sRGB) stays within a few levels of converting the exactly interpolated Lab components, on a long ramp with both lightness and chroma changing.</summary>
+    [Theory]
+    [InlineData(200)]
+    [InlineData(500)]
+    [InlineData(800)]
+    public void PdfDocument_ColorSpace_AxialShadingInLab_StaysNearDirectConversionOfInterpolatedComponents(int x)
+    {
+        // Arrange: a 1000-pixel ramp (the 256-sample maximum), L* 20 -> 90, a* -60 -> 60, b* 50 -> -50
+        var shading =
+            $"<< /ShadingType 2 /ColorSpace [/Lab << /WhitePoint {D50} /Range [-128 127 -128 127] >>] /Coords [0 0 1000 0] " +
+            "/Function << /FunctionType 2 /Domain [0 1] /C0 [20 -60 50] /C1 [90 60 -50] /N 1 >> >>";
+        var pdf = BuildPdf(1000, 100, "/Sh0 sh", "/Shading << /Sh0 5 0 R >>", Encoding.ASCII.GetBytes(shading));
+
+        // Act
+        using var surface = Render(pdf, 1000, 100);
+
+        // Assert: the pixel center is at x + 0.5
+        var t = (x + 0.5) / 1000.0;
+        var expected = ReferenceLabD50(20 + (70 * t), -60 + (120 * t), 50 - (100 * t));
+        AssertNear(expected, surface[x, 50], 3);
     }
 }

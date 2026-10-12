@@ -950,7 +950,11 @@ public sealed partial class PdfDocument
 
         var nEntry = stream.Get("N");
         var resolvedN = nEntry is null ? null : Resolve(nEntry);
-        var n = resolvedN is { Kind: PdfKind.Number } ? (int)resolvedN.Number : (int?)null;
+        // A present /N must be a finite exact integer: a fractional value such as 1.5 is malformed and
+        // is treated like any other unusable /N (never silently truncated to 1).
+        var n = resolvedN is { Kind: PdfKind.Number } && IsIntegralInRange(resolvedN.Number, int.MinValue, int.MaxValue)
+            ? (int)resolvedN.Number
+            : (int?)null;
         var nIsValid = n is 1 or 3 or 4;
 
         var alternate = stream.Get("Alternate");
@@ -992,7 +996,7 @@ public sealed partial class PdfDocument
     /// </summary>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="array"/> does not have exactly 4 elements, when
-    ///     <c>/Hival</c> is not a non-negative number or exceeds <c>255</c>, when the lookup
+    ///     <c>/Hival</c> is not a non-negative integer or exceeds <c>255</c>, when the lookup
     ///     table is neither a string nor a stream, or when the resolved palette is shorter than
     ///     <c>(Hival + 1) * ComponentCount(baseSpace)</c> bytes.
     /// </exception>
@@ -1010,16 +1014,18 @@ public sealed partial class PdfDocument
         var baseSpace = ResolveColorSpaceValue(Resolve(array.Items[1]));
 
         var hivalValue = Resolve(array.Items[2]);
-        if (hivalValue.Kind != PdfKind.Number || hivalValue.Number < 0)
+        if (hivalValue.Kind != PdfKind.Number || !double.IsFinite(hivalValue.Number) || hivalValue.Number < 0
+            || !double.IsInteger(hivalValue.Number))
         {
-            throw new InvalidDataException("Color space '/Indexed' /Hival must be a non-negative number.");
+            throw new InvalidDataException("Color space '/Indexed' /Hival must be a non-negative integer.");
         }
 
-        var hival = (int)hivalValue.Number;
-        if (hival > 255)
+        if (hivalValue.Number > 255)
         {
             throw new InvalidDataException("Color space '/Indexed' /Hival must not exceed 255.");
         }
+
+        var hival = (int)hivalValue.Number;
 
         var lookup = Resolve(array.Items[3]);
         var palette = lookup.Kind switch
@@ -1172,7 +1178,7 @@ public sealed partial class PdfDocument
         var componentCount = ComponentCount(baseSpace);
         var offset = index * componentCount;
 
-        Span<double> components = componentCount <= 4 ? stackalloc double[componentCount] : new double[componentCount];
+        Span<double> components = componentCount <= MaxStackColorComponents ? stackalloc double[componentCount] : new double[componentCount];
         for (var i = 0; i < componentCount; i++)
         {
             components[i] = colorSpace.IndexedPalette[offset + i] / 255.0;

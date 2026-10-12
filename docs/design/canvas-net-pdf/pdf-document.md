@@ -1530,8 +1530,15 @@ its own distinguishable `Feature` token.
   evaluated as bicubic Bezier surfaces tessellated at a fixed 16x16 subdivision (a deliberate
   choice balancing cost and smoothness), triangles are rasterized with barycentric interpolation,
   no anti-aliasing and pixel-centre sampling, into an offscreen bitmap painted through the
-  pattern's fill/stroke path or the `sh` clip/`/BBox` region. Colors are interpolated in RGB
-  even for `DeviceCMYK` (a documented approximation). `/Background` paints beneath the mesh for
+  pattern's fill/stroke path or the `sh` clip/`/BBox` region. For a function-less mesh in a nonlinear
+  CIE-based space (`CalGray`, `CalRGB`, `Lab`) the raw vertex components are carried in `MeshColor`,
+  blended with barycentric weights in that space and converted per pixel (each such pixel is charged
+  8 work units, keeping the 2^28 budget bounding the cost). Meshes in other spaces
+  (`DeviceGray`/`DeviceRGB`/`DeviceCMYK`, `Separation`/`DeviceN`, `Indexed`) convert each vertex
+  first and blend the resulting RGB, a documented approximation (exact for the linear device spaces
+  except `DeviceCMYK` and tint-transformed spaces). Axial/radial shadings convert each of their
+  32-256 samples from the exact t and blend only between adjacent samples (measured within 3 levels
+  of direct conversion for `Lab`). `/Background` paints beneath the mesh for
   pattern use only (not for `sh`). Malformed data (missing/illegal entries, truncated records,
   bad flags, bad lattice) throws `InvalidDataException`; unsupported color spaces/functions and DoS
   limits (1,048,576 vertices, 65,536 patches, 2^28 raster-work units) throw

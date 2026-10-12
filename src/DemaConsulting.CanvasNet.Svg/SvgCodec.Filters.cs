@@ -1584,18 +1584,25 @@ public static partial class SvgCodec
     ///     <c>feConvolveMatrix</c> child counts as <c>orderX * orderY</c> (at least 1), reflecting
     ///     its O(order<sup>2</sup> &#215; region-area) per-primitive cost; and a <c>feTurbulence</c>
     ///     child counts as its own resolved <c>numOctaves</c> (at least 1), reflecting its
-    ///     O(numOctaves &#215; region-area) per-primitive cost.
+    ///     O(numOctaves &#215; region-area) per-primitive cost. Every primitive that declares an
+    ///     explicit subregion (<c>x</c>/<c>y</c>/<c>width</c>/<c>height</c>) is charged one further
+    ///     unit for the region-sized copy <see cref="ClipPrimitiveOutputToSubregion"/> allocates, so
+    ///     the upfront check and the cumulative charge cover every surface the chain allocates.
     /// </summary>
     /// <param name="filterElement">The resolved <c>filter</c> element.</param>
     /// <returns>The total primitive-equivalent work-unit count.</returns>
     private static int CountFilterPrimitiveWorkUnits(XElement filterElement) =>
-        filterElement.Elements().Sum(primitive => primitive.Name.LocalName switch
+        filterElement.Elements().Sum(primitive => (primitive.Name.LocalName switch
         {
             "feMerge" => Math.Max(1, primitive.Elements().Count(node => node.Name.LocalName == "feMergeNode")),
             "feConvolveMatrix" => Math.Max(1, GetConvolveMatrixOrder(primitive).X * GetConvolveMatrixOrder(primitive).Y),
             "feTurbulence" => Math.Max(1, ResolveTurbulenceNumOctaves(primitive)),
             _ => 1
-        });
+        })
+
+            // A primitive with an explicit x/y/width/height subregion additionally allocates one
+            // region-sized clip copy (ClipPrimitiveOutputToSubregion), so it is charged one more unit.
+            + (PrimitiveDeclaresSubregion(primitive) ? 1 : 0));
 
     /// <summary>
     ///     Evaluates <paramref name="filterElement"/>'s <c>fe*</c> primitive children, in document

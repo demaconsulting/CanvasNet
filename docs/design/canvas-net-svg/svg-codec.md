@@ -821,6 +821,10 @@ work: `feConvolveMatrix` rejects `order` values above `MaxConvolveMatrixOrder` (
 `InvalidDataException`, matching the codec's existing malformed-input policy for absurd
 single-attribute values, while the aggregate per-filter and cumulative filter work budgets remain
 tolerant fallback paths that simply render unfiltered once the requested total work is too high.
+A primitive that declares an explicit `x`/`y`/`width`/`height` subregion allocates one further
+region-sized copy when its output is clipped (`ClipPrimitiveOutputToSubregion`); the work-unit
+count behind both the per-filter check and the cumulative charge adds one unit for each such
+primitive, so every surface counted by `EffectSurfacesAllocated` is also charged.
 
 `feDiffuseLighting` and `feSpecularLighting` relight a surface described by SourceAlpha (or
 another primitive's own alpha channel) as if it were a bump map. Both share a single surface-normal

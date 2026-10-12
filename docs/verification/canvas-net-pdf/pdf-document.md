@@ -952,6 +952,7 @@ malformed/undeclared/unsupported-pattern-type shapes).
 `PdfDocument_ColorSpace_IccBased_N1AndN4_ResolveAsDeviceSpaces`,
 `PdfDocument_ColorSpace_IccBased_NMismatchesAlternate_PrefersN`,
 `PdfDocument_ColorSpace_IccBased_LabAlternateWithN3_UsesLab`,
+`PdfDocument_ColorSpace_IccBased_FractionalN_RejectedAndIntegralRealAccepted`,
 `PdfDocument_ColorSpace_IccBased_CalGrayAlternateWithN1_UsesCalGray`
 
 The first three tests below were written for the pre-M2 rule; since M2 `/N` is authoritative and
@@ -992,6 +993,7 @@ and `2` maps to no device color space); asserts `cs` throws
 `PdfDocument_ColorSpace_IndexedOverLab_Scn_NormalizesPaletteBytes`,
 `PdfDocument_ColorSpace_IndexedOverCalRgb_Image_ConvertsPalette`,
 `PdfDocument_ColorSpace_AxialShadingInLab_InterpolatesNaturalUnits`,
+`PdfDocument_ColorSpace_AxialShadingInLab_StaysNearDirectConversionOfInterpolatedComponents`,
 `PdfDocument_Load_CalibratedColorSpacesFixture_PaintsConvertedSwatches`
 
 All tests are in `PdfDocumentColorSpaceTests.cs` except the CalRgb test (`PdfDocumentTests.cs`) and
@@ -1022,6 +1024,7 @@ DeviceGray one is still applied. No timing assertions are used.
 `PdfDocument_Tint_DeviceNTooManyColorants_ThrowsInvalidDataException`,
 `PdfDocument_Tint_IndexedOverSeparation_MatchesDirectCmyk`,
 `PdfDocument_Tint_IndexedOverDeviceN_EvaluatesTransform`,
+`PdfDocument_Tint_DeviceNTwelveColorants_ConvertsThroughTintTransform`,
 `PdfDocument_Tint_SeparationImage_MatchesDirectCmyk`,
 `PdfDocument_Tint_DeviceNImage_EvaluatesTransform`,
 `PdfDocument_Tint_SeparationImageAsSoftMask_ThrowsInvalidDataException`,
@@ -1086,7 +1089,8 @@ No timing assertions are used.
 **Tests**: `PdfDocument_Images_DoOperator_IndexedColorSpace_PlacesExpectedPaletteColors`,
 `PdfDocument_Color_IndexedColorSpace_Scn_PaintsExpectedPaletteColor`,
 `PdfDocument_Color_IndexedColorSpace_OutOfRangeIndex_ClampsToHighestPaletteEntry`,
-`PdfDocument_Color_IndexedColorSpace_UnsupportedBase_ThrowsUnsupportedImageFeatureException`
+`PdfDocument_Color_IndexedColorSpace_UnsupportedBase_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_ColorSpace_Indexed_FractionalHival_ThrowsInvalidDataException`
 
 Places a 2x2 image XObject whose `/ColorSpace` is `[/Indexed /DeviceRGB 2 <...>]` (a 3-entry
 red/green/blue palette) with `/BitsPerComponent 8` raw index samples (`0, 1, 2, 2`) via `Do`,
@@ -2426,6 +2430,7 @@ actually overlays the fallback rather than remaining invisibly skipped underneat
 `PdfDocument_MeshShading_Function_LookupTableTracksSteepRampClosely`,
 `PdfDocument_MeshShading_Function_NonlinearCalGray_ConvertsFunctionOutputAtParameter`,
 `PdfDocument_MeshShading_LabColorSpace_VertexColorsAreNaturalUnits`,
+`PdfDocument_MeshShading_LabColorSpace_InterpolatesComponentsBeforeConversion`,
 `CanvasNetPdf_SystemIntegration_MeshShadingWithNonlinearFunction_AppliesFunctionToInterpolatedParameter`,
 `PdfDocument_MeshShading_Type4_BitSizeMatrix_RendersSame`,
 `PdfDocument_MeshShading_GrayAndCmykColorSpaces_Render`,

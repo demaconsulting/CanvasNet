@@ -407,6 +407,24 @@ public class PdfDocumentTintTests
         Assert.Contains("/Size", exception.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>Proves a DeviceN with more than eight colorants (beyond the old stack-scratch size) converts correctly through its tint transform.</summary>
+    [Fact]
+    public void PdfDocument_Tint_DeviceNTwelveColorants_ConvertsThroughTintTransform()
+    {
+        // Arrange: 12 colorants; the program drops the last nine so the first three become R G B.
+        var fn = PsFunction(
+            "[" + string.Concat(Enumerable.Repeat("0 1 ", 12)).Trim() + "]",
+            "[0 1 0 1 0 1]",
+            "{ pop pop pop pop pop pop pop pop pop }");
+        var names = string.Join(' ', Enumerable.Range(1, 12).Select(i => $"/C{i}"));
+
+        // Act
+        var pixel = PaintCenter($"[/DeviceN [{names}] /DeviceRGB 5 0 R]", "/CS0 cs 0.2 0.8 0.5 0 0 0 0 0 0 0 0 0 sc", fn);
+
+        // Assert
+        AssertNear(new Rgba32(51, 204, 128, 255), pixel, 1);
+    }
+
     /// <summary>Proves that DeviceN with all colorants /None paints nothing.</summary>
     [Fact]
     public void PdfDocument_Tint_DeviceNAllNone_LeavesBackgroundUntouched()
