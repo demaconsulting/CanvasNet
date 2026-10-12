@@ -1402,9 +1402,11 @@ its own distinguishable `Feature` token.
   alongside `/Pattern` color-space support)** — a `/PatternType 2` dictionary's `/Shading`
   resolves `/ShadingType 2` (axial), `3` (radial) or `4`-`7` (mesh, see _Mesh shadings_ below);
   any other `/ShadingType` throws
-  `Codecs.UnsupportedImageFeatureException` (feature `pdf-shading-type-{n}`). `/ColorSpace` must
-  resolve to `DeviceGray`/`DeviceRGB`/`DeviceCMYK` (else feature
-  `pdf-shading-colorspace-{family}`); `/Function` accepts either a single function or an array of
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-shading-type-{n}`). `/ColorSpace` must not be
+  `/Pattern`; `/Indexed` is accepted only for a mesh shading without `/Function` (vertex colors are
+  palette indices); both otherwise throw feature `pdf-shading-colorspace-{family}`. Every other
+  supported space is accepted: `DeviceGray`/`DeviceRGB`/`DeviceCMYK`, `CalGray`/`CalRGB`/`Lab`,
+  `ICCBased`, `Separation` and `DeviceN`. `/Function` accepts either a single function or an array of
   1-output-component functions (`ResolveFunctionOrFunctionArray`), each resolved through
   `ResolveFunctionGeneric` above. The resolved shading samples its function(s) at evenly spaced
   points across `/Domain` — one sample per device pixel of gradient length (axial: the
