@@ -413,17 +413,21 @@ public sealed partial class PptxDocument
                     RenderPicture(surface, pic, ownerPartPath, theme, parentToSurface, colorMap, renderImages);
                 }
                 catch (PptxUnsupportedFeatureException ex) when (
-                    ex.Feature == MetafileFeatureToken && !(options?.StrictUnsupportedPictures ?? false))
+                    ex.Feature == MetafileFeatureToken && !skipPlaceholderShapes && !(options?.StrictUnsupportedPictures ?? false))
                 {
                     // An EMF/WMF vector picture cannot be decoded; skip just this picture (nothing
                     // has been painted for it yet - the image is resolved before compositing) and
                     // report it, so the rest of the slide still renders. Strict mode filters this
-                    // clause out and the exception propagates.
+                    // clause out and the exception propagates. Only a slide's own (or group-nested)
+                    // picture is reported: a master/layout picture (skipPlaceholderShapes) falls to
+                    // the silent clause below in both modes, so the callback is not invoked once
+                    // per slide for the same inherited picture.
                     options?.OnUnsupportedPictureSkipped?.Invoke(ex);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {
-                    // See the PptxSpShapeNode case's own remarks above.
+                    // See the PptxSpShapeNode case's own remarks above. Also silently skips a
+                    // master/layout EMF/WMF picture in both strict and tolerant modes.
                 }
 
                 break;

@@ -883,6 +883,53 @@ public class PptxSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Opens a full presentation package end-to-end whose one slide contains an opaque blue
+    ///     full-slide <c>&lt;p:sp&gt;</c> followed by a <c>&lt;p:pic&gt;</c> referencing an
+    ///     embedded EMF metafile - proving, through the public render entry point, that the
+    ///     metafile picture is skipped (the slide still renders), reported once through
+    ///     <see cref="PptxRenderOptions.OnUnsupportedPictureSkipped"/>, and that
+    ///     <see cref="PptxRenderOptions.StrictUnsupportedPictures"/> makes the render throw.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPptx_SystemIntegration_Images_MetafilePictureIsSkippedReportedAndStrictThrows()
+    {
+        // Arrange
+        const string spTreeInnerXml =
+            """
+            <p:sp xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+              <p:nvSpPr><p:cNvPr id="1" name="Bg"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="0000FF"/></a:solidFill>
+                <a:ln><a:noFill/></a:ln>
+              </p:spPr>
+            </p:sp>
+            <p:pic xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+              <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="4572000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:pic>
+            """;
+        using var stream = BuildGeometryPaintPackage(spTreeInnerXml, media: ("emf", "image/x-emf", [1, 2, 3, 4]));
+        using var document = PptxDocument.Open(stream);
+        var skipped = new List<PptxUnsupportedFeatureException>();
+
+        // Act
+        using var surface = document.Render(0, 20, 20, new PptxRenderOptions { OnUnsupportedPictureSkipped = skipped.Add });
+        var strict = Assert.Throws<PptxUnsupportedFeatureException>(
+            () => document.Render(0, 20, 20, new PptxRenderOptions { StrictUnsupportedPictures = true }));
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[15, 10]);
+        Assert.Equal("pptx-image-metafile", Assert.Single(skipped).Feature);
+        Assert.Equal("pptx-image-metafile", strict.Feature);
+    }
+
+    /// <summary>
     ///     Opens a full presentation package end-to-end whose one slide contains a single
     ///     ordinary <c>&lt;p:sp&gt;</c> (not a <c>&lt;p:pic&gt;</c> picture shape) whose
     ///     <c>&lt;p:spPr&gt;</c> uses a picture as its own shape fill via

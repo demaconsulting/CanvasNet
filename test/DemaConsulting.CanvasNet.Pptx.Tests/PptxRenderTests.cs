@@ -3554,6 +3554,41 @@ public class PptxRenderTests
     }
 
     /// <summary>
+    ///     Proves a master's own EMF/WMF picture is skipped silently in both tolerant and strict
+    ///     modes: the callback is never invoked (it reports only a slide's own or group-nested
+    ///     pictures, not once per slide for an inherited one) and strict mode does not throw.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Render_MasterMetafilePicture_SkippedSilentlyWithoutCallbackInBothModes(bool strict)
+    {
+        const string masterShapeTreeXml =
+            """
+            <p:pic>
+              <p:nvPicPr><p:cNvPr id="3" name="MasterPic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:pic>
+            """;
+        using var stream = BuildRenderPackage(
+            FullSlideShapeXml("SlideShape", "0000FF"),
+            masterShapeTreeXml: masterShapeTreeXml,
+            masterMedia: ("emf", "image/x-emf", [1, 2, 3, 4]));
+        using var document = PptxDocument.Open(stream);
+        var skipped = new List<PptxUnsupportedFeatureException>();
+        var options = new PptxRenderOptions { StrictUnsupportedPictures = strict, OnUnsupportedPictureSkipped = skipped.Add };
+
+        using var surface = document.Render(0, 20, 20, options);
+
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[10, 10]);
+        Assert.Empty(skipped);
+    }
+
+    /// <summary>
     ///     Regression test (see the companion planning report's parse-time containment fix): a
     ///     master's own <c>&lt;p:graphicFrame&gt;</c> declaring an unsupported (non-table,
     ///     non-chart - here a SmartArt/diagram graphic-frame kind) kind must not abort

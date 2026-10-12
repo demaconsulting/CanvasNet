@@ -1603,6 +1603,7 @@ the synthetic tests above carry the primary, deliberately-contrasting-color proo
 `Render_SlideOwnMetafilePicture_SkipsPictureReportsItAndRendersRestOfSlide`,
 `Render_MetafilePictureInsideGroup_DefaultOptions_SkipsPictureAndRendersRestOfSlide`,
 `Render_SlideOwnMetafilePicture_StrictMode_ThrowsPptxUnsupportedFeatureException`,
+`Render_MasterMetafilePicture_SkippedSilentlyWithoutCallbackInBothModes`,
 `Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException`
 
 Proves, with synthetic minimal packages (placeholder media bytes - the metafile is never parsed),
@@ -1611,7 +1612,8 @@ by default a slide's own metafile picture is skipped while the slide's other sha
 (sampled under and beside the skipped picture's footprint) and exactly one report reaches
 `OnUnsupportedPictureSkipped`; that the same holds for a picture nested in a group; that
 `StrictUnsupportedPictures = true` makes `Render` throw `PptxUnsupportedFeatureException` with the
-metafile token and never invokes the callback; and that a non-metafile unsupported content type
+metafile token and never invokes the callback; that a master's own metafile picture is skipped
+silently in both modes (no callback, no throw); and that a non-metafile unsupported content type
 still throws with the `"pptx-image-format"` token, proving the tolerance is scoped to EMF/WMF.
 No EMF/WMF rendering is verified because none exists (known gap).
 

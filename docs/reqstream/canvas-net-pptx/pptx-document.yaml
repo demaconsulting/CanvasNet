@@ -1831,7 +1831,9 @@ sections:
               callback with a PptxUnsupportedFeatureException carrying feature token
               "pptx-image-metafile"; when PptxRenderOptions.StrictUnsupportedPictures is true, the
               same picture shall instead make Render throw that PptxUnsupportedFeatureException
-              without invoking the callback. A picture with any other unsupported content type
+              without invoking the callback. A picture on a slide layout or master that is an
+              EMF or WMF shall be skipped silently in both modes without invoking the callback.
+              A picture with any other unsupported content type
               shall continue to throw PptxUnsupportedFeatureException (feature token
               "pptx-image-format") regardless of the option. Rendering EMF/WMF content is a known,
               documented gap.
@@ -1848,6 +1850,7 @@ sections:
               - Render_SlideOwnMetafilePicture_SkipsPictureReportsItAndRendersRestOfSlide
               - Render_MetafilePictureInsideGroup_DefaultOptions_SkipsPictureAndRendersRestOfSlide
               - Render_SlideOwnMetafilePicture_StrictMode_ThrowsPptxUnsupportedFeatureException
+              - Render_MasterMetafilePicture_SkippedSilentlyWithoutCallbackInBothModes
               - Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException
 
           - id: CanvasNetPptx-PptxDocument-BulletProperties

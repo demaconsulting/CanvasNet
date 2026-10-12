@@ -1874,7 +1874,10 @@ token `"pptx-image-metafile"` (every other unsupported content type keeps `"pptx
 image is resolved before any compositing, so nothing is partly painted - and the rest of the slide
 renders. Each skip is reported by invoking the optional `PptxRenderOptions.OnUnsupportedPictureSkipped`
 callback with the exception (this package has no other diagnostics channel). In strict mode the
-exception propagates unchanged. `options` is threaded through `RenderNode`'s recursion so group-
+exception propagates unchanged. A master/layout picture (`skipPlaceholderShapes`) is excluded from
+the reporting clause and falls to the silent-containment clause in both modes, so the callback
+reports only a slide's own or group-nested pictures (never once per slide for an inherited
+picture). `options` is threaded through `RenderNode`'s recursion so group-
 nested pictures behave identically. **Known gap**: EMF/WMF content is never drawn (not even a
 placeholder); a pasted chart/diagram stored as a metafile therefore leaves its area unpainted.
 

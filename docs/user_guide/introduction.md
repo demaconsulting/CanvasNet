@@ -2388,7 +2388,9 @@ caller code is required beyond calling `PptxDocument.Render` itself.
 `PptxDocument.Render` cannot draw EMF/WMF vector metafile pictures (a known gap). By default, a
 slide's `<p:pic>` whose media is an EMF or WMF is skipped - nothing is drawn for that picture and
 the rest of the slide renders normally. To learn which pictures were skipped, set
-`PptxRenderOptions.OnUnsupportedPictureSkipped`; to keep the previous fail-closed behavior, set
+`PptxRenderOptions.OnUnsupportedPictureSkipped` (it reports only the slide's own or group-nested
+pictures; EMF/WMF pictures on a layout or master are skipped silently in both modes); to keep the
+previous fail-closed behavior, set
 `PptxRenderOptions.StrictUnsupportedPictures = true`, which makes `Render` throw
 `PptxUnsupportedFeatureException` (`Feature` is `"pptx-image-metafile"`).
 

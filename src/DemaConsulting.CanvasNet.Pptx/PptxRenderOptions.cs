@@ -68,12 +68,14 @@ public sealed class PptxRenderOptions
     public bool StrictUnsupportedPictures { get; init; }
 
     /// <summary>
-    ///     Optional callback invoked once for each EMF/WMF picture skipped under the default
-    ///     tolerant mode, receiving the <see cref="PptxUnsupportedFeatureException"/> that
+    ///     Optional callback invoked once for each slide-own (or group-nested) EMF/WMF picture
+    ///     skipped under the default tolerant mode, receiving the
+    ///     <see cref="PptxUnsupportedFeatureException"/> that
     ///     describes the skipped picture (its <see cref="PptxUnsupportedFeatureException.Feature"/>
     ///     is <c>"pptx-image-metafile"</c>). Never invoked when
     ///     <see cref="StrictUnsupportedPictures"/> is <see langword="true"/> (the exception is
-    ///     thrown instead).
+    ///     thrown instead). Master/layout pictures are skipped silently in both modes and are
+    ///     never reported.
     /// </summary>
     public Action<PptxUnsupportedFeatureException>? OnUnsupportedPictureSkipped { get; init; }
 }
