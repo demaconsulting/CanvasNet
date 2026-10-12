@@ -40,10 +40,12 @@ unit's own delivery follows.
   its effective (post-Master/MasterShape-merge, post-StyleSheet-chain-resolved) cell set
   (`PinX`/`PinY`/`Width`/`Height`/`LocPinX`/`LocPinY`/`Angle`/`FlipX`/`FlipY`, and for a 1-D shape
   `BeginX`/`BeginY`/`EndX`/`EndY`), its resolved geometry sections (each an ordered list of
-  geometry rows — `MoveTo`/`LineTo`/`RelMoveTo`/`RelLineTo`/`EllipticalArcTo`/`ArcTo` (Milestone 11
-  added `EllipticalArcTo`/`ArcTo` conversion to an `ArcTo` path command, see `ResolveGeometry`
-  below) are converted to path segments, and every other row type including `NURBSTo`/
-  `InfiniteLine` is tolerantly skipped
+  geometry rows — `MoveTo`/`LineTo`/`RelMoveTo`/`RelLineTo`/`EllipticalArcTo`/`ArcTo`/
+  `PolylineTo`/`NURBSTo`/`SplineStart`/`SplineKnot` (Milestone 11 added
+  `EllipticalArcTo`/`ArcTo` conversion to an `ArcTo` path command, and `PolylineTo`/`NURBSTo`/
+  `SplineStart`/`SplineKnot` are flattened to line segments, see `ResolveGeometry`
+  below) are converted to path segments, and every other row type including
+  `InfiniteLine` is tolerantly skipped and reported
   (see Risk Control Measures in `canvas-net-vsdx.md`) — plus the section-level `NoFill`/`NoLine`/
   `NoShow` flags), its resolved line/
   fill style (`LineColor`/`LineWeight`/`LinePattern`/`BeginArrow`/`EndArrow`/`FillForegnd`/
@@ -286,8 +288,21 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   path command reaching the row's own destination point (`AppendEllipticalArcTo`/
   `AppendArcTo`/`TryResolveEllipticalArc`) — a zero-bow `ArcTo` row (`A=0`) degrades to a plain
   `LineTo` to its destination point rather than throwing, since a true zero-radius arc has no
-  well-defined curvature. Every other row type, including `NURBSTo`/`InfiniteLine`, is still
-  skipped (not throwing on) rather than converted.
+  well-defined curvature. `PolylineTo`, `NURBSTo` and `SplineStart`/`SplineKnot` rows are
+  flattened to `LineTo` segments by `VsdxDocument.Splines.cs`: a `NURBSTo` row's `E` cell formula
+  `NURBS(knotLast, degree, xType, yType, x, y, knot, weight, ...)` and a `SplineStart` row
+  (`A`=second knot, `B`=first knot, `C`=last knot, `D`=degree) followed by `SplineKnot` rows
+  (`A`=knot) each yield control points (the pen position is the first), a knot vector and weights
+  for a clamped rational B-spline sampled with de Boor's algorithm; the knot vector is padded
+  with its last value and the degree reduced when too few points exist. `xType`/`yType` of `0`
+  scale a formula point by `Width`/`Height`, `1` means local coordinates. A `PolylineTo` row's
+  `A` cell formula `POLYLINE(xType, yType, x, y, ...)` produces `LineTo` segments with the same
+  unit rule. Hard caps bound the work: 1024 control points, degree 25 and 4096 flattened
+  segments. Invalid knots, weights or degree degrade the curve to a polyline through its control
+  points and report `vsdx-geometry-spline-approximated`; a malformed or over-cap row is skipped
+  and reported as `vsdx-geometry-row-{Type}`. A group child that has its own `Master` reference
+  and no `MasterShape` match in its parent's master resolves against that master's shape.
+  `InfiniteLine` and any other row type are still skipped (not throwing on) and reported.
 - **`ResolveConnectors(VsdxDocument document, IReadOnlyList<XElement> connects)`** (internal):
   Resolves each `<Connect>` entry's connector shape and target shape; since a connector's own
   `BeginX/BeginY`/`EndX/EndY` cells are already pre-baked, resolved page-space coordinates (by

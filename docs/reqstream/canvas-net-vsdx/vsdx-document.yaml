@@ -151,10 +151,9 @@ sections:
           - id: CanvasNetVsdx-VsdxDocument-GeometryUnrecognizedRowSkip
             title: >-
               The VsdxDocument class shall skip (not throw on) a geometry row of an unrecognized
-              type, including NURBSTo/InfiniteLine (documented VisioML vocabulary observed in the
-              sample corpus, but not converted to path segments by this delivery) and the
-              documented-but-unobserved RelCubBezTo/SplineStart/SplineKnot/PolylineTo/Ellipse row
-              kinds.
+              type, including InfiniteLine and any row kind not resolved into path segments (see
+              CanvasNetVsdx-VsdxDocument-CurveGeometryResolution for the curve rows that are
+              resolved), reporting each skipped row to the unsupported-feature handler.
             justification: |
               A geometry row type absent from this delivery's resolved vocabulary must still
               degrade gracefully rather than aborting an entire shape or page. Correction note
@@ -168,9 +167,54 @@ sections:
               Milestone 11 note: EllipticalArcTo and ArcTo are no longer part of this requirement's
               skip list - see CanvasNetVsdx-VsdxDocument-ArcGeometryResolution below, which
               supersedes the Milestone 8 correction note's treatment of EllipticalArcTo
-              specifically; NURBSTo remains skipped.
+              specifically. NURBSTo, SplineStart/SplineKnot and PolylineTo were later implemented
+              (see CanvasNetVsdx-VsdxDocument-CurveGeometryResolution) and are no longer skipped.
             tests:
               - Geometry_UnrecognizedRowType_SkippedWithoutThrowing
+
+          - id: CanvasNetVsdx-VsdxDocument-CurveGeometryResolution
+            title: >-
+              The VsdxDocument class shall resolve a geometry section's PolylineTo, NURBSTo and
+              SplineStart/SplineKnot rows into line segments (curves flattened from a clamped
+              rational B-spline), honoring the documented xType/yType coordinate-unit selector and
+              the spline degree, degrading a spline with invalid knots, weights or degree to a
+              polyline through its control points (reported as vsdx-geometry-spline-approximated),
+              skipping and reporting a malformed or oversized row, and bounding every curve by hard
+              caps on control points, degree and flattened segments.
+            justification: |
+              A real-world connector master ("Line-curve connector") draws its curve with
+              SplineStart/SplineKnot rows, and skipping them left connectors and bowl outlines
+              visibly wrong. Untrusted files must not be able to force unbounded work, so the number
+              of control points (1024), the degree (25) and the flattened segment count (4096) are
+              capped; exceeding a cap skips the row and reports it rather than throwing.
+            tests:
+              - Geometry_SplineStartKnot_QuadraticFlattensToCurve
+              - Geometry_SplineGroup_FollowingRowContinuesFromLastControlPoint
+              - Geometry_SplineKnotWithoutStart_ReportedAndSkipped
+              - Geometry_SplineWithInvalidKnots_FallsBackToPolylineAndReports
+              - Geometry_SplineDegreeOutOfRange_IsClampedWithoutThrowing
+              - Geometry_SplineKnotsBeyondCap_AreTruncatedAndReported
+              - Geometry_NurbsTo_LocalCoordinatesQuadratic
+              - Geometry_NurbsTo_RelativeCoordinatesScaleByWidthAndHeight
+              - Geometry_NurbsTo_WeightPullsCurveTowardControlPoint
+              - Geometry_NurbsTo_MalformedFormula_SkippedAndReported
+              - Geometry_NurbsTo_OverPointCap_SkippedAndReported
+              - Geometry_PolylineTo_AbsoluteVertices
+              - Geometry_PolylineTo_RelativeVerticesReachEndPoint
+              - Geometry_PolylineTo_MissingFormula_SkippedAndReported
+
+          - id: CanvasNetVsdx-VsdxDocument-GroupChildOwnMasterResolution
+            title: >-
+              The VsdxDocument class shall resolve a group child that carries its own Master
+              reference (and has no MasterShape match in its parent group's master) against that
+              master's shape, so a stencil shape nested inside a group inherits its geometry,
+              transform and paint.
+            justification: |
+              Group children that are themselves master instances (for example a pump stencil
+              placed inside a grouped assembly) previously resolved with no inherited geometry or
+              line weight and so were not drawn.
+            tests:
+              - Group_ChildWithOwnMaster_InheritsMasterGeometry
 
           - id: CanvasNetVsdx-VsdxDocument-ArcGeometryResolution
             title: >-

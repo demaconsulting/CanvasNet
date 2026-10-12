@@ -153,8 +153,7 @@ into two distinct categories, mirroring `CanvasNetSvg`'s own established pattern
 _CanvasNetSvg System Design_, `canvas-net-svg.md`):
 
 - **Tolerantly skipped, no-effect constructs** — an unrecognized geometry row type (for example
-  `ArcTo`/`RelCubBezTo`/`SplineStart`/`PolylineTo`/`Ellipse`, documented but unobserved in the
-  format research underlying this design — see the Design Constraints section), an unresolvable
+  `InfiniteLine`), a malformed or over-cap `NURBSTo`/`PolylineTo`/`SplineKnot` row, an unresolvable
   `Connect` target, or a well-formed but out-of-scope construct (a non-solid `FillPattern`, a
   non-default `Themed` color with no theme part present) degrades that one shape/row/connector to
   a safe default (skip the row, render with no fill/stroke, or fall back to a neutral color)
@@ -285,36 +284,22 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
     `VsdxDocument.Paint.cs` confirms every non-zero, non-one `FillPattern` value has always
     degraded to solid fill, and no `Gradient`/`LinearGradient` type from the core `Drawing`
     subsystem is referenced anywhere in this package's source.
-  - **`NURBSTo`/`InfiniteLine`/`RelCubBezTo`/`SplineStart`/`SplineKnot`/`PolylineTo`/`Ellipse`
-    geometry rows** — documented VisioML vocabulary observed (`NURBSTo`) or not observed (the
-    remainder) in the inspected sample corpus; every one of these row types is skipped (see Risk
-    Control Measures above) rather than implemented against an unverified cell layout or
-    curve-approximation algorithm. An earlier revision of this design anticipated converting
-    `EllipticalArcTo`/`NURBSTo` rows to Bezier curve approximations; this was never implemented
-    for either row type as of Milestone 10, and the tolerant-skip treatment already applied to
-    every other unrecognized row type was confirmed sufficient at that time (no inspected
-    fixture's rendered output depended on either row type contributing a path segment).
-    **Milestone 11 superseded this deferral for `EllipticalArcTo` and the documented-but-
-    previously-unobserved `ArcTo` row type specifically**: `VsdxDocument.Geometry.cs` now
-    converts both to an `ArcTo` path command reaching the row's own destination point (a general
-    ellipse/arc for `EllipticalArcTo`'s `X`/`Y`/`A`/`B`/`C`/`D` cell set; a circular,
-    bow-height-derived arc for `ArcTo`'s `X`/`Y`/`A` cell set, degrading a zero-bow row to a plain
-    `LineTo`) — confirmed necessary against `test.vsdx`'s header-bar shape, whose own
-    `EllipticalArcTo`-shaped rounded corner was rendering as a sharp wedge/triangle instead of a
-    smoothly rounded bar while the row was tolerantly skipped. `NURBSTo` remains skipped; no
-    inspected fixture's rendered output depends on it contributing a path segment. Milestone 10
-    retry 1's own independent re-verification of a disputed transparency-regression claim
-    (quality Finding #1) confirmed a second, real-world instance of the (still-current, `NURBSTo`-
-    only) limitation:
-    `github260.vsdx`'s "start state" circle (Master `8`'s `MasterShape="6"`, page Shape `ID="1"`)
-    has a `Section N="Geometry"` consisting of a single `MoveTo` followed entirely by `NURBSTo`
-    rows with no `LineTo` fallback — skipping every `NURBSTo` row leaves a single bare point with
-    no closed path to paint, so the shape renders with neither fill nor stroke regardless of its
-    own `LineColorTrans`/`FillForegndTrans` values; confirmed via direct pixel-scanning of the
-    actual Visio-reference PNG that the shape's genuine appearance there is a solid fill with no
-    visible border (not the fully-bordered shape an initial, since-corrected quality finding
-    claimed), and confirmed byte-identical across the pre-Bug-#3-fix and post-Bug-#3-fix commits,
-    ruling out any Milestone 10 transparency-resolution change as the cause.
+  - **`InfiniteLine` geometry rows** — documented VisioML vocabulary not observed in the
+    inspected sample corpus; the row type is skipped (see Risk Control Measures above) and
+    reported rather than implemented against an unverified cell layout. (`RelCubBezTo`/
+    `RelQuadBezTo`/`Ellipse` are resolved; see `ResolveGeometry`.) `PolylineTo`, `NURBSTo` and
+    `SplineStart`/`SplineKnot` were originally skipped too, and are now flattened to line
+    segments by `VsdxDocument.Splines.cs` (see the `ResolveGeometry` description in
+    `canvas-net-vsdx/vsdx-document.md`), bounded by hard caps (1024 control points, degree 25,
+    4096 flattened segments). A row that is malformed or exceeds a cap is still skipped and
+    reported. History: an earlier revision of this design anticipated converting
+    `EllipticalArcTo`/`NURBSTo` rows to Bezier curve approximations; `EllipticalArcTo`/`ArcTo`
+    were implemented in Milestone 11 (confirmed necessary against `test.vsdx`'s header-bar shape,
+    whose `EllipticalArcTo`-shaped rounded corner rendered as a sharp wedge while the row was
+    skipped). Milestone 10 retry 1 had also found that `github260.vsdx`'s "start state" circle
+    (Master `8`'s `MasterShape="6"`, page Shape `ID="1"`) consists of a single `MoveTo` followed
+    entirely by `NURBSTo` rows with no `LineTo` fallback, so while `NURBSTo` was skipped the shape
+    rendered with neither fill nor stroke.
 
   None of these gaps blocks the rest of the design: each is isolated to its own narrow code path,
   with a safe, non-throwing fallback, consistent with the Risk Control Measures above.

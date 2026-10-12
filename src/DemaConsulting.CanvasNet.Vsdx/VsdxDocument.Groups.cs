@@ -162,6 +162,15 @@ public sealed partial class VsdxDocument
                 masterChildrenById?.TryGetValue(child.MasterShapeId, out childMasterShape);
             }
 
+            // A group child that is itself an instance of a Master (its own Master= attribute, as
+            // when a user groups several stencil shapes) inherits from that Master's top-level
+            // shape rather than from the enclosing group's Master; without this its Master
+            // geometry, size and styles are never merged and the child draws nothing.
+            if (childMasterShape is null && child.MasterId is not null)
+            {
+                childMasterShape = ResolveMasterShape(child.MasterId);
+            }
+
             ResolveShapeRecursive(child, childMasterShape, shape, depth + 1, ref resolvedShapeCount);
         }
     }

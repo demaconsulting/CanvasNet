@@ -28,9 +28,10 @@
 # handling; and the public, page-level Render API. Embedded images/Foreign shapes, non-trivial
 # theme-variation resolution, non-solid fill-pattern combinations beyond solid (including any
 # gradient approximation), the full arrowhead style-index table, and several documented geometry
-# row types that remain recognized but not resolved into path segments (NURBSTo/InfiniteLine/
-# RelCubBezTo/SplineStart/SplineKnot/PolylineTo/Ellipse - EllipticalArcTo/ArcTo were added in
-# Milestone 11, see CanvasNetVsdx-VsdxDocument-ArcGeometryResolution)
+# row types that remain recognized but not resolved into path segments (InfiniteLine -
+# EllipticalArcTo/ArcTo were added in Milestone 11, see
+# CanvasNetVsdx-VsdxDocument-ArcGeometryResolution, and NURBSTo/SplineStart/SplineKnot/
+# PolylineTo, see CanvasNetVsdx-VsdxDocument-CurveGeometryResolution)
 # remain explicitly deferred - see docs/design/canvas-net-vsdx.md's Design Constraints
 # section for the complete deferred-feature boundary.
 
@@ -85,9 +86,10 @@ sections:
         title: >-
           The library shall resolve each shape's geometry sections into renderable path outlines,
           supporting the MoveTo/LineTo/RelMoveTo/RelLineTo row vocabulary and converting
-          EllipticalArcTo/ArcTo rows to an ArcTo path command, and tolerate every other,
-          genuinely-unrecognized row type - including NURBSTo/InfiniteLine - by skipping that row
-          rather than failing the shape or the page.
+          EllipticalArcTo/ArcTo rows to an ArcTo path command, flattening PolylineTo/NURBSTo/
+          SplineStart-SplineKnot curve rows (with hard caps), and tolerate every other,
+          genuinely-unrecognized row type - including InfiniteLine - by skipping and reporting
+          that row rather than failing the shape or the page.
         tags: [system]
         justification: |
           A shape's visual outline is defined entirely by its geometry rows; a renderer that
@@ -99,6 +101,7 @@ sections:
           - CanvasNetVsdx-VsdxDocument-ShapeTransform
           - CanvasNetVsdx-VsdxDocument-ConnectorTransform
           - CanvasNetVsdx-VsdxDocument-ArcGeometryResolution
+          - CanvasNetVsdx-VsdxDocument-CurveGeometryResolution
         tests:
           - CanvasNetVsdx_SystemIntegration_Geometry_ResolvesCommonRowTypes
           - CanvasNetVsdx_SystemIntegration_Geometry_UnrecognizedRowTypeIsSkippedNotThrown
@@ -121,6 +124,7 @@ sections:
           - CanvasNetVsdx-VsdxDocument-CellMerge
           - CanvasNetVsdx-VsdxDocument-GeometryRowMerge
           - CanvasNetVsdx-VsdxDocument-NestedMasterShapeResolution
+          - CanvasNetVsdx-VsdxDocument-GroupChildOwnMasterResolution
           - CanvasNetVsdx-VsdxDocument-DeletedShapeExclusion
         tests:
           - CanvasNetVsdx_SystemIntegration_MasterInheritance_InstanceCellOverridesMaster

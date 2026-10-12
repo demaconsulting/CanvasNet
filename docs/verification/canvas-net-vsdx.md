@@ -121,10 +121,9 @@ rows compose into a usable, paintable path when driven through the full package-
 
 Exercises end-to-end system behavior for the geometry resolver's tolerant-skip contract: opens a
 hand-authored, in-memory package whose single shape's `Geometry` section includes a synthetic
-`NURBSTo` row (a row type this package never converts to a Bezier approximation - see the
-Milestone 8 correction note on `CanvasNetVsdx-VsdxDocument-GeometryUnrecognizedRowSkip`; Milestone 11
-added real `EllipticalArcTo`/`ArcTo`-to-Bezier conversion, so `NURBSTo` - not `EllipticalArcTo` - is
-now used here as the genuinely still-unrecognized example row type) interleaved with recognized
+`NURBSTo` row with no parseable `NURBS(...)` formula (such a row is skipped and reported; a well-formed
+`NURBSTo`, `PolylineTo` or `SplineStart`/`SplineKnot` row is now flattened - see
+`CanvasNetVsdx-VsdxDocument-CurveGeometryResolution`) interleaved with recognized
 `MoveTo`/`LineTo` rows. Asserts shape resolution completes without throwing, confirming the
 documented "skip, don't throw" contract end-to-end.
 
@@ -407,8 +406,8 @@ listed above, and the whole-document end-to-end scenario renders every staged re
 without an unhandled exception. A document-level `<Colors>`/`<FaceNames>` custom color/font table
 and a best-effort linear-gradient fill approximation remain unimplemented and explicitly out of
 scope (see the Milestone 8 correction notes on `CanvasNetVsdx-ColorFill` and the design
-documents), as does true `NURBSTo`/`InfiniteLine`-to-Bezier conversion (these row types are
-tolerantly skipped, not converted; Milestone 11 implemented real `EllipticalArcTo`/`ArcTo`-to-Bezier
-conversion - see `CanvasNetVsdx-VsdxDocument-ArcGeometryResolution` - so `EllipticalArcTo` is no
-longer in this unconverted set); a future, corpus-driven hardening pass may add this content if a
+documents), as does `InfiniteLine`-to-path conversion (this row type is
+tolerantly skipped and reported; `EllipticalArcTo`/`ArcTo` and `NURBSTo`/`PolylineTo`/
+`SplineStart`/`SplineKnot` are converted - see `CanvasNetVsdx-VsdxDocument-ArcGeometryResolution` and
+`CanvasNetVsdx-VsdxDocument-CurveGeometryResolution`); a future, corpus-driven hardening pass may add this content if a
 real-world fixture is found to require it.
