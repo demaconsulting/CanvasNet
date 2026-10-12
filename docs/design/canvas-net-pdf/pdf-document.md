@@ -1512,8 +1512,10 @@ its own distinguishable `Feature` token.
   requires the shading to be a stream and validates `/BitsPerCoordinate` (1/2/4/8/12/16/24/32),
   `/BitsPerComponent` (1/2/4/8/12/16), `/BitsPerFlag` (2/4/8; not used by type 5), `/Decode`
   (4 + 2n finite entries) and `/VerticesPerRow` (type 5, at least 2), plus an optional `/Function`
-  (one parametric component, sampled into a 256-entry lookup table across the `/Decode` t range and
-  linearly interpolated between adjacent entries per pixel; the function is applied to the
+  (one parametric component, sampled into a 4096-entry lookup table across the `/Decode` t range, each
+  entry being the color-space conversion of the function output evaluated at that entry's exact t, and a
+  pixel takes its nearest entry so converted 8-bit colors are never blended (conversion always follows
+  evaluation); the function is applied to the
   _interpolated_ t, per PDF 32000-1 §8.7.4.5.5-.8, never to the vertices beforehand;
   Type 4 functions are accepted when single-input) and `/Background`. An `/Indexed` mesh color space is accepted
   only without a `/Function` (vertex components are palette indices). Type 4 reads free-form triangles

@@ -1290,8 +1290,9 @@ non-embedded font of any kind did before this fallback behavior existed. A shadi
 `/Extend` is honored per end (PDF 32000-1 §8.7.4.5.2): an extended end repeats its end color
 beyond the defining geometry, while a non-extended end (the default) paints nothing past it;
 stitching-function boundaries render as sharp transitions, and a mesh shading's `/Function` is
-applied to the interpolated parametric value (with the 256-entry color table linearly
-interpolated); the
+applied to the interpolated parametric value (through a 4096-entry color table whose entries are
+each converted from the function output at their exact parameter, so nonlinear color spaces are
+converted after evaluation); the
 `sh` operator and generic path
 clipping (`W`/`W*`) are supported. Device, `/CalGray`, `/CalRGB`, `/Lab`, `/ICCBased`, `/Indexed`,
 `/Separation`, `/DeviceN` and `/Pattern` color spaces are supported; `/CalGray`, `/CalRGB` and `/Lab`

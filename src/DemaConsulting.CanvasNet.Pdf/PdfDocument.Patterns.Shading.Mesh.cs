@@ -33,9 +33,10 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     The number of entries in the color lookup table used for meshes with a <c>/Function</c>;
-    ///     adjacent entries are linearly interpolated when a pixel's parametric value falls between them.
+    ///     each entry is the color-space conversion of the function evaluated at that entry's exact
+    ///     parameter, and a pixel uses its nearest entry (converted colors are never blended).
     /// </summary>
-    private const int MeshFunctionLutSize = 256;
+    private const int MeshFunctionLutSize = 4096;
 
     /// <summary>
     ///     Maps a patch's stream point order (boundary: <c>p00 p01 p02 p03 p13 p23 p33 p32 p31 p30
@@ -846,24 +847,18 @@ public sealed partial class PdfDocument
         {
             if (_lut is not null)
             {
-                // Linear interpolation between adjacent table entries (not nearest-entry).
+                // Nearest-entry lookup: every entry is the color space conversion of the function
+                // output evaluated at that entry's exact t, so converted 8-bit colors are never
+                // blended (blending after conversion differs from converting the interpolated
+                // components for nonlinear color spaces). The table is fine enough that the
+                // parameter quantization error is below half a table step.
                 var fraction = _tRange == 0 ? 0 : (a - _tMin) / _tRange;
-                var position = Math.Clamp(fraction, 0, 1) * (_lut.Length - 1);
-                var lower = (int)Math.Floor(position);
-                var upper = Math.Min(lower + 1, _lut.Length - 1);
-                var weight = position - lower;
-                var lo = _lut[lower];
-                var hi = _lut[upper];
-                return weight <= 0
-                    ? lo
-                    : new Rgba32(Lerp(lo.R, hi.R, weight), Lerp(lo.G, hi.G, weight), Lerp(lo.B, hi.B, weight), Lerp(lo.A, hi.A, weight));
+                var index = (int)Math.Round(Math.Clamp(fraction, 0, 1) * (_lut.Length - 1));
+                return _lut[index];
             }
 
             return new Rgba32(ClampByte(a), ClampByte(b), ClampByte(c), 255);
         }
-
-        private static byte Lerp(byte from, byte to, double weight) =>
-            (byte)Math.Clamp(Math.Round(from + ((to - from) * weight)), 0, 255);
 
         private static byte ClampByte(double value) => (byte)Math.Clamp(Math.Round(value), 0, 255);
     }

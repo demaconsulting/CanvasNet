@@ -2128,7 +2128,8 @@ sections:
               Coons-derived interior points of type 6), mapping a single parametric color through
               the optional /Function (the parametric value t is interpolated across each triangle
               or patch and the function - which may be nonlinear - is applied to the interpolated
-              t through a 256-entry color table whose adjacent entries are linearly interpolated),
+              t through a 4096-entry color table whose entries are each the color-space conversion of the
+              function evaluated at that entry's exact t, so converted colors are never blended),
               converting colors through any resolvable non-Pattern color space (including
               DeviceGray/DeviceRGB/DeviceCMYK and Lab; interpolated in RGB), and painting the interpolated mesh
               (patches tessellated at a
@@ -2143,7 +2144,8 @@ sections:
               - PdfDocument_MeshShading_Type4_Flag2_ContinuesFan
               - PdfDocument_MeshShading_Type4_Function_MapsParametricValue
               - PdfDocument_MeshShading_Function_NonlinearFunctionAppliedToInterpolatedParameter
-              - PdfDocument_MeshShading_Function_LookupTableIsInterpolatedBetweenEntries
+              - PdfDocument_MeshShading_Function_LookupTableTracksSteepRampClosely
+              - PdfDocument_MeshShading_Function_NonlinearCalGray_ConvertsFunctionOutputAtParameter
               - PdfDocument_MeshShading_LabColorSpace_VertexColorsAreNaturalUnits
               - CanvasNetPdf_SystemIntegration_MeshShadingWithNonlinearFunction_AppliesFunctionToInterpolatedParameter
               - PdfDocument_MeshShading_Type4_BitSizeMatrix_RendersSame

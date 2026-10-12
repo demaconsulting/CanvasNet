@@ -922,18 +922,18 @@ public class PdfDocumentMeshShadingTests
     }
 
     /// <summary>
-    ///     Proves that the mesh function lookup table is linearly interpolated between entries
-    ///     rather than snapped to the nearest entry: a steep ramp sampled halfway between two table
-    ///     entries must produce the in-between value.
+    ///     Proves that the mesh function lookup table is fine enough to track a steep ramp: a pixel
+    ///     whose parameter falls between two table entries still lands within one level of the exact
+    ///     function value (each entry is the function evaluated at its exact parameter).
     /// </summary>
     [Fact]
-    public void PdfDocument_MeshShading_Function_LookupTableIsInterpolatedBetweenEntries()
+    public void PdfDocument_MeshShading_Function_LookupTableTracksSteepRampClosely()
     {
-        // Arrange: f ramps 0 -> 1 over t in [0.4, 0.6] (stitched), so adjacent 256-entry table
-        // values differ by about 5 levels. Pick the right vertex's t so the pixel at x = 40.5 has
-        // t exactly halfway between table entries 102 and 103.
+        // Arrange: f ramps 0 -> 1 over t in [0.4, 0.6] (stitched), so the ramp is steep (1275 levels
+        // per unit t). Pick the right vertex's t so the pixel at x = 40.5 has t exactly halfway
+        // between two table entries.
         var format = new Fmt(16, 16, 8);
-        var targetT = 102.5 / 255.0;
+        var targetT = 1638.5 / 4095.0;
         var rightT = Math.Round(targetT / 0.405 * 65535) / 65535;
         var t = rightT * 40.5 / 100.0;
         var expected = Math.Clamp((t - 0.4) / 0.2, 0, 1) * 255.0;
@@ -959,9 +959,45 @@ public class PdfDocumentMeshShadingTests
         // Act
         using var surface = Render(bytes);
 
-        // Assert: nearest-entry lookup would give 0 or 5 here; interpolation gives ~2.5.
+        // Assert: half a table step of t is about 0.16 levels, so the result is within one level.
         var actual = At(surface, 40.5, 12).R;
-        Assert.InRange(actual, expected - 0.8, expected + 0.8);
+        Assert.InRange(actual, expected - 1.0, expected + 1.0);
+    }
+
+    /// <summary>
+    ///     Proves that color-space conversion happens after the function is evaluated at the
+    ///     pixel's parameter, not by blending already-converted colors: with a nonlinear
+    ///     <c>/CalGray</c> (gamma 0.5) and a linear 0 to 1 function, the mid-parameter pixel is the
+    ///     converted gray of f(t) (about 219), not the 128 midway between the converted endpoints.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_MeshShading_Function_NonlinearCalGray_ConvertsFunctionOutputAtParameter()
+    {
+        // Arrange: t is 0 at the left vertices and 1 at the right vertex, so t = (x - 10) / 80.
+        var entries = Entries(
+            4,
+            decode: "[0 100 0 100 0 1]",
+            colorSpace: "[/CalGray << /WhitePoint [0.9505 1.0 1.089] /Gamma 0.5 >>]",
+            extra: "/Function 6 0 R");
+        var p = new BitPacker();
+        WriteVertex(p, Std, 0, 10, 10, 0);
+        WriteVertex(p, Std, 0, 90, 10, 1);
+        WriteVertex(p, Std, 0, 10, 90, 0);
+        var bytes = BuildSinglePage(
+            "/Sh1 sh",
+            "/Shading << /Sh1 5 0 R >>",
+            [
+                BuildStream(entries, p.ToArray()),
+                BuildStream("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [1] /N 1", []),
+            ]);
+
+        // Act
+        using var surface = Render(bytes);
+
+        // Assert: pixel x = 50 has t = 0.506; Y = t^0.5 = 0.711 encodes to sRGB 219 (a blend of the
+        // converted endpoints 0 and 255 would give about 129).
+        var gray = At(surface, 50, 12).R;
+        Assert.InRange(gray, 213, 225);
     }
 
     /// <summary>Proves that exceeding the vertex limit throws <see cref="UnsupportedImageFeatureException"/> (<c>pdf-shading-mesh-too-many-vertices</c>).</summary>

@@ -4355,7 +4355,8 @@ public class SvgCodecTests
         // Assert: bounded work - the cumulative budget rejects excess filter applications before
         // any of their own SourceGraphic/filter-chain work begins, so only the 10 filtered shapes
         // allocated a surface and the charged total never exceeded the 50,000,000 ceiling
-        // each filtered shape allocates its content buffer plus the feFlood primitive's output\n        Assert.Equal(filteredShapeCount * 2, diagnostics.EffectSurfacesAllocated);
+        // each filtered shape allocates its content buffer plus the feFlood primitive's output
+        Assert.Equal(filteredShapeCount * 2, diagnostics.EffectSurfacesAllocated);
         Assert.Equal(shapeCount - filteredShapeCount, diagnostics.BudgetRejections);
         Assert.Equal(50_000_000L, diagnostics.WorkCharged);
     }
@@ -5099,7 +5100,8 @@ public class SvgCodecTests
         }
 
         // Assert: bounded work - the excess filters were skipped rather than evaluated
-        // each filtered shape allocates its content buffer plus the feFlood primitive's output\n        Assert.Equal(filteredShapeCount * 2, diagnostics.EffectSurfacesAllocated);
+        // each filtered shape allocates its content buffer plus the feFlood primitive's output
+        Assert.Equal(filteredShapeCount * 2, diagnostics.EffectSurfacesAllocated);
         Assert.Equal(shapeCount - filteredShapeCount, diagnostics.BudgetRejections);
         Assert.Equal(50_000_000L, diagnostics.WorkCharged);
     }

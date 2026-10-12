@@ -2415,7 +2415,8 @@ actually overlays the fallback rather than remaining invisibly skipped underneat
 `PdfDocument_MeshShading_Type4_Flag1_ContinuesStrip`, `PdfDocument_MeshShading_Type4_Flag2_ContinuesFan`,
 `PdfDocument_MeshShading_Type4_Function_MapsParametricValue`,
 `PdfDocument_MeshShading_Function_NonlinearFunctionAppliedToInterpolatedParameter`,
-`PdfDocument_MeshShading_Function_LookupTableIsInterpolatedBetweenEntries`,
+`PdfDocument_MeshShading_Function_LookupTableTracksSteepRampClosely`,
+`PdfDocument_MeshShading_Function_NonlinearCalGray_ConvertsFunctionOutputAtParameter`,
 `PdfDocument_MeshShading_LabColorSpace_VertexColorsAreNaturalUnits`,
 `CanvasNetPdf_SystemIntegration_MeshShadingWithNonlinearFunction_AppliesFunctionToInterpolatedParameter`,
 `PdfDocument_MeshShading_Type4_BitSizeMatrix_RendersSame`,
@@ -2442,7 +2443,9 @@ a pattern fill, and that `/Matrix` and stroking apply to the mesh. A nonlinear f
 (`f(t) = t^2`) test, in both a unit and a system-integration form, asserts the function is applied
 to the interpolated parameter (midpoint maps to about 0.25, not the 0.5 of a vertex-color blend).
 A steep stitched ramp, probed at a parameter halfway between two table entries, asserts the
-256-entry color table is linearly interpolated rather than snapped to the nearest entry. A `/Lab`
+4096-entry color table still lands within one level of the exact function value. A nonlinear
+`/CalGray` (gamma 0.5) mesh with a linear function asserts the mid-parameter pixel is the converted
+gray of f(t) (about 219) rather than the 129 midway between converted endpoints. A `/Lab`
 mesh asserts vertex components are read in natural Lab units (L 0-100) and converted to sRGB.
 
 #### CanvasNetPdf-PdfDocument-MeshShadingOperator: sh Paints Mesh Shadings
