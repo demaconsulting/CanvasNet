@@ -1377,7 +1377,11 @@ its own distinguishable `Feature` token.
   `copy`/`index`, bitwise and boolean forms of `and`/`or`/`xor`/`not`, `bitshift`). Hard caps: stack 100,
   8192 instructions, 16 nesting levels, 65536 executed instructions, 256 KiB of source; outputs clamp to
   `/Range`. Any syntax error, underflow/overflow, type or domain error, or exceeded cap throws
-  `InvalidDataException`.
+  `InvalidDataException`. Every numeric result pushed on the stack is checked once in `Push`: an
+  Infinity or NaN (overflowing `add`/`mul`, `inf - inf`, or an operator fed such a value) throws
+  `InvalidDataException` ("result is not finite"), so no non-finite value reaches `Math.Clamp`, color
+  conversion or the `eq`/`lt`/`gt` comparisons; `cvi` also rejects NaN explicitly. Division by zero
+  remains its own error.
 
 ### `/Pattern` Color Space (Shading and Tiling Patterns)
 

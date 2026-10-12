@@ -210,6 +210,37 @@ public class PdfDocumentTintTests
         Assert.IsType<InvalidDataException>(error);
     }
 
+    /// <summary>
+    ///     Proves that any arithmetic result that is not finite (overflowing mul/add, an overflowed
+    ///     operand reaching sub/neg/cvr/cvi) fails closed instead of leaking Infinity or NaN.
+    /// </summary>
+    [Theory]
+    [InlineData("{ pop 1000000000.0 dup mul dup mul dup mul dup mul dup mul dup mul }")]
+    [InlineData("{ pop 1000000000.0 dup mul dup mul dup mul dup mul dup mul 100000000000000000000.0 mul dup add }")]
+    [InlineData("{ pop 1000000000.0 dup mul dup mul dup mul dup mul dup mul dup mul dup sub }")]
+    [InlineData("{ pop 1000000000.0 dup mul dup mul dup mul dup mul dup mul dup mul neg cvr }")]
+    [InlineData("{ pop 1000000000.0 dup mul dup mul dup mul dup mul dup mul dup mul cvi }")]
+    public void PdfDocument_Functions_Type4_NonFiniteArithmeticResult_ThrowsInvalidDataException(string program)
+    {
+        // Act
+        var error = ResolvePsError(program);
+
+        // Assert
+        var exception = Assert.IsType<InvalidDataException>(error);
+        Assert.Contains("not finite", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Proves that a large but finite intermediate still evaluates and is clamped to <c>/Range</c>.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type4_LargeFiniteResult_StillEvaluates()
+    {
+        // Act: 1e9 squared five times is 1e288, well within double range.
+        var result = EvalPs("{ pop 1000000000.0 dup mul dup mul dup mul dup mul dup mul }", 0, 1);
+
+        // Assert
+        Assert.Equal(1000, result[0], 6);
+    }
+
     /// <summary>Proves that exceeding the stack, nesting, instruction or execution caps throws <see cref="InvalidDataException"/>.</summary>
     [Fact]
     public void PdfDocument_Functions_Type4_ResourceCaps_ThrowInvalidDataException()

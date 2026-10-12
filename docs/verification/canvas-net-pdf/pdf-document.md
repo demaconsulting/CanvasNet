@@ -1068,6 +1068,8 @@ each width. No timing assertions are used.
 **Tests**: `PdfDocument_Functions_Type4_Operator_ProducesSpecResult` (`[Theory]`),
 `PdfDocument_Functions_Type4_StackOperators_ProduceSpecStack` (`[Theory]`),
 `PdfDocument_Functions_Type4_OutputBeyondRange_IsClamped`,
+`PdfDocument_Functions_Type4_NonFiniteArithmeticResult_ThrowsInvalidDataException`,
+`PdfDocument_Functions_Type4_LargeFiniteResult_StillEvaluates`,
 `PdfDocument_Functions_Type4_MalformedProgram_ThrowsInvalidDataException` (`[Theory]`),
 `PdfDocument_Functions_Type4_ResourceCaps_ThrowInvalidDataException`,
 `PdfDocument_Functions_Type4_NotAStream_ThrowsInvalidDataException`,

@@ -1999,7 +1999,8 @@ sections:
               multilinear interpolation, 1/2/4/8/12/16/24/32 bits per sample), under hard limits
               (operand stack 100, 8192 instructions, 16 nesting levels, 65536 executed
               instructions, 256 KiB source, 2^22 samples, 32 outputs); malformed programs, stack
-              underflow/overflow, domain errors and exceeded limits shall throw
+              underflow/overflow, domain errors, non-finite (Infinity or NaN) numeric results and exceeded
+              limits shall throw
               InvalidDataException, and a Type 4 function that is not a stream shall throw
               InvalidDataException.
             justification: |
@@ -2010,6 +2011,8 @@ sections:
               - PdfDocument_Functions_Type4_Operator_ProducesSpecResult
               - PdfDocument_Functions_Type4_StackOperators_ProduceSpecStack
               - PdfDocument_Functions_Type4_OutputBeyondRange_IsClamped
+              - PdfDocument_Functions_Type4_NonFiniteArithmeticResult_ThrowsInvalidDataException
+              - PdfDocument_Functions_Type4_LargeFiniteResult_StillEvaluates
               - PdfDocument_Functions_Type4_MalformedProgram_ThrowsInvalidDataException
               - PdfDocument_Functions_Type4_ResourceCaps_ThrowInvalidDataException
               - PdfDocument_Functions_Type4_NotAStream_ThrowsInvalidDataException

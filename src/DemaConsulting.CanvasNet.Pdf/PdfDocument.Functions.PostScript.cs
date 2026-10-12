@@ -479,7 +479,7 @@ public sealed partial class PdfDocument
                         {
                             var a = PopNumber(stack, ref sp);
                             var t = Math.Truncate(a.Value);
-                            if (Math.Abs(t) > int.MaxValue)
+                            if (double.IsNaN(t) || Math.Abs(t) > int.MaxValue)
                             {
                                 throw new InvalidDataException("PostScript calculator 'cvi' overflow.");
                             }
@@ -722,6 +722,14 @@ public sealed partial class PdfDocument
             if (sp >= MaxPostScriptStackDepth)
             {
                 throw new InvalidDataException("PostScript calculator stack overflow.");
+            }
+
+            // Single choke point for every numeric result: an Infinity or NaN (overflowing add/mul,
+            // inf - inf, neg/abs/trig/rounding of such values) would otherwise pass through Math.Clamp
+            // into color conversion and make eq/lt/gt misbehave, so the function is malformed.
+            if (value.Type != PsType.Bool && !double.IsFinite(value.Value))
+            {
+                throw new InvalidDataException("PostScript calculator result is not finite.");
             }
 
             stack[sp++] = value;
