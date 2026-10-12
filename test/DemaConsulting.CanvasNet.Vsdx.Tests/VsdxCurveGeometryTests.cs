@@ -157,9 +157,9 @@ public class VsdxCurveGeometryTests
         Assert.Equal(0.5f, PointNearX(subpath, 1f).Y, 2);
     }
 
-    /// <summary>A NURBSTo with a non-positive weight falls back to a reported control-point polyline instead of silently using weight 1.</summary>
+    /// <summary>A NURBSTo with a non-positive weight is skipped atomically and reported instead of drawing partial geometry.</summary>
     [Fact]
-    public void Geometry_NurbsTo_InvalidWeight_FallsBackToPolylineAndReports()
+    public void Geometry_NurbsTo_InvalidWeight_SkippedAndReported()
     {
         var subpath = ResolveSubpath(
             """
@@ -168,8 +168,80 @@ public class VsdxCurveGeometryTests
             """,
             out var features);
 
-        Assert.Equal(2, subpath.Commands.Count);
-        Assert.Contains("vsdx-geometry-spline-approximated", features);
+        Assert.Empty(subpath.Commands);
+        Assert.Contains("vsdx-geometry-row-NURBSTo", features);
+    }
+
+    /// <summary>A NURBSTo row with a missing or malformed required cell (X, Y, knot, weight) is skipped atomically and reported.</summary>
+    [Theory]
+    [InlineData("""<Cell N="Y" V="0"/><Cell N="A" V="0"/><Cell N="B" V="1"/><Cell N="C" V="0"/><Cell N="D" V="1"/>""")]
+    [InlineData("""<Cell N="X" V="2"/><Cell N="Y" V="NaN"/><Cell N="A" V="0"/><Cell N="B" V="1"/><Cell N="C" V="0"/><Cell N="D" V="1"/>""")]
+    [InlineData("""<Cell N="X" V="2"/><Cell N="Y" V="0"/><Cell N="B" V="1"/><Cell N="C" V="0"/><Cell N="D" V="1"/>""")]
+    [InlineData("""<Cell N="X" V="2"/><Cell N="Y" V="0"/><Cell N="A" V="0"/><Cell N="C" V="0"/><Cell N="D" V="1"/>""")]
+    [InlineData("""<Cell N="X" V="2"/><Cell N="Y" V="0"/><Cell N="A" V="0"/><Cell N="B" V="0"/><Cell N="C" V="0"/><Cell N="D" V="1"/>""")]
+    [InlineData("""<Cell N="X" V="2"/><Cell N="Y" V="0"/><Cell N="A" V="0"/><Cell N="B" V="1"/><Cell N="C" V="0"/>""")]
+    public void Geometry_NurbsTo_InvalidRequiredCell_SkippedAtomicallyAndReported(string cellsXml)
+    {
+        var subpath = ResolveSubpath(
+            $"""
+            <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+            <Row T="NURBSTo" IX="2">{cellsXml}<Cell N="E" V="0" F="NURBS(1,2,1,1,1,1,0,1)"/></Row>
+            """,
+            out var features);
+
+        Assert.Empty(subpath.Commands);
+        Assert.Contains("vsdx-geometry-row-NURBSTo", features);
+    }
+
+    /// <summary>A SplineStart with no following SplineKnot rows is reported and adds no geometry.</summary>
+    [Fact]
+    public void Geometry_SplineStartWithoutKnots_ReportedAndSkipped()
+    {
+        var subpath = ResolveSubpath(
+            """
+            <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+            <Row T="SplineStart" IX="2"><Cell N="X" V="1"/><Cell N="Y" V="1"/><Cell N="A" V="0"/><Cell N="B" V="0"/><Cell N="C" V="1"/><Cell N="D" V="2"/></Row>
+            """,
+            out var features);
+
+        Assert.Empty(subpath.Commands);
+        Assert.Contains("vsdx-geometry-row-SplineStart", features);
+    }
+
+    /// <summary>A SplineStart followed directly by another row type (no knots) is reported and the following row still draws.</summary>
+    [Fact]
+    public void Geometry_SplineStartFollowedByLineTo_ReportedAndLineStillDraws()
+    {
+        var subpath = ResolveSubpath(
+            """
+            <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+            <Row T="SplineStart" IX="2"><Cell N="X" V="1"/><Cell N="Y" V="1"/><Cell N="A" V="0"/><Cell N="B" V="0"/><Cell N="C" V="1"/><Cell N="D" V="2"/></Row>
+            <Row T="LineTo" IX="3"><Cell N="X" V="2"/><Cell N="Y" V="1"/></Row>
+            """,
+            out var features);
+
+        var command = Assert.Single(subpath.Commands);
+        Assert.Equal(2f, command.EndPoint.X, 3);
+        Assert.Contains("vsdx-geometry-row-SplineStart", features);
+    }
+
+    /// <summary>A PolylineTo row with a missing or non-finite X or Y end point is skipped and reported rather than drawing to (0, 0).</summary>
+    [Theory]
+    [InlineData("""<Cell N="Y" V="1"/>""")]
+    [InlineData("""<Cell N="X" V="2"/>""")]
+    [InlineData("""<Cell N="X" V="NaN"/><Cell N="Y" V="1"/>""")]
+    [InlineData("""<Cell N="X" V="2"/><Cell N="Y" V="abc"/>""")]
+    public void Geometry_PolylineTo_InvalidEndpoint_SkippedAndReported(string endXml)
+    {
+        var subpath = ResolveSubpath(
+            $"""
+            <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+            <Row T="PolylineTo" IX="2">{endXml}<Cell N="A" V="0" F="POLYLINE(1,1,1,1,2,0)"/></Row>
+            """,
+            out var features);
+
+        Assert.Empty(subpath.Commands);
+        Assert.Contains("vsdx-geometry-row-PolylineTo", features);
     }
 
     /// <summary>A degree above the cap is clamped and a degree above the point count is reduced; resolution never throws.</summary>

@@ -100,7 +100,7 @@ public sealed partial class VsdxDocument
                         {
                             ReportUnsupported(
                                 "vsdx-geometry-row-NURBSTo",
-                                "A NURBSTo row has a missing, malformed or oversized NURBS formula and was skipped.");
+                                "A NURBSTo row has a missing, malformed or oversized NURBS formula, or a missing, non-finite or non-positive-weight X, Y, A, B, C or D cell, and was skipped.");
                         }
                     }
 
@@ -117,7 +117,7 @@ public sealed partial class VsdxDocument
                         {
                             ReportUnsupported(
                                 "vsdx-geometry-row-PolylineTo",
-                                "A PolylineTo row has a missing, malformed or oversized POLYLINE formula and was skipped.");
+                                "A PolylineTo row has a missing, malformed or oversized POLYLINE formula, or a missing or non-finite X or Y cell, and was skipped.");
                         }
                     }
 

@@ -120,6 +120,15 @@ public sealed partial class VsdxDocument
     /// <returns>The last control point (the new pen position).</returns>
     private static Vector2 FlushSpline(PathBuilder builder, SplineAccumulator spline)
     {
+        if (spline.Points.Count < 3)
+        {
+            // An orphan SplineStart (no accepted SplineKnot rows) defines no curve; report it.
+            ReportUnsupported(
+                "vsdx-geometry-row-SplineStart",
+                "A SplineStart row has no following valid SplineKnot rows and was skipped.");
+            return spline.Points[0];
+        }
+
         var knots = new List<double>(spline.Knots) { spline.LastKnot };
         AppendNurbs(builder, spline.Points, null, knots, spline.Degree);
         return spline.Points[^1];
@@ -149,11 +158,28 @@ public sealed partial class VsdxDocument
             return false;
         }
 
+        // Validate every required cell before anything is appended (atomic skip).
+        if (!TryGetFinite(cells, "X", out var endX) || !TryGetFinite(cells, "Y", out var endY) ||
+            !TryGetFinite(cells, "A", out var endKnot) || !TryGetFinite(cells, "B", out var endWeight) ||
+            !TryGetFinite(cells, "C", out var firstKnot) || !TryGetFinite(cells, "D", out var firstWeight) ||
+            endWeight <= 0d || firstWeight <= 0d)
+        {
+            return false;
+        }
+
+        for (var i = 7; i < args.Count; i += 4)
+        {
+            if (args[i] <= 0d)
+            {
+                return false;
+            }
+        }
+
         var xScale = args[2] == 0d ? width : 1d;
         var yScale = args[3] == 0d ? height : 1d;
         var points = new List<Vector2> { start };
-        var weights = new List<double> { cells.GetDouble("D", 1d) };
-        var knots = new List<double> { cells.GetDouble("C") };
+        var weights = new List<double> { firstWeight };
+        var knots = new List<double> { firstKnot };
         for (var i = 4; i < args.Count; i += 4)
         {
             points.Add(ToLocalPoint(args[i] * xScale, args[i + 1] * yScale));
@@ -161,11 +187,12 @@ public sealed partial class VsdxDocument
             weights.Add(args[i + 3]);
         }
 
-        end = ToLocalPoint(cells.GetDouble("X"), cells.GetDouble("Y"));
-        points.Add(end);
-        knots.Add(cells.GetDouble("A"));
-        weights.Add(cells.GetDouble("B", 1d));
+        var endPoint = ToLocalPoint(endX, endY);
+        points.Add(endPoint);
+        knots.Add(endKnot);
+        weights.Add(endWeight);
         knots.Add(args[0]);
+        end = endPoint;
 
         AppendNurbs(builder, points, weights, knots, (int)Math.Clamp(Math.Round(args[1]), 1d, MaxCurveDegree));
         return true;
@@ -192,9 +219,14 @@ public sealed partial class VsdxDocument
             return false;
         }
 
+        if (!TryGetFinite(cells, "X", out var endX) || !TryGetFinite(cells, "Y", out var endY))
+        {
+            return false;
+        }
+
         var xScale = args[0] == 0d ? width : 1d;
         var yScale = args[1] == 0d ? height : 1d;
-        end = ToLocalPoint(cells.GetDouble("X"), cells.GetDouble("Y"));
+        end = ToLocalPoint(endX, endY);
         var last = (Vector2?)null;
         for (var i = 2; i < args.Count; i += 2)
         {

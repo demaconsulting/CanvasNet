@@ -306,8 +306,14 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   points and report `vsdx-geometry-spline-approximated`; a malformed or over-cap row is skipped
   and reported as `vsdx-geometry-row-{Type}`; a `SplineStart` (cells `X`/`Y`/`A`/`B`/`C`) or
   `SplineKnot` (`X`/`Y`/`A`) row whose required cell is missing, malformed or non-finite is
-  likewise skipped and reported rather than accumulated as zero. A non-positive or non-finite
-  weight makes flattening fail, taking the reported polyline fallback. A group child that has its own `Master` reference
+  likewise skipped and reported rather than accumulated as zero. A `SplineStart` with no valid
+  following `SplineKnot` rows is reported as `vsdx-geometry-row-SplineStart` and adds no geometry.
+  A `NURBSTo` row is validated before anything is appended: its `X`, `Y`, `A`, `B`, `C` and `D`
+  cells must be present and finite, and the cell and formula weights positive, otherwise the row is
+  skipped atomically and reported as `vsdx-geometry-row-NURBSTo`. A `PolylineTo` row whose `X`/`Y`
+  end point is missing or non-finite is likewise skipped and reported, never drawn to (0, 0).
+  Weights that pass this check but still fail flattening (for example decreasing knots) take the
+  reported polyline fallback. A group child that has its own `Master` reference
   and no `MasterShape` match in its parent's master resolves against that master's shape.
   `InfiniteLine` and any other row type are still skipped (not throwing on) and reported.
 - **`ResolveConnectors(VsdxDocument document, IReadOnlyList<XElement> connects)`** (internal):

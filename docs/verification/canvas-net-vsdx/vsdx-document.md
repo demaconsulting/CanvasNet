@@ -207,7 +207,12 @@ as `vsdx-geometry-row-<Type>`.
 `Geometry_SplineKnotsBeyondCap_AreTruncatedAndReported`,
 `Geometry_SplineStartMissingCell_SkippedAndReported`,
 `Geometry_SplineKnotMalformedCell_SkippedAndReported`,
-`Geometry_NurbsTo_InvalidWeight_FallsBackToPolylineAndReports`, `Geometry_NurbsTo_LocalCoordinatesQuadratic`,
+`Geometry_NurbsTo_InvalidWeight_SkippedAndReported`,
+`Geometry_NurbsTo_InvalidRequiredCell_SkippedAtomicallyAndReported`,
+`Geometry_SplineStartWithoutKnots_ReportedAndSkipped`,
+`Geometry_SplineStartFollowedByLineTo_ReportedAndLineStillDraws`,
+`Geometry_PolylineTo_InvalidEndpoint_SkippedAndReported`,
+`Geometry_NurbsTo_LocalCoordinatesQuadratic`,
 `Geometry_NurbsTo_RelativeCoordinatesScaleByWidthAndHeight`,
 `Geometry_NurbsTo_WeightPullsCurveTowardControlPoint`,
 `Geometry_NurbsTo_MalformedFormula_SkippedAndReported`, `Geometry_NurbsTo_OverPointCap_SkippedAndReported`,
@@ -220,9 +225,10 @@ point; a heavier weight pulls the curve toward its control point; `xType`/`yType
 `Width`/`Height`; a following row continues from the curve end; invalid knots fall back to a
 polyline and report `vsdx-geometry-spline-approximated`; out-of-range degree never throws; and a
 malformed, oversized or orphan row is skipped and reported as `vsdx-geometry-row-<Type>` (including a
-`SplineStart`/`SplineKnot` whose required cell is missing, malformed or non-finite, and a NURBS
-row with a non-positive or non-finite weight, which falls back to the reported control-point
-polyline instead of silently using weight 1), with
+`SplineStart`/`SplineKnot` whose required cell is missing, malformed or non-finite, a `SplineStart`
+with no valid following `SplineKnot` rows, a `NURBSTo` row with any missing or non-finite required
+cell or a non-positive weight, and a `PolylineTo` row with a missing or non-finite `X`/`Y` end
+point; each is skipped atomically with no partial geometry, never drawing to a default (0, 0)), with
 control-point and segment counts bounded by the documented caps. The expected values are derived
 analytically; no timing is asserted. Real-file confidence for `NURBSTo`/`PolylineTo` is limited:
 the only real-world sample available used `SplineStart`/`SplineKnot`.

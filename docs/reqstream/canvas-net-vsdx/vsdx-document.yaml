@@ -196,7 +196,11 @@ sections:
               - Geometry_SplineKnotsBeyondCap_AreTruncatedAndReported
               - Geometry_SplineStartMissingCell_SkippedAndReported
               - Geometry_SplineKnotMalformedCell_SkippedAndReported
-              - Geometry_NurbsTo_InvalidWeight_FallsBackToPolylineAndReports
+              - Geometry_NurbsTo_InvalidWeight_SkippedAndReported
+              - Geometry_NurbsTo_InvalidRequiredCell_SkippedAtomicallyAndReported
+              - Geometry_SplineStartWithoutKnots_ReportedAndSkipped
+              - Geometry_SplineStartFollowedByLineTo_ReportedAndLineStillDraws
+              - Geometry_PolylineTo_InvalidEndpoint_SkippedAndReported
               - Geometry_NurbsTo_LocalCoordinatesQuadratic
               - Geometry_NurbsTo_RelativeCoordinatesScaleByWidthAndHeight
               - Geometry_NurbsTo_WeightPullsCurveTowardControlPoint
