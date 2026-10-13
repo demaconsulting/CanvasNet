@@ -194,8 +194,54 @@ rounded.
 axis points `A`/`B` and `C`/`D`) becomes one closed subpath of four cubic quadrants starting at
 the first axis point; `Geometry_RelativeBezierRows_AreScaledAndKept` proves `RelCubBezTo` and
 `RelQuadBezTo` rows scale their cells by `Width`/`Height` and keep the curve commands. Rows still
-unsupported (`NURBSTo`, `SplineStart`/`SplineKnot`, `PolylineTo`, `InfiniteLine`) remain reported
+unsupported (`InfiniteLine`) remain reported
 as `vsdx-geometry-row-<Type>`.
+
+#### CanvasNetVsdx-VsdxDocument-CurveGeometryResolution: PolylineTo/NURBSTo/SplineStart-SplineKnot Flatten to Line Segments
+
+**Tests**: `Geometry_SplineStartKnot_QuadraticFlattensToCurve`,
+`Geometry_SplineGroup_FollowingRowContinuesFromLastControlPoint`,
+`Geometry_SplineKnotWithoutStart_ReportedAndSkipped`,
+`Geometry_SplineKnotBeforeMoveTo_ReportedAndSkipped`,
+`Geometry_ContinuationRowBeforeMoveTo_ReportedAndSkipped`,
+`Geometry_SplineWithInvalidKnots_FallsBackToPolylineAndReports`,
+`Geometry_SplineDegreeOutOfRange_IsClampedWithoutThrowing`,
+`Geometry_SplineKnotsBeyondCap_AreTruncatedAndReported`,
+`Geometry_SplineStartMissingCell_SkippedAndReported`,
+`Geometry_SplineStartInvalidDegree_SkippedAndReported`,
+`Geometry_SplineKnotMalformedCell_SkippedAndReported`,
+`Geometry_NurbsTo_InvalidWeight_SkippedAndReported`,
+`Geometry_NurbsTo_InvalidRequiredCell_SkippedAtomicallyAndReported`,
+`Geometry_SplineStartWithoutKnots_ReportedAndSkipped`,
+`Geometry_SplineStartFollowedByLineTo_ReportedAndLineStillDraws`,
+`Geometry_PolylineTo_InvalidEndpoint_SkippedAndReported`,
+`Geometry_NurbsTo_LocalCoordinatesQuadratic`,
+`Geometry_NurbsTo_RelativeCoordinatesScaleByWidthAndHeight`,
+`Geometry_NurbsTo_WeightPullsCurveTowardControlPoint`,
+`Geometry_NurbsTo_MalformedFormula_SkippedAndReported`, `Geometry_NurbsTo_OverPointCap_SkippedAndReported`,
+`Geometry_PolylineTo_AbsoluteVertices`, `Geometry_PolylineTo_RelativeVerticesReachEndPoint`,
+`Geometry_PolylineTo_MissingFormula_SkippedAndReported`
+
+All tests (in `VsdxCurveGeometryTests.cs`) build a minimal in-memory package. They prove a
+quadratic spline/NURBS passes through the analytic curve midpoint and ends at its last control
+point; a heavier weight pulls the curve toward its control point; `xType`/`yType` of `0` scale by
+`Width`/`Height`; a following row continues from the curve end; invalid knots fall back to a
+polyline and report `vsdx-geometry-spline-approximated`; out-of-range degree never throws; and a
+malformed, oversized or orphan row is skipped and reported as `vsdx-geometry-row-<Type>` (including a
+`SplineStart`/`SplineKnot` whose required cell (including the `SplineStart` degree cell `D`) is
+missing, malformed or non-finite, a `SplineStart`
+with no valid following `SplineKnot` rows, a `NURBSTo` row with any missing or non-finite required
+cell or a non-positive weight, and a `PolylineTo` row with a missing or non-finite `X`/`Y` end
+point; each is skipped atomically with no partial geometry, never drawing to a default (0, 0)), with
+control-point and segment counts bounded by the documented caps. The expected values are derived
+analytically; no timing is asserted. Real-file confidence for `NURBSTo`/`PolylineTo` is limited:
+the only real-world sample available used `SplineStart`/`SplineKnot`.
+
+#### CanvasNetVsdx-VsdxDocument-GroupChildOwnMasterResolution: Group Child With Its Own Master
+
+**Test**: `Group_ChildWithOwnMaster_InheritsMasterGeometry`
+
+Proves a group child carrying its own `Master` reference inherits that master's geometry.
 
 #### CanvasNetVsdx-VsdxDocument-ShapeTransform: 2-D Shape Transform Order (LocPin, Flip, Rotate, Pin)
 
@@ -528,8 +574,34 @@ smoke-test harness confirmed a second, independent real-world instance of the do
 fallback limitation (`canvas-net-vsdx.md`'s Design Constraints section): `60973.vsdx`'s
 `Nwwww`/`Neeeee` rack-slot bars resolve a bare `THEMEVAL()` formula through this same
 unresolvable-scheme path, rendering gray rather than Visio's own orange/blue fill. No code change
-was made; recorded purely as confirmed evidence this documented gap is real and already correctly
-tolerated at a second site.
+was made at the time; recorded purely as confirmed evidence this documented gap is real and already correctly
+tolerated at a second site. **Superseded**: a bare `THEMEVAL()` cell now resolves to the "No Style"
+values (see `CanvasNetVsdx-VsdxDocument-ThemedNoStyleFallback` below), so those bars no longer render
+as neutral gray; the note is retained as history.
+
+#### CanvasNetVsdx-VsdxDocument-ThemedNoStyleFallback: Bare "Themed" Resolves To The "No Style" Value
+
+**Tests**: `ThemedPaint_InheritedFromThemeStyle_ResolvesToNoStyleValues`,
+`ThemedPaint_DeclaredOnShape_ResolvesToNoStyleValues`,
+`ThemedPaint_OwnLiteralValue_IsNotReplaced`,
+`ThemedTextColor_InheritedFromThemeStyle_ResolvesToNoStyleColor`,
+`ThemedTextColor_WithResolvableThemeSlot_ResolvesToThemeColor`
+
+Builds a synthetic package whose shape chains through a "Theme" StyleSheet of bare
+`THEMEVAL()` cells and asserts the resolved paint is a black 0.0104 in outline with a white solid
+fill and black text, that a shape's own themed cells behave the same, and that an own literal
+color is never replaced. A themed text color whose formula is `THEMEVAL("accent1")` resolves to the
+theme's accent color; the "No Style" color applies only when the slot cannot be resolved.
+
+#### CanvasNetVsdx-VsdxDocument-ThemedFontResolution: Bare "Themed" Font Resolves To The Theme Or No Style Typeface
+
+**Tests**: `ThemedFont_WithThemeMinorFont_ResolvesToThemeTypeface`,
+`ThemedFont_WithoutTheme_ResolvesToNoStyleFont`, `MissingFont_WithThemeMinorFont_KeepsDefaultFont`
+
+Builds a synthetic package whose character `Font` is a bare `THEMEVAL()` inherited from a "Theme"
+StyleSheet. Asserts the run's font family is the theme's minor Latin typeface when a font scheme
+is present, and the "No Style" StyleSheet's `Font` when no theme part exists. A shape with no
+resolvable `Font` cell keeps the default font even when the theme supplies a minor font.
 
 #### CanvasNetVsdx-VsdxDocument-FillPatternDeferral: Solid Resolves Directly, Any Other Value Degrades
 
@@ -781,8 +853,12 @@ the rotated pixel location on a `Surface` - a candidate for future end-to-end co
 `Render_UnsupportedConstructs_DefaultOptionsDoNotThrow`,
 `Render_UnsupportedConstructs_StrictModeThrowsWithFeatureToken`,
 `Render_FullySupportedPage_ReportsNothing`,
-`Render_UnresolvableThemedFill_ReportsThemedColor` (a bare `THEMEVAL()` fill reports
-`vsdx-themed-color` instead of silently drawing the gray fallback)
+`Render_UnresolvableThemedFill_ReportsThemedColor` (a bare `THEMEVAL()` fill with no resolvable
+"No Style" value reports `vsdx-themed-color` instead of silently drawing the gray fallback),
+`Render_NonSolidFillPattern_ReportsDistinctToken` (a `FillPattern` above 1 reports
+`vsdx-fill-pattern-<n>` while patterns 0 and 1 report nothing; curve rows that cannot be evaluated
+report `vsdx-geometry-spline-approximated` or `vsdx-geometry-row-<Type>`, covered by
+`VsdxCurveGeometryTests`)
 
 Arrange a synthetic page with a made-up geometry row type (twice, to prove de-duplication) and a
 connector with an unmapped `EndArrow` index. Rendering twice with a handler yields exactly the

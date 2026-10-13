@@ -359,7 +359,10 @@ Exercises end-to-end system behavior for the Phase 14 `/Pattern` color-space axi
 pipeline: calls the public `Render` API against a synthetic, in-memory single-page PDF (no binary
 fixture) declaring a `/Pattern`-color-space fill driven by a `/ShadingType 2` shading with a
 `/FunctionType 2` (exponential interpolation) function interpolating black to white along its
-axis. Asserts the painted gradient is near-black at the axis's start coordinate and near-white at
+axis (the general function evaluator also covers sampled type 0, stitching type 3 and PostScript
+calculator type 4 functions, and multi-input functions - verified at the unit level under the
+`FunctionType*` requirements). Asserts the painted gradient is near-black at the axis's start
+coordinate and near-white at
 its end coordinate, confirming `/Pattern` color-space resolution, axial-shading coordinate
 mapping, and function evaluation all integrate correctly through the system's own public entry
 point (not merely a single solid fill color).

@@ -151,10 +151,9 @@ sections:
           - id: CanvasNetVsdx-VsdxDocument-GeometryUnrecognizedRowSkip
             title: >-
               The VsdxDocument class shall skip (not throw on) a geometry row of an unrecognized
-              type, including NURBSTo/InfiniteLine (documented VisioML vocabulary observed in the
-              sample corpus, but not converted to path segments by this delivery) and the
-              documented-but-unobserved RelCubBezTo/SplineStart/SplineKnot/PolylineTo/Ellipse row
-              kinds.
+              type, including InfiniteLine and any row kind not resolved into path segments (see
+              CanvasNetVsdx-VsdxDocument-CurveGeometryResolution for the curve rows that are
+              resolved), reporting each skipped row to the unsupported-feature handler.
             justification: |
               A geometry row type absent from this delivery's resolved vocabulary must still
               degrade gracefully rather than aborting an entire shape or page. Correction note
@@ -168,9 +167,68 @@ sections:
               Milestone 11 note: EllipticalArcTo and ArcTo are no longer part of this requirement's
               skip list - see CanvasNetVsdx-VsdxDocument-ArcGeometryResolution below, which
               supersedes the Milestone 8 correction note's treatment of EllipticalArcTo
-              specifically; NURBSTo remains skipped.
+              specifically. NURBSTo, SplineStart/SplineKnot and PolylineTo were later implemented
+              (see CanvasNetVsdx-VsdxDocument-CurveGeometryResolution) and are no longer skipped.
             tests:
               - Geometry_UnrecognizedRowType_SkippedWithoutThrowing
+
+          - id: CanvasNetVsdx-VsdxDocument-CurveGeometryResolution
+            title: >-
+              The VsdxDocument class shall resolve a geometry section's PolylineTo, NURBSTo and
+              SplineStart/SplineKnot rows into line segments (curves flattened from a clamped
+              rational B-spline), honoring the documented xType/yType coordinate-unit selector and
+              the spline degree, degrading a spline with invalid knots or degree to a
+              polyline through its control points (reported as vsdx-geometry-spline-approximated),
+              skipping and reporting a malformed or oversized row (a NURBSTo row with a missing,
+              non-finite or non-positive-weight cell is skipped atomically, with no partial
+              geometry; an orphan SplineStart or SplineKnot, or any continuation row before the first MoveTo, is
+              reported, never silently dropped),
+              and bounding every curve by hard
+              caps on control points, degree and flattened segments.
+            justification: |
+              A real-world connector master ("Line-curve connector") draws its curve with
+              SplineStart/SplineKnot rows, and skipping them left connectors and bowl outlines
+              visibly wrong. Untrusted files must not be able to force unbounded work, so the number
+              of control points (1024), the degree (25) and the flattened segment count (4096) are
+              capped; exceeding a cap skips the row and reports it rather than throwing.
+            tests:
+              - Geometry_SplineStartKnot_QuadraticFlattensToCurve
+              - Geometry_SplineGroup_FollowingRowContinuesFromLastControlPoint
+              - Geometry_SplineKnotWithoutStart_ReportedAndSkipped
+              - Geometry_SplineKnotBeforeMoveTo_ReportedAndSkipped
+              - Geometry_ContinuationRowBeforeMoveTo_ReportedAndSkipped
+              - Geometry_SplineWithInvalidKnots_FallsBackToPolylineAndReports
+              - Geometry_SplineDegreeOutOfRange_IsClampedWithoutThrowing
+              - Geometry_SplineKnotsBeyondCap_AreTruncatedAndReported
+              - Geometry_SplineStartMissingCell_SkippedAndReported
+              - Geometry_SplineStartInvalidDegree_SkippedAndReported
+              - Geometry_SplineKnotMalformedCell_SkippedAndReported
+              - Geometry_NurbsTo_InvalidWeight_SkippedAndReported
+              - Geometry_NurbsTo_InvalidRequiredCell_SkippedAtomicallyAndReported
+              - Geometry_SplineStartWithoutKnots_ReportedAndSkipped
+              - Geometry_SplineStartFollowedByLineTo_ReportedAndLineStillDraws
+              - Geometry_PolylineTo_InvalidEndpoint_SkippedAndReported
+              - Geometry_NurbsTo_LocalCoordinatesQuadratic
+              - Geometry_NurbsTo_RelativeCoordinatesScaleByWidthAndHeight
+              - Geometry_NurbsTo_WeightPullsCurveTowardControlPoint
+              - Geometry_NurbsTo_MalformedFormula_SkippedAndReported
+              - Geometry_NurbsTo_OverPointCap_SkippedAndReported
+              - Geometry_PolylineTo_AbsoluteVertices
+              - Geometry_PolylineTo_RelativeVerticesReachEndPoint
+              - Geometry_PolylineTo_MissingFormula_SkippedAndReported
+
+          - id: CanvasNetVsdx-VsdxDocument-GroupChildOwnMasterResolution
+            title: >-
+              The VsdxDocument class shall resolve a group child that carries its own Master
+              reference (and has no MasterShape match in its parent group's master) against that
+              master's shape, so a stencil shape nested inside a group inherits its geometry,
+              transform and paint.
+            justification: |
+              Group children that are themselves master instances (for example a pump stencil
+              placed inside a grouped assembly) previously resolved with no inherited geometry or
+              line weight and so were not drawn.
+            tests:
+              - Group_ChildWithOwnMaster_InheritsMasterGeometry
 
           - id: CanvasNetVsdx-VsdxDocument-ArcGeometryResolution
             title: >-
@@ -515,6 +573,41 @@ sections:
               - VsdxDocument_ThemedCellResolution_FallsBackToNeutralDefaultWhenNoThemePart
               - VsdxDocument_ThemedCellResolution_ResolvesAgainstParsedTheme
 
+          - id: CanvasNetVsdx-VsdxDocument-ThemedNoStyleFallback
+            title: >-
+              The VsdxDocument class shall resolve a line, fill or text-color cell whose value is
+              the bare literal "Themed" sentinel (a THEMEVAL() formula naming no theme slot, as
+              inherited from the built-in "Theme" StyleSheet) to the same cell's value in the
+              built-in "No Style" StyleSheet (ID 0) rather than to a neutral gray, retaining the
+              neutral gray only when that StyleSheet supplies no literal value.
+            justification: |
+              Real-world Visio equipment shapes inherit from the built-in "Theme" StyleSheet,
+              whose cells are all a bare THEMEVAL(). Visio renders such shapes with the unthemed
+              base values (black outline, black text, white or absent fill); resolving them to
+              gray painted solid gray discs and gray text.
+            tests:
+              - ThemedPaint_InheritedFromThemeStyle_ResolvesToNoStyleValues
+              - ThemedPaint_DeclaredOnShape_ResolvesToNoStyleValues
+              - ThemedPaint_OwnLiteralValue_IsNotReplaced
+              - ThemedTextColor_InheritedFromThemeStyle_ResolvesToNoStyleColor
+              - ThemedTextColor_WithResolvableThemeSlot_ResolvesToThemeColor
+
+          - id: CanvasNetVsdx-VsdxDocument-ThemedFontResolution
+            title: >-
+              The VsdxDocument class shall resolve a bare "Themed" character Font cell to the
+              parsed theme's minor Latin typeface (a:fontScheme/a:minorFont/a:latin), else to the
+              built-in "No Style" StyleSheet's Font, and only then to the neutral default
+              typeface.
+            justification: |
+              Real-world Visio equipment shapes inherit a bare THEMEVAL() Font from the built-in
+              "Theme" StyleSheet; the document's theme (and its No Style StyleSheet) names Calibri,
+              but the previous resolution always substituted a neutral default typeface, so text
+              never used the installed Calibri font.
+            tests:
+              - ThemedFont_WithThemeMinorFont_ResolvesToThemeTypeface
+              - ThemedFont_WithoutTheme_ResolvesToNoStyleFont
+              - MissingFont_WithThemeMinorFont_KeepsDefaultFont
+
           - id: CanvasNetVsdx-VsdxDocument-FillPatternDeferral
             title: >-
               The VsdxDocument class shall resolve a solid FillPattern value (1) directly, and
@@ -824,16 +917,17 @@ sections:
           - id: CanvasNetVsdx-VsdxDocument-UnsupportedFeatureReporting
             title: >-
               The VsdxDocument class shall never silently degrade a detected unsupported Visio
-              construct (an unrecognized geometry row type, an unmapped arrowhead index, an
-              unsupported or approximated LinePattern, unsupported text features, or an
+              construct (an unrecognized or oversized geometry row, an approximated spline, an
+              unmapped arrowhead index, an unsupported or approximated LinePattern, a
+              gradient/hatch FillPattern drawn solid, unsupported text features, or an
               unresolvable themed color): Render shall report each distinct unsupported feature on
               the page,
               once per Render call, to VsdxRenderOptions.UnsupportedFeatureHandler (a stable
               feature token plus message), and shall throw VsdxUnsupportedFeatureException
               carrying that token when VsdxRenderOptions.ThrowOnUnsupportedFeature is set, while
-              rendering tolerantly (no throw, no report) under the default options. A non-solid
-              FillPattern (solid-fill degradation) and a dangling Connect target (skipped glue
-              resolution) are documented tolerant degradations and are not reported.
+              rendering tolerantly (no throw, no report) under the default options. A dangling
+              Connect target (skipped glue resolution) is a documented tolerant degradation and
+              is not reported.
             justification: |
               A fidelity audit of a real-world schematic found that several constructs (an
               unrecognized geometry row type, an unmapped arrowhead index) were skipped with no
@@ -846,6 +940,7 @@ sections:
               - Render_UnsupportedConstructs_StrictModeThrowsWithFeatureToken
               - Render_FullySupportedPage_ReportsNothing
               - Render_UnresolvableThemedFill_ReportsThemedColor
+              - Render_NonSolidFillPattern_ReportsDistinctToken
 
           - id: CanvasNetVsdx-VsdxDocument-LinePattern
             title: >-

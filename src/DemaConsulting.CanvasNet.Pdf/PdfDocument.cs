@@ -124,8 +124,8 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///     <para>
 ///         <strong>Documented scope boundaries</strong> (not currently supported): function-based shadings
 ///         (<c>/ShadingType</c> 1; types 2-7 are supported by the <c>sh</c>
-///         operator and shading patterns), <c>/FunctionType 4</c> PostScript-calculator functions,
-///         transparency groups, and Type 3 glyphs shown in the clipping text-rendering modes
+///         operator and shading patterns), transparency groups, and
+///         Type 3 glyphs shown in the clipping text-rendering modes
 ///         (<c>Tr</c> 4-7, which do clip outline-based fonts). The <c>sh</c> operator and generic
 ///         path clipping (<c>W</c>/<c>W*</c>) are both supported. Every other keyword
 ///         not implemented is silently skipped, not an error. A page with no <c>/Contents</c> at
@@ -152,6 +152,14 @@ public sealed partial class PdfDocument : IDisposable
     ///     <see cref="PdfObject"/> parsed from this document indexes into this same array.
     /// </summary>
     private readonly byte[] _buffer;
+
+    /// <summary>
+    ///     Deterministic work counter for the linear-scan fallback (<see cref="BuildLinearScanFallback"/>):
+    ///     the number of scan-loop iterations plus bytes examined while skipping comments and
+    ///     literal/hex strings. Exists so tests can assert the fallback stays linear in the buffer
+    ///     size without any timing measurement. Always <c>0</c> unless the fallback ran.
+    /// </summary>
+    internal long LinearScanStepCount;
 
     /// <summary>
     ///     The resolved cross-reference table: maps an indirect object number to where its value

@@ -3202,24 +3202,28 @@ public class PdfDocumentTests
     /// <summary>
     ///     Proves that a long run of unmatched, never-closing literal-string <c>(</c> bytes (see
     ///     <see cref="BuildLinearScanFallbackWithLongUnterminatedLiteralStringRun"/>) is handled
-    ///     in time bounded by the buffer size rather than quadratic in the run's length: without
+    ///     in total scan work bounded linearly by the buffer size rather than quadratic in the run's
+    ///     length (asserted deterministically via <c>LinearScanStepCount</c>, not by timing): without
     ///     that bound, a crafted or corrupted file could make this heuristic fallback scanner
     ///     consume CPU far out of proportion to the file's size - a denial-of-service risk, not
     ///     merely a completeness limitation. The real object 3 (the page) must still resolve and
     ///     render correctly.
     /// </summary>
     [Fact]
-    public async Task PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly()
+    public void PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_ScanWorkIsLinear()
     {
         // Arrange
         var pdfBytes = BuildLinearScanFallbackWithLongUnterminatedLiteralStringRun();
 
-        // Act: run on a background thread with a generous bounded timeout - if the quadratic-scan
-        // fix regresses, this fails fast with a TimeoutException instead of hanging the test run.
-        using var document = await Task.Run(() => PdfDocument.Open(new MemoryStream(pdfBytes)))
-            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
 
-        // Assert
+        // Assert: total scan work stays within a small constant multiple of the buffer size (the
+        // quadratic behavior would be ~200,000 x 200,000 steps)
+        Assert.True(document.LinearScanStepCount > 0, "The linear-scan fallback must have run.");
+        Assert.True(
+            document.LinearScanStepCount <= 8L * pdfBytes.Length,
+            $"Scan work {document.LinearScanStepCount} exceeded linear bound for {pdfBytes.Length} bytes.");
         Assert.Equal(1, document.PageCount);
         using var surface = document.Render(0, 100, 100, Transparent);
         Assert.Equal(Black, surface[30, 70]);
@@ -3280,7 +3284,7 @@ public class PdfDocumentTests
     ///     does not prevent the fallback scanner from recovering every genuine object header that
     ///     follows it: once a string-opening attempt fails to find its close, the scanner must
     ///     keep searching the remainder of the buffer for real markers (bounded, via <see
-    ///     cref="PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly"/>,
+    ///     cref="PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_ScanWorkIsLinear"/>,
     ///     to at most one further failed string-opening attempt), rather than abandoning recovery
     ///     of the rest of an otherwise perfectly valid document. Real-world corrupted or recovered
     ///     PDFs routinely contain unrelated binary noise with stray unmatched delimiters well
@@ -5623,23 +5627,18 @@ public class PdfDocumentTests
 
     /// <summary>Proves that an unsupported named color space (resolved via <c>/Resources/ColorSpace</c>) throws <see cref="UnsupportedImageFeatureException"/> when selected with <c>cs</c>.</summary>
     [Theory]
-    [InlineData("[/Separation /Spot /DeviceGray 4 0 R]")]
-    [InlineData("[/DeviceN [/Spot] /DeviceGray 4 0 R]")]
+    [InlineData("[/Bogus /Spot]")]
     [InlineData("[/ICCBased 4 0 R]")]
-    [InlineData("[/CalGray << >>]")]
-    [InlineData("[/Lab << >>]")]
     public void PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException(string colorSpaceArray)
     {
-        // Arrange: an unused placeholder function stream, referenced only when the color space
-        // array under test declares /Separation or /DeviceN (both name a tint-transform function
-        // by indirect reference); the other cases in this theory never dereference object 5.
-        var functionStream = BuildStreamObjectBody("/FunctionType 4", "{ }"u8.ToArray());
+        // Arrange: an unknown color-space family, and an /ICCBased stream with neither a usable
+        // /N nor /Alternate (object 4 is the page content stream).
         var bytes = BuildSinglePagePdfWithResources(
             100,
             100,
             "/CS0 cs",
             $"/ColorSpace << /CS0 {colorSpaceArray} >>",
-            [functionStream]);
+            []);
 
         // Act & Assert
         Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
@@ -5690,16 +5689,14 @@ public class PdfDocumentTests
     }
 
     /// <summary>
-    ///     Proves that a <c>[/CalRGB dict]</c> color space resolves/paints identically to
-    ///     <c>DeviceRGB</c>, ignoring its own <c>/WhitePoint</c>/<c>/Gamma</c>/<c>/Matrix</c>
-    ///     entries entirely - a corpus-observed gap (PDFTest's <c>sample01</c>-<c>sample08.pdf</c>
-    ///     and <c>pdf-sample.pdf</c> all declare page content color spaces this way).
+    ///     Proves that a <c>[/CalRGB dict]</c> color space is converted through its
+    ///     <c>/WhitePoint</c>/<c>/Gamma</c>/<c>/Matrix</c> (no longer ignored as <c>DeviceRGB</c>):
+    ///     a non-trivial space paints a color different from the same operands in <c>DeviceRGB</c>.
     /// </summary>
     [Fact]
-    public void PdfDocument_Color_CalRgbColorSpace_ResolvesToDeviceRgb()
+    public void PdfDocument_Color_CalRgbColorSpace_AppliesCalibration()
     {
-        // Arrange: a /CalRGB color space declaring a non-trivial /WhitePoint/Gamma/Matrix, which
-        // this renderer deliberately ignores (see ResolveColorSpaceValue's own remarks).
+        // Arrange: a /CalRGB color space declaring a non-trivial /WhitePoint/Gamma/Matrix.
         var bytes = BuildSinglePagePdfWithResources(
             100,
             100,
@@ -5711,19 +5708,21 @@ public class PdfDocumentTests
         // Act
         using var surface = RenderPdfBytes(bytes);
 
-        // Assert: 3 operands were accepted (CalRGB's component count matches DeviceRGB's) and
-        // the fill painted blue, exactly like DeviceRGB would.
-        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[50, 50]);
+        // Assert: 3 operands were accepted and the fill is a blue-dominant color that is not
+        // identical to the DeviceRGB result (the matrix is not exactly the sRGB primaries).
+        var pixel = surface[50, 50];
+        Assert.True(pixel.B > 200 && pixel.R < 60);
+        Assert.NotEqual(new Canvas.Rgba32(0, 0, 255, 255), pixel);
     }
 
-    /// <summary>Proves that an <c>/ICCBased</c> color space prefers a present, supported <c>/Alternate</c> over its own <c>/N</c>.</summary>
+    /// <summary>Proves that an <c>/ICCBased</c> color space prefers a present, supported <c>/Alternate</c> over its own <c>/N</c> when their component counts agree.</summary>
     [Fact]
     public void PdfDocument_Color_IccBasedWithAlternate_PrefersAlternateOverN()
     {
-        // Arrange: object 5 declares /N 1 (DeviceGray, 1 component) but /Alternate /DeviceRGB (3
-        // components). Supplying 3 operands to 'scn' only succeeds if /Alternate won: had /N been
-        // used instead, 3 operands would mismatch the expected 1 and throw InvalidDataException.
-        var iccStream = BuildStreamObjectBody("/N 1 /Alternate /DeviceRGB", [0x00]);
+        // Arrange: object 5 declares /N 3 and /Alternate /DeviceRGB (3 components, agreeing). A
+        // 3-operand 'scn' paints red through the alternate; a mismatching /Alternate is covered by
+        // the /N-authoritative test in PdfDocumentColorSpaceTests.
+        var iccStream = BuildStreamObjectBody("/N 3 /Alternate /DeviceRGB", [0x00]);
         var bytes = BuildSinglePagePdfWithResources(
             100,
             100,
@@ -5797,13 +5796,13 @@ public class PdfDocumentTests
     [Fact]
     public void PdfDocument_Color_IndexedColorSpace_UnsupportedBase_ThrowsUnsupportedImageFeatureException()
     {
-        // Arrange: the base color space (/Separation) is unsupported, and is rejected before the
+        // Arrange: the base color space (an unknown family) is unsupported, and is rejected before the
         // /Hival/lookup table are ever consulted.
         var bytes = BuildSinglePagePdfWithResources(
             100,
             100,
             "/CS0 cs",
-            "/ColorSpace << /CS0 [/Indexed [/Separation /Spot /DeviceGray 4 0 R] 1 <00>] >>",
+            "/ColorSpace << /CS0 [/Indexed [/Bogus /Spot] 1 <00>] >>",
             []);
 
         // Act & Assert
@@ -7581,10 +7580,10 @@ public class PdfDocumentTests
     [Fact]
     public void PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException()
     {
-        // Arrange: /Lab remains unsupported (unlike /CalRGB - see
-        // PdfDocument_Color_CalRgbColorSpace_ResolvesToDeviceRgb).
+        // Arrange: an unknown color-space family is unsupported (unlike /CalRGB, /CalGray, /Lab,
+        // /Separation and /DeviceN - see PdfDocumentColorSpaceTests).
         var imageStream = BuildStreamObjectBody(
-            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [/Lab << >>] /BitsPerComponent 8 /Filter /FlateDecode",
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [/Bogus /Spot] /BitsPerComponent 8 /Filter /FlateDecode",
             ZlibCompress([0x00]));
 
         var bytes = BuildSinglePagePdfWithResources(
@@ -9100,7 +9099,7 @@ public class PdfDocumentTests
     ///     exit condition.
     /// </summary>
     [Fact]
-    public async Task PdfDocument_Fonts_Type0_Widths_WArrayRangeFormCLastAtInt32MaxValue_Terminates()
+    public void PdfDocument_Fonts_Type0_Widths_WArrayRangeFormCLastAtInt32MaxValue_Terminates()
     {
         // Arrange: a small, in-bounds span [int.MaxValue - 2, int.MaxValue].
         var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
@@ -9110,11 +9109,10 @@ public class PdfDocumentTests
         var bytes = BuildSinglePagePdfWithResources(
             100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
 
-        // Act: run on a background thread with a generous bounded timeout - if the loop-termination
-        // fix regresses, this fails fast with a TimeoutException instead of hanging the test run
-        // forever.
-        using var surface = await Task.Run(() => RenderPdfBytes(bytes))
-            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        // Act: called synchronously with no timing assertion - a regression to an int-typed loop
+        // counter would never return, which the test harness / CI job-level timeout reports as a
+        // hung run (see the design notes on deterministic test guards).
+        using var surface = RenderPdfBytes(bytes);
 
         // Assert
         Assert.NotNull(surface);
@@ -9242,7 +9240,7 @@ public class PdfDocumentTests
     ///     never satisfy its own exit condition.
     /// </summary>
     [Fact]
-    public async Task PdfDocument_Fonts_ToUnicode_BfRangeHexForm_SrcAtInt32MaxValue_TerminatesAndMapsSingleCode()
+    public void PdfDocument_Fonts_ToUnicode_BfRangeHexForm_SrcAtInt32MaxValue_TerminatesAndMapsSingleCode()
     {
         // Arrange
         var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<7FFFFFFF> <7FFFFFFF> <0048>\nendbfrange");
@@ -9254,11 +9252,10 @@ public class PdfDocumentTests
             ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
         });
 
-        // Act: run on a background thread with a generous bounded timeout - if the loop-termination
-        // fix regresses, this fails fast with a TimeoutException instead of hanging the test run
-        // forever.
-        var result = await Task.Run(() => document.ResolveToUnicodeMap(fontDict))
-            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        // Act: called synchronously with no timing assertion - a regression to an int-typed loop
+        // counter would never return, which the test harness / CI job-level timeout reports as a
+        // hung run.
+        var result = document.ResolveToUnicodeMap(fontDict);
 
         // Assert
         Assert.NotNull(result);
@@ -11198,14 +11195,14 @@ public class PdfDocumentTests
         Assert.Equal($"pdf-shading-type-{shadingType}", exception.Feature);
     }
 
-    /// <summary>Proves that a shading pattern whose <c>/Function</c> is <c>/FunctionType 4</c> throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-functiontype-4</c> (regression guard: still rejected even when reached through a shading pattern).</summary>
+    /// <summary>Proves that a shading pattern whose <c>/Function</c> is an unknown <c>/FunctionType</c> (5) throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-functiontype-5</c> (regression guard: still rejected even when reached through a shading pattern).</summary>
     [Fact]
-    public void PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType4_ThrowsUnsupportedImageFeatureException()
+    public void PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType_ThrowsUnsupportedImageFeatureException()
     {
         // Arrange: 5 = patternDict, 6 = shadingDict, 7 = functionStream.
         var patternDict = "<< /PatternType 2 /Shading 6 0 R >>"u8.ToArray();
         var shadingDict = "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function 7 0 R >>"u8.ToArray();
-        var functionStream = BuildStreamObjectBody("/FunctionType 4", "{ }"u8.ToArray());
+        var functionStream = BuildStreamObjectBody("/FunctionType 5", "{ }"u8.ToArray());
         var bytes = BuildSinglePagePdfWithResources(
             100,
             100,
@@ -11215,7 +11212,7 @@ public class PdfDocumentTests
 
         // Act & Assert
         var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
-        Assert.Equal("pdf-functiontype-4", exception.Feature);
+        Assert.Equal("pdf-functiontype-5", exception.Feature);
     }
 
     /// <summary>Proves that a shading pattern's <c>/Function</c> array-of-1-output-functions form (3 separate <c>/FunctionType 2</c> functions, one per RGB component) builds a working gradient.</summary>
@@ -12009,6 +12006,47 @@ public class PdfDocumentTests
         Assert.Contains("/Size", exception.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>Proves that a fractional <c>/Size</c> entry (<c>1.5</c>) is rejected as malformed in the single-input sampled-function parser instead of being truncated to <c>1</c>.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_FractionalSize_ThrowsInvalidDataException()
+    {
+        // Act & Assert
+        var single = Assert.Throws<InvalidDataException>(
+            () => ResolveTestFunction(
+                "/FunctionType 0 /Domain [0 1] /Range [0 255] /Size [1.5] /BitsPerSample 8",
+                [10, 250]));
+        Assert.Contains("/Size", single.Message, StringComparison.Ordinal);
+
+    }
+
+    /// <summary>Proves that an integral real <c>/Size</c> (<c>2.0</c>) is still accepted and evaluates normally.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_IntegralRealSize_StillAccepted()
+    {
+        // Arrange
+        var function = ResolveTestFunction(
+            "/FunctionType 0 /Domain [0 1] /Range [0 255] /Size [2.0] /BitsPerSample 8",
+            [10, 250]);
+
+        // Act
+        var atDomainMax = function.Evaluate(1);
+
+        // Assert
+        Assert.Equal(250.0, atDomainMax[0]);
+    }
+
+    /// <summary>Proves that a fractional <c>/BitsPerSample</c> (<c>8.5</c>) is rejected instead of being truncated to a supported width.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_FractionalBitsPerSample_ThrowsInvalidDataException()
+    {
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(
+            () => ResolveTestFunction(
+                "/FunctionType 0 /Domain [0 1] /Range [0 255] /Size [2] /BitsPerSample 8.5",
+                [10, 250]));
+        Assert.Contains("/BitsPerSample", exception.Message, StringComparison.Ordinal);
+    }
+
     /// <summary>
     ///     Resolves a <c>/Function</c> entry (any of the 3 supported <c>/FunctionType</c>s) whose
     ///     dictionary is a new indirect object (number 5, matching
@@ -12064,14 +12102,14 @@ public class PdfDocumentTests
         Assert.Equal(expected, result[0], 5);
     }
 
-    /// <summary>Proves that <c>/FunctionType 4</c> (PostScript calculator) still throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-functiontype-4</c> through the generic resolver (regression guard, updated message content).</summary>
+    /// <summary>Proves that an unknown <c>/FunctionType</c> (5) throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-functiontype-5</c> through the generic resolver (regression guard; type 4 is now supported).</summary>
     [Fact]
-    public void PdfDocument_Functions_Type4_PostScriptCalculator_ThrowsUnsupportedImageFeatureException()
+    public void PdfDocument_Functions_UnknownFunctionType_ThrowsUnsupportedImageFeatureException()
     {
         // Act & Assert
         var exception = Assert.Throws<UnsupportedImageFeatureException>(
-            () => ResolveTestFunctionGeneric("/FunctionType 4", "{ }"u8.ToArray()));
-        Assert.Equal("pdf-functiontype-4", exception.Feature);
+            () => ResolveTestFunctionGeneric("/FunctionType 5", "{ }"u8.ToArray()));
+        Assert.Equal("pdf-functiontype-5", exception.Feature);
     }
 
     /// <summary>Proves that a <c>/FunctionType 3</c> stitching function whose own <c>/Functions</c> array references itself triggers the new <c>MaxFunctionRecursionDepth</c> guard with <see cref="InvalidDataException"/>, rather than exhausting the process' call stack with an uncatchable <see cref="StackOverflowException"/>.</summary>
@@ -12089,6 +12127,128 @@ public class PdfDocumentTests
         // Act & Assert
         Assert.Throws<InvalidDataException>(
             () => document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0)));
+    }
+
+    /// <summary>Proves that a <c>/FunctionType 3</c> stitching function with malformed <c>/Bounds</c> or <c>/Domain</c> (non-finite, decreasing, outside the domain, or a reversed domain) is rejected with <see cref="InvalidDataException"/>.</summary>
+    [Theory]
+    [InlineData("/Domain [0 1] /Bounds [0.7 0.3]")]
+    [InlineData("/Domain [0 1] /Bounds [0.5 1.5]")]
+    [InlineData("/Domain [0 1] /Bounds [-0.5 0.5]")]
+    [InlineData("/Domain [1 0] /Bounds [0.5 0.5]")]
+    public void PdfDocument_Functions_Type3_Stitching_InvalidBoundsOrDomain_ThrowsInvalidDataException(string domainAndBounds)
+    {
+        // Arrange: three flat sub-functions need two /Bounds elements.
+        var fn = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [0] /N 1", []);
+        var stitchingStream = BuildStreamObjectBody(
+            $"/FunctionType 3 /Functions [6 0 R 6 0 R 6 0 R] {domainAndBounds} /Encode [0 1 0 1 0 1]", []);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(
+            () => document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0)));
+    }
+
+    /// <summary>Proves that a <c>/FunctionType 3</c> stitching function with a non-finite (overflowing) <c>/Bounds</c> element is rejected with <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type3_Stitching_NonFiniteBound_ThrowsInvalidDataException()
+    {
+        // Arrange: a 400-digit integer overflows double to infinity when parsed.
+        var huge = new string('9', 400);
+        var fn = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [0] /N 1", []);
+        var stitchingStream = BuildStreamObjectBody(
+            $"/FunctionType 3 /Domain [0 1] /Functions [6 0 R 6 0 R] /Bounds [{huge}] /Encode [0 1 0 1]", []);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(
+            () => document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0)));
+        Assert.Contains("finite", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Proves that equal consecutive <c>/Bounds</c> (a hard color stop) are accepted and evaluate to the sub-function that starts at the shared bound.</summary>
+    [Theory]
+    [InlineData(0.25, 0.0)]
+    [InlineData(0.5, 1.0)]
+    [InlineData(0.75, 1.0)]
+    public void PdfDocument_Functions_Type3_Stitching_EqualBounds_AreAcceptedAndEvaluateAsHardStop(double input, double expected)
+    {
+        // Arrange: bounds [0.5 0.5] make the middle sub-function (flat 5) unreachable; the input
+        // jumps from sub-function 0 (flat 0) to sub-function 2 (flat 1) at 0.5.
+        var fn0 = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [0] /N 1", []);
+        var fn1 = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [5] /C1 [5] /N 1", []);
+        var fn2 = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [1] /C1 [1] /N 1", []);
+        var stitchingStream = BuildStreamObjectBody(
+            "/FunctionType 3 /Domain [0 1] /Functions [6 0 R 7 0 R 8 0 R] /Bounds [0.5 0.5] /Encode [0 1 0 1 0 1]", []);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn0, fn1, fn2]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var function = document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0));
+
+        // Act
+        var result = function.Evaluate(input);
+
+        // Assert
+        Assert.Equal(expected, result[0], 5);
+    }
+
+    /// <summary>Proves that a stitching function whose sub-functions have differing output counts is rejected with <see cref="InvalidDataException"/> mentioning the output count.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type3_Stitching_MismatchedOutputCounts_ThrowsInvalidDataException()
+    {
+        // Arrange: sub-function 0 has 1 output, sub-function 1 has 3.
+        var fn0 = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [0] /N 1", []);
+        var fn1 = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []);
+        var stitchingStream = BuildStreamObjectBody(
+            "/FunctionType 3 /Domain [0 1] /Functions [6 0 R 7 0 R] /Bounds [0.5] /Encode [0 1 0 1]", []);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn0, fn1]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(
+            () => document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0)));
+        Assert.Contains("output count", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Proves that a stitching function whose sub-functions all have the same multi-component output count is accepted and returns that many components from every branch.</summary>
+    [Theory]
+    [InlineData(0.25, 0.0)]
+    [InlineData(0.75, 1.0)]
+    public void PdfDocument_Functions_Type3_Stitching_MatchingOutputCounts_AreAccepted(double input, double expected)
+    {
+        // Arrange: both sub-functions have 3 outputs.
+        var fn0 = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [0 0 0] /N 1", []);
+        var fn1 = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [1 1 1] /C1 [1 1 1] /N 1", []);
+        var stitchingStream = BuildStreamObjectBody(
+            "/FunctionType 3 /Domain [0 1] /Functions [6 0 R 7 0 R] /Bounds [0.5] /Encode [0 1 0 1]", []);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn0, fn1]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var function = document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0));
+
+        // Act
+        var result = function.Evaluate(input);
+
+        // Assert
+        Assert.Equal(3, function.OutputCount);
+        Assert.Equal([expected, expected, expected], result);
+    }
+
+    /// <summary>Proves that a stitching function with a non-finite (overflowing) <c>/Encode</c> element is rejected with <see cref="InvalidDataException"/> mentioning "finite".</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type3_Stitching_NonFiniteEncode_ThrowsInvalidDataException()
+    {
+        // Arrange: a 400-digit integer overflows double to infinity when parsed.
+        var huge = new string('9', 400);
+        var fn = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [0] /N 1", []);
+        var stitchingStream = BuildStreamObjectBody(
+            $"/FunctionType 3 /Domain [0 1] /Functions [6 0 R 6 0 R] /Bounds [0.5] /Encode [0 1 0 {huge}]", []);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(
+            () => document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0)));
+        Assert.Contains("finite", exception.Message, StringComparison.Ordinal);
     }
 
     #endregion

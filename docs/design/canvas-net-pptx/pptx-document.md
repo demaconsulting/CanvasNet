@@ -1297,10 +1297,11 @@ pixel painted is produced by an already-verified Phase 1c/1d/1e resolver or pain
 
 #### Rendering Options
 
-`PptxRenderOptions` mirrors `PdfRenderOptions`'s own shape: a `sealed` class with a single
-`init`-only `BackgroundColor` property (defaulting to opaque white) and a `Default` static
-instance, so future rendering options can be added as new properties without a breaking change
-to `Render`'s own signature.
+`PptxRenderOptions` mirrors `PdfRenderOptions`'s own shape: a `sealed` class with `init`-only
+properties - `BackgroundColor` (defaulting to opaque white), `StrictUnsupportedPictures`
+(default `false`) and `OnUnsupportedPictureSkipped` (optional callback, default `null`) - and a
+`Default` static instance, so future rendering options can be added as new properties without a
+breaking change to `Render`'s own signature.
 
 #### Base Transform
 
@@ -1343,8 +1344,10 @@ color at paint time, not only a table's own cell fills. It then walks the slide'
   a layout/master placeholder's own text, which supplies styling only, never content (confirmed
   by a dedicated test, `Render_PlaceholderShape_ReadsTextFromSlideLevelShapeNotLayout`). A
   non-placeholder shape's text resolves its placeholder properties as
-  `new PptxPlaceholderProperties(null, null, theme, master.TxStyles)` - the fuller form carrying
-  the master's own text styles, distinct from `PaintTable`'s own narrower, cell-scoped
+  `new PptxPlaceholderProperties(null, ownListStyle, theme, master.TxStyles)`, where `ownListStyle` is the
+  shape's own `<p:txBody>/<a:lstStyle>` (ranked above the master's `otherStyle`, below paragraph/run
+  properties; a master date/slide-number box declares its 12pt size only there) - the fuller form
+  carrying the master's own text styles, distinct from `PaintTable`'s own narrower, cell-scoped
   `new PptxPlaceholderProperties(null, null, theme)`.
 - **`PptxPictureShapeNode`**: resolves and composites its embedded image via
   `ResolvePictureSurface`/`ResolveSrcRect`/`PaintPicture` (Phase 1e).
@@ -1556,7 +1559,7 @@ an already-correct, merely-undocumented behavior and two of which were genuine, 
     `PptxRenderTests.cs`) both documenting the two mechanisms' confirmed-correct behavior in
     isolation and guarding against a future regression of either.
 - **Genuine bug 4 - `<a:lstStyle>` level-override inheritance broken by an empty, but present,
-  `<a:lstStyle/>`.** Reported from a real-world deck ("ERF IWF Breadboard Peer Review.pptx", not
+  `<a:lstStyle/>`.** Reported from a real-world deck (not
   in this repository): a `ctrTitle` placeholder rendered its title at roughly 28pt instead of its
   layout's declared 60pt. Root cause: the exact same structural mechanism as Genuine bug 2, but
   for `<p:txBody>/<a:lstStyle>` instead of `<p:spPr>`/`<a:xfrm>`/geometry - `ResolvePlaceholderProperties`
@@ -1859,8 +1862,25 @@ already-deferred feature used by a decorative master/layout shape (for example a
 would abort rendering for every slide using that master/layout - a severe regression versus the
 pre-existing behavior where master/layout shape trees were never walked at all. See
 `Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent`
-and `Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException` in
+and `Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException` in
 `PptxRenderTests.cs` for the regression coverage proving both halves of this boundary.
+
+**EMF/WMF pictures on a slide are skipped (`CanvasNetPptx-PptxDocument-MetafilePictureTolerance`)**:
+a `<p:pic>` whose media content type (compared case-insensitively, ignoring whitespace and `;`
+parameters) is `image/x-emf`, `image/emf`, `image/x-wmf` or `image/wmf`
+makes `ResolvePictureSurface` throw `PptxUnsupportedFeatureException` with the distinct feature
+token `"pptx-image-metafile"` (every other unsupported content type keeps `"pptx-image-format"`).
+`RenderNode`'s `PptxPictureShapeNode` arm catches exactly that token, unless
+`PptxRenderOptions.StrictUnsupportedPictures` is `true`, so only that one picture is skipped - the
+image is resolved before any compositing, so nothing is partly painted - and the rest of the slide
+renders. Each skip is reported by invoking the optional `PptxRenderOptions.OnUnsupportedPictureSkipped`
+callback with the exception (this package has no other diagnostics channel). In strict mode the
+exception propagates unchanged. A master/layout picture (`skipPlaceholderShapes`) is excluded from
+the reporting clause and falls to the silent-containment clause in both modes, so the callback
+reports only a slide's own or group-nested pictures (never once per slide for an inherited
+picture). `options` is threaded through `RenderNode`'s recursion so group-
+nested pictures behave identically. **Known gap**: EMF/WMF content is never drawn (not even a
+placeholder); a pasted chart/diagram stored as a metafile therefore leaves its area unpainted.
 
 **Fidelity achieved**:
 
@@ -1902,8 +1922,8 @@ silently: `Render_MasterNonPlaceholderPicture_PaintsOnEverySlideUsingThatMasterR
 Two further regression tests cover the graceful-skip containment fix described above:
 `Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent`
 (a master's own EMF picture shape is skipped and the slide's own content still paints) and
-`Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException` (a
-slide's own EMF picture shape still hard-fails `Render`, proving the containment is scoped to
+`Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException` (a
+slide's own non-metafile unsupported picture still hard-fails `Render`, proving the containment is scoped to
 master/layout-owned shapes only).
 
 #### Phase 2 Follow-Up: Bullets and Numbering Rendering
@@ -2136,7 +2156,7 @@ pre-existing `ResolveTextLayout_BulletedParagraph_TextStartsAtMarLGutterHoldsBul
 **Closed risk (`buAutoNum` gutter-clearance minimum gap)**: a follow-up real-world report against
 the same gutter-clearance clamp above found it, while correct for `buChar`, still insufficient for
 `buAutoNum`: CanvasNet rendered an auto-numbered marker immediately touching the paragraph's own
-first word (e.g. `"1.3 custom tip geometries"`, `"2.QO Reagent durable probe (J18604)"`), whereas
+first word (e.g. `"1.3 sample item text"`, `"2.Q1 sample item text"`), whereas
 real PowerPoint shows a clear, word-space-sized gap after the marker (e.g. `"1."` then a visible
 gap then `"3 custom tip geometries"` - the `"3"` is the paragraph's own typed first word, not part
 of the marker). Investigation confirmed `BuildBulletGlyphs` already measures a multi-character
@@ -2537,7 +2557,7 @@ slide 1 was untested.
 
 #### Phase 2 Follow-Up: Underline Rendering (`<a:rPr u="…">`)
 
-A real-world corpus fixture ("ERF IWF Breadboard Motion System Overview.pptx", slide 23
+A real-world corpus fixture (slide 23
 "Configurations") contains text runs declaring `<a:rPr u="sng"/>` that PowerPoint's own
 ground-truth rendering shows with a visible single underline, while CanvasNet rendered no
 underline at all. Root cause: `GetUnderline` (in `PptxDocument.TextInheritance.cs`) parsed the
@@ -2622,7 +2642,7 @@ own baseline, spanning its full rendered width, in the same color as the text it
 
 #### Phase 2 Follow-Up: Picture Preset-Geometry Clipping (`<a:prstGeom>` on `<p:pic>`)
 
-A real-world corpus fixture ("ERF IWF and Reagent Probe Breadboard Motion System Overview.pptx")
+A real-world corpus fixture
 contains `<p:pic>` picture shapes whose own `<p:spPr>/<a:prstGeom prst="...">` declares a
 non-`rect` preset (for example `ellipse` or `roundRect`) - PowerPoint's own ground-truth rendering
 visibly crops the embedded image to that preset's own shape, while CanvasNet previously painted
@@ -2794,7 +2814,7 @@ complete, correctly-closed red ellipse outline fully framing the same pale ellip
 
 #### Phase 2 Follow-Up: Run Text Outline Rendering (`<a:ln>` on `<a:rPr>`/`<a:defRPr>`)
 
-A user-reported real-world corpus fixture ("ERF IWF Breadboard Peer Review.pptx", slide 3
+A user-reported real-world corpus fixture (slide 3
 "Objective") contains two large numbered-badge runs whose own `<a:rPr>` declares `<a:ln
 w="9525"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:ln>` (a solid purple stroke)
 alongside a `<a:solidFill>` of `<a:srgbClr val="70AD47"><a:tint val="1000"/></a:srgbClr>` - a
@@ -3204,9 +3224,8 @@ the "Bullets and Numbering Rendering" follow-up above (`"its 'numbers' are liter
 separated from the following word by a literal tab character... a distinct, pre-existing,
 out-of-scope defect (tab-stop support)"`) - this follow-up closes that deferred item.
 
-**Root cause confirmation and chosen default interval**: a real-world corpus file ("ERF IWF
-Breadboard Peer Review.pptx", slide 9, the single highest-divergence slide in a full 73-slide
-pixel-diff pass) contains 19 literal tab characters, each between a literal digit run and its
+**Root cause confirmation and chosen default interval**: a real-world corpus file (slide 9, the single highest-divergence
+slide in a full 73-slide pixel-diff pass) contains 19 literal tab characters, each between a literal digit run and its
 sentence text, with no `<a:tabLst>` anywhere in the slide, its layout, or its master. Both the
 slide master's `<p:txStyles>` and the presentation's own `<p:defaultTextStyle>` declare
 `defTabSz="914400"` (exactly 1 inch) on every list level. Independent ground-truth pixel
@@ -3448,7 +3467,7 @@ not "Chart 2") alongside the new, narrower "Chart 2"-isolation fact above.
 
 #### Phase 2 Follow-Up: SVG-Only Picture Blip Rendering
 
-**Root cause**: a user-reported real-world deck ("ERF IWF Breadboard Peer Review.pptx") places its
+**Root cause**: a user-reported real-world deck places its
 company logo as a `<p:pic>` directly on `ppt/slideMasters/slideMaster1.xml` (a master-owned
 decorative shape - see _Phase 2 Follow-Up: Master/Layout Decorative Shape Rendering_ above). That
 logo's own `<a:blip>` declares **no raster `r:embed`/`r:link`** at all - only the Microsoft SVG
@@ -3515,7 +3534,7 @@ existing transform/compositing pipeline (`PaintPicture`), exactly like every oth
 `SvgCodec.Load` requires, so the SVG-only case is instead handled by a distinct branch in
 `ResolvePictureSurface`, before `ResolveRasterDecoder` is ever consulted for this blip.
 
-**Real-file regression scenario**: the "ERF IWF Breadboard Peer Review.pptx" master-logo scenario
+**Real-file regression scenario**: the real-world master-logo scenario
 described above is reproduced synthetically (no corpus fixture file is added, consistent with how
 every other real-world scenario referenced in this unit's own prose is verified - see, for
 example, the Master/Layout Decorative Shape Rendering follow-up's own synthetic repro pattern) by

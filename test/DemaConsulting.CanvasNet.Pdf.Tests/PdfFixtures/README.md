@@ -59,6 +59,8 @@ own entry below for details).
 | `contents-array-two-streams.pdf` | `/Contents` as an array - proves space-separator stream concatenation |
 | `no-contents-page.pdf` | A page with no `/Contents` key - proves it still renders as a blank surface |
 | `color-rgb-rectangle-fill.pdf` | `rg` device color (Phase 3) - a rectangle filled opaque red |
+| `color-spaces-calibrated.pdf` | `CalGray`, `CalRGB` and `Lab` color-space swatches selected via `cs`/`sc` |
+| `color-separation-devicen.pdf` | `Separation` (Type 2 tint), `DeviceN` (Type 4 tint) and `/None` swatches |
 | `image-xobject-devicergb-flate.pdf` | `/Subtype /Image` XObject (2x2 `DeviceRGB`/`FlateDecode`) placed via `cm`/`Do` |
 | `text-embedded-truetype-font.pdf` | `/Subtype /TrueType` font, embedded `/FontFile2` (Phase 4) - `Tf`/`Td`/`Tj` |
 | `text-composite-truetype-identity-h.pdf` | `/Type0`/`Identity-H`/`CIDFontType2` (Phase 9) + `/ToUnicode` (Phase 10) |
@@ -158,6 +160,15 @@ with curved edges) and bottom-right type 7 (the same boundary as type 6 plus fou
 points swapped to the opposite corners of the patch, crossing the Coons-derived positions so the
 two types render visibly different interiors). Corner colors are red, green, blue and
 yellow. It was verified to render equivalently in a web browser's PDF viewer.
+
+`color-spaces-calibrated.pdf` is a hand-authored 100x100 pt page with three swatches: a `CalGray`
+(gamma 2.2) 0.5 gray, a `CalRGB` (sRGB primaries, gamma 2.2) pure blue and a `Lab` (D50 white
+point) 70 -50 60 green. Synthetic; no third-party content.
+
+`color-separation-devicen.pdf` is a hand-authored 100x100 pt page with three swatches: a
+`Separation` (Type 2 tint to `DeviceCMYK`) at full tint (red), a two-colorant `DeviceN` with a
+`FunctionType 4` tint transform (`{ 0 }`, so tints 0.2/0.8 become RGB 51/204/0), and a
+`Separation /None` swatch that paints nothing. Synthetic; no third-party content.
 
 `text-type1c-differences-agl-ligatures.pdf` is, unlike every other fixture in this folder, **not**
 hand-authored: it is a trimmed, single-page excerpt of a real-world document (page 4), kept

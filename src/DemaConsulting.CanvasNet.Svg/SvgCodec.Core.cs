@@ -388,6 +388,40 @@ public static partial class SvgCodec
     private sealed class FilterWorkBudget
     {
         /// <summary>
+        ///     The optional per-<c>Load</c>-call diagnostics sink that receives deterministic work
+        ///     counters (see <see cref="RenderDiagnostics"/>), or <see langword="null"/> when no
+        ///     diagnostics were requested (the public entry points always pass <see langword="null"/>).
+        /// </summary>
+        private readonly RenderDiagnostics? _diagnostics;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="FilterWorkBudget"/> class.
+        /// </summary>
+        /// <param name="diagnostics">
+        ///     The optional diagnostics sink to update as work is charged and offscreen buffers are
+        ///     allocated, or <see langword="null"/> for none.
+        /// </param>
+        public FilterWorkBudget(RenderDiagnostics? diagnostics = null)
+        {
+            _diagnostics = diagnostics;
+        }
+
+        /// <summary>
+        ///     Records that an effects-pipeline offscreen buffer of the given size was allocated,
+        ///     updating <see cref="RenderDiagnostics"/> when one was supplied.
+        /// </summary>
+        /// <param name="width">The allocated buffer width, in pixels.</param>
+        /// <param name="height">The allocated buffer height, in pixels.</param>
+        public void RecordSurfaceAllocated(int width, int height)
+        {
+            if (_diagnostics != null)
+            {
+                _diagnostics.EffectSurfacesAllocated++;
+                _diagnostics.EffectPixelsAllocated += (long)width * height;
+            }
+        }
+
+        /// <summary>
         ///     The maximum combined "primitive count times filter-region pixel area" work this
         ///     codec will evaluate, across every filter application, for a single <c>Load</c>
         ///     call. 50,000,000 is exactly 10 times <see cref="MaxFilterPrimitiveWorkUnits"/> (the
@@ -436,12 +470,51 @@ public static partial class SvgCodec
             // correct regardless.
             if (amount > MaxCumulativeFilterWorkUnits - _total)
             {
+                if (_diagnostics != null)
+                {
+                    _diagnostics.BudgetRejections++;
+                }
+
                 return false;
             }
 
             _total += amount;
+            if (_diagnostics != null)
+            {
+                _diagnostics.WorkCharged = _total;
+            }
+
             return true;
         }
+    }
+
+    /// <summary>
+    ///     Deterministic, per-<c>Load</c>-call work counters for the effects (filter/clip-path/mask)
+    ///     pipeline. Exists so resource-bound tests can assert the amount of work actually
+    ///     performed (surfaces allocated, work units charged, charges rejected) rather than
+    ///     measuring elapsed wall-clock time. One instance is created by the caller per load and
+    ///     passed through the internal <c>LoadWithDiagnostics</c> entry point; there is deliberately
+    ///     no static state, so parallel test execution cannot interfere. The public API never
+    ///     exposes this type.
+    /// </summary>
+    internal sealed class RenderDiagnostics
+    {
+        /// <summary>Gets the cumulative work units successfully charged against the shared budget.</summary>
+        public long WorkCharged { get; internal set; }
+
+        /// <summary>Gets the number of charges rejected because the cumulative budget was exhausted.</summary>
+        public int BudgetRejections { get; internal set; }
+
+        /// <summary>
+        ///     Gets the number of effects-pipeline offscreen surfaces allocated: the content
+        ///     buffer, the clip-path coverage buffer, the mask source buffer, <c>SourceAlpha</c>,
+        ///     and each filter primitive's (and subregion clip's) output buffer. Scratch buffers
+        ///     internal to one primitive are not counted. Independent of <see cref="WorkCharged"/>.
+        /// </summary>
+        public int EffectSurfacesAllocated { get; internal set; }
+
+        /// <summary>Gets the total pixel count of all effects-pipeline offscreen surfaces allocated.</summary>
+        public long EffectPixelsAllocated { get; internal set; }
     }
 
     /// <summary>

@@ -28,7 +28,7 @@ public sealed partial class PptxDocument
     ///     The default OOXML tab-stop interval, in EMU (914400 EMU = 1 inch), consulted when a
     ///     run's literal text contains a U+0009 TAB character (Phase 2 Follow-Up: Default
     ///     Tab-Stop Expansion). Confirmed against a real-world corpus file
-    ///     ("ERF IWF Breadboard Peer Review.pptx", slide 9): both its slide master's
+    ///     (a deck's slide 9): both its slide master's
     ///     <c>&lt;p:txStyles&gt;</c> and the presentation's own <c>&lt;p:defaultTextStyle&gt;</c>
     ///     declare <c>defTabSz="914400"</c> on every list level, and independent ground-truth
     ///     pixel measurement of the rendered slide (three different bullet-number widths) matched

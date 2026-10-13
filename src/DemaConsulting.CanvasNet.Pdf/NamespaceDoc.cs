@@ -20,7 +20,8 @@ namespace DemaConsulting.CanvasNet.Pdf;
 /// <remarks>
 ///     <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> fully interprets a page's content stream:
 ///     vector path construction/painting with real device color (<c>DeviceGray</c>/
-///     <c>DeviceRGB</c>/<c>DeviceCMYK</c>, <c>CalRGB</c>, ICC-based, and <c>/Indexed</c> color
+///     <c>DeviceRGB</c>/<c>DeviceCMYK</c>, <c>CalGray</c>/<c>CalRGB</c>/<c>Lab</c> (converted through a CIE
+///     XYZ kernel), ICC-based (via <c>/N</c>/<c>/Alternate</c>; the profile data is not applied), and <c>/Indexed</c> color
 ///     spaces), text shown with a resolved font - simple <c>/Subtype /TrueType</c>/<c>/Type1</c>
 ///     fonts, composite <c>/Subtype /Type0</c> fonts, and procedure-painted <c>/Subtype /Type3</c>
 ///     fonts are all supported, with embedded font programs used directly and non-embedded simple
@@ -35,9 +36,10 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///     mesh types 4-7) and tiling pattern fills/strokes. Opening a document encrypted with the PDF
 ///     <c>/Filter /Standard</c> security handler (RC4, AES-128, or AES-256/R5/R6) is also supported.
 ///     See <see cref="PdfDocument"/>'s own remarks for the complete, current feature list and its
-///     documented scope boundaries (for example function-based shadings, <c>/FunctionType 4</c>
-///     PostScript-calculator functions, transparency groups, and Type 3 glyphs shown in the
-///     clipping text-rendering modes).
+///     documented scope boundaries (for example function-based shadings, ICC profile application,
+///     transparency groups, and Type 3 glyphs shown in the
+///     clipping text-rendering modes). <c>/Separation</c> and <c>/DeviceN</c> colors are evaluated
+///     through their tint-transform functions (including <c>/FunctionType 4</c> PostScript calculator functions).
 /// </remarks>
 /// <example>
 ///     Rendering every page of a PDF document to a 300 DPI PNG file, using

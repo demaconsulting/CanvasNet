@@ -1525,8 +1525,8 @@ public class PptxDocumentTests
 
     /// <summary>
     ///     Proves a slide's own empty-but-present <c>&lt;a:lstStyle/&gt;</c> (no level-override
-    ///     child at all - the exact real-world shape reported from "ERF IWF Breadboard Peer
-    ///     Review.pptx") does not "win" PlaceholderInheritancePerCategory's own whole-element
+    ///     child at all - the exact real-world shape reported from a real-world deck)
+    ///     does not "win" PlaceholderInheritancePerCategory's own whole-element
     ///     fallback: the idx-matched layout placeholder's own, level-bearing <c>&lt;a:lstStyle&gt;</c>
     ///     must be selected instead.
     /// </summary>

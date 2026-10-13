@@ -109,6 +109,43 @@ public class VsdxUnsupportedFeatureTests
         Assert.Contains(received, f => f.Feature == "vsdx-themed-color");
     }
 
+    /// <summary>A gradient/hatch FillPattern is drawn solid and reported with its own distinct token; solid and no-fill patterns report nothing.</summary>
+    [Theory]
+    [InlineData("25", "vsdx-fill-pattern-25")]
+    [InlineData("2", "vsdx-fill-pattern-2")]
+    [InlineData("1", null)]
+    [InlineData("0", null)]
+    public void Render_NonSolidFillPattern_ReportsDistinctToken(string fillPattern, string? expectedToken)
+    {
+        var shape =
+            $"""
+            <Shape ID="1" Type="Shape">
+              <Cell N="PinX" V="1"/><Cell N="PinY" V="1"/><Cell N="Width" V="1"/><Cell N="Height" V="1"/>
+              <Cell N="LocPinX" V="0"/><Cell N="LocPinY" V="0"/><Cell N="Angle" V="0"/>
+              <Cell N="FillForegnd" V="#336699"/><Cell N="FillPattern" V="{fillPattern}"/>
+              <Section N="Geometry" IX="0">
+                <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+                <Row T="LineTo" IX="2"><Cell N="X" V="1"/><Cell N="Y" V="0"/></Row>
+                <Row T="LineTo" IX="3"><Cell N="X" V="1"/><Cell N="Y" V="1"/></Row>
+              </Section>
+            </Shape>
+            """;
+        using var stream = VsdxTestPackages.BuildPackage(shape);
+        using var document = VsdxDocument.Open(stream);
+        var received = new List<VsdxUnsupportedFeature>();
+
+        using var surface = document.Render(0, 20, 20, new VsdxRenderOptions { UnsupportedFeatureHandler = received.Add });
+
+        if (expectedToken is null)
+        {
+            Assert.Empty(received);
+        }
+        else
+        {
+            Assert.Equal(expectedToken, Assert.Single(received).Feature);
+        }
+    }
+
     /// <summary>A page with only supported constructs reports nothing and strict mode does not throw.</summary>
     [Fact]
     public void Render_FullySupportedPage_ReportsNothing()

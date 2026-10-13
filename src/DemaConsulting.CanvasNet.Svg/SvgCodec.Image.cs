@@ -202,7 +202,7 @@ public static partial class SvgCodec
         // Charge the shared cumulative FilterWorkBudget BEFORE the base64 decode/raster Load is
         // attempted - see this method's own remarks on the additional base64-length term
         var workUnits = ComputeEffectsPipelineWorkUnits(
-            filterApplies, primitiveCount, clipPathElement != null, maskElement != null, pixelWidth, pixelHeight)
+            filterApplies, primitiveCount, filterElement != null && FilterUsesSourceAlpha(filterElement), clipPathElement != null, maskElement != null, pixelWidth, pixelHeight)
             + base64Payload.Length;
         if (!filterWorkBudget.TryCharge(workUnits))
         {
@@ -249,11 +249,12 @@ public static partial class SvgCodec
         // Sample the decoded raster into a fresh region-sized buffer via non-tiling
         // inverse-transform sampling (see SampleImageIntoRegion), then apply clip-path -> mask ->
         // filter in SVG's defined order, exactly like RenderShapeEffectsPipeline
+        filterWorkBudget.RecordSurfaceAllocated(pixelWidth, pixelHeight);
         var content = SampleImageIntoRegion(decodedSurface, pixelX, pixelY, pixelWidth, pixelHeight, imageToPixel, pixelToImage, state.PixelatedImages);
 
         if (clipPathElement != null)
         {
-            ApplyClipPath(clipPathElement, content, placementRect, pixelX, pixelY, transform, state, context, workBudget);
+            ApplyClipPath(clipPathElement, content, placementRect, pixelX, pixelY, transform, state, context, workBudget, filterWorkBudget);
         }
 
         if (maskElement != null)

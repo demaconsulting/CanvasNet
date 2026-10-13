@@ -31,8 +31,12 @@ public sealed partial class PdfDocument
     /// </summary>
     internal const long MaxMeshRasterPixels = 1L << 28;
 
-    /// <summary>The number of entries in the color lookup table used for meshes with a <c>/Function</c>.</summary>
-    private const int MeshFunctionLutSize = 256;
+    /// <summary>
+    ///     The number of entries in the color lookup table used for meshes with a <c>/Function</c>;
+    ///     each entry is the color-space conversion of the function evaluated at that entry's exact
+    ///     parameter, and a pixel uses its nearest entry (converted colors are never blended).
+    /// </summary>
+    private const int MeshFunctionLutSize = 4096;
 
     /// <summary>
     ///     Maps a patch's stream point order (boundary: <c>p00 p01 p02 p03 p13 p23 p33 p32 p31 p30
@@ -68,6 +72,10 @@ public sealed partial class PdfDocument
     /// <param name="B">Second color component (green; unused with a function).</param>
     /// <param name="C">Third color component (blue; unused with a function).</param>
     internal readonly record struct MeshColor(double A, double B, double C);
+
+    /// <summary>Gets a value indicating whether <paramref name="colorSpace"/> is a nonlinear CIE-based space whose components must be interpolated before conversion.</summary>
+    private static bool IsNonlinearCieSpace(PdfColorSpace colorSpace) =>
+        colorSpace.Kind is PdfColorSpace.Family.CalGray or PdfColorSpace.Family.CalRGB or PdfColorSpace.Family.Lab;
 
     /// <summary>A mesh vertex: a position and a color.</summary>
     /// <param name="X">The x coordinate.</param>
@@ -110,6 +118,14 @@ public sealed partial class PdfDocument
 
         /// <summary>Gets the optional <c>/Background</c> color (honored for pattern use only), or <see langword="null"/>.</summary>
         internal Rgba32? Background { get; init; }
+
+        /// <summary>
+        ///     Gets the nonlinear CIE-based color space (<c>CalGray</c>, <c>CalRGB</c> or <c>Lab</c>)
+        ///     whose raw components the vertex <see cref="MeshColor"/>s carry (a function-less mesh),
+        ///     so the rasterizer interpolates components and converts per pixel; otherwise
+        ///     <see langword="null"/> (vertex colors are already sRGB bytes, or the t parameter).
+        /// </summary>
+        internal PdfColorSpace? ComponentSpace { get; init; }
     }
 
     /// <summary>A big-endian, MSB-first bit reader over a byte array supporting 1-32 bit reads.</summary>
@@ -226,6 +242,7 @@ public sealed partial class PdfDocument
             background = ColorFromComponents(colorSpace, backgroundValues);
         }
 
+        var componentSpace = evaluate is null && IsNonlinearCieSpace(colorSpace) ? colorSpace : null;
         var parameters = new MeshParameters(
             colorSpace, bitsPerCoordinate, bitsPerComponent, bitsPerFlag, decode, evaluate is not null, colorValueCount);
 
@@ -247,12 +264,13 @@ public sealed partial class PdfDocument
 
         return shadingType switch
         {
-            4 => BuildTriangleMesh(ReadFreeFormTriangles(reader, parameters), shadingType, lut, tMin, tMax, background),
-            5 => BuildTriangleMesh(ReadLatticeTriangles(reader, parameters, verticesPerRow), shadingType, lut, tMin, tMax, background),
+            4 => BuildTriangleMesh(ReadFreeFormTriangles(reader, parameters), shadingType, lut, tMin, tMax, background, componentSpace),
+            5 => BuildTriangleMesh(ReadLatticeTriangles(reader, parameters, verticesPerRow), shadingType, lut, tMin, tMax, background, componentSpace),
             _ => new MeshShading
             {
                 ShadingType = shadingType,
                 Patches = ReadPatches(reader, parameters, shadingType),
+                ComponentSpace = componentSpace,
                 Lut = lut,
                 TMin = tMin,
                 TMax = tMax,
@@ -278,9 +296,11 @@ public sealed partial class PdfDocument
         Rgba32[]? lut,
         double tMin,
         double tMax,
-        Rgba32? background) =>
+        Rgba32? background,
+        PdfColorSpace? componentSpace) =>
         new()
         {
+            ComponentSpace = componentSpace,
             ShadingType = shadingType,
             Vertices = data.Vertices,
             Triangles = data.Triangles,
@@ -328,6 +348,13 @@ public sealed partial class PdfDocument
         if (p.UsesFunction)
         {
             return new MeshColor(values[0], 0, 0);
+        }
+
+        if (IsNonlinearCieSpace(p.ColorSpace))
+        {
+            // Keep the raw components: converting the vertices first and blending the converted
+            // bytes differs from converting the interpolated components for a nonlinear space.
+            return new MeshColor(values[0], values.Length > 1 ? values[1] : 0, values.Length > 2 ? values[2] : 0);
         }
 
         var color = ColorFromComponents(p.ColorSpace, values);
@@ -768,10 +795,19 @@ public sealed partial class PdfDocument
         private const double EdgeEpsilon = 1e-9;
         private const long PerTriangleCost = 16;
 
+        /// <summary>
+        ///     The work-budget weight of one pixel whose color is converted per pixel from
+        ///     interpolated components (a nonlinear CIE conversion costs several plain pixel writes),
+        ///     keeping the total work bounded by <see cref="MaxMeshRasterPixels"/>.
+        /// </summary>
+        private const long ComponentConversionPixelCost = 8;
+
         private readonly Surface _surface;
         private readonly Rgba32[]? _lut;
         private readonly double _tMin;
         private readonly double _tRange;
+        private readonly PdfColorSpace? _componentSpace;
+        private readonly long _pixelCost;
         private long _remainingBudget = MaxMeshRasterPixels;
 
         /// <summary>Initializes a new instance of the <see cref="MeshRasterizer"/> class.</summary>
@@ -783,6 +819,8 @@ public sealed partial class PdfDocument
             _lut = mesh.Lut;
             _tMin = mesh.TMin;
             _tRange = mesh.TMax - mesh.TMin;
+            _componentSpace = mesh.ComponentSpace;
+            _pixelCost = _componentSpace is null ? 1 : ComponentConversionPixelCost;
         }
 
         /// <summary>Rasterizes one device-space Gouraud triangle.</summary>
@@ -805,7 +843,7 @@ public sealed partial class PdfDocument
             var y0 = (int)Math.Clamp(Math.Ceiling(Math.Min(a.Y, Math.Min(b.Y, c.Y)) - 0.5 - 1e-6), 0, _surface.Height);
             var y1 = (int)Math.Clamp(Math.Floor(Math.Max(a.Y, Math.Max(b.Y, c.Y)) - 0.5 + 1e-6), -1, _surface.Height - 1);
 
-            _remainingBudget -= PerTriangleCost + (x1 >= x0 && y1 >= y0 ? (long)(x1 - x0 + 1) * (y1 - y0 + 1) : 0);
+            _remainingBudget -= PerTriangleCost + (x1 >= x0 && y1 >= y0 ? (long)(x1 - x0 + 1) * (y1 - y0 + 1) * _pixelCost : 0);
             if (_remainingBudget < 0)
             {
                 throw new UnsupportedImageFeatureException(
@@ -843,9 +881,21 @@ public sealed partial class PdfDocument
         {
             if (_lut is not null)
             {
+                // Nearest-entry lookup: every entry is the color space conversion of the function
+                // output evaluated at that entry's exact t, so converted 8-bit colors are never
+                // blended (blending after conversion differs from converting the interpolated
+                // components for nonlinear color spaces). The table is fine enough that the
+                // parameter quantization error is below half a table step.
                 var fraction = _tRange == 0 ? 0 : (a - _tMin) / _tRange;
                 var index = (int)Math.Round(Math.Clamp(fraction, 0, 1) * (_lut.Length - 1));
                 return _lut[index];
+            }
+
+            if (_componentSpace is not null)
+            {
+                // Components were interpolated in the shading color space; convert this pixel now.
+                Span<double> components = [a, b, c];
+                return ColorFromComponentSpan(_componentSpace, components);
             }
 
             return new Rgba32(ClampByte(a), ClampByte(b), ClampByte(c), 255);

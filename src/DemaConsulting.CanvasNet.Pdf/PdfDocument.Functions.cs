@@ -19,6 +19,217 @@ public sealed partial class PdfDocument
 
         /// <summary>Evaluates this function at <paramref name="input"/>, returning one value per output (<see cref="OutputCount"/> elements).</summary>
         double[] Evaluate(double input);
+
+        /// <summary>
+        ///     Gets the interior input values at which the function may be discontinuous or change
+        ///     slope abruptly (the <c>/Bounds</c> of a stitching function, including those of nested
+        ///     stitching sub-functions), in increasing order; empty for smooth functions. Shading
+        ///     sampling adds exact hard stops at these values so sharp transitions are not smeared
+        ///     between uniform samples.
+        /// </summary>
+        IReadOnlyList<double> Breakpoints => [];
+    }
+
+    /// <summary>
+    ///     A resolved PDF function with any number of inputs (<c>m</c>) and outputs (<c>n</c>),
+    ///     as used by <c>Separation</c>/<c>DeviceN</c> tint transforms: the multi-input sibling of
+    ///     <see cref="IPdfFunction"/>, evaluated without per-call allocation.
+    /// </summary>
+    internal interface IPdfMultiFunction
+    {
+        /// <summary>The number of inputs <c>m</c>.</summary>
+        int InputCount { get; }
+
+        /// <summary>The number of outputs <c>n</c>.</summary>
+        int OutputCount { get; }
+
+        /// <summary>
+        ///     Evaluates the function: reads <see cref="InputCount"/> values from
+        ///     <paramref name="input"/> and writes <see cref="OutputCount"/> values to
+        ///     <paramref name="output"/>.
+        /// </summary>
+        void Evaluate(ReadOnlySpan<double> input, Span<double> output);
+
+        /// <summary>
+        ///     An upper-bound estimate of the work of one <see cref="Evaluate"/> call in abstract
+        ///     cost units (roughly one unit per elementary operation), used to budget per-pixel
+        ///     tint evaluation.
+        /// </summary>
+        long EstimatedCost => 1L + InputCount + OutputCount;
+    }
+
+    /// <summary>Adapts a single-input <see cref="IPdfFunction"/> (type 2 or 3) to <see cref="IPdfMultiFunction"/>.</summary>
+    private sealed class SingleInputFunctionAdapter(IPdfFunction function) : IPdfMultiFunction
+    {
+        /// <inheritdoc/>
+        public int InputCount => 1;
+
+        /// <inheritdoc/>
+        public int OutputCount => function.OutputCount;
+
+        /// <inheritdoc/>
+        public void Evaluate(ReadOnlySpan<double> input, Span<double> output)
+        {
+            var result = function.Evaluate(input[0]);
+            result.AsSpan(0, Math.Min(result.Length, output.Length)).CopyTo(output);
+        }
+    }
+
+    /// <summary>The maximum number of inputs of a multi-input sampled (<c>/FunctionType 0</c>) function.</summary>
+    private const int MaxSampledFunctionInputs = 8;
+
+    /// <summary>The maximum total number of samples (<c>product(Size) * outputs</c>) a sampled function may declare.</summary>
+    private const long MaxSampledFunctionSamples = 1L << 22;
+
+    /// <summary>The maximum number of outputs of a multi-input function.</summary>
+    private const int MaxFunctionOutputs = 32;
+
+    /// <summary>
+    ///     A resolved <c>/FunctionType 0</c> (sampled) function with <c>m &gt;= 1</c> inputs,
+    ///     evaluated by multilinear interpolation (<c>2^m</c> corners) between the samples
+    ///     (<c>/Order 1</c>), with <c>/Encode</c>, <c>/Decode</c> and <c>/Range</c> applied; supports
+    ///     <c>/BitsPerSample</c> <c>1, 2, 4, 8, 12, 16, 24, 32</c>.
+    /// </summary>
+    internal sealed class MultiSampledFunction : IPdfMultiFunction
+    {
+        /// <summary>The <c>2m</c>-element input domain.</summary>
+        internal required double[] Domain { get; init; }
+
+        /// <summary>The <c>2n</c>-element output range.</summary>
+        internal required double[] Range { get; init; }
+
+        /// <summary>The <c>2m</c>-element input-to-sample-index mapping.</summary>
+        internal required double[] Encode { get; init; }
+
+        /// <summary>The <c>2n</c>-element raw-sample-to-output mapping.</summary>
+        internal required double[] Decode { get; init; }
+
+        /// <summary>The number of samples along each input dimension.</summary>
+        internal required int[] Size { get; init; }
+
+        /// <summary>The bits per raw sample.</summary>
+        internal required int BitsPerSample { get; init; }
+
+        /// <summary>The filter-decoded sample bytes (first input varies fastest).</summary>
+        internal required byte[] Samples { get; init; }
+
+        /// <inheritdoc/>
+        public int InputCount => Size.Length;
+
+        /// <inheritdoc/>
+        public int OutputCount => Range.Length / 2;
+
+        /// <inheritdoc/>
+        public long EstimatedCost => ((1L << Size.Length) * (Size.Length + OutputCount) * 4) + 16;
+
+        /// <inheritdoc/>
+        public void Evaluate(ReadOnlySpan<double> input, Span<double> output)
+        {
+            var m = Size.Length;
+            var n = OutputCount;
+            Span<int> low = stackalloc int[MaxSampledFunctionInputs];
+            Span<int> high = stackalloc int[MaxSampledFunctionInputs];
+            Span<double> fraction = stackalloc double[MaxSampledFunctionInputs];
+            Span<long> stride = stackalloc long[MaxSampledFunctionInputs];
+
+            long running = 1;
+            for (var i = 0; i < m; i++)
+            {
+                var d0 = Domain[2 * i];
+                var d1 = Domain[(2 * i) + 1];
+                var x = Math.Clamp(i < input.Length ? input[i] : 0.0, Math.Min(d0, d1), Math.Max(d0, d1));
+                var span = d1 - d0;
+                var encoded = Math.Abs(span) < double.Epsilon
+                    ? Encode[2 * i]
+                    : Encode[2 * i] + ((x - d0) * (Encode[(2 * i) + 1] - Encode[2 * i]) / span);
+                encoded = Math.Clamp(encoded, 0, Size[i] - 1);
+
+                low[i] = (int)Math.Floor(encoded);
+                high[i] = Math.Min(low[i] + 1, Size[i] - 1);
+                fraction[i] = encoded - low[i];
+                stride[i] = running;
+                running *= Size[i];
+            }
+
+            output[..n].Clear();
+            for (var corner = 0; corner < (1 << m); corner++)
+            {
+                double weight = 1.0;
+                long index = 0;
+                for (var i = 0; i < m; i++)
+                {
+                    if (((corner >> i) & 1) == 1)
+                    {
+                        weight *= fraction[i];
+                        index += high[i] * stride[i];
+                    }
+                    else
+                    {
+                        weight *= 1.0 - fraction[i];
+                        index += low[i] * stride[i];
+                    }
+                }
+
+                if (weight == 0.0)
+                {
+                    continue;
+                }
+
+                for (var j = 0; j < n; j++)
+                {
+                    output[j] += weight * ReadSample((index * n) + j);
+                }
+            }
+
+            var maxRaw = (double)((1UL << BitsPerSample) - 1);
+            for (var j = 0; j < n; j++)
+            {
+                var decoded = Decode[2 * j] + (output[j] * (Decode[(2 * j) + 1] - Decode[2 * j]) / maxRaw);
+                output[j] = Math.Clamp(
+                    decoded,
+                    Math.Min(Range[2 * j], Range[(2 * j) + 1]),
+                    Math.Max(Range[2 * j], Range[(2 * j) + 1]));
+            }
+        }
+
+        /// <summary>Reads the raw sample at the given flat sample index (most-significant bit first).</summary>
+        /// <remarks>Byte-aligned widths (8/16/24/32 bits) take a direct big-endian fast path; the rest use the bitwise path.</remarks>
+        internal double ReadSample(long sampleIndex)
+        {
+            var bitOffset = sampleIndex * BitsPerSample;
+            if (((bitOffset + BitsPerSample - 1) >> 3) >= Samples.Length)
+            {
+                throw new InvalidDataException(
+                    "Sampled function stream does not contain enough sample bytes for its declared /Size.");
+            }
+
+            if ((BitsPerSample & 7) == 0)
+            {
+                var at = (int)(bitOffset >> 3);
+                long fast = 0;
+                for (var i = 0; i < BitsPerSample >> 3; i++)
+                {
+                    fast = (fast << 8) | Samples[at + i];
+                }
+
+                return fast;
+            }
+
+            return ReadSampleBitwise(bitOffset);
+        }
+
+        /// <summary>Reads one raw sample bit by bit (any width).</summary>
+        internal double ReadSampleBitwise(long bitOffset)
+        {
+            long value = 0;
+            for (var i = 0; i < BitsPerSample; i++)
+            {
+                var bit = bitOffset + i;
+                value = (value << 1) | (long)((Samples[(int)(bit >> 3)] >> (7 - (int)(bit & 7))) & 1);
+            }
+
+            return value;
+        }
     }
 
     /// <summary>
@@ -235,6 +446,48 @@ public sealed partial class PdfDocument
         public int OutputCount => Functions.Count > 0 ? Functions[0].OutputCount : 0;
 
         /// <inheritdoc/>
+        /// <remarks>
+        ///     The interior <see cref="Bounds"/> plus, for each sub-function, its own breakpoints
+        ///     mapped back from its <see cref="Encode"/>d range into this function's input domain.
+        /// </remarks>
+        public IReadOnlyList<double> Breakpoints
+        {
+            get
+            {
+                var result = new SortedSet<double>(Bounds.Where(double.IsFinite));
+                var k = Functions.Count;
+                for (var i = 0; i < k; i++)
+                {
+                    var subBreakpoints = Functions[i].Breakpoints;
+                    if (subBreakpoints.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    var low = i == 0 ? Domain[0] : Bounds[i - 1];
+                    var high = i == k - 1 ? Domain[1] : Bounds[i];
+                    var encodedLow = Encode[2 * i];
+                    var encodedSpan = Encode[(2 * i) + 1] - encodedLow;
+                    if (Math.Abs(encodedSpan) < double.Epsilon)
+                    {
+                        continue;
+                    }
+
+                    foreach (var encoded in subBreakpoints)
+                    {
+                        var mapped = low + ((encoded - encodedLow) * (high - low) / encodedSpan);
+                        if (double.IsFinite(mapped) && mapped > Math.Min(low, high) && mapped < Math.Max(low, high))
+                        {
+                            result.Add(mapped);
+                        }
+                    }
+                }
+
+                return [.. result];
+            }
+        }
+
+        /// <inheritdoc/>
         public double[] Evaluate(double input)
         {
             var clampedInput = Math.Clamp(input, Math.Min(Domain[0], Domain[1]), Math.Max(Domain[0], Domain[1]));
@@ -310,22 +563,169 @@ public sealed partial class PdfDocument
         try
         {
             var function = Resolve(functionEntry);
-            var functionType = RequireIntEntry(function, "FunctionType");
+            var functionType = RequireStrictIntEntry(function, "FunctionType");
             return functionType switch
             {
                 0 => ResolveFunction(functionEntry),
                 2 => ResolveExponentialFunction(function),
                 3 => ResolveStitchingFunction(function),
+                4 => ResolvePostScriptFunction(function) is { InputCount: 1 } postScript
+                    ? postScript
+                    : throw new UnsupportedImageFeatureException(
+                        "pdf-function-multiinput",
+                        "A /FunctionType 4 function with more than 1 input is only supported as a Separation/DeviceN tint transform."),
                 _ => throw new UnsupportedImageFeatureException(
                     $"pdf-functiontype-{functionType}",
                     $"/FunctionType {functionType} is not supported; only /FunctionType 0 (sampled), " +
-                    "2 (exponential), and 3 (stitching) are supported."),
+                    "2 (exponential), 3 (stitching) and 4 (PostScript calculator) are supported."),
             };
         }
         finally
         {
             _functionRecursionDepth--;
         }
+    }
+
+    /// <summary>
+    ///     Resolves a <c>/Function</c> entry into the multi-input <see cref="IPdfMultiFunction"/>
+    ///     shape used by <c>Separation</c>/<c>DeviceN</c> tint transforms: <c>/FunctionType 0</c>
+    ///     with any number of inputs (up to <see cref="MaxSampledFunctionInputs"/>), <c>2</c>/<c>3</c>
+    ///     (single input) and <c>4</c> (PostScript calculator).
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown for a malformed function, an oversized sample table, or nesting deeper than
+    ///     <see cref="MaxFunctionRecursionDepth"/>.
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown for an unsupported <c>/FunctionType</c> (feature <c>pdf-functiontype-{n}</c>), too many
+    ///     sampled-function inputs (feature <c>pdf-function-multiinput</c>) or an unsupported
+    ///     <c>/BitsPerSample</c> (feature <c>pdf-function-bitspersample-{n}</c>).
+    /// </exception>
+    private IPdfMultiFunction ResolveMultiInputFunction(PdfObject functionEntry)
+    {
+        if (_functionRecursionDepth >= MaxFunctionRecursionDepth)
+        {
+            throw new InvalidDataException(
+                $"/Function resolution exceeds the maximum supported nesting depth of {MaxFunctionRecursionDepth}.");
+        }
+
+        _functionRecursionDepth++;
+        try
+        {
+            var function = Resolve(functionEntry);
+            var functionType = RequireStrictIntEntry(function, "FunctionType");
+            return functionType switch
+            {
+                0 => ResolveMultiSampledFunction(function),
+                4 => ResolvePostScriptFunction(function),
+                2 or 3 => new SingleInputFunctionAdapter(ResolveFunctionGeneric(functionEntry)),
+                _ => throw new UnsupportedImageFeatureException(
+                    $"pdf-functiontype-{functionType}",
+                    $"/FunctionType {functionType} is not supported; only /FunctionType 0 (sampled), " +
+                    "2 (exponential), 3 (stitching) and 4 (PostScript calculator) are supported."),
+            };
+        }
+        finally
+        {
+            _functionRecursionDepth--;
+        }
+    }
+
+    /// <summary>Resolves a (possibly multi-input) <c>/FunctionType 0</c> stream into a <see cref="MultiSampledFunction"/>.</summary>
+    private MultiSampledFunction ResolveMultiSampledFunction(PdfObject function)
+    {
+        if (function.Kind != PdfKind.Stream)
+        {
+            throw new InvalidDataException("/FunctionType 0 function must be a stream.");
+        }
+
+        var domain = RequireNumberArray(function, "Domain");
+        if (domain.Length < 2 || domain.Length % 2 != 0 || domain.Any(static d => !double.IsFinite(d)))
+        {
+            throw new InvalidDataException("/Domain must be a non-empty array of finite number pairs.");
+        }
+
+        var inputCount = domain.Length / 2;
+        if (inputCount > MaxSampledFunctionInputs)
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-function-multiinput",
+                $"A /FunctionType 0 function with more than {MaxSampledFunctionInputs} inputs is not supported.");
+        }
+
+        var range = RequireNumberArray(function, "Range");
+        if (range.Length == 0 || range.Length % 2 != 0 || range.Length / 2 > MaxFunctionOutputs
+            || range.Any(static r => !double.IsFinite(r)))
+        {
+            throw new InvalidDataException(
+                $"/Range must be 1 to {MaxFunctionOutputs} finite number pairs.");
+        }
+
+        var outputCount = range.Length / 2;
+        var sizeValues = RequireNumberArray(function, "Size");
+        if (sizeValues.Length != inputCount || sizeValues.Any(static s => !IsIntegralInRange(s, 1, int.MaxValue)))
+        {
+            // A fractional entry (for example 1.5) is malformed, never silently truncated.
+            throw new InvalidDataException("/Size must have one positive integer per input.");
+        }
+
+        var size = sizeValues.Select(static s => (int)s).ToArray();
+        long totalSamples = outputCount;
+        foreach (var dimension in size)
+        {
+            totalSamples *= dimension;
+            if (totalSamples > MaxSampledFunctionSamples)
+            {
+                throw new InvalidDataException(
+                    $"/Size declares more than the supported {MaxSampledFunctionSamples} samples.");
+            }
+        }
+
+        var bitsPerSample = RequireStrictIntEntry(function, "BitsPerSample");
+        if (bitsPerSample is not (1 or 2 or 4 or 8 or 12 or 16 or 24 or 32))
+        {
+            throw new UnsupportedImageFeatureException(
+                $"pdf-function-bitspersample-{bitsPerSample}",
+                $"/BitsPerSample {bitsPerSample} is not supported; only 1, 2, 4, 8, 12, 16, 24 and 32 are supported.");
+        }
+
+        var encode = ResolveOptionalNumberArray(function, "Encode");
+        if (encode is null)
+        {
+            encode = new double[2 * inputCount];
+            for (var i = 0; i < inputCount; i++)
+            {
+                encode[(2 * i) + 1] = size[i] - 1;
+            }
+        }
+        else if (encode.Length != 2 * inputCount || encode.Any(static e => !double.IsFinite(e)))
+        {
+            throw new InvalidDataException("/Encode must have one finite number pair per input.");
+        }
+
+        var decode = ResolveOptionalNumberArray(function, "Decode") ?? range;
+        if (decode.Length != range.Length || decode.Any(static d => !double.IsFinite(d)))
+        {
+            throw new InvalidDataException("/Decode must have the same number of finite elements as /Range.");
+        }
+
+        var samples = GetStreamDecodedBytes(function);
+        if (((totalSamples * bitsPerSample) + 7) / 8 > samples.Length)
+        {
+            throw new InvalidDataException(
+                "Sampled function stream does not contain enough sample bytes for its declared /Size.");
+        }
+
+        return new MultiSampledFunction
+        {
+            Domain = domain,
+            Range = range,
+            Encode = encode,
+            Decode = decode,
+            Size = size,
+            BitsPerSample = bitsPerSample,
+            Samples = samples,
+        };
     }
 
     /// <summary>Resolves an already-resolved <c>/FunctionType 2</c> dictionary into an <see cref="ExponentialFunction"/>.</summary>
@@ -387,16 +787,56 @@ public sealed partial class PdfDocument
         var functions = functionsArray.Items.Select(ResolveFunctionGeneric).ToArray();
         var k = functions.Length;
 
+        // Evaluate returns the selected branch's array unchanged, so every branch must produce the
+        // same number of outputs as the first (branches are single-input by IPdfFunction's contract).
+        if (functions.Any(branch => branch.OutputCount != functions[0].OutputCount))
+        {
+            throw new InvalidDataException("Every /Functions sub-function of a stitching function must have the same output count.");
+        }
+
         var bounds = ResolveOptionalNumberArray(function, "Bounds") ?? [];
         if (bounds.Length != k - 1)
         {
             throw new InvalidDataException($"/Bounds must have exactly {k - 1} element(s) for {k} sub-function(s).");
         }
 
+        // A degenerate (equal) /Domain is tolerated by Evaluate, so it stays accepted; a reversed or
+        // non-finite one is malformed. Equal consecutive bounds are valid (hard color stops).
+        if (!double.IsFinite(domain[0]) || !double.IsFinite(domain[1]) || domain[0] > domain[1])
+        {
+            throw new InvalidDataException("/Domain must hold two finite numbers with Domain0 <= Domain1.");
+        }
+
+        var previousBound = domain[0];
+        foreach (var bound in bounds)
+        {
+            if (!double.IsFinite(bound))
+            {
+                throw new InvalidDataException("/Bounds must contain only finite numbers.");
+            }
+
+            if (bound < previousBound)
+            {
+                throw new InvalidDataException("/Bounds must be non-decreasing and within /Domain.");
+            }
+
+            previousBound = bound;
+        }
+
+        if (bounds.Length > 0 && bounds[^1] > domain[1])
+        {
+            throw new InvalidDataException("/Bounds must be non-decreasing and within /Domain.");
+        }
+
         var encode = RequireNumberArray(function, "Encode");
         if (encode.Length != 2 * k)
         {
             throw new InvalidDataException($"/Encode must have exactly {2 * k} element(s) for {k} sub-function(s).");
+        }
+
+        if (encode.Any(value => !double.IsFinite(value)))
+        {
+            throw new InvalidDataException("/Encode must contain only finite numbers.");
         }
 
         return new StitchingFunction
@@ -466,7 +906,7 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("/Function must resolve to a stream (only /FunctionType 0 is supported).");
         }
 
-        var functionType = RequireIntEntry(function, "FunctionType");
+        var functionType = RequireStrictIntEntry(function, "FunctionType");
         if (functionType != 0)
         {
             throw new UnsupportedImageFeatureException(
@@ -495,22 +935,18 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("/Size must have exactly 1 element for a 1-input function.");
         }
 
-        // Reject a non-finite /Size element before casting it to int - NaN/Infinity cast to int
-        // is an unchecked, unspecified-magnitude conversion in C# (not an exception), so a
-        // crafted function dictionary could otherwise smuggle a garbage `size` value past the
-        // `size < 1` check below and corrupt downstream sample-index arithmetic.
-        if (!double.IsFinite(sizeArray[0]))
-        {
-            throw new InvalidDataException("/Size must be a finite number.");
-        }
-
-        var size = (int)sizeArray[0];
-        if (size < 1)
+        // Reject a non-finite, fractional or out-of-range /Size element before casting it to int:
+        // NaN/Infinity cast to int is an unchecked, unspecified-magnitude conversion in C#, and a
+        // fractional value (for example 1.5) would be silently truncated, so a crafted function
+        // dictionary could otherwise smuggle a wrong `size` past the checks.
+        if (!IsIntegralInRange(sizeArray[0], 1, int.MaxValue))
         {
             throw new InvalidDataException("/Size must be a positive integer.");
         }
 
-        var bitsPerSample = RequireIntEntry(function, "BitsPerSample");
+        var size = (int)sizeArray[0];
+
+        var bitsPerSample = RequireStrictIntEntry(function, "BitsPerSample");
         if (bitsPerSample is not (8 or 16))
         {
             throw new UnsupportedImageFeatureException(
@@ -592,5 +1028,29 @@ public sealed partial class PdfDocument
         }
 
         return result;
+    }
+
+    /// <summary>Gets a value indicating whether <paramref name="value"/> is finite, has no fractional part, and lies in [<paramref name="min"/>, <paramref name="max"/>].</summary>
+    private static bool IsIntegralInRange(double value, double min, double max)
+        => double.IsFinite(value) && double.IsInteger(value) && value >= min && value <= max;
+
+    /// <summary>
+    ///     Reads a required integer function-dictionary entry, rejecting a fractional, non-finite or
+    ///     out-of-range number instead of silently truncating it.
+    /// </summary>
+    /// <param name="dictionary">The function dictionary or stream.</param>
+    /// <param name="key">The entry name.</param>
+    /// <returns>The exact integer value.</returns>
+    /// <exception cref="InvalidDataException">Thrown when the entry is missing or not an exact integer.</exception>
+    private int RequireStrictIntEntry(PdfObject dictionary, string key)
+    {
+        var entry = dictionary.Get(key) ?? throw new InvalidDataException($"Stream is missing required /{key}.");
+        var resolved = Resolve(entry);
+        if (resolved.Kind != PdfKind.Number || !IsIntegralInRange(resolved.Number, int.MinValue, int.MaxValue))
+        {
+            throw new InvalidDataException($"/{key} must be an integer.");
+        }
+
+        return (int)resolved.Number;
     }
 }

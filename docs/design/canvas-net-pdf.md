@@ -105,12 +105,13 @@ and invisible (`Tr 3`) text-rendering modes and the clip modes (`Tr 4`-`7`) are 
 glyph under a clip mode fails closed); a
 Form XObject's `/BBox` is never used to clip its content and its `/Group` (transparency group)
 entry is never consulted, though the Form itself renders; `/ShadingType` values outside `2`-`7`
-and `/FunctionType 4` (PostScript calculator) functions fail closed; the `sh` operator and general
+and `/FunctionType` values other than `0`/`2`/`3`/`4` fail closed; the `sh` operator and general
 path clipping (`W`/`W*`) are supported; no
 `/Mask`/`/Matte` image masks or transparency groups (an explicit `/SMask` and JPEG 2000
 alpha are applied); `CCITTFaxDecode` - Group 4 (T.6 MMR) only - is supported and `JPXDecode`
-is decoded; `/Separation`/`/DeviceN`/`/CalGray`/`/Lab` color spaces remain unsupported and fail
-closed; and an encrypted document using any security handler, crypt-filter method, `/V`/`/R`
+is decoded; `/Separation`/`/DeviceN` color spaces are evaluated through their tint transform
+(an alternate space that is `Pattern`/`Indexed`/`Separation`/`DeviceN` fails closed; ICC profile
+data is still not applied); an encrypted document using any security handler, crypt-filter method, `/V`/`/R`
 combination other than the ones listed above, or whose correct password is not supplied, fails
 closed rather than being decrypted. These remain out of scope and are planned for later phases
 (see Risk Control Measures below for the complete, currently-thrown `Feature` string taxonomy).
@@ -306,9 +307,15 @@ subject to its own documented, non-exception-raising limitation (the Form's `/BB
 to clip its content and its `/Group` transparency-group entry is never consulted — the Form's
 content simply paints unclipped). Phase 14 replaced the color-space model: `/CalRGB`, `/ICCBased`
 (resolved via its `/N` or `/Alternate`, feature `"pdf-colorspace-ICCBased"` for an unsupported
-shape), and `/Indexed` (a palette lookup over any supported base space) are all now supported,
-narrowing the unsupported-color-space set to `Separation`/`DeviceN`/`CalGray`/`Lab` (feature
-`"pdf-colorspace-{name}"`); the same phase introduced the `/Pattern` color space and `scn`/`SCN`
+shape), and `/Indexed` (a palette lookup over any supported base space) are all now supported.
+`/Separation` and `/DeviceN` were later resolved through their tint-transform function; an
+alternate space of `Pattern`/`Indexed`/`Separation`/`DeviceN` fails closed with feature
+`"pdf-colorspace-{name}-alternate"`. `/CalGray`, `/CalRGB` and `/Lab` are converted to sRGB through
+a CIE XYZ kernel with Bradford adaptation (see `PdfDocument.ColorKernel.cs`); ICC profile data is
+never applied, only `/N`/`/Alternate`; an image in a `/Lab` color space with an explicit `/Decode`
+fails closed (feature `"pdf-image-lab-decode"`). An unrecognized or undeclared color-space name
+fails closed with feature `"pdf-colorspace-{name}"`. The same phase introduced the `/Pattern`
+color space and `scn`/`SCN`
 pattern operands (an undeclared pattern name, feature `"pdf-pattern-not-declared"`; an
 unsupported `/PatternType`, feature `"pdf-pattern-type-{n}"`; a malformed `/Pattern` array shape,
 feature `"pdf-colorspace-Pattern"`), axial/radial shading patterns (an unsupported
@@ -316,8 +323,10 @@ feature `"pdf-colorspace-Pattern"`), axial/radial shading patterns (an unsupport
 `"pdf-shading-colorspace-{family}"`), tiling patterns (an oversized rendered tile, feature
 `"pdf-pattern-tile-too-large"`), and a Function evaluator widened from `/FunctionType 0`
 (sampled) alone to also resolve `/FunctionType 2` (exponential) and `/FunctionType 3`
-(stitching); any other `/FunctionType` (including `4`, PostScript calculator) still fails closed
-(feature `"pdf-functiontype-{n}"`), as does a multi-input `/FunctionType 0` function (feature
+(stitching); any other `/FunctionType` (other than `4`, PostScript calculator, added with the tint-transform
+support) fails closed
+(feature `"pdf-functiontype-{n}"`), as does a multi-input `/FunctionType 0` function reaching the single-input
+resolver (feature
 `"pdf-function-multiinput"`) and an unsupported `/BitsPerSample` (feature
 `"pdf-function-bitspersample-{n}"`). Phase 15 added `CCITTFaxDecode` (Group 4/T.6 MMR only) image
 decoding: a non-negative `/K` (Group 3, feature `"pdf-ccittfax-group3"`), `/EndOfLine true`
@@ -335,15 +344,18 @@ crypt filter), `pdf-encrypted-r-{revision}`,
 `pdf-encrypted-v-{version}`, `pdf-encrypted-password-required` (a `null` password when a
 non-empty one is genuinely required), `pdf-encrypted-incorrect-password`,
 `pdf-encrypted-password-non-ascii` (an R2-R4 password outside ASCII 0-127),
-`pdf-colorspace-{name}` (`Separation`/`DeviceN`/`CalGray`/`Lab`), `pdf-colorspace-Pattern`,
+`pdf-colorspace-{name}` (an unrecognized or undeclared color-space name), `pdf-colorspace-{name}-alternate`
+(a `Separation`/`DeviceN` alternate of an unsupported family), `pdf-colorspace-Pattern-nested`, `pdf-image-lab-decode`,
+`pdf-image-tint-budget`, `pdf-colorspace-Pattern`,
 `pdf-colorspace-ICCBased`, `pdf-filter-{name}` (any unrecognized filter),
 `pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}` (a depth other than 1/2/4/8/16, or a 16-bit `/Indexed` image),
 `pdf-jpx-colorspace` (a JPX image of a channel count with no device color space without `/ColorSpace`),
 `pdf-jpx-palette-colorspace` (a `/ColorSpace` override on JP2 data with its own palette),
 `pdf-jpx-indexed-bit-depth` (an `/Indexed` space over non-8-bit JPX samples),
 `pdf-jpx-smaskindata-indexed` (`/SMaskInData 2` over an `/Indexed` space),
-`pdf-pattern-not-declared`,
-`pdf-pattern-type-{n}`, `pdf-pattern-tile-too-large`, `pdf-shading-type-{n}`,
+`pdf-pattern-not-declared`, `pdf-shading-not-declared`, `pdf-shading-mesh-too-many-vertices`,
+`pdf-shading-mesh-too-many-patches`, `pdf-shading-mesh-too-complex`, `pdf-pattern-type-{n}`,
+`pdf-pattern-tile-too-large`, `pdf-shading-type-{n}`,
 `pdf-shading-colorspace-{family}`, `pdf-functiontype-{n}`, `pdf-function-multiinput`,
 `pdf-function-bitspersample-{n}`, `pdf-font-subtype-{subtype}` (`MMType1` only),
 `pdf-font-symbolic-not-embedded` (`Symbol`/`ZapfDingbats` descriptor flags without an embedded

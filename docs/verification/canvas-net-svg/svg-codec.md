@@ -807,7 +807,11 @@ operator.
 `SvgCodec_Load_FilterPathologicallyLargeBlurStdDeviation_ClampsRatherThanUnboundedWork`,
 `SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork`,
 `SvgCodec_Load_FeMergeExcessiveNodeCount_SkipsFilterRatherThanUnboundedWork`,
-`SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes`
+`SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes`,
+`SvgCodec_Load_ClipMaskAndFilter_CountsEveryEffectSurface`,
+`SvgCodec_Load_SubregionPrimitiveChain_ChargesClipCopies`,
+`SvgCodec_Load_FilterCharge_IncludesContentBufferUnit`,
+`SvgCodec_Load_SourceAlphaViaMergeNodeOrIn2_IsCountedAndCharged`
 
 Asserts a `filter="url(#id)"` reference to a nonexistent id renders the element normally, exactly
 as if no `filter` attribute were present, matching this codec's general dangling-reference
@@ -822,10 +826,11 @@ enormous `SourceGraphic` surface for a filter that, having no primitives, could 
 rendered output; asserts an `feGaussianBlur` `stdDeviation` many orders
 of magnitude larger than the fixed `MaxFilterBlurStdDeviationPixels` bound is clamped rather than
 causing unbounded work - the box-blur implementation's own cost does not scale with the requested
-radius, so this completes promptly and produces a heavily diluted (rather than crashing or
-hanging) result; and asserts a filter chain with an excessive number of primitives (5,000 chained
+radius, so the work stays bounded and a heavily diluted (rather than crashing or
+hanging) result is produced; and asserts a filter chain with an excessive number of primitives (5,000 chained
 `feGaussianBlur` primitives, mirroring a reported repro that took ~26 seconds prior to this bound)
-is tolerantly skipped entirely rather than evaluated, completing promptly instead of performing
+is tolerantly skipped entirely rather than evaluated - the internal `RenderDiagnostics` counters
+(no timing assertions) show zero effects surfaces allocated and zero work charged, instead of
 5,000 region-sized blur passes - bounding the primitive-count × region-area cost dimension that
 `MaxTotalRenderedElements`/`GeometryWorkBudget` do not cover, since neither tracks a single
 filter's own per-primitive, region-sized buffer cost. Also asserts a `feMerge` primitive with an
@@ -838,7 +843,8 @@ regression test for a code-review finding that the per-filter `MaxFilterPrimitiv
 ceiling is enforced independently for every individual filtered element, so a single `filter`
 definition referenced by many shapes could be charged that same ceiling once per reference with no
 bound on the total number of references: 13 shapes reference one filter chain that individually
-charges exactly the per-filter ceiling (500 primitives against a 100×100 region) every time - the
+charges exactly the per-filter ceiling (499 primitive units plus the content buffer, against a 100×100
+region) every time - the
 first 10 references' cumulative total stays within the new `FilterWorkBudget`'s
 `MaxCumulativeFilterWorkUnits` ceiling (50,000,000) and are genuinely filtered (rendering the
 chain's trailing `feFlood` solid color), while the 11th through 13th references would push the
@@ -846,7 +852,23 @@ cumulative total over that ceiling and tolerantly fall back to unfiltered render
 plain fill color) instead of throwing - proving the new cumulative, per-`Load`-call budget bounds
 total filter-evaluation work across the whole document, a dimension neither
 `MaxFilterPrimitiveWorkUnits` (per-filter-application only) nor `MaxTotalRenderedElements`
-(counts a filtered shape identically to an unfiltered one) previously covered.
+(counts a filtered shape identically to an unfiltered one) previously covered. The
+`RenderDiagnostics.EffectSurfacesAllocated` counter means "all effects-pipeline surfaces
+allocated" (the content buffer, the clip-path coverage buffer, the mask source buffer,
+`SourceAlpha`, and each primitive's or subregion clip's output buffer; scratch buffers inside one
+primitive are not counted), so each filtered shape in these tests contributes two (content plus
+the `feFlood` output); the separate `SvgCodec_Load_ClipMaskAndFilter_CountsEveryEffectSurface`
+test asserts a clipped, masked and filtered element counts four. A primitive with an explicit
+subregion allocates one further region-sized clip copy, which is both counted and charged:
+`SvgCodec_Load_SubregionPrimitiveChain_ChargesClipCopies` compares a three-primitive chain with and
+without subregions and asserts the surface count rises from four to seven and the charged work
+rises in the same 4:7 ratio. `WorkCharged` is tracked independently. The charge for a filter is
+(primitive units + 1 content unit [+ 1 for `SourceAlpha`]) region areas, so a one-`feFlood` filter is
+charged two areas and a two-`feFlood` filter three (`SvgCodec_Load_FilterCharge_IncludesContentBufferUnit`);
+`SvgCodec_Load_SourceAlphaViaMergeNodeOrIn2_IsCountedAndCharged` shows a `SourceAlpha` reached only through
+an `feMergeNode` or an `in2` adds one counted surface and one charged area;
+the cumulative-budget tests use 498 no-op primitives plus a flood so each application is exactly five
+million units, and the subregion chain test compares the 4-to-7 unit ratio.
 
 #### CanvasNetSvg-SvgCodec-GroupFilterRendering: Group-Level Filter Rendering on g/symbol/use
 

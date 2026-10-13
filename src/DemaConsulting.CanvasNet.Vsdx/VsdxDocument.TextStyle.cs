@@ -16,7 +16,7 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 /// </summary>
 public sealed partial class VsdxDocument
 {
-    /// <summary>The neutral default typeface substituted when no literal <c>Font</c> cell can be resolved anywhere in the chain, or it resolves to the <c>"Themed"</c> sentinel (document-theme font resolution is deferred to Milestone 6, mirroring <see cref="VsdxColorPalette.ThemedFallback"/>'s own deferral).</summary>
+    /// <summary>The neutral default typeface substituted when no literal <c>Font</c> cell can be resolved anywhere in the chain; a <c>"Themed"</c> <c>Font</c> first resolves to the theme's minor Latin typeface, then to the "No Style" StyleSheet's own <c>Font</c>, and only then to this default.</summary>
     private const string DefaultFontFamily = "Arial";
 
     /// <summary>The default font em-height, in inches, substituted when no literal <c>Size</c> cell can be resolved anywhere in the chain (12pt, Visio's own common default).</summary>
@@ -40,8 +40,8 @@ public sealed partial class VsdxDocument
     /// <param name="rowIndex">The row index (<c>IX=</c>) to consult at each StyleSheet.</param>
     /// <param name="cellName">The cell name to search for within that row.</param>
     /// <param name="rowsSelector">Selects the row-indexed <c>Character</c>/<c>Paragraph</c> section to consult from a given StyleSheet's own <see cref="VsdxStyleSheetInfo"/>.</param>
-    /// <returns>The first literal cell's raw value found, or <see langword="null"/> when none is found before the chain terminates or a cycle is detected.</returns>
-    private string? ResolveTextRowCellValue(
+    /// <returns>The first literal cell found (carrying both its raw value and formula), or <see langword="null"/> when none is found before the chain terminates or a cycle is detected.</returns>
+    private VsdxCell? ResolveTextRowCellValue(
         string? startStyleId,
         int rowIndex,
         string cellName,
@@ -60,13 +60,32 @@ public sealed partial class VsdxDocument
 
             if (rowsSelector(style).TryGetValue(rowIndex, out var row) && row.TryGetLiteral(cellName, out var cell))
             {
-                return cell.Value;
+                return cell;
             }
 
             styleId = style.TextStyleParentId;
         }
 
         return null;
+    }
+
+    /// <summary>
+    ///     Resolves a <c>Section N="Character"</c> cell from the built-in "No Style" StyleSheet
+    ///     (ID <c>0</c>, row <c>0</c>) - the document's unthemed base text appearance, used in
+    ///     place of an unresolvable <c>"Themed"</c> host-cell <c>THEMEVAL()</c> value (see
+    ///     <see cref="ApplyUnthemedFallback"/>).
+    /// </summary>
+    /// <param name="cellName">The character cell name.</param>
+    /// <returns>The "No Style" row-0 value when it is a non-themed literal; otherwise <see langword="null"/>.</returns>
+    private string? ResolveUnthemedCharacterCell(string cellName)
+    {
+        var value = GetStyleSheets().TryGetValue("0", out var noStyle) &&
+                    noStyle.CharacterRows.TryGetValue(0, out var row) &&
+                    row.TryGetLiteral(cellName, out var cell)
+            ? cell.Value
+            : null;
+
+        return string.Equals(value, "Themed", StringComparison.Ordinal) ? null : value;
     }
 
     /// <summary>
@@ -128,22 +147,49 @@ public sealed partial class VsdxDocument
         var characterRowIndex = raw.CharacterRowIndex ?? 0;
         var paragraphRowIndex = raw.ParagraphRowIndex ?? 0;
 
-        string? ResolveCharacterCell(string cellName) =>
-            shapeCharacterRows.TryGetValue(characterRowIndex, out var row) && row.TryGetLiteral(cellName, out var cell)
-                ? cell.Value
+        VsdxCell? ResolveCharacterCellFull(string cellName)
+        {
+            var resolved = shapeCharacterRows.TryGetValue(characterRowIndex, out var row) && row.TryGetLiteral(cellName, out var cell)
+                ? cell
                 : ResolveTextRowCellValue(textStyleId, characterRowIndex, cellName, style => style.CharacterRows);
+
+            // A themed Color takes the "No Style" color only when its formula names no resolvable theme slot.
+            if (cellName == "Color" &&
+                resolved is { } themed &&
+                string.Equals(themed.Value, "Themed", StringComparison.Ordinal) &&
+                !VsdxColorPalette.ResolvesThemeSlot(themed.Formula, GetTheme()) &&
+                ResolveUnthemedCharacterCell(cellName) is { } unthemed)
+            {
+                return new VsdxCell(cellName, unthemed, null);
+            }
+
+            return resolved;
+        }
+
+        string? ResolveCharacterCell(string cellName) => ResolveCharacterCellFull(cellName)?.Value;
 
         string? ResolveParagraphCell(string cellName) =>
             shapeParagraphRows.TryGetValue(paragraphRowIndex, out var row) && row.TryGetLiteral(cellName, out var cell)
                 ? cell.Value
-                : ResolveTextRowCellValue(textStyleId, paragraphRowIndex, cellName, style => style.ParagraphRows);
+                : ResolveTextRowCellValue(textStyleId, paragraphRowIndex, cellName, style => style.ParagraphRows)?.Value;
 
         var fontRaw = ResolveCharacterCell("Font");
-        var fontFamily = string.IsNullOrEmpty(fontRaw) || string.Equals(fontRaw, "Themed", StringComparison.Ordinal)
-            ? DefaultFontFamily
-            : fontRaw;
+        string fontFamily;
+        if (string.IsNullOrEmpty(fontRaw))
+        {
+            fontFamily = DefaultFontFamily;
+        }
+        else if (string.Equals(fontRaw, "Themed", StringComparison.Ordinal))
+        {
+            fontFamily = GetTheme()?.MinorLatinFont ?? ResolveUnthemedCharacterCell("Font") ?? DefaultFontFamily;
+        }
+        else
+        {
+            fontFamily = fontRaw;
+        }
 
-        var color = VsdxColorPalette.Resolve(ResolveCharacterCell("Color"), DefaultTextColor);
+        var colorCell = ResolveCharacterCellFull("Color");
+        var color = VsdxColorPalette.Resolve(colorCell?.Value, colorCell?.Formula, GetTheme(), DefaultTextColor);
         var colorTrans = ParseDouble(ResolveCharacterCell("ColorTrans"));
         if (colorTrans > 0d)
         {

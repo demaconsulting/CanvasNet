@@ -10,19 +10,26 @@ public sealed partial class PdfDocument
     ///     The color spaces this phase recognizes for the current fill/stroke color
     ///     (<see cref="GraphicsState.FillColorSpace"/>/<see cref="GraphicsState.StrokeColorSpace"/>)
     ///     and for an image XObject's <c>/ColorSpace</c> entry (<c>PdfDocument.Images.cs</c>): the
-    ///     three device color spaces, plus <c>/ICCBased</c> (resolved to a device color space via
-    ///     <see cref="ResolveIccBasedColorSpace"/>) and <c>/Indexed</c> (a palette lookup over any
-    ///     of the above, resolved via <see cref="ResolveIndexedColorSpace"/>).
+    ///     three device color spaces, the CIE-based <c>CalGray</c>/<c>CalRGB</c>/<c>Lab</c> spaces
+    ///     (converted to sRGB by <c>PdfDocument.ColorKernel.cs</c>), <c>/ICCBased</c> (resolved to
+    ///     a device or CIE-based color space via <see cref="ResolveIccBasedColorSpace"/>, never by
+    ///     applying the ICC profile itself) and <c>/Indexed</c> (a palette lookup over any of the
+    ///     above, resolved via <see cref="ResolveIndexedColorSpace"/>), and <c>/Separation</c>/
+    ///     <c>/DeviceN</c> (a tint-transform function into a device or CIE-based alternate,
+    ///     resolved via <see cref="ResolveTintColorSpace"/>).
     /// </summary>
     /// <remarks>
-    ///     Every other PDF color space (<c>Separation</c>, <c>DeviceN</c>, <c>CalRGB</c>,
-    ///     <c>CalGray</c>, <c>Lab</c>, and patterns) is out of this phase's scope and is rejected
-    ///     with <see cref="UnsupportedImageFeatureException"/> - a well-formed but unsupported
-    ///     color space, not a malformed one. Within the two newly supported color spaces, two
-    ///     further edge cases are likewise rejected with <see cref="UnsupportedImageFeatureException"/>:
-    ///     an <c>/ICCBased</c> stream whose <c>/N</c> is not <c>1</c>/<c>3</c>/<c>4</c> and has no
-    ///     usable <c>/Alternate</c>, and an <c>/Indexed</c> color space whose base color space is
-    ///     itself unsupported.
+    ///     Any other PDF color space is rejected with <see cref="UnsupportedImageFeatureException"/>
+    ///     - a well-formed but unsupported color space, not a malformed one. Within the supported
+    ///     color spaces,
+    ///     two further edge cases are likewise rejected with
+    ///     <see cref="UnsupportedImageFeatureException"/>: an <c>/ICCBased</c> stream whose <c>/N</c>
+    ///     is not <c>1</c>/<c>3</c>/<c>4</c> and has no usable <c>/Alternate</c>, and an
+    ///     <c>/Indexed</c> color space whose base color space is itself unsupported. Two component
+    ///     conventions exist: operator operands and function/shading outputs are in the color
+    ///     space's natural units (<c>Lab</c> <c>L*</c> <c>0..100</c>, <c>a*</c>/<c>b*</c> per
+    ///     <c>/Range</c>), whereas image samples and <c>/Indexed</c> palette bytes are normalized
+    ///     <c>[0, 1]</c> fractions that the kernel rescales for <c>Lab</c>.
     /// </remarks>
     internal sealed class PdfColorSpace
     {
@@ -53,7 +60,69 @@ public sealed partial class PdfDocument
             ///     is deliberately undefined for this family - see that method's remarks.
             /// </summary>
             Pattern,
+
+            /// <summary>
+            ///     A single CIE-based gray component in <c>[0, 1]</c> (<c>[/CalGray dict]</c>,
+            ///     PDF 32000-1 §8.6.5.2), converted via <see cref="CalWhitePoint"/>/<see cref="CalGamma"/>.
+            /// </summary>
+            CalGray,
+
+            /// <summary>
+            ///     Three CIE-based <c>A B C</c> components in <c>[0, 1]</c> (<c>[/CalRGB dict]</c>,
+            ///     PDF 32000-1 §8.6.5.3), converted via <see cref="CalWhitePoint"/>/<see cref="CalGamma"/>/
+            ///     <see cref="CalMatrix"/>.
+            /// </summary>
+            CalRGB,
+
+            /// <summary>
+            ///     Three CIE 1976 <c>L*a*b*</c> components (<c>[/Lab dict]</c>, PDF 32000-1 §8.6.5.4):
+            ///     <c>L*</c> in <c>[0, 100]</c>, <c>a*</c>/<c>b*</c> within <see cref="LabRange"/>.
+            /// </summary>
+            Lab,
+
+            /// <summary>
+            ///     A single-colorant <c>[/Separation name alternate tintTransform]</c> space (PDF 32000-1
+            ///     §8.6.6.4): one tint in <c>[0, 1]</c> mapped through <see cref="TintFunction"/> into
+            ///     <see cref="TintAlternate"/>. The reserved colorant <c>/None</c> paints nothing.
+            /// </summary>
+            Separation,
+
+            /// <summary>
+            ///     A multi-colorant <c>[/DeviceN names alternate tintTransform]</c> space (PDF 32000-1
+            ///     §8.6.6.5): one tint per name in <see cref="ColorantNames"/> mapped through
+            ///     <see cref="TintFunction"/> into <see cref="TintAlternate"/>.
+            /// </summary>
+            DeviceN,
         }
+
+        /// <summary>
+        ///     Gets the colorant names (one for <see cref="Family.Separation"/>, one per component for
+        ///     <see cref="Family.DeviceN"/>).
+        /// </summary>
+        internal string[] ColorantNames { get; private init; } = [];
+
+        /// <summary>Gets the alternate color space the tint transform outputs into, for <see cref="Family.Separation"/>/<see cref="Family.DeviceN"/>.</summary>
+        internal PdfColorSpace? TintAlternate { get; private init; }
+
+        /// <summary>Gets the resolved tint-transform function, for <see cref="Family.Separation"/>/<see cref="Family.DeviceN"/>.</summary>
+        internal IPdfMultiFunction? TintFunction { get; private init; }
+
+        /// <summary>
+        ///     Gets a value indicating whether every colorant is the reserved name <c>/None</c>, so
+        ///     painting in this space marks nothing (it yields a fully transparent color).
+        /// </summary>
+        internal bool PaintsNothing { get; private init; }
+
+        /// <summary>Creates a <c>/Separation</c> or <c>/DeviceN</c> color-space instance.</summary>
+        internal static PdfColorSpace Tint(
+            Family kind, string[] names, PdfColorSpace alternate, IPdfMultiFunction function) => new()
+            {
+                Kind = kind,
+                ColorantNames = names,
+                TintAlternate = alternate,
+                TintFunction = function,
+                PaintsNothing = names.All(static n => n == "None"),
+            };
 
         /// <summary>Gets the family of color space this instance represents.</summary>
         internal Family Kind { get; private init; }
@@ -83,6 +152,65 @@ public sealed partial class PdfDocument
         ///     for a colored-only pattern color space (<c>/Pattern</c> alone).
         /// </summary>
         internal PdfColorSpace? PatternBase { get; private init; }
+
+        /// <summary>
+        ///     Gets the CIE <c>/WhitePoint</c> (<c>Xw Yw Zw</c>, 3 numbers), when <see cref="Kind"/>
+        ///     is <see cref="Family.CalGray"/>, <see cref="Family.CalRGB"/> or <see cref="Family.Lab"/>.
+        /// </summary>
+        internal double[] CalWhitePoint { get; private init; } = [];
+
+        /// <summary>
+        ///     Gets the <c>/Gamma</c> exponents (1 for <see cref="Family.CalGray"/>, 3 for
+        ///     <see cref="Family.CalRGB"/>), when <see cref="Kind"/> is one of those families.
+        /// </summary>
+        internal double[] CalGamma { get; private init; } = [];
+
+        /// <summary>
+        ///     Gets the <c>/Matrix</c> (9 numbers, <c>XA YA ZA XB YB ZB XC YC ZC</c>), when
+        ///     <see cref="Kind"/> is <see cref="Family.CalRGB"/>.
+        /// </summary>
+        internal double[] CalMatrix { get; private init; } = [];
+
+        /// <summary>
+        ///     Gets the <c>/Range</c> (<c>amin amax bmin bmax</c>), when <see cref="Kind"/> is
+        ///     <see cref="Family.Lab"/>.
+        /// </summary>
+        internal double[] LabRange { get; private init; } = [];
+
+        /// <summary>
+        ///     Gets the precomputed 3x3 row-major matrix (Bradford adaptation from
+        ///     <see cref="CalWhitePoint"/> to D65, then CIE XYZ to linear sRGB) used by the CIE-based
+        ///     families' final XYZ-to-sRGB step.
+        /// </summary>
+        internal double[] XyzToLinearRgb { get; private init; } = [];
+
+        /// <summary>Creates a <c>/CalGray</c> color-space instance.</summary>
+        internal static PdfColorSpace CalGray(double[] whitePoint, double gamma) => new()
+        {
+            Kind = Family.CalGray,
+            CalWhitePoint = whitePoint,
+            CalGamma = [gamma],
+            XyzToLinearRgb = BuildXyzToLinearRgbMatrix(whitePoint),
+        };
+
+        /// <summary>Creates a <c>/CalRGB</c> color-space instance.</summary>
+        internal static PdfColorSpace CalRgb(double[] whitePoint, double[] gamma, double[] matrix) => new()
+        {
+            Kind = Family.CalRGB,
+            CalWhitePoint = whitePoint,
+            CalGamma = gamma,
+            CalMatrix = matrix,
+            XyzToLinearRgb = BuildXyzToLinearRgbMatrix(whitePoint),
+        };
+
+        /// <summary>Creates a <c>/Lab</c> color-space instance.</summary>
+        internal static PdfColorSpace Lab(double[] whitePoint, double[] range) => new()
+        {
+            Kind = Family.Lab,
+            CalWhitePoint = whitePoint,
+            LabRange = range,
+            XyzToLinearRgb = BuildXyzToLinearRgbMatrix(whitePoint),
+        };
 
         /// <summary>The shared <c>DeviceGray</c> color-space instance.</summary>
         internal static readonly PdfColorSpace DeviceGray = new() { Kind = Family.DeviceGray };
@@ -170,7 +298,7 @@ public sealed partial class PdfDocument
     private void OpSetColorSpaceFill(IReadOnlyList<PdfObject> operands)
     {
         _gs.FillColorSpace = ResolveColorSpaceOperand(operands, "cs");
-        _gs.FillColor = new Rgba32(0, 0, 0, 255);
+        _gs.FillColor = InitialColor(_gs.FillColorSpace);
         _gs.FillPattern = null;
     }
 
@@ -188,8 +316,24 @@ public sealed partial class PdfDocument
     private void OpSetColorSpaceStroke(IReadOnlyList<PdfObject> operands)
     {
         _gs.StrokeColorSpace = ResolveColorSpaceOperand(operands, "CS");
-        _gs.StrokeColor = new Rgba32(0, 0, 0, 255);
+        _gs.StrokeColor = InitialColor(_gs.StrokeColorSpace);
         _gs.StrokePattern = null;
+    }
+
+    /// <summary>
+    ///     Gets the initial color after a <c>cs</c>/<c>CS</c> operator: opaque black, except for
+    ///     <c>Separation</c>/<c>DeviceN</c> whose initial tints are all <c>1.0</c> (PDF 32000-1 §8.6.6.4).
+    /// </summary>
+    private static Rgba32 InitialColor(PdfColorSpace colorSpace)
+    {
+        if (colorSpace.Kind is PdfColorSpace.Family.Separation or PdfColorSpace.Family.DeviceN)
+        {
+            var ones = new double[ComponentCount(colorSpace)];
+            Array.Fill(ones, 1.0);
+            return ColorFromComponentSpan(colorSpace, ones);
+        }
+
+        return new Rgba32(0, 0, 0, 255);
     }
 
     /// <summary>
@@ -414,9 +558,9 @@ public sealed partial class PdfDocument
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when the name is not one of the three device names and either cannot be
     ///     resolved via <c>/Resources/ColorSpace</c> at all, or resolves to an unsupported color
-    ///     space (<c>Separation</c>/<c>DeviceN</c>/<c>CalGray</c>/<c>Lab</c>/anything else, or an
+    ///     space (any family other than the supported ones, or an
     ///     <c>/ICCBased</c>/<c>/Indexed</c> edge case documented on <see cref="PdfColorSpace"/>) -
-    ///     <c>CalRGB</c> is supported, see <see cref="ResolveColorSpaceValue"/>'s own remarks.
+    ///     <c>CalGray</c>/<c>CalRGB</c>/<c>Lab</c> are supported, see <see cref="ResolveColorSpaceValue"/>.
     /// </exception>
     private PdfColorSpace ResolveColorSpaceByName(string name)
     {
@@ -465,23 +609,19 @@ public sealed partial class PdfDocument
     ///     <see cref="PdfColorSpace"/>.
     /// </summary>
     /// <remarks>
-    ///     <c>[/CalRGB dict]</c> (PDF 32000-1 §8.6.5.3) is mapped directly to
-    ///     <see cref="PdfColorSpace.DeviceRGB"/>, ignoring <paramref name="value"/>'s own
-    ///     <c>/WhitePoint</c>/<c>/Gamma</c>/<c>/Matrix</c> entries entirely - a documented
-    ///     simplification matching this method's own existing <c>/ICCBased</c> precedent
-    ///     (<see cref="ResolveIccBasedColorSpace"/>'s own "map to the nearest Device* space,
-    ///     ignore the actual colorimetric transform" posture), rather than performing the real
-    ///     CIE-based chromatic-adaptation/gamma conversion the PDF specification describes.
-    ///     <c>CalGray</c> and <c>Lab</c> remain unsupported (thrown below).
+    ///     <c>[/CalGray dict]</c>, <c>[/CalRGB dict]</c> and <c>[/Lab dict]</c> (PDF 32000-1
+    ///     §8.6.5.2-§8.6.5.4) are resolved through <see cref="ResolveCalibratedColorSpace"/> into
+    ///     the CIE-based families, converted to sRGB by the kernel in <c>PdfDocument.ColorKernel.cs</c>.
+    ///     <c>Separation</c> and <c>DeviceN</c> are resolved through <see cref="ResolveTintColorSpace"/>.
     /// </remarks>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <paramref name="value"/> is neither a <c>Name</c> nor an <c>Array</c>, or
+    ///     Thrown when <paramref name="value"/> is neither a <c>Name</c> nor an <c>Array</c>,
     ///     propagated from <see cref="ResolveIndexedColorSpace"/> for a malformed <c>/Indexed</c>
-    ///     array.
+    ///     array, or from <see cref="ResolveCalibratedColorSpace"/> for a malformed CIE-based
+    ///     dictionary.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when the value names/represents a color space other than <c>DeviceGray</c>/
-    ///     <c>DeviceRGB</c>/<c>DeviceCMYK</c>/<c>ICCBased</c>/<c>Indexed</c>/<c>CalRGB</c>, or
+    ///     Thrown when the value names/represents a color space other than the supported ones, or
     ///     propagated from <see cref="ResolveIccBasedColorSpace"/>/<see cref="ResolveIndexedColorSpace"/>
     ///     for the documented edge cases of those two color spaces.
     /// </exception>
@@ -506,8 +646,13 @@ public sealed partial class PdfDocument
                     return ResolveIndexedColorSpace(value);
                 case "Pattern":
                     return ResolvePatternColorSpace(value);
+                case "CalGray":
                 case "CalRGB":
-                    return PdfColorSpace.DeviceRGB;
+                case "Lab":
+                    return ResolveCalibratedColorSpace(value, name);
+                case "Separation":
+                case "DeviceN":
+                    return ResolveTintColorSpace(value, name);
             }
 
             throw new UnsupportedImageFeatureException(
@@ -516,6 +661,192 @@ public sealed partial class PdfDocument
         }
 
         throw new InvalidDataException("Color space value must be a name or an array.");
+    }
+
+    /// <summary>
+    ///     Resolves a <c>[/CalGray dict]</c>, <c>[/CalRGB dict]</c> or <c>[/Lab dict]</c> array.
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the array does not have exactly 2 elements, the 2nd is not a dictionary,
+    ///     <c>/WhitePoint</c> is missing or not 3 positive numbers, <c>/Gamma</c> is not
+    ///     positive numbers of the right count, <c>/Matrix</c> is not 9 numbers, or <c>/Range</c>
+    ///     is not 4 numbers with <c>min &lt;= max</c>.
+    /// </exception>
+    private PdfColorSpace ResolveCalibratedColorSpace(PdfObject array, string name)
+    {
+        if (array.Items.Count != 2)
+        {
+            throw new InvalidDataException($"Color space '/{name}' requires exactly 2 array elements.");
+        }
+
+        var dictionary = Resolve(array.Items[1]);
+        if (dictionary.Kind != PdfKind.Dictionary)
+        {
+            throw new InvalidDataException($"Color space '/{name}' requires its 2nd element to be a dictionary.");
+        }
+
+        var white = ResolveOptionalNumberArray(dictionary, "WhitePoint")
+            ?? throw new InvalidDataException($"Color space '/{name}' is missing required /WhitePoint.");
+        if (white.Length != 3 || white[0] <= 0 || white[1] <= 0 || white[2] <= 0
+            || !double.IsFinite(white[0]) || !double.IsFinite(white[1]) || !double.IsFinite(white[2]))
+        {
+            throw new InvalidDataException($"Color space '/{name}' /WhitePoint must be 3 positive numbers.");
+        }
+
+        switch (name)
+        {
+            case "CalGray":
+                {
+                    var gamma = dictionary.Get("Gamma") is { } gammaEntry
+                        ? Resolve(gammaEntry)
+                        : null;
+                    var gammaValue = 1.0;
+                    if (gamma is not null)
+                    {
+                        if (gamma.Kind != PdfKind.Number || !(gamma.Number > 0) || !double.IsFinite(gamma.Number))
+                        {
+                            throw new InvalidDataException("Color space '/CalGray' /Gamma must be a positive number.");
+                        }
+
+                        gammaValue = gamma.Number;
+                    }
+
+                    return PdfColorSpace.CalGray(white, gammaValue);
+                }
+
+            case "CalRGB":
+                {
+                    var gamma = ResolveOptionalNumberArray(dictionary, "Gamma") ?? [1.0, 1.0, 1.0];
+                    if (gamma.Length != 3 || gamma.Any(static g => !(g > 0) || !double.IsFinite(g)))
+                    {
+                        throw new InvalidDataException("Color space '/CalRGB' /Gamma must be 3 positive numbers.");
+                    }
+
+                    var matrix = ResolveOptionalNumberArray(dictionary, "Matrix") ?? [1, 0, 0, 0, 1, 0, 0, 0, 1];
+                    if (matrix.Length != 9 || matrix.Any(static m => !double.IsFinite(m)))
+                    {
+                        throw new InvalidDataException("Color space '/CalRGB' /Matrix must be 9 numbers.");
+                    }
+
+                    return PdfColorSpace.CalRgb(white, gamma, matrix);
+                }
+
+            default:
+                {
+                    var range = ResolveOptionalNumberArray(dictionary, "Range") ?? [-100, 100, -100, 100];
+                    if (range.Length != 4 || range.Any(static r => !double.IsFinite(r)) || range[0] > range[1] || range[2] > range[3])
+                    {
+                        throw new InvalidDataException("Color space '/Lab' /Range must be 4 numbers with min <= max.");
+                    }
+
+                    return PdfColorSpace.Lab(white, range);
+                }
+        }
+    }
+
+    /// <summary>
+    ///     The maximum number of colorants a <c>/DeviceN</c> color space may declare (a resource
+    ///     bound on per-color-evaluation work and stack use).
+    /// </summary>
+    private const int MaxDeviceNComponents = 32;
+
+    /// <summary>
+    ///     Resolves a <c>[/Separation name alternate tintTransform]</c> or
+    ///     <c>[/DeviceN names alternate tintTransform attributes?]</c> array. The tint transform is
+    ///     authoritative; the <c>/DeviceN</c> attributes dictionary (<c>/Process</c>,
+    ///     <c>/Colorants</c>) is ignored. A colorant named <c>/All</c> is treated like any other
+    ///     (the tint transform approximates it, as the specification permits).
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown for a wrong element count, a non-name colorant, an empty or oversized
+    ///     <c>/DeviceN</c> name list, or a tint transform whose input/output counts do not match
+    ///     the colorant count and alternate component count.
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown (feature <c>pdf-colorspace-{name}-alternate</c>) when the alternate is
+    ///     <c>Pattern</c>, <c>Indexed</c>, <c>Separation</c> or <c>DeviceN</c>, or propagated from
+    ///     the alternate's or the tint transform's own resolution.
+    /// </exception>
+    private PdfColorSpace ResolveTintColorSpace(PdfObject array, string name)
+    {
+        var isSeparation = name == "Separation";
+        if (array.Items.Count != 4 && (isSeparation || array.Items.Count != 5))
+        {
+            throw new InvalidDataException($"Color space '/{name}' has an invalid number of array elements.");
+        }
+
+        string[] names;
+        var namesValue = Resolve(array.Items[1]);
+        if (isSeparation)
+        {
+            if (namesValue.Kind != PdfKind.Name)
+            {
+                throw new InvalidDataException("Color space '/Separation' requires a colorant name.");
+            }
+
+            names = [namesValue.Text];
+        }
+        else
+        {
+            if (namesValue.Kind != PdfKind.Array || namesValue.Items.Count is 0 or > MaxDeviceNComponents)
+            {
+                throw new InvalidDataException(
+                    $"Color space '/DeviceN' requires 1 to {MaxDeviceNComponents} colorant names.");
+            }
+
+            names = new string[namesValue.Items.Count];
+            for (var i = 0; i < names.Length; i++)
+            {
+                var item = Resolve(namesValue.Items[i]);
+                if (item.Kind != PdfKind.Name)
+                {
+                    throw new InvalidDataException("Color space '/DeviceN' colorant names must all be names.");
+                }
+
+                names[i] = item.Text;
+            }
+        }
+
+        if (_colorSpaceRecursionDepth >= MaxColorSpaceRecursionDepth)
+        {
+            throw new InvalidDataException(
+                $"Color space '{name}' alternate resolution exceeds the maximum supported nesting depth of {MaxColorSpaceRecursionDepth}.");
+        }
+
+        PdfColorSpace alternate;
+        _colorSpaceRecursionDepth++;
+        try
+        {
+            alternate = ResolveColorSpaceValue(Resolve(array.Items[2]));
+        }
+        finally
+        {
+            _colorSpaceRecursionDepth--;
+        }
+
+        if (alternate.Kind is PdfColorSpace.Family.Pattern or PdfColorSpace.Family.Indexed
+            or PdfColorSpace.Family.Separation or PdfColorSpace.Family.DeviceN)
+        {
+            throw new UnsupportedImageFeatureException(
+                $"pdf-colorspace-{name}-alternate",
+                $"Color space '/{name}' alternate '{alternate.Kind}' is not supported.");
+        }
+
+        var function = ResolveMultiInputFunction(array.Items[3]);
+        if (function.InputCount != names.Length)
+        {
+            throw new InvalidDataException(
+                $"Color space '/{name}' tint transform has {function.InputCount} input(s); expected {names.Length}.");
+        }
+
+        if (function.OutputCount != ComponentCount(alternate))
+        {
+            throw new InvalidDataException(
+                $"Color space '/{name}' tint transform has {function.OutputCount} output(s); the alternate needs {ComponentCount(alternate)}.");
+        }
+
+        return PdfColorSpace.Tint(
+            isSeparation ? PdfColorSpace.Family.Separation : PdfColorSpace.Family.DeviceN, names, alternate, function);
     }
 
     /// <summary>
@@ -576,18 +907,24 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Resolves an <c>/ICCBased</c> color-space array (<c>[/ICCBased streamRef]</c>): prefers
-    ///     the referenced stream's <c>/Alternate</c> entry when present and itself resolves to a
-    ///     supported color space, else maps the stream's <c>/N</c> component count
-    ///     (<c>1</c>/<c>3</c>/<c>4</c>) to <c>DeviceGray</c>/<c>DeviceRGB</c>/<c>DeviceCMYK</c>.
+    ///     Resolves an <c>/ICCBased</c> color-space array (<c>[/ICCBased streamRef]</c>): the
+    ///     stream's <c>/N</c> component count is authoritative, and the ICC profile bytes are never
+    ///     parsed or applied. A present <c>/Alternate</c> that resolves to a supported,
+    ///     non-<c>Indexed</c>, non-<c>Pattern</c> color space with exactly <c>/N</c> components is
+    ///     used (including <c>CalGray</c>/<c>CalRGB</c>/<c>Lab</c>); otherwise a valid <c>/N</c>
+    ///     (<c>1</c>/<c>3</c>/<c>4</c>) maps to <c>DeviceGray</c>/<c>DeviceRGB</c>/<c>DeviceCMYK</c>.
+    ///     When <c>/N</c> is absent or not <c>1</c>/<c>3</c>/<c>4</c>, a usable <c>/Alternate</c> is
+    ///     used as-is.
     /// </summary>
     /// <remarks>
     ///     An <c>/Alternate</c> whose resolution throws <see cref="UnsupportedImageFeatureException"/>
     ///     (absent, or itself naming an unsupported color space) is deliberately treated as "no
     ///     usable /Alternate", falling back to the <c>/N</c>-implied device space instead of
     ///     propagating - this is the PDF specification's own documented fallback semantics for
-    ///     <c>/ICCBased</c>, not an oversight. A structurally malformed <c>/Alternate</c> (which
-    ///     throws <see cref="InvalidDataException"/>) is not caught, and propagates unmodified.
+    ///     <c>/ICCBased</c>, not an oversight. An <c>/Alternate</c> whose component count disagrees
+    ///     with a valid <c>/N</c> is likewise ignored (the spec makes <c>/N</c> authoritative). A
+    ///     structurally malformed <c>/Alternate</c> (which throws <see cref="InvalidDataException"/>)
+    ///     is not caught, and propagates unmodified.
     /// </remarks>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when <paramref name="array"/> does not have exactly 2 elements, when its 2nd
@@ -611,12 +948,27 @@ public sealed partial class PdfDocument
                 "Color space '/ICCBased' requires its 2nd element to resolve to a stream.");
         }
 
+        var nEntry = stream.Get("N");
+        var resolvedN = nEntry is null ? null : Resolve(nEntry);
+        // A present /N must be a finite exact integer: a fractional value such as 1.5 is malformed and
+        // is treated like any other unusable /N (never silently truncated to 1).
+        var n = resolvedN is { Kind: PdfKind.Number } && IsIntegralInRange(resolvedN.Number, int.MinValue, int.MaxValue)
+            ? (int)resolvedN.Number
+            : (int?)null;
+        var nIsValid = n is 1 or 3 or 4;
+
         var alternate = stream.Get("Alternate");
         if (alternate is not null)
         {
             try
             {
-                return ResolveColorSpaceValue(Resolve(alternate));
+                var alternateSpace = ResolveColorSpaceValue(Resolve(alternate));
+                if (alternateSpace.Kind is not (PdfColorSpace.Family.Indexed or PdfColorSpace.Family.Pattern
+                        or PdfColorSpace.Family.Separation or PdfColorSpace.Family.DeviceN)
+                    && (!nIsValid || ComponentCount(alternateSpace) == n))
+                {
+                    return alternateSpace;
+                }
             }
             catch (UnsupportedImageFeatureException)
             {
@@ -624,9 +976,6 @@ public sealed partial class PdfDocument
             }
         }
 
-        var nEntry = stream.Get("N");
-        var resolvedN = nEntry is null ? null : Resolve(nEntry);
-        var n = resolvedN is { Kind: PdfKind.Number } ? (int)resolvedN.Number : (int?)null;
         return n switch
         {
             1 => PdfColorSpace.DeviceGray,
@@ -647,7 +996,7 @@ public sealed partial class PdfDocument
     /// </summary>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="array"/> does not have exactly 4 elements, when
-    ///     <c>/Hival</c> is not a non-negative number or exceeds <c>255</c>, when the lookup
+    ///     <c>/Hival</c> is not a non-negative integer or exceeds <c>255</c>, when the lookup
     ///     table is neither a string nor a stream, or when the resolved palette is shorter than
     ///     <c>(Hival + 1) * ComponentCount(baseSpace)</c> bytes.
     /// </exception>
@@ -665,16 +1014,18 @@ public sealed partial class PdfDocument
         var baseSpace = ResolveColorSpaceValue(Resolve(array.Items[1]));
 
         var hivalValue = Resolve(array.Items[2]);
-        if (hivalValue.Kind != PdfKind.Number || hivalValue.Number < 0)
+        if (hivalValue.Kind != PdfKind.Number || !double.IsFinite(hivalValue.Number) || hivalValue.Number < 0
+            || !double.IsInteger(hivalValue.Number))
         {
-            throw new InvalidDataException("Color space '/Indexed' /Hival must be a non-negative number.");
+            throw new InvalidDataException("Color space '/Indexed' /Hival must be a non-negative integer.");
         }
 
-        var hival = (int)hivalValue.Number;
-        if (hival > 255)
+        if (hivalValue.Number > 255)
         {
             throw new InvalidDataException("Color space '/Indexed' /Hival must not exceed 255.");
         }
+
+        var hival = (int)hivalValue.Number;
 
         var lookup = Resolve(array.Items[3]);
         var palette = lookup.Kind switch
@@ -710,6 +1061,11 @@ public sealed partial class PdfDocument
         PdfColorSpace.Family.DeviceRGB => 3,
         PdfColorSpace.Family.DeviceCMYK => 4,
         PdfColorSpace.Family.Indexed => 1,
+        PdfColorSpace.Family.CalGray => 1,
+        PdfColorSpace.Family.CalRGB => 3,
+        PdfColorSpace.Family.Lab => 3,
+        PdfColorSpace.Family.Separation => 1,
+        PdfColorSpace.Family.DeviceN => colorSpace.ColorantNames.Length,
         PdfColorSpace.Family.Pattern => throw new InvalidOperationException(
             "ComponentCount is not defined for the Pattern color space; use the dedicated scn/SCN pattern-operand path instead."),
         _ => throw new InvalidOperationException($"Unreachable: unrecognized color space {colorSpace.Kind}."),
@@ -736,12 +1092,17 @@ public sealed partial class PdfDocument
             PdfColorSpace.Family.DeviceRGB => RgbToColor(components[0], components[1], components[2]),
             PdfColorSpace.Family.DeviceCMYK => CmykToColor(components[0], components[1], components[2], components[3]),
             PdfColorSpace.Family.Indexed => IndexedToColor(colorSpace, components[0]),
+            PdfColorSpace.Family.CalGray => CalGrayToColor(colorSpace, components[0]),
+            PdfColorSpace.Family.CalRGB => CalRgbToColor(colorSpace, components[0], components[1], components[2]),
+            PdfColorSpace.Family.Lab => LabToColor(colorSpace, components[0], components[1], components[2]),
+            PdfColorSpace.Family.Separation or PdfColorSpace.Family.DeviceN => TintToColor(colorSpace, components.ToArray()),
             _ => throw new InvalidOperationException($"Unreachable: unrecognized color space {colorSpace.Kind}."),
         };
 
     /// <summary>
     ///     Allocation-free twin of <see cref="ColorFromComponents(PdfColorSpace, IReadOnlyList{double})"/>
-    ///     for per-pixel image conversion: identical conversion formulas over a span of components.
+    ///     for per-pixel image conversion: identical conversion formulas over a span of components
+    ///     in the color space's natural units.
     /// </summary>
     private static Rgba32 ColorFromComponentSpan(PdfColorSpace colorSpace, ReadOnlySpan<double> components) =>
         colorSpace.Kind switch
@@ -750,8 +1111,34 @@ public sealed partial class PdfDocument
             PdfColorSpace.Family.DeviceRGB => RgbToColor(components[0], components[1], components[2]),
             PdfColorSpace.Family.DeviceCMYK => CmykToColor(components[0], components[1], components[2], components[3]),
             PdfColorSpace.Family.Indexed => IndexedToColor(colorSpace, components[0]),
+            PdfColorSpace.Family.CalGray => CalGrayToColor(colorSpace, components[0]),
+            PdfColorSpace.Family.CalRGB => CalRgbToColor(colorSpace, components[0], components[1], components[2]),
+            PdfColorSpace.Family.Lab => LabToColor(colorSpace, components[0], components[1], components[2]),
+            PdfColorSpace.Family.Separation or PdfColorSpace.Family.DeviceN => TintToColor(colorSpace, components),
             _ => throw new InvalidOperationException($"Unreachable: unrecognized color space {colorSpace.Kind}."),
         };
+
+    /// <summary>
+    ///     Normalized-component entry point (image samples and <c>/Indexed</c> palette bytes divided
+    ///     by <c>255</c>, each in <c>[0, 1]</c>): identical to
+    ///     <see cref="ColorFromComponentSpan"/> for every family except <c>Lab</c>, whose
+    ///     normalized components are first rescaled to <c>L* = 100 v</c> and <c>a*</c>/<c>b*</c>
+    ///     across <see cref="PdfColorSpace.LabRange"/>.
+    /// </summary>
+    private static Rgba32 ColorFromNormalizedSpan(PdfColorSpace colorSpace, ReadOnlySpan<double> components)
+    {
+        if (colorSpace.Kind != PdfColorSpace.Family.Lab)
+        {
+            return ColorFromComponentSpan(colorSpace, components);
+        }
+
+        var range = colorSpace.LabRange;
+        return LabToColor(
+            colorSpace,
+            Clamp01(components[0]) * 100.0,
+            range[0] + (Clamp01(components[1]) * (range[1] - range[0])),
+            range[2] + (Clamp01(components[2]) * (range[3] - range[2])));
+    }
 
     private static Rgba32 GrayToColor(double gray)
     {
@@ -791,13 +1178,13 @@ public sealed partial class PdfDocument
         var componentCount = ComponentCount(baseSpace);
         var offset = index * componentCount;
 
-        Span<double> components = componentCount <= 4 ? stackalloc double[componentCount] : new double[componentCount];
+        Span<double> components = componentCount <= MaxStackColorComponents ? stackalloc double[componentCount] : new double[componentCount];
         for (var i = 0; i < componentCount; i++)
         {
             components[i] = colorSpace.IndexedPalette[offset + i] / 255.0;
         }
 
-        return ColorFromComponentSpan(baseSpace, components);
+        return ColorFromNormalizedSpan(baseSpace, components);
     }
 
     /// <summary>Converts a <c>[0, 1]</c> color component (clamped) into a <c>[0, 255]</c> byte value.</summary>

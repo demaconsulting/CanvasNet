@@ -286,7 +286,7 @@ internal sealed class ClipMask
         {
             // Exactly one dense operand: share its buffer and restrict it by the rectangle.
             var dense = _dense is not null ? this : other;
-            return new ClipMask(
+            var restricted = new ClipMask(
                 dense._dense,
                 dense._denseOriginX,
                 dense._denseOriginY,
@@ -298,9 +298,232 @@ internal sealed class ClipMask
                 bottom,
                 Width,
                 Height);
+            if (dense._pieces is null)
+            {
+                return restricted;
+            }
+
+            var restrictedPieces = IntersectPieces(dense._pieces, null, left, top, right, bottom);
+            return restrictedPieces is null ? Empty(Width, Height) : restricted.WithPieces(restrictedPieces);
         }
 
-        return IntersectDense(other, left, top, right, bottom);
+        var product = IntersectDense(other, left, top, right, bottom);
+        if (_pieces is null || other._pieces is null)
+        {
+            return product;
+        }
+
+        var both = IntersectPieces(_pieces, other._pieces, left, top, right, bottom);
+        if (both is null)
+        {
+            return Empty(Width, Height);
+        }
+
+        return both.Length > MaxPieces * 4 ? product : product.WithPieces(both);
+    }
+
+    /// <summary>
+    ///     Gets a value indicating whether this mask is a union of disjoint axis-aligned rectangles
+    ///     (built from a clip path made only of rectangles, for example a <c>W*</c> band). Such a mask
+    ///     is applied to fills geometrically (see <see cref="TryClipPolygonsToRect"/>) so a fill
+    ///     edge coincident with a clip edge is covered exactly once; its dense buffer is then
+    ///     used only by <see cref="GetCoverage"/>.
+    /// </summary>
+    internal bool HasPieces => _pieces is not null;
+
+    /// <summary>The maximum number of disjoint rectangles kept for a rectangle-union clip.</summary>
+    private const int MaxPieces = 1024;
+
+    /// <summary>The maximum number of rectangle subpaths decomposed into pieces.</summary>
+    private const int MaxRectSubpaths = 256;
+
+    /// <summary>
+    ///     The disjoint rectangles (left, top, right, bottom per entry, flattened) whose union is
+    ///     this mask's shape, or <see langword="null"/> when the mask is not a rectangle union.
+    /// </summary>
+    private float[]? _pieces;
+
+    private ClipMask WithPieces(float[]? pieces)
+    {
+        _pieces = pieces;
+        return this;
+    }
+
+    /// <summary>
+    ///     Intersects the rectangle set <paramref name="a"/> with <paramref name="b"/> (or, when
+    ///     <see langword="null"/>, with the single rectangle given by the bounds). Returns
+    ///     <see langword="null"/> when nothing remains; a result longer than the piece cap is
+    ///     returned as-is for the caller to reject.
+    /// </summary>
+    private static float[]? IntersectPieces(
+        float[] a, float[]? b, float left, float top, float right, float bottom)
+    {
+        var result = new List<float>();
+        for (var i = 0; i < a.Length; i += 4)
+        {
+            var bCount = b is null ? 1 : b.Length / 4;
+            for (var j = 0; j < bCount; j++)
+            {
+                var l = MathF.Max(a[i], b is null ? left : MathF.Max(b[j * 4], left));
+                var t = MathF.Max(a[i + 1], b is null ? top : MathF.Max(b[(j * 4) + 1], top));
+                var r = MathF.Min(a[i + 2], b is null ? right : MathF.Min(b[(j * 4) + 2], right));
+                var bt = MathF.Min(a[i + 3], b is null ? bottom : MathF.Min(b[(j * 4) + 3], bottom));
+                if (r > l && bt > t)
+                {
+                    result.Add(l);
+                    result.Add(t);
+                    result.Add(r);
+                    result.Add(bt);
+                    if (result.Count > MaxPieces * 4 + 4)
+                    {
+                        return [.. result];
+                    }
+                }
+            }
+        }
+
+        return result.Count == 0 ? null : [.. result];
+    }
+
+    /// <summary>
+    ///     Decomposes a set of axis-aligned rectangle subpaths into disjoint rectangles covering
+    ///     exactly the region the fill rule selects (coordinate compression, then run merging).
+    ///     Returns <see langword="null"/> when the result would exceed <see cref="MaxPieces"/>.
+    /// </summary>
+    private static float[]? DecomposeRects(
+        List<(float L, float T, float R, float B, int Sign)> rects, FillRule fillRule)
+    {
+        var ys = new SortedSet<float>();
+        foreach (var (_, t, _, b, _) in rects)
+        {
+            ys.Add(t);
+            ys.Add(b);
+        }
+
+        var yv = ys.ToArray();
+        var rows = new List<(float T, float B, List<(float L, float R)> Runs)>();
+        var events = new List<(float X, int Sign)>();
+        for (var yi = 0; yi + 1 < yv.Length; yi++)
+        {
+            // Sweep this horizontal slab: every rectangle spanning it contributes an opening and
+            // a closing event, and the sorted events give the covered runs directly.
+            events.Clear();
+            foreach (var (l, t, r, b, sign) in rects)
+            {
+                if (t <= yv[yi] && b >= yv[yi + 1])
+                {
+                    events.Add((l, sign));
+                    events.Add((r, -sign));
+                }
+            }
+
+            if (events.Count == 0)
+            {
+                continue;
+            }
+
+            events.Sort((p, q) => p.X.CompareTo(q.X));
+            var runs = new List<(float L, float R)>();
+            var winding = 0;
+            var count = 0;
+            for (var ei = 0; ei + 1 < events.Count; ei++)
+            {
+                winding += events[ei].Sign;
+                count++;
+                var from = events[ei].X;
+                var to = events[ei + 1].X;
+                if (!(to > from))
+                {
+                    continue;
+                }
+
+                // Parity of the number of rectangles open here: opening and closing events
+                // alternate per rectangle, so the open count's parity equals the event-count parity.
+                var inside = fillRule == FillRule.EvenOdd ? (count & 1) == 1 : winding != 0;
+                if (!inside)
+                {
+                    continue;
+                }
+
+                if (runs.Count > 0 && SameCoordinate(runs[^1].R, from))
+                {
+                    runs[^1] = (runs[^1].L, to);
+                }
+                else
+                {
+                    runs.Add((from, to));
+                }
+            }
+
+            if (runs.Count > 0)
+            {
+                rows.Add((yv[yi], yv[yi + 1], runs));
+            }
+        }
+
+        // Merge vertically adjacent rows with identical runs.
+        var pieces = new List<float>();
+        var merged = new List<(float T, float B, List<(float L, float R)> Runs)>();
+        foreach (var row in rows)
+        {
+            if (merged.Count > 0 && SameCoordinate(merged[^1].B, row.T) && merged[^1].Runs.SequenceEqual(row.Runs))
+            {
+                merged[^1] = (merged[^1].T, row.B, merged[^1].Runs);
+            }
+            else
+            {
+                merged.Add(row);
+            }
+        }
+
+        foreach (var (t, b, runs) in merged)
+        {
+            foreach (var (l, r) in runs)
+            {
+                pieces.Add(l);
+                pieces.Add(t);
+                pieces.Add(r);
+                pieces.Add(b);
+            }
+        }
+
+        return pieces.Count == 0 || pieces.Count > MaxPieces * 4 ? null : [.. pieces];
+    }
+
+    /// <summary>Collects every polygon as an axis-aligned rectangle with its winding sign, or returns <see langword="false"/>.</summary>
+    private static bool TryCollectRects(
+        IReadOnlyList<List<Vector2>> polygons,
+        int width,
+        int height,
+        out List<(float L, float T, float R, float B, int Sign)> rects)
+    {
+        rects = [];
+        if (polygons.Count < 2 || polygons.Count > MaxRectSubpaths)
+        {
+            return false;
+        }
+
+        foreach (var poly in polygons)
+        {
+            var single = new List<List<Vector2>>(1) { poly };
+            if (!TryGetAxisAlignedRect(single, out var l, out var t, out var r, out var b))
+            {
+                return false;
+            }
+
+            // Winding sign from the signed area of the first three vertices.
+            var cross = ((poly[1].X - poly[0].X) * (poly[2].Y - poly[1].Y)) - ((poly[1].Y - poly[0].Y) * (poly[2].X - poly[1].X));
+            l = MathF.Max(l, 0f);
+            t = MathF.Max(t, 0f);
+            r = MathF.Min(r, width);
+            b = MathF.Min(b, height);
+            if (r > l && b > t)
+            {
+                rects.Add((l, t, r, b, cross > 0 ? 1 : -1));
+            }
+        }
+
+        return rects.Count > 0;
     }
 
     /// <summary>
@@ -334,6 +557,84 @@ internal sealed class ClipMask
         return _dense[((y - _denseOriginY) * _denseWidth) + (x - _denseOriginX)] * factor;
     }
 
+    /// <summary>
+    ///     Gets the rectangles (left, top, right, bottom per entry, flattened) whose union is this
+    ///     mask's shape intersected with the device rectangle <paramref name="shape"/>, or
+    ///     <see langword="null"/> when this mask is not purely a rectangle or rectangle union (a
+    ///     dense curved clip cannot be expressed geometrically).
+    /// </summary>
+    /// <param name="shape">The device-space rectangle (left, top, right, bottom) to intersect with.</param>
+    /// <returns>
+    ///     The intersected rectangles (empty when nothing overlaps), or <see langword="null"/> when
+    ///     the clip has a dense part that is not a rectangle union.
+    /// </returns>
+    internal float[]? GetRectsWithinShape((float Left, float Top, float Right, float Bottom) shape)
+    {
+        if (IsEmpty)
+        {
+            return [];
+        }
+
+        if (_dense is not null && _pieces is null)
+        {
+            return null;
+        }
+
+        var source = _pieces ?? [_left, _top, _right, _bottom];
+        var result = new List<float>();
+        for (var i = 0; i < source.Length; i += 4)
+        {
+            var l = MathF.Max(source[i], shape.Left);
+            var t = MathF.Max(source[i + 1], shape.Top);
+            var r = MathF.Min(source[i + 2], shape.Right);
+            var b = MathF.Min(source[i + 3], shape.Bottom);
+            if (r > l && b > t)
+            {
+                result.Add(l);
+                result.Add(t);
+                result.Add(r);
+                result.Add(b);
+            }
+        }
+
+        return [.. result];
+    }
+
+    /// <summary>
+    ///     Gets the fraction of the area of device pixel (<paramref name="x"/>, <paramref name="y"/>)
+    ///     lying inside <paramref name="shape"/> that is also inside this mask - the geometric
+    ///     coverage of (shape intersect clip) divided by the coverage of the shape alone - so a
+    ///     shape edge coincident with a clip edge is counted once rather than attenuated twice.
+    ///     Falls back to <see cref="GetCoverage"/> when the clip is not a rectangle union or the
+    ///     shape does not touch the pixel.
+    /// </summary>
+    internal float GetCoverageWithinShape(int x, int y, (float Left, float Top, float Right, float Bottom) shape)
+    {
+        var shapeArea = AxisOverlap(x, shape.Left, shape.Right) * AxisOverlap(y, shape.Top, shape.Bottom);
+        var rects = GetRectsWithinShape(shape);
+        if (rects is null || !(shapeArea > 1e-6f))
+        {
+            return GetCoverage(x, y);
+        }
+
+        return Math.Min(1f, RectsCoverage(rects, x, y) / shapeArea);
+    }
+
+    /// <summary>Gets the total area of device pixel (<paramref name="x"/>, <paramref name="y"/>) covered by the disjoint <paramref name="rects"/>.</summary>
+    internal static float RectsCoverage(ReadOnlySpan<float> rects, int x, int y)
+    {
+        var sum = 0f;
+        for (var i = 0; i < rects.Length; i += 4)
+        {
+            sum += AxisOverlap(x, rects[i], rects[i + 2]) * AxisOverlap(y, rects[i + 1], rects[i + 3]);
+        }
+
+        return Math.Clamp(sum, 0f, 1f);
+    }
+
+    /// <summary>Gets the length of overlap, in <c>[0, 1]</c>, of device pixel <paramref name="index"/> with the span <paramref name="low"/> to <paramref name="high"/>.</summary>
+    internal static float AxisOverlap(int index, float low, float high)
+        => Math.Clamp(MathF.Min(index + 1f, high) - MathF.Max(index, low), 0f, 1f);
     /// <summary>
     ///     Gets the analytic rectangle's fractional coverage of device pixel column <paramref name="x"/>.
     /// </summary>
@@ -382,9 +683,94 @@ internal sealed class ClipMask
     internal bool TryClipPolygonsToRect(
         IReadOnlyList<List<Vector2>> polygons, out IReadOnlyList<List<Vector2>> clipped, out Rect clippedBounds)
     {
+        if (IsEmpty)
+        {
+            clipped = polygons;
+            clippedBounds = default;
+            return false;
+        }
+
+        if (_pieces is null)
+        {
+            return ClipPolygonsToRect(polygons, _left, _top, _right, _bottom, out clipped, out clippedBounds);
+        }
+
+        // Rectangle-union clip: clip to each disjoint piece and concatenate. Pieces are disjoint,
+        // so each point is covered by at most one piece's output and the rasterizer's signed-area
+        // accumulation sums coverage exactly across shared piece edges.
+        var all = new List<List<Vector2>>();
+        GetPolygonExtent(polygons, out var polyLeft, out var polyTop, out var polyRight, out var polyBottom);
+        var minX = float.PositiveInfinity;
+        var minY = float.PositiveInfinity;
+        var maxX = float.NegativeInfinity;
+        var maxY = float.NegativeInfinity;
+        for (var i = 0; i < _pieces.Length; i += 4)
+        {
+            // Skip pieces that cannot overlap any polygon (cheap bounding-box reject), so cost
+            // scales with the pieces actually overlapping the fill, not with the piece count.
+            if (_pieces[i] >= polyRight || _pieces[i + 2] <= polyLeft || _pieces[i + 1] >= polyBottom || _pieces[i + 3] <= polyTop)
+            {
+                continue;
+            }
+
+            if (ClipPolygonsToRect(polygons, _pieces[i], _pieces[i + 1], _pieces[i + 2], _pieces[i + 3], out var part, out var bounds))
+            {
+                all.AddRange(part);
+                minX = Math.Min(minX, bounds.Left);
+                minY = Math.Min(minY, bounds.Top);
+                maxX = Math.Max(maxX, bounds.Right);
+                maxY = Math.Max(maxY, bounds.Bottom);
+            }
+        }
+
+        clipped = all;
+        if (all.Count == 0)
+        {
+            clippedBounds = default;
+            return false;
+        }
+
+        clippedBounds = new Rect(minX, minY, maxX - minX, maxY - minY);
+        return true;
+    }
+
+    /// <summary>
+    ///     Computes the bounding box of every vertex of <paramref name="polygons"/>.
+    /// </summary>
+    /// <param name="polygons">The polygons to measure.</param>
+    /// <param name="left">The smallest X (positive infinity when there are no vertices).</param>
+    /// <param name="top">The smallest Y (positive infinity when there are no vertices).</param>
+    /// <param name="right">The largest X (negative infinity when there are no vertices).</param>
+    /// <param name="bottom">The largest Y (negative infinity when there are no vertices).</param>
+    private static void GetPolygonExtent(
+        IReadOnlyList<List<Vector2>> polygons, out float left, out float top, out float right, out float bottom)
+    {
+        left = top = float.PositiveInfinity;
+        right = bottom = float.NegativeInfinity;
+        foreach (var polygon in polygons)
+        {
+            foreach (var v in polygon)
+            {
+                left = Math.Min(left, v.X);
+                right = Math.Max(right, v.X);
+                top = Math.Min(top, v.Y);
+                bottom = Math.Max(bottom, v.Y);
+            }
+        }
+    }
+
+    private static bool ClipPolygonsToRect(
+        IReadOnlyList<List<Vector2>> polygons,
+        float rectLeft,
+        float rectTop,
+        float rectRight,
+        float rectBottom,
+        out IReadOnlyList<List<Vector2>> clipped,
+        out Rect clippedBounds)
+    {
         clipped = polygons;
         clippedBounds = default;
-        if (IsEmpty || !(_right > _left) || !(_bottom > _top))
+        if (!(rectRight > rectLeft) || !(rectBottom > rectTop))
         {
             return false;
         }
@@ -419,17 +805,17 @@ internal sealed class ClipMask
             }
 
             List<Vector2>? output;
-            if (pMinX >= _left && pMaxX <= _right && pMinY >= _top && pMaxY <= _bottom)
+            if (pMinX >= rectLeft && pMaxX <= rectRight && pMinY >= rectTop && pMaxY <= rectBottom)
             {
                 output = polygon;
             }
-            else if (pMaxX <= _left || pMinX >= _right || pMaxY <= _top || pMinY >= _bottom)
+            else if (pMaxX <= rectLeft || pMinX >= rectRight || pMaxY <= rectTop || pMinY >= rectBottom)
             {
                 output = null;
             }
             else
             {
-                output = ClipPolygon(polygon, _left, _top, _right, _bottom);
+                output = ClipPolygon(polygon, rectLeft, rectTop, rectRight, rectBottom);
                 if (output is not null)
                 {
                     pMinX = float.PositiveInfinity;
@@ -607,8 +993,15 @@ internal sealed class ClipMask
         var coverage = new float[boundsWidth * boundsHeight];
         ScanlineRasterizer.AccumulateCoverageMask(polygons, fillRule, clipBounds, coverage, boundsWidth, originX, originY);
 
+        float[]? pieces = null;
+        if (allowRectangle && TryCollectRects(polygons, width, height, out var rects))
+        {
+            pieces = DecomposeRects(rects, fillRule);
+        }
+
         return new ClipMask(
-            coverage, originX, originY, boundsWidth, boundsHeight, originX, originY, originX + boundsWidth, originY + boundsHeight, width, height);
+            coverage, originX, originY, boundsWidth, boundsHeight, originX, originY, originX + boundsWidth, originY + boundsHeight, width, height)
+            .WithPieces(pieces);
     }
 
     /// <summary>
@@ -662,6 +1055,8 @@ internal sealed class ClipMask
         bottom = MathF.Max(MathF.Max(poly[0].Y, poly[1].Y), MathF.Max(poly[2].Y, poly[3].Y));
         return true;
     }
+
+    private static bool SameCoordinate(float a, float b) => MathF.Abs(a - b) <= 1e-6f;
 
     private static bool Near(Vector2 a, Vector2 b)
         => MathF.Abs(a.X - b.X) <= Epsilon && MathF.Abs(a.Y - b.Y) <= Epsilon;

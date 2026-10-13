@@ -256,9 +256,12 @@ immediately following a genuine `<<` is never reached, because the second `<` is
 recognized as dictionary syntax (by also checking the *preceding* byte, not only the following
 one) rather than mistaken for the start of a `<...>` hex string whose premature, early-closing
 `>` would otherwise expose the decoy to keyword matching.
-`PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly` confirms
-the fallback scan completes in bounded, linear time even when fed a long run of unmatched `(`
-bytes: rather than re-scanning the entire remaining buffer from every failed literal/hex-string
+`PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_ScanWorkIsLinear` confirms
+the fallback scan performs work bounded linearly by the buffer size even when fed a long run of
+unmatched `(` bytes. The test asserts a deterministic work counter (`LinearScanStepCount`: scan
+iterations plus bytes examined while skipping strings/comments) stays within a small constant
+multiple of the buffer length, with no timing assertion: rather than re-scanning the entire
+remaining buffer from every failed literal/hex-string
 open position (which is quadratic in a crafted file's size and so a CPU/timeout
 denial-of-service), the scan permanently stops attempting further string opens for the remainder
 of a single pass once any one string scan fails to find its close before EOF. This is a
@@ -748,6 +751,25 @@ edges pale blue and then hairline strokes it black, asserting an interior pixel 
 color (the stroke is not painted solid) while pixels on the outline are inked. It is deterministic
 and asserts no timing.
 
+#### CanvasNetPdf-PdfDocument-StrokeLineWidthFidelity: Stroke Width Reflects Resolved Device-Space Line Width
+
+**Tests**: `PdfDocument_PathOps_Stroke_ZeroWidth_RendersFullOpacityHairline`,
+`PdfDocument_PathOps_Stroke_ThinNonzeroWidth_RendersLighterThanWideStroke`,
+`PdfDocument_PathOps_Stroke_SubEpsilonWidth_RendersVisibleLine`,
+`PdfDocument_ThinRules_ThinStrokedRules_InkMatchesGeometry`,
+`PdfDocument_ThinRules_ThinFilledBar_InkMatchesGeometry`,
+`PdfDocument_ThinRules_ZeroWidthStroke_PaintsHairline`,
+`PdfDocument_Render_HairlineStrokeOfClosedOutlineWithTinyEdges_KeepsInteriorFilled`
+
+Proves that a literal (or effectively zero) user-space line width still paints a visible,
+full-opacity, one-device-pixel line, while a genuinely positive thin width paints with its own
+antialiased sub-pixel coverage (lighter than a wide stroke, with at least one partially
+transparent pixel) rather than being floored to full opacity, that a sub-epsilon width still
+carries nonzero alpha, that summed ink for thin rules and bars matches the geometric area at many
+sub-pixel phases, and that a hairline stroke of a closed outline with tiny edges keeps its
+interior fill. The tests are described in detail under
+`CanvasNetPdf-PdfDocument-PathPainting` above; all are deterministic and assert no timing.
+
 #### CanvasNetPdf-PdfDocument-ClippingPath: W/W* Clip, Enforce, and Scope the Active Clipping Path
 
 **Tests**: `PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion`,
@@ -760,7 +782,27 @@ and asserts no timing.
 `PdfDocument_ThinRules_DoubleRuleWithCoincidentClip_InkMatchesGeometry`,
 `PdfDocument_ThinRules_DoubleRuleWithWiderClip_InkMatchesGeometry`,
 `PdfDocument_ThinRules_DoubleRule_GapBetweenBarsRemainsTransparent`,
-`PdfDocument_ThinRules_FooterRule_InkMatchesGeometry`
+`PdfDocument_ThinRules_FooterRule_InkMatchesGeometry`,
+`PdfDocument_ClipEdge_RectangleUnionClipCoincidentWithFillEdge_InkMatchesGeometry`,
+`PdfDocument_ClipEdge_SingleRectangleClipCoincidentWithFillEdge_InkMatchesGeometry`,
+`PdfDocument_ClipEdge_NestedIdenticalFractionalRectClips_InkMatchesGeometry`,
+`PdfDocument_ClipEdge_OrthogonalFractionalRectClips_InkMatchesGeometry`,
+`PdfDocument_ClipEdge_RectangleInsideTriangleClip_RestrictsToBoth`
+
+Its children `CanvasNetPdf-PdfDocument-ThinBarInkFidelity` and
+`CanvasNetPdf-PdfDocument-ClipGeometricCoverage` are verified at the end of this section.
+
+The `PdfDocument_ClipEdge_*` tests (in `PdfDocumentClipEdgeInkTests.cs`, own minimal PDF builder)
+render on white and compare summed darkness against the analytic area. They reproduce the
+real-world header rule (an even-odd fill of four rectangles whose outer lower bar edge coincides with
+the edge of a `W*` clip built from several rectangles, so a non-rectangular clip) at 1147x1484,
+1020x1320, 1108x1434, 612x792 and 765x990 and require ink within [0.985, 1.03] of exact (before the
+fix the rectangle-union clip gave 0.58-0.84 because the dense clip's edge coverage was multiplied
+into the fill's); the single-rectangle variant pins agreement with the analytic rectangle clip;
+nested identical and orthogonal fractional rectangle clips must yield the exact geometric area
+(within 0.5 %); and a rectangle clip nested in a triangle clip must paint only inside both. All
+are deterministic and assert no timing. Known residual: clips mixing curves or rotated edges
+(true dense clips) still multiply coverage.
 
 The `PdfDocument_ThinRules_*` tests (in `PdfDocumentThinRuleInkTests.cs`, with their own minimal
 single-page PDF builder) reproduce a WeasyPrint-style `border: double` rule and a 1-unit footer
@@ -807,6 +849,38 @@ slightly larger) and asserts the page renders pixel-identically to the same fill
 (full-surface rectangle clips are equivalent to no clip), then nests rectangle clips inside a
 partial clip and asserts only the partial region paints; it asserts pixels only, never timing.
 
+#### CanvasNetPdf-PdfDocument-ThinBarInkFidelity: Thin Bars and Even-Odd Stacks Keep Exact Ink At Every Size
+
+**Tests**: `PdfDocument_ThinBar_HorizontalFill_InkMatchesGeometry`,
+`PdfDocument_ThinBar_VerticalFill_InkMatchesGeometry`,
+`PdfDocument_ThinBar_OverlappingEvenOddRects_InkMatchesEvenOddArea`,
+`PdfDocument_ThinBar_OverlappingEvenOddRects_LuminanceInkMatchesEvenOddArea`
+
+The `PdfDocument_ThinBar_*` tests (in `PdfDocumentThinBarInkTests.cs`, own minimal PDF builder) render
+synthetic thin bars and four stacked even-odd rectangles sharing one left edge at 1147x1484,
+1020x1320, 1108x1434, 765x990, 612x792, 919x1189, 1303x1686 and 500x647, with and without a
+rectangle clip, and require the summed ink (alpha on transparent, and gray-over-white luminance) to be
+within [0.985, 1.03] of the exact geometric area. Before the multi-edge-cell fix the stacked
+rectangles measured 1.07-1.19 at several sizes because the shared left edge painted a full-height
+column of ink wherever its x was not pixel-aligned. All are deterministic and assert no timing.
+
+#### CanvasNetPdf-PdfDocument-ClipGeometricCoverage: Rectangle Clips Are Applied Geometrically To Fills And Images
+
+**Tests**: `PdfDocument_ClipEdge_LargeRectangleUnionClipCoincidentWithFill_InkMatchesGeometry`,
+`PdfDocument_ClipEdge_ImageCoincidentWithRectangleClip_InkEqualsUnclippedInk`,
+`PdfDocument_ClipEdge_ImageCutByRectangleClip_InkMatchesGeometry`
+
+A 40-rectangle `W*` union (beyond the former 32-subpath cap) with a coincident `f*` fill must keep
+its exact ink; an axis-aligned image whose placement equals a fractional rectangle (or rectangle
+union) clip must paint exactly as without the clip (before the fix it lost about 2 %); an image cut
+by a rectangle clip at a fractional position must keep the exact fraction of its ink. The unit-level
+`ClipMask_*` tests (`ClipMask_LargeRectangleUnion_HasPiecesAndMatchesDenseReference`,
+`ClipMask_OverlappingRectangleUnion_DecompositionMatchesDenseReference`,
+`ClipMask_GetCoverageWithinShape_*`, `ClipMask_GetRectsWithinShape_CurvedClip_ReturnsNullAndFallsBack`)
+cover the decomposition and shape-aware helper. Known limits: curved or other dense clips,
+rectangle unions beyond 256 subpaths or 1024 pieces, and rotated or skewed images keep the per-pixel
+coverage product (edge pixels only).
+
 #### CanvasNetPdf-PdfDocument-Dispose: Dispose Is Idempotent
 
 **Test**: `PdfDocument_Dispose_CalledTwice_DoesNotThrow`
@@ -848,8 +922,8 @@ asserting `InvalidDataException` in every case.
 `PdfDocument_Color_SetColorFillUsingCurrentColorSpace_Sc_PaintsExpectedColor`,
 `PdfDocument_Color_SetColorStrokeUsingCurrentColorSpace_SC_PaintsExpectedColor`,
 `PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException` (`[Theory]`:
-Separation/DeviceN/ICCBased/CalGray/Lab),
-`PdfDocument_Color_CalRgbColorSpace_ResolvesToDeviceRgb`,
+unknown family/ICCBased without `/N`),
+`PdfDocument_Color_CalRgbColorSpace_AppliesCalibration`,
 `CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels`
 
 Renders a red-filled rectangle, then a `cs`/`CS` device-name switch (asserted, for all three
@@ -869,31 +943,156 @@ longer a fail-closed case - a `/Pattern` color space resolves and paints the nam
 *CanvasNetPdf-PdfDocument-TilingPatternFill* below for that coverage (including the still-rejected
 malformed/undeclared/unsupported-pattern-type shapes).
 
-#### CanvasNetPdf-PdfDocument-IccBasedColorSpace: /ICCBased Resolves via /Alternate or /N, Fails Closed Otherwise
+#### CanvasNetPdf-PdfDocument-IccBasedColorSpace: /ICCBased Resolves via /N (Matching /Alternate Kept)
 
 **Tests**: `PdfDocument_Color_IccBasedN3_ResolvesAsDeviceRgb`,
 `PdfDocument_Color_IccBasedWithAlternate_PrefersAlternateOverN`,
-`PdfDocument_Color_IccBasedUnsupportedN_ThrowsUnsupportedImageFeatureException`
+`PdfDocument_Color_IccBasedUnsupportedN_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_ColorSpace_IccBased_BogusN_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_ColorSpace_IccBased_N1AndN4_ResolveAsDeviceSpaces`,
+`PdfDocument_ColorSpace_IccBased_NMismatchesAlternate_PrefersN`,
+`PdfDocument_ColorSpace_IccBased_LabAlternateWithN3_UsesLab`,
+`PdfDocument_ColorSpace_IccBased_FractionalN_RejectedAndIntegralRealAccepted`,
+`PdfDocument_ColorSpace_IccBased_CalGrayAlternateWithN1_UsesCalGray`
+
+The first three tests below were written for the pre-M2 rule; since M2 `/N` is authoritative and
+an `/Alternate` is honored only when its component count matches (the `/N 3 /Alternate /DeviceRGB`
+case still resolves via the alternate; a mismatching alternate is ignored, covered by
+`..._NMismatchesAlternate_PrefersN`). The M2 tests cover `/N 1`/`/N 4` with no alternate, a bogus
+`/N 2` (fails closed), and Lab/CalGray alternates whose component count matches `/N`.
 
 Declares `/CS0 [/ICCBased 5 0 R]` in `/Resources/ColorSpace`, where object `5` is a stream whose
 dictionary is `<< /N 3 >>` (no `/Alternate`); selects it via `cs` and paints via `scn` with 3
 operands, asserting the painted pixel matches exactly what `DeviceRGB` would paint - proving `/N
 3` resolves as `DeviceRGB` (including that `scn`'s own operand-count validation reused
 `ComponentCount` correctly for the resolved space, not the array's own shape). Repeats with
-object `5`'s dictionary as `<< /N 1 /Alternate /DeviceRGB >>` (an /N that implies `DeviceGray`,
-1 component, deliberately contradicting the /Alternate): `scn` with 3 operands succeeds and paints
-red, which is only possible if `/Alternate` won over `/N` (had `/N` been used instead, 3 operands
-would mismatch the expected 1 and throw `InvalidDataException`), making the precedence
-deterministically auditable. Declares object `5`'s dictionary as `<< /N 2 >>` (no `/Alternate`,
+object `5`'s dictionary as `<< /N 3 /Alternate /DeviceRGB >>` (matching component count):
+`scn` with 3 operands succeeds and paints red via the alternate. Declares object `5`'s dictionary as `<< /N 2 >>` (no `/Alternate`,
 and `2` maps to no device color space); asserts `cs` throws
 `Codecs.UnsupportedImageFeatureException`.
+
+#### CanvasNetPdf-PdfDocument-CalibratedColorSpaces: CalGray/CalRGB/Lab Convert to sRGB, Lab /Decode Fails Closed
+
+**Tests**: `PdfDocument_Color_CalRgbColorSpace_AppliesCalibration`,
+`PdfDocument_ColorSpace_CalGray_EndpointsExactAndMidFollowsGamma`,
+`PdfDocument_ColorSpace_CalGray_StrokeOperators_UseConversion`,
+`PdfDocument_ColorSpace_CalRgb_SrgbPrimaries_MatchDeviceRgb`,
+`PdfDocument_ColorSpace_CalRgb_LinearGamma_AppliesSrgbTransferFunction`,
+`PdfDocument_ColorSpace_Lab_WhiteAndBlack_MapExactly`,
+`PdfDocument_ColorSpace_Lab_ChromaticColor_MatchesReference`,
+`PdfDocument_ColorSpace_Lab_OutOfRangeAB_ClampsToRange`,
+`PdfDocument_ColorSpace_CalibratedSpaces_InitialColorIsBlack`,
+`PdfDocument_ColorSpace_MalformedCalibratedDictionary_ThrowsInvalidDataException`,
+`PdfDocument_ColorSpace_LabImage_DefaultDecode_MapsNormalizedSamples`,
+`PdfDocument_ColorSpace_LabImage_ChromaticSample_MatchesReference`,
+`PdfDocument_ColorSpace_LabImage_ExplicitDecode_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_ColorSpace_CalGrayImage_ConvertsSamplesLikeOperator`,
+`PdfDocument_ColorSpace_CalRgbImage_SrgbPrimaries_MatchesDeviceRgbEndpoints`,
+`PdfDocument_ColorSpace_CalGrayImage_AsSoftMask_ThrowsInvalidDataException`,
+`PdfDocument_ColorSpace_DeviceGrayImage_AsSoftMask_StillApplies`,
+`PdfDocument_ColorSpace_IndexedOverLab_Scn_NormalizesPaletteBytes`,
+`PdfDocument_ColorSpace_IndexedOverCalRgb_Image_ConvertsPalette`,
+`PdfDocument_ColorSpace_AxialShadingInLab_InterpolatesNaturalUnits`,
+`PdfDocument_ColorSpace_AxialShadingInLab_StaysNearDirectConversionOfInterpolatedComponents`,
+`PdfDocument_Load_CalibratedColorSpacesFixture_PaintsConvertedSwatches`
+
+All tests are in `PdfDocumentColorSpaceTests.cs` except the CalRgb test (`PdfDocumentTests.cs`) and
+the fixture test (`PdfFixtureTests.cs`, using `color-spaces-calibrated.pdf`). Lab white/black and
+CalGray endpoints are asserted exactly; chromatic Lab colors are compared (within ±2) with an
+independent reference computed from published (Lindbloom) constants; CalRGB with sRGB primaries is
+compared (±1) with DeviceRGB, and linear gamma 0.5 yields 188. Raw image paths are checked against
+the operator path, including the 1-component lookup table and the CalRGB/Lab previous-pixel memo.
+A Lab image with any explicit `/Decode` throws `UnsupportedImageFeatureException` (feature
+`pdf-image-lab-decode`); malformed dictionaries (missing `/WhitePoint`, bad `/Gamma`, `/Matrix`,
+`/Range`) throw `InvalidDataException`; a CalGray image used as an `/SMask` is rejected while a
+DeviceGray one is still applied. No timing assertions are used.
+
+#### CanvasNetPdf-PdfDocument-SeparationDeviceNColorSpaces: Separation/DeviceN Evaluate Their Tint Transform
+
+**Tests**: `PdfDocument_Tint_SeparationType2ToCmyk_MatchesDirectCmyk` (`[Theory]`),
+`PdfDocument_Tint_SetColorSpace_InitialTintIsOne`,
+`PdfDocument_Tint_SeparationStroke_MatchesDirectCmyk`,
+`PdfDocument_Tint_SeparationType4ToRgb_EvaluatesProgram`,
+`PdfDocument_Tint_SeparationNone_LeavesBackgroundUntouched`,
+`PdfDocument_Tint_SeparationAll_UsesTintTransform`,
+`PdfDocument_Tint_TransformOutputMismatch_ThrowsInvalidDataException`,
+`PdfDocument_Tint_UnsupportedAlternate_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Tint_DeviceNType4_EvaluatesBothTints`,
+`PdfDocument_Tint_DeviceNMultiInputSampled_InterpolatesMultilinearly`,
+`PdfDocument_Tint_DeviceNAllNone_LeavesBackgroundUntouched`,
+`PdfDocument_Tint_DeviceNOperandCountMismatch_ThrowsInvalidDataException`,
+`PdfDocument_Tint_DeviceNTooManyColorants_ThrowsInvalidDataException`,
+`PdfDocument_Tint_IndexedOverSeparation_MatchesDirectCmyk`,
+`PdfDocument_Tint_IndexedOverDeviceN_EvaluatesTransform`,
+`PdfDocument_Tint_DeviceNTwelveColorants_ConvertsThroughTintTransform`,
+`PdfDocument_Tint_SeparationImage_MatchesDirectCmyk`,
+`PdfDocument_Tint_DeviceNImage_EvaluatesTransform`,
+`PdfDocument_Tint_SeparationImageAsSoftMask_ThrowsInvalidDataException`,
+`PdfDocument_Tint_AxialShadingInSeparation_MatchesDirectCmyk`,
+`PdfDocument_Tint_AxialShadingInIndexed_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_MeshShading_IndexedColorSpaceWithoutFunction_PaintsPaletteEntry`,
+`PdfDocument_MeshShading_IndexedColorSpaceWithFunction_ThrowsUnsupported`,
+`PdfDocument_Load_SeparationDeviceNFixture_PaintsTintsAndSkipsNone`
+
+All tests but the mesh and fixture ones are in `PdfDocumentTintTests.cs`. Expected colors are
+obtained by painting the same color through the alternate space directly (for example a Separation
+with a Type 2 tint to CMYK against `k`), or from the spec formula of the tint program (a Type 4
+program, a hand-built 2x2 two-input Type 0 grid interpolated multilinearly, within ±1). `/None`
+Separation and all-`/None` DeviceN are asserted to leave the background pixel untouched; `/All` uses
+its tint transform; the initial color after `cs` equals tint 1.0. Arity mismatches, wrong operand
+counts and more than 32 colorants throw `InvalidDataException`; Pattern/Indexed alternates and an
+axial shading in an Indexed space throw `UnsupportedImageFeatureException`; a Separation image used
+as `/SMask` is rejected. The fixture `color-separation-devicen.pdf` is synthetic. No timing
+assertions are used.
+
+#### CanvasNetPdf-PdfDocument-TintImageWorkBound: DeviceN Image Tint Evaluation Is Memoized and Budgeted
+
+**Tests**: `PdfDocument_Tint_NoisyDeviceNImage_ExceedsBudget_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Tint_DeviceNImageCache_MatchesUncachedConversion`,
+`PdfDocument_Tint_DeviceNImageCache_IsBounded`,
+`PdfDocument_Tint_SampledFunctionReadSample_FastPathMatchesBitwise` (`[Theory]`: 8/12/16/24/32 bits),
+`PdfDocument_Tint_DeviceNImage_EvaluatesTransform`
+
+The tests drive `TintImageConverter` directly with a Type 4 tint function. The budget test grants
+exactly ten evaluations' worth of cost and feeds distinct noisy pixels: the converter must throw
+feature `pdf-image-tint-budget` with `EvaluationCount` equal to 10 (a counter, not timing). The cache
+test converts repeated palette pixels with and without the cache and asserts identical colors and a
+bounded evaluation count; the bound test feeds more distinct pixels than the 65536-entry cap and
+asserts the cache stops growing. The reader test compares `ReadSample` with `ReadSampleBitwise` for
+each width. No timing assertions are used.
+
+#### CanvasNetPdf-PdfDocument-FunctionType4AndMultiInput: PostScript and Multi-Input Functions Evaluate
+
+ PostScript and Multi-Input Functions Evaluate
+
+**Tests**: `PdfDocument_Functions_Type4_Operator_ProducesSpecResult` (`[Theory]`),
+`PdfDocument_Functions_Type4_StackOperators_ProduceSpecStack` (`[Theory]`),
+`PdfDocument_Functions_Type4_OutputBeyondRange_IsClamped`,
+`PdfDocument_Functions_Type4_NonFiniteArithmeticResult_ThrowsInvalidDataException`,
+`PdfDocument_Functions_Type4_LargeFiniteResult_StillEvaluates`,
+`PdfDocument_Functions_Type4_MalformedProgram_ThrowsInvalidDataException` (`[Theory]`),
+`PdfDocument_Functions_Type4_ResourceCaps_ThrowInvalidDataException`,
+`PdfDocument_Functions_Type4_NotAStream_ThrowsInvalidDataException`,
+`PdfDocument_Tint_AxialShadingWithType4Function_EvaluatesProgram`,
+`PdfDocument_Tint_DeviceNMultiInputSampled_InterpolatesMultilinearly`,
+`PdfDocument_Tint_DeviceNMultiInputSampledFractionalSize_ThrowsInvalidDataException`
+
+Resolves hand-built Type 4 streams through `ResolveFunctionGeneric` and evaluates operator
+programs (`idiv`/`mod` with negatives, `atan` quadrants, round-half-up, `cvi`, `roll`/`copy`/`index`,
+`if`/`ifelse`, boolean and bit operators), comparing against values derived from the specification.
+Malformed programs (underflow, division by zero, domain error, unknown token, missing or extra
+brace, a block without `if`/`ifelse`) and programs exceeding the stack, nesting or instruction/
+execution caps throw `InvalidDataException`. A multi-input sampled function whose `/Size` holds a
+fractional entry (`1.5 2`) is rejected with `InvalidDataException` rather than truncated to `1 2`.
+No timing assertions are used.
 
 #### CanvasNetPdf-PdfDocument-IndexedColorSpace: /Indexed Resolves as a Palette Lookup, Clamps Out-of-Range Indices
 
 **Tests**: `PdfDocument_Images_DoOperator_IndexedColorSpace_PlacesExpectedPaletteColors`,
 `PdfDocument_Color_IndexedColorSpace_Scn_PaintsExpectedPaletteColor`,
 `PdfDocument_Color_IndexedColorSpace_OutOfRangeIndex_ClampsToHighestPaletteEntry`,
-`PdfDocument_Color_IndexedColorSpace_UnsupportedBase_ThrowsUnsupportedImageFeatureException`
+`PdfDocument_Color_IndexedColorSpace_UnsupportedBase_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_ColorSpace_Indexed_FractionalHival_ThrowsInvalidDataException`
 
 Places a 2x2 image XObject whose `/ColorSpace` is `[/Indexed /DeviceRGB 2 <...>]` (a 3-entry
 red/green/blue palette) with `/BitsPerComponent 8` raw index samples (`0, 1, 2, 2`) via `Do`,
@@ -905,7 +1104,7 @@ rectangle via `scn 1` (1 numeric operand, the index), asserting the painted colo
 palette entry - proving the same `/Indexed` resolution is shared identically between the image
 XObject and `cs`/`scn` paths. Repeats with `scn 5` (an index past `Hival = 1`), asserting the
 painted color is still the green (highest valid, `Hival`) palette entry rather than throwing.
-Declares `/CS0 [/Indexed [/Separation /Spot /DeviceGray 4 0 R] 1 <...>]` (an unsupported base
+Declares `/CS0 [/Indexed [/Bogus /Spot] 1 <...>]` (an unsupported base
 color space); asserts `cs` throws `Codecs.UnsupportedImageFeatureException`, propagated from the
 base color space's own resolution before `/Hival`/the lookup table are ever consulted.
 
@@ -2056,7 +2255,10 @@ matching every other operator family's own established convention.
 `PdfDocument_Functions_Type0_EightBitSamples_EvaluatesCorrectly`,
 `PdfDocument_Functions_Type0_SixteenBitSamples_EvaluatesCorrectly`,
 `PdfDocument_Functions_Type0_UnsupportedFunctionType_ThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Functions_Type0_MultiInputDomain_ThrowsUnsupportedImageFeatureException`
+`PdfDocument_Functions_Type0_MultiInputDomain_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Functions_Type0_FractionalSize_ThrowsInvalidDataException`,
+`PdfDocument_Functions_Type0_IntegralRealSize_StillAccepted`,
+`PdfDocument_Functions_Type0_FractionalBitsPerSample_ThrowsInvalidDataException`
 
 Every test resolves a hand-built `/FunctionType 0` function stream (an indirect object appended to
 a minimal single-page document, mirroring the `/ToUnicode` CMap tests' own "build a minimal
@@ -2072,16 +2274,28 @@ still clipped to) a wider `/Range`. Asserts a sample-index position that falls b
 linearly interpolates between them. Asserts both 8-bit and 16-bit `/BitsPerSample` widths read
 their raw sample values correctly (16-bit via 2-byte big-endian packing). A `[Theory]` resolves a
 `/FunctionType` `2`/`3`/`4` function, asserting `Codecs.UnsupportedImageFeatureException` (feature
-`pdf-functiontype-{n}`) in every case. Resolves a 2-input `/FunctionType 0` function (a 4-element
-`/Domain`), asserting `Codecs.UnsupportedImageFeatureException` (feature
-`pdf-function-multiinput`).
+`pdf-functiontype-{n}`) in every case - this is the narrow, single-input `/FunctionType 0`
+resolver (`ResolveFunction`) only; the general resolver (`ResolveFunctionGeneric`) evaluates types
+2, 3 and 4 and the multi-input resolver evaluates multi-input type 0, as verified under
+`CanvasNetPdf-PdfDocument-FunctionType2And3` and `CanvasNetPdf-PdfDocument-FunctionType4AndMultiInput`.
+Resolves a 2-input `/FunctionType 0` function (a 4-element
+`/Domain`) through that same narrow resolver, asserting `Codecs.UnsupportedImageFeatureException` (feature
+`pdf-function-multiinput`). A fractional `/Size` (`1.5`) and a fractional `/BitsPerSample` (`8.5`)
+throw `InvalidDataException` instead of being truncated, while an integral real `/Size` (`2.0`) is
+still accepted.
 
-#### CanvasNetPdf-PdfDocument-FunctionType2And3: /FunctionType 2/3 Evaluate Correctly, /FunctionType 4 Fails Closed
+#### CanvasNetPdf-PdfDocument-FunctionType2And3: /FunctionType 2/3 Evaluate Correctly, Unknown Types Fail Closed
 
 **Tests**: `PdfDocument_Functions_Type2_Exponential_EvaluatesExpectedInterpolatedOutput`,
 `PdfDocument_Functions_Type3_Stitching_EvaluatesExpectedSubFunctionOutput`,
-`PdfDocument_Functions_Type4_PostScriptCalculator_ThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Functions_Type3_Stitching_NestingDepthExceeded_ThrowsInvalidDataException`
+`PdfDocument_Functions_UnknownFunctionType_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Functions_Type3_Stitching_NestingDepthExceeded_ThrowsInvalidDataException`,
+`PdfDocument_Functions_Type3_Stitching_InvalidBoundsOrDomain_ThrowsInvalidDataException`,
+`PdfDocument_Functions_Type3_Stitching_NonFiniteBound_ThrowsInvalidDataException`,
+`PdfDocument_Functions_Type3_Stitching_EqualBounds_AreAcceptedAndEvaluateAsHardStop`,
+`PdfDocument_Functions_Type3_Stitching_MismatchedOutputCounts_ThrowsInvalidDataException`,
+`PdfDocument_Functions_Type3_Stitching_MatchingOutputCounts_AreAccepted`,
+`PdfDocument_Functions_Type3_Stitching_NonFiniteEncode_ThrowsInvalidDataException`
 
 Every test resolves a hand-built function stream via the new `ResolveFunctionGeneric` entry point
 (through a new `ResolveTestFunctionGeneric` helper mirroring `ResolveTestFunction`'s own "build a
@@ -2091,10 +2305,17 @@ linear (`N=1`) and a quadratic (`N=2`) exponent, asserting the literal spec form
 interpolated output at a known input. A `[Theory]` resolves a `/FunctionType 3` stitching
 function with 2 `/FunctionType 2` sub-functions split at a single `/Bounds` partition point,
 asserting the correct sub-function is selected (and its own `/Encode` remap applied) for inputs
-falling in each of the 2 partitions. A final test resolves a `/FunctionType 4` function through
+falling in each of the 2 partitions. A `[Theory]` and a `[Fact]` resolve stitching functions whose
+`/Bounds` are non-finite, decreasing or outside `/Domain` (or whose `/Domain` is reversed) and assert
+`InvalidDataException`; a further `[Theory]` proves equal consecutive bounds (a hard color stop) are
+still accepted and evaluate to the sub-function starting at the shared bound. Further tests prove
+sub-functions with differing output counts are rejected (message mentioning the output count) while
+matching multi-component counts are accepted and return every component, and that a non-finite
+`/Encode` element is rejected (message mentioning "finite"). A further test resolves
+a `/FunctionType 5` function through
 `ResolveFunctionGeneric`, asserting `Codecs.UnsupportedImageFeatureException` (feature
-`pdf-functiontype-4`) is still thrown (regression guard - `/FunctionType 4` remains unsupported
-even through the new generic resolver). A final regression test resolves a self-referencing
+`pdf-functiontype-5`) is thrown (regression guard for unknown types; type 4 is now supported, see
+below). A final regression test resolves a self-referencing
 `/FunctionType 3` object (its own `/Functions` array references itself) through
 `ResolveFunctionGeneric`, asserting `InvalidDataException` is thrown once the new
 `MaxFunctionRecursionDepth` (32) bound is reached, rather than the process' call stack being
@@ -2131,7 +2352,7 @@ throws `InvalidDataException`. Asserts an undeclared pattern name throws
 **Tests**: `PdfDocument_Patterns_ShadingPattern_AxialFunctionType2_FillsVisiblyVaryingGradient`,
 `PdfDocument_Patterns_ShadingPattern_RadialFunctionType2_FillsVisiblyVaryingGradient`,
 `PdfDocument_Patterns_ShadingPattern_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType4_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Patterns_ShadingPattern_FunctionArrayForm_ThreeOneOutputFunctions_BuildsRgbGradient`,
 `PdfDocument_Patterns_ShadingPattern_AxialNoExtend_LeavesOutsideUnpainted`,
 `PdfDocument_Patterns_ShadingPattern_AxialExtendBoth_HoldsEndColors`,
@@ -2143,12 +2364,20 @@ throws `InvalidDataException`. Asserts an undeclared pattern name throws
 `PdfDocument_Patterns_ShadingPattern_LongGradient_UsesAdaptiveSampleCount`,
 `PdfDocument_Patterns_ShadingPattern_FunctionArraySubFunctionDomain_ClampsInputToOwnDomain`,
 `PdfDocument_Patterns_ShadingPattern_FunctionArrayWithWideDomain_ShadingDomainMapsToFunctionInput`,
+`PdfDocument_Shading_RadialShrinkingRadius_ExtendsPerEnd`,
+`PdfDocument_Shading_StitchingBound_IsAnExactHardTransition`,
+`PdfDocument_Shading_NestedStitchingBound_IsAnExactHardTransition`,
+`PdfDocument_Shading_FunctionArrayWithDifferentDomains_ClampsEachElementIndependently`,
 `CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors`
 
 The `/Extend` tests assert that an unextended axial/radial shading leaves pixels outside its
 geometry transparent, that `[true true]` (and each single-end variant, also through `sh`) holds
-the end colors, that a radial start extension fills down to the cone vertex, and that a malformed
-`/Extend` throws `InvalidDataException`. The long-gradient test uses a hard-step stitching
+the end colors, that a radial start extension fills down to the cone vertex, that a radial
+shading whose radius shrinks extends its start outward and its end inward independently, and that
+a malformed `/Extend` throws `InvalidDataException`. The stitching-bound tests render a
+1000 px gradient (uniform sample spacing of about 3.9 px) whose black/white switch falls between
+two uniform samples and assert the last pixel before the bound is pure black and the first after
+is pure white, also for a nested stitching function's inner bound. The long-gradient test uses a hard-step stitching
 function over a 1000 px gradient and asserts the step is resolved within a few pixels (only
 possible with more than 32 stops); no timing is asserted. The function-array tests assert a
 sub-function narrower than the shading `/Domain` clamps its input and that a wider shading
@@ -2160,8 +2389,8 @@ driven by a single `/FunctionType 2` black-to-white function paints near-black a
 endpoint and near-white at the other. Asserts a radial (`/ShadingType 3`) pattern with the same
 function shape paints a visibly different color at the center versus the edge. A `[Theory]`
 asserts `/ShadingType 0`/`1`/`8` all throw `Codecs.UnsupportedImageFeatureException` (feature
-`pdf-shading-type-{n}`). Asserts a `/Function` entry resolving to a `/FunctionType 4` function
-still throws `Codecs.UnsupportedImageFeatureException` (feature `pdf-functiontype-4`) when
+`pdf-shading-type-{n}`). Asserts a `/Function` entry resolving to an unknown `/FunctionType` (5)
+still throws `Codecs.UnsupportedImageFeatureException` (feature `pdf-functiontype-5`) when
 reached through a shading pattern, not only through a direct function-resolution call. Asserts
 the `/Function [fn0 fn1 fn2]` array-of-1-output-functions form builds a correct RGB gradient. The
 system-integration test additionally proves the same axial-gradient fill end-to-end through the
@@ -2212,6 +2441,12 @@ actually overlays the fallback rather than remaining invisibly skipped underneat
 **Tests**: `PdfDocument_MeshShading_Type4_Pattern_PaintsOnlyInsideFillAndMesh`,
 `PdfDocument_MeshShading_Type4_Flag1_ContinuesStrip`, `PdfDocument_MeshShading_Type4_Flag2_ContinuesFan`,
 `PdfDocument_MeshShading_Type4_Function_MapsParametricValue`,
+`PdfDocument_MeshShading_Function_NonlinearFunctionAppliedToInterpolatedParameter`,
+`PdfDocument_MeshShading_Function_LookupTableTracksSteepRampClosely`,
+`PdfDocument_MeshShading_Function_NonlinearCalGray_ConvertsFunctionOutputAtParameter`,
+`PdfDocument_MeshShading_LabColorSpace_VertexColorsAreNaturalUnits`,
+`PdfDocument_MeshShading_LabColorSpace_InterpolatesComponentsBeforeConversion`,
+`CanvasNetPdf_SystemIntegration_MeshShadingWithNonlinearFunction_AppliesFunctionToInterpolatedParameter`,
 `PdfDocument_MeshShading_Type4_BitSizeMatrix_RendersSame`,
 `PdfDocument_MeshShading_GrayAndCmykColorSpaces_Render`,
 `PdfDocument_MeshShading_Type5_Lattice_RendersAllCells`,
@@ -2232,7 +2467,14 @@ render every cell and that vertices are padded to a byte boundary. Asserts type 
 interpolate bilinear corner colors and bulge along curved edges, that type 7 with Coons-derived
 interior points matches type 6 (and differs when an interior point moves), and that patch
 continuation flags 1-3 inherit the previous edge and colors. Asserts `/Background` paints beneath
-a pattern fill, and that `/Matrix` and stroking apply to the mesh.
+a pattern fill, and that `/Matrix` and stroking apply to the mesh. A nonlinear function
+(`f(t) = t^2`) test, in both a unit and a system-integration form, asserts the function is applied
+to the interpolated parameter (midpoint maps to about 0.25, not the 0.5 of a vertex-color blend).
+A steep stitched ramp, probed at a parameter halfway between two table entries, asserts the
+4096-entry color table still lands within one level of the exact function value. A nonlinear
+`/CalGray` (gamma 0.5) mesh with a linear function asserts the mid-parameter pixel is the converted
+gray of f(t) (about 219) rather than the 129 midway between converted endpoints. A `/Lab`
+mesh asserts vertex components are read in natural Lab units (L 0-100) and converted to sRGB.
 
 #### CanvasNetPdf-PdfDocument-MeshShadingOperator: sh Paints Mesh Shadings
 
@@ -2257,7 +2499,8 @@ type 6 patch with the same boundary.
 `PdfDocument_MeshShading_Type4_ReservedFlagInInitialTriangleVertices_ThrowsInvalidData`,
 `PdfDocument_MeshShading_Type5_BadLattice_ThrowsInvalidData`,
 `PdfDocument_MeshShading_NotAStream_ThrowsInvalidData`,
-`PdfDocument_MeshShading_IndexedColorSpace_ThrowsUnsupported`,
+`PdfDocument_MeshShading_IndexedColorSpaceWithFunction_ThrowsUnsupported`,
+`PdfDocument_MeshShading_IndexedColorSpaceWithoutFunction_PaintsPaletteEntry`,
 `PdfDocument_MeshShading_FunctionProblems_FailClosed`,
 `PdfDocument_MeshShading_TooManyVertices_ThrowsUnsupported`,
 `PdfDocument_MeshShading_TooManyPatches_ThrowsUnsupported`,
@@ -2265,8 +2508,9 @@ type 6 patch with the same boundary.
 
 Asserts missing or illegal bit sizes, `/Decode`, `/VerticesPerRow`, a non-stream shading,
 truncated records and bad edge flags (including a reserved flag on the 2nd or 3rd vertex of a
-flag-0 type 4 record) throw `InvalidDataException`; an Indexed color space and
-invalid/FunctionType 4 functions throw `Codecs.UnsupportedImageFeatureException`; and the vertex,
+flag-0 type 4 record) throw `InvalidDataException`; an Indexed color space combined with a `/Function`
+and an unknown function type throw `Codecs.UnsupportedImageFeatureException`, while an Indexed mesh
+without a `/Function` paints its palette entry; and the vertex,
 patch and rasterization-work limits throw `Codecs.UnsupportedImageFeatureException` with features
 `pdf-shading-mesh-too-many-vertices`, `pdf-shading-mesh-too-many-patches` and
 `pdf-shading-mesh-too-complex`.

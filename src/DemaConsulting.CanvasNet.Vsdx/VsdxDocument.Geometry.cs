@@ -9,8 +9,9 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///     Implements the <see cref="VsdxDocument"/> geometry-row resolver: converts a shape's merged
 ///     geometry sections (see <c>VsdxDocument.CellMerge.cs</c>) into shape-local-space
 ///     <see cref="VsdxGeometrySection"/> instances, recognizing <c>MoveTo</c>/<c>LineTo</c>/
-///     <c>RelMoveTo</c>/<c>RelLineTo</c>/<c>EllipticalArcTo</c>/<c>ArcTo</c> rows and gracefully
-///     skipping every other row type.
+///     <c>RelMoveTo</c>/<c>RelLineTo</c>/<c>EllipticalArcTo</c>/<c>ArcTo</c>/<c>PolylineTo</c>/
+///     <c>NURBSTo</c>/<c>SplineStart</c>/<c>SplineKnot</c> rows (curve evaluation lives in
+///     <c>VsdxDocument.Splines.cs</c>) and gracefully skipping, with a diagnostic, every other row type.
 /// </summary>
 public sealed partial class VsdxDocument
 {
@@ -42,6 +43,16 @@ public sealed partial class VsdxDocument
         return result;
     }
 
+    /// <summary>
+    ///     Determines whether <paramref name="rowType"/> extends an already-open subpath (so it is
+    ///     meaningless before the first <c>MoveTo</c>/<c>RelMoveTo</c>/<c>Ellipse</c> row).
+    /// </summary>
+    /// <param name="rowType">The geometry row type.</param>
+    /// <returns><see langword="true"/> for continuation rows; otherwise <see langword="false"/>.</returns>
+    private static bool IsSubpathContinuationRow(string rowType) =>
+        rowType is "SplineStart" or "NURBSTo" or "PolylineTo" or "LineTo" or "RelLineTo"
+            or "EllipticalArcTo" or "ArcTo" or "RelCubBezTo" or "RelQuadBezTo";
+
     /// <summary>Builds a single resolved <see cref="VsdxGeometrySection"/> from its merged raw section.</summary>
     /// <param name="section">The merged raw section.</param>
     /// <param name="width">The owning shape's resolved <c>Width</c> cell, in inches (normalizes <c>RelMoveTo</c>/<c>RelLineTo</c> rows).</param>
@@ -53,10 +64,88 @@ public sealed partial class VsdxDocument
         var hasOpenSubpath = false;
         var currentPoint = Vector2.Zero;
 
+        SplineAccumulator? spline = null;
+
         foreach (var row in section.Rows.OrderBy(r => r.Index))
         {
+            // A SplineStart/SplineKnot group ends at the first row that is not a SplineKnot.
+            if (spline is not null && row.Type != "SplineKnot")
+            {
+                currentPoint = FlushSpline(builder, spline);
+                spline = null;
+            }
+
+            // A row that continues a subpath (everything except the MoveTo-like rows and the
+            // SplineKnot, which has its own orphan report) before any MoveTo/RelMoveTo/Ellipse has
+            // opened one has nothing to extend: skip it and report it rather than dropping it silently.
+            if (!hasOpenSubpath && IsSubpathContinuationRow(row.Type))
+            {
+                ReportUnsupported(
+                    $"vsdx-geometry-row-{row.Type}",
+                    $"A {row.Type} row with no preceding MoveTo/RelMoveTo/Ellipse row (no open subpath) is not supported and was skipped.");
+                continue;
+            }
+
             switch (row.Type)
             {
+                case "SplineStart":
+                    if (hasOpenSubpath)
+                    {
+                        spline = BeginSpline(currentPoint, row.Cells);
+                    }
+
+                    break;
+
+                case "SplineKnot":
+                    if (spline is not null)
+                    {
+                        AddSplineKnot(spline, row.Cells);
+                    }
+                    else
+                    {
+                        // Reported whether or not a subpath is open (a knot before the first
+                        // MoveTo is just as orphaned).
+                        ReportUnsupported(
+                            "vsdx-geometry-row-SplineKnot",
+                            "A SplineKnot row without a preceding SplineStart row is not supported and was skipped.");
+                    }
+
+                    break;
+
+                case "NURBSTo":
+                    if (hasOpenSubpath)
+                    {
+                        if (TryAppendNurbsTo(builder, currentPoint, row.Cells, width, height, out var nurbsEnd))
+                        {
+                            currentPoint = nurbsEnd;
+                        }
+                        else
+                        {
+                            ReportUnsupported(
+                                "vsdx-geometry-row-NURBSTo",
+                                "A NURBSTo row has a missing, malformed or oversized NURBS formula, or a missing, non-finite or non-positive-weight X, Y, A, B, C or D cell, and was skipped.");
+                        }
+                    }
+
+                    break;
+
+                case "PolylineTo":
+                    if (hasOpenSubpath)
+                    {
+                        if (TryAppendPolylineTo(builder, row.Cells, width, height, out var polylineEnd))
+                        {
+                            currentPoint = polylineEnd;
+                        }
+                        else
+                        {
+                            ReportUnsupported(
+                                "vsdx-geometry-row-PolylineTo",
+                                "A PolylineTo row has a missing, malformed or oversized POLYLINE formula, or a missing or non-finite X or Y cell, and was skipped.");
+                        }
+                    }
+
+                    break;
+
                 case "MoveTo":
                     currentPoint = ToLocalPoint(row.Cells.GetDouble("X"), row.Cells.GetDouble("Y"));
                     builder.MoveTo(currentPoint);
@@ -134,9 +223,9 @@ public sealed partial class VsdxDocument
                     break;
 
                 default:
-                    // Unrecognized geometry row type (for example NURBSTo, InfiniteLine,
-                    // SplineStart/SplineKnot, PolylineTo; Ellipse and RelCubBezTo are recognized
-                    // above): per
+                    // Unrecognized geometry row type (for example InfiniteLine; the curve rows
+                    // NURBSTo, PolylineTo, SplineStart/SplineKnot, Ellipse and RelCubBezTo are
+                    // recognized above): per
                     // canvas-net-vsdx.md's Risk Control Measures ("an unrecognized ... construct
                     // is tolerantly skipped rather than failing the whole parse"), this row is
                     // silently skipped, leaving the pen position exactly where the previous
@@ -149,6 +238,11 @@ public sealed partial class VsdxDocument
                         $"Geometry row type '{row.Type}' is not supported and was skipped.");
                     break;
             }
+        }
+
+        if (spline is not null)
+        {
+            FlushSpline(builder, spline);
         }
 
         return new VsdxGeometrySection(

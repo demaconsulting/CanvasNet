@@ -454,6 +454,7 @@ public sealed partial class PdfDocument
 
         var componentCount = ComponentCount(colorSpace);
         var indexed = colorSpace.Kind == PdfColorSpace.Family.Indexed;
+        RejectExplicitLabDecode(stream, colorSpace);
         if (indexed && bitsPerComponent == 16)
         {
             throw new UnsupportedImageFeatureException(
@@ -479,17 +480,158 @@ public sealed partial class PdfDocument
 
         var surface = new Surface(width, height);
         var rowBytes = componentCount * width;
+
+        // A 1-component image only has 256 possible sample values: convert each once (exact), so
+        // calibrated/gamma spaces are not recomputed per pixel. Multi-component CIE-based images
+        // memoize the previous pixel, since neighboring samples are frequently identical.
+        var lut = componentCount == 1 ? BuildSampleLookup(colorSpace) : null;
+        var memoizing = componentCount > 1
+            && colorSpace.Kind is PdfColorSpace.Family.CalRGB or PdfColorSpace.Family.Lab;
+
+        // A multi-component DeviceN image evaluates a tint-transform function per distinct pixel:
+        // bound the work with a memo cache and a per-image evaluation budget (fail closed).
+        var tintConverter = componentCount > 1 && colorSpace.Kind == PdfColorSpace.Family.DeviceN
+            ? new TintImageConverter(colorSpace, MaxTintImageEvaluationCost)
+            : null;
+        var previousOffset = -1;
+        var previousColor = default(Rgba32);
         for (var y = 0; y < height; y++)
         {
             var rowOffset = y * rowBytes;
             for (var x = 0; x < width; x++)
             {
                 var pixelOffset = rowOffset + (x * componentCount);
-                surface[x, y] = SamplesToColor(colorSpace, samples, pixelOffset, componentCount);
+                if (lut is not null)
+                {
+                    if (pixelOffset >= samples.Length)
+                    {
+                        throw new InvalidDataException("Image XObject sample data is truncated.");
+                    }
+
+                    surface[x, y] = lut[samples[pixelOffset]];
+                    continue;
+                }
+
+                if (tintConverter is not null)
+                {
+                    surface[x, y] = tintConverter.Convert(samples, pixelOffset);
+                    continue;
+                }
+
+                if (memoizing && previousOffset >= 0 && pixelOffset + componentCount <= samples.Length
+                    && samples.AsSpan(pixelOffset, componentCount).SequenceEqual(samples.AsSpan(previousOffset, componentCount)))
+                {
+                    surface[x, y] = previousColor;
+                    continue;
+                }
+
+                var color = SamplesToColor(colorSpace, samples, pixelOffset, componentCount);
+                surface[x, y] = color;
+                previousOffset = pixelOffset;
+                previousColor = color;
             }
         }
 
-        return new DecodedImage(surface, componentCount == 1 && !indexed);
+        return new DecodedImage(surface, colorSpace.Kind == PdfColorSpace.Family.DeviceGray);
+    }
+
+    /// <summary>
+    ///     The per-image budget for uncached tint-transform evaluations of a multi-component
+    ///     <c>/DeviceN</c> image, in estimated function-cost units (see
+    ///     <see cref="IPdfMultiFunction.EstimatedCost"/>); exceeding it fails closed with feature
+    ///     <c>pdf-image-tint-budget</c>.
+    /// </summary>
+    internal const long MaxTintImageEvaluationCost = 1L << 30;
+
+    /// <summary>The maximum number of distinct sample tuples memoized per image by <see cref="TintImageConverter"/>.</summary>
+    internal const int MaxTintImageCacheEntries = 1 << 16;
+
+    /// <summary>
+    ///     Converts the pixels of a multi-component <c>/DeviceN</c> image through its tint transform,
+    ///     memoizing results by the raw sample tuple in a bounded cache and charging every uncached
+    ///     evaluation against a work budget.
+    /// </summary>
+    internal sealed class TintImageConverter(PdfColorSpace colorSpace, long budget)
+    {
+        private readonly Dictionary<(ulong, ulong, ulong, ulong), Rgba32> _cache = [];
+        private readonly int _count = colorSpace.ColorantNames.Length;
+        private readonly long _costPerEvaluation = Math.Max(1L, colorSpace.TintFunction?.EstimatedCost ?? 1L);
+        private long _spent;
+
+        /// <summary>The number of uncached tint-function evaluations performed so far.</summary>
+        internal int EvaluationCount { get; private set; }
+
+        /// <summary>The number of entries currently memoized.</summary>
+        internal int CacheCount => _cache.Count;
+
+        /// <summary>Converts the pixel whose component samples start at <paramref name="offset"/>.</summary>
+        /// <exception cref="UnsupportedImageFeatureException">Thrown (feature <c>pdf-image-tint-budget</c>) when the evaluation budget is exceeded.</exception>
+        internal Rgba32 Convert(byte[] samples, int offset) => Convert(samples, offset, useCache: true);
+
+        /// <summary>Converts a pixel, optionally bypassing the memo cache (used to prove cache transparency).</summary>
+        internal Rgba32 Convert(byte[] samples, int offset, bool useCache)
+        {
+            if (offset < 0 || offset + _count > samples.Length)
+            {
+                throw new InvalidDataException("Image XObject sample data is truncated.");
+            }
+
+            var key = default((ulong, ulong, ulong, ulong));
+            if (useCache)
+            {
+                ulong a = 0, b = 0, c = 0, d = 0;
+                for (var i = 0; i < _count; i++)
+                {
+                    var v = (ulong)samples[offset + i] << (8 * (i & 7));
+                    switch (i >> 3)
+                    {
+                        case 0: a |= v; break;
+                        case 1: b |= v; break;
+                        case 2: c |= v; break;
+                        default: d |= v; break;
+                    }
+                }
+
+                key = (a, b, c, d);
+                if (_cache.TryGetValue(key, out var hit))
+                {
+                    return hit;
+                }
+            }
+
+            _spent += _costPerEvaluation;
+            if (_spent > budget)
+            {
+                throw new UnsupportedImageFeatureException(
+                    "pdf-image-tint-budget",
+                    "A /DeviceN image requires more tint-transform work than the per-image budget allows.");
+            }
+
+            EvaluationCount++;
+            var color = SamplesToColor(colorSpace, samples, offset, _count);
+            if (useCache && _cache.Count < MaxTintImageCacheEntries)
+            {
+                _cache[key] = color;
+            }
+
+            return color;
+        }
+    }
+
+    /// <summary>
+    ///     Builds the exact 256-entry sample-to-color table of a single-component color space.
+    /// </summary>
+    private static Rgba32[] BuildSampleLookup(PdfColorSpace colorSpace)
+    {
+        var table = new Rgba32[256];
+        var one = new byte[1];
+        for (var i = 0; i < table.Length; i++)
+        {
+            one[0] = (byte)i;
+            table[i] = SamplesToColor(colorSpace, one, 0, 1);
+        }
+
+        return table;
     }
 
     /// <summary>The decoder limits for JPX images: the renderer's maximum image dimensions.</summary>
@@ -593,6 +735,7 @@ public sealed partial class PdfDocument
         }
 
         var indexed = colorSpace.Kind == PdfColorSpace.Family.Indexed;
+        RejectExplicitLabDecode(stream, colorSpace);
         var samples = jp2.ColorSamples;
         var useAlpha = smaskInData != 0 && jp2.AlphaSamples is not null && stream.Get("SMask") is null;
         if (useAlpha && smaskInData == 2)
@@ -630,7 +773,7 @@ public sealed partial class PdfDocument
             surface[i % jp2.Width, i / jp2.Width] = color;
         }
 
-        return new DecodedImage(surface, componentCount == 1 && !indexed);
+        return new DecodedImage(surface, colorSpace.Kind == PdfColorSpace.Family.DeviceGray);
     }
 
     /// <summary>
@@ -882,7 +1025,7 @@ public sealed partial class PdfDocument
             }
         }
 
-        return new DecodedImage(surface, !indexed);
+        return new DecodedImage(surface, colorSpace.Kind == PdfColorSpace.Family.DeviceGray);
     }
 
     /// <summary>
@@ -905,13 +1048,33 @@ public sealed partial class PdfDocument
             return IndexedToColor(colorSpace, decoded[offset]);
         }
 
-        Span<double> components = count <= 4 ? stackalloc double[count] : new double[count];
+        Span<double> components = count <= MaxStackColorComponents ? stackalloc double[count] : new double[count];
         for (var i = 0; i < count; i++)
         {
             components[i] = decoded[offset + i] / 255.0;
         }
 
-        return ColorFromComponentSpan(colorSpace, components);
+        return ColorFromNormalizedSpan(colorSpace, components);
+    }
+
+    /// <summary>
+    ///     Rejects an explicit <c>/Decode</c> array on a <c>Lab</c> image: <c>Lab</c>'s default
+    ///     decode is <c>[0 100 amin amax bmin bmax]</c> rather than the identity, so an explicit
+    ///     array would need conversion into the normalized-sample convention; that is not
+    ///     implemented and fails closed instead of risking silently wrong colors.
+    /// </summary>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown (feature <c>pdf-image-lab-decode</c>) when <paramref name="colorSpace"/> is
+    ///     <c>Lab</c> and <paramref name="stream"/> has a <c>/Decode</c> entry.
+    /// </exception>
+    private static void RejectExplicitLabDecode(PdfObject stream, PdfColorSpace colorSpace)
+    {
+        if (colorSpace.Kind == PdfColorSpace.Family.Lab && stream.Get("Decode") is not null)
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-image-lab-decode",
+                "An explicit /Decode array on a /Lab image is not supported.");
+        }
     }
 
     /// <summary>
@@ -967,7 +1130,12 @@ public sealed partial class PdfDocument
             {
                 if (window is not null)
                 {
-                    CompositeWindow(window, originX, originY);
+                    var left = pixelToDevice.M31;
+                    var right = left + (pixelToDevice.M11 * image.Width);
+                    var top = pixelToDevice.M32;
+                    var bottom = top + (pixelToDevice.M22 * image.Height);
+                    CompositeWindow(
+                        window, originX, originY, (MathF.Min(left, right), MathF.Min(top, bottom), MathF.Max(left, right), MathF.Max(top, bottom)));
                 }
             }
 
@@ -995,16 +1163,49 @@ public sealed partial class PdfDocument
     ///     Composites a device-aligned resampled image window 1:1 at (<paramref name="originX"/>,
     ///     <paramref name="originY"/>), scaling each pixel's alpha by the current clip coverage.
     /// </summary>
-    private void CompositeWindow(Surface window, int originX, int originY)
+    private void CompositeWindow(Surface window, int originX, int originY, (float Left, float Top, float Right, float Bottom) shape)
     {
         var clip = _gs?.Clip;
+
+        // A rectangle or rectangle-union clip is evaluated geometrically against the device
+        // rectangle of the image (coverage of image-and-clip divided by coverage of the image), so
+        // an image edge coincident with a clip edge is counted once instead of being attenuated by
+        // the edge-pixel coverage of the clip on top of it. Dense (curved) clips keep the
+        // per-pixel product; rotated or skewed images never reach this method.
+        var shapeRects = clip?.GetRectsWithinShape(shape);
+        // One scratch buffer reused for every row (no per-row list or array allocation).
+        var rowRectBuffer = shapeRects is null ? [] : new float[shapeRects.Length];
         for (var y = 0; y < window.Height; y++)
         {
+            var dy = originY + y;
+            var rowRectCount = 0;
+            if (shapeRects is not null)
+            {
+                for (var i = 0; i < shapeRects.Length; i += 4)
+                {
+                    if (shapeRects[i + 1] < dy + 1f && shapeRects[i + 3] > dy)
+                    {
+                        shapeRects.AsSpan(i, 4).CopyTo(rowRectBuffer.AsSpan(rowRectCount));
+                        rowRectCount += 4;
+                    }
+                }
+            }
+
+            var rowRectSpan = rowRectBuffer.AsSpan(0, rowRectCount);
+
+            var rowShape = Drawing.ClipMask.AxisOverlap(dy, shape.Top, shape.Bottom);
             for (var x = 0; x < window.Width; x++)
             {
                 var dx = originX + x;
-                var dy = originY + y;
-                var clipCoverage = clip?.GetCoverage(dx, dy) ?? 1f;
+                var clipCoverage = 1f;
+                if (clip is not null)
+                {
+                    var shapeArea = Drawing.ClipMask.AxisOverlap(dx, shape.Left, shape.Right) * rowShape;
+                    clipCoverage = shapeRects is not null && shapeArea > 1e-6f
+                        ? Math.Min(1f, Drawing.ClipMask.RectsCoverage(rowRectSpan, dx, dy) / shapeArea)
+                        : clip.GetCoverage(dx, dy);
+                }
+
                 if (clipCoverage <= 0f)
                 {
                     continue;

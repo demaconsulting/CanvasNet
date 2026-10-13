@@ -14,10 +14,25 @@ language: en
 
 # Project-specific technical terms and tool names
 words:
+  - Hival
   - Cmaps
+  - unthemed
+  - Unthemed
   - subtables
   - bilinearly
   - stackalloc
+  - Lindbloom
+  - colorant
+  - colorants
+  - devicen
+  - ifelse
+  - idiv
+  - bitshift
+  - multilinear
+  - multilinearly
+  - amax
+  - bmin
+  - bmax
   - prefilter
   - prefiltered
   - resampler

@@ -138,6 +138,16 @@ single-pixel PNG. Confirms the shape is parsed into the slide's shape tree as a 
 that `Render` decodes and composites the embedded image onto the output surface at the expected
 location, driven entirely through the public `PptxDocument` surface.
 
+### Integration: Images Metafile Picture Is Skipped Reported And Strict Throws
+
+**Test**: `CanvasNetPptx_SystemIntegration_Images_MetafilePictureIsSkippedReportedAndStrictThrows`
+
+Exercises end-to-end system behavior for EMF/WMF picture tolerance: opens a full presentation
+package whose one slide contains an opaque full-slide shape followed by a `<p:pic>` referencing an
+embedded EMF. Confirms `Render` skips the picture while the other shape still paints, reports
+exactly one `"pptx-image-metafile"` skip through `OnUnsupportedPictureSkipped`, and that
+`StrictUnsupportedPictures = true` makes `Render` throw `PptxUnsupportedFeatureException`.
+
 ### Integration: Tables Graphic Frame Parses And Renders Cell Fill End To End
 
 **Test**: `CanvasNetPptx_SystemIntegration_Tables_GraphicFrameParsesAndRendersCellFillEndToEnd`

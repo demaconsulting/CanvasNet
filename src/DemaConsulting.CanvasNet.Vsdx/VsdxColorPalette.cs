@@ -159,7 +159,7 @@ internal static class VsdxColorPalette
 
             VsdxDocument.ReportUnsupported(
                 "vsdx-themed-color",
-                "A 'Themed' color could not be resolved against the document theme; a neutral gray is drawn instead.");
+                "A 'Themed' color could not be resolved against the document theme or the 'No Style' StyleSheet; a neutral gray is drawn instead.");
             return ThemedFallback;
         }
 
@@ -177,6 +177,17 @@ internal static class VsdxColorPalette
 
         return fallback;
     }
+
+    /// <summary>
+    ///     Determines whether <paramref name="formula"/> is a <c>THEMEVAL("slotName")</c>
+    ///     reference that <see cref="Resolve(string?, string?, VsdxTheme?, Rgba32)"/> resolves
+    ///     against <paramref name="theme"/>.
+    /// </summary>
+    /// <param name="formula">The cell's raw <c>F</c> value, or <see langword="null"/>.</param>
+    /// <param name="theme">The document's parsed theme, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when the formula names a canonical slot the theme resolves.</returns>
+    public static bool ResolvesThemeSlot(string? formula, VsdxTheme? theme) =>
+        theme is not null && formula is not null && TryMatchThemeValSlot(formula, theme, out _);
 
     /// <summary>
     ///     Searches <paramref name="formula"/> for the exact literal substring

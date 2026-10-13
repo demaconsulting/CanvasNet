@@ -305,13 +305,14 @@ public static partial class SvgCodec
         // ComputeEffectsPipelineWorkUnits's remarks for why a single one-buffer charge previously
         // under-charged a combined clip+mask (or clip/mask+filter) element.
         var workUnits = ComputeEffectsPipelineWorkUnits(
-            filterApplies, primitiveCount, clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
+            filterApplies, primitiveCount, filterElement != null && FilterUsesSourceAlpha(filterElement), clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
         if (!filterWorkBudget.TryCharge(workUnits))
         {
             RenderShape(localPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
             return;
         }
 
+        filterWorkBudget.RecordSurfaceAllocated(pixelWidth, pixelHeight);
         var content = new Surface(pixelWidth, pixelHeight);
         var localToTemp = transform * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
         var tempContext = context with { Surface = content };
@@ -326,7 +327,7 @@ public static partial class SvgCodec
         // Per SVG's defined ordering, clip-path is applied before mask, and both before filter
         if (clipPathElement != null)
         {
-            ApplyClipPath(clipPathElement, content, rawBounds, pixelX, pixelY, transform, state, context, workBudget);
+            ApplyClipPath(clipPathElement, content, rawBounds, pixelX, pixelY, transform, state, context, workBudget, filterWorkBudget);
         }
 
         if (maskElement != null)
@@ -1074,7 +1075,7 @@ public static partial class SvgCodec
         // Load call, and the charge covers every offscreen buffer this application will actually
         // allocate - see ComputeEffectsPipelineWorkUnits's remarks
         var workUnits = ComputeEffectsPipelineWorkUnits(
-            filterApplies, primitiveCount, clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
+            filterApplies, primitiveCount, filterElement != null && FilterUsesSourceAlpha(filterElement), clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
         if (!filterWorkBudget.TryCharge(workUnits))
         {
             foreach (var child in children)
@@ -1085,6 +1086,7 @@ public static partial class SvgCodec
             return;
         }
 
+        filterWorkBudget.RecordSurfaceAllocated(pixelWidth, pixelHeight);
         var content = new Surface(pixelWidth, pixelHeight);
         var localToTemp = childrenTransform * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
         var tempContext = context with { Surface = content };
@@ -1100,7 +1102,7 @@ public static partial class SvgCodec
         // Per SVG's defined ordering, clip-path is applied before mask, and both before filter
         if (clipPathElement != null)
         {
-            ApplyClipPath(clipPathElement, content, localBounds, pixelX, pixelY, childrenTransform, state, context, workBudget);
+            ApplyClipPath(clipPathElement, content, localBounds, pixelX, pixelY, childrenTransform, state, context, workBudget, filterWorkBudget);
         }
 
         if (maskElement != null)
@@ -1375,6 +1377,10 @@ public static partial class SvgCodec
     ///     <see cref="CountFilterPrimitiveWorkUnits"/>; ignored when <paramref name="filterApplies"/>
     ///     is <see langword="false"/>.
     /// </param>
+    /// <param name="sourceAlphaUsed">
+    ///     Whether any primitive references <c>SourceAlpha</c>, which allocates one more shared
+    ///     region-area-sized buffer; ignored when <paramref name="filterApplies"/> is <see langword="false"/>.
+    /// </param>
     /// <param name="clipPathApplies">
     ///     Whether a <c>clip-path</c> element is present and will therefore cause
     ///     <see cref="ApplyClipPath"/> to allocate its own additional region-area-sized <c>coverage</c>
@@ -1393,6 +1399,7 @@ public static partial class SvgCodec
     private static long ComputeEffectsPipelineWorkUnits(
         bool filterApplies,
         int primitiveCount,
+        bool sourceAlphaUsed,
         bool clipPathApplies,
         bool maskApplies,
         int pixelWidth,
@@ -1403,7 +1410,17 @@ public static partial class SvgCodec
         // The "content"/SourceGraphic buffer's own portion - scaled by the filter's own primitive
         // count when a filter applies, exactly as this codec charged before Phase 2 introduced
         // combinable clip-path/mask
-        var contentWorkUnits = filterApplies ? (long)primitiveCount * regionArea : regionArea;
+        // The content buffer itself is one further region-area unit on top of the primitive units
+        // (primitive outputs and subregion clip copies), plus one for the lazily built SourceAlpha
+        // buffer when a primitive references it. These fixed units are deliberately NOT part of
+        // primitiveCount, so they never count toward MaxFilterPrimitivesPerFilter.
+        var contentSurfaces = filterApplies ? (long)primitiveCount + 1 : 1;
+        if (filterApplies && sourceAlphaUsed)
+        {
+            contentSurfaces++;
+        }
+
+        var contentWorkUnits = contentSurfaces * regionArea;
 
         // One additional flat region-area unit for each of clip-path/mask's own separate
         // offscreen buffer, since neither buffer's cost scales with the filter's primitive count
@@ -1582,18 +1599,49 @@ public static partial class SvgCodec
     ///     <c>feConvolveMatrix</c> child counts as <c>orderX * orderY</c> (at least 1), reflecting
     ///     its O(order<sup>2</sup> &#215; region-area) per-primitive cost; and a <c>feTurbulence</c>
     ///     child counts as its own resolved <c>numOctaves</c> (at least 1), reflecting its
-    ///     O(numOctaves &#215; region-area) per-primitive cost.
+    ///     O(numOctaves &#215; region-area) per-primitive cost. Every primitive that declares an
+    ///     explicit subregion (<c>x</c>/<c>y</c>/<c>width</c>/<c>height</c>) is charged one further
+    ///     unit for the region-sized copy <see cref="ClipPrimitiveOutputToSubregion"/> allocates, so
+    ///     the upfront check and the cumulative charge cover every surface the chain allocates.
     /// </summary>
     /// <param name="filterElement">The resolved <c>filter</c> element.</param>
     /// <returns>The total primitive-equivalent work-unit count.</returns>
     private static int CountFilterPrimitiveWorkUnits(XElement filterElement) =>
-        filterElement.Elements().Sum(primitive => primitive.Name.LocalName switch
+        filterElement.Elements().Sum(primitive => (primitive.Name.LocalName switch
         {
             "feMerge" => Math.Max(1, primitive.Elements().Count(node => node.Name.LocalName == "feMergeNode")),
             "feConvolveMatrix" => Math.Max(1, GetConvolveMatrixOrder(primitive).X * GetConvolveMatrixOrder(primitive).Y),
             "feTurbulence" => Math.Max(1, ResolveTurbulenceNumOctaves(primitive)),
             _ => 1
-        });
+        })
+
+            // A primitive with an explicit x/y/width/height subregion additionally allocates one
+            // region-sized clip copy (ClipPrimitiveOutputToSubregion), so it is charged one more unit.
+            + (PrimitiveDeclaresSubregion(primitive) ? 1 : 0));
+
+    /// <summary>
+    ///     Determines whether any input <see cref="EvaluateFilterChain"/> resolves names <c>SourceAlpha</c>
+    ///     (which builds one shared region-sized alpha buffer). The scan mirrors the executor exactly:
+    ///     every primitive's <c>in</c> is resolved; <c>in2</c> is resolved only by <c>feComposite</c>,
+    ///     <c>feBlend</c> and <c>feDisplacementMap</c>; and each <c>feMergeNode</c> child of an
+    ///     <c>feMerge</c> resolves its own <c>in</c>.
+    /// </summary>
+    /// <param name="filterElement">The resolved <c>filter</c> element.</param>
+    /// <returns><see langword="true"/> if <c>SourceAlpha</c> is referenced.</returns>
+    private static bool FilterUsesSourceAlpha(XElement filterElement) =>
+        filterElement.Elements().Any(primitive =>
+            IsSourceAlphaName(primitive, "in") ||
+            (primitive.Name.LocalName is "feComposite" or "feBlend" or "feDisplacementMap" &&
+                IsSourceAlphaName(primitive, "in2")) ||
+            (primitive.Name.LocalName == "feMerge" &&
+                primitive.Elements().Any(node => node.Name.LocalName == "feMergeNode" && IsSourceAlphaName(node, "in"))));
+
+    /// <summary>Determines whether <paramref name="element"/>'s <paramref name="attributeName"/> is exactly <c>SourceAlpha</c>.</summary>
+    /// <param name="element">The element to inspect.</param>
+    /// <param name="attributeName">The attribute name.</param>
+    /// <returns><see langword="true"/> if the attribute equals <c>SourceAlpha</c>.</returns>
+    private static bool IsSourceAlphaName(XElement element, string attributeName) =>
+        string.Equals((string?)element.Attribute(attributeName), "SourceAlpha", StringComparison.Ordinal);
 
     /// <summary>
     ///     Evaluates <paramref name="filterElement"/>'s <c>fe*</c> primitive children, in document
@@ -1651,6 +1699,12 @@ public static partial class SvgCodec
         Surface? previousResult = null;
         Surface? sourceAlpha = null;
 
+        Surface BuildTrackedSourceAlpha()
+        {
+            filterWorkBudget.RecordSurfaceAllocated(sourceGraphic.Width, sourceGraphic.Height);
+            return BuildSourceAlpha(sourceGraphic);
+        }
+
         Surface ResolveInput(string? name, out PixelRect subregion)
         {
             if (string.IsNullOrEmpty(name))
@@ -1668,7 +1722,7 @@ public static partial class SvgCodec
             if (string.Equals(name, "SourceAlpha", StringComparison.Ordinal))
             {
                 subregion = fullRegion;
-                return sourceAlpha ??= BuildSourceAlpha(sourceGraphic);
+                return sourceAlpha ??= BuildTrackedSourceAlpha();
             }
 
             if (results.TryGetValue(name, out var namedResult))
@@ -1793,8 +1847,16 @@ public static partial class SvgCodec
                     break;
             }
 
+            // Every primitive that produces a new buffer allocates one region-sized surface;
+            // a pass-through (the unrecognized-primitive default) allocates nothing.
+            if (!ReferenceEquals(output, input))
+            {
+                filterWorkBudget.RecordSurfaceAllocated(sourceGraphic.Width, sourceGraphic.Height);
+            }
+
             if (primitiveHasSubregion)
             {
+                filterWorkBudget.RecordSurfaceAllocated(sourceGraphic.Width, sourceGraphic.Height);
                 output = ClipPrimitiveOutputToSubregion(output, primitiveSubregion);
                 outputSubregion = primitiveSubregion;
             }

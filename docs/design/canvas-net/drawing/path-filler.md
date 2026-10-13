@@ -258,7 +258,8 @@ approximation converging only as the sample count grows.
      associative/commutative regardless of the order in which edges cross one another. No
      comparison between edges' `x`-positions is ever needed, so crossing and self-intersecting
      edges are handled correctly by construction, not merely assumed absent.
-   - **Accepted trade-off: exactly coincident/duplicate edges within the same cell.** Because each
+   - **Trade-off: coincident/duplicate edges within the same cell (exact for `EvenOdd` vertical edges,
+     below).** Because each
      edge's contribution is accumulated independently rather than resolved against a per-cell
      winding decision first, two edges that occupy the same, or overlapping, sub-pixel position
      within one cell (for example, an identical polygon submitted twice, or two distinct
@@ -267,7 +268,27 @@ approximation converging only as the sample count grows.
      `ResolveCoverage` folds the total back into `[0, 1]` - this is the same documented, accepted
      behavior of AGG/FreeType/`stb_truetype` for coincident/overlapping contours within one cell,
      and is a materially rarer case in practice than ordinary self-intersecting geometry, which is
-     why this trade-off is accepted in exchange for fixing the crossing-edge bug above.
+     why this trade-off is accepted in exchange for fixing the crossing-edge bug above. For
+     `NonZero` the clamp makes the result exact for coincident edges anyway; for `EvenOdd` the
+     next bullet removes the trade-off for vertical edges.
+   - **Fix: exact parity resolution of `EvenOdd` cells holding several vertical edges.** The fold
+     of a cell's summed cover/area is only valid while the winding value inside the cell stays on
+     one linear piece of the triangle wave. Several edges in one cell violate that: four
+     coincident edges at a fractional `x` sum to a raw `0.784` where the true even-parity
+     coverage is `0`, which painted a full-height column of ink along the shared left edge of
+     stacked even-odd rectangles at every device size where that edge is not pixel-aligned (ink
+     7-19 % above the exact area). Under `EvenOdd` only, `AccumulateEdge` records, for every
+     single-column edge spanning the whole row (or sub-row interval), the cell and the in-cell `x`
+     (`_cellEntries`, `_cellEdgeCount`), and marks cells touched by a slanted or partial-height
+     edge as unsafe (`_cellUnsafe`). When a cell holds two or more recorded edges and is not
+     unsafe, `TryResolveDirtyCell` takes the winding parity left of the cell
+     (`round(accumulatedCover / height)`), toggles it at each edge's sorted in-cell `x`, and
+     returns the odd-parity length - exact for coincident or nested non-crossing vertical edges.
+     If the incoming winding is not within 0.01 of an integer the cell falls back to the fold.
+     `NonZero` rows and `EvenOdd` cells without two or more vertical edges follow the original
+     code path unchanged (the counter arrays are allocated and touched only for `EvenOdd`).
+     Known limit: a cell that also holds a slanted or partial-height edge, with several other
+     edges crossing within it, keeps the fold approximation.
    - **Fix: exact sub-row splitting for multiple `EvenOdd` toggles within one row.**
      `ResolveCoverage`'s `EvenOdd` fold collapses a single scalar - the row-height-weighted
      integral of winding number over the row - into a parity value via `magnitude % 2` (reflected
@@ -419,10 +440,28 @@ between fill edge and clip edge (coincident, crossing or unrelated), because the
 conserves area. `CoverageSweep` then restricts its swept column/row range to the clip's
 whole-pixel bounds (edges outside the range are still handled analytically by the accumulation
 overflow logic) and, after each row's coverage is resolved, multiplies _only_ the dense buffer's
-row (if any) per column. Known residual: a dense (non-rectangular) clip still multiplies, which
+row (if any) per column. A clip made only of axis-aligned rectangles (an even-odd ring or band,
+overlapping non-zero rectangles; up to 256 rectangle subpaths) is additionally decomposed, by
+a sweep over horizontal slabs (sorted open/close events per slab, then run merging), into at most
+1024 _disjoint pieces_ (`HasPieces`; up to 256 rectangle subpaths).
+`TryClipPolygonsToRect` then clips the fill polygons to each piece overlapping the polygons' bounding box
+(a cheap reject, so cost scales with the overlapping pieces) and concatenates the results
+(pieces are disjoint, so the rasterizer's signed-area accumulation sums coverage exactly across
+shared piece edges) and the dense buffer is _not_ multiplied for fills (it still backs
+`GetCoverage` for images). `Intersect` keeps pieces for rectangle x union (each piece restricted)
+and union x union (pairwise overlap, falling back to the dense product above 1024 pieces); any
+operand with curves or rotated edges drops them. This fixed a reported header rule (an even-odd
+fill whose outer bar edge coincides with a `W*` rectangle-band clip) that lost up to 40 % of its
+ink at some render sizes because the dense clip's edge coverage was multiplied into the fill's.
+Known residual: a true dense (curved/rotated) clip still multiplies, which
 is an independence approximation (as in Skia/AGG antialiased clip masks), so a fill edge coincident
-with a non-rectangular clip edge keeps some edge attenuation. Rectangle-clipped images still use
-the per-pixel `GetCoverage` product (`PdfDocument.Images.cs`).
+with a non-rectangular clip edge keeps some edge attenuation. Axis-aligned images under a rectangle
+or rectangle-union clip use `GetRectsWithinShape`: the clip is intersected geometrically with the
+image's device rectangle and each pixel gets `coverage(image and clip) / coverage(image)`, so an
+image edge coincident with a clip edge is counted once (`PdfDocument.Images.cs`). Known limits
+(documented, not fixed): dense (curved/rotated) clips, clip products beyond 1024 pieces, and
+rotated or skewed images under any clip keep the per-pixel product, with error confined to edge
+pixels where both coverages are fractional (at most 0.25 of a pixel's coverage).
 
 A related rasterizer fix: for `EvenOdd`, `CoverageSweep` now routes a row to the exact sub-row
 splitting path whenever two or more edge boundaries fall strictly inside the row, _even when they

@@ -1260,7 +1260,8 @@ page tree, and reports each page's displayed (rotation-adjusted) size and its pa
 `Render` interprets a page's content stream, painting real path geometry, device color (`rg`/
 `g`/`k`/`cs`/`sc` and related operators, including `/Pattern`-color-space shading and tiling
 pattern fills/strokes - axial/radial/mesh (`/ShadingType 2`-`7`) shading patterns driven by
-`/FunctionType 0`/`2`/`3` functions, and colored/uncolored (`/PaintType 1`/`2`) tiling patterns
+`/FunctionType 0` (including multi-input), `2`, `3` and `4` (PostScript calculator) functions, and
+colored/uncolored (`/PaintType 1`/`2`) tiling patterns
 rendering a repeating tile), placed image XObjects (`Do`), and text shown with a simple TrueType
 font (`Tf`/`Td`/`Tj` and the other `BT`/`ET` text operators) onto the returned `Surface`. A font
 with an embedded `/FontDescriptor/FontFile2` stream is always used directly;
@@ -1287,11 +1288,34 @@ meaningful generic-family
 equivalent - it still fails closed with `UnsupportedImageFeatureException`, exactly as a
 non-embedded font of any kind did before this fallback behavior existed. A shading pattern's
 `/Extend` is honored per end (PDF 32000-1 §8.7.4.5.2): an extended end repeats its end color
-beyond the defining geometry, while a non-extended end (the default) paints nothing past it; the
+beyond the defining geometry, while a non-extended end (the default) paints nothing past it;
+stitching-function boundaries render as sharp transitions, and a mesh shading's `/Function` is
+applied to the interpolated parametric value (through a 4096-entry color table whose entries are
+each converted from the function output at their exact parameter, so nonlinear color spaces are
+converted after evaluation). A function-less mesh in `/CalGray`, `/CalRGB` or `/Lab` interpolates the
+vertex components in that space and converts per pixel; other mesh color spaces (including
+`/DeviceCMYK`, `/Separation`, `/DeviceN`) convert each vertex first and blend the RGB result, an
+approximation. Axial and radial shadings convert up to 256 samples exactly and blend only between
+adjacent samples (within about 3 color levels of direct conversion for `/Lab`). A non-integral
+`/N` of an `/ICCBased` space or `/Hival` of an `/Indexed` space is rejected as malformed. The
 `sh` operator and generic path
-clipping (`W`/`W*`) are supported. **Documented scope
-boundaries**: `/MMType1` fonts, function-based shadings (`/ShadingType 1`), `/FunctionType 4`
-(PostScript calculator) functions, transparency groups,
+clipping (`W`/`W*`) are supported. Device, `/CalGray`, `/CalRGB`, `/Lab`, `/ICCBased`, `/Indexed`,
+`/Separation`, `/DeviceN` and `/Pattern` color spaces are supported; `/CalGray`, `/CalRGB` and `/Lab`
+color spaces are converted to
+sRGB through a CIE XYZ pipeline (note: `/CalRGB` was previously treated as plain `DeviceRGB`, so
+colors in such documents may now differ). `/ICCBased` spaces are resolved by their `/N` component
+count (or a matching `/Alternate`); the ICC profile data itself is not applied. An image in a `/Lab`
+color space with an explicit `/Decode` array fails closed (feature `pdf-image-lab-decode`).
+`/Separation` and `/DeviceN` colors (operators, images, `/Indexed` palettes and shadings) are
+evaluated through their tint-transform function (types 0 including multi-input, 2, 3 and 4
+PostScript calculator, under hard resource limits) and converted via the alternate space;
+`/None` colorants paint nothing, and an alternate that is itself Pattern/Indexed/Separation/DeviceN
+fails closed.
+A multi-component `/DeviceN` image has a bounded per-image tint-evaluation budget; an image whose
+distinct pixels would exceed it fails closed (feature `pdf-image-tint-budget`). ICC profile data is
+never applied - only `/N`/`/Alternate` are used - and this is silent (no exception is thrown).
+**Documented scope boundaries**: `/MMType1` fonts, function-based shadings (`/ShadingType 1`),
+transparency groups,
 and Type 3 glyphs shown under a clip text-rendering mode (`Tr 4`-`7`; clip modes with outline-based
 fonts are supported) all fail closed with `UnsupportedImageFeatureException`
 rather than being silently skipped or mis-rendered.
@@ -1475,9 +1499,12 @@ render are never skipped silently: set `VsdxRenderOptions.UnsupportedFeatureHand
 instead (rendering is tolerant by default). **Documented scope boundaries**: embedded images/foreign
 shapes, non-trivial theme-variation resolution, non-solid fill-pattern combinations beyond solid
 (including any gradient approximation), the full arrowhead style-index table, and a handful of
-rarely-encountered geometry row types (`NURBSTo`, `InfiniteLine`, `SplineStart`/
-`SplineKnot`, `PolylineTo`) are tolerated (the row/feature is skipped, never thrown) but
-not resolved into their own path segments or paint - see `canvas-net-vsdx.md`'s Design Constraints
+rarely-encountered geometry row types (`InfiniteLine`) are tolerated (the row/feature is skipped
+and reported, never thrown) but not resolved into their own path segments or paint.
+`PolylineTo`, `NURBSTo` and `SplineStart`/`SplineKnot` rows are drawn as flattened line segments
+(bounded by hard limits on control points, degree and segments; a curve that cannot be evaluated
+exactly is approximated by a polyline and reported as `vsdx-geometry-spline-approximated`) - see
+`canvas-net-vsdx.md`'s Design Constraints
 section for the complete deferred-feature boundary.
 
 ```csharp
@@ -2365,6 +2392,25 @@ When rendering a `.pptx` presentation via the separate `DemaConsulting.CanvasNet
 `PptxDocument.Render`, an embedded `<p:graphicFrame>` chart is automatically located, parsed via
 `OpenXmlChartParser`, rendered via `ChartRenderer`, and composited onto the slide - no extra
 caller code is required beyond calling `PptxDocument.Render` itself.
+
+### PPTX EMF/WMF Pictures
+
+`PptxDocument.Render` cannot draw EMF/WMF vector metafile pictures (a known gap). By default, a
+slide's `<p:pic>` whose media is an EMF or WMF is skipped - nothing is drawn for that picture and
+the rest of the slide renders normally. To learn which pictures were skipped, set
+`PptxRenderOptions.OnUnsupportedPictureSkipped` (it reports only the slide's own or group-nested
+pictures; EMF/WMF pictures on a layout or master are skipped silently in both modes); to keep the
+previous fail-closed behavior, set
+`PptxRenderOptions.StrictUnsupportedPictures = true`, which makes `Render` throw
+`PptxUnsupportedFeatureException` (`Feature` is `"pptx-image-metafile"`).
+
+```csharp
+var options = new PptxRenderOptions
+{
+    OnUnsupportedPictureSkipped = ex => Console.WriteLine($"Skipped picture: {ex.Message}"),
+};
+using var surface = document.Render(0, 96f, options);
+```
 
 # Examples
 

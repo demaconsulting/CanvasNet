@@ -40,10 +40,12 @@ unit's own delivery follows.
   its effective (post-Master/MasterShape-merge, post-StyleSheet-chain-resolved) cell set
   (`PinX`/`PinY`/`Width`/`Height`/`LocPinX`/`LocPinY`/`Angle`/`FlipX`/`FlipY`, and for a 1-D shape
   `BeginX`/`BeginY`/`EndX`/`EndY`), its resolved geometry sections (each an ordered list of
-  geometry rows — `MoveTo`/`LineTo`/`RelMoveTo`/`RelLineTo`/`EllipticalArcTo`/`ArcTo` (Milestone 11
-  added `EllipticalArcTo`/`ArcTo` conversion to an `ArcTo` path command, see `ResolveGeometry`
-  below) are converted to path segments, and every other row type including `NURBSTo`/
-  `InfiniteLine` is tolerantly skipped
+  geometry rows — `MoveTo`/`LineTo`/`RelMoveTo`/`RelLineTo`/`EllipticalArcTo`/`ArcTo`/
+  `PolylineTo`/`NURBSTo`/`SplineStart`/`SplineKnot` (Milestone 11 added
+  `EllipticalArcTo`/`ArcTo` conversion to an `ArcTo` path command, and `PolylineTo`/`NURBSTo`/
+  `SplineStart`/`SplineKnot` are flattened to line segments, see `ResolveGeometry`
+  below) are converted to path segments, and every other row type including
+  `InfiniteLine` is tolerantly skipped and reported
   (see Risk Control Measures in `canvas-net-vsdx.md`) — plus the section-level `NoFill`/`NoLine`/
   `NoShow` flags), its resolved line/
   fill style (`LineColor`/`LineWeight`/`LinePattern`/`BeginArrow`/`EndArrow`/`FillForegnd`/
@@ -69,9 +71,9 @@ unit's own delivery follows.
   `VsdxRenderOptions.ThrowOnUnsupportedFeature` opts into strict mode; by default the construct
   degrades tolerantly and is reported through the unsupported-feature handler (see
   _Unsupported-feature reporting_ below). A non-solid `FillPattern` beyond the documented subset
-  (drawn as solid fill) and a dangling `Connect` target (glue resolution skipped) are documented
-  tolerant degradations that are not reported — per the Risk Control Measures in _CanvasNetVsdx
-  System Design_ (`canvas-net-vsdx.md`).
+  (drawn as solid fill) is reported as `vsdx-fill-pattern-<n>`; a dangling `Connect` target (glue
+  resolution skipped) is a documented tolerant degradation that is not reported — per the Risk
+  Control Measures in _CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`).
 
 **Invariants**: `PageCount` and `GetPageSize` are available immediately after `Open` succeeds,
 with no page shape tree resolved yet. A `VsdxShapeNode`'s effective cell set is always fully
@@ -247,7 +249,22 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   `0` ("No Style"), which the format research confirms has no `F="Inh"` cells of its own. A
   literal value of `"Themed"` resolves through the optional parsed theme instead, falling back to
   a neutral default when no theme part is present or the referenced scheme entry is absent (see
-  the Design Constraints deferral in _CanvasNetVsdx System Design_, `canvas-net-vsdx.md`).
+  the Design Constraints deferral in _CanvasNetVsdx System Design_, `canvas-net-vsdx.md`). A
+  _bare_ `"Themed"` line, fill or character-color cell (a `THEMEVAL()` formula that names no
+  theme slot, as in the built-in "Theme" StyleSheet, ID `6`, that real equipment shapes inherit)
+  instead takes the same cell's value from the built-in "No Style" StyleSheet (ID `0`: black
+  line and text, white solid fill, 0.0104 in weight) via `ApplyUnthemedFallback`; this matches
+  Visio's own rendering of such shapes. The neutral gray remains only when StyleSheet `0`
+  supplies no literal value. The `QuickStyle*` theme-index and matrix cells are still not honored.
+  A bare `"Themed"` character `Font` cell (inherited from the same "Theme" StyleSheet) resolves to
+  the theme's minor Latin typeface (`VsdxTheme.MinorLatinFont`, from
+  `a:fontScheme/a:minorFont/a:latin`) only for a literal `"Themed"` value, then to StyleSheet `0`'s
+  `Font`, and only then to the neutral default (`Arial`); a missing `Font` cell keeps the neutral
+  default. A themed character `Color` whose formula names a resolvable theme slot (for example
+  `THEMEVAL("accent1")`) resolves to that theme color; the "No Style" color applies only when the
+  slot cannot be resolved, as in the paint path. Previously the `Themed` font always used the
+  neutral default, so Calibri was never
+  requested. The resolved name is looked up through the ordinary font catalog, unchanged.
   Milestone 10 additionally resolves `FillForegndTrans`/`LineColorTrans` through this same
   `FillStyle`/`LineStyle` chain (a literal `"0..1"` transparency fraction, `0` fully opaque, `1`
   fully transparent) and modulates the resolved `FillForegnd`/`LineColor` color's own alpha
@@ -275,8 +292,39 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   path command reaching the row's own destination point (`AppendEllipticalArcTo`/
   `AppendArcTo`/`TryResolveEllipticalArc`) — a zero-bow `ArcTo` row (`A=0`) degrades to a plain
   `LineTo` to its destination point rather than throwing, since a true zero-radius arc has no
-  well-defined curvature. Every other row type, including `NURBSTo`/`InfiniteLine`, is still
-  skipped (not throwing on) rather than converted.
+  well-defined curvature. `PolylineTo`, `NURBSTo` and `SplineStart`/`SplineKnot` rows are
+  flattened to `LineTo` segments by `VsdxDocument.Splines.cs`: a `NURBSTo` row's `E` cell formula
+  `NURBS(knotLast, degree, xType, yType, x, y, knot, weight, ...)` and a `SplineStart` row
+  (`A`=second knot, `B`=first knot, `C`=last knot, `D`=degree) followed by `SplineKnot` rows
+  (`A`=knot) each yield control points (the pen position is the first), a knot vector and weights
+  for a clamped rational B-spline sampled with de Boor's algorithm; the knot vector is padded
+  with its last value and the degree reduced when too few points exist. `xType`/`yType` of `0`
+  scale a formula point by `Width`/`Height`, `1` means local coordinates. A `PolylineTo` row's
+  `A` cell formula `POLYLINE(xType, yType, x, y, ...)` produces `LineTo` segments with the same
+  unit rule. Hard caps bound the work: 1024 control points, degree 25 and 4096 flattened
+  segments. Invalid knots or degree (for example decreasing knots) degrade the curve to a polyline
+  through its control points and report `vsdx-geometry-spline-approximated`; a malformed or
+  over-cap row is skipped
+  and reported as `vsdx-geometry-row-{Type}`; a `SplineStart` (cells `X`/`Y`/`A`/`B`/`C`/`D`; a
+  valid `D` degree is clamped to 1-25, but a missing or non-finite `D` is never defaulted) or
+  `SplineKnot` (`X`/`Y`/`A`) row whose required cell is missing, malformed or non-finite is
+  likewise skipped and reported rather than accumulated as zero. A `SplineKnot` with no
+  preceding `SplineStart` (including one before the first `MoveTo`) is reported as
+  `vsdx-geometry-row-SplineKnot`. A `SplineStart` with no valid
+  following `SplineKnot` rows is reported as `vsdx-geometry-row-SplineStart` and adds no geometry.
+  A `NURBSTo` row is validated before anything is appended: its `X`, `Y`, `A`, `B`, `C` and `D`
+  cells must be present and finite, and the cell and formula weights positive (a non-positive
+  weight is never flattened or substituted), otherwise the row is
+  skipped atomically and reported as `vsdx-geometry-row-NURBSTo`. A `PolylineTo` row whose `X`/`Y`
+  end point is missing or non-finite is likewise skipped and reported, never drawn to (0, 0).
+  Only knot or degree failures that pass this validation take the reported polyline fallback.
+  More generally, any subpath-continuing row (`LineTo`, `RelLineTo`, `ArcTo`, `EllipticalArcTo`,
+  `RelCubBezTo`, `RelQuadBezTo`, `NURBSTo`, `PolylineTo`, `SplineStart`) that appears before the
+  first `MoveTo`/`RelMoveTo`/`Ellipse` row has no open subpath to extend; it is skipped and reported
+  as `vsdx-geometry-row-{Type}` rather than dropped silently.
+  A group child that has its own `Master` reference
+  and no `MasterShape` match in its parent's master resolves against that master's shape.
+  `InfiniteLine` and any other row type are still skipped (not throwing on) and reported.
 - **`ResolveConnectors(VsdxDocument document, IReadOnlyList<XElement> connects)`** (internal):
   Resolves each `<Connect>` entry's connector shape and target shape; since a connector's own
   `BeginX/BeginY`/`EndX/EndY` cells are already pre-baked, resolved page-space coordinates (by
@@ -321,7 +369,9 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
 
 - **Unsupported-feature reporting** (`VsdxDocument.Diagnostics.cs`): resolvers call
   `ReportUnsupported(token, message)` whenever they degrade a recognized-but-unsupported construct
-  (currently `vsdx-geometry-row-<Type>` for an unrecognized geometry row,
+  (currently `vsdx-geometry-row-<Type>` for an unrecognized or malformed/over-cap geometry row,
+  `vsdx-geometry-spline-approximated` for a spline drawn as a polyline,
+  `vsdx-fill-pattern-<n>` for a gradient/hatch `FillPattern` drawn solid,
   `vsdx-arrowhead-<n>` for an unmapped arrowhead index on a 1-D shape, `vsdx-themed-color` for an
   unresolvable themed color, `vsdx-linepattern-<n>` and `vsdx-linepattern-<n>-approximated` for
   line patterns, `vsdx-text-case-initialcaps` and `vsdx-text-superscript-subscript` for

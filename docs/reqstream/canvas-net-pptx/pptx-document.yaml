@@ -445,7 +445,7 @@ sections:
               A slide-level placeholder frequently declares an empty, self-closing <a:lstStyle/> (no
               <a:lvl{N}pPr> children at all) while its matched layout placeholder declares a real
               override (for example a large title defRPr sz) - confirmed against a real-world deck
-              ("ERF IWF Breadboard Peer Review.pptx", a ctrTitle placeholder) where this
+              (a ctrTitle placeholder) where this
               empty-but-present element silently blocked the layout's 60pt title-size override,
               causing text to render at a smaller, further-downstream fallback size (~28pt) instead.
               This is the exact same bug class PlaceholderXfrmGeometryInheritance already fixed for
@@ -1192,7 +1192,8 @@ sections:
               extension present but with no r:embed of its own with InvalidDataException,
               rejecting a <a:blip> with neither an embed/link attribute nor any recognized
               extension fallback with InvalidDataException, rejecting an unsupported content type
-              with PptxUnsupportedFeatureException (feature token "pptx-image-format"), and shall
+              with PptxUnsupportedFeatureException (feature token "pptx-image-format", or
+              "pptx-image-metafile" for an EMF/WMF content type), and shall
               resolve a <p:blipFill>'s optional <a:srcRect> into a normalized, scaled-fraction
               PptxSrcRect crop rectangle (each edge defaulting to zero/full-extent when its own
               attribute is absent).
@@ -1231,6 +1232,7 @@ sections:
               - ResolvePictureSurface_SvgOnlyBlipExtension_ReturnsDecodedSurfaceFromAsvgSvgBlipEmbed
               - ResolvePictureSurface_SvgBlipExtensionMissingEmbed_ThrowsInvalidDataException
               - ResolvePictureSurface_UnsupportedContentType_ThrowsPptxUnsupportedFeatureExceptionWithImageFormatToken
+              - ResolvePictureSurface_MetafileContentType_ThrowsPptxUnsupportedFeatureExceptionWithMetafileToken
               - ResolvePictureSurface_NullArguments_ThrowsArgumentNullException
 
           - id: CanvasNetPptx-PptxDocument-PicturePainting
@@ -1280,8 +1282,7 @@ sections:
               preserving the original unclipped full-bounding-box-rectangle behavior when
               <p:spPr> declares no geometry at all or explicitly declares the "rect" preset.
             justification: |
-              A confirmed real-world corpus fixture ("ERF IWF and Reagent Probe Breadboard Motion
-              System Overview.pptx") contains <p:pic> picture shapes whose own <a:prstGeom>
+              A confirmed real-world corpus fixture contains <p:pic> picture shapes whose own <a:prstGeom>
               declares a non-rect preset (for example "ellipse"); PowerPoint's own rendering
               visibly crops the embedded image to that shape, while this package previously
               painted every picture as a plain, unclipped full rectangle regardless of its own
@@ -1478,8 +1479,7 @@ sections:
               existing ResolveFill/ResolveLineStyle resolvers for every style-tier color (including
               schemeClr) unchanged.
             justification: |
-              A confirmed real-world corpus fixture ("ERF IWF and Reagent Probe Breadboard Motion
-              System Overview.pptx", slide 23) declares a <a:tbl> with <a:tblPr firstRow="1"
+              A confirmed real-world corpus fixture (slide 23) declares a <a:tbl> with <a:tblPr firstRow="1"
               bandRow="1"><a:tableStyleId>{GUID}</a:tableStyleId></a:tblPr>; PowerPoint's own
               rendering shows a shaded header row, alternating banded row fills, and style-defined
               cell borders, while this package's Phase 1e TableParsing never resolved
@@ -1815,9 +1815,41 @@ sections:
               - Render_MasterPlaceholderShape_DoesNotRenderItsOwnPromptContent
               - Render_LayoutPlaceholderShape_DoesNotRenderItsOwnPromptContent
               - Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent
-              - Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException
+              - Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException
               - Render_MasterSvgOnlyLogoPicture_PaintsVisiblePixelsInsteadOfBeingSkipped
               - PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0AndSlide1PaintContent
+
+          - id: CanvasNetPptx-PptxDocument-MetafilePictureTolerance
+            title: >-
+              The PptxDocument class's Render methods shall, by default, skip a slide's own (or a
+              group-nested) <p:pic> picture shape whose media part has an EMF or WMF content type
+              (image/x-emf, image/emf, image/x-wmf, image/wmf) - painting nothing for that one
+              picture while every other shape of the slide still renders - and shall report each
+              skipped picture by invoking the optional PptxRenderOptions.OnUnsupportedPictureSkipped
+              callback with a PptxUnsupportedFeatureException carrying feature token
+              "pptx-image-metafile"; when PptxRenderOptions.StrictUnsupportedPictures is true, the
+              same picture shall instead make Render throw that PptxUnsupportedFeatureException
+              without invoking the callback. A picture on a slide layout or master that is an
+              EMF or WMF shall be skipped silently in both modes without invoking the callback.
+              A picture with any other unsupported content type
+              shall continue to throw PptxUnsupportedFeatureException (feature token
+              "pptx-image-format") regardless of the option. Rendering EMF/WMF content is a known,
+              documented gap.
+            justification: |
+              PowerPoint commonly embeds pasted charts and diagrams as EMF/WMF pictures. Refusing an
+              entire slide because of one such picture discards every other correctly renderable
+              element, so tolerant skipping gives callers a mostly complete image, while the
+              callback keeps the omission observable and the strict option preserves the previous
+              fail-closed behavior for callers that require it. A distinct feature token lets the
+              tolerance apply to exactly this well-understood case without swallowing other
+              unsupported-format failures.
+            tests:
+              - ResolvePictureSurface_MetafileContentType_ThrowsPptxUnsupportedFeatureExceptionWithMetafileToken
+              - Render_SlideOwnMetafilePicture_SkipsPictureReportsItAndRendersRestOfSlide
+              - Render_MetafilePictureInsideGroup_DefaultOptions_SkipsPictureAndRendersRestOfSlide
+              - Render_SlideOwnMetafilePicture_StrictMode_ThrowsPptxUnsupportedFeatureException
+              - Render_MasterMetafilePicture_SkippedSilentlyWithoutCallbackInBothModes
+              - Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException
 
           - id: CanvasNetPptx-PptxDocument-BulletProperties
             title: >-
@@ -1941,7 +1973,7 @@ sections:
               existing gutter already clears the bullet's own width. A follow-up real-world report
               found that same clamp, while correct for buChar, still insufficient for buAutoNum:
               CanvasNet rendered an auto-numbered marker immediately touching the paragraph's own
-              first word (e.g. "1.3 custom tip geometries"), whereas real PowerPoint shows a
+              first word (e.g. "1.3 sample item text"), whereas real PowerPoint shows a
               clear, word-space-sized gap after the marker. Investigation confirmed
               BuildBulletGlyphs already measures a multi-character auto-number marker's full
               string width correctly (refuting a suspected single-glyph-width regression) - the
@@ -2148,8 +2180,7 @@ sections:
               to the run's own font size, with a double-underline style painting two thinner,
               gapped rectangles instead of one.
             justification: |
-              A real-world corpus fixture ("ERF IWF Breadboard Motion System Overview.pptx",
-              slide 23 "Configurations") contains text runs declaring <a:rPr u="sng"/> that
+              A real-world corpus fixture (slide 23 "Configurations") contains text runs declaring <a:rPr u="sng"/> that
               PowerPoint's own ground-truth rendering shows with a visible single underline, while
               CanvasNet rendered no underline at all: GetUnderline parsed the u attribute into a
               boolean PptxEffectiveRunProperties.Underline, but nothing downstream (layout or
@@ -2201,7 +2232,7 @@ sections:
               cursor by at least a minimal, non-zero amount even when it already sits exactly on a
               tab-stop boundary.
             justification: |
-              A real-world corpus fixture ("ERF IWF Breadboard Peer Review.pptx", slide 9
+              A real-world corpus fixture (slide 9
               "Requirements", the single highest-divergence slide in a full 73-slide pixel-diff
               pass) contains 19 paragraphs whose "numbers" are literal typed digits separated from
               their sentence text by a literal tab character, not a buAutoNum bullet. Tokenize/
@@ -2250,3 +2281,18 @@ sections:
               - PaintPicture_FractionalCropAtOffset_PaintsOnlyInsideFootprint
               - PaintPicture_FractionalCropOnIntegerBoundary_NoContaminationFromExcludedColumn
               - PaintPicture_WithNegativeSrcRectEdges_ReplicatesEdgePixelsIntoOverhang
+
+          - id: CanvasNetPptx-PptxDocument-ShapeOwnListStyle
+            title: >-
+              The PptxDocument class shall honor a non-placeholder shape's own
+              <p:txBody>/<a:lstStyle> level properties (for example lvl1pPr/defRPr sz and algn)
+              when resolving its text, ranking them above the master's otherStyle and below the
+              paragraph's and run's own properties.
+            justification: |
+              A slide master's date and slide-number text box is an ordinary, non-placeholder
+              shape whose 12pt size is declared only in its own lstStyle. Ignoring that list
+              style dropped such a box to the 18pt schema default, so its date field wrapped to
+              a second line and ran off the bottom of the slide, while PowerPoint shows it on
+              one line at 12pt.
+            tests:
+              - Render_MasterNonPlaceholderTextBoxWithOwnLstStyle_HonorsListStyleFontSize

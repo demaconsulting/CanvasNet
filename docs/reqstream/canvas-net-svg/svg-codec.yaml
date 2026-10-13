@@ -670,6 +670,10 @@ sections:
               - SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork
               - SvgCodec_Load_FeMergeExcessiveNodeCount_SkipsFilterRatherThanUnboundedWork
               - SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes
+              - SvgCodec_Load_ClipMaskAndFilter_CountsEveryEffectSurface
+              - SvgCodec_Load_SubregionPrimitiveChain_ChargesClipCopies
+              - SvgCodec_Load_FilterCharge_IncludesContentBufferUnit
+              - SvgCodec_Load_SourceAlphaViaMergeNodeOrIn2_IsCountedAndCharged
 
           - id: CanvasNetSvg-SvgCodec-GroupFilterRendering
             title: >-

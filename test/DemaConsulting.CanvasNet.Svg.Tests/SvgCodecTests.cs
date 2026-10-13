@@ -3,7 +3,6 @@
 // cspell:ignore miterlimit
 // cspell:ignore unparseable overpainted bbox moveto lineto rects unrotated unclipped
 // cspell:ignore pillarbox Pillarboxes sizeless basi unswapped
-using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 using System.Xml.Linq;
@@ -4221,19 +4220,20 @@ public class SvgCodecTests
             </svg>
             """;
 
-        // Act: must complete promptly, without attempting to allocate a huge SourceGraphic
-        // surface for a filter that has no primitives to evaluate
-        var stopwatch = Stopwatch.StartNew();
+        // Act: must not attempt to allocate a huge SourceGraphic surface for a filter that has no
+        // primitives to evaluate
+        var diagnostics = new SvgCodec.RenderDiagnostics();
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 100, 100);
-        stopwatch.Stop();
+        var surface = SvgCodec.LoadWithDiagnostics(stream, 100, 100, diagnostics);
 
         // Assert: the rect rendered its own normal blue fill - the (skipped) empty filter had no
         // effect, the same tolerant per-element fallback used for every other filter resource bound
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
 
-        // Assert: completed promptly, proving no huge temporary surface was ever allocated
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the zero-primitive huge-region filter to be skipped promptly, but it took {stopwatch.Elapsed}.");
+        // Assert: bounded work - no effects surface was ever allocated and no work was charged
+        Assert.Equal(0, diagnostics.EffectSurfacesAllocated);
+        Assert.Equal(0L, diagnostics.EffectPixelsAllocated);
+        Assert.Equal(0L, diagnostics.WorkCharged);
     }
 
     /// <summary>
@@ -4261,23 +4261,20 @@ public class SvgCodecTests
             </svg>
             """;
 
-        // Act: must complete quickly rather than performing 5,000 region-sized blur passes - the
-        // 5-second threshold sits far below the ~26-second pathological baseline this bound
-        // eliminates, while remaining comfortably above normal test-execution variance (a
-        // rejected chain here does no per-primitive work at all: just one cheap element count
-        // plus one multiply/compare, so a healthy run completes in well under a second)
-        var stopwatch = Stopwatch.StartNew();
+        // Act: a rejected chain does no per-primitive work at all (one cheap element count plus
+        // one multiply/compare), so no effects surface may be allocated and nothing charged
+        var diagnostics = new SvgCodec.RenderDiagnostics();
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 100, 100);
-        stopwatch.Stop();
+        var surface = SvgCodec.LoadWithDiagnostics(stream, 100, 100, diagnostics);
 
         // Assert: the rect rendered its own normal blue fill - the (skipped) filter had no
         // effect, the same tolerant per-element fallback used for every other filter resource
         // bound
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
 
-        // Assert: completed promptly, proving the filter was skipped rather than evaluated
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the excessive-primitive-count filter to be skipped promptly, but it took {stopwatch.Elapsed}.");
+        // Assert: bounded work - the filter was skipped rather than evaluated
+        Assert.Equal(0, diagnostics.EffectSurfacesAllocated);
+        Assert.Equal(0L, diagnostics.WorkCharged);
     }
 
     /// <summary>
@@ -4298,11 +4295,12 @@ public class SvgCodecTests
     [Fact]
     public void SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes()
     {
-        // Arrange: a filter chain of 499 no-op (unrecognized primitive name) children plus one
-        // trailing feFlood - 500 primitive-equivalent work units total - evaluated against a
+        // Arrange: a filter chain of 498 no-op (unrecognized primitive name) children plus one
+        // trailing feFlood - 499 primitive-equivalent work units, plus one content-buffer unit
+        // (500 charged surfaces in all) - evaluated against a
         // filter region sized (via explicit 250% width/height overrides on a 40x40 rect) to
         // exactly 100x100 pixels, so each individual application charges exactly
-        // 500 * 100 * 100 = 5,000,000 work units, precisely at (never over) the per-filter
+        // (499 + 1 content) * 100 * 100 = 5,000,000 work units, precisely at (never over) the per-filter
         // MaxFilterPrimitiveWorkUnits ceiling. The unknown primitives are cheap no-op passthrough steps
         // (no per-pixel work at all - see EvaluateFilterChain's remarks), and feFlood's own cost
         // is a single cheap fill over the small 100x100 region, so evaluating this filter even
@@ -4314,7 +4312,7 @@ public class SvgCodecTests
         // must tolerantly fall back to unfiltered rendering instead of throwing.
         const int shapeCount = 13;
         const int filteredShapeCount = 10;
-        var noOpPrimitives = string.Concat(Enumerable.Repeat("<feUnsupportedNoOp/>", 499));
+        var noOpPrimitives = string.Concat(Enumerable.Repeat("<feUnsupportedNoOp/>", 498));
         var rects = string.Concat(Enumerable.Range(0, shapeCount).Select(i =>
             $"<rect x='{10 + (i * 150)}' y='10' width='40' height='40' fill='blue' filter='url(#f)'/>"));
         var svg = $"""
@@ -4329,13 +4327,12 @@ public class SvgCodecTests
             </svg>
             """;
 
-        // Act: render the whole document - must complete promptly, and must not throw despite the
-        // cumulative filter work total across all 13 shapes (65,000,000) far exceeding the new
-        // cumulative ceiling (50,000,000)
-        var stopwatch = Stopwatch.StartNew();
+        // Act: render the whole document - must not throw despite the cumulative filter work
+        // total across all 13 shapes (65,000,000) far exceeding the new cumulative ceiling
+        // (50,000,000)
+        var diagnostics = new SvgCodec.RenderDiagnostics();
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 2000, 120);
-        stopwatch.Stop();
+        var surface = SvgCodec.LoadWithDiagnostics(stream, 2000, 120, diagnostics);
 
         // Assert: the first 10 shapes (cumulative total staying within the new 50,000,000
         // ceiling) were actually filtered - each rendered as the feFlood's solid red, not its own
@@ -4356,10 +4353,13 @@ public class SvgCodecTests
             Assert.Equal(new Rgba32(0, 0, 255, 255), surface[sampleX, 30]);
         }
 
-        // Assert: completed promptly - the cumulative budget rejects excess filter applications
-        // before any of their own SourceGraphic/filter-chain work begins, so this document's total
-        // work stays proportional to only the 10 shapes actually filtered
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1), $"Expected the cumulative-filter-work-budget document to render promptly, but it took {stopwatch.Elapsed}.");
+        // Assert: bounded work - the cumulative budget rejects excess filter applications before
+        // any of their own SourceGraphic/filter-chain work begins, so only the 10 filtered shapes
+        // allocated a surface and the charged total never exceeded the 50,000,000 ceiling
+        // each filtered shape allocates its content buffer plus the feFlood primitive's output
+        Assert.Equal(filteredShapeCount * 2, diagnostics.EffectSurfacesAllocated);
+        Assert.Equal(shapeCount - filteredShapeCount, diagnostics.BudgetRejections);
+        Assert.Equal(50_000_000L, diagnostics.WorkCharged);
     }
 
     /// <summary>
@@ -4391,17 +4391,17 @@ public class SvgCodecTests
             </svg>
             """;
 
-        // Act: must complete quickly rather than performing 5,000 region-sized composite passes
-        var stopwatch = Stopwatch.StartNew();
+        // Act: must not perform 5,000 region-sized composite passes
+        var diagnostics = new SvgCodec.RenderDiagnostics();
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 100, 100);
-        stopwatch.Stop();
+        var surface = SvgCodec.LoadWithDiagnostics(stream, 100, 100, diagnostics);
 
         // Assert: the rect rendered its own normal blue fill - the (skipped) filter had no effect
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
 
-        // Assert: completed promptly, proving the feMerge was skipped rather than evaluated
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the excessive-feMergeNode-count filter to be skipped promptly, but it took {stopwatch.Elapsed}.");
+        // Assert: bounded work - the feMerge was skipped rather than evaluated
+        Assert.Equal(0, diagnostics.EffectSurfacesAllocated);
+        Assert.Equal(0L, diagnostics.WorkCharged);
     }
 
     /// <summary>
@@ -5051,7 +5051,7 @@ public class SvgCodecTests
     public void SvgCodec_Load_GroupFilterReferencedByManyUsesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessUses()
     {
         // Arrange: identical filter-cost shape (a 40x40 rect, wrapped in a shared <g> target) and
-        // filter chain (499 no-op primitives + a trailing feFlood, region forced to exactly
+        // filter chain (498 no-op primitives + a trailing feFlood, region forced to exactly
         // 100x100 pixels) as the single-shape cumulative-budget test, but each of the 13
         // non-overlapping placements is a <use filter="url(#f)"> referencing the shared <g>
         // rather than a directly-filtered rect. The first 10 charge a running cumulative total of
@@ -5059,7 +5059,7 @@ public class SvgCodecTests
         // the total over budget and must tolerantly fall back to unfiltered rendering
         const int shapeCount = 13;
         const int filteredShapeCount = 10;
-        var noOpPrimitives = string.Concat(Enumerable.Repeat("<feUnsupportedNoOp/>", 499));
+        var noOpPrimitives = string.Concat(Enumerable.Repeat("<feUnsupportedNoOp/>", 498));
         var uses = string.Concat(Enumerable.Range(0, shapeCount).Select(i =>
             $"<use x='{10 + (i * 150)}' y='10' filter='url(#f)' href='#grp'/>"));
         var svg = $"""
@@ -5077,11 +5077,10 @@ public class SvgCodecTests
             </svg>
             """;
 
-        // Act: render the whole document - must complete promptly, and must not throw
-        var stopwatch = Stopwatch.StartNew();
+        // Act: render the whole document - must not throw
+        var diagnostics = new SvgCodec.RenderDiagnostics();
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 2000, 120);
-        stopwatch.Stop();
+        var surface = SvgCodec.LoadWithDiagnostics(stream, 2000, 120, diagnostics);
 
         // Assert: the first 10 uses (cumulative total staying within the ceiling) were actually
         // filtered - each rendered as the feFlood's solid red, not the referenced rect's own blue
@@ -5101,9 +5100,164 @@ public class SvgCodecTests
             Assert.Equal(new Rgba32(0, 0, 255, 255), surface[sampleX, 30]);
         }
 
-        // Assert: completed promptly, proving the excess filters were skipped rather than
-        // evaluated
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the excessive cumulative group-filter work to be skipped promptly, but it took {stopwatch.Elapsed}.");
+        // Assert: bounded work - the excess filters were skipped rather than evaluated
+        // each filtered shape allocates its content buffer plus the feFlood primitive's output
+        Assert.Equal(filteredShapeCount * 2, diagnostics.EffectSurfacesAllocated);
+        Assert.Equal(shapeCount - filteredShapeCount, diagnostics.BudgetRejections);
+        Assert.Equal(50_000_000L, diagnostics.WorkCharged);
+    }
+
+    /// <summary>
+    ///     Proves the work charge covers the filter pipeline's content buffer as well as every
+    ///     primitive output: a one-feFlood filter is charged two region areas (content + output) and a
+    ///     two-feFlood filter three, matching the surface counts (deterministic, no timing).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterCharge_IncludesContentBufferUnit()
+    {
+        // Arrange
+        const string one = "<svg viewBox='0 0 100 100'><defs><filter id='f'><feFlood flood-color='red'/></filter></defs>" +
+            "<rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/></svg>";
+        const string two = "<svg viewBox='0 0 100 100'><defs><filter id='f'><feFlood flood-color='red'/><feFlood flood-color='green'/></filter></defs>" +
+            "<rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/></svg>";
+
+        // Act
+        var oneDiagnostics = new SvgCodec.RenderDiagnostics();
+        using (var stream = ToStream(one))
+        {
+            SvgCodec.LoadWithDiagnostics(stream, 100, 100, oneDiagnostics);
+        }
+
+        var twoDiagnostics = new SvgCodec.RenderDiagnostics();
+        using (var stream = ToStream(two))
+        {
+            SvgCodec.LoadWithDiagnostics(stream, 100, 100, twoDiagnostics);
+        }
+
+        // Assert: charge = (primitives + 1) region areas, in step with the allocated surfaces
+        Assert.Equal(2, oneDiagnostics.EffectSurfacesAllocated);
+        Assert.Equal(3, twoDiagnostics.EffectSurfacesAllocated);
+        Assert.True(oneDiagnostics.WorkCharged > 0L);
+        Assert.Equal(oneDiagnostics.WorkCharged * 3, twoDiagnostics.WorkCharged * 2);
+    }
+
+    /// <summary>
+    ///     Proves a <c>SourceAlpha</c> reached only through <c>feMergeNode</c> or an <c>in2</c> input is
+    ///     both allocated and charged: the surface count and the charged work rise together
+    ///     (content + output + alpha = three areas versus two without it; deterministic, no timing).
+    /// </summary>
+    [Theory]
+    [InlineData("<feMerge><feMergeNode in='SourceAlpha'/></feMerge>", "<feMerge><feMergeNode in='SourceGraphic'/></feMerge>")]
+    [InlineData("<feBlend in='SourceGraphic' in2='SourceAlpha'/>", "<feBlend in='SourceGraphic' in2='SourceGraphic'/>")]
+    [InlineData("<feComposite in='SourceGraphic' in2='SourceAlpha'/>", "<feComposite in='SourceGraphic' in2='SourceGraphic'/>")]
+    public void SvgCodec_Load_SourceAlphaViaMergeNodeOrIn2_IsCountedAndCharged(string alphaPrimitive, string plainPrimitive)
+    {
+        // Arrange
+        static string Svg(string primitive) =>
+            "<svg viewBox='0 0 100 100'><defs><filter id='f'>" + primitive + "</filter></defs>" +
+            "<rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/></svg>";
+
+        // Act
+        var alphaDiagnostics = new SvgCodec.RenderDiagnostics();
+        using (var stream = ToStream(Svg(alphaPrimitive)))
+        {
+            SvgCodec.LoadWithDiagnostics(stream, 100, 100, alphaDiagnostics);
+        }
+
+        var plainDiagnostics = new SvgCodec.RenderDiagnostics();
+        using (var stream = ToStream(Svg(plainPrimitive)))
+        {
+            SvgCodec.LoadWithDiagnostics(stream, 100, 100, plainDiagnostics);
+        }
+
+        // Assert: the extra alpha surface is counted and charged (3 areas versus 2)
+        Assert.Equal(plainDiagnostics.EffectSurfacesAllocated + 1, alphaDiagnostics.EffectSurfacesAllocated);
+        Assert.True(plainDiagnostics.WorkCharged > 0L);
+        Assert.Equal(plainDiagnostics.WorkCharged * 3, alphaDiagnostics.WorkCharged * 2);
+    }
+
+    /// <summary>
+    ///     Proves a chain of subregion primitives is charged for the extra region-sized clip copy each
+    ///     one allocates: the same three-primitive chain costs 7/4 the work units with explicit
+    ///     subregions as without (one clip copy per primitive), and the surface counter reports the
+    ///     content buffer, each output and each clip copy (deterministic counts, no timing).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_SubregionPrimitiveChain_ChargesClipCopies()
+    {
+        // Arrange: identical three-primitive chains, one with subregions and one without
+        const string plain = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feOffset dx='1' dy='0'/><feOffset dx='1' dy='0'/><feOffset dx='1' dy='0'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+        const string subregions = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feOffset dx='1' dy='0' x='0' y='0' width='100' height='100'/>
+                  <feOffset dx='1' dy='0' x='0' y='0' width='100' height='100'/>
+                  <feOffset dx='1' dy='0' x='0' y='0' width='100' height='100'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        var plainDiagnostics = new SvgCodec.RenderDiagnostics();
+        using (var stream = ToStream(plain))
+        {
+            SvgCodec.LoadWithDiagnostics(stream, 100, 100, plainDiagnostics);
+        }
+
+        var subregionDiagnostics = new SvgCodec.RenderDiagnostics();
+        using (var stream = ToStream(subregions))
+        {
+            SvgCodec.LoadWithDiagnostics(stream, 100, 100, subregionDiagnostics);
+        }
+
+        // Assert: content + 3 outputs without subregions; plus 3 clip copies with them
+        Assert.Equal(4, plainDiagnostics.EffectSurfacesAllocated);
+        Assert.Equal(7, subregionDiagnostics.EffectSurfacesAllocated);
+        // Work charged is (primitive units + 1 content unit) region areas: 4 plain, 7 with clip copies
+        Assert.True(plainDiagnostics.WorkCharged > 0L);
+        Assert.Equal(plainDiagnostics.WorkCharged * 7, subregionDiagnostics.WorkCharged * 4);
+    }
+
+    /// <summary>
+    ///     Proves <c>EffectSurfacesAllocated</c> counts every effects-pipeline surface: the content
+    ///     buffer, the clip-path coverage buffer, the mask source buffer and each filter
+    ///     primitive's output buffer (deterministic counts, no timing).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipMaskAndFilter_CountsEveryEffectSurface()
+    {
+        // Arrange: one rect with a clip-path, a mask and a single-primitive filter
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'><rect x='0' y='0' width='100' height='100'/></clipPath>
+                <mask id='m'><rect x='0' y='0' width='100' height='100' fill='white'/></mask>
+                <filter id='f'><feOffset dx='1' dy='1'/></filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' clip-path='url(#c)' mask='url(#m)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        var diagnostics = new SvgCodec.RenderDiagnostics();
+        using var stream = ToStream(svg);
+        SvgCodec.LoadWithDiagnostics(stream, 100, 100, diagnostics);
+
+        // Assert: content + clip coverage + mask source + feOffset output
+        Assert.Equal(4, diagnostics.EffectSurfacesAllocated);
+        Assert.True(diagnostics.EffectPixelsAllocated > 0L);
     }
 
     /// <summary>

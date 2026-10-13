@@ -38,6 +38,7 @@ sections:
               - CanvasNet-Drawing-PathFiller-ScanlineDegenerateInputNoOp
               - CanvasNet-Drawing-PathFiller-ScanlineCrossingEdges
               - CanvasNet-Drawing-PathFiller-ScanlineEvenOddMultiToggleRow
+              - CanvasNet-Drawing-PathFiller-ScanlineEvenOddMultiEdgeCell
               - CanvasNet-Drawing-PathFiller-ScanlineWindowedCoverage
             tests:
               - CanvasNet_SystemIntegration_BuildAndFillTrianglePath_ReturnsExpectedPixels

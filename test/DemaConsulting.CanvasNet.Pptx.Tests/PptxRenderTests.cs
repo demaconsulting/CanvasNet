@@ -2143,8 +2143,8 @@ public class PptxRenderTests
 
     /// <summary>
     ///     Proves a ctrTitle placeholder whose slide-level <c>&lt;a:lstStyle/&gt;</c> is present but
-    ///     empty (no level-override child - the exact shape reported from "ERF IWF Breadboard Peer
-    ///     Review.pptx") resolves its run's effective font size from the idx-matched layout
+    ///     empty (no level-override child - the exact shape reported from a real-world deck)
+    ///     resolves its run's effective font size from the idx-matched layout
     ///     placeholder's own <c>&lt;a:lstStyle&gt;</c>/<c>&lt;a:lvl1pPr&gt;</c>/<c>&lt;a:defRPr
     ///     sz="6000"&gt;</c> (60pt), not the master's <c>&lt;p:titleStyle&gt;</c> fallback (28pt) -
     ///     the exact pre-fix symptom magnitude described in the bug report.
@@ -2929,7 +2929,7 @@ public class PptxRenderTests
     ///     reference (no explicit <c>&lt;p:spPr&gt;</c> fill at all) resolves its fill entirely from
     ///     the theme's <c>&lt;a:fmtScheme&gt;/&lt;a:fillStyleLst&gt;</c>, substituting the
     ///     <c>&lt;a:fillRef&gt;</c>'s own color child for the matched entry's <c>phClr</c> token -
-    ///     the direct regression test for the customer-reported "Shape Styles gallery" symptom.
+    ///     the direct regression test for the user-reported "Shape Styles gallery" symptom.
     /// </summary>
     [Fact]
     public void Render_ShapeWithOnlyStyleFillRefNoExplicitSpPrFill_RendersResolvedTintedAccentColor()
@@ -3277,7 +3277,7 @@ public class PptxRenderTests
 
     /// <summary>
     ///     Regression test (see <c>pptx-document.md</c>'s "Phase 2 Follow-Up: SVG-Only Picture
-    ///     Blip Rendering" section, mirroring the real-world "ERF IWF Breadboard Peer Review.pptx"
+    ///     Blip Rendering" section, mirroring a real-world deck's
     ///     master-logo scenario): a master-owned "SVG-only" <c>&lt;p:pic&gt;</c> (no raster
     ///     <c>r:embed</c>/<c>r:link</c> at all, only a Microsoft SVG extension
     ///     <c>&lt;asvg:svgBlip r:embed="..."/&gt;</c> referencing an <c>.svg</c> media part) now
@@ -3366,6 +3366,58 @@ public class PptxRenderTests
         using var surface = document.Render(0, 20, 20);
 
         Assert.Equal(new Rgba32(0, 255, 0, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves a non-placeholder master text box (the common "date + slide number" footer box)
+    ///     honors its own <c>&lt;a:lstStyle&gt;</c> <c>lvl1pPr/defRPr sz="1200"</c>: a 12pt datetime
+    ///     field in a box just wide enough for it stays on one line, pixel-identical to the same
+    ///     text with an explicit run size, rather than falling back to the 18pt schema default and
+    ///     wrapping to a second line. Synthetic fixture only.
+    /// </summary>
+    [Fact]
+    public void Render_MasterNonPlaceholderTextBoxWithOwnLstStyle_HonorsListStyleFontSize()
+    {
+        static string FooterShape(string lstStyleXml, string runPropertiesXml) =>
+            $$"""
+            <p:sp>
+              <p:nvSpPr><p:cNvPr id="9" name="Date Box"/><p:cNvSpPr txBox="1"/><p:nvPr userDrawn="1"/></p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="2594110" cy="365125"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+              <p:txBody>
+                <a:bodyPr vert="horz" lIns="91440" tIns="45720" rIns="91440" bIns="45720" rtlCol="0" anchor="t"/>
+                <a:lstStyle>{{lstStyleXml}}</a:lstStyle>
+                <a:p><a:fld id="{6989146F-CFD6-A24A-9091-F32FF9483642}" type="datetime2">{{runPropertiesXml}}<a:t>Wednesday, September 9, 2026</a:t></a:fld></a:p>
+              </p:txBody>
+            </p:sp>
+            """;
+
+        using var listStyleStream = BuildRenderPackage(
+            string.Empty, masterShapeTreeXml: FooterShape("""<a:lvl1pPr algn="r"><a:defRPr sz="1200"/></a:lvl1pPr>""", "<a:rPr lang=\"en-US\"/>"));
+        using var listStyleDocument = PptxDocument.Open(listStyleStream);
+        using var listStyleSurface = listStyleDocument.Render(0, 400, 300);
+
+        using var referenceStream = BuildRenderPackage(
+            string.Empty, masterShapeTreeXml: FooterShape("""<a:lvl1pPr algn="r"/>""", "<a:rPr lang=\"en-US\" sz=\"1200\"/>"));
+        using var referenceDocument = PptxDocument.Open(referenceStream);
+        using var referenceSurface = referenceDocument.Render(0, 400, 300);
+
+        var inkPixels = 0;
+        for (var y = 0; y < 300; y++)
+        {
+            for (var x = 0; x < 400; x++)
+            {
+                Assert.Equal(referenceSurface[x, y], listStyleSurface[x, y]);
+                if (listStyleSurface[x, y] != listStyleSurface[399, 299])
+                {
+                    inkPixels++;
+                }
+            }
+        }
+
+        Assert.True(inkPixels > 0, "The footer text must paint.");
     }
 
     /// <summary>
@@ -3502,6 +3554,41 @@ public class PptxRenderTests
     }
 
     /// <summary>
+    ///     Proves a master's own EMF/WMF picture is skipped silently in both tolerant and strict
+    ///     modes: the callback is never invoked (it reports only a slide's own or group-nested
+    ///     pictures, not once per slide for an inherited one) and strict mode does not throw.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Render_MasterMetafilePicture_SkippedSilentlyWithoutCallbackInBothModes(bool strict)
+    {
+        const string masterShapeTreeXml =
+            """
+            <p:pic>
+              <p:nvPicPr><p:cNvPr id="3" name="MasterPic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+            </p:pic>
+            """;
+        using var stream = BuildRenderPackage(
+            FullSlideShapeXml("SlideShape", "0000FF"),
+            masterShapeTreeXml: masterShapeTreeXml,
+            masterMedia: ("emf", "image/x-emf", [1, 2, 3, 4]));
+        using var document = PptxDocument.Open(stream);
+        var skipped = new List<PptxUnsupportedFeatureException>();
+        var options = new PptxRenderOptions { StrictUnsupportedPictures = strict, OnUnsupportedPictureSkipped = skipped.Add };
+
+        using var surface = document.Render(0, 20, 20, options);
+
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[10, 10]);
+        Assert.Empty(skipped);
+    }
+
+    /// <summary>
     ///     Regression test (see the companion planning report's parse-time containment fix): a
     ///     master's own <c>&lt;p:graphicFrame&gt;</c> declaring an unsupported (non-table,
     ///     non-chart - here a SmartArt/diagram graphic-frame kind) kind must not abort
@@ -3539,30 +3626,100 @@ public class PptxRenderTests
     }
 
     /// <summary>
-    ///     Regression test (see the companion planning report's bug-fix rationale): a
-    ///     <strong>slide's own</strong> (not a master/layout's) <c>&lt;p:pic&gt;</c> referencing an
-    ///     unsupported raster format must still hard-fail <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>
-    ///     with <see cref="PptxUnsupportedFeatureException"/>, exactly as before the master/layout
-    ///     graceful-skip containment was added - proving the containment is scoped to master/
-    ///     layout-owned shapes only.
+    ///     Regression test: a <strong>slide's own</strong> <c>&lt;p:pic&gt;</c> referencing an
+    ///     EMF/WMF metafile is skipped by default (tolerant mode) - the rest of the slide still
+    ///     paints - and the skip is reported via
+    ///     <see cref="PptxRenderOptions.OnUnsupportedPictureSkipped"/>.
     /// </summary>
-    [Fact]
-    public void Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException()
+    [Theory]
+    [InlineData("emf", "image/x-emf")]
+    [InlineData("wmf", "image/x-wmf")]
+    [InlineData("emf", "IMAGE/X-EMF")]
+    public void Render_SlideOwnMetafilePicture_SkipsPictureReportsItAndRendersRestOfSlide(string extension, string contentType)
     {
-        const string spTreeInnerXml =
-            """
-            <p:pic>
-              <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
-              <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
-              <p:spPr>
-                <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
-                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
-              </p:spPr>
-            </p:pic>
+        var spTreeInnerXml = FullSlideShapeXml("SlideShape", "0000FF") + MetafilePictureXml(0, 0, 4572000, 6858000);
+        using var stream = BuildRenderPackage(spTreeInnerXml, media: (extension, contentType, [1, 2, 3, 4]));
+        using var document = PptxDocument.Open(stream);
+        var skipped = new List<PptxUnsupportedFeatureException>();
+
+        using var surface = document.Render(0, 20, 20, new PptxRenderOptions { OnUnsupportedPictureSkipped = skipped.Add });
+
+        // The slide's own shape still paints (including under the skipped picture's footprint).
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[10, 10]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[2, 10]);
+        var report = Assert.Single(skipped);
+        Assert.Equal("pptx-image-metafile", report.Feature);
+    }
+
+    /// <summary>Proves the skip also applies to a metafile picture nested in a group, and renders with default options.</summary>
+    [Fact]
+    public void Render_MetafilePictureInsideGroup_DefaultOptions_SkipsPictureAndRendersRestOfSlide()
+    {
+        var groupXml =
+            $$"""
+            <p:grpSp>
+              <p:nvGrpSpPr><p:cNvPr id="9" name="Group"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+              <p:grpSpPr>
+                <a:xfrm>
+                  <a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/>
+                  <a:chOff x="0" y="0"/><a:chExt cx="9144000" cy="6858000"/>
+                </a:xfrm>
+              </p:grpSpPr>
+              {{MetafilePictureXml(0, 0, 4572000, 6858000)}}
+            </p:grpSp>
             """;
-        using var stream = BuildRenderPackage(spTreeInnerXml, media: ("emf", "image/x-emf", [1, 2, 3, 4]));
+        using var stream = BuildRenderPackage(FullSlideShapeXml("SlideShape", "0000FF") + groupXml, media: ("emf", "image/x-emf", [1, 2, 3, 4]));
         using var document = PptxDocument.Open(stream);
 
-        Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(0, 20, 20));
+        using var surface = document.Render(0, 20, 20);
+
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[10, 10]);
     }
+
+    /// <summary>
+    ///     Proves strict mode keeps throwing <see cref="PptxUnsupportedFeatureException"/> for a
+    ///     slide's own metafile picture, without invoking the skip callback.
+    /// </summary>
+    [Fact]
+    public void Render_SlideOwnMetafilePicture_StrictMode_ThrowsPptxUnsupportedFeatureException()
+    {
+        var spTreeInnerXml = FullSlideShapeXml("SlideShape", "0000FF") + MetafilePictureXml(0, 0, 4572000, 6858000);
+        using var stream = BuildRenderPackage(spTreeInnerXml, media: ("emf", "image/x-emf", [1, 2, 3, 4]));
+        using var document = PptxDocument.Open(stream);
+        var skipped = new List<PptxUnsupportedFeatureException>();
+        var options = new PptxRenderOptions { StrictUnsupportedPictures = true, OnUnsupportedPictureSkipped = skipped.Add };
+
+        var ex = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(0, 20, 20, options));
+
+        Assert.Equal("pptx-image-metafile", ex.Feature);
+        Assert.Empty(skipped);
+    }
+
+    /// <summary>
+    ///     Proves a slide's own picture with an unsupported non-metafile format still hard-fails
+    ///     (only EMF/WMF is tolerated).
+    /// </summary>
+    [Fact]
+    public void Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException()
+    {
+        using var stream = BuildRenderPackage(MetafilePictureXml(0, 0, 9144000, 6858000), media: ("bin", "application/octet-stream", [1, 2, 3, 4]));
+        using var document = PptxDocument.Open(stream);
+
+        var ex = Assert.Throws<PptxUnsupportedFeatureException>(() => document.Render(0, 20, 20));
+
+        Assert.Equal("pptx-image-format", ex.Feature);
+    }
+
+    /// <summary>Builds a <c>&lt;p:pic&gt;</c> referencing the slide's <c>rId2</c> media part.</summary>
+    private static string MetafilePictureXml(int x, int y, int cx, int cy) =>
+        $$"""
+        <p:pic>
+          <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+          <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+          <p:spPr>
+            <a:xfrm><a:off x="{{x}}" y="{{y}}"/><a:ext cx="{{cx}}" cy="{{cy}}"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+          </p:spPr>
+        </p:pic>
+        """;
 }

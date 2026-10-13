@@ -203,7 +203,11 @@ sections:
           - CanvasNetPdf-PdfDocument-ColorSpaceOperators
           - CanvasNetPdf-PdfDocument-FunctionType0
           - CanvasNetPdf-PdfDocument-FunctionType2And3
+          - CanvasNetPdf-PdfDocument-FunctionType4AndMultiInput
           - CanvasNetPdf-PdfDocument-IccBasedColorSpace
+          - CanvasNetPdf-PdfDocument-CalibratedColorSpaces
+          - CanvasNetPdf-PdfDocument-SeparationDeviceNColorSpaces
+          - CanvasNetPdf-PdfDocument-TintImageWorkBound
           - CanvasNetPdf-PdfDocument-IndexedColorSpace
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels
@@ -373,4 +377,5 @@ sections:
           - CanvasNetPdf-PdfDocument-MeshShadingFailClosed
         tests:
           - CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors
+          - CanvasNetPdf_SystemIntegration_MeshShadingWithNonlinearFunction_AppliesFunctionToInterpolatedParameter
           - CanvasNetPdf_SystemIntegration_ColoredTilingPatternFill_PaintsRepeatingTileColors

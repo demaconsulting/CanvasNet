@@ -196,23 +196,34 @@ rounds to `64` under round-half-away-from-zero).
 ##### CanvasNet-Drawing-PathFiller-ScanlineFillRuleResolution: Fill-Rule Resolution Formulas Are Verified Directly
 
 **Tests**: `ScanlineRasterizer_Fill_RawWindingOfTwo_NonZeroClampsEvenOddFoldsToZero`,
-`ScanlineRasterizer_Fill_SubPixelOffsetDuplicatePolygons_SumsCoincidentContributionsPerCellAlgorithm`,
-`ScanlineRasterizer_Fill_OverlappingSubPixelSquares_SumsPerCellContributionsPerCellAlgorithm`
+`ScanlineRasterizer_Fill_SubPixelOffsetDuplicatePolygons_EvenOddIsExactlyEmptyNonZeroIsOpaque`,
+`ScanlineRasterizer_Fill_OverlappingSubPixelSquares_ResolvesExactPerFillRule`
 
 Constructs geometry that produces an exact raw winding count of 2 at a given pixel (via
 overlapping same-wound, pixel-aligned polygons) and rasterizes it once under each fill rule,
 asserting `NonZero` resolves to fully opaque and `EvenOdd` resolves to fully transparent, directly
 exercising both resolution formulas (`ResolveCoverage`) against a known raw value rather than only
-the aggregate fill result. Separately, two further tests target the cell-based signed area/cover
-accumulation algorithm's known, accepted trade-off for edges that fall within the same pixel
-column: filling two exactly coincident, sub-pixel-offset duplicate rectangles, and separately
-filling two overlapping (not coincident) sub-pixel-offset squares whose boundaries both land in
-the same column, each assert the alpha values that independently verified hand-calculation (see
-the type-level remarks on `ScanlineRasterizer`) predicts for this algorithm - both edges'
-raw signed contributions summing linearly within the shared cell before `ResolveCoverage` folds
-the total into `[0, 1]`. This is the documented, industry-standard (AGG/FreeType) trade-off
-accepted in exchange for the crossing-edge correctness fix below, and both tests exist to detect
-any accidental regression in that specific, intentional behavior.
+the aggregate fill result. Two further tests cover edges that fall within the same pixel column:
+filling two exactly coincident, sub-pixel-offset duplicate rectangles (`NonZero` fully opaque,
+`EvenOdd` exactly empty, including the fractional edge cells), and two overlapping sub-pixel-offset
+squares whose boundaries land in the same column (`NonZero` fully opaque, `EvenOdd` exactly the two
+non-overlapping `0.5` strips, alpha 128). Before the multi-edge-cell fix these asserted the summed
+fold values instead.
+
+##### CanvasNet-Drawing-PathFiller-ScanlineEvenOddMultiEdgeCell: Even-Odd Cells With Several Vertical Edges Resolve Exactly
+
+**Tests**: `ScanlineRasterizer_Fill_SubPixelOffsetDuplicatePolygons_EvenOddIsExactlyEmptyNonZeroIsOpaque`,
+`ScanlineRasterizer_Fill_FourCoincidentFractionalEdgesEvenOdd_ProducesNoInk`,
+`ScanlineRasterizer_Fill_NestedEdgesInOneCellEvenOdd_MatchesExactArea`,
+`ScanlineRasterizer_Fill_OverlappingSubPixelSquares_ResolvesExactPerFillRule`,
+`ScanlineRasterizer_Fill_SlantedEdgeSharingCellWithVerticalEdgeEvenOdd_StaysWithinRange`
+
+Four coincident same-x edges at a fractional x (even parity) must leave no ink on any row; two
+nested same-direction edges in one cell (x = 0.3 and 0.6) must give exactly the `0.3` strip between
+them; duplicate and overlapping shapes must resolve to exact per-rule values (above); and a slanted
+edge sharing a cell with a vertical edge must keep the documented fold fallback and stay within the
+valid range. The PDF-level proof is `PdfDocument_ThinBar_OverlappingEvenOddRects_*` under
+`CanvasNetPdf-PdfDocument-ThinBarInkFidelity`. All tests are deterministic and assert no timing.
 
 ##### CanvasNet-Drawing-PathFiller-ScanlineCrossingEdges: Self-Intersecting Polygons Produce Correct Partial Coverage
 
@@ -392,7 +403,15 @@ behavior.
 `ClipMask_Combine_FullSurfaceAndNull_NormalizesToOtherOperandOrNull`,
 `ClipMask_Intersect_RectangleWithDense_EqualsDenseReferenceAndSharesBuffer`,
 `ClipMask_Intersect_DenseWithDense_EqualsReferenceAndBoundsAreOverlap`,
-`ClipMask_Intersect_RestrictedDenseWithDense_EqualsReference` (all in `ClipMaskTests.cs`),
+`ClipMask_Intersect_RestrictedDenseWithDense_EqualsReference`,
+`ClipMask_FromPath_EvenOddRectangleRing_IsRectangleUnionWithExactFillArea`,
+`ClipMask_RectangleUnion_FillEdgeCoincidentWithClipEdge_CoverageIsExact`,
+`ClipMask_FromPath_NonZeroOverlappingRectangles_UnionAreaIsExact`,
+`ClipMask_Intersect_RectangleUnionWithRectangle_RestrictsPieces`,
+`ClipMask_Intersect_RectangleUnionWithRectangleUnion_IsExactOverlap`,
+`ClipMask_Intersect_RectangleUnionWithCircle_FallsBackToDense`,
+`ClipMask_FromPath_RectanglePlusCircle_HasNoPieces`,
+`ClipMask_RectangleUnion_GetCoverage_MatchesDenseReference` (all in `ClipMaskTests.cs`),
 `PathFiller_Fill_SolidColorWithClip_RestrictsFillToClipCoverage`,
 `PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload`,
 `PathFiller_Fill_RectangleClipVersusDenseClip_InteriorMatchesAndEdgesAreBounded`,
@@ -434,7 +453,9 @@ assert that total coverage equals the unclipped fill's. The new tests assert exa
 within `1e-3` over sub-pixel offsets and sizes for both fill rules, Sutherland-Hodgman clip area
 against the analytic intersection (inside, outside, crossing one/two/four sides, concave,
 hole with both fill rules, degenerate), coincident-edge clips equal to the unclipped fill, a
-rectangle-plus-dense clip applying the rectangle factor once, and EvenOdd area conservation for
+rectangle-plus-dense clip applying the rectangle factor once, rectangle-union clips (even-odd rings,
+overlapping non-zero rectangles, pairwise union intersections) giving exact fill areas with the
+dense fallback for non-rectangle operands, and EvenOdd area conservation for
 coincident mid-row edges. None of these tests asserts wall-clock time.
 
 Per `testing-principles.md`'s "tests MAY exist without a requirement", these tests exist as

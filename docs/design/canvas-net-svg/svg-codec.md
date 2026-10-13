@@ -712,7 +712,14 @@ generous enough that a real document reusing one filter across a modest number o
 rejected, while still keeping worst-case total filter-evaluation work bounded to a small, fixed
 multiple of a single filter's own bound), every further filter application for the remainder of
 that `Load` call tolerantly falls back to unfiltered rendering instead - the same fallback
-behavior as every other filter resource bound, never a thrown exception. A
+behavior as every other filter resource bound, never a thrown exception. Deterministic work
+counters (`SvgCodec.RenderDiagnostics`: work units charged, charges rejected, effects surfaces and
+pixels allocated; the surfaces counter covers every effects-pipeline surface - content, clip
+coverage, mask source, `SourceAlpha` and each primitive output - while work units are charged
+separately) are updated by that same `FilterWorkBudget` through an internal-only
+`LoadWithDiagnostics` entry point (visible to the test assembly via `InternalsVisibleTo`; the
+public API is unchanged and the counters are per-call, never static), so resource-bound tests
+assert work performed instead of measuring elapsed time. A
 `filter` element with zero primitive children is likewise tolerantly skipped, identically to an
 out-of-budget chain and checked in the same guard, before `SourceGraphic` is allocated - because
 a filter with no primitives to evaluate can never change the rendered output, regardless of how
@@ -814,6 +821,17 @@ work: `feConvolveMatrix` rejects `order` values above `MaxConvolveMatrixOrder` (
 `InvalidDataException`, matching the codec's existing malformed-input policy for absurd
 single-attribute values, while the aggregate per-filter and cumulative filter work budgets remain
 tolerant fallback paths that simply render unfiltered once the requested total work is too high.
+A primitive that declares an explicit `x`/`y`/`width`/`height` subregion allocates one further
+region-sized copy when its output is clipped (`ClipPrimitiveOutputToSubregion`); the work-unit
+count behind both the per-filter check and the cumulative charge adds one unit for each such
+primitive, so every surface counted by `EffectSurfacesAllocated` is also charged. The filter's own
+content buffer is likewise one further unit on top of the primitive units (and one more when a
+resolved input references `SourceAlpha`, which builds a shared alpha buffer - any primitive's `in`,
+`in2` of `feComposite`/`feBlend`/`feDisplacementMap`, or an `feMergeNode`'s `in`, exactly the inputs the
+executor resolves); these fixed units are added
+in `ComputeEffectsPipelineWorkUnits` and deliberately are not part of the primitive count, so they never
+count toward `MaxFilterPrimitivesPerFilter`. The charge therefore covers every filter surface:
+content, `SourceAlpha`, clip-path/mask buffers, primitive outputs and subregion clip copies.
 
 `feDiffuseLighting` and `feSpecularLighting` relight a surface described by SourceAlpha (or
 another primitive's own alpha channel) as if it were a bump map. Both share a single surface-normal
@@ -1037,7 +1055,8 @@ offscreen-allocation budget) keeps one resource dimension's ceiling from being e
 `RenderShapeEffectsPipeline`/`RenderGroupWithEffects` makes before allocating its own "content"
 buffer (via the shared `ComputeEffectsPipelineWorkUnits` helper) charges one region-area unit for
 every offscreen buffer this element will actually allocate - the "content"/`SourceGraphic` buffer
-always, plus one additional region-area unit each for `ApplyClipPath`'s own `coverage` buffer and
+always (and, when a filter applies, one unit per filter primitive output and subregion clip copy plus one for
+`SourceAlpha` if referenced), plus one additional region-area unit each for `ApplyClipPath`'s own `coverage` buffer and
 `ApplyMask`'s own `maskSource` buffer when a clip-path/mask respectively applies - so an element
 combining clip-path and mask (or either with a filter) is charged for every buffer it allocates,
 not just one. A mask region whose pixel-space dimensions

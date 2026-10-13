@@ -140,7 +140,7 @@ sections:
               - PdfDocument_Open_LinearScanFallback_ObjectNumberAsTokenSuffix_DoesNotCorruptOffset
               - PdfDocument_Open_LinearScanFallback_ObjectNumberAsNameToken_DoesNotCorruptOffset
               - PdfDocument_Open_LinearScanFallback_SecondAngleBracketAsHexStringStart_DoesNotCorruptOffset
-              - PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_CompletesPromptly
+              - PdfDocument_Open_LinearScanFallback_LongUnterminatedLiteralStringRun_ScanWorkIsLinear
               - PdfDocument_Open_ClassicXref_StartxrefAsTokenSuffix_DoesNotRedirectToBogusOffset
               - PdfDocument_Open_ClassicXref_StartxrefAsNameToken_DoesNotRedirectToBogusOffset
               - PdfDocument_Open_LinearScanFallback_CommentBeforeEndobj_DoesNotCorruptOffsets
@@ -568,7 +568,8 @@ sections:
               q/Q (and by Form XObject/Type3 glyph re-entry, both of which clone the graphics
               state identically), enforce the active clipping path against every subsequent
               fill, stroke, image XObject (Do), and glyph-fill paint until it is changed or
-              restored, and apply an axis-aligned rectangular clipping path without attenuating
+              restored, and apply an axis-aligned rectangular clipping path, or a clipping path
+              made only of axis-aligned rectangles (for example a W* band), without attenuating
               the painted geometry's own edge coverage, so that thin rules, double rules and
               borders whose edges coincide with the clip's edges keep their full geometric ink.
             justification: |
@@ -579,7 +580,9 @@ sections:
               relying on clipping to mask painted geometry. A reader that multiplies the fill's
               edge-pixel coverage by the clip's edge-pixel coverage squares the coverage wherever
               the two edges coincide (typical for HTML-to-PDF borders and rules), drawing thin
-              rules 10-60 percent too light.
+              rules 10-60 percent too light. The same applies to a device-aligned image whose edge
+              coincides with a rectangular clip edge: its coverage is evaluated geometrically
+              against the image rectangle so the edge pixels are not attenuated twice.
             tests:
               - PdfDocument_Clipping_WThenFill_PaintsOnlyIntersectedRegion
               - PdfDocument_Clipping_SetInsideQQ_DoesNotLeakPastQ
@@ -592,6 +595,48 @@ sections:
               - PdfDocument_ThinRules_DoubleRuleWithWiderClip_InkMatchesGeometry
               - PdfDocument_ThinRules_DoubleRule_GapBetweenBarsRemainsTransparent
               - PdfDocument_ThinRules_FooterRule_InkMatchesGeometry
+              - PdfDocument_ClipEdge_RectangleUnionClipCoincidentWithFillEdge_InkMatchesGeometry
+              - PdfDocument_ClipEdge_SingleRectangleClipCoincidentWithFillEdge_InkMatchesGeometry
+              - PdfDocument_ClipEdge_NestedIdenticalFractionalRectClips_InkMatchesGeometry
+              - PdfDocument_ClipEdge_OrthogonalFractionalRectClips_InkMatchesGeometry
+              - PdfDocument_ClipEdge_RectangleInsideTriangleClip_RestrictsToBoth
+            children:
+              - CanvasNetPdf-PdfDocument-ThinBarInkFidelity
+              - CanvasNetPdf-PdfDocument-ClipGeometricCoverage
+
+          - id: CanvasNetPdf-PdfDocument-ThinBarInkFidelity
+            title: >-
+              The PdfDocument class shall paint thin filled bars, with or without a rectangle clip,
+              and even-odd stacks of rectangles sharing an edge at a fractional device position,
+              with a total ink within 1.5 percent below and 3 percent above the exact geometric
+              area at every device size, without residual ink along a shared edge.
+            justification: |
+              Thin rules are rendered at many device sizes, so their edges fall at every sub-pixel
+              phase; ink that depends on the phase (a full-height column of ink along a shared even-odd
+              rectangle edge made a header rule up to 19 percent too dark at some sizes) is a visible
+              fidelity defect.
+            tests:
+              - PdfDocument_ThinBar_HorizontalFill_InkMatchesGeometry
+              - PdfDocument_ThinBar_VerticalFill_InkMatchesGeometry
+              - PdfDocument_ThinBar_OverlappingEvenOddRects_InkMatchesEvenOddArea
+              - PdfDocument_ThinBar_OverlappingEvenOddRects_LuminanceInkMatchesEvenOddArea
+
+          - id: CanvasNetPdf-PdfDocument-ClipGeometricCoverage
+            title: >-
+              The PdfDocument class shall apply a clipping path made only of axis-aligned
+              rectangles, including a union of up to 256 rectangles, geometrically to fills and to
+              axis-aligned image XObjects, so a fill or image edge coincident with a clip edge is
+              counted once; a curved or otherwise dense clip, and a rotated or skewed image under any
+              clip, keep the per-pixel coverage product (error confined to edge pixels).
+            justification: |
+              Multiplying the edge-pixel coverage of a shape by the edge-pixel coverage of a clip
+              coincident with it squares the coverage and paints rules and images too light at the
+              clip boundary. Rectangle-only clips are by far the most common, so they are evaluated
+              exactly; the dense product is retained as a documented limit for the remaining cases.
+            tests:
+              - PdfDocument_ClipEdge_LargeRectangleUnionClipCoincidentWithFill_InkMatchesGeometry
+              - PdfDocument_ClipEdge_ImageCoincidentWithRectangleClip_InkEqualsUnclippedInk
+              - PdfDocument_ClipEdge_ImageCutByRectangleClip_InkMatchesGeometry
 
           - id: CanvasNetPdf-PdfDocument-Dispose
             title: >-
@@ -642,8 +687,11 @@ sections:
               DeviceRGB/DeviceCMYK directly or via the current page's /Resources/ColorSpace
               dictionary and resetting color to opaque black, and the sc/SC/scn/SCN operators,
               setting color from the current color space's required component count; any other
-              resolved color space (Separation/DeviceN/CalGray/Lab, or an undeclared name) shall
-              throw UnsupportedImageFeatureException rather than being silently mis-rendered; a
+              resolved color space (an ICCBased space with neither a usable /N nor /Alternate, or an
+              undeclared name) shall
+              throw UnsupportedImageFeatureException rather than being silently mis-rendered;
+              /Separation and /DeviceN spaces are resolved per
+              CanvasNetPdf-PdfDocument-SeparationDeviceNColorSpaces; a
               scn/SCN operand against a /Pattern color space is instead resolved per
               CanvasNetPdf-PdfDocument-PatternColorSpace (see also
               CanvasNetPdf-PdfDocument-ShadingPatternFill and
@@ -667,11 +715,12 @@ sections:
 
           - id: CanvasNetPdf-PdfDocument-IccBasedColorSpace
             title: >-
-              The PdfDocument class shall resolve an /ICCBased color space by preferring its
-              /Alternate entry when present and itself a supported color space, else mapping its
-              stream's /N component count (1/3/4) to DeviceGray/DeviceRGB/DeviceCMYK, and shall
-              throw UnsupportedImageFeatureException when neither /Alternate nor a 1/3/4 /N is
-              usable.
+              The PdfDocument class shall resolve an /ICCBased color space by treating its
+              stream's /N component count (1/3/4) as authoritative: its /Alternate is used only
+              when it is a usable non-Indexed, non-Pattern color space whose component count
+              equals /N (or when /N is absent or invalid); otherwise /N maps to
+              DeviceGray/DeviceRGB/DeviceCMYK. It shall throw UnsupportedImageFeatureException
+              when neither is usable. The ICC profile data itself is not applied.
             justification: |
               ICC-managed color is out of scope for this phase, but /ICCBased is the most common
               way real-world PDF producers declare an otherwise ordinary device color space;
@@ -682,6 +731,117 @@ sections:
               - PdfDocument_Color_IccBasedN3_ResolvesAsDeviceRgb
               - PdfDocument_Color_IccBasedWithAlternate_PrefersAlternateOverN
               - PdfDocument_Color_IccBasedUnsupportedN_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_ColorSpace_IccBased_BogusN_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_ColorSpace_IccBased_N1AndN4_ResolveAsDeviceSpaces
+              - PdfDocument_ColorSpace_IccBased_NMismatchesAlternate_PrefersN
+              - PdfDocument_ColorSpace_IccBased_LabAlternateWithN3_UsesLab
+              - PdfDocument_ColorSpace_IccBased_FractionalN_RejectedAndIntegralRealAccepted
+              - PdfDocument_ColorSpace_IccBased_CalGrayAlternateWithN1_UsesCalGray
+
+          - id: CanvasNetPdf-PdfDocument-CalibratedColorSpaces
+            title: >-
+              The PdfDocument class shall resolve /CalGray, /CalRGB and /Lab color spaces
+              (requiring a /WhitePoint; /Gamma, /Matrix and /Range defaulted per the PDF
+              specification) and convert their colors to sRGB through a CIE XYZ pipeline with
+              Bradford white-point adaptation, for the cs/CS/sc/scn operators, image XObjects,
+              Indexed bases and axial/radial shadings; a malformed calibrated dictionary shall
+              throw InvalidDataException, and an image in a /Lab color space carrying an explicit
+              /Decode array shall throw UnsupportedImageFeatureException (feature
+              pdf-image-lab-decode).
+            justification: |
+              Calibrated spaces were previously ignored or rejected, producing wrong or missing
+              colors for common real-world documents. Lab's default image /Decode is not
+              the identity mapping, so honoring an explicit /Decode incorrectly would silently
+              mis-render; failing closed is safer.
+            tests:
+              - PdfDocument_Color_CalRgbColorSpace_AppliesCalibration
+              - PdfDocument_ColorSpace_CalGray_EndpointsExactAndMidFollowsGamma
+              - PdfDocument_ColorSpace_CalGray_StrokeOperators_UseConversion
+              - PdfDocument_ColorSpace_CalRgb_SrgbPrimaries_MatchDeviceRgb
+              - PdfDocument_ColorSpace_CalRgb_LinearGamma_AppliesSrgbTransferFunction
+              - PdfDocument_ColorSpace_Lab_WhiteAndBlack_MapExactly
+              - PdfDocument_ColorSpace_Lab_ChromaticColor_MatchesReference
+              - PdfDocument_ColorSpace_Lab_OutOfRangeAB_ClampsToRange
+              - PdfDocument_ColorSpace_CalibratedSpaces_InitialColorIsBlack
+              - PdfDocument_ColorSpace_MalformedCalibratedDictionary_ThrowsInvalidDataException
+              - PdfDocument_ColorSpace_LabImage_DefaultDecode_MapsNormalizedSamples
+              - PdfDocument_ColorSpace_LabImage_ChromaticSample_MatchesReference
+              - PdfDocument_ColorSpace_LabImage_ExplicitDecode_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_ColorSpace_CalGrayImage_ConvertsSamplesLikeOperator
+              - PdfDocument_ColorSpace_CalRgbImage_SrgbPrimaries_MatchesDeviceRgbEndpoints
+              - PdfDocument_ColorSpace_CalGrayImage_AsSoftMask_ThrowsInvalidDataException
+              - PdfDocument_ColorSpace_DeviceGrayImage_AsSoftMask_StillApplies
+              - PdfDocument_ColorSpace_IndexedOverLab_Scn_NormalizesPaletteBytes
+              - PdfDocument_ColorSpace_IndexedOverCalRgb_Image_ConvertsPalette
+              - PdfDocument_ColorSpace_AxialShadingInLab_InterpolatesNaturalUnits
+              - PdfDocument_ColorSpace_AxialShadingInLab_StaysNearDirectConversionOfInterpolatedComponents
+              - PdfDocument_Load_CalibratedColorSpacesFixture_PaintsConvertedSwatches
+
+          - id: CanvasNetPdf-PdfDocument-SeparationDeviceNColorSpaces
+            title: >-
+              The PdfDocument class shall resolve /Separation (4-element) and /DeviceN (4- or
+              5-element; the attributes dictionary is ignored; 1 to 32 colorant names) color spaces
+              by evaluating their tint-transform function (any supported function type, with an
+              input count equal to the colorant count and an output count equal to the alternate
+              space's component count) and converting the result through the alternate space, for
+              the cs/CS/sc/scn operators (the initial color of such a space being all tints 1.0),
+              image XObjects, /Indexed bases and shadings (an /Indexed shading color space being
+              accepted only for mesh shadings without a /Function). A Separation /None, or a
+              DeviceN whose colorants are all /None, shall paint nothing; /All is evaluated through
+              its tint transform. An alternate space that is Pattern, Indexed, Separation or DeviceN
+              shall throw UnsupportedImageFeatureException; a tint-transform arity mismatch, a
+              wrong operand count or more than 32 colorants shall throw InvalidDataException.
+            justification: |
+              Spot and DeviceN colors are common in print-oriented PDFs; rejecting them failed
+              closed on whole documents even though the tint transform fully defines an
+              alternate-space rendering.
+            tests:
+              - PdfDocument_Tint_SeparationType2ToCmyk_MatchesDirectCmyk
+              - PdfDocument_Tint_SetColorSpace_InitialTintIsOne
+              - PdfDocument_Tint_SeparationStroke_MatchesDirectCmyk
+              - PdfDocument_Tint_SeparationType4ToRgb_EvaluatesProgram
+              - PdfDocument_Tint_SeparationNone_LeavesBackgroundUntouched
+              - PdfDocument_Tint_SeparationAll_UsesTintTransform
+              - PdfDocument_Tint_TransformOutputMismatch_ThrowsInvalidDataException
+              - PdfDocument_Tint_UnsupportedAlternate_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Tint_DeviceNType4_EvaluatesBothTints
+              - PdfDocument_Tint_DeviceNMultiInputSampled_InterpolatesMultilinearly
+              - PdfDocument_Tint_DeviceNAllNone_LeavesBackgroundUntouched
+              - PdfDocument_Tint_DeviceNOperandCountMismatch_ThrowsInvalidDataException
+              - PdfDocument_Tint_DeviceNTooManyColorants_ThrowsInvalidDataException
+              - PdfDocument_Tint_IndexedOverSeparation_MatchesDirectCmyk
+              - PdfDocument_Tint_IndexedOverDeviceN_EvaluatesTransform
+              - PdfDocument_Tint_DeviceNTwelveColorants_ConvertsThroughTintTransform
+              - PdfDocument_Tint_SeparationImage_MatchesDirectCmyk
+              - PdfDocument_Tint_DeviceNImage_EvaluatesTransform
+              - PdfDocument_Tint_SeparationImageAsSoftMask_ThrowsInvalidDataException
+              - PdfDocument_Tint_AxialShadingInSeparation_MatchesDirectCmyk
+              - PdfDocument_Tint_AxialShadingInIndexed_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_MeshShading_IndexedColorSpaceWithoutFunction_PaintsPaletteEntry
+              - PdfDocument_MeshShading_IndexedColorSpaceWithFunction_ThrowsUnsupported
+              - PdfDocument_Load_SeparationDeviceNFixture_PaintsTintsAndSkipsNone
+
+          - id: CanvasNetPdf-PdfDocument-TintImageWorkBound
+            title: >-
+              The PdfDocument class shall bound the tint-transform work of a multi-component
+              /DeviceN image XObject: results shall be memoized per distinct raw sample tuple in a
+              cache capped at 65536 entries (with output identical to uncached evaluation), every
+              uncached evaluation shall be charged its estimated cost against a per-image budget
+              of 2^30 cost units, and exceeding that budget shall throw
+              UnsupportedImageFeatureException (feature pdf-image-tint-budget); sampled
+              (/FunctionType 0) functions shall read byte-aligned samples through a fast path
+              that returns the same values as the bitwise reader.
+            justification: |
+              A hostile image with a costly tint transform (a 8192-instruction type 4 program or a
+              multi-input sampled function) and noisy samples would otherwise perform an
+              unbounded amount of synchronous work per pixel; a deterministic work budget fails
+              closed instead, while the cache keeps ordinary images fast.
+            tests:
+              - PdfDocument_Tint_NoisyDeviceNImage_ExceedsBudget_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Tint_DeviceNImageCache_MatchesUncachedConversion
+              - PdfDocument_Tint_DeviceNImageCache_IsBounded
+              - PdfDocument_Tint_SampledFunctionReadSample_FastPathMatchesBitwise
+              - PdfDocument_Tint_DeviceNImage_EvaluatesTransform
 
           - id: CanvasNetPdf-PdfDocument-IndexedColorSpace
             title: >-
@@ -700,6 +860,7 @@ sections:
               - PdfDocument_Color_IndexedColorSpace_Scn_PaintsExpectedPaletteColor
               - PdfDocument_Color_IndexedColorSpace_OutOfRangeIndex_ClampsToHighestPaletteEntry
               - PdfDocument_Color_IndexedColorSpace_UnsupportedBase_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_ColorSpace_Indexed_FractionalHival_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-FilterPipeline
             title: >-
@@ -1773,9 +1934,10 @@ sections:
               through /Decode (defaulting to /Range when /Decode is absent), clipped to /Range;
               8-bit and 16-bit /BitsPerSample sample widths shall both be supported, decoding the
               function stream's bytes via the existing filter-aware stream-decoding helper. A
-              /FunctionType other than 0, 2, or 3 (e.g. 4), and a multi-input /FunctionType 0
-              function (a /Domain with more than 2 elements) shall both throw
-              UnsupportedImageFeatureException.
+              /FunctionType other than 0, 2, 3 or 4, and (through the single-input resolver) a
+              multi-input /FunctionType 0 function (a /Domain with more than 2 elements) shall
+              both throw UnsupportedImageFeatureException; multi-input sampled functions are
+              resolved by CanvasNetPdf-PdfDocument-FunctionType4AndMultiInput.
             justification: |
               Axial/radial (/ShadingType 2/3) shading patterns in real-world PDFs sample a
               /FunctionType 0 function to derive a gradient's per-position color, and resolving
@@ -1783,11 +1945,11 @@ sections:
               roadmap (see CanvasNetPdf-PdfDocument-ShadingPatternFill) without re-deriving
               sampled-function evaluation later; /FunctionType 2 (exponential interpolation) and
               3 (stitching) are now also supported (see
-              CanvasNetPdf-PdfDocument-FunctionType2And3); /FunctionType 4 (PostScript
-              calculator) and a multi-input /FunctionType 0 function (the /DeviceN/Separation
-              tint-transform shape, itself already out of scope) remain explicitly out of scope
-              and must fail closed with a distinguishable exception rather than being silently
-              mis-evaluated.
+              CanvasNetPdf-PdfDocument-FunctionType2And3), as are /FunctionType 4 (PostScript
+              calculator) and multi-input sampled functions (see
+              CanvasNetPdf-PdfDocument-FunctionType4AndMultiInput); the single-input resolver
+              keeps failing closed on a multi-input /FunctionType 0 with a distinguishable
+              exception rather than silently mis-evaluating it.
             tests:
               - PdfDocument_Functions_Type0_InputOutsideDomain_ClampsToBoundary
               - PdfDocument_Functions_Type0_EncodeAbsent_DefaultsToZeroToSizeMinusOne
@@ -1798,6 +1960,9 @@ sections:
               - PdfDocument_Functions_Type0_SixteenBitSamples_EvaluatesCorrectly
               - PdfDocument_Functions_Type0_UnsupportedFunctionType_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Functions_Type0_MultiInputDomain_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Functions_Type0_FractionalSize_ThrowsInvalidDataException
+              - PdfDocument_Functions_Type0_IntegralRealSize_StillAccepted
+              - PdfDocument_Functions_Type0_FractionalBitsPerSample_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-FunctionType2And3
             title: >-
@@ -1810,8 +1975,9 @@ sections:
               entry point also used by shading-pattern function resolution; resolution is bounded
               by a MaxFunctionRecursionDepth (32) guard, throwing InvalidDataException when a
               self-referencing or excessively deep /Functions chain would otherwise recurse
-              without bound. /FunctionType 4 (PostScript calculator functions) shall continue to
-              throw UnsupportedImageFeatureException with feature pdf-functiontype-4.
+              without bound. /FunctionType 4 (PostScript calculator functions) is covered by
+              CanvasNetPdf-PdfDocument-FunctionType4AndMultiInput; any other type shall throw
+              UnsupportedImageFeatureException with feature pdf-functiontype-{n}.
             justification: |
               Axial/radial shading patterns commonly drive their color ramp with a /FunctionType
               2 exponential function (optionally combined via a /FunctionType 3 stitching
@@ -1820,8 +1986,45 @@ sections:
             tests:
               - PdfDocument_Functions_Type2_Exponential_EvaluatesExpectedInterpolatedOutput
               - PdfDocument_Functions_Type3_Stitching_EvaluatesExpectedSubFunctionOutput
-              - PdfDocument_Functions_Type4_PostScriptCalculator_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Functions_Type3_Stitching_InvalidBoundsOrDomain_ThrowsInvalidDataException
+              - PdfDocument_Functions_Type3_Stitching_NonFiniteBound_ThrowsInvalidDataException
+              - PdfDocument_Functions_Type3_Stitching_EqualBounds_AreAcceptedAndEvaluateAsHardStop
+              - PdfDocument_Functions_Type3_Stitching_MismatchedOutputCounts_ThrowsInvalidDataException
+              - PdfDocument_Functions_Type3_Stitching_MatchingOutputCounts_AreAccepted
+              - PdfDocument_Functions_Type3_Stitching_NonFiniteEncode_ThrowsInvalidDataException
+              - PdfDocument_Functions_UnknownFunctionType_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Functions_Type3_Stitching_NestingDepthExceeded_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-FunctionType4AndMultiInput
+            title: >-
+              The PdfDocument class shall evaluate /FunctionType 4 (PostScript calculator)
+              functions - a stream with /Domain and /Range whose program is a brace-delimited
+              block using the full specification operator set (arithmetic, relational, boolean,
+              bitwise, conditional if/ifelse, and stack operators) - clamping inputs to /Domain and
+              outputs to /Range, and multi-input /FunctionType 0 sampled functions (up to 8 inputs,
+              multilinear interpolation, 1/2/4/8/12/16/24/32 bits per sample), under hard limits
+              (operand stack 100, 8192 instructions, 16 nesting levels, 65536 executed
+              instructions, 256 KiB source, 2^22 samples, 32 outputs); malformed programs, stack
+              underflow/overflow, domain errors, non-finite (Infinity or NaN) numeric results and exceeded
+              limits shall throw
+              InvalidDataException, and a Type 4 function that is not a stream shall throw
+              InvalidDataException.
+            justification: |
+              PostScript calculator and multi-input sampled functions are the usual tint
+              transforms of Separation/DeviceN spaces; hard limits keep untrusted programs from
+              consuming unbounded time or memory.
+            tests:
+              - PdfDocument_Functions_Type4_Operator_ProducesSpecResult
+              - PdfDocument_Functions_Type4_StackOperators_ProduceSpecStack
+              - PdfDocument_Functions_Type4_OutputBeyondRange_IsClamped
+              - PdfDocument_Functions_Type4_NonFiniteArithmeticResult_ThrowsInvalidDataException
+              - PdfDocument_Functions_Type4_LargeFiniteResult_StillEvaluates
+              - PdfDocument_Functions_Type4_MalformedProgram_ThrowsInvalidDataException
+              - PdfDocument_Functions_Type4_ResourceCaps_ThrowInvalidDataException
+              - PdfDocument_Functions_Type4_NotAStream_ThrowsInvalidDataException
+              - PdfDocument_Tint_AxialShadingWithType4Function_EvaluatesProgram
+              - PdfDocument_Tint_DeviceNMultiInputSampled_InterpolatesMultilinearly
+              - PdfDocument_Tint_DeviceNMultiInputSampledFractionalSize_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-PatternColorSpace
             title: >-
@@ -1860,8 +2063,10 @@ sections:
               pattern whose /ShadingType is 2 (axial) or 3 (radial) (mesh types 4-7 are covered by
               CanvasNetPdf-PdfDocument-MeshShadingFill), sampling the shading's
               /Function (or array of 1-output-component functions) at evenly spaced points across
-              /Domain, converting each sample through the shading's own /ColorSpace (restricted to
-              DeviceGray/DeviceRGB/DeviceCMYK), and painting a smoothly varying color gradient
+              /Domain, converting each sample through the shading's own /ColorSpace (any
+              resolvable non-Pattern space, including calibrated, Separation and DeviceN;
+              Indexed only for mesh shadings without a /Function), and painting a smoothly
+              varying color gradient
               whose geometry is positioned by the pattern's own /Matrix composed with the page's
               initial (pre-cm) coordinate transform. An unsupported /ShadingType (outside 2-7) shall throw
               UnsupportedImageFeatureException with feature
@@ -1871,7 +2076,9 @@ sections:
               an unextended end; an extended end holds its end color); a malformed /Extend shall
               throw InvalidDataException. Each /Function array element shall clamp its input to
               its own /Domain. The gradient shall be sampled with one stop per device pixel of
-              gradient length, clamped to 32..256.
+              gradient length, clamped to 32..256, plus an exact hard stop at every stitching
+              function /Bounds (including nested stitching functions) so abrupt transitions stay
+              sharp regardless of the sample spacing.
             justification: |
               Axial and radial shading-pattern fills are a common way real-world PDFs render
               smooth-color backgrounds and vector-art gradients; today every such fill throws and
@@ -1880,7 +2087,7 @@ sections:
               - PdfDocument_Patterns_ShadingPattern_AxialFunctionType2_FillsVisiblyVaryingGradient
               - PdfDocument_Patterns_ShadingPattern_RadialFunctionType2_FillsVisiblyVaryingGradient
               - PdfDocument_Patterns_ShadingPattern_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException
-              - PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType4_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Patterns_ShadingPattern_FunctionArrayForm_ThreeOneOutputFunctions_BuildsRgbGradient
               - PdfDocument_Patterns_ShadingPattern_AxialNoExtend_LeavesOutsideUnpainted
               - PdfDocument_Patterns_ShadingPattern_AxialExtendBoth_HoldsEndColors
@@ -1892,6 +2099,10 @@ sections:
               - PdfDocument_Patterns_ShadingPattern_LongGradient_UsesAdaptiveSampleCount
               - PdfDocument_Patterns_ShadingPattern_FunctionArraySubFunctionDomain_ClampsInputToOwnDomain
               - PdfDocument_Patterns_ShadingPattern_FunctionArrayWithWideDomain_ShadingDomainMapsToFunctionInput
+              - PdfDocument_Shading_RadialShrinkingRadius_ExtendsPerEnd
+              - PdfDocument_Shading_StitchingBound_IsAnExactHardTransition
+              - PdfDocument_Shading_NestedStitchingBound_IsAnExactHardTransition
+              - PdfDocument_Shading_FunctionArrayWithDifferentDomains_ClampsEachElementIndependently
               - CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors
 
           - id: CanvasNetPdf-PdfDocument-ShadingOperator
@@ -1932,8 +2143,14 @@ sections:
               /BitsPerCoordinate, /BitsPerComponent, /BitsPerFlag (types 4, 6, 7), /VerticesPerRow
               (type 5) and /Decode, honoring edge flags 0-3 (including patch continuation and the
               Coons-derived interior points of type 6), mapping a single parametric color through
-              the optional /Function, converting colors through DeviceGray/DeviceRGB/DeviceCMYK
-              (interpolated in RGB), and painting the interpolated mesh (patches tessellated at a
+              the optional /Function (the parametric value t is interpolated across each triangle
+              or patch and the function - which may be nonlinear - is applied to the interpolated
+              t through a 4096-entry color table whose entries are each the color-space conversion of the
+              function evaluated at that entry's exact t, so converted colors are never blended),
+              converting colors through any resolvable non-Pattern color space (including
+              DeviceGray/DeviceRGB/DeviceCMYK and Lab; CalGray/CalRGB/Lab components are interpolated and converted
+              per pixel, other spaces are converted per vertex and blended in RGB), and painting the interpolated mesh
+              (patches tessellated at a
               fixed 16x16 subdivision, no anti-aliasing) positioned by the pattern /Matrix; the
               pattern's /Background shall be painted beneath the mesh for pattern use only.
             justification: |
@@ -1944,6 +2161,12 @@ sections:
               - PdfDocument_MeshShading_Type4_Flag1_ContinuesStrip
               - PdfDocument_MeshShading_Type4_Flag2_ContinuesFan
               - PdfDocument_MeshShading_Type4_Function_MapsParametricValue
+              - PdfDocument_MeshShading_Function_NonlinearFunctionAppliedToInterpolatedParameter
+              - PdfDocument_MeshShading_Function_LookupTableTracksSteepRampClosely
+              - PdfDocument_MeshShading_Function_NonlinearCalGray_ConvertsFunctionOutputAtParameter
+              - PdfDocument_MeshShading_LabColorSpace_VertexColorsAreNaturalUnits
+              - PdfDocument_MeshShading_LabColorSpace_InterpolatesComponentsBeforeConversion
+              - CanvasNetPdf_SystemIntegration_MeshShadingWithNonlinearFunction_AppliesFunctionToInterpolatedParameter
               - PdfDocument_MeshShading_Type4_BitSizeMatrix_RendersSame
               - PdfDocument_MeshShading_GrayAndCmykColorSpaces_Render
               - PdfDocument_MeshShading_Type5_Lattice_RendersAllCells
@@ -1991,7 +2214,7 @@ sections:
               - PdfDocument_MeshShading_Type4_ReservedFlagInInitialTriangleVertices_ThrowsInvalidData
               - PdfDocument_MeshShading_Type5_BadLattice_ThrowsInvalidData
               - PdfDocument_MeshShading_NotAStream_ThrowsInvalidData
-              - PdfDocument_MeshShading_IndexedColorSpace_ThrowsUnsupported
+              - PdfDocument_MeshShading_IndexedColorSpaceWithFunction_ThrowsUnsupported
               - PdfDocument_MeshShading_FunctionProblems_FailClosed
               - PdfDocument_MeshShading_TooManyVertices_ThrowsUnsupported
               - PdfDocument_MeshShading_TooManyPatches_ThrowsUnsupported

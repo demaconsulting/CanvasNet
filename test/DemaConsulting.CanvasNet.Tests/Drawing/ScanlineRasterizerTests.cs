@@ -76,35 +76,15 @@ public class ScanlineRasterizerTests
     }
 
     /// <summary>
-    ///     Proves that two exactly coincident, sub-pixel-offset polygons resolve consistently
-    ///     with the cell-based signed area/cover accumulation algorithm's known, accepted
-    ///     trade-off for coincident geometry within the same pixel cell (see the
-    ///     <see cref="ScanlineRasterizer"/> type-level remarks): each duplicate edge's
-    ///     contribution accumulates independently into the shared per-row cell arrays, so two
-    ///     exactly coincident boundaries within one cell sum their raw signed contributions rather
-    ///     than being resolved against a single winding decision first.
+    ///     Proves that two exactly coincident, sub-pixel-offset polygons resolve exactly: NonZero
+    ///     clamps the doubled winding to fully opaque, while EvenOdd resolves the doubled winding
+    ///     (even parity everywhere) to fully transparent, including in the fractional edge cells
+    ///     where both duplicate edges share a cell.
     /// </summary>
-    /// <remarks>
-    ///     Arrange: a rectangle from <c>x = 0.25</c> to <c>x = 1.75</c> (spanning both columns of
-    ///     a 2x2 surface with a fractional edge in each), duplicated twice in the polygon list.
-    ///     Independently verified reference for this algorithm: at column 0, the duplicated left
-    ///     boundary (<c>x = 0.25</c>) contributes area <c>-2 * (1 - 0.25) = -1.5</c>
-    ///     (magnitude 1.5) with no cover banked yet, so <c>NonZero</c> clamps
-    ///     <c>min(1, 1.5) = 1</c> (alpha 255) and <c>EvenOdd</c> folds <c>1.5</c> into
-    ///     <c>2 - 1.5 = 0.5</c> (alpha 128) - by symmetry column 1 (driven by the duplicated right
-    ///     boundary at <c>x = 1.75</c> plus the running cover banked from column 0) resolves to
-    ///     the same magnitude 1.5, hence the same alpha values. This differs from a hypothetical
-    ///     per-region-resolved algorithm's exact single-shape answer (alpha 191/0) precisely
-    ///     because this algorithm's crossing-edge fix (see
-    ///     <see cref="ScanlineRasterizer_Fill_BowtieSelfIntersectingPolygon_ProducesCorrectPartialCoverageNotFullFill"/>)
-    ///     requires never comparing/sorting edges by position - the accepted, industry-standard
-    ///     (AGG/FreeType) cost of that fix is that duplicate/coincident edges within one cell sum
-    ///     linearly instead of being resolved as a single boundary crossing.
-    /// </remarks>
     [Fact]
-    public void ScanlineRasterizer_Fill_SubPixelOffsetDuplicatePolygons_SumsCoincidentContributionsPerCellAlgorithm()
+    public void ScanlineRasterizer_Fill_SubPixelOffsetDuplicatePolygons_EvenOddIsExactlyEmptyNonZeroIsOpaque()
     {
-        // Arrange
+        // Arrange: a rectangle from x = 0.25 to x = 1.75 duplicated in the polygon list
         var rectangle = new List<Vector2>
         {
             new(0.25f, 0f),
@@ -122,42 +102,114 @@ public class ScanlineRasterizerTests
         var evenOddSurface = new Surface(2, 2);
         ScanlineRasterizer.Fill(evenOddSurface, [rectangle, rectangle], color, FillRule.EvenOdd, clipBounds);
 
-        // Assert: NonZero clamps the doubled raw magnitude (1.5) to fully opaque
-        Assert.Equal((byte)255, nonZeroSurface[0, 0].A);
-        Assert.Equal((byte)255, nonZeroSurface[1, 0].A);
-        Assert.Equal((byte)255, nonZeroSurface[0, 1].A);
-        Assert.Equal((byte)255, nonZeroSurface[1, 1].A);
-
-        // Assert: EvenOdd folds the doubled raw magnitude (1.5) to 0.5 (alpha 128)
-        Assert.Equal((byte)128, evenOddSurface[0, 0].A);
-        Assert.Equal((byte)128, evenOddSurface[1, 0].A);
-        Assert.Equal((byte)128, evenOddSurface[0, 1].A);
-        Assert.Equal((byte)128, evenOddSurface[1, 1].A);
+        // Assert
+        foreach (var (x, y) in new[] { (0, 0), (1, 0), (0, 1), (1, 1) })
+        {
+            Assert.Equal((byte)255, nonZeroSurface[x, y].A);
+            Assert.Equal((byte)0, evenOddSurface[x, y].A);
+        }
     }
 
     /// <summary>
-    ///     Proves that two overlapping (not coincident), sub-pixel-offset polygons whose
-    ///     boundaries both fall within the same pixel column resolve consistently with the
-    ///     cell-based algorithm's per-cell raw signed accumulation, rather than an exact
-    ///     per-region area calculation (see the <see cref="ScanlineRasterizer"/> type-level
-    ///     remarks on the accepted coincident/overlapping-within-one-cell trade-off).
+    ///     Proves four coincident same-x edges at a fractional x under EvenOdd (even parity)
+    ///     leave no ink at all on any row.
     /// </summary>
-    /// <remarks>
-    ///     Arrange: on a 2x1 surface, square 1 spans <c>x</c> in <c>[0.25, 1.25)</c> and square 2
-    ///     spans <c>x</c> in <c>[0.75, 1.75)</c> (both full-height). Independently verified
-    ///     reference for this algorithm: column 0 receives both squares' own left-boundary area
-    ///     contributions (<c>-(1 - 0.25) - (1 - 0.75) = -1.0</c>, magnitude exactly 1), which both
-    ///     fill rules resolve identically (<c>NonZero</c>: <c>min(1, 1) = 1</c>; <c>EvenOdd</c>:
-    ///     folding exactly <c>1.0</c> leaves <c>1.0</c> unchanged) - alpha 255 under both rules.
-    ///     By symmetry, column 1 (driven by both squares' right boundaries) resolves to the same
-    ///     magnitude and the same alpha. This is a direct consequence of more than one edge
-    ///     falling within the same pixel column - the same accepted trade-off documented on
-    ///     <see cref="ScanlineRasterizer_Fill_SubPixelOffsetDuplicatePolygons_SumsCoincidentContributionsPerCellAlgorithm"/>.
-    /// </remarks>
     [Fact]
-    public void ScanlineRasterizer_Fill_OverlappingSubPixelSquares_SumsPerCellContributionsPerCellAlgorithm()
+    public void ScanlineRasterizer_Fill_FourCoincidentFractionalEdgesEvenOdd_ProducesNoInk()
     {
         // Arrange
+        var rectangle = new List<Vector2> { new(0.3f, 0f), new(3f, 0f), new(3f, 3f), new(0.3f, 3f), new(0.3f, 0f) };
+        var surface = new Surface(4, 3);
+
+        // Act
+        ScanlineRasterizer.Fill(
+            surface, [rectangle, rectangle, rectangle, rectangle], new Rgba32(0, 0, 0, 255), FillRule.EvenOdd, new Rect(0, 0, 4, 3));
+
+        // Assert
+        for (var y = 0; y < 3; y++)
+        {
+            for (var x = 0; x < 4; x++)
+            {
+                Assert.Equal((byte)0, surface[x, y].A);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves three full-span vertical edges at fractional x positions in one cell, starting
+    ///     from zero incoming winding, resolve to the exact even-odd area (0.1 + 0.1 = 0.2 in the
+    ///     shared cell), not the complement caused by counting the cell's own cover as incoming.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_ThreeEdgesInOneCellEvenOdd_ZeroIncomingWinding_MatchesExactArea()
+    {
+        // Arrange: left edges at x = 0.2, 0.3 and 0.9, all right edges at x = 3 (outside the surface)
+        var rectangles = new[] { 0.2f, 0.3f, 0.9f }
+            .Select(x => new List<Vector2> { new(x, 0f), new(3f, 0f), new(3f, 1f), new(x, 1f), new(x, 0f) })
+            .ToList();
+        var surface = new Surface(3, 1);
+
+        // Act
+        ScanlineRasterizer.Fill(surface, rectangles, new Rgba32(0, 0, 0, 255), FillRule.EvenOdd, new Rect(0, 0, 3, 1));
+
+        // Assert: odd winding over [0.2, 0.3) and [0.9, 1) -> 0.2 * 255 = 51; winding 3 (odd) to the right
+        Assert.InRange(surface[0, 0].A, (byte)50, (byte)52);
+        Assert.Equal((byte)255, surface[1, 0].A);
+        Assert.Equal((byte)255, surface[2, 0].A);
+    }
+
+    /// <summary>
+    ///     Proves three full-span vertical edges in one cell that already has a nonzero (odd)
+    ///     incoming winding resolve to the exact even-odd area (0.2 + 0.6 = 0.8).
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_ThreeEdgesInOneCellEvenOdd_NonzeroIncomingWinding_MatchesExactArea()
+    {
+        // Arrange: a base rectangle from x = 0 gives incoming winding 1 to cell 1; three more edges at 1.2, 1.3, 1.9
+        List<Vector2> Rectangle(float x) => [new(x, 0f), new(4f, 0f), new(4f, 1f), new(x, 1f), new(x, 0f)];
+        var rectangles = new[] { 0f, 1.2f, 1.3f, 1.9f }.Select(Rectangle).ToList();
+        var surface = new Surface(4, 1);
+
+        // Act
+        ScanlineRasterizer.Fill(surface, rectangles, new Rgba32(0, 0, 0, 255), FillRule.EvenOdd, new Rect(0, 0, 4, 1));
+
+        // Assert: cell 1 is odd over [1, 1.2) and [1.3, 1.9) -> 0.8 * 255 = 204; winding 4 (even) beyond
+        Assert.Equal((byte)255, surface[0, 0].A);
+        Assert.InRange(surface[1, 0].A, (byte)203, (byte)205);
+        Assert.Equal((byte)0, surface[2, 0].A);
+        Assert.Equal((byte)0, surface[3, 0].A);
+    }
+
+    /// <summary>
+    ///     Proves two nested same-direction rectangles whose left edges share one cell resolve to
+    ///     the exact even-odd area (the ring between them), not the folded sum.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_NestedEdgesInOneCellEvenOdd_MatchesExactArea()
+    {
+        // Arrange: outer starts at x = 0.3, inner at x = 0.6, both end at x = 3 (shared cell 0 on the left)
+        var outer = new List<Vector2> { new(0.3f, 0f), new(3f, 0f), new(3f, 1f), new(0.3f, 1f), new(0.3f, 0f) };
+        var inner = new List<Vector2> { new(0.6f, 0f), new(3f, 0f), new(3f, 1f), new(0.6f, 1f), new(0.6f, 0f) };
+        var surface = new Surface(3, 1);
+
+        // Act
+        ScanlineRasterizer.Fill(surface, [outer, inner], new Rgba32(0, 0, 0, 255), FillRule.EvenOdd, new Rect(0, 0, 3, 1));
+
+        // Assert: only x in [0.3, 0.6) is odd -> alpha 0.3 * 255 = 76.5; everything else is even (0)
+        Assert.InRange(surface[0, 0].A, (byte)76, (byte)77);
+        Assert.Equal((byte)0, surface[1, 0].A);
+        Assert.Equal((byte)0, surface[2, 0].A);
+    }
+
+    /// <summary>
+    ///     Proves that two overlapping sub-pixel-offset squares whose boundaries share the same
+    ///     pixel columns resolve to the exact per-rule result: NonZero covers the union fully, and
+    ///     EvenOdd covers only the non-overlapping parts (0.5 per column).
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_OverlappingSubPixelSquares_ResolvesExactPerFillRule()
+    {
+        // Arrange: square 1 spans x in [0.25, 1.25), square 2 spans [0.75, 1.75), both full-height
         var square1 = new List<Vector2>
         {
             new(0.25f, 0f),
@@ -183,13 +235,31 @@ public class ScanlineRasterizerTests
         var evenOddSurface = new Surface(2, 1);
         ScanlineRasterizer.Fill(evenOddSurface, [square1, square2], color, FillRule.EvenOdd, clipBounds);
 
-        // Assert: both fill rules resolve the same raw magnitude (exactly 1) to fully opaque
+        // Assert: NonZero is fully opaque; EvenOdd keeps [0.25, 0.75) and [1.25, 1.75): 0.5 per column
         Assert.Equal((byte)255, nonZeroSurface[0, 0].A);
         Assert.Equal((byte)255, nonZeroSurface[1, 0].A);
-        Assert.Equal((byte)255, evenOddSurface[0, 0].A);
-        Assert.Equal((byte)255, evenOddSurface[1, 0].A);
+        Assert.Equal((byte)128, evenOddSurface[0, 0].A);
+        Assert.Equal((byte)128, evenOddSurface[1, 0].A);
     }
 
+    /// <summary>
+    ///     Proves that a slanted edge sharing a cell with a vertical edge keeps the (documented)
+    ///     fold behavior and still produces a coverage within the unit range.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_SlantedEdgeSharingCellWithVerticalEdgeEvenOdd_StaysWithinRange()
+    {
+        // Arrange: a triangle and a rectangle whose left edge sits in the slanted edge's cell
+        var triangle = new List<Vector2> { new(0f, 0f), new(2f, 1f), new(0f, 1f), new(0f, 0f) };
+        var rectangle = new List<Vector2> { new(0.5f, 0f), new(2f, 0f), new(2f, 1f), new(0.5f, 1f), new(0.5f, 0f) };
+        var surface = new Surface(2, 1);
+
+        // Act
+        ScanlineRasterizer.Fill(surface, [triangle, rectangle], new Rgba32(0, 0, 0, 255), FillRule.EvenOdd, new Rect(0, 0, 2, 1));
+
+        // Assert: alpha is a valid byte and the fill produced some ink (no exception, no NaN)
+        Assert.True(surface[0, 0].A + surface[1, 0].A > 0);
+    }
     /// <summary>
     ///     Proves the critical bug fix: a self-intersecting "bowtie" polygon whose two diagonal
     ///     edges cross each other strictly inside a row (not at a shared vertex or row boundary)

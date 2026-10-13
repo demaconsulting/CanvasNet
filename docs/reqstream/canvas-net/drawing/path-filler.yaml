@@ -247,6 +247,32 @@ sections:
                   - ScanlineRasterizer_Fill_EvenOdd_SlantedEdgeForcedIntoSubRowSplitting_MatchesSingleToggleFastPath
                   - CanvasNetPdf_SystemIntegration_PdfRender_EvenOddFill_MultipleBoundariesInSameRow_ResolvesPartialCoverageNotFullyOpaque
 
+              - id: CanvasNet-Drawing-PathFiller-ScanlineEvenOddMultiEdgeCell
+                title: >-
+                  The internal ScanlineRasterizer helper shall, under EvenOdd, resolve a pixel cell
+                  holding two or more vertical edges that each span the whole row (or sub-row
+                  interval) exactly, by toggling winding parity at the sorted in-cell edge
+                  positions, so coincident or nested edges at a fractional x (for example the
+                  shared left edge of stacked rectangles filled with the even-odd rule) leave no
+                  residual ink, while NonZero, cells holding a slanted or partial-height edge, and
+                  cells with a non-integral incoming winding keep the original fold unchanged.
+                justification: |
+                  The EvenOdd fold of the summed per-cell cover and area is only valid while the
+                  winding value inside the cell stays within one linear piece of the fold. Several
+                  edges in the same cell violate that: four coincident edges at fractional x sum to
+                  a raw value of 0.784 where the true even-parity coverage is 0, which painted a
+                  full-height column of ink along the shared left edge of an even-odd header rule at
+                  device sizes where that edge is not on a pixel boundary (ink 7 to 19 percent above
+                  the exact area). Exact parity resolution of vertical-edge cells removes the error;
+                  NonZero is unaffected because its fold is a single threshold.
+                tests:
+                  - ScanlineRasterizer_Fill_SubPixelOffsetDuplicatePolygons_EvenOddIsExactlyEmptyNonZeroIsOpaque
+                  - ScanlineRasterizer_Fill_FourCoincidentFractionalEdgesEvenOdd_ProducesNoInk
+                  - ScanlineRasterizer_Fill_NestedEdgesInOneCellEvenOdd_MatchesExactArea
+                  - ScanlineRasterizer_Fill_ThreeEdgesInOneCellEvenOdd_ZeroIncomingWinding_MatchesExactArea
+                  - ScanlineRasterizer_Fill_ThreeEdgesInOneCellEvenOdd_NonzeroIncomingWinding_MatchesExactArea
+                  - ScanlineRasterizer_Fill_OverlappingSubPixelSquares_ResolvesExactPerFillRule
+                  - ScanlineRasterizer_Fill_SlantedEdgeSharingCellWithVerticalEdgeEvenOdd_StaysWithinRange
               - id: CanvasNet-Drawing-PathFiller-ScanlineActiveEdgeList
                 title: >-
                   The internal ScanlineRasterizer helper shall add each polygon edge to its

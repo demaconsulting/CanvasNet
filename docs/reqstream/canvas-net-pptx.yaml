@@ -250,6 +250,7 @@ sections:
           - CanvasNetPptx-PptxDocument-UnderlineRendering
           - CanvasNetPptx-PptxDocument-TabStopExpansion
           - CanvasNetPptx-PptxDocument-SlideNumberFieldSubstitution
+          - CanvasNetPptx-PptxDocument-ShapeOwnListStyle
         tests:
           - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
           - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd
@@ -271,8 +272,10 @@ sections:
           - CanvasNetPptx-PptxDocument-PictureSmoothResample
           - CanvasNetPptx-PptxDocument-PictureGeometryClipping
           - CanvasNetPptx-PptxDocument-PictureStrokeOutline
+          - CanvasNetPptx-PptxDocument-MetafilePictureTolerance
         tests:
           - CanvasNetPptx_SystemIntegration_Images_PictureDecodesAndRendersEndToEnd
+          - CanvasNetPptx_SystemIntegration_Images_MetafilePictureIsSkippedReportedAndStrictThrows
 
       - id: CanvasNetPptx-TableShapes
         title: >-

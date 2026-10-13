@@ -1079,8 +1079,8 @@ public class PptxBulletTests
 
     /// <summary>
     ///     Regression test for the real-world <c>buAutoNum</c> "touching, zero extra gap" defect
-    ///     (the user-reported <c>"1.3 custom tip geometries"</c>/<c>"2.QO Reagent durable probe
-    ///     (J18604)"</c> symptom): proves the fix's added minimum trailing gap scales additively
+    ///     (the user-reported <c>"1.3 sample item text"</c>/<c>"2.Q1 sample item text"</c>
+    ///     symptom): proves the fix's added minimum trailing gap scales additively
     ///     with a genuinely multi-character auto-number marker's own full measured width (not a
     ///     fixed/single-glyph constant), and that it clears a digit-first paragraph first word
     ///     (reproducing the exact real-world ambiguous "marker digit immediately followed by the

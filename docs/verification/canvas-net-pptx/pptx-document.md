@@ -365,7 +365,7 @@ finding generalizes to genuine third-party-generated files, not merely a hand-au
 
 The first resolver-level test proves a slide's own empty, self-closing `<a:lstStyle/>` (no
 `<a:lvl1pPr>`..`<a:lvl9pPr>` level-override child at all - the exact real-world shape reported
-from "ERF IWF Breadboard Peer Review.pptx") does not "win" `PlaceholderInheritancePerCategory`'s
+from a real-world deck) does not "win" `PlaceholderInheritancePerCategory`'s
 own whole-element fallback: the idx-matched layout placeholder's own, level-bearing
 `<a:lstStyle>` is selected instead. The second resolver-level test is a regression guard proving
 the pre-existing, correct behavior is preserved - when the slide-level `<a:lstStyle>` DOES declare
@@ -1048,6 +1048,15 @@ resolved content type is not a recognized raster format throws `PptxUnsupportedF
 carrying the `"pptx-image-format"` feature token, and proves null argument validation for both
 `picElement`/`document`.
 
+#### CanvasNetPptx-PptxDocument-ShapeOwnListStyle: Non-Placeholder Shape Own `<a:lstStyle>`
+
+**Tests**: `Render_MasterNonPlaceholderTextBoxWithOwnLstStyle_HonorsListStyleFontSize`
+
+A synthetic master footer box (2594110 x 365125 EMU, a datetime field, own `<a:lstStyle>` declaring
+`lvl1pPr/defRPr sz="1200"` and no run size) renders pixel-identical to the same box with an explicit
+`sz="1200"` on the run and an empty list style, and paints visible text. Without the fix the list style is
+ignored, the text falls back to 18pt, wraps to a second line, and the two surfaces differ.
+
 #### CanvasNetPptx-PptxDocument-PictureSmoothResample: Pictures Are Resampled Smoothly
 
 **Tests**: `PaintPicture_EnlargedPicture_IsSmooth`, `PaintPicture_EnlargedCrop_DoesNotBleedPixelsOutsideCrop`,
@@ -1542,7 +1551,7 @@ pipeline verbatim rather than introducing a background-specific gradient path.
 `Render_MasterPlaceholderShape_DoesNotRenderItsOwnPromptContent`,
 `Render_LayoutPlaceholderShape_DoesNotRenderItsOwnPromptContent`,
 `Render_MasterNonPlaceholderPictureWithUnsupportedFormat_SkipsThatShapeAndStillRendersSlideContent`,
-`Render_SlideOwnPictureWithUnsupportedFormat_StillThrowsPptxUnsupportedFeatureException`,
+`Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException`,
 `Render_MasterSvgOnlyLogoPicture_PaintsVisiblePixelsInsteadOfBeingSkipped`,
 `PptxDocument_Render_Aiden0zChartAndComplexFixture_Slide0PaintsSlide1ThrowsUnsupportedFeature`
 
@@ -1565,11 +1574,13 @@ graceful-skip containment fix, that a master's own non-placeholder picture shape
 unsupported raster format (an EMF vector picture) is caught and skipped - rendering continues and
 the slide's own content still paints normally over the full slide footprint - rather than
 aborting the whole render; and, as the matching counter-proof that this containment is scoped
-only to master/layout-owned shapes, that a **slide's own** picture shape referencing the same
-unsupported raster format still hard-fails `Render` with `PptxUnsupportedFeatureException`,
-exactly as before this containment was added. Proves, as a regression guard for the Phase 2
-Follow-Up "SVG-Only Picture Blip Rendering" fix (mirroring the real-world "ERF IWF Breadboard Peer
-Review.pptx" master-logo scenario), that a master-owned "SVG-only" `<p:pic>` (no raster
+only to master/layout-owned shapes (and, separately, to EMF/WMF pictures - see
+`CanvasNetPptx-PptxDocument-MetafilePictureTolerance`), that a **slide's own** picture shape
+referencing a non-metafile unsupported format still hard-fails `Render` with
+`PptxUnsupportedFeatureException`, exactly as before this containment was added. Proves, as a
+regression guard for the Phase 2
+Follow-Up "SVG-Only Picture Blip Rendering" fix (mirroring a real-world deck's
+master-logo scenario), that a master-owned "SVG-only" `<p:pic>` (no raster
 `r:embed`/`r:link` at all, only a Microsoft `<asvg:svgBlip r:embed="...">` extension referencing an
 `.svg` media part) now actually paints its own rasterized pixels on every slide using that master,
 instead of being silently caught and skipped by the same graceful-skip containment described
@@ -1585,6 +1596,26 @@ of its own bounding box is unfilled background with anti-aliased edges) - this f
 a dramatic visual contrast on its own, since its own `bg1` theme color and its own slide master
 background both already resolve to the same pure white this freeform shape itself is filled, so
 the synthetic tests above carry the primary, deliberately-contrasting-color proof instead.
+
+#### CanvasNetPptx-PptxDocument-MetafilePictureTolerance: EMF/WMF Picture Tolerance
+
+**Tests**: `ResolvePictureSurface_MetafileContentType_ThrowsPptxUnsupportedFeatureExceptionWithMetafileToken`,
+`Render_SlideOwnMetafilePicture_SkipsPictureReportsItAndRendersRestOfSlide`,
+`Render_MetafilePictureInsideGroup_DefaultOptions_SkipsPictureAndRendersRestOfSlide`,
+`Render_SlideOwnMetafilePicture_StrictMode_ThrowsPptxUnsupportedFeatureException`,
+`Render_MasterMetafilePicture_SkippedSilentlyWithoutCallbackInBothModes`,
+`Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsupportedFeatureException`
+
+Proves, with synthetic minimal packages (placeholder media bytes - the metafile is never parsed),
+that all four EMF/WMF content types raise the distinct `"pptx-image-metafile"` feature token; that
+by default a slide's own metafile picture is skipped while the slide's other shape still paints
+(sampled under and beside the skipped picture's footprint) and exactly one report reaches
+`OnUnsupportedPictureSkipped`; that the same holds for a picture nested in a group; that
+`StrictUnsupportedPictures = true` makes `Render` throw `PptxUnsupportedFeatureException` with the
+metafile token and never invokes the callback; that a master's own metafile picture is skipped
+silently in both modes (no callback, no throw); and that a non-metafile unsupported content type
+still throws with the `"pptx-image-format"` token, proving the tolerance is scoped to EMF/WMF.
+No EMF/WMF rendering is verified because none exists (known gap).
 
 #### CanvasNetPptx-PptxDocument-BulletProperties: Bullet/Numbering Property Parsing and Choice-Group Inheritance
 
@@ -1722,7 +1753,7 @@ the fix's clamp is a no-op for the already-correct, sufficiently-negative-indent
 
 A follow-up real-world report found that same clamp, while correct for `buChar`, still
 insufficient for `buAutoNum`: CanvasNet rendered an auto-numbered marker immediately touching the
-paragraph's own first word (e.g. `"1.3 custom tip geometries"`), whereas real PowerPoint shows a
+paragraph's own first word (e.g. `"1.3 sample item text"`), whereas real PowerPoint shows a
 clear, word-space-sized gap after the marker. The updated
 `ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth` now asserts the clamped
 text-start-X includes both the bullet string's own measured width and a `buAutoNum`-only minimum
