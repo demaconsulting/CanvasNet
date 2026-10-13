@@ -33,21 +33,20 @@ load/crop/resize/save workflows.
 - 🖨️ **TIFF Codec** - Load/save 8-bit RGB/RGBA/Grayscale TIFF files
 - 🗜️ **JPEG Codec** - Load baseline/progressive; save baseline JPEG
 - 🎞️ **GIF Codec** - Decode-only load of first GIF frame; `GetInfo` reports the true frame count
-- 🖼️ **JPEG 2000 Codec** - Decode-only load of JP2 files and raw codestreams (Decode also exposes color space and alpha)
-- 📐 **SVG Codec** - Rasterize a common SVG subset to a surface (`DemaConsulting.CanvasNet.Svg`)
-- 📄 **PDF Document** - Open, inspect, and rasterize PDF pages with font substitution (`DemaConsulting.CanvasNet.Pdf`)
-- 📊 **Chart Rendering** - Build and paint Bar/Column/Line/Area/Pie/Doughnut charts (`DemaConsulting.CanvasNet.Charts`)
-- 📈 **OOXML Chart Parsing** - Parse ECMA-376 DrawingML charts, including from `.pptx` slides (`DemaConsulting.CanvasNet.Charts`)
-- 📊 **Visio (.vsdx) Rendering** - Rasterize Visio diagrams; unsupported constructs are reported (`DemaConsulting.CanvasNet.Vsdx`)
+- 🖼️ **JPEG 2000 Codec** - Decode-only load of JP2 files and raw codestreams
+- 📐 **SVG Codec** - Rasterize a common SVG subset to a surface
+- 📄 **PDF Document** - Open, inspect, and rasterize PDF pages with font substitution
+- 📽️ **PowerPoint Rendering** - Rasterize `.pptx` slides to a surface
+- 📊 **Chart Rendering** - Build and paint Bar/Column/Line/Area/Pie/Doughnut charts
+- 📈 **OOXML Chart Parsing** - Parse ECMA-376 DrawingML charts, including from `.pptx`
+- 🔷 **Visio Rendering** - Rasterize `.vsdx` diagrams; unsupported constructs are reported
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
 - 🧱 **Tile Paint** - Fill a path by repeating a pre-rendered tile bitmap at a configurable pitch
-- 🔤 **TrueType/CFF Fonts** - Load TrueType/CFF/OpenType fonts and collections, extract glyph
-  outlines, and query name/style metadata
-- 🗂️ **System Font Discovery** - Match a requested family/style against fonts installed on the
-  host OS, with a bundled fallback font
+- 🔤 **TrueType/CFF Fonts** - Load fonts and collections, extract glyph outlines, query metadata
+- 🗂️ **System Font Discovery** - Match a family/style against installed fonts, with a bundled fallback
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
 - 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
@@ -103,16 +102,41 @@ feature-detection all follow the same pattern):
 ```csharp
 using DemaConsulting.CanvasNet.Pdf;
 
-// Render paints the page's real content-stream geometry: path fills/strokes with device
-// color, placed image XObjects, and text (using the page's embedded font, or an
-// automatically substituted system/bundled fallback font when none is embedded).
+// Render paints the page's real content-stream geometry: path fills/strokes, shadings and tiling
+// patterns, placed image XObjects, and text (using the page's embedded font, or an
+// automatically substituted system/bundled fallback font when none is embedded). Device,
+// CalGray/CalRGB/Lab, ICCBased, Indexed, Separation and DeviceN colors are converted to sRGB.
 using var pdfDoc = PdfDocument.Open("document.pdf");
 var pageInfo = pdfDoc.GetPageInfo(0);
 using var pdfSurface = pdfDoc.Render(0, pageInfo.Width, pageInfo.Height);
 ```
 
-Fill a vector path onto a surface (stroking, gradients, tile paint, fonts, charts, and
-Visio/PowerPoint rendering follow the same `Drawing`/`Geometry` API):
+Render a PowerPoint slide and a Visio page (both report constructs they cannot draw rather than
+skipping them silently):
+
+```csharp
+using DemaConsulting.CanvasNet.Pptx;
+using DemaConsulting.CanvasNet.Vsdx;
+
+// EMF/WMF pictures on a slide are skipped; the callback reports each one
+using var deck = PptxDocument.Open("slides.pptx");
+var pptxOptions = new PptxRenderOptions
+{
+    OnUnsupportedPictureSkipped = ex => Console.WriteLine($"Skipped picture: {ex.Message}"),
+};
+using var slide = deck.Render(0, 96f, pptxOptions);
+
+// Each recognized-but-unsupported Visio construct is reported with a stable feature token
+using var diagram = VsdxDocument.Open("diagram.vsdx");
+var vsdxOptions = new VsdxRenderOptions
+{
+    UnsupportedFeatureHandler = f => Console.WriteLine($"{f.Feature}: {f.Message}"),
+};
+using var page = diagram.Render(0, 150, vsdxOptions);
+```
+
+Fill a vector path onto a surface (stroking, gradients, tile paint, fonts, and charts use the same
+`Drawing`/`Geometry` API):
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -136,7 +160,7 @@ PathFiller.Fill(canvas, triangle, new Rgba32(0, 128, 255, 255));
 
 See the [User Guide][link-releases] for the full API reference and additional worked examples,
 including stroking, gradients, tile paint, font loading/metadata, chart building, OOXML chart
-parsing, and Visio diagram rendering.
+parsing, PDF, PowerPoint and Visio rendering, and SVG and JPEG 2000 decoding.
 
 ## Building
 
