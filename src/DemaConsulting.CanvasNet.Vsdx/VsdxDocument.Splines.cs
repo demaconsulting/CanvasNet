@@ -50,24 +50,23 @@ public sealed partial class VsdxDocument
     /// <summary>Begins a spline at the <c>SplineStart</c> row <paramref name="cells"/>, with <paramref name="pen"/> as its first control point.</summary>
     /// <param name="pen">The pen position, the spline's first control point.</param>
     /// <param name="cells">The <c>SplineStart</c> row cells.</param>
-    /// <returns>The new accumulator.</returns>
     /// <returns>The new accumulator, or <see langword="null"/> (after reporting) when a required cell is missing, malformed or non-finite.</returns>
     private static SplineAccumulator? BeginSpline(Vector2 pen, VsdxCellBag cells)
     {
         if (!TryGetFinite(cells, "X", out var x) || !TryGetFinite(cells, "Y", out var y) ||
             !TryGetFinite(cells, "A", out var firstKnot) || !TryGetFinite(cells, "B", out var secondKnot) ||
-            !TryGetFinite(cells, "C", out var lastKnot))
+            !TryGetFinite(cells, "C", out var lastKnot) || !TryGetFinite(cells, "D", out var degree))
         {
             ReportUnsupported(
                 "vsdx-geometry-row-SplineStart",
-                "A SplineStart row has a missing, malformed or non-finite X, Y, A, B or C cell and was skipped.");
+                "A SplineStart row has a missing, malformed or non-finite X, Y, A, B, C or D cell and was skipped.");
             return null;
         }
 
         var spline = new SplineAccumulator
         {
             LastKnot = lastKnot,
-            Degree = (int)Math.Clamp(Math.Round(cells.GetDouble("D", 3d)), 1d, MaxCurveDegree),
+            Degree = (int)Math.Clamp(Math.Round(degree), 1d, MaxCurveDegree),
         };
         spline.Points.Add(pen);
         spline.Points.Add(ToLocalPoint(x, y));

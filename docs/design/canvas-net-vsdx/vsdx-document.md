@@ -305,7 +305,8 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   segments. Invalid knots or degree (for example decreasing knots) degrade the curve to a polyline
   through its control points and report `vsdx-geometry-spline-approximated`; a malformed or
   over-cap row is skipped
-  and reported as `vsdx-geometry-row-{Type}`; a `SplineStart` (cells `X`/`Y`/`A`/`B`/`C`) or
+  and reported as `vsdx-geometry-row-{Type}`; a `SplineStart` (cells `X`/`Y`/`A`/`B`/`C`/`D`; a
+  valid `D` degree is clamped to 1-25, but a missing or non-finite `D` is never defaulted) or
   `SplineKnot` (`X`/`Y`/`A`) row whose required cell is missing, malformed or non-finite is
   likewise skipped and reported rather than accumulated as zero. A `SplineKnot` with no
   preceding `SplineStart` (including one before the first `MoveTo`) is reported as

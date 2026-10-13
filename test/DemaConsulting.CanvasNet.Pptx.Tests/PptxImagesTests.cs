@@ -1059,6 +1059,8 @@ public class PptxImagesTests
     [InlineData("emf", "image/emf")]
     [InlineData("wmf", "image/x-wmf")]
     [InlineData("wmf", "image/wmf")]
+    [InlineData("emf", "IMAGE/X-EMF")]
+    [InlineData("wmf", "Image/Wmf; charset=binary")]
     public void ResolvePictureSurface_MetafileContentType_ThrowsPptxUnsupportedFeatureExceptionWithMetafileToken(string extension, string contentType)
     {
         var (package, slidePartPath) = BuildMinimalImagePackage(extension, contentType, [1, 2, 3, 4]);

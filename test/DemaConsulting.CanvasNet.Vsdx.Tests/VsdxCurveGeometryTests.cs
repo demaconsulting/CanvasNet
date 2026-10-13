@@ -182,6 +182,26 @@ public class VsdxCurveGeometryTests
         Assert.Contains("vsdx-geometry-row-SplineStart", features);
     }
 
+    /// <summary>A SplineStart whose required degree cell D is missing or not a finite number is skipped and reported rather than defaulting to a cubic.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("<Cell N=\"D\" V=\"abc\"/>")]
+    [InlineData("<Cell N=\"D\" V=\"NaN\"/>")]
+    [InlineData("<Cell N=\"D\" V=\"Infinity\"/>")]
+    public void Geometry_SplineStartInvalidDegree_SkippedAndReported(string degreeCellXml)
+    {
+        var subpath = ResolveSubpath(
+            $"""
+            <Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
+            <Row T="SplineStart" IX="2"><Cell N="X" V="1"/><Cell N="Y" V="1"/><Cell N="A" V="0"/><Cell N="B" V="0"/><Cell N="C" V="1"/>{degreeCellXml}</Row>
+            <Row T="SplineKnot" IX="3"><Cell N="X" V="2"/><Cell N="Y" V="0"/><Cell N="A" V="0.5"/></Row>
+            """,
+            out var features);
+
+        Assert.Empty(subpath.Commands);
+        Assert.Contains("vsdx-geometry-row-SplineStart", features);
+    }
+
     /// <summary>A SplineKnot with a malformed required cell is skipped and reported; the remaining spline still resolves.</summary>
     [Fact]
     public void Geometry_SplineKnotMalformedCell_SkippedAndReported()

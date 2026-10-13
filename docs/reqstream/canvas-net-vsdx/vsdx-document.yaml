@@ -201,6 +201,7 @@ sections:
               - Geometry_SplineDegreeOutOfRange_IsClampedWithoutThrowing
               - Geometry_SplineKnotsBeyondCap_AreTruncatedAndReported
               - Geometry_SplineStartMissingCell_SkippedAndReported
+              - Geometry_SplineStartInvalidDegree_SkippedAndReported
               - Geometry_SplineKnotMalformedCell_SkippedAndReported
               - Geometry_NurbsTo_InvalidWeight_SkippedAndReported
               - Geometry_NurbsTo_InvalidRequiredCell_SkippedAtomicallyAndReported

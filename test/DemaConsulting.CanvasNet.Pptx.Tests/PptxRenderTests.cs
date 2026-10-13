@@ -3634,6 +3634,7 @@ public class PptxRenderTests
     [Theory]
     [InlineData("emf", "image/x-emf")]
     [InlineData("wmf", "image/x-wmf")]
+    [InlineData("emf", "IMAGE/X-EMF")]
     public void Render_SlideOwnMetafilePicture_SkipsPictureReportsItAndRendersRestOfSlide(string extension, string contentType)
     {
         var spTreeInnerXml = FullSlideShapeXml("SlideShape", "0000FF") + MetafilePictureXml(0, 0, 4572000, 6858000);

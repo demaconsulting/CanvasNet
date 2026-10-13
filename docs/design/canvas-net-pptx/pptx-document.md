@@ -1866,7 +1866,8 @@ and `Render_SlideOwnPictureWithUnsupportedNonMetafileFormat_StillThrowsPptxUnsup
 `PptxRenderTests.cs` for the regression coverage proving both halves of this boundary.
 
 **EMF/WMF pictures on a slide are skipped (`CanvasNetPptx-PptxDocument-MetafilePictureTolerance`)**:
-a `<p:pic>` whose media content type is `image/x-emf`, `image/emf`, `image/x-wmf` or `image/wmf`
+a `<p:pic>` whose media content type (compared case-insensitively, ignoring whitespace and `;`
+parameters) is `image/x-emf`, `image/emf`, `image/x-wmf` or `image/wmf`
 makes `ResolvePictureSurface` throw `PptxUnsupportedFeatureException` with the distinct feature
 token `"pptx-image-metafile"` (every other unsupported content type keeps `"pptx-image-format"`).
 `RenderNode`'s `PptxPictureShapeNode` arm catches exactly that token, unless

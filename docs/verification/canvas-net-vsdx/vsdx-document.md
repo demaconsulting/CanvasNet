@@ -208,6 +208,7 @@ as `vsdx-geometry-row-<Type>`.
 `Geometry_SplineDegreeOutOfRange_IsClampedWithoutThrowing`,
 `Geometry_SplineKnotsBeyondCap_AreTruncatedAndReported`,
 `Geometry_SplineStartMissingCell_SkippedAndReported`,
+`Geometry_SplineStartInvalidDegree_SkippedAndReported`,
 `Geometry_SplineKnotMalformedCell_SkippedAndReported`,
 `Geometry_NurbsTo_InvalidWeight_SkippedAndReported`,
 `Geometry_NurbsTo_InvalidRequiredCell_SkippedAtomicallyAndReported`,
@@ -227,7 +228,8 @@ point; a heavier weight pulls the curve toward its control point; `xType`/`yType
 `Width`/`Height`; a following row continues from the curve end; invalid knots fall back to a
 polyline and report `vsdx-geometry-spline-approximated`; out-of-range degree never throws; and a
 malformed, oversized or orphan row is skipped and reported as `vsdx-geometry-row-<Type>` (including a
-`SplineStart`/`SplineKnot` whose required cell is missing, malformed or non-finite, a `SplineStart`
+`SplineStart`/`SplineKnot` whose required cell (including the `SplineStart` degree cell `D`) is
+missing, malformed or non-finite, a `SplineStart`
 with no valid following `SplineKnot` rows, a `NURBSTo` row with any missing or non-finite required
 cell or a non-positive weight, and a `PolylineTo` row with a missing or non-finite `X`/`Y` end
 point; each is skipped atomically with no partial geometry, never drawing to a default (0, 0)), with

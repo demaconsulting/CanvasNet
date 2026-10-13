@@ -225,7 +225,7 @@ public sealed partial class PptxDocument
     ///     since <see cref="SvgCodec.Load(Stream, int, int, System.Collections.Generic.IReadOnlyDictionary{string, DemaConsulting.CanvasNet.Fonts.TrueTypeFont}?)"/>
     ///     requires explicit raster target dimensions this dispatcher's signature cannot carry.
     /// </returns>
-    private static Func<Stream, Surface>? ResolveRasterDecoder(string contentType) => contentType switch
+    private static Func<Stream, Surface>? ResolveRasterDecoder(string contentType) => NormalizeMediaType(contentType) switch
     {
         "image/png" => PngCodec.Load,
         "image/jpeg" or "image/jpg" => JpegCodec.Load,
@@ -247,8 +247,22 @@ public sealed partial class PptxDocument
     /// </summary>
     /// <param name="contentType">The media part's resolved OPC content type.</param>
     /// <returns><see langword="true"/> for an EMF/WMF content type; otherwise <see langword="false"/>.</returns>
-    private static bool IsMetafileContentType(string contentType) => contentType is
+    private static bool IsMetafileContentType(string contentType) => NormalizeMediaType(contentType) is
         "image/x-emf" or "image/emf" or "image/x-wmf" or "image/wmf";
+
+    /// <summary>
+    ///     Normalizes an OPC content type for comparison: media type tokens are case-insensitive
+    ///     and may carry whitespace or <c>;</c> parameters, so parameters are dropped and the
+    ///     remainder is trimmed and lowercased.
+    /// </summary>
+    /// <param name="contentType">The media part's resolved OPC content type.</param>
+    /// <returns>The normalized media type.</returns>
+    private static string NormalizeMediaType(string contentType)
+    {
+        var semicolon = contentType.IndexOf(';');
+        var mediaType = semicolon >= 0 ? contentType[..semicolon] : contentType;
+        return mediaType.Trim().ToLowerInvariant();
+    }
 
     /// <summary>
     ///     Detects the Microsoft "SVG-only" <c>&lt;a:blip&gt;</c> fallback pattern - an
