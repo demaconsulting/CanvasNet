@@ -826,7 +826,9 @@ region-sized copy when its output is clipped (`ClipPrimitiveOutputToSubregion`);
 count behind both the per-filter check and the cumulative charge adds one unit for each such
 primitive, so every surface counted by `EffectSurfacesAllocated` is also charged. The filter's own
 content buffer is likewise one further unit on top of the primitive units (and one more when a
-primitive references `SourceAlpha`, which builds a shared alpha buffer); these fixed units are added
+resolved input references `SourceAlpha`, which builds a shared alpha buffer - any primitive's `in`,
+`in2` of `feComposite`/`feBlend`/`feDisplacementMap`, or an `feMergeNode`'s `in`, exactly the inputs the
+executor resolves); these fixed units are added
 in `ComputeEffectsPipelineWorkUnits` and deliberately are not part of the primitive count, so they never
 count toward `MaxFilterPrimitivesPerFilter`. The charge therefore covers every filter surface:
 content, `SourceAlpha`, clip-path/mask buffers, primitive outputs and subregion clip copies.

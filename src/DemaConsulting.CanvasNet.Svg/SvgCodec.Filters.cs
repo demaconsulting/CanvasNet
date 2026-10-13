@@ -1620,15 +1620,28 @@ public static partial class SvgCodec
             + (PrimitiveDeclaresSubregion(primitive) ? 1 : 0));
 
     /// <summary>
-    ///     Determines whether any primitive of <paramref name="filterElement"/> names <c>SourceAlpha</c>
-    ///     as its <c>in</c> or <c>in2</c> input (which builds one shared region-sized alpha buffer).
+    ///     Determines whether any input <see cref="EvaluateFilterChain"/> resolves names <c>SourceAlpha</c>
+    ///     (which builds one shared region-sized alpha buffer). The scan mirrors the executor exactly:
+    ///     every primitive's <c>in</c> is resolved; <c>in2</c> is resolved only by <c>feComposite</c>,
+    ///     <c>feBlend</c> and <c>feDisplacementMap</c>; and each <c>feMergeNode</c> child of an
+    ///     <c>feMerge</c> resolves its own <c>in</c>.
     /// </summary>
     /// <param name="filterElement">The resolved <c>filter</c> element.</param>
     /// <returns><see langword="true"/> if <c>SourceAlpha</c> is referenced.</returns>
     private static bool FilterUsesSourceAlpha(XElement filterElement) =>
         filterElement.Elements().Any(primitive =>
-            string.Equals((string?)primitive.Attribute("in"), "SourceAlpha", StringComparison.Ordinal) ||
-            string.Equals((string?)primitive.Attribute("in2"), "SourceAlpha", StringComparison.Ordinal));
+            IsSourceAlphaName(primitive, "in") ||
+            (primitive.Name.LocalName is "feComposite" or "feBlend" or "feDisplacementMap" &&
+                IsSourceAlphaName(primitive, "in2")) ||
+            (primitive.Name.LocalName == "feMerge" &&
+                primitive.Elements().Any(node => node.Name.LocalName == "feMergeNode" && IsSourceAlphaName(node, "in"))));
+
+    /// <summary>Determines whether <paramref name="element"/>'s <paramref name="attributeName"/> is exactly <c>SourceAlpha</c>.</summary>
+    /// <param name="element">The element to inspect.</param>
+    /// <param name="attributeName">The attribute name.</param>
+    /// <returns><see langword="true"/> if the attribute equals <c>SourceAlpha</c>.</returns>
+    private static bool IsSourceAlphaName(XElement element, string attributeName) =>
+        string.Equals((string?)element.Attribute(attributeName), "SourceAlpha", StringComparison.Ordinal);
 
     /// <summary>
     ///     Evaluates <paramref name="filterElement"/>'s <c>fe*</c> primitive children, in document

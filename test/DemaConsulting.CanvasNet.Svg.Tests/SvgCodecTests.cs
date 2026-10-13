@@ -5142,6 +5142,41 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves a <c>SourceAlpha</c> reached only through <c>feMergeNode</c> or an <c>in2</c> input is
+    ///     both allocated and charged: the surface count and the charged work rise together
+    ///     (content + output + alpha = three areas versus two without it; deterministic, no timing).
+    /// </summary>
+    [Theory]
+    [InlineData("<feMerge><feMergeNode in='SourceAlpha'/></feMerge>", "<feMerge><feMergeNode in='SourceGraphic'/></feMerge>")]
+    [InlineData("<feBlend in='SourceGraphic' in2='SourceAlpha'/>", "<feBlend in='SourceGraphic' in2='SourceGraphic'/>")]
+    [InlineData("<feComposite in='SourceGraphic' in2='SourceAlpha'/>", "<feComposite in='SourceGraphic' in2='SourceGraphic'/>")]
+    public void SvgCodec_Load_SourceAlphaViaMergeNodeOrIn2_IsCountedAndCharged(string alphaPrimitive, string plainPrimitive)
+    {
+        // Arrange
+        static string Svg(string primitive) =>
+            "<svg viewBox='0 0 100 100'><defs><filter id='f'>" + primitive + "</filter></defs>" +
+            "<rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/></svg>";
+
+        // Act
+        var alphaDiagnostics = new SvgCodec.RenderDiagnostics();
+        using (var stream = ToStream(Svg(alphaPrimitive)))
+        {
+            SvgCodec.LoadWithDiagnostics(stream, 100, 100, alphaDiagnostics);
+        }
+
+        var plainDiagnostics = new SvgCodec.RenderDiagnostics();
+        using (var stream = ToStream(Svg(plainPrimitive)))
+        {
+            SvgCodec.LoadWithDiagnostics(stream, 100, 100, plainDiagnostics);
+        }
+
+        // Assert: the extra alpha surface is counted and charged (3 areas versus 2)
+        Assert.Equal(plainDiagnostics.EffectSurfacesAllocated + 1, alphaDiagnostics.EffectSurfacesAllocated);
+        Assert.True(plainDiagnostics.WorkCharged > 0L);
+        Assert.Equal(plainDiagnostics.WorkCharged * 3, alphaDiagnostics.WorkCharged * 2);
+    }
+
+    /// <summary>
     ///     Proves a chain of subregion primitives is charged for the extra region-sized clip copy each
     ///     one allocates: the same three-primitive chain costs 7/4 the work units with explicit
     ///     subregions as without (one clip copy per primitive), and the surface counter reports the

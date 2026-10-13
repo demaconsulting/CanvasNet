@@ -810,7 +810,8 @@ operator.
 `SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes`,
 `SvgCodec_Load_ClipMaskAndFilter_CountsEveryEffectSurface`,
 `SvgCodec_Load_SubregionPrimitiveChain_ChargesClipCopies`,
-`SvgCodec_Load_FilterCharge_IncludesContentBufferUnit`
+`SvgCodec_Load_FilterCharge_IncludesContentBufferUnit`,
+`SvgCodec_Load_SourceAlphaViaMergeNodeOrIn2_IsCountedAndCharged`
 
 Asserts a `filter="url(#id)"` reference to a nonexistent id renders the element normally, exactly
 as if no `filter` attribute were present, matching this codec's general dangling-reference
@@ -864,6 +865,8 @@ without subregions and asserts the surface count rises from four to seven and th
 rises in the same 4:7 ratio. `WorkCharged` is tracked independently. The charge for a filter is
 (primitive units + 1 content unit [+ 1 for `SourceAlpha`]) region areas, so a one-`feFlood` filter is
 charged two areas and a two-`feFlood` filter three (`SvgCodec_Load_FilterCharge_IncludesContentBufferUnit`);
+`SvgCodec_Load_SourceAlphaViaMergeNodeOrIn2_IsCountedAndCharged` shows a `SourceAlpha` reached only through
+an `feMergeNode` or an `in2` adds one counted surface and one charged area;
 the cumulative-budget tests use 498 no-op primitives plus a flood so each application is exactly five
 million units, and the subregion chain test compares the 4-to-7 unit ratio.
 
