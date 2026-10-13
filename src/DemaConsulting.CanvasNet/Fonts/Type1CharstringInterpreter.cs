@@ -144,7 +144,7 @@ internal static class Type1CharstringInterpreter
                 throw new InvalidDataException("Type 1 charstring numeric operand is truncated.");
             }
 
-            value = ((b0 - 247) * 256) + data[pos + 1] + 108;
+            value = (double)(((b0 - 247) * 256) + data[pos + 1] + 108);
             consumed = 2;
         }
         else if (b0 is >= 251 and <= 254)
@@ -154,7 +154,7 @@ internal static class Type1CharstringInterpreter
                 throw new InvalidDataException("Type 1 charstring numeric operand is truncated.");
             }
 
-            value = (-(b0 - 251) * 256) - data[pos + 1] - 108;
+            value = (double)((-(b0 - 251) * 256) - data[pos + 1] - 108);
             consumed = 2;
         }
         else if (b0 == 255)

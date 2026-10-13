@@ -334,15 +334,7 @@ public static partial class Jpeg2000Codec
 
         private void BecomeSignificant(int idx, int x, int y, int bp, bool raw)
         {
-            int sign;
-            if (raw)
-            {
-                sign = _raw.ReadBit();
-            }
-            else
-            {
-                sign = SignBit(idx, y);
-            }
+            var sign = raw ? _raw.ReadBit() : SignBit(idx, y);
 
             _flags[idx] |= (byte)(FlagSig | (sign != 0 ? FlagNeg : 0));
             var m = (y * _w) + x;

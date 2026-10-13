@@ -440,44 +440,49 @@ public static partial class SvgCodec
             smooth = SurfaceResampler.Prefilter(decodedSurface, imageToRegion, out _, out factorX, out factorY);
         }
 
-        for (var row = 0; row < pixelHeight; row++)
+        try
         {
-            var resultRow = result.GetRowSpan(row);
-
-            for (var col = 0; col < pixelWidth; col++)
+            for (var row = 0; row < pixelHeight; row++)
             {
-                // Sample at the destination pixel's own center, matching this codec's existing
-                // pixel-center sampling convention elsewhere (for example SampleTileIntoRegion)
-                var canvasPoint = new Vector2(pixelX + col + 0.5f, pixelY + row + 0.5f);
-                var imagePoint = Vector2.Transform(canvasPoint, pixelToImage);
-                if (!float.IsFinite(imagePoint.X) || !float.IsFinite(imagePoint.Y))
-                {
-                    continue;
-                }
+                var resultRow = result.GetRowSpan(row);
 
-                if (imagePoint.X < 0f || imagePoint.X >= decodedWidth || imagePoint.Y < 0f || imagePoint.Y >= decodedHeight)
+                for (var col = 0; col < pixelWidth; col++)
                 {
-                    // Outside the decoded raster's own intrinsic bounds entirely - left fully
-                    // transparent instead of wrapped, unlike SampleTileIntoRegion's tiling wrap
-                    continue;
-                }
+                    // Sample at the destination pixel's own center, matching this codec's existing
+                    // pixel-center sampling convention elsewhere (for example SampleTileIntoRegion)
+                    var canvasPoint = new Vector2(pixelX + col + 0.5f, pixelY + row + 0.5f);
+                    var imagePoint = Vector2.Transform(canvasPoint, pixelToImage);
+                    if (!float.IsFinite(imagePoint.X) || !float.IsFinite(imagePoint.Y))
+                    {
+                        continue;
+                    }
 
-                if (nearest)
-                {
-                    var sourceX = Math.Clamp((int)imagePoint.X, 0, decodedWidth - 1);
-                    var sourceY = Math.Clamp((int)imagePoint.Y, 0, decodedHeight - 1);
-                    resultRow[col] = decodedSurface.GetRowSpan(sourceY)[sourceX];
-                }
-                else
-                {
-                    resultRow[col] = SurfaceResampler.SampleBilinearReduced(smooth, imagePoint.X, imagePoint.Y, factorX, factorY, decodedWidth, decodedHeight);
+                    if (imagePoint.X < 0f || imagePoint.X >= decodedWidth || imagePoint.Y < 0f || imagePoint.Y >= decodedHeight)
+                    {
+                        // Outside the decoded raster's own intrinsic bounds entirely - left fully
+                        // transparent instead of wrapped, unlike SampleTileIntoRegion's tiling wrap
+                        continue;
+                    }
+
+                    if (nearest)
+                    {
+                        var sourceX = Math.Clamp((int)imagePoint.X, 0, decodedWidth - 1);
+                        var sourceY = Math.Clamp((int)imagePoint.Y, 0, decodedHeight - 1);
+                        resultRow[col] = decodedSurface.GetRowSpan(sourceY)[sourceX];
+                    }
+                    else
+                    {
+                        resultRow[col] = SurfaceResampler.SampleBilinearReduced(smooth, imagePoint.X, imagePoint.Y, factorX, factorY, decodedWidth, decodedHeight);
+                    }
                 }
             }
         }
-
-        if (!ReferenceEquals(smooth, decodedSurface))
+        finally
         {
-            smooth.Dispose();
+            if (!ReferenceEquals(smooth, decodedSurface))
+            {
+                smooth.Dispose();
+            }
         }
 
         return result;

@@ -229,6 +229,7 @@ public static class SystemFontCatalog
         {
             family = serif ? "LiberationSerif" : "LiberationSans";
         }
+
         var style = (bold, italic) switch
         {
             (true, true) => "BoldItalic",
@@ -483,7 +484,7 @@ public static class SystemFontCatalog
             var localAppData = Environment.GetEnvironmentVariable("LOCALAPPDATA");
             if (!string.IsNullOrEmpty(localAppData))
             {
-                yield return Path.Combine(localAppData, "Microsoft", "Windows", "Fonts");
+                yield return Path.Join(localAppData, "Microsoft", "Windows", "Fonts");
             }
 
             yield break;
@@ -497,7 +498,7 @@ public static class SystemFontCatalog
             var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             if (!string.IsNullOrEmpty(home))
             {
-                yield return Path.Combine(home, "Library", "Fonts");
+                yield return Path.Join(home, "Library", "Fonts");
             }
 
             yield break;
@@ -511,8 +512,8 @@ public static class SystemFontCatalog
         var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         if (!string.IsNullOrEmpty(homeDirectory))
         {
-            yield return Path.Combine(homeDirectory, ".local", "share", "fonts");
-            yield return Path.Combine(homeDirectory, ".fonts");
+            yield return Path.Join(homeDirectory, ".local", "share", "fonts");
+            yield return Path.Join(homeDirectory, ".fonts");
         }
     }
 

@@ -841,7 +841,7 @@ internal sealed class CffTable : IGlyphOutlineSource
                     throw new InvalidDataException("CFF DICT operand is truncated.");
                 }
 
-                operands.Add(((b0 - 247) * 256) + data[pos + 1] + 108);
+                operands.Add((double)(((b0 - 247) * 256) + data[pos + 1] + 108));
                 pos += 2;
             }
             else if (b0 is >= 251 and <= 254)
@@ -851,7 +851,7 @@ internal sealed class CffTable : IGlyphOutlineSource
                     throw new InvalidDataException("CFF DICT operand is truncated.");
                 }
 
-                operands.Add((-(b0 - 251) * 256) - data[pos + 1] - 108);
+                operands.Add((double)((-(b0 - 251) * 256) - data[pos + 1] - 108));
                 pos += 2;
             }
             else
