@@ -65,9 +65,20 @@ partially transparent constant color over a background pixel.
 
 **Requirement coverage**: `CanvasNet-OTS-SystemNumericsTensors`.
 
+#### Resize_VerticalMultiTap_AccumulatesWeightedRows
+
+**Scenario**: `Surface.Resize` runs `SurfaceResampler`'s vertical pass, which accumulates several
+weighted source rows per output row with `Multiply` and `MultiplyAdd`. A bilinear enlargement and an
+area reduction of a one-pixel-wide column exercise it.
+
+**Expected**: The output pixels match the hand-computed weighted averages within one level.
+
+**Requirement coverage**: `CanvasNet-OTS-SystemNumericsTensors`.
+
 ### Requirements Coverage
 
 - **`CanvasNet-OTS-SystemNumericsTensors`**: Surface_PremultiplyAlpha_VariousValues_ComputesExpectedPixels,
   Surface_UnpremultiplyAlpha_VariousValues_ComputesExpectedPixels,
   Surface_CompositeOverSurface_PartialAlpha_MatchesIndependentlyComputedResult,
-  Surface_CompositeOverColor_PartialAlpha_MatchesIndependentlyComputedResult
+  Surface_CompositeOverColor_PartialAlpha_MatchesIndependentlyComputedResult,
+  Resize_VerticalMultiTap_AccumulatesWeightedRows

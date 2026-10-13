@@ -26,3 +26,4 @@ sections:
               - Surface_UnpremultiplyAlpha_VariousValues_ComputesExpectedPixels
               - Surface_CompositeOverSurface_PartialAlpha_MatchesIndependentlyComputedResult
               - Surface_CompositeOverColor_PartialAlpha_MatchesIndependentlyComputedResult
+              - Resize_VerticalMultiTap_AccumulatesWeightedRows
