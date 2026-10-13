@@ -698,8 +698,9 @@ plus the resolved total block height.
    tokens via a small manual scanner (not `string.Split(' ')`, so consecutive spaces/tabs are
    preserved as their own token's own advance width, rather than collapsed). Each distinct
    `(FontFamily, Bold, Italic)` combination is resolved to a `TrueTypeFont` once via
-   `fontResolver`, memoized per layout call (a document-level, cross-call cache is not needed
-   this phase, mirroring Phase 1b's own per-document, not static, theme/master/layout caches).
+   `fontResolver`, memoized per layout call; `ResolveTextFont` additionally shares loaded system
+   fonts across layouts through a process-lifetime path/face cache (see `ResolveTextFont` below).
+   (Phase 1b's own theme/master/layout caches remain per-document, not static.)
    Tokens are packed greedily onto lines bounded by `widthEmu` less the body's horizontal insets;
    a single token that alone exceeds the available width is placed alone on its own (overflowing)
    line rather than looping indefinitely - a documented overflow policy, not a crash.
@@ -743,7 +744,11 @@ name hint to a concrete `TrueTypeFont` via the core `Fonts.SystemFontCatalog.Fin
 classification - unlike the PDF renderer's Standard-14 font concept, DrawingML typeface names are
 a free-form string with no implied serif/fixed-pitch/symbolic classification), falling back to
 `Fonts.SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic)` when
-no installed font matches. This resolves only a run's **primary** font (one call per distinct
+no installed font matches. A matched system font is loaded through a process-lifetime cache keyed
+by font file path and face index (the same keying `PdfDocument`'s fallback-font cache uses), so
+the many text bodies and table cells of one slide share a single parsed `TrueTypeFont` instead of
+each re-reading the font file (a `TrueTypeFont` is immutable and thread-safe, so sharing is
+behavior-identical). This resolves only a run's **primary** font (one call per distinct
 `(FontFamily, Bold, Italic)` combination, before any character is inspected); it is the default
 `fontResolver` delegate `ResolveTextLayout` is driven with in production use. Per-character
 coverage fallback (when the primary font itself lacks a given codepoint) is a distinct, later

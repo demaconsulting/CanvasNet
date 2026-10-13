@@ -442,7 +442,9 @@ opts into the exception instead (see _Unsupported-feature reporting_ above).
   package's source — every non-solid `FillPattern` value degrades to solid fill instead (see
   `FillPatternDeferral` above).
 - **`CanvasNet.Fonts`** — `TrueTypeFont`/`SystemFontCatalog` (resolving a `Section N="Character"`
-  row's `Font` name hint and extracting glyph outlines for shape/connector text)
+  row's `Font` name hint and extracting glyph outlines for shape/connector text; matched system
+  fonts are shared through a process-lifetime path/face cache so one page does not re-parse the
+  same font file per text shape)
 - **`CanvasNet.Codecs`** — reserved for the deferred embedded-image/`Foreign`-shape capability;
   not exercised by this unit's in-scope feature set (see _CanvasNetVsdx System Design_'s Design
   Constraints section, `canvas-net-vsdx.md`)
