@@ -1686,7 +1686,9 @@ change behavior for any document within normal real-world limits.
   elements), or a `/BitsPerSample` other than `8`/`16` there — `Codecs.UnsupportedImageFeatureException`;
   a `/Function` that does not resolve to a stream/dictionary, or a missing/malformed
   `/Domain`/`/Range`/`/Size`/`/Encode`/`/Decode`/`/C0`/`/C1`/`/N`/`/Functions`/`/Bounds` entry —
-  `InvalidDataException` instead (malformed, not merely unsupported).
+  `InvalidDataException` instead (malformed, not merely unsupported). A stitching function's
+  `/Domain` must be finite with `Domain0 <= Domain1`, and its `/Bounds` must be finite,
+  non-decreasing and within `/Domain`; equal consecutive bounds stay valid (hard color stops).
 - **An unsupported stream filter** (anything other than `FlateDecode`, `LZWDecode`,
   `ASCII85Decode`, `ASCIIHexDecode`, `RunLengthDecode`, or `DCTDecode`/`CCITTFaxDecode` combined
   with another filter) — `Codecs.UnsupportedImageFeatureException`; an unrecognized `/Predictor`

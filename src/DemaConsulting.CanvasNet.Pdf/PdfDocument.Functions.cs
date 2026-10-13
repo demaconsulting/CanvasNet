@@ -793,6 +793,34 @@ public sealed partial class PdfDocument
             throw new InvalidDataException($"/Bounds must have exactly {k - 1} element(s) for {k} sub-function(s).");
         }
 
+        // A degenerate (equal) /Domain is tolerated by Evaluate, so it stays accepted; a reversed or
+        // non-finite one is malformed. Equal consecutive bounds are valid (hard color stops).
+        if (!double.IsFinite(domain[0]) || !double.IsFinite(domain[1]) || domain[0] > domain[1])
+        {
+            throw new InvalidDataException("/Domain must hold two finite numbers with Domain0 <= Domain1.");
+        }
+
+        var previousBound = domain[0];
+        foreach (var bound in bounds)
+        {
+            if (!double.IsFinite(bound))
+            {
+                throw new InvalidDataException("/Bounds must contain only finite numbers.");
+            }
+
+            if (bound < previousBound)
+            {
+                throw new InvalidDataException("/Bounds must be non-decreasing and within /Domain.");
+            }
+
+            previousBound = bound;
+        }
+
+        if (bounds.Length > 0 && bounds[^1] > domain[1])
+        {
+            throw new InvalidDataException("/Bounds must be non-decreasing and within /Domain.");
+        }
+
         var encode = RequireNumberArray(function, "Encode");
         if (encode.Length != 2 * k)
         {

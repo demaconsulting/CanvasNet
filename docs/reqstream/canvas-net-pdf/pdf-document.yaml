@@ -1986,6 +1986,9 @@ sections:
             tests:
               - PdfDocument_Functions_Type2_Exponential_EvaluatesExpectedInterpolatedOutput
               - PdfDocument_Functions_Type3_Stitching_EvaluatesExpectedSubFunctionOutput
+              - PdfDocument_Functions_Type3_Stitching_InvalidBoundsOrDomain_ThrowsInvalidDataException
+              - PdfDocument_Functions_Type3_Stitching_NonFiniteBound_ThrowsInvalidDataException
+              - PdfDocument_Functions_Type3_Stitching_EqualBounds_AreAcceptedAndEvaluateAsHardStop
               - PdfDocument_Functions_UnknownFunctionType_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Functions_Type3_Stitching_NestingDepthExceeded_ThrowsInvalidDataException
 

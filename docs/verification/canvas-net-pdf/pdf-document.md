@@ -2289,7 +2289,10 @@ still accepted.
 **Tests**: `PdfDocument_Functions_Type2_Exponential_EvaluatesExpectedInterpolatedOutput`,
 `PdfDocument_Functions_Type3_Stitching_EvaluatesExpectedSubFunctionOutput`,
 `PdfDocument_Functions_UnknownFunctionType_ThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Functions_Type3_Stitching_NestingDepthExceeded_ThrowsInvalidDataException`
+`PdfDocument_Functions_Type3_Stitching_NestingDepthExceeded_ThrowsInvalidDataException`,
+`PdfDocument_Functions_Type3_Stitching_InvalidBoundsOrDomain_ThrowsInvalidDataException`,
+`PdfDocument_Functions_Type3_Stitching_NonFiniteBound_ThrowsInvalidDataException`,
+`PdfDocument_Functions_Type3_Stitching_EqualBounds_AreAcceptedAndEvaluateAsHardStop`
 
 Every test resolves a hand-built function stream via the new `ResolveFunctionGeneric` entry point
 (through a new `ResolveTestFunctionGeneric` helper mirroring `ResolveTestFunction`'s own "build a
@@ -2299,7 +2302,11 @@ linear (`N=1`) and a quadratic (`N=2`) exponent, asserting the literal spec form
 interpolated output at a known input. A `[Theory]` resolves a `/FunctionType 3` stitching
 function with 2 `/FunctionType 2` sub-functions split at a single `/Bounds` partition point,
 asserting the correct sub-function is selected (and its own `/Encode` remap applied) for inputs
-falling in each of the 2 partitions. A further test resolves a `/FunctionType 5` function through
+falling in each of the 2 partitions. A `[Theory]` and a `[Fact]` resolve stitching functions whose
+`/Bounds` are non-finite, decreasing or outside `/Domain` (or whose `/Domain` is reversed) and assert
+`InvalidDataException`; a further `[Theory]` proves equal consecutive bounds (a hard color stop) are
+still accepted and evaluate to the sub-function starting at the shared bound. A further test resolves
+a `/FunctionType 5` function through
 `ResolveFunctionGeneric`, asserting `Codecs.UnsupportedImageFeatureException` (feature
 `pdf-functiontype-5`) is thrown (regression guard for unknown types; type 4 is now supported, see
 below). A final regression test resolves a self-referencing
