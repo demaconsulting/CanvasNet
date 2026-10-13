@@ -302,7 +302,7 @@ public sealed partial class VsdxDocument
     /// <param name="requestedDegree">The requested degree.</param>
     private static void AppendNurbs(
         PathBuilder builder,
-        IReadOnlyList<Vector2> points,
+        List<Vector2> points,
         IReadOnlyList<double>? weights,
         List<double> knots,
         int requestedDegree)
@@ -336,25 +336,12 @@ public sealed partial class VsdxDocument
     /// <param name="knots">The full knot vector (at least <c>n + degree + 1</c> values).</param>
     /// <param name="degree">The degree, at most <c>n - 1</c>.</param>
     /// <returns>The sampled points, or <see langword="null"/> when the knots or weights are invalid.</returns>
-    private static List<Vector2>? TryFlattenNurbs(IReadOnlyList<Vector2> points, IReadOnlyList<double>? weights, List<double> knots, int degree)
+    private static List<Vector2>? TryFlattenNurbs(List<Vector2> points, IReadOnlyList<double>? weights, List<double> knots, int degree)
     {
         var n = points.Count;
-        for (var i = 0; i < n + degree + 1; i++)
+        if (!AreKnotsValid(knots, n + degree + 1) || !TryBuildWeights(weights, n, out var w))
         {
-            if (!double.IsFinite(knots[i]) || (i > 0 && knots[i] < knots[i - 1]))
-            {
-                return null;
-            }
-        }
-
-        var w = new double[n];
-        for (var i = 0; i < n; i++)
-        {
-            w[i] = weights is null ? 1d : weights[i];
-            if (!double.IsFinite(w[i]) || w[i] <= 0d)
-            {
-                return null;
-            }
+            return null;
         }
 
         var low = knots[degree];
@@ -377,22 +364,52 @@ public sealed partial class VsdxDocument
         for (var s = 1; s <= segments; s++)
         {
             var t = s == segments ? high : low + ((high - low) * s / segments);
-            if (s == segments)
-            {
-                span = lastSpan;
-            }
-            else
-            {
-                while (span < n - 1 && t >= knots[span + 1])
-                {
-                    span++;
-                }
-            }
-
+            span = s == segments ? lastSpan : AdvanceSpan(knots, span, n, t);
             result.Add(EvaluateDeBoor(points, w, knots, degree, span, t));
         }
 
         return result;
+    }
+
+    /// <summary>Returns whether the first <paramref name="count"/> knots are finite and non-decreasing.</summary>
+    private static bool AreKnotsValid(List<double> knots, int count)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            if (!double.IsFinite(knots[i]) || (i > 0 && knots[i] < knots[i - 1]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Builds the weight array (all 1 when <paramref name="weights"/> is <see langword="null"/>); returns <see langword="false"/> when a weight is non-finite or not positive.</summary>
+    private static bool TryBuildWeights(IReadOnlyList<double>? weights, int count, out double[] w)
+    {
+        w = new double[count];
+        for (var i = 0; i < count; i++)
+        {
+            w[i] = weights is null ? 1d : weights[i];
+            if (!double.IsFinite(w[i]) || w[i] <= 0d)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Advances <paramref name="span"/> to the knot span containing <paramref name="t"/>.</summary>
+    private static int AdvanceSpan(List<double> knots, int span, int n, double t)
+    {
+        while (span < n - 1 && t >= knots[span + 1])
+        {
+            span++;
+        }
+
+        return span;
     }
 
     /// <summary>Evaluates a rational B-spline at parameter <paramref name="t"/> in knot span <paramref name="span"/> with de Boor's algorithm on homogeneous coordinates.</summary>
@@ -403,7 +420,7 @@ public sealed partial class VsdxDocument
     /// <param name="span">The knot span index containing <paramref name="t"/>.</param>
     /// <param name="t">The parameter.</param>
     /// <returns>The curve point.</returns>
-    private static Vector2 EvaluateDeBoor(IReadOnlyList<Vector2> points, double[] w, List<double> knots, int degree, int span, double t)
+    private static Vector2 EvaluateDeBoor(List<Vector2> points, double[] w, List<double> knots, int degree, int span, double t)
     {
         var x = new double[degree + 1];
         var y = new double[degree + 1];
