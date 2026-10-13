@@ -135,6 +135,10 @@ public class ScanlineRasterizerTests
         }
     }
 
+    private static readonly float[] ThreeEdgeXs = [0.2f, 0.3f, 0.9f];
+
+    private static readonly float[] FourEdgeXs = [0f, 1.2f, 1.3f, 1.9f];
+
     /// <summary>
     ///     Proves three full-span vertical edges at fractional x positions in one cell, starting
     ///     from zero incoming winding, resolve to the exact even-odd area (0.1 + 0.1 = 0.2 in the
@@ -144,7 +148,7 @@ public class ScanlineRasterizerTests
     public void ScanlineRasterizer_Fill_ThreeEdgesInOneCellEvenOdd_ZeroIncomingWinding_MatchesExactArea()
     {
         // Arrange: left edges at x = 0.2, 0.3 and 0.9, all right edges at x = 3 (outside the surface)
-        var rectangles = new[] { 0.2f, 0.3f, 0.9f }
+        var rectangles = ThreeEdgeXs
             .Select(x => new List<Vector2> { new(x, 0f), new(3f, 0f), new(3f, 1f), new(x, 1f), new(x, 0f) })
             .ToList();
         var surface = new Surface(3, 1);
@@ -167,7 +171,7 @@ public class ScanlineRasterizerTests
     {
         // Arrange: a base rectangle from x = 0 gives incoming winding 1 to cell 1; three more edges at 1.2, 1.3, 1.9
         List<Vector2> Rectangle(float x) => [new(x, 0f), new(4f, 0f), new(4f, 1f), new(x, 1f), new(x, 0f)];
-        var rectangles = new[] { 0f, 1.2f, 1.3f, 1.9f }.Select(Rectangle).ToList();
+        var rectangles = FourEdgeXs.Select(Rectangle).ToList();
         var surface = new Surface(4, 1);
 
         // Act

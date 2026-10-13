@@ -625,12 +625,14 @@ public class PdfDocumentTintTests
 
     // ---- Bounded per-image tint evaluation ----
 
+    private static readonly double[] UnitDomainPair = [0.0, 1.0];
+
     private static PdfDocument.PdfColorSpace TwoColorantSpace(int inputs = 2)
     {
         var program = Encoding.ASCII.GetBytes(inputs == 2 ? "{ 0 }" : "{ }");
         var fn = new PdfDocument.PostScriptFunction(
             program,
-            [.. Enumerable.Repeat(new[] { 0.0, 1.0 }, inputs).SelectMany(static a => a)],
+            [.. Enumerable.Repeat(UnitDomainPair, inputs).SelectMany(static a => a)],
             [0, 1, 0, 1, 0, 1]);
         return PdfDocument.PdfColorSpace.Tint(
             PdfDocument.PdfColorSpace.Family.DeviceN,

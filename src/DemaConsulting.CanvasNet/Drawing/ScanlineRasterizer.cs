@@ -802,30 +802,7 @@ internal static class ScanlineRasterizer
             // of "hi" has a constant running total (no edge contributes there), so only [lo, hi]
             // needs clearing, accumulating, and per-column resolving - a thin shape on a wide
             // clip region costs O(shape width), not O(clip width).
-            var minX = float.PositiveInfinity;
-            var maxX = float.NegativeInfinity;
-            foreach (var edge in _rowEdges)
-            {
-                minX = Math.Min(minX, Math.Min(edge.XAtY0, edge.XAtY1));
-                maxX = Math.Max(maxX, Math.Max(edge.XAtY0, edge.XAtY1));
-            }
-
-            int lo;
-            int hi;
-            if (minX > -TouchedRangeLimit && maxX < TouchedRangeLimit)
-            {
-                // "cover" indexes up to floor(x) + 1 (the bank column to the right of an edge's
-                // column), clamped into the Width + 1 slots; the overflow slot is never read.
-                lo = Math.Clamp((int)MathF.Floor(minX) - _clipMinX, 0, Width);
-                hi = Math.Clamp((int)MathF.Floor(maxX) - _clipMinX + 1, 0, Width - 1);
-            }
-            else
-            {
-                // Non-finite or absurdly large coordinates: take the full, always-correct range.
-                lo = 0;
-                hi = Width - 1;
-            }
-
+            ComputeTouchedRange(out var lo, out var hi);
             if (lo > hi)
             {
                 // Every edge lies right of the visible range: nothing is visible on this row.
@@ -872,6 +849,39 @@ internal static class ScanlineRasterizer
                     : ResolveCoverage(total, _fillRule);
             }
 
+            FinishRowSpan(lo, hi, accumulatedCover);
+            ApplyClip(y);
+        }
+
+        /// <summary>Bounds the columns the current row's edges can touch, clamped into the clip window.</summary>
+        private void ComputeTouchedRange(out int lo, out int hi)
+        {
+            var minX = float.PositiveInfinity;
+            var maxX = float.NegativeInfinity;
+            foreach (var edge in _rowEdges)
+            {
+                minX = Math.Min(minX, Math.Min(edge.XAtY0, edge.XAtY1));
+                maxX = Math.Max(maxX, Math.Max(edge.XAtY0, edge.XAtY1));
+            }
+
+            if (minX > -TouchedRangeLimit && maxX < TouchedRangeLimit)
+            {
+                // "cover" indexes up to floor(x) + 1 (the bank column to the right of an edge's
+                // column), clamped into the Width + 1 slots; the overflow slot is never read.
+                lo = Math.Clamp((int)MathF.Floor(minX) - _clipMinX, 0, Width);
+                hi = Math.Clamp((int)MathF.Floor(maxX) - _clipMinX + 1, 0, Width - 1);
+            }
+            else
+            {
+                // Non-finite or absurdly large coordinates: take the full, always-correct range.
+                lo = 0;
+                hi = Width - 1;
+            }
+        }
+
+        /// <summary>Fills the constant tail right of <paramref name="hi"/>, trims zero-coverage columns, and publishes the span.</summary>
+        private void FinishRowSpan(int lo, int hi, float accumulatedCover)
+        {
             // Right of "hi" no edge contributes, so the coverage is the constant resolution of
             // the final running total (zero for any closed, fully visible shape).
             var end = hi + 1;
@@ -899,7 +909,6 @@ internal static class ScanlineRasterizer
 
             _spanStart = lo;
             _spanLength = end - lo;
-            ApplyClip(y);
         }
 
         /// <summary>
@@ -1201,41 +1210,53 @@ internal static class ScanlineRasterizer
         {
             if (_evenOdd)
             {
-                if (MathF.Abs(edge.XAtY1 - edge.XAtY0) <= NearZeroDisplacement)
-                {
-                    var column = (int)MathF.Floor(edge.XAtY0);
-                    if (column >= _clipMinX && column < _clipMaxX)
-                    {
-                        var index = column - _clipMinX;
-                        if (edge.Y1 - edge.Y0 >= height * 0.9999f)
-                        {
-                            if (++_cellEdgeCount[index] == 2)
-                            {
-                                _dirtyCount++;
-                            }
-
-                            _cellEntries.Add((index, edge.XAtY0 - column));
-                        }
-                        else
-                        {
-                            _cellUnsafe[index]++;
-                        }
-                    }
-                }
-                else
-                {
-                    var first = Math.Max((int)MathF.Floor(Math.Min(edge.XAtY0, edge.XAtY1)) - _clipMinX, 0);
-                    var last = Math.Min((int)MathF.Floor(Math.Max(edge.XAtY0, edge.XAtY1)) - _clipMinX, Width - 1);
-                    for (var i = first; i <= last; i++)
-                    {
-                        _cellUnsafe[i]++;
-                    }
-                }
+                TrackEvenOddEdge(edge, height);
             }
 
             AccumulateRowEdge(edge, _clipMinX, _clipMaxX, _cover, _area);
         }
 
+        /// <summary>Records one edge's cell bookkeeping for exact EvenOdd resolution.</summary>
+        private void TrackEvenOddEdge(RowEdge edge, float height)
+        {
+            if (MathF.Abs(edge.XAtY1 - edge.XAtY0) <= NearZeroDisplacement)
+            {
+                TrackVerticalEdge(edge, height);
+                return;
+            }
+
+            var first = Math.Max((int)MathF.Floor(Math.Min(edge.XAtY0, edge.XAtY1)) - _clipMinX, 0);
+            var last = Math.Min((int)MathF.Floor(Math.Max(edge.XAtY0, edge.XAtY1)) - _clipMinX, Width - 1);
+            for (var i = first; i <= last; i++)
+            {
+                _cellUnsafe[i]++;
+            }
+        }
+
+        /// <summary>Records a single-column (near-vertical) edge as an exact-resolution candidate or an unsafe cell.</summary>
+        private void TrackVerticalEdge(RowEdge edge, float height)
+        {
+            var column = (int)MathF.Floor(edge.XAtY0);
+            if (column < _clipMinX || column >= _clipMaxX)
+            {
+                return;
+            }
+
+            var index = column - _clipMinX;
+            if (edge.Y1 - edge.Y0 >= height * 0.9999f)
+            {
+                if (++_cellEdgeCount[index] == 2)
+                {
+                    _dirtyCount++;
+                }
+
+                _cellEntries.Add((index, edge.XAtY0 - column));
+            }
+            else
+            {
+                _cellUnsafe[index]++;
+            }
+        }
         /// <summary>
         ///     Exactly resolves an EvenOdd cell holding two or more vertical edges that each span
         ///     the whole interval: the winding parity left of the cell is toggled at each edge's
