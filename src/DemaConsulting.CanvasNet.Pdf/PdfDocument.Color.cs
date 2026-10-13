@@ -693,57 +693,63 @@ public sealed partial class PdfDocument
             throw new InvalidDataException($"Color space '/{name}' /WhitePoint must be 3 positive numbers.");
         }
 
-        switch (name)
+        return name switch
         {
-            case "CalGray":
-                {
-                    var gamma = dictionary.Get("Gamma") is { } gammaEntry
-                        ? Resolve(gammaEntry)
-                        : null;
-                    var gammaValue = 1.0;
-                    if (gamma is not null)
-                    {
-                        if (gamma.Kind != PdfKind.Number || !(gamma.Number > 0) || !double.IsFinite(gamma.Number))
-                        {
-                            throw new InvalidDataException("Color space '/CalGray' /Gamma must be a positive number.");
-                        }
-
-                        gammaValue = gamma.Number;
-                    }
-
-                    return PdfColorSpace.CalGray(white, gammaValue);
-                }
-
-            case "CalRGB":
-                {
-                    var gamma = ResolveOptionalNumberArray(dictionary, "Gamma") ?? [1.0, 1.0, 1.0];
-                    if (gamma.Length != 3 || gamma.Any(static g => !(g > 0) || !double.IsFinite(g)))
-                    {
-                        throw new InvalidDataException("Color space '/CalRGB' /Gamma must be 3 positive numbers.");
-                    }
-
-                    var matrix = ResolveOptionalNumberArray(dictionary, "Matrix") ?? [1, 0, 0, 0, 1, 0, 0, 0, 1];
-                    if (matrix.Length != 9 || matrix.Any(static m => !double.IsFinite(m)))
-                    {
-                        throw new InvalidDataException("Color space '/CalRGB' /Matrix must be 9 numbers.");
-                    }
-
-                    return PdfColorSpace.CalRgb(white, gamma, matrix);
-                }
-
-            default:
-                {
-                    var range = ResolveOptionalNumberArray(dictionary, "Range") ?? [-100, 100, -100, 100];
-                    if (range.Length != 4 || range.Any(static r => !double.IsFinite(r)) || range[0] > range[1] || range[2] > range[3])
-                    {
-                        throw new InvalidDataException("Color space '/Lab' /Range must be 4 numbers with min <= max.");
-                    }
-
-                    return PdfColorSpace.Lab(white, range);
-                }
-        }
+            "CalGray" => ResolveCalGray(dictionary, white),
+            "CalRGB" => ResolveCalRgb(dictionary, white),
+            _ => ResolveLab(dictionary, white),
+        };
     }
 
+    /// <summary>Resolves the <c>/CalGray</c> dictionary into a color space.</summary>
+    private PdfColorSpace ResolveCalGray(PdfObject dictionary, double[] white)
+    {
+        var gamma = dictionary.Get("Gamma") is { } gammaEntry
+            ? Resolve(gammaEntry)
+            : null;
+        var gammaValue = 1.0;
+        if (gamma is not null)
+        {
+            if (gamma.Kind != PdfKind.Number || !(gamma.Number > 0) || !double.IsFinite(gamma.Number))
+            {
+                throw new InvalidDataException("Color space '/CalGray' /Gamma must be a positive number.");
+            }
+
+            gammaValue = gamma.Number;
+        }
+
+        return PdfColorSpace.CalGray(white, gammaValue);
+    }
+
+    /// <summary>Resolves the <c>/CalRGB</c> dictionary into a color space.</summary>
+    private PdfColorSpace ResolveCalRgb(PdfObject dictionary, double[] white)
+    {
+        var gamma = ResolveOptionalNumberArray(dictionary, "Gamma") ?? [1.0, 1.0, 1.0];
+        if (gamma.Length != 3 || gamma.Any(static g => !(g > 0) || !double.IsFinite(g)))
+        {
+            throw new InvalidDataException("Color space '/CalRGB' /Gamma must be 3 positive numbers.");
+        }
+
+        var matrix = ResolveOptionalNumberArray(dictionary, "Matrix") ?? [1, 0, 0, 0, 1, 0, 0, 0, 1];
+        if (matrix.Length != 9 || matrix.Any(static m => !double.IsFinite(m)))
+        {
+            throw new InvalidDataException("Color space '/CalRGB' /Matrix must be 9 numbers.");
+        }
+
+        return PdfColorSpace.CalRgb(white, gamma, matrix);
+    }
+
+    /// <summary>Resolves the <c>/Lab</c> dictionary into a color space.</summary>
+    private PdfColorSpace ResolveLab(PdfObject dictionary, double[] white)
+    {
+        var range = ResolveOptionalNumberArray(dictionary, "Range") ?? [-100, 100, -100, 100];
+        if (range.Length != 4 || range.Any(static r => !double.IsFinite(r)) || range[0] > range[1] || range[2] > range[3])
+        {
+            throw new InvalidDataException("Color space '/Lab' /Range must be 4 numbers with min <= max.");
+        }
+
+        return PdfColorSpace.Lab(white, range);
+    }
     /// <summary>
     ///     The maximum number of colorants a <c>/DeviceN</c> color space may declare (a resource
     ///     bound on per-color-evaluation work and stack use).
@@ -775,37 +781,7 @@ public sealed partial class PdfDocument
             throw new InvalidDataException($"Color space '/{name}' has an invalid number of array elements.");
         }
 
-        string[] names;
-        var namesValue = Resolve(array.Items[1]);
-        if (isSeparation)
-        {
-            if (namesValue.Kind != PdfKind.Name)
-            {
-                throw new InvalidDataException("Color space '/Separation' requires a colorant name.");
-            }
-
-            names = [namesValue.Text];
-        }
-        else
-        {
-            if (namesValue.Kind != PdfKind.Array || namesValue.Items.Count is 0 or > MaxDeviceNComponents)
-            {
-                throw new InvalidDataException(
-                    $"Color space '/DeviceN' requires 1 to {MaxDeviceNComponents} colorant names.");
-            }
-
-            names = new string[namesValue.Items.Count];
-            for (var i = 0; i < names.Length; i++)
-            {
-                var item = Resolve(namesValue.Items[i]);
-                if (item.Kind != PdfKind.Name)
-                {
-                    throw new InvalidDataException("Color space '/DeviceN' colorant names must all be names.");
-                }
-
-                names[i] = item.Text;
-            }
-        }
+        var names = ResolveColorantNames(array, isSeparation);
 
         if (_colorSpaceRecursionDepth >= MaxColorSpaceRecursionDepth)
         {
@@ -849,6 +825,40 @@ public sealed partial class PdfDocument
             isSeparation ? PdfColorSpace.Family.Separation : PdfColorSpace.Family.DeviceN, names, alternate, function);
     }
 
+    /// <summary>Resolves the colorant name list of a <c>/Separation</c> or <c>/DeviceN</c> color space.</summary>
+    private string[] ResolveColorantNames(PdfObject array, bool isSeparation)
+    {
+        var namesValue = Resolve(array.Items[1]);
+        if (isSeparation)
+        {
+            if (namesValue.Kind != PdfKind.Name)
+            {
+                throw new InvalidDataException("Color space '/Separation' requires a colorant name.");
+            }
+
+            return [namesValue.Text];
+        }
+
+        if (namesValue.Kind != PdfKind.Array || namesValue.Items.Count is 0 or > MaxDeviceNComponents)
+        {
+            throw new InvalidDataException(
+                $"Color space '/DeviceN' requires 1 to {MaxDeviceNComponents} colorant names.");
+        }
+
+        var names = new string[namesValue.Items.Count];
+        for (var i = 0; i < names.Length; i++)
+        {
+            var item = Resolve(namesValue.Items[i]);
+            if (item.Kind != PdfKind.Name)
+            {
+                throw new InvalidDataException("Color space '/DeviceN' colorant names must all be names.");
+            }
+
+            names[i] = item.Text;
+        }
+
+        return names;
+    }
     /// <summary>
     ///     Resolves a <c>[/Pattern]</c> or <c>[/Pattern baseSpace]</c> color-space array
     ///     (PDF 32000-1 §8.7.3.3): a 1-element array is a colored-only pattern color space
@@ -957,23 +967,10 @@ public sealed partial class PdfDocument
             : (int?)null;
         var nIsValid = n is 1 or 3 or 4;
 
-        var alternate = stream.Get("Alternate");
-        if (alternate is not null)
+        var usable = TryResolveIccAlternate(stream, n, nIsValid);
+        if (usable is not null)
         {
-            try
-            {
-                var alternateSpace = ResolveColorSpaceValue(Resolve(alternate));
-                if (alternateSpace.Kind is not (PdfColorSpace.Family.Indexed or PdfColorSpace.Family.Pattern
-                        or PdfColorSpace.Family.Separation or PdfColorSpace.Family.DeviceN)
-                    && (!nIsValid || ComponentCount(alternateSpace) == n))
-                {
-                    return alternateSpace;
-                }
-            }
-            catch (UnsupportedImageFeatureException)
-            {
-                // No usable /Alternate - fall through to /N-based resolution.
-            }
+            return usable;
         }
 
         return n switch
@@ -987,6 +984,32 @@ public sealed partial class PdfDocument
         };
     }
 
+    /// <summary>Resolves a usable <c>/ICCBased</c> <c>/Alternate</c>, or <see langword="null"/> when there is none.</summary>
+    private PdfColorSpace? TryResolveIccAlternate(PdfObject stream, int? n, bool nIsValid)
+    {
+        var alternate = stream.Get("Alternate");
+        if (alternate is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var alternateSpace = ResolveColorSpaceValue(Resolve(alternate));
+            if (alternateSpace.Kind is not (PdfColorSpace.Family.Indexed or PdfColorSpace.Family.Pattern
+                    or PdfColorSpace.Family.Separation or PdfColorSpace.Family.DeviceN)
+                && (!nIsValid || ComponentCount(alternateSpace) == n))
+            {
+                return alternateSpace;
+            }
+        }
+        catch (UnsupportedImageFeatureException)
+        {
+            // No usable /Alternate - fall through to /N-based resolution.
+        }
+
+        return null;
+    }
     /// <summary>
     ///     Resolves an <c>/Indexed</c> color-space array
     ///     (<c>[/Indexed baseSpace hival lookup]</c>): the base color space (resolved recursively

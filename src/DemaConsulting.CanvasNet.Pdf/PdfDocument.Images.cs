@@ -505,7 +505,7 @@ public sealed partial class PdfDocument
                 {
                     if (pixelOffset >= samples.Length)
                     {
-                        throw new InvalidDataException("Image XObject sample data is truncated.");
+                        throw new InvalidDataException(SampleDataTruncatedMessage);
                     }
 
                     surface[x, y] = lut[samples[pixelOffset]];
@@ -573,7 +573,7 @@ public sealed partial class PdfDocument
         {
             if (offset < 0 || offset + _count > samples.Length)
             {
-                throw new InvalidDataException("Image XObject sample data is truncated.");
+                throw new InvalidDataException(SampleDataTruncatedMessage);
             }
 
             var key = default((ulong, ulong, ulong, ulong));
@@ -917,7 +917,7 @@ public sealed partial class PdfDocument
         var rowBytes = ((perRow * bitsPerComponent) + 7) / 8;
         if (data.Length < rowBytes * height)
         {
-            throw new InvalidDataException("Image XObject sample data is truncated.");
+            throw new InvalidDataException(SampleDataTruncatedMessage);
         }
 
         if (bitsPerComponent == 8)
@@ -1038,7 +1038,7 @@ public sealed partial class PdfDocument
     {
         if (offset < 0 || count < 0 || offset + count > decoded.Length)
         {
-            throw new InvalidDataException("Image XObject sample data is truncated.");
+            throw new InvalidDataException(SampleDataTruncatedMessage);
         }
 
         if (colorSpace.Kind == PdfColorSpace.Family.Indexed)
@@ -1178,19 +1178,7 @@ public sealed partial class PdfDocument
         for (var y = 0; y < window.Height; y++)
         {
             var dy = originY + y;
-            var rowRectCount = 0;
-            if (shapeRects is not null)
-            {
-                for (var i = 0; i < shapeRects.Length; i += 4)
-                {
-                    if (shapeRects[i + 1] < dy + 1f && shapeRects[i + 3] > dy)
-                    {
-                        shapeRects.AsSpan(i, 4).CopyTo(rowRectBuffer.AsSpan(rowRectCount));
-                        rowRectCount += 4;
-                    }
-                }
-            }
-
+            var rowRectCount = GatherRowRects(shapeRects, rowRectBuffer, dy);
             var rowRectSpan = rowRectBuffer.AsSpan(0, rowRectCount);
 
             var rowShape = Drawing.ClipMask.AxisOverlap(dy, shape.Top, shape.Bottom);
@@ -1211,19 +1199,49 @@ public sealed partial class PdfDocument
                     continue;
                 }
 
-                var sourcePixel = window[x, y];
-                if (clipCoverage < 1f)
-                {
-                    // Round the same way Surface's own compositing pipeline does (AwayFromZero)
-                    sourcePixel = new Rgba32(
-                        sourcePixel.R, sourcePixel.G, sourcePixel.B,
-                        (byte)Math.Round(sourcePixel.A * clipCoverage, MidpointRounding.AwayFromZero));
-                }
+                // Round the same way Surface's own compositing pipeline does (AwayFromZero)
+                var sourcePixel = ScaleAlpha(window[x, y], clipCoverage);
 
                 _surface[dx, dy] = Rgba32.CompositeOver(_surface[dx, dy], sourcePixel);
             }
         }
     }
+
+    /// <summary>Copies the rectangles overlapping device row <paramref name="dy"/> into <paramref name="rowRectBuffer"/>, returning the float count copied.</summary>
+    private static int GatherRowRects(float[]? shapeRects, float[] rowRectBuffer, int dy)
+    {
+        var rowRectCount = 0;
+        if (shapeRects is null)
+        {
+            return rowRectCount;
+        }
+
+        for (var i = 0; i < shapeRects.Length; i += 4)
+        {
+            if (shapeRects[i + 1] < dy + 1f && shapeRects[i + 3] > dy)
+            {
+                shapeRects.AsSpan(i, 4).CopyTo(rowRectBuffer.AsSpan(rowRectCount));
+                rowRectCount += 4;
+            }
+        }
+
+        return rowRectCount;
+    }
+
+    /// <summary>Scales the pixel alpha by <paramref name="coverage"/> when below 1, rounding AwayFromZero like Surface compositing.</summary>
+    private static Rgba32 ScaleAlpha(Rgba32 pixel, float coverage)
+    {
+        if (coverage >= 1f)
+        {
+            return pixel;
+        }
+
+        return new Rgba32(
+            pixel.R, pixel.G, pixel.B,
+            (byte)Math.Round(pixel.A * coverage, MidpointRounding.AwayFromZero));
+    }
+    /// <summary>Message for a truncated image sample stream.</summary>
+    private const string SampleDataTruncatedMessage = "Image XObject sample data is truncated.";
 
     /// <summary>Paints <paramref name="sampled"/> (the original or its prefiltered reduction by <paramref name="factorX"/> by <paramref name="factorY"/> blocks of the <paramref name="imageWidth"/> by <paramref name="imageHeight"/> original) through <paramref name="ctm"/> with bilinear sampling (the rotated/skewed fallback).</summary>
     private void CompositeSampledImage(Surface sampled, int imageWidth, int imageHeight, int factorX, int factorY, Matrix3x2 ctm, Matrix3x2 inverse)
@@ -1265,15 +1283,9 @@ public sealed partial class PdfDocument
 
                 var sourcePixel = SurfaceResampler.SampleBilinearReduced(sampled, u * imageWidth, (1 - v) * imageHeight, factorX, factorY, imageWidth, imageHeight);
 
-                if (clipCoverage < 1f)
-                {
-                    // Round the same way Surface's own compositing pipeline does (AwayFromZero,
-                    // not the default ToEven), so a clipped image's edge alpha never differs by
-                    // one level from a clipped vector fill's at an exact n + 0.5 midpoint.
-                    sourcePixel = new Rgba32(
-                        sourcePixel.R, sourcePixel.G, sourcePixel.B,
-                        (byte)Math.Round(sourcePixel.A * clipCoverage, MidpointRounding.AwayFromZero));
-                }
+                // Rounds AwayFromZero (not the default ToEven), so a clipped image's edge alpha never
+                // differs by one level from a clipped vector fill's at an exact n + 0.5 midpoint.
+                sourcePixel = ScaleAlpha(sourcePixel, clipCoverage);
 
                 _surface[x, y] = Rgba32.CompositeOver(_surface[x, y], sourcePixel);
             }

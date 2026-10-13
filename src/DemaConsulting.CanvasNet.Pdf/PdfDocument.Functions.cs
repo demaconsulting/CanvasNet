@@ -154,21 +154,7 @@ public sealed partial class PdfDocument
             output[..n].Clear();
             for (var corner = 0; corner < (1 << m); corner++)
             {
-                double weight = 1.0;
-                long index = 0;
-                for (var i = 0; i < m; i++)
-                {
-                    if (((corner >> i) & 1) == 1)
-                    {
-                        weight *= fraction[i];
-                        index += high[i] * stride[i];
-                    }
-                    else
-                    {
-                        weight *= 1.0 - fraction[i];
-                        index += low[i] * stride[i];
-                    }
-                }
+                var weight = CornerWeightAndIndex(corner, m, fraction, low, high, stride, out var index);
 
                 if (weight == 0.0)
                 {
@@ -190,6 +176,35 @@ public sealed partial class PdfDocument
                     Math.Min(Range[2 * j], Range[(2 * j) + 1]),
                     Math.Max(Range[2 * j], Range[(2 * j) + 1]));
             }
+        }
+
+        /// <summary>Computes the interpolation weight and flat sample index of one hypercube corner.</summary>
+        private static double CornerWeightAndIndex(
+            int corner,
+            int inputCount,
+            ReadOnlySpan<double> fraction,
+            ReadOnlySpan<int> low,
+            ReadOnlySpan<int> high,
+            ReadOnlySpan<long> stride,
+            out long index)
+        {
+            double weight = 1.0;
+            index = 0;
+            for (var i = 0; i < inputCount; i++)
+            {
+                if (((corner >> i) & 1) == 1)
+                {
+                    weight *= fraction[i];
+                    index += high[i] * stride[i];
+                }
+                else
+                {
+                    weight *= 1.0 - fraction[i];
+                    index += low[i] * stride[i];
+                }
+            }
+
+            return weight;
         }
 
         /// <summary>Reads the raw sample at the given flat sample index (most-significant bit first).</summary>
@@ -631,28 +646,9 @@ public sealed partial class PdfDocument
         }
     }
 
-    /// <summary>Resolves a (possibly multi-input) <c>/FunctionType 0</c> stream into a <see cref="MultiSampledFunction"/>.</summary>
-    private MultiSampledFunction ResolveMultiSampledFunction(PdfObject function)
+    /// <summary>Reads and validates the <c>/Range</c> array of a multi-input sampled function.</summary>
+    private double[] ReadSampledRange(PdfObject function)
     {
-        if (function.Kind != PdfKind.Stream)
-        {
-            throw new InvalidDataException("/FunctionType 0 function must be a stream.");
-        }
-
-        var domain = RequireNumberArray(function, "Domain");
-        if (domain.Length < 2 || domain.Length % 2 != 0 || domain.Any(static d => !double.IsFinite(d)))
-        {
-            throw new InvalidDataException("/Domain must be a non-empty array of finite number pairs.");
-        }
-
-        var inputCount = domain.Length / 2;
-        if (inputCount > MaxSampledFunctionInputs)
-        {
-            throw new UnsupportedImageFeatureException(
-                "pdf-function-multiinput",
-                $"A /FunctionType 0 function with more than {MaxSampledFunctionInputs} inputs is not supported.");
-        }
-
         var range = RequireNumberArray(function, "Range");
         if (range.Length == 0 || range.Length % 2 != 0 || range.Length / 2 > MaxFunctionOutputs
             || range.Any(static r => !double.IsFinite(r)))
@@ -661,7 +657,12 @@ public sealed partial class PdfDocument
                 $"/Range must be 1 to {MaxFunctionOutputs} finite number pairs.");
         }
 
-        var outputCount = range.Length / 2;
+        return range;
+    }
+
+    /// <summary>Reads and validates the <c>/Size</c> array and computes the total declared sample count.</summary>
+    private int[] ReadSampledSize(PdfObject function, int inputCount, int outputCount, out long totalSamples)
+    {
         var sizeValues = RequireNumberArray(function, "Size");
         if (sizeValues.Length != inputCount || sizeValues.Any(static s => !IsIntegralInRange(s, 1, int.MaxValue)))
         {
@@ -670,7 +671,7 @@ public sealed partial class PdfDocument
         }
 
         var size = sizeValues.Select(static s => (int)s).ToArray();
-        long totalSamples = outputCount;
+        totalSamples = outputCount;
         foreach (var dimension in size)
         {
             totalSamples *= dimension;
@@ -681,14 +682,12 @@ public sealed partial class PdfDocument
             }
         }
 
-        var bitsPerSample = RequireStrictIntEntry(function, "BitsPerSample");
-        if (bitsPerSample is not (1 or 2 or 4 or 8 or 12 or 16 or 24 or 32))
-        {
-            throw new UnsupportedImageFeatureException(
-                $"pdf-function-bitspersample-{bitsPerSample}",
-                $"/BitsPerSample {bitsPerSample} is not supported; only 1, 2, 4, 8, 12, 16, 24 and 32 are supported.");
-        }
+        return size;
+    }
 
+    /// <summary>Resolves the <c>/Encode</c> array of a multi-input sampled function, defaulting to <c>[0 Size-1]</c> pairs.</summary>
+    private double[] ResolveSampledEncode(PdfObject function, int[] size, int inputCount)
+    {
         var encode = ResolveOptionalNumberArray(function, "Encode");
         if (encode is null)
         {
@@ -703,6 +702,46 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("/Encode must have one finite number pair per input.");
         }
 
+        return encode;
+    }
+
+    /// <summary>Name of the required <c>/Domain</c> entry shared by all function types.</summary>
+    private const string DomainKey = "Domain";
+    /// <summary>Resolves a (possibly multi-input) <c>/FunctionType 0</c> stream into a <see cref="MultiSampledFunction"/>.</summary>
+    private MultiSampledFunction ResolveMultiSampledFunction(PdfObject function)
+    {
+        if (function.Kind != PdfKind.Stream)
+        {
+            throw new InvalidDataException("/FunctionType 0 function must be a stream.");
+        }
+
+        var domain = RequireNumberArray(function, DomainKey);
+        if (domain.Length < 2 || domain.Length % 2 != 0 || domain.Any(static d => !double.IsFinite(d)))
+        {
+            throw new InvalidDataException("/Domain must be a non-empty array of finite number pairs.");
+        }
+
+        var inputCount = domain.Length / 2;
+        if (inputCount > MaxSampledFunctionInputs)
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-function-multiinput",
+                $"A /FunctionType 0 function with more than {MaxSampledFunctionInputs} inputs is not supported.");
+        }
+
+        var range = ReadSampledRange(function);
+        var outputCount = range.Length / 2;
+        var size = ReadSampledSize(function, inputCount, outputCount, out var totalSamples);
+
+        var bitsPerSample = RequireStrictIntEntry(function, "BitsPerSample");
+        if (bitsPerSample is not (1 or 2 or 4 or 8 or 12 or 16 or 24 or 32))
+        {
+            throw new UnsupportedImageFeatureException(
+                $"pdf-function-bitspersample-{bitsPerSample}",
+                $"/BitsPerSample {bitsPerSample} is not supported; only 1, 2, 4, 8, 12, 16, 24 and 32 are supported.");
+        }
+
+        var encode = ResolveSampledEncode(function, size, inputCount);
         var decode = ResolveOptionalNumberArray(function, "Decode") ?? range;
         if (decode.Length != range.Length || decode.Any(static d => !double.IsFinite(d)))
         {
@@ -735,7 +774,7 @@ public sealed partial class PdfDocument
     /// </exception>
     private ExponentialFunction ResolveExponentialFunction(PdfObject function)
     {
-        var domain = RequireNumberArray(function, "Domain");
+        var domain = RequireNumberArray(function, DomainKey);
         if (domain.Length != 2)
         {
             throw new InvalidDataException("/Domain must have exactly 2 elements for a 1-input function.");
@@ -771,7 +810,7 @@ public sealed partial class PdfDocument
     /// </exception>
     private StitchingFunction ResolveStitchingFunction(PdfObject function)
     {
-        var domain = RequireNumberArray(function, "Domain");
+        var domain = RequireNumberArray(function, DomainKey);
         if (domain.Length != 2)
         {
             throw new InvalidDataException("/Domain must have exactly 2 elements for a 1-input function.");
@@ -807,6 +846,31 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("/Domain must hold two finite numbers with Domain0 <= Domain1.");
         }
 
+        ValidateStitchingBounds(domain, bounds);
+
+        var encode = RequireNumberArray(function, "Encode");
+        if (encode.Length != 2 * k)
+        {
+            throw new InvalidDataException($"/Encode must have exactly {2 * k} element(s) for {k} sub-function(s).");
+        }
+
+        if (encode.Any(value => !double.IsFinite(value)))
+        {
+            throw new InvalidDataException("/Encode must contain only finite numbers.");
+        }
+
+        return new StitchingFunction
+        {
+            Domain = domain,
+            Functions = functions,
+            Bounds = bounds,
+            Encode = encode,
+        };
+    }
+
+    /// <summary>Validates that stitching <c>/Bounds</c> are finite, non-decreasing and within <c>/Domain</c>.</summary>
+    private static void ValidateStitchingBounds(double[] domain, double[] bounds)
+    {
         var previousBound = domain[0];
         foreach (var bound in bounds)
         {
@@ -827,25 +891,6 @@ public sealed partial class PdfDocument
         {
             throw new InvalidDataException("/Bounds must be non-decreasing and within /Domain.");
         }
-
-        var encode = RequireNumberArray(function, "Encode");
-        if (encode.Length != 2 * k)
-        {
-            throw new InvalidDataException($"/Encode must have exactly {2 * k} element(s) for {k} sub-function(s).");
-        }
-
-        if (encode.Any(value => !double.IsFinite(value)))
-        {
-            throw new InvalidDataException("/Encode must contain only finite numbers.");
-        }
-
-        return new StitchingFunction
-        {
-            Domain = domain,
-            Functions = functions,
-            Bounds = bounds,
-            Encode = encode,
-        };
     }
 
     /// <summary>Reads a required numeric dictionary entry (resolving an indirect reference).</summary>
@@ -914,7 +959,7 @@ public sealed partial class PdfDocument
                 $"/FunctionType {functionType} is not supported; only /FunctionType 0 (sampled) is supported.");
         }
 
-        var domain = RequireNumberArray(function, "Domain");
+        var domain = RequireNumberArray(function, DomainKey);
         if (domain.Length != 2)
         {
             throw new UnsupportedImageFeatureException(

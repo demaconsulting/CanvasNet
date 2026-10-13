@@ -309,45 +309,49 @@ public sealed partial class PdfDocument
                     pos++;
                 }
 
-                var token = System.Text.Encoding.ASCII.GetString(src, start, pos - start);
-                switch (token)
-                {
-                    case "if":
-                        if (pending.Count != 1)
-                        {
-                            throw new InvalidDataException("PostScript calculator 'if' requires exactly one preceding block.");
-                        }
-
-                        code.Add(new PsInstruction(PsOp.Jz, Offset: pending[0].Count));
-                        code.AddRange(pending[0]);
-                        pending.Clear();
-                        break;
-                    case "ifelse":
-                        if (pending.Count != 2)
-                        {
-                            throw new InvalidDataException("PostScript calculator 'ifelse' requires exactly two preceding blocks.");
-                        }
-
-                        code.Add(new PsInstruction(PsOp.Jz, Offset: pending[0].Count + 1));
-                        code.AddRange(pending[0]);
-                        code.Add(new PsInstruction(PsOp.Jmp, Offset: pending[1].Count));
-                        code.AddRange(pending[1]);
-                        pending.Clear();
-                        break;
-                    default:
-                        if (pending.Count > 0)
-                        {
-                            throw new InvalidDataException("PostScript calculator block is not followed by 'if' or 'ifelse'.");
-                        }
-
-                        code.Add(ParseToken(token));
-                        break;
-                }
+                AppendToken(System.Text.Encoding.ASCII.GetString(src, start, pos - start), code, pending);
 
                 if (code.Count > MaxPostScriptInstructions)
                 {
                     throw new InvalidDataException("PostScript calculator program has too many instructions.");
                 }
+            }
+        }
+
+        private static void AppendToken(string token, List<PsInstruction> code, List<List<PsInstruction>> pending)
+        {
+            switch (token)
+            {
+                case "if":
+                    if (pending.Count != 1)
+                    {
+                        throw new InvalidDataException("PostScript calculator 'if' requires exactly one preceding block.");
+                    }
+
+                    code.Add(new PsInstruction(PsOp.Jz, Offset: pending[0].Count));
+                    code.AddRange(pending[0]);
+                    pending.Clear();
+                    break;
+                case "ifelse":
+                    if (pending.Count != 2)
+                    {
+                        throw new InvalidDataException("PostScript calculator 'ifelse' requires exactly two preceding blocks.");
+                    }
+
+                    code.Add(new PsInstruction(PsOp.Jz, Offset: pending[0].Count + 1));
+                    code.AddRange(pending[0]);
+                    code.Add(new PsInstruction(PsOp.Jmp, Offset: pending[1].Count));
+                    code.AddRange(pending[1]);
+                    pending.Clear();
+                    break;
+                default:
+                    if (pending.Count > 0)
+                    {
+                        throw new InvalidDataException("PostScript calculator block is not followed by 'if' or 'ifelse'.");
+                    }
+
+                    code.Add(ParseToken(token));
+                    break;
             }
         }
 
@@ -415,308 +419,354 @@ public sealed partial class PdfDocument
                     case PsOp.Jmp:
                         pc += ins.Offset;
                         break;
-                    case PsOp.Add:
-                    case PsOp.Sub:
-                    case PsOp.Mul:
-                        Arithmetic(ins.Op, stack, ref sp);
-                        break;
-                    case PsOp.Div:
-                        {
-                            var b = PopNumber(stack, ref sp);
-                            var a = PopNumber(stack, ref sp);
-                            if (b.Value == 0)
-                            {
-                                throw new InvalidDataException("PostScript calculator division by zero.");
-                            }
-
-                            Push(stack, ref sp, new PsValue(a.Value / b.Value, PsType.Real));
-                            break;
-                        }
-
-                    case PsOp.Idiv:
-                    case PsOp.Mod:
-                        {
-                            var b = PopInt(stack, ref sp);
-                            var a = PopInt(stack, ref sp);
-                            if (b == 0)
-                            {
-                                throw new InvalidDataException("PostScript calculator integer division by zero.");
-                            }
-
-                            Push(stack, ref sp, new PsValue(ins.Op == PsOp.Idiv ? (long)a / b : a % (long)b, PsType.Int));
-                            break;
-                        }
-
-                    case PsOp.Neg:
-                    case PsOp.Abs:
-                        {
-                            var a = PopNumber(stack, ref sp);
-                            Push(stack, ref sp, new PsValue(ins.Op == PsOp.Neg ? -a.Value : Math.Abs(a.Value), a.Type));
-                            break;
-                        }
-
-                    case PsOp.Ceiling:
-                    case PsOp.Floor:
-                    case PsOp.Round:
-                    case PsOp.Truncate:
-                        {
-                            var a = PopNumber(stack, ref sp);
-                            var r = ins.Op switch
-                            {
-                                PsOp.Ceiling => Math.Ceiling(a.Value),
-                                PsOp.Floor => Math.Floor(a.Value),
-                                // PDF 32000-1 section 7.10.5 (round): the integer nearest to the operand; when
-                                // equally close to two integers, the greater one (so -2.5 -> -2, 2.5 -> 3),
-                                // which is exactly floor(x + 0.5).
-                                PsOp.Round => Math.Floor(a.Value + 0.5),
-                                _ => Math.Truncate(a.Value),
-                            };
-                            Push(stack, ref sp, new PsValue(r, a.Type));
-                            break;
-                        }
-
-                    case PsOp.Cvi:
-                        {
-                            var a = PopNumber(stack, ref sp);
-                            var t = Math.Truncate(a.Value);
-                            if (double.IsNaN(t) || Math.Abs(t) > int.MaxValue)
-                            {
-                                throw new InvalidDataException("PostScript calculator 'cvi' overflow.");
-                            }
-
-                            Push(stack, ref sp, new PsValue(t, PsType.Int));
-                            break;
-                        }
-
-                    case PsOp.Cvr:
-                        {
-                            var a = PopNumber(stack, ref sp);
-                            Push(stack, ref sp, new PsValue(a.Value, PsType.Real));
-                            break;
-                        }
-
-                    case PsOp.Sqrt:
-                    case PsOp.Ln:
-                    case PsOp.Log:
-                        {
-                            var a = PopNumber(stack, ref sp).Value;
-                            if (ins.Op == PsOp.Sqrt ? a < 0 : a <= 0)
-                            {
-                                throw new InvalidDataException("PostScript calculator math domain error.");
-                            }
-
-                            var r = ins.Op switch
-                            {
-                                PsOp.Sqrt => Math.Sqrt(a),
-                                PsOp.Ln => Math.Log(a),
-                                _ => Math.Log10(a),
-                            };
-                            Push(stack, ref sp, new PsValue(r, PsType.Real));
-                            break;
-                        }
-
-                    case PsOp.Sin:
-                    case PsOp.Cos:
-                        {
-                            var radians = PopNumber(stack, ref sp).Value * Math.PI / 180.0;
-                            var r = ins.Op == PsOp.Sin ? Math.Sin(radians) : Math.Cos(radians);
-                            Push(stack, ref sp, new PsValue(r, PsType.Real));
-                            break;
-                        }
-
-                    case PsOp.Atan:
-                        {
-                            var den = PopNumber(stack, ref sp).Value;
-                            var num = PopNumber(stack, ref sp).Value;
-                            if (num == 0 && den == 0)
-                            {
-                                throw new InvalidDataException("PostScript calculator 'atan' of (0, 0).");
-                            }
-
-                            var degrees = Math.Atan2(num, den) * 180.0 / Math.PI;
-                            if (degrees < 0)
-                            {
-                                degrees += 360.0;
-                            }
-
-                            Push(stack, ref sp, new PsValue(degrees, PsType.Real));
-                            break;
-                        }
-
-                    case PsOp.Exp:
-                        {
-                            var exponent = PopNumber(stack, ref sp).Value;
-                            var @base = PopNumber(stack, ref sp).Value;
-                            var r = Math.Pow(@base, exponent);
-                            if (!double.IsFinite(r))
-                            {
-                                throw new InvalidDataException("PostScript calculator 'exp' result is not finite.");
-                            }
-
-                            Push(stack, ref sp, new PsValue(r, PsType.Real));
-                            break;
-                        }
-
-                    case PsOp.Eq:
-                    case PsOp.Ne:
-                        {
-                            var b = Pop(stack, ref sp);
-                            var a = Pop(stack, ref sp);
-                            var equal = (a.Type == PsType.Bool) == (b.Type == PsType.Bool) && a.Value.CompareTo(b.Value) == 0;
-                            Push(stack, ref sp, new PsValue((ins.Op == PsOp.Eq) == equal ? 1 : 0, PsType.Bool));
-                            break;
-                        }
-
-                    case PsOp.Ge:
-                    case PsOp.Gt:
-                    case PsOp.Le:
-                    case PsOp.Lt:
-                        {
-                            var b = PopNumber(stack, ref sp).Value;
-                            var a = PopNumber(stack, ref sp).Value;
-                            var result = ins.Op switch
-                            {
-                                PsOp.Ge => a >= b,
-                                PsOp.Gt => a > b,
-                                PsOp.Le => a <= b,
-                                _ => a < b,
-                            };
-                            Push(stack, ref sp, new PsValue(result ? 1 : 0, PsType.Bool));
-                            break;
-                        }
-
-                    case PsOp.And:
-                    case PsOp.Or:
-                    case PsOp.Xor:
-                        {
-                            var b = Pop(stack, ref sp);
-                            var a = Pop(stack, ref sp);
-                            if (a.Type == PsType.Bool && b.Type == PsType.Bool)
-                            {
-                                var x = a.Value != 0;
-                                var y = b.Value != 0;
-                                var r = ins.Op switch { PsOp.And => x && y, PsOp.Or => x || y, _ => x ^ y };
-                                Push(stack, ref sp, new PsValue(r ? 1 : 0, PsType.Bool));
-                            }
-                            else if (a.Type == PsType.Int && b.Type == PsType.Int)
-                            {
-                                var x = (int)a.Value;
-                                var y = (int)b.Value;
-                                var r = ins.Op switch { PsOp.And => x & y, PsOp.Or => x | y, _ => x ^ y };
-                                Push(stack, ref sp, new PsValue(r, PsType.Int));
-                            }
-                            else
-                            {
-                                throw new InvalidDataException("PostScript calculator logical operands have mismatched types.");
-                            }
-
-                            break;
-                        }
-
-                    case PsOp.Not:
-                        {
-                            var a = Pop(stack, ref sp);
-                            switch (a.Type)
-                            {
-                                case PsType.Bool:
-                                    Push(stack, ref sp, new PsValue(a.Value != 0 ? 0 : 1, PsType.Bool));
-                                    break;
-                                case PsType.Int:
-                                    Push(stack, ref sp, new PsValue(~(int)a.Value, PsType.Int));
-                                    break;
-                                default:
-                                    throw new InvalidDataException("PostScript calculator 'not' requires a boolean or integer.");
-                            }
-
-                            break;
-                        }
-
-                    case PsOp.Bitshift:
-                        {
-                            var shift = PopInt(stack, ref sp);
-                            var value = (uint)PopInt(stack, ref sp);
-                            var r = shift switch
-                            {
-                                >= 32 or <= -32 => 0u,
-                                >= 0 => value << shift,
-                                _ => value >> -shift,
-                            };
-                            Push(stack, ref sp, new PsValue((int)r, PsType.Int));
-                            break;
-                        }
-
-                    case PsOp.Copy:
-                        {
-                            var count = PopInt(stack, ref sp);
-                            if (count < 0 || count > sp || sp + count > MaxPostScriptStackDepth)
-                            {
-                                throw new InvalidDataException("PostScript calculator 'copy' count is out of range.");
-                            }
-
-                            stack.Slice(sp - count, count).CopyTo(stack[sp..]);
-                            sp += count;
-                            break;
-                        }
-
-                    case PsOp.Dup:
-                        {
-                            var a = Pop(stack, ref sp);
-                            Push(stack, ref sp, a);
-                            Push(stack, ref sp, a);
-                            break;
-                        }
-
-                    case PsOp.Exch:
-                        {
-                            var b = Pop(stack, ref sp);
-                            var a = Pop(stack, ref sp);
-                            Push(stack, ref sp, b);
-                            Push(stack, ref sp, a);
-                            break;
-                        }
-
-                    case PsOp.Index:
-                        {
-                            var depth = PopInt(stack, ref sp);
-                            if (depth < 0 || depth >= sp)
-                            {
-                                throw new InvalidDataException("PostScript calculator 'index' is out of range.");
-                            }
-
-                            Push(stack, ref sp, stack[sp - 1 - depth]);
-                            break;
-                        }
-
-                    case PsOp.Pop:
-                        Pop(stack, ref sp);
-                        break;
-                    case PsOp.Roll:
-                        {
-                            var j = PopInt(stack, ref sp);
-                            var n = PopInt(stack, ref sp);
-                            if (n < 0 || n > sp)
-                            {
-                                throw new InvalidDataException("PostScript calculator 'roll' count is out of range.");
-                            }
-
-                            if (n > 1)
-                            {
-                                var shift = ((j % n) + n) % n;
-                                var group = stack.Slice(sp - n, n);
-                                group.Reverse();
-                                group[..shift].Reverse();
-                                group[shift..].Reverse();
-                            }
-
-                            break;
-                        }
-
                     default:
-                        throw new InvalidDataException("PostScript calculator program is corrupt.");
+                        ExecuteOperator(ins.Op, stack, ref sp);
+                        break;
                 }
             }
         }
 
+        private static void ExecuteOperator(PsOp op, Span<PsValue> stack, ref int sp)
+        {
+            switch (op)
+            {
+                case PsOp.Add:
+                case PsOp.Sub:
+                case PsOp.Mul:
+                    Arithmetic(op, stack, ref sp);
+                    break;
+                case PsOp.Div:
+                    Divide(stack, ref sp);
+                    break;
+                case PsOp.Idiv:
+                case PsOp.Mod:
+                    IntegerDivide(op, stack, ref sp);
+                    break;
+                case PsOp.Neg:
+                case PsOp.Abs:
+                    NegateOrAbs(op, stack, ref sp);
+                    break;
+                case PsOp.Ceiling:
+                case PsOp.Floor:
+                case PsOp.Round:
+                case PsOp.Truncate:
+                    RoundNumber(op, stack, ref sp);
+                    break;
+                case PsOp.Cvi:
+                    ConvertToInt(stack, ref sp);
+                    break;
+                case PsOp.Cvr:
+                    ConvertToReal(stack, ref sp);
+                    break;
+                case PsOp.Sqrt:
+                case PsOp.Ln:
+                case PsOp.Log:
+                    SqrtOrLog(op, stack, ref sp);
+                    break;
+                case PsOp.Sin:
+                case PsOp.Cos:
+                    SinOrCos(op, stack, ref sp);
+                    break;
+                case PsOp.Atan:
+                    Atan(stack, ref sp);
+                    break;
+                case PsOp.Exp:
+                    Exponent(stack, ref sp);
+                    break;
+                case PsOp.Eq:
+                case PsOp.Ne:
+                    EqualOrNotEqual(op, stack, ref sp);
+                    break;
+                case PsOp.Ge:
+                case PsOp.Gt:
+                case PsOp.Le:
+                case PsOp.Lt:
+                    Compare(op, stack, ref sp);
+                    break;
+                case PsOp.And:
+                case PsOp.Or:
+                case PsOp.Xor:
+                    Logical(op, stack, ref sp);
+                    break;
+                case PsOp.Not:
+                    Not(stack, ref sp);
+                    break;
+                case PsOp.Bitshift:
+                    Bitshift(stack, ref sp);
+                    break;
+                case PsOp.Copy:
+                    Copy(stack, ref sp);
+                    break;
+                case PsOp.Dup:
+                    Dup(stack, ref sp);
+                    break;
+                case PsOp.Exch:
+                    Exch(stack, ref sp);
+                    break;
+                case PsOp.Index:
+                    Index(stack, ref sp);
+                    break;
+                case PsOp.Pop:
+                    Pop(stack, ref sp);
+                    break;
+                case PsOp.Roll:
+                    Roll(stack, ref sp);
+                    break;
+                default:
+                    throw new InvalidDataException("PostScript calculator program is corrupt.");
+            }
+        }
+
+        private static void Divide(Span<PsValue> stack, ref int sp)
+        {
+            var b = PopNumber(stack, ref sp);
+            var a = PopNumber(stack, ref sp);
+            if (b.Value == 0)
+            {
+                throw new InvalidDataException("PostScript calculator division by zero.");
+            }
+
+            Push(stack, ref sp, new PsValue(a.Value / b.Value, PsType.Real));
+        }
+
+        private static void IntegerDivide(PsOp op, Span<PsValue> stack, ref int sp)
+        {
+            var b = PopInt(stack, ref sp);
+            var a = PopInt(stack, ref sp);
+            if (b == 0)
+            {
+                throw new InvalidDataException("PostScript calculator integer division by zero.");
+            }
+
+            Push(stack, ref sp, new PsValue(op == PsOp.Idiv ? (long)a / b : a % (long)b, PsType.Int));
+        }
+
+        private static void NegateOrAbs(PsOp op, Span<PsValue> stack, ref int sp)
+        {
+            var a = PopNumber(stack, ref sp);
+            Push(stack, ref sp, new PsValue(op == PsOp.Neg ? -a.Value : Math.Abs(a.Value), a.Type));
+        }
+
+        private static void RoundNumber(PsOp op, Span<PsValue> stack, ref int sp)
+        {
+            var a = PopNumber(stack, ref sp);
+            var r = op switch
+            {
+                PsOp.Ceiling => Math.Ceiling(a.Value),
+                PsOp.Floor => Math.Floor(a.Value),
+                // PDF 32000-1 section 7.10.5 (round): the integer nearest to the operand; when
+                // equally close to two integers, the greater one (so -2.5 -> -2, 2.5 -> 3),
+                // which is exactly floor(x + 0.5).
+                PsOp.Round => Math.Floor(a.Value + 0.5),
+                _ => Math.Truncate(a.Value),
+            };
+            Push(stack, ref sp, new PsValue(r, a.Type));
+        }
+
+        private static void ConvertToInt(Span<PsValue> stack, ref int sp)
+        {
+            var a = PopNumber(stack, ref sp);
+            var t = Math.Truncate(a.Value);
+            if (double.IsNaN(t) || Math.Abs(t) > int.MaxValue)
+            {
+                throw new InvalidDataException("PostScript calculator 'cvi' overflow.");
+            }
+
+            Push(stack, ref sp, new PsValue(t, PsType.Int));
+        }
+
+        private static void ConvertToReal(Span<PsValue> stack, ref int sp)
+        {
+            var a = PopNumber(stack, ref sp);
+            Push(stack, ref sp, new PsValue(a.Value, PsType.Real));
+        }
+
+        private static void SqrtOrLog(PsOp op, Span<PsValue> stack, ref int sp)
+        {
+            var a = PopNumber(stack, ref sp).Value;
+            if (op == PsOp.Sqrt ? a < 0 : a <= 0)
+            {
+                throw new InvalidDataException("PostScript calculator math domain error.");
+            }
+
+            var r = op switch
+            {
+                PsOp.Sqrt => Math.Sqrt(a),
+                PsOp.Ln => Math.Log(a),
+                _ => Math.Log10(a),
+            };
+            Push(stack, ref sp, new PsValue(r, PsType.Real));
+        }
+
+        private static void SinOrCos(PsOp op, Span<PsValue> stack, ref int sp)
+        {
+            var radians = PopNumber(stack, ref sp).Value * Math.PI / 180.0;
+            var r = op == PsOp.Sin ? Math.Sin(radians) : Math.Cos(radians);
+            Push(stack, ref sp, new PsValue(r, PsType.Real));
+        }
+
+        private static void Atan(Span<PsValue> stack, ref int sp)
+        {
+            var den = PopNumber(stack, ref sp).Value;
+            var num = PopNumber(stack, ref sp).Value;
+            if (num == 0 && den == 0)
+            {
+                throw new InvalidDataException("PostScript calculator 'atan' of (0, 0).");
+            }
+
+            var degrees = Math.Atan2(num, den) * 180.0 / Math.PI;
+            if (degrees < 0)
+            {
+                degrees += 360.0;
+            }
+
+            Push(stack, ref sp, new PsValue(degrees, PsType.Real));
+        }
+
+        private static void Exponent(Span<PsValue> stack, ref int sp)
+        {
+            var exponent = PopNumber(stack, ref sp).Value;
+            var @base = PopNumber(stack, ref sp).Value;
+            var r = Math.Pow(@base, exponent);
+            if (!double.IsFinite(r))
+            {
+                throw new InvalidDataException("PostScript calculator 'exp' result is not finite.");
+            }
+
+            Push(stack, ref sp, new PsValue(r, PsType.Real));
+        }
+
+        private static void EqualOrNotEqual(PsOp op, Span<PsValue> stack, ref int sp)
+        {
+            var b = Pop(stack, ref sp);
+            var a = Pop(stack, ref sp);
+            var equal = (a.Type == PsType.Bool) == (b.Type == PsType.Bool) && a.Value.CompareTo(b.Value) == 0;
+            Push(stack, ref sp, new PsValue((op == PsOp.Eq) == equal ? 1 : 0, PsType.Bool));
+        }
+
+        private static void Compare(PsOp op, Span<PsValue> stack, ref int sp)
+        {
+            var b = PopNumber(stack, ref sp).Value;
+            var a = PopNumber(stack, ref sp).Value;
+            var result = op switch
+            {
+                PsOp.Ge => a >= b,
+                PsOp.Gt => a > b,
+                PsOp.Le => a <= b,
+                _ => a < b,
+            };
+            Push(stack, ref sp, new PsValue(result ? 1 : 0, PsType.Bool));
+        }
+
+        private static void Logical(PsOp op, Span<PsValue> stack, ref int sp)
+        {
+            var b = Pop(stack, ref sp);
+            var a = Pop(stack, ref sp);
+            if (a.Type == PsType.Bool && b.Type == PsType.Bool)
+            {
+                var x = a.Value != 0;
+                var y = b.Value != 0;
+                var r = op switch { PsOp.And => x && y, PsOp.Or => x || y, _ => x ^ y };
+                Push(stack, ref sp, new PsValue(r ? 1 : 0, PsType.Bool));
+            }
+            else if (a.Type == PsType.Int && b.Type == PsType.Int)
+            {
+                var x = (int)a.Value;
+                var y = (int)b.Value;
+                var r = op switch { PsOp.And => x & y, PsOp.Or => x | y, _ => x ^ y };
+                Push(stack, ref sp, new PsValue(r, PsType.Int));
+            }
+            else
+            {
+                throw new InvalidDataException("PostScript calculator logical operands have mismatched types.");
+            }
+        }
+
+        private static void Not(Span<PsValue> stack, ref int sp)
+        {
+            var a = Pop(stack, ref sp);
+            switch (a.Type)
+            {
+                case PsType.Bool:
+                    Push(stack, ref sp, new PsValue(a.Value != 0 ? 0 : 1, PsType.Bool));
+                    break;
+                case PsType.Int:
+                    Push(stack, ref sp, new PsValue(~(int)a.Value, PsType.Int));
+                    break;
+                default:
+                    throw new InvalidDataException("PostScript calculator 'not' requires a boolean or integer.");
+            }
+        }
+
+        private static void Bitshift(Span<PsValue> stack, ref int sp)
+        {
+            var shift = PopInt(stack, ref sp);
+            var value = (uint)PopInt(stack, ref sp);
+            var r = shift switch
+            {
+                >= 32 or <= -32 => 0u,
+                >= 0 => value << shift,
+                _ => value >> -shift,
+            };
+            Push(stack, ref sp, new PsValue((int)r, PsType.Int));
+        }
+
+        private static void Copy(Span<PsValue> stack, ref int sp)
+        {
+            var count = PopInt(stack, ref sp);
+            if (count < 0 || count > sp || sp + count > MaxPostScriptStackDepth)
+            {
+                throw new InvalidDataException("PostScript calculator 'copy' count is out of range.");
+            }
+
+            stack.Slice(sp - count, count).CopyTo(stack[sp..]);
+            sp += count;
+        }
+
+        private static void Dup(Span<PsValue> stack, ref int sp)
+        {
+            var a = Pop(stack, ref sp);
+            Push(stack, ref sp, a);
+            Push(stack, ref sp, a);
+        }
+
+        private static void Exch(Span<PsValue> stack, ref int sp)
+        {
+            var b = Pop(stack, ref sp);
+            var a = Pop(stack, ref sp);
+            Push(stack, ref sp, b);
+            Push(stack, ref sp, a);
+        }
+
+        private static void Index(Span<PsValue> stack, ref int sp)
+        {
+            var depth = PopInt(stack, ref sp);
+            if (depth < 0 || depth >= sp)
+            {
+                throw new InvalidDataException("PostScript calculator 'index' is out of range.");
+            }
+
+            Push(stack, ref sp, stack[sp - 1 - depth]);
+        }
+
+        private static void Roll(Span<PsValue> stack, ref int sp)
+        {
+            var j = PopInt(stack, ref sp);
+            var n = PopInt(stack, ref sp);
+            if (n < 0 || n > sp)
+            {
+                throw new InvalidDataException("PostScript calculator 'roll' count is out of range.");
+            }
+
+            if (n > 1)
+            {
+                var shift = ((j % n) + n) % n;
+                var group = stack.Slice(sp - n, n);
+                group.Reverse();
+                group[..shift].Reverse();
+                group[shift..].Reverse();
+            }
+        }
         private static void Push(Span<PsValue> stack, ref int sp, PsValue value)
         {
             if (sp >= MaxPostScriptStackDepth)
@@ -805,7 +855,7 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("/FunctionType 4 function must be a stream.");
         }
 
-        var domain = RequireNumberArray(function, "Domain");
+        var domain = RequireNumberArray(function, DomainKey);
         if (domain.Length < 2 || domain.Length % 2 != 0 || domain.Length / 2 > MaxDeviceNComponents
             || domain.Any(static d => !double.IsFinite(d)))
         {
