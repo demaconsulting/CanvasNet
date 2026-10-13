@@ -787,6 +787,13 @@ public sealed partial class PdfDocument
         var functions = functionsArray.Items.Select(ResolveFunctionGeneric).ToArray();
         var k = functions.Length;
 
+        // Evaluate returns the selected branch's array unchanged, so every branch must produce the
+        // same number of outputs as the first (branches are single-input by IPdfFunction's contract).
+        if (functions.Any(branch => branch.OutputCount != functions[0].OutputCount))
+        {
+            throw new InvalidDataException("Every /Functions sub-function of a stitching function must have the same output count.");
+        }
+
         var bounds = ResolveOptionalNumberArray(function, "Bounds") ?? [];
         if (bounds.Length != k - 1)
         {
@@ -825,6 +832,11 @@ public sealed partial class PdfDocument
         if (encode.Length != 2 * k)
         {
             throw new InvalidDataException($"/Encode must have exactly {2 * k} element(s) for {k} sub-function(s).");
+        }
+
+        if (encode.Any(value => !double.IsFinite(value)))
+        {
+            throw new InvalidDataException("/Encode must contain only finite numbers.");
         }
 
         return new StitchingFunction

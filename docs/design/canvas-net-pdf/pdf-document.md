@@ -1689,6 +1689,8 @@ change behavior for any document within normal real-world limits.
   `InvalidDataException` instead (malformed, not merely unsupported). A stitching function's
   `/Domain` must be finite with `Domain0 <= Domain1`, and its `/Bounds` must be finite,
   non-decreasing and within `/Domain`; equal consecutive bounds stay valid (hard color stops).
+  Every `/Encode` value must be finite, and every stitched sub-function must have the same output
+  count as the first (`Evaluate` returns the selected branch's array unchanged).
 - **An unsupported stream filter** (anything other than `FlateDecode`, `LZWDecode`,
   `ASCII85Decode`, `ASCIIHexDecode`, `RunLengthDecode`, or `DCTDecode`/`CCITTFaxDecode` combined
   with another filter) — `Codecs.UnsupportedImageFeatureException`; an unrecognized `/Predictor`

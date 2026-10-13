@@ -2292,7 +2292,10 @@ still accepted.
 `PdfDocument_Functions_Type3_Stitching_NestingDepthExceeded_ThrowsInvalidDataException`,
 `PdfDocument_Functions_Type3_Stitching_InvalidBoundsOrDomain_ThrowsInvalidDataException`,
 `PdfDocument_Functions_Type3_Stitching_NonFiniteBound_ThrowsInvalidDataException`,
-`PdfDocument_Functions_Type3_Stitching_EqualBounds_AreAcceptedAndEvaluateAsHardStop`
+`PdfDocument_Functions_Type3_Stitching_EqualBounds_AreAcceptedAndEvaluateAsHardStop`,
+`PdfDocument_Functions_Type3_Stitching_MismatchedOutputCounts_ThrowsInvalidDataException`,
+`PdfDocument_Functions_Type3_Stitching_MatchingOutputCounts_AreAccepted`,
+`PdfDocument_Functions_Type3_Stitching_NonFiniteEncode_ThrowsInvalidDataException`
 
 Every test resolves a hand-built function stream via the new `ResolveFunctionGeneric` entry point
 (through a new `ResolveTestFunctionGeneric` helper mirroring `ResolveTestFunction`'s own "build a
@@ -2305,7 +2308,10 @@ asserting the correct sub-function is selected (and its own `/Encode` remap appl
 falling in each of the 2 partitions. A `[Theory]` and a `[Fact]` resolve stitching functions whose
 `/Bounds` are non-finite, decreasing or outside `/Domain` (or whose `/Domain` is reversed) and assert
 `InvalidDataException`; a further `[Theory]` proves equal consecutive bounds (a hard color stop) are
-still accepted and evaluate to the sub-function starting at the shared bound. A further test resolves
+still accepted and evaluate to the sub-function starting at the shared bound. Further tests prove
+sub-functions with differing output counts are rejected (message mentioning the output count) while
+matching multi-component counts are accepted and return every component, and that a non-finite
+`/Encode` element is rejected (message mentioning "finite"). A further test resolves
 a `/FunctionType 5` function through
 `ResolveFunctionGeneric`, asserting `Codecs.UnsupportedImageFeatureException` (feature
 `pdf-functiontype-5`) is thrown (regression guard for unknown types; type 4 is now supported, see

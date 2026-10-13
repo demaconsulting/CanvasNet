@@ -1989,6 +1989,9 @@ sections:
               - PdfDocument_Functions_Type3_Stitching_InvalidBoundsOrDomain_ThrowsInvalidDataException
               - PdfDocument_Functions_Type3_Stitching_NonFiniteBound_ThrowsInvalidDataException
               - PdfDocument_Functions_Type3_Stitching_EqualBounds_AreAcceptedAndEvaluateAsHardStop
+              - PdfDocument_Functions_Type3_Stitching_MismatchedOutputCounts_ThrowsInvalidDataException
+              - PdfDocument_Functions_Type3_Stitching_MatchingOutputCounts_AreAccepted
+              - PdfDocument_Functions_Type3_Stitching_NonFiniteEncode_ThrowsInvalidDataException
               - PdfDocument_Functions_UnknownFunctionType_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Functions_Type3_Stitching_NestingDepthExceeded_ThrowsInvalidDataException
 

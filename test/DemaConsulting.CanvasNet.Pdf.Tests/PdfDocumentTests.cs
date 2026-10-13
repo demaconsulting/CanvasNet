@@ -12192,5 +12192,64 @@ public class PdfDocumentTests
         Assert.Equal(expected, result[0], 5);
     }
 
+    /// <summary>Proves that a stitching function whose sub-functions have differing output counts is rejected with <see cref="InvalidDataException"/> mentioning the output count.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type3_Stitching_MismatchedOutputCounts_ThrowsInvalidDataException()
+    {
+        // Arrange: sub-function 0 has 1 output, sub-function 1 has 3.
+        var fn0 = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [0] /N 1", []);
+        var fn1 = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []);
+        var stitchingStream = BuildStreamObjectBody(
+            "/FunctionType 3 /Domain [0 1] /Functions [6 0 R 7 0 R] /Bounds [0.5] /Encode [0 1 0 1]", []);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn0, fn1]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(
+            () => document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0)));
+        Assert.Contains("output count", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Proves that a stitching function whose sub-functions all have the same multi-component output count is accepted and returns that many components from every branch.</summary>
+    [Theory]
+    [InlineData(0.25, 0.0)]
+    [InlineData(0.75, 1.0)]
+    public void PdfDocument_Functions_Type3_Stitching_MatchingOutputCounts_AreAccepted(double input, double expected)
+    {
+        // Arrange: both sub-functions have 3 outputs.
+        var fn0 = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [0 0 0] /N 1", []);
+        var fn1 = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [1 1 1] /C1 [1 1 1] /N 1", []);
+        var stitchingStream = BuildStreamObjectBody(
+            "/FunctionType 3 /Domain [0 1] /Functions [6 0 R 7 0 R] /Bounds [0.5] /Encode [0 1 0 1]", []);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn0, fn1]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var function = document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0));
+
+        // Act
+        var result = function.Evaluate(input);
+
+        // Assert
+        Assert.Equal(3, function.OutputCount);
+        Assert.Equal([expected, expected, expected], result);
+    }
+
+    /// <summary>Proves that a stitching function with a non-finite (overflowing) <c>/Encode</c> element is rejected with <see cref="InvalidDataException"/> mentioning "finite".</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type3_Stitching_NonFiniteEncode_ThrowsInvalidDataException()
+    {
+        // Arrange: a 400-digit integer overflows double to infinity when parsed.
+        var huge = new string('9', 400);
+        var fn = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [0] /N 1", []);
+        var stitchingStream = BuildStreamObjectBody(
+            $"/FunctionType 3 /Domain [0 1] /Functions [6 0 R 6 0 R] /Bounds [0.5] /Encode [0 1 0 {huge}]", []);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(
+            () => document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0)));
+        Assert.Contains("finite", exception.Message, StringComparison.Ordinal);
+    }
+
     #endregion
 }
