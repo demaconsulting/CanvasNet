@@ -1210,17 +1210,17 @@ public class PptxTextLayoutTests
             Matrix3x2.CreateTranslation(0f, heightEmu * scale);
         PptxDocument.PaintTextLayout(surface, afterLayout, bottomTransform);
 
-        var outputDirectory = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", ".agent-logs");
+        var outputDirectory = Path.Join(AppContext.BaseDirectory, "..", "..", "..", "..", "..", ".agent-logs");
         outputDirectory = Path.GetFullPath(outputDirectory);
         Directory.CreateDirectory(outputDirectory);
-        var outputPath = Path.Combine(outputDirectory, "pptx-degree-tofu-glyph-fallback-repro.png");
+        var outputPath = Path.Join(outputDirectory, "pptx-degree-tofu-glyph-fallback-repro.png");
 
         // Three target-framework test processes may run this test concurrently against the
         // same shared output path - render to a process-unique temp file first (identical
         // content regardless of which TFM wins), then best-effort copy it into place, tolerating
         // (rather than failing on) a transient sharing violation from a sibling process doing the
         // same thing at the same moment.
-        var tempPath = Path.Combine(outputDirectory, $"{Guid.NewGuid():N}.png.tmp");
+        var tempPath = Path.Join(outputDirectory, $"{Guid.NewGuid():N}.png.tmp");
         PngCodec.Save(surface, tempPath);
         try
         {

@@ -1191,7 +1191,7 @@ public class Jpeg2000CodecTests
     [Fact]
     public void Jpeg2000Codec_Load_Path_ReturnsPixels()
     {
-        var path = Path.Combine(Path.GetTempPath(), "j2k-" + Guid.NewGuid().ToString("N") + ".j2k");
+        var path = Path.Join(Path.GetTempPath(), "j2k-" + Guid.NewGuid().ToString("N") + ".j2k");
         try
         {
             File.WriteAllBytes(path, Encode(Img(8, 8, 1), Rev(1)));
@@ -1522,7 +1522,7 @@ public class Jpeg2000CodecTests
     /// <summary>Tests a missing file.</summary>
     [Fact]
     public void Jpeg2000Codec_Load_MissingFile_ThrowsFileNotFound() =>
-        Assert.Throws<FileNotFoundException>(() => Jpeg2000Codec.Load(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".jp2")));
+        Assert.Throws<FileNotFoundException>(() => Jpeg2000Codec.Load(Path.Join(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".jp2")));
 
     /// <summary>Tests data that is not JPEG 2000.</summary>
     [Theory]
