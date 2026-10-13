@@ -16,12 +16,12 @@ namespace DemaConsulting.CanvasNet.Vsdx.Tests;
 public class VsdxConnectorFixtureTests
 {
     /// <summary>The root folder a built test project copies the staged <c>.vsdx</c> fixtures into.</summary>
-    private static readonly string FixturesDirectory = Path.Combine(AppContext.BaseDirectory, "VsdxFixtures");
+    private static readonly string FixturesDirectory = Path.Join(AppContext.BaseDirectory, "VsdxFixtures");
 
     /// <summary>Resolves a staged fixture's full path by file name, failing clearly if the fixture-copy wiring did not place it in the output directory.</summary>
     private static string FixturePath(string fileName)
     {
-        var path = Path.Combine(FixturesDirectory, fileName);
+        var path = Path.Join(FixturesDirectory, fileName);
         Assert.True(File.Exists(path), $"Expected staged fixture '{path}' to exist in the test output directory.");
         return path;
     }

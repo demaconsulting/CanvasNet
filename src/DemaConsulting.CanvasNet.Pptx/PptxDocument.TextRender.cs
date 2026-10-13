@@ -191,9 +191,19 @@ public sealed partial class PptxDocument
     {
         var match = SystemFontCatalog.FindBestMatch(familyNameHint, bold, italic, serif: false, fixedPitch: false);
         return match is { } found
-            ? TrueTypeFont.Load(found.FilePath, found.FaceIndex)
+            ? SystemFontCache.GetOrAdd((found.FilePath, found.FaceIndex), static key => TrueTypeFont.Load(key.Path, key.Face))
             : SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic);
     }
+
+    /// <summary>
+    ///     Process-lifetime cache of the system fonts <see cref="ResolveTextFont"/> has loaded,
+    ///     keyed by file path and face index (the same keying <c>PdfDocument.FontFallback.cs</c>
+    ///     uses for its own fallback-font cache). Each text body memoizes fonts only for its own
+    ///     layout, so without this a slide with many shapes re-read and re-parsed the same font
+    ///     file once per shape. A <see cref="TrueTypeFont"/> is immutable and thread-safe, so
+    ///     sharing one instance across layouts and documents is behavior-identical.
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Path, int Face), TrueTypeFont> SystemFontCache = new();
 
     /// <summary>
     ///     Re-issues a glyph outline's subpaths/commands into <paramref name="builder"/>, mapping

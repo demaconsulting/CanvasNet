@@ -151,6 +151,7 @@ internal static class GradientEvaluator
         /// <summary>For a <see cref="RadialGradient"/>: the two-circle quadratic's leading coefficient, <c>RadialDx^2 + RadialDy^2 - RadialDr^2</c>.</summary>
         public double RadialA { get; init; }
     }
+
     /// <summary>
     ///     The squared-length threshold, in gradient-defining coordinates, below which a
     ///     <see cref="LinearGradient"/>'s <c>End - Start</c> vector is treated as exactly

@@ -252,8 +252,8 @@ public sealed partial class VsdxDocument
         var rawParagraphRows = ParseTextSectionRows(shapeElement, "Paragraph");
 
         var childShapesElement = shapeElement.Element(ns + "Shapes");
-        var children = childShapesElement is null
-            ? (IReadOnlyList<VsdxShapeNode>)[]
+        IReadOnlyList<VsdxShapeNode> children = childShapesElement is null
+            ? []
             : ParseShapeElements(childShapesElement, depth + 1, ref parsedShapeCount);
 
         return new VsdxShapeNode(

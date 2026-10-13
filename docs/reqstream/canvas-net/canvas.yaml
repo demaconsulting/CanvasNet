@@ -337,6 +337,7 @@ sections:
               full-row or full-surface buffer merely to hold mostly-untouched pixels.
             children:
               - CanvasNet-Canvas-Surface-CompositeOverSpan
+              - CanvasNet-Canvas-Surface-CompositeOverSpanZeroCoveragePreservesBytes
               - CanvasNet-Canvas-Surface-SpanWorkspaceCache
             tests:
               - Surface_CompositeOverSpan_FullCoverage_MatchesCompositeOverColor

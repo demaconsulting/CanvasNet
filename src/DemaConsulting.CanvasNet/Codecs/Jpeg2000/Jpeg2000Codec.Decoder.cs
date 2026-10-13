@@ -112,6 +112,7 @@ public static partial class Jpeg2000Codec
 
         return planes;
     }
+
     private static void DecodeTile(
         SizInfo siz, TileData td, int index, ushort[][] planes, Tier1Decoder tier1, DecodeBudget budget, Jpeg2000DecoderLimits limits)
     {

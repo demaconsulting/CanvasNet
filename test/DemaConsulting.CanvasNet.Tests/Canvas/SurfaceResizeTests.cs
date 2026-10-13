@@ -55,6 +55,33 @@ public class SurfaceResizeTests
         Assert.InRange(reds[3], 99, 100);
     }
 
+    /// <summary>Vertical bilinear enlargement and area reduction accumulate several source rows per output row.</summary>
+    [Fact]
+    public void Resize_VerticalMultiTap_AccumulatesWeightedRows()
+    {
+        // Arrange
+        using var column = new Surface(1, 2);
+        column[0, 0] = new Rgba32(0, 0, 0, 255);
+        column[0, 1] = new Rgba32(100, 100, 100, 255);
+        using var tall = new Surface(1, 4);
+        foreach (var (y, level) in new (int, byte)[] { (0, 0), (1, 100), (2, 200), (3, 40) })
+        {
+            tall[0, y] = new Rgba32(level, level, level, 255);
+        }
+
+        // Act
+        using var enlarged = column.Resize(1, 4, ResamplingMode.Bilinear);
+        using var reduced = tall.Resize(1, 2, ResamplingMode.Area);
+
+        // Assert
+        Assert.InRange(enlarged[0, 0].R, 0, 1);
+        Assert.InRange(enlarged[0, 1].R, 24, 26);
+        Assert.InRange(enlarged[0, 2].R, 74, 76);
+        Assert.InRange(enlarged[0, 3].R, 99, 100);
+        Assert.InRange(reduced[0, 0].R, 49, 51);
+        Assert.InRange(reduced[0, 1].R, 119, 121);
+    }
+
     /// <summary>Area averages each covered source pixel exactly on an integer reduction.</summary>
     [Fact]
     public void Resize_Area_IntegerReduction_AveragesBlocks()

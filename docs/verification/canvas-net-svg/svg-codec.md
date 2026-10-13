@@ -196,8 +196,7 @@ rejected with `InvalidDataException` once the bounded recursion guard is exceede
 `SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd`,
 `SvgCodec_Load_MarkerEndOnClosedPolygon_OrientsUsingClosingEdgeTangent`,
 `SvgCodec_Load_MarkerStrokeWidthUnitsOnScaledDocument_ScalesOnceNotTwice`,
-`SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect`,
-`SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale`
+`SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect`
 
 Asserts a `marker-end` reference renders its `marker` element's content past a `line`'s own end
 point, sized in user-space units; asserts `marker-start`/`marker-mid`/`marker-end` each
@@ -238,6 +237,14 @@ fill color, not the flood's - a regression test for a defect where marker-conten
 re-entered the same shape/text dispatch used everywhere else, which unconditionally resolved and
 evaluated a shape's own `filter` attribute, contradicting this codec's documented "filters on
 marker content have no effect" scope decision.
+
+#### CanvasNetSvg-SvgCodec-MarkerPreserveAspectRatio: Marker Explicit preserveAspectRatio Fitting
+
+**Tests**: `SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight`,
+`SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale`
+
+`SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight` proves a marker with a `viewBox` but no
+explicit `preserveAspectRatio` keeps the unchanged default fit.
 `SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale` is a new-
 capability test proving an explicit `preserveAspectRatio="... slice"` attribute on a marker with
 its own `viewBox` selects `slice`'s larger uniform scale (`max(...)`) rather than the pre-existing

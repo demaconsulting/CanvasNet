@@ -285,26 +285,7 @@ internal sealed class ClipMask
         if (_dense is null || other._dense is null)
         {
             // Exactly one dense operand: share its buffer and restrict it by the rectangle.
-            var dense = _dense is not null ? this : other;
-            var restricted = new ClipMask(
-                dense._dense,
-                dense._denseOriginX,
-                dense._denseOriginY,
-                dense._denseWidth,
-                dense._denseHeight,
-                left,
-                top,
-                right,
-                bottom,
-                Width,
-                Height);
-            if (dense._pieces is null)
-            {
-                return restricted;
-            }
-
-            var restrictedPieces = IntersectPieces(dense._pieces, null, left, top, right, bottom);
-            return restrictedPieces is null ? Empty(Width, Height) : restricted.WithPieces(restrictedPieces);
+            return RestrictDense(other, left, top, right, bottom);
         }
 
         var product = IntersectDense(other, left, top, right, bottom);
@@ -320,6 +301,31 @@ internal sealed class ClipMask
         }
 
         return both.Length > MaxPieces * 4 ? product : product.WithPieces(both);
+    }
+
+    /// <summary>Shares the dense operand's buffer (this mask's, else <paramref name="other"/>'s) restricted by the given rectangle (and its pieces, when present).</summary>
+    private ClipMask RestrictDense(ClipMask other, float left, float top, float right, float bottom)
+    {
+        var dense = _dense is not null ? this : other;
+        var restricted = new ClipMask(
+            dense._dense,
+            dense._denseOriginX,
+            dense._denseOriginY,
+            dense._denseWidth,
+            dense._denseHeight,
+            left,
+            top,
+            right,
+            bottom,
+            Width,
+            Height);
+        if (dense._pieces is null)
+        {
+            return restricted;
+        }
+
+        var restrictedPieces = IntersectPieces(dense._pieces, null, left, top, right, bottom);
+        return restrictedPieces is null ? Empty(Width, Height) : restricted.WithPieces(restrictedPieces);
     }
 
     /// <summary>
@@ -364,25 +370,51 @@ internal sealed class ClipMask
             var bCount = b is null ? 1 : b.Length / 4;
             for (var j = 0; j < bCount; j++)
             {
-                var l = MathF.Max(a[i], b is null ? left : MathF.Max(b[j * 4], left));
-                var t = MathF.Max(a[i + 1], b is null ? top : MathF.Max(b[(j * 4) + 1], top));
-                var r = MathF.Min(a[i + 2], b is null ? right : MathF.Min(b[(j * 4) + 2], right));
-                var bt = MathF.Min(a[i + 3], b is null ? bottom : MathF.Min(b[(j * 4) + 3], bottom));
-                if (r > l && bt > t)
+                IntersectPair(a, i, b, j, left, top, right, bottom, out var l, out var t, out var r, out var bt);
+                if (TryAddPiece(result, l, t, r, bt))
                 {
-                    result.Add(l);
-                    result.Add(t);
-                    result.Add(r);
-                    result.Add(bt);
-                    if (result.Count > MaxPieces * 4 + 4)
-                    {
-                        return [.. result];
-                    }
+                    return [.. result];
                 }
             }
         }
 
         return result.Count == 0 ? null : [.. result];
+    }
+
+    /// <summary>Intersects rectangle <paramref name="i"/> of <paramref name="a"/> with rectangle <paramref name="j"/> of <paramref name="b"/> (or the given bounds when <paramref name="b"/> is <see langword="null"/>).</summary>
+    private static void IntersectPair(
+        float[] a,
+        int i,
+        float[]? b,
+        int j,
+        float left,
+        float top,
+        float right,
+        float bottom,
+        out float l,
+        out float t,
+        out float r,
+        out float bt)
+    {
+        l = MathF.Max(a[i], b is null ? left : MathF.Max(b[j * 4], left));
+        t = MathF.Max(a[i + 1], b is null ? top : MathF.Max(b[(j * 4) + 1], top));
+        r = MathF.Min(a[i + 2], b is null ? right : MathF.Min(b[(j * 4) + 2], right));
+        bt = MathF.Min(a[i + 3], b is null ? bottom : MathF.Min(b[(j * 4) + 3], bottom));
+    }
+
+    /// <summary>Appends a non-empty rectangle to <paramref name="result"/>; returns <see langword="true"/> when the piece cap is exceeded.</summary>
+    private static bool TryAddPiece(List<float> result, float l, float t, float r, float bt)
+    {
+        if (!(r > l && bt > t))
+        {
+            return false;
+        }
+
+        result.Add(l);
+        result.Add(t);
+        result.Add(r);
+        result.Add(bt);
+        return result.Count > MaxPieces * 4 + 4;
     }
 
     /// <summary>
@@ -407,75 +439,15 @@ internal sealed class ClipMask
         {
             // Sweep this horizontal slab: every rectangle spanning it contributes an opening and
             // a closing event, and the sorted events give the covered runs directly.
-            events.Clear();
-            foreach (var (l, t, r, b, sign) in rects)
-            {
-                if (t <= yv[yi] && b >= yv[yi + 1])
-                {
-                    events.Add((l, sign));
-                    events.Add((r, -sign));
-                }
-            }
-
-            if (events.Count == 0)
-            {
-                continue;
-            }
-
-            events.Sort((p, q) => p.X.CompareTo(q.X));
-            var runs = new List<(float L, float R)>();
-            var winding = 0;
-            var count = 0;
-            for (var ei = 0; ei + 1 < events.Count; ei++)
-            {
-                winding += events[ei].Sign;
-                count++;
-                var from = events[ei].X;
-                var to = events[ei + 1].X;
-                if (!(to > from))
-                {
-                    continue;
-                }
-
-                // Parity of the number of rectangles open here: opening and closing events
-                // alternate per rectangle, so the open count's parity equals the event-count parity.
-                var inside = fillRule == FillRule.EvenOdd ? (count & 1) == 1 : winding != 0;
-                if (!inside)
-                {
-                    continue;
-                }
-
-                if (runs.Count > 0 && SameCoordinate(runs[^1].R, from))
-                {
-                    runs[^1] = (runs[^1].L, to);
-                }
-                else
-                {
-                    runs.Add((from, to));
-                }
-            }
-
-            if (runs.Count > 0)
+            var runs = BuildSlabRuns(rects, events, yv[yi], yv[yi + 1], fillRule);
+            if (runs is not null)
             {
                 rows.Add((yv[yi], yv[yi + 1], runs));
             }
         }
 
-        // Merge vertically adjacent rows with identical runs.
+        var merged = MergeAdjacentRows(rows);
         var pieces = new List<float>();
-        var merged = new List<(float T, float B, List<(float L, float R)> Runs)>();
-        foreach (var row in rows)
-        {
-            if (merged.Count > 0 && SameCoordinate(merged[^1].B, row.T) && merged[^1].Runs.SequenceEqual(row.Runs))
-            {
-                merged[^1] = (merged[^1].T, row.B, merged[^1].Runs);
-            }
-            else
-            {
-                merged.Add(row);
-            }
-        }
-
         foreach (var (t, b, runs) in merged)
         {
             foreach (var (l, r) in runs)
@@ -490,9 +462,97 @@ internal sealed class ClipMask
         return pieces.Count == 0 || pieces.Count > MaxPieces * 4 ? null : [.. pieces];
     }
 
+    /// <summary>Computes the covered horizontal runs of the slab between <paramref name="slabTop"/> and <paramref name="slabBottom"/>, or <see langword="null"/> when empty.</summary>
+    private static List<(float L, float R)>? BuildSlabRuns(
+        List<(float L, float T, float R, float B, int Sign)> rects,
+        List<(float X, int Sign)> events,
+        float slabTop,
+        float slabBottom,
+        FillRule fillRule)
+    {
+        CollectSlabEvents(rects, events, slabTop, slabBottom);
+        if (events.Count == 0)
+        {
+            return null;
+        }
+
+        events.Sort((p, q) => p.X.CompareTo(q.X));
+        var runs = new List<(float L, float R)>();
+        var winding = 0;
+        var count = 0;
+        for (var ei = 0; ei + 1 < events.Count; ei++)
+        {
+            winding += events[ei].Sign;
+            count++;
+            var from = events[ei].X;
+            var to = events[ei + 1].X;
+            if (!(to > from))
+            {
+                continue;
+            }
+
+            // Parity of the number of rectangles open here: opening and closing events
+            // alternate per rectangle, so the open count's parity equals the event-count parity.
+            var inside = fillRule == FillRule.EvenOdd ? (count & 1) == 1 : winding != 0;
+            if (!inside)
+            {
+                continue;
+            }
+
+            if (runs.Count > 0 && SameCoordinate(runs[^1].R, from))
+            {
+                runs[^1] = (runs[^1].L, to);
+            }
+            else
+            {
+                runs.Add((from, to));
+            }
+        }
+
+        return runs.Count > 0 ? runs : null;
+    }
+
+    /// <summary>Fills <paramref name="events"/> with the opening/closing edges of every rectangle spanning the slab.</summary>
+    private static void CollectSlabEvents(
+        List<(float L, float T, float R, float B, int Sign)> rects,
+        List<(float X, int Sign)> events,
+        float slabTop,
+        float slabBottom)
+    {
+        events.Clear();
+        foreach (var (l, t, r, b, sign) in rects)
+        {
+            if (t <= slabTop && b >= slabBottom)
+            {
+                events.Add((l, sign));
+                events.Add((r, -sign));
+            }
+        }
+    }
+
+    /// <summary>Merges vertically adjacent rows with identical runs.</summary>
+    private static List<(float T, float B, List<(float L, float R)> Runs)> MergeAdjacentRows(
+        List<(float T, float B, List<(float L, float R)> Runs)> rows)
+    {
+        var merged = new List<(float T, float B, List<(float L, float R)> Runs)>();
+        foreach (var row in rows)
+        {
+            if (merged.Count > 0 && SameCoordinate(merged[^1].B, row.T) && merged[^1].Runs.SequenceEqual(row.Runs))
+            {
+                merged[^1] = (merged[^1].T, row.B, merged[^1].Runs);
+            }
+            else
+            {
+                merged.Add(row);
+            }
+        }
+
+        return merged;
+    }
+
     /// <summary>Collects every polygon as an axis-aligned rectangle with its winding sign, or returns <see langword="false"/>.</summary>
     private static bool TryCollectRects(
-        IReadOnlyList<List<Vector2>> polygons,
+        List<List<Vector2>> polygons,
         int width,
         int height,
         out List<(float L, float T, float R, float B, int Sign)> rects)
@@ -635,6 +695,7 @@ internal sealed class ClipMask
     /// <summary>Gets the length of overlap, in <c>[0, 1]</c>, of device pixel <paramref name="index"/> with the span <paramref name="low"/> to <paramref name="high"/>.</summary>
     internal static float AxisOverlap(int index, float low, float high)
         => Math.Clamp(MathF.Min(index + 1f, high) - MathF.Max(index, low), 0f, 1f);
+
     /// <summary>
     ///     Gets the analytic rectangle's fractional coverage of device pixel column <paramref name="x"/>.
     /// </summary>
@@ -794,48 +855,7 @@ internal sealed class ClipMask
                 continue;
             }
 
-            float pMinX = float.PositiveInfinity, pMinY = float.PositiveInfinity;
-            float pMaxX = float.NegativeInfinity, pMaxY = float.NegativeInfinity;
-            foreach (var v in polygon)
-            {
-                pMinX = Math.Min(pMinX, v.X);
-                pMaxX = Math.Max(pMaxX, v.X);
-                pMinY = Math.Min(pMinY, v.Y);
-                pMaxY = Math.Max(pMaxY, v.Y);
-            }
-
-            List<Vector2>? output;
-            if (pMinX >= rectLeft && pMaxX <= rectRight && pMinY >= rectTop && pMaxY <= rectBottom)
-            {
-                output = polygon;
-            }
-            else if (pMaxX <= rectLeft || pMinX >= rectRight || pMaxY <= rectTop || pMinY >= rectBottom)
-            {
-                output = null;
-            }
-            else
-            {
-                output = ClipPolygon(polygon, rectLeft, rectTop, rectRight, rectBottom);
-                if (output is not null)
-                {
-                    pMinX = float.PositiveInfinity;
-                    pMinY = float.PositiveInfinity;
-                    pMaxX = float.NegativeInfinity;
-                    pMaxY = float.NegativeInfinity;
-                    foreach (var v in output)
-                    {
-                        pMinX = Math.Min(pMinX, v.X);
-                        pMaxX = Math.Max(pMaxX, v.X);
-                        pMinY = Math.Min(pMinY, v.Y);
-                        pMaxY = Math.Max(pMaxY, v.Y);
-                    }
-
-                    if (!(pMaxX > pMinX) || !(pMaxY > pMinY))
-                    {
-                        output = null;
-                    }
-                }
-            }
+            var output = ClipPolygonToExtent(polygon, rectLeft, rectTop, rectRight, rectBottom, out var pMinX, out var pMinY, out var pMaxX, out var pMaxY);
 
             if (output is null || !ReferenceEquals(output, polygon))
             {
@@ -866,6 +886,59 @@ internal sealed class ClipMask
 
         clippedBounds = new Rect(minX, minY, maxX - minX, maxY - minY);
         return true;
+    }
+
+    /// <summary>
+    ///     Classifies <paramref name="polygon"/> against the rectangle: returns it unchanged when fully inside,
+    ///     <see langword="null"/> when fully outside or degenerate after clipping, otherwise the clipped polygon;
+    ///     the extent outputs describe the returned polygon.
+    /// </summary>
+    private static List<Vector2>? ClipPolygonToExtent(
+        List<Vector2> polygon,
+        float rectLeft,
+        float rectTop,
+        float rectRight,
+        float rectBottom,
+        out float pMinX,
+        out float pMinY,
+        out float pMaxX,
+        out float pMaxY)
+    {
+        GetVertexExtent(polygon, out pMinX, out pMinY, out pMaxX, out pMaxY);
+        if (pMinX >= rectLeft && pMaxX <= rectRight && pMinY >= rectTop && pMaxY <= rectBottom)
+        {
+            return polygon;
+        }
+
+        if (pMaxX <= rectLeft || pMinX >= rectRight || pMaxY <= rectTop || pMinY >= rectBottom)
+        {
+            return null;
+        }
+
+        var output = ClipPolygon(polygon, rectLeft, rectTop, rectRight, rectBottom);
+        if (output is null)
+        {
+            return null;
+        }
+
+        GetVertexExtent(output, out pMinX, out pMinY, out pMaxX, out pMaxY);
+        return !(pMaxX > pMinX) || !(pMaxY > pMinY) ? null : output;
+    }
+
+    /// <summary>Computes the bounding box of <paramref name="vertices"/> (infinities when empty).</summary>
+    private static void GetVertexExtent(List<Vector2> vertices, out float minX, out float minY, out float maxX, out float maxY)
+    {
+        minX = float.PositiveInfinity;
+        minY = float.PositiveInfinity;
+        maxX = float.NegativeInfinity;
+        maxY = float.NegativeInfinity;
+        foreach (var v in vertices)
+        {
+            minX = Math.Min(minX, v.X);
+            maxX = Math.Max(maxX, v.X);
+            minY = Math.Min(minY, v.Y);
+            maxY = Math.Max(maxY, v.Y);
+        }
     }
 
     /// <summary>Copies the first <paramref name="count"/> polygons of <paramref name="polygons"/> into a new list.</summary>

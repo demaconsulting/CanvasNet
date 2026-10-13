@@ -222,24 +222,31 @@ public sealed partial class VsdxDocument : IDisposable
     private static MemoryStream CopyBounded(Stream source)
     {
         var destination = new MemoryStream();
-        var buffer = new byte[81920];
-        var total = 0L;
-        int read;
-        while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
+        try
         {
-            total += read;
-            if (total > MaxPackageBytes)
+            var buffer = new byte[81920];
+            var total = 0L;
+            int read;
+            while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
             {
-                destination.Dispose();
-                throw new InvalidDataException(
-                    $"The package stream exceeds the maximum supported size of {MaxPackageBytes} bytes.");
+                total += read;
+                if (total > MaxPackageBytes)
+                {
+                    throw new InvalidDataException(
+                        $"The package stream exceeds the maximum supported size of {MaxPackageBytes} bytes.");
+                }
+
+                destination.Write(buffer, 0, read);
             }
 
-            destination.Write(buffer, 0, read);
+            destination.Position = 0;
+            return destination;
         }
-
-        destination.Position = 0;
-        return destination;
+        catch
+        {
+            destination.Dispose();
+            throw;
+        }
     }
 
     /// <summary>

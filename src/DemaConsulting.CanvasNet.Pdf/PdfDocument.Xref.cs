@@ -1215,14 +1215,7 @@ public sealed partial class PdfDocument
         var b = buffer[position];
         if (b == (byte)'%')
         {
-            var end = position + 1;
-            while (end < buffer.Length && buffer[end] is not ((byte)'\n' or (byte)'\r'))
-            {
-                end++;
-            }
-
-            scanSteps += end - position;
-            return end;
+            return SkipComment(buffer, position, ref scanSteps);
         }
 
         if (unterminatedStringEncountered)
@@ -1242,10 +1235,7 @@ public sealed partial class PdfDocument
         // detection by checking the following byte; the second '<' must also be excluded, which
         // requires checking the *preceding* byte instead, since the following byte after the
         // second '<' is ordinary dictionary content rather than another '<'.
-        var isDictionaryDelimiter =
-            (position + 1 < buffer.Length && buffer[position + 1] == (byte)'<') ||
-            (position > 0 && buffer[position - 1] == (byte)'<');
-        if (b == (byte)'<' && !isDictionaryDelimiter)
+        if (b == (byte)'<' && !IsDictionaryDelimiter(buffer, position))
         {
             var after = SkipHexString(buffer, position);
             unterminatedStringEncountered = after == position;
@@ -1255,6 +1245,24 @@ public sealed partial class PdfDocument
 
         return position;
     }
+
+    /// <summary>Skips a comment starting at <paramref name="position"/> and returns the index of its terminating end-of-line (or the buffer end).</summary>
+    private static int SkipComment(byte[] buffer, int position, ref long scanSteps)
+    {
+        var end = position + 1;
+        while (end < buffer.Length && buffer[end] is not ((byte)'\n' or (byte)'\r'))
+        {
+            end++;
+        }
+
+        scanSteps += end - position;
+        return end;
+    }
+
+    /// <summary>Returns whether the <c>&lt;</c> at <paramref name="position"/> is part of a <c>&lt;&lt;</c> dictionary delimiter.</summary>
+    private static bool IsDictionaryDelimiter(byte[] buffer, int position)
+        => (position + 1 < buffer.Length && buffer[position + 1] == (byte)'<') ||
+           (position > 0 && buffer[position - 1] == (byte)'<');
 
     /// <summary>
     ///     Skips a literal string starting at the <c>(</c> byte index <paramref name="start"/>,

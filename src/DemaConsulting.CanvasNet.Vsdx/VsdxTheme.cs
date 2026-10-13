@@ -128,7 +128,7 @@ internal sealed record VsdxTheme(
             "accent6" => Accent6,
             "hlink" => Hlink,
             "folHlink" => FolHlink,
-            _ => (Rgba32?)null
+            _ => null
         };
 
         if (slot is { } resolved)

@@ -28,13 +28,13 @@ public class SystemFontCatalogTests
         // Arrange: root/Valid.ttf plus root/loop -> root (a symlinked subdirectory cycling back
         // to its own ancestor).
         var root = Directory.CreateDirectory(
-            Path.Combine(Path.GetTempPath(), "canvasnet-test-symlink-cycle-" + Guid.NewGuid())).FullName;
+            Path.Join(Path.GetTempPath(), "canvasnet-test-symlink-cycle-" + Guid.NewGuid())).FullName;
 
         try
         {
-            File.WriteAllBytes(Path.Combine(root, "Valid.ttf"), BuildMinimalValidFont());
+            File.WriteAllBytes(Path.Join(root, "Valid.ttf"), BuildMinimalValidFont());
 
-            var loopPath = Path.Combine(root, "loop");
+            var loopPath = Path.Join(root, "loop");
             try
             {
                 Directory.CreateSymbolicLink(loopPath, root);
@@ -52,7 +52,7 @@ public class SystemFontCatalogTests
             // Assert: the scan terminated (it did not hang following the cycle forever) and the
             // real font sibling to the symlink was still discovered.
             var entry = Assert.Single(result);
-            Assert.Equal(Path.Combine(root, "Valid.ttf"), entry.FilePath);
+            Assert.Equal(Path.Join(root, "Valid.ttf"), entry.FilePath);
         }
         finally
         {
@@ -219,19 +219,19 @@ public class SystemFontCatalogTests
     public void SystemFontCatalog_Fonts_MissingScanDirectory_SkippedWithoutThrowing()
     {
         // Arrange: one root that does not exist, and one real temp directory with a valid font
-        var missingRoot = Path.Combine(Path.GetTempPath(), "canvasnet-test-missing-" + Guid.NewGuid());
+        var missingRoot = Path.Join(Path.GetTempPath(), "canvasnet-test-missing-" + Guid.NewGuid());
         var validRoot = Directory.CreateDirectory(
-            Path.Combine(Path.GetTempPath(), "canvasnet-test-valid-" + Guid.NewGuid())).FullName;
+            Path.Join(Path.GetTempPath(), "canvasnet-test-valid-" + Guid.NewGuid())).FullName;
 
         try
         {
-            File.WriteAllBytes(Path.Combine(validRoot, "Valid.ttf"), BuildMinimalValidFont());
+            File.WriteAllBytes(Path.Join(validRoot, "Valid.ttf"), BuildMinimalValidFont());
 
             // Act
             var result = SystemFontCatalog.BuildCatalogFromRoots([missingRoot, validRoot]);
 
             // Assert: no exception, and the valid root's font was still discovered
-            Assert.Contains(result, f => f.FilePath == Path.Combine(validRoot, "Valid.ttf"));
+            Assert.Contains(result, f => f.FilePath == Path.Join(validRoot, "Valid.ttf"));
         }
         finally
         {
@@ -249,19 +249,19 @@ public class SystemFontCatalogTests
     {
         // Arrange: a directory containing one garbage ".ttf" and one genuinely valid ".ttf"
         var root = Directory.CreateDirectory(
-            Path.Combine(Path.GetTempPath(), "canvasnet-test-unparseable-" + Guid.NewGuid())).FullName;
+            Path.Join(Path.GetTempPath(), "canvasnet-test-unparseable-" + Guid.NewGuid())).FullName;
 
         try
         {
-            File.WriteAllBytes(Path.Combine(root, "Garbage.ttf"), [0x00, 0x01, 0x02, 0x03, 0x04]);
-            File.WriteAllBytes(Path.Combine(root, "Valid.ttf"), BuildMinimalValidFont());
+            File.WriteAllBytes(Path.Join(root, "Garbage.ttf"), [0x00, 0x01, 0x02, 0x03, 0x04]);
+            File.WriteAllBytes(Path.Join(root, "Valid.ttf"), BuildMinimalValidFont());
 
             // Act
             var result = SystemFontCatalog.BuildCatalogFromRoots([root]);
 
             // Assert: only the valid font was discovered; the garbage file was silently skipped
             var entry = Assert.Single(result);
-            Assert.Equal(Path.Combine(root, "Valid.ttf"), entry.FilePath);
+            Assert.Equal(Path.Join(root, "Valid.ttf"), entry.FilePath);
         }
         finally
         {
@@ -306,14 +306,14 @@ public class SystemFontCatalogTests
     public void SystemFontCatalog_Fonts_HeaderOnlyScan_MatchesFullLoadForSyntheticFacesAndCollections()
     {
         var root = Directory.CreateDirectory(
-            Path.Combine(Path.GetTempPath(), "canvasnet-test-headers-" + Guid.NewGuid())).FullName;
+            Path.Join(Path.GetTempPath(), "canvasnet-test-headers-" + Guid.NewGuid())).FullName;
 
         try
         {
             var regular = BuildStyledFont("Alpha", "Regular", 400, 0x40, 0);
             var boldItalic = BuildStyledFont("Beta", "Bold Italic", 700, 0x21, 1);
-            File.WriteAllBytes(Path.Combine(root, "Single.ttf"), regular);
-            File.WriteAllBytes(Path.Combine(root, "Collection.ttc"), SyntheticFontBuilder.Ttc([regular, boldItalic]));
+            File.WriteAllBytes(Path.Join(root, "Single.ttf"), regular);
+            File.WriteAllBytes(Path.Join(root, "Collection.ttc"), SyntheticFontBuilder.Ttc([regular, boldItalic]));
 
             var result = SystemFontCatalog.BuildCatalogFromRoots([root]);
 
@@ -345,7 +345,7 @@ public class SystemFontCatalogTests
     public void SystemFontCatalog_Fonts_HeaderOnlyScan_MatchesFullLoadForBundledFonts()
     {
         var root = Directory.CreateDirectory(
-            Path.Combine(Path.GetTempPath(), "canvasnet-test-bundled-" + Guid.NewGuid())).FullName;
+            Path.Join(Path.GetTempPath(), "canvasnet-test-bundled-" + Guid.NewGuid())).FullName;
 
         try
         {
@@ -356,7 +356,7 @@ public class SystemFontCatalogTests
                 n => n.StartsWith(prefix, StringComparison.Ordinal) && n.EndsWith(".ttf", StringComparison.Ordinal)))
             {
                 using var source = assembly.GetManifestResourceStream(resource)!;
-                using var target = File.Create(Path.Combine(root, resource[prefix.Length..]));
+                using var target = File.Create(Path.Join(root, resource[prefix.Length..]));
                 source.CopyTo(target);
                 count++;
             }
@@ -465,23 +465,23 @@ public class SystemFontCatalogTests
     public void SystemFontCatalog_Fonts_TruncatedAndInconsistentHeaders_AreSkipped()
     {
         var root = Directory.CreateDirectory(
-            Path.Combine(Path.GetTempPath(), "canvasnet-test-truncated-" + Guid.NewGuid())).FullName;
+            Path.Join(Path.GetTempPath(), "canvasnet-test-truncated-" + Guid.NewGuid())).FullName;
 
         try
         {
             var valid = BuildMinimalValidFont();
-            File.WriteAllBytes(Path.Combine(root, "Truncated.ttf"), valid[..40]);
-            File.WriteAllBytes(Path.Combine(root, "TruncatedTtc.ttc"), SyntheticFontBuilder.Ttc([valid])[..14]);
-            File.WriteAllBytes(Path.Combine(root, "Empty.otf"), []);
+            File.WriteAllBytes(Path.Join(root, "Truncated.ttf"), valid[..40]);
+            File.WriteAllBytes(Path.Join(root, "TruncatedTtc.ttc"), SyntheticFontBuilder.Ttc([valid])[..14]);
+            File.WriteAllBytes(Path.Join(root, "Empty.otf"), []);
             var ottoWithoutCff = (byte[])valid.Clone();
             "OTTO"u8.CopyTo(ottoWithoutCff);
-            File.WriteAllBytes(Path.Combine(root, "OttoWithoutCff.otf"), ottoWithoutCff);
-            File.WriteAllBytes(Path.Combine(root, "Valid.ttf"), valid);
+            File.WriteAllBytes(Path.Join(root, "OttoWithoutCff.otf"), ottoWithoutCff);
+            File.WriteAllBytes(Path.Join(root, "Valid.ttf"), valid);
 
             var result = SystemFontCatalog.BuildCatalogFromRoots([root]);
 
             var entry = Assert.Single(result);
-            Assert.Equal(Path.Combine(root, "Valid.ttf"), entry.FilePath);
+            Assert.Equal(Path.Join(root, "Valid.ttf"), entry.FilePath);
         }
         finally
         {

@@ -35,6 +35,35 @@ public sealed partial class VsdxDocument
     /// </summary>
     private const int MaxResolvedShapeCount = 50_000;
 
+    /// <summary>Enforces the nesting-depth and resolved-shape-count budgets, incrementing <paramref name="resolvedShapeCount"/>.</summary>
+    private static void CheckShapeBudgets(VsdxShapeNode shape, int depth, ref int resolvedShapeCount)
+    {
+        if (depth > MaxGroupNestingDepth)
+        {
+            throw new InvalidDataException(
+                $"Shape '{shape.Id}' exceeds the maximum supported group nesting depth of {MaxGroupNestingDepth}; " +
+                "its page's shape tree is either pathological or cyclic.");
+        }
+
+        resolvedShapeCount++;
+        if (resolvedShapeCount > MaxResolvedShapeCount)
+        {
+            throw new InvalidDataException(
+                $"The page's shape tree exceeds the maximum supported resolved shape count of {MaxResolvedShapeCount}; " +
+                "it is either pathological or cyclic.");
+        }
+    }
+
+    /// <summary>Builds the connector endpoints of a 1-D shape (both a BeginX and an EndX cell), otherwise <see langword="null"/>.</summary>
+    private static VsdxConnectorEndpoints? BuildConnectorEndpoints(VsdxCellBag effectiveCells)
+        => effectiveCells.TryGet("BeginX", out _) && effectiveCells.TryGet("EndX", out _)
+            ? new VsdxConnectorEndpoints(
+                effectiveCells.GetDouble("BeginX"),
+                effectiveCells.GetDouble("BeginY"),
+                effectiveCells.GetDouble("EndX"),
+                effectiveCells.GetDouble("EndY"))
+            : null;
+
     /// <summary>
     ///     Resolves <paramref name="shape"/> in place - exactly as the single top-level-only
     ///     resolution this method superseded used to (Master/MasterShape cell and geometry-row
@@ -79,20 +108,7 @@ public sealed partial class VsdxDocument
         int depth,
         ref int resolvedShapeCount)
     {
-        if (depth > MaxGroupNestingDepth)
-        {
-            throw new InvalidDataException(
-                $"Shape '{shape.Id}' exceeds the maximum supported group nesting depth of {MaxGroupNestingDepth}; " +
-                "its page's shape tree is either pathological or cyclic.");
-        }
-
-        resolvedShapeCount++;
-        if (resolvedShapeCount > MaxResolvedShapeCount)
-        {
-            throw new InvalidDataException(
-                $"The page's shape tree exceeds the maximum supported resolved shape count of {MaxResolvedShapeCount}; " +
-                "it is either pathological or cyclic.");
-        }
+        CheckShapeBudgets(shape, depth, ref resolvedShapeCount);
 
         shape.Parent = parent;
 
@@ -111,13 +127,7 @@ public sealed partial class VsdxDocument
         // A 1-D (connector) shape always carries both a BeginX and an EndX cell (see the format
         // reference's §4.4); a 2-D shape carries neither. Trust the already-resolved V values
         // directly rather than recomputing them - see VsdxConnectorEndpoints's own remarks.
-        shape.ConnectorEndpoints = effectiveCells.TryGet("BeginX", out _) && effectiveCells.TryGet("EndX", out _)
-            ? new VsdxConnectorEndpoints(
-                effectiveCells.GetDouble("BeginX"),
-                effectiveCells.GetDouble("BeginY"),
-                effectiveCells.GetDouble("EndX"),
-                effectiveCells.GetDouble("EndY"))
-            : null;
+        shape.ConnectorEndpoints = BuildConnectorEndpoints(effectiveCells);
 
         // Assumption #4 (documented, low-risk design-consistency extension, not fixture-evidenced
         // - see the Milestone 4 plan report): an instance shape with no own <Text> element falls

@@ -92,7 +92,7 @@ is fully transparent (all channels zero) until pixels are explicitly set.
 
 #### Disposal
 
-`Surface` implements `IDisposable`. In this release its pixel buffer is a plain managed array, so
+`Surface` implements `IDisposable`. Its pixel buffer is currently a plain managed array, so
 `Dispose()` has nothing to actually release yet — it exists to establish the disposal contract
 ahead of a future release that may back the buffer with a pooled array, without another breaking
 API change. Call `Dispose()` (or wrap construction in a `using`/`using var` statement) once a
@@ -1035,6 +1035,7 @@ roughly 50 microseconds per input byte (Release build; about twice that in Debug
 stream of about 1 MB. When decoding untrusted input, pass tighter limits sized to what you expect:
 
 ```csharp
+var untrustedBytes = File.ReadAllBytes("untrusted.jp2");
 var limits = new Jpeg2000DecoderLimits
 {
     MaxInputBytes = 8 * 1024 * 1024,
@@ -1087,7 +1088,7 @@ face for each `text` element's own cascaded `font-weight`/`font-style`. The root
 `viewBox`/`width`/`height` are fit into the requested raster via the root `svg` element's own
 `preserveAspectRatio` attribute (`[defer] <align> [<meetOrSlice>]` - all 10 aligns and both
 `meet`/`slice`), defaulting to "xMidYMid meet" (equivalent to CSS `object-fit: contain`) when the
-attribute is absent - the same pre-existing centered-letterbox default every document without an
+attribute is absent - the centered-letterbox default every document without an
 explicit `preserveAspectRatio` attribute already rendered with. This same fit algorithm also
 applies to a `use` element referencing a `symbol` element with its own `viewBox`, and to a
 `marker` element's own explicit `preserveAspectRatio` attribute. Every shape/text geometry
@@ -1104,6 +1105,17 @@ out-of-scope constructs (`animate`/SMIL,
 `foreignObject`, nested `svg`, and any remaining unrecognized filter primitive type)
 are silently skipped/passed through so the rest of the document still
 renders; malformed/unparseable input throws `InvalidDataException`.
+
+Rendering is bounded by fixed resource budgets so that hostile input cannot consume unbounded
+memory or CPU: a cap on document size (5,000,000 characters), element nesting depth (100) and
+total rendered elements (100,000); cumulative geometry and CSS-matching work budgets; and, for
+filters, a cap of 1,000 primitives per filter, a per-filter work budget (primitive count times
+region area) and a cumulative per-`Load`-call filter work budget. A filter whose region is too
+large, whose chain exceeds either budget, or that has no primitives is skipped and the element
+renders unfiltered rather than throwing; exceeding the document, depth or element caps throws
+`InvalidDataException`. The deterministic effect counters used to verify these budgets (work
+charged, charges rejected, effects surfaces and pixels allocated) are internal to the library and
+are not part of the public API.
 
 #### SvgCodec Methods
 
@@ -1299,11 +1311,14 @@ approximation. Axial and radial shadings convert up to 256 samples exactly and b
 adjacent samples (within about 3 color levels of direct conversion for `/Lab`). A non-integral
 `/N` of an `/ICCBased` space or `/Hival` of an `/Indexed` space is rejected as malformed. The
 `sh` operator and generic path
-clipping (`W`/`W*`) are supported. Device, `/CalGray`, `/CalRGB`, `/Lab`, `/ICCBased`, `/Indexed`,
-`/Separation`, `/DeviceN` and `/Pattern` color spaces are supported; `/CalGray`, `/CalRGB` and `/Lab`
+clipping (`W`/`W*`) are supported. A clip made only of axis-aligned rectangles (including the union
+of several) is applied geometrically, so a fill or image whose edge coincides with a clip edge keeps
+its full ink; any other clip is applied as an antialiased coverage mask. Placed images are resampled
+once to the device window they cover (area averaging when shrinking, bicubic when enlarging), so thin
+features such as one-pixel rules are attenuated rather than dropped. Device, `/CalGray`, `/CalRGB`, `/Lab`, `/ICCBased`,
+`/Indexed`, `/Separation`, `/DeviceN` and `/Pattern` color spaces are supported; `/CalGray`, `/CalRGB` and `/Lab`
 color spaces are converted to
-sRGB through a CIE XYZ pipeline (note: `/CalRGB` was previously treated as plain `DeviceRGB`, so
-colors in such documents may now differ). `/ICCBased` spaces are resolved by their `/N` component
+sRGB through a CIE XYZ pipeline. `/ICCBased` spaces are resolved by their `/N` component
 count (or a matching `/Alternate`); the ICC profile data itself is not applied. An image in a `/Lab`
 color space with an explicit `/Decode` array fails closed (feature `pdf-image-lab-decode`).
 `/Separation` and `/DeviceN` colors (operators, images, `/Indexed` palettes and shadings) are
@@ -1486,7 +1501,8 @@ StyleSheet chain exactly as a native Visio client would) and walks it in documen
 declared shape paints first/bottom), painting each shape's resolved fill, stroke, text, and - for
 a 1-D connector - its line and arrowheads onto the returned `Surface`. Master/MasterShape cell and
 geometry-row inheritance, StyleSheet-chain-resolved line/fill/text style (including the built-in
-color palette, best-effort Themed-cell resolution, and resolved fill/line transparency), connector/
+color palette, resolved fill/line transparency, and bare `THEMEVAL()` themed color/font cells, which
+resolve to the built-in "No Style" StyleSheet's values and the theme's minor Latin typeface), connector/
 glue-point routing, arrowhead rendering, and arbitrarily nested shape groups are all resolved
 automatically - no separate API is needed to opt into any of them. A `NonPrinting` shape skips its
 own fill/stroke/text/arrowhead paint (but still recurses into its own children); a `HideText` shape
@@ -1497,20 +1513,32 @@ render are never skipped silently: set `VsdxRenderOptions.UnsupportedFeatureHand
 `VsdxUnsupportedFeature` (stable `Feature` token plus message) once per distinct feature per
 `Render` call, or set `ThrowOnUnsupportedFeature` to get a `VsdxUnsupportedFeatureException`
 instead (rendering is tolerant by default). **Documented scope boundaries**: embedded images/foreign
-shapes, non-trivial theme-variation resolution, non-solid fill-pattern combinations beyond solid
+shapes, theme Quick Style variation matrices (a themed color that cannot be resolved is drawn neutral
+gray and reported as `vsdx-themed-color`), non-solid fill-pattern combinations beyond solid
 (including any gradient approximation), the full arrowhead style-index table, and a handful of
 rarely-encountered geometry row types (`InfiniteLine`) are tolerated (the row/feature is skipped
 and reported, never thrown) but not resolved into their own path segments or paint.
 `PolylineTo`, `NURBSTo` and `SplineStart`/`SplineKnot` rows are drawn as flattened line segments
 (bounded by hard limits on control points, degree and segments; a curve that cannot be evaluated
-exactly is approximated by a polyline and reported as `vsdx-geometry-spline-approximated`) - see
-`canvas-net-vsdx.md`'s Design Constraints
+exactly is approximated by a polyline and reported as `vsdx-geometry-spline-approximated`). A
+malformed geometry row is skipped, never thrown, and reported with the token
+`vsdx-geometry-row-<Type>` (for example `vsdx-geometry-row-NURBSTo`): a `PolylineTo`, `NURBSTo` or
+`SplineStart`/`SplineKnot` row with a missing, malformed, non-finite or over-limit cell or formula;
+an orphan `SplineStart`/`SplineKnot`; a row that continues a subpath before any `MoveTo`; or an
+unrecognized row type such as `InfiniteLine`. See `canvas-net-vsdx.md`'s Design Constraints
 section for the complete deferred-feature boundary.
 
 ```csharp
 using var doc = VsdxDocument.Open("diagram.vsdx");
 var info = doc.GetPageSize(0);
 using var surface = doc.Render(0, 150); // Render the first page at 150 DPI.
+
+// Receive a diagnostic for every construct that was recognized but could not be fully rendered.
+var options = new VsdxRenderOptions
+{
+    UnsupportedFeatureHandler = f => Console.WriteLine($"{f.Feature}: {f.Message}"),
+};
+using var reported = doc.Render(0, 150, options);
 ```
 
 #### VsdxDocument Methods
@@ -2393,18 +2421,92 @@ When rendering a `.pptx` presentation via the separate `DemaConsulting.CanvasNet
 `OpenXmlChartParser`, rendered via `ChartRenderer`, and composited onto the slide - no extra
 caller code is required beyond calling `PptxDocument.Render` itself.
 
+### PptxDocument
+
+`PptxDocument` is distributed via the separate `DemaConsulting.CanvasNet.Pptx` NuGet package
+(namespace `DemaConsulting.CanvasNet.Pptx`), which references the core `DemaConsulting.CanvasNet`
+package - see the Installation section of the project README.
+
+The `PptxDocument` sealed class opens a PowerPoint (`.pptx`) presentation - an OPC (Open Packaging
+Conventions) ZIP package - and rasterizes individual slides onto a `Surface`. Opening buffers the
+whole package in memory (up to 256 MiB), so the caller's stream need not stay open. A slide is
+rendered by walking its shape tree in document order, including nested groups, and painting:
+auto shapes (preset and custom geometry) with solid, linear-gradient and covered pattern fills and
+outlines; connectors (straight, elbow and curved, with arrowheads); raster pictures (BMP, PNG, TIFF,
+JPEG and GIF, with `srcRect` cropping) and SVG-only picture blips; tables; embedded charts; and text
+with placeholder, layout, master and theme inheritance, word wrap, alignment, vertical anchoring,
+autofit, bullets and numbering. The slide's own background fill (falling back to its layout's, then
+its master's) is painted before the shapes. Footer, date and slide-number placeholders inherit from
+the master like any other placeholder, and a master's non-placeholder date or slide-number text box
+honors its own list style, so its size is not replaced by the 18 pt default. `PptxDocument` is not
+thread-safe: open one instance per thread, or synchronize access externally.
+
+```csharp
+using DemaConsulting.CanvasNet.Pptx;
+
+using var deck = PptxDocument.Open("slides.pptx");
+Console.WriteLine($"{deck.SlideCount} slides, {deck.SlideSize.WidthEmu}x{deck.SlideSize.HeightEmu} EMU");
+
+// Render the first slide at 96 DPI (the surface size follows the slide's aspect ratio).
+using var slide = deck.Render(0, 96f);
+var (width, height) = deck.GetSlideSizeInPixels(96f);
+Console.WriteLine($"{width}x{height}"); // Output: the pixel size of the surface returned above
+```
+
+#### PptxDocument Members
+
+- `PptxDocument.Open(Stream stream)` / `PptxDocument.Open(string path)`: Opens and parses a
+  presentation. Throws `ArgumentNullException` for a null argument, `ArgumentException` for an empty
+  path, and `InvalidDataException` when the package is not a readable ZIP archive, is missing a
+  required part, is malformed, or is not a navigable presentation (a slide size and at least one slide
+  are required).
+- `PptxDocument.SlideCount`: The number of slides declared by the presentation.
+- `PptxDocument.SlideSize`: The slide size as a `PptxSlideSize` (`WidthEmu` and `HeightEmu`, in EMU,
+  English Metric Units; 914,400 EMU per inch).
+- `PptxDocument.GetSlideSizeInPixels(float dpi)`: The slide size in pixels at `dpi`, each dimension
+  rounded to the nearest pixel.
+- `PptxDocument.Render(int slideIndex, int width, int height, PptxRenderOptions? options = null)`:
+  Renders the slide into a new `width` x `height` `Surface`.
+- `PptxDocument.Render(int slideIndex, float dpi, PptxRenderOptions? options = null)`: Renders the
+  slide at `dpi`, preserving the slide's aspect ratio.
+- `PptxDocument.Dispose()`: Releases the document; idempotent. Every other member then throws
+  `ObjectDisposedException`.
+
+`Render` throws `ArgumentOutOfRangeException` for an invalid slide index, `dpi` or surface size,
+and `InvalidDataException` for malformed slide content. A shape, picture or graphic frame that
+declares no position anywhere in its ancestry is skipped silently.
+
+#### PptxRenderOptions
+
+`PptxRenderOptions` is a sealed class with `init`-only properties (`PptxRenderOptions.Default` holds
+the defaults):
+
+- `BackgroundColor`: The color the surface is cleared to first (opaque white by default). A slide,
+  layout or master `<p:bg>` fill, when declared, is painted over it.
+- `StrictUnsupportedPictures`: See the EMF/WMF section below.
+- `OnUnsupportedPictureSkipped`: See the EMF/WMF section below.
+
+A well-formed but unsupported construct (for example a radial or path gradient, an unsupported
+preset geometry or pattern-fill preset, a linked non-embedded image, or an unsupported raster image
+format) makes `Render` throw `PptxUnsupportedFeatureException`, an `IOException` whose `Feature`
+property carries a stable token such as `pptx-image-link`, `pptx-image-format`, `pptx-pattern-fill` or
+`pptx-gradient-path`. A chart that cannot be rendered is reported as `pptx-chart-` followed by the
+chart feature token.
+
 ### PPTX EMF/WMF Pictures
 
 `PptxDocument.Render` cannot draw EMF/WMF vector metafile pictures (a known gap). By default, a
 slide's `<p:pic>` whose media is an EMF or WMF is skipped - nothing is drawn for that picture and
 the rest of the slide renders normally. To learn which pictures were skipped, set
 `PptxRenderOptions.OnUnsupportedPictureSkipped` (it reports only the slide's own or group-nested
-pictures; EMF/WMF pictures on a layout or master are skipped silently in both modes); to keep the
-previous fail-closed behavior, set
-`PptxRenderOptions.StrictUnsupportedPictures = true`, which makes `Render` throw
+pictures; EMF/WMF pictures on a layout or master are skipped silently in both modes); to make
+`Render` fail instead, set `PptxRenderOptions.StrictUnsupportedPictures = true`, which makes it throw
 `PptxUnsupportedFeatureException` (`Feature` is `"pptx-image-metafile"`).
 
 ```csharp
+using DemaConsulting.CanvasNet.Pptx;
+
+using var document = PptxDocument.Open("slides.pptx");
 var options = new PptxRenderOptions
 {
     OnUnsupportedPictureSkipped = ex => Console.WriteLine($"Skipped picture: {ex.Message}"),
@@ -2520,7 +2622,7 @@ using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
 using var surface = new Surface(16, 16);
-surface[0, 0] = new Rgba32(255, 128, 0, 255); // opaque orange pixel
+surface.Clear(new Rgba32(255, 128, 0, 255)); // opaque orange everywhere
 
 // Save at quality 90 (the default)
 JpegCodec.Save(surface, "surface.jpg", 90);
@@ -2698,7 +2800,7 @@ var gradient = new RadialGradient(
     spread: GradientSpread.Pad);
 
 PathFiller.Fill(canvas, square, gradient);
-Console.WriteLine(canvas[32, 32].A); // Output: 255 (at the gradient's center)
+Console.WriteLine(canvas[32, 32].A); // Output: about 249 (nearly opaque; alpha fades toward the edge)
 ```
 
 ## Example 13: Loading a TrueType Font and Filling a Glyph Outline
@@ -2709,6 +2811,8 @@ using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;
 using System.Numerics;
+// Disambiguate from System.IO.Path when implicit usings are enabled.
+using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 // glyf-flavored (.ttf) fonts produce QuadraticBezierTo segments; CFF/OpenType
 // (.otf) fonts produce CubicBezierTo segments instead - both are handled here
@@ -2881,6 +2985,40 @@ using var surface = doc.Render(0, 150);
 Console.WriteLine($"{surface.Width}x{surface.Height}");
 ```
 
+## Example 18: Rendering a PowerPoint (.pptx) Slide
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Pptx;
+
+using var deck = PptxDocument.Open("slides.pptx");
+
+// Render the first slide at 96 DPI, reporting any EMF/WMF pictures that had to be skipped.
+var options = new PptxRenderOptions
+{
+    OnUnsupportedPictureSkipped = ex => Console.WriteLine($"Skipped picture: {ex.Message}"),
+};
+using var slide = deck.Render(0, 96f, options);
+PngCodec.Save(slide, "slide1.png");
+```
+
+## Example 19: Rendering a PDF Page
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Pdf;
+
+using var pdf = PdfDocument.Open("document.pdf");
+Console.WriteLine(pdf.PageCount);
+
+// Render the first page at 150 DPI onto a transparent background.
+var options = new PdfRenderOptions { BackgroundColor = new Rgba32(0, 0, 0, 0) };
+using var page = pdf.Render(0, 150f, options);
+PngCodec.Save(page, "page1.png");
+```
+
 ## Rendering (transform-aware Canvas, text, and shapes)
 
 The `Rendering` subsystem adds a transform-aware `Canvas` wrapper over `Surface`, along with
@@ -2909,8 +3047,12 @@ canvas.Restore(); // pops back to the identity
 ### DrawText and MeasureText
 
 ```csharp
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Rendering;
+
+using var surface = new Surface(200, 200);
+var canvas = new Canvas(surface);
 
 // Load a TrueType font.
 using var stream = File.OpenRead("OpenSans-Regular.ttf");
@@ -2929,6 +3071,11 @@ canvas.DrawText("Hello", x: 100, y: 100, TextAlign.Center, font, size: 32f, new 
 ### Shape helpers
 
 ```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Rendering;
+
+using var surface = new Surface(200, 200);
+var canvas = new Canvas(surface);
 var red = new Rgba32(255, 0, 0, 255);
 canvas.FillRect(10, 10, 50, 50, red);
 canvas.FillRoundRect(70, 10, 50, 50, radius: 12f, red);
@@ -2941,6 +3088,15 @@ no-op.
 ### CornerRoundEffect
 
 ```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Geometry;
+using DemaConsulting.CanvasNet.Rendering;
+using System.Numerics;
+
+using var surface = new Surface(200, 200);
+var canvas = new Canvas(surface);
+var red = new Rgba32(255, 0, 0, 255);
+
 var polygon = new PathBuilder()
     .MoveTo(new Vector2(10, 10))
     .LineTo(new Vector2(100, 10))
@@ -2959,6 +3115,13 @@ The radius is clamped per-corner to half of the shorter adjacent segment.
 ### Rgba32.Parse
 
 ```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Rendering;
+
+using var surface = new Surface(200, 200);
+var canvas = new Canvas(surface);
+var userInput = "#80FF0000";
+
 var opaqueRed = Rgba32.Parse("#FF0000");     // A=255
 var translucentRed = Rgba32.Parse("#80FF0000"); // A=128
 

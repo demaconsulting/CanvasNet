@@ -579,15 +579,9 @@ public static partial class Jpeg2000Codec
             var cy = idx / pb.Cw;
 
             // Inclusion: tag tree for blocks never included, a single bit afterwards.
-            bool included;
-            if (cb.Included)
-            {
-                included = br.ReadBit() == 1;
-            }
-            else
-            {
-                included = pb.Inclusion!.DecodeBelow(br, cx, cy, layer + 1);
-            }
+            var included = cb.Included
+                ? br.ReadBit() == 1
+                : pb.Inclusion!.DecodeBelow(br, cx, cy, layer + 1);
 
             if (!included)
             {

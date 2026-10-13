@@ -1191,7 +1191,7 @@ public class Jpeg2000CodecTests
     [Fact]
     public void Jpeg2000Codec_Load_Path_ReturnsPixels()
     {
-        var path = Path.Combine(Path.GetTempPath(), "j2k-" + Guid.NewGuid().ToString("N") + ".j2k");
+        var path = Path.Join(Path.GetTempPath(), "j2k-" + Guid.NewGuid().ToString("N") + ".j2k");
         try
         {
             File.WriteAllBytes(path, Encode(Img(8, 8, 1), Rev(1)));
@@ -1522,7 +1522,7 @@ public class Jpeg2000CodecTests
     /// <summary>Tests a missing file.</summary>
     [Fact]
     public void Jpeg2000Codec_Load_MissingFile_ThrowsFileNotFound() =>
-        Assert.Throws<FileNotFoundException>(() => Jpeg2000Codec.Load(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".jp2")));
+        Assert.Throws<FileNotFoundException>(() => Jpeg2000Codec.Load(Path.Join(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".jp2")));
 
     /// <summary>Tests data that is not JPEG 2000.</summary>
     [Theory]
@@ -2318,6 +2318,7 @@ public class Jpeg2000CodecTests
         Assert.Throws<InvalidDataException>(() => budget.ChargeTier1(1));
         Assert.True(8192L * 8192 * 88 > (1L << 24) + ((1L << 14) * data.Length));
     }
+
     /// <summary>Tests that the hostile stream shape decodes when the work is within the budget (so the budget is the only cause).</summary>
     [Fact]
     public void Jpeg2000Codec_Decode_SmallHostileShape_Decodes()

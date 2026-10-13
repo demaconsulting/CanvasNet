@@ -144,7 +144,9 @@ public sealed partial class VsdxDocument
         {
             if (Load(info, cache) is { } font && font.GetGlyphIndex(codePoint) != 0)
             {
-                return font;
+                // A sweep hit is promoted into the shared cache (keeping the instance just loaded) so all
+                // results for the same file/face share one font rather than each holding a private copy.
+                return cache ? font : FallbackFontCache.GetOrAdd((info.FilePath, info.FaceIndex), font)!;
             }
         }
 
@@ -171,9 +173,17 @@ public sealed partial class VsdxDocument
     {
         var match = SystemFontCatalog.FindBestMatch(familyNameHint, bold, italic, serif: false, fixedPitch: false);
         return match is { } found
-            ? TrueTypeFont.Load(found.FilePath, found.FaceIndex)
+            ? SystemFontCache.GetOrAdd((found.FilePath, found.FaceIndex), static key => TrueTypeFont.Load(key.Path, key.Face))
             : SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic);
     }
+
+    /// <summary>
+    ///     Process-lifetime cache of the system fonts <see cref="ResolveTextFont"/> has loaded,
+    ///     keyed by file path and face index, so a page with many text shapes does not re-read and
+    ///     re-parse the same font file once per shape. A <see cref="TrueTypeFont"/> is immutable
+    ///     and thread-safe, so sharing one instance is behavior-identical.
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Path, int Face), TrueTypeFont> SystemFontCache = new();
 
     /// <summary>
     ///     Re-issues a glyph outline's subpaths/commands into <paramref name="builder"/>, mapping
