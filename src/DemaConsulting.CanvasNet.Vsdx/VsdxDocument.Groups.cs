@@ -63,6 +63,7 @@ public sealed partial class VsdxDocument
                 effectiveCells.GetDouble("EndX"),
                 effectiveCells.GetDouble("EndY"))
             : null;
+
     /// <summary>
     ///     Resolves <paramref name="shape"/> in place - exactly as the single top-level-only
     ///     resolution this method superseded used to (Master/MasterShape cell and geometry-row

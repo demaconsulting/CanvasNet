@@ -750,6 +750,7 @@ public sealed partial class PdfDocument
 
         return PdfColorSpace.Lab(white, range);
     }
+
     /// <summary>
     ///     The maximum number of colorants a <c>/DeviceN</c> color space may declare (a resource
     ///     bound on per-color-evaluation work and stack use).
@@ -859,6 +860,7 @@ public sealed partial class PdfDocument
 
         return names;
     }
+
     /// <summary>
     ///     Resolves a <c>[/Pattern]</c> or <c>[/Pattern baseSpace]</c> color-space array
     ///     (PDF 32000-1 §8.7.3.3): a 1-element array is a colored-only pattern color space
@@ -1010,6 +1012,7 @@ public sealed partial class PdfDocument
 
         return null;
     }
+
     /// <summary>
     ///     Resolves an <c>/Indexed</c> color-space array
     ///     (<c>[/Indexed baseSpace hival lookup]</c>): the base color space (resolved recursively

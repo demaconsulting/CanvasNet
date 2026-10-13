@@ -1263,6 +1263,7 @@ public sealed partial class PdfDocument
     private static bool IsDictionaryDelimiter(byte[] buffer, int position)
         => (position + 1 < buffer.Length && buffer[position + 1] == (byte)'<') ||
            (position > 0 && buffer[position - 1] == (byte)'<');
+
     /// <summary>
     ///     Skips a literal string starting at the <c>(</c> byte index <paramref name="start"/>,
     ///     tracking balanced nested parentheses and backslash-escaped bytes per the PDF

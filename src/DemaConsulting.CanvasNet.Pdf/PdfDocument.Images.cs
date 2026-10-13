@@ -1240,6 +1240,7 @@ public sealed partial class PdfDocument
             pixel.R, pixel.G, pixel.B,
             (byte)Math.Round(pixel.A * coverage, MidpointRounding.AwayFromZero));
     }
+
     /// <summary>Message for a truncated image sample stream.</summary>
     private const string SampleDataTruncatedMessage = "Image XObject sample data is truncated.";
 

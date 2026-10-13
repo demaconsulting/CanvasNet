@@ -1072,6 +1072,7 @@ public class PdfDocumentEncryptionTests
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
     }
+
     /// <summary>Proves that an Encrypt dictionary whose <c>/Length</c> entry resolves to a key length outside the ISO 32000-1 §7.6.2 valid range of 40-128 bits (5-16 bytes) throws <see cref="InvalidDataException"/> before any key derivation is attempted, instead of deriving a nonsensical-length key or indexing out of range later.</summary>
     [Fact]
     public void PdfDocument_Open_Encrypted_LengthOutOfRange_ThrowsInvalidDataException()

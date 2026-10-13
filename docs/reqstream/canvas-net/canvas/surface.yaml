@@ -315,6 +315,20 @@ sections:
                   - Surface_CompositeOverSpan_MultiPixelRun_AppliesPerPixelCoverage
                   - Surface_CompositeOverSpan_EmptyCoverageAtWidthBoundary_NoOp
 
+              - id: CanvasNet-Canvas-Surface-CompositeOverSpanZeroCoveragePreservesBytes
+                title: >-
+                  The Surface class shall leave a pixel's stored bytes completely unchanged when
+                  CompositeOverSpan is given a coverage of zero or less for that pixel, including a
+                  fully transparent pixel that carries nonzero color channels.
+                justification: |
+                  Regression guard for a documented pixel-corruption bug in which the shared blend
+                  pipeline's zero-alpha degenerate-case handling overwrote the untouched color bytes
+                  of a transparent pixel with zeros even though zero coverage must be a no-op.
+                tests:
+                  - Surface_CompositeOverSpan_ZeroCoverageOnTransparentPixelWithNonzeroColor_LeavesPixelUnchanged
+                  - Surface_CompositeOverSpan_NegativeCoverageOnTransparentPixelWithNonzeroColor_LeavesPixelUnchanged
+                  - Surface_CompositeOverSpan_MixedZeroAndFullCoverageRun_OnlyTouchesFullCoverageColumn
+
               - id: CanvasNet-Canvas-Surface-CompositeOverSpanValidation
                 title: >-
                   The Surface class shall reject a row argument outside [0, Height), or a column

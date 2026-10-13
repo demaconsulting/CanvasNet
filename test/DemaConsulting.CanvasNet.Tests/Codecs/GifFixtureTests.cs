@@ -162,6 +162,7 @@ public class GifFixtureTests
         Assert.True(info.CanDecode);
         Assert.Equal(frameCount, info.FrameCount);
     }
+
     /// <summary>
     ///     Proves that Load successfully decodes an animated (multi-frame) fixture without
     ///     throwing, producing a surface sized to the Logical Screen Descriptor dimensions using

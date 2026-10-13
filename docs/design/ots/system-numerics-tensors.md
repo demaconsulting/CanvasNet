@@ -20,6 +20,8 @@ platform-specific gating.
 - `TensorPrimitives.Divide` — elementwise division (for example, un-premultiplying by alpha)
 - `TensorPrimitives.Add` — elementwise addition (for example, combining Porter-Duff terms)
 - `TensorPrimitives.Subtract` — elementwise subtraction (for example, computing `1 - alpha`)
+- `TensorPrimitives.MultiplyAdd` — fused elementwise multiply-add (for example, accumulating a
+  weighted filter row in `SurfaceResampler`'s separable vertical pass)
 
 ### Integration Pattern
 
@@ -27,8 +29,10 @@ Unlike every other OTS item in this repository, `System.Numerics.Tensors` is ref
 standard `PackageReference` (not `PrivateAssets="All"`) in
 `src/DemaConsulting.CanvasNet/DemaConsulting.CanvasNet.csproj`, and is therefore **shipped as a
 transitive dependency of the compiled NuGet package**, not merely used at build time. It is
-consumed directly, and exclusively, by `Surface`'s `PremultiplyAlpha`, `UnpremultiplyAlpha`, and
-`CompositeOver` implementations via private planar-buffer helper methods; no other member of
-`Surface`, or any other unit in CanvasNet, depends on it. `TensorPrimitives` is in-box on
-`net9.0`/`net10.0` and supplied via this package on `net8.0`; the package version is pinned to one
-value across all three target frameworks so the same code path is exercised everywhere.
+consumed directly by `Surface`'s `PremultiplyAlpha`, `UnpremultiplyAlpha`, and
+`CompositeOver` implementations via private planar-buffer helper methods,
+by `SurfaceResampler`'s separable filter engine (`Multiply`/`MultiplyAdd`), and by
+`ScanlineRasterizer`'s coverage clipping (`Multiply`); no other member of `Surface` depends on it.
+`TensorPrimitives` is in-box on `net9.0`/`net10.0` and supplied via this package on `net8.0`; the
+package version is pinned to one value across all three target frameworks so the same code path
+is exercised everywhere.

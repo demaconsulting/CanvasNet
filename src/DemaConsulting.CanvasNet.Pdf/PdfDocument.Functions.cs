@@ -84,6 +84,9 @@ public sealed partial class PdfDocument
     /// <summary>The maximum number of outputs of a multi-input function.</summary>
     private const int MaxFunctionOutputs = 32;
 
+    /// <summary>Name of the required <c>/Domain</c> entry shared by all function types.</summary>
+    private const string DomainKey = "Domain";
+
     /// <summary>
     ///     A resolved <c>/FunctionType 0</c> (sampled) function with <c>m &gt;= 1</c> inputs,
     ///     evaluated by multilinear interpolation (<c>2^m</c> corners) between the samples
@@ -705,8 +708,6 @@ public sealed partial class PdfDocument
         return encode;
     }
 
-    /// <summary>Name of the required <c>/Domain</c> entry shared by all function types.</summary>
-    private const string DomainKey = "Domain";
     /// <summary>Resolves a (possibly multi-input) <c>/FunctionType 0</c> stream into a <see cref="MultiSampledFunction"/>.</summary>
     private MultiSampledFunction ResolveMultiSampledFunction(PdfObject function)
     {

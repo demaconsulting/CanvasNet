@@ -767,6 +767,7 @@ public sealed partial class PdfDocument
                 group[shift..].Reverse();
             }
         }
+
         private static void Push(Span<PsValue> stack, ref int sp, PsValue value)
         {
             if (sp >= MaxPostScriptStackDepth)

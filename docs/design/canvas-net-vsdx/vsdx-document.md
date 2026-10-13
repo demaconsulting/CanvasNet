@@ -407,8 +407,16 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
 - **Glyph fallback** (`VsdxDocument.TextLayout.cs`, `TextRender.cs`): when a non-whitespace code
   point has no glyph in the run's font, `SelectGlyphFont` asks `ResolveGlyphFallbackFont`
   (preferred symbol families such as Segoe UI Symbol, Arial Unicode MS, Cambria Math, DejaVu
-  Sans, then any catalog face, then the bundled Liberation faces; results cached) and uses the
-  returned font for both measurement and the placed glyph. When no font covers the code point,
+  Sans, then any catalog face, then the bundled Liberation faces) and uses the returned font for
+  both measurement and the placed glyph. Two process-lifetime static caches back the lookup (they
+  are never evicted and are shared by all documents): `FallbackResults`, keyed by (code point,
+  bold, italic), and `FallbackFontCache`, keyed by font file path and face index, so every result
+  that resolves to the same file/face shares one `TrueTypeFont` instance. Preferred-family fonts
+  are loaded through `FallbackFontCache`; the catalog-wide sweep loads each candidate transiently
+  so an uncovered code point cannot pin every installed font, and a sweep hit is promoted into
+  `FallbackFontCache` (the just-loaded instance is stored, or the already-cached one returned) so
+  results never hold private duplicate copies. `ResolveTextFont` uses the separate
+  `SystemFontCache` with the same path/face keying. When no font covers the code point,
   `SelectGlyphFont` reports `vsdx-text-missing-glyph` through the unsupported-feature handler and
   keeps the run's own font. Tests inject their own resolver.
 

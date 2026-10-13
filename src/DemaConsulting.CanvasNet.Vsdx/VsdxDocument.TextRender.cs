@@ -144,7 +144,9 @@ public sealed partial class VsdxDocument
         {
             if (Load(info, cache) is { } font && font.GetGlyphIndex(codePoint) != 0)
             {
-                return font;
+                // A sweep hit is promoted into the shared cache (keeping the instance just loaded) so all
+                // results for the same file/face share one font rather than each holding a private copy.
+                return cache ? font : FallbackFontCache.GetOrAdd((info.FilePath, info.FaceIndex), font)!;
             }
         }
 

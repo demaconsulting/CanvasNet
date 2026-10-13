@@ -1257,6 +1257,7 @@ internal static class ScanlineRasterizer
                 _cellUnsafe[index]++;
             }
         }
+
         /// <summary>
         ///     Exactly resolves an EvenOdd cell holding two or more vertical edges that each span
         ///     the whole interval: the winding parity left of the cell is toggled at each edge's

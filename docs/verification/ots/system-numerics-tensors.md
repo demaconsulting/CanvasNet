@@ -9,7 +9,7 @@ Requirements document.
 `System.Numerics.Tensors` (`TensorPrimitives`) is CanvasNet's only shipped runtime NuGet
 dependency, used by `Surface`'s `PremultiplyAlpha`, `UnpremultiplyAlpha`, and `CompositeOver`
 implementations for vectorized per-channel floating-point arithmetic
-(`ConvertSaturating`, `Round`, `Multiply`, `Divide`, `Add`, `Subtract`). Correct results from these
+(`ConvertSaturating`, `Round`, `Multiply`, `Divide`, `Add`, `Subtract`, `MultiplyAdd`). Correct results from these
 operations are required for numerically correct alpha premultiplication and Porter-Duff
 compositing.
 

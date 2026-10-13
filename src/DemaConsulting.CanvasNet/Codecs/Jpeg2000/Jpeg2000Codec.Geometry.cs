@@ -470,6 +470,7 @@ public static partial class Jpeg2000Codec
 
         return (quant.Exp[bandIndex], quant.Mant[bandIndex]);
     }
+
     private static Precinct BuildPrecinct(
         CodingParams coding, int roiShift, int r, Band[] bands, long pxAbs, long pyAbs, GeometryBudget budget)
     {

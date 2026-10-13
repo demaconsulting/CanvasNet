@@ -891,6 +891,7 @@ public sealed partial class PdfDocument
 
         throw new InvalidDataException("AES-256 /R 6 password hash (Algorithm 2.B) did not terminate.");
     }
+
     /// <summary>
     ///     Computes a per-object encryption key per ISO 32000-1 Algorithm 1, used by RC4 and
     ///     AES-128/AESV2 (revisions 2-4). AES-256 does not use this - it uses the file

@@ -549,6 +549,7 @@ internal sealed class ClipMask
 
         return merged;
     }
+
     /// <summary>Collects every polygon as an axis-aligned rectangle with its winding sign, or returns <see langword="false"/>.</summary>
     private static bool TryCollectRects(
         List<List<Vector2>> polygons,
@@ -694,6 +695,7 @@ internal sealed class ClipMask
     /// <summary>Gets the length of overlap, in <c>[0, 1]</c>, of device pixel <paramref name="index"/> with the span <paramref name="low"/> to <paramref name="high"/>.</summary>
     internal static float AxisOverlap(int index, float low, float high)
         => Math.Clamp(MathF.Min(index + 1f, high) - MathF.Max(index, low), 0f, 1f);
+
     /// <summary>
     ///     Gets the analytic rectangle's fractional coverage of device pixel column <paramref name="x"/>.
     /// </summary>

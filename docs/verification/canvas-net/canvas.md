@@ -1,18 +1,18 @@
 ## Canvas Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Canvas` subsystem
-(the `Surface` unit and its supporting `Rgba32` value type).
+(the `Surface` unit and the `Rgba32` value-type unit).
 
 ### Verification Approach
 
-The `Canvas` subsystem is verified entirely through its constituent unit's tests: the `Surface`
+The `Canvas` subsystem is verified entirely through its constituent units' tests: the `Surface`
 unit's tests (see _Surface Unit Verification Design_, `canvas/surface.md`) exercise every public
 constructor, property, indexer, span accessor, the `Crop` method, and the `Resize`/`ResizeToFit`
 resampling API (requirements `CanvasNet-Canvas-Resize`, `-ResizeAlpha`, `-ResizeValidation` and
 `-ResizeToFit`) in isolation. No separate
 subsystem-level tests exist; the subsystem-level requirements reuse the same `Surface` unit tests
-as verification evidence, since the `Canvas` subsystem currently contains exactly one unit with
-externally observable behavior.
+as verification evidence, alongside the `Rgba32` unit's own tests (see _Rgba32 Unit Verification
+Design_, `canvas/rgba32.md`); the `Canvas` subsystem contains exactly these two units.
 
 ### Test Environment
 
@@ -28,11 +28,11 @@ exception.
 
 ### Test Scenarios
 
-The `Canvas` subsystem currently contains exactly one unit with externally observable behavior,
-so its test scenarios are exactly those named in _Surface Unit Verification Design_
+The `Canvas` subsystem's test scenarios are those named in _Rgba32 Unit Verification Design_
+(`canvas/rgba32.md`) plus those named in _Surface Unit Verification Design_
 (`canvas/surface.md`): construction and invariants, indexer and span-accessor boundary conditions,
 `Crop` normal/boundary/error paths, `Resize`/`ResizeToFit` size, filter, premultiplied-alpha (no color
 fringe) and argument-validation behavior (`CanvasNet-Canvas-Resize*`),
 `PremultiplyAlpha`/`UnpremultiplyAlpha`/`CompositeOver`
-compositing correctness, and `Dispose` idempotency. No subsystem-level test exists beyond this
-unit's own coverage.
+compositing correctness, and `Dispose` idempotency. No subsystem-level test exists beyond
+these units' own coverage.

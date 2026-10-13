@@ -264,6 +264,7 @@ public class ScanlineRasterizerTests
         // Assert: alpha is a valid byte and the fill produced some ink (no exception, no NaN)
         Assert.True(surface[0, 0].A + surface[1, 0].A > 0);
     }
+
     /// <summary>
     ///     Proves the critical bug fix: a self-intersecting "bowtie" polygon whose two diagonal
     ///     edges cross each other strictly inside a row (not at a shared vertex or row boundary)
