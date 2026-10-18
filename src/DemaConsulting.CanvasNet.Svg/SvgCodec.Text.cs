@@ -44,29 +44,17 @@ public static partial class SvgCodec
     /// <param name="state">The cascaded render state, supplying <c>font-family</c>/<c>font-size</c>/<c>text-anchor</c>.</param>
     /// <param name="transform">The accumulated transform from local space into pixel space.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="workBudget">
-    ///     The shared geometry-parsing work budget (see <see cref="GeometryWorkBudget"/>), charged
-    ///     with the text's character count before glyph layout begins so a pathologically long
-    ///     run's per-rune outline/kerning work never starts once the budget is exceeded. Also
-    ///     forwarded to <see cref="RenderShapeWithEffects"/> for its own <c>clip-path</c> child
-    ///     geometry building.
+    /// <param name="scope">
+    ///     The recursion depths and budgets, forwarded to <see cref="RenderShapeWithEffects"/>.
+    ///     Its geometry work budget (see <see cref="GeometryWorkBudget"/>) is charged with the
+    ///     text's character count before glyph layout begins so a pathologically long run's
+    ///     per-rune outline/kerning work never starts once the budget is exceeded. A marker depth
+    ///     above zero means <paramref name="element"/> is part of a <c>marker</c> element's own
+    ///     content, so its own <c>filter</c>/<c>clip-path</c>/<c>mask</c> attributes (if any) are
+    ///     never resolved/evaluated, per the documented "filters on marker content have no effect"
+    ///     scope decision, extended uniformly to all three effects.
     /// </param>
-    /// <param name="filterWorkBudget">
-    ///     The shared cumulative filter-evaluation work budget, forwarded to
-    ///     <see cref="RenderShapeWithEffects"/>.
-    /// </param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, forwarded to <see cref="RenderShapeWithEffects"/>.</param>
-    /// <param name="elementDepth">The current recursion depth, forwarded to <see cref="RenderShapeWithEffects"/>.</param>
-    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, forwarded to <see cref="RenderShapeWithEffects"/>.</param>
     /// <param name="totalElements">The running total-rendered-elements count, forwarded to <see cref="RenderShapeWithEffects"/>.</param>
-    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, forwarded to <see cref="RenderShapeWithEffects"/>.</param>
-    /// <param name="suppressEffects">
-    ///     Forwarded to <see cref="RenderShapeWithEffects"/> - <see langword="true"/> when
-    ///     <paramref name="element"/> is part of a <c>marker</c> element's own content, so its own
-    ///     <c>filter</c>/<c>clip-path</c>/<c>mask</c> attributes (if any) are never
-    ///     resolved/evaluated, per the documented "filters on marker content have no effect" scope
-    ///     decision, extended uniformly to all three effects.
-    /// </param>
     /// <remarks>
     ///     Silently renders nothing - never throws - when <see cref="RenderContext.Fonts"/> is
     ///     <see langword="null"/>, no entry matches <paramref name="state"/>'s <c>font-family</c>,
@@ -77,9 +65,7 @@ public static partial class SvgCodec
     /// </remarks>
     private static void RenderText(
         XElement element, RenderState state, Matrix3x2 transform, RenderContext context,
-        int useDepth, int elementDepth, int markerDepth, ref int totalElements,
-        GeometryWorkBudget workBudget, FilterWorkBudget filterWorkBudget, BoundsPrePassWorkBudget boundsPrePassBudget,
-        bool suppressEffects = false)
+        RenderScope scope, ref int totalElements)
     {
         if (context.Fonts == null)
         {
@@ -100,13 +86,13 @@ public static partial class SvgCodec
 
         // Charge the text's character count before the expensive per-rune glyph-outline/kerning
         // loop begins, so a pathologically long run throws before that work is spent
-        workBudget.Charge(text.Length);
+        scope.WorkBudget.Charge(text.Length);
 
         var origin = new Vector2(
             GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal),
             GetFloatAttribute(element, "y", state, PercentageAxis.Vertical));
         var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
-        RenderShapeWithEffects(element, glyphRunPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
+        RenderShapeWithEffects(element, glyphRunPath, state, transform, context, scope, ref totalElements);
     }
 
     /// <summary>

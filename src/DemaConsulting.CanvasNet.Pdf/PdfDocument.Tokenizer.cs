@@ -249,78 +249,7 @@ public sealed partial class PdfDocument
                         break;
                     }
 
-                    var escaped = _buffer[Position];
-                    switch (escaped)
-                    {
-                        case (byte)'n':
-                            bytes.Add((byte)'\n');
-                            Position++;
-                            break;
-                        case (byte)'r':
-                            bytes.Add((byte)'\r');
-                            Position++;
-                            break;
-                        case (byte)'t':
-                            bytes.Add((byte)'\t');
-                            Position++;
-                            break;
-                        case (byte)'b':
-                            bytes.Add(0x08);
-                            Position++;
-                            break;
-                        case (byte)'f':
-                            bytes.Add(0x0C);
-                            Position++;
-                            break;
-                        case (byte)'(':
-                            bytes.Add((byte)'(');
-                            Position++;
-                            break;
-                        case (byte)')':
-                            bytes.Add((byte)')');
-                            Position++;
-                            break;
-                        case (byte)'\\':
-                            bytes.Add((byte)'\\');
-                            Position++;
-                            break;
-                        case (byte)'\r':
-                            // Backslash-newline is a line continuation: no byte is emitted.
-                            Position++;
-                            if (Position < Length && _buffer[Position] == (byte)'\n')
-                            {
-                                Position++;
-                            }
-
-                            break;
-                        case (byte)'\n':
-                            Position++;
-                            break;
-                        default:
-                            if (escaped is >= (byte)'0' and <= (byte)'7')
-                            {
-                                var value = 0;
-                                var digits = 0;
-                                while (digits < 3 && Position < Length && _buffer[Position] is >= (byte)'0' and <= (byte)'7')
-                                {
-                                    value = (value * 8) + (_buffer[Position] - (byte)'0');
-                                    Position++;
-                                    digits++;
-                                }
-
-                                bytes.Add((byte)(value & 0xFF));
-                            }
-                            else
-                            {
-                                // An unrecognized escape simply yields the escaped character
-                                // itself, per the PDF specification.
-                                bytes.Add(escaped);
-                                Position++;
-                            }
-
-                            break;
-                    }
-
+                    AppendLiteralEscape(bytes);
                     continue;
                 }
 
@@ -360,6 +289,60 @@ public sealed partial class PdfDocument
             }
 
             return new PdfToken(PdfTokenKind.LiteralString, bytes: bytes.ToArray());
+        }
+
+        /// <summary>
+        ///     Decodes the escape sequence whose first character (after the backslash) is at
+        ///     <see cref="Position"/>, appending any produced byte and advancing past it.
+        /// </summary>
+        private void AppendLiteralEscape(List<byte> bytes)
+        {
+            var escaped = _buffer[Position];
+            switch (escaped)
+            {
+                case (byte)'\r':
+                    // Backslash-newline is a line continuation: no byte is emitted.
+                    Position++;
+                    if (Position < Length && _buffer[Position] == (byte)'\n')
+                    {
+                        Position++;
+                    }
+
+                    return;
+                case (byte)'\n':
+                    Position++;
+                    return;
+                case >= (byte)'0' and <= (byte)'7':
+                    AppendOctalEscape(bytes);
+                    return;
+            }
+
+            // Simple escapes map to a control or punctuation byte; an unrecognized escape
+            // simply yields the escaped character itself, per the PDF specification.
+            bytes.Add(escaped switch
+            {
+                (byte)'n' => (byte)'\n',
+                (byte)'r' => (byte)'\r',
+                (byte)'t' => (byte)'\t',
+                (byte)'b' => 0x08,
+                (byte)'f' => 0x0C,
+                _ => escaped,
+            });
+            Position++;
+        }
+
+        private void AppendOctalEscape(List<byte> bytes)
+        {
+            var value = 0;
+            var digits = 0;
+            while (digits < 3 && Position < Length && _buffer[Position] is >= (byte)'0' and <= (byte)'7')
+            {
+                value = (value * 8) + (_buffer[Position] - (byte)'0');
+                Position++;
+                digits++;
+            }
+
+            bytes.Add((byte)(value & 0xFF));
         }
 
         private PdfToken ReadHexString()

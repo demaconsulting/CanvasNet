@@ -68,6 +68,16 @@ sections:
                   - Rgba32_TryParse_InvalidInput_ReturnsFalseAndSetsResultToDefault
                   - Rgba32_TryParse_Null_ReturnsFalse
 
+              - id: CanvasNet-Canvas-Rgba32-ToString
+                title: >-
+                  The Rgba32 struct shall render itself via ToString as "Rgba32(R, G, B, A)" with
+                  each channel in decimal using the invariant culture.
+                justification: |
+                  A stable, culture-independent representation keeps diagnostics and any
+                  consumers relying on the documented output from silently changing.
+                tests:
+                  - Rgba32_ToString_RepresentativeChannels_ReturnsInvariantFormattedString
+
               - id: CanvasNet-Canvas-Rgba32-CompositeOver
                 title: >-
                   The Rgba32 struct shall provide an internal single-pixel CompositeOver helper

@@ -105,7 +105,7 @@ public class PptxColorMapTests
         """;
 
     /// <summary>Builds an in-memory, OPC-shaped <c>.pptx</c> ZIP package from name/content entry pairs.</summary>
-    private static Stream BuildPackage(params (string Name, string Content)[] entries)
+    private static MemoryStream BuildPackage(params (string Name, string Content)[] entries)
     {
         var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))

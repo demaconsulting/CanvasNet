@@ -454,8 +454,8 @@ public class PptxTablesTests
         var cell = PptxDocument.ParseTableCell(BuildTc(txBody: BuildTextBody("Hello")), BuildTestTheme(), 1000f, 500f);
 
         Assert.NotNull(cell.TextBody);
-        Assert.Single(cell.TextBody.Paragraphs);
-        Assert.Equal("Hello", cell.TextBody.Paragraphs[0].Runs[0].Text);
+        var cellItem = Assert.Single(cell.TextBody.Paragraphs);
+        Assert.Equal("Hello", cellItem.Runs[0].Text);
     }
 
     // --- ResolveCellRects --------------------------------------------------------------------------

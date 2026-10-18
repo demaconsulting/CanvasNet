@@ -70,12 +70,12 @@ public sealed class TilePaint
                 nameof(transform), transform, "Transform components must all be finite values.");
         }
 
-        if (!float.IsFinite(xStep) || xStep == 0f)
+        if (!float.IsFinite(xStep) || xStep.Equals(0f))
         {
             throw new ArgumentOutOfRangeException(nameof(xStep), xStep, "XStep must be a finite, non-zero value.");
         }
 
-        if (!float.IsFinite(yStep) || yStep == 0f)
+        if (!float.IsFinite(yStep) || yStep.Equals(0f))
         {
             throw new ArgumentOutOfRangeException(nameof(yStep), yStep, "YStep must be a finite, non-zero value.");
         }

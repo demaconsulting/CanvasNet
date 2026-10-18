@@ -207,40 +207,8 @@ public sealed partial class PdfDocument
                 $"/Decode must have exactly {4 + (2 * colorValueCount)} finite elements for this mesh shading.");
         }
 
-        Rgba32[]? lut = null;
-        var tMin = 0.0;
-        var tMax = 0.0;
-        if (evaluate is not null)
-        {
-            tMin = Math.Min(decode[4], decode[5]);
-            tMax = Math.Max(decode[4], decode[5]);
-            lut = new Rgba32[MeshFunctionLutSize];
-            for (var i = 0; i < lut.Length; i++)
-            {
-                var t = tMin + ((tMax - tMin) * i / (lut.Length - 1));
-                var output = evaluate(t);
-                if (output.Length != componentCount)
-                {
-                    throw new InvalidDataException(
-                        $"/Function must produce {componentCount} output component(s) for the shading /ColorSpace.");
-                }
-
-                lut[i] = ColorFromComponents(colorSpace, output);
-            }
-        }
-
-        Rgba32? background = null;
-        var backgroundValues = ResolveOptionalNumberArray(shading, "Background");
-        if (backgroundValues is not null)
-        {
-            if (backgroundValues.Length != componentCount || backgroundValues.Any(d => !double.IsFinite(d)))
-            {
-                throw new InvalidDataException(
-                    $"/Background must have exactly {componentCount} finite elements for the shading /ColorSpace.");
-            }
-
-            background = ColorFromComponents(colorSpace, backgroundValues);
-        }
+        var (lut, tMin, tMax) = BuildMeshFunctionLut(evaluate, decode, colorSpace, componentCount);
+        var background = ResolveMeshBackground(shading, colorSpace, componentCount);
 
         var componentSpace = evaluate is null && IsNonlinearCieSpace(colorSpace) ? colorSpace : null;
         var parameters = new MeshParameters(
@@ -277,6 +245,57 @@ public sealed partial class PdfDocument
                 Background = background,
             },
         };
+    }
+
+    /// <summary>Samples the shading <c>/Function</c> into a lookup table over the decoded parameter range, when a function is present.</summary>
+    /// <exception cref="InvalidDataException">Thrown when the function's output size disagrees with the color space.</exception>
+    private static (Rgba32[]? Lut, double TMin, double TMax) BuildMeshFunctionLut(
+        Func<double, double[]>? evaluate,
+        double[] decode,
+        PdfColorSpace colorSpace,
+        int componentCount)
+    {
+        if (evaluate is null)
+        {
+            return (null, 0.0, 0.0);
+        }
+
+        var tMin = Math.Min(decode[4], decode[5]);
+        var tMax = Math.Max(decode[4], decode[5]);
+        var lut = new Rgba32[MeshFunctionLutSize];
+        for (var i = 0; i < lut.Length; i++)
+        {
+            var t = tMin + ((tMax - tMin) * i / (lut.Length - 1));
+            var output = evaluate(t);
+            if (output.Length != componentCount)
+            {
+                throw new InvalidDataException(
+                    $"/Function must produce {componentCount} output component(s) for the shading /ColorSpace.");
+            }
+
+            lut[i] = ColorFromComponents(colorSpace, output);
+        }
+
+        return (lut, tMin, tMax);
+    }
+
+    /// <summary>Resolves the optional <c>/Background</c> color of a mesh shading.</summary>
+    /// <exception cref="InvalidDataException">Thrown when <c>/Background</c> has the wrong size or non-finite elements.</exception>
+    private Rgba32? ResolveMeshBackground(PdfObject shading, PdfColorSpace colorSpace, int componentCount)
+    {
+        var backgroundValues = ResolveOptionalNumberArray(shading, "Background");
+        if (backgroundValues is null)
+        {
+            return null;
+        }
+
+        if (backgroundValues.Length != componentCount || backgroundValues.Any(d => !double.IsFinite(d)))
+        {
+            throw new InvalidDataException(
+                $"/Background must have exactly {componentCount} finite elements for the shading /ColorSpace.");
+        }
+
+        return ColorFromComponents(colorSpace, backgroundValues);
     }
 
     /// <summary>The validated, shared decode parameters of a mesh stream.</summary>
@@ -370,6 +389,22 @@ public sealed partial class PdfDocument
         return new MeshVertex(x, y, color);
     }
 
+    /// <summary>Reads the two additional vertices (each with its own edge flag) that follow a new-triangle (flag 0) vertex.</summary>
+    /// <exception cref="InvalidDataException">Thrown for an invalid edge flag.</exception>
+    private static void ReadFreeFormExtraVertices(MeshBitReader reader, MeshParameters p, List<MeshVertex> vertices)
+    {
+        for (var extra = 0; extra < 2; extra++)
+        {
+            var extraFlag = reader.Read(p.BitsPerFlag);
+            if (extraFlag > 2)
+            {
+                throw new InvalidDataException($"Invalid edge flag {extraFlag} in type 4 mesh shading.");
+            }
+
+            AddMeshVertex(vertices, ReadMeshVertex(reader, p));
+        }
+    }
+
     /// <summary>Reads a type 4 (free-form) mesh into a vertex list and triangle index list.</summary>
     private static (MeshVertex[] Vertices, int[] Triangles) ReadFreeFormTriangles(MeshBitReader reader, MeshParameters p)
     {
@@ -390,15 +425,7 @@ public sealed partial class PdfDocument
             if (flag == 0)
             {
                 AddMeshVertex(vertices, vertex);
-                for (var extra = 0; extra < 2; extra++)
-                {
-                    var extraFlag = reader.Read(p.BitsPerFlag);
-                    if (extraFlag > 2)
-                    {
-                        throw new InvalidDataException($"Invalid edge flag {extraFlag} in type 4 mesh shading.");
-                    }
-                    AddMeshVertex(vertices, ReadMeshVertex(reader, p));
-                }
+                ReadFreeFormExtraVertices(reader, p, vertices);
 
                 a = vertices.Count - 3;
                 b = vertices.Count - 2;
@@ -474,6 +501,40 @@ public sealed partial class PdfDocument
         vertices.Add(vertex);
     }
 
+    /// <summary>Copies the shared edge's points and colors from the previous patch into a continuation patch.</summary>
+    private static void CopyPatchContinuation(int flag, MeshPatch previous, double[] x, double[] y, MeshColor[] colors)
+    {
+        for (var k = 0; k < 4; k++)
+        {
+            var source = PatchContinuationPoints[flag - 1][k];
+            x[PatchStreamOrder[k]] = previous.X[source];
+            y[PatchStreamOrder[k]] = previous.Y[source];
+        }
+
+        for (var k = 0; k < 2; k++)
+        {
+            colors[k] = previous.Colors[PatchContinuationColors[flag - 1][k]];
+        }
+    }
+
+    /// <summary>Validates a patch's edge flag and the running patch count.</summary>
+    /// <exception cref="InvalidDataException">Thrown for an invalid edge flag.</exception>
+    /// <exception cref="UnsupportedImageFeatureException">Thrown when the patch count limit is exceeded.</exception>
+    private static void ValidatePatchFlag(int flag, MeshPatch? previous, int patchCount, int shadingType)
+    {
+        if (flag > 3 || (flag > 0 && previous is null))
+        {
+            throw new InvalidDataException($"Invalid edge flag {flag} in type {shadingType} mesh shading.");
+        }
+
+        if (patchCount >= MaxMeshPatches)
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-shading-mesh-too-many-patches",
+                $"Mesh shading declares more than {MaxMeshPatches} patches.");
+        }
+    }
+
     /// <summary>Reads a type 6 (Coons) or type 7 (tensor) patch mesh.</summary>
     private static MeshPatch[] ReadPatches(MeshBitReader reader, MeshParameters p, int shadingType)
     {
@@ -483,17 +544,7 @@ public sealed partial class PdfDocument
         while (reader.BitsRemaining > 0)
         {
             var flag = (int)reader.Read(p.BitsPerFlag);
-            if (flag > 3 || (flag > 0 && previous is null))
-            {
-                throw new InvalidDataException($"Invalid edge flag {flag} in type {shadingType} mesh shading.");
-            }
-
-            if (patches.Count >= MaxMeshPatches)
-            {
-                throw new UnsupportedImageFeatureException(
-                    "pdf-shading-mesh-too-many-patches",
-                    $"Mesh shading declares more than {MaxMeshPatches} patches.");
-            }
+            ValidatePatchFlag(flag, previous, patches.Count, shadingType);
 
             var x = new double[16];
             var y = new double[16];
@@ -502,18 +553,7 @@ public sealed partial class PdfDocument
             var firstColor = 0;
             if (flag > 0)
             {
-                for (var k = 0; k < 4; k++)
-                {
-                    var source = PatchContinuationPoints[flag - 1][k];
-                    x[PatchStreamOrder[k]] = previous!.X[source];
-                    y[PatchStreamOrder[k]] = previous.Y[source];
-                }
-
-                for (var k = 0; k < 2; k++)
-                {
-                    colors[k] = previous!.Colors[PatchContinuationColors[flag - 1][k]];
-                }
-
+                CopyPatchContinuation(flag, previous!, x, y, colors);
                 firstPoint = 4;
                 firstColor = 2;
             }
@@ -576,12 +616,94 @@ public sealed partial class PdfDocument
     /// <exception cref="UnsupportedImageFeatureException">Thrown (feature <c>pdf-shading-mesh-too-complex</c>) when the raster work budget is exceeded.</exception>
     private void PaintMesh(MeshShading mesh, Matrix3x2 toDevice, Geometry.Path path, FillRule fillRule, bool applyBackground)
     {
-        // Rasterize only the part of the destination the path can touch, so a small painted
-        // region never allocates a page-sized temporary bitmap.
+        if (!TryComputeMeshRasterRect(mesh, toDevice, path, applyBackground, out var rect))
+        {
+            return;
+        }
+
+        var (left, top, right, bottom) = rect;
+        toDevice *= Matrix3x2.CreateTranslation(-left, -top);
+        using var meshSurface = new Surface(right - left, bottom - top);
+        if (applyBackground && mesh.Background is { } background)
+        {
+            for (var y = 0; y < meshSurface.Height; y++)
+            {
+                meshSurface.GetRowSpan(y).Fill(background);
+            }
+        }
+
+        RasterizeMesh(new MeshRasterizer(meshSurface, mesh), mesh, toDevice);
+
+        // The tile repeats outside the temporary bitmap, so confine the fill to its rectangle.
+        var bitmapClip = ClipMask.FromPathOrNull(
+            new PathBuilder()
+                .MoveTo(new Vector2(left, top))
+                .LineTo(new Vector2(right, top))
+                .LineTo(new Vector2(right, bottom))
+                .LineTo(new Vector2(left, bottom))
+                .Close()
+                .Build(),
+            FillRule.NonZero,
+            _surface.Width,
+            _surface.Height);
+        var tilePaint = new TilePaint(meshSurface, Matrix3x2.CreateTranslation(left, top), meshSurface.Width, meshSurface.Height);
+        PathFiller.Fill(_surface, path, tilePaint, ClipMask.Combine(_gs.Clip, bitmapClip), fillRule);
+    }
+
+    /// <summary>Rasterizes every triangle or patch of <paramref name="mesh"/> through <paramref name="rasterizer"/>.</summary>
+    private static void RasterizeMesh(MeshRasterizer rasterizer, MeshShading mesh, Matrix3x2 toDevice)
+    {
+        if (mesh.ShadingType is 4 or 5)
+        {
+            for (var i = 0; i + 2 < mesh.Triangles.Length; i += 3)
+            {
+                rasterizer.Triangle(
+                    ToDevice(mesh.Vertices[mesh.Triangles[i]], toDevice),
+                    ToDevice(mesh.Vertices[mesh.Triangles[i + 1]], toDevice),
+                    ToDevice(mesh.Vertices[mesh.Triangles[i + 2]], toDevice));
+            }
+
+            return;
+        }
+
+        var grid = new MeshVertex[(MeshPatchSubdivision + 1) * (MeshPatchSubdivision + 1)];
+        foreach (var patch in mesh.Patches)
+        {
+            EvaluatePatchGrid(patch, toDevice, grid);
+            for (var i = 0; i < MeshPatchSubdivision; i++)
+            {
+                for (var j = 0; j < MeshPatchSubdivision; j++)
+                {
+                    var g00 = grid[(i * (MeshPatchSubdivision + 1)) + j];
+                    var g01 = grid[(i * (MeshPatchSubdivision + 1)) + j + 1];
+                    var g10 = grid[((i + 1) * (MeshPatchSubdivision + 1)) + j];
+                    var g11 = grid[((i + 1) * (MeshPatchSubdivision + 1)) + j + 1];
+                    rasterizer.Triangle(g00, g10, g01);
+                    rasterizer.Triangle(g10, g11, g01);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Computes the device-space rectangle of the temporary mesh bitmap: only the part of the
+    ///     destination the path can touch (so a small painted region never allocates a page-sized
+    ///     temporary bitmap), bounded by the active clip and, when no <c>/Background</c> is
+    ///     painted, the mesh's own geometry.
+    /// </summary>
+    /// <returns><see langword="false"/> when nothing would be painted.</returns>
+    private bool TryComputeMeshRasterRect(
+        MeshShading mesh,
+        Matrix3x2 toDevice,
+        Geometry.Path path,
+        bool applyBackground,
+        out (int Left, int Top, int Right, int Bottom) rect)
+    {
+        rect = default;
         var bounds = path.GetBounds();
         if (bounds.IsEmpty)
         {
-            return;
+            return false;
         }
 
         var left = (int)Math.Max(0, Math.Floor(Math.Min(bounds.Left, _surface.Width)) - 1);
@@ -603,7 +725,7 @@ public sealed partial class PdfDocument
             // raster need not extend beyond it (patch control points bound the Bezier surface).
             if (!TryGetMeshDeviceBounds(mesh, toDevice, out var meshBounds))
             {
-                return;
+                return false;
             }
 
             left = Math.Max(left, (int)Math.Floor(Math.Clamp(meshBounds.MinX, 0, _surface.Width)) - 1);
@@ -616,65 +738,11 @@ public sealed partial class PdfDocument
         top = Math.Max(top, 0);
         if (right <= left || bottom <= top)
         {
-            return;
+            return false;
         }
 
-        toDevice *= Matrix3x2.CreateTranslation(-left, -top);
-        using var meshSurface = new Surface(right - left, bottom - top);
-        if (applyBackground && mesh.Background is { } background)
-        {
-            for (var y = 0; y < meshSurface.Height; y++)
-            {
-                meshSurface.GetRowSpan(y).Fill(background);
-            }
-        }
-
-        var rasterizer = new MeshRasterizer(meshSurface, mesh);
-        if (mesh.ShadingType is 4 or 5)
-        {
-            for (var i = 0; i + 2 < mesh.Triangles.Length; i += 3)
-            {
-                rasterizer.Triangle(
-                    ToDevice(mesh.Vertices[mesh.Triangles[i]], toDevice),
-                    ToDevice(mesh.Vertices[mesh.Triangles[i + 1]], toDevice),
-                    ToDevice(mesh.Vertices[mesh.Triangles[i + 2]], toDevice));
-            }
-        }
-        else
-        {
-            var grid = new MeshVertex[(MeshPatchSubdivision + 1) * (MeshPatchSubdivision + 1)];
-            foreach (var patch in mesh.Patches)
-            {
-                EvaluatePatchGrid(patch, toDevice, grid);
-                for (var i = 0; i < MeshPatchSubdivision; i++)
-                {
-                    for (var j = 0; j < MeshPatchSubdivision; j++)
-                    {
-                        var g00 = grid[(i * (MeshPatchSubdivision + 1)) + j];
-                        var g01 = grid[(i * (MeshPatchSubdivision + 1)) + j + 1];
-                        var g10 = grid[((i + 1) * (MeshPatchSubdivision + 1)) + j];
-                        var g11 = grid[((i + 1) * (MeshPatchSubdivision + 1)) + j + 1];
-                        rasterizer.Triangle(g00, g10, g01);
-                        rasterizer.Triangle(g10, g11, g01);
-                    }
-                }
-            }
-        }
-
-        // The tile repeats outside the temporary bitmap, so confine the fill to its rectangle.
-        var bitmapClip = ClipMask.FromPathOrNull(
-            new PathBuilder()
-                .MoveTo(new Vector2(left, top))
-                .LineTo(new Vector2(right, top))
-                .LineTo(new Vector2(right, bottom))
-                .LineTo(new Vector2(left, bottom))
-                .Close()
-                .Build(),
-            FillRule.NonZero,
-            _surface.Width,
-            _surface.Height);
-        var tilePaint = new TilePaint(meshSurface, Matrix3x2.CreateTranslation(left, top), meshSurface.Width, meshSurface.Height);
-        PathFiller.Fill(_surface, path, tilePaint, ClipMask.Combine(_gs.Clip, bitmapClip), fillRule);
+        rect = (left, top, right, bottom);
+        return true;
     }
 
     /// <summary>
@@ -886,7 +954,7 @@ public sealed partial class PdfDocument
                 // blended (blending after conversion differs from converting the interpolated
                 // components for nonlinear color spaces). The table is fine enough that the
                 // parameter quantization error is below half a table step.
-                var fraction = _tRange == 0 ? 0 : (a - _tMin) / _tRange;
+                var fraction = _tRange.Equals(0d) ? 0 : (a - _tMin) / _tRange;
                 var index = (int)Math.Round(Math.Clamp(fraction, 0, 1) * (_lut.Length - 1));
                 return _lut[index];
             }

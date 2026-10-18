@@ -55,7 +55,8 @@ public class PdfDocumentClipEdgeInkTests
     /// <summary>Renders on white and returns the summed darkness (255 - gray) / 255 in pixels.</summary>
     private static double RenderDarkness(string content, int width, int height, double grayLevel)
     {
-        using var document = PdfDocument.Open(new MemoryStream(BuildPdf(content)));
+        using var stream = new MemoryStream(BuildPdf(content));
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, width, height, new PdfRenderOptions { BackgroundColor = new(255, 255, 255, 255) });
         double sum = 0;
         for (var y = 0; y < surface.Height; y++)
@@ -152,7 +153,8 @@ public class PdfDocumentClipEdgeInkTests
     {
         // Triangle (0,0)-(300,0)-(0,300) in y-down device space via a flip CTM; rectangle x 100..400, y 0..100
         var content = "1 0 0 -1 0 792 cm 0 0 m 300 0 l 0 300 l h W n\n100 0 300 100 re W n\n0 g 0 0 612 792 re f\n";
-        using var document = PdfDocument.Open(new MemoryStream(BuildPdf(content)));
+        using var stream = new MemoryStream(BuildPdf(content));
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, 612, 792, new PdfRenderOptions { BackgroundColor = new(255, 255, 255, 255) });
 
         // User-space (y-down) point (150, 50) is device pixel (150, 50): inside triangle (x + y < 300) and rectangle
@@ -175,7 +177,7 @@ public class PdfDocumentClipEdgeInkTests
         var rects = new StringBuilder();
         for (var i = 0; i < 40; i++)
         {
-            rects.Append(Rect(10.3 + (12 * i), 100.3, 10.4, 99.6));
+            rects.Append(Rect(10.3 + (12.0 * i), 100.3, 10.4, 99.6));
         }
 
         var content = rects + "W* n\n0 g " + rects + "f*\n";
@@ -225,7 +227,8 @@ public class PdfDocumentClipEdgeInkTests
 
     private static double RenderImageDarkness(string content, int width, int height)
     {
-        using var document = PdfDocument.Open(new MemoryStream(BuildImagePdf(content)));
+        using var stream = new MemoryStream(BuildImagePdf(content));
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, width, height, new PdfRenderOptions { BackgroundColor = new(255, 255, 255, 255) });
         double sum = 0;
         for (var y = 0; y < surface.Height; y++)

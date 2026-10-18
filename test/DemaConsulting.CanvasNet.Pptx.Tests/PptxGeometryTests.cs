@@ -412,8 +412,8 @@ public class PptxGeometryTests
 
         var path = PptxDocument.ResolveCustomGeometry(custGeom, 100, 100);
 
-        Assert.Single(path.Subpaths);
-        var subpath = path.Subpaths[0];
+        var pathItem = Assert.Single(path.Subpaths);
+        var subpath = pathItem;
         Assert.True(subpath.IsClosed);
         AssertVectorsClose(new Vector2(0, 100), subpath.Start);
         Assert.Equal(PathCommandType.LineTo, subpath.Commands[0].Type);

@@ -173,7 +173,7 @@ public sealed partial class PdfDocument : IDisposable
     ///     <see cref="GetObject(int)"/>, so repeated references to the same object number are not
     ///     re-parsed.
     /// </summary>
-    private readonly Dictionary<int, PdfObject> _objectCache = new();
+    private readonly Dictionary<int, PdfObject> _objectCache = [];
 
     /// <summary>
     ///     Tracks the object numbers currently being resolved via <see cref="GetObject(int)"/>
@@ -186,7 +186,7 @@ public sealed partial class PdfDocument : IDisposable
     ///     uncatchable <see cref="StackOverflowException"/>. Mirrors the page-tree cycle guard in
     ///     <c>TraversePageTree</c>.
     /// </summary>
-    private readonly HashSet<int> _objectResolutionStack = new();
+    private readonly HashSet<int> _objectResolutionStack = [];
 
     /// <summary>
     ///     Every page's pre-resolved, rotation-adjusted <see cref="PdfPageInfo"/>, in document

@@ -48,7 +48,7 @@ public sealed partial class PdfDocument
     ///     Thrown when the catalog, page tree, or any page's <c>/MediaBox</c>/<c>/Rotate</c> is
     ///     missing or malformed, or when the page tree contains a reference cycle.
     /// </exception>
-    private IReadOnlyList<PdfPageInfo> BuildPageList(PdfObject trailer)
+    private List<PdfPageInfo> BuildPageList(PdfObject trailer)
     {
         var rootReference = trailer.Get("Root") ?? throw new InvalidDataException("Trailer is missing /Root.");
         var catalog = Resolve(rootReference);
@@ -61,9 +61,22 @@ public sealed partial class PdfDocument
 
         var pages = new List<PdfPageInfo>();
         var visited = new HashSet<int>();
-        TraversePageTree(pagesReference, 0, 0, DefaultMediaBoxWidth, DefaultMediaBoxHeight, 0, null, visited, pages);
+        TraversePageTree(
+            pagesReference,
+            new PageTreeInherited(0, 0, DefaultMediaBoxWidth, DefaultMediaBoxHeight, 0, null),
+            visited,
+            pages);
         return pages;
     }
+
+    /// <summary>The page-tree attributes inherited from ancestor nodes.</summary>
+    private readonly record struct PageTreeInherited(
+        double X0,
+        double Y0,
+        double Width,
+        double Height,
+        int Rotation,
+        PdfObject? Resources);
 
     /// <summary>
     ///     Recursively visits a page-tree node (an intermediate <c>/Type /Pages</c> node or a leaf
@@ -74,12 +87,7 @@ public sealed partial class PdfDocument
     /// </summary>
     private void TraversePageTree(
         PdfObject nodeReference,
-        double inheritedX0,
-        double inheritedY0,
-        double inheritedWidth,
-        double inheritedHeight,
-        int inheritedRotation,
-        PdfObject? inheritedResources,
+        PageTreeInherited inherited,
         HashSet<int> visited,
         List<PdfPageInfo> pages)
     {
@@ -103,9 +111,11 @@ public sealed partial class PdfDocument
                 throw new InvalidDataException("Page tree node is not a dictionary.");
             }
 
-            var (x0, y0, width, height) = ResolveMediaBox(node, inheritedX0, inheritedY0, inheritedWidth, inheritedHeight);
-            var rotation = ResolveRotation(node, inheritedRotation);
-            var resources = node.Get("Resources") ?? inheritedResources;
+            var (x0, y0, width, height) = ResolveMediaBox(
+                node, inherited.X0, inherited.Y0, inherited.Width, inherited.Height);
+            var rotation = ResolveRotation(node, inherited.Rotation);
+            var resources = node.Get("Resources") ?? inherited.Resources;
+            var current = new PageTreeInherited(x0, y0, width, height, rotation, resources);
 
             var type = GetNameValue(node, "Type");
             var kids = node.Get("Kids");
@@ -118,23 +128,31 @@ public sealed partial class PdfDocument
 
                 foreach (var kid in kids.Items)
                 {
-                    TraversePageTree(kid, x0, y0, width, height, rotation, resources, visited, pages);
+                    TraversePageTree(kid, current, visited, pages);
                 }
             }
             else
             {
-                var (displayWidth, displayHeight) = rotation is 90 or 270 ? (height, width) : (width, height);
-                pages.Add(new PdfPageInfo(
-                    (int)Math.Round(displayWidth),
-                    (int)Math.Round(displayHeight),
-                    rotation));
-                _pageDetails.Add((node, x0, y0, width, height, resources));
+                AddLeafPage(node, current, pages);
             }
         }
         finally
         {
             _pageTreeNestingDepth--;
         }
+    }
+
+    /// <summary>Records a leaf page and its parallel <see cref="_pageDetails"/> entry.</summary>
+    private void AddLeafPage(PdfObject node, PageTreeInherited page, List<PdfPageInfo> pages)
+    {
+        var (displayWidth, displayHeight) = page.Rotation is 90 or 270
+            ? (page.Height, page.Width)
+            : (page.Width, page.Height);
+        pages.Add(new PdfPageInfo(
+            (int)Math.Round(displayWidth),
+            (int)Math.Round(displayHeight),
+            page.Rotation));
+        _pageDetails.Add((node, page.X0, page.Y0, page.Width, page.Height, page.Resources));
     }
 
     /// <summary>
@@ -272,8 +290,8 @@ public sealed partial class PdfDocument
         // Step B: independent X/Y stretch mapping the page-point display size to the caller's
         // requested pixel size - Render's own documented contract uses width/height exactly as
         // given, never clamped or aspect-corrected.
-        var scaleX = displayWidth == 0 ? 1f : (float)(width / displayWidth);
-        var scaleY = displayHeight == 0 ? 1f : (float)(height / displayHeight);
+        var scaleX = displayWidth.Equals(0d) ? 1f : (float)(width / displayWidth);
+        var scaleY = displayHeight.Equals(0d) ? 1f : (float)(height / displayHeight);
         var scale = Matrix3x2.CreateScale(scaleX, scaleY);
 
         return Matrix3x2.CreateTranslation((float)-x0, (float)-y0) * rotationFlip * scale;

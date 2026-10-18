@@ -52,15 +52,18 @@ internal static partial class SurfaceResampler
     /// <param name="MaxIndex">Largest source index referenced by any output pixel.</param>
     private sealed record AxisWeights(int[] First, int[] Count, int[] Offset, float[] Weights, int MinIndex, int MaxIndex);
 
+    /// <summary>A fractional source interval along one axis.</summary>
+    /// <param name="Start">Source coordinate of the leading edge of the first output pixel.</param>
+    /// <param name="Extent">Signed source length covered by all output pixels.</param>
+    internal readonly record struct AxisWindow(double Start, double Extent);
+
     /// <summary>
     ///     Resamples a fractional source window of <paramref name="source"/> to a new
     ///     <paramref name="outWidth"/> by <paramref name="outHeight"/> surface.
     /// </summary>
     /// <param name="source">The source surface (not modified).</param>
-    /// <param name="startX">Source x of the left edge of the first output column.</param>
-    /// <param name="extentX">Signed source width covered by all output columns.</param>
-    /// <param name="startY">Source y of the top edge of the first output row.</param>
-    /// <param name="extentY">Signed source height covered by all output rows.</param>
+    /// <param name="xWindow">Source x of the left edge of the first output column and the signed source width covered by all output columns.</param>
+    /// <param name="yWindow">Source y of the top edge of the first output row and the signed source height covered by all output rows.</param>
     /// <param name="outWidth">Output width in pixels (at least one).</param>
     /// <param name="outHeight">Output height in pixels (at least one).</param>
     /// <param name="mode">The filter; <see cref="ResamplingMode.Auto"/> is resolved per axis.</param>
@@ -68,17 +71,15 @@ internal static partial class SurfaceResampler
     /// <returns>A new surface owned by the caller.</returns>
     internal static Surface Resample(
         Surface source,
-        double startX,
-        double extentX,
-        double startY,
-        double extentY,
+        AxisWindow xWindow,
+        AxisWindow yWindow,
         int outWidth,
         int outHeight,
         ResamplingMode mode,
         int intermediateBudgetBytes = DefaultIntermediateBudgetBytes)
     {
-        var xs = BuildAxis(source.Width, startX, extentX, outWidth, mode);
-        var ys = BuildAxis(source.Height, startY, extentY, outHeight, mode);
+        var xs = BuildAxis(source.Width, xWindow.Start, xWindow.Extent, outWidth, mode);
+        var ys = BuildAxis(source.Height, yWindow.Start, yWindow.Extent, outHeight, mode);
         var result = new Surface(outWidth, outHeight);
 
         // Choose the strip width so the intermediate (needed rows x strip columns x 16 bytes) fits the budget
@@ -213,25 +214,7 @@ internal static partial class SurfaceResampler
         var scale = Math.Abs(step);
         var last = sourceSize - 1;
 
-        // Resolve Auto per axis: area averaging when reducing, Catmull-Rom otherwise
-        if (mode == ResamplingMode.Auto)
-        {
-            mode = scale > 1.0 ? ResamplingMode.Area : ResamplingMode.Bicubic;
-        }
-
-        // An axis that maps pixels 1:1 onto whole source pixels is an exact copy for every filter
-        if (Math.Abs(scale - 1.0) < 1e-9 && Math.Abs(start - Math.Round(start)) < 1e-9)
-        {
-            mode = ResamplingMode.Nearest;
-        }
-
-        // A footprint far larger than the whole image is a global average on every kernel; Area
-        // (which drops out-of-image taps) gives that without folding an astronomically long tail
-        // into an edge pixel
-        if (mode is not (ResamplingMode.Nearest or ResamplingMode.Area) && scale > (16.0 * sourceSize) + 1024.0)
-        {
-            mode = ResamplingMode.Area;
-        }
+        mode = ResolveMode(mode, scale, start, sourceSize);
 
         var radius = mode switch
         {
@@ -253,28 +236,7 @@ internal static partial class SurfaceResampler
         for (var o = 0; o < outSize; o++)
         {
             var c = start + ((o + 0.5) * step);
-            long lo, hi;
-            switch (mode)
-            {
-                case ResamplingMode.Nearest:
-                    lo = hi = ToSafeLong(Math.Floor(c));
-                    break;
-                case ResamplingMode.Area:
-                    lo = ToSafeLong(Math.Floor(c - (scale / 2)));
-                    hi = ToSafeLong(Math.Ceiling(c + (scale / 2))) - 1;
-                    break;
-                default:
-                    var support = radius * Math.Max(1.0, scale);
-                    lo = ToSafeLong(Math.Ceiling(c - support - 0.5));
-                    hi = ToSafeLong(Math.Floor(c + support - 0.5));
-                    break;
-            }
-
-            if (hi < lo)
-            {
-                lo = hi = ToSafeLong(Math.Floor(c));
-            }
-
+            var (lo, hi) = TapInterval(mode, c, scale, radius);
             los[o] = lo;
             his[o] = hi;
             var first = (int)Math.Clamp(lo, 0, last);
@@ -297,27 +259,7 @@ internal static partial class SurfaceResampler
             var first = firsts[o];
             var w = buffer.AsSpan(0, count);
             w.Clear();
-            var inLo = Math.Max(los[o], 0);
-            var inHi = Math.Min(his[o], last);
-            for (var i = inLo; i <= inHi; i++)
-            {
-                w[(int)i - first] += Weight(mode, i + 0.5 - c, scale);
-            }
-
-            // Area drops out-of-image taps (renormalized); other filters fold them into the edge pixel.
-            // The folded tails can be enormous for extreme scales, so their work is bounded.
-            if (mode != ResamplingMode.Area)
-            {
-                if (los[o] < 0)
-                {
-                    w[0 - first] += TailWeight(mode, los[o], Math.Min(his[o], -1L), c, scale);
-                }
-
-                if (his[o] > last)
-                {
-                    w[last - first] += TailWeight(mode, Math.Max(los[o], (long)last + 1), his[o], c, scale);
-                }
-            }
+            AccumulateTaps(w, mode, los[o], his[o], first, last, c, scale);
 
             var sum = 0.0;
             foreach (var v in w)
@@ -341,6 +283,93 @@ internal static partial class SurfaceResampler
         }
 
         return new AxisWeights(firsts, counts, offsets, weights, minIndex, maxIndex);
+    }
+
+    /// <summary>
+    ///     Resolves <see cref="ResamplingMode.Auto"/> and applies the exact-copy and huge-footprint overrides.
+    /// </summary>
+    private static ResamplingMode ResolveMode(ResamplingMode mode, double scale, double start, int sourceSize)
+    {
+        // Resolve Auto per axis: area averaging when reducing, Catmull-Rom otherwise
+        if (mode == ResamplingMode.Auto)
+        {
+            mode = scale > 1.0 ? ResamplingMode.Area : ResamplingMode.Bicubic;
+        }
+
+        // An axis that maps pixels 1:1 onto whole source pixels is an exact copy for every filter
+        if (Math.Abs(scale - 1.0) < 1e-9 && Math.Abs(start - Math.Round(start)) < 1e-9)
+        {
+            mode = ResamplingMode.Nearest;
+        }
+
+        // A footprint far larger than the whole image is a global average on every kernel; Area
+        // (which drops out-of-image taps) gives that without folding an astronomically long tail
+        // into an edge pixel
+        if (mode is not (ResamplingMode.Nearest or ResamplingMode.Area) && scale > (16.0 * sourceSize) + 1024.0)
+        {
+            mode = ResamplingMode.Area;
+        }
+
+        return mode;
+    }
+
+    /// <summary>Computes the inclusive tap interval (before edge folding) of the output pixel centered at <paramref name="c"/>.</summary>
+    private static (long Lo, long Hi) TapInterval(ResamplingMode mode, double c, double scale, double radius)
+    {
+        long lo, hi;
+        switch (mode)
+        {
+            case ResamplingMode.Nearest:
+                lo = hi = ToSafeLong(Math.Floor(c));
+                break;
+            case ResamplingMode.Area:
+                lo = ToSafeLong(Math.Floor(c - (scale / 2)));
+                hi = ToSafeLong(Math.Ceiling(c + (scale / 2))) - 1;
+                break;
+            default:
+                var support = radius * Math.Max(1.0, scale);
+                lo = ToSafeLong(Math.Ceiling(c - support - 0.5));
+                hi = ToSafeLong(Math.Floor(c + support - 0.5));
+                break;
+        }
+
+        if (hi < lo)
+        {
+            lo = hi = ToSafeLong(Math.Floor(c));
+        }
+
+        return (lo, hi);
+    }
+
+    /// <summary>
+    ///     Adds the weights of taps <paramref name="lo"/> .. <paramref name="hi"/> into <paramref name="w"/>
+    ///     (indexed relative to <paramref name="first"/>), folding out-of-image taps into the edge pixel
+    ///     for every filter except Area (which drops them).
+    /// </summary>
+    private static void AccumulateTaps(Span<double> w, ResamplingMode mode, long lo, long hi, int first, int last, double c, double scale)
+    {
+        var inLo = Math.Max(lo, 0);
+        var inHi = Math.Min(hi, last);
+        for (var i = inLo; i <= inHi; i++)
+        {
+            w[(int)i - first] += Weight(mode, i + 0.5 - c, scale);
+        }
+
+        // The folded tails can be enormous for extreme scales, so their work is bounded.
+        if (mode == ResamplingMode.Area)
+        {
+            return;
+        }
+
+        if (lo < 0)
+        {
+            w[0 - first] += TailWeight(mode, lo, Math.Min(hi, -1L), c, scale);
+        }
+
+        if (hi > last)
+        {
+            w[last - first] += TailWeight(mode, Math.Max(lo, (long)last + 1), hi, c, scale);
+        }
     }
 
     /// <summary>
@@ -499,7 +528,7 @@ internal static partial class SurfaceResampler
     ///     <see cref="Surface.Resize"/>); sizes must already be validated.
     /// </summary>
     internal static Surface ResizeFull(Surface source, int width, int height, ResamplingMode mode) =>
-        Resample(source, 0, source.Width, 0, source.Height, width, height, mode);
+        Resample(source, new AxisWindow(0, source.Width), new AxisWindow(0, source.Height), width, height, mode);
 
     /// <summary>
     ///     Resamples <paramref name="source"/> for an axis-aligned draw: when
@@ -516,8 +545,7 @@ internal static partial class SurfaceResampler
     ///     Receives a new surface the caller must dispose, or <see langword="null"/> when the image
     ///     covers no visible device pixel center.
     /// </param>
-    /// <param name="originX">Device x of the window's left column.</param>
-    /// <param name="originY">Device y of the window's top row.</param>
+    /// <param name="origin">Device (x, y) of the window's left column and top row.</param>
     /// <returns>
     ///     <see langword="false"/> when the transform is rotated, skewed, flipped to a degenerate
     ///     size or non-finite (the caller must use an inverse-mapped fallback); otherwise
@@ -530,16 +558,14 @@ internal static partial class SurfaceResampler
         int visibleHeight,
         ResamplingMode mode,
         out Surface? window,
-        out int originX,
-        out int originY)
+        out (int X, int Y) origin)
     {
         window = null;
-        originX = 0;
-        originY = 0;
+        origin = (0, 0);
         double m11 = pixelToDevice.M11, m12 = pixelToDevice.M12, m21 = pixelToDevice.M21, m22 = pixelToDevice.M22;
         double m31 = pixelToDevice.M31, m32 = pixelToDevice.M32;
         if (!double.IsFinite(m11) || !double.IsFinite(m12) || !double.IsFinite(m21) || !double.IsFinite(m22)
-            || !double.IsFinite(m31) || !double.IsFinite(m32) || m11 == 0 || m22 == 0)
+            || !double.IsFinite(m31) || !double.IsFinite(m32) || m11.Equals(0d) || m22.Equals(0d))
         {
             return false;
         }
@@ -561,15 +587,12 @@ internal static partial class SurfaceResampler
 
         window = Resample(
             source,
-            (x0 - m31) / m11,
-            (x1 - x0) / m11,
-            (y0 - m32) / m22,
-            (y1 - y0) / m22,
+            new AxisWindow((x0 - m31) / m11, (x1 - x0) / m11),
+            new AxisWindow((y0 - m32) / m22, (y1 - y0) / m22),
             x1 - x0,
             y1 - y0,
             mode);
-        originX = x0;
-        originY = y0;
+        origin = (x0, y0);
         return true;
     }
 

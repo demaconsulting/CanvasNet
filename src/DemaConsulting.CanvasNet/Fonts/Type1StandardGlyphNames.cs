@@ -28,7 +28,7 @@ internal static class Type1StandardGlyphNames
     /// </summary>
     internal static readonly IReadOnlyDictionary<int, string> CodepointToGlyphName = BuildCodepointToGlyphName();
 
-    private static IReadOnlyDictionary<int, string> BuildCodepointToGlyphName()
+    private static Dictionary<int, string> BuildCodepointToGlyphName()
     {
         var glyphNameToCodepoint = new (string Name, int Codepoint)[]
         {

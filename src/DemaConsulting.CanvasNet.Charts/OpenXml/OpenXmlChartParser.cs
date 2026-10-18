@@ -35,6 +35,9 @@ namespace DemaConsulting.CanvasNet.Charts.OpenXml;
 /// </remarks>
 public static class OpenXmlChartParser
 {
+    /// <summary>Unsupported-feature token reported for every 3-D chart type.</summary>
+    private const string ThreeDChartFeatureToken = "charts-openxml-3d-chart";
+
     /// <summary>The DrawingML-Charts XML namespace (prefix <c>c:</c> in a real <c>chart#.xml</c> part).</summary>
     private static readonly XNamespace ChartNs = "http://schemas.openxmlformats.org/drawingml/2006/chart";
 
@@ -112,7 +115,7 @@ public static class OpenXmlChartParser
     ///     place a future chart-type addition needs to edit - see
     ///     <see cref="UnsupportedChartTypeFeatureTokens"/> for its unsupported-type counterpart.
     /// </remarks>
-    private static readonly IReadOnlyDictionary<string, Func<XElement, ChartType>> SupportedChartTypeClassifiers =
+    private static readonly Dictionary<string, Func<XElement, ChartType>> SupportedChartTypeClassifiers =
         new Dictionary<string, Func<XElement, ChartType>>
         {
             ["barChart"] = ClassifyBarChart,
@@ -127,7 +130,7 @@ public static class OpenXmlChartParser
     ///     recognizes but does not yet implement, mapped to the short, stable
     ///     <see cref="ChartUnsupportedFeatureException.Feature"/> token thrown for it.
     /// </summary>
-    private static readonly IReadOnlyDictionary<string, string> UnsupportedChartTypeFeatureTokens =
+    private static readonly Dictionary<string, string> UnsupportedChartTypeFeatureTokens =
         new Dictionary<string, string>
         {
             ["radarChart"] = "charts-openxml-radar-chart",
@@ -136,10 +139,10 @@ public static class OpenXmlChartParser
             ["stockChart"] = "charts-openxml-stock-chart",
             ["surfaceChart"] = "charts-openxml-surface-chart",
             ["surface3DChart"] = "charts-openxml-surface-chart",
-            ["bar3DChart"] = "charts-openxml-3d-chart",
-            ["line3DChart"] = "charts-openxml-3d-chart",
-            ["pie3DChart"] = "charts-openxml-3d-chart",
-            ["area3DChart"] = "charts-openxml-3d-chart",
+            ["bar3DChart"] = ThreeDChartFeatureToken,
+            ["line3DChart"] = ThreeDChartFeatureToken,
+            ["pie3DChart"] = ThreeDChartFeatureToken,
+            ["area3DChart"] = ThreeDChartFeatureToken,
             ["ofPieChart"] = "charts-openxml-of-pie-chart"
         };
 
@@ -383,7 +386,7 @@ public static class OpenXmlChartParser
     ///     <see cref="ArgumentException"/> when its mismatched <see cref="ChartSeries.Values"/>
     ///     count is checked against this axis's label count.
     /// </remarks>
-    private static ChartAxis? BuildCategoryAxis(IReadOnlyList<XElement> seriesElements, XElement plotArea, CachePointBudget budget)
+    private static ChartAxis? BuildCategoryAxis(List<XElement> seriesElements, XElement plotArea, CachePointBudget budget)
     {
         var labels = seriesElements.Count > 0
             ? ParseCategoryLabels(seriesElements[0].Element(ChartNs + "cat"), budget)

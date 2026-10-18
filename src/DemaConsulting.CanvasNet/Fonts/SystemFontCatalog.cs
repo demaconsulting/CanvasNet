@@ -525,7 +525,7 @@ public static class SystemFontCatalog
     ///     skipped entirely, and every other subdirectory's canonical path is tracked so a cycle
     ///     (for example, a symlink pointing back at an ancestor) cannot cause an infinite scan.
     /// </summary>
-    private static IEnumerable<string> EnumerateFontFiles(string root)
+    private static List<string> EnumerateFontFiles(string root)
     {
         var results = new List<string>();
         if (string.IsNullOrEmpty(root) || !Directory.Exists(root))
@@ -548,6 +548,7 @@ public static class SystemFontCatalog
             var directory = pending.Pop();
 
             string[] files;
+            string[] subdirectories;
             try
             {
                 files = Directory.GetFiles(directory);
@@ -557,18 +558,8 @@ public static class SystemFontCatalog
                 continue;
             }
 
-            foreach (var file in files)
-            {
-                var extension = Path.GetExtension(file);
-                if (string.Equals(extension, ".ttf", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(extension, ".ttc", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(extension, ".otf", StringComparison.OrdinalIgnoreCase))
-                {
-                    results.Add(file);
-                }
-            }
+            results.AddRange(files.Where(IsFontFile));
 
-            string[] subdirectories;
             try
             {
                 subdirectories = Directory.GetDirectories(directory);
@@ -578,34 +569,41 @@ public static class SystemFontCatalog
                 continue;
             }
 
-            foreach (var subdirectory in subdirectories)
+            foreach (var subdirectory in subdirectories.Where(s => !IsReparsePoint(s) && visited.Add(NormalizeDirectoryPath(s))))
             {
-                try
-                {
-                    // A symlinked or junction subdirectory can point anywhere - including back
-                    // at an ancestor of this scan - so it is skipped entirely rather than
-                    // followed, matching common font-discovery tooling's own treatment of
-                    // reparse points.
-                    if (new DirectoryInfo(subdirectory).Attributes.HasFlag(FileAttributes.ReparsePoint))
-                    {
-                        continue;
-                    }
-                }
-                catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
-                {
-                    continue;
-                }
-
-                if (!visited.Add(NormalizeDirectoryPath(subdirectory)))
-                {
-                    continue;
-                }
-
                 pending.Push(subdirectory);
             }
         }
 
         return results;
+    }
+
+    private static bool IsFontFile(string file)
+    {
+        var extension = Path.GetExtension(file);
+        return string.Equals(extension, ".ttf", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(extension, ".ttc", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(extension, ".otf", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Reports whether a subdirectory is a symlink/junction (or cannot be inspected), in which
+    ///     case it is skipped rather than followed.
+    /// </summary>
+    private static bool IsReparsePoint(string subdirectory)
+    {
+        try
+        {
+            // A symlinked or junction subdirectory can point anywhere - including back
+            // at an ancestor of this scan - so it is skipped entirely rather than
+            // followed, matching common font-discovery tooling's own treatment of
+            // reparse points.
+            return new DirectoryInfo(subdirectory).Attributes.HasFlag(FileAttributes.ReparsePoint);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            return true;
+        }
     }
 
     /// <summary>

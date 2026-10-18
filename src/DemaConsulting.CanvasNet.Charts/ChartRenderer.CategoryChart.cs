@@ -73,7 +73,7 @@ public static partial class ChartRenderer
 
         if (hasValueAxis)
         {
-            PaintValueAxis(canvas, inner, min, max, ticks, options, font, isHorizontal);
+            PaintValueAxis(canvas, inner, (min, max), ticks, options, font, isHorizontal);
         }
 
         if (hasCategoryAxis)
@@ -87,12 +87,21 @@ public static partial class ChartRenderer
             return;
         }
 
-        var seriesCount = chart.Series.Count;
-        var zero = Math.Clamp(0d, min, max);
+        var context = new BarContext(canvas, inner, (min, max), categoryCount, chart.Series.Count, options, font);
+        PaintBars(context, chart, isHorizontal);
+    }
 
-        for (var c = 0; c < categoryCount; c++)
+    /// <summary>
+    ///     Paints every bar of a Bar/Column chart.
+    /// </summary>
+    /// <param name="context">The shared bar painting state.</param>
+    /// <param name="chart">The chart being rendered.</param>
+    /// <param name="isHorizontal"><see langword="true"/> for Bar; <see langword="false"/> for Column.</param>
+    private static void PaintBars(BarContext context, Chart chart, bool isHorizontal)
+    {
+        for (var c = 0; c < context.CategoryCount; c++)
         {
-            for (var s = 0; s < seriesCount; s++)
+            for (var s = 0; s < context.SeriesCount; s++)
             {
                 var series = chart.Series[s];
                 if (c >= series.Values.Count)
@@ -100,44 +109,94 @@ public static partial class ChartRenderer
                     continue;
                 }
 
-                var value = series.Values[c];
-                var color = ResolveSeriesColor(chart, options, series, s);
-
+                var color = ResolveSeriesColor(chart, context.Options, series, s);
                 if (isHorizontal)
                 {
-                    var bandHeight = inner.Height / categoryCount;
-                    var groupTop = inner.Top + c * bandHeight + bandHeight * 0.1f;
-                    var barHeight = bandHeight * 0.8f / seriesCount;
-                    var barTop = groupTop + s * barHeight;
-                    var zeroX = ValueToPixel(zero, min, max, inner.Left, inner.Width);
-                    var valueX = ValueToPixel(value, min, max, inner.Left, inner.Width);
-                    var left = Math.Min(zeroX, valueX);
-                    var width = Math.Abs(valueX - zeroX);
-                    canvas.FillRect(left, barTop, width, barHeight, color);
-
-                    var labelY = barTop + barHeight * 0.65f;
-                    var labelAlign = value >= zero ? TextAlign.Left : TextAlign.Right;
-                    var labelX = value >= zero ? valueX + DataLabelGap : valueX - DataLabelGap;
-                    PaintPointDataLabel(canvas, series, c, labelX, labelY, labelAlign, options, font);
+                    PaintHorizontalBar(context, series, c, s, color);
                 }
                 else
                 {
-                    var bandWidth = inner.Width / categoryCount;
-                    var groupLeft = inner.Left + c * bandWidth + bandWidth * 0.1f;
-                    var barWidth = bandWidth * 0.8f / seriesCount;
-                    var barLeft = groupLeft + s * barWidth;
-                    var zeroY = inner.Bottom - ValueToPixel(zero, min, max, 0f, inner.Height);
-                    var valueY = inner.Bottom - ValueToPixel(value, min, max, 0f, inner.Height);
-                    var top = Math.Min(zeroY, valueY);
-                    var height = Math.Abs(valueY - zeroY);
-                    canvas.FillRect(barLeft, top, barWidth, height, color);
-
-                    var labelX = barLeft + barWidth / 2f;
-                    var labelY = value >= zero ? valueY - DataLabelGap : valueY + DataLabelGap + options.DataLabelFontSize * 0.8f;
-                    PaintPointDataLabel(canvas, series, c, labelX, labelY, TextAlign.Center, options, font);
+                    PaintVerticalBar(context, series, c, s, color);
                 }
             }
         }
+    }
+
+    /// <summary>
+    ///     Shared, per-chart state for painting Bar/Column bars.
+    /// </summary>
+    /// <param name="Canvas">The target canvas.</param>
+    /// <param name="Inner">The inner data rectangle.</param>
+    /// <param name="Range">The value-axis (minimum, maximum) range.</param>
+    /// <param name="CategoryCount">The number of category slots.</param>
+    /// <param name="SeriesCount">The number of series.</param>
+    /// <param name="Options">The effective render options.</param>
+    /// <param name="Font">The resolved text font.</param>
+    private readonly record struct BarContext(
+        RenderCanvas Canvas, Rect Inner, (double Min, double Max) Range, int CategoryCount, int SeriesCount,
+        ChartRenderOptions Options, TrueTypeFont Font)
+    {
+        /// <summary>Gets the value that bars are anchored to: zero clamped into the value range.</summary>
+        public double Zero => Math.Clamp(0d, Range.Min, Range.Max);
+    }
+
+    /// <summary>
+    ///     Paints one horizontal bar (Bar chart) and its data label.
+    /// </summary>
+    /// <param name="context">The shared bar painting state.</param>
+    /// <param name="series">The series the bar belongs to.</param>
+    /// <param name="c">The category index.</param>
+    /// <param name="s">The series index.</param>
+    /// <param name="color">The bar fill color.</param>
+    private static void PaintHorizontalBar(BarContext context, ChartSeries series, int c, int s, Rgba32 color)
+    {
+        var (min, max) = context.Range;
+        var inner = context.Inner;
+        var zero = context.Zero;
+        var value = series.Values[c];
+        var bandHeight = inner.Height / context.CategoryCount;
+        var groupTop = inner.Top + c * bandHeight + bandHeight * 0.1f;
+        var barHeight = bandHeight * 0.8f / context.SeriesCount;
+        var barTop = groupTop + s * barHeight;
+        var zeroX = ValueToPixel(zero, min, max, inner.Left, inner.Width);
+        var valueX = ValueToPixel(value, min, max, inner.Left, inner.Width);
+        var left = Math.Min(zeroX, valueX);
+        var width = Math.Abs(valueX - zeroX);
+        context.Canvas.FillRect(left, barTop, width, barHeight, color);
+
+        var labelY = barTop + barHeight * 0.65f;
+        var labelAlign = value >= zero ? TextAlign.Left : TextAlign.Right;
+        var labelX = value >= zero ? valueX + DataLabelGap : valueX - DataLabelGap;
+        PaintPointDataLabel(context.Canvas, series, c, new Vector2(labelX, labelY), labelAlign, context.Options, context.Font);
+    }
+
+    /// <summary>
+    ///     Paints one vertical bar (Column chart) and its data label.
+    /// </summary>
+    /// <param name="context">The shared bar painting state.</param>
+    /// <param name="series">The series the bar belongs to.</param>
+    /// <param name="c">The category index.</param>
+    /// <param name="s">The series index.</param>
+    /// <param name="color">The bar fill color.</param>
+    private static void PaintVerticalBar(BarContext context, ChartSeries series, int c, int s, Rgba32 color)
+    {
+        var (min, max) = context.Range;
+        var inner = context.Inner;
+        var zero = context.Zero;
+        var value = series.Values[c];
+        var bandWidth = inner.Width / context.CategoryCount;
+        var groupLeft = inner.Left + c * bandWidth + bandWidth * 0.1f;
+        var barWidth = bandWidth * 0.8f / context.SeriesCount;
+        var barLeft = groupLeft + s * barWidth;
+        var zeroY = inner.Bottom - ValueToPixel(zero, min, max, 0f, inner.Height);
+        var valueY = inner.Bottom - ValueToPixel(value, min, max, 0f, inner.Height);
+        var top = Math.Min(zeroY, valueY);
+        var height = Math.Abs(valueY - zeroY);
+        context.Canvas.FillRect(barLeft, top, barWidth, height, color);
+
+        var labelX = barLeft + barWidth / 2f;
+        var labelY = value >= zero ? valueY - DataLabelGap : valueY + DataLabelGap + context.Options.DataLabelFontSize * 0.8f;
+        PaintPointDataLabel(context.Canvas, series, c, new Vector2(labelX, labelY), TextAlign.Center, context.Options, context.Font);
     }
 
     /// <summary>
@@ -166,7 +225,7 @@ public static partial class ChartRenderer
 
         if (hasValueAxis)
         {
-            PaintValueAxis(canvas, inner, min, max, ticks, options, font, isHorizontal: false);
+            PaintValueAxis(canvas, inner, (min, max), ticks, options, font, isHorizontal: false);
         }
 
         if (hasCategoryAxis)
@@ -196,7 +255,7 @@ public static partial class ChartRenderer
                 }
 
                 canvas.FillCircle(x, y, LineMarkerRadius, color);
-                PaintPointDataLabel(canvas, series, c, x, y - LineMarkerRadius - DataLabelGap, TextAlign.Center, options, font);
+                PaintPointDataLabel(canvas, series, c, new Vector2(x, y - LineMarkerRadius - DataLabelGap), TextAlign.Center, options, font);
                 previous = new Vector2(x, y);
             }
         }
@@ -229,7 +288,7 @@ public static partial class ChartRenderer
 
         if (hasValueAxis)
         {
-            PaintValueAxis(canvas, inner, min, max, ticks, options, font, isHorizontal: false);
+            PaintValueAxis(canvas, inner, (min, max), ticks, options, font, isHorizontal: false);
         }
 
         if (hasCategoryAxis)
@@ -255,52 +314,65 @@ public static partial class ChartRenderer
             }
 
             var color = ResolveSeriesColor(chart, options, series, s);
-            var fillColor = new Rgba32(color.R, color.G, color.B, AreaFillAlpha);
-
             var points = new Vector2[series.Values.Count];
-            for (var c = 0; c < series.Values.Count; c++)
+            for (var c = 0; c < points.Length; c++)
             {
                 var x = inner.Left + (c + 0.5f) * bandWidth;
                 var y = inner.Bottom - ValueToPixel(series.Values[c], min, max, 0f, inner.Height);
                 points[c] = new Vector2(x, y);
             }
 
-            var builder = new PathBuilder().MoveTo(new Vector2(points[0].X, zeroY));
-            foreach (var point in points)
-            {
-                builder.LineTo(point);
-            }
+            PaintAreaSeries(canvas, series, color, points, zeroY, options, font);
+        }
+    }
 
-            builder.LineTo(new Vector2(points[^1].X, zeroY)).Close();
-            canvas.FillPath(builder.Build(), fillColor);
+    /// <summary>
+    ///     Paints one Area series: its filled region down to the baseline, its top-edge stroke, and its data labels.
+    /// </summary>
+    /// <param name="canvas">The target canvas.</param>
+    /// <param name="series">The series being painted.</param>
+    /// <param name="color">The series color.</param>
+    /// <param name="points">The series' pixel points; must not be empty.</param>
+    /// <param name="zeroY">The pixel y-coordinate of the zero baseline.</param>
+    /// <param name="options">The effective render options.</param>
+    /// <param name="font">The resolved text font.</param>
+    private static void PaintAreaSeries(RenderCanvas canvas, ChartSeries series, Rgba32 color, Vector2[] points, float zeroY, ChartRenderOptions options, TrueTypeFont font)
+    {
+        var fillColor = new Rgba32(color.R, color.G, color.B, AreaFillAlpha);
+        var builder = new PathBuilder().MoveTo(new Vector2(points[0].X, zeroY));
+        foreach (var point in points)
+        {
+            builder.LineTo(point);
+        }
 
-            for (var c = 1; c < points.Length; c++)
-            {
-                StrokeLineSegment(canvas, points[c - 1], points[c], color);
-            }
+        builder.LineTo(new Vector2(points[^1].X, zeroY)).Close();
+        canvas.FillPath(builder.Build(), fillColor);
 
-            for (var c = 0; c < points.Length; c++)
-            {
-                PaintPointDataLabel(canvas, series, c, points[c].X, points[c].Y - DataLabelGap, TextAlign.Center, options, font);
-            }
+        for (var c = 1; c < points.Length; c++)
+        {
+            StrokeLineSegment(canvas, points[c - 1], points[c], color);
+        }
+
+        for (var c = 0; c < points.Length; c++)
+        {
+            PaintPointDataLabel(canvas, series, c, new Vector2(points[c].X, points[c].Y - DataLabelGap), TextAlign.Center, options, font);
         }
     }
 
     /// <summary>
     ///     Draws <paramref name="series"/>' <paramref name="pointIndex"/> data label at
-    ///     (<paramref name="x"/>, <paramref name="y"/>) when that series supplies
+    ///     (<paramref name="anchor"/>) when that series supplies
     ///     <see cref="ChartSeries.PointLabels"/> for that point - the one, documented opt-in
     ///     mechanism for data labels (there is no separate "show data labels" flag on the model).
     /// </summary>
     /// <param name="canvas">The target canvas.</param>
     /// <param name="series">The series the point belongs to.</param>
     /// <param name="pointIndex">The point's zero-based index.</param>
-    /// <param name="x">The label's anchor x-coordinate, interpreted per <paramref name="align"/>.</param>
-    /// <param name="y">The label's baseline y-coordinate.</param>
-    /// <param name="align">Horizontal text alignment relative to <paramref name="x"/>.</param>
+    /// <param name="anchor">The label's anchor point: x interpreted per <paramref name="align"/>, y the baseline.</param>
+    /// <param name="align">Horizontal text alignment relative to the anchor's x-coordinate.</param>
     /// <param name="options">The effective render options (supplies <see cref="ChartRenderOptions.DataLabelFontSize"/>).</param>
     /// <param name="font">The resolved text font.</param>
-    private static void PaintPointDataLabel(RenderCanvas canvas, ChartSeries series, int pointIndex, float x, float y, TextAlign align, ChartRenderOptions options, TrueTypeFont font)
+    private static void PaintPointDataLabel(RenderCanvas canvas, ChartSeries series, int pointIndex, Vector2 anchor, TextAlign align, ChartRenderOptions options, TrueTypeFont font)
     {
         var label = series.PointLabels?[pointIndex];
         if (label is null)
@@ -308,7 +380,7 @@ public static partial class ChartRenderer
             return;
         }
 
-        canvas.DrawText(label, x, y, align, font, options.DataLabelFontSize, DataLabelColor);
+        canvas.DrawText(label, anchor.X, anchor.Y, align, font, options.DataLabelFontSize, DataLabelColor);
     }
 
     /// <summary>
@@ -356,7 +428,7 @@ public static partial class ChartRenderer
     private static double SafeRatio(double value, double min, double max)
     {
         var range = max - min;
-        if (double.IsFinite(range) && range != 0d)
+        if (double.IsFinite(range) && !range.Equals(0d))
         {
             return (value - min) / range;
         }
@@ -366,7 +438,7 @@ public static partial class ChartRenderer
         // max and min are themselves finite), trading a little precision for a finite,
         // meaningful fraction instead of NaN.
         var halfRange = max / 2d - min / 2d;
-        return halfRange == 0d ? 0d : (value / 2d - min / 2d) / halfRange;
+        return halfRange.Equals(0d) ? 0d : (value / 2d - min / 2d) / halfRange;
     }
 
     /// <summary>
@@ -383,16 +455,7 @@ public static partial class ChartRenderer
         var hasExplicitMin = chart.ValueAxis?.Minimum is not null;
         var hasExplicitMax = chart.ValueAxis?.Maximum is not null;
 
-        double dataMin = 0d;
-        double dataMax = 0d;
-        foreach (var series in chart.Series)
-        {
-            foreach (var value in series.Values)
-            {
-                dataMin = Math.Min(dataMin, value);
-                dataMax = Math.Max(dataMax, value);
-            }
-        }
+        var (dataMin, dataMax) = ComputeDataRange(chart);
 
         var min = hasExplicitMin ? chart.ValueAxis!.Minimum!.Value : dataMin;
         var max = hasExplicitMax ? chart.ValueAxis!.Maximum!.Value : dataMax;
@@ -409,25 +472,7 @@ public static partial class ChartRenderer
             max = Math.Max(0d, max);
         }
 
-        // Degenerate guard: every value (and the forced zero baseline) resolved to the same
-        // number - give an auto-derived side a unit span rather than dividing by zero later.
-        // ChartAxis's own constructor already rejects an explicit min >= max, so both-explicit
-        // is unreachable here in practice; the final branch is defensive only.
-        if (max <= min)
-        {
-            if (!hasExplicitMax)
-            {
-                max = min + 1d;
-            }
-            else if (!hasExplicitMin)
-            {
-                min = max - 1d;
-            }
-            else
-            {
-                max = min + 1d;
-            }
-        }
+        (min, max) = EnsurePositiveSpan(min, max, hasExplicitMin, hasExplicitMax);
 
         // Guard against overflow for extreme-but-finite bounds (e.g. [-double.MaxValue,
         // double.MaxValue]): both the range itself and min-padding/max+padding can overflow to
@@ -448,6 +493,49 @@ public static partial class ChartRenderer
         }
 
         return (min, max);
+    }
+
+    /// <summary>
+    ///     Computes the (min, max) of every series value, seeded with zero.
+    /// </summary>
+    /// <param name="chart">The chart whose series values are scanned.</param>
+    /// <returns>The data (min, max), each including zero.</returns>
+    private static (double Min, double Max) ComputeDataRange(Chart chart)
+    {
+        var dataMin = 0d;
+        var dataMax = 0d;
+        foreach (var value in chart.Series.SelectMany(series => series.Values))
+        {
+            dataMin = Math.Min(dataMin, value);
+            dataMax = Math.Max(dataMax, value);
+        }
+
+        return (dataMin, dataMax);
+    }
+
+    /// <summary>
+    ///     Degenerate guard: when every value (and the forced zero baseline) resolved to the same
+    ///     number, gives an auto-derived side a unit span rather than dividing by zero later.
+    /// </summary>
+    /// <param name="min">The resolved minimum.</param>
+    /// <param name="max">The resolved maximum.</param>
+    /// <param name="hasExplicitMin">Whether the minimum was supplied explicitly.</param>
+    /// <param name="hasExplicitMax">Whether the maximum was supplied explicitly.</param>
+    /// <returns>A (min, max) pair with <c>max &gt; min</c>.</returns>
+    /// <remarks>
+    ///     ChartAxis's own constructor already rejects an explicit min >= max, so both-explicit
+    ///     is unreachable in practice; the final branch is defensive only.
+    /// </remarks>
+    private static (double Min, double Max) EnsurePositiveSpan(double min, double max, bool hasExplicitMin, bool hasExplicitMax)
+    {
+        if (max > min)
+        {
+            return (min, max);
+        }
+
+        return !hasExplicitMax || hasExplicitMin
+            ? (min, min + 1d)
+            : (max - 1d, max);
     }
 
     /// <summary>
@@ -722,14 +810,14 @@ public static partial class ChartRenderer
     /// </summary>
     /// <param name="canvas">The target canvas.</param>
     /// <param name="inner">The inner data rectangle (see <see cref="ComputeVerticalFrame"/>/<see cref="ComputeHorizontalFrame"/>).</param>
-    /// <param name="min">The value-axis minimum.</param>
-    /// <param name="max">The value-axis maximum.</param>
+    /// <param name="range">The value-axis (minimum, maximum) range.</param>
     /// <param name="ticks">The tick values to paint, from <see cref="ComputeValueTicks"/>.</param>
     /// <param name="options">The effective render options.</param>
     /// <param name="font">The resolved text font.</param>
     /// <param name="isHorizontal"><see langword="true"/> for Bar's horizontal (bottom) value axis; <see langword="false"/> for a vertical (left) value axis.</param>
-    private static void PaintValueAxis(RenderCanvas canvas, Rect inner, double min, double max, List<double> ticks, ChartRenderOptions options, TrueTypeFont font, bool isHorizontal)
+    private static void PaintValueAxis(RenderCanvas canvas, Rect inner, (double Min, double Max) range, List<double> ticks, ChartRenderOptions options, TrueTypeFont font, bool isHorizontal)
     {
+        var (min, max) = range;
         foreach (var tick in ticks)
         {
             var label = FormatTickValue(tick);

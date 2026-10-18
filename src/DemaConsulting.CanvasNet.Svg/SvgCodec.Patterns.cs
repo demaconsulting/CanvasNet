@@ -217,26 +217,19 @@ public static partial class SvgCodec
     /// <param name="elementTransform">The accumulated transform from the referencing element's own local space into pixel space.</param>
     /// <param name="state">The cascaded render state, supplying the current viewport size as the pattern content's own percentage-resolution basis.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, forwarded to the tile content's own <c>RenderElement</c> walk.</param>
-    /// <param name="elementDepth">
-    ///     The current recursion depth, forwarded (incremented by one) to the tile content's own
-    ///     <c>RenderElement</c> walk - the sole guard against a pattern-reference cycle, exactly
-    ///     mirroring <see cref="ApplyMask"/>'s identical reliance (see this class's remarks).
-    /// </param>
-    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, forwarded unchanged.</param>
-    /// <param name="totalElements">The running total-rendered-elements count, forwarded to the tile content's own <c>RenderElement</c> walk.</param>
-    /// <param name="workBudget">The shared geometry-parsing work budget, forwarded to the tile content's own <c>RenderElement</c> walk.</param>
-    /// <param name="filterWorkBudget">
-    ///     The shared cumulative filter-evaluation work budget (see <see cref="FilterWorkBudget"/>),
-    ///     charged a nominal <c>1 * (tileArea + regionArea)</c> work unit before either offscreen
+    /// <param name="scope">
+    ///     The recursion depths and budgets, forwarded to the tile content's own <c>RenderElement</c>
+    ///     walk (element depth incremented by one) - the element depth is the sole guard against a
+    ///     pattern-reference cycle, exactly mirroring <see cref="ApplyMask"/>'s identical reliance
+    ///     (see this class's remarks). Its filter work budget (see <see cref="FilterWorkBudget"/>)
+    ///     is charged a nominal <c>1 * (tileArea + regionArea)</c> work unit before either offscreen
     ///     buffer is allocated - deliberately reusing this same budget class rather than
     ///     introducing a parallel one, per this codebase's established "one shared cumulative
-    ///     ceiling bounds every offscreen-buffer-allocating effect" philosophy (see
-    ///     <see cref="FilterWorkBudget"/>'s own remarks). A decline tolerantly falls back to
-    ///     painting nothing, matching <see cref="ResolvePaint"/>'s own dangling-reference
-    ///     tolerance - never a hard <see cref="InvalidDataException"/>.
+    ///     ceiling bounds every offscreen-buffer-allocating effect" philosophy. A decline
+    ///     tolerantly falls back to painting nothing, matching <see cref="ResolvePaint"/>'s own
+    ///     dangling-reference tolerance - never a hard <see cref="InvalidDataException"/>.
     /// </param>
-    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, forwarded to the tile content's own <c>RenderElement</c> walk.</param>
+    /// <param name="totalElements">The running total-rendered-elements count, forwarded to the tile content's own <c>RenderElement</c> walk.</param>
     /// <remarks>
     ///     Tolerantly paints nothing (leaves <paramref name="outline"/>'s own region entirely
     ///     unpainted) for every one of the following conditions, none of which abort the whole
@@ -246,7 +239,7 @@ public static partial class SvgCodec
     ///     elementTransform</c>, mirroring <see cref="BuildGradient"/>'s identical
     ///     <see cref="IsFiniteTransform"/> check); a degenerate/oversized painted-region or
     ///     tile-buffer pixel size (see <see cref="MaxPatternTileDimension"/>); or a declined
-    ///     <paramref name="filterWorkBudget"/> charge.
+    ///     filter work budget charge.
     /// </remarks>
     private static void RenderPatternFill(
         XElement patternElement,
@@ -257,14 +250,10 @@ public static partial class SvgCodec
         Matrix3x2 elementTransform,
         RenderState state,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget)
+        RenderScope scope,
+        ref int totalElements)
     {
+        var filterWorkBudget = scope.FilterWorkBudget;
         var contentElement = ResolvePatternContentElement(patternElement, context);
         if (contentElement == null)
         {
@@ -319,12 +308,15 @@ public static partial class SvgCodec
             return;
         }
 
-        if (!TryComputeContentRenderTransform(
-                patternElement, referenceBounds, placementTransform, tileX, tileY, tileWidth, tileHeight,
-                tilePixelWidth, tilePixelHeight, state, out var contentRenderTransform, out var contentViewportWidth, out var contentViewportHeight))
+        var tile = new TileRect(tileX, tileY, tileWidth, tileHeight);
+        var contentSetup = TryComputeContentRenderTransform(
+            patternElement, referenceBounds, placementTransform, tile, tilePixelWidth, tilePixelHeight, state);
+        if (contentSetup == null)
         {
             return;
         }
+
+        var (contentRenderTransform, contentViewportWidth, contentViewportHeight) = contentSetup.Value;
 
         // Render the resolved content's children into a fresh tile buffer via the ordinary
         // recursive RenderElement walk - see this class's remarks for why elementDepth + 1 is this
@@ -338,9 +330,7 @@ public static partial class SvgCodec
         };
         foreach (var child in contentElement.Elements())
         {
-            RenderElement(
-                child, tileBaseState, contentRenderTransform, tileContext, useDepth, elementDepth + 1, markerDepth,
-                ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            RenderElement(child, tileBaseState, contentRenderTransform, tileContext, scope.Nested(), ref totalElements);
         }
 
         // Build the antialiased fill/stroke coverage for the actual outline being painted, in a
@@ -351,9 +341,7 @@ public static partial class SvgCodec
         var outlineInRegion = TransformPath(outline, Matrix3x2.CreateTranslation(-pixelX, -pixelY));
         PathFiller.Fill(coverage, outlineInRegion, OpaqueWhite, fillRule);
 
-        var finalSurface = SampleTileIntoRegion(
-            tileBuffer, coverage, pixelX, pixelY, pixelWidth, pixelHeight, tileX, tileY, tileWidth, tileHeight,
-            inverseGridTransform);
+        var finalSurface = SampleTileIntoRegion(tileBuffer, coverage, pixelX, pixelY, tile, inverseGridTransform);
 
         CompositeFilterResultOntoCanvas(finalSurface, pixelX, pixelY, context.Surface, alphaMultiplier);
     }
@@ -417,23 +405,19 @@ public static partial class SvgCodec
     ///     <c>patternContentUnits</c> can be resolved fully independently of <c>patternUnits</c>
     ///     (see this method's remarks).
     /// </param>
-    /// <param name="tileX">The tile rectangle's own <c>x</c>, in grid space.</param>
-    /// <param name="tileY">The tile rectangle's own <c>y</c>, in grid space.</param>
-    /// <param name="tileWidth">The tile rectangle's own <c>width</c>, in grid space. Already validated positive.</param>
-    /// <param name="tileHeight">The tile rectangle's own <c>height</c>, in grid space. Already validated positive.</param>
+    /// <param name="tile">The tile rectangle (<c>x</c>, <c>y</c>, <c>width</c>, <c>height</c>), in grid space. Width and height are already validated positive.</param>
     /// <param name="tilePixelWidth">The tile buffer's own pixel width (see <see cref="ComputeTilePixelSize"/>).</param>
     /// <param name="tilePixelHeight">The tile buffer's own pixel height.</param>
     /// <param name="state">The referencing shape's own cascaded render state, supplying the fallback (no-<c>viewBox</c>) content viewport basis.</param>
-    /// <param name="contentRenderTransform">The resulting transform, or <see cref="Matrix3x2.Identity"/> if this method returns <see langword="false"/>.</param>
-    /// <param name="contentViewportWidth">The resolved content viewport width, for the tile content's own fresh render state.</param>
-    /// <param name="contentViewportHeight">The resolved content viewport height.</param>
     /// <returns>
-    ///     <see langword="false"/> if <paramref name="placementTransform"/> is not invertible (only
+    ///     The resulting content transform plus the resolved content viewport size for the tile
+    ///     content's own fresh render state, or <see langword="null"/> if
+    ///     <paramref name="placementTransform"/> is not invertible (only
     ///     possible for a degenerate <paramref name="referenceBounds"/>, which
     ///     <see cref="ComputeObjectBoundingBoxMap(Rect)"/> already tolerates by returning
     ///     <see cref="Matrix3x2.Identity"/> - always invertible - so this is defense-in-depth
     ///     rather than a reachable condition today) or the resulting composed transform is
-    ///     non-finite; otherwise <see langword="true"/>.
+    ///     non-finite.
     /// </returns>
     /// <remarks>
     ///     Per the SVG specification, a <c>viewBox</c> on <paramref name="patternElement"/> (when
@@ -457,39 +441,29 @@ public static partial class SvgCodec
     ///     requires, rather than conflating the two attributes' own separate coordinate systems.
     ///     </para>
     /// </remarks>
-    private static bool TryComputeContentRenderTransform(
+    private static ContentRenderSetup? TryComputeContentRenderTransform(
         XElement patternElement,
         Rect referenceBounds,
         Matrix3x2 placementTransform,
-        float tileX,
-        float tileY,
-        float tileWidth,
-        float tileHeight,
+        TileRect tile,
         int tilePixelWidth,
         int tilePixelHeight,
-        RenderState state,
-        out Matrix3x2 contentRenderTransform,
-        out float contentViewportWidth,
-        out float contentViewportHeight)
+        RenderState state)
     {
-        contentRenderTransform = Matrix3x2.Identity;
-        contentViewportWidth = state.ViewportWidth;
-        contentViewportHeight = state.ViewportHeight;
-
         var viewBox = ParseViewBox((string?)patternElement.Attribute("viewBox"));
         if (viewBox.HasValue)
         {
             var preserveAspectRatio = GetPreserveAspectRatio(patternElement);
-            contentRenderTransform = ComputePreserveAspectRatioFit(
+            var fit = ComputePreserveAspectRatioFit(
                 viewBox.Value.Origin, viewBox.Value.Size, tilePixelWidth, tilePixelHeight, preserveAspectRatio);
-            contentViewportWidth = viewBox.Value.Size.X;
-            contentViewportHeight = viewBox.Value.Size.Y;
-            return IsFiniteTransform(contentRenderTransform);
+            return IsFiniteTransform(fit)
+                ? new ContentRenderSetup(fit, viewBox.Value.Size.X, viewBox.Value.Size.Y)
+                : null;
         }
 
         if (!Matrix3x2.Invert(placementTransform, out var inversePlacementTransform))
         {
-            return false;
+            return null;
         }
 
         var contentUnitsIsObjectBoundingBox = string.Equals(
@@ -498,33 +472,43 @@ public static partial class SvgCodec
             ? ComputeObjectBoundingBoxMap(referenceBounds)
             : Matrix3x2.Identity;
 
-        var tileToBuffer = Matrix3x2.CreateTranslation(-tileX, -tileY)
-            * Matrix3x2.CreateScale(tilePixelWidth / tileWidth, tilePixelHeight / tileHeight);
+        var tileToBuffer = Matrix3x2.CreateTranslation(-tile.X, -tile.Y)
+            * Matrix3x2.CreateScale(tilePixelWidth / tile.Width, tilePixelHeight / tile.Height);
 
-        contentRenderTransform = contentUnitTransform * inversePlacementTransform * tileToBuffer;
-        return IsFiniteTransform(contentRenderTransform);
+        var contentRenderTransform = contentUnitTransform * inversePlacementTransform * tileToBuffer;
+        return IsFiniteTransform(contentRenderTransform)
+            ? new ContentRenderSetup(contentRenderTransform, state.ViewportWidth, state.ViewportHeight)
+            : null;
     }
+
+    /// <summary>A pattern tile rectangle, in grid space.</summary>
+    /// <param name="X">The tile's own <c>x</c>.</param>
+    /// <param name="Y">The tile's own <c>y</c>.</param>
+    /// <param name="Width">The tile's own <c>width</c>.</param>
+    /// <param name="Height">The tile's own <c>height</c>.</param>
+    internal readonly record struct TileRect(float X, float Y, float Width, float Height);
+
+    /// <summary>A pattern's resolved content transform and the viewport size the tile content resolves percentages against.</summary>
+    /// <param name="Transform">The transform mapping content coordinates into the tile buffer's pixel space.</param>
+    /// <param name="ViewportWidth">The content viewport width.</param>
+    /// <param name="ViewportHeight">The content viewport height.</param>
+    private readonly record struct ContentRenderSetup(Matrix3x2 Transform, float ViewportWidth, float ViewportHeight);
 
     /// <summary>
     ///     Samples <paramref name="tileBuffer"/> into a fresh region-sized buffer, one pixel at a
     ///     time: each destination pixel is inverse-mapped through <paramref name="inverseGridTransform"/>
-    ///     back into grid space, wrapped (modulo) by the tile's own <paramref name="tileWidth"/>/
-    ///     <paramref name="tileHeight"/>, rescaled into <paramref name="tileBuffer"/>'s own pixel
+    ///     back into grid space, wrapped (modulo) by the tile's own <see cref="TileRect.Width"/>/
+    ///     <see cref="TileRect.Height"/>, rescaled into <paramref name="tileBuffer"/>'s own pixel
     ///     coordinates, and sampled (nearest-neighbor at about 1:1, bilinear when magnified, from an
     ///     area-averaged copy when minified) - then that sample's own alpha is multiplied by
     ///     <paramref name="coverage"/>'s own alpha at the same destination pixel (a fractional,
     ///     antialiased generalization of <see cref="ApplyCoverageClip"/>'s binary coverage-multiply).
     /// </summary>
     /// <param name="tileBuffer">The already fully rendered single-tile content buffer.</param>
-    /// <param name="coverage">The region-sized antialiased fill/stroke coverage buffer (see <see cref="RenderPatternFill"/>).</param>
+    /// <param name="coverage">The region-sized antialiased fill/stroke coverage buffer (see <see cref="RenderPatternFill"/>); its size is the painted region's own pixel size.</param>
     /// <param name="pixelX">The painted region's own pixel-space X origin.</param>
     /// <param name="pixelY">The painted region's own pixel-space Y origin.</param>
-    /// <param name="pixelWidth">The painted region's own pixel width.</param>
-    /// <param name="pixelHeight">The painted region's own pixel height.</param>
-    /// <param name="tileX">The tile rectangle's own <c>x</c>, in grid space.</param>
-    /// <param name="tileY">The tile rectangle's own <c>y</c>, in grid space.</param>
-    /// <param name="tileWidth">The tile rectangle's own <c>width</c>, in grid space. Already validated positive.</param>
-    /// <param name="tileHeight">The tile rectangle's own <c>height</c>, in grid space. Already validated positive.</param>
+    /// <param name="tile">The tile rectangle (<c>x</c>, <c>y</c>, <c>width</c>, <c>height</c>), in grid space. Width and height are already validated positive.</param>
     /// <param name="inverseGridTransform">The inverse of the composed grid-space-to-pixel-space transform.</param>
     /// <returns>A new region-sized buffer, ready for <see cref="CompositeFilterResultOntoCanvas"/>.</returns>
     internal static Surface SampleTileIntoRegion(
@@ -532,23 +516,18 @@ public static partial class SvgCodec
         Surface coverage,
         int pixelX,
         int pixelY,
-        int pixelWidth,
-        int pixelHeight,
-        float tileX,
-        float tileY,
-        float tileWidth,
-        float tileHeight,
+        TileRect tile,
         Matrix3x2 inverseGridTransform)
     {
-        var result = new Surface(pixelWidth, pixelHeight);
+        var result = new Surface(coverage.Width, coverage.Height);
 
         // Classify the device scale of one tile-buffer pixel (see this file's sampling remarks)
         var magnified = false;
         Surface? minified = null;
         if (Matrix3x2.Invert(inverseGridTransform, out var gridToPixel))
         {
-            var deviceX = Math.Sqrt(((double)gridToPixel.M11 * gridToPixel.M11) + ((double)gridToPixel.M12 * gridToPixel.M12)) * tileWidth / tileBuffer.Width;
-            var deviceY = Math.Sqrt(((double)gridToPixel.M21 * gridToPixel.M21) + ((double)gridToPixel.M22 * gridToPixel.M22)) * tileHeight / tileBuffer.Height;
+            var deviceX = Math.Sqrt(((double)gridToPixel.M11 * gridToPixel.M11) + ((double)gridToPixel.M12 * gridToPixel.M12)) * tile.Width / tileBuffer.Width;
+            var deviceY = Math.Sqrt(((double)gridToPixel.M21 * gridToPixel.M21) + ((double)gridToPixel.M22 * gridToPixel.M22)) * tile.Height / tileBuffer.Height;
             if (SurfaceResampler.ClassifyTileScale(deviceX, deviceY, tileBuffer.Width, tileBuffer.Height, out magnified, out var reducedWidth, out var reducedHeight))
             {
                 minified = tileBuffer.Resize(reducedWidth, reducedHeight, ResamplingMode.Area);
@@ -556,13 +535,9 @@ public static partial class SvgCodec
         }
 
         var source = minified ?? tileBuffer;
-        try
+        using (minified)
         {
-            FillTileRegion(result, source, coverage, magnified, pixelX, pixelY, tileX, tileY, tileWidth, tileHeight, inverseGridTransform);
-        }
-        finally
-        {
-            minified?.Dispose();
+            FillTileRegion(result, source, coverage, magnified, new Vector2(pixelX, pixelY), tile, inverseGridTransform);
         }
 
         return result;
@@ -574,18 +549,20 @@ public static partial class SvgCodec
         Surface tileBuffer,
         Surface coverage,
         bool magnified,
-        int pixelX,
-        int pixelY,
-        float tileX,
-        float tileY,
-        float tileWidth,
-        float tileHeight,
+        Vector2 pixelOrigin,
+        TileRect tile,
         Matrix3x2 inverseGridTransform)
     {
         var pixelWidth = result.Width;
         var pixelHeight = result.Height;
         var tilePixelWidth = tileBuffer.Width;
         var tilePixelHeight = tileBuffer.Height;
+        var tileX = tile.X;
+        var tileY = tile.Y;
+        var tileWidth = tile.Width;
+        var tileHeight = tile.Height;
+        var pixelX = pixelOrigin.X;
+        var pixelY = pixelOrigin.Y;
 
         for (var row = 0; row < pixelHeight; row++)
         {

@@ -369,16 +369,7 @@ public static partial class SvgCodec
             if (position < raw.Length && raw[position] == '%')
             {
                 position++;
-                value = value / 100f * percentageBasis;
-                if (!float.IsFinite(value))
-                {
-                    throw new InvalidDataException($"The stroke-dasharray percentage value '{raw}' is not a finite number.");
-                }
-
-                if (MathF.Abs(value) > MaxCoordinateMagnitude)
-                {
-                    throw new InvalidDataException($"The stroke-dasharray percentage value '{raw}' exceeds the maximum supported magnitude.");
-                }
+                value = ResolveDashArrayPercentage(raw, value, percentageBasis);
             }
 
             numbers.Add(value);
@@ -391,6 +382,31 @@ public static partial class SvgCodec
         }
 
         return numbers;
+    }
+
+    /// <summary>
+    ///     Resolves one <c>stroke-dasharray</c> percentage entry against the diagonal basis,
+    ///     re-applying the finite/magnitude guards <see cref="ParseCoordinate"/> applies.
+    /// </summary>
+    /// <param name="raw">The raw list text, for error messages.</param>
+    /// <param name="value">The entry's literal value (the number before the <c>%</c>).</param>
+    /// <param name="percentageBasis">The value a <c>100%</c> entry resolves to.</param>
+    /// <returns>The resolved value.</returns>
+    /// <exception cref="InvalidDataException">Thrown when the resolved value is non-finite or exceeds <see cref="MaxCoordinateMagnitude"/>.</exception>
+    private static float ResolveDashArrayPercentage(string raw, float value, float percentageBasis)
+    {
+        var resolved = value / 100f * percentageBasis;
+        if (!float.IsFinite(resolved))
+        {
+            throw new InvalidDataException($"The stroke-dasharray percentage value '{raw}' is not a finite number.");
+        }
+
+        if (MathF.Abs(resolved) > MaxCoordinateMagnitude)
+        {
+            throw new InvalidDataException($"The stroke-dasharray percentage value '{raw}' exceeds the maximum supported magnitude.");
+        }
+
+        return resolved;
     }
 
     /// <summary>

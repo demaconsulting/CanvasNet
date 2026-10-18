@@ -139,7 +139,7 @@ public sealed partial class PdfDocument
     ///     contains a non-number (propagated from <see cref="ReadFontMatrix"/>), or when
     ///     <c>/CharProcs</c> is missing or does not resolve to a dictionary.
     /// </exception>
-    private IResolvedFont BuildResolvedType3Font(PdfObject fontDict)
+    private ResolvedType3Font BuildResolvedType3Font(PdfObject fontDict)
     {
         var fontMatrix = ReadFontMatrix(fontDict);
 
@@ -246,7 +246,7 @@ public sealed partial class PdfDocument
     ///     entry is present but is not an array, when an array entry is neither a number nor a
     ///     name, or when a name entry appears before any starting code.
     /// </exception>
-    private IReadOnlyDictionary<int, string> ResolveType3Encoding(PdfObject? encodingEntry)
+    private Dictionary<int, string> ResolveType3Encoding(PdfObject? encodingEntry)
     {
         var map = new Dictionary<int, string>();
         if (encodingEntry is null)

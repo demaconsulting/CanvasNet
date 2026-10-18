@@ -133,7 +133,7 @@ public sealed class StrokeStyle
     /// </summary>
     /// <param name="dashArray">The caller-supplied dash array.</param>
     /// <returns>The copied, read-only dash array snapshot, or <see langword="null"/>.</returns>
-    private static IReadOnlyList<float>? CopyDashArray(IReadOnlyList<float>? dashArray)
+    private static ReadOnlyCollection<float>? CopyDashArray(IReadOnlyList<float>? dashArray)
     {
         if (dashArray == null || dashArray.Count == 0)
         {

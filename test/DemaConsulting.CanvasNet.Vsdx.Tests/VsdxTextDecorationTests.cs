@@ -83,11 +83,11 @@ public class VsdxTextDecorationTests
         var doubleLayout = doubleStrike.GetPageShapes(0)[0].TextLayout!;
         var overLayout = over.GetPageShapes(0)[0].TextLayout!;
 
-        Assert.Single(strikeLayout.DecorationBars);
+        var strikeLayoutItem = Assert.Single(strikeLayout.DecorationBars);
         Assert.Equal(2, doubleLayout.DecorationBars.Count);
-        Assert.Single(overLayout.DecorationBars);
-        Assert.True(strikeLayout.DecorationBars[0].CenterYInches > strikeLayout.Glyphs[0].OriginYInches);
-        Assert.True(overLayout.DecorationBars[0].CenterYInches > strikeLayout.DecorationBars[0].CenterYInches);
+        var overLayoutItem = Assert.Single(overLayout.DecorationBars);
+        Assert.True(strikeLayoutItem.CenterYInches > strikeLayout.Glyphs[0].OriginYInches);
+        Assert.True(overLayoutItem.CenterYInches > strikeLayoutItem.CenterYInches);
     }
 
     /// <summary>Several simultaneous decorations across several tokens each merge into one unbroken bar per kind.</summary>

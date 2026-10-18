@@ -15,6 +15,53 @@ namespace DemaConsulting.CanvasNet.Pptx;
 /// </summary>
 public sealed partial class PptxDocument
 {
+    /// <summary>
+    ///     The complete input to <see cref="ResolveTextLayoutForRequest(TextLayoutRequest)"/>.
+    /// </summary>
+    internal readonly record struct TextLayoutRequest
+    {
+        /// <summary>Gets the parsed text body to lay out.</summary>
+        public required PptxTextBody TextBody { get; init; }
+
+        /// <summary>Gets the owning shape's resolved placeholder property chain.</summary>
+        public required PptxPlaceholderProperties PlaceholderProperties { get; init; }
+
+        /// <summary>Gets the resolved theme.</summary>
+        public required PptxTheme Theme { get; init; }
+
+        /// <summary>Gets the owning shape's placeholder type, or <see cref="string.Empty"/> for a non-placeholder shape.</summary>
+        public required string PlaceholderType { get; init; }
+
+        /// <summary>Gets the owning shape's own declared width, in EMU (see <see cref="PptxShapeFrame.WidthEmu"/>).</summary>
+        public required float WidthEmu { get; init; }
+
+        /// <summary>Gets the owning shape's own declared height, in EMU (see <see cref="PptxShapeFrame.HeightEmu"/>).</summary>
+        public required float HeightEmu { get; init; }
+
+        /// <summary>
+        ///     Gets the resolver mapping a <c>(familyName, bold, italic)</c> triple to a
+        ///     <see cref="TrueTypeFont"/>.
+        /// </summary>
+        public required Func<string, bool, bool, TrueTypeFont> FontResolver { get; init; }
+
+        /// <summary>
+        ///     Gets the effective color map consulted when a run/bullet color resolves an
+        ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> for the
+        ///     default - see <see cref="ResolveFill"/>'s matching parameter.
+        /// </summary>
+        public PptxColorMap? ColorMap { get; init; }
+
+        /// <summary>
+        ///     Gets the resolver mapping a <c>(bold, italic)</c> pair to a bundled fallback
+        ///     <see cref="TrueTypeFont"/>, consulted only when a character is missing from its
+        ///     run's own primary font (per-character glyph-coverage fallback). <see langword="null"/>
+        ///     selects <see cref="SystemFontCatalog.LoadBundledFallback"/> with the same
+        ///     <c>serif: false, fixedPitch: false</c> convention <see cref="ResolveTextFont"/> uses;
+        ///     tests may inject a deterministic synthetic fallback font instead.
+        /// </summary>
+        public Func<bool, bool, TrueTypeFont>? FallbackFontResolver { get; init; }
+    }
+
     /// <summary>The number of shrink-loop iterations attempted before giving up at the floor scale (Design Decision 4).</summary>
     private const int MaxShrinkIterations = 9;
 
@@ -86,21 +133,6 @@ public sealed partial class PptxDocument
     ///     <see cref="SystemFontCatalog.LoadBundledFallback"/> directly) for deterministic,
     ///     machine-independent pixel assertions.
     /// </param>
-    /// <param name="colorMap">
-    ///     The effective color map consulted when a run/bullet color resolves an
-    ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the
-    ///     default) - see <see cref="ResolveFill"/>'s matching parameter.
-    /// </param>
-    /// <param name="fallbackFontResolver">
-    ///     Resolves a <c>(bold, italic)</c> pair to a bundled fallback <see cref="TrueTypeFont"/>,
-    ///     consulted only when a specific character is missing from its run's own primary font
-    ///     (per-character glyph-coverage fallback - see the private <c>ResolveGlyph</c> helper
-    ///     this phase builds from it). Production callers leave this at its default
-    ///     (<see cref="SystemFontCatalog.LoadBundledFallback"/> with the same
-    ///     <c>serif: false, fixedPitch: false</c> convention <see cref="ResolveTextFont"/> already
-    ///     uses); tests may inject a deterministic synthetic fallback font instead, mirroring
-    ///     <paramref name="fontResolver"/>'s own test seam.
-    /// </param>
     /// <returns>The resolved <see cref="PptxTextLayout"/>.</returns>
     internal static PptxTextLayout ResolveTextLayout(
         PptxTextBody textBody,
@@ -109,24 +141,33 @@ public sealed partial class PptxDocument
         string placeholderType,
         float widthEmu,
         float heightEmu,
-        Func<string, bool, bool, TrueTypeFont> fontResolver,
-        PptxColorMap? colorMap = null,
-        Func<bool, bool, TrueTypeFont>? fallbackFontResolver = null)
+        Func<string, bool, bool, TrueTypeFont> fontResolver) =>
+        ResolveTextLayoutForRequest(new TextLayoutRequest
+        {
+            TextBody = textBody,
+            PlaceholderProperties = placeholderProperties,
+            Theme = theme,
+            PlaceholderType = placeholderType,
+            WidthEmu = widthEmu,
+            HeightEmu = heightEmu,
+            FontResolver = fontResolver,
+        });
+
+    /// <summary>
+    ///     Resolves a text body's full layout - see
+    ///     <see cref="ResolveTextLayout(PptxTextBody, PptxPlaceholderProperties, PptxTheme, string, float, float, Func{string, bool, bool, TrueTypeFont})"/>
+    ///     - from a complete <see cref="TextLayoutRequest"/>, including the optional color map and
+    ///     fallback font resolver.
+    /// </summary>
+    /// <param name="request">The text body and every input needed to lay it out.</param>
+    /// <returns>The resolved <see cref="PptxTextLayout"/>.</returns>
+    internal static PptxTextLayout ResolveTextLayoutForRequest(TextLayoutRequest request)
     {
-        var wrapped = ResolveWrappedLines(
-            textBody,
-            placeholderProperties,
-            theme,
-            placeholderType,
-            widthEmu,
-            heightEmu,
-            fontResolver,
-            colorMap,
-            fallbackFontResolver);
+        var wrapped = ResolveWrappedLines(request);
 
         var (glyphs, underlines) = PositionLines(
             wrapped.Lines,
-            textBody.Properties.Anchor,
+            request.TextBody.Properties.Anchor,
             wrapped.InsetLeft,
             wrapped.InsetTop,
             wrapped.AlignmentWidth,
@@ -146,18 +187,10 @@ public sealed partial class PptxDocument
     ///     Final glyph positioning (formerly step (6), <see cref="PositionLines"/>) is intentionally
     ///     excluded - it is not needed to answer "how tall must this text be", only to place it.
     /// </summary>
-    /// <param name="textBody">The parsed text body to wrap/measure.</param>
-    /// <param name="placeholderProperties">The owning shape's resolved placeholder property chain.</param>
-    /// <param name="theme">The resolved theme.</param>
-    /// <param name="placeholderType">The owning shape's placeholder type, or <see cref="string.Empty"/> for a non-placeholder shape.</param>
-    /// <param name="widthEmu">The owning shape's own declared width, in EMU (see <see cref="PptxShapeFrame.WidthEmu"/>).</param>
-    /// <param name="heightEmu">The owning shape's own declared height, in EMU (see <see cref="PptxShapeFrame.HeightEmu"/>).</param>
-    /// <param name="fontResolver">Resolves a <c>(familyName, bold, italic)</c> triple to a <see cref="TrueTypeFont"/> - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
-    /// <param name="colorMap">The effective color map - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
-    /// <param name="fallbackFontResolver">Resolves a <c>(bold, italic)</c> pair to a bundled fallback font - see <see cref="ResolveTextLayout"/>'s matching parameter.</param>
+    /// <param name="request">The text body and every input needed to wrap/measure it.</param>
     /// <returns>
     ///     The word-wrapped <see cref="LineBox"/> lines, the resolved inset/alignment-width/
-    ///     available-height locals <see cref="ResolveTextLayout"/>'s own former body computed, and
+    ///     available-height locals <see cref="ResolveTextLayoutForRequest(TextLayoutRequest)"/>'s own former body computed, and
     ///     the resolved autofit <c>FontScale</c>.
     /// </returns>
     private static (
@@ -167,17 +200,17 @@ public sealed partial class PptxDocument
         float InsetBottom,
         float AlignmentWidth,
         float AvailableHeight,
-        float FontScale) ResolveWrappedLines(
-        PptxTextBody textBody,
-        PptxPlaceholderProperties placeholderProperties,
-        PptxTheme theme,
-        string placeholderType,
-        float widthEmu,
-        float heightEmu,
-        Func<string, bool, bool, TrueTypeFont> fontResolver,
-        PptxColorMap? colorMap = null,
-        Func<bool, bool, TrueTypeFont>? fallbackFontResolver = null)
+        float FontScale) ResolveWrappedLines(TextLayoutRequest request)
     {
+        var textBody = request.TextBody;
+        var placeholderProperties = request.PlaceholderProperties;
+        var theme = request.Theme;
+        var placeholderType = request.PlaceholderType;
+        var widthEmu = request.WidthEmu;
+        var heightEmu = request.HeightEmu;
+        var fontResolver = request.FontResolver;
+        var colorMap = request.ColorMap;
+        var fallbackFontResolver = request.FallbackFontResolver;
         fallbackFontResolver ??= static (bold, italic) => SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic);
         var bodyProperties = textBody.Properties;
         var insetLeft = bodyProperties.InsetLeftEmu;
@@ -322,16 +355,18 @@ public sealed partial class PptxDocument
         // cell's text body: a table cell has no placeholder inheritance chain of its own.
         var placeholderProperties = new PptxPlaceholderProperties(null, null, theme);
 
-        var wrapped = ResolveWrappedLines(
-            textBody,
-            placeholderProperties,
-            theme,
-            string.Empty,
-            widthEmu,
-            UnboundedMeasurementHeightEmu,
-            fontResolver,
-            colorMap,
-            fallbackFontResolver);
+        var wrapped = ResolveWrappedLines(new TextLayoutRequest
+        {
+            TextBody = textBody,
+            PlaceholderProperties = placeholderProperties,
+            Theme = theme,
+            PlaceholderType = string.Empty,
+            WidthEmu = widthEmu,
+            HeightEmu = UnboundedMeasurementHeightEmu,
+            FontResolver = fontResolver,
+            ColorMap = colorMap,
+            FallbackFontResolver = fallbackFontResolver,
+        });
 
         return wrapped.InsetTop
             + wrapped.Lines.Sum(line => line.LineHeightEmu + line.LeadingGapEmu)
@@ -631,48 +666,7 @@ public sealed partial class PptxDocument
             // Build the paragraph's scaled token stream, resolving each run's font once. An
             // <c>&lt;a:br&gt;</c> item becomes a break-marker token that forces a new line in
             // PackTokensIntoLines, preserving its position relative to surrounding runs.
-            var tokens = new List<ResolvedToken>();
-            var runIndex = 0;
-            foreach (var item in paragraph.Items)
-            {
-                if (item is PptxLineBreakItem)
-                {
-                    tokens.Add(new ResolvedToken(string.Empty, false, default!, null!, 0f, IsLineBreak: true));
-                    continue;
-                }
-
-                var run = ((PptxRunItem)item).Run;
-                var runProps = resolvedParagraph.RunProperties[runIndex];
-                runIndex++;
-                var scaledSizeEmu = runProps.SizeEmu * fontScale;
-                var font = resolveFont(runProps.FontFamily, runProps.Bold, runProps.Italic);
-                var scaledRunProps = runProps with
-                {
-                    SizeEmu = scaledSizeEmu,
-                    OutlineWidthEmu = runProps.OutlineWidthEmu is { } outlineWidthEmu ? outlineWidthEmu * fontScale : null,
-                    // A dash array is itself a set of lengths in EMU (dash/gap segment lengths),
-                    // so each element is scaled by the same fontScale factor as OutlineWidthEmu -
-                    // otherwise a shrunk-to-fit outline's dash pattern would stay at its
-                    // pre-shrink scale, visually disproportionate to the now-thinner stroke.
-                    OutlineDashArray = runProps.OutlineDashArray?.Select(dash => dash * fontScale).ToArray(),
-                };
-
-                foreach (var (text, isWhitespace, isTab) in Tokenize(run.Text))
-                {
-                    if (text.Length == 0)
-                    {
-                        continue;
-                    }
-
-                    // A tab token's true width depends on its own position in the line - skip the
-                    // (otherwise-misleading, font-glyph-based) measurement entirely rather than
-                    // looking up a near-zero/.notdef glyph advance for it (see GetNextTabStopEmu).
-                    var width = isTab
-                        ? 0f
-                        : MeasureTokenWidthEmu(text, font, scaledSizeEmu, runProps.Bold, runProps.Italic, resolveGlyph);
-                    tokens.Add(new ResolvedToken(text, isWhitespace, scaledRunProps, font, width, IsTab: isTab));
-                }
-            }
+            var tokens = BuildParagraphTokens(resolvedParagraph, fontScale, resolveFont, resolveGlyph);
 
             var paragraphLines = PackTokensIntoLines(tokens, availableWidthEmu);
             if (paragraphLines.Count == 0)
@@ -685,112 +679,7 @@ public sealed partial class PptxDocument
 
             for (var i = 0; i < paragraphLines.Count; i++)
             {
-                var lineTokens = paragraphLines[i];
-                var glyphs = new List<LineGlyph>();
-                var underlineSpans = new List<LineUnderlineSpan>();
-                LineUnderlineSpan? pendingUnderlineSpan = null;
-                var cursorX = 0f;
-                TrueTypeFont? tallestFont = null;
-                var tallestSize = 0f;
-                var tallestNaturalHeight = -1f;
-
-                foreach (var token in lineTokens)
-                {
-                    var tokenStartX = cursorX;
-
-                    // Compare each candidate's actual rendered natural height (its raw font-design-
-                    // unit metrics scaled by its own UnitsPerEm and SizeEmu), not raw font-design
-                    // units directly - otherwise a small-font run using a font with a tall em-box
-                    // can out-rank a much larger run that happens to use a more compact em-box,
-                    // producing the wrong line height/baseline.
-                    var naturalHeight = (token.Font.Ascender - token.Font.Descender + token.Font.LineGap) /
-                        (float)token.Font.UnitsPerEm * token.RunProperties.SizeEmu;
-                    if (naturalHeight > tallestNaturalHeight)
-                    {
-                        tallestNaturalHeight = naturalHeight;
-                        tallestFont = token.Font;
-                        tallestSize = token.RunProperties.SizeEmu;
-                    }
-
-                    if (token.IsTab)
-                    {
-                        // Phase 2 Follow-Up: Default Tab-Stop Expansion - expand the cursor to
-                        // the next default tab stop instead of resolving a (near-zero,
-                        // .notdef-glyph) font advance for the literal U+0009 TAB character; no
-                        // glyph is emitted (mirroring the pre-existing IsWhitespace glyph-
-                        // emission guard below for every other whitespace token kind). Explicit
-                        // <a:tabLst> tab stops are out of scope - see the design doc note.
-                        cursorX = GetNextTabStopEmu(cursorX, DefaultTabStopEmu);
-                    }
-                    else
-                    {
-                        // Enumerate by Unicode scalar value (Rune), not UTF-16 char, so a
-                        // supplementary-plane character (codepoint above U+FFFF, e.g. an emoji)
-                        // is measured/placed as one logical glyph unit instead of being split
-                        // into two mis-measured surrogate halves.
-                        foreach (var rune in token.Text.EnumerateRunes())
-                        {
-                            var (resolvedFont, glyphIndex) = resolveGlyph(token.Font, rune.Value, token.RunProperties.Bold, token.RunProperties.Italic);
-                            var advance = resolvedFont.GetAdvanceWidth(glyphIndex) / (float)resolvedFont.UnitsPerEm * token.RunProperties.SizeEmu;
-                            if (!token.IsWhitespace)
-                            {
-                                glyphs.Add(new LineGlyph(
-                                    resolvedFont, glyphIndex, cursorX, token.RunProperties.SizeEmu, token.RunProperties.Color,
-                                    token.RunProperties.OutlineWidthEmu, token.RunProperties.OutlineColor,
-                                    token.RunProperties.OutlineDashArray));
-                            }
-
-                            cursorX += advance;
-                        }
-                    }
-
-                    var tokenEndX = cursorX;
-
-                    // Phase 2 Follow-Up: Underline Rendering - accumulate contiguous underlined
-                    // tokens belonging to the same run instance into a single span, so the span
-                    // covers interior whitespace within one run (not just individual words) and
-                    // flushes exactly at a run boundary (including a transition to a
-                    // non-underlined run). RunProperties is reused, by reference, across every
-                    // token of a single run (see BuildLines' own per-run loop above) and survives
-                    // PackTokensIntoLines unchanged, so ReferenceEquals reliably detects "same
-                    // run" here.
-                    if (token.RunProperties.UnderlineStyle != PptxUnderlineStyle.None)
-                    {
-                        if (pendingUnderlineSpan is { } pending && ReferenceEquals(pending.RunProperties, token.RunProperties))
-                        {
-                            pendingUnderlineSpan = pending with { EndXEmu = tokenEndX };
-                        }
-                        else
-                        {
-                            if (pendingUnderlineSpan is { } toFlush)
-                            {
-                                underlineSpans.Add(toFlush);
-                            }
-
-                            pendingUnderlineSpan = new LineUnderlineSpan(tokenStartX, tokenEndX, token.RunProperties);
-                        }
-                    }
-                    else
-                    {
-                        if (pendingUnderlineSpan is { } toFlush)
-                        {
-                            underlineSpans.Add(toFlush);
-                        }
-
-                        pendingUnderlineSpan = null;
-                    }
-                }
-
-                // The line's natural width is the cursor's own final accumulated position -
-                // authoritative for every token kind (including a tab, whose WidthEmu is unused -
-                // see ResolvedToken.IsTab), so a single post-loop read replaces a separate,
-                // now-inconsistent-for-tabs running accumulator.
-                var lineWidth = cursorX;
-
-                if (pendingUnderlineSpan is { } finalSpan)
-                {
-                    underlineSpans.Add(finalSpan);
-                }
+                var (glyphs, underlineSpans, lineWidth, tallestFont, tallestSize) = BuildLineContent(paragraphLines[i], resolveGlyph);
 
                 // A blank line takes its metrics from the paragraph's own <a:endParaRPr>, when
                 // present, instead of the nominal default font size.
@@ -800,24 +689,7 @@ public sealed partial class PptxDocument
                     tallestSize = endProps.SizeEmu * fontScale;
                 }
 
-                float lineHeight;
-                float ascent;
-                if (tallestFont is null)
-                {
-                    // Blank line: fall back to the default font size's nominal proportions.
-                    ascent = DefaultFontSizeEmu * 0.8f;
-                    lineHeight = DefaultFontSizeEmu * 1.2f * lineSpacingFactor;
-                }
-                else
-                {
-                    var naturalHeight = (tallestFont.Ascender - tallestFont.Descender + tallestFont.LineGap) /
-                        (float)tallestFont.UnitsPerEm * tallestSize;
-                    ascent = tallestFont.Ascender / (float)tallestFont.UnitsPerEm * tallestSize;
-                    var spacingFactor = paraProps.LineSpacing.Percent is { } percent ? percent : 1f;
-                    lineHeight = paraProps.LineSpacing.FixedEmu is { } fixedEmu
-                        ? fixedEmu * lineSpacingFactor
-                        : naturalHeight * spacingFactor * lineSpacingFactor;
-                }
+                var (lineHeight, ascent) = ResolveLineMetrics(tallestFont, tallestSize, paraProps, lineSpacingFactor);
 
                 // Phase 2 Follow-Up: Paragraph Spacing - only the paragraph's own first
                 // word-wrapped line carries a leading gap, and only when a preceding paragraph
@@ -852,6 +724,247 @@ public sealed partial class PptxDocument
         }
 
         return lines;
+    }
+
+    /// <summary>
+    ///     Builds a paragraph's scaled token stream, resolving each run's font once. A
+    ///     <c>&lt;a:br&gt;</c> item becomes a break-marker token that forces a new line in
+    ///     <see cref="PackTokensIntoLines"/>, preserving its position relative to surrounding runs.
+    /// </summary>
+    /// <param name="resolvedParagraph">The paragraph whose items are tokenized.</param>
+    /// <param name="fontScale">The autofit font scale applied to every run's resolved size.</param>
+    /// <param name="resolveFont">Resolves a <c>(familyName, bold, italic)</c> triple to a font.</param>
+    /// <param name="resolveGlyph">Resolves a code point to its (possibly fallback) font and glyph index.</param>
+    /// <returns>The paragraph's tokens, in document order.</returns>
+    private static List<ResolvedToken> BuildParagraphTokens(
+        ResolvedParagraph resolvedParagraph,
+        float fontScale,
+        Func<string, bool, bool, TrueTypeFont> resolveFont,
+        Func<TrueTypeFont, int, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
+    {
+        var tokens = new List<ResolvedToken>();
+        var runIndex = 0;
+        foreach (var item in resolvedParagraph.Paragraph.Items)
+        {
+            if (item is PptxLineBreakItem)
+            {
+                tokens.Add(new ResolvedToken(string.Empty, false, default!, null!, 0f, IsLineBreak: true));
+                continue;
+            }
+
+            var run = ((PptxRunItem)item).Run;
+            var runProps = resolvedParagraph.RunProperties[runIndex];
+            runIndex++;
+            var scaledSizeEmu = runProps.SizeEmu * fontScale;
+            var font = resolveFont(runProps.FontFamily, runProps.Bold, runProps.Italic);
+            var scaledRunProps = runProps with
+            {
+                SizeEmu = scaledSizeEmu,
+                OutlineWidthEmu = runProps.OutlineWidthEmu is { } outlineWidthEmu ? outlineWidthEmu * fontScale : null,
+                // A dash array is itself a set of lengths in EMU (dash/gap segment lengths),
+                // so each element is scaled by the same fontScale factor as OutlineWidthEmu -
+                // otherwise a shrunk-to-fit outline's dash pattern would stay at its
+                // pre-shrink scale, visually disproportionate to the now-thinner stroke.
+                OutlineDashArray = runProps.OutlineDashArray?.Select(dash => dash * fontScale).ToArray(),
+            };
+
+            foreach (var (text, isWhitespace, isTab) in Tokenize(run.Text))
+            {
+                if (text.Length == 0)
+                {
+                    continue;
+                }
+
+                // A tab token's true width depends on its own position in the line - skip the
+                // (otherwise-misleading, font-glyph-based) measurement entirely rather than
+                // looking up a near-zero/.notdef glyph advance for it (see GetNextTabStopEmu).
+                var width = isTab
+                    ? 0f
+                    : MeasureTokenWidthEmu(text, font, scaledSizeEmu, runProps.Bold, runProps.Italic, resolveGlyph);
+                tokens.Add(new ResolvedToken(text, isWhitespace, scaledRunProps, font, width, IsTab: isTab));
+            }
+        }
+
+        return tokens;
+    }
+
+    /// <summary>The glyphs, underline spans, natural width and tallest-run metrics source of one word-wrapped line.</summary>
+    /// <param name="Glyphs">The line's own text glyphs, positioned relative to the line's own start.</param>
+    /// <param name="UnderlineSpans">The line's resolved underlined spans.</param>
+    /// <param name="LineWidthEmu">The line's natural (unaligned) text width, in EMU.</param>
+    /// <param name="TallestFont">The font of the line's tallest token, or <see langword="null"/> for a blank line.</param>
+    /// <param name="TallestSize">The size, in EMU, of the line's tallest token.</param>
+    private readonly record struct LineContent(
+        List<LineGlyph> Glyphs,
+        List<LineUnderlineSpan> UnderlineSpans,
+        float LineWidthEmu,
+        TrueTypeFont? TallestFont,
+        float TallestSize);
+
+    /// <summary>
+    ///     Lays out one word-wrapped line's tokens into positioned glyphs and underline spans,
+    ///     tracking the tallest token for the line's own height/baseline.
+    /// </summary>
+    /// <param name="lineTokens">The line's tokens.</param>
+    /// <param name="resolveGlyph">Resolves a code point to its (possibly fallback) font and glyph index.</param>
+    /// <returns>The line's content.</returns>
+    private static LineContent BuildLineContent(
+        IReadOnlyList<ResolvedToken> lineTokens,
+        Func<TrueTypeFont, int, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
+    {
+        var glyphs = new List<LineGlyph>();
+        var underlineSpans = new List<LineUnderlineSpan>();
+        LineUnderlineSpan? pendingUnderlineSpan = null;
+        var cursorX = 0f;
+        TrueTypeFont? tallestFont = null;
+        var tallestSize = 0f;
+        var tallestNaturalHeight = -1f;
+
+        foreach (var token in lineTokens)
+        {
+            var tokenStartX = cursorX;
+
+            // Compare each candidate's actual rendered natural height (its raw font-design-
+            // unit metrics scaled by its own UnitsPerEm and SizeEmu), not raw font-design
+            // units directly - otherwise a small-font run using a font with a tall em-box
+            // can out-rank a much larger run that happens to use a more compact em-box,
+            // producing the wrong line height/baseline.
+            var naturalHeight = (token.Font.Ascender - token.Font.Descender + token.Font.LineGap) /
+                (float)token.Font.UnitsPerEm * token.RunProperties.SizeEmu;
+            if (naturalHeight > tallestNaturalHeight)
+            {
+                tallestNaturalHeight = naturalHeight;
+                tallestFont = token.Font;
+                tallestSize = token.RunProperties.SizeEmu;
+            }
+
+            // Phase 2 Follow-Up: Default Tab-Stop Expansion - a tab expands the cursor to the
+            // next default tab stop instead of resolving a (near-zero, .notdef-glyph) font
+            // advance for the literal U+0009 TAB character; no glyph is emitted. Explicit
+            // <a:tabLst> tab stops are out of scope - see the design doc note.
+            cursorX = token.IsTab
+                ? GetNextTabStopEmu(cursorX, DefaultTabStopEmu)
+                : AppendTokenGlyphs(token, cursorX, glyphs, resolveGlyph);
+
+            UpdateUnderlineSpans(token, tokenStartX, cursorX, ref pendingUnderlineSpan, underlineSpans);
+        }
+
+        if (pendingUnderlineSpan is { } finalSpan)
+        {
+            underlineSpans.Add(finalSpan);
+        }
+
+        // The line's natural width is the cursor's own final accumulated position -
+        // authoritative for every token kind (including a tab, whose WidthEmu is unused -
+        // see ResolvedToken.IsTab), so a single read replaces a separate,
+        // now-inconsistent-for-tabs running accumulator.
+        return new LineContent(glyphs, underlineSpans, cursorX, tallestFont, tallestSize);
+    }
+
+    /// <summary>
+    ///     Appends a non-tab token's glyphs to <paramref name="glyphs"/> starting at
+    ///     <paramref name="cursorX"/> and returns the advanced cursor position.
+    /// </summary>
+    /// <param name="token">The token to lay out.</param>
+    /// <param name="cursorX">The cursor's X position before the token, in EMU.</param>
+    /// <param name="glyphs">The line's glyph list receiving the token's glyphs.</param>
+    /// <param name="resolveGlyph">Resolves a code point to its (possibly fallback) font and glyph index.</param>
+    /// <returns>The cursor's X position after the token, in EMU.</returns>
+    private static float AppendTokenGlyphs(
+        ResolvedToken token,
+        float cursorX,
+        List<LineGlyph> glyphs,
+        Func<TrueTypeFont, int, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
+    {
+        // Enumerate by Unicode scalar value (Rune), not UTF-16 char, so a
+        // supplementary-plane character (codepoint above U+FFFF, e.g. an emoji)
+        // is measured/placed as one logical glyph unit instead of being split
+        // into two mis-measured surrogate halves.
+        foreach (var rune in token.Text.EnumerateRunes())
+        {
+            var (resolvedFont, glyphIndex) = resolveGlyph(token.Font, rune.Value, token.RunProperties.Bold, token.RunProperties.Italic);
+            var advance = resolvedFont.GetAdvanceWidth(glyphIndex) / (float)resolvedFont.UnitsPerEm * token.RunProperties.SizeEmu;
+            if (!token.IsWhitespace)
+            {
+                glyphs.Add(new LineGlyph(
+                    resolvedFont, glyphIndex, cursorX, token.RunProperties.SizeEmu, token.RunProperties.Color,
+                    token.RunProperties.OutlineWidthEmu, token.RunProperties.OutlineColor,
+                    token.RunProperties.OutlineDashArray));
+            }
+
+            cursorX += advance;
+        }
+
+        return cursorX;
+    }
+
+    /// <summary>
+    ///     Phase 2 Follow-Up: Underline Rendering - accumulates contiguous underlined tokens
+    ///     belonging to the same run instance into a single span, so the span covers interior
+    ///     whitespace within one run (not just individual words) and flushes exactly at a run
+    ///     boundary (including a transition to a non-underlined run). RunProperties is reused, by
+    ///     reference, across every token of a single run (see <see cref="BuildParagraphTokens"/>)
+    ///     and survives <see cref="PackTokensIntoLines"/> unchanged, so
+    ///     <see cref="object.ReferenceEquals"/> reliably detects "same run".
+    /// </summary>
+    /// <param name="token">The token just laid out.</param>
+    /// <param name="tokenStartX">The token's start X, in EMU.</param>
+    /// <param name="tokenEndX">The token's end X, in EMU.</param>
+    /// <param name="pendingUnderlineSpan">The in-progress span, updated in place.</param>
+    /// <param name="underlineSpans">The line's flushed spans.</param>
+    private static void UpdateUnderlineSpans(
+        ResolvedToken token,
+        float tokenStartX,
+        float tokenEndX,
+        ref LineUnderlineSpan? pendingUnderlineSpan,
+        List<LineUnderlineSpan> underlineSpans)
+    {
+        if (token.RunProperties.UnderlineStyle != PptxUnderlineStyle.None &&
+            pendingUnderlineSpan is { } pending && ReferenceEquals(pending.RunProperties, token.RunProperties))
+        {
+            pendingUnderlineSpan = pending with { EndXEmu = tokenEndX };
+            return;
+        }
+
+        if (pendingUnderlineSpan is { } toFlush)
+        {
+            underlineSpans.Add(toFlush);
+        }
+
+        pendingUnderlineSpan = token.RunProperties.UnderlineStyle != PptxUnderlineStyle.None
+            ? new LineUnderlineSpan(tokenStartX, tokenEndX, token.RunProperties)
+            : null;
+    }
+
+    /// <summary>
+    ///     Resolves a line's height and ascent from its tallest token, or from the default font
+    ///     size's nominal proportions for a blank line.
+    /// </summary>
+    /// <param name="tallestFont">The font of the line's tallest token, or <see langword="null"/> for a blank line.</param>
+    /// <param name="tallestSize">The size, in EMU, of the line's tallest token.</param>
+    /// <param name="paraProps">The owning paragraph's resolved effective properties.</param>
+    /// <param name="lineSpacingFactor">The autofit line-spacing reduction factor.</param>
+    /// <returns>The line's height and ascent, in EMU.</returns>
+    private static (float LineHeight, float Ascent) ResolveLineMetrics(
+        TrueTypeFont? tallestFont,
+        float tallestSize,
+        PptxEffectiveParagraphProperties paraProps,
+        float lineSpacingFactor)
+    {
+        if (tallestFont is null)
+        {
+            // Blank line: fall back to the default font size's nominal proportions.
+            return (DefaultFontSizeEmu * 1.2f * lineSpacingFactor, DefaultFontSizeEmu * 0.8f);
+        }
+
+        var naturalHeight = (tallestFont.Ascender - tallestFont.Descender + tallestFont.LineGap) /
+            (float)tallestFont.UnitsPerEm * tallestSize;
+        var ascent = tallestFont.Ascender / (float)tallestFont.UnitsPerEm * tallestSize;
+        var spacingFactor = paraProps.LineSpacing.Percent ?? 1f;
+        var lineHeight = paraProps.LineSpacing.FixedEmu is { } fixedEmu
+            ? fixedEmu * lineSpacingFactor
+            : naturalHeight * spacingFactor * lineSpacingFactor;
+        return (lineHeight, ascent);
     }
 
     /// <summary>
@@ -1105,7 +1218,7 @@ public sealed partial class PptxDocument
         // explicit break boundary implies. A paragraph with no tokens at all (no runs, no
         // breaks) intentionally yields no lines here - BuildLines supplies its own single blank
         // line for that case.
-        if (currentLine.Count > 0 || sawAnyToken)
+        if (sawAnyToken)
         {
             lines.Add(currentLine);
         }
@@ -1151,36 +1264,7 @@ public sealed partial class PptxDocument
             // applied to the first line's own text-X exactly as before (unaffected, pre-existing
             // first-line-indent behavior for non-bulleted paragraphs).
             var hasBullet = line.IsFirstLineOfParagraph && line.BulletGlyphs.Count > 0;
-            var indent = line.IsFirstLineOfParagraph && !hasBullet ? line.ParagraphProperties.IndentEmu : 0f;
-            var lineStartX = insetLeftEmu + marginLeft + indent;
-
-            var startX = line.ParagraphProperties.Alignment switch
-            {
-                "ctr" => insetLeftEmu + marginLeft + MathF.Max(0f, (availableWidthEmu - marginLeft - line.LineWidthEmu) / 2f),
-                "r" => insetLeftEmu + MathF.Max(marginLeft, availableWidthEmu - line.LineWidthEmu),
-                _ => lineStartX,
-            };
-
-            if (hasBullet)
-            {
-                // Gutter-clearance fix: when the paragraph's resolved IndentEmu is zero or not
-                // negative enough to clear the bullet glyph's own rendered width, the unclamped
-                // text-start-X above would sit at or past the bullet's own gutter, overlapping it
-                // (confirmed on a real-world buAutoNum paragraph with marL="320040", lvl="1", no
-                // indent attribute - see the design document). Clamp the text's own start X so it
-                // never shares an X range with the bullet - a no-op whenever the existing gutter
-                // already clears the bullet's width (the already-correct, sufficiently-negative-
-                // indent case). BulletTrailingGapEmu additionally reserves a minimum
-                // PowerPoint-like, tab-stop-style gap beyond the bullet's own width for
-                // PptxBulletKind.AutoNum markers only (0 for every other bullet kind - a no-op
-                // there, see the design document's "buAutoNum gutter-clearance minimum gap" note).
-                // The clamp is applied unconditionally, after startX is resolved for whichever
-                // horizontal alignment the paragraph declares (left/center/right) - a bulleted
-                // paragraph's own text must never overlap its bullet regardless of alignment.
-                var bulletGutterXForClamp = insetLeftEmu + marginLeft + line.ParagraphProperties.IndentEmu;
-                var minTextStartX = bulletGutterXForClamp + line.BulletWidthEmu + line.BulletTrailingGapEmu;
-                startX = MathF.Max(startX, minTextStartX);
-            }
+            var startX = ResolveLineStartX(line, hasBullet, insetLeftEmu, availableWidthEmu);
 
             // Phase 2 Follow-Up: Paragraph Spacing - the leading gap is "space before the line's
             // own box": advance runningY past it before computing this line's baseline, so the
@@ -1222,6 +1306,47 @@ public sealed partial class PptxDocument
         }
 
         return (glyphs, underlines);
+    }
+
+    /// <summary>
+    ///     Resolves a line's text start X (shape-local EMU) from its paragraph's margin, indent,
+    ///     alignment and bullet gutter.
+    /// </summary>
+    /// <param name="line">The line to position.</param>
+    /// <param name="hasBullet">Whether the line paints a bullet in the indent gutter.</param>
+    /// <param name="insetLeftEmu">The left text inset, in EMU.</param>
+    /// <param name="availableWidthEmu">The available text width, in EMU.</param>
+    /// <returns>The line's text start X, in EMU.</returns>
+    private static float ResolveLineStartX(LineBox line, bool hasBullet, float insetLeftEmu, float availableWidthEmu)
+    {
+        var marginLeft = line.ParagraphProperties.MarginLeftEmu;
+
+        // Hanging-indent fix (Phase 2 Follow-Up: Bullets and Numbering): once a bullet glyph
+        // is painted, it alone occupies the indent gutter (marL+indent) - the paragraph's own
+        // text, even on its first line, starts flush at marL. Without a bullet, "indent" is
+        // applied to the first line's own text-X exactly as before.
+        var indent = line.IsFirstLineOfParagraph && !hasBullet ? line.ParagraphProperties.IndentEmu : 0f;
+        var lineStartX = insetLeftEmu + marginLeft + indent;
+
+        var startX = line.ParagraphProperties.Alignment switch
+        {
+            "ctr" => insetLeftEmu + marginLeft + MathF.Max(0f, (availableWidthEmu - marginLeft - line.LineWidthEmu) / 2f),
+            "r" => insetLeftEmu + MathF.Max(marginLeft, availableWidthEmu - line.LineWidthEmu),
+            _ => lineStartX,
+        };
+
+        if (!hasBullet)
+        {
+            return startX;
+        }
+
+        // Gutter-clearance fix: clamp the text's own start X so it never shares an X range with
+        // the bullet - a no-op whenever the existing gutter already clears the bullet's width.
+        // BulletTrailingGapEmu additionally reserves a minimum tab-stop-style gap beyond the
+        // bullet's own width for PptxBulletKind.AutoNum markers only (0 for every other kind).
+        // The clamp applies after startX is resolved for any horizontal alignment.
+        var bulletGutterX = insetLeftEmu + marginLeft + line.ParagraphProperties.IndentEmu;
+        return MathF.Max(startX, bulletGutterX + line.BulletWidthEmu + line.BulletTrailingGapEmu);
     }
 }
 

@@ -171,7 +171,7 @@ public class Jpeg2000FixtureTests
             }
         }
 
-        var mse = squaredError / (expected.Width * expected.Height * 3.0);
+        var mse = squaredError / ((double)expected.Width * expected.Height * 3.0);
         var psnr = 10 * Math.Log10(255.0 * 255.0 / mse);
         Assert.True(psnr >= 30, $"PSNR {psnr:F1} dB below 30 dB");
     }

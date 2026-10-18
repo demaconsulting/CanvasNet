@@ -91,7 +91,7 @@ public sealed partial class VsdxDocument
     ///     to whether the layer is shown on screen (<c>Visible</c>) and in print/export
     ///     (<c>Print</c>), in the same order as <see cref="_pages"/>.
     /// </summary>
-    private IReadOnlyList<IReadOnlyDictionary<int, bool>> _pageLayers = [];
+    private List<IReadOnlyDictionary<int, bool>> _pageLayers = [];
 
     /// <summary>
     ///     Parses a <c>&lt;Page&gt;</c>'s layer table. A layer is considered shown (the value
@@ -162,7 +162,7 @@ public sealed partial class VsdxDocument
     /// <summary>
     ///     The parsed page index, in document order, set by <see cref="InitializePages"/>.
     /// </summary>
-    private IReadOnlyList<VsdxPageInfo> _pages = [];
+    private List<VsdxPageInfo> _pages = [];
 
     /// <summary>
     ///     Each page's own content part path (<c>visio/pages/pageN.xml</c>), resolved via that
@@ -170,7 +170,7 @@ public sealed partial class VsdxDocument
     ///     same order as <see cref="_pages"/>. Set by <see cref="InitializePages"/>; consumed by
     ///     <c>VsdxDocument.Shapes.cs</c>'s shape-tree parser.
     /// </summary>
-    private IReadOnlyList<string> _pageContentPartPaths = [];
+    private List<string> _pageContentPartPaths = [];
 
     /// <summary>
     ///     Returns the given page's own content part path (<c>visio/pages/pageN.xml</c>),

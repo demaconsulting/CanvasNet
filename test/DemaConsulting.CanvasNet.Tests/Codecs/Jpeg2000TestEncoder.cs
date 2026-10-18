@@ -951,7 +951,7 @@ internal static partial class Jpeg2000TestEncoder
             {
                 for (var i = 0; i < pb.Blocks.Length; i++)
                 {
-                    WriteBlockContribution(o, pb, i, layer, bw, body);
+                    WriteBlockContribution(pb, i, layer, bw, body);
                 }
             }
         }
@@ -967,7 +967,7 @@ internal static partial class Jpeg2000TestEncoder
         return new Packet { Sop = sop, Header = [.. header], Data = [.. body] };
     }
 
-    private static void WriteBlockContribution(J2kOptions o, EPrecBand pb, int i, int layer, HeaderBitWriter bw, List<byte> body)
+    private static void WriteBlockContribution(EPrecBand pb, int i, int layer, HeaderBitWriter bw, List<byte> body)
     {
         var block = pb.Blocks[i];
         var n = PassesInLayer(pb, i, layer);

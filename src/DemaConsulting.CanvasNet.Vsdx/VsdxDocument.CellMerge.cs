@@ -281,7 +281,7 @@ public sealed partial class VsdxDocument
     ///     <c>0</c>, corrupting the resolved path into a diagonal "zigzag"/degenerate shape. See
     ///     this milestone's own completion report for the fuller root-cause trace.
     /// </remarks>
-    private static IReadOnlyList<VsdxGeometryRowRaw> MergeGeometryRows(
+    private static List<VsdxGeometryRowRaw> MergeGeometryRows(
         IReadOnlyList<VsdxGeometryRowRaw> instanceRows,
         IReadOnlyList<VsdxGeometryRowRaw>? masterRows)
     {
@@ -451,7 +451,7 @@ internal static class VsdxCellBagMerge
     /// <param name="first">The first bag to collect names from.</param>
     /// <param name="second">The second bag to collect names from.</param>
     /// <returns>The union of cell names.</returns>
-    private static IReadOnlyCollection<string> CollectCellNames(VsdxCellBag first, VsdxCellBag second)
+    private static HashSet<string> CollectCellNames(VsdxCellBag first, VsdxCellBag second)
     {
         var names = new HashSet<string>(first.Names, StringComparer.Ordinal);
         names.UnionWith(second.Names);

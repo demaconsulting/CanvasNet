@@ -230,7 +230,8 @@ public class PdfDocumentMeshShadingTests
 
     private static Canvas.Surface Render(byte[] pdf)
     {
-        using var document = PdfDocument.Open(new MemoryStream(pdf));
+        using var stream = new MemoryStream(pdf);
+        using var document = PdfDocument.Open(stream);
         return document.Render(0, 100, 100, Transparent);
     }
 

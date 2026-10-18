@@ -276,66 +276,23 @@ public sealed partial class PdfDocument
         var encryptMetadata = GetBooleanEntry(encryptDict, "EncryptMetadata", true);
         var idBytes = GetDocumentIdBytes(trailer);
 
+        var encryption = new EncryptionParameters(
+            revision, keyLengthBytes, oBytes, uBytes, permissions, encryptMetadata, idBytes);
+
         switch (version)
         {
             case 1:
             case 2:
-                InitializeRc4OrAesV2Encryption(
-                    EncryptionCipher.Rc4,
-                    revision,
-                    keyLengthBytes,
-                    oBytes,
-                    uBytes,
-                    permissions,
-                    encryptMetadata,
-                    idBytes,
-                    password);
+                InitializeRc4OrAesV2Encryption(EncryptionCipher.Rc4, encryption, password);
                 break;
 
             case 4:
                 ValidateStandardCryptFilterName(encryptDict, "AESV2");
-                InitializeRc4OrAesV2Encryption(
-                    EncryptionCipher.Aes128,
-                    revision,
-                    keyLengthBytes,
-                    oBytes,
-                    uBytes,
-                    permissions,
-                    encryptMetadata,
-                    idBytes,
-                    password);
+                InitializeRc4OrAesV2Encryption(EncryptionCipher.Aes128, encryption, password);
                 break;
 
             case 5:
-                if (revision is not (5 or 6))
-                {
-                    throw new UnsupportedImageFeatureException(
-                        $"pdf-encrypted-r-{revision}",
-                        $"Encrypted PDF /V 5 with /R {revision} is not supported.");
-                }
-
-                ValidateStandardCryptFilterName(encryptDict, "AESV3");
-                var ueBytes = GetRequiredBytesEntry(encryptDict, "UE");
-
-                byte[] r5PasswordBytes = password is null ? [] : EncodeR5PasswordBytes(password);
-                var r5FileKey = TryComputeFileKeyAlgorithm2A(r5PasswordBytes, uBytes, ueBytes, revision);
-                if (r5FileKey is null && password is not null)
-                {
-                    var oeBytes = GetRequiredBytesEntry(encryptDict, "OE");
-                    r5FileKey = TryComputeFileKeyAlgorithm2AOwnerPassword(r5PasswordBytes, oBytes, oeBytes, uBytes, revision);
-                }
-
-                if (r5FileKey is null)
-                {
-                    throw new UnsupportedImageFeatureException(
-                        password is null ? "pdf-encrypted-password-required" : "pdf-encrypted-incorrect-password",
-                        password is null
-                            ? "This encrypted PDF document requires a non-empty user password, which was not supplied."
-                            : "The supplied password does not authenticate as either the user or the owner password for this encrypted PDF document.");
-                }
-
-                _encryptionKey = r5FileKey;
-                _encryptionCipher = EncryptionCipher.Aes256;
+                InitializeAesV3Encryption(encryptDict, revision, oBytes, uBytes, password);
                 break;
 
             default:
@@ -380,6 +337,55 @@ public sealed partial class PdfDocument
         _objectCache.Clear();
     }
 
+    /// <summary>The Encrypt dictionary values shared by the legacy RC4/AESV2 key-derivation path.</summary>
+    private readonly record struct EncryptionParameters(
+        int Revision,
+        int KeyLengthBytes,
+        byte[] OBytes,
+        byte[] UBytes,
+        int Permissions,
+        bool EncryptMetadata,
+        byte[] IdBytes);
+
+    /// <summary>Builds the exception for a failed password authentication.</summary>
+    private static UnsupportedImageFeatureException CreateAuthenticationFailure(string? password) =>
+        new(
+            password is null ? "pdf-encrypted-password-required" : "pdf-encrypted-incorrect-password",
+            password is null
+                ? "This encrypted PDF document requires a non-empty user password, which was not supplied."
+                : "The supplied password does not authenticate as either the user or the owner password for this encrypted PDF document.");
+
+    /// <summary>Initializes <c>/V 5</c> (AES-256, <c>/R 5</c> or <c>/R 6</c>) encryption.</summary>
+    /// <exception cref="UnsupportedImageFeatureException">Thrown for unsupported revisions, crypt filters, or failed authentication.</exception>
+    private void InitializeAesV3Encryption(
+        PdfObject encryptDict,
+        int revision,
+        byte[] oBytes,
+        byte[] uBytes,
+        string? password)
+    {
+        if (revision is not (5 or 6))
+        {
+            throw new UnsupportedImageFeatureException(
+                $"pdf-encrypted-r-{revision}",
+                $"Encrypted PDF /V 5 with /R {revision} is not supported.");
+        }
+
+        ValidateStandardCryptFilterName(encryptDict, "AESV3");
+        var ueBytes = GetRequiredBytesEntry(encryptDict, "UE");
+
+        byte[] r5PasswordBytes = password is null ? [] : EncodeR5PasswordBytes(password);
+        var r5FileKey = TryComputeFileKeyAlgorithm2A(r5PasswordBytes, uBytes, ueBytes, revision);
+        if (r5FileKey is null && password is not null)
+        {
+            var oeBytes = GetRequiredBytesEntry(encryptDict, "OE");
+            r5FileKey = TryComputeFileKeyAlgorithm2AOwnerPassword(r5PasswordBytes, oBytes, oeBytes, uBytes, revision);
+        }
+
+        _encryptionKey = r5FileKey ?? throw CreateAuthenticationFailure(password);
+        _encryptionCipher = EncryptionCipher.Aes256;
+    }
+
     /// <summary>
     ///     Shared RC4/AES-128 initialization path for <c>/V 1</c>/<c>/V 2</c> (RC4) and <c>/V 4</c>
     ///     (AESV2): derives a file key candidate via ISO 32000-1 Algorithm 2 and authenticates it
@@ -391,14 +397,10 @@ public sealed partial class PdfDocument
     ///     Throws <see cref="UnsupportedImageFeatureException"/> when neither attempt authenticates.
     /// </summary>
     /// <param name="cipher">The resolved cipher to use for every subsequent string/stream decrypt.</param>
-    /// <param name="revision">The Encrypt dictionary's <c>/R</c> entry.</param>
-    /// <param name="keyLengthBytes">The file key length in bytes.</param>
-    /// <param name="oBytes">The Encrypt dictionary's raw <c>/O</c> entry bytes.</param>
-    /// <param name="uBytes">The Encrypt dictionary's raw <c>/U</c> entry bytes.</param>
-    /// <param name="permissions">The Encrypt dictionary's <c>/P</c> entry.</param>
-    /// <param name="encryptMetadata">The Encrypt dictionary's <c>/EncryptMetadata</c> entry.</param>
-    /// <param name="idBytes">The trailer's <c>/ID</c> array's first element's raw bytes.</param>
-    /// <param name="password">
+    /// <param name="encryption">
+    ///     The Encrypt dictionary's <c>/R</c>, key length, <c>/O</c>, <c>/U</c>, <c>/P</c>,
+    ///     <c>/EncryptMetadata</c> values and the trailer's first <c>/ID</c> element bytes.
+    /// </param>    /// <param name="password">
     ///     An optional password to authenticate with - see <see cref="InitializeEncryption(PdfObject, string?)"/>'s
     ///     own remarks for the full user-then-owner attempt order and encoding scope boundaries.
     /// </param>
@@ -412,15 +414,10 @@ public sealed partial class PdfDocument
     /// </exception>
     private void InitializeRc4OrAesV2Encryption(
         EncryptionCipher cipher,
-        int revision,
-        int keyLengthBytes,
-        byte[] oBytes,
-        byte[] uBytes,
-        int permissions,
-        bool encryptMetadata,
-        byte[] idBytes,
+        EncryptionParameters encryption,
         string? password)
     {
+        var (revision, keyLengthBytes, oBytes, uBytes, permissions, encryptMetadata, idBytes) = encryption;
         var paddedPasswordBytes = password is null ? PasswordPadding : PadPasswordBytes(EncodeR2R4PasswordBytes(password));
 
         var fileKey = ComputeFileKeyAlgorithm2(paddedPasswordBytes, oBytes, permissions, idBytes, keyLengthBytes, revision, encryptMetadata);
@@ -443,11 +440,7 @@ public sealed partial class PdfDocument
 
         if (!authenticated)
         {
-            throw new UnsupportedImageFeatureException(
-                password is null ? "pdf-encrypted-password-required" : "pdf-encrypted-incorrect-password",
-                password is null
-                    ? "This encrypted PDF document requires a non-empty user password, which was not supplied."
-                    : "The supplied password does not authenticate as either the user or the owner password for this encrypted PDF document.");
+            throw CreateAuthenticationFailure(password);
         }
 
         _encryptionKey = fileKey;

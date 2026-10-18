@@ -568,7 +568,7 @@ public static partial class SvgCodec
     ///     <see langword="null"/> if <paramref name="fonts"/> is <see langword="null"/>; otherwise
     ///     a new dictionary with the same family-name keys, each mapped to a single-element face list.
     /// </returns>
-    private static IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? ToFontFaces(IReadOnlyDictionary<string, TrueTypeFont>? fonts)
+    private static Dictionary<string, IReadOnlyList<SvgFontFace>>? ToFontFaces(IReadOnlyDictionary<string, TrueTypeFont>? fonts)
     {
         if (fonts == null)
         {

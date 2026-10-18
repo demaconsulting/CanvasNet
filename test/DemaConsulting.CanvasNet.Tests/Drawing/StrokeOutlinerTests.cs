@@ -610,7 +610,7 @@ public class StrokeOutlinerTests
             $"Expected oppositely-wound non-zero rings, but got outerArea={outerArea}, innerArea={innerArea}.");
     }
 
-    private static float GetSignedArea(IReadOnlyList<Vector2> points)
+    private static float GetSignedArea(List<Vector2> points)
     {
         var area = 0f;
         for (var i = 0; i < points.Count; i++)
@@ -628,7 +628,7 @@ public class StrokeOutlinerTests
     ///     near-extreme float32 coordinates where the float32 shoelace computation itself would
     ///     overflow before the assertion could even inspect the true sign.
     /// </summary>
-    private static double GetSignedAreaDouble(IReadOnlyList<Vector2> points)
+    private static double GetSignedAreaDouble(List<Vector2> points)
     {
         var area = 0.0;
         for (var i = 0; i < points.Count; i++)
@@ -645,7 +645,7 @@ public class StrokeOutlinerTests
     ///     Determines whether a point lies within a simple polygon using the standard ray-casting
     ///     (even-odd crossing) test.
     /// </summary>
-    private static bool IsPointInPolygon(Vector2 point, IReadOnlyList<Vector2> polygon)
+    private static bool IsPointInPolygon(Vector2 point, List<Vector2> polygon)
     {
         var inside = false;
         for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)

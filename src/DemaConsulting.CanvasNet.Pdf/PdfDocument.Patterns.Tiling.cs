@@ -45,13 +45,13 @@ public sealed partial class PdfDocument
         }
 
         var xStep = RequireNumberEntry(patternStream, "XStep");
-        if (!double.IsFinite(xStep) || xStep == 0)
+        if (!double.IsFinite(xStep) || xStep.Equals(0d))
         {
             throw new InvalidDataException("/XStep must be a finite, non-zero number.");
         }
 
         var yStep = RequireNumberEntry(patternStream, "YStep");
-        if (!double.IsFinite(yStep) || yStep == 0)
+        if (!double.IsFinite(yStep) || yStep.Equals(0d))
         {
             throw new InvalidDataException("/YStep must be a finite, non-zero number.");
         }

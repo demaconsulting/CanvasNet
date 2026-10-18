@@ -18,6 +18,24 @@ namespace DemaConsulting.CanvasNet.Pptx;
 public sealed partial class PptxDocument
 {
     /// <summary>
+    ///     The resolvers and containment flag threaded unchanged through every
+    ///     <see cref="ParseShapeTree"/> recursion level - see its matching parameters.
+    /// </summary>
+    /// <param name="ThemeResolver">Lazily resolves the slide's theme.</param>
+    /// <param name="TableStyleResolver">Lazily resolves a table style by ID, or <see langword="null"/>.</param>
+    /// <param name="ColorMapResolver">Lazily resolves the effective color map, or <see langword="null"/>.</param>
+    /// <param name="ContainUnsupportedGraphicFrames">Whether an unsupported graphic frame is skipped instead of thrown.</param>
+    /// <param name="ResolveBlipImage">Resolves a blip to a surface, or <see langword="null"/>.</param>
+    /// <param name="ResolveChartPart">Resolves a chart relationship ID to its part root, or <see langword="null"/>.</param>
+    private readonly record struct ShapeTreeParseContext(
+        Func<PptxTheme> ThemeResolver,
+        Func<string, XElement?>? TableStyleResolver,
+        Func<PptxColorMap>? ColorMapResolver,
+        bool ContainUnsupportedGraphicFrames,
+        Func<XElement, Surface>? ResolveBlipImage,
+        Func<string, XElement>? ResolveChartPart);
+
+    /// <summary>
     ///     The maximum number of nested <c>&lt;p:grpSp&gt;</c> levels <see cref="ParseShapeTree"/>
     ///     (and, mirroring it at render time, <c>PptxDocument.Render.cs</c>'s own
     ///     <c>RenderNode</c>) will recurse into before failing closed, bounding the worst-case
@@ -152,20 +170,34 @@ public sealed partial class PptxDocument
     ///     preserving every pre-existing call site's exact behavior unchanged. Threaded through
     ///     the recursive <c>&lt;p:grpSp&gt;</c> self-call unchanged.
     /// </param>
-    /// <param name="depth">
-    ///     The number of <c>&lt;p:grpSp&gt;</c> levels already entered to reach
-    ///     <paramref name="spTreeOrGroupElement"/> (<c>0</c> for the slide/layout/master's own
-    ///     top-level <c>&lt;p:spTree&gt;</c>, the default for every pre-existing call site).
-    ///     Incremented on the recursive <c>&lt;p:grpSp&gt;</c> self-call; once it would exceed
-    ///     <see cref="MaxGroupShapeNestingDepth"/>, that nested group's own children are not
-    ///     walked and an <see cref="InvalidDataException"/> is thrown instead - see
-    ///     <see cref="MaxGroupShapeNestingDepth"/>'s own remarks for why this bound exists.
-    /// </param>
     internal static IReadOnlyList<PptxShapeTreeNode> ParseShapeTree(
         XElement spTreeOrGroupElement, Func<PptxTheme> themeResolver, Func<string, XElement?>? tableStyleResolver = null,
         Func<PptxColorMap>? colorMapResolver = null, bool containUnsupportedGraphicFrames = false,
-        Func<XElement, Surface>? resolveBlipImage = null, Func<string, XElement>? resolveChartPart = null,
-        int depth = 0)
+        Func<XElement, Surface>? resolveBlipImage = null, Func<string, XElement>? resolveChartPart = null)
+    {
+        var context = new ShapeTreeParseContext(
+            themeResolver, tableStyleResolver, colorMapResolver, containUnsupportedGraphicFrames, resolveBlipImage, resolveChartPart);
+        return ParseShapeTreeCore(spTreeOrGroupElement, context, 0);
+    }
+
+    /// <summary>
+    ///     The recursive worker behind <see cref="ParseShapeTree"/>, threading the unchanged
+    ///     resolvers through every nested <c>&lt;p:grpSp&gt;</c> level.
+    /// </summary>
+    /// <param name="spTreeOrGroupElement">See <see cref="ParseShapeTree"/>.</param>
+    /// <param name="context">The resolvers and containment flag - see <see cref="ParseShapeTree"/>'s matching parameters.</param>
+    /// <param name="depth">
+    ///     The number of <c>&lt;p:grpSp&gt;</c> levels already entered to reach
+    ///     <paramref name="spTreeOrGroupElement"/> (<c>0</c> for the slide/layout/master's own
+    ///     top-level <c>&lt;p:spTree&gt;</c>). Incremented on the recursive <c>&lt;p:grpSp&gt;</c>
+    ///     call; once it would exceed <see cref="MaxGroupShapeNestingDepth"/>, that nested group's
+    ///     own children are not walked and an <see cref="InvalidDataException"/> is thrown instead
+    ///     - see <see cref="MaxGroupShapeNestingDepth"/>'s own remarks for why this bound exists.
+    /// </param>
+    /// <returns>The recognized shape-tree nodes, in document order.</returns>
+    /// <exception cref="InvalidDataException">See <see cref="ParseShapeTree"/>.</exception>
+    private static List<PptxShapeTreeNode> ParseShapeTreeCore(
+        XElement spTreeOrGroupElement, ShapeTreeParseContext context, int depth)
     {
         var nodes = new List<PptxShapeTreeNode>();
 
@@ -181,42 +213,11 @@ public sealed partial class PptxDocument
             }
             else if (child.Name == PresentationNamespace + "graphicFrame")
             {
-                try
-                {
-                    var graphicData = child.Element(DrawingNamespace + "graphic")?.Element(DrawingNamespace + "graphicData");
-                    var uri = (string?)graphicData?.Attribute("uri") ?? string.Empty;
-                    if (resolveChartPart is not null && graphicData is not null && uri.EndsWith("/chart", StringComparison.Ordinal))
-                    {
-                        nodes.Add(new PptxGraphicFrameShapeNode(child, Table: null, Chart: ParseChart(graphicData, resolveChartPart)));
-                    }
-                    else
-                    {
-                        nodes.Add(new PptxGraphicFrameShapeNode(
-                            child, ParseTable(child, themeResolver(), colorMapResolver?.Invoke(), tableStyleResolver, resolveBlipImage), Chart: null));
-                    }
-                }
-                catch (PptxUnsupportedFeatureException) when (containUnsupportedGraphicFrames)
-                {
-                    // A master/layout-owned graphic frame of an unsupported (non-table, non-chart,
-                    // or recognized-but-unsupported chart) kind is skipped rather than aborting
-                    // this entire cached shape tree - see this parameter's own XmlDoc remarks.
-                }
+                TryAddGraphicFrameNode(nodes, child, context);
             }
             else if (child.Name == PresentationNamespace + "grpSp")
             {
-                if (depth >= MaxGroupShapeNestingDepth)
-                {
-                    throw new InvalidDataException(
-                        $"A <p:grpSp> element is nested beyond the maximum supported depth of {MaxGroupShapeNestingDepth} levels.");
-                }
-
-                var groupXfrm = child.Element(PresentationNamespace + "grpSpPr")?.Element(DrawingNamespace + "xfrm") ??
-                    throw new InvalidDataException("A <p:grpSp> element has no <p:grpSpPr>/<a:xfrm> element.");
-                var childTransform = ResolveGroupChildTransform(groupXfrm);
-                var children = ParseShapeTree(
-                    child, themeResolver, tableStyleResolver, colorMapResolver, containUnsupportedGraphicFrames,
-                    resolveBlipImage, resolveChartPart, depth + 1);
-                nodes.Add(new PptxGroupShapeNode(child, childTransform, children));
+                nodes.Add(ParseGroupNode(child, context, depth));
             }
             else if (child.Name == PresentationNamespace + "cxnSp")
             {
@@ -228,5 +229,64 @@ public sealed partial class PptxDocument
         }
 
         return nodes;
+    }
+
+    /// <summary>
+    ///     Parses a <c>&lt;p:graphicFrame&gt;</c> into a table or chart node and appends it,
+    ///     skipping it instead when an unsupported kind is contained.
+    /// </summary>
+    /// <param name="nodes">The list receiving the parsed node.</param>
+    /// <param name="graphicFrame">The <c>&lt;p:graphicFrame&gt;</c> element.</param>
+    /// <param name="context">See <see cref="ParseShapeTree"/>'s matching parameters.</param>
+    private static void TryAddGraphicFrameNode(
+        List<PptxShapeTreeNode> nodes, XElement graphicFrame, ShapeTreeParseContext context)
+    {
+        try
+        {
+            var graphicData = graphicFrame.Element(DrawingNamespace + "graphic")?.Element(DrawingNamespace + "graphicData");
+            var uri = (string?)graphicData?.Attribute("uri") ?? string.Empty;
+            if (context.ResolveChartPart is not null && graphicData is not null && uri.EndsWith("/chart", StringComparison.Ordinal))
+            {
+                nodes.Add(new PptxGraphicFrameShapeNode(graphicFrame, Table: null, Chart: ParseChart(graphicData, context.ResolveChartPart)));
+            }
+            else
+            {
+                nodes.Add(new PptxGraphicFrameShapeNode(
+                    graphicFrame,
+                    ParseTable(graphicFrame, context.ThemeResolver(), context.ColorMapResolver?.Invoke(), context.TableStyleResolver, context.ResolveBlipImage),
+                    Chart: null));
+            }
+        }
+        catch (PptxUnsupportedFeatureException) when (context.ContainUnsupportedGraphicFrames)
+        {
+            // A master/layout-owned graphic frame of an unsupported (non-table, non-chart,
+            // or recognized-but-unsupported chart) kind is skipped rather than aborting
+            // this entire cached shape tree - see ParseShapeTree's own XmlDoc remarks.
+        }
+    }
+
+    /// <summary>
+    ///     Parses a <c>&lt;p:grpSp&gt;</c> element and its children into a group node.
+    /// </summary>
+    /// <param name="group">The <c>&lt;p:grpSp&gt;</c> element.</param>
+    /// <param name="context">See <see cref="ParseShapeTree"/>'s matching parameters.</param>
+    /// <param name="depth">The number of group levels already entered.</param>
+    /// <returns>The parsed group node.</returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the group is nested too deeply or has no <c>&lt;p:grpSpPr&gt;/&lt;a:xfrm&gt;</c>.
+    /// </exception>
+    private static PptxGroupShapeNode ParseGroupNode(XElement group, ShapeTreeParseContext context, int depth)
+    {
+        if (depth >= MaxGroupShapeNestingDepth)
+        {
+            throw new InvalidDataException(
+                $"A <p:grpSp> element is nested beyond the maximum supported depth of {MaxGroupShapeNestingDepth} levels.");
+        }
+
+        var groupXfrm = group.Element(PresentationNamespace + "grpSpPr")?.Element(DrawingNamespace + "xfrm") ??
+            throw new InvalidDataException("A <p:grpSp> element has no <p:grpSpPr>/<a:xfrm> element.");
+        var childTransform = ResolveGroupChildTransform(groupXfrm);
+        var children = ParseShapeTreeCore(group, context, depth + 1);
+        return new PptxGroupShapeNode(group, childTransform, children);
     }
 }

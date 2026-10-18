@@ -101,33 +101,40 @@ public static partial class SvgCodec
         var edgeMode = ReadConvolveEdgeMode(element);
         var preserveAlpha = string.Equals(((string?)element.Attribute("preserveAlpha"))?.Trim(), "true", StringComparison.OrdinalIgnoreCase);
 
+        var kernel = new ConvolveKernel(order, kernelMatrix, divisor, bias, targetX, targetY, edgeMode);
         return preserveAlpha
-            ? ApplyConvolveMatrixPreservingAlpha(input, order, kernelMatrix, divisor, bias, targetX, targetY, edgeMode)
-            : ApplyConvolveMatrixPremultiplied(input, order, kernelMatrix, divisor, bias, targetX, targetY, edgeMode);
+            ? ApplyConvolveMatrixPreservingAlpha(input, kernel)
+            : ApplyConvolveMatrixPremultiplied(input, kernel);
     }
+
+    /// <summary>
+    ///     The resolved <c>feConvolveMatrix</c> kernel parameters.
+    /// </summary>
+    /// <param name="Order">The kernel order.</param>
+    /// <param name="KernelMatrix">The kernel coefficients.</param>
+    /// <param name="Divisor">The effective divisor.</param>
+    /// <param name="Bias">The additive bias.</param>
+    /// <param name="TargetX">The target X index.</param>
+    /// <param name="TargetY">The target Y index.</param>
+    /// <param name="EdgeMode">The edge-sampling behavior.</param>
+    private readonly record struct ConvolveKernel(
+        (int X, int Y) Order,
+        List<float> KernelMatrix,
+        float Divisor,
+        float Bias,
+        int TargetX,
+        int TargetY,
+        ConvolveEdgeMode EdgeMode);
 
     /// <summary>
     ///     Applies <c>feConvolveMatrix</c> in premultiplied-alpha space.
     /// </summary>
     /// <param name="input">The already-resolved input buffer.</param>
-    /// <param name="order">The kernel order.</param>
-    /// <param name="kernelMatrix">The kernel coefficients.</param>
-    /// <param name="divisor">The effective divisor.</param>
-    /// <param name="bias">The additive bias.</param>
-    /// <param name="targetX">The target X index.</param>
-    /// <param name="targetY">The target Y index.</param>
-    /// <param name="edgeMode">The edge-sampling behavior.</param>
+    /// <param name="kernel">The resolved kernel parameters.</param>
     /// <returns>A new, independent output buffer.</returns>
-    private static Surface ApplyConvolveMatrixPremultiplied(
-        Surface input,
-        (int X, int Y) order,
-        IReadOnlyList<float> kernelMatrix,
-        float divisor,
-        float bias,
-        int targetX,
-        int targetY,
-        ConvolveEdgeMode edgeMode)
+    private static Surface ApplyConvolveMatrixPremultiplied(Surface input, ConvolveKernel kernel)
     {
+        var (order, kernelMatrix, divisor, bias, targetX, targetY, edgeMode) = kernel;
         var working = input.Crop(0, 0, input.Width, input.Height);
         working.PremultiplyAlpha();
         var output = new Surface(working.Width, working.Height);
@@ -176,24 +183,11 @@ public static partial class SvgCodec
     ///     Applies <c>feConvolveMatrix</c> while preserving the input alpha channel.
     /// </summary>
     /// <param name="input">The already-resolved input buffer.</param>
-    /// <param name="order">The kernel order.</param>
-    /// <param name="kernelMatrix">The kernel coefficients.</param>
-    /// <param name="divisor">The effective divisor.</param>
-    /// <param name="bias">The additive bias.</param>
-    /// <param name="targetX">The target X index.</param>
-    /// <param name="targetY">The target Y index.</param>
-    /// <param name="edgeMode">The edge-sampling behavior.</param>
+    /// <param name="kernel">The resolved kernel parameters.</param>
     /// <returns>A new, independent output buffer.</returns>
-    private static Surface ApplyConvolveMatrixPreservingAlpha(
-        Surface input,
-        (int X, int Y) order,
-        IReadOnlyList<float> kernelMatrix,
-        float divisor,
-        float bias,
-        int targetX,
-        int targetY,
-        ConvolveEdgeMode edgeMode)
+    private static Surface ApplyConvolveMatrixPreservingAlpha(Surface input, ConvolveKernel kernel)
     {
+        var (order, kernelMatrix, divisor, bias, targetX, targetY, edgeMode) = kernel;
         var output = new Surface(input.Width, input.Height);
         for (var y = 0; y < input.Height; y++)
         {

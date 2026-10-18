@@ -378,6 +378,21 @@ public static partial class PngCodec
     /// </exception>
     private static void ValidateChunkLengthBeforeAllocation(byte[] typeBytes, uint length, ChunkReadState state)
     {
+        ValidateIhdrPlacement(typeBytes, length, state);
+        ValidateTypeSpecificLength(typeBytes, length, state);
+        ValidateIdatOrCriticalChunk(typeBytes, state);
+    }
+
+    /// <summary>
+    ///     Validates IHDR placement: the first chunk must be a 13-byte <c>IHDR</c>, and no later
+    ///     chunk may be a second <c>IHDR</c>.
+    /// </summary>
+    /// <param name="typeBytes">The chunk's 4-byte type field.</param>
+    /// <param name="length">The chunk's declared data length.</param>
+    /// <param name="state">The in-progress chunk-read state.</param>
+    /// <exception cref="System.IO.InvalidDataException">Thrown on a misplaced, duplicate, or mis-sized <c>IHDR</c>.</exception>
+    private static void ValidateIhdrPlacement(byte[] typeBytes, uint length, ChunkReadState state)
+    {
         if (!state.IhdrSeen)
         {
             if (!ChunkTypeIs(typeBytes, "IHDR"))
@@ -398,7 +413,18 @@ public static partial class PngCodec
             // payload has already been allocated and read
             throw new InvalidDataException("Duplicate IHDR chunk.");
         }
+    }
 
+    /// <summary>
+    ///     Validates the declared length of a <c>PLTE</c>, <c>tRNS</c>, or <c>IEND</c> chunk
+    ///     against its type-specific maximum.
+    /// </summary>
+    /// <param name="typeBytes">The chunk's 4-byte type field.</param>
+    /// <param name="length">The chunk's declared data length.</param>
+    /// <param name="state">The in-progress chunk-read state.</param>
+    /// <exception cref="System.IO.InvalidDataException">Thrown when the declared length exceeds the type's maximum.</exception>
+    private static void ValidateTypeSpecificLength(byte[] typeBytes, uint length, ChunkReadState state)
+    {
         if (ChunkTypeIs(typeBytes, "PLTE"))
         {
             if (length > MaxPlteDataLength)
@@ -438,7 +464,17 @@ public static partial class PngCodec
             throw new InvalidDataException(
                 $"IEND chunk must have an empty payload, but declared {length} bytes.");
         }
+    }
 
+    /// <summary>
+    ///     Rejects an <c>IDAT</c> chunk after the <c>IDAT</c> run has ended, and any
+    ///     unrecognized critical chunk encountered after <c>IHDR</c>.
+    /// </summary>
+    /// <param name="typeBytes">The chunk's 4-byte type field.</param>
+    /// <param name="state">The in-progress chunk-read state.</param>
+    /// <exception cref="System.IO.InvalidDataException">Thrown for a non-consecutive <c>IDAT</c> or an unrecognized critical chunk.</exception>
+    private static void ValidateIdatOrCriticalChunk(byte[] typeBytes, ChunkReadState state)
+    {
         if (ChunkTypeIs(typeBytes, "IDAT"))
         {
             // The PNG specification requires every IDAT chunk to be consecutive; once the run
@@ -869,6 +905,37 @@ public static partial class PngCodec
                 $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
         }
 
+        ValidateIhdrFieldValues(bitDepth, colorType, compressionMethod, filterMethod, interlaceMethod);
+
+        if (validateDecodability && interlaceMethod == InterlaceAdam7)
+        {
+            throw new UnsupportedImageFeatureException(
+                "png-adam7-interlace",
+                "Adam7 interlacing is not supported by Load; use GetInfo to obtain this file's " +
+                "declared dimensions without decoding its pixel data.");
+        }
+
+        return (width, height, colorType, bitDepth, interlaceMethod);
+    }
+
+    /// <summary>
+    ///     Validates an IHDR chunk's bit depth, color type, compression method, filter method,
+    ///     and interlace method against the values the PNG specification defines and this codec
+    ///     supports.
+    /// </summary>
+    /// <param name="bitDepth">The IHDR bit depth.</param>
+    /// <param name="colorType">The IHDR color type.</param>
+    /// <param name="compressionMethod">The IHDR compression method.</param>
+    /// <param name="filterMethod">The IHDR filter method.</param>
+    /// <param name="interlaceMethod">The IHDR interlace method.</param>
+    /// <exception cref="System.IO.InvalidDataException">Thrown when any value is invalid or unsupported.</exception>
+    private static void ValidateIhdrFieldValues(
+        int bitDepth,
+        int colorType,
+        byte compressionMethod,
+        byte filterMethod,
+        byte interlaceMethod)
+    {
         if (bitDepth is not (1 or 2 or 4 or 8 or 16))
         {
             throw new InvalidDataException(
@@ -910,16 +977,6 @@ public static partial class PngCodec
                 $"Invalid PNG interlace method {interlaceMethod}; only 0 (none) and 1 (Adam7) " +
                 "are defined by the PNG specification.");
         }
-
-        if (validateDecodability && interlaceMethod == InterlaceAdam7)
-        {
-            throw new UnsupportedImageFeatureException(
-                "png-adam7-interlace",
-                "Adam7 interlacing is not supported by Load; use GetInfo to obtain this file's " +
-                "declared dimensions without decoding its pixel data.");
-        }
-
-        return (width, height, colorType, bitDepth, interlaceMethod);
     }
 
 

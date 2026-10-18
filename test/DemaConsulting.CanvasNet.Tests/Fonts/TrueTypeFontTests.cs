@@ -626,8 +626,8 @@ public class TrueTypeFontTests
 
         // Assert: the font loads successfully and the CFF outline is decoded
         Assert.Equal(1, font.GlyphCount);
-        Assert.Single(outline.Subpaths);
-        Assert.Contains(outline.Subpaths[0].Commands, c => c.Type == PathCommandType.LineTo);
+        var outlineItem = Assert.Single(outline.Subpaths);
+        Assert.Contains(outlineItem.Commands, c => c.Type == PathCommandType.LineTo);
     }
 
     /// <summary>
@@ -1469,8 +1469,8 @@ public class TrueTypeFontTests
         Assert.Equal(700, font.GetAdvanceWidth(glyphIndexA));
 
         var outline = font.GetGlyphOutline(glyphIndexA);
-        Assert.Single(outline.Subpaths);
-        Assert.Contains(outline.Subpaths[0].Commands, c => c.Type == PathCommandType.LineTo);
+        var outlineItem = Assert.Single(outline.Subpaths);
+        Assert.Contains(outlineItem.Commands, c => c.Type == PathCommandType.LineTo);
 
         var glyphIndexSpace = font.GetGlyphIndex(' ');
         Assert.NotEqual(0, glyphIndexSpace);

@@ -34,7 +34,7 @@ public static partial class ChartRenderer
     ///     intentional, not a naming oversight: a Pie/Doughnut's "series" in the legend sense is
     ///     really each wedge/point, not <see cref="Chart.Series"/> itself.
     /// </remarks>
-    private static IReadOnlyList<LegendEntry> GetLegendEntries(Chart chart, ChartRenderOptions options)
+    private static List<LegendEntry> GetLegendEntries(Chart chart, ChartRenderOptions options)
     {
         if (chart.Series.Count == 0)
         {

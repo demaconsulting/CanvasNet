@@ -114,7 +114,7 @@ public sealed partial class PdfDocument
     ///     neither a recognized SFNT container nor a structurally plausible bare CFF header (see
     ///     <see cref="LoadCidFontType0Font"/>).
     /// </exception>
-    private IResolvedFont BuildResolvedCompositeFont(PdfObject fontDict)
+    private ResolvedCompositeFont BuildResolvedCompositeFont(PdfObject fontDict)
     {
         var encodingEntry = fontDict.Get("Encoding")
             ?? throw new InvalidDataException("Type0 font dictionary is missing required /Encoding.");
@@ -193,7 +193,8 @@ public sealed partial class PdfDocument
         }
 
         var fontBytes = GetStreamDecodedBytes(fontFileStream);
-        return TrueTypeFont.Load(new MemoryStream(fontBytes));
+        using var stream = new MemoryStream(fontBytes);
+        return TrueTypeFont.Load(stream);
     }
 
     /// <summary>
@@ -258,10 +259,11 @@ public sealed partial class PdfDocument
         }
 
         var fontBytes = GetStreamDecodedBytes(fontFileStream);
+        using var stream = new MemoryStream(fontBytes);
         return SniffFontFile3Shape(fontBytes) switch
         {
-            FontFile3Shape.Sfnt => TrueTypeFont.Load(new MemoryStream(fontBytes)),
-            FontFile3Shape.BareCff => TrueTypeFont.LoadType1C(new MemoryStream(fontBytes), EmptyCodepointToGlyphName),
+            FontFile3Shape.Sfnt => TrueTypeFont.Load(stream),
+            FontFile3Shape.BareCff => TrueTypeFont.LoadType1C(stream, EmptyCodepointToGlyphName),
             _ => throw new UnsupportedImageFeatureException(
                 "pdf-font-fontfile3-unrecognized-shape",
                 "/FontFile3 stream's decoded bytes are neither a recognized SFNT container " +
@@ -370,70 +372,79 @@ public sealed partial class PdfDocument
             var i = 0;
             while (i < items.Count)
             {
-                if (Resolve(items[i]) is not { Kind: PdfKind.Number } firstValue)
-                {
-                    throw new InvalidDataException("/W array entries must start with a CID number.");
-                }
-
-                var firstCid = (int)firstValue.Number;
-                if (i + 1 >= items.Count)
-                {
-                    throw new InvalidDataException("/W array is missing the widths for its final entry.");
-                }
-
-                var second = Resolve(items[i + 1]);
-                if (second.Kind == PdfKind.Array)
-                {
-                    // c [w1 w2 ... wn] individual-width form.
-                    for (var j = 0; j < second.Items.Count; j++)
-                    {
-                        if (Resolve(second.Items[j]) is { Kind: PdfKind.Number } w)
-                        {
-                            cidWidths[firstCid + j] = w.Number;
-                        }
-                    }
-
-                    i += 2;
-                }
-                else if (second.Kind == PdfKind.Number)
-                {
-                    // cFirst cLast w range form.
-                    var cLast = (int)second.Number;
-                    if (i + 2 >= items.Count || Resolve(items[i + 2]) is not { Kind: PdfKind.Number } wValue)
-                    {
-                        throw new InvalidDataException("/W array's cFirst-cLast-w range form must be followed by a width number.");
-                    }
-
-                    if (cLast < firstCid)
-                    {
-                        throw new InvalidDataException("/W array's cFirst-cLast-w range form must have cLast >= cFirst.");
-                    }
-
-                    if ((long)cLast - firstCid > MaxCompositeWidthRangeSpan)
-                    {
-                        throw new InvalidDataException(
-                            $"/W array's cFirst-cLast-w range form spans more than {MaxCompositeWidthRangeSpan} CIDs.");
-                    }
-
-                    // Iterate with a long counter rather than an int one: even with a small,
-                    // already-validated span, a cLast at or near int.MaxValue would make an
-                    // int-typed increment overflow to int.MinValue on the final iteration, which
-                    // would still satisfy the loop's exit condition and hang indefinitely.
-                    for (var cid = (long)firstCid; cid <= cLast; cid++)
-                    {
-                        cidWidths[(int)cid] = wValue.Number;
-                    }
-
-                    i += 3;
-                }
-                else
-                {
-                    throw new InvalidDataException(
-                        "/W array entries must be followed by either an array of widths or a cLast/w pair.");
-                }
+                i = ReadCompositeWidthEntry(items, i, cidWidths);
             }
         }
 
         return (cidWidths, defaultWidth);
+    }
+
+    /// <summary>
+    ///     Reads one <c>/W</c> entry (either sub-form) starting at <paramref name="i"/> into
+    ///     <paramref name="cidWidths"/> and returns the index of the next entry.
+    /// </summary>
+    /// <exception cref="InvalidDataException">Thrown when the entry is malformed.</exception>
+    private int ReadCompositeWidthEntry(IReadOnlyList<PdfObject> items, int i, Dictionary<int, double> cidWidths)
+    {
+        if (Resolve(items[i]) is not { Kind: PdfKind.Number } firstValue)
+        {
+            throw new InvalidDataException("/W array entries must start with a CID number.");
+        }
+
+        var firstCid = (int)firstValue.Number;
+        if (i + 1 >= items.Count)
+        {
+            throw new InvalidDataException("/W array is missing the widths for its final entry.");
+        }
+
+        var second = Resolve(items[i + 1]);
+        if (second.Kind == PdfKind.Array)
+        {
+            // c [w1 w2 ... wn] individual-width form.
+            for (var j = 0; j < second.Items.Count; j++)
+            {
+                if (Resolve(second.Items[j]) is { Kind: PdfKind.Number } w)
+                {
+                    cidWidths[firstCid + j] = w.Number;
+                }
+            }
+
+            return i + 2;
+        }
+
+        if (second.Kind != PdfKind.Number)
+        {
+            throw new InvalidDataException(
+                "/W array entries must be followed by either an array of widths or a cLast/w pair.");
+        }
+
+        // cFirst cLast w range form.
+        var cLast = (int)second.Number;
+        if (i + 2 >= items.Count || Resolve(items[i + 2]) is not { Kind: PdfKind.Number } wValue)
+        {
+            throw new InvalidDataException("/W array's cFirst-cLast-w range form must be followed by a width number.");
+        }
+
+        if (cLast < firstCid)
+        {
+            throw new InvalidDataException("/W array's cFirst-cLast-w range form must have cLast >= cFirst.");
+        }
+
+        if ((long)cLast - firstCid > MaxCompositeWidthRangeSpan)
+        {
+            throw new InvalidDataException(
+                $"/W array's cFirst-cLast-w range form spans more than {MaxCompositeWidthRangeSpan} CIDs.");
+        }
+
+        // Iterate with a long counter rather than an int one: even with a small,
+        // already-validated span, a cLast at or near int.MaxValue would make an
+        // int-typed increment overflow to int.MinValue on the final iteration, which
+        // would still satisfy the loop's exit condition and hang indefinitely.
+        for (var cid = (long)firstCid; cid <= cLast; cid++)
+        {
+            cidWidths[(int)cid] = wValue.Number;
+        }
+
+        return i + 3;
     }
 }

@@ -282,12 +282,7 @@ public sealed partial class PdfDocument
                 if (c == (byte)'{')
                 {
                     pos++;
-                    if (pending.Count >= 2)
-                    {
-                        throw new InvalidDataException("PostScript calculator program has too many consecutive blocks.");
-                    }
-
-                    pending.Add(ParseBlock(src, ref pos, depth + 1));
+                    pending.Add(ParseNestedBlock(src, ref pos, depth, pending.Count));
                     continue;
                 }
 
@@ -302,20 +297,35 @@ public sealed partial class PdfDocument
                     return code;
                 }
 
-                var start = pos;
-                while (pos < src.Length && !IsSpace(src[pos]) && src[pos] != (byte)'{' && src[pos] != (byte)'}'
-                    && src[pos] != (byte)'%')
-                {
-                    pos++;
-                }
-
-                AppendToken(System.Text.Encoding.ASCII.GetString(src, start, pos - start), code, pending);
+                AppendToken(ReadToken(src, ref pos), code, pending);
 
                 if (code.Count > MaxPostScriptInstructions)
                 {
                     throw new InvalidDataException("PostScript calculator program has too many instructions.");
                 }
             }
+        }
+
+        private static List<PsInstruction> ParseNestedBlock(byte[] src, ref int pos, int depth, int pendingCount)
+        {
+            if (pendingCount >= 2)
+            {
+                throw new InvalidDataException("PostScript calculator program has too many consecutive blocks.");
+            }
+
+            return ParseBlock(src, ref pos, depth + 1);
+        }
+
+        private static string ReadToken(byte[] src, ref int pos)
+        {
+            var start = pos;
+            while (pos < src.Length && !IsSpace(src[pos]) && src[pos] != (byte)'{' && src[pos] != (byte)'}'
+                && src[pos] != (byte)'%')
+            {
+                pos++;
+            }
+
+            return System.Text.Encoding.ASCII.GetString(src, start, pos - start);
         }
 
         private static void AppendToken(string token, List<PsInstruction> code, List<List<PsInstruction>> pending)
@@ -410,7 +420,7 @@ public sealed partial class PdfDocument
                         Push(stack, ref sp, new PsValue(0, PsType.Bool));
                         break;
                     case PsOp.Jz:
-                        if (PopBool(stack, ref sp) == 0)
+                        if (PopBool(stack, ref sp).Equals(0d))
                         {
                             pc += ins.Offset;
                         }
@@ -521,7 +531,7 @@ public sealed partial class PdfDocument
         {
             var b = PopNumber(stack, ref sp);
             var a = PopNumber(stack, ref sp);
-            if (b.Value == 0)
+            if (b.Value.Equals(0d))
             {
                 throw new InvalidDataException("PostScript calculator division by zero.");
             }
@@ -609,7 +619,7 @@ public sealed partial class PdfDocument
         {
             var den = PopNumber(stack, ref sp).Value;
             var num = PopNumber(stack, ref sp).Value;
-            if (num == 0 && den == 0)
+            if (num.Equals(0d) && den.Equals(0d))
             {
                 throw new InvalidDataException("PostScript calculator 'atan' of (0, 0).");
             }
@@ -664,8 +674,8 @@ public sealed partial class PdfDocument
             var a = Pop(stack, ref sp);
             if (a.Type == PsType.Bool && b.Type == PsType.Bool)
             {
-                var x = a.Value != 0;
-                var y = b.Value != 0;
+                var x = !a.Value.Equals(0d);
+                var y = !b.Value.Equals(0d);
                 var r = op switch { PsOp.And => x && y, PsOp.Or => x || y, _ => x ^ y };
                 Push(stack, ref sp, new PsValue(r ? 1 : 0, PsType.Bool));
             }
@@ -688,7 +698,7 @@ public sealed partial class PdfDocument
             switch (a.Type)
             {
                 case PsType.Bool:
-                    Push(stack, ref sp, new PsValue(a.Value != 0 ? 0 : 1, PsType.Bool));
+                    Push(stack, ref sp, new PsValue(!a.Value.Equals(0d) ? 0 : 1, PsType.Bool));
                     break;
                 case PsType.Int:
                     Push(stack, ref sp, new PsValue(~(int)a.Value, PsType.Int));

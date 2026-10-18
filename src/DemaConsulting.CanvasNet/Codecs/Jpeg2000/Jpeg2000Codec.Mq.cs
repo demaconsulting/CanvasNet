@@ -86,22 +86,7 @@ public static partial class Jpeg2000Codec
             if ((_c >> 16) < qe)
             {
                 // Conditional exchange on the LPS interval.
-                if (_a < qe)
-                {
-                    d = _mps[cx];
-                    _state[cx] = MqNextMps[i];
-                }
-                else
-                {
-                    d = 1 - _mps[cx];
-                    if (MqSwitch[i] != 0)
-                    {
-                        _mps[cx] = (byte)(1 - _mps[cx]);
-                    }
-
-                    _state[cx] = MqNextLps[i];
-                }
-
+                d = _a < qe ? TakeMps(cx, i) : TakeLps(cx, i);
                 _a = qe;
                 Renormalize();
             }
@@ -110,22 +95,7 @@ public static partial class Jpeg2000Codec
                 _c -= qe << 16;
                 if ((_a & 0x8000) == 0)
                 {
-                    if (_a < qe)
-                    {
-                        d = 1 - _mps[cx];
-                        if (MqSwitch[i] != 0)
-                        {
-                            _mps[cx] = (byte)(1 - _mps[cx]);
-                        }
-
-                        _state[cx] = MqNextLps[i];
-                    }
-                    else
-                    {
-                        d = _mps[cx];
-                        _state[cx] = MqNextMps[i];
-                    }
-
+                    d = _a < qe ? TakeLps(cx, i) : TakeMps(cx, i);
                     Renormalize();
                 }
                 else
@@ -134,6 +104,24 @@ public static partial class Jpeg2000Codec
                 }
             }
 
+            return d;
+        }
+
+        private int TakeMps(int cx, int i)
+        {
+            _state[cx] = MqNextMps[i];
+            return _mps[cx];
+        }
+
+        private int TakeLps(int cx, int i)
+        {
+            var d = 1 - _mps[cx];
+            if (MqSwitch[i] != 0)
+            {
+                _mps[cx] = (byte)(1 - _mps[cx]);
+            }
+
+            _state[cx] = MqNextLps[i];
             return d;
         }
 

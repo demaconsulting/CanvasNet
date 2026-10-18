@@ -138,7 +138,8 @@ public class Jpeg2000ValidationTests
     private static void AssertJp2Rejected(byte[] file, string cause)
     {
         AssertRejected<InvalidDataException>(file, cause);
-        var seekable = Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.GetInfo(new MemoryStream(file)));
+        using var stream = new MemoryStream(file);
+        var seekable = Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.GetInfo(stream));
         Assert.Contains(cause, seekable.Message);
         var forward = Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.GetInfo(new NonSeekableStream(file)));
         Assert.Contains(cause, forward.Message);
@@ -150,7 +151,8 @@ public class Jpeg2000ValidationTests
         var image = Jpeg2000Codec.Decode(file);
         Assert.Equal(8, image.Width);
         Assert.Equal(8, image.Height);
-        Assert.Equal(8, Jpeg2000Codec.GetInfo(new MemoryStream(file)).Width);
+        using var stream = new MemoryStream(file);
+        Assert.Equal(8, Jpeg2000Codec.GetInfo(stream).Width);
         Assert.Equal(8, Jpeg2000Codec.GetInfo(new NonSeekableStream(file)).Height);
     }
 
@@ -512,7 +514,8 @@ public class Jpeg2000ValidationTests
         if (marker == 0xFF51)
         {
             // GetInfo parses only SIZ, so it must reject exactly the same SIZ values.
-            var ex = Assert.ThrowsAny<Exception>(() => Jpeg2000Codec.GetInfo(new MemoryStream(data)));
+            using var stream = new MemoryStream(data);
+            var ex = Assert.ThrowsAny<Exception>(() => Jpeg2000Codec.GetInfo(stream));
             Assert.IsType(unsupported ? typeof(UnsupportedImageFeatureException) : typeof(InvalidDataException), ex);
         }
     }

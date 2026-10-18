@@ -89,6 +89,13 @@ public struct Rgba32 : IEquatable<Rgba32>
         (R << 24) | (G << 16) | (B << 8) | A;
 
     /// <summary>
+    ///     Returns a readable representation of this instance listing its channel values.
+    /// </summary>
+    /// <returns>A string of the form <c>Rgba32(R, G, B, A)</c>.</returns>
+    public override readonly string ToString() =>
+        string.Create(CultureInfo.InvariantCulture, $"Rgba32({R}, {G}, {B}, {A})");
+
+    /// <summary>
     ///     Determines whether two <see cref="Rgba32"/> instances have equal channel values.
     /// </summary>
     /// <param name="left">The first instance to compare.</param>
@@ -285,7 +292,7 @@ public struct Rgba32 : IEquatable<Rgba32>
         var oneMinusFgA = 1f - fgA;
         var outA = fgA + (bgA * oneMinusFgA);
 
-        if (outA == 0f)
+        if (outA.Equals(0f))
         {
             return new Rgba32(0, 0, 0, 0);
         }

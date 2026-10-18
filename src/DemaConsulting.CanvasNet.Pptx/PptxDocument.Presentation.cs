@@ -132,7 +132,7 @@ public sealed partial class PptxDocument
     ///     mistargeted part must fail here, at <see cref="Open(Stream)"/> time, rather than only
     ///     later surfacing as a confusing failure from <see cref="GetSlide(int)"/>).
     /// </exception>
-    private IReadOnlyList<string> ParseSlideIdList(XElement presentationRoot, string presentationPartPath)
+    private List<string> ParseSlideIdList(XElement presentationRoot, string presentationPartPath)
     {
         var sldIdLst = presentationRoot.Element(PresentationNamespace + "sldIdLst") ??
             throw new InvalidDataException("The presentation part has no <p:sldIdLst> element.");

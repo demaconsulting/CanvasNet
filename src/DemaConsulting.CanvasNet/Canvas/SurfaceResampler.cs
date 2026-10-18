@@ -153,7 +153,7 @@ internal static partial class SurfaceResampler
         // only the pixels they cover (the Area filter drops out-of-image coverage and renormalizes)
         var outWidth = checked((source.Width + fx - 1) / fx);
         var outHeight = checked((source.Height + fy - 1) / fy);
-        return Resample(source, 0, (double)outWidth * fx, 0, (double)outHeight * fy, outWidth, outHeight, ResamplingMode.Area);
+        return Resample(source, new AxisWindow(0, (double)outWidth * fx), new AxisWindow(0, (double)outHeight * fy), outWidth, outHeight, ResamplingMode.Area);
     }
 
     /// <summary>

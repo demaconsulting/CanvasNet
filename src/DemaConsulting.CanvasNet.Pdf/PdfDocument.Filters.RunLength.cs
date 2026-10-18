@@ -43,52 +43,11 @@ public sealed partial class PdfDocument
 
             if (length <= 127)
             {
-                var count = length + 1;
-                if (i + count > data.Length)
-                {
-                    throw new InvalidDataException("Truncated RunLengthDecode literal run.");
-                }
-
-                // Preflight the run's size against the REMAINING budget before appending any of
-                // its bytes - checking only after the run has already been added to `output`
-                // would still allow a crafted (sequence of) run(s) to materialize an oversized
-                // allocation before the cap ever fires.
-                if (count > RunLengthMaxOutputBytes - output.Count)
-                {
-                    throw new InvalidDataException(
-                        $"RunLengthDecode output exceeds the maximum supported size of {RunLengthMaxOutputBytes} bytes.");
-                }
-
-                for (var k = 0; k < count; k++)
-                {
-                    output.Add(data[i + k]);
-                }
-
-                i += count;
+                AppendRunLengthLiteral(data, ref i, length + 1, output);
             }
             else
             {
-                if (i >= data.Length)
-                {
-                    throw new InvalidDataException("Truncated RunLengthDecode repeat run.");
-                }
-
-                var repeatByte = data[i++];
-                var count = 257 - length;
-
-                // Same preflight-before-append ordering as the literal-run branch above: a
-                // single repeat run can expand 2 input bytes to up to 128 output bytes, so the
-                // remaining-budget check must happen before any of those bytes are added.
-                if (count > RunLengthMaxOutputBytes - output.Count)
-                {
-                    throw new InvalidDataException(
-                        $"RunLengthDecode output exceeds the maximum supported size of {RunLengthMaxOutputBytes} bytes.");
-                }
-
-                for (var k = 0; k < count; k++)
-                {
-                    output.Add(repeatByte);
-                }
+                AppendRunLengthRepeat(data, ref i, 257 - length, output);
             }
         }
 
@@ -98,5 +57,60 @@ public sealed partial class PdfDocument
         }
 
         return [.. output];
+    }
+
+    /// <summary>Appends a literal run of <paramref name="count"/> bytes starting at <paramref name="i"/>.</summary>
+    /// <exception cref="InvalidDataException">Thrown when the run is truncated or exceeds the output cap.</exception>
+    private static void AppendRunLengthLiteral(byte[] data, ref int i, int count, List<byte> output)
+    {
+        if (i + count > data.Length)
+        {
+            throw new InvalidDataException("Truncated RunLengthDecode literal run.");
+        }
+
+        // Preflight the run's size against the REMAINING budget before appending any of
+        // its bytes - checking only after the run has already been added to `output`
+        // would still allow a crafted (sequence of) run(s) to materialize an oversized
+        // allocation before the cap ever fires.
+        ThrowIfRunLengthOverflow(count, output);
+
+        for (var k = 0; k < count; k++)
+        {
+            output.Add(data[i + k]);
+        }
+
+        i += count;
+    }
+
+    /// <summary>Appends a repeat run of <paramref name="count"/> copies of the byte at <paramref name="i"/>.</summary>
+    /// <exception cref="InvalidDataException">Thrown when the run is truncated or exceeds the output cap.</exception>
+    private static void AppendRunLengthRepeat(byte[] data, ref int i, int count, List<byte> output)
+    {
+        if (i >= data.Length)
+        {
+            throw new InvalidDataException("Truncated RunLengthDecode repeat run.");
+        }
+
+        var repeatByte = data[i++];
+
+        // Same preflight-before-append ordering as the literal run: a single repeat run
+        // can expand 2 input bytes to up to 128 output bytes, so the remaining-budget
+        // check must happen before any of those bytes are added.
+        ThrowIfRunLengthOverflow(count, output);
+
+        for (var k = 0; k < count; k++)
+        {
+            output.Add(repeatByte);
+        }
+    }
+
+    /// <summary>Throws when appending <paramref name="count"/> bytes would exceed the output cap.</summary>
+    private static void ThrowIfRunLengthOverflow(int count, List<byte> output)
+    {
+        if (count > RunLengthMaxOutputBytes - output.Count)
+        {
+            throw new InvalidDataException(
+                $"RunLengthDecode output exceeds the maximum supported size of {RunLengthMaxOutputBytes} bytes.");
+        }
     }
 }

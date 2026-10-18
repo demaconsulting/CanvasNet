@@ -203,51 +203,14 @@ internal sealed class NameTable
 
         for (var i = 0; i < count; i++)
         {
-            var recordOffset = tableOffset + headerSize + i * recordSize;
-            var platformId = SfntContainer.ReadUInt16(data, recordOffset);
-            var encodingId = SfntContainer.ReadUInt16(data, recordOffset + 2);
-            var languageId = SfntContainer.ReadUInt16(data, recordOffset + 4);
-            var nameId = SfntContainer.ReadUInt16(data, recordOffset + 6);
-            var length = SfntContainer.ReadUInt16(data, recordOffset + 8);
-            var offset = SfntContainer.ReadUInt16(data, recordOffset + 10);
-
-            if (nameId is not (NameIdFamily or NameIdSubfamily or NameIdFull or NameIdPostScript
-                or NameIdTypographicFamily or NameIdTypographicSubfamily))
-            {
-                // Not one of the six name identifiers this class resolves; skip decoding it.
-                continue;
-            }
-
-            var stringStart = (long)stringAreaStart + offset;
-            var stringEnd = stringStart + length;
-            if (stringStart < tableOffset || stringEnd > tableEnd)
-            {
-                // This one record's string bytes fall outside the table's bounds; skip only this
-                // record, leaving every other well-formed record resolvable.
-                continue;
-            }
-
-            string? value = (platformId, encodingId) switch
-            {
-                (PlatformWindows, EncodingWindowsUnicodeBmp) or (PlatformWindows, EncodingWindowsUnicodeFull) =>
-                    DecodeWindowsUnicode(data, (int)stringStart, length),
-                (PlatformMacintosh, EncodingMacRoman) => DecodeMacRoman(data, (int)stringStart, length),
-                _ => null,
-            };
-
-            if (value is null)
+            var record = ReadRecord(data, tableOffset + headerSize + i * recordSize, stringAreaStart, tableOffset, tableEnd);
+            if (record is null)
             {
                 continue;
             }
 
-            var candidates = platformId == PlatformWindows ? windowsCandidates : macintoshCandidates;
-            if (!candidates.TryGetValue(nameId, out var list))
-            {
-                list = [];
-                candidates[nameId] = list;
-            }
-
-            list.Add((languageId, value));
+            var candidates = record.Value.PlatformId == PlatformWindows ? windowsCandidates : macintoshCandidates;
+            AddCandidate(candidates, record.Value.NameId, (record.Value.LanguageId, record.Value.Value));
         }
 
         string? Resolve(int nameId) =>
@@ -260,6 +223,69 @@ internal sealed class NameTable
         var postScriptName = Resolve(NameIdPostScript);
 
         return new NameTable(familyName, subfamilyName, fullName, postScriptName);
+    }
+
+    /// <summary>
+    ///     Reads and decodes one name record, returning <see langword="null"/> when the record is
+    ///     not one of the six resolved name identifiers, its string falls outside the table, or
+    ///     its platform/encoding is unsupported.
+    /// </summary>
+    private static (int PlatformId, int NameId, int LanguageId, string Value)? ReadRecord(
+        byte[] data,
+        int recordOffset,
+        int stringAreaStart,
+        int tableOffset,
+        long tableEnd)
+    {
+        var platformId = SfntContainer.ReadUInt16(data, recordOffset);
+        var encodingId = SfntContainer.ReadUInt16(data, recordOffset + 2);
+        var languageId = SfntContainer.ReadUInt16(data, recordOffset + 4);
+        var nameId = SfntContainer.ReadUInt16(data, recordOffset + 6);
+        var length = SfntContainer.ReadUInt16(data, recordOffset + 8);
+        var offset = SfntContainer.ReadUInt16(data, recordOffset + 10);
+
+        if (nameId is not (NameIdFamily or NameIdSubfamily or NameIdFull or NameIdPostScript
+            or NameIdTypographicFamily or NameIdTypographicSubfamily))
+        {
+            // Not one of the six name identifiers this class resolves; skip decoding it.
+            return null;
+        }
+
+        var stringStart = (long)stringAreaStart + offset;
+        var stringEnd = stringStart + length;
+        if (stringStart < tableOffset || stringEnd > tableEnd)
+        {
+            // This one record's string bytes fall outside the table's bounds; skip only this
+            // record, leaving every other well-formed record resolvable.
+            return null;
+        }
+
+        string? value = (platformId, encodingId) switch
+        {
+            (PlatformWindows, EncodingWindowsUnicodeBmp) or (PlatformWindows, EncodingWindowsUnicodeFull) =>
+                DecodeWindowsUnicode(data, (int)stringStart, length),
+            (PlatformMacintosh, EncodingMacRoman) => DecodeMacRoman(data, (int)stringStart, length),
+            _ => null,
+        };
+
+        return value is null ? null : (platformId, nameId, languageId, value);
+    }
+
+    /// <summary>
+    ///     Appends a candidate record to the list for <paramref name="nameId"/>, creating the list on first use.
+    /// </summary>
+    private static void AddCandidate(
+        Dictionary<int, List<(int LanguageId, string Value)>> candidates,
+        int nameId,
+        (int LanguageId, string Value) candidate)
+    {
+        if (!candidates.TryGetValue(nameId, out var list))
+        {
+            list = [];
+            candidates[nameId] = list;
+        }
+
+        list.Add(candidate);
     }
 
     /// <summary>

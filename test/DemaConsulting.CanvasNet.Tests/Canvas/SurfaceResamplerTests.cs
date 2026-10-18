@@ -281,7 +281,7 @@ public class SurfaceResamplerTests
     public void TryResampleToDevice_RotatedMatrix_ReturnsFalse()
     {
         using var source = new Surface(4, 4);
-        Assert.False(SurfaceResampler.TryResampleToDevice(source, Matrix3x2.CreateRotation(0.5f), 20, 20, ResamplingMode.Auto, out var window, out _, out _));
+        Assert.False(SurfaceResampler.TryResampleToDevice(source, Matrix3x2.CreateRotation(0.5f), 20, 20, ResamplingMode.Auto, out var window, out _));
         Assert.Null(window);
     }
 
@@ -290,10 +290,10 @@ public class SurfaceResamplerTests
     public void TryResampleToDevice_WideImageSmallM12_DeclinedOnlyWhenDriftMatters()
     {
         using var source = new Surface(1000, 1);
-        Assert.False(SurfaceResampler.TryResampleToDevice(source, new Matrix3x2(1f, 0.001f, 0f, 1f, 0f, 0f), 2000, 20, ResamplingMode.Auto, out var window, out _, out _));
+        Assert.False(SurfaceResampler.TryResampleToDevice(source, new Matrix3x2(1f, 0.001f, 0f, 1f, 0f, 0f), 2000, 20, ResamplingMode.Auto, out var window, out _));
         Assert.Null(window);
 
-        Assert.True(SurfaceResampler.TryResampleToDevice(source, new Matrix3x2(1f, 0.000001f, 0f, 1f, 0f, 0f), 2000, 20, ResamplingMode.Auto, out var okWindow, out _, out _));
+        Assert.True(SurfaceResampler.TryResampleToDevice(source, new Matrix3x2(1f, 0.000001f, 0f, 1f, 0f, 0f), 2000, 20, ResamplingMode.Auto, out var okWindow, out _));
         okWindow?.Dispose();
     }
 
@@ -302,10 +302,10 @@ public class SurfaceResamplerTests
     public void TryResampleToDevice_TallImageSmallM21_DeclinedOnlyWhenDriftMatters()
     {
         using var source = new Surface(1, 1000);
-        Assert.False(SurfaceResampler.TryResampleToDevice(source, new Matrix3x2(1f, 0f, 0.001f, 1f, 0f, 0f), 20, 2000, ResamplingMode.Auto, out var window, out _, out _));
+        Assert.False(SurfaceResampler.TryResampleToDevice(source, new Matrix3x2(1f, 0f, 0.001f, 1f, 0f, 0f), 20, 2000, ResamplingMode.Auto, out var window, out _));
         Assert.Null(window);
 
-        Assert.True(SurfaceResampler.TryResampleToDevice(source, new Matrix3x2(1f, 0f, 0.000001f, 1f, 0f, 0f), 20, 2000, ResamplingMode.Auto, out var okWindow, out _, out _));
+        Assert.True(SurfaceResampler.TryResampleToDevice(source, new Matrix3x2(1f, 0f, 0.000001f, 1f, 0f, 0f), 20, 2000, ResamplingMode.Auto, out var okWindow, out _));
         okWindow?.Dispose();
     }
 
@@ -316,11 +316,11 @@ public class SurfaceResamplerTests
         using var source = new Surface(2, 2);
         source.Clear(new Rgba32(10, 20, 30, 255));
         var matrix = Matrix3x2.CreateScale(5f) * Matrix3x2.CreateTranslation(3f, 4f);
-        Assert.True(SurfaceResampler.TryResampleToDevice(source, matrix, 40, 40, ResamplingMode.Auto, out var window, out var ox, out var oy));
+        Assert.True(SurfaceResampler.TryResampleToDevice(source, matrix, 40, 40, ResamplingMode.Auto, out var window, out var origin));
         using (window)
         {
             Assert.NotNull(window);
-            Assert.Equal((3, 4), (ox, oy));
+            Assert.Equal((3, 4), origin);
             Assert.Equal((10, 10), (window.Width, window.Height));
         }
     }
@@ -331,7 +331,7 @@ public class SurfaceResamplerTests
     {
         using var source = new Surface(2, 2);
         var matrix = Matrix3x2.CreateScale(5f) * Matrix3x2.CreateTranslation(100f, 100f);
-        Assert.True(SurfaceResampler.TryResampleToDevice(source, matrix, 40, 40, ResamplingMode.Auto, out var window, out _, out _));
+        Assert.True(SurfaceResampler.TryResampleToDevice(source, matrix, 40, 40, ResamplingMode.Auto, out var window, out _));
         Assert.Null(window);
     }
 
@@ -389,8 +389,8 @@ public class SurfaceResamplerTests
 
         foreach (var (w, h) in new[] { (9, 7), (40, 31) })
         {
-            using var expected = SurfaceResampler.Resample(source, 0, 23, 0, 19, w, h, mode);
-            using var actual = SurfaceResampler.Resample(source, 0, 23, 0, 19, w, h, mode, budget);
+            using var expected = SurfaceResampler.Resample(source, new(0, 23), new(0, 19), w, h, mode);
+            using var actual = SurfaceResampler.Resample(source, new(0, 23), new(0, 19), w, h, mode, budget);
             for (var y = 0; y < h; y++)
             {
                 for (var x = 0; x < w; x++)
@@ -444,17 +444,17 @@ public class SurfaceResamplerTests
             }
         }
 
-        using var baseline = SurfaceResampler.Resample(source, 0, 37, 0, 29, 11, 8, mode);
+        using var baseline = SurfaceResampler.Resample(source, new(0, 37), new(0, 29), 11, 8, mode);
 
         // Churn the pool: a much larger intermediate, then a mid-sized one
-        using (var large = SurfaceResampler.Resample(source, 0, 37, 0, 29, 150, 120, mode))
-        using (var mid = SurfaceResampler.Resample(source, 0, 37, 0, 29, 25, 40, mode))
+        using (var large = SurfaceResampler.Resample(source, new(0, 37), new(0, 29), 150, 120, mode))
+        using (var mid = SurfaceResampler.Resample(source, new(0, 37), new(0, 29), 25, 40, mode))
         {
             Assert.Equal(150, large.Width);
             Assert.Equal(25, mid.Width);
         }
 
-        using var repeated = SurfaceResampler.Resample(source, 0, 37, 0, 29, 11, 8, mode);
+        using var repeated = SurfaceResampler.Resample(source, new(0, 37), new(0, 29), 11, 8, mode);
         for (var y = 0; y < 8; y++)
         {
             for (var x = 0; x < 11; x++)
@@ -485,7 +485,7 @@ public class SurfaceResamplerTests
             }
         }
 
-        using var result = SurfaceResampler.Resample(source, 0, 1e9, 0, 1e9, 2, 2, mode);
+        using var result = SurfaceResampler.Resample(source, new(0, 1e9), new(0, 1e9), 2, 2, mode);
 
         Assert.Equal(2, result.Width);
         for (var y = 0; y < 2; y++)
@@ -514,7 +514,7 @@ public class SurfaceResamplerTests
         }
 
         var m = new Matrix3x2(1e-9f, 0, 0, 1e-9f, 0.2f, 0.2f);
-        Assert.True(SurfaceResampler.TryResampleToDevice(source, m, 10, 10, ResamplingMode.Lanczos3, out var window, out _, out _));
+        Assert.True(SurfaceResampler.TryResampleToDevice(source, m, 10, 10, ResamplingMode.Lanczos3, out var window, out _));
         window?.Dispose();
     }
 
@@ -548,12 +548,12 @@ public class SurfaceResamplerTests
 
         // Only x is tiny (y stays 1:1) so the 2-row image still covers device pixel centers in y
         var m = new Matrix3x2(scale, 0, 0, 1f, 0.5f, 0f);
-        Assert.True(SurfaceResampler.TryResampleToDevice(source, m, 4, 4, mode, out var window, out var ox, out var oy));
+        Assert.True(SurfaceResampler.TryResampleToDevice(source, m, 4, 4, mode, out var window, out var origin));
         Assert.NotNull(window);
         using (window)
         {
-            Assert.Equal(0, ox);
-            Assert.Equal(0, oy);
+            Assert.Equal(0, origin.X);
+            Assert.Equal(0, origin.Y);
             Assert.Equal(1, window.Width);
             Assert.Equal(2, window.Height);
             Assert.InRange(window[0, 0].R, 98, 102);
@@ -582,7 +582,7 @@ public class SurfaceResamplerTests
         }
 
         var m = new Matrix3x2(scale, 0, 0, scale, 0.5f, 0.5f);
-        Assert.True(SurfaceResampler.TryResampleToDevice(source, m, 4, 4, mode, out var window, out _, out _));
+        Assert.True(SurfaceResampler.TryResampleToDevice(source, m, 4, 4, mode, out var window, out _));
         Assert.NotNull(window);
         using (window)
         {
@@ -604,7 +604,7 @@ public class SurfaceResamplerTests
         }
 
         // Magnified view whose Lanczos support extends beyond both edges
-        using var result = SurfaceResampler.Resample(source, -3, 12, -3, 12, 30, 30, ResamplingMode.Lanczos3);
+        using var result = SurfaceResampler.Resample(source, new(-3, 12), new(-3, 12), 30, 30, ResamplingMode.Lanczos3);
         for (var y = 0; y < 30; y++)
         {
             for (var x = 0; x < 30; x++)

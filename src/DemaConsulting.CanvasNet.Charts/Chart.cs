@@ -162,7 +162,7 @@ public sealed class Chart
     ///     Thrown when <paramref name="series"/> is empty or contains a <see langword="null"/>
     ///     entry.
     /// </exception>
-    private static IReadOnlyList<ChartSeries> CopySeries(IReadOnlyList<ChartSeries> series)
+    private static ReadOnlyCollection<ChartSeries> CopySeries(IReadOnlyList<ChartSeries> series)
     {
         if (series.Count == 0)
         {

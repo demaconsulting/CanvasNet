@@ -1287,7 +1287,7 @@ public class PptxTextTests
         Assert.NotNull(master.TxStyles.OtherStyle);
     }
 
-    private static Stream BuildMasterPackageWithTxStyles()
+    private static MemoryStream BuildMasterPackageWithTxStyles()
     {
         const string contentTypesXml =
             """

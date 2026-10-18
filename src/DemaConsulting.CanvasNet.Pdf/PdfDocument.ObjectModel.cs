@@ -74,7 +74,7 @@ public sealed partial class PdfDocument
         ///     Gets the dictionary entries (keyed by name text, without the leading slash), when
         ///     <see cref="Kind"/> is <see cref="PdfKind.Dictionary"/> or <see cref="PdfKind.Stream"/>.
         /// </summary>
-        internal Dictionary<string, PdfObject> Entries { get; private init; } = new();
+        internal Dictionary<string, PdfObject> Entries { get; private init; } = [];
 
         /// <summary>Gets the referenced object number, when <see cref="Kind"/> is <see cref="PdfKind.Reference"/>.</summary>
         internal int RefNumber { get; private init; }

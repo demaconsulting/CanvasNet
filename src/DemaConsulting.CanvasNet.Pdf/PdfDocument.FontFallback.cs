@@ -18,7 +18,7 @@ public sealed partial class PdfDocument
     ///     that bypasses serif/fixed-pitch/bold/italic flavor classification entirely, since this
     ///     table's style tuple has no meaning for a symbol/dingbat glyph set.
     /// </summary>
-    private static readonly IReadOnlyDictionary<string, (bool Serif, bool FixedPitch, bool Bold, bool Italic)>
+    private static readonly Dictionary<string, (bool Serif, bool FixedPitch, bool Bold, bool Italic)>
         Standard14Flavors = new Dictionary<string, (bool Serif, bool FixedPitch, bool Bold, bool Italic)>(StringComparer.Ordinal)
         {
             ["Helvetica"] = (false, false, false, false),
@@ -44,7 +44,7 @@ public sealed partial class PdfDocument
     ///     files scanned repeatedly" cost <see cref="SystemFontCatalog.Fonts"/>'s own laziness
     ///     already avoids at the discovery layer.
     /// </summary>
-    private static readonly Dictionary<(string Path, int FaceIndex), TrueTypeFont> FallbackFontCache = new();
+    private static readonly Dictionary<(string Path, int FaceIndex), TrueTypeFont> FallbackFontCache = [];
 
     /// <summary>Guards <see cref="FallbackFontCache"/> against concurrent population.</summary>
     private static readonly object FallbackFontCacheLock = new();
@@ -225,7 +225,7 @@ public sealed partial class PdfDocument
 
         var italicAngle = GetItalicAngle(descriptor);
         var italic = (flags & italicBit) != 0 ||
-            (italicAngle is { } angle && angle != 0) ||
+            (italicAngle is { } angle && !angle.Equals(0d)) ||
             baseFontName.Contains("Italic", StringComparison.OrdinalIgnoreCase) ||
             baseFontName.Contains("Oblique", StringComparison.OrdinalIgnoreCase);
 

@@ -18,7 +18,7 @@ public sealed partial class VsdxDocument
     private static SortedDictionary<string, string>? t_activeFeatures;
 
     /// <summary>Per-page-index distinct unsupported features found while resolving that page (token to first message).</summary>
-    private readonly Dictionary<int, IReadOnlyDictionary<string, string>> _pageUnsupportedFeatures = new();
+    private readonly Dictionary<int, IReadOnlyDictionary<string, string>> _pageUnsupportedFeatures = [];
 
     /// <summary>Swaps the current thread's active collector, returning the previous one (used to scope a page resolution).</summary>
     /// <param name="next">The collector to activate, or the previous collector to restore.</param>

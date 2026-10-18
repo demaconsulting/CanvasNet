@@ -309,7 +309,7 @@ public sealed class Path
             radius = maxRadius;
         }
 
-        if (radius == 0f)
+        if (radius.Equals(0f))
         {
             return Rectangle(x, y, width, height);
         }

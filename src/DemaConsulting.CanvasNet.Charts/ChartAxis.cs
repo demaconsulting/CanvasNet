@@ -136,7 +136,7 @@ public sealed class ChartAxis
     /// <exception cref="ArgumentException">
     ///     Thrown when <paramref name="labels"/> contains a <see langword="null"/> entry.
     /// </exception>
-    private static IReadOnlyList<string>? CopyLabels(IReadOnlyList<string>? labels)
+    private static ReadOnlyCollection<string>? CopyLabels(IReadOnlyList<string>? labels)
     {
         if (labels is null)
         {

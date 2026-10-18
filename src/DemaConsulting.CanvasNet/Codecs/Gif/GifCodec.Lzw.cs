@@ -83,18 +83,9 @@ public static partial class GifCodec
             Array.Copy(entry, 0, output, outputCount, entry.Length);
             outputCount += entry.Length;
 
-            if (previousEntry is not null && firstAvailableCode + table.Count < 4096)
+            if (previousEntry is not null)
             {
-                var newEntry = new byte[previousEntry.Length + 1];
-                previousEntry.CopyTo(newEntry, 0);
-                newEntry[^1] = entry[0];
-                table.Add(newEntry);
-
-                var nextCode = firstAvailableCode + table.Count;
-                if (nextCode == 1 << codeSize && codeSize < 12)
-                {
-                    codeSize++;
-                }
+                codeSize = AddGifLzwTableEntry(table, previousEntry, entry, firstAvailableCode, codeSize);
             }
 
             previousEntry = entry;
@@ -106,6 +97,33 @@ public static partial class GifCodec
         }
 
         return output;
+    }
+
+    /// <summary>
+    ///     Adds the next dictionary entry (previous entry plus the current entry's first byte)
+    ///     when the 4096-entry table is not yet full, widening the code size when the table
+    ///     reaches the current width's capacity.
+    /// </summary>
+    /// <returns>The code size to use for the next code.</returns>
+    private static int AddGifLzwTableEntry(
+        List<byte[]> table,
+        byte[] previousEntry,
+        byte[] entry,
+        int firstAvailableCode,
+        int codeSize)
+    {
+        if (firstAvailableCode + table.Count >= 4096)
+        {
+            return codeSize;
+        }
+
+        var newEntry = new byte[previousEntry.Length + 1];
+        previousEntry.CopyTo(newEntry, 0);
+        newEntry[^1] = entry[0];
+        table.Add(newEntry);
+
+        var nextCode = firstAvailableCode + table.Count;
+        return nextCode == 1 << codeSize && codeSize < 12 ? codeSize + 1 : codeSize;
     }
 
     /// <summary>

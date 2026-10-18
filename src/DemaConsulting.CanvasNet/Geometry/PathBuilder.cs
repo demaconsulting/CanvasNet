@@ -213,7 +213,7 @@ public sealed class PathBuilder
         var ray2Scale = MathF.Max(
             MathF.Max(MathF.Abs(end.X), MathF.Abs(end.Y)),
             MathF.Max(MathF.Abs(corner.X), MathF.Abs(corner.Y)));
-        if (radius == 0f
+        if (radius.Equals(0f)
             || len1 <= ray1Scale * relativeCoincidenceTolerance
             || len2 <= ray2Scale * relativeCoincidenceTolerance)
         {

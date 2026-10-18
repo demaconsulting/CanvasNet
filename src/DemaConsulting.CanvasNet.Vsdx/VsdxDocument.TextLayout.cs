@@ -294,7 +294,7 @@ public sealed partial class VsdxDocument
         }
 
         FlushPendingGroup();
-        if (currentLine.Count > 0 || sawAnyToken)
+        if (sawAnyToken)
         {
             lines.Add(currentLine);
         }
@@ -340,103 +340,144 @@ public sealed partial class VsdxDocument
         var lines = new List<LineBox>();
         for (var lineIndex = 0; lineIndex < wrappedLines.Count; lineIndex++)
         {
-            var lineTokens = wrappedLines[lineIndex];
-            var isFirstLine = lineIndex == 0;
-            var isLastLine = lineIndex == wrappedLines.Count - 1;
-
-            var lineGlyphs = new List<LineGlyph>();
-            var lineBars = new List<LineBar>();
-            var x = isFirstLine ? paragraphProperties.IndFirst : 0d;
-            var maxAscent = 0d;
-            var maxDescent = 0d;
-
-            foreach (var token in lineTokens)
-            {
-                var tokenStartX = x;
-                var ascent = token.Font.Ascender / (double)token.Font.UnitsPerEm * token.Run.SizeInches;
-                var descent = -token.Font.Descender / (double)token.Font.UnitsPerEm * token.Run.SizeInches;
-                maxAscent = Math.Max(maxAscent, ascent);
-                maxDescent = Math.Max(maxDescent, descent);
-
-                if (!token.IsWhitespace)
-                {
-                    foreach (var rune in token.Text.EnumerateRunes())
-                    {
-                        var glyphFont = SelectGlyphFont(token.Font, rune, token.Run, glyphFallback, out var glyphIndex);
-                        lineGlyphs.Add(new LineGlyph(glyphFont, glyphIndex, x, token.Run.SizeInches, token.Run.Color));
-                        x += glyphFont.GetAdvanceWidth(glyphIndex) / (double)glyphFont.UnitsPerEm * token.Run.SizeInches;
-                    }
-                }
-                else
-                {
-                    x += token.WidthInches;
-                }
-
-                if (token.Run.Decoration != VsdxTextDecoration.None)
-                {
-                    var ascentEm = token.Font.Ascender / (double)token.Font.UnitsPerEm;
-                    foreach (var kind in new[] { VsdxTextDecoration.Underline, VsdxTextDecoration.Strikethrough, VsdxTextDecoration.DoubleStrikethrough, VsdxTextDecoration.Overline })
-                    {
-                        if ((token.Run.Decoration & kind) == 0)
-                        {
-                            continue;
-                        }
-
-                        // Extend this kind's open bar when it has the same color and abuts this
-                        // token, so a decoration spanning several tokens is one unbroken bar. Each
-                        // decoration kind tracks its own open bar (searching backward), so several
-                        // simultaneous decorations all merge; differing sizes (small caps) merge
-                        // too, keeping the larger size so the bar sits at the nominal position.
-                        var open = -1;
-                        for (var barIndex = lineBars.Count - 1; barIndex >= 0; barIndex--)
-                        {
-                            if (lineBars[barIndex].Kind == kind)
-                            {
-                                open = barIndex;
-                                break;
-                            }
-                        }
-
-                        if (open >= 0 && lineBars[open].Color == token.Run.Color && Math.Abs(lineBars[open].X1 - tokenStartX) < 1e-9)
-                        {
-                            lineBars[open] = lineBars[open] with
-                            {
-                                X1 = x,
-                                SizeInches = Math.Max(lineBars[open].SizeInches, token.Run.SizeInches),
-                            };
-                        }
-                        else
-                        {
-                            lineBars.Add(new LineBar(tokenStartX, x, kind, token.Run.SizeInches, token.Run.Color, ascentEm));
-                        }
-                    }
-                }
-            }
-
-            if (maxAscent == 0d && maxDescent == 0d)
-            {
-                // A blank line (no tokens at all): fall back to the paragraph's own representative
-                // font metrics so it still occupies the natural single-spacing vertical space a
-                // blank line in any ordinary text editor would.
-                maxAscent = representativeFont.Ascender / (double)representativeFont.UnitsPerEm * representativeSize;
-                maxDescent = -representativeFont.Descender / (double)representativeFont.UnitsPerEm * representativeSize;
-            }
-
-            var naturalLineHeight = maxAscent + maxDescent;
-            var scaledLineHeight = paragraphProperties.SpLine switch
-            {
-                > 0d => Math.Max(naturalLineHeight, paragraphProperties.SpLine),
-                < 0d => naturalLineHeight * -paragraphProperties.SpLine,
-                _ => naturalLineHeight,
-            };
-
-            var leadingGap = isFirstLine ? paragraphProperties.SpBefore : 0d;
-            var trailingGap = isLastLine ? paragraphProperties.SpAfter : 0d;
-
-            lines.Add(new LineBox(lineGlyphs, x, scaledLineHeight + trailingGap, maxAscent, paragraphProperties, isFirstLine, leadingGap, lineBars));
+            lines.Add(BuildLineBox(
+                wrappedLines[lineIndex],
+                lineIndex == 0,
+                lineIndex == wrappedLines.Count - 1,
+                paragraphProperties,
+                (representativeFont, representativeSize),
+                glyphFallback));
         }
 
         return lines;
+    }
+
+    /// <summary>Lays out one wrapped line's tokens into a <see cref="LineBox"/>.</summary>
+    /// <param name="lineTokens">The tokens on this line.</param>
+    /// <param name="isFirstLine">Whether this is the paragraph's first line.</param>
+    /// <param name="isLastLine">Whether this is the paragraph's last line.</param>
+    /// <param name="paragraphProperties">The paragraph's effective properties.</param>
+    /// <param name="representative">The paragraph's representative font and size, used for blank lines.</param>
+    /// <param name="glyphFallback">The optional per-glyph fallback font resolver.</param>
+    /// <returns>The laid-out line.</returns>
+    private static LineBox BuildLineBox(
+        List<ResolvedToken> lineTokens,
+        bool isFirstLine,
+        bool isLastLine,
+        VsdxEffectiveParagraphProperties paragraphProperties,
+        (TrueTypeFont Font, double SizeInches) representative,
+        Func<int, bool, bool, TrueTypeFont?>? glyphFallback)
+    {
+        var lineGlyphs = new List<LineGlyph>();
+        var lineBars = new List<LineBar>();
+        var x = isFirstLine ? paragraphProperties.IndFirst : 0d;
+        var maxAscent = 0d;
+        var maxDescent = 0d;
+
+        foreach (var token in lineTokens)
+        {
+            var tokenStartX = x;
+            var ascent = token.Font.Ascender / (double)token.Font.UnitsPerEm * token.Run.SizeInches;
+            var descent = -token.Font.Descender / (double)token.Font.UnitsPerEm * token.Run.SizeInches;
+            maxAscent = Math.Max(maxAscent, ascent);
+            maxDescent = Math.Max(maxDescent, descent);
+
+            x = AppendTokenGlyphs(token, x, lineGlyphs, glyphFallback);
+
+            if (token.Run.Decoration != VsdxTextDecoration.None)
+            {
+                AddDecorationBars(lineBars, token, tokenStartX, x);
+            }
+        }
+
+        if (maxAscent.Equals(0d) && maxDescent.Equals(0d))
+        {
+            // A blank line (no tokens at all): fall back to the paragraph's own representative
+            // font metrics so it still occupies the natural single-spacing vertical space a
+            // blank line in any ordinary text editor would.
+            maxAscent = representative.Font.Ascender / (double)representative.Font.UnitsPerEm * representative.SizeInches;
+            maxDescent = -representative.Font.Descender / (double)representative.Font.UnitsPerEm * representative.SizeInches;
+        }
+
+        var naturalLineHeight = maxAscent + maxDescent;
+        var scaledLineHeight = paragraphProperties.SpLine switch
+        {
+            > 0d => Math.Max(naturalLineHeight, paragraphProperties.SpLine),
+            < 0d => naturalLineHeight * -paragraphProperties.SpLine,
+            _ => naturalLineHeight,
+        };
+
+        var leadingGap = isFirstLine ? paragraphProperties.SpBefore : 0d;
+        var trailingGap = isLastLine ? paragraphProperties.SpAfter : 0d;
+
+        return new LineBox(lineGlyphs, x, scaledLineHeight + trailingGap, maxAscent, paragraphProperties, isFirstLine, leadingGap, lineBars);
+    }
+
+    /// <summary>Appends a token's glyphs to the line (or just advances over whitespace).</summary>
+    /// <param name="token">The token to place.</param>
+    /// <param name="x">The pen position before the token, in inches.</param>
+    /// <param name="lineGlyphs">The line's glyph list to append to.</param>
+    /// <param name="glyphFallback">The optional per-glyph fallback font resolver.</param>
+    /// <returns>The pen position after the token, in inches.</returns>
+    private static double AppendTokenGlyphs(
+        ResolvedToken token,
+        double x,
+        List<LineGlyph> lineGlyphs,
+        Func<int, bool, bool, TrueTypeFont?>? glyphFallback)
+    {
+        if (token.IsWhitespace)
+        {
+            return x + token.WidthInches;
+        }
+
+        foreach (var rune in token.Text.EnumerateRunes())
+        {
+            var glyphFont = SelectGlyphFont(token.Font, rune, token.Run, glyphFallback, out var glyphIndex);
+            lineGlyphs.Add(new LineGlyph(glyphFont, glyphIndex, x, token.Run.SizeInches, token.Run.Color));
+            x += glyphFont.GetAdvanceWidth(glyphIndex) / (double)glyphFont.UnitsPerEm * token.Run.SizeInches;
+        }
+
+        return x;
+    }
+
+    private static readonly VsdxTextDecoration[] DecorationKinds =
+    [
+        VsdxTextDecoration.Underline,
+        VsdxTextDecoration.Strikethrough,
+        VsdxTextDecoration.DoubleStrikethrough,
+        VsdxTextDecoration.Overline,
+    ];
+
+    /// <summary>Adds (or extends) the decoration bars a token's run requests.</summary>
+    /// <param name="lineBars">The line's bar list.</param>
+    /// <param name="token">The token being decorated.</param>
+    /// <param name="tokenStartX">The token's start position, in inches.</param>
+    /// <param name="tokenEndX">The token's end position, in inches.</param>
+    private static void AddDecorationBars(List<LineBar> lineBars, ResolvedToken token, double tokenStartX, double tokenEndX)
+    {
+        var ascentEm = token.Font.Ascender / (double)token.Font.UnitsPerEm;
+        foreach (var kind in DecorationKinds.Where(k => (token.Run.Decoration & k) != 0))
+        {
+            // Extend this kind's open bar when it has the same color and abuts this
+            // token, so a decoration spanning several tokens is one unbroken bar. Each
+            // decoration kind tracks its own open bar (searching backward), so several
+            // simultaneous decorations all merge; differing sizes (small caps) merge
+            // too, keeping the larger size so the bar sits at the nominal position.
+            var open = lineBars.FindLastIndex(bar => bar.Kind == kind);
+
+            if (open >= 0 && lineBars[open].Color == token.Run.Color && Math.Abs(lineBars[open].X1 - tokenStartX) < 1e-9)
+            {
+                lineBars[open] = lineBars[open] with
+                {
+                    X1 = tokenEndX,
+                    SizeInches = Math.Max(lineBars[open].SizeInches, token.Run.SizeInches),
+                };
+            }
+            else
+            {
+                lineBars.Add(new LineBar(tokenStartX, tokenEndX, kind, token.Run.SizeInches, token.Run.Color, ascentEm));
+            }
+        }
     }
 
     /// <summary>

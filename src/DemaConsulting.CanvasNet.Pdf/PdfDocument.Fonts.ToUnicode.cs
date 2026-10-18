@@ -230,82 +230,99 @@ public sealed partial class PdfDocument
             var destinationToken = tokenizer.NextToken();
             if (destinationToken.Kind is PdfTokenKind.HexString or PdfTokenKind.LiteralString)
             {
-                // A single hex/literal-string destination: consecutive codes map to consecutive
-                // incrementing codepoints starting at the destination's own first codepoint. An
-                // empty destination string means the whole range has no Unicode equivalent - skip
-                // it rather than treating it as malformed.
-                //
-                // Reject an oversized span before expanding it - a crafted tiny srcLo/srcHi pair
-                // declaring an enormous span could otherwise allocate an enormous map even though
-                // the CMap stream itself is tiny (a decompression-bomb-style attack). The span and
-                // loop counter are computed in `long` (rather than `int`) because srcLo/srcHi may
-                // be decoded from up to 4-byte codes - an `int`-only computation could overflow for
-                // a crafted endpoint near `int.MaxValue`/`int.MinValue`, which would either corrupt
-                // the span check or make the loop counter wrap and never terminate.
-                var spanLong = (long)srcHi - srcLo + 1;
-                if (spanLong is <= 0 or > ToUnicodeMaxBfRangeSpan)
-                {
-                    throw new InvalidDataException(
-                        $"A bfrange entry's span exceeds the maximum supported size of {ToUnicodeMaxBfRangeSpan} codes.");
-                }
-
-                if (TryDecodeFirstUtf16CodePoint(destinationToken.Bytes ?? [], out var startCodepoint))
-                {
-                    for (var code = (long)srcLo; code <= srcHi; code++)
-                    {
-                        map[(int)code] = startCodepoint + (int)(code - srcLo);
-                    }
-                }
-
+                AddBfRangeSingleDestination(destinationToken, srcLo, srcHi, map);
                 continue;
             }
 
             if (destinationToken.Kind == PdfTokenKind.ArrayStart)
             {
-                // An array-of-per-code destinations - one hex/literal-string element per code in
-                // [srcLo, srcHi]. A nested array element is the out-of-scope CIDSystemInfo-style
-                // "array of arrays" destination sub-form.
-                var code = srcLo;
-                while (true)
-                {
-                    var elementToken = tokenizer.NextToken();
-                    if (elementToken.Kind == PdfTokenKind.ArrayEnd)
-                    {
-                        break;
-                    }
-
-                    if (elementToken.Kind == PdfTokenKind.EndOfFile)
-                    {
-                        throw new InvalidDataException("Unterminated bfrange destination array in /ToUnicode CMap.");
-                    }
-
-                    if (elementToken.Kind == PdfTokenKind.ArrayStart)
-                    {
-                        throw new UnsupportedImageFeatureException(
-                            "pdf-font-tounicode-bfrange-array-destination",
-                            "A bfrange destination array containing a nested array (the " +
-                            "CIDSystemInfo-style destination sub-form) is not supported.");
-                    }
-
-                    if (elementToken.Kind is not (PdfTokenKind.HexString or PdfTokenKind.LiteralString))
-                    {
-                        throw new InvalidDataException("A bfrange destination array element must be a string.");
-                    }
-
-                    // An empty destination string means this specific code has no Unicode
-                    // equivalent - skip mapping it rather than treating it as malformed.
-                    if (TryDecodeFirstUtf16CodePoint(elementToken.Bytes ?? [], out var elementCodepoint))
-                    {
-                        map[code] = elementCodepoint;
-                    }
-
-                    code++;
-                }
-
+                AddBfRangeArrayDestination(tokenizer, srcLo, map);
                 continue;
             }
 
             throw new InvalidDataException("A bfrange entry's destination must be a string or an array.");
+        }
+    }
+
+    /// <summary>Maps <c>[srcLo, srcHi]</c> to consecutive codepoints starting at a single destination string's first codepoint.</summary>
+    /// <exception cref="InvalidDataException">Thrown when the span exceeds <see cref="ToUnicodeMaxBfRangeSpan"/>.</exception>
+    private static void AddBfRangeSingleDestination(
+        PdfToken destinationToken,
+        int srcLo,
+        int srcHi,
+        Dictionary<int, int> map)
+    {
+        // A single hex/literal-string destination: consecutive codes map to consecutive
+        // incrementing codepoints starting at the destination's own first codepoint. An
+        // empty destination string means the whole range has no Unicode equivalent - skip
+        // it rather than treating it as malformed.
+        //
+        // Reject an oversized span before expanding it - a crafted tiny srcLo/srcHi pair
+        // declaring an enormous span could otherwise allocate an enormous map even though
+        // the CMap stream itself is tiny (a decompression-bomb-style attack). The span and
+        // loop counter are computed in `long` (rather than `int`) because srcLo/srcHi may
+        // be decoded from up to 4-byte codes - an `int`-only computation could overflow for
+        // a crafted endpoint near `int.MaxValue`/`int.MinValue`, which would either corrupt
+        // the span check or make the loop counter wrap and never terminate.
+        var spanLong = (long)srcHi - srcLo + 1;
+        if (spanLong is <= 0 or > ToUnicodeMaxBfRangeSpan)
+        {
+            throw new InvalidDataException(
+                $"A bfrange entry's span exceeds the maximum supported size of {ToUnicodeMaxBfRangeSpan} codes.");
+        }
+
+        if (TryDecodeFirstUtf16CodePoint(destinationToken.Bytes ?? [], out var startCodepoint))
+        {
+            for (var code = (long)srcLo; code <= srcHi; code++)
+            {
+                map[(int)code] = startCodepoint + (int)(code - srcLo);
+            }
+        }
+    }
+
+    /// <summary>Maps consecutive codes from <paramref name="srcLo"/> to each element of a destination array.</summary>
+    /// <exception cref="UnsupportedImageFeatureException">Thrown for a nested-array element.</exception>
+    /// <exception cref="InvalidDataException">Thrown for an unterminated array or a non-string element.</exception>
+    private static void AddBfRangeArrayDestination(PdfTokenizer tokenizer, int srcLo, Dictionary<int, int> map)
+    {
+        // An array-of-per-code destinations - one hex/literal-string element per code in
+        // [srcLo, srcHi]. A nested array element is the out-of-scope CIDSystemInfo-style
+        // "array of arrays" destination sub-form.
+        var code = srcLo;
+        while (true)
+        {
+            var elementToken = tokenizer.NextToken();
+            if (elementToken.Kind == PdfTokenKind.ArrayEnd)
+            {
+                return;
+            }
+
+            if (elementToken.Kind == PdfTokenKind.EndOfFile)
+            {
+                throw new InvalidDataException("Unterminated bfrange destination array in /ToUnicode CMap.");
+            }
+
+            if (elementToken.Kind == PdfTokenKind.ArrayStart)
+            {
+                throw new UnsupportedImageFeatureException(
+                    "pdf-font-tounicode-bfrange-array-destination",
+                    "A bfrange destination array containing a nested array (the " +
+                    "CIDSystemInfo-style destination sub-form) is not supported.");
+            }
+
+            if (elementToken.Kind is not (PdfTokenKind.HexString or PdfTokenKind.LiteralString))
+            {
+                throw new InvalidDataException("A bfrange destination array element must be a string.");
+            }
+
+            // An empty destination string means this specific code has no Unicode
+            // equivalent - skip mapping it rather than treating it as malformed.
+            if (TryDecodeFirstUtf16CodePoint(elementToken.Bytes ?? [], out var elementCodepoint))
+            {
+                map[code] = elementCodepoint;
+            }
+
+            code++;
         }
     }
 

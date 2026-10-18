@@ -519,6 +519,11 @@ public static partial class Jpeg2000Codec
             if (style == 0)
             {
                 var n = r.Remaining;
+                if (n == 0)
+                {
+                    throw Malformed("quantization segment has no entries.");
+                }
+
                 exp = new int[n];
                 mant = new int[n];
                 for (var i = 0; i < n; i++)
@@ -541,6 +546,11 @@ public static partial class Jpeg2000Codec
                 }
 
                 var n = r.Remaining / 2;
+                if (n == 0)
+                {
+                    throw Malformed("quantization segment has no entries.");
+                }
+
                 exp = new int[n];
                 mant = new int[n];
                 for (var i = 0; i < n; i++)
@@ -549,11 +559,6 @@ public static partial class Jpeg2000Codec
                     exp[i] = v >> 11;
                     mant[i] = v & 0x7FF;
                 }
-            }
-
-            if (exp.Length == 0)
-            {
-                throw Malformed("quantization segment has no entries.");
             }
 
             return new QuantParams { Style = style, GuardBits = guard, Exp = exp, Mant = mant };

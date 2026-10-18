@@ -27,7 +27,7 @@ public class PptxSystemIntegrationTests
     ///     <c>ppt/presentation.xml</c> part itself - representative of the minimum a real
     ///     PowerPoint-produced <c>.pptx</c> file would always contain.
     /// </summary>
-    private static Stream BuildWellFormedPresentationPackage()
+    private static MemoryStream BuildWellFormedPresentationPackage()
     {
         const string contentTypesXml =
             """
@@ -253,7 +253,7 @@ public class PptxSystemIntegrationTests
     ///     <c>&lt;p:pic&gt;</c> referencing <c>r:embed="rId2"</c>, mirroring
     ///     <see cref="PptxRenderTests"/>'s own <c>BuildRenderPackage</c> media-parameter pattern.
     /// </summary>
-    private static Stream BuildGeometryPaintPackage(
+    private static MemoryStream BuildGeometryPaintPackage(
         string spTreeInnerXml,
         (string Extension, string ContentType, byte[] Bytes)? media = null)
     {
@@ -566,7 +566,7 @@ public class PptxSystemIntegrationTests
     ///     styles relevant to its scenario, exactly as <see cref="BuildGeometryPaintPackage"/> does
     ///     for Phase 1c.
     /// </summary>
-    private static Stream BuildTextPackage(string spTreeInnerXml, string masterTxStylesXml, string layoutPlaceholderXml)
+    private static MemoryStream BuildTextPackage(string spTreeInnerXml, string masterTxStylesXml, string layoutPlaceholderXml)
     {
         const string contentTypesXml =
             """

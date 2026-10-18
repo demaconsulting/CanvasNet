@@ -174,8 +174,8 @@ public sealed partial class VsdxDocument
             }
         }
 
-        var xScale = args[2] == 0d ? width : 1d;
-        var yScale = args[3] == 0d ? height : 1d;
+        var xScale = args[2].Equals(0d) ? width : 1d;
+        var yScale = args[3].Equals(0d) ? height : 1d;
         var points = new List<Vector2> { start };
         var weights = new List<double> { firstWeight };
         var knots = new List<double> { firstKnot };
@@ -223,8 +223,8 @@ public sealed partial class VsdxDocument
             return false;
         }
 
-        var xScale = args[0] == 0d ? width : 1d;
-        var yScale = args[1] == 0d ? height : 1d;
+        var xScale = args[0].Equals(0d) ? width : 1d;
+        var yScale = args[1].Equals(0d) ? height : 1d;
         end = ToLocalPoint(endX, endY);
         var last = (Vector2?)null;
         for (var i = 2; i < args.Count; i += 2)

@@ -39,7 +39,8 @@ public class PdfDocumentHairlineStrokeTests
         var pdf = BuildPdf(FillThenStrokeContent);
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdf));
+        using var stream = new MemoryStream(pdf);
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, RenderSize, RenderSize, null);
 
         // Assert: the interior keeps the pale-blue fill (the stroke must not flood it with black)

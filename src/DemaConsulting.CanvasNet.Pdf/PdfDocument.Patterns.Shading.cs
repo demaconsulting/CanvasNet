@@ -272,7 +272,7 @@ public sealed partial class PdfDocument
     ///     unsupported-feature cases - the same exception the <c>scn</c>/<c>SCN</c> + <c>/Pattern</c>
     ///     path already throws for the identical underlying condition.
     /// </exception>
-    private void OpPaintShading(IReadOnlyList<PdfObject> operands)
+    private void OpPaintShading(List<PdfObject> operands)
     {
         RequireOperandCount(operands, "sh", 1);
         if (operands[0].Kind != PdfKind.Name)
@@ -423,25 +423,7 @@ public sealed partial class PdfDocument
         var sweep = (p1 - p0).Length();
 
         // Device-space length of one unit of t, and of the whole ramp (for the sample count).
-        var scale = Math.Max(
-            Vector2.TransformNormal(new Vector2(1f, 0f), patternToDevice).Length(),
-            Vector2.TransformNormal(new Vector2(0f, 1f), patternToDevice).Length());
-        double unitLength;
-        double rampLength;
-        if (isAxial)
-        {
-            unitLength = Vector2.TransformNormal(p1 - p0, patternToDevice).Length();
-            rampLength = unitLength;
-        }
-        else
-        {
-            unitLength = (sweep + Math.Abs(dr)) * scale;
-            rampLength = Math.Max(unitLength, (Math.Abs(r0) + Math.Abs(r1)) * scale);
-        }
-
-        var count = double.IsFinite(rampLength)
-            ? (int)Math.Clamp(Math.Ceiling(rampLength), ShadingGradientMinSampleCount, ShadingGradientMaxSampleCount)
-            : ShadingGradientMinSampleCount;
+        var (unitLength, count) = ComputeShadingRamp(isAxial, p0, p1, r0, r1, sweep, patternToDevice);
 
         // How far (in t units) an extended end must reach to cover the surface.
         var reach = MaxDeviceDistance(p0, p1, patternToDevice, surfaceWidth, surfaceHeight);
@@ -449,113 +431,22 @@ public sealed partial class PdfDocument
             ? Math.Min((reach / unitLength) + 1.0, ShadingMaxExtension)
             : ShadingMaxExtension;
 
-        // Radial: the radius must stay non-negative over the widened range.
-        var startLimit = double.PositiveInfinity;
-        var endLimit = double.PositiveInfinity;
-        if (!isAxial)
-        {
-            if (dr > 0.0)
-            {
-                startLimit = Math.Max(r0, 0.0) / dr;
-            }
-            else if (dr < 0.0)
-            {
-                endLimit = Math.Max(r1, 0.0) / -dr;
-            }
-        }
-
-        var before = extend0 ? Math.Min(extension, startLimit) : Math.Min(ShadingEdgeMargin, startLimit);
-        var after = extend1 ? Math.Min(extension, endLimit) : Math.Min(ShadingEdgeMargin, endLimit);
-        if (before < 1e-6)
-        {
-            before = 0.0;
-        }
-
-        if (after < 1e-6)
-        {
-            after = 0.0;
-        }
+        var (before, after) = ComputeShadingMargins(isAxial, extend0, extend1, extension, r0, r1);
 
         var tMin = -before;
         var tMax = 1.0 + after;
         var span = tMax - tMin;
-        float Offset(double t) => (float)Math.Clamp((t - tMin) / span, 0.0, 1.0);
 
-        var transparent = new Rgba32(0, 0, 0, 0);
-
-        // Sample positions: the uniform grid plus an exact hard stop (a "before" and an "after"
-        // sample at the same t) at every function breakpoint inside (0, 1). Uniform samples that
-        // coincide with a breakpoint are replaced by that pair.
-        var samples = new List<(double T, Rgba32 Color)>(count + 8);
         var domainSpan = domain[1] - domain[0];
-        var interiorBreakpoints = new List<double>();
-        if (pattern.Breakpoints is { Count: > 0 } breakpoints && Math.Abs(domainSpan) > 1e-12)
-        {
-            foreach (var breakpoint in breakpoints)
-            {
-                var t = (breakpoint - domain[0]) / domainSpan;
-                if (double.IsFinite(t) && t > 1e-9 && t < 1.0 - 1e-9)
-                {
-                    interiorBreakpoints.Add(t);
-                }
-            }
+        var interiorBreakpoints = CollectInteriorBreakpoints(pattern, domain, domainSpan);
+        var samples = BuildShadingSamples(
+            count,
+            interiorBreakpoints,
+            domain[0],
+            domainSpan,
+            domainValue => ColorFromComponents(colorSpace, evaluate(domainValue)));
 
-            interiorBreakpoints.Sort();
-            if (interiorBreakpoints.Count > ShadingGradientMaxBreakpoints)
-            {
-                interiorBreakpoints.RemoveRange(
-                    ShadingGradientMaxBreakpoints, interiorBreakpoints.Count - ShadingGradientMaxBreakpoints);
-            }
-        }
-
-        Rgba32 ColorAtDomain(double domainValue) => ColorFromComponents(colorSpace, evaluate(domainValue));
-        var nextBreakpoint = 0;
-        for (var i = 0; i < count; i++)
-        {
-            var t = (double)i / (count - 1);
-            while (nextBreakpoint < interiorBreakpoints.Count && interiorBreakpoints[nextBreakpoint] <= t + 1e-12)
-            {
-                var b = interiorBreakpoints[nextBreakpoint++];
-                if (samples.Count > 0 && b <= samples[^1].T + 1e-12)
-                {
-                    continue;
-                }
-
-                var breakDomain = domain[0] + (b * domainSpan);
-                samples.Add((b, ColorAtDomain(domainSpan > 0 ? Math.BitDecrement(breakDomain) : Math.BitIncrement(breakDomain))));
-                samples.Add((b, ColorAtDomain(breakDomain)));
-            }
-
-            if (i < count - 1 && nextBreakpoint > 0 && Math.Abs(interiorBreakpoints[nextBreakpoint - 1] - t) <= 1e-12)
-            {
-                continue;
-            }
-
-            samples.Add((t, ColorAtDomain(domain[0] + (t * domainSpan))));
-        }
-
-        var stops = new List<GradientStop>(samples.Count + 4);
-        for (var i = 0; i < samples.Count; i++)
-        {
-            var color = samples[i].Color;
-            var offset = Offset(samples[i].T);
-
-            if (i == 0 && before > 0.0)
-            {
-                var fill = extend0 ? color : transparent;
-                stops.Add(new GradientStop(0f, fill));
-                stops.Add(new GradientStop(offset, fill));
-            }
-
-            stops.Add(new GradientStop(offset, color));
-
-            if (i == samples.Count - 1 && after > 0.0)
-            {
-                var fill = extend1 ? color : transparent;
-                stops.Add(new GradientStop(offset, fill));
-                stops.Add(new GradientStop(1f, fill));
-            }
-        }
+        var stops = BuildShadingStops(samples, tMin, span, before, after, extend0, extend1);
 
         if (isAxial)
         {
@@ -577,6 +468,177 @@ public sealed partial class PdfDocument
             stops,
             GradientSpread.Pad,
             patternToDevice);
+    }
+
+    /// <summary>
+    ///     Computes the device-space length of one unit of <c>t</c> and the gradient sample count
+    ///     derived from the whole ramp's device-space length.
+    /// </summary>
+    private static (double UnitLength, int Count) ComputeShadingRamp(
+        bool isAxial,
+        Vector2 p0,
+        Vector2 p1,
+        double r0,
+        double r1,
+        float sweep,
+        Matrix3x2 patternToDevice)
+    {
+        double unitLength;
+        double rampLength;
+        if (isAxial)
+        {
+            unitLength = Vector2.TransformNormal(p1 - p0, patternToDevice).Length();
+            rampLength = unitLength;
+        }
+        else
+        {
+            var scale = Math.Max(
+                Vector2.TransformNormal(new Vector2(1f, 0f), patternToDevice).Length(),
+                Vector2.TransformNormal(new Vector2(0f, 1f), patternToDevice).Length());
+            unitLength = (sweep + Math.Abs(r1 - r0)) * scale;
+            rampLength = Math.Max(unitLength, (Math.Abs(r0) + Math.Abs(r1)) * scale);
+        }
+
+        var count = double.IsFinite(rampLength)
+            ? (int)Math.Clamp(Math.Ceiling(rampLength), ShadingGradientMinSampleCount, ShadingGradientMaxSampleCount)
+            : ShadingGradientMinSampleCount;
+        return (unitLength, count);
+    }
+
+    /// <summary>
+    ///     Computes how far (in <c>t</c> units) the gradient is widened before <c>t = 0</c> and
+    ///     after <c>t = 1</c>; for radial shadings the radius must stay non-negative over the
+    ///     widened range.
+    /// </summary>
+    private static (double Before, double After) ComputeShadingMargins(
+        bool isAxial,
+        bool extend0,
+        bool extend1,
+        double extension,
+        double r0,
+        double r1)
+    {
+        var dr = r1 - r0;
+        var startLimit = double.PositiveInfinity;
+        var endLimit = double.PositiveInfinity;
+        if (!isAxial && dr > 0.0)
+        {
+            startLimit = Math.Max(r0, 0.0) / dr;
+        }
+        else if (!isAxial && dr < 0.0)
+        {
+            endLimit = Math.Max(r1, 0.0) / -dr;
+        }
+
+        var before = extend0 ? Math.Min(extension, startLimit) : Math.Min(ShadingEdgeMargin, startLimit);
+        var after = extend1 ? Math.Min(extension, endLimit) : Math.Min(ShadingEdgeMargin, endLimit);
+        return (before < 1e-6 ? 0.0 : before, after < 1e-6 ? 0.0 : after);
+    }
+
+    /// <summary>Collects the function breakpoints strictly inside the <c>(0, 1)</c> parameter range, sorted and capped.</summary>
+    private static List<double> CollectInteriorBreakpoints(ResolvedPattern pattern, double[] domain, double domainSpan)
+    {
+        var interiorBreakpoints = new List<double>();
+        if (pattern.Breakpoints is not { Count: > 0 } breakpoints || Math.Abs(domainSpan) <= 1e-12)
+        {
+            return interiorBreakpoints;
+        }
+
+        foreach (var breakpoint in breakpoints)
+        {
+            var t = (breakpoint - domain[0]) / domainSpan;
+            if (double.IsFinite(t) && t > 1e-9 && t < 1.0 - 1e-9)
+            {
+                interiorBreakpoints.Add(t);
+            }
+        }
+
+        interiorBreakpoints.Sort();
+        if (interiorBreakpoints.Count > ShadingGradientMaxBreakpoints)
+        {
+            interiorBreakpoints.RemoveRange(
+                ShadingGradientMaxBreakpoints, interiorBreakpoints.Count - ShadingGradientMaxBreakpoints);
+        }
+
+        return interiorBreakpoints;
+    }
+
+    /// <summary>
+    ///     Builds the sample positions: the uniform grid plus an exact hard stop (a "before" and an
+    ///     "after" sample at the same t) at every function breakpoint inside (0, 1). Uniform
+    ///     samples that coincide with a breakpoint are replaced by that pair.
+    /// </summary>
+    private static List<(double T, Rgba32 Color)> BuildShadingSamples(
+        int count,
+        List<double> interiorBreakpoints,
+        double domainStart,
+        double domainSpan,
+        Func<double, Rgba32> colorAtDomain)
+    {
+        var samples = new List<(double T, Rgba32 Color)>(count + 8);
+        var nextBreakpoint = 0;
+        for (var i = 0; i < count; i++)
+        {
+            var t = (double)i / (count - 1);
+            while (nextBreakpoint < interiorBreakpoints.Count && interiorBreakpoints[nextBreakpoint] <= t + 1e-12)
+            {
+                var b = interiorBreakpoints[nextBreakpoint++];
+                if (samples.Count > 0 && b <= samples[^1].T + 1e-12)
+                {
+                    continue;
+                }
+
+                var breakDomain = domainStart + (b * domainSpan);
+                samples.Add((b, colorAtDomain(domainSpan > 0 ? Math.BitDecrement(breakDomain) : Math.BitIncrement(breakDomain))));
+                samples.Add((b, colorAtDomain(breakDomain)));
+            }
+
+            if (i < count - 1 && nextBreakpoint > 0 && Math.Abs(interiorBreakpoints[nextBreakpoint - 1] - t) <= 1e-12)
+            {
+                continue;
+            }
+
+            samples.Add((t, colorAtDomain(domainStart + (t * domainSpan))));
+        }
+
+        return samples;
+    }
+
+    /// <summary>Converts samples to gradient stops, adding the widened-range end stops.</summary>
+    private static List<GradientStop> BuildShadingStops(
+        List<(double T, Rgba32 Color)> samples,
+        double tMin,
+        double span,
+        double before,
+        double after,
+        bool extend0,
+        bool extend1)
+    {
+        var transparent = new Rgba32(0, 0, 0, 0);
+        var stops = new List<GradientStop>(samples.Count + 4);
+        for (var i = 0; i < samples.Count; i++)
+        {
+            var color = samples[i].Color;
+            var offset = (float)Math.Clamp((samples[i].T - tMin) / span, 0.0, 1.0);
+
+            if (i == 0 && before > 0.0)
+            {
+                var fill = extend0 ? color : transparent;
+                stops.Add(new GradientStop(0f, fill));
+                stops.Add(new GradientStop(offset, fill));
+            }
+
+            stops.Add(new GradientStop(offset, color));
+
+            if (i == samples.Count - 1 && after > 0.0)
+            {
+                var fill = extend1 ? color : transparent;
+                stops.Add(new GradientStop(offset, fill));
+                stops.Add(new GradientStop(1f, fill));
+            }
+        }
+
+        return stops;
     }
 
     /// <summary>

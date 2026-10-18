@@ -144,7 +144,7 @@ internal static class Type1CharstringInterpreter
                 throw new InvalidDataException("Type 1 charstring numeric operand is truncated.");
             }
 
-            value = (double)(((b0 - 247) * 256) + data[pos + 1] + 108);
+            value = ((b0 - 247) * 256.0) + data[pos + 1] + 108;
             consumed = 2;
         }
         else if (b0 is >= 251 and <= 254)
@@ -154,7 +154,7 @@ internal static class Type1CharstringInterpreter
                 throw new InvalidDataException("Type 1 charstring numeric operand is truncated.");
             }
 
-            value = (double)((-(b0 - 251) * 256) - data[pos + 1] - 108);
+            value = (-(b0 - 251) * 256.0) - data[pos + 1] - 108;
             consumed = 2;
         }
         else if (b0 == 255)
@@ -244,36 +244,7 @@ internal static class Type1CharstringInterpreter
 
                 if (b0 == 12)
                 {
-                    if (pos + 1 >= end)
-                    {
-                        throw new InvalidDataException("Type 1 charstring escape operator is truncated.");
-                    }
-
-                    var escOp = _data[pos + 1];
-                    pos += 2;
-                    switch (escOp)
-                    {
-                        case 0: // dotsection
-                        case 1: // vstem3
-                        case 2: // hstem3
-                            _stack.Clear();
-                            break;
-
-                        case 6: // seac
-                            throw new InvalidDataException(
-                                "Type 1 charstring 'seac' (accented composite glyph construction) is not supported.");
-
-                        case 7: HandleSbw(); break;
-                        case 12: HandleDiv(); break;
-                        case 16: HandleCallOtherSubr(); break;
-                        case 17: HandlePop(); break;
-                        case 33: HandleSetCurrentPoint(); break;
-
-                        default:
-                            throw new InvalidDataException(
-                                string.Create(CultureInfo.InvariantCulture, $"Unsupported Type 1 charstring escape operator (12 {escOp})."));
-                    }
-
+                    pos = RunEscape(pos, end);
                     continue;
                 }
 
@@ -305,6 +276,44 @@ internal static class Type1CharstringInterpreter
                             string.Create(CultureInfo.InvariantCulture, $"Unsupported Type 1 charstring operator ({b0})."));
                 }
             }
+        }
+
+        /// <summary>
+        ///     Executes one two-byte escape operator (<c>12 x</c>) at <paramref name="pos"/> and
+        ///     returns the position following it.
+        /// </summary>
+        private int RunEscape(int pos, int end)
+        {
+            if (pos + 1 >= end)
+            {
+                throw new InvalidDataException("Type 1 charstring escape operator is truncated.");
+            }
+
+            var escOp = _data[pos + 1];
+            switch (escOp)
+            {
+                case 0: // dotsection
+                case 1: // vstem3
+                case 2: // hstem3
+                    _stack.Clear();
+                    break;
+
+                case 6: // seac
+                    throw new InvalidDataException(
+                        "Type 1 charstring 'seac' (accented composite glyph construction) is not supported.");
+
+                case 7: HandleSbw(); break;
+                case 12: HandleDiv(); break;
+                case 16: HandleCallOtherSubr(); break;
+                case 17: HandlePop(); break;
+                case 33: HandleSetCurrentPoint(); break;
+
+                default:
+                    throw new InvalidDataException(
+                        string.Create(CultureInfo.InvariantCulture, $"Unsupported Type 1 charstring escape operator (12 {escOp})."));
+            }
+
+            return pos + 2;
         }
 
         /// <summary>

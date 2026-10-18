@@ -63,12 +63,39 @@ internal static class Type1PfaReader
 
         var length1 = keywordIndex + EexecKeyword.Length;
 
+        var encrypted = DecodeHexRun(data, length1);
+        var end = encrypted.Count;
+        while (end > 0 && encrypted[end - 1] == 0)
+        {
+            end--;
+        }
+
+        if (end == 0)
+        {
+            throw new InvalidDataException("Type 1 PFA file's encrypted region decodes to zero bytes.");
+        }
+
+        var fontFileBytes = new byte[length1 + end];
+        Array.Copy(data, 0, fontFileBytes, 0, length1);
+        for (var i = 0; i < end; i++)
+        {
+            fontFileBytes[length1 + i] = encrypted[i];
+        }
+
+        return (fontFileBytes, length1, end);
+    }
+
+    /// <summary>
+    ///     Decodes the hexadecimal run starting at <paramref name="start"/> into bytes.
+    /// </summary>
+    private static List<byte> DecodeHexRun(byte[] data, int start)
+    {
         var encrypted = new List<byte>();
         var haveHighNibble = false;
         var highNibble = 0;
         var sawAnyHexDigit = false;
 
-        for (var pos = length1; pos < data.Length; pos++)
+        for (var pos = start; pos < data.Length; pos++)
         {
             var b = data[pos];
             var digit = HexDigitValue(b);
@@ -78,14 +105,13 @@ internal static class Type1PfaReader
                 if (haveHighNibble)
                 {
                     encrypted.Add((byte)((highNibble << 4) | digit));
-                    haveHighNibble = false;
                 }
                 else
                 {
                     highNibble = digit;
-                    haveHighNibble = true;
                 }
 
+                haveHighNibble = !haveHighNibble;
                 continue;
             }
 
@@ -112,26 +138,8 @@ internal static class Type1PfaReader
         }
 
         // Trim the conventional trailing zero-padding (512 zero bytes is the usual convention,
-        // but only the fact that it's trailing zeros matters here).
-        var end = encrypted.Count;
-        while (end > 0 && encrypted[end - 1] == 0)
-        {
-            end--;
-        }
-
-        if (end == 0)
-        {
-            throw new InvalidDataException("Type 1 PFA file's encrypted region decodes to zero bytes.");
-        }
-
-        var fontFileBytes = new byte[length1 + end];
-        Array.Copy(data, 0, fontFileBytes, 0, length1);
-        for (var i = 0; i < end; i++)
-        {
-            fontFileBytes[length1 + i] = encrypted[i];
-        }
-
-        return (fontFileBytes, length1, end);
+        // but only the fact that it's trailing zeros matters here) in the caller.
+        return encrypted;
     }
 
     private static int HexDigitValue(byte b) => b switch

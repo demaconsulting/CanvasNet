@@ -176,7 +176,7 @@ public static partial class Jpeg2000Codec
                 {
                     foreach (var block in pb.Blocks)
                     {
-                        tier1.DecodeBlock(block, pb.Band, tc.Coding.Style, tc.RoiShift, tc.Coding.Reversible, ints, floats, stride, budget);
+                        tier1.DecodeBlock(block, pb.Band, tc.Coding.Style, tc.RoiShift, new BlockOutput(tc.Coding.Reversible, ints, floats, stride), budget);
                         block.Data = [];
                     }
                 }

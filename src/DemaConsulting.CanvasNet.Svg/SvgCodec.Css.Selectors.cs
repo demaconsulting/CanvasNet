@@ -149,44 +149,7 @@ public static partial class SvgCodec
             return false;
         }
 
-        var rawSegments = new List<(string CompoundText, CssCombinator Combinator)>();
-        var builder = new StringBuilder();
-        var pendingCombinator = CssCombinator.None;
-
-        foreach (var c in text)
-        {
-            if (char.IsWhiteSpace(c))
-            {
-                if (builder.Length > 0)
-                {
-                    rawSegments.Add((builder.ToString(), pendingCombinator));
-                    builder.Clear();
-                    pendingCombinator = CssCombinator.Descendant;
-                }
-
-                continue;
-            }
-
-            if (c == '>')
-            {
-                if (builder.Length > 0)
-                {
-                    rawSegments.Add((builder.ToString(), pendingCombinator));
-                    builder.Clear();
-                }
-
-                pendingCombinator = CssCombinator.Child;
-                continue;
-            }
-
-            builder.Append(c);
-        }
-
-        if (builder.Length > 0)
-        {
-            rawSegments.Add((builder.ToString(), pendingCombinator));
-        }
-
+        var rawSegments = SplitSelectorSegments(text);
         if (rawSegments.Count == 0 || rawSegments.Count > MaxCssCombinatorSegmentsPerSelector)
         {
             return false;
@@ -209,6 +172,48 @@ public static partial class SvgCodec
 
         selector = new CssComplexSelector(segments);
         return true;
+    }
+
+    /// <summary>
+    ///     Splits one selector's text on whitespace (descendant combinator) and <c>&gt;</c> (child
+    ///     combinator) into its raw compound-selector text chain.
+    /// </summary>
+    /// <param name="text">The single selector's trimmed text.</param>
+    /// <returns>Each compound's raw text with the combinator connecting it to the previous one.</returns>
+    private static List<(string CompoundText, CssCombinator Combinator)> SplitSelectorSegments(string text)
+    {
+        var rawSegments = new List<(string CompoundText, CssCombinator Combinator)>();
+        var builder = new StringBuilder();
+        var pendingCombinator = CssCombinator.None;
+
+        foreach (var c in text)
+        {
+            if (char.IsWhiteSpace(c) || c == '>')
+            {
+                if (builder.Length > 0)
+                {
+                    rawSegments.Add((builder.ToString(), pendingCombinator));
+                    builder.Clear();
+                    pendingCombinator = CssCombinator.Descendant;
+                }
+
+                if (c == '>')
+                {
+                    pendingCombinator = CssCombinator.Child;
+                }
+
+                continue;
+            }
+
+            builder.Append(c);
+        }
+
+        if (builder.Length > 0)
+        {
+            rawSegments.Add((builder.ToString(), pendingCombinator));
+        }
+
+        return rawSegments;
     }
 
     /// <summary>Whether <paramref name="c"/> may begin a type/class/id name.</summary>
@@ -249,57 +254,36 @@ public static partial class SvgCodec
         }
         else if (IsNameStartChar(text[0]))
         {
-            var start = i;
-            while (i < text.Length && IsNameChar(text[i]))
-            {
-                i++;
-            }
-
-            type = text[start..i];
+            TryReadName(text, ref i, out var typeName);
+            type = typeName;
         }
 
         string? id = null;
         var classes = new List<string>();
         while (i < text.Length)
         {
-            var c = text[i];
-            if (c == '.')
+            // Any character other than a class/id marker (an attribute selector's own "="/quote
+            // characters, a pseudo-class's argument, etc.) is unsupported syntax within a
+            // compound selector
+            var marker = text[i];
+            if (marker != '.' && marker != '#')
             {
-                i++;
-                var start = i;
-                while (i < text.Length && IsNameChar(text[i]))
-                {
-                    i++;
-                }
-
-                if (i == start)
-                {
-                    return false;
-                }
-
-                classes.Add(text[start..i]);
+                return false;
             }
-            else if (c == '#')
+
+            i++;
+            if (!TryReadName(text, ref i, out var name))
             {
-                i++;
-                var start = i;
-                while (i < text.Length && IsNameChar(text[i]))
-                {
-                    i++;
-                }
+                return false;
+            }
 
-                if (i == start)
-                {
-                    return false;
-                }
-
-                id = text[start..i];
+            if (marker == '.')
+            {
+                classes.Add(name);
             }
             else
             {
-                // Any other character (an attribute selector's own "="/quote characters, a
-                // pseudo-class's argument, etc.) is unsupported syntax within a compound selector
-                return false;
+                id = name;
             }
         }
 
@@ -310,6 +294,25 @@ public static partial class SvgCodec
 
         compound = new CssCompoundSelector(type, isUniversal, id, classes);
         return true;
+    }
+
+    /// <summary>
+    ///     Reads a maximal run of name characters starting at <paramref name="index"/>.
+    /// </summary>
+    /// <param name="text">The text to read from.</param>
+    /// <param name="index">The index to start at, advanced past the run.</param>
+    /// <param name="name">The run read (possibly empty).</param>
+    /// <returns><see langword="true"/> if the run is non-empty.</returns>
+    private static bool TryReadName(string text, ref int index, out string name)
+    {
+        var start = index;
+        while (index < text.Length && IsNameChar(text[index]))
+        {
+            index++;
+        }
+
+        name = text[start..index];
+        return index > start;
     }
 
     /// <summary>

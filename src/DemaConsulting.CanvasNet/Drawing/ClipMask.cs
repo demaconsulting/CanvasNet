@@ -53,6 +53,20 @@ namespace DemaConsulting.CanvasNet.Drawing;
 /// </remarks>
 internal sealed class ClipMask
 {
+    /// <summary>Whole-pixel placement and size of a dense coverage buffer.</summary>
+    /// <param name="OriginX">The buffer's left device pixel column.</param>
+    /// <param name="OriginY">The buffer's top device pixel row.</param>
+    /// <param name="Width">The buffer width in pixels.</param>
+    /// <param name="Height">The buffer height in pixels.</param>
+    private readonly record struct DenseLayout(int OriginX, int OriginY, int Width, int Height);
+
+    /// <summary>The four edges of a float rectangle in device pixel units.</summary>
+    /// <param name="Left">The left edge.</param>
+    /// <param name="Top">The top edge.</param>
+    /// <param name="Right">The right edge.</param>
+    /// <param name="Bottom">The bottom edge.</param>
+    private readonly record struct Edges(float Left, float Top, float Right, float Bottom);
+
     /// <summary>The tolerance, in pixels, used for rectangle detection and full-surface detection.</summary>
     private const float Epsilon = 1e-3f;
 
@@ -80,21 +94,11 @@ internal sealed class ClipMask
     private readonly int _boundsWidth;
     private readonly int _boundsHeight;
 
-    private ClipMask(
-        float[]? dense,
-        int denseOriginX,
-        int denseOriginY,
-        int denseWidth,
-        int denseHeight,
-        float left,
-        float top,
-        float right,
-        float bottom,
-        int width,
-        int height)
+    private ClipMask(float[]? dense, DenseLayout layout, Edges edges, int width, int height)
     {
         Width = width;
         Height = height;
+        var (left, top, right, bottom) = edges;
         if (!(right > left) || !(bottom > top))
         {
             // Empty: nothing is visible.
@@ -102,10 +106,10 @@ internal sealed class ClipMask
         }
 
         _dense = dense;
-        _denseOriginX = denseOriginX;
-        _denseOriginY = denseOriginY;
-        _denseWidth = denseWidth;
-        _denseHeight = denseHeight;
+        _denseOriginX = layout.OriginX;
+        _denseOriginY = layout.OriginY;
+        _denseWidth = layout.Width;
+        _denseHeight = layout.Height;
         _left = left;
         _top = top;
         _right = right;
@@ -279,7 +283,7 @@ internal sealed class ClipMask
 
         if (_dense is null && other._dense is null)
         {
-            return new ClipMask(null, 0, 0, 0, 0, left, top, right, bottom, Width, Height);
+            return new ClipMask(null, default, new Edges(left, top, right, bottom), Width, Height);
         }
 
         if (_dense is null || other._dense is null)
@@ -309,14 +313,8 @@ internal sealed class ClipMask
         var dense = _dense is not null ? this : other;
         var restricted = new ClipMask(
             dense._dense,
-            dense._denseOriginX,
-            dense._denseOriginY,
-            dense._denseWidth,
-            dense._denseHeight,
-            left,
-            top,
-            right,
-            bottom,
+            new DenseLayout(dense._denseOriginX, dense._denseOriginY, dense._denseWidth, dense._denseHeight),
+            new Edges(left, top, right, bottom),
             Width,
             Height);
         if (dense._pieces is null)
@@ -370,8 +368,8 @@ internal sealed class ClipMask
             var bCount = b is null ? 1 : b.Length / 4;
             for (var j = 0; j < bCount; j++)
             {
-                IntersectPair(a, i, b, j, left, top, right, bottom, out var l, out var t, out var r, out var bt);
-                if (TryAddPiece(result, l, t, r, bt))
+                IntersectPair(a, i, b, j, new Edges(left, top, right, bottom), out var piece);
+                if (TryAddPiece(result, piece.Left, piece.Top, piece.Right, piece.Bottom))
                 {
                     return [.. result];
                 }
@@ -387,19 +385,14 @@ internal sealed class ClipMask
         int i,
         float[]? b,
         int j,
-        float left,
-        float top,
-        float right,
-        float bottom,
-        out float l,
-        out float t,
-        out float r,
-        out float bt)
+        Edges bounds,
+        out Edges result)
     {
-        l = MathF.Max(a[i], b is null ? left : MathF.Max(b[j * 4], left));
-        t = MathF.Max(a[i + 1], b is null ? top : MathF.Max(b[(j * 4) + 1], top));
-        r = MathF.Min(a[i + 2], b is null ? right : MathF.Min(b[(j * 4) + 2], right));
-        bt = MathF.Min(a[i + 3], b is null ? bottom : MathF.Min(b[(j * 4) + 3], bottom));
+        var l = MathF.Max(a[i], b is null ? bounds.Left : MathF.Max(b[j * 4], bounds.Left));
+        var t = MathF.Max(a[i + 1], b is null ? bounds.Top : MathF.Max(b[(j * 4) + 1], bounds.Top));
+        var r = MathF.Min(a[i + 2], b is null ? bounds.Right : MathF.Min(b[(j * 4) + 2], bounds.Right));
+        var bt = MathF.Min(a[i + 3], b is null ? bounds.Bottom : MathF.Min(b[(j * 4) + 3], bounds.Bottom));
+        result = new Edges(l, t, r, bt);
     }
 
     /// <summary>Appends a non-empty rectangle to <paramref name="result"/>; returns <see langword="true"/> when the piece cap is exceeded.</summary>
@@ -855,7 +848,7 @@ internal sealed class ClipMask
                 continue;
             }
 
-            var output = ClipPolygonToExtent(polygon, rectLeft, rectTop, rectRight, rectBottom, out var pMinX, out var pMinY, out var pMaxX, out var pMaxY);
+            var output = ClipPolygonToExtent(polygon, new Edges(rectLeft, rectTop, rectRight, rectBottom), out var pMinX, out var pMinY, out var pMaxX, out var pMaxY);
 
             if (output is null || !ReferenceEquals(output, polygon))
             {
@@ -895,15 +888,13 @@ internal sealed class ClipMask
     /// </summary>
     private static List<Vector2>? ClipPolygonToExtent(
         List<Vector2> polygon,
-        float rectLeft,
-        float rectTop,
-        float rectRight,
-        float rectBottom,
+        Edges rect,
         out float pMinX,
         out float pMinY,
         out float pMaxX,
         out float pMaxY)
     {
+        var (rectLeft, rectTop, rectRight, rectBottom) = rect;
         GetVertexExtent(polygon, out pMinX, out pMinY, out pMaxX, out pMaxY);
         if (pMinX >= rectLeft && pMaxX <= rectRight && pMinY >= rectTop && pMaxY <= rectBottom)
         {
@@ -1022,7 +1013,7 @@ internal sealed class ClipMask
     }
 
     private static ClipMask Empty(int width, int height)
-        => new(null, 0, 0, 0, 0, 0, 0, 0, 0, width, height);
+        => new(null, default, default, width, height);
 
     private static ClipMask Build(
         Path path, FillRule fillRule, int width, int height, float flattenTolerance, bool allowRectangle)
@@ -1044,7 +1035,7 @@ internal sealed class ClipMask
         {
             // Fill rule is irrelevant for a single simple rectangle.
             return new ClipMask(
-                null, 0, 0, 0, 0, MathF.Max(l, 0f), MathF.Max(t, 0f), MathF.Min(r, width), MathF.Min(b, height), width, height);
+                null, default, new Edges(MathF.Max(l, 0f), MathF.Max(t, 0f), MathF.Min(r, width), MathF.Min(b, height)), width, height);
         }
 
         var pathBounds = PathFiller.GetPolygonBounds(polygons);
@@ -1073,7 +1064,11 @@ internal sealed class ClipMask
         }
 
         return new ClipMask(
-            coverage, originX, originY, boundsWidth, boundsHeight, originX, originY, originX + boundsWidth, originY + boundsHeight, width, height)
+            coverage,
+            new DenseLayout(originX, originY, boundsWidth, boundsHeight),
+            new Edges(originX, originY, originX + boundsWidth, originY + boundsHeight),
+            width,
+            height)
             .WithPieces(pieces);
     }
 
@@ -1082,7 +1077,7 @@ internal sealed class ClipMask
     ///     alternating horizontal and vertical edges, either winding and either start corner).
     /// </summary>
     private static bool TryGetAxisAlignedRect(
-        IReadOnlyList<List<Vector2>> polygons, out float left, out float top, out float right, out float bottom)
+        List<List<Vector2>> polygons, out float left, out float top, out float right, out float bottom)
     {
         left = top = right = bottom = 0f;
         if (polygons.Count != 1)
@@ -1173,6 +1168,10 @@ internal sealed class ClipMask
         }
 
         return new ClipMask(
-            result, minX, minY, boundsWidth, boundsHeight, minX, minY, minX + boundsWidth, minY + boundsHeight, Width, Height);
+            result,
+            new DenseLayout(minX, minY, boundsWidth, boundsHeight),
+            new Edges(minX, minY, minX + boundsWidth, minY + boundsHeight),
+            Width,
+            Height);
     }
 }

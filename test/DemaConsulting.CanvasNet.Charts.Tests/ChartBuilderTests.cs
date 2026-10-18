@@ -41,9 +41,9 @@ public class ChartBuilderTests
             .Build();
 
         Assert.Equal(ChartType.Bar, chart.Type);
-        Assert.Single(chart.Series);
-        Assert.Equal("Revenue", chart.Series[0].Name);
-        Assert.Equal([120.0, 150.0], chart.Series[0].Values);
+        var chartItem = Assert.Single(chart.Series);
+        Assert.Equal("Revenue", chartItem.Name);
+        Assert.Equal([120.0, 150.0], chartItem.Values);
         Assert.Equal(["Q1", "Q2"], chart.CategoryAxis!.Labels);
         Assert.Equal(0f, chart.ValueAxis!.Minimum);
         Assert.Equal(200f, chart.ValueAxis.Maximum);

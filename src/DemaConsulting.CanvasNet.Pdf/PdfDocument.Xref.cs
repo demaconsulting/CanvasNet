@@ -188,41 +188,7 @@ public sealed partial class PdfDocument
             }
 
             var count = (int)countToken.Number;
-
-            // Each classic cross-reference entry needs at least a few bytes (minimally
-            // "0 0 n\n"), so a declared count that exceeds the number of bytes remaining in the
-            // buffer can never be satisfied by real entries. Without this check, a crafted
-            // subsection header such as "0 2147483647" would make the loop below call
-            // NextToken() an unbounded number of times - bounded only by how much of the rest of
-            // the file happens to parse as plausible "offset generation keyword" triplets -
-            // before finally failing, a CPU-time denial of service proportional to the
-            // attacker's chosen count rather than the file's real content.
-            if (count < 0 || count > tokenizer.BufferLength - tokenizer.Position)
-            {
-                throw new InvalidDataException("Classic cross-reference subsection declares an invalid entry count.");
-            }
-
-            for (var i = 0; i < count; i++)
-            {
-                if (tokenizer.Position >= tokenizer.BufferLength)
-                {
-                    throw new InvalidDataException("Classic cross-reference table ended before all declared entries were read.");
-                }
-
-                var offsetToken = tokenizer.NextToken();
-                var generationToken = tokenizer.NextToken();
-                var flagToken = tokenizer.NextToken();
-                if (offsetToken.Kind != PdfTokenKind.Number || generationToken.Kind != PdfTokenKind.Number ||
-                    flagToken.Kind != PdfTokenKind.Keyword)
-                {
-                    throw new InvalidDataException("Malformed classic cross-reference entry.");
-                }
-
-                var objectNumber = startNumber + i;
-                xref.TryAdd(
-                    objectNumber,
-                    flagToken.Text == "n" ? XrefEntry.CreateDirect((long)offsetToken.Number) : XrefEntry.Free);
-            }
+            ReadClassicXrefSubsection(tokenizer, startNumber, count, xref);
         }
 
         var trailer = ParseValue(tokenizer);
@@ -232,6 +198,50 @@ public sealed partial class PdfDocument
         }
 
         return new XrefSection(xref, trailer, GetOptionalInt(trailer, "Prev"), GetOptionalInt(trailer, "XRefStm"));
+    }
+
+    /// <summary>Reads the <paramref name="count"/> entries of one classic cross-reference subsection.</summary>
+    /// <exception cref="InvalidDataException">Thrown when the count is invalid or an entry is malformed or missing.</exception>
+    private static void ReadClassicXrefSubsection(
+        PdfTokenizer tokenizer,
+        int startNumber,
+        int count,
+        Dictionary<int, XrefEntry> xref)
+    {
+        // Each classic cross-reference entry needs at least a few bytes (minimally
+        // "0 0 n\n"), so a declared count that exceeds the number of bytes remaining in the
+        // buffer can never be satisfied by real entries. Without this check, a crafted
+        // subsection header such as "0 2147483647" would make the loop below call
+        // NextToken() an unbounded number of times - bounded only by how much of the rest of
+        // the file happens to parse as plausible "offset generation keyword" triplets -
+        // before finally failing, a CPU-time denial of service proportional to the
+        // attacker's chosen count rather than the file's real content.
+        if (count < 0 || count > tokenizer.BufferLength - tokenizer.Position)
+        {
+            throw new InvalidDataException("Classic cross-reference subsection declares an invalid entry count.");
+        }
+
+        for (var i = 0; i < count; i++)
+        {
+            if (tokenizer.Position >= tokenizer.BufferLength)
+            {
+                throw new InvalidDataException("Classic cross-reference table ended before all declared entries were read.");
+            }
+
+            var offsetToken = tokenizer.NextToken();
+            var generationToken = tokenizer.NextToken();
+            var flagToken = tokenizer.NextToken();
+            if (offsetToken.Kind != PdfTokenKind.Number || generationToken.Kind != PdfTokenKind.Number ||
+                flagToken.Kind != PdfTokenKind.Keyword)
+            {
+                throw new InvalidDataException("Malformed classic cross-reference entry.");
+            }
+
+            var objectNumber = startNumber + i;
+            xref.TryAdd(
+                objectNumber,
+                flagToken.Text == "n" ? XrefEntry.CreateDirect((long)offsetToken.Number) : XrefEntry.Free);
+        }
     }
 
     /// <summary>
@@ -265,7 +275,34 @@ public sealed partial class PdfDocument
         }
 
         var decoded = GetStreamDecodedBytes(streamObject);
+        var widths = ReadXrefStreamWidths(streamObject);
 
+        var size = streamObject.Get("Size") is { Kind: PdfKind.Number } sizeObject
+            ? (int)sizeObject.Number
+            : throw new InvalidDataException("Cross-reference stream is missing /Size.");
+
+        var ranges = new List<(int Start, int Count)>();
+        var indexObject = streamObject.Get("Index");
+        if (indexObject is { Kind: PdfKind.Array })
+        {
+            for (var i = 0; i + 1 < indexObject.Items.Count; i += 2)
+            {
+                ranges.Add(((int)indexObject.Items[i].Number, (int)indexObject.Items[i + 1].Number));
+            }
+        }
+        else
+        {
+            ranges.Add((0, size));
+        }
+
+        var xref = DecodeXrefStreamEntries(decoded, widths, ranges);
+        return new XrefSection(xref, streamObject, GetOptionalInt(streamObject, "Prev"), null);
+    }
+
+    /// <summary>Reads and validates a cross-reference stream's three <c>/W</c> field widths.</summary>
+    /// <exception cref="InvalidDataException">Thrown when <c>/W</c> is missing or invalid.</exception>
+    private static int[] ReadXrefStreamWidths(PdfObject streamObject)
+    {
         var widthsObject = streamObject.Get("W") ?? throw new InvalidDataException("Cross-reference stream is missing /W.");
         if (widthsObject.Kind != PdfKind.Array || widthsObject.Items.Count != 3)
         {
@@ -286,24 +323,16 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("Cross-reference stream /W entries must not all be zero.");
         }
 
-        var size = streamObject.Get("Size") is { Kind: PdfKind.Number } sizeObject
-            ? (int)sizeObject.Number
-            : throw new InvalidDataException("Cross-reference stream is missing /Size.");
+        return widths;
+    }
 
-        var ranges = new List<(int Start, int Count)>();
-        var indexObject = streamObject.Get("Index");
-        if (indexObject is { Kind: PdfKind.Array })
-        {
-            for (var i = 0; i + 1 < indexObject.Items.Count; i += 2)
-            {
-                ranges.Add(((int)indexObject.Items[i].Number, (int)indexObject.Items[i + 1].Number));
-            }
-        }
-        else
-        {
-            ranges.Add((0, size));
-        }
-
+    /// <summary>Decodes the binary entry table of a cross-reference stream.</summary>
+    /// <exception cref="InvalidDataException">Thrown when the data is truncated or an entry type is unsupported.</exception>
+    private static Dictionary<int, XrefEntry> DecodeXrefStreamEntries(
+        byte[] decoded,
+        int[] widths,
+        List<(int Start, int Count)> ranges)
+    {
         var xref = new Dictionary<int, XrefEntry>();
         var entryWidth = widths[0] + widths[1] + widths[2];
         var position = 0;
@@ -334,7 +363,7 @@ public sealed partial class PdfDocument
             }
         }
 
-        return new XrefSection(xref, streamObject, GetOptionalInt(streamObject, "Prev"), null);
+        return xref;
     }
 
     private static int? GetOptionalInt(PdfObject dictionary, string key) =>
@@ -1351,89 +1380,105 @@ public sealed partial class PdfDocument
         // Snapshot the object numbers before mutating `_xref` within the loop below.
         foreach (var streamNumber in _xref.Keys.ToArray())
         {
-            PdfObject container;
-            byte[] decoded;
-            try
+            if (TryReadObjectStreamForRegistration(streamNumber, out var decoded, out var count))
             {
-                container = GetObject(streamNumber);
-                if (container.Kind != PdfKind.Stream || GetNameValue(container, "Type") != "ObjStm")
-                {
-                    continue;
-                }
+                RegisterObjectStreamEntries(streamNumber, decoded, count);
+            }
+        }
+    }
 
-                decoded = GetStreamDecodedBytes(container);
-            }
-            catch (InvalidDataException)
+    /// <summary>
+    ///     Attempts to load object <paramref name="streamNumber"/> as a usable <c>/Type /ObjStm</c>
+    ///     container, returning its decoded body and declared <c>/N</c> entry count; any
+    ///     unusable candidate (not an object stream, malformed, or using an unsupported filter)
+    ///     yields <see langword="false"/> so the caller skips only that one stream.
+    /// </summary>
+    private bool TryReadObjectStreamForRegistration(int streamNumber, out byte[] decoded, out int count)
+    {
+        decoded = [];
+        count = 0;
+        PdfObject container;
+        try
+        {
+            container = GetObject(streamNumber);
+            if (container.Kind != PdfKind.Stream || GetNameValue(container, "Type") != "ObjStm")
             {
-                continue;
-            }
-            catch (UnsupportedImageFeatureException)
-            {
-                continue;
-            }
-
-            if (container.Get("N") is not { Kind: PdfKind.Number } countObject)
-            {
-                continue;
-            }
-
-            // Reject a malformed, non-integer, or out-of-range declared "/N" (for example "1.5"
-            // or a value far beyond int range) the same way the per-entry object numbers below
-            // already are - a bare (int) cast would otherwise either silently truncate or produce
-            // an unspecified wrapped value, both of which could make a grammatically invalid
-            // object stream be accepted as having some plausible entry count.
-            if (!TryGetNonNegativeInt(countObject.Number, out var count) || count > decoded.Length)
-            {
-                continue;
+                return false;
             }
 
-            var headerTokenizer = new PdfTokenizer(decoded);
-            for (var i = 0; i < count; i++)
+            decoded = GetStreamDecodedBytes(container);
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+        catch (UnsupportedImageFeatureException)
+        {
+            return false;
+        }
+
+        if (container.Get("N") is not { Kind: PdfKind.Number } countObject)
+        {
+            return false;
+        }
+
+        // Reject a malformed, non-integer, or out-of-range declared "/N" (for example "1.5"
+        // or a value far beyond int range) the same way the per-entry object numbers below
+        // already are - a bare (int) cast would otherwise either silently truncate or produce
+        // an unspecified wrapped value, both of which could make a grammatically invalid
+        // object stream be accepted as having some plausible entry count.
+        return TryGetNonNegativeInt(countObject.Number, out count) && count <= decoded.Length;
+    }
+
+    /// <summary>Registers the objects listed in an object stream's header as compressed xref entries.</summary>
+    private void RegisterObjectStreamEntries(int streamNumber, byte[] decoded, int count)
+    {
+        var headerTokenizer = new PdfTokenizer(decoded);
+        for (var i = 0; i < count; i++)
+        {
+            if (headerTokenizer.Position >= decoded.Length)
             {
-                if (headerTokenizer.Position >= decoded.Length)
-                {
-                    break;
-                }
+                break;
+            }
 
-                var numberToken = TryNextToken(headerTokenizer);
-                var offsetToken = TryNextToken(headerTokenizer);
-                if (numberToken is not { Kind: PdfTokenKind.Number } || offsetToken is not { Kind: PdfTokenKind.Number })
-                {
-                    break;
-                }
+            var numberToken = TryNextToken(headerTokenizer);
+            var offsetToken = TryNextToken(headerTokenizer);
+            if (numberToken is not { Kind: PdfTokenKind.Number } || offsetToken is not { Kind: PdfTokenKind.Number })
+            {
+                break;
+            }
 
-                // A malformed, non-integer or out-of-range declared object number (for example
-                // "1.5" or a value far beyond int range) cannot be used as a dictionary key at
-                // all - narrowing it with a bare (int) cast first would either throw nothing and
-                // silently truncate (for "1.5") or produce an unspecified wrapped value (for an
-                // out-of-range magnitude). Treat either case the same as any other malformed
-                // header token: stop trusting the rest of this object stream's header.
-                if (!TryGetNonNegativeInt(numberToken.Value.Number, out var containedNumber))
-                {
-                    break;
-                }
+            // A malformed, non-integer or out-of-range declared object number (for example
+            // "1.5" or a value far beyond int range) cannot be used as a dictionary key at
+            // all - narrowing it with a bare (int) cast first would either throw nothing and
+            // silently truncate (for "1.5") or produce an unspecified wrapped value (for an
+            // out-of-range magnitude). Treat either case the same as any other malformed
+            // header token: stop trusting the rest of this object stream's header.
+            if (!TryGetNonNegativeInt(numberToken.Value.Number, out var containedNumber))
+            {
+                break;
+            }
 
-                // Apply the same "a later physical occurrence overrides an earlier one" rule
-                // ScanObjectOffsets already uses for direct "N G obj" markers, rather than always
-                // keeping whatever was registered first: an incrementally updated document can
-                // legitimately redefine an object - originally a direct header - later in the
-                // file via a compressed object stream, and that later definition must win. Every
-                // object inside a given stream shares that stream's own physical offset as its
-                // position, since entries inside an ObjStm have no individual byte position of
-                // their own.
-                var candidatePosition = _xref[streamNumber].Offset;
-                if (!_xref.TryGetValue(containedNumber, out var existingEntry) ||
-                    candidatePosition > GetPhysicalPosition(existingEntry))
-                {
-                    _xref[containedNumber] = XrefEntry.CreateCompressed(streamNumber, i);
+            // Apply the same "a later physical occurrence overrides an earlier one" rule
+            // ScanObjectOffsets already uses for direct "N G obj" markers, rather than always
+            // keeping whatever was registered first: an incrementally updated document can
+            // legitimately redefine an object - originally a direct header - later in the
+            // file via a compressed object stream, and that later definition must win. Every
+            // object inside a given stream shares that stream's own physical offset as its
+            // position, since entries inside an ObjStm have no individual byte position of
+            // their own.
+            var candidatePosition = _xref[streamNumber].Offset;
+            if (!_xref.TryGetValue(containedNumber, out var existingEntry) ||
+                candidatePosition > GetPhysicalPosition(existingEntry))
+            {
+                _xref[containedNumber] = XrefEntry.CreateCompressed(streamNumber, i);
 
-                    // An earlier iteration of this same loop may already have called GetObject on
-                    // containedNumber (for example to inspect some other stream candidate that
-                    // turned out not to be an ObjStm), caching its now-superseded value. Evict
-                    // that stale cache entry so a later GetObject(containedNumber) call re-reads
-                    // from (and reflects) the xref entry we just overwrote above.
-                    _objectCache.Remove(containedNumber);
-                }
+                // An earlier iteration of this same loop may already have called GetObject on
+                // containedNumber (for example to inspect some other stream candidate that
+                // turned out not to be an ObjStm), caching its now-superseded value. Evict
+                // that stale cache entry so a later GetObject(containedNumber) call re-reads
+                // from (and reflects) the xref entry we just overwrote above.
+                _objectCache.Remove(containedNumber);
             }
         }
     }
@@ -1652,15 +1697,9 @@ public sealed partial class PdfDocument
 
         try
         {
-            PdfObject result;
-            if (entry.Type == XrefEntryType.Direct)
-            {
-                result = ParseIndirectObjectAt(entry.Offset, number);
-            }
-            else
-            {
-                result = LoadCompressedObject(entry.StreamNumber, entry.IndexInStream, number);
-            }
+            var result = entry.Type == XrefEntryType.Direct
+                ? ParseIndirectObjectAt(entry.Offset, number)
+                : LoadCompressedObject(entry.StreamNumber, entry.IndexInStream, number);
 
             _objectCache[number] = result;
             return result;
@@ -1774,6 +1813,24 @@ public sealed partial class PdfDocument
                 $"Object stream {streamNumber} declares /N {count}, which exceeds its decoded byte length.");
         }
 
+        var relativeOffset = FindCompressedObjectRelativeOffset(decoded, count, indexInStream, expectedNumber, streamNumber);
+
+        var bodyTokenizer = new PdfTokenizer(decoded) { Position = ValidatedCompressedObjectOffset(first, relativeOffset, decoded.Length, streamNumber) };
+        return ParseValue(bodyTokenizer);
+    }
+
+    /// <summary>
+    ///     Scans an object stream's header for the entry at <paramref name="indexInStream"/>,
+    ///     validating it names <paramref name="expectedNumber"/>, and returns its relative offset.
+    /// </summary>
+    /// <exception cref="InvalidDataException">Thrown when the header is malformed or the entry does not match.</exception>
+    private static int FindCompressedObjectRelativeOffset(
+        byte[] decoded,
+        int count,
+        int indexInStream,
+        int expectedNumber,
+        int streamNumber)
+    {
         var headerTokenizer = new PdfTokenizer(decoded);
         var relativeOffset = -1;
         for (var i = 0; i < count; i++)
@@ -1795,27 +1852,8 @@ public sealed partial class PdfDocument
 
             if (i == indexInStream)
             {
-                // Validating the header's declared number as a non-negative integer before
-                // comparing it (rather than narrowing it to int via a bare cast first) matters: a
-                // malformed, non-integer declaration such as "1.5" would otherwise truncate to 1
-                // and coincidentally compare equal to an expected object number of 1, silently
-                // accepting a header the PDF grammar does not actually permit instead of failing
-                // closed. The offset is validated the same way since it is genuinely used (not
-                // merely compared): a malformed, non-integer or out-of-range declared offset must
-                // be rejected outright rather than silently truncated or wrapped to an unrelated,
-                // in-range value that could coincidentally still pass the buffer-range check
-                // performed on it below.
-                if (!TryGetNonNegativeInt(numberToken.Number, out var containedNumber) || containedNumber != expectedNumber)
-                {
-                    throw new InvalidDataException(
-                        $"Object stream {streamNumber} entry {indexInStream} does not match expected object number {expectedNumber}.");
-                }
-
-                if (!TryGetNonNegativeInt(offsetToken.Number, out relativeOffset))
-                {
-                    throw new InvalidDataException(
-                        $"Object stream {streamNumber} entry {indexInStream} declares a malformed relative offset.");
-                }
+                relativeOffset = ValidateCompressedHeaderEntry(
+                    numberToken, offsetToken, indexInStream, expectedNumber, streamNumber);
             }
         }
 
@@ -1824,8 +1862,41 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("Malformed object stream header.");
         }
 
-        var bodyTokenizer = new PdfTokenizer(decoded) { Position = ValidatedCompressedObjectOffset(first, relativeOffset, decoded.Length, streamNumber) };
-        return ParseValue(bodyTokenizer);
+        return relativeOffset;
+    }
+
+    /// <summary>Validates the targeted object-stream header entry and returns its relative offset.</summary>
+    /// <exception cref="InvalidDataException">Thrown when the number mismatches or the offset is malformed.</exception>
+    private static int ValidateCompressedHeaderEntry(
+        PdfToken numberToken,
+        PdfToken offsetToken,
+        int indexInStream,
+        int expectedNumber,
+        int streamNumber)
+    {
+        // Validating the header's declared number as a non-negative integer before
+        // comparing it (rather than narrowing it to int via a bare cast first) matters: a
+        // malformed, non-integer declaration such as "1.5" would otherwise truncate to 1
+        // and coincidentally compare equal to an expected object number of 1, silently
+        // accepting a header the PDF grammar does not actually permit instead of failing
+        // closed. The offset is validated the same way since it is genuinely used (not
+        // merely compared): a malformed, non-integer or out-of-range declared offset must
+        // be rejected outright rather than silently truncated or wrapped to an unrelated,
+        // in-range value that could coincidentally still pass the buffer-range check
+        // performed on it by the caller.
+        if (!TryGetNonNegativeInt(numberToken.Number, out var containedNumber) || containedNumber != expectedNumber)
+        {
+            throw new InvalidDataException(
+                $"Object stream {streamNumber} entry {indexInStream} does not match expected object number {expectedNumber}.");
+        }
+
+        if (!TryGetNonNegativeInt(offsetToken.Number, out var relativeOffset))
+        {
+            throw new InvalidDataException(
+                $"Object stream {streamNumber} entry {indexInStream} declares a malformed relative offset.");
+        }
+
+        return relativeOffset;
     }
 
     /// <summary>

@@ -342,9 +342,10 @@ public static partial class SvgCodec
         var workBudget = new GeometryWorkBudget();
         var filterWorkBudget = new FilterWorkBudget(diagnostics);
         var boundsPrePassBudget = new BoundsPrePassWorkBudget();
+        var rootScope = new RenderScope(0, 0, 0, workBudget, filterWorkBudget, boundsPrePassBudget);
         foreach (var child in root.Elements())
         {
-            RenderElement(child, rootState, fitTransform, context, useDepth: 0, elementDepth: 0, markerDepth: 0, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            RenderElement(child, rootState, fitTransform, context, rootScope, ref totalElements);
         }
     }
 
@@ -357,20 +358,29 @@ public static partial class SvgCodec
     /// <param name="parentState">The inherited render state from the parent element.</param>
     /// <param name="parentTransform">The accumulated transform from the parent element.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">
-    ///     The current <c>use</c>-reference nesting depth, propagated so <see cref="RenderUse"/>
-    ///     can enforce <see cref="MaxUseDepth"/>.
-    /// </param>
-    /// <param name="elementDepth">
-    ///     The current recursion depth of this call within the element tree walk, propagated so
-    ///     this method can enforce <see cref="MaxElementDepth"/> before descending further,
-    ///     regardless of whether the recursion arises from plain <c>g</c>/<c>symbol</c> nesting or
-    ///     from a <c>use</c> reference.
-    /// </param>
-    /// <param name="markerDepth">
-    ///     The current <c>marker</c>-reference nesting depth, propagated so <see cref="RenderOneMarker"/>
-    ///     can enforce <see cref="MaxMarkerDepth"/>. Not incremented by plain <c>g</c>/<c>symbol</c>
-    ///     nesting or by a <c>use</c> reference - only by rendering one marker's own content.
+    /// <param name="scope">
+    ///     The recursion depths and shared work budgets. <see cref="RenderScope.UseDepth"/> is
+    ///     propagated so <see cref="RenderUse"/> can enforce <see cref="MaxUseDepth"/>;
+    ///     <see cref="RenderScope.ElementDepth"/> is the current recursion depth of this call
+    ///     within the element tree walk, propagated so this method can enforce
+    ///     <see cref="MaxElementDepth"/> before descending further, regardless of whether the
+    ///     recursion arises from plain <c>g</c>/<c>symbol</c> nesting or from a <c>use</c>
+    ///     reference; <see cref="RenderScope.MarkerDepth"/> is the current <c>marker</c>-reference
+    ///     nesting depth, propagated so <see cref="RenderOneMarker"/> can enforce
+    ///     <see cref="MaxMarkerDepth"/> (not incremented by plain <c>g</c>/<c>symbol</c> nesting or
+    ///     by a <c>use</c> reference - only by rendering one marker's own content);
+    ///     <see cref="RenderScope.WorkBudget"/> (see <see cref="GeometryWorkBudget"/>) is threaded
+    ///     down to <c>path</c>/<c>polyline</c>/<c>polygon</c>/<c>text</c> handling so a single
+    ///     pathologically large element's own content is also bounded, independent of
+    ///     <paramref name="totalElements"/>; <see cref="RenderScope.FilterWorkBudget"/> (see
+    ///     <see cref="FilterWorkBudget"/>) is threaded down to every shape/text dispatch below so a
+    ///     filter reused across many shapes is bounded in aggregate, independent of each individual
+    ///     filter's own <see cref="MaxFilterPrimitiveWorkUnits"/> ceiling; and
+    ///     <see cref="RenderScope.BoundsPrePassBudget"/> (see <see cref="BoundsPrePassWorkBudget"/>)
+    ///     is threaded down to every <c>g</c>/<c>symbol</c>/<c>use</c> dispatch below so
+    ///     <see cref="RenderGroupWithEffects"/>'s own bounds-only pre-pass is bounded in aggregate
+    ///     across every nested filtered group, independent of each individual pre-pass
+    ///     invocation's own <see cref="MaxTotalRenderedElements"/> ceiling.
     /// </param>
     /// <param name="totalElements">
     ///     The running count of elements rendered/visited so far across the whole document walk,
@@ -379,25 +389,6 @@ public static partial class SvgCodec
     ///     <c>use</c> fan-out neither <see cref="MaxUseDepth"/> nor <see cref="MaxElementDepth"/>
     ///     can, since a legitimately (non-cyclically) shared subtree stays within both depth caps
     ///     no matter how many times sibling <c>use</c> elements reference it.
-    /// </param>
-    /// <param name="workBudget">
-    ///     The shared geometry-parsing work budget (see <see cref="GeometryWorkBudget"/>), threaded
-    ///     down to <c>path</c>/<c>polyline</c>/<c>polygon</c>/<c>text</c> handling so a single
-    ///     pathologically large element's own content is also bounded, independent of
-    ///     <paramref name="totalElements"/>.
-    /// </param>
-    /// <param name="filterWorkBudget">
-    ///     The shared cumulative filter-evaluation work budget (see <see cref="FilterWorkBudget"/>),
-    ///     threaded down to every shape/text dispatch below so a filter reused across many shapes
-    ///     is bounded in aggregate, independent of each individual filter's own
-    ///     <see cref="MaxFilterPrimitiveWorkUnits"/> ceiling.
-    /// </param>
-    /// <param name="boundsPrePassBudget">
-    ///     The shared cumulative bounds-pre-pass work budget (see
-    ///     <see cref="BoundsPrePassWorkBudget"/>), threaded down to every <c>g</c>/<c>symbol</c>/
-    ///     <c>use</c> dispatch below so <see cref="RenderGroupWithEffects"/>'s own bounds-only
-    ///     pre-pass is bounded in aggregate across every nested filtered group, independent of
-    ///     each individual pre-pass invocation's own <see cref="MaxTotalRenderedElements"/> ceiling.
     /// </param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="element"/> or a descendant contains malformed presentation
@@ -437,17 +428,12 @@ public static partial class SvgCodec
         RenderState parentState,
         Matrix3x2 parentTransform,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget)
+        RenderScope scope,
+        ref int totalElements)
     {
         // Fail fast before recursing any further - an unbounded element tree walk would otherwise
         // eventually drive the call stack into an uncatchable StackOverflowException
-        if (elementDepth >= MaxElementDepth)
+        if (scope.ElementDepth >= MaxElementDepth)
         {
             throw new InvalidDataException("SVG element nesting exceeds the supported depth.");
         }
@@ -473,13 +459,6 @@ public static partial class SvgCodec
         var state = ApplyPresentationAttributes(parentState, element, context);
         var transform = ParseTransformAttribute(element) * parentTransform;
 
-        // A marker's own content never applies its own descendants' "filter" attribute - per the
-        // documented "filters on marker content have no effect" scope decision (see this class's
-        // remarks) - so every shape/text dispatch below is told to suppress filter evaluation
-        // whenever this call is itself part of a marker's content subtree (markerDepth > 0,
-        // incremented only by RenderOneMarker, never by plain "g"/"symbol" nesting or "use")
-        var suppressEffects = markerDepth > 0;
-
         // A non-finite composed transform (see this method's remarks) cannot meaningfully
         // position this element or any descendant - skip the whole subtree as defense-in-depth,
         // even though every currently-known throwing downstream path is already independently
@@ -493,89 +472,47 @@ public static partial class SvgCodec
         {
             case "g":
             case "symbol":
-                // "symbol" is spec-defined to render only when referenced via <use>, never when
-                // encountered directly - this codec has no notion of a "use-only" render context,
-                // so, as a documented simplification, it is instead treated identically to a plain
-                // group in both situations (renders in place if encountered directly, and also
-                // renders when referenced via <use>)
-                //
-                // A "g"/"symbol" element's own "filter"/"clip-path"/"mask" attributes (suppressed
-                // identically to shape/text effects whenever this call is itself part of a
-                // marker's own content, see suppressEffects above) render the whole subtree below
-                // as one combined unit via RenderGroupWithEffects whenever any of the three is
-                // present, instead of the plain unaffected child loop - see
-                // RenderGroupWithEffects's remarks for the full group-effects algorithm
-                var groupFilterElement = suppressEffects ? null : ResolveFilterElement(element, context);
-                var groupClipPathElement = suppressEffects ? null : ResolveClipPathElement(element, context);
-                var groupMaskElement = suppressEffects ? null : ResolveMaskElement(element, context);
-                if (groupFilterElement == null && groupClipPathElement == null && groupMaskElement == null)
-                {
-                    foreach (var child in element.Elements())
-                    {
-                        RenderElement(child, state, transform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
-                    }
-                }
-                else
-                {
-                    RenderGroupWithEffects(groupFilterElement, groupClipPathElement, groupMaskElement, element.Elements().ToList(), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
-                }
-
+                RenderGroupElement(element, state, transform, context, scope, ref totalElements);
                 break;
 
             case "rect":
-                RenderShapeWithEffects(element, BuildRectPath(element, state), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
+                RenderShapeWithEffects(element, BuildRectPath(element, state), state, transform, context, scope, ref totalElements);
                 break;
 
             case "circle":
-                RenderShapeWithEffects(element, BuildEllipsePath(element, isCircle: true, state), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
+                RenderShapeWithEffects(element, BuildEllipsePath(element, isCircle: true, state), state, transform, context, scope, ref totalElements);
                 break;
 
             case "ellipse":
-                RenderShapeWithEffects(element, BuildEllipsePath(element, isCircle: false, state), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
+                RenderShapeWithEffects(element, BuildEllipsePath(element, isCircle: false, state), state, transform, context, scope, ref totalElements);
                 break;
 
             case "line":
-                {
-                    var linePath = BuildLinePath(element, state);
-                    RenderShapeWithEffects(element, linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
-                    RenderMarkers(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
-                    break;
-                }
+                RenderShapeWithMarkers(element, BuildLinePath(element, state), state, transform, context, scope, ref totalElements);
+                break;
 
             case "polyline":
-                {
-                    var polylinePath = BuildPolyPath(element, closed: false, workBudget);
-                    RenderShapeWithEffects(element, polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
-                    RenderMarkers(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
-                    break;
-                }
+                RenderShapeWithMarkers(element, BuildPolyPath(element, closed: false, scope.WorkBudget), state, transform, context, scope, ref totalElements);
+                break;
 
             case "polygon":
-                {
-                    var polygonPath = BuildPolyPath(element, closed: true, workBudget);
-                    RenderShapeWithEffects(element, polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
-                    RenderMarkers(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
-                    break;
-                }
+                RenderShapeWithMarkers(element, BuildPolyPath(element, closed: true, scope.WorkBudget), state, transform, context, scope, ref totalElements);
+                break;
 
             case "path":
-                {
-                    var dataPath = BuildPathDataPath(element, workBudget);
-                    RenderShapeWithEffects(element, dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
-                    RenderMarkers(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
-                    break;
-                }
+                RenderShapeWithMarkers(element, BuildPathDataPath(element, scope.WorkBudget), state, transform, context, scope, ref totalElements);
+                break;
 
             case "use":
-                RenderUse(element, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+                RenderUse(element, state, transform, context, scope, ref totalElements);
                 break;
 
             case "text":
-                RenderText(element, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
+                RenderText(element, state, transform, context, scope, ref totalElements);
                 break;
 
             case "image":
-                RenderImageWithEffects(element, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
+                RenderImageWithEffects(element, state, transform, context, scope, ref totalElements);
                 break;
 
             default:
@@ -583,6 +520,73 @@ public static partial class SvgCodec
                 // silently skipping it, consistent with this codec's out-of-scope-construct policy
                 break;
         }
+    }
+
+    /// <summary>
+    ///     Renders a <c>g</c>/<c>symbol</c> element's children - directly, or as one combined unit
+    ///     through <see cref="RenderGroupWithEffects"/> when the element carries its own
+    ///     <c>filter</c>/<c>clip-path</c>/<c>mask</c>.
+    /// </summary>
+    /// <remarks>
+    ///     <c>symbol</c> is spec-defined to render only when referenced via <c>use</c>, never when
+    ///     encountered directly - this codec has no notion of a "use-only" render context, so, as
+    ///     a documented simplification, it is instead treated identically to a plain group in both
+    ///     situations (renders in place if encountered directly, and also renders when referenced
+    ///     via <c>use</c>). The element's own effects are suppressed whenever this call is itself
+    ///     part of a marker's own content (<see cref="RenderScope.MarkerDepth"/> &gt; 0), per the
+    ///     documented "filters on marker content have no effect" scope decision. See
+    ///     <see cref="RenderGroupWithEffects"/>'s remarks for the full group-effects algorithm.
+    /// </remarks>
+    /// <param name="element">The <c>g</c>/<c>symbol</c> element.</param>
+    /// <param name="state">The element's own cascaded render state.</param>
+    /// <param name="transform">The element's own composed transform.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="scope">The recursion depths and shared work budgets.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    private static void RenderGroupElement(
+        XElement element,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        RenderScope scope,
+        ref int totalElements)
+    {
+        var effects = ResolveEffectsSet(element, context, suppressEffects: scope.MarkerDepth > 0);
+        if (effects.Filter == null && effects.ClipPath == null && effects.Mask == null)
+        {
+            var childScope = scope.Nested();
+            foreach (var child in element.Elements())
+            {
+                RenderElement(child, state, transform, context, childScope, ref totalElements);
+            }
+
+            return;
+        }
+
+        RenderGroupWithEffects(effects, element.Elements().ToList(), state, transform, context, scope, ref totalElements);
+    }
+
+    /// <summary>
+    ///     Renders one shape (through its own effects, if any) and then its markers.
+    /// </summary>
+    /// <param name="element">The originating shape element.</param>
+    /// <param name="path">The shape's already-built local-space outline.</param>
+    /// <param name="state">The element's own cascaded render state.</param>
+    /// <param name="transform">The element's own composed transform.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="scope">The recursion depths and shared work budgets.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    private static void RenderShapeWithMarkers(
+        XElement element,
+        Path path,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        RenderScope scope,
+        ref int totalElements)
+    {
+        RenderShapeWithEffects(element, path, state, transform, context, scope, ref totalElements);
+        RenderMarkers(path, state, transform, context, scope, ref totalElements);
     }
 
     /// <summary>
@@ -802,7 +806,7 @@ public static partial class SvgCodec
     private static List<float>? ParseDashArray(string raw, RenderState state)
     {
         var numbers = ParseDashArrayNumberList(raw, ResolvePercentageBasis(state, PercentageAxis.Diagonal));
-        return numbers.Count == 0 || numbers.Exists(v => v < 0f) || numbers.TrueForAll(v => v == 0f)
+        return numbers.Count == 0 || numbers.Exists(v => v < 0f) || numbers.TrueForAll(v => v.Equals(0f))
             ? null
             : numbers;
     }

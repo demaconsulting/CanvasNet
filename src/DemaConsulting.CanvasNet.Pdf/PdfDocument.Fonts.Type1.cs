@@ -75,8 +75,9 @@ public sealed partial class PdfDocument
         }
 
         var fontBytes = GetStreamDecodedBytes(fontFileStream);
+        using var stream = new MemoryStream(fontBytes);
         return TrueTypeFont.LoadType1(
-            new MemoryStream(fontBytes), (int)length1Value.Number, (int)length2Value.Number, codepointToGlyphName);
+            stream, (int)length1Value.Number, (int)length2Value.Number, codepointToGlyphName);
     }
 
     /// <summary>
@@ -150,10 +151,11 @@ public sealed partial class PdfDocument
         }
 
         var fontBytes = GetStreamDecodedBytes(fontFileStream);
+        using var stream = new MemoryStream(fontBytes);
         return SniffFontFile3Shape(fontBytes) switch
         {
-            FontFile3Shape.Sfnt => TrueTypeFont.Load(new MemoryStream(fontBytes)),
-            FontFile3Shape.BareCff => TrueTypeFont.LoadType1C(new MemoryStream(fontBytes), codepointToGlyphName),
+            FontFile3Shape.Sfnt => TrueTypeFont.Load(stream),
+            FontFile3Shape.BareCff => TrueTypeFont.LoadType1C(stream, codepointToGlyphName),
             _ => throw new UnsupportedImageFeatureException(
                 "pdf-font-fontfile3-unrecognized-shape",
                 "/FontFile3 stream's decoded bytes are neither a recognized SFNT container " +

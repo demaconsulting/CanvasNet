@@ -5,6 +5,15 @@ namespace DemaConsulting.CanvasNet.Codecs;
 public static partial class GifCodec
 {
     /// <summary>
+    ///     A GIF Image Descriptor's declared placement and size within the logical screen.
+    /// </summary>
+    /// <param name="Left">The declared left placement offset.</param>
+    /// <param name="Top">The declared top placement offset.</param>
+    /// <param name="Width">The declared width, in pixels.</param>
+    /// <param name="Height">The declared height, in pixels.</param>
+    private readonly record struct FrameRegion(int Left, int Top, int Width, int Height);
+
+    /// <summary>
     ///     Resolves one frame's decoded palette indices to RGBA pixels via
     ///     <paramref name="colorTable"/>, writing them into <paramref name="destination"/> at the
     ///     frame's declared placement, honoring the frame's transparent color index if any.
@@ -17,10 +26,7 @@ public static partial class GifCodec
     /// <param name="destination">The surface to write pixels into. Must already be sized to contain the frame's placement.</param>
     /// <param name="indices">The frame's decoded palette indices, one per pixel, in row-major order.</param>
     /// <param name="colorTable">The color table (local or global) to resolve each index against.</param>
-    /// <param name="left">The frame's left placement offset within <paramref name="destination"/>.</param>
-    /// <param name="top">The frame's top placement offset within <paramref name="destination"/>.</param>
-    /// <param name="width">The frame's width, in pixels.</param>
-    /// <param name="height">The frame's height, in pixels.</param>
+    /// <param name="region">The frame's placement and size within <paramref name="destination"/>.</param>
     /// <param name="transparencyFlag">Whether <paramref name="transparentIndex"/> should be rendered fully transparent.</param>
     /// <param name="transparentIndex">The palette index treated as transparent when <paramref name="transparencyFlag"/> is set.</param>
     /// <exception cref="InvalidDataException">
@@ -30,13 +36,11 @@ public static partial class GifCodec
         Surface destination,
         byte[] indices,
         Rgba32[] colorTable,
-        int left,
-        int top,
-        int width,
-        int height,
+        FrameRegion region,
         bool transparencyFlag,
         byte transparentIndex)
     {
+        var (left, top, width, height) = (region.Left, region.Top, region.Width, region.Height);
         for (var row = 0; row < height; row++)
         {
             var rowSpan = destination.GetRowSpan(top + row);
@@ -354,36 +358,30 @@ public static partial class GifCodec
     ///     validation - not merely to the first frame, whose pixel data is the only one either
     ///     method ever actually decodes or counts pixels for.
     /// </summary>
-    /// <param name="imgWidth">The Image Descriptor's declared width.</param>
-    /// <param name="imgHeight">The Image Descriptor's declared height.</param>
-    /// <param name="left">The Image Descriptor's declared left placement offset.</param>
-    /// <param name="top">The Image Descriptor's declared top placement offset.</param>
+    /// <param name="region">The Image Descriptor's declared placement and size.</param>
     /// <param name="canvasWidth">The logical screen's declared width.</param>
     /// <param name="canvasHeight">The logical screen's declared height.</param>
     /// <param name="localColorTable">The Image Descriptor's own Local Color Table, if any.</param>
     /// <param name="globalColorTable">The file's Global Color Table, if any.</param>
     /// <returns>The resolved color table (<paramref name="localColorTable"/> if present, otherwise <paramref name="globalColorTable"/>).</returns>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <paramref name="imgWidth"/> or <paramref name="imgHeight"/> is
+    ///     Thrown when the region's width or height is
     ///     non-positive, the descriptor's region lies outside the logical screen bounds, or
     ///     neither a Local nor a Global Color Table is available.
     /// </exception>
     private static Rgba32[] ValidateFrameRegionAndResolveColorTable(
-        int imgWidth,
-        int imgHeight,
-        int left,
-        int top,
+        FrameRegion region,
         int canvasWidth,
         int canvasHeight,
         Rgba32[]? localColorTable,
         Rgba32[]? globalColorTable)
     {
-        if (imgWidth <= 0 || imgHeight <= 0)
+        if (region.Width <= 0 || region.Height <= 0)
         {
-            throw new InvalidDataException($"Invalid GIF Image Descriptor size {imgWidth}x{imgHeight}.");
+            throw new InvalidDataException($"Invalid GIF Image Descriptor size {region.Width}x{region.Height}.");
         }
 
-        if (left + imgWidth > canvasWidth || top + imgHeight > canvasHeight)
+        if (region.Left + region.Width > canvasWidth || region.Top + region.Height > canvasHeight)
         {
             throw new InvalidDataException(
                 "GIF Image Descriptor region lies outside the logical screen bounds.");
@@ -466,21 +464,13 @@ public static partial class GifCodec
 
         while (!sawTrailer)
         {
-            var introducer = stream.ReadByte();
-            if (introducer < 0)
-            {
-                throw new InvalidDataException("Unexpected end of stream while reading a GIF block.");
-            }
+            var introducer = ReadBlockIntroducer(stream);
 
             switch (introducer)
             {
                 case ExtensionIntroducer:
                     {
-                        var labelByte = stream.ReadByte();
-                        if (labelByte < 0)
-                        {
-                            throw new InvalidDataException("Unexpected end of stream while reading a GIF extension.");
-                        }
+                        var labelByte = ReadExtensionLabel(stream);
 
                         if (labelByte == GraphicControlLabel)
                         {
@@ -500,6 +490,7 @@ public static partial class GifCodec
                 case ImageSeparator:
                     {
                         var header = ReadImageDescriptorHeader(stream);
+                        var region = new FrameRegion(header.Left, header.Top, header.Width, header.Height);
                         var isFirstFrame = frameCount == 0;
 
                         // Only the first frame's compressed image data is ever actually needed:
@@ -520,76 +511,15 @@ public static partial class GifCodec
                         }
 
                         var activeColorTable = ValidateFrameRegionAndResolveColorTable(
-                            header.Width,
-                            header.Height,
-                            header.Left,
-                            header.Top,
+                            region,
                             canvasWidth,
                             canvasHeight,
                             header.LocalColorTable,
                             globalColorTable);
 
-                        if (isFirstFrame)
+                        if (isFirstFrame && !CanDecodeFirstFrame(imageData!, header.MinCodeSize, region, activeColorTable))
                         {
-                            // Attempt the exact same LZW decode Load performs for the first
-                            // frame, reusing DecodeGifLzw unchanged, but discarding its decoded
-                            // palette-index output instead of resolving it against a color table
-                            // and blitting it into a Surface - GetInfo must never materialize
-                            // decoded pixels, only determine whether Load's identical decode
-                            // attempt would succeed. A failure here means the first frame's
-                            // compressed data is corrupt in a way Load's LZW decoder would reject
-                            // (see DecodeGifLzw's own exception conditions); this is a
-                            // well-formed-container-but-undecodable-payload case - like PngCodec's
-                            // Adam7-interlacing case - so it is reported via CanDecode = false
-                            // rather than making GetInfo itself throw. A structurally valid LZW
-                            // stream can still decode to an index with no corresponding entry in
-                            // the resolved color table - the same out-of-range condition
-                            // BlitIndexedFrame itself rejects when Load blits this same frame -
-                            // so every decoded index is also checked against
-                            // activeColorTable.Length here, without ever allocating a Surface or
-                            // blitting: only the index bytes are compared to the color table's
-                            // length.
-                            //
-                            // header.Width and header.Height are each declared-header values that
-                            // GetInfo deliberately never bounds by Surface.MaxDimension (see this
-                            // method's and GetInfo's own remarks) - Load itself is not at risk
-                            // here because it rejects an over-large canvas via Surface.MaxDimension
-                            // long before this code path is ever reached. Multiplying two such
-                            // unbounded int values with plain int arithmetic could silently
-                            // overflow (e.g. 50,000 x 50,000), and even a non-overflowing but huge
-                            // product would force DecodeGifLzw to allocate a `new byte[...]`
-                            // proportional to that untrusted product. The product is therefore
-                            // widened to long first, and this first-frame decode-validation
-                            // attempt is skipped entirely - leaving canDecode at its default of
-                            // true - whenever that long product exceeds
-                            // Surface.MaxDimension * Surface.MaxDimension, the largest index count
-                            // any frame Load could ever actually decode would require. This is a
-                            // deliberate leniency, not an oversight: a pathologically large but
-                            // otherwise well-formed frame is not itself malformed, so GetInfo must
-                            // not throw for it; it is simply too large for this validation
-                            // attempt to safely perform, exactly as MaxTotalSubBlockBytes already
-                            // accepts a comparable asymmetry for a different resource (see that
-                            // constant's remarks).
-                            var expectedIndexCount = (long)header.Width * header.Height;
-                            if (expectedIndexCount <= (long)Surface.MaxDimension * Surface.MaxDimension)
-                            {
-                                try
-                                {
-                                    var indices = DecodeGifLzw(imageData!, header.MinCodeSize, (int)expectedIndexCount);
-                                    foreach (var index in indices)
-                                    {
-                                        if (index >= activeColorTable.Length)
-                                        {
-                                            canDecode = false;
-                                            break;
-                                        }
-                                    }
-                                }
-                                catch (InvalidDataException)
-                                {
-                                    canDecode = false;
-                                }
-                            }
+                            canDecode = false;
                         }
 
                         frameCount++;
@@ -613,6 +543,133 @@ public static partial class GifCodec
         return frameCount == 0
             ? throw new InvalidDataException("GIF stream contains no Image Descriptor.")
             : (frameCount, canDecode);
+    }
+
+    /// <summary>
+    ///     Attempts the same LZW decode <see cref="Load(Stream)"/> performs for the first frame,
+    ///     discarding the decoded palette indices after checking each against the resolved color
+    ///     table's length, so <c>GetInfo</c> never materializes decoded pixels.
+    /// </summary>
+    /// <remarks>
+    ///     The declared width times height (widened to <see langword="long"/> first so the check
+    ///     cannot overflow) is compared against <see cref="Surface.MaxDimension"/> squared; the
+    ///     attempt is skipped (returning <see langword="true"/>) when it is larger, because
+    ///     <c>GetInfo</c> deliberately never bounds declared frame dimensions and an unbounded
+    ///     declared size could otherwise force an attacker-influenced allocation inside
+    ///     <c>DecodeGifLzw</c>. This is a deliberate leniency: a pathologically large but
+    ///     well-formed frame is not malformed.
+    /// </remarks>
+    /// <param name="imageData">The first frame's buffered compressed image data.</param>
+    /// <param name="minCodeSize">The validated LZW minimum code size.</param>
+    /// <param name="region">The frame's declared placement and size.</param>
+    /// <param name="activeColorTable">The frame's resolved color table.</param>
+    /// <returns>
+    ///     <see langword="false"/> when the LZW decode threw <see cref="InvalidDataException"/> or
+    ///     any decoded index had no entry in <paramref name="activeColorTable"/>; otherwise
+    ///     <see langword="true"/>.
+    /// </returns>
+    private static bool CanDecodeFirstFrame(
+        byte[] imageData,
+        int minCodeSize,
+        FrameRegion region,
+        Rgba32[] activeColorTable)
+    {
+        var expectedIndexCount = (long)region.Width * region.Height;
+        if (expectedIndexCount > (long)Surface.MaxDimension * Surface.MaxDimension)
+        {
+            return true;
+        }
+
+        try
+        {
+            var indices = DecodeGifLzw(imageData, minCodeSize, (int)expectedIndexCount);
+            foreach (var index in indices)
+            {
+                if (index >= activeColorTable.Length)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    ///     Reads the next block introducer byte.
+    /// </summary>
+    /// <param name="stream">The stream to read from.</param>
+    /// <returns>The introducer byte value.</returns>
+    /// <exception cref="InvalidDataException">Thrown when the stream has ended.</exception>
+    private static int ReadBlockIntroducer(Stream stream)
+    {
+        var introducer = stream.ReadByte();
+        return introducer < 0
+            ? throw new InvalidDataException("Unexpected end of stream while reading a GIF block.")
+            : introducer;
+    }
+
+    /// <summary>
+    ///     Reads an extension block's label byte.
+    /// </summary>
+    /// <param name="stream">The stream to read from.</param>
+    /// <returns>The label byte value.</returns>
+    /// <exception cref="InvalidDataException">Thrown when the stream has ended.</exception>
+    private static int ReadExtensionLabel(Stream stream)
+    {
+        var labelByte = stream.ReadByte();
+        return labelByte < 0
+            ? throw new InvalidDataException("Unexpected end of stream while reading a GIF extension.")
+            : labelByte;
+    }
+
+    /// <summary>
+    ///     Reads the Logical Screen Descriptor, validates the canvas dimensions, and reads the
+    ///     Global Color Table if present.
+    /// </summary>
+    /// <param name="stream">The stream to read from.</param>
+    /// <returns>The canvas width and height, and the Global Color Table (or null).</returns>
+    /// <exception cref="InvalidDataException">Thrown when the header is invalid or oversized.</exception>
+    private static (int Width, int Height, Rgba32[]? GlobalColorTable) ReadScreenAndGlobalColorTable(Stream stream)
+    {
+        var (canvasWidth, canvasHeight, packed) = ReadLogicalScreenDescriptor(stream);
+        if (canvasWidth <= 0 || canvasHeight <= 0)
+        {
+            throw new InvalidDataException($"Invalid GIF dimensions {canvasWidth}x{canvasHeight}.");
+        }
+
+        if (canvasWidth > Surface.MaxDimension || canvasHeight > Surface.MaxDimension)
+        {
+            throw new InvalidDataException(
+                $"GIF dimensions {canvasWidth}x{canvasHeight} exceed the maximum supported size of " +
+                $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
+        }
+
+        Rgba32[]? globalColorTable = null;
+        if ((packed & 0x80) != 0)
+        {
+            globalColorTable = ReadColorTable(stream, 2 << (packed & 0x07));
+        }
+
+        return (canvasWidth, canvasHeight, globalColorTable);
+    }
+
+    /// <summary>
+    ///     LZW-decodes a frame's compressed data and de-interlaces it when required.
+    /// </summary>
+    /// <param name="imageData">The frame's compressed image data.</param>
+    /// <param name="minCodeSize">The validated LZW minimum code size.</param>
+    /// <param name="interlaced">Whether the frame is interlaced.</param>
+    /// <param name="region">The frame's declared placement and size.</param>
+    /// <returns>The palette indices in top-to-bottom row order.</returns>
+    private static byte[] DecodeFrameIndices(byte[] imageData, int minCodeSize, bool interlaced, FrameRegion region)
+    {
+        var indices = DecodeGifLzw(imageData, minCodeSize, region.Width * region.Height);
+        return interlaced ? Deinterlace(indices, region.Width, region.Height) : indices;
     }
 
     /// <summary>

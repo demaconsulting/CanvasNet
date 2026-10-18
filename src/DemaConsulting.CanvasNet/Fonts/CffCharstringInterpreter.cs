@@ -77,6 +77,9 @@ namespace DemaConsulting.CanvasNet.Fonts;
 /// </remarks>
 internal static class CffCharstringInterpreter
 {
+    /// <summary>Error message for a numeric operand cut short by the end of the charstring.</summary>
+    private const string TruncatedOperandMessage = "CFF charstring numeric operand is truncated.";
+
     /// <summary>
     ///     The maximum <c>callsubr</c>/<c>callgsubr</c> nesting depth permitted before
     ///     <see cref="InvalidDataException"/> is thrown.
@@ -258,28 +261,7 @@ internal static class CffCharstringInterpreter
 
                 if (b0 == 12)
                 {
-                    if (pos + 1 >= end)
-                    {
-                        throw new InvalidDataException("CFF charstring escape operator is truncated.");
-                    }
-
-                    var b1 = _data[pos + 1];
-                    pos += 2;
-                    switch (b1)
-                    {
-                        case 0: // dotsection (deprecated no-op)
-                            _stack.Clear();
-                            break;
-
-                        case 34: HandleHFlex(); break;
-                        case 35: HandleFlex(); break;
-                        case 36: HandleHFlex1(); break;
-                        case 37: HandleFlex1(); break;
-
-                        default:
-                            throw new InvalidDataException($"Unsupported CFF charstring escape operator (12 {b1}).");
-                    }
-
+                    pos = RunEscape(pos, end);
                     continue;
                 }
 
@@ -333,6 +315,36 @@ internal static class CffCharstringInterpreter
         }
 
         /// <summary>
+        ///     Executes one two-byte escape operator (<c>12 x</c>) at <paramref name="pos"/> and
+        ///     returns the position following it.
+        /// </summary>
+        private int RunEscape(int pos, int end)
+        {
+            if (pos + 1 >= end)
+            {
+                throw new InvalidDataException("CFF charstring escape operator is truncated.");
+            }
+
+            var b1 = _data[pos + 1];
+            switch (b1)
+            {
+                case 0: // dotsection (deprecated no-op)
+                    _stack.Clear();
+                    break;
+
+                case 34: HandleHFlex(); break;
+                case 35: HandleFlex(); break;
+                case 36: HandleHFlex1(); break;
+                case 37: HandleFlex1(); break;
+
+                default:
+                    throw new InvalidDataException($"Unsupported CFF charstring escape operator (12 {b1}).");
+            }
+
+            return pos + 2;
+        }
+
+        /// <summary>
         ///     Closes the currently open subpath (if any) - called once after the outermost
         ///     <see cref="Run"/> call returns, so a charstring that never reaches <c>endchar</c>
         ///     (malformed, or simply truncated at the byte range's end) still yields a
@@ -366,58 +378,7 @@ internal static class CffCharstringInterpreter
         /// </summary>
         private int ReadNumber(int pos)
         {
-            var b0 = _data[pos];
-            double value;
-            int consumed;
-            if (b0 == 28)
-            {
-                if (pos + 3 > _data.Length)
-                {
-                    throw new InvalidDataException("CFF charstring numeric operand is truncated.");
-                }
-
-                value = SfntContainer.ReadInt16(_data, pos + 1);
-                consumed = 3;
-            }
-            else if (b0 == 255)
-            {
-                if (pos + 5 > _data.Length)
-                {
-                    throw new InvalidDataException("CFF charstring numeric operand is truncated.");
-                }
-
-                value = SfntContainer.ReadInt32(_data, pos + 1) / 65536.0;
-                consumed = 5;
-            }
-            else if (b0 is >= 32 and <= 246)
-            {
-                value = b0 - 139;
-                consumed = 1;
-            }
-            else if (b0 is >= 247 and <= 250)
-            {
-                if (pos + 2 > _data.Length)
-                {
-                    throw new InvalidDataException("CFF charstring numeric operand is truncated.");
-                }
-
-                value = (double)(((b0 - 247) * 256) + _data[pos + 1] + 108);
-                consumed = 2;
-            }
-            else if (b0 is >= 251 and <= 254)
-            {
-                if (pos + 2 > _data.Length)
-                {
-                    throw new InvalidDataException("CFF charstring numeric operand is truncated.");
-                }
-
-                value = (double)((-(b0 - 251) * 256) - _data[pos + 1] - 108);
-                consumed = 2;
-            }
-            else
-            {
-                throw new InvalidDataException($"Unexpected CFF charstring byte (0x{b0:X2}) where a numeric operand or operator was expected.");
-            }
+            var (value, consumed) = DecodeOperand(pos);
 
             if (_stack.Count >= MaxStackSize)
             {
@@ -426,6 +387,47 @@ internal static class CffCharstringInterpreter
 
             _stack.Add(value);
             return pos + consumed;
+        }
+
+        /// <summary>
+        ///     Decodes one Type 2 numeric operand token starting at <paramref name="pos"/>.
+        /// </summary>
+        private (double Value, int Consumed) DecodeOperand(int pos)
+        {
+            var b0 = _data[pos];
+            if (b0 is >= 32 and <= 246)
+            {
+                return (b0 - 139, 1);
+            }
+
+            switch (b0)
+            {
+                case 28:
+                    RequireOperandBytes(pos, 3);
+                    return (SfntContainer.ReadInt16(_data, pos + 1), 3);
+                case 255:
+                    RequireOperandBytes(pos, 5);
+                    return (SfntContainer.ReadInt32(_data, pos + 1) / 65536.0, 5);
+                case >= 247 and <= 250:
+                    RequireOperandBytes(pos, 2);
+                    return (((b0 - 247) * 256.0) + _data[pos + 1] + 108, 2);
+                case >= 251 and <= 254:
+                    RequireOperandBytes(pos, 2);
+                    return ((-(b0 - 251) * 256.0) - _data[pos + 1] - 108, 2);
+                default:
+                    throw new InvalidDataException($"Unexpected CFF charstring byte (0x{b0:X2}) where a numeric operand or operator was expected.");
+            }
+        }
+
+        /// <summary>
+        ///     Throws when fewer than <paramref name="count"/> bytes remain at <paramref name="pos"/>.
+        /// </summary>
+        private void RequireOperandBytes(int pos, int count)
+        {
+            if (pos + count > _data.Length)
+            {
+                throw new InvalidDataException(TruncatedOperandMessage);
+            }
         }
 
         /// <summary>

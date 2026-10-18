@@ -27,6 +27,47 @@ namespace DemaConsulting.CanvasNet.Pptx;
 public sealed partial class PptxDocument
 {
     /// <summary>
+    ///     Table-level context threaded into <see cref="ParseTableCell"/> and
+    ///     <see cref="ResolveTableCellStyle"/>.
+    /// </summary>
+    internal readonly record struct TableCellContext
+    {
+        /// <summary>Initializes a new instance of the <see cref="TableCellContext"/> struct with single-cell defaults.</summary>
+        public TableCellContext()
+        {
+            TotalRows = 1;
+            TotalColumns = 1;
+        }
+
+        /// <summary>Gets the effective color map, or <see langword="null"/> for the default.</summary>
+        public PptxColorMap? ColorMap { get; init; }
+
+        /// <summary>Gets the table's resolved <c>&lt;a:tblStyle&gt;</c>, or <see langword="null"/> for none.</summary>
+        public XElement? MatchedTblStyle { get; init; }
+
+        /// <summary>Gets a value indicating whether the table's <c>bandRow</c> attribute is set.</summary>
+        public bool BandRowEnabled { get; init; }
+
+        /// <summary>Gets a value indicating whether the table's <c>firstRow</c> attribute is set.</summary>
+        public bool FirstRowEnabled { get; init; }
+
+        /// <summary>Gets the cell's zero-based row index.</summary>
+        public int RowIndex { get; init; }
+
+        /// <summary>Gets the table's total row count.</summary>
+        public int TotalRows { get; init; }
+
+        /// <summary>Gets the cell's zero-based starting grid-column index.</summary>
+        public int ColumnIndex { get; init; }
+
+        /// <summary>Gets the table's total grid-column count.</summary>
+        public int TotalColumns { get; init; }
+
+        /// <summary>Gets the blip image resolver, or <see langword="null"/> for none.</summary>
+        public Func<XElement, Surface>? ResolveBlipImage { get; init; }
+    }
+
+    /// <summary>
     ///     Resolves a <c>&lt;p:graphicFrame&gt;</c>'s declared <c>&lt;a:tbl&gt;</c> table into a
     ///     <see cref="PptxTable"/>.
     /// </summary>
@@ -148,9 +189,19 @@ public sealed partial class PptxDocument
                 var cellWidthEmu = SumConsecutive(columnWidthsEmu, columnIndex, peekedGridSpan);
                 var cellHeightEmu = SumConsecutive(rowHeightsEmu, rowIndex, peekedRowSpan);
                 var cell = ParseTableCell(
-                    tc, theme, cellWidthEmu, cellHeightEmu, colorMap,
-                    matchedTblStyle, bandRowEnabled, firstRowEnabled, rowIndex, totalRows, columnIndex, totalColumns,
-                    resolveBlipImage);
+                    tc, theme, cellWidthEmu, cellHeightEmu,
+                    new TableCellContext
+                    {
+                        ColorMap = colorMap,
+                        MatchedTblStyle = matchedTblStyle,
+                        BandRowEnabled = bandRowEnabled,
+                        FirstRowEnabled = firstRowEnabled,
+                        RowIndex = rowIndex,
+                        TotalRows = totalRows,
+                        ColumnIndex = columnIndex,
+                        TotalColumns = totalColumns,
+                        ResolveBlipImage = resolveBlipImage,
+                    });
                 cells.Add(cell);
                 columnIndex++;
             }
@@ -178,24 +229,12 @@ public sealed partial class PptxDocument
     ///     <see cref="ParseTable"/>'s own dimension peek, so a merged cell's gradient is sized
     ///     against its true spanned height, not only its first row's own height.
     /// </param>
-    /// <param name="colorMap">The effective color map - see <see cref="ParseTable"/>'s matching parameter, including its documented limitation.</param>
-    /// <param name="matchedTblStyle">
-    ///     The table's own resolved <c>&lt;a:tblStyle&gt;</c> (see <see cref="ParseTable"/>'s
-    ///     <c>tableStyleResolver</c> parameter and <see cref="TryResolveTableStyle"/>), or
-    ///     <see langword="null"/> (the default) for "no table style available" - every call site
-    ///     predating this parameter keeps compiling and behaving identically, since a
-    ///     <see langword="null"/> value degrades <see cref="ResolveTableCellStyle"/>'s own cascade
-    ///     to exactly this method's pre-existing cell-only fill/border resolution.
-    /// </param>
-    /// <param name="bandRowEnabled">The table's own <c>&lt;a:tblPr bandRow="1"&gt;</c> attribute, defaulting to <see langword="false"/>.</param>
-    /// <param name="firstRowEnabled">The table's own <c>&lt;a:tblPr firstRow="1"&gt;</c> attribute, defaulting to <see langword="false"/>.</param>
-    /// <param name="rowIndex">The cell's zero-based row index within the table, defaulting to <c>0</c>.</param>
-    /// <param name="totalRows">The table's total declared <c>&lt;a:tr&gt;</c> row count, defaulting to <c>1</c>.</param>
-    /// <param name="columnIndex">The cell's zero-based starting grid-column index, defaulting to <c>0</c>.</param>
-    /// <param name="totalColumns">The table's total declared <c>&lt;a:tblGrid&gt;/&lt;a:gridCol&gt;</c> column count, defaulting to <c>1</c>.</param>
-    /// <param name="resolveBlipImage">
-    ///     Threaded unchanged into this method's own <see cref="ResolveTableCellStyle"/> call -
-    ///     see <see cref="ResolveFill"/>'s matching parameter.
+    /// <param name="context">
+    ///     The cell's own table-level context (color map, matched table style, band/first-row
+    ///     flags, grid position and blip resolver - see <see cref="TableCellContext"/>), or
+    ///     <see langword="null"/> (the default) for a standalone cell with no table style
+    ///     available, degrading <see cref="ResolveTableCellStyle"/>'s own cascade to exactly this
+    ///     method's pre-existing cell-only fill/border resolution.
     /// </param>
     /// <returns>The resolved <see cref="PptxTableCell"/>.</returns>
     /// <exception cref="InvalidDataException">
@@ -203,10 +242,8 @@ public sealed partial class PptxDocument
     ///     or is zero or negative.
     /// </exception>
     internal static PptxTableCell ParseTableCell(
-        XElement tcElement, PptxTheme theme, float cellWidthEmu, float cellHeightEmu, PptxColorMap? colorMap = null,
-        XElement? matchedTblStyle = null, bool bandRowEnabled = false, bool firstRowEnabled = false,
-        int rowIndex = 0, int totalRows = 1, int columnIndex = 0, int totalColumns = 1,
-        Func<XElement, Surface>? resolveBlipImage = null)
+        XElement tcElement, PptxTheme theme, float cellWidthEmu, float cellHeightEmu,
+        TableCellContext? context = null)
     {
         var gridSpan = ParseOptionalIntAttribute(tcElement, "gridSpan") ?? 1;
         if (gridSpan <= 0)
@@ -227,9 +264,7 @@ public sealed partial class PptxDocument
 
         var tcPr = tcElement.Element(DrawingNamespace + "tcPr");
         var (fill, leftBorder, rightBorder, topBorder, bottomBorder) = ResolveTableCellStyle(
-            tcPr, matchedTblStyle, bandRowEnabled, firstRowEnabled,
-            rowIndex, totalRows, columnIndex, gridSpan, rowSpan, totalColumns,
-            cellWidthEmu, cellHeightEmu, theme, colorMap, resolveBlipImage);
+            tcPr, gridSpan, rowSpan, cellWidthEmu, cellHeightEmu, theme, context ?? new TableCellContext());
 
         var txBody = tcElement.Element(DrawingNamespace + "txBody");
         var textBody = txBody is null ? null : ParseTextBody(txBody);
@@ -392,15 +427,7 @@ public sealed partial class PptxDocument
                     // and the row's remaining length), then compensate for any shortfall - see
                     // this method's own <remarks/>.
                     var expectedContinuations = cell.GridSpan - 1;
-                    var actualContinuations = 0;
-                    while (actualContinuations < expectedContinuations &&
-                           cellIndex + 1 + actualContinuations < row.Cells.Count &&
-                           row.Cells[cellIndex + 1 + actualContinuations].HMerge)
-                    {
-                        actualContinuations++;
-                    }
-
-                    var missingContinuations = expectedContinuations - actualContinuations;
+                    var missingContinuations = expectedContinuations - CountHMergeContinuations(row, cellIndex, expectedContinuations);
                     if (missingContinuations > 0)
                     {
                         xEmu += SumColumnWidths(table.ColumnWidthsEmu, columnIndex + 1, missingContinuations);
@@ -416,6 +443,28 @@ public sealed partial class PptxDocument
         }
 
         return results;
+    }
+
+    /// <summary>
+    ///     Counts how many of the cells immediately following <paramref name="cellIndex"/> are real
+    ///     <c>hMerge</c> continuations, bounded by <paramref name="expectedContinuations"/> and the
+    ///     row's remaining length.
+    /// </summary>
+    /// <param name="row">The row containing the governing cell.</param>
+    /// <param name="cellIndex">The governing cell's index within the row.</param>
+    /// <param name="expectedContinuations">The maximum number of continuations to count.</param>
+    /// <returns>The number of consecutive real continuations found.</returns>
+    private static int CountHMergeContinuations(PptxTableRow row, int cellIndex, int expectedContinuations)
+    {
+        var actualContinuations = 0;
+        while (actualContinuations < expectedContinuations &&
+               cellIndex + 1 + actualContinuations < row.Cells.Count &&
+               row.Cells[cellIndex + 1 + actualContinuations].HMerge)
+        {
+            actualContinuations++;
+        }
+
+        return actualContinuations;
     }
 
     /// <summary>
@@ -595,9 +644,17 @@ public sealed partial class PptxDocument
             if (GetEffectiveCellTextBody(resolvedCell.Cell, slideNumber) is { } textBody)
             {
                 var placeholderProperties = new PptxPlaceholderProperties(null, null, theme);
-                var layout = ResolveTextLayout(
-                    textBody, placeholderProperties, theme, string.Empty,
-                    resolvedCell.WidthEmu, resolvedCell.HeightEmu, fontResolver, colorMap);
+                var layout = ResolveTextLayoutForRequest(new TextLayoutRequest
+                {
+                    TextBody = textBody,
+                    PlaceholderProperties = placeholderProperties,
+                    Theme = theme,
+                    PlaceholderType = string.Empty,
+                    WidthEmu = resolvedCell.WidthEmu,
+                    HeightEmu = resolvedCell.HeightEmu,
+                    FontResolver = fontResolver,
+                    ColorMap = colorMap,
+                });
 
                 var cellLocalToSurface = Matrix3x2.CreateTranslation(resolvedCell.XEmu, resolvedCell.YEmu) * shapeToSurfaceTransform;
                 PaintTextLayout(surface, layout, cellLocalToSurface);

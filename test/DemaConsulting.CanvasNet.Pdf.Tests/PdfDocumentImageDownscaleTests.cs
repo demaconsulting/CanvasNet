@@ -83,7 +83,8 @@ public class PdfDocumentImageDownscaleTests
     private static Surface RenderLines(string cm, int width)
     {
         var pdf = BuildPdf(SourceWidth, 20, cm, SourceWidth, SourceHeight, LinesImage());
-        using var document = PdfDocument.Open(new MemoryStream(pdf));
+        using var stream = new MemoryStream(pdf);
+        using var document = PdfDocument.Open(stream);
         return document.Render(0, width, Math.Max(8, width * 20 / SourceWidth), White);
     }
 
@@ -133,7 +134,8 @@ public class PdfDocumentImageDownscaleTests
     {
         // Rotate 90 degrees: image x runs up the page. Page is 20 wide by 1940 tall.
         var pdf = BuildPdf(20, SourceWidth, $"0 {SourceWidth} -20 0 20 0 cm", SourceWidth, SourceHeight, LinesImage());
-        using var document = PdfDocument.Open(new MemoryStream(pdf));
+        using var stream = new MemoryStream(pdf);
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, 8, 765, White);
 
         var scale = 765.0 / SourceWidth;
@@ -157,7 +159,8 @@ public class PdfDocumentImageDownscaleTests
     public void Render_EnlargedImage_IsSmoothlyInterpolated()
     {
         var pdf = BuildPdf(400, 10, "400 0 0 10 0 0 cm", 4, 1, [0, 80, 160, 240]);
-        using var document = PdfDocument.Open(new MemoryStream(pdf));
+        using var stream = new MemoryStream(pdf);
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, 400, 10, White);
 
         // Source pixel centers (50, 150, 250, 350) keep (nearly) their exact values

@@ -78,7 +78,8 @@ public class PdfDocumentThinRuleInkTests
     /// <summary>Renders the content at the given size on a transparent page and returns its summed alpha ("ink") in pixels.</summary>
     private static double RenderInk(string content, int width, int height)
     {
-        using var document = PdfDocument.Open(new MemoryStream(BuildPdf(content)));
+        using var stream = new MemoryStream(BuildPdf(content));
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, width, height, new PdfRenderOptions { BackgroundColor = new(0, 0, 0, 0) });
         double sum = 0;
         for (var y = 0; y < surface.Height; y++)
@@ -157,7 +158,8 @@ public class PdfDocumentThinRuleInkTests
     {
         var content = Ctm + "0 g\n" + Band(96, 991, 720, 996)
             + Re(96, 60, 720, 996) + Re(96, 61.667, 720, 994.333) + Re(96, 63.333, 720, 992.667) + Re(96, 65, 720, 991) + "f*\n";
-        using var document = PdfDocument.Open(new MemoryStream(BuildPdf(content)));
+        using var stream = new MemoryStream(BuildPdf(content));
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, 1303, 1686, new PdfRenderOptions { BackgroundColor = new(0, 0, 0, 0) });
 
         // Gap spans y = 992.667..994.333 units -> points 0.75x -> pixels (x 1303/612); the page is y-down

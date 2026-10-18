@@ -72,7 +72,7 @@ public static class SvgArcConverter
         // Degenerate case 2 (SVG spec, Open Question #3 default): a zero radius on either axis is
         // defined by the spec as "treated as a straight line" - emit one synthetic cubic whose
         // controls lie on the chord, rather than attempting an ellipse with zero extent
-        if (rx == 0 || ry == 0)
+        if (rx.Equals(0f) || ry.Equals(0f))
         {
             var control1 = start + (end - start) / 3f;
             var control2 = start + (end - start) * 2f / 3f;
@@ -156,7 +156,7 @@ public static class SvgArcConverter
         for (var i = 0; i < segmentCount; i++)
         {
             var nextAngle = angle + segmentAngle;
-            var segment = ConvertSegment(angle, nextAngle, rx, ry, cosPhi, sinPhi, cx, cy);
+            var segment = ConvertSegment(angle, nextAngle, new EllipseFrame(rx, ry, cosPhi, sinPhi, cx, cy));
 
             // The final segment's End is forced to exactly the caller-supplied end point (rather
             // than the value obtained by evaluating trigonometric functions at the target angle)
@@ -173,12 +173,21 @@ public static class SvgArcConverter
         }
     }
 
+    /// <summary>The placement of an ellipse: radii, x-axis rotation (as cosine and sine) and center.</summary>
+    /// <param name="Rx">The x-radius.</param>
+    /// <param name="Ry">The y-radius.</param>
+    /// <param name="CosPhi">The cosine of the x-axis rotation.</param>
+    /// <param name="SinPhi">The sine of the x-axis rotation.</param>
+    /// <param name="Cx">The center x.</param>
+    /// <param name="Cy">The center y.</param>
+    private readonly record struct EllipseFrame(float Rx, float Ry, float CosPhi, float SinPhi, float Cx, float Cy);
+
     /// <summary>
     ///     Converts a single elliptical arc segment (angular span at most <see cref="MaxSegmentAngle"/>)
     ///     from <paramref name="theta1"/> to <paramref name="theta2"/> into one cubic Bezier curve.
     /// </summary>
     private static (Vector2 Control1, Vector2 Control2, Vector2 End) ConvertSegment(
-        float theta1, float theta2, float rx, float ry, float cosPhi, float sinPhi, float cx, float cy)
+        float theta1, float theta2, EllipseFrame frame)
     {
         var delta = theta2 - theta1;
         var t = 4f / 3f * MathF.Tan(delta / 4f);
@@ -194,9 +203,9 @@ public static class SvgArcConverter
         var u1 = new Vector2(cosT1 - t * sinT1, sinT1 + t * cosT1);
         var u2 = new Vector2(cosT2 + t * sinT2, sinT2 - t * cosT2);
 
-        return (MapUnitCircleToEllipse(u1, rx, ry, cosPhi, sinPhi, cx, cy),
-            MapUnitCircleToEllipse(u2, rx, ry, cosPhi, sinPhi, cx, cy),
-            MapUnitCircleToEllipse(u3, rx, ry, cosPhi, sinPhi, cx, cy));
+        return (MapUnitCircleToEllipse(u1, frame),
+            MapUnitCircleToEllipse(u2, frame),
+            MapUnitCircleToEllipse(u3, frame));
     }
 
     /// <summary>
@@ -204,8 +213,9 @@ public static class SvgArcConverter
     ///     ellipse: scale by the radii, rotate by the x-axis rotation, then translate by the
     ///     center.
     /// </summary>
-    private static Vector2 MapUnitCircleToEllipse(Vector2 unitPoint, float rx, float ry, float cosPhi, float sinPhi, float cx, float cy)
+    private static Vector2 MapUnitCircleToEllipse(Vector2 unitPoint, EllipseFrame frame)
     {
+        var (rx, ry, cosPhi, sinPhi, cx, cy) = frame;
         var ex = rx * unitPoint.X;
         var ey = ry * unitPoint.Y;
         return new Vector2(

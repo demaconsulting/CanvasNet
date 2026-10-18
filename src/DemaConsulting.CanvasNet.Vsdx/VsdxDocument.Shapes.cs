@@ -22,7 +22,7 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 public sealed partial class VsdxDocument
 {
     /// <summary>A per-page-index cache of the page's fully parsed and resolved top-level shapes, populated lazily by <see cref="GetPageShapes"/>.</summary>
-    private readonly Dictionary<int, IReadOnlyList<VsdxShapeNode>> _resolvedPageShapesCache = new();
+    private readonly Dictionary<int, IReadOnlyList<VsdxShapeNode>> _resolvedPageShapesCache = [];
 
     /// <summary>
     ///     Returns every top-level shape declared directly under the given page's
@@ -257,18 +257,11 @@ public sealed partial class VsdxDocument
             : ParseShapeElements(childShapesElement, depth + 1, ref parsedShapeCount);
 
         return new VsdxShapeNode(
-            id,
-            type,
-            masterId,
-            masterShapeId,
-            lineStyleId,
-            fillStyleId,
-            textStyleId,
+            new VsdxShapeIdentity(id, type, masterId, masterShapeId),
+            new VsdxShapeStyleIds(lineStyleId, fillStyleId, textStyleId),
             rawCells,
             geometrySections,
-            rawText,
-            rawCharacterRows,
-            rawParagraphRows,
+            new VsdxShapeTextData(rawText, rawCharacterRows, rawParagraphRows),
             children);
     }
 }

@@ -900,7 +900,7 @@ sections:
               painting its already-laid-out glyph placements, rather than painting them through
               the shape's own transform alone.
             justification: |
-              PR #42 review round 1 (Finding  # 3) confirmed VsdxTextLayout's already-resolved
+              PR # 42 review round 1 (Finding  # 3) confirmed VsdxTextLayout's already-resolved
               glyph placements - laid out directly within the text box's own unrotated rectangle
               - were previously painted straight through the owning shape's own localToPixel
               transform, silently ignoring any non-zero TxtAngle cell entirely: a shape with a

@@ -82,25 +82,24 @@ public readonly struct PathCommand
     ///     struct's own factory methods below construct instances, keeping every field
     ///     combination that is ever produced consistent with its <see cref="Type"/>.
     /// </summary>
-    private PathCommand(
-        PathCommandType type,
-        Vector2 endPoint,
-        Vector2 control1,
-        Vector2 control2,
-        Vector2 radius,
-        float rotationDegrees,
-        bool largeArc,
-        bool sweep)
+    private PathCommand(PathCommandType type, Vector2 endPoint, Vector2 control1, Vector2 control2, ArcData arc)
     {
         Type = type;
         EndPoint = endPoint;
         Control1 = control1;
         Control2 = control2;
-        Radius = radius;
-        RotationDegrees = rotationDegrees;
-        LargeArc = largeArc;
-        Sweep = sweep;
+        Radius = arc.Radius;
+        RotationDegrees = arc.RotationDegrees;
+        LargeArc = arc.LargeArc;
+        Sweep = arc.Sweep;
     }
+
+    /// <summary>The arc-only fields of the tagged union (all default for every other command type).</summary>
+    /// <param name="Radius">The arc's x- and y-radii.</param>
+    /// <param name="RotationDegrees">The arc's x-axis rotation, in degrees.</param>
+    /// <param name="LargeArc">The SVG large-arc flag.</param>
+    /// <param name="Sweep">The SVG sweep flag.</param>
+    private readonly record struct ArcData(Vector2 Radius, float RotationDegrees, bool LargeArc, bool Sweep);
 
     /// <summary>
     ///     Creates a <see cref="PathCommandType.LineTo"/> command.
@@ -121,7 +120,7 @@ public readonly struct PathCommand
     ///     accumulated state consistent for those richer command shapes - constructs them.
     /// </remarks>
     public static PathCommand LineTo(Vector2 end) =>
-        new(PathCommandType.LineTo, end, default, default, default, 0f, false, false);
+        new(PathCommandType.LineTo, end, default, default, default);
 
     /// <summary>
     ///     Creates a <see cref="PathCommandType.QuadraticBezierTo"/> command. Used only by
@@ -131,7 +130,7 @@ public readonly struct PathCommand
     /// <param name="end">The point the curve draws to.</param>
     /// <returns>The constructed command.</returns>
     internal static PathCommand QuadraticBezierTo(Vector2 control, Vector2 end) =>
-        new(PathCommandType.QuadraticBezierTo, end, control, default, default, 0f, false, false);
+        new(PathCommandType.QuadraticBezierTo, end, control, default, default);
 
     /// <summary>
     ///     Creates a <see cref="PathCommandType.CubicBezierTo"/> command. Used only by
@@ -142,7 +141,7 @@ public readonly struct PathCommand
     /// <param name="end">The point the curve draws to.</param>
     /// <returns>The constructed command.</returns>
     internal static PathCommand CubicBezierTo(Vector2 control1, Vector2 control2, Vector2 end) =>
-        new(PathCommandType.CubicBezierTo, end, control1, control2, default, 0f, false, false);
+        new(PathCommandType.CubicBezierTo, end, control1, control2, default);
 
     /// <summary>
     ///     Creates an <see cref="PathCommandType.ArcTo"/> command, storing the raw SVG-style
@@ -162,7 +161,7 @@ public readonly struct PathCommand
     ///     flattening tolerance/segment shape that conversion requires.
     /// </remarks>
     internal static PathCommand ArcTo(Vector2 radius, float rotationDegrees, bool largeArc, bool sweep, Vector2 end) =>
-        new(PathCommandType.ArcTo, end, default, default, radius, rotationDegrees, largeArc, sweep);
+        new(PathCommandType.ArcTo, end, default, default, new ArcData(radius, rotationDegrees, largeArc, sweep));
 
     /// <summary>
     ///     Creates a <see cref="PathCommandType.Close"/> command. Used only by
@@ -170,7 +169,7 @@ public readonly struct PathCommand
     /// </summary>
     /// <returns>The constructed command.</returns>
     internal static PathCommand Close() =>
-        new(PathCommandType.Close, default, default, default, default, 0f, false, false);
+        new(PathCommandType.Close, default, default, default, default);
 
     /// <summary>
     ///     Computes this command's outgoing (leaving <paramref name="start"/>) and incoming

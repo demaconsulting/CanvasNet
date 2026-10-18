@@ -182,6 +182,20 @@ internal static class DashSplitter
             return [(new List<Vector2>(points), true)];
         }
 
+        return BuildSegments(points, isClosed, onIntervals, cumulativeLengths, totalLength);
+    }
+
+    /// <summary>
+    ///     Extracts one polyline per "on" interval and, for a closed contour whose first and last
+    ///     intervals meet at the seam, stitches them into a single segment.
+    /// </summary>
+    private static List<(List<Vector2> Points, bool IsClosed)> BuildSegments(
+        List<Vector2> points,
+        bool isClosed,
+        List<(double Start, double End)> onIntervals,
+        double[] cumulativeLengths,
+        double totalLength)
+    {
         var segments = new List<(List<Vector2> Points, bool IsClosed)>(onIntervals.Count);
 
         // Both cursors only ever move forward across this loop: onIntervals is produced by a
@@ -239,7 +253,7 @@ internal static class DashSplitter
         for (var i = 0; i < dashArray.Count; i++)
         {
             var value = dashArray[i];
-            if (value != 0f)
+            if (!value.Equals(0f))
             {
                 return false;
             }
@@ -416,7 +430,7 @@ internal static class DashSplitter
         }
 
         var skippedOnEntryCount = 0;
-        while (offset == 0d && pattern[index] == 0f)
+        while (offset <= 0d && pattern[index] == 0f)
         {
             if (index % 2 == 0)
             {
@@ -473,7 +487,7 @@ internal static class DashSplitter
             // the active entry.
             index = 0;
             var skippedOnEntryCount = 0;
-            while (pattern[index] == 0f)
+            while (pattern[index].Equals(0f))
             {
                 if (index % 2 == 0)
                 {
@@ -588,36 +602,10 @@ internal static class DashSplitter
         var (dashIndex, remainingInDashFloat, skippedOnEntryCount) = LocatePhase(pattern, dashOffset, patternLength);
         double remainingInDash = remainingInDashFloat;
 
-        if (skippedOnEntryCount > 0)
+        if (!TryAddSkippedDots(intervals, skippedOnEntryCount))
         {
-            // LocatePhase's own boundary walk - not the main loop below - passed over one or more
-            // zero-length "on" entries (dash-dot "dots") exactly coincident with path position
-            // zero before settling on the entry now in effect. Each of those is a real pattern
-            // repetition's dot at this exact position, so one interval per skipped entry is
-            // surfaced here (e.g. [0, 0, 0, 2] skips two zero-length "on" entries, so two distinct
-            // dots are emitted at position zero); without this, a pattern beginning with (or whose
-            // phase offset lands exactly on) one or more zero-length "on" entries would have all
-            // but the entry actually in effect go unobserved, since the main loop below only ever
-            // detects a zero-length "on" entry it advances into itself.
-            //
-            // skippedOnEntryCount is bounded only by pattern.Count (a single walk through the
-            // supplied pattern array), which EstimatesExceedBudget's totalLength/patternLength
-            // ratio does not account for: a pattern consisting almost entirely of leading
-            // zero-length "on" entries followed by one positive entry has a tiny patternLength (so
-            // the ratio-based estimate stays low) while still containing an enormous
-            // pattern.Count. Guard this loop against MaxOnIntervalCount directly, exactly like the
-            // main loop's own interval-count backstops below, rather than materializing every
-            // skipped entry unconditionally.
-            for (var i = 0; i < skippedOnEntryCount; i++)
-            {
-                intervals.Add((0d, 0d));
-
-                if (intervals.Count > MaxOnIntervalCount)
-                {
-                    budgetExceeded = true;
-                    return intervals;
-                }
-            }
+            budgetExceeded = true;
+            return intervals;
         }
 
         var position = 0d;
@@ -632,26 +620,10 @@ internal static class DashSplitter
 
             if (remainingInDash <= 0d)
             {
-                AdvanceDash(pattern, ref dashIndex, ref remainingInDash);
-
-                // A zero-length "on" entry (the standard PDF/SVG/CSS dash-dot "dot" technique,
-                // rendered as a round/square cap shape once StrokeOutliner.CreatePointStrokePolygons
-                // receives the resulting single-point segment) has no span for the logic below to
-                // consume, but must still surface as exactly one visible on-interval per pattern
-                // repetition. This is the one place that observes this pattern entry before the
-                // *next* iteration's AdvanceDash call steps past it, so it is emitted here exactly
-                // once. A zero-length "off" entry falls through this same branch unchanged (odd
-                // dashIndex, condition false below, nothing emitted) - a zero-length gap
-                // contributes nothing, per PDF/SVG dash semantics.
-                if (remainingInDash <= 0d && dashIndex % 2 == 0)
+                if (!TryAdvanceAcrossEntry(pattern, ref dashIndex, ref remainingInDash, position, intervals))
                 {
-                    intervals.Add((position, position));
-
-                    if (intervals.Count > MaxOnIntervalCount)
-                    {
-                        budgetExceeded = true;
-                        break;
-                    }
+                    budgetExceeded = true;
+                    break;
                 }
 
                 continue;
@@ -663,39 +635,105 @@ internal static class DashSplitter
                 break;
             }
 
-            if (dashIndex % 2 == 0)
+            if (!TryConsumeSpan(intervals, dashIndex, position, span, ref encounteredPositiveOffSpan))
             {
-                intervals.Add((position, position + span));
-
-                // In-loop backstop for MaxOnIntervalCount: authoritative for any input the
-                // pre-flight on-interval estimate under-counted (mirroring
-                // MaxOnIntervalIterations' own in-loop running-count backstop above).
-                if (intervals.Count > MaxOnIntervalCount)
-                {
-                    budgetExceeded = true;
-                    break;
-                }
-            }
-            else if (span > 0d)
-            {
-                encounteredPositiveOffSpan = true;
+                budgetExceeded = true;
+                break;
             }
 
-            var nextPosition = position + span;
-            if (nextPosition <= position)
-            {
-                // Defensive guard: some step failed to advance position (only expected at
-                // magnitudes beyond what double precision can resolve against the dash span in
-                // play). Force forward progress to the next representable double so the loop is
-                // guaranteed to terminate rather than spin forever.
-                nextPosition = Math.BitIncrement(position);
-            }
-
-            position = nextPosition;
+            position = NextPosition(position, span);
             remainingInDash -= span;
         }
 
         return intervals;
+    }
+
+    /// <summary>
+    ///     Emits one zero-length "on" interval at position zero per zero-length "on" entry that
+    ///     <see cref="LocatePhase"/> passed over, guarding against <see cref="MaxOnIntervalCount"/>.
+    /// </summary>
+    /// <returns><see langword="false"/> when the interval-count cap was exceeded.</returns>
+    private static bool TryAddSkippedDots(List<(double Start, double End)> intervals, int skippedOnEntryCount)
+    {
+        // LocatePhase's own boundary walk - not the main loop - passed over one or more
+        // zero-length "on" entries (dash-dot "dots") exactly coincident with path position
+        // zero before settling on the entry now in effect. Each of those is a real pattern
+        // repetition's dot at this exact position, so one interval per skipped entry is
+        // surfaced here (e.g. [0, 0, 0, 2] skips two zero-length "on" entries, so two distinct
+        // dots are emitted at position zero).
+        //
+        // skippedOnEntryCount is bounded only by pattern.Count, which EstimatesExceedBudget's
+        // totalLength/patternLength ratio does not account for, so guard this loop against
+        // MaxOnIntervalCount directly rather than materializing every skipped entry unconditionally.
+        for (var i = 0; i < skippedOnEntryCount; i++)
+        {
+            if (!TryAddInterval(intervals, 0d, 0d))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Appends an interval; returns <see langword="false"/> when <see cref="MaxOnIntervalCount"/> is exceeded.</summary>
+    private static bool TryAddInterval(List<(double Start, double End)> intervals, double start, double end)
+    {
+        intervals.Add((start, end));
+        return intervals.Count <= MaxOnIntervalCount;
+    }
+
+    /// <summary>
+    ///     Steps to the next pattern entry and, when that entry is a zero-length "on" entry (the
+    ///     dash-dot "dot"), emits its single visible interval exactly once; a zero-length "off"
+    ///     entry contributes nothing.
+    /// </summary>
+    /// <returns><see langword="false"/> when the interval-count cap was exceeded.</returns>
+    private static bool TryAdvanceAcrossEntry(
+        IReadOnlyList<float> pattern,
+        ref int dashIndex,
+        ref double remainingInDash,
+        double position,
+        List<(double Start, double End)> intervals)
+    {
+        AdvanceDash(pattern, ref dashIndex, ref remainingInDash);
+        return remainingInDash > 0d || dashIndex % 2 != 0 || TryAddInterval(intervals, position, position);
+    }
+
+    /// <summary>
+    ///     Records the span just walked: an "on" entry appends an interval (in-loop backstop for
+    ///     <see cref="MaxOnIntervalCount"/>), an "off" entry notes that a positive gap was seen.
+    /// </summary>
+    /// <returns><see langword="false"/> when the interval-count cap was exceeded.</returns>
+    private static bool TryConsumeSpan(
+        List<(double Start, double End)> intervals,
+        int dashIndex,
+        double position,
+        double span,
+        ref bool encounteredPositiveOffSpan)
+    {
+        if (dashIndex % 2 == 0)
+        {
+            return TryAddInterval(intervals, position, position + span);
+        }
+
+        if (span > 0d)
+        {
+            encounteredPositiveOffSpan = true;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Returns <paramref name="position"/> advanced by <paramref name="span"/>, forced to the next
+    ///     representable double when the step fails to advance (only expected at magnitudes beyond
+    ///     double precision) so the walking loop always terminates.
+    /// </summary>
+    private static double NextPosition(double position, double span)
+    {
+        var nextPosition = position + span;
+        return nextPosition <= position ? Math.BitIncrement(position) : nextPosition;
     }
 
     /// <summary>

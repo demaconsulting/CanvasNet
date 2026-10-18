@@ -159,7 +159,7 @@ public sealed partial class PdfDocument
             {
                 var weight = CornerWeightAndIndex(corner, m, fraction, low, high, stride, out var index);
 
-                if (weight == 0.0)
+                if (weight.Equals(0d))
                 {
                     continue;
                 }

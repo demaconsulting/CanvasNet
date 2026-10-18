@@ -124,7 +124,7 @@ public sealed partial class PdfDocument
     ///     Propagated from <see cref="ResolveFont"/>/<see cref="BuildResolvedFont"/> for an
     ///     unsupported font.
     /// </exception>
-    private void OpSetFont(IReadOnlyList<PdfObject> operands)
+    private void OpSetFont(List<PdfObject> operands)
     {
         if (operands.Count != 2 || operands[0].Kind != PdfKind.Name || operands[1].Kind != PdfKind.Number)
         {
@@ -205,7 +205,7 @@ public sealed partial class PdfDocument
     ///     Thrown when <paramref name="operands"/> is not exactly 1 string operand, or when no
     ///     font has been selected via <c>Tf</c> (propagated from <see cref="ShowText"/>).
     /// </exception>
-    private void OpShowText(IReadOnlyList<PdfObject> operands)
+    private void OpShowText(List<PdfObject> operands)
     {
         RequireOperandCount(operands, "Tj", 1);
         if (operands[0].Kind != PdfKind.String)
@@ -221,7 +221,7 @@ public sealed partial class PdfDocument
     ///     Thrown when <paramref name="operands"/> is not exactly 1 string operand, or when no
     ///     font has been selected via <c>Tf</c> (propagated from <see cref="ShowText"/>).
     /// </exception>
-    private void OpShowTextNextLine(IReadOnlyList<PdfObject> operands)
+    private void OpShowTextNextLine(List<PdfObject> operands)
     {
         RequireOperandCount(operands, "'", 1);
         if (operands[0].Kind != PdfKind.String)
@@ -239,7 +239,7 @@ public sealed partial class PdfDocument
     ///     string, or when no font has been selected via <c>Tf</c> (propagated from
     ///     <see cref="ShowText"/>).
     /// </exception>
-    private void OpShowTextNextLineWithSpacing(IReadOnlyList<PdfObject> operands)
+    private void OpShowTextNextLineWithSpacing(List<PdfObject> operands)
     {
         if (operands.Count != 3 || operands[0].Kind != PdfKind.Number || operands[1].Kind != PdfKind.Number ||
             operands[2].Kind != PdfKind.String)
@@ -265,7 +265,7 @@ public sealed partial class PdfDocument
     ///     entry is neither a string nor a number, or when no font has been selected via
     ///     <c>Tf</c> (propagated from <see cref="ShowText"/>).
     /// </exception>
-    private void OpShowTextArray(IReadOnlyList<PdfObject> operands)
+    private void OpShowTextArray(List<PdfObject> operands)
     {
         RequireOperandCount(operands, "TJ", 1);
         if (operands[0].Kind != PdfKind.Array)
@@ -372,74 +372,88 @@ public sealed partial class PdfDocument
 
         if (font is ResolvedType3Font type3Font)
         {
-            // A Type 3 font has no outline-glyph font program at all - its glyphs are content-
-            // stream procedures, painted via PaintType3Glyph's own Form-XObject-style re-entrant
-            // execution, never via the font Resolve returns (which is null for a
-            // ResolvedType3Font - see IResolvedFont.Resolve's own remarks). Render-mode-3
-            // (invisible) skips glyph-procedure execution entirely, exactly like the non-Type3
-            // branch below skips GetGlyphOutline/fill entirely in that mode. A Type 3 glyph has
-            // no outline to add to a text clip, so the clipping modes 4-7 fail closed.
-            if (_gs.RenderMode >= 4)
-            {
-                throw new UnsupportedImageFeatureException(
-                    "pdf-text-render-mode-type3-clip",
-                    $"Text-rendering mode {_gs.RenderMode} (clipping) is not supported for Type 3 fonts; " +
-                    "a Type 3 glyph procedure has no outline to add to the text clip.");
-            }
-
-            if (_gs.RenderMode != 3)
-            {
-                PaintType3Glyph(type3Font, code);
-            }
+            ShowType3Glyph(type3Font, code);
         }
         else if (_gs.RenderMode != 3)
         {
             // Every non-Type3 IResolvedFont implementation's Resolve returns a non-null font -
             // see ResolvedSimpleFont/ResolvedCompositeFont - so this null-forgiving use is safe.
-            var resolvedTtf = ttf!;
-            var outline = resolvedTtf.GetGlyphOutline(glyphIndex);
-            var clipMode = _gs.RenderMode >= 4;
-            if (clipMode)
-            {
-                // Even an outline-less glyph (a space) marks the text object as clipping.
-                _textClipPending = true;
-            }
-
-            if (outline.Subpaths.Count > 0)
-            {
-                var trm = ComputeTextRenderingMatrix();
-                var glyphMatrix = Matrix3x2.CreateScale(1f / resolvedTtf.UnitsPerEm) * trm;
-                var builder = new PathBuilder();
-                AppendTransformedGlyphOutline(builder, outline, glyphMatrix);
-                var path = builder.Build();
-
-                if (clipMode)
-                {
-                    _textClipBuilder ??= new PathBuilder();
-                    AppendTransformedGlyphOutline(_textClipBuilder, outline, glyphMatrix);
-                }
-
-                if (_gs.RenderMode is 0 or 2 or 4 or 6)
-                {
-                    // Known pre-existing simplification, out of scope for this change: unlike
-                    // the glyph-stroke step below (which does mirror a Pattern stroke color
-                    // space, via the shared PaintStroke helper), this glyph fill always uses the
-                    // flat fill color and does not mirror a Pattern fill color space the way the
-                    // ordinary path-painting operators do.
-                    PathFiller.Fill(_surface, path, _gs.FillColor, _gs.Clip, FillRule.NonZero);
-                }
-
-                if (_gs.RenderMode is 1 or 2 or 5 or 6)
-                {
-                    PaintStroke(path);
-                }
-            }
+            PaintOutlineGlyph(ttf!, glyphIndex);
         }
 
         var horizontalScale = _gs.HorizontalScaling / 100.0;
         var applyWordSpacing = font.CodeByteWidth == 1 && code == 32;
         var displacement = ((w0 * _gs.FontSize) + _gs.CharSpacing + (applyWordSpacing ? _gs.WordSpacing : 0)) * horizontalScale;
         _textMatrix = Matrix3x2.CreateTranslation((float)displacement, 0f) * _textMatrix;
+    }
+
+    /// <summary>Paints (or rejects, for clipping render modes) a Type 3 glyph.</summary>
+    /// <exception cref="UnsupportedImageFeatureException">Thrown when the render mode is <c>4</c>-<c>7</c>.</exception>
+    private void ShowType3Glyph(ResolvedType3Font type3Font, int code)
+    {
+        // A Type 3 font has no outline-glyph font program at all - its glyphs are content-
+        // stream procedures, painted via PaintType3Glyph's own Form-XObject-style re-entrant
+        // execution, never via the font Resolve returns (which is null for a
+        // ResolvedType3Font - see IResolvedFont.Resolve's own remarks). Render-mode-3
+        // (invisible) skips glyph-procedure execution entirely, exactly like the non-Type3
+        // branch skips GetGlyphOutline/fill entirely in that mode. A Type 3 glyph has
+        // no outline to add to a text clip, so the clipping modes 4-7 fail closed.
+        if (_gs.RenderMode >= 4)
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-text-render-mode-type3-clip",
+                $"Text-rendering mode {_gs.RenderMode} (clipping) is not supported for Type 3 fonts; " +
+                "a Type 3 glyph procedure has no outline to add to the text clip.");
+        }
+
+        if (_gs.RenderMode != 3)
+        {
+            PaintType3Glyph(type3Font, code);
+        }
+    }
+
+    /// <summary>Fills, strokes, and/or accumulates into the text clip the outline of a glyph, per the current render mode.</summary>
+    private void PaintOutlineGlyph(DemaConsulting.CanvasNet.Fonts.TrueTypeFont resolvedTtf, int glyphIndex)
+    {
+        var outline = resolvedTtf.GetGlyphOutline(glyphIndex);
+        var clipMode = _gs.RenderMode >= 4;
+        if (clipMode)
+        {
+            // Even an outline-less glyph (a space) marks the text object as clipping.
+            _textClipPending = true;
+        }
+
+        if (outline.Subpaths.Count == 0)
+        {
+            return;
+        }
+
+        var trm = ComputeTextRenderingMatrix();
+        var glyphMatrix = Matrix3x2.CreateScale(1f / resolvedTtf.UnitsPerEm) * trm;
+        var builder = new PathBuilder();
+        AppendTransformedGlyphOutline(builder, outline, glyphMatrix);
+        var path = builder.Build();
+
+        if (clipMode)
+        {
+            _textClipBuilder ??= new PathBuilder();
+            AppendTransformedGlyphOutline(_textClipBuilder, outline, glyphMatrix);
+        }
+
+        if (_gs.RenderMode is 0 or 2 or 4 or 6)
+        {
+            // Known pre-existing simplification, out of scope for this change: unlike
+            // the glyph-stroke step below (which does mirror a Pattern stroke color
+            // space, via the shared PaintStroke helper), this glyph fill always uses the
+            // flat fill color and does not mirror a Pattern fill color space the way the
+            // ordinary path-painting operators do.
+            PathFiller.Fill(_surface, path, _gs.FillColor, _gs.Clip, FillRule.NonZero);
+        }
+
+        if (_gs.RenderMode is 1 or 2 or 5 or 6)
+        {
+            PaintStroke(path);
+        }
     }
 
     /// <summary>

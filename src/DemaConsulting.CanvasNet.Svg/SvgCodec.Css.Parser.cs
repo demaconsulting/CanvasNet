@@ -217,11 +217,7 @@ public static partial class SvgCodec
         var n = stripped.Length;
         while (i < n)
         {
-            while (i < n && char.IsWhiteSpace(stripped[i]))
-            {
-                i++;
-            }
-
+            i = SkipWhitespace(stripped, i);
             if (i >= n)
             {
                 break;
@@ -229,28 +225,7 @@ public static partial class SvgCodec
 
             if (stripped[i] == '@')
             {
-                // An at-rule (@media, @import, @font-face, ...) is entirely out of scope for this
-                // phase's static-rendering CSS engine (see this class's remarks) - skip it as a
-                // single unit, whether it has a semicolon-terminated body (e.g. @import "x";) or a
-                // brace-delimited block (which may itself contain further nested rule blocks, so
-                // FindMatchingBrace's depth-aware scan is required, not a naive first-'}' search)
-                var braceIdx = stripped.IndexOf('{', i);
-                var semiIdx = stripped.IndexOf(';', i);
-                if (braceIdx == -1 && semiIdx == -1)
-                {
-                    // Trailing malformed at-rule with no terminator at all - nothing further to
-                    // recover; stop scanning rather than looping forever
-                    break;
-                }
-
-                if (braceIdx == -1 || (semiIdx != -1 && semiIdx < braceIdx))
-                {
-                    i = semiIdx + 1;
-                    continue;
-                }
-
-                var atRuleClose = FindMatchingBrace(stripped, braceIdx);
-                i = atRuleClose == -1 ? n : atRuleClose + 1;
+                i = SkipAtRule(stripped, i);
                 continue;
             }
 
@@ -269,15 +244,7 @@ public static partial class SvgCodec
                 // Unterminated rule body (see this method's remarks for the exact
                 // resynchronization strategy applied here) - resync onto the next rule attempt
                 // rather than discarding the rest of the stylesheet
-                var nestedOpen = stripped.IndexOf('{', openBrace + 1);
-                if (nestedOpen == -1)
-                {
-                    // No further '{' exists anywhere in the remaining text either - there is
-                    // truly nothing left to recover; stop scanning
-                    break;
-                }
-
-                i = FindSelectorRecoveryStart(stripped, nestedOpen);
+                i = ResyncAfterUnterminatedRule(stripped, openBrace);
                 continue;
             }
 
@@ -286,6 +253,72 @@ public static partial class SvgCodec
         }
 
         return rules;
+    }
+
+    /// <summary>
+    ///     Advances past any whitespace starting at <paramref name="index"/>.
+    /// </summary>
+    /// <param name="text">The text being scanned.</param>
+    /// <param name="index">The index to start at.</param>
+    /// <returns>The index of the first non-whitespace character at or after <paramref name="index"/>, or the text length.</returns>
+    private static int SkipWhitespace(string text, int index)
+    {
+        while (index < text.Length && char.IsWhiteSpace(text[index]))
+        {
+            index++;
+        }
+
+        return index;
+    }
+
+    /// <summary>
+    ///     Skips one at-rule (<c>@media</c>, <c>@import</c>, <c>@font-face</c>, ...) as a single
+    ///     unit, whether it has a semicolon-terminated body (e.g. <c>@import "x";</c>) or a
+    ///     brace-delimited block (which may itself contain further nested rule blocks, so
+    ///     <see cref="FindMatchingBrace"/>'s depth-aware scan is required, not a naive first-<c>}</c>
+    ///     search). At-rules are entirely out of scope for this codec's static-rendering CSS engine.
+    /// </summary>
+    /// <param name="text">The text being scanned.</param>
+    /// <param name="index">The index of the at-rule's <c>@</c>.</param>
+    /// <returns>The index to resume scanning at, or the text length when nothing further can be recovered.</returns>
+    private static int SkipAtRule(string text, int index)
+    {
+        var braceIdx = text.IndexOf('{', index);
+        var semiIdx = text.IndexOf(';', index);
+        if (braceIdx == -1 && semiIdx == -1)
+        {
+            // Trailing malformed at-rule with no terminator at all - nothing further to
+            // recover; stop scanning rather than looping forever
+            return text.Length;
+        }
+
+        if (braceIdx == -1 || (semiIdx != -1 && semiIdx < braceIdx))
+        {
+            return semiIdx + 1;
+        }
+
+        var atRuleClose = FindMatchingBrace(text, braceIdx);
+        return atRuleClose == -1 ? text.Length : atRuleClose + 1;
+    }
+
+    /// <summary>
+    ///     Resynchronizes scanning after an unterminated rule body (see
+    ///     <see cref="ParseRawRules"/>'s remarks for the exact strategy).
+    /// </summary>
+    /// <param name="text">The text being scanned.</param>
+    /// <param name="openBrace">The index of the unterminated rule's own opening <c>{</c>.</param>
+    /// <returns>The index to resume scanning at, or the text length when no further <c>{</c> exists.</returns>
+    private static int ResyncAfterUnterminatedRule(string text, int openBrace)
+    {
+        var nestedOpen = text.IndexOf('{', openBrace + 1);
+        if (nestedOpen == -1)
+        {
+            // No further '{' exists anywhere in the remaining text either - there is
+            // truly nothing left to recover; stop scanning
+            return text.Length;
+        }
+
+        return FindSelectorRecoveryStart(text, nestedOpen);
     }
 
     /// <summary>
