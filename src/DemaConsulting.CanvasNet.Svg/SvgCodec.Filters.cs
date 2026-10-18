@@ -72,27 +72,27 @@ public static partial class SvgCodec
     /// <param name="state">The cascaded render state.</param>
     /// <param name="transform">The accumulated transform from local space into pixel space.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, forwarded so a <c>mask</c>'s own content (rendered through the ordinary <see cref="RenderElement"/> walk) can enforce <see cref="MaxUseDepth"/>.</param>
-    /// <param name="elementDepth">The current recursion depth, forwarded so a <c>mask</c>'s own content can enforce <see cref="MaxElementDepth"/> - this is also this codec's only guard against a <c>mask</c>-reference cycle (see <see cref="ApplyMask"/>'s remarks).</param>
-    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, forwarded unchanged.</param>
+    /// <param name="scope">
+    ///     The recursion depths and shared work budgets. <see cref="RenderScope.UseDepth"/> and
+    ///     <see cref="RenderScope.ElementDepth"/> are forwarded so a <c>mask</c>'s own content
+    ///     (rendered through the ordinary <see cref="RenderElement"/> walk) can enforce
+    ///     <see cref="MaxUseDepth"/>/<see cref="MaxElementDepth"/> - the latter is also this
+    ///     codec's only guard against a <c>mask</c>-reference cycle (see <see cref="ApplyMask"/>'s
+    ///     remarks). <see cref="RenderScope.MarkerDepth"/> greater than zero means
+    ///     <paramref name="element"/> is being rendered as part of a <c>marker</c> element's own
+    ///     content, so <paramref name="element"/>'s own <c>filter</c>/<c>clip-path</c>/<c>mask</c>
+    ///     attributes are never resolved/evaluated at all, regardless of what they reference,
+    ///     generalizing the pre-existing documented "filters on marker content have no effect"
+    ///     scope decision (see this method's remarks) uniformly to all three effects.
+    ///     <see cref="RenderScope.WorkBudget"/> is forwarded to <c>clip-path</c> geometry building
+    ///     and to a <c>mask</c>'s own content. <see cref="RenderScope.FilterWorkBudget"/> is
+    ///     forwarded to <see cref="RenderShapeEffectsPipeline"/> - also charged for the offscreen
+    ///     buffer a <c>clip-path</c>-only or <c>mask</c>-only (no <c>filter</c>) application
+    ///     allocates, see that method's remarks. <see cref="RenderScope.BoundsPrePassBudget"/> is
+    ///     forwarded so a <c>mask</c>'s own content remains subject to it if it itself contains a
+    ///     filtered group.
+    /// </param>
     /// <param name="totalElements">The running total-rendered-elements count, forwarded so a <c>mask</c>'s own content is charged against <see cref="MaxTotalRenderedElements"/> exactly like any other rendered subtree.</param>
-    /// <param name="workBudget">The shared geometry-parsing work budget, forwarded to <c>clip-path</c> geometry building and to a <c>mask</c>'s own content.</param>
-    /// <param name="filterWorkBudget">
-    ///     The shared cumulative filter-evaluation work budget, forwarded to
-    ///     <see cref="RenderShapeEffectsPipeline"/> - also charged for the offscreen buffer a
-    ///     <c>clip-path</c>-only or <c>mask</c>-only (no <c>filter</c>) application allocates, see
-    ///     that method's remarks.
-    /// </param>
-    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, forwarded so a <c>mask</c>'s own content remains subject to it if it itself contains a filtered group.</param>
-    /// <param name="suppressEffects">
-    ///     <see langword="true"/> when <paramref name="element"/> is being rendered as part of a
-    ///     <c>marker</c> element's own content (propagated from <c>RenderElement</c>'s
-    ///     <c>markerDepth &gt; 0</c>) - <paramref name="element"/>'s own <c>filter</c>/
-    ///     <c>clip-path</c>/<c>mask</c> attributes are then never resolved/evaluated at all,
-    ///     regardless of what they reference, generalizing the pre-existing documented "filters on
-    ///     marker content have no effect" scope decision (see this method's remarks) uniformly to
-    ///     all three effects.
-    /// </param>
     /// <remarks>
     ///     A <c>filter</c>/<c>clip-path</c>/<c>mask</c> value of <c>none</c>/absent/not
     ///     <c>url(#id)</c> syntax, a dangling id, or an id resolving to an element not literally
@@ -118,28 +118,37 @@ public static partial class SvgCodec
         RenderState state,
         Matrix3x2 transform,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget,
-        bool suppressEffects = false)
+        RenderScope scope,
+        ref int totalElements)
     {
-        var filterElement = suppressEffects ? null : ResolveFilterElement(element, context);
-        var clipPathElement = suppressEffects ? null : ResolveClipPathElement(element, context);
-        var maskElement = suppressEffects ? null : ResolveMaskElement(element, context);
-        if (filterElement == null && clipPathElement == null && maskElement == null)
+        var effects = ResolveEffectsSet(element, context, suppressEffects: scope.MarkerDepth > 0);
+        if (effects.Filter == null && effects.ClipPath == null && effects.Mask == null)
         {
-            RenderShape(localPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            RenderShape(localPath, state, transform, context, scope, ref totalElements);
             return;
         }
 
-        RenderShapeEffectsPipeline(
-            filterElement, clipPathElement, maskElement, localPath, state, transform, context,
-            useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+        RenderShapeEffectsPipeline(effects, localPath, state, transform, context, scope, ref totalElements);
     }
+
+    /// <summary>
+    ///     Resolves <paramref name="element"/>'s own <c>filter</c>/<c>clip-path</c>/<c>mask</c>
+    ///     references, or an all-<see langword="null"/> set when effects are suppressed.
+    /// </summary>
+    /// <param name="element">The element whose own effect properties are resolved.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="suppressEffects">
+    ///     <see langword="true"/> when the element is part of a <c>marker</c>'s own content, in
+    ///     which case no effect is ever resolved.
+    /// </param>
+    /// <returns>The resolved effects.</returns>
+    private static EffectsSet ResolveEffectsSet(XElement element, RenderContext context, bool suppressEffects) =>
+        suppressEffects
+            ? default
+            : new EffectsSet(
+                ResolveFilterElement(element, context),
+                ResolveClipPathElement(element, context),
+                ResolveMaskElement(element, context));
 
     /// <summary>
     ///     Resolves <paramref name="element"/>'s own <c>filter</c> property (<c>url(#id)</c>) to
@@ -185,27 +194,24 @@ public static partial class SvgCodec
     ///     <c>mask</c> &#8594; <c>filter</c> effects pipeline, per SVG's defined per-element
     ///     processing order (geometry &#8594; fill/stroke &#8594; clip &#8594; mask &#8594; filter
     ///     &#8594; group opacity): all painted content is rendered once into a single temporary,
-    ///     region-sized offscreen <see cref="Surface"/> ("content"), <paramref name="clipPathElement"/>
-    ///     (if any) and then <paramref name="maskElement"/> (if any) attenuate that buffer's own
-    ///     alpha channel in place, <paramref name="filterElement"/> (if any) then evaluates its own
+    ///     region-sized offscreen <see cref="Surface"/> ("content"), the <c>clipPath</c>
+    ///     (if any) and then the <c>mask</c> (if any) attenuate that buffer's own
+    ///     alpha channel in place, the <c>filter</c> (if any) then evaluates its own
     ///     primitive chain against the already-clipped/masked buffer, and the result is finally
     ///     composited onto <paramref name="context"/>'s real surface with <paramref name="state"/>'s
     ///     own cascaded opacity applied exactly once, last.
     /// </summary>
-    /// <param name="filterElement">The resolved <c>filter</c> element, or <see langword="null"/> if none applies.</param>
-    /// <param name="clipPathElement">The resolved <c>clipPath</c> element, or <see langword="null"/> if none applies.</param>
-    /// <param name="maskElement">The resolved <c>mask</c> element, or <see langword="null"/> if none applies.</param>
+    /// <param name="effects">The resolved <c>filter</c>/<c>clipPath</c>/<c>mask</c> elements; each is <see langword="null"/> if it does not apply.</param>
     /// <param name="localPath">The shape's (or glyph run's) already-built local-space outline.</param>
     /// <param name="state">The cascaded render state.</param>
     /// <param name="transform">The accumulated transform from local space into pixel space.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, forwarded to <paramref name="maskElement"/>'s own content rendering (see <see cref="ApplyMask"/>).</param>
-    /// <param name="elementDepth">The current recursion depth, forwarded to <paramref name="maskElement"/>'s own content rendering - this is also the sole guard against a <c>mask</c>-reference cycle, see <see cref="ApplyMask"/>'s remarks.</param>
-    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, forwarded unchanged.</param>
-    /// <param name="totalElements">The running total-rendered-elements count, forwarded to <paramref name="maskElement"/>'s own content rendering.</param>
-    /// <param name="workBudget">The shared geometry-parsing work budget, forwarded to <c>clip-path</c> child geometry building and to <paramref name="maskElement"/>'s own content.</param>
-    /// <param name="filterWorkBudget">
-    ///     The shared cumulative filter-evaluation work budget (see <see cref="FilterWorkBudget"/>).
+    /// <param name="scope">
+    ///     The recursion depths and shared work budgets, forwarded to the <c>mask</c>'s own content
+    ///     rendering (see <see cref="ApplyMask"/>; <see cref="RenderScope.ElementDepth"/> is also
+    ///     the sole guard against a <c>mask</c>-reference cycle, see its remarks) and to
+    ///     <c>clip-path</c> child geometry building. Its <see cref="RenderScope.FilterWorkBudget"/>
+    ///     is the shared cumulative filter-evaluation work budget (see <see cref="FilterWorkBudget"/>).
     ///     A real <c>filter</c> application is charged its existing region-weighted work unit
     ///     (<c>primitiveCount * area</c>) exactly as before Phase 2; a <c>clip-path</c>/<c>mask</c>
     ///     application with no filter (or whose filter did not itself survive
@@ -213,18 +219,17 @@ public static partial class SvgCodec
     ///     <c>1 * area</c> - deliberately reusing this same budget class, rather than introducing a
     ///     parallel one, because a clip/mask offscreen buffer is the exact same resource dimension
     ///     (region-area-sized allocation) a filter application already charges against; one shared
-    ///     cumulative ceiling bounds the combined cost of all three effects together, and avoids
-    ///     doubling the parameter list every effects-capable call site already threads.
+    ///     cumulative ceiling bounds the combined cost of all three effects together.
     /// </param>
-    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, forwarded to <paramref name="maskElement"/>'s own content in case it itself contains a filtered group.</param>
+    /// <param name="totalElements">The running total-rendered-elements count, forwarded to the <c>mask</c>'s own content rendering.</param>
     /// <remarks>
     ///     The region this pipeline allocates its offscreen buffer at is chosen with the same
     ///     "never smaller than what a filter could need" precedence as the group counterpart of
-    ///     this method (<see cref="RenderGroupWithEffects"/>): when <paramref name="filterElement"/>
+    ///     this method (<see cref="RenderGroupWithEffects"/>): when a <c>filter</c>
     ///     is present, the region is its own <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c>-derived
     ///     box (unchanged from pre-Phase-2 behavior - <c>clip-path</c>/<c>mask</c> never need to
     ///     enlarge a filter's own region, since clipping/masking only ever removes coverage);
-    ///     otherwise, when <paramref name="maskElement"/> alone is present, its own region box (see
+    ///     otherwise, when a <c>mask</c> alone is present, its own region box (see
     ///     <see cref="ComputeMaskRegionLocalBounds"/>, honoring <c>maskUnits</c> properly); otherwise
     ///     (a <c>clip-path</c>-only application) the plain painted, stroke-expanded bounds, with no
     ///     <c>-10%/120%</c> expansion - there is no region-box concept for <c>clip-path</c> alone.
@@ -232,10 +237,10 @@ public static partial class SvgCodec
     ///     <paramref name="localPath"/> renders through the ordinary unaffected
     ///     <see cref="RenderShape"/>, exactly mirroring every other tolerant-fallback case below.
     ///     <para>
-    ///     <paramref name="filterElement"/>'s own zero-primitive/per-application budget guard is
+    ///     The <c>filter</c>'s own zero-primitive/per-application budget guard is
     ///     unchanged from this method's own pre-Phase-2 form (then named <c>RenderFilteredShape</c>) - if it fails, the filter itself
-    ///     simply never applies (as if <paramref name="filterElement"/> were <see langword="null"/>
-    ///     from that point on), but a <paramref name="clipPathElement"/>/<paramref name="maskElement"/>
+    ///     simply never applies (as if it were <see langword="null"/>
+    ///     from that point on), but a <c>clipPath</c>/<c>mask</c>
     ///     that is also present is unaffected and still applies, since clip/mask are independent
     ///     effects from filter. Only when none of the three effects would end up applying at all
     ///     does this method fall back to the exact same zero-side-effect
@@ -253,27 +258,21 @@ public static partial class SvgCodec
     ///     </para>
     /// </remarks>
     private static void RenderShapeEffectsPipeline(
-        XElement? filterElement,
-        XElement? clipPathElement,
-        XElement? maskElement,
+        EffectsSet effects,
         Path localPath,
         RenderState state,
         Matrix3x2 transform,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget)
+        RenderScope scope,
+        ref int totalElements)
     {
+        var (filterElement, clipPathElement, maskElement) = effects;
         var rawBounds = ExpandBoundsForStroke(localPath.GetBounds(), state);
 
         var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, rawBounds, transform);
         if (region == null)
         {
-            RenderShape(localPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            RenderShape(localPath, state, transform, context, scope, ref totalElements);
             return;
         }
 
@@ -293,7 +292,7 @@ public static partial class SvgCodec
         // side effects, preserving that regression byte-for-byte
         if (!filterApplies && clipPathElement == null && maskElement == null)
         {
-            RenderShape(localPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            RenderShape(localPath, state, transform, context, scope, ref totalElements);
             return;
         }
 
@@ -306,13 +305,13 @@ public static partial class SvgCodec
         // under-charged a combined clip+mask (or clip/mask+filter) element.
         var workUnits = ComputeEffectsPipelineWorkUnits(
             filterApplies, primitiveCount, filterElement != null && FilterUsesSourceAlpha(filterElement), clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
-        if (!filterWorkBudget.TryCharge(workUnits))
+        if (!scope.FilterWorkBudget.TryCharge(workUnits))
         {
-            RenderShape(localPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            RenderShape(localPath, state, transform, context, scope, ref totalElements);
             return;
         }
 
-        filterWorkBudget.RecordSurfaceAllocated(pixelWidth, pixelHeight);
+        scope.FilterWorkBudget.RecordSurfaceAllocated(pixelWidth, pixelHeight);
         var content = new Surface(pixelWidth, pixelHeight);
         var localToTemp = transform * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
         var tempContext = context with { Surface = content };
@@ -322,28 +321,49 @@ public static partial class SvgCodec
         // unmodified source, and the element's opacity is instead applied exactly once, afterward
         // (see this method's remarks)
         var opaqueState = state with { Opacity = 1f };
-        RenderShape(localPath, opaqueState, localToTemp, tempContext, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+        RenderShape(localPath, opaqueState, localToTemp, tempContext, scope, ref totalElements);
 
+        ApplyEffectsAndComposite(
+            effects, filterApplies, new EffectsTarget(content, rawBounds, pixelX, pixelY, transform), state, context, scope, ref totalElements);
+    }
+
+    /// <summary>
+    ///     Applies <c>clip-path</c> -> <c>mask</c> -> <c>filter</c> (in SVG's defined order) to an
+    ///     already-rendered offscreen content buffer and composites the result onto the canvas
+    ///     with <paramref name="state"/>'s own cascaded opacity applied exactly once, last.
+    /// </summary>
+    /// <param name="effects">The resolved effects.</param>
+    /// <param name="filterApplies">Whether the filter survived its own primitive-count/region-area budget guard.</param>
+    /// <param name="target">The offscreen content buffer and its geometry.</param>
+    /// <param name="state">The referencing element's own cascaded render state.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="scope">The recursion depths and shared work budgets forwarded to mask/filter content rendering.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    private static void ApplyEffectsAndComposite(
+        EffectsSet effects,
+        bool filterApplies,
+        EffectsTarget target,
+        RenderState state,
+        RenderContext context,
+        RenderScope scope,
+        ref int totalElements)
+    {
         // Per SVG's defined ordering, clip-path is applied before mask, and both before filter
-        if (clipPathElement != null)
+        if (effects.ClipPath != null)
         {
-            ApplyClipPath(clipPathElement, content, rawBounds, pixelX, pixelY, transform, state, context, workBudget, filterWorkBudget);
+            ApplyClipPath(effects.ClipPath, target, state, context, scope.WorkBudget, scope.FilterWorkBudget);
         }
 
-        if (maskElement != null)
+        if (effects.Mask != null)
         {
-            ApplyMask(
-                maskElement, content, rawBounds, pixelX, pixelY, transform, state, context,
-                useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            ApplyMask(effects.Mask, target, state, context, scope, ref totalElements);
         }
 
         var finalSurface = filterApplies
-            ? EvaluateFilterChain(
-                filterElement!, content, transform, pixelX, pixelY, state, context, useDepth, elementDepth, markerDepth,
-                ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget)
-            : content;
+            ? EvaluateFilterChain(effects.Filter!, target, state, context, scope, ref totalElements)
+            : target.Content;
 
-        CompositeFilterResultOntoCanvas(finalSurface, pixelX, pixelY, context.Surface, state.Opacity);
+        CompositeFilterResultOntoCanvas(finalSurface, target.PixelX, target.PixelY, context.Surface, state.Opacity);
     }
 
     /// <summary>
@@ -368,50 +388,30 @@ public static partial class SvgCodec
     ///     excludes every ancestor transform up to and including its own.
     /// </param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">
-    ///     The current <c>use</c>-reference nesting depth, enforcing the same
-    ///     <see cref="MaxUseDepth"/> ceiling <see cref="RenderUse"/> itself enforces.
-    /// </param>
-    /// <param name="elementDepth">
-    ///     The current recursion depth, sharing the same <see cref="MaxElementDepth"/> ceiling
-    ///     <see cref="RenderElement"/> itself enforces - this bounds pre-pass necessarily visits
-    ///     the same subtree depth the real render pass will visit again immediately afterward.
-    /// </param>
-    /// <param name="markerDepth">
-    ///     The current <c>marker</c>-reference nesting depth, forwarded unchanged through
-    ///     ordinary subtree recursion and incremented only when this method itself recurses into
-    ///     a resolved marker's own content (see this method's remarks on marker bounds inclusion),
-    ///     mirroring <see cref="RenderOneMarker"/>'s identical <see cref="MaxMarkerDepth"/> guard.
+    /// <param name="scope">
+    ///     The recursion depths and budgets. <see cref="RenderScope.UseDepth"/> enforces the same
+    ///     <see cref="MaxUseDepth"/> ceiling <see cref="RenderUse"/> itself enforces, and
+    ///     <see cref="RenderScope.ElementDepth"/> the same <see cref="MaxElementDepth"/> ceiling
+    ///     <see cref="RenderElement"/> enforces (this pre-pass necessarily visits the same subtree
+    ///     depth the real render pass will visit again afterward). <see cref="RenderScope.MarkerDepth"/>
+    ///     is forwarded unchanged through ordinary subtree recursion and incremented only when this
+    ///     method recurses into a resolved marker's own content, mirroring
+    ///     <see cref="RenderOneMarker"/>'s identical <see cref="MaxMarkerDepth"/> guard.
+    ///     <see cref="RenderScope.WorkBudget"/> is the geometry-parsing work budget, which
+    ///     <see cref="RenderGroupWithEffects"/> always supplies as a local, independently bounded
+    ///     scratch instance so this pre-pass cannot charge the same ceiling the real render pass
+    ///     that follows it will also charge. <see cref="RenderScope.BoundsPrePassBudget"/> is
+    ///     deliberately the shared, per-<c>Load</c>-call cumulative work budget (see
+    ///     <see cref="BoundsPrePassWorkBudget"/>), charged both per element visit and per
+    ///     approximate geometry-parsing cost so nested filtered groups are bounded in aggregate.
     /// </param>
     /// <param name="totalElements">
     ///     The running total-rendered-elements count. <see cref="RenderGroupWithEffects"/> always
     ///     passes a local, independently bounded scratch counter here (never the real
     ///     per-<c>Load</c>-call counter <see cref="RenderElement"/> itself threads through), so
     ///     this bounds-only pre-pass cannot charge the same ceiling the real render pass that
-    ///     follows it will also charge - see <see cref="RenderGroupWithEffects"/>'s remarks for the
-    ///     full rationale. The same <see cref="MaxTotalRenderedElements"/> ceiling is still
-    ///     enforced against whatever counter is supplied, purely to keep this pre-pass's own work
-    ///     bounded for a pathologically large subtree.
-    /// </param>
-    /// <param name="workBudget">
-    ///     The geometry-parsing work budget, charged here (via the same <c>Build*Path</c>/
-    ///     text-length call sites <see cref="RenderElement"/>/<see cref="RenderText"/> already
-    ///     use) - subject to the same caller-supplied local-scratch-instance scoping as
-    ///     <paramref name="totalElements"/> above.
-    /// </param>
-    /// <param name="boundsPrePassBudget">
-    ///     The shared, per-<c>Load</c>-call cumulative bounds-pre-pass work budget (see
-    ///     <see cref="BoundsPrePassWorkBudget"/>) - deliberately <em>not</em> a fresh local-scratch
-    ///     instance like <paramref name="totalElements"/>/<paramref name="workBudget"/> above:
-    ///     every <see cref="RenderGroupWithEffects"/> invocation (nested or sibling) across the whole
-    ///     document shares this one instance, so the combined pre-pass work performed by many
-    ///     nested filtered groups is bounded in aggregate, independent of how many times each
-    ///     individual invocation "resets" its own local-scratch ceilings above. Charged both per
-    ///     element visit (<see cref="BoundsPrePassWorkBudget.Charge"/>) and, for the <c>path</c>/
-    ///     <c>polyline</c>/<c>polygon</c>/<c>text</c> cases, per approximate geometry-parsing cost
-    ///     (<see cref="BoundsPrePassWorkBudget.ChargeGeometry"/>) - the latter bounds a single
-    ///     element with enormous geometry being fully re-parsed once per nesting level, a gap the
-    ///     former (which only counts the visit, not its cost) cannot catch on its own.
+    ///     follows it will also charge. The same <see cref="MaxTotalRenderedElements"/> ceiling is
+    ///     still enforced against whatever counter is supplied.
     /// </param>
     /// <returns>
     ///     The union of every descendant shape/text element's stroke-expanded, transformed local
@@ -444,18 +444,14 @@ public static partial class SvgCodec
         RenderState parentState,
         Matrix3x2 relativeTransform,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget)
+        RenderScope scope,
+        ref int totalElements)
     {
         // Mirror RenderElement's own depth/total-element guards exactly - this pre-pass walks the
         // same subtree the real render pass will walk again immediately afterward, so it must be
         // bounded by the same ceilings, just against the caller-supplied (possibly local-scratch)
         // counter/budget instances - see this method's remarks on totalElements/workBudget scoping
-        if (elementDepth >= MaxElementDepth)
+        if (scope.ElementDepth >= MaxElementDepth)
         {
             throw new InvalidDataException("SVG element nesting exceeds the supported depth.");
         }
@@ -472,7 +468,7 @@ public static partial class SvgCodec
         // still accumulates across every nested RenderGroupWithEffects invocation's own pre-pass,
         // bounding the total "depth * subtree-size" work a document with many levels of nested
         // filtered groups could otherwise force (see BoundsPrePassWorkBudget's remarks)
-        boundsPrePassBudget.Charge();
+        scope.BoundsPrePassBudget.Charge();
 
         var name = element.Name.LocalName;
         if (NonRenderingElements.Contains(name) || SkippedElements.Contains(name))
@@ -491,60 +487,19 @@ public static partial class SvgCodec
         {
             case "g":
             case "symbol":
-                {
-                    // Mirrors RenderElement's identical suppressEffects/ResolveFilterElement
-                    // derivation - a "g"/"symbol" element's own "filter" attribute never applies
-                    // (to its own content, as one filtered unit) when this call is itself part of
-                    // a marker's own content subtree
-                    var ownFilterElement = markerDepth > 0 ? null : ResolveFilterElement(element, context);
-
-                    // When this element carries its own filter, its children must be visited
-                    // relative to this element's own pre-transform local space
-                    // (Matrix3x2.Identity), exactly mirroring RenderGroupWithEffects's own bounds
-                    // pre-pass (relativeTransform starting at Identity for a filtered group's own
-                    // direct children) - so the filter's objectBoundingBox-relative region
-                    // fractions (see ApplyOwnFilterToLocalBounds) are computed against the right
-                    // frame, before "transform" is applied exactly once, below. Without an own
-                    // filter, children are visited directly relative to this element's own
-                    // already-composed "transform" (this method's original behavior), so their
-                    // returned bounds are already in the caller's own reference frame and no
-                    // further Transform call is needed
-                    var childRelativeTransform = ownFilterElement == null ? transform : Matrix3x2.Identity;
-
-                    var bounds = Rect.Empty;
-                    foreach (var child in element.Elements())
-                    {
-                        var childBounds = ComputeSubtreeLocalBounds(child, state, childRelativeTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
-                        if (childBounds != null)
-                        {
-                            bounds = bounds.Union(childBounds.Value);
-                        }
-                    }
-
-                    if (bounds.IsEmpty)
-                    {
-                        return null;
-                    }
-
-                    return ownFilterElement == null ? bounds : ApplyOwnFilterToLocalBounds(ownFilterElement, bounds, transform);
-                }
+                return ComputeGroupBounds(element, state, transform, context, scope, ref totalElements);
 
             case "rect":
-                return ShapeBoundsRespectingOwnFilter(element, BuildRectPath(element, state), state, transform, context, markerDepth);
+                return ShapeBoundsRespectingOwnFilter(element, BuildRectPath(element, state), state, transform, context, scope.MarkerDepth);
 
             case "circle":
-                return ShapeBoundsRespectingOwnFilter(element, BuildEllipsePath(element, isCircle: true, state), state, transform, context, markerDepth);
+                return ShapeBoundsRespectingOwnFilter(element, BuildEllipsePath(element, isCircle: true, state), state, transform, context, scope.MarkerDepth);
 
             case "ellipse":
-                return ShapeBoundsRespectingOwnFilter(element, BuildEllipsePath(element, isCircle: false, state), state, transform, context, markerDepth);
+                return ShapeBoundsRespectingOwnFilter(element, BuildEllipsePath(element, isCircle: false, state), state, transform, context, scope.MarkerDepth);
 
             case "line":
-                {
-                    var linePath = BuildLinePath(element, state);
-                    var shapeBounds = ShapeBoundsRespectingOwnFilter(element, linePath, state, transform, context, markerDepth);
-                    var markerBounds = ComputeMarkerContentLocalBounds(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
-                    return UnionNullableBounds(shapeBounds, markerBounds);
-                }
+                return ShapeAndMarkerBounds(element, BuildLinePath(element, state), state, transform, context, scope, ref totalElements);
 
             case "polyline":
                 {
@@ -555,21 +510,17 @@ public static partial class SvgCodec
                     // single element's own geometry-parsing cost must also be bounded across
                     // every nested filtered-group level that re-visits it, not just once per
                     // element visit
-                    boundsPrePassBudget.ChargeGeometry(((string?)element.Attribute("points"))?.Length ?? 0);
-                    var polylinePath = BuildPolyPath(element, closed: false, workBudget);
-                    var shapeBounds = ShapeBoundsRespectingOwnFilter(element, polylinePath, state, transform, context, markerDepth);
-                    var markerBounds = ComputeMarkerContentLocalBounds(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
-                    return UnionNullableBounds(shapeBounds, markerBounds);
+                    scope.BoundsPrePassBudget.ChargeGeometry(((string?)element.Attribute("points"))?.Length ?? 0);
+                    var polylinePath = BuildPolyPath(element, closed: false, scope.WorkBudget);
+                    return ShapeAndMarkerBounds(element, polylinePath, state, transform, context, scope, ref totalElements);
                 }
 
             case "polygon":
                 {
                     // See the "polyline" case above for why this charge is made here.
-                    boundsPrePassBudget.ChargeGeometry(((string?)element.Attribute("points"))?.Length ?? 0);
-                    var polygonPath = BuildPolyPath(element, closed: true, workBudget);
-                    var shapeBounds = ShapeBoundsRespectingOwnFilter(element, polygonPath, state, transform, context, markerDepth);
-                    var markerBounds = ComputeMarkerContentLocalBounds(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
-                    return UnionNullableBounds(shapeBounds, markerBounds);
+                    scope.BoundsPrePassBudget.ChargeGeometry(((string?)element.Attribute("points"))?.Length ?? 0);
+                    var polygonPath = BuildPolyPath(element, closed: true, scope.WorkBudget);
+                    return ShapeAndMarkerBounds(element, polygonPath, state, transform, context, scope, ref totalElements);
                 }
 
             case "path":
@@ -577,103 +528,224 @@ public static partial class SvgCodec
                     // See the "polyline" case above for why this charge is made here (using the
                     // "d" attribute's own character count as the same kind of simple, cheap
                     // geometry-size proxy).
-                    boundsPrePassBudget.ChargeGeometry(((string?)element.Attribute("d"))?.Length ?? 0);
-                    var dataPath = BuildPathDataPath(element, workBudget);
-                    var shapeBounds = ShapeBoundsRespectingOwnFilter(element, dataPath, state, transform, context, markerDepth);
-                    var markerBounds = ComputeMarkerContentLocalBounds(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
-                    return UnionNullableBounds(shapeBounds, markerBounds);
+                    scope.BoundsPrePassBudget.ChargeGeometry(((string?)element.Attribute("d"))?.Length ?? 0);
+                    var dataPath = BuildPathDataPath(element, scope.WorkBudget);
+                    return ShapeAndMarkerBounds(element, dataPath, state, transform, context, scope, ref totalElements);
                 }
 
             case "use":
-                {
-                    if (useDepth >= MaxUseDepth)
-                    {
-                        throw new InvalidDataException("Exceeded the maximum <use> reference nesting depth.");
-                    }
-
-                    var hrefId = GetHrefAttribute(element) is { } href ? ExtractFragmentId(href) : null;
-                    if (hrefId == null || !context.IdIndex.TryGetValue(hrefId, out var target))
-                    {
-                        return null;
-                    }
-
-                    var offset = new Vector2(
-                        GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal),
-                        GetFloatAttribute(element, "y", state, PercentageAxis.Vertical));
-
-                    // Mirrors RenderUse's identical TryResolveUseTarget derivation - a "symbol"
-                    // target establishes a new nested viewport fitted via preserveAspectRatio
-                    // against its own viewBox (see TryResolveUseTarget's remarks); a non-"symbol"
-                    // target (or a degenerate/non-finite fit) reproduces the original
-                    // translate-only behavior exactly
-                    if (!TryResolveUseTarget(element, target, state, out var viewportFit, out var targetState))
-                    {
-                        return null;
-                    }
-
-                    var useTransform = viewportFit * Matrix3x2.CreateTranslation(offset) * transform;
-
-                    // Mirrors RenderUse's identical suppressEffects/ResolveFilterElement
-                    // derivation - a "use" element's own "filter" attribute (never the referenced
-                    // target's own attributes, which this same recursive call already handles
-                    // identically to any other descendant) applies to its resolved target as one
-                    // filtered unit; see the "g"/"symbol" case above for why the target must then
-                    // be visited relative to Matrix3x2.Identity instead of useTransform
-                    var ownFilterElement = markerDepth > 0 ? null : ResolveFilterElement(element, context);
-                    var targetRelativeTransform = ownFilterElement == null ? useTransform : Matrix3x2.Identity;
-                    var targetBounds = ComputeSubtreeLocalBounds(target, targetState, targetRelativeTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
-                    if (targetBounds == null)
-                    {
-                        return null;
-                    }
-
-                    return ownFilterElement == null ? targetBounds : ApplyOwnFilterToLocalBounds(ownFilterElement, targetBounds.Value, useTransform);
-                }
+                return ComputeUseBounds(element, state, transform, context, scope, ref totalElements);
 
             case "text":
-                {
-                    if (context.Fonts == null)
-                    {
-                        return null;
-                    }
-
-                    var font = MatchFont(state.FontFamily, state.FontWeight, state.FontStyle, context.Fonts);
-                    if (font == null)
-                    {
-                        return null;
-                    }
-
-                    var text = element.Value;
-                    if (string.IsNullOrEmpty(text))
-                    {
-                        return null;
-                    }
-
-                    // Charge the text's character count here too, mirroring RenderText's own
-                    // charge site - subject to the same caller-supplied counter/budget scoping as
-                    // this method's own totalElements/workBudget parameters
-                    workBudget.Charge(text.Length);
-
-                    // Also charge the shared, cumulative bounds-pre-pass geometry budget (see the
-                    // "polyline"/"polygon"/"path" cases above, and BoundsPrePassWorkBudget.
-                    // ChargeGeometry's remarks) - a text element's own glyph-run layout cost below
-                    // is likewise proportional to its character count, and re-parsed once per
-                    // nesting level under many nested filtered groups exactly like path/points
-                    // data would be
-                    boundsPrePassBudget.ChargeGeometry(text.Length);
-
-                    var origin = new Vector2(
-                        GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal),
-                        GetFloatAttribute(element, "y", state, PercentageAxis.Vertical));
-                    var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
-                    return ShapeBoundsRespectingOwnFilter(element, glyphRunPath, state, transform, context, markerDepth);
-                }
+                return ComputeTextBounds(element, state, transform, context, scope);
 
             default:
                 // Any other element name (including future/unknown elements) paints nothing,
                 // consistent with RenderElement's own out-of-scope-construct policy
                 return null;
         }
+    }
+
+    /// <summary>
+    ///     Computes a <c>g</c>/<c>symbol</c> element's subtree bounds for
+    ///     <see cref="ComputeSubtreeLocalBounds"/>, applying the element's own filter region when it
+    ///     carries one.
+    /// </summary>
+    /// <param name="element">The <c>g</c>/<c>symbol</c> element.</param>
+    /// <param name="state">The element's own cascaded render state.</param>
+    /// <param name="transform">The element's own composed transform.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="scope">The recursion depths and budgets of the visit to <paramref name="element"/>.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    /// <returns>The subtree bounds, or <see langword="null"/> if nothing paints.</returns>
+    private static Rect? ComputeGroupBounds(
+        XElement element,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        RenderScope scope,
+        ref int totalElements)
+    {
+        // Mirrors RenderElement's identical suppressEffects/ResolveFilterElement
+        // derivation - a "g"/"symbol" element's own "filter" attribute never applies
+        // (to its own content, as one filtered unit) when this call is itself part of
+        // a marker's own content subtree
+        var ownFilterElement = scope.MarkerDepth > 0 ? null : ResolveFilterElement(element, context);
+
+        // When this element carries its own filter, its children must be visited
+        // relative to this element's own pre-transform local space
+        // (Matrix3x2.Identity), exactly mirroring RenderGroupWithEffects's own bounds
+        // pre-pass (relativeTransform starting at Identity for a filtered group's own
+        // direct children) - so the filter's objectBoundingBox-relative region
+        // fractions (see ApplyOwnFilterToLocalBounds) are computed against the right
+        // frame, before "transform" is applied exactly once, below. Without an own
+        // filter, children are visited directly relative to this element's own
+        // already-composed "transform" (this method's original behavior), so their
+        // returned bounds are already in the caller's own reference frame and no
+        // further Transform call is needed
+        var childRelativeTransform = ownFilterElement == null ? transform : Matrix3x2.Identity;
+
+        var childScope = scope.Nested();
+        var bounds = Rect.Empty;
+        foreach (var child in element.Elements())
+        {
+            var childBounds = ComputeSubtreeLocalBounds(child, state, childRelativeTransform, context, childScope, ref totalElements);
+            if (childBounds != null)
+            {
+                bounds = bounds.Union(childBounds.Value);
+            }
+        }
+
+        if (bounds.IsEmpty)
+        {
+            return null;
+        }
+
+        return ownFilterElement == null ? bounds : ApplyOwnFilterToLocalBounds(ownFilterElement, bounds, transform);
+    }
+
+    /// <summary>
+    ///     Computes a line/polyline/polygon/path element's own bounds, unioned with the bounds of
+    ///     any marker content it places.
+    /// </summary>
+    /// <param name="element">The shape element.</param>
+    /// <param name="path">The shape's built path.</param>
+    /// <param name="state">The element's own cascaded render state.</param>
+    /// <param name="transform">The element's own composed transform.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="scope">The recursion depths and budgets of the visit to <paramref name="element"/>.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    /// <returns>The union of the shape and marker bounds, or <see langword="null"/> if neither paints.</returns>
+    private static Rect? ShapeAndMarkerBounds(
+        XElement element,
+        Path path,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        RenderScope scope,
+        ref int totalElements)
+    {
+        var shapeBounds = ShapeBoundsRespectingOwnFilter(element, path, state, transform, context, scope.MarkerDepth);
+        var markerBounds = ComputeMarkerContentLocalBounds(path, state, transform, context, scope, ref totalElements);
+        return UnionNullableBounds(shapeBounds, markerBounds);
+    }
+
+    /// <summary>
+    ///     Computes a <c>use</c> element's resolved-target bounds for
+    ///     <see cref="ComputeSubtreeLocalBounds"/>, applying the element's own filter region when
+    ///     it carries one.
+    /// </summary>
+    /// <param name="element">The <c>use</c> element.</param>
+    /// <param name="state">The element's own cascaded render state.</param>
+    /// <param name="transform">The element's own composed transform.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="scope">The recursion depths and budgets of the visit to <paramref name="element"/>.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    /// <returns>The target bounds, or <see langword="null"/> if nothing paints.</returns>
+    private static Rect? ComputeUseBounds(
+        XElement element,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        RenderScope scope,
+        ref int totalElements)
+    {
+        if (scope.UseDepth >= MaxUseDepth)
+        {
+            throw new InvalidDataException("Exceeded the maximum <use> reference nesting depth.");
+        }
+
+        var hrefId = GetHrefAttribute(element) is { } href ? ExtractFragmentId(href) : null;
+        if (hrefId == null || !context.IdIndex.TryGetValue(hrefId, out var target))
+        {
+            return null;
+        }
+
+        var offset = new Vector2(
+            GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal),
+            GetFloatAttribute(element, "y", state, PercentageAxis.Vertical));
+
+        // Mirrors RenderUse's identical TryResolveUseTarget derivation - a "symbol"
+        // target establishes a new nested viewport fitted via preserveAspectRatio
+        // against its own viewBox (see TryResolveUseTarget's remarks); a non-"symbol"
+        // target (or a degenerate/non-finite fit) reproduces the original
+        // translate-only behavior exactly
+        if (!TryResolveUseTarget(element, target, state, out var viewportFit, out var targetState))
+        {
+            return null;
+        }
+
+        var useTransform = viewportFit * Matrix3x2.CreateTranslation(offset) * transform;
+
+        // Mirrors RenderUse's identical suppressEffects/ResolveFilterElement
+        // derivation - a "use" element's own "filter" attribute (never the referenced
+        // target's own attributes, which this same recursive call already handles
+        // identically to any other descendant) applies to its resolved target as one
+        // filtered unit; see ComputeGroupBounds for why the target must then
+        // be visited relative to Matrix3x2.Identity instead of useTransform
+        var ownFilterElement = scope.MarkerDepth > 0 ? null : ResolveFilterElement(element, context);
+        var targetRelativeTransform = ownFilterElement == null ? useTransform : Matrix3x2.Identity;
+        var targetBounds = ComputeSubtreeLocalBounds(target, targetState, targetRelativeTransform, context, scope.NestedUse(), ref totalElements);
+        if (targetBounds == null)
+        {
+            return null;
+        }
+
+        return ownFilterElement == null ? targetBounds : ApplyOwnFilterToLocalBounds(ownFilterElement, targetBounds.Value, useTransform);
+    }
+
+    /// <summary>
+    ///     Computes a <c>text</c> element's glyph-run bounds for
+    ///     <see cref="ComputeSubtreeLocalBounds"/>.
+    /// </summary>
+    /// <param name="element">The <c>text</c> element.</param>
+    /// <param name="state">The element's own cascaded render state.</param>
+    /// <param name="transform">The element's own composed transform.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="scope">The recursion depths and budgets of the visit to <paramref name="element"/>.</param>
+    /// <returns>The glyph-run bounds, or <see langword="null"/> if nothing paints.</returns>
+    private static Rect? ComputeTextBounds(
+        XElement element,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        RenderScope scope)
+    {
+        if (context.Fonts == null)
+        {
+            return null;
+        }
+
+        var font = MatchFont(state.FontFamily, state.FontWeight, state.FontStyle, context.Fonts);
+        if (font == null)
+        {
+            return null;
+        }
+
+        var text = element.Value;
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        // Charge the text's character count here too, mirroring RenderText's own
+        // charge site - subject to the same caller-supplied counter/budget scoping as
+        // this method's own totalElements/workBudget parameters
+        scope.WorkBudget.Charge(text.Length);
+
+        // Also charge the shared, cumulative bounds-pre-pass geometry budget (see the
+        // "polyline"/"polygon"/"path" cases above, and BoundsPrePassWorkBudget.
+        // ChargeGeometry's remarks) - a text element's own glyph-run layout cost below
+        // is likewise proportional to its character count, and re-parsed once per
+        // nesting level under many nested filtered groups exactly like path/points
+        // data would be
+        scope.BoundsPrePassBudget.ChargeGeometry(text.Length);
+
+        var origin = new Vector2(
+            GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal),
+            GetFloatAttribute(element, "y", state, PercentageAxis.Vertical));
+        var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
+        return ShapeBoundsRespectingOwnFilter(element, glyphRunPath, state, transform, context, scope.MarkerDepth);
     }
 
     /// <summary>
@@ -880,7 +952,7 @@ public static partial class SvgCodec
     ///     subtree bounds (via <see cref="ComputeSubtreeLocalBounds"/>) instead of a single
     ///     shape's own outline.
     /// </summary>
-    /// <param name="filterElement">The resolved <c>filter</c> element, or <see langword="null"/> if none applies.</param>
+    /// <param name="effects">The resolved <c>filter</c>/<c>clip-path</c>/<c>mask</c> elements; each may be <see langword="null"/> if none applies.</param>
     /// <param name="children">
     ///     The elements to render as one combined unit - a <c>g</c>/<c>symbol</c> element's own
     ///     direct children (see <see cref="RenderElement"/>'s <c>"g"</c>/<c>"symbol"</c> case), or
@@ -896,53 +968,41 @@ public static partial class SvgCodec
     ///     is <c>translate(x,y) * (the use element's own already-composed transform)</c>.
     /// </param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth.</param>
-    /// <param name="elementDepth">
-    ///     The current recursion depth at the referencing group/use element itself - <paramref name="children"/>
-    ///     are always rendered/bounds-computed one level deeper (<c>elementDepth + 1</c>), mirroring
-    ///     the unaffected <c>g</c> loop and unaffected <c>use</c> re-entry this method replaces.
-    /// </param>
-    /// <param name="markerDepth">
-    ///     The current <c>marker</c>-reference nesting depth, forwarded unchanged to every child
-    ///     render.
-    /// </param>
-    /// <param name="totalElements">The running total-rendered-elements count.</param>
-    /// <param name="workBudget">The shared geometry-parsing work budget.</param>
-    /// <param name="filterWorkBudget">
-    ///     The shared cumulative filter-evaluation work budget - charged identically (same
-    ///     region-weighted work-unit formula, same <see cref="FilterWorkBudget.TryCharge"/> call)
-    ///     to <see cref="RenderShapeEffectsPipeline"/>'s own charge, so group filters and shape
-    ///     filters share one running cumulative ceiling per <c>Load</c> call - and, as of Phase 2,
-    ///     also the region-weighted charge for a clip-path/mask-only (no filter) application, see
+    /// <param name="scope">
+    ///     The recursion depths and shared work budgets at the referencing group/use element
+    ///     itself - <paramref name="children"/> are always rendered/bounds-computed one level
+    ///     deeper (<see cref="RenderScope.ElementDepth"/> plus one), mirroring the unaffected
+    ///     <c>g</c> loop and unaffected <c>use</c> re-entry this method replaces. Its
+    ///     <see cref="RenderScope.FilterWorkBudget"/> is charged identically (same region-weighted
+    ///     work-unit formula, same <see cref="FilterWorkBudget.TryCharge"/> call) to
+    ///     <see cref="RenderShapeEffectsPipeline"/>'s own charge, so group filters and shape
+    ///     filters share one running cumulative ceiling per <c>Load</c> call - and also the
+    ///     region-weighted charge for a clip-path/mask-only (no filter) application, see
     ///     <see cref="RenderShapeEffectsPipeline"/>'s remarks for why this budget is deliberately
-    ///     reused rather than duplicated.
-    /// </param>
-    /// <param name="boundsPrePassBudget">
-    ///     The shared, per-<c>Load</c>-call cumulative bounds-pre-pass work budget (see
-    ///     <see cref="BoundsPrePassWorkBudget"/>), charged by this method's own bounds pre-pass
-    ///     below - unlike the fresh local-scratch <c>totalElements</c> counter/
+    ///     reused rather than duplicated. Its <see cref="RenderScope.BoundsPrePassBudget"/> is
+    ///     the shared, per-<c>Load</c>-call cumulative bounds-pre-pass work budget (see
+    ///     <see cref="BoundsPrePassWorkBudget"/>), charged by this method's own bounds pre-pass -
+    ///     unlike the fresh local-scratch <c>totalElements</c> counter/
     ///     <see cref="GeometryWorkBudget"/> instance the pre-pass otherwise uses (see this
     ///     method's remarks), this ONE instance is shared by every <see cref="RenderGroupWithEffects"/>
     ///     invocation (nested or sibling) for the whole document, so a document with many levels
     ///     of nested filtered groups cannot force unbounded total pre-pass work merely because
     ///     each nesting level's own pre-pass otherwise "resets" its own local-scratch ceilings.
     /// </param>
-    /// <param name="clipPathElement">The resolved <c>clipPath</c> element, or <see langword="null"/> if none applies.</param>
-    /// <param name="maskElement">The resolved <c>mask</c> element, or <see langword="null"/> if none applies.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
     /// <remarks>
     ///     If <paramref name="children"/>'s combined subtree paints nothing (an empty group, or a
     ///     group/subtree consisting entirely of non-rendering/skipped/dangling content), no region
     ///     can be computed at all, and this whole method falls back to rendering every element in
     ///     <paramref name="children"/> directly (unaffected), exactly as if the referencing
     ///     <c>g</c>/<c>symbol</c>/<c>use</c> element had none of <c>filter</c>/<c>clip-path</c>/
-    ///     <c>mask</c> at all. When a region IS available, <paramref name="filterElement"/>'s own
+    ///     <c>mask</c> at all. When a region IS available, the filter's own
     ///     zero-primitive/budget guard is evaluated exactly as this method's own pre-Phase-2 form (then named <c>RenderFilteredGroup</c>)
     ///     did - but, per <see cref="RenderShapeEffectsPipeline"/>'s identical generalization, a
     ///     filter that does not survive this guard no longer forces the whole method back to the
-    ///     plain unaffected fallback when <paramref name="clipPathElement"/>/<paramref name="maskElement"/>
-    ///     is also present; only when none of the three effects would apply at all does the
-    ///     original zero-side-effect fallback occur, preserving the filter-only regression
-    ///     byte-for-byte.
+    ///     plain unaffected fallback when a clip-path/mask is also present; only when none of the
+    ///     three effects would apply at all does the original zero-side-effect fallback occur,
+    ///     preserving the filter-only regression byte-for-byte.
     ///     <para>
     ///     <paramref name="state"/>'s own (possibly cascaded) <see cref="RenderState.Opacity"/> is
     ///     applied exactly once, after clip/mask/filter all evaluate, via
@@ -958,9 +1018,8 @@ public static partial class SvgCodec
     ///     underneath, per pixel, exactly as it does today.
     ///     </para>
     ///     <para>
-    ///     <paramref name="clipPathElement"/>/<paramref name="maskElement"/> presence on a
-    ///     descendant does not need to be accounted for by this method's own bounds pre-pass below
-    ///     (<see cref="ComputeSubtreeLocalBounds"/> is unmodified for Phase 2): unlike a filter,
+    ///     A clip-path/mask on a descendant does not need to be accounted for by this method's own
+    ///     bounds pre-pass below (<see cref="ComputeSubtreeLocalBounds"/> is unmodified for Phase 2): unlike a filter,
     ///     which can paint pixels beyond a shape's own raw geometry (blur, flood, ...), clip-path/
     ///     mask only ever attenuate coverage that some underlying shape's own geometry already
     ///     paints - they never require the ancestor's own offscreen buffer to be sized any larger
@@ -968,72 +1027,23 @@ public static partial class SvgCodec
     ///     </para>
     /// </remarks>
     private static void RenderGroupWithEffects(
-        XElement? filterElement,
-        XElement? clipPathElement,
-        XElement? maskElement,
+        EffectsSet effects,
         IReadOnlyList<XElement> children,
         RenderState state,
         Matrix3x2 childrenTransform,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget)
+        RenderScope scope,
+        ref int totalElements)
     {
-        // Bounds pre-pass: union every child's own subtree bounds, computed purely in the
-        // group's own local space (relativeTransform starts at Identity) - mirrors a single
-        // shape's own localPath.GetBounds() call, just folded over an entire subtree instead of
-        // one already-built Path.
-        //
-        // Deliberately uses fresh, local scratch counter/budget instances here rather than the
-        // real "ref int totalElements"/"workBudget" parameters threaded through the rest of this
-        // method: this pre-pass necessarily re-visits the same subtree the real render pass below
-        // visits again immediately afterward, so charging the *same* counter/budget instance in
-        // both passes would double (or, combined with the tolerant-fallback re-render further
-        // below, triple) charge every element under a filtered group against
-        // MaxTotalRenderedElements/GeometryWorkBudget's fixed ceilings - a document whose
-        // unfiltered rendering would legitimately stay under those ceilings could then throw
-        // InvalidDataException purely because some of its content happens to sit inside a
-        // filtered group, breaking this method's own documented tolerant-fallback contract. The
-        // local instances below still enforce the exact same MaxTotalRenderedElements/
-        // GeometryWorkBudget ceilings (see ComputeSubtreeLocalBounds's remarks), so this pre-pass
-        // itself still cannot run away on a pathologically large subtree - it simply never
-        // permanently consumes any of the real, per-Load-call budget the render pass below (and
-        // every other filtered shape/group in this document) also needs.
-        //
-        // boundsPrePassBudget is deliberately NOT one of these fresh local-scratch instances -
-        // it is the one shared, per-Load-call instance threaded down from RenderDocument, so
-        // every nested/sibling RenderGroupWithEffects invocation's own pre-pass below still
-        // contributes toward ONE cumulative ceiling, bounding the "depth * subtree-size" total
-        // pre-pass work a document with many levels of nested filtered groups would otherwise be
-        // able to force by having each nesting level "reset" the local-scratch ceilings above
-        // (see BoundsPrePassWorkBudget's remarks for the full rationale).
-        var preRenderElementCount = 0;
-        var preRenderWorkBudget = new GeometryWorkBudget();
-        var localBounds = Rect.Empty;
-        foreach (var child in children)
-        {
-            var childBounds = ComputeSubtreeLocalBounds(child, state, Matrix3x2.Identity, context, useDepth, elementDepth + 1, markerDepth, ref preRenderElementCount, preRenderWorkBudget, boundsPrePassBudget);
-            if (childBounds != null)
-            {
-                localBounds = localBounds.Union(childBounds.Value);
-            }
-        }
+        var (filterElement, clipPathElement, maskElement) = effects;
+        var childScope = scope.Nested();
+        var localBounds = ComputeChildrenLocalBounds(children, state, context, childScope);
 
         // Every tolerant-fallback guard below renders each child directly and unaffected, exactly
-        // as if the referencing element had none of "filter"/"clip-path"/"mask" - inlined at each
-        // guard (rather than a shared local function) because a local function cannot capture the
-        // "ref int totalElements" parameter threaded through this whole call chain
+        // as if the referencing element had none of "filter"/"clip-path"/"mask"
         if (localBounds.IsEmpty)
         {
-            foreach (var child in children)
-            {
-                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
-            }
-
+            RenderChildrenDirect(children, state, childrenTransform, context, childScope, ref totalElements);
             return;
         }
 
@@ -1043,11 +1053,7 @@ public static partial class SvgCodec
         var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, localBounds, childrenTransform);
         if (region == null)
         {
-            foreach (var child in children)
-            {
-                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
-            }
-
+            RenderChildrenDirect(children, state, childrenTransform, context, childScope, ref totalElements);
             return;
         }
 
@@ -1062,11 +1068,7 @@ public static partial class SvgCodec
 
         if (!filterApplies && clipPathElement == null && maskElement == null)
         {
-            foreach (var child in children)
-            {
-                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
-            }
-
+            RenderChildrenDirect(children, state, childrenTransform, context, childScope, ref totalElements);
             return;
         }
 
@@ -1076,49 +1078,95 @@ public static partial class SvgCodec
         // allocate - see ComputeEffectsPipelineWorkUnits's remarks
         var workUnits = ComputeEffectsPipelineWorkUnits(
             filterApplies, primitiveCount, filterElement != null && FilterUsesSourceAlpha(filterElement), clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
-        if (!filterWorkBudget.TryCharge(workUnits))
+        if (!scope.FilterWorkBudget.TryCharge(workUnits))
         {
-            foreach (var child in children)
-            {
-                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
-            }
-
+            RenderChildrenDirect(children, state, childrenTransform, context, childScope, ref totalElements);
             return;
         }
 
-        filterWorkBudget.RecordSurfaceAllocated(pixelWidth, pixelHeight);
+        scope.FilterWorkBudget.RecordSurfaceAllocated(pixelWidth, pixelHeight);
         var content = new Surface(pixelWidth, pixelHeight);
         var localToTemp = childrenTransform * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
         var tempContext = context with { Surface = content };
 
         // Render every child fully opaque (Opacity forced to 1.0), identical in shape to
         // RenderShapeEffectsPipeline's own "content" rendering - see this method's remarks
-        var opaqueState = state with { Opacity = 1f };
+        RenderChildrenDirect(children, state with { Opacity = 1f }, localToTemp, tempContext, childScope, ref totalElements);
+
+        ApplyEffectsAndComposite(
+            effects, filterApplies, new EffectsTarget(content, localBounds, pixelX, pixelY, childrenTransform), state, context, childScope, ref totalElements);
+    }
+
+    /// <summary>
+    ///     Renders every element of <paramref name="children"/> directly (unaffected by any group
+    ///     effect) through <see cref="RenderElement"/>.
+    /// </summary>
+    /// <param name="children">The elements to render.</param>
+    /// <param name="state">The cascaded render state.</param>
+    /// <param name="transform">The accumulated transform into the target surface's pixel space.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="childScope">The recursion depths and budgets each child is rendered with.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    private static void RenderChildrenDirect(
+        IReadOnlyList<XElement> children,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        RenderScope childScope,
+        ref int totalElements)
+    {
         foreach (var child in children)
         {
-            RenderElement(child, opaqueState, localToTemp, tempContext, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            RenderElement(child, state, transform, context, childScope, ref totalElements);
         }
+    }
 
-        // Per SVG's defined ordering, clip-path is applied before mask, and both before filter
-        if (clipPathElement != null)
+    /// <summary>
+    ///     Bounds pre-pass for <see cref="RenderGroupWithEffects"/>: unions every child's own
+    ///     subtree bounds, computed purely in the group's own local space (relative transform
+    ///     starts at identity) - mirrors a single shape's own <c>localPath.GetBounds()</c> call,
+    ///     just folded over an entire subtree instead of one already-built path.
+    /// </summary>
+    /// <param name="children">The elements whose subtree bounds are unioned.</param>
+    /// <param name="state">The cascaded render state at the referencing element.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="childScope">The scope the children are visited with; only its depth counters and shared pre-pass budget are reused.</param>
+    /// <returns>The union of the children's bounds, or <see cref="Rect.Empty"/> if nothing paints.</returns>
+    /// <remarks>
+    ///     Deliberately uses fresh, local scratch counter/budget instances rather than the real
+    ///     total-element counter and geometry work budget threaded through the render pass: this
+    ///     pre-pass necessarily re-visits the same subtree the real render pass visits again
+    ///     immediately afterward, so charging the same counter/budget instance in both passes would
+    ///     double (or, combined with the tolerant-fallback re-render, triple) charge every element
+    ///     under a filtered group against the fixed ceilings - a document whose unfiltered
+    ///     rendering would legitimately stay under those ceilings could then throw
+    ///     <see cref="InvalidDataException"/> purely because some of its content sits inside a
+    ///     filtered group. The local instances still enforce the exact same ceilings (see
+    ///     <see cref="ComputeSubtreeLocalBounds"/>'s remarks), so this pre-pass itself cannot run
+    ///     away on a pathologically large subtree. The bounds pre-pass budget is deliberately
+    ///     <em>not</em> a fresh local instance - it is the one shared, per-<c>Load</c>-call
+    ///     instance, so every nested/sibling invocation contributes toward ONE cumulative ceiling
+    ///     (see <see cref="BoundsPrePassWorkBudget"/>'s remarks for the full rationale).
+    /// </remarks>
+    private static Rect ComputeChildrenLocalBounds(
+        IReadOnlyList<XElement> children,
+        RenderState state,
+        RenderContext context,
+        RenderScope childScope)
+    {
+        var preRenderElementCount = 0;
+        var preRenderScope = childScope with { WorkBudget = new GeometryWorkBudget() };
+        var localBounds = Rect.Empty;
+        foreach (var child in children)
         {
-            ApplyClipPath(clipPathElement, content, localBounds, pixelX, pixelY, childrenTransform, state, context, workBudget, filterWorkBudget);
+            var childBounds = ComputeSubtreeLocalBounds(child, state, Matrix3x2.Identity, context, preRenderScope, ref preRenderElementCount);
+            if (childBounds != null)
+            {
+                localBounds = localBounds.Union(childBounds.Value);
+            }
         }
 
-        if (maskElement != null)
-        {
-            ApplyMask(
-                maskElement, content, localBounds, pixelX, pixelY, childrenTransform, state, context,
-                useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
-        }
-
-        var finalSurface = filterApplies
-            ? EvaluateFilterChain(
-                filterElement!, content, childrenTransform, pixelX, pixelY, state, context, useDepth, elementDepth + 1, markerDepth,
-                ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget)
-            : content;
-
-        CompositeFilterResultOntoCanvas(finalSurface, pixelX, pixelY, context.Surface, state.Opacity);
+        return localBounds;
     }
 
     /// <summary>
@@ -1645,234 +1693,304 @@ public static partial class SvgCodec
 
     /// <summary>
     ///     Evaluates <paramref name="filterElement"/>'s <c>fe*</c> primitive children, in document
-    ///     order, against <paramref name="sourceGraphic"/>.
+    ///     order, against <paramref name="target"/>'s source graphic.
     /// </summary>
     /// <param name="filterElement">The resolved <c>filter</c> element.</param>
-    /// <param name="sourceGraphic">The already-rendered <c>SourceGraphic</c> buffer, sized to the filter region.</param>
-    /// <param name="transform">The referencing element's own accumulated transform.</param>
-    /// <param name="regionPixelX">The filter region's absolute pixel-space X origin.</param>
-    /// <param name="regionPixelY">The filter region's absolute pixel-space Y origin.</param>
+    /// <param name="target">
+    ///     The already-rendered <c>SourceGraphic</c> buffer (sized to the filter region), its
+    ///     absolute pixel-space region origin, and the referencing element's own accumulated transform.
+    /// </param>
     /// <param name="state">The referencing element's own cascaded render state.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth.</param>
-    /// <param name="elementDepth">The current element-recursion depth at the referencing element itself.</param>
-    /// <param name="markerDepth">The current marker-recursion depth.</param>
+    /// <param name="scope">The recursion depths at the referencing element and the shared work budgets.</param>
     /// <param name="totalElements">The running total-rendered-elements count.</param>
-    /// <param name="workBudget">The shared geometry work budget.</param>
-    /// <param name="filterWorkBudget">The shared cumulative filter work budget.</param>
-    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget.</param>
     /// <returns>
-    ///     The last document-order primitive's own output buffer, or <paramref name="sourceGraphic"/>
+    ///     The last document-order primitive's own output buffer, or the source graphic
     ///     itself if <paramref name="filterElement"/> has no <c>fe*</c> children at all.
     /// </returns>
     /// <remarks>
     ///     Every buffer produced by every primitive in this pipeline is exactly
-    ///     <paramref name="sourceGraphic"/>'s own size. <c>in</c>/<c>in2</c> name resolution
+    ///     the source graphic's own size. <c>in</c>/<c>in2</c> name resolution
     ///     follows this fixed precedence: <c>"SourceGraphic"</c>; <c>"SourceAlpha"</c>; an
     ///     earlier named <c>result</c>; the immediately preceding primitive; and, for any other
-    ///     dangling/unrecognized name, tolerant fallback to <paramref name="sourceGraphic"/>.
+    ///     dangling/unrecognized name, tolerant fallback to the source graphic.
     ///     Any primitive name this codec does not recognize remains a tolerant no-op pass-through
     ///     operation of its own resolved <c>in</c> input.
     /// </remarks>
     private static Surface EvaluateFilterChain(
         XElement filterElement,
-        Surface sourceGraphic,
-        Matrix3x2 transform,
-        int regionPixelX,
-        int regionPixelY,
+        EffectsTarget target,
         RenderState state,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget)
+        RenderScope scope,
+        ref int totalElements)
     {
-        var scale = EstimateUniformScale(transform);
-        var results = new Dictionary<string, Surface>(StringComparer.Ordinal);
-        var resultSubregions = new Dictionary<string, PixelRect>(StringComparer.Ordinal);
-        var filterRegionPixelBounds = (X: regionPixelX, Y: regionPixelY, Width: sourceGraphic.Width, Height: sourceGraphic.Height);
-        var fullRegion = new PixelRect(0, 0, sourceGraphic.Width, sourceGraphic.Height);
-        PixelRect previousSubregion = fullRegion;
-        Surface? previousResult = null;
-        Surface? sourceAlpha = null;
-
-        Surface BuildTrackedSourceAlpha()
+        var chain = new FilterChain(target, state, context, scope);
+        foreach (var primitive in filterElement.Elements())
         {
-            filterWorkBudget.RecordSurfaceAllocated(sourceGraphic.Width, sourceGraphic.Height);
-            return BuildSourceAlpha(sourceGraphic);
+            EvaluatePrimitive(primitive, chain, ref totalElements);
         }
 
-        Surface ResolveInput(string? name, out PixelRect subregion)
+        return chain.PreviousResult ?? chain.SourceGraphic;
+    }
+
+    /// <summary>
+    ///     Evaluates one <c>fe*</c> primitive against <paramref name="chain"/>, applies its optional
+    ///     subregion clip, records its named result, and makes it the chain's previous result.
+    /// </summary>
+    /// <param name="primitive">The primitive element.</param>
+    /// <param name="chain">The mutable evaluation state of the enclosing filter.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    private static void EvaluatePrimitive(XElement primitive, FilterChain chain, ref int totalElements)
+    {
+        var sourceGraphic = chain.SourceGraphic;
+        var primitiveHasSubregion = PrimitiveDeclaresSubregion(primitive);
+        var primitiveSubregion = primitiveHasSubregion
+            ? ResolvePrimitiveSubregionPixelBounds(
+                primitive,
+                (X: chain.RegionPixelX, Y: chain.RegionPixelY, Width: sourceGraphic.Width, Height: sourceGraphic.Height),
+                chain.RegionPixelX,
+                chain.RegionPixelY,
+                chain.Transform)
+            : chain.FullRegion;
+
+        var input = chain.ResolveInput((string?)primitive.Attribute("in"), out var inputSubregion);
+        var output = ApplyPrimitive(primitive, chain, input, inputSubregion, primitiveSubregion, ref totalElements, out var outputSubregion);
+
+        // Every primitive that produces a new buffer allocates one region-sized surface;
+        // a pass-through (the unrecognized-primitive default) allocates nothing.
+        if (!ReferenceEquals(output, input))
+        {
+            chain.Scope.FilterWorkBudget.RecordSurfaceAllocated(sourceGraphic.Width, sourceGraphic.Height);
+        }
+
+        if (primitiveHasSubregion)
+        {
+            chain.Scope.FilterWorkBudget.RecordSurfaceAllocated(sourceGraphic.Width, sourceGraphic.Height);
+            output = ClipPrimitiveOutputToSubregion(output, primitiveSubregion);
+            outputSubregion = primitiveSubregion;
+        }
+
+        var resultName = (string?)primitive.Attribute("result");
+        if (!string.IsNullOrEmpty(resultName))
+        {
+            chain.Results[resultName] = output;
+            chain.ResultSubregions[resultName] = outputSubregion;
+        }
+
+        chain.PreviousResult = output;
+        chain.PreviousSubregion = outputSubregion;
+    }
+
+    /// <summary>
+    ///     Dispatches one <c>fe*</c> primitive to its own implementation.
+    /// </summary>
+    /// <param name="primitive">The primitive element.</param>
+    /// <param name="chain">The mutable evaluation state of the enclosing filter.</param>
+    /// <param name="input">The primitive's resolved <c>in</c> buffer.</param>
+    /// <param name="inputSubregion">The subregion of <paramref name="input"/>.</param>
+    /// <param name="primitiveSubregion">The primitive's own resolved subregion.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    /// <param name="outputSubregion">The subregion the output occupies before any explicit subregion clip.</param>
+    /// <returns>The primitive's output buffer; <paramref name="input"/> itself for an unrecognized primitive.</returns>
+    private static Surface ApplyPrimitive(
+        XElement primitive,
+        FilterChain chain,
+        Surface input,
+        PixelRect inputSubregion,
+        PixelRect primitiveSubregion,
+        ref int totalElements,
+        out PixelRect outputSubregion)
+    {
+        var width = chain.SourceGraphic.Width;
+        var height = chain.SourceGraphic.Height;
+        var scale = chain.Scale;
+        outputSubregion = chain.FullRegion;
+
+        switch (primitive.Name.LocalName)
+        {
+            case "feFlood":
+                return ApplyFeFlood(primitive, width, height);
+
+            case "feGaussianBlur":
+                return ApplyFeGaussianBlur(primitive, input, scale);
+
+            case "feOffset":
+                return ApplyFeOffset(primitive, input, scale);
+
+            case "feComposite":
+                {
+                    var input2 = chain.ResolveInput((string?)primitive.Attribute("in2"), out var input2Subregion);
+                    outputSubregion = UnionPrimitiveSubregions(inputSubregion, input2Subregion);
+                    return ApplyFeComposite(primitive, input, input2);
+                }
+
+            case "feBlend":
+                {
+                    var blendInput2 = chain.ResolveInput((string?)primitive.Attribute("in2"), out var blendInput2Subregion);
+                    outputSubregion = UnionPrimitiveSubregions(inputSubregion, blendInput2Subregion);
+                    return ApplyFeBlend(primitive, input, blendInput2);
+                }
+
+            case "feMerge":
+                return ApplyFeMerge(primitive, width, height, name => chain.ResolveInput(name, out _));
+
+            case "feColorMatrix":
+                outputSubregion = inputSubregion;
+                return ApplyFeColorMatrix(primitive, input);
+
+            case "feComponentTransfer":
+                outputSubregion = inputSubregion;
+                return ApplyFeComponentTransfer(primitive, input);
+
+            case "feMorphology":
+                return ApplyFeMorphology(primitive, input, scale);
+
+            case "feConvolveMatrix":
+                return ApplyFeConvolveMatrix(primitive, input);
+
+            case "feDisplacementMap":
+                return ApplyFeDisplacementMap(primitive, input, chain.ResolveInput((string?)primitive.Attribute("in2"), out _), scale);
+
+            case "feTile":
+                return ApplyFeTile(input, inputSubregion);
+
+            case "feDropShadow":
+                return ApplyFeDropShadow(primitive, input, scale);
+
+            case "feImage":
+                outputSubregion = primitiveSubregion;
+                return ApplyFeImage(primitive, chain, primitiveSubregion, ref totalElements);
+
+            case "feDiffuseLighting":
+                outputSubregion = inputSubregion;
+                return ApplyFeDiffuseLighting(primitive, input, scale, chain.Transform, chain.RegionPixelX, chain.RegionPixelY);
+
+            case "feSpecularLighting":
+                outputSubregion = inputSubregion;
+                return ApplyFeSpecularLighting(primitive, input, scale, chain.Transform, chain.RegionPixelX, chain.RegionPixelY);
+
+            case "feTurbulence":
+                return ApplyFeTurbulence(primitive, width, height, scale, chain.RegionPixelX, chain.RegionPixelY);
+
+            default:
+                outputSubregion = inputSubregion;
+                return input;
+        }
+    }
+
+    /// <summary>
+    ///     Mutable evaluation state of one filter chain: the source graphic, the referencing
+    ///     element's geometry and render environment, the named results produced so far, and the
+    ///     lazily built <c>SourceAlpha</c> input.
+    /// </summary>
+    private sealed class FilterChain
+    {
+        private Surface? _sourceAlpha;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="FilterChain"/> class.
+        /// </summary>
+        /// <param name="target">The already-rendered <c>SourceGraphic</c> buffer and its geometry.</param>
+        /// <param name="state">The referencing element's own cascaded render state.</param>
+        /// <param name="context">The fixed per-document render context.</param>
+        /// <param name="scope">The recursion depths and shared work budgets.</param>
+        public FilterChain(EffectsTarget target, RenderState state, RenderContext context, RenderScope scope)
+        {
+            SourceGraphic = target.Content;
+            Transform = target.Transform;
+            RegionPixelX = target.PixelX;
+            RegionPixelY = target.PixelY;
+            State = state;
+            Context = context;
+            Scope = scope;
+            Scale = EstimateUniformScale(target.Transform);
+            FullRegion = new PixelRect(0, 0, target.Content.Width, target.Content.Height);
+            PreviousSubregion = FullRegion;
+        }
+
+        /// <summary>Gets the already-rendered <c>SourceGraphic</c> buffer, sized to the filter region.</summary>
+        public Surface SourceGraphic { get; }
+
+        /// <summary>Gets the referencing element's own accumulated transform.</summary>
+        public Matrix3x2 Transform { get; }
+
+        /// <summary>Gets the filter region's absolute pixel-space X origin.</summary>
+        public int RegionPixelX { get; }
+
+        /// <summary>Gets the filter region's absolute pixel-space Y origin.</summary>
+        public int RegionPixelY { get; }
+
+        /// <summary>Gets the referencing element's own cascaded render state.</summary>
+        public RenderState State { get; }
+
+        /// <summary>Gets the fixed per-document render context.</summary>
+        public RenderContext Context { get; }
+
+        /// <summary>Gets the recursion depths and shared work budgets.</summary>
+        public RenderScope Scope { get; }
+
+        /// <summary>Gets the uniform scale estimate of <see cref="Transform"/>.</summary>
+        public float Scale { get; }
+
+        /// <summary>Gets the full-region subregion.</summary>
+        public PixelRect FullRegion { get; }
+
+        /// <summary>Gets the named primitive results produced so far.</summary>
+        public Dictionary<string, Surface> Results { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>Gets the subregions of the named primitive results.</summary>
+        public Dictionary<string, PixelRect> ResultSubregions { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>Gets or sets the immediately preceding primitive's output, if any.</summary>
+        public Surface? PreviousResult { get; set; }
+
+        /// <summary>Gets or sets the immediately preceding primitive's output subregion.</summary>
+        public PixelRect PreviousSubregion { get; set; }
+
+        /// <summary>
+        ///     Resolves an <c>in</c>/<c>in2</c> name using the fixed precedence: the preceding
+        ///     primitive (blank name), <c>SourceGraphic</c>, <c>SourceAlpha</c>, an earlier named
+        ///     <c>result</c>, and finally tolerant fallback to <c>SourceGraphic</c>.
+        /// </summary>
+        /// <param name="name">The input name, possibly <see langword="null"/>/empty.</param>
+        /// <param name="subregion">The resolved input's subregion.</param>
+        /// <returns>The resolved input buffer.</returns>
+        public Surface ResolveInput(string? name, out PixelRect subregion)
         {
             if (string.IsNullOrEmpty(name))
             {
-                subregion = previousResult == null ? fullRegion : previousSubregion;
-                return previousResult ?? sourceGraphic;
+                subregion = PreviousResult == null ? FullRegion : PreviousSubregion;
+                return PreviousResult ?? SourceGraphic;
             }
 
             if (string.Equals(name, "SourceGraphic", StringComparison.Ordinal))
             {
-                subregion = fullRegion;
-                return sourceGraphic;
+                subregion = FullRegion;
+                return SourceGraphic;
             }
 
             if (string.Equals(name, "SourceAlpha", StringComparison.Ordinal))
             {
-                subregion = fullRegion;
-                return sourceAlpha ??= BuildTrackedSourceAlpha();
+                subregion = FullRegion;
+                return _sourceAlpha ??= BuildTrackedSourceAlpha();
             }
 
-            if (results.TryGetValue(name, out var namedResult))
+            if (Results.TryGetValue(name, out var namedResult))
             {
-                subregion = resultSubregions.TryGetValue(name, out var namedSubregion) ? namedSubregion : fullRegion;
+                subregion = ResultSubregions.TryGetValue(name, out var namedSubregion) ? namedSubregion : FullRegion;
                 return namedResult;
             }
 
-            subregion = fullRegion;
-            return sourceGraphic;
+            subregion = FullRegion;
+            return SourceGraphic;
         }
 
-        foreach (var primitive in filterElement.Elements())
+        private Surface BuildTrackedSourceAlpha()
         {
-            var primitiveHasSubregion = PrimitiveDeclaresSubregion(primitive);
-            var primitiveSubregion = primitiveHasSubregion
-                ? ResolvePrimitiveSubregionPixelBounds(primitive, filterRegionPixelBounds, regionPixelX, regionPixelY, transform)
-                : fullRegion;
-
-            var input = ResolveInput((string?)primitive.Attribute("in"), out var inputSubregion);
-            var outputSubregion = fullRegion;
-
-            Surface output;
-            switch (primitive.Name.LocalName)
-            {
-                case "feFlood":
-                    output = ApplyFeFlood(primitive, sourceGraphic.Width, sourceGraphic.Height);
-                    break;
-
-                case "feGaussianBlur":
-                    output = ApplyFeGaussianBlur(primitive, input, scale);
-                    break;
-
-                case "feOffset":
-                    output = ApplyFeOffset(primitive, input, scale);
-                    break;
-
-                case "feComposite":
-                    var input2 = ResolveInput((string?)primitive.Attribute("in2"), out var input2Subregion);
-                    output = ApplyFeComposite(primitive, input, input2);
-                    outputSubregion = UnionPrimitiveSubregions(inputSubregion, input2Subregion);
-                    break;
-
-                case "feBlend":
-                    var blendInput2 = ResolveInput((string?)primitive.Attribute("in2"), out var blendInput2Subregion);
-                    output = ApplyFeBlend(primitive, input, blendInput2);
-                    outputSubregion = UnionPrimitiveSubregions(inputSubregion, blendInput2Subregion);
-                    break;
-
-                case "feMerge":
-                    output = ApplyFeMerge(primitive, sourceGraphic.Width, sourceGraphic.Height, name => ResolveInput(name, out _));
-                    break;
-
-                case "feColorMatrix":
-                    output = ApplyFeColorMatrix(primitive, input);
-                    outputSubregion = inputSubregion;
-                    break;
-
-                case "feComponentTransfer":
-                    output = ApplyFeComponentTransfer(primitive, input);
-                    outputSubregion = inputSubregion;
-                    break;
-
-                case "feMorphology":
-                    output = ApplyFeMorphology(primitive, input, scale);
-                    break;
-
-                case "feConvolveMatrix":
-                    output = ApplyFeConvolveMatrix(primitive, input);
-                    break;
-
-                case "feDisplacementMap":
-                    output = ApplyFeDisplacementMap(primitive, input, ResolveInput((string?)primitive.Attribute("in2"), out _), scale);
-                    break;
-
-                case "feTile":
-                    output = ApplyFeTile(input, inputSubregion);
-                    break;
-
-                case "feDropShadow":
-                    output = ApplyFeDropShadow(primitive, input, scale);
-                    break;
-
-                case "feImage":
-                    output = ApplyFeImage(
-                        primitive,
-                        sourceGraphic.Width,
-                        sourceGraphic.Height,
-                        primitiveSubregion,
-                        transform,
-                        regionPixelX,
-                        regionPixelY,
-                        state,
-                        context,
-                        useDepth,
-                        elementDepth,
-                        markerDepth,
-                        ref totalElements,
-                        workBudget,
-                        filterWorkBudget,
-                        boundsPrePassBudget);
-                    outputSubregion = primitiveSubregion;
-                    break;
-
-                case "feDiffuseLighting":
-                    output = ApplyFeDiffuseLighting(primitive, input, scale, transform, regionPixelX, regionPixelY);
-                    outputSubregion = inputSubregion;
-                    break;
-
-                case "feSpecularLighting":
-                    output = ApplyFeSpecularLighting(primitive, input, scale, transform, regionPixelX, regionPixelY);
-                    outputSubregion = inputSubregion;
-                    break;
-
-                case "feTurbulence":
-                    output = ApplyFeTurbulence(primitive, sourceGraphic.Width, sourceGraphic.Height, scale, regionPixelX, regionPixelY);
-                    break;
-
-                default:
-                    output = input;
-                    outputSubregion = inputSubregion;
-                    break;
-            }
-
-            // Every primitive that produces a new buffer allocates one region-sized surface;
-            // a pass-through (the unrecognized-primitive default) allocates nothing.
-            if (!ReferenceEquals(output, input))
-            {
-                filterWorkBudget.RecordSurfaceAllocated(sourceGraphic.Width, sourceGraphic.Height);
-            }
-
-            if (primitiveHasSubregion)
-            {
-                filterWorkBudget.RecordSurfaceAllocated(sourceGraphic.Width, sourceGraphic.Height);
-                output = ClipPrimitiveOutputToSubregion(output, primitiveSubregion);
-                outputSubregion = primitiveSubregion;
-            }
-
-            var resultName = (string?)primitive.Attribute("result");
-            if (!string.IsNullOrEmpty(resultName))
-            {
-                results[resultName] = output;
-                resultSubregions[resultName] = outputSubregion;
-            }
-
-            previousResult = output;
-            previousSubregion = outputSubregion;
+            Scope.FilterWorkBudget.RecordSurfaceAllocated(SourceGraphic.Width, SourceGraphic.Height);
+            return BuildSourceAlpha(SourceGraphic);
         }
-
-        return previousResult ?? sourceGraphic;
     }
 
     /// <summary>Builds a same-size copy of <paramref name="source"/> with every pixel's color forced to black, alpha unchanged.</summary>

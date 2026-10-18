@@ -195,25 +195,7 @@ public static partial class GifCodec
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        var (canvasWidth, canvasHeight, packed) = ReadLogicalScreenDescriptor(stream);
-        if (canvasWidth <= 0 || canvasHeight <= 0)
-        {
-            throw new InvalidDataException($"Invalid GIF dimensions {canvasWidth}x{canvasHeight}.");
-        }
-
-        if (canvasWidth > Surface.MaxDimension || canvasHeight > Surface.MaxDimension)
-        {
-            throw new InvalidDataException(
-                $"GIF dimensions {canvasWidth}x{canvasHeight} exceed the maximum supported size of " +
-                $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
-        }
-
-        Rgba32[]? globalColorTable = null;
-        if ((packed & 0x80) != 0)
-        {
-            var globalColorTableSize = 2 << (packed & 0x07);
-            globalColorTable = ReadColorTable(stream, globalColorTableSize);
-        }
+        var (canvasWidth, canvasHeight, globalColorTable) = ReadScreenAndGlobalColorTable(stream);
 
         var pendingTransparencyFlag = false;
         var pendingTransparentIndex = (byte)0;
@@ -223,21 +205,13 @@ public static partial class GifCodec
 
         while (!sawTrailer)
         {
-            var introducer = stream.ReadByte();
-            if (introducer < 0)
-            {
-                throw new InvalidDataException("Unexpected end of stream while reading a GIF block.");
-            }
+            var introducer = ReadBlockIntroducer(stream);
 
             switch (introducer)
             {
                 case ExtensionIntroducer:
                     {
-                        var labelByte = stream.ReadByte();
-                        if (labelByte < 0)
-                        {
-                            throw new InvalidDataException("Unexpected end of stream while reading a GIF extension.");
-                        }
+                        var labelByte = ReadExtensionLabel(stream);
 
                         if (labelByte == GraphicControlLabel)
                         {
@@ -263,13 +237,11 @@ public static partial class GifCodec
                 case ImageSeparator:
                     {
                         var header = ReadImageDescriptorHeader(stream);
+                        var region = new FrameRegion(header.Left, header.Top, header.Width, header.Height);
                         var imageData = ReadSubBlocks(stream, ref remainingSubBlockBudget);
 
                         var activeColorTable = ValidateFrameRegionAndResolveColorTable(
-                            header.Width,
-                            header.Height,
-                            header.Left,
-                            header.Top,
+                            region,
                             canvasWidth,
                             canvasHeight,
                             header.LocalColorTable,
@@ -277,21 +249,18 @@ public static partial class GifCodec
 
                         if (result is null)
                         {
-                            var indices = DecodeGifLzw(imageData, header.MinCodeSize, header.Width * header.Height);
-                            if ((header.Packed & 0x40) != 0)
-                            {
-                                indices = Deinterlace(indices, header.Width, header.Height);
-                            }
+                            var indices = DecodeFrameIndices(
+                                imageData,
+                                header.MinCodeSize,
+                                (header.Packed & 0x40) != 0,
+                                region);
 
                             result = new Surface(canvasWidth, canvasHeight);
                             BlitIndexedFrame(
                                 result,
                                 indices,
                                 activeColorTable,
-                                header.Left,
-                                header.Top,
-                                header.Width,
-                                header.Height,
+                                region,
                                 pendingTransparencyFlag,
                                 pendingTransparentIndex);
                         }

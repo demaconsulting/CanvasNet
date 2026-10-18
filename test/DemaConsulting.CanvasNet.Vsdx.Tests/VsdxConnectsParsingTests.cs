@@ -144,8 +144,8 @@ public class VsdxConnectsParsingTests
         // Assert
         Assert.Null(exception);
         var shape = Assert.Single(document.GetPageShapes(0));
-        Assert.Single(shape.Connects);
-        Assert.Equal("999", shape.Connects[0].TargetShapeId);
+        var shapeItem = Assert.Single(shape.Connects);
+        Assert.Equal("999", shapeItem.TargetShapeId);
         Assert.NotNull(shape.ConnectorEndpoints);
         Assert.Equal(0.0, shape.ConnectorEndpoints.BeginX);
         Assert.Equal(3.0, shape.ConnectorEndpoints.EndX);

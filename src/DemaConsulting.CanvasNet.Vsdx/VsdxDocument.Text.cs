@@ -58,7 +58,7 @@ public sealed partial class VsdxDocument
     /// </summary>
     /// <param name="textElement">The <c>&lt;Text&gt;</c> element to walk.</param>
     /// <returns>The parsed runs, in document order; empty when the element carries no text content at all.</returns>
-    private static IReadOnlyList<VsdxRawTextRun> BuildRawRuns(XElement textElement)
+    private static List<VsdxRawTextRun> BuildRawRuns(XElement textElement)
     {
         var ns = textElement.Name.Namespace;
         var runs = new List<VsdxRawTextRun>();
@@ -144,7 +144,7 @@ public sealed partial class VsdxDocument
     /// <param name="element">The <c>&lt;Shape&gt;</c>/<c>&lt;StyleSheet&gt;</c> element whose direct <c>&lt;Section N="{sectionName}"&gt;</c> child (if any) should be parsed.</param>
     /// <param name="sectionName">The section's <c>N=</c> attribute value (<c>"Character"</c> or <c>"Paragraph"</c>).</param>
     /// <returns>A lookup from each row's <c>IX=</c> attribute to its parsed cell bag. Empty when <paramref name="element"/> declares no matching section, or the section has no (or only non-numeric-indexed) rows.</returns>
-    private static IReadOnlyDictionary<int, VsdxCellBag> ParseTextSectionRows(XElement element, string sectionName)
+    private static Dictionary<int, VsdxCellBag> ParseTextSectionRows(XElement element, string sectionName)
     {
         var ns = element.Name.Namespace;
         var sectionElement = element.Elements(ns + "Section")

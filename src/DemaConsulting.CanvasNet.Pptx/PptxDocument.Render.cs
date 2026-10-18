@@ -19,6 +19,40 @@ namespace DemaConsulting.CanvasNet.Pptx;
 public sealed partial class PptxDocument
 {
     /// <summary>
+    ///     The per-render, per-owning-part state threaded unchanged through every
+    ///     <see cref="RenderNode"/> recursion.
+    /// </summary>
+    /// <param name="OwnerPartPath">
+    ///     The part path that owns the node (the slide's, layout's, or master's own part path) -
+    ///     OPC relationships are part-scoped, so an embedded-image relationship resolves against
+    ///     the <em>owning</em> part's own <c>.rels</c> file.
+    /// </param>
+    /// <param name="Layout">The slide's own resolved layout, consulted for placeholder-property inheritance.</param>
+    /// <param name="Master">The slide's own resolved master, consulted for placeholder-property inheritance.</param>
+    /// <param name="Theme">The slide's own resolved theme, consulted for color/font resolution.</param>
+    /// <param name="ColorMap">
+    ///     The slide's own effective color map (see <see cref="ResolveEffectiveColorMap"/>) -
+    ///     consulted whenever a resolved fill/line/text color declares an
+    ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token.
+    /// </param>
+    /// <param name="RenderImages">
+    ///     The calling render call's own call-local picture-tracking list - see
+    ///     <see cref="ResolveAndTrackPictureSurface"/>.
+    /// </param>
+    /// <param name="SlideNumber">
+    ///     The slide's own 1-based slide number, substituted into any
+    ///     <c>&lt;a:fld type="slidenum"&gt;</c> field - see <see cref="SubstituteSlideNumberField"/>.
+    /// </param>
+    private readonly record struct NodeRenderContext(
+        string OwnerPartPath,
+        PptxLayout Layout,
+        PptxMaster Master,
+        PptxTheme Theme,
+        PptxColorMap ColorMap,
+        List<Surface> RenderImages,
+        int SlideNumber);
+
+    /// <summary>
     ///     Renders the specified slide into a new <see cref="Surface"/> of the given dimensions,
     ///     walking the slide's full shape tree in document
     ///     order and painting each recognized shape kind (see the <see cref="PptxDocument"/>
@@ -133,10 +167,14 @@ public sealed partial class PptxDocument
             var colorMap = ResolveEffectiveColorMap(slide.ClrMapOvr, layout.ClrMapOvr, master.ColorMap);
 
             var backgroundFill = ResolveSlideBackgroundFill(
-                slide.Background, layout.Background, master.Background, theme, SlideSize.WidthEmu, SlideSize.HeightEmu, colorMap,
-                blip => ResolveAndTrackPictureSurface(slide.PartPath, blip, renderImages),
-                blip => ResolveAndTrackPictureSurface(layout.PartPath, blip, renderImages),
-                blip => ResolveAndTrackPictureSurface(master.PartPath, blip, renderImages));
+                slide.Background, layout.Background, master.Background, theme, SlideSize.WidthEmu, SlideSize.HeightEmu,
+                new BackgroundContext
+                {
+                    ColorMap = colorMap,
+                    SlideResolveBlipImage = blip => ResolveAndTrackPictureSurface(slide.PartPath, blip, renderImages),
+                    LayoutResolveBlipImage = blip => ResolveAndTrackPictureSurface(layout.PartPath, blip, renderImages),
+                    MasterResolveBlipImage = blip => ResolveAndTrackPictureSurface(master.PartPath, blip, renderImages),
+                });
             if (backgroundFill is not null)
             {
                 var backgroundPath = Path.Rectangle(0, 0, SlideSize.WidthEmu, SlideSize.HeightEmu).Transform(baseTransform);
@@ -154,17 +192,17 @@ public sealed partial class PptxDocument
             // non-placeholder siblings are.
             foreach (var node in master.ShapeTree)
             {
-                RenderNode(surface, node, master.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, slideNumber, skipPlaceholderShapes: true, options: options);
+                RenderNode(surface, node, new NodeRenderContext(master.PartPath, layout, master, theme, colorMap, renderImages, slideNumber), baseTransform, skipPlaceholderShapes: true, options: options);
             }
 
             foreach (var node in layout.ShapeTree)
             {
-                RenderNode(surface, node, layout.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, slideNumber, skipPlaceholderShapes: true, options: options);
+                RenderNode(surface, node, new NodeRenderContext(layout.PartPath, layout, master, theme, colorMap, renderImages, slideNumber), baseTransform, skipPlaceholderShapes: true, options: options);
             }
 
             foreach (var node in slide.ShapeTree)
             {
-                RenderNode(surface, node, slide.PartPath, layout, master, theme, baseTransform, colorMap, renderImages, slideNumber, options: options);
+                RenderNode(surface, node, new NodeRenderContext(slide.PartPath, layout, master, theme, colorMap, renderImages, slideNumber), baseTransform, options: options);
             }
 
             return surface;
@@ -281,36 +319,12 @@ public sealed partial class PptxDocument
     /// </summary>
     /// <param name="surface">The destination surface to paint onto.</param>
     /// <param name="node">The shape-tree node to dispatch.</param>
-    /// <param name="ownerPartPath">
-    ///     The part path that owns <paramref name="node"/> (the slide's, layout's, or master's own
-    ///     part path) - needed so a <see cref="PptxPictureShapeNode"/>'s embedded-image
-    ///     relationship (see <see cref="RenderPicture"/>) resolves against the <em>owning</em>
-    ///     part's own <c>.rels</c> file, not always the slide's (OPC relationships are part-scoped
-    ///     - see the companion planning report's bug-fix rationale).
+    /// <param name="context">
+    ///     The owning part's path, layout, master, theme, effective color map, call-local
+    ///     picture-tracking list and slide number (see <see cref="NodeRenderContext"/>), threaded
+    ///     unchanged through every recursive call.
     /// </param>
-    /// <param name="layout">The slide's own resolved layout, consulted for placeholder-property inheritance.</param>
-    /// <param name="master">The slide's own resolved master, consulted for placeholder-property inheritance.</param>
-    /// <param name="theme">The slide's own resolved theme, consulted for color/font resolution.</param>
     /// <param name="parentToSurface">The accumulated transform from this node's own parent space into surface pixel space.</param>
-    /// <param name="colorMap">
-    ///     The slide's own effective color map (see <see cref="ResolveEffectiveColorMap"/>),
-    ///     computed once in <see cref="Render(int, int, int, PptxRenderOptions?)"/> and threaded
-    ///     unchanged through every recursive call - consulted whenever a resolved fill/line/text
-    ///     color declares an <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token.
-    /// </param>
-    /// <param name="renderImages">
-    ///     The calling <see cref="Render(int, int, int, PptxRenderOptions?)"/> call's own
-    ///     call-local picture-tracking list, threaded unchanged through every recursive call and
-    ///     into <see cref="RenderShape"/>/<see cref="RenderPicture"/>/<see cref="RenderConnector"/>
-    ///     - see <see cref="ResolveAndTrackPictureSurface"/>.
-    /// </param>
-    /// <param name="slideNumber">
-    ///     The slide's own 1-based slide number, computed once in
-    ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/> as <c>slideIndex + 1</c> and
-    ///     threaded unchanged through every recursive call and into <see cref="RenderShape"/>,
-    ///     which substitutes it into any <c>&lt;a:fld type="slidenum"&gt;</c> field a shape's own
-    ///     text body declares - see <see cref="SubstituteSlideNumberField"/>.
-    /// </param>
     /// <param name="skipPlaceholderShapes">
     ///     When <see langword="true"/> (the master/layout decorative-shape walks in
     ///     <see cref="Render(int, int, int, PptxRenderOptions?)"/>), a <see cref="PptxSpShapeNode"/>
@@ -356,14 +370,8 @@ public sealed partial class PptxDocument
     private void RenderNode(
         Surface surface,
         PptxShapeTreeNode node,
-        string ownerPartPath,
-        PptxLayout layout,
-        PptxMaster master,
-        PptxTheme theme,
+        NodeRenderContext context,
         Matrix3x2 parentToSurface,
-        PptxColorMap colorMap,
-        List<Surface> renderImages,
-        int slideNumber,
         bool skipPlaceholderShapes = false,
         int depth = 0,
         PptxRenderOptions? options = null)
@@ -371,75 +379,25 @@ public sealed partial class PptxDocument
         switch (node)
         {
             case PptxGroupShapeNode group:
-                if (depth >= MaxGroupShapeNestingDepth)
-                {
-                    throw new InvalidDataException(
-                        $"A group shape is nested beyond the maximum supported depth of {MaxGroupShapeNestingDepth} levels.");
-                }
-
-                var childToSurface = group.ChildTransform * parentToSurface;
-                foreach (var child in group.Children)
-                {
-                    RenderNode(surface, child, ownerPartPath, layout, master, theme, childToSurface, colorMap, renderImages, slideNumber, skipPlaceholderShapes, depth + 1, options);
-                }
-
+                RenderGroupNode(surface, group, context, parentToSurface, skipPlaceholderShapes, depth, options);
                 break;
 
             case PptxSpShapeNode sp:
-                if (skipPlaceholderShapes && sp.Placeholder is not null)
-                {
-                    break;
-                }
-
-                try
-                {
-                    RenderShape(surface, sp, ownerPartPath, layout, master, theme, parentToSurface, colorMap, renderImages, slideNumber);
-                }
-                catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
-                {
-                    // A master/layout's own decorative shape using an already-deferred, well-
-                    // formed-but-unsupported feature must not abort the rest of the slide - see
-                    // pptx-document.md's "Phase 2 Follow-Up: Master/Layout Decorative Shape
-                    // Rendering" (graceful-skip containment). The `when (skipPlaceholderShapes)`
-                    // filter means a slide's own shape (skipPlaceholderShapes == false) is never
-                    // caught here and continues to hard-fail Render exactly as before this fix.
-                }
-
+                RenderSpNode(surface, sp, context, parentToSurface, skipPlaceholderShapes);
                 break;
 
             case PptxPictureShapeNode pic:
-                try
-                {
-                    RenderPicture(surface, pic, ownerPartPath, theme, parentToSurface, colorMap, renderImages);
-                }
-                catch (PptxUnsupportedFeatureException ex) when (
-                    ex.Feature == MetafileFeatureToken && !skipPlaceholderShapes && !(options?.StrictUnsupportedPictures ?? false))
-                {
-                    // An EMF/WMF vector picture cannot be decoded; skip just this picture (nothing
-                    // has been painted for it yet - the image is resolved before compositing) and
-                    // report it, so the rest of the slide still renders. Strict mode filters this
-                    // clause out and the exception propagates. Only a slide's own (or group-nested)
-                    // picture is reported: a master/layout picture (skipPlaceholderShapes) falls to
-                    // the silent clause below in both modes, so the callback is not invoked once
-                    // per slide for the same inherited picture.
-                    options?.OnUnsupportedPictureSkipped?.Invoke(ex);
-                }
-                catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
-                {
-                    // See the PptxSpShapeNode case's own remarks above. Also silently skips a
-                    // master/layout EMF/WMF picture in both strict and tolerant modes.
-                }
-
+                RenderPictureNode(surface, pic, context, parentToSurface, skipPlaceholderShapes, options);
                 break;
 
             case PptxGraphicFrameShapeNode graphicFrame:
                 try
                 {
-                    RenderGraphicFrame(surface, graphicFrame, theme, parentToSurface, colorMap, slideNumber);
+                    RenderGraphicFrame(surface, graphicFrame, context.Theme, parentToSurface, context.ColorMap, context.SlideNumber);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {
-                    // See the PptxSpShapeNode case's own remarks above.
+                    // See RenderSpNode's own remarks.
                 }
 
                 break;
@@ -447,11 +405,11 @@ public sealed partial class PptxDocument
             case PptxConnectorShapeNode connector:
                 try
                 {
-                    RenderConnector(surface, connector, ownerPartPath, theme, parentToSurface, colorMap, renderImages);
+                    RenderConnector(surface, connector, context.OwnerPartPath, context.Theme, parentToSurface, context.ColorMap, context.RenderImages);
                 }
                 catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
                 {
-                    // See the PptxSpShapeNode case's own remarks above. RenderConnector itself
+                    // See RenderSpNode's own remarks. RenderConnector itself
                     // additionally, and unconditionally (regardless of skipPlaceholderShapes),
                     // already narrowly contains the one sub-step realistically able to throw this
                     // same exception type (an exotic/unimplemented connector preset name) to just
@@ -470,25 +428,134 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>
+    ///     Renders a <see cref="PptxGroupShapeNode"/>'s children with the group's composed child
+    ///     transform, enforcing <see cref="MaxGroupShapeNestingDepth"/>.
+    /// </summary>
+    /// <param name="surface">The destination surface to paint onto.</param>
+    /// <param name="group">The group node.</param>
+    /// <param name="context">See <see cref="RenderNode"/>.</param>
+    /// <param name="parentToSurface">See <see cref="RenderNode"/>.</param>
+    /// <param name="skipPlaceholderShapes">See <see cref="RenderNode"/>.</param>
+    /// <param name="depth">See <see cref="RenderNode"/>.</param>
+    /// <param name="options">See <see cref="RenderNode"/>.</param>
+    /// <exception cref="InvalidDataException">Thrown when the group is nested too deeply.</exception>
+    private void RenderGroupNode(
+        Surface surface,
+        PptxGroupShapeNode group,
+        NodeRenderContext context,
+        Matrix3x2 parentToSurface,
+        bool skipPlaceholderShapes,
+        int depth,
+        PptxRenderOptions? options)
+    {
+        if (depth >= MaxGroupShapeNestingDepth)
+        {
+            throw new InvalidDataException(
+                $"A group shape is nested beyond the maximum supported depth of {MaxGroupShapeNestingDepth} levels.");
+        }
+
+        var childToSurface = group.ChildTransform * parentToSurface;
+        foreach (var child in group.Children)
+        {
+            RenderNode(surface, child, context, childToSurface, skipPlaceholderShapes, depth + 1, options);
+        }
+    }
+
+    /// <summary>
+    ///     Renders a <see cref="PptxSpShapeNode"/> with master/layout graceful-skip containment.
+    /// </summary>
+    /// <param name="surface">The destination surface to paint onto.</param>
+    /// <param name="sp">The shape node.</param>
+    /// <param name="context">See <see cref="RenderNode"/>.</param>
+    /// <param name="parentToSurface">See <see cref="RenderNode"/>.</param>
+    /// <param name="skipPlaceholderShapes">See <see cref="RenderNode"/>.</param>
+    private void RenderSpNode(
+        Surface surface,
+        PptxSpShapeNode sp,
+        NodeRenderContext context,
+        Matrix3x2 parentToSurface,
+        bool skipPlaceholderShapes)
+    {
+        if (skipPlaceholderShapes && sp.Placeholder is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            RenderShape(surface, sp, context, parentToSurface);
+        }
+        catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
+        {
+            // A master/layout's own decorative shape using an already-deferred, well-
+            // formed-but-unsupported feature must not abort the rest of the slide - see
+            // pptx-document.md's "Phase 2 Follow-Up: Master/Layout Decorative Shape
+            // Rendering" (graceful-skip containment). The `when (skipPlaceholderShapes)`
+            // filter means a slide's own shape (skipPlaceholderShapes == false) is never
+            // caught here and continues to hard-fail Render exactly as before this fix.
+        }
+    }
+
+    /// <summary>
+    ///     Renders a <see cref="PptxPictureShapeNode"/>, skipping and reporting an unsupported
+    ///     EMF/WMF picture in tolerant mode.
+    /// </summary>
+    /// <param name="surface">The destination surface to paint onto.</param>
+    /// <param name="pic">The picture node.</param>
+    /// <param name="context">See <see cref="RenderNode"/>.</param>
+    /// <param name="parentToSurface">See <see cref="RenderNode"/>.</param>
+    /// <param name="skipPlaceholderShapes">See <see cref="RenderNode"/>.</param>
+    /// <param name="options">See <see cref="RenderNode"/>.</param>
+    private void RenderPictureNode(
+        Surface surface,
+        PptxPictureShapeNode pic,
+        NodeRenderContext context,
+        Matrix3x2 parentToSurface,
+        bool skipPlaceholderShapes,
+        PptxRenderOptions? options)
+    {
+        try
+        {
+            RenderPicture(surface, pic, context.OwnerPartPath, context.Theme, parentToSurface, context.ColorMap, context.RenderImages);
+        }
+        catch (PptxUnsupportedFeatureException ex) when (
+            ex.Feature == MetafileFeatureToken && !skipPlaceholderShapes && !(options?.StrictUnsupportedPictures ?? false))
+        {
+            // An EMF/WMF vector picture cannot be decoded; skip just this picture (nothing
+            // has been painted for it yet - the image is resolved before compositing) and
+            // report it, so the rest of the slide still renders. Strict mode filters this
+            // clause out and the exception propagates. Only a slide's own (or group-nested)
+            // picture is reported: a master/layout picture (skipPlaceholderShapes) falls to
+            // the silent clause below in both modes, so the callback is not invoked once
+            // per slide for the same inherited picture.
+            options?.OnUnsupportedPictureSkipped?.Invoke(ex);
+        }
+        catch (PptxUnsupportedFeatureException) when (skipPlaceholderShapes)
+        {
+            // See RenderSpNode's own remarks. Also silently skips a
+            // master/layout EMF/WMF picture in both strict and tolerant modes.
+        }
+    }
+
+    /// <summary>
     ///     Renders a <see cref="PptxSpShapeNode"/> (an ordinary or placeholder shape): resolves
     ///     its geometry/fill/stroke via the Phase 1c pipeline and, when it declares a
     ///     <c>&lt;p:txBody&gt;</c>, its text via the Phase 1d pipeline - substituting any
-    ///     <c>&lt;a:fld type="slidenum"&gt;</c> field's cached text with <paramref name="slideNumber"/>
+    ///     <c>&lt;a:fld type="slidenum"&gt;</c> field's cached text with the context's slide number
     ///     immediately after parsing, before layout/measurement (see
     ///     <see cref="SubstituteSlideNumberField"/>).
     /// </summary>
+    /// <param name="surface">The destination surface to paint onto.</param>
+    /// <param name="node">The shape node to render.</param>
+    /// <param name="context">See <see cref="RenderNode"/>.</param>
+    /// <param name="parentToSurface">See <see cref="RenderNode"/>.</param>
     private void RenderShape(
         Surface surface,
         PptxSpShapeNode node,
-        string ownerPartPath,
-        PptxLayout layout,
-        PptxMaster master,
-        PptxTheme theme,
-        Matrix3x2 parentToSurface,
-        PptxColorMap colorMap,
-        List<Surface> renderImages,
-        int slideNumber)
+        NodeRenderContext context,
+        Matrix3x2 parentToSurface)
     {
+        var (ownerPartPath, layout, master, theme, colorMap, renderImages, slideNumber) = context;
         Surface ResolveBlipImage(XElement blip) => ResolveAndTrackPictureSurface(ownerPartPath, blip, renderImages);
 
         XElement? spPrElement;
@@ -577,8 +644,17 @@ public sealed partial class PptxDocument
         {
             var textBody = ParseTextBody(txBodyElement);
             textBody = SubstituteSlideNumberField(textBody, slideNumber);
-            var layoutResult = ResolveTextLayout(
-                textBody, placeholderProperties, theme, placeholderType, frame.WidthEmu, frame.HeightEmu, ResolveTextFont, colorMap);
+            var layoutResult = ResolveTextLayoutForRequest(new TextLayoutRequest
+            {
+                TextBody = textBody,
+                PlaceholderProperties = placeholderProperties,
+                Theme = theme,
+                PlaceholderType = placeholderType,
+                WidthEmu = frame.WidthEmu,
+                HeightEmu = frame.HeightEmu,
+                FontResolver = ResolveTextFont,
+                ColorMap = colorMap,
+            });
             PaintTextLayout(surface, layoutResult, localToSurface);
         }
     }

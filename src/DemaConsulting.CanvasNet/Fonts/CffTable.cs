@@ -122,6 +122,9 @@ namespace DemaConsulting.CanvasNet.Fonts;
 /// </remarks>
 internal sealed class CffTable : IGlyphOutlineSource
 {
+    /// <summary>Error message for a DICT operand cut short by the end of the data.</summary>
+    private const string TruncatedDictOperandMessage = "CFF DICT operand is truncated.";
+
     private readonly byte[] _cffData;
     private readonly (int Offset, int Length)[] _charStrings;
     private readonly (int Offset, int Length)[] _globalSubrs;
@@ -358,40 +361,7 @@ internal sealed class CffTable : IGlyphOutlineSource
             throw new InvalidDataException("The CFF Top DICT is missing the required 'CharStrings' operator.");
         }
 
-        var localSubrs = Array.Empty<(int Offset, int Length)>();
-        var defaultWidthX = 0.0;
-        var nominalWidthX = 0.0;
-        if (topDict.TryGetValue(PrivateOperator, out var privateOperands))
-        {
-            if (privateOperands.Count != 2)
-            {
-                throw new InvalidDataException("The CFF Top DICT's 'Private' operator must have exactly two operands.");
-            }
-
-            var privateSize = (int)privateOperands[0];
-            var privateOffset = (int)privateOperands[1];
-            if (privateSize < 0 || privateOffset < 0 || checked((long)privateOffset + privateSize) > cffData.Length)
-            {
-                throw new InvalidDataException("The CFF Private DICT offset/size exceeds the table bounds.");
-            }
-
-            var privateDict = ParseDict(cffData, privateOffset, privateSize);
-            if (privateDict.TryGetValue(SubrsOperator, out var subrsOperands) && subrsOperands.Count > 0)
-            {
-                var localSubrPos = privateOffset + (int)subrsOperands[^1];
-                localSubrs = ParseIndex(cffData, ref localSubrPos);
-            }
-
-            if (privateDict.TryGetValue(DefaultWidthXOperator, out var dwxOperands) && dwxOperands.Count > 0)
-            {
-                defaultWidthX = dwxOperands[^1];
-            }
-
-            if (privateDict.TryGetValue(NominalWidthXOperator, out var nwxOperands) && nwxOperands.Count > 0)
-            {
-                nominalWidthX = nwxOperands[^1];
-            }
-        }
+        var (localSubrs, defaultWidthX, nominalWidthX) = ParsePrivate(topDict, cffData);
 
         var charStringsPos = (int)charStringsOperands[^1];
         var charStrings = ParseIndex(cffData, ref charStringsPos);
@@ -404,6 +374,54 @@ internal sealed class CffTable : IGlyphOutlineSource
         var nameToGlyphIndex = BuildNameToGlyphIndex(charsetSids, stringIndex, cffData);
 
         return new CffTable(cffData, charStrings, globalSubrs, localSubrs, defaultWidthX, nominalWidthX, nameToGlyphIndex);
+    }
+
+    /// <summary>
+    ///     Resolves the Top DICT's optional <c>Private</c> DICT to its local subroutines and
+    ///     default/nominal width values.
+    /// </summary>
+    private static ((int Offset, int Length)[] LocalSubrs, double DefaultWidthX, double NominalWidthX) ParsePrivate(
+        Dictionary<int, List<double>> topDict,
+        byte[] cffData)
+    {
+        var localSubrs = Array.Empty<(int Offset, int Length)>();
+        var defaultWidthX = 0.0;
+        var nominalWidthX = 0.0;
+        if (!topDict.TryGetValue(PrivateOperator, out var privateOperands))
+        {
+            return (localSubrs, defaultWidthX, nominalWidthX);
+        }
+
+        if (privateOperands.Count != 2)
+        {
+            throw new InvalidDataException("The CFF Top DICT's 'Private' operator must have exactly two operands.");
+        }
+
+        var privateSize = (int)privateOperands[0];
+        var privateOffset = (int)privateOperands[1];
+        if (privateSize < 0 || privateOffset < 0 || checked((long)privateOffset + privateSize) > cffData.Length)
+        {
+            throw new InvalidDataException("The CFF Private DICT offset/size exceeds the table bounds.");
+        }
+
+        var privateDict = ParseDict(cffData, privateOffset, privateSize);
+        if (privateDict.TryGetValue(SubrsOperator, out var subrsOperands) && subrsOperands.Count > 0)
+        {
+            var localSubrPos = privateOffset + (int)subrsOperands[^1];
+            localSubrs = ParseIndex(cffData, ref localSubrPos);
+        }
+
+        if (privateDict.TryGetValue(DefaultWidthXOperator, out var dwxOperands) && dwxOperands.Count > 0)
+        {
+            defaultWidthX = dwxOperands[^1];
+        }
+
+        if (privateDict.TryGetValue(NominalWidthXOperator, out var nwxOperands) && nwxOperands.Count > 0)
+        {
+            nominalWidthX = nwxOperands[^1];
+        }
+
+        return (localSubrs, defaultWidthX, nominalWidthX);
     }
 
     /// <summary>
@@ -475,35 +493,11 @@ internal sealed class CffTable : IGlyphOutlineSource
                 break;
 
             case 1:
-                while (glyphIndex < glyphCount)
-                {
-                    EnsureAvailable(cffData, pos, 3);
-                    var first = SfntContainer.ReadUInt16(cffData, pos);
-                    var nLeft = cffData[pos + 2];
-                    pos += 3;
-                    for (var i = 0; i <= nLeft && glyphIndex < glyphCount; i++)
-                    {
-                        sids[glyphIndex] = first + i;
-                        glyphIndex++;
-                    }
-                }
-
+                ReadCharsetRanges(cffData, pos, sids, 3);
                 break;
 
             case 2:
-                while (glyphIndex < glyphCount)
-                {
-                    EnsureAvailable(cffData, pos, 4);
-                    var first = SfntContainer.ReadUInt16(cffData, pos);
-                    var nLeft = SfntContainer.ReadUInt16(cffData, pos + 2);
-                    pos += 4;
-                    for (var i = 0; i <= nLeft && glyphIndex < glyphCount; i++)
-                    {
-                        sids[glyphIndex] = first + i;
-                        glyphIndex++;
-                    }
-                }
-
+                ReadCharsetRanges(cffData, pos, sids, 4);
                 break;
 
             default:
@@ -511,6 +505,28 @@ internal sealed class CffTable : IGlyphOutlineSource
         }
 
         return sids;
+    }
+
+    /// <summary>
+    ///     Reads format 1 (<paramref name="entrySize"/> 3, byte <c>nLeft</c>) or format 2
+    ///     (<paramref name="entrySize"/> 4, uint16 <c>nLeft</c>) charset range entries into
+    ///     <paramref name="sids"/>, starting at glyph index 1.
+    /// </summary>
+    private static void ReadCharsetRanges(byte[] cffData, int pos, int[] sids, int entrySize)
+    {
+        var glyphIndex = 1;
+        while (glyphIndex < sids.Length)
+        {
+            EnsureAvailable(cffData, pos, entrySize);
+            var first = SfntContainer.ReadUInt16(cffData, pos);
+            var nLeft = entrySize == 3 ? cffData[pos + 2] : SfntContainer.ReadUInt16(cffData, pos + 2);
+            pos += entrySize;
+            for (var i = 0; i <= nLeft && glyphIndex < sids.Length; i++)
+            {
+                sids[glyphIndex] = first + i;
+                glyphIndex++;
+            }
+        }
     }
 
     /// <summary>
@@ -777,90 +793,105 @@ internal sealed class CffTable : IGlyphOutlineSource
             var b0 = data[pos];
             if (b0 <= 21)
             {
-                int op = b0;
-                pos++;
-                if (b0 == 12)
-                {
-                    if (pos >= end)
-                    {
-                        throw new InvalidDataException("CFF DICT escape operator is truncated.");
-                    }
-
-                    op = 1200 + data[pos];
-                    pos++;
-                }
-
-                dict[op] = [.. operands];
+                dict[ReadDictOperator(data, ref pos, end)] = [.. operands];
                 operands.Clear();
-            }
-            else if (b0 == 28)
-            {
-                if (pos + 3 > end)
-                {
-                    throw new InvalidDataException("CFF DICT operand is truncated.");
-                }
-
-                operands.Add(SfntContainer.ReadInt16(data, pos + 1));
-                pos += 3;
-            }
-            else if (b0 == 29)
-            {
-                if (pos + 5 > end)
-                {
-                    throw new InvalidDataException("CFF DICT operand is truncated.");
-                }
-
-                operands.Add(SfntContainer.ReadInt32(data, pos + 1));
-                pos += 5;
-            }
-            else if (b0 == 30)
-            {
-                pos++;
-                var terminated = false;
-                while (pos < end && !terminated)
-                {
-                    var nibbles = data[pos];
-                    pos++;
-                    if ((nibbles >> 4) == 0xF || (nibbles & 0xF) == 0xF)
-                    {
-                        terminated = true;
-                    }
-                }
-
-                operands.Add(0); // Real-number value is never interpreted; see this method's summary
-            }
-            else if (b0 is >= 32 and <= 246)
-            {
-                operands.Add(b0 - 139);
-                pos++;
-            }
-            else if (b0 is >= 247 and <= 250)
-            {
-                if (pos + 2 > end)
-                {
-                    throw new InvalidDataException("CFF DICT operand is truncated.");
-                }
-
-                operands.Add((double)(((b0 - 247) * 256) + data[pos + 1] + 108));
-                pos += 2;
-            }
-            else if (b0 is >= 251 and <= 254)
-            {
-                if (pos + 2 > end)
-                {
-                    throw new InvalidDataException("CFF DICT operand is truncated.");
-                }
-
-                operands.Add((double)((-(b0 - 251) * 256) - data[pos + 1] - 108));
-                pos += 2;
             }
             else
             {
-                throw new InvalidDataException($"CFF DICT contains a reserved/invalid byte (0x{b0:X2}).");
+                operands.Add(ReadDictOperand(data, ref pos, end));
             }
         }
 
         return dict;
+    }
+
+    /// <summary>
+    ///     Reads one DICT operator (one byte, or two for the <c>12 XX</c> escape form, keyed as
+    ///     <c>1200 + XX</c>) at <paramref name="pos"/>, advancing it.
+    /// </summary>
+    private static int ReadDictOperator(byte[] data, ref int pos, int end)
+    {
+        int op = data[pos];
+        pos++;
+        if (op == 12)
+        {
+            if (pos >= end)
+            {
+                throw new InvalidDataException("CFF DICT escape operator is truncated.");
+            }
+
+            op = 1200 + data[pos];
+            pos++;
+        }
+
+        return op;
+    }
+
+    /// <summary>
+    ///     Reads one DICT operand at <paramref name="pos"/>, advancing it. Real numbers are
+    ///     consumed but decoded as <c>0</c>; see <see cref="ParseDict"/>.
+    /// </summary>
+    private static double ReadDictOperand(byte[] data, ref int pos, int end)
+    {
+        var b0 = data[pos];
+        double value;
+        int consumed;
+        switch (b0)
+        {
+            case 28:
+                RequireDictBytes(pos, 3, end);
+                value = SfntContainer.ReadInt16(data, pos + 1);
+                consumed = 3;
+                break;
+            case 29:
+                RequireDictBytes(pos, 5, end);
+                value = SfntContainer.ReadInt32(data, pos + 1);
+                consumed = 5;
+                break;
+            case 30:
+                pos = SkipRealNumber(data, pos + 1, end);
+                return 0; // Real-number value is never interpreted; see ParseDict's summary
+            case >= 32 and <= 246:
+                value = b0 - 139;
+                consumed = 1;
+                break;
+            case >= 247 and <= 250:
+                RequireDictBytes(pos, 2, end);
+                value = ((b0 - 247) * 256.0) + data[pos + 1] + 108;
+                consumed = 2;
+                break;
+            case >= 251 and <= 254:
+                RequireDictBytes(pos, 2, end);
+                value = (-(b0 - 251) * 256.0) - data[pos + 1] - 108;
+                consumed = 2;
+                break;
+            default:
+                throw new InvalidDataException($"CFF DICT contains a reserved/invalid byte (0x{b0:X2}).");
+        }
+
+        pos += consumed;
+        return value;
+    }
+
+    private static void RequireDictBytes(int pos, int count, int end)
+    {
+        if (pos + count > end)
+        {
+            throw new InvalidDataException(TruncatedDictOperandMessage);
+        }
+    }
+
+    private static int SkipRealNumber(byte[] data, int pos, int end)
+    {
+        var terminated = false;
+        while (pos < end && !terminated)
+        {
+            var nibbles = data[pos];
+            pos++;
+            terminated = (nibbles >> 4) == 0xF || (nibbles & 0xF) == 0xF;
+        }
+
+        return pos;
     }
 
     /// <summary>

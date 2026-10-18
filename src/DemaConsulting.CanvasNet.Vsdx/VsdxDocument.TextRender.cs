@@ -101,48 +101,48 @@ public sealed partial class VsdxDocument
     internal static TrueTypeFont? ResolveGlyphFallbackFont(int codePoint, bool bold, bool italic) =>
         FallbackResults.GetOrAdd((codePoint, bold, italic), static key => FindGlyphFallbackFont(key.CodePoint, key.Bold, key.Italic));
 
+    private static TrueTypeFont? LoadFallbackFontUncached(string path, int face)
+    {
+        try
+        {
+            return TrueTypeFont.Load(path, face);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    // Preferred families are few, so their fonts stay cached; the catalog-wide sweep
+    // loads each face transiently so an uncovered code point cannot pin every font in memory.
+    private static TrueTypeFont? LoadFallbackFont(SystemFontInfo info, bool cache) =>
+        cache
+            ? FallbackFontCache.GetOrAdd((info.FilePath, info.FaceIndex), static key => LoadFallbackFontUncached(key.Path, key.Face))
+            : LoadFallbackFontUncached(info.FilePath, info.FaceIndex);
+
+    private static IEnumerable<(SystemFontInfo Info, bool Cache)> EnumerateFallbackCandidates(bool bold, bool italic)
+    {
+        var fonts = SystemFontCatalog.Fonts;
+        foreach (var family in FallbackFamilies)
+        {
+            foreach (var info in fonts.Where(f => string.Equals(f.FamilyName, family, StringComparison.OrdinalIgnoreCase))
+                         .OrderBy(f => (f.Bold == bold ? 0 : 1) + (f.Italic == italic ? 0 : 1)))
+            {
+                yield return (info, true);
+            }
+        }
+
+        foreach (var info in fonts.OrderBy(f => (f.Bold == bold ? 0 : 1) + (f.Italic == italic ? 0 : 1)))
+        {
+            yield return (info, false);
+        }
+    }
+
     private static TrueTypeFont? FindGlyphFallbackFont(int codePoint, bool bold, bool italic)
     {
-        static TrueTypeFont? LoadUncached(string path, int face)
+        foreach (var (info, cache) in EnumerateFallbackCandidates(bold, italic))
         {
-            try
-            {
-                return TrueTypeFont.Load(path, face);
-            }
-            catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException or ArgumentException)
-            {
-                return null;
-            }
-        }
-
-        // Preferred families are few, so their fonts stay cached; the catalog-wide sweep
-        // loads each face transiently so an uncovered code point cannot pin every font in memory.
-        static TrueTypeFont? Load(SystemFontInfo info, bool cache) =>
-            cache
-                ? FallbackFontCache.GetOrAdd((info.FilePath, info.FaceIndex), static key => LoadUncached(key.Path, key.Face))
-                : LoadUncached(info.FilePath, info.FaceIndex);
-
-        IEnumerable<(SystemFontInfo Info, bool Cache)> Candidates()
-        {
-            var fonts = SystemFontCatalog.Fonts;
-            foreach (var family in FallbackFamilies)
-            {
-                foreach (var info in fonts.Where(f => string.Equals(f.FamilyName, family, StringComparison.OrdinalIgnoreCase))
-                             .OrderBy(f => (f.Bold == bold ? 0 : 1) + (f.Italic == italic ? 0 : 1)))
-                {
-                    yield return (info, true);
-                }
-            }
-
-            foreach (var info in fonts.OrderBy(f => (f.Bold == bold ? 0 : 1) + (f.Italic == italic ? 0 : 1)))
-            {
-                yield return (info, false);
-            }
-        }
-
-        foreach (var (info, cache) in Candidates())
-        {
-            if (Load(info, cache) is { } font && font.GetGlyphIndex(codePoint) != 0)
+            if (LoadFallbackFont(info, cache) is { } font && font.GetGlyphIndex(codePoint) != 0)
             {
                 // A sweep hit is promoted into the shared cache (keeping the instance just loaded) so all
                 // results for the same file/face share one font rather than each holding a private copy.

@@ -173,19 +173,18 @@ public static partial class SvgCodec
 
     /// <summary>
     ///     Applies <paramref name="clipPathElement"/> as a hard geometric clip against
-    ///     <paramref name="content"/>, in place: every pixel not covered by the union of the
+    ///     <paramref name="target"/>'s content buffer, in place: every pixel not covered by the union of the
     ///     <c>clipPath</c> element's own direct child shapes has its alpha forced to zero; every
     ///     covered pixel is left completely unchanged.
     /// </summary>
     /// <param name="clipPathElement">The resolved <c>clipPath</c> element.</param>
-    /// <param name="content">The referencing shape/group's own pre-clip offscreen content buffer, mutated in place.</param>
-    /// <param name="referenceBounds">
-    ///     The referencing element's own local-space painted-content bounds - the
-    ///     <c>objectBoundingBox</c> reference rectangle when <c>clipPathUnits="objectBoundingBox"</c>.
+    /// <param name="target">
+    ///     The referencing shape/group's own pre-clip offscreen content buffer (mutated in place),
+    ///     its own local-space painted-content bounds (the <c>objectBoundingBox</c> reference
+    ///     rectangle when <c>clipPathUnits="objectBoundingBox"</c>), the pixel-space origin the
+    ///     buffer was allocated at, and the accumulated transform from the referencing element's
+    ///     own local space into pixel space.
     /// </param>
-    /// <param name="pixelX">The pixel-space X origin <paramref name="content"/> was allocated at.</param>
-    /// <param name="pixelY">The pixel-space Y origin <paramref name="content"/> was allocated at.</param>
-    /// <param name="transform">The accumulated transform from the referencing element's own local space into pixel space.</param>
     /// <param name="state">
     ///     The referencing element's own cascaded render state - only its
     ///     <see cref="RenderState.ViewportWidth"/>/<see cref="RenderState.ViewportHeight"/> are
@@ -200,7 +199,7 @@ public static partial class SvgCodec
     /// <remarks>
     ///     Per <c>clipPathUnits</c> (default <c>userSpaceOnUse</c>), an <c>objectBoundingBox</c>
     ///     value prepends <see cref="ComputeObjectBoundingBoxMap(Rect)"/> (evaluated against
-    ///     <paramref name="referenceBounds"/>) to <paramref name="transform"/> before mapping any
+    ///     <paramref name="target"/>'s own <see cref="EffectsTarget.ReferenceBounds"/>) to <see cref="EffectsTarget.Transform"/> before mapping any
     ///     clip child geometry into pixel space - mirroring <c>gradientUnits</c>'s identical
     ///     pattern in <c>SvgCodec.Gradients.cs</c>.
     ///     <para>
@@ -209,7 +208,7 @@ public static partial class SvgCodec
     ///     its own <c>clip-rule</c> (falling back to <c>nonzero</c>, identical to <c>fill-rule</c>'s
     ///     own default - see <see cref="ParseFillRule"/>) as an opaque white fill into a fresh,
     ///     initially fully-transparent coverage <see cref="Surface"/> the same size as
-    ///     <paramref name="content"/>; painting each child fully opaque and letting later children
+    ///     <see cref="EffectsTarget.Content"/>; painting each child fully opaque and letting later children
     ///     paint directly over earlier ones is what naturally realizes the spec-defined "union of
     ///     child shapes" semantics with no separate union step. Clip children establish their own
     ///     fresh presentation-attribute cascade starting at <paramref name="clipPathElement"/>
@@ -219,16 +218,13 @@ public static partial class SvgCodec
     /// </remarks>
     private static void ApplyClipPath(
         XElement clipPathElement,
-        Surface content,
-        Rect referenceBounds,
-        int pixelX,
-        int pixelY,
-        Matrix3x2 transform,
+        EffectsTarget target,
         RenderState state,
         RenderContext context,
         GeometryWorkBudget workBudget,
         FilterWorkBudget filterWorkBudget)
     {
+        var (content, referenceBounds, pixelX, pixelY, transform) = target;
         var isObjectBoundingBox = string.Equals(
             (string?)clipPathElement.Attribute("clipPathUnits"), "objectBoundingBox", StringComparison.Ordinal);
         var contentTransform = isObjectBoundingBox
@@ -368,43 +364,41 @@ public static partial class SvgCodec
 
     /// <summary>
     ///     Applies <paramref name="maskElement"/> as a luminance mask against
-    ///     <paramref name="content"/>, in place: every pixel's alpha is scaled by the mask
+    ///     <paramref name="target"/>'s content buffer, in place: every pixel's alpha is scaled by the mask
     ///     content's own per-pixel luminance (standard sRGB coefficients, see
     ///     <see cref="ApplyLuminanceMask"/>) times its own alpha.
     /// </summary>
     /// <param name="maskElement">The resolved <c>mask</c> element.</param>
-    /// <param name="content">The referencing shape/group's own pre-mask offscreen content buffer, mutated in place.</param>
-    /// <param name="referenceBounds">The referencing element's own local-space painted-content bounds.</param>
-    /// <param name="pixelX">The pixel-space X origin <paramref name="content"/> was allocated at.</param>
-    /// <param name="pixelY">The pixel-space Y origin <paramref name="content"/> was allocated at.</param>
-    /// <param name="transform">The accumulated transform from the referencing element's own local space into pixel space.</param>
+    /// <param name="target">
+    ///     The referencing shape/group's own pre-mask offscreen content buffer (mutated in place),
+    ///     its own local-space painted-content bounds, the pixel-space origin the buffer was
+    ///     allocated at, and the accumulated transform from the referencing element's own local
+    ///     space into pixel space.
+    /// </param>
     /// <param name="state">
     ///     The referencing element's own cascaded render state - only its viewport size is carried
     ///     forward into the mask content's own fresh state, matching <see cref="ApplyClipPath"/>.
     /// </param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, forwarded to the mask content's own <c>RenderElement</c> walk.</param>
-    /// <param name="elementDepth">
-    ///     The current recursion depth, forwarded (already incremented by one relative to the
-    ///     referencing element itself) to the mask content's own <c>RenderElement</c> walk - the
-    ///     sole guard against a <c>mask</c>-reference cycle (an element's own mask content
+    /// <param name="scope">
+    ///     The recursion depths and shared work budgets, forwarded to the mask content's own
+    ///     <c>RenderElement</c> walk (in case it itself contains a filtered/clipped/masked element).
+    ///     <see cref="RenderScope.ElementDepth"/> is already incremented by one relative to the
+    ///     referencing element itself by the group caller; the mask content's walk adds one more -
+    ///     the sole guard against a <c>mask</c>-reference cycle (an element's own mask content
     ///     containing an element whose own mask references back to the original), since that walk
     ///     throws once <see cref="MaxElementDepth"/> is reached exactly as it would for any other
     ///     runaway recursive structure.
     /// </param>
-    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, forwarded unchanged.</param>
     /// <param name="totalElements">The running total-rendered-elements count, forwarded to the mask content's own <c>RenderElement</c> walk.</param>
-    /// <param name="workBudget">The shared geometry-parsing work budget, forwarded to the mask content's own <c>RenderElement</c> walk.</param>
-    /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget, forwarded to the mask content's own <c>RenderElement</c> walk (in case it itself contains a filtered/clipped/masked element).</param>
-    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, forwarded to the mask content's own <c>RenderElement</c> walk.</param>
     /// <remarks>
     ///     Per <c>maskContentUnits</c> (default <c>userSpaceOnUse</c>, and deliberately distinct
     ///     from <c>maskUnits</c> - see <see cref="ComputeMaskRegionLocalBounds"/>'s remarks for why
     ///     these two attributes must never be conflated), an <c>objectBoundingBox</c> value
     ///     prepends <see cref="ComputeObjectBoundingBoxMap(Rect)"/> (evaluated against
-    ///     <paramref name="referenceBounds"/>) to <paramref name="transform"/> before the mask's own
+    ///     <see cref="EffectsTarget.ReferenceBounds"/>) to <see cref="EffectsTarget.Transform"/> before the mask's own
     ///     children are rendered. The mask content is rendered into a fresh, initially fully
-    ///     transparent <see cref="Surface"/> the exact size of <paramref name="content"/>, using the
+    ///     transparent <see cref="Surface"/> the exact size of <see cref="EffectsTarget.Content"/>, using the
     ///     ordinary recursive <c>RenderElement</c> walk for every direct child (so nested groups,
     ///     gradients, and even a nested clip-path/mask/filter on mask content all already work with
     ///     no special-casing at all - unlike <see cref="ApplyClipPath"/>'s children, which are
@@ -415,21 +409,13 @@ public static partial class SvgCodec
     /// </remarks>
     private static void ApplyMask(
         XElement maskElement,
-        Surface content,
-        Rect referenceBounds,
-        int pixelX,
-        int pixelY,
-        Matrix3x2 transform,
+        EffectsTarget target,
         RenderState state,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget)
+        RenderScope scope,
+        ref int totalElements)
     {
+        var (content, referenceBounds, pixelX, pixelY, transform) = target;
         var contentIsObjectBoundingBox = string.Equals(
             (string?)maskElement.Attribute("maskContentUnits"), "objectBoundingBox", StringComparison.Ordinal);
         var contentTransform = contentIsObjectBoundingBox
@@ -437,14 +423,15 @@ public static partial class SvgCodec
             : transform;
         var localToTemp = contentTransform * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
 
-        filterWorkBudget.RecordSurfaceAllocated(content.Width, content.Height);
+        scope.FilterWorkBudget.RecordSurfaceAllocated(content.Width, content.Height);
         var maskSource = new Surface(content.Width, content.Height);
         var maskContext = context with { Surface = maskSource };
         var maskState = RenderState.Initial with { ViewportWidth = state.ViewportWidth, ViewportHeight = state.ViewportHeight };
 
+        var childScope = scope.Nested();
         foreach (var child in maskElement.Elements())
         {
-            RenderElement(child, maskState, localToTemp, maskContext, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            RenderElement(child, maskState, localToTemp, maskContext, childScope, ref totalElements);
         }
 
         ApplyLuminanceMask(content, maskSource);

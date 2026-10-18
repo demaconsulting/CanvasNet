@@ -266,7 +266,8 @@ public class PdfSystemIntegrationTests
         var pdfBytes = BuildEncryptedPdf(encryptDictBody, idBytes, encryptedContent);
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes), userPassword);
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream, userPassword);
         using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: the rectangle's device footprint is painted; outside it is left blank.
@@ -346,7 +347,8 @@ public class PdfSystemIntegrationTests
             [formStreamBody]);
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: the rectangle's device footprint is painted; outside it is left blank.
@@ -690,7 +692,8 @@ public class PdfSystemIntegrationTests
             "BT /F1 60 Tf 20 30 Td (A) Tj ET");
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: at least one visibly-painted (non-transparent) pixel proves a real substitute
@@ -731,7 +734,8 @@ public class PdfSystemIntegrationTests
             "BT /F1 60 Tf 20 30 Td (a) Tj ET");
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: at least one visibly-painted (non-transparent) pixel proves a real Noto
@@ -796,7 +800,8 @@ public class PdfSystemIntegrationTests
             "BT /F1 20 Tf (A) Tj ET");
 
         // Act & Assert
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var exception = Assert.Throws<UnsupportedImageFeatureException>(() => document.Render(0, 100, 100));
         Assert.Equal("pdf-font-symbolic-not-embedded", exception.Feature);
     }
@@ -869,7 +874,8 @@ public class PdfSystemIntegrationTests
             ]);
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: near-black at the start coordinate, near-white at the end coordinate.
@@ -903,7 +909,8 @@ public class PdfSystemIntegrationTests
             ]);
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: the result is not solid black (the gradient now actually overlays the
@@ -938,7 +945,8 @@ public class PdfSystemIntegrationTests
             [patternStreamBody]);
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: both tile colors appear, at multiple repeated tile offsets.
@@ -1065,7 +1073,8 @@ public class PdfSystemIntegrationTests
             ]);
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: pixel x = 50 (center 50.5) has t = (50.5 - 9.8) / 80 = 0.509, f = 0.259 -> ~66.

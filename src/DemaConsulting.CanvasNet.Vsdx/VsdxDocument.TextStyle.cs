@@ -173,20 +173,7 @@ public sealed partial class VsdxDocument
                 ? cell.Value
                 : ResolveTextRowCellValue(textStyleId, paragraphRowIndex, cellName, style => style.ParagraphRows)?.Value;
 
-        var fontRaw = ResolveCharacterCell("Font");
-        string fontFamily;
-        if (string.IsNullOrEmpty(fontRaw))
-        {
-            fontFamily = DefaultFontFamily;
-        }
-        else if (string.Equals(fontRaw, "Themed", StringComparison.Ordinal))
-        {
-            fontFamily = GetTheme()?.MinorLatinFont ?? ResolveUnthemedCharacterCell("Font") ?? DefaultFontFamily;
-        }
-        else
-        {
-            fontFamily = fontRaw;
-        }
+        var fontFamily = ResolveRunFontFamily(ResolveCharacterCell("Font"));
 
         var colorCell = ResolveCharacterCellFull("Color");
         var color = VsdxColorPalette.Resolve(colorCell?.Value, colorCell?.Formula, GetTheme(), DefaultTextColor);
@@ -201,27 +188,7 @@ public sealed partial class VsdxDocument
         var bold = (styleBits & 0x1) != 0;
         var italic = (styleBits & 0x2) != 0;
 
-        // Style bit 2 = underline; Strikethru/DoubleStrikethrough/Overline are separate cells.
-        var decoration = VsdxTextDecoration.None;
-        if ((styleBits & 0x4) != 0)
-        {
-            decoration |= VsdxTextDecoration.Underline;
-        }
-
-        if (ParseInt(ResolveCharacterCell("Strikethru")) != 0)
-        {
-            decoration |= VsdxTextDecoration.Strikethrough;
-        }
-
-        if (ParseInt(ResolveCharacterCell("DoubleStrikethrough")) != 0)
-        {
-            decoration |= VsdxTextDecoration.DoubleStrikethrough;
-        }
-
-        if (ParseInt(ResolveCharacterCell("Overline")) != 0)
-        {
-            decoration |= VsdxTextDecoration.Overline;
-        }
+        var decoration = ResolveRunDecoration(styleBits, ResolveCharacterCell);
 
         var text = raw.Text;
         var caseValue = ParseInt(ResolveCharacterCell("Case"));
@@ -252,6 +219,50 @@ public sealed partial class VsdxDocument
             ParseDouble(ResolveParagraphCell("IndRight")));
 
         return new VsdxEffectiveTextRun(text, fontFamily, sizeInches, bold, italic, color, paragraph, decoration, smallCaps);
+    }
+
+    /// <summary>Resolves a run's font family from its raw <c>Font</c> cell value.</summary>
+    /// <param name="fontRaw">The raw resolved <c>Font</c> cell value, if any.</param>
+    /// <returns>The font family name.</returns>
+    private string ResolveRunFontFamily(string? fontRaw)
+    {
+        if (string.IsNullOrEmpty(fontRaw))
+        {
+            return DefaultFontFamily;
+        }
+
+        return string.Equals(fontRaw, "Themed", StringComparison.Ordinal)
+            ? GetTheme()?.MinorLatinFont ?? ResolveUnthemedCharacterCell("Font") ?? DefaultFontFamily
+            : fontRaw;
+    }
+
+    /// <summary>
+    ///     Resolves a run's decoration: style bit 2 = underline; Strikethru/DoubleStrikethrough/Overline
+    ///     are separate cells.
+    /// </summary>
+    /// <param name="styleBits">The run's <c>Style</c> bit flags.</param>
+    /// <param name="resolveCharacterCell">Resolves a character cell's value by name.</param>
+    /// <returns>The combined decoration flags.</returns>
+    private static VsdxTextDecoration ResolveRunDecoration(int styleBits, Func<string, string?> resolveCharacterCell)
+    {
+        var decoration = (styleBits & 0x4) != 0 ? VsdxTextDecoration.Underline : VsdxTextDecoration.None;
+
+        if (ParseInt(resolveCharacterCell("Strikethru")) != 0)
+        {
+            decoration |= VsdxTextDecoration.Strikethrough;
+        }
+
+        if (ParseInt(resolveCharacterCell("DoubleStrikethrough")) != 0)
+        {
+            decoration |= VsdxTextDecoration.DoubleStrikethrough;
+        }
+
+        if (ParseInt(resolveCharacterCell("Overline")) != 0)
+        {
+            decoration |= VsdxTextDecoration.Overline;
+        }
+
+        return decoration;
     }
 
     /// <summary>

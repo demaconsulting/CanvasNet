@@ -87,13 +87,11 @@ public static partial class SvgCodec
     /// <param name="state">The cascaded render state, supplying the current viewport size (for percentage resolution) and <see cref="RenderState.Opacity"/>.</param>
     /// <param name="transform">The accumulated transform from this element's own local space into pixel space.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, forwarded to <see cref="ApplyMask"/>'s own content rendering.</param>
-    /// <param name="elementDepth">The current recursion depth, forwarded to <see cref="ApplyMask"/>'s own content rendering.</param>
-    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, forwarded unchanged.</param>
-    /// <param name="totalElements">The running total-rendered-elements count, forwarded to <see cref="ApplyMask"/>'s own content rendering.</param>
-    /// <param name="workBudget">The shared geometry-parsing work budget, forwarded to <c>clip-path</c> child geometry building and to <see cref="ApplyMask"/>'s own content.</param>
-    /// <param name="filterWorkBudget">
-    ///     The shared cumulative filter-evaluation work budget (see <see cref="FilterWorkBudget"/>),
+    /// <param name="scope">
+    ///     The recursion depths and shared work budgets, forwarded to <see cref="ApplyMask"/>'s own
+    ///     content rendering (and, for the geometry budget, to <c>clip-path</c> child geometry
+    ///     building). Its <see cref="RenderScope.FilterWorkBudget"/> is the shared cumulative
+    ///     filter-evaluation work budget (see <see cref="FilterWorkBudget"/>),
     ///     charged the combined effects-pipeline region-area cost (identical to
     ///     <see cref="ComputeEffectsPipelineWorkUnits"/>'s own formula, reused verbatim) plus the
     ///     raw base64 payload's own character length, charged <em>before</em> the (comparatively
@@ -104,14 +102,14 @@ public static partial class SvgCodec
     ///     aggregate decode CPU cost, a risk the plain region-area charge alone does not cover
     ///     (a small placement rect can still reference an enormous base64 payload). A decline is a
     ///     tolerant no-op, exactly like a declined pattern-fill charge - never a thrown exception.
+    ///     Its <see cref="RenderScope.BoundsPrePassBudget"/> is forwarded to <see cref="ApplyMask"/>'s
+    ///     own content in case it itself contains a filtered group. A
+    ///     <see cref="RenderScope.MarkerDepth"/> greater than zero means <paramref name="element"/>
+    ///     is being rendered as part of a <c>marker</c> element's own content, so its own
+    ///     <c>filter</c>/<c>clip-path</c>/<c>mask</c> attributes are never resolved, mirroring
+    ///     <see cref="RenderShapeWithEffects"/>'s identical behavior.
     /// </param>
-    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, forwarded to <see cref="ApplyMask"/>'s own content in case it itself contains a filtered group.</param>
-    /// <param name="suppressEffects">
-    ///     <see langword="true"/> when <paramref name="element"/> is being rendered as part of a
-    ///     <c>marker</c> element's own content - <paramref name="element"/>'s own <c>filter</c>/
-    ///     <c>clip-path</c>/<c>mask</c> attributes are then never resolved, mirroring
-    ///     <see cref="RenderShapeWithEffects"/>'s identical parameter.
-    /// </param>
+    /// <param name="totalElements">The running total-rendered-elements count, forwarded to <see cref="ApplyMask"/>'s own content rendering.</param>
     /// <remarks>
     ///     Unlike <see cref="RenderShapeWithEffects"/>, there is no separate "no effects" fast path:
     ///     an <c>image</c> always needs a region-sized sampling pass to place its decoded raster
@@ -128,7 +126,7 @@ public static partial class SvgCodec
     ///     <c>image/svg+xml</c>); a non-finite/non-invertible composed placement transform; a
     ///     degenerate/oversized effects region (mirroring every other effects-capable element's
     ///     identical <see cref="ConvertLocalRegionToPixelBounds"/> reuse); a declined
-    ///     <paramref name="filterWorkBudget"/> charge; or a malformed base64 payload/malformed or
+    ///     <see cref="RenderScope.FilterWorkBudget"/> charge; or a malformed base64 payload/malformed or
     ///     oversized raster payload (each already-sibling raster codec's own <c>Load</c> throws
     ///     <see cref="InvalidDataException"/> for the latter, already enforcing
     ///     <see cref="Surface.MaxDimension"/> internally - see this class's remarks).
@@ -138,14 +136,8 @@ public static partial class SvgCodec
         RenderState state,
         Matrix3x2 transform,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget,
-        bool suppressEffects)
+        RenderScope scope,
+        ref int totalElements)
     {
         // Resolve the placement rect first - a degenerate size means "render nothing" before any
         // href parsing/decoding is even attempted, exactly mirroring RenderPatternFill's own
@@ -163,14 +155,7 @@ public static partial class SvgCodec
         // type is ever decoded; every other form (a non-"data:" href, a data URI missing
         // ";base64", or an unsupported/nested-SVG MIME type) tolerantly renders nothing without
         // ever touching the filesystem or network - see this class's remarks
-        var href = GetHrefAttribute(element);
-        if (href == null || !TryParseDataUri(href, out var mimeType, out var base64Payload))
-        {
-            return;
-        }
-
-        var decodeRaster = ResolveRasterDecoder(mimeType);
-        if (decodeRaster == null)
+        if (!TryResolveImageSource(element, out var decodeRaster, out var base64Payload))
         {
             return;
         }
@@ -179,55 +164,33 @@ public static partial class SvgCodec
         // precedence, every other effects-capable element resolves - the placement rect itself
         // stands in for a shape's own stroke-expanded painted bounds (an <image> has no stroke
         // concept, so no ExpandBoundsForStroke call is needed)
-        var filterElement = suppressEffects ? null : ResolveFilterElement(element, context);
-        var clipPathElement = suppressEffects ? null : ResolveClipPathElement(element, context);
-        var maskElement = suppressEffects ? null : ResolveMaskElement(element, context);
-
         var placementRect = new Rect(x, y, width, height);
-        var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, placementRect, transform);
-        if (region == null)
+        var effects = ResolveImageEffects(element, context, scope.MarkerDepth > 0, placementRect, transform);
+        if (effects == null)
         {
             return;
         }
 
-        var (pixelX, pixelY, pixelWidth, pixelHeight) = region.Value;
-
-        // Mirrors RenderShapeEffectsPipeline's own per-filter budget guard: a filter that does not
-        // survive its own primitive-count/region-area ceiling simply never applies, but a
-        // clip-path/mask that is also present is unaffected and still applies
-        var primitiveCount = filterElement == null ? 0 : CountFilterPrimitiveWorkUnits(filterElement);
-        var filterApplies = filterElement != null && primitiveCount != 0 &&
-            IsFilterPrimitiveWorkWithinBudget(primitiveCount, pixelWidth, pixelHeight);
+        var (pixelX, pixelY, pixelWidth, pixelHeight) = effects.Value.Region;
 
         // Charge the shared cumulative FilterWorkBudget BEFORE the base64 decode/raster Load is
         // attempted - see this method's own remarks on the additional base64-length term
         var workUnits = ComputeEffectsPipelineWorkUnits(
-            filterApplies, primitiveCount, filterElement != null && FilterUsesSourceAlpha(filterElement), clipPathElement != null, maskElement != null, pixelWidth, pixelHeight)
+            effects.Value.FilterApplies,
+            effects.Value.PrimitiveCount,
+            effects.Value.Filter != null && FilterUsesSourceAlpha(effects.Value.Filter),
+            effects.Value.ClipPath != null,
+            effects.Value.Mask != null,
+            pixelWidth,
+            pixelHeight)
             + base64Payload.Length;
-        if (!filterWorkBudget.TryCharge(workUnits))
+        if (!scope.FilterWorkBudget.TryCharge(workUnits))
         {
             return;
         }
 
-        // Decode the base64 payload and dispatch to the matching sibling raster codec's own
-        // Load(Stream) - any failure (malformed base64, malformed/truncated/oversized raster
-        // bytes, or a well-formed-but-unsupported raster feature such as PNG Adam7 interlacing -
-        // see UnsupportedImageFeatureException's own remarks on why that type is not an
-        // InvalidDataException and would otherwise slip past this filter) is a tolerant
-        // per-element no-op, matching this codec's existing dangling-reference tolerance policy,
-        // never propagating past this one element. IOException is caught alongside the sealed
-        // UnsupportedImageFeatureException so any other sibling raster codec's own recognized-
-        // but-unsupported-feature exception (should one ever be introduced) is skipped just as
-        // tolerantly, without requiring this filter to be revisited.
-        Surface decodedSurface;
-        try
-        {
-            var bytes = Convert.FromBase64String(base64Payload);
-            using var payloadStream = new MemoryStream(bytes);
-            decodedSurface = decodeRaster(payloadStream);
-        }
-        catch (Exception ex) when (ex is FormatException or InvalidDataException or ArgumentOutOfRangeException
-            or IOException)
+        var decodedSurface = TryDecodeImageSurface(decodeRaster, base64Payload);
+        if (decodedSurface == null)
         {
             return;
         }
@@ -249,28 +212,146 @@ public static partial class SvgCodec
         // Sample the decoded raster into a fresh region-sized buffer via non-tiling
         // inverse-transform sampling (see SampleImageIntoRegion), then apply clip-path -> mask ->
         // filter in SVG's defined order, exactly like RenderShapeEffectsPipeline
-        filterWorkBudget.RecordSurfaceAllocated(pixelWidth, pixelHeight);
-        var content = SampleImageIntoRegion(decodedSurface, pixelX, pixelY, pixelWidth, pixelHeight, imageToPixel, pixelToImage, state.PixelatedImages);
+        scope.FilterWorkBudget.RecordSurfaceAllocated(pixelWidth, pixelHeight);
+        var content = SampleImageIntoRegion(
+            decodedSurface, new PixelRect(pixelX, pixelY, pixelWidth, pixelHeight), imageToPixel, pixelToImage, state.PixelatedImages);
 
-        if (clipPathElement != null)
+        ApplyEffectsAndComposite(
+            new EffectsSet(effects.Value.Filter, effects.Value.ClipPath, effects.Value.Mask),
+            effects.Value.FilterApplies,
+            new EffectsTarget(content, effects.Value.PlacementRect, pixelX, pixelY, transform),
+            state,
+            context,
+            scope,
+            ref totalElements);
+    }
+
+    /// <summary>
+    ///     The resolved <c>filter</c>/<c>clip-path</c>/<c>mask</c> effects of an <c>image</c>
+    ///     element together with its placement rect and pixel-space effects region.
+    /// </summary>
+    /// <param name="Filter">The resolved <c>filter</c> element, or <see langword="null"/>.</param>
+    /// <param name="ClipPath">The resolved <c>clipPath</c> element, or <see langword="null"/>.</param>
+    /// <param name="Mask">The resolved <c>mask</c> element, or <see langword="null"/>.</param>
+    /// <param name="FilterApplies">Whether the filter survives its own primitive-count/region-area budget.</param>
+    /// <param name="PrimitiveCount">The filter's primitive work-unit count (0 when there is no filter).</param>
+    /// <param name="PlacementRect">The element's placement rect in its own local space.</param>
+    /// <param name="Region">The pixel-space effects region.</param>
+    private readonly record struct ImageEffects(
+        XElement? Filter,
+        XElement? ClipPath,
+        XElement? Mask,
+        bool FilterApplies,
+        int PrimitiveCount,
+        Rect PlacementRect,
+        (int X, int Y, int Width, int Height) Region);
+
+    /// <summary>
+    ///     Resolves the <c>href</c> of an <c>image</c> element into a raster decoder and its raw
+    ///     base64 payload.
+    /// </summary>
+    /// <remarks>
+    ///     Only a well-formed base64 <c>data:</c> URI with a recognized raster MIME type is ever
+    ///     decoded; every other form (a non-<c>data:</c> href, a data URI missing
+    ///     <c>;base64</c>, or an unsupported/nested-SVG MIME type) tolerantly yields
+    ///     <see langword="false"/> without ever touching the filesystem or network - see this
+    ///     class's remarks.
+    /// </remarks>
+    /// <param name="element">The <c>image</c> element.</param>
+    /// <param name="decodeRaster">The matching raster decoder, or <see langword="null"/> on failure.</param>
+    /// <param name="base64Payload">The raw base64 payload, or <see cref="string.Empty"/> on failure.</param>
+    /// <returns><see langword="true"/> if the <c>href</c> is a decodable raster data URI.</returns>
+    private static bool TryResolveImageSource(
+        XElement element,
+        out Func<Stream, Surface> decodeRaster,
+        out string base64Payload)
+    {
+        decodeRaster = null!;
+        base64Payload = string.Empty;
+        var href = GetHrefAttribute(element);
+        if (href == null || !TryParseDataUri(href, out var mimeType, out base64Payload))
         {
-            ApplyClipPath(clipPathElement, content, placementRect, pixelX, pixelY, transform, state, context, workBudget, filterWorkBudget);
+            return false;
         }
 
-        if (maskElement != null)
+        var decoder = ResolveRasterDecoder(mimeType);
+        if (decoder == null)
         {
-            ApplyMask(
-                maskElement, content, placementRect, pixelX, pixelY, transform, state, context,
-                useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            return false;
         }
 
-        var finalSurface = filterApplies
-            ? EvaluateFilterChain(
-                filterElement!, content, transform, pixelX, pixelY, state, context, useDepth, elementDepth, markerDepth,
-                ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget)
-            : content;
+        decodeRaster = decoder;
+        return true;
+    }
 
-        CompositeFilterResultOntoCanvas(finalSurface, pixelX, pixelY, context.Surface, state.Opacity);
+    /// <summary>
+    ///     Resolves an <c>image</c> element's <c>filter</c>/<c>clip-path</c>/<c>mask</c> references
+    ///     and the pixel-space effects region they imply.
+    /// </summary>
+    /// <param name="element">The <c>image</c> element.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="suppressEffects">Whether the element's own effects are never resolved (marker content).</param>
+    /// <param name="placementRect">The placement rect, standing in for a shape's painted bounds.</param>
+    /// <param name="transform">The accumulated local-to-pixel transform.</param>
+    /// <returns>The resolved effects, or <see langword="null"/> for a degenerate/oversized region.</returns>
+    private static ImageEffects? ResolveImageEffects(
+        XElement element,
+        RenderContext context,
+        bool suppressEffects,
+        Rect placementRect,
+        Matrix3x2 transform)
+    {
+        var filterElement = suppressEffects ? null : ResolveFilterElement(element, context);
+        var clipPathElement = suppressEffects ? null : ResolveClipPathElement(element, context);
+        var maskElement = suppressEffects ? null : ResolveMaskElement(element, context);
+
+        var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, placementRect, transform);
+        if (region == null)
+        {
+            return null;
+        }
+
+        // Mirrors RenderShapeEffectsPipeline's own per-filter budget guard: a filter that does not
+        // survive its own primitive-count/region-area ceiling simply never applies, but a
+        // clip-path/mask that is also present is unaffected and still applies
+        var primitiveCount = filterElement == null ? 0 : CountFilterPrimitiveWorkUnits(filterElement);
+        var filterApplies = filterElement != null && primitiveCount != 0 &&
+            IsFilterPrimitiveWorkWithinBudget(primitiveCount, region.Value.Width, region.Value.Height);
+
+        return new ImageEffects(filterElement, clipPathElement, maskElement, filterApplies, primitiveCount, placementRect, region.Value);
+    }
+
+    /// <summary>
+    ///     Decodes a base64 raster payload with the supplied sibling raster codec decoder.
+    /// </summary>
+    /// <remarks>
+    ///     Any failure (malformed base64, malformed/truncated/oversized raster bytes, or a
+    ///     well-formed-but-unsupported raster feature such as PNG Adam7 interlacing - see
+    ///     UnsupportedImageFeatureException's own remarks on why that type is not an
+    ///     <see cref="InvalidDataException"/> and would otherwise slip past this filter) is a
+    ///     tolerant per-element no-op, matching this codec's existing dangling-reference tolerance
+    ///     policy, never propagating past this one element. <see cref="IOException"/> is caught
+    ///     alongside the sealed UnsupportedImageFeatureException so any other sibling raster
+    ///     codec's own recognized-but-unsupported-feature exception (should one ever be
+    ///     introduced) is skipped just as tolerantly, without requiring this filter to be
+    ///     revisited.
+    /// </remarks>
+    /// <param name="decodeRaster">The raster decoder.</param>
+    /// <param name="base64Payload">The raw base64 payload.</param>
+    /// <returns>The decoded surface, or <see langword="null"/> on any decode failure.</returns>
+    private static Surface? TryDecodeImageSurface(Func<Stream, Surface> decodeRaster, string base64Payload)
+    {
+        try
+        {
+            var bytes = Convert.FromBase64String(base64Payload);
+            using var payloadStream = new MemoryStream(bytes);
+            return decodeRaster(payloadStream);
+        }
+        catch (Exception ex) when (ex is FormatException or InvalidDataException or ArgumentOutOfRangeException
+            or IOException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -379,10 +460,7 @@ public static partial class SvgCodec
     ///     <c>preserveAspectRatio</c> fit can leave within the placement rect.
     /// </summary>
     /// <param name="decodedSurface">The already fully decoded raster image.</param>
-    /// <param name="pixelX">The painted region's own pixel-space X origin.</param>
-    /// <param name="pixelY">The painted region's own pixel-space Y origin.</param>
-    /// <param name="pixelWidth">The painted region's own pixel width.</param>
-    /// <param name="pixelHeight">The painted region's own pixel height.</param>
+    /// <param name="region">The painted region's own pixel-space origin and size.</param>
     /// <param name="imageToPixel">The composed image-content-space-to-pixel-space transform.</param>
     /// <param name="pixelToImage">The inverse of <paramref name="imageToPixel"/>.</param>
     /// <param name="nearest"><see langword="true"/> to sample nearest-neighbor (<c>image-rendering: pixelated</c>) instead of smoothing.</param>
@@ -399,39 +477,75 @@ public static partial class SvgCodec
     /// </remarks>
     private static Surface SampleImageIntoRegion(
         Surface decodedSurface,
-        int pixelX,
-        int pixelY,
-        int pixelWidth,
-        int pixelHeight,
+        PixelRect region,
         Matrix3x2 imageToPixel,
         Matrix3x2 pixelToImage,
         bool nearest)
     {
-        var result = new Surface(pixelWidth, pixelHeight);
-        var decodedWidth = decodedSurface.Width;
-        var decodedHeight = decodedSurface.Height;
+        var result = new Surface(region.Width, region.Height);
+        var imageToRegion = imageToPixel * Matrix3x2.CreateTranslation(-region.X, -region.Y);
 
         // Axis-aligned placement: resample once to the exact device rectangle and copy it in
-        var imageToRegion = imageToPixel * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
-        if (SurfaceResampler.TryResampleToDevice(
-                decodedSurface, imageToRegion, pixelWidth, pixelHeight,
-                nearest ? ResamplingMode.Nearest : ResamplingMode.Auto, out var window, out var originX, out var originY))
+        if (TryCopyResampledWindow(decodedSurface, imageToRegion, nearest, result))
         {
-            using (window)
-            {
-                if (window is not null)
-                {
-                    for (var row = 0; row < window.Height; row++)
-                    {
-                        window.GetRowSpan(row).CopyTo(result.GetRowSpan(originY + row).Slice(originX, window.Width));
-                    }
-                }
-            }
-
             return result;
         }
 
         // Rotated or skewed: inverse-map each pixel; smooth mode samples a prefiltered source bilinearly
+        SampleInverseMapped(decodedSurface, region, imageToRegion, pixelToImage, nearest, result);
+        return result;
+    }
+
+    /// <summary>
+    ///     Resamples <paramref name="decodedSurface"/> once to the exact device rectangle of an
+    ///     axis-aligned placement and copies the result into <paramref name="result"/>.
+    /// </summary>
+    /// <param name="decodedSurface">The already fully decoded raster image.</param>
+    /// <param name="imageToRegion">The image-content-space-to-region-space transform.</param>
+    /// <param name="nearest"><see langword="true"/> to sample nearest-neighbor instead of smoothing.</param>
+    /// <param name="result">The region-sized destination buffer.</param>
+    /// <returns><see langword="true"/> if the placement was axis-aligned and handled; otherwise <see langword="false"/>.</returns>
+    private static bool TryCopyResampledWindow(Surface decodedSurface, Matrix3x2 imageToRegion, bool nearest, Surface result)
+    {
+        if (!SurfaceResampler.TryResampleToDevice(
+                decodedSurface, imageToRegion, result.Width, result.Height,
+                nearest ? ResamplingMode.Nearest : ResamplingMode.Auto, out var window, out var origin))
+        {
+            return false;
+        }
+
+        using (window)
+        {
+            if (window is not null)
+            {
+                for (var row = 0; row < window.Height; row++)
+                {
+                    window.GetRowSpan(row).CopyTo(result.GetRowSpan(origin.Y + row).Slice(origin.X, window.Width));
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Inverse-maps every destination pixel of <paramref name="result"/> into
+    ///     <paramref name="decodedSurface"/> (smooth mode samples a prefiltered source bilinearly).
+    /// </summary>
+    /// <param name="decodedSurface">The already fully decoded raster image.</param>
+    /// <param name="region">The painted region's own pixel-space origin and size.</param>
+    /// <param name="imageToRegion">The image-content-space-to-region-space transform.</param>
+    /// <param name="pixelToImage">The inverse of the image-to-pixel transform.</param>
+    /// <param name="nearest"><see langword="true"/> to sample nearest-neighbor instead of smoothing.</param>
+    /// <param name="result">The region-sized destination buffer.</param>
+    private static void SampleInverseMapped(
+        Surface decodedSurface,
+        PixelRect region,
+        Matrix3x2 imageToRegion,
+        Matrix3x2 pixelToImage,
+        bool nearest,
+        Surface result)
+    {
         var smooth = decodedSurface;
         var factorX = 1;
         var factorY = 1;
@@ -440,51 +554,74 @@ public static partial class SvgCodec
             smooth = SurfaceResampler.Prefilter(decodedSurface, imageToRegion, out _, out factorX, out factorY);
         }
 
-        try
+        using (ReferenceEquals(smooth, decodedSurface) ? null : smooth)
         {
-            for (var row = 0; row < pixelHeight; row++)
+            for (var row = 0; row < region.Height; row++)
             {
                 var resultRow = result.GetRowSpan(row);
 
-                for (var col = 0; col < pixelWidth; col++)
+                for (var col = 0; col < region.Width; col++)
                 {
                     // Sample at the destination pixel's own center, matching this codec's existing
                     // pixel-center sampling convention elsewhere (for example SampleTileIntoRegion)
-                    var canvasPoint = new Vector2(pixelX + col + 0.5f, pixelY + row + 0.5f);
+                    var canvasPoint = new Vector2(region.X + col + 0.5f, region.Y + row + 0.5f);
                     var imagePoint = Vector2.Transform(canvasPoint, pixelToImage);
-                    if (!float.IsFinite(imagePoint.X) || !float.IsFinite(imagePoint.Y))
+                    if (TrySampleImagePoint(decodedSurface, smooth, factorX, factorY, imagePoint, nearest, out var pixel))
                     {
-                        continue;
-                    }
-
-                    if (imagePoint.X < 0f || imagePoint.X >= decodedWidth || imagePoint.Y < 0f || imagePoint.Y >= decodedHeight)
-                    {
-                        // Outside the decoded raster's own intrinsic bounds entirely - left fully
-                        // transparent instead of wrapped, unlike SampleTileIntoRegion's tiling wrap
-                        continue;
-                    }
-
-                    if (nearest)
-                    {
-                        var sourceX = Math.Clamp((int)imagePoint.X, 0, decodedWidth - 1);
-                        var sourceY = Math.Clamp((int)imagePoint.Y, 0, decodedHeight - 1);
-                        resultRow[col] = decodedSurface.GetRowSpan(sourceY)[sourceX];
-                    }
-                    else
-                    {
-                        resultRow[col] = SurfaceResampler.SampleBilinearReduced(smooth, imagePoint.X, imagePoint.Y, factorX, factorY, decodedWidth, decodedHeight);
+                        resultRow[col] = pixel;
                     }
                 }
             }
         }
-        finally
+    }
+
+    /// <summary>
+    ///     Samples one inverse-mapped point of a decoded raster, leaving it unsampled (transparent)
+    ///     when the point is non-finite or outside the decoded raster's own intrinsic bounds.
+    /// </summary>
+    /// <param name="decodedSurface">The already fully decoded raster image.</param>
+    /// <param name="smooth">The (possibly prefiltered) source used for smooth sampling.</param>
+    /// <param name="factorX">The prefilter's horizontal reduction factor.</param>
+    /// <param name="factorY">The prefilter's vertical reduction factor.</param>
+    /// <param name="imagePoint">The inverse-mapped point in image-content space.</param>
+    /// <param name="nearest"><see langword="true"/> to sample nearest-neighbor instead of smoothing.</param>
+    /// <param name="pixel">The sampled pixel, or the default (transparent) value when unsampled.</param>
+    /// <returns><see langword="true"/> if the point was sampled; otherwise <see langword="false"/>.</returns>
+    private static bool TrySampleImagePoint(
+        Surface decodedSurface,
+        Surface smooth,
+        int factorX,
+        int factorY,
+        Vector2 imagePoint,
+        bool nearest,
+        out Rgba32 pixel)
+    {
+        pixel = default;
+        var decodedWidth = decodedSurface.Width;
+        var decodedHeight = decodedSurface.Height;
+        if (!float.IsFinite(imagePoint.X) || !float.IsFinite(imagePoint.Y))
         {
-            if (!ReferenceEquals(smooth, decodedSurface))
-            {
-                smooth.Dispose();
-            }
+            return false;
         }
 
-        return result;
+        // Outside the decoded raster's own intrinsic bounds entirely - left fully transparent
+        // instead of wrapped, unlike SampleTileIntoRegion's tiling wrap
+        if (imagePoint.X < 0f || imagePoint.X >= decodedWidth || imagePoint.Y < 0f || imagePoint.Y >= decodedHeight)
+        {
+            return false;
+        }
+
+        if (nearest)
+        {
+            var sourceX = Math.Clamp((int)imagePoint.X, 0, decodedWidth - 1);
+            var sourceY = Math.Clamp((int)imagePoint.Y, 0, decodedHeight - 1);
+            pixel = decodedSurface.GetRowSpan(sourceY)[sourceX];
+        }
+        else
+        {
+            pixel = SurfaceResampler.SampleBilinearReduced(smooth, imagePoint.X, imagePoint.Y, factorX, factorY, decodedWidth, decodedHeight);
+        }
+
+        return true;
     }
 }

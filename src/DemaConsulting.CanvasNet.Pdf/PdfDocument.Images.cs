@@ -28,7 +28,7 @@ public sealed partial class PdfDocument
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Propagated from <see cref="DecodeImageXObject"/> for an unsupported image feature.
     /// </exception>
-    private void OpDrawXObject(IReadOnlyList<PdfObject> operands)
+    private void OpDrawXObject(List<PdfObject> operands)
     {
         RequireOperandCount(operands, "Do", 1);
         if (operands[0].Kind != PdfKind.Name)
@@ -348,7 +348,7 @@ public sealed partial class PdfDocument
         var resized = mask.Width == image.Width && mask.Height == image.Height
             ? null
             : mask.Resize(image.Width, image.Height, ResamplingMode.Bilinear);
-        try
+        using (resized)
         {
             var effective = resized ?? mask;
             for (var y = 0; y < image.Height; y++)
@@ -360,10 +360,6 @@ public sealed partial class PdfDocument
                     image[x, y] = new Rgba32(pixel.R, pixel.G, pixel.B, (byte)(((pixel.A * opacity) + 127) / 255));
                 }
             }
-        }
-        finally
-        {
-            resized?.Dispose();
         }
     }
 
@@ -382,60 +378,13 @@ public sealed partial class PdfDocument
     {
         var width = RequireIntEntry(stream, "Width");
         var height = RequireIntEntry(stream, "Height");
-        if (width <= 0 || height <= 0)
-        {
-            throw new InvalidDataException("Image XObject /Width and /Height must be positive integers.");
-        }
-
-        if (width > Surface.MaxDimension || height > Surface.MaxDimension)
-        {
-            throw new InvalidDataException(
-                $"Image XObject dimensions {width}x{height} exceed the maximum supported size of " +
-                $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
-        }
+        ValidateImageDimensions(width, height);
 
         var (filterNames, filterParms) = ResolveFilterPipeline(stream);
-        if (filterNames.Count == 1 && filterNames[0] == "DCTDecode")
+        var special = TryDecodeSpecialFilterImage(stream, filterNames, filterParms, height);
+        if (special is not null)
         {
-            var rawBytes = GetStreamRawBytes(stream);
-            var channels = JpegCodec.GetInfo(new MemoryStream(rawBytes)).Channels;
-
-            // JpegCodec only accepts 1-channel (gray) and 3-channel (YCbCr) JPEGs - a 4-channel
-            // (CMYK/YCCK) JPEG already fails closed in GetInfo above - and both decode to exactly
-            // their component samples, so the shared /Decode path applies exactly.
-            var jpegDecodeRanges = ResolveDecodeArray(stream, channels, indexed: false);
-            var jpegSurface = JpegCodec.Load(new MemoryStream(rawBytes));
-            if (jpegDecodeRanges is not null)
-            {
-                ApplyDecodeToSurface(jpegSurface, channels, jpegDecodeRanges);
-            }
-
-            return new DecodedImage(jpegSurface, channels == 1);
-        }
-
-        if (filterNames.Contains("DCTDecode"))
-        {
-            throw new InvalidDataException("DCTDecode combined with another filter is not supported.");
-        }
-
-        if (filterNames.Count == 1 && filterNames[0] == "JPXDecode")
-        {
-            return DecodeJpxImageXObject(stream);
-        }
-
-        if (filterNames.Contains("JPXDecode"))
-        {
-            throw new InvalidDataException("JPXDecode combined with another filter is not supported.");
-        }
-
-        if (filterNames.Count == 1 && filterNames[0] == "CCITTFaxDecode")
-        {
-            return DecodeCcittFaxImageXObject(stream, filterParms[0], height);
-        }
-
-        if (filterNames.Contains("CCITTFaxDecode"))
-        {
-            throw new InvalidDataException("CCITTFaxDecode combined with another filter is not supported.");
+            return special.Value;
         }
 
         var decoded = GetStreamDecodedBytes(stream);
@@ -478,6 +427,101 @@ public sealed partial class PdfDocument
             ApplyDecodeArray(samples, componentCount, decodeRanges, indexed, (1 << bitsPerComponent) - 1);
         }
 
+        var surface = ConvertSamplesToSurface(colorSpace, samples, width, height, componentCount);
+        return new DecodedImage(surface, colorSpace.Kind == PdfColorSpace.Family.DeviceGray);
+    }
+
+    /// <summary>Validates an image XObject's <c>/Width</c> and <c>/Height</c>.</summary>
+    /// <exception cref="InvalidDataException">Thrown when either is non-positive or exceeds <see cref="Surface.MaxDimension"/>.</exception>
+    private static void ValidateImageDimensions(int width, int height)
+    {
+        if (width <= 0 || height <= 0)
+        {
+            throw new InvalidDataException("Image XObject /Width and /Height must be positive integers.");
+        }
+
+        if (width > Surface.MaxDimension || height > Surface.MaxDimension)
+        {
+            throw new InvalidDataException(
+                $"Image XObject dimensions {width}x{height} exceed the maximum supported size of " +
+                $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
+        }
+    }
+
+    /// <summary>
+    ///     Decodes an image whose sole filter is DCT, JPX, or CCITT fax (each with its own
+    ///     decoder), rejecting those filters when combined with others; returns
+    ///     <see langword="null"/> for any other pipeline.
+    /// </summary>
+    /// <exception cref="InvalidDataException">Thrown when one of these filters is combined with another.</exception>
+    private DecodedImage? TryDecodeSpecialFilterImage(
+        PdfObject stream,
+        IReadOnlyList<string> filterNames,
+        IReadOnlyList<PdfObject?> filterParms,
+        int height)
+    {
+        if (filterNames.Count == 1 && filterNames[0] == "DCTDecode")
+        {
+            return DecodeDctImageXObject(stream);
+        }
+
+        if (filterNames.Contains("DCTDecode"))
+        {
+            throw new InvalidDataException("DCTDecode combined with another filter is not supported.");
+        }
+
+        if (filterNames.Count == 1 && filterNames[0] == "JPXDecode")
+        {
+            return DecodeJpxImageXObject(stream);
+        }
+
+        if (filterNames.Contains("JPXDecode"))
+        {
+            throw new InvalidDataException("JPXDecode combined with another filter is not supported.");
+        }
+
+        if (filterNames.Count == 1 && filterNames[0] == "CCITTFaxDecode")
+        {
+            return DecodeCcittFaxImageXObject(stream, filterParms[0], height);
+        }
+
+        if (filterNames.Contains("CCITTFaxDecode"))
+        {
+            throw new InvalidDataException("CCITTFaxDecode combined with another filter is not supported.");
+        }
+
+        return null;
+    }
+
+    /// <summary>Decodes a <c>/DCTDecode</c>-filtered image, applying its <c>/Decode</c> array.</summary>
+    private DecodedImage DecodeDctImageXObject(PdfObject stream)
+    {
+        var rawBytes = GetStreamRawBytes(stream);
+        using var infoStream = new MemoryStream(rawBytes);
+        var channels = JpegCodec.GetInfo(infoStream).Channels;
+
+        // JpegCodec only accepts 1-channel (gray) and 3-channel (YCbCr) JPEGs - a 4-channel
+        // (CMYK/YCCK) JPEG already fails closed in GetInfo above - and both decode to exactly
+        // their component samples, so the shared /Decode path applies exactly.
+        var jpegDecodeRanges = ResolveDecodeArray(stream, channels, indexed: false);
+        using var jpegStream = new MemoryStream(rawBytes);
+        var jpegSurface = JpegCodec.Load(jpegStream);
+        if (jpegDecodeRanges is not null)
+        {
+            ApplyDecodeToSurface(jpegSurface, channels, jpegDecodeRanges);
+        }
+
+        return new DecodedImage(jpegSurface, channels == 1);
+    }
+
+    /// <summary>Converts normalized one-byte-per-component samples to a color surface.</summary>
+    private static Surface ConvertSamplesToSurface(
+        PdfColorSpace colorSpace,
+        byte[] samples,
+        int width,
+        int height,
+        int componentCount)
+    {
         var surface = new Surface(width, height);
         var rowBytes = componentCount * width;
 
@@ -532,7 +576,7 @@ public sealed partial class PdfDocument
             }
         }
 
-        return new DecodedImage(surface, colorSpace.Kind == PdfColorSpace.Family.DeviceGray);
+        return surface;
     }
 
     /// <summary>
@@ -685,47 +729,7 @@ public sealed partial class PdfDocument
         var jp2 = Jpeg2000Codec.Decode(GetStreamRawBytes(stream), JpxDecoderLimits);
 
         var colorSpaceObject = stream.Get("ColorSpace");
-        PdfColorSpace colorSpace;
-        if (colorSpaceObject is null)
-        {
-            colorSpace = jp2.ColorSpace switch
-            {
-                Jpeg2000ColorSpace.Gray => PdfColorSpace.DeviceGray,
-                Jpeg2000ColorSpace.Srgb => PdfColorSpace.DeviceRGB,
-                Jpeg2000ColorSpace.Cmyk => PdfColorSpace.DeviceCMYK,
-                _ => jp2.ColorChannelCount switch
-                {
-                    1 => PdfColorSpace.DeviceGray,
-                    3 => PdfColorSpace.DeviceRGB,
-                    4 => PdfColorSpace.DeviceCMYK,
-                    _ => throw new UnsupportedImageFeatureException(
-                        "pdf-jpx-colorspace",
-                        $"JPXDecode images with {jp2.ColorChannelCount} color channels need an explicit /ColorSpace."),
-                },
-            };
-        }
-        else
-        {
-            colorSpace = ResolveColorSpaceValue(Resolve(colorSpaceObject));
-            if (colorSpace.Kind == PdfColorSpace.Family.Pattern)
-            {
-                throw new InvalidDataException("Image XObject /ColorSpace must not be /Pattern.");
-            }
-        }
-
-        if (colorSpaceObject is not null && jp2.HasPalette)
-        {
-            throw new UnsupportedImageFeatureException(
-                "pdf-jpx-palette-colorspace",
-                "JPXDecode images whose JP2 data has a palette cannot be combined with a PDF /ColorSpace override.");
-        }
-
-        if (colorSpace.Kind == PdfColorSpace.Family.Indexed && jp2.BitDepth != 8)
-        {
-            throw new UnsupportedImageFeatureException(
-                "pdf-jpx-indexed-bit-depth",
-                $"JPXDecode images with an /Indexed /ColorSpace require 8-bit samples, not {jp2.BitDepth}-bit.");
-        }
+        var colorSpace = ResolveJpxColorSpace(colorSpaceObject, jp2);
 
         var componentCount = ComponentCount(colorSpace);
         if (componentCount != jp2.ColorChannelCount)
@@ -775,6 +779,64 @@ public sealed partial class PdfDocument
 
         return new DecodedImage(surface, colorSpace.Kind == PdfColorSpace.Family.DeviceGray);
     }
+
+    /// <summary>
+    ///     Resolves the color space of a JPX image: the codestream's own (or channel-count-implied)
+    ///     device space when <paramref name="colorSpaceObject"/> is <see langword="null"/>, otherwise
+    ///     the PDF override, validated against the JP2 data.
+    /// </summary>
+    /// <exception cref="InvalidDataException">Thrown when an override is <c>/Pattern</c>.</exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown for an undeterminable color space, an override on palette data, or an
+    ///     <c>/Indexed</c> space over non-8-bit samples.
+    /// </exception>
+    private PdfColorSpace ResolveJpxColorSpace(PdfObject? colorSpaceObject, Jpeg2000Image jp2)
+    {
+        if (colorSpaceObject is null)
+        {
+            return DeriveJpxColorSpace(jp2);
+        }
+
+        var colorSpace = ResolveColorSpaceValue(Resolve(colorSpaceObject));
+        if (colorSpace.Kind == PdfColorSpace.Family.Pattern)
+        {
+            throw new InvalidDataException("Image XObject /ColorSpace must not be /Pattern.");
+        }
+
+        if (jp2.HasPalette)
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-jpx-palette-colorspace",
+                "JPXDecode images whose JP2 data has a palette cannot be combined with a PDF /ColorSpace override.");
+        }
+
+        if (colorSpace.Kind == PdfColorSpace.Family.Indexed && jp2.BitDepth != 8)
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-jpx-indexed-bit-depth",
+                $"JPXDecode images with an /Indexed /ColorSpace require 8-bit samples, not {jp2.BitDepth}-bit.");
+        }
+
+        return colorSpace;
+    }
+
+    /// <summary>Derives a device color space from the JP2 data's own color space or channel count.</summary>
+    private static PdfColorSpace DeriveJpxColorSpace(Jpeg2000Image jp2) =>
+        jp2.ColorSpace switch
+        {
+            Jpeg2000ColorSpace.Gray => PdfColorSpace.DeviceGray,
+            Jpeg2000ColorSpace.Srgb => PdfColorSpace.DeviceRGB,
+            Jpeg2000ColorSpace.Cmyk => PdfColorSpace.DeviceCMYK,
+            _ => jp2.ColorChannelCount switch
+            {
+                1 => PdfColorSpace.DeviceGray,
+                3 => PdfColorSpace.DeviceRGB,
+                4 => PdfColorSpace.DeviceCMYK,
+                _ => throw new UnsupportedImageFeatureException(
+                    "pdf-jpx-colorspace",
+                    $"JPXDecode images with {jp2.ColorChannelCount} color channels need an explicit /ColorSpace."),
+            },
+        };
 
     /// <summary>
     ///     Divides each interleaved 8-bit component sample by its pixel's opacity
@@ -1124,7 +1186,7 @@ public sealed partial class PdfDocument
 
         // Axis-aligned placement (the overwhelmingly common case): resample once to the exact
         // device-pixel rectangle the image covers, then composite that window 1:1
-        if (SurfaceResampler.TryResampleToDevice(image, pixelToDevice, _surface.Width, _surface.Height, ResamplingMode.Auto, out var window, out var originX, out var originY))
+        if (SurfaceResampler.TryResampleToDevice(image, pixelToDevice, _surface.Width, _surface.Height, ResamplingMode.Auto, out var window, out var origin))
         {
             using (window)
             {
@@ -1135,7 +1197,7 @@ public sealed partial class PdfDocument
                     var top = pixelToDevice.M32;
                     var bottom = top + (pixelToDevice.M22 * image.Height);
                     CompositeWindow(
-                        window, originX, originY, (MathF.Min(left, right), MathF.Min(top, bottom), MathF.Max(left, right), MathF.Max(top, bottom)));
+                        window, origin.X, origin.Y, (MathF.Min(left, right), MathF.Min(top, bottom), MathF.Max(left, right), MathF.Max(top, bottom)));
                 }
             }
 
@@ -1146,16 +1208,9 @@ public sealed partial class PdfDocument
         // prefiltered source bilinearly
         var sampled = SurfaceResampler.Prefilter(image, pixelToDevice, out _, out var factorX, out var factorY);
         var reduced = !ReferenceEquals(sampled, image);
-        try
+        using (reduced ? sampled : null)
         {
             CompositeSampledImage(sampled, image.Width, image.Height, factorX, factorY, ctm, inverse);
-        }
-        finally
-        {
-            if (reduced)
-            {
-                sampled.Dispose();
-            }
         }
     }
 

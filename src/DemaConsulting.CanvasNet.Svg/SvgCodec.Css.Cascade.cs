@@ -92,22 +92,7 @@ public static partial class SvgCodec
         /// </exception>
         public CssElementStyleContext BuildElementContext(XElement element, CssMatchWorkBudget budget)
         {
-            var inlineRaw = (string?)element.Attribute("style");
-            Dictionary<string, string>? inlineDeclarations = null;
-            if (inlineRaw != null)
-            {
-                var parsed = ParseDeclarationBlock(inlineRaw);
-                if (parsed.Count > 0)
-                {
-                    inlineDeclarations = new Dictionary<string, string>(StringComparer.Ordinal);
-                    foreach (var (property, value) in parsed)
-                    {
-                        // Later declarations for the same property win, matching ordinary CSS
-                        // declaration-block "last one wins" semantics
-                        inlineDeclarations[property] = value;
-                    }
-                }
-            }
+            var inlineDeclarations = ParseInlineDeclarations(element);
 
             if (Rules.Count == 0)
             {
@@ -121,21 +106,7 @@ public static partial class SvgCodec
 
             foreach (var rule in Rules)
             {
-                (int Ids, int Classes, int Types)? bestForRule = null;
-                foreach (var ruleSelector in rule.Selectors)
-                {
-                    if (!Matches(element, ruleSelector))
-                    {
-                        continue;
-                    }
-
-                    var specificity = ComputeSpecificity(ruleSelector);
-                    if (bestForRule == null || IsHigherSpecificity(specificity, bestForRule.Value))
-                    {
-                        bestForRule = specificity;
-                    }
-                }
-
+                var bestForRule = FindBestMatchingSpecificity(element, rule);
                 if (bestForRule == null)
                 {
                     continue;
@@ -157,6 +128,63 @@ public static partial class SvgCodec
             }
 
             return CssElementStyleContext.Create(stylesheetDeclarations, inlineDeclarations);
+        }
+
+        /// <summary>
+        ///     Parses <paramref name="element"/>'s own inline <c>style="..."</c> attribute.
+        /// </summary>
+        /// <param name="element">The element to inspect.</param>
+        /// <returns>The inline declarations (later declarations for the same property win), or <see langword="null"/> if there are none.</returns>
+        private static Dictionary<string, string>? ParseInlineDeclarations(XElement element)
+        {
+            var inlineRaw = (string?)element.Attribute("style");
+            if (inlineRaw == null)
+            {
+                return null;
+            }
+
+            var parsed = ParseDeclarationBlock(inlineRaw);
+            if (parsed.Count == 0)
+            {
+                return null;
+            }
+
+            var inlineDeclarations = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var (property, value) in parsed)
+            {
+                // Later declarations for the same property win, matching ordinary CSS
+                // declaration-block "last one wins" semantics
+                inlineDeclarations[property] = value;
+            }
+
+            return inlineDeclarations;
+        }
+
+        /// <summary>
+        ///     Finds the highest specificity among <paramref name="rule"/>'s selectors that match
+        ///     <paramref name="element"/>.
+        /// </summary>
+        /// <param name="element">The element to match.</param>
+        /// <param name="rule">The rule whose selectors are tested.</param>
+        /// <returns>The best matching specificity, or <see langword="null"/> if no selector matches.</returns>
+        private static (int Ids, int Classes, int Types)? FindBestMatchingSpecificity(XElement element, CssRule rule)
+        {
+            (int Ids, int Classes, int Types)? bestForRule = null;
+            foreach (var ruleSelector in rule.Selectors)
+            {
+                if (!Matches(element, ruleSelector))
+                {
+                    continue;
+                }
+
+                var specificity = ComputeSpecificity(ruleSelector);
+                if (bestForRule == null || IsHigherSpecificity(specificity, bestForRule.Value))
+                {
+                    bestForRule = specificity;
+                }
+            }
+
+            return bestForRule;
         }
     }
 

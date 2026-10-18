@@ -1167,7 +1167,8 @@ public class Jpeg2000CodecTests
     public void Jpeg2000Codec_Load_Grey_ExpandsToRgb()
     {
         var image = Img(7, 7, 1);
-        using var surface = Jpeg2000Codec.Load(new MemoryStream(Encode(image, Rev(1))));
+        using var stream = new MemoryStream(Encode(image, Rev(1)));
+        using var surface = Jpeg2000Codec.Load(stream);
         var p = surface.GetRowSpan(2)[3];
         Assert.Equal(p.R, p.G);
         Assert.Equal(p.G, p.B);
@@ -1183,7 +1184,8 @@ public class Jpeg2000CodecTests
             image,
             Encode(image, Rev(1)),
             new J2kJp2Options { Cdef = [(0, 0, 1), (1, 0, 2), (2, 0, 3), (3, 1, 0)] });
-        using var surface = Jpeg2000Codec.Load(new MemoryStream(jp2));
+        using var stream = new MemoryStream(jp2);
+        using var surface = Jpeg2000Codec.Load(stream);
         Assert.Equal(Expected(image, 3, 1, 1), surface.GetRowSpan(1)[1].A);
     }
 
@@ -1209,7 +1211,8 @@ public class Jpeg2000CodecTests
     [Fact]
     public void Jpeg2000Codec_GetInfo_RawCodestream_ReportsDimensionsAndChannels()
     {
-        var info = Jpeg2000Codec.GetInfo(new MemoryStream(Encode(Img(31, 17, 3), Rev(2))));
+        using var stream = new MemoryStream(Encode(Img(31, 17, 3), Rev(2)));
+        var info = Jpeg2000Codec.GetInfo(stream);
         Assert.Equal(31, info.Width);
         Assert.Equal(17, info.Height);
         Assert.Equal(3, info.Channels);
@@ -1225,7 +1228,8 @@ public class Jpeg2000CodecTests
             image,
             Encode(image, Rev(1)),
             new J2kJp2Options { Cdef = [(0, 0, 1), (1, 0, 2), (2, 0, 3), (3, 1, 0)] });
-        var info = Jpeg2000Codec.GetInfo(new MemoryStream(jp2));
+        using var stream = new MemoryStream(jp2);
+        var info = Jpeg2000Codec.GetInfo(stream);
         Assert.Equal(4, info.Channels);
         Assert.True(info.HasAlpha);
     }
@@ -1382,7 +1386,8 @@ public class Jpeg2000CodecTests
         var codestream = Encode(image, Rev(1));
         var small = Jpeg2000TestEncoder.WrapJp2(image, codestream, new J2kJp2Options { Icc = IccHeader(64) });
         var large = Jpeg2000TestEncoder.WrapJp2(image, codestream, new J2kJp2Options { Icc = IccHeader(ProbeTrailer) });
-        var expected = Jpeg2000Codec.GetInfo(new MemoryStream(small));
+        using var smallStream = new MemoryStream(small);
+        var expected = Jpeg2000Codec.GetInfo(smallStream);
         using var stream = new CountingStream(large, seekable);
         Assert.Equal(expected, Jpeg2000Codec.GetInfo(stream));
         Assert.True(stream.MaxReadRequest <= 70000);
@@ -1410,7 +1415,8 @@ public class Jpeg2000CodecTests
             image,
             Encode(image, Rev(1)),
             new J2kJp2Options { Cdef = [(0, 0, 1), (1, 0, 2), (2, 0, 3), (3, 1, 0)] });
-        var expected = Jpeg2000Codec.GetInfo(new MemoryStream(jp2));
+        using var jp2Stream = new MemoryStream(jp2);
+        var expected = Jpeg2000Codec.GetInfo(jp2Stream);
         using var stream = new CountingStream(InsertIntoJp2h(jp2, FreeBox(ProbeTrailer)), seekable);
         Assert.Equal(expected, Jpeg2000Codec.GetInfo(stream));
         Assert.True(stream.MaxReadRequest <= 70000);
@@ -1502,7 +1508,8 @@ public class Jpeg2000CodecTests
         var image = Img(20, 10, 1);
         image.XOsiz = 5;
         image.Xsiz += 5;
-        var info = Jpeg2000Codec.GetInfo(new MemoryStream(Encode(image, Rev(1))));
+        using var stream = new MemoryStream(Encode(image, Rev(1)));
+        var info = Jpeg2000Codec.GetInfo(stream);
         Assert.Equal(20, info.Width);
     }
 
@@ -1533,8 +1540,10 @@ public class Jpeg2000CodecTests
     [InlineData(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0 })]
     public void Jpeg2000Codec_Load_NotJpeg2000_ThrowsInvalidData(byte[] data)
     {
-        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Load(new MemoryStream(data)));
-        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.GetInfo(new MemoryStream(data)));
+        using var stream = new MemoryStream(data);
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Load(stream));
+        using var stream2 = new MemoryStream(data);
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.GetInfo(stream2));
     }
 
     // ------------------------------------------------------------------------------------------
@@ -1652,8 +1661,10 @@ public class Jpeg2000CodecTests
         var data = Encode(Img(8, 8, 1), Rev(1));
         var siz = FindMarker(data, 0xFF51);
         var huge = Patch(data, siz + 6, 0x00, 0x01, 0x00, 0x00);
-        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Load(new MemoryStream(huge)));
-        Assert.Equal(65536, Jpeg2000Codec.GetInfo(new MemoryStream(huge)).Width);
+        using var stream = new MemoryStream(huge);
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Load(stream));
+        using var stream2 = new MemoryStream(huge);
+        Assert.Equal(65536, Jpeg2000Codec.GetInfo(stream2).Width);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -2470,7 +2481,8 @@ public class Jpeg2000CodecTests
         var data = Encode(Img(16, 8, 3), Rev(1));
         var strict = new Jpeg2000DecoderLimits { MaxWidth = 8 };
         Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(data, strict));
-        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(new MemoryStream(data), strict));
+        using var stream = new MemoryStream(data);
+        Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(stream, strict));
         Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(data, new Jpeg2000DecoderLimits { MaxTotalSamples = 16 }));
         Assert.Throws<InvalidDataException>(() => Jpeg2000Codec.Decode(data, new Jpeg2000DecoderLimits { MaxInputBytes = 10 }));
         Assert.Equal(16, Jpeg2000Codec.Decode(data, Jpeg2000DecoderLimits.Default).Width);

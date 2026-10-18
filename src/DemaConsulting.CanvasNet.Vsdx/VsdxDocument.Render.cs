@@ -192,7 +192,7 @@ public sealed partial class VsdxDocument
     ///     already expresses in absolute page-space inches (see that type's own remarks), bypassing
     ///     any local-space round-trip through the group-nesting chain.
     /// </param>
-    private void RenderShapeRecursive(Surface surface, VsdxShapeNode shape, Matrix3x2 parentToPixel, Matrix3x2 pageToPixel)
+    private static void RenderShapeRecursive(Surface surface, VsdxShapeNode shape, Matrix3x2 parentToPixel, Matrix3x2 pageToPixel)
     {
         // A shape on only hidden/non-printing layers is not drawn, nor is anything inside it.
         if (shape.HiddenByLayer)
@@ -436,7 +436,7 @@ public sealed partial class VsdxDocument
     /// <returns>The transform mapping <see cref="VsdxGlyphPlacement"/> coordinates (already expressed in the shape's local space, within the text box's own unrotated rectangle) into pixel space.</returns>
     internal static Matrix3x2 ResolveTextToPixelTransform(VsdxTextBoxTransform textBox, Matrix3x2 localToPixel)
     {
-        if (textBox.TxtAngle == 0d)
+        if (textBox.TxtAngle.Equals(0d))
         {
             return localToPixel;
         }

@@ -52,39 +52,14 @@ public sealed partial class PdfDocument
 
             if (b == (byte)'~')
             {
-                i++;
-                while (i < data.Length && IsPdfWhitespace(data[i]))
-                {
-                    i++;
-                }
-
-                if (i >= data.Length || data[i] != (byte)'>')
-                {
-                    throw new InvalidDataException("ASCII85Decode stream has a malformed ~> EOD marker.");
-                }
-
+                ValidateAscii85Eod(data, i + 1);
                 foundEod = true;
                 break;
             }
 
             if (b == (byte)'z')
             {
-                if (group.Count != 0)
-                {
-                    throw new InvalidDataException("ASCII85Decode 'z' shorthand may only occur at a group boundary.");
-                }
-
-                // Check the predicted post-append size against the cap BEFORE appending - not
-                // after - so a crafted stream of repeated 'z' characters (each a single input
-                // byte expanding to 4 output bytes) can never grow the output list past the cap
-                // even transiently.
-                if (output.Count + 4 > Ascii85MaxOutputBytes)
-                {
-                    throw new InvalidDataException(
-                        $"ASCII85Decode output exceeds the maximum supported size of {Ascii85MaxOutputBytes} bytes.");
-                }
-
-                output.AddRange(new byte[4]);
+                AppendAscii85ZeroGroup(group, output);
                 i++;
                 continue;
             }
@@ -109,23 +84,70 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("ASCII85Decode stream is missing its ~> EOD marker.");
         }
 
+        AppendAscii85PartialGroup(group, output);
+
+        return [.. output];
+    }
+
+    /// <summary>Validates that the <c>&gt;</c> following a <c>~</c> (after optional white space) is present.</summary>
+    /// <exception cref="InvalidDataException">Thrown when the EOD marker is malformed.</exception>
+    private static void ValidateAscii85Eod(byte[] data, int start)
+    {
+        var i = start;
+        while (i < data.Length && IsPdfWhitespace(data[i]))
+        {
+            i++;
+        }
+
+        if (i >= data.Length || data[i] != (byte)'>')
+        {
+            throw new InvalidDataException("ASCII85Decode stream has a malformed ~> EOD marker.");
+        }
+    }
+
+    /// <summary>Appends the 4 zero bytes represented by the <c>z</c> shorthand.</summary>
+    /// <exception cref="InvalidDataException">Thrown when <c>z</c> is mid-group or the output cap would be exceeded.</exception>
+    private static void AppendAscii85ZeroGroup(List<byte> group, List<byte> output)
+    {
+        if (group.Count != 0)
+        {
+            throw new InvalidDataException("ASCII85Decode 'z' shorthand may only occur at a group boundary.");
+        }
+
+        // Check the predicted post-append size against the cap BEFORE appending - not
+        // after - so a crafted stream of repeated 'z' characters (each a single input
+        // byte expanding to 4 output bytes) can never grow the output list past the cap
+        // even transiently.
+        if (output.Count + 4 > Ascii85MaxOutputBytes)
+        {
+            throw new InvalidDataException(
+                $"ASCII85Decode output exceeds the maximum supported size of {Ascii85MaxOutputBytes} bytes.");
+        }
+
+        output.AddRange(new byte[4]);
+    }
+
+    /// <summary>Pads and decodes a final partial group, if any.</summary>
+    /// <exception cref="InvalidDataException">Thrown when the partial group has exactly one character.</exception>
+    private static void AppendAscii85PartialGroup(List<byte> group, List<byte> output)
+    {
         if (group.Count == 1)
         {
             throw new InvalidDataException("ASCII85Decode final partial group must contain at least 2 characters.");
         }
 
-        if (group.Count > 0)
+        if (group.Count == 0)
         {
-            var significantChars = group.Count;
-            while (group.Count < 5)
-            {
-                group.Add(84);
-            }
-
-            AppendAscii85Group(group, significantChars, output);
+            return;
         }
 
-        return [.. output];
+        var significantChars = group.Count;
+        while (group.Count < 5)
+        {
+            group.Add(84);
+        }
+
+        AppendAscii85Group(group, significantChars, output);
     }
 
     /// <summary>Decodes one full 5-character ASCII85 group into up to 4 bytes, appending them to <paramref name="output"/>.</summary>
@@ -133,7 +155,7 @@ public sealed partial class PdfDocument
     ///     Thrown when the group's base-85 value exceeds <c>2^32 - 1</c>, or appending the
     ///     group's bytes would make <paramref name="output"/> exceed <see cref="Ascii85MaxOutputBytes"/>.
     /// </exception>
-    private static void AppendAscii85Group(IReadOnlyList<byte> group, int significantChars, List<byte> output)
+    private static void AppendAscii85Group(List<byte> group, int significantChars, List<byte> output)
     {
         var emitCount = significantChars - 1;
 

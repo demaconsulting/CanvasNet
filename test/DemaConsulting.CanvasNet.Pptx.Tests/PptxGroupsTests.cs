@@ -202,8 +202,8 @@ public class PptxGroupsTests
 
         var nodes = PptxDocument.ParseShapeTree(spTree, ThemeResolver(BuildTestTheme()));
 
-        Assert.Single(nodes);
-        Assert.IsType<PptxSpShapeNode>(nodes[0]);
+        var nodesItem = Assert.Single(nodes);
+        Assert.IsType<PptxSpShapeNode>(nodesItem);
     }
 
     // --- ParseShapeTree: groups -----------------------------------------------------------------

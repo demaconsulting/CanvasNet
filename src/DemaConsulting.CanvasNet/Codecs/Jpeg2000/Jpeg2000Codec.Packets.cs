@@ -218,19 +218,7 @@ public static partial class Jpeg2000Codec
             maxRes = Math.Max(maxRes, tc.Res.Length);
         }
 
-        // Smallest precinct step on the reference grid, used by the position-based progressions.
-        var dx = long.MaxValue;
-        var dy = long.MaxValue;
-        for (var c = 0; c < tile.Comps.Length; c++)
-        {
-            var tc = tile.Comps[c];
-            for (var r = 0; r < tc.Res.Length; r++)
-            {
-                var lvl = tc.Coding.Levels - r;
-                dx = Math.Min(dx, (long)siz.XR[c] << (tc.Res[r].PPx + lvl));
-                dy = Math.Min(dy, (long)siz.YR[c] << (tc.Res[r].PPy + lvl));
-            }
-        }
+        var (dx, dy) = SmallestPrecinctStep(tile, siz);
 
         // A volume is the set of packets (layer, resolution, component, all precincts) it covers. A volume
         // lying inside an earlier one yields only packets that were already sent, so it is skipped up front.
@@ -245,18 +233,7 @@ public static partial class Jpeg2000Codec
                 continue;
             }
 
-            var covered = false;
-            foreach (var d in done)
-            {
-                if (ch.ResStart >= d.ResStart && ch.CompStart >= d.CompStart && layerEnd <= d.LayerEnd
-                    && resEnd <= d.ResEnd && compEnd <= d.CompEnd)
-                {
-                    covered = true;
-                    break;
-                }
-            }
-
-            if (covered)
+            if (IsCoveredByEarlierVolume(done, ch, layerEnd, resEnd, compEnd))
             {
                 continue;
             }
@@ -266,13 +243,59 @@ public static partial class Jpeg2000Codec
             {
                 0 => EnumerateLrcp(tile, ch, layerEnd, resEnd, compEnd, budget),
                 1 => EnumerateRlcp(tile, ch, layerEnd, resEnd, compEnd, budget),
-                _ => EnumeratePositional(tile, siz, ch, layerEnd, resEnd, compEnd, dx, dy, budget),
+                _ => EnumeratePositional(tile, siz, ch, new VolumeBounds(ch.ResStart, resEnd, ch.CompStart, compEnd, layerEnd, dx, dy), budget),
             };
             foreach (var id in sequence)
             {
                 yield return id;
             }
         }
+    }
+
+    /// <summary>The clipped end bounds and the smallest precinct step of a progression volume.</summary>
+    /// <param name="ResStart">The first resolution.</param>
+    /// <param name="ResEnd">The exclusive resolution end.</param>
+    /// <param name="CompStart">The first component.</param>
+    /// <param name="CompEnd">The exclusive component end.</param>
+    /// <param name="LayerEnd">The exclusive layer end.</param>
+    /// <param name="Dx">The smallest horizontal precinct step on the reference grid.</param>
+    /// <param name="Dy">The smallest vertical precinct step on the reference grid.</param>
+    private readonly record struct VolumeBounds(int ResStart, int ResEnd, int CompStart, int CompEnd, int LayerEnd, long Dx, long Dy);
+
+    /// <summary>Computes the smallest precinct step on the reference grid, used by the position-based progressions.</summary>
+    private static (long Dx, long Dy) SmallestPrecinctStep(Tile tile, SizInfo siz)
+    {
+        var dx = long.MaxValue;
+        var dy = long.MaxValue;
+        for (var c = 0; c < tile.Comps.Length; c++)
+        {
+            var tc = tile.Comps[c];
+            for (var r = 0; r < tc.Res.Length; r++)
+            {
+                var lvl = tc.Coding.Levels - r;
+                dx = Math.Min(dx, (long)siz.XR[c] << (tc.Res[r].PPx + lvl));
+                dy = Math.Min(dy, (long)siz.YR[c] << (tc.Res[r].PPy + lvl));
+            }
+        }
+
+        return (dx, dy);
+    }
+
+    /// <summary>Determines whether a volume lies entirely inside an earlier one.</summary>
+    private static bool IsCoveredByEarlierVolume(
+        List<(int ResStart, int CompStart, int LayerEnd, int ResEnd, int CompEnd)> done,
+        ProgressionChange ch, int layerEnd, int resEnd, int compEnd)
+    {
+        foreach (var d in done)
+        {
+            if (ch.ResStart >= d.ResStart && ch.CompStart >= d.CompStart && layerEnd <= d.LayerEnd
+                && resEnd <= d.ResEnd && compEnd <= d.CompEnd)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static IEnumerable<PacketId> EnumerateLrcp(Tile tile, ProgressionChange ch, int layerEnd, int resEnd, int compEnd, DecodeBudget budget)
@@ -368,86 +391,77 @@ public static partial class Jpeg2000Codec
     }
 
     private static IEnumerable<PacketId> EnumeratePositional(
-        Tile tile, SizInfo siz, ProgressionChange ch, int layerEnd, int resEnd, int compEnd, long dx, long dy, DecodeBudget budget)
+        Tile tile, SizInfo siz, ProgressionChange ch, VolumeBounds b, DecodeBudget budget)
     {
+        var full = b with { ResStart = ch.ResStart, CompStart = ch.CompStart };
+
         // RPCL = 2, PCRL = 3, CPRL = 4: the outer loops differ, the position loops are shared.
         if (ch.Order == 2)
         {
-            for (var r = ch.ResStart; r < resEnd; r++)
+            for (var r = full.ResStart; r < full.ResEnd; r++)
             {
-                for (var y = tile.Y0; y < tile.Y1; y += dy - (y % dy))
+                foreach (var id in EnumeratePositions(tile, siz, full with { ResStart = r, ResEnd = r + 1 }, budget))
                 {
-                    for (var x = tile.X0; x < tile.X1; x += dx - (x % dx))
-                    {
-                        for (var c = ch.CompStart; c < compEnd; c++)
-                        {
-                            budget.ChargeProgression(1);
-                            if (!TryFindPrecinct(tile, siz, c, r, x, y, out var k))
-                            {
-                                continue;
-                            }
-
-                            budget.ChargeProgression(layerEnd);
-                            for (var l = 0; l < layerEnd; l++)
-                            {
-                                yield return new PacketId(l, r, c, k);
-                            }
-                        }
-                    }
+                    yield return id;
                 }
             }
         }
         else if (ch.Order == 3)
         {
-            for (var y = tile.Y0; y < tile.Y1; y += dy - (y % dy))
+            foreach (var id in EnumeratePositions(tile, siz, full, budget))
             {
-                for (var x = tile.X0; x < tile.X1; x += dx - (x % dx))
+                yield return id;
+            }
+        }
+        else
+        {
+            for (var c = full.CompStart; c < full.CompEnd; c++)
+            {
+                foreach (var id in EnumeratePositions(tile, siz, full with { CompStart = c, CompEnd = c + 1 }, budget))
                 {
-                    for (var c = ch.CompStart; c < compEnd; c++)
-                    {
-                        for (var r = ch.ResStart; r < resEnd; r++)
-                        {
-                            budget.ChargeProgression(1);
-                            if (!TryFindPrecinct(tile, siz, c, r, x, y, out var k))
-                            {
-                                continue;
-                            }
+                    yield return id;
+                }
+            }
+        }
+    }
 
-                            budget.ChargeProgression(layerEnd);
-                            for (var l = 0; l < layerEnd; l++)
-                            {
-                                yield return new PacketId(l, r, c, k);
-                            }
+    /// <summary>
+    ///     Walks the reference-grid positions of a tile, then the components and resolutions of the volume
+    ///     <paramref name="b"/> at each position.
+    /// </summary>
+    private static IEnumerable<PacketId> EnumeratePositions(Tile tile, SizInfo siz, VolumeBounds b, DecodeBudget budget)
+    {
+        for (var y = tile.Y0; y < tile.Y1; y += b.Dy - (y % b.Dy))
+        {
+            for (var x = tile.X0; x < tile.X1; x += b.Dx - (x % b.Dx))
+            {
+                for (var c = b.CompStart; c < b.CompEnd; c++)
+                {
+                    for (var r = b.ResStart; r < b.ResEnd; r++)
+                    {
+                        foreach (var id in EnumerateLayers(tile, siz, b.LayerEnd, c, r, x, y, budget))
+                        {
+                            yield return id;
                         }
                     }
                 }
             }
         }
-        else
-        {
-            for (var c = ch.CompStart; c < compEnd; c++)
-            {
-                for (var y = tile.Y0; y < tile.Y1; y += dy - (y % dy))
-                {
-                    for (var x = tile.X0; x < tile.X1; x += dx - (x % dx))
-                    {
-                        for (var r = ch.ResStart; r < resEnd; r++)
-                        {
-                            budget.ChargeProgression(1);
-                            if (!TryFindPrecinct(tile, siz, c, r, x, y, out var k))
-                            {
-                                continue;
-                            }
+    }
 
-                            budget.ChargeProgression(layerEnd);
-                            for (var l = 0; l < layerEnd; l++)
-                            {
-                                yield return new PacketId(l, r, c, k);
-                            }
-                        }
-                    }
-                }
-            }
+    private static IEnumerable<PacketId> EnumerateLayers(
+        Tile tile, SizInfo siz, int layerEnd, int c, int r, long x, long y, DecodeBudget budget)
+    {
+        budget.ChargeProgression(1);
+        if (!TryFindPrecinct(tile, siz, c, r, x, y, out var k))
+        {
+            yield break;
+        }
+
+        budget.ChargeProgression(layerEnd);
+        for (var l = 0; l < layerEnd; l++)
+        {
+            yield return new PacketId(l, r, c, k);
         }
     }
 
@@ -509,18 +523,7 @@ public static partial class Jpeg2000Codec
         Precinct precinct, int style, int layer, CodingState st, ByteCursor body, ByteCursor headers,
         List<(CodeBlock Block, Segment Seg, int Length)> pending)
     {
-        // Optional SOP marker segment in front of the packet (always in the body stream). Deliberately not required:
-        // the Scod SOP bit says markers MAY be present (T.800 A.6.1), so a missing or unnumbered SOP is accepted, as
-        // OpenJPEG does (it only warns). A SOP that is present must have Lsop = 4.
-        if (st.Sop && body.Remaining >= 6 && body.Data[body.Pos] == 0xFF && body.Data[body.Pos + 1] == 0x91)
-        {
-            if (body.Data[body.Pos + 2] != 0 || body.Data[body.Pos + 3] != 4)
-            {
-                throw Malformed("invalid SOP marker segment length.");
-            }
-
-            body.Pos += 6;
-        }
+        SkipSop(st, body);
 
         var br = new PacketBitReader(headers);
         pending.Clear();
@@ -551,22 +554,46 @@ public static partial class Jpeg2000Codec
                 throw Malformed("packet body extends beyond the tile data.");
             }
 
-            if (length > 0)
-            {
-                if (block.DataLength + length > block.Data.Length)
-                {
-                    var grown = block.Data;
-                    Array.Resize(ref grown, Math.Max(block.DataLength + length, grown.Length * 2));
-                    block.Data = grown;
-                }
-
-                Array.Copy(body.Data, body.Pos, block.Data, block.DataLength, length);
-                block.DataLength += length;
-                body.Pos += length;
-            }
-
+            AppendContribution(block, body, length);
             seg.Length += length;
         }
+    }
+
+    private static void AppendContribution(CodeBlock block, ByteCursor body, int length)
+    {
+        if (length <= 0)
+        {
+            return;
+        }
+
+        if (block.DataLength + length > block.Data.Length)
+        {
+            var grown = block.Data;
+            Array.Resize(ref grown, Math.Max(block.DataLength + length, grown.Length * 2));
+            block.Data = grown;
+        }
+
+        Array.Copy(body.Data, body.Pos, block.Data, block.DataLength, length);
+        block.DataLength += length;
+        body.Pos += length;
+    }
+
+    private static void SkipSop(CodingState st, ByteCursor body)
+    {
+        // Optional SOP marker segment in front of the packet (always in the body stream). Deliberately not required:
+        // the Scod SOP bit says markers MAY be present (T.800 A.6.1), so a missing or unnumbered SOP is accepted, as
+        // OpenJPEG does (it only warns). A SOP that is present must have Lsop = 4.
+        if (!st.Sop || body.Remaining < 6 || body.Data[body.Pos] != 0xFF || body.Data[body.Pos + 1] != 0x91)
+        {
+            return;
+        }
+
+        if (body.Data[body.Pos + 2] != 0 || body.Data[body.Pos + 3] != 4)
+        {
+            throw Malformed("invalid SOP marker segment length.");
+        }
+
+        body.Pos += 6;
     }
 
     private static void ReadBandContributions(
@@ -590,20 +617,7 @@ public static partial class Jpeg2000Codec
 
             if (!cb.Included)
             {
-                // Number of missing most significant bit-planes: decode the leaf value fully.
-                var i = 1;
-                // The count cannot reach TopPlanes: the block would have no bit-plane left to code.
-                while (!pb.ZeroBits!.DecodeBelow(br, cx, cy, i))
-                {
-                    if (++i > pb.TopPlanes)
-                    {
-                        throw Malformed("zero bit-plane count is out of range.");
-                    }
-                }
-
-                cb.ZeroBitPlanes = i - 1;
-                cb.Included = true;
-                cb.Lblock = 3;
+                ReadZeroBitPlanes(pb, cb, br, cx, cy);
             }
 
             var passes = ReadPassCount(br);
@@ -626,6 +640,25 @@ public static partial class Jpeg2000Codec
             cb.TotalPasses += passes;
             SplitIntoSegments(cb, style, passes, br, pending);
         }
+    }
+
+    private static void ReadZeroBitPlanes(PrecinctBand pb, CodeBlock cb, PacketBitReader br, int cx, int cy)
+    {
+        // Number of missing most significant bit-planes: decode the leaf value fully.
+        var i = 1;
+
+        // The count cannot reach TopPlanes: the block would have no bit-plane left to code.
+        while (!pb.ZeroBits!.DecodeBelow(br, cx, cy, i))
+        {
+            if (++i > pb.TopPlanes)
+            {
+                throw Malformed("zero bit-plane count is out of range.");
+            }
+        }
+
+        cb.ZeroBitPlanes = i - 1;
+        cb.Included = true;
+        cb.Lblock = 3;
     }
 
     private static int ReadPassCount(PacketBitReader br)

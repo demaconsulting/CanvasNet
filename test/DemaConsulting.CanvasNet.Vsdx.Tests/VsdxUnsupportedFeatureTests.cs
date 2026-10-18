@@ -9,6 +9,13 @@ namespace DemaConsulting.CanvasNet.Vsdx.Tests;
 /// </summary>
 public class VsdxUnsupportedFeatureTests
 {
+    private static readonly string[] ExpectedTokens =
+    [
+        "vsdx-arrowhead-99",
+        "vsdx-geometry-row-FutureRowKind",
+        "vsdx-arrowhead-99",
+        "vsdx-geometry-row-FutureRowKind",
+    ];
     /// <summary>A shape with one genuinely unrecognized (made-up) geometry row type.</summary>
     private const string UnknownRowShape =
         """
@@ -53,7 +60,7 @@ public class VsdxUnsupportedFeatureTests
 
         var tokens = received.Select(f => f.Feature).ToList();
         Assert.Equal(
-            new[] { "vsdx-arrowhead-99", "vsdx-geometry-row-FutureRowKind", "vsdx-arrowhead-99", "vsdx-geometry-row-FutureRowKind" },
+            ExpectedTokens,
             tokens);
         Assert.All(received, f => Assert.False(string.IsNullOrWhiteSpace(f.Message)));
     }

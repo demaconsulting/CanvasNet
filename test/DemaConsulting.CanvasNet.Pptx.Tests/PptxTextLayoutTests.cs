@@ -714,8 +714,8 @@ public class PptxTextLayoutTests
 
         var layout = Layout(textBody, 50000f, 1_000_000f);
 
-        Assert.Single(layout.Glyphs);
-        Assert.Equal(10160f, layout.Glyphs[0].OriginYEmu, 2);
+        var layoutItem = Assert.Single(layout.Glyphs);
+        Assert.Equal(10160f, layoutItem.OriginYEmu, 2);
     }
 
     /// <summary>
@@ -1024,16 +1024,17 @@ public class PptxTextLayoutTests
         TrueTypeFont fallbackFont,
         float widthEmu = 500000f,
         float heightEmu = 500000f) =>
-        PptxDocument.ResolveTextLayout(
-            textBody,
-            new PptxPlaceholderProperties(null, null, BuildTestTheme()),
-            BuildTestTheme(),
-            "body",
-            widthEmu,
-            heightEmu,
-            (_, _, _) => primaryFont,
-            colorMap: null,
-            fallbackFontResolver: (_, _) => fallbackFont);
+        PptxDocument.ResolveTextLayoutForRequest(new PptxDocument.TextLayoutRequest
+        {
+            TextBody = textBody,
+            PlaceholderProperties = new PptxPlaceholderProperties(null, null, BuildTestTheme()),
+            Theme = BuildTestTheme(),
+            PlaceholderType = "body",
+            WidthEmu = widthEmu,
+            HeightEmu = heightEmu,
+            FontResolver = (_, _, _) => primaryFont,
+            FallbackFontResolver = (_, _) => fallbackFont,
+        });
 
     /// <summary>
     ///     Proves the literal two-character tofu-box reproduction: a run's primary font covers
@@ -1085,10 +1086,10 @@ public class PptxTextLayoutTests
 
         var layout = LayoutWithFallback(textBody, primaryFont, fallbackFont);
 
-        Assert.Single(layout.Glyphs);
-        Assert.Same(fallbackFont, layout.Glyphs[0].Font);
-        Assert.Equal(fallbackFont.GetGlyphIndex('\u00B1'), layout.Glyphs[0].GlyphIndex);
-        Assert.NotEqual(0, layout.Glyphs[0].GlyphIndex);
+        var layoutItem = Assert.Single(layout.Glyphs);
+        Assert.Same(fallbackFont, layoutItem.Font);
+        Assert.Equal(fallbackFont.GetGlyphIndex('\u00B1'), layoutItem.GlyphIndex);
+        Assert.NotEqual(0, layoutItem.GlyphIndex);
     }
 
     /// <summary>
@@ -1138,9 +1139,9 @@ public class PptxTextLayoutTests
             500000f,
             500000f,
             (_, _, _) => primaryFont);
-        Assert.Single(degreeOnlyLayout.Glyphs);
-        Assert.Same(primaryFont, degreeOnlyLayout.Glyphs[0].Font);
-        Assert.Equal(primaryFont.GetGlyphIndex('\u00B0'), degreeOnlyLayout.Glyphs[0].GlyphIndex);
+        var degreeOnlyLayoutItem = Assert.Single(degreeOnlyLayout.Glyphs);
+        Assert.Same(primaryFont, degreeOnlyLayoutItem.Font);
+        Assert.Equal(primaryFont.GetGlyphIndex('\u00B0'), degreeOnlyLayoutItem.GlyphIndex);
     }
 
     /// <summary>
@@ -1181,16 +1182,17 @@ public class PptxTextLayoutTests
         // "Before" layout: the fallback resolver returns the SAME primary font - i.e. no wider-
         // coverage font is ever consulted, reproducing the pre-fix behavior where a run is
         // permanently bound to a single resolved font for every character.
-        var beforeLayout = PptxDocument.ResolveTextLayout(
-            textBody,
-            new PptxPlaceholderProperties(null, null, BuildTestTheme()),
-            BuildTestTheme(),
-            "body",
-            widthEmu,
-            heightEmu,
-            (_, _, _) => primaryFont,
-            colorMap: null,
-            fallbackFontResolver: (_, _) => primaryFont);
+        var beforeLayout = PptxDocument.ResolveTextLayoutForRequest(new PptxDocument.TextLayoutRequest
+        {
+            TextBody = textBody,
+            PlaceholderProperties = new PptxPlaceholderProperties(null, null, BuildTestTheme()),
+            Theme = BuildTestTheme(),
+            PlaceholderType = "body",
+            WidthEmu = widthEmu,
+            HeightEmu = heightEmu,
+            FontResolver = (_, _, _) => primaryFont,
+            FallbackFontResolver = (_, _) => primaryFont,
+        });
 
         // "After" layout: this change's real per-character glyph-coverage fallback, with a
         // fallback font that actually covers both characters.
@@ -1289,9 +1291,9 @@ public class PptxTextLayoutTests
             textBody, new PptxPlaceholderProperties(null, null, BuildTestTheme()), BuildTestTheme(), "body",
             500000f, 500000f, (_, _, _) => font);
 
-        Assert.Single(layout.Glyphs);
-        Assert.Equal(font.GetGlyphIndex(0x1F600), layout.Glyphs[0].GlyphIndex);
-        Assert.NotEqual(0, layout.Glyphs[0].GlyphIndex);
+        var layoutItem = Assert.Single(layout.Glyphs);
+        Assert.Equal(font.GetGlyphIndex(0x1F600), layoutItem.GlyphIndex);
+        Assert.NotEqual(0, layoutItem.GlyphIndex);
     }
 
     /// <summary>
@@ -1337,10 +1339,10 @@ public class PptxTextLayoutTests
 
         var layout = LayoutWithFallback(textBody, primaryFont, fallbackFont);
 
-        Assert.Single(layout.Glyphs);
-        Assert.Same(fallbackFont, layout.Glyphs[0].Font);
-        Assert.Equal(fallbackFont.GetGlyphIndex(0x1F600), layout.Glyphs[0].GlyphIndex);
-        Assert.NotEqual(0, layout.Glyphs[0].GlyphIndex);
+        var layoutItem = Assert.Single(layout.Glyphs);
+        Assert.Same(fallbackFont, layoutItem.Font);
+        Assert.Equal(fallbackFont.GetGlyphIndex(0x1F600), layoutItem.GlyphIndex);
+        Assert.NotEqual(0, layoutItem.GlyphIndex);
     }
 
     #endregion

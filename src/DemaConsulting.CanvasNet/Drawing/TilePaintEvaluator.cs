@@ -119,8 +119,7 @@ internal static class TilePaintEvaluator
         var deviceX = Math.Sqrt(((double)m.M11 * m.M11) + ((double)m.M12 * m.M12)) / tilePixelsPerUnitX;
         var deviceY = Math.Sqrt(((double)m.M21 * m.M21) + ((double)m.M22 * m.M22)) / tilePixelsPerUnitY;
         Surface? minified = null;
-        var magnified = false;
-        if (SurfaceResampler.ClassifyTileScale(deviceX, deviceY, surface.Width, surface.Height, out magnified, out var width, out var height))
+        if (SurfaceResampler.ClassifyTileScale(deviceX, deviceY, surface.Width, surface.Height, out var magnified, out var width, out var height))
         {
             minified = surface.Resize(width, height, ResamplingMode.Area);
         }

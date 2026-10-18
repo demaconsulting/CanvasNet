@@ -688,10 +688,10 @@ public class PptxBulletTests
 
         var layout = Layout(textBody);
 
-        Assert.Single(layout.Glyphs);
+        var layoutItem = Assert.Single(layout.Glyphs);
         // Explicit buNone paragraphs are bullet-less, so the hanging-indent fix does NOT apply -
         // text renders at the pre-existing marL+indent first-line position.
-        Assert.Equal(30000f, layout.Glyphs[0].OriginXEmu, 2);
+        Assert.Equal(30000f, layoutItem.OriginXEmu, 2);
     }
 
     /// <summary>

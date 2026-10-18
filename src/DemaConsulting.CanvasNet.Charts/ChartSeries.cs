@@ -119,7 +119,7 @@ public sealed class ChartSeries
     /// <exception cref="ArgumentException">
     ///     Thrown when <paramref name="values"/> is empty or contains a non-finite entry.
     /// </exception>
-    private static IReadOnlyList<double> CopyValues(IReadOnlyList<double> values)
+    private static ReadOnlyCollection<double> CopyValues(IReadOnlyList<double> values)
     {
         if (values.Count == 0)
         {
@@ -150,7 +150,7 @@ public sealed class ChartSeries
     /// <exception cref="ArgumentException">
     ///     Thrown when <paramref name="pointLabels"/> contains a <see langword="null"/> entry.
     /// </exception>
-    private static IReadOnlyList<string>? CopyPointLabels(IReadOnlyList<string>? pointLabels)
+    private static ReadOnlyCollection<string>? CopyPointLabels(IReadOnlyList<string>? pointLabels)
     {
         if (pointLabels is null)
         {

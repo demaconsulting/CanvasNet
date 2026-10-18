@@ -56,7 +56,8 @@ public class PdfDocumentThinBarInkTests
     /// <summary>Renders black-on-transparent and returns the summed alpha in pixels.</summary>
     private static double RenderInk(string content, int width, int height)
     {
-        using var document = PdfDocument.Open(new MemoryStream(BuildPdf(content)));
+        using var stream = new MemoryStream(BuildPdf(content));
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, width, height, new PdfRenderOptions { BackgroundColor = new(0, 0, 0, 0) });
         double sum = 0;
         for (var y = 0; y < surface.Height; y++)
@@ -130,7 +131,8 @@ public class PdfDocumentThinBarInkTests
         var area = ((65 - 63.33) + (61.67 - 60)) * (612 - 96);
         foreach (var (width, height) in Sizes)
         {
-            using var document = PdfDocument.Open(new MemoryStream(BuildPdf(content)));
+            using var stream = new MemoryStream(BuildPdf(content));
+            using var document = PdfDocument.Open(stream);
             using var surface = document.Render(0, width, height, new PdfRenderOptions { BackgroundColor = new(255, 255, 255, 255) });
             double sum = 0;
             for (var y = 0; y < surface.Height; y++)

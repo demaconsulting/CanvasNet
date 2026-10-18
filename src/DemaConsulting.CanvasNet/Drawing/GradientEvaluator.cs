@@ -277,7 +277,7 @@ internal static class GradientEvaluator
                     {
                         // dr == 0.0 <=> StartRadius == EndRadius (computed as a difference so the
                         // comparison is against the literal zero, not variable-to-variable).
-                        RadialIsFullyDegenerate = radial.StartCenter == radial.EndCenter && dr == 0.0,
+                        RadialIsFullyDegenerate = radial.StartCenter.Equals(radial.EndCenter) && dr.Equals(0d),
                         RadialDx = dx,
                         RadialDy = dy,
                         RadialDr = dr,
@@ -399,26 +399,7 @@ internal static class GradientEvaluator
 
         if (Math.Abs(a) <= NearZeroCoefficient)
         {
-            if (Math.Abs(b) <= NearZeroCoefficient)
-            {
-                if (Math.Abs(c) <= NearZeroCoefficient)
-                {
-                    // The quadratic vanishes identically (a ≈ 0, b ≈ 0, c ≈ 0): every t is
-                    // technically a valid root, meaning gradientPoint lies on the swept
-                    // family's boundary circle at every t in the tangent-degenerate
-                    // configuration. Apply this method's boundary-conforming selection
-                    // convention (see remarks) using the same dr-sign policy as the
-                    // both-roots-valid case: growing (dr > 0) resolves to the start-side
-                    // endpoint (t = 0), shrinking (dr <= 0) resolves to the end-side
-                    // endpoint (t = 1).
-                    return dr > 0.0 ? 0.0 : 1.0;
-                }
-
-                return null;
-            }
-
-            var t = -c / b;
-            return IsValidRoot(radial, t) ? t : null;
+            return SolveLinearRadialParameter(radial, b, c, dr);
         }
 
         var discriminant = (b * b) - (4.0 * a * c);
@@ -452,6 +433,35 @@ internal static class GradientEvaluator
         }
 
         return validLow ? low : null;
+    }
+
+    /// <summary>
+    ///     Solves the degenerate (leading coefficient near zero) case of the two-circle quadratic,
+    ///     which is linear in <c>t</c> (or vanishes entirely).
+    /// </summary>
+    /// <returns>The valid <c>t</c>, or <see langword="null"/> if none exists.</returns>
+    private static double? SolveLinearRadialParameter(RadialGradient radial, double b, double c, double dr)
+    {
+        if (Math.Abs(b) > NearZeroCoefficient)
+        {
+            var t = -c / b;
+            return IsValidRoot(radial, t) ? t : null;
+        }
+
+        if (Math.Abs(c) > NearZeroCoefficient)
+        {
+            return null;
+        }
+
+        // The quadratic vanishes identically (a ≈ 0, b ≈ 0, c ≈ 0): every t is
+        // technically a valid root, meaning gradientPoint lies on the swept
+        // family's boundary circle at every t in the tangent-degenerate
+        // configuration. Apply this method's boundary-conforming selection
+        // convention (see remarks) using the same dr-sign policy as the
+        // both-roots-valid case: growing (dr > 0) resolves to the start-side
+        // endpoint (t = 0), shrinking (dr <= 0) resolves to the end-side
+        // endpoint (t = 1).
+        return dr > 0.0 ? 0.0 : 1.0;
     }
 
     /// <summary>

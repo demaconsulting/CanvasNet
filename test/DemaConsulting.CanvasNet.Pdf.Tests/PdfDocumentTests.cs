@@ -115,7 +115,8 @@ public class PdfDocumentTests
         int rotate = 0)
     {
         var bytes = BuildSinglePagePdf(mediaBoxWidth, mediaBoxHeight, content, rotate);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         return document.Render(0, width, height, Transparent);
     }
 
@@ -214,7 +215,8 @@ public class PdfDocumentTests
     /// <summary>Renders page 0 of an in-memory PDF built by <see cref="BuildSinglePagePdfWithResources"/>.</summary>
     private static Canvas.Surface RenderPdfBytes(byte[] bytes, int width = 100, int height = 100)
     {
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         return document.Render(0, width, height, Transparent);
     }
 
@@ -1545,10 +1547,8 @@ public class PdfDocumentTests
 
         var buffer = new List<byte>();
         buffer.AddRange("%PDF-1.7\n"u8.ToArray());
-        var offsets = new List<int>();
         for (var i = 0; i < bodies.Count; i++)
         {
-            offsets.Add(buffer.Count);
             buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
             buffer.AddRange(bodies[i]);
             buffer.AddRange("\nendobj\n"u8.ToArray());
@@ -1617,7 +1617,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildXrefStreamPdfWithWidths("[-1 1 1]");
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -1640,7 +1641,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildXrefStreamPdfWithWidths("[0 0 0]");
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -1673,7 +1675,8 @@ public class PdfDocumentTests
         var pdfBytes = CorruptStartXrefOffset("-1");
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        using var stream = new MemoryStream(pdfBytes);
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(stream));
     }
 
     /// <summary>Proves that a <c>startxref</c> offset far beyond the end of the buffer throws <see cref="InvalidDataException"/> instead of being used as-is.</summary>
@@ -1684,7 +1687,8 @@ public class PdfDocumentTests
         var pdfBytes = CorruptStartXrefOffset("999999999");
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        using var stream = new MemoryStream(pdfBytes);
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(stream));
     }
 
     /// <summary>
@@ -1744,7 +1748,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildCompressedObjectSelfCyclePdf();
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        using var stream = new MemoryStream(pdfBytes);
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(stream));
     }
 
     /// <summary>
@@ -1816,7 +1821,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildCompressedObjectNonIntegerNumberPdf();
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        using var stream = new MemoryStream(pdfBytes);
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(stream));
     }
 
     /// <summary>
@@ -1894,7 +1900,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildContainerLengthReferencesOwnCompressedObjectCyclePdf();
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        using var stream = new MemoryStream(pdfBytes);
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(stream));
     }
 
     /// <summary>
@@ -1958,7 +1965,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildObjectStreamDeclaredCountExceedsDecodedLengthPdf();
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        using var stream = new MemoryStream(pdfBytes);
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(stream));
     }
 
     /// <summary>
@@ -1995,7 +2003,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildClassicXrefSubsectionCountExceedsBufferLengthPdf();
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        using var stream = new MemoryStream(pdfBytes);
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(stream));
     }
 
     /// <summary>Proves that a page object compressed inside a <c>/Type /ObjStm</c> object stream is decompressed and resolved correctly.</summary>
@@ -2222,7 +2231,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithLaterCompressedPageRedefinitionPdf();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -2290,7 +2300,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithNonIntegerCompressedObjectNumberPdf();
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        using var stream = new MemoryStream(pdfBytes);
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(stream));
     }
 
     /// <summary>
@@ -2356,7 +2367,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithNonIntegerObjectStreamCountPdf();
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        using var stream = new MemoryStream(pdfBytes);
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(stream));
     }
 
     /// <summary>
@@ -2416,7 +2428,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithObjMarkerInsideStreamPayload();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -2482,7 +2495,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithStreamWordInsideDictionaryValue();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -2545,7 +2559,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithObjMarkerInsideNonStreamDictionaryValue();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -2616,7 +2631,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithEarlyFalseEndstreamInStreamPayload();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -2694,7 +2710,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithEarlyFalseEndstreamAndIndirectLength();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -2754,7 +2771,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithObjectHeaderNotAtLineStart();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -2822,7 +2840,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithObjectHeaderDecoyInsideMultilineString();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -2892,7 +2911,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithUnsupportedFilterObjectStream();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -2956,7 +2976,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithManyStreamPayloadRangesBeforeTrailer();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -3020,7 +3041,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithObjectNumberAsTokenSuffix();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -3084,7 +3106,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithObjectNumberAsNameToken();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -3150,7 +3173,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithSecondAngleBracketAsHexStringStart();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -3216,7 +3240,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithLongUnterminatedLiteralStringRun();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert: total scan work stays within a small constant multiple of the buffer size (the
         // quadratic behavior would be ~200,000 x 200,000 steps)
@@ -3297,7 +3322,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithUnrelatedUnterminatedLiteralStringBeforeObjectHeader();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -3378,7 +3404,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildClassicXrefPdfWithStartxrefAsTokenSuffix();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -3458,7 +3485,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildClassicXrefPdfWithStartxrefAsNameToken();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -3536,7 +3564,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithCommentBeforeEndobj();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -3602,7 +3631,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithCommentInObjectHeader();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -3682,7 +3712,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithCommentBeforeDeclaredLengthEndstream();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -3772,7 +3803,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildLinearScanFallbackWithUnterminatedCommentAtForwardScanBound();
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+        using var stream = new MemoryStream(pdfBytes);
+        using var document = PdfDocument.Open(stream);
 
         // Assert
         Assert.Equal(1, document.PageCount);
@@ -3817,7 +3849,7 @@ public class PdfDocumentTests
         var pdfBytes = BuildSinglePagePdf(100, 100, "10 10 40 40 re f");
         var text = System.Text.Encoding.ASCII.GetString(pdfBytes);
         var entryStart = FindClassicXrefEntryOffsetStart(text, 3);
-        var realOffset = long.Parse(text.Substring(entryStart, 10), System.Globalization.CultureInfo.InvariantCulture);
+        var realOffset = long.Parse(text.AsSpan(entryStart, 10), System.Globalization.CultureInfo.InvariantCulture);
         var wrapped = (realOffset + (1L << 32)).ToString("D10", System.Globalization.CultureInfo.InvariantCulture);
         var corrupted = text[..entryStart] + wrapped + text[(entryStart + 10)..];
         return System.Text.Encoding.ASCII.GetBytes(corrupted);
@@ -3838,7 +3870,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildClassicXrefPdfWithEntryOffsetBeyondInt32Range();
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        using var stream = new MemoryStream(pdfBytes);
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(stream));
     }
 
     /// <summary>
@@ -3888,7 +3921,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildClassicXrefPdfWithEntryPointingAtWrongObjectHeader();
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        using var stream = new MemoryStream(pdfBytes);
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(stream));
     }
 
     /// <summary>
@@ -3951,7 +3985,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildClassicXrefPdfWithNonIntegerObjectNumberHeader();
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        using var stream = new MemoryStream(pdfBytes);
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(stream));
     }
 
     #endregion
@@ -4082,7 +4117,8 @@ public class PdfDocumentTests
         var pdfBytes = BuildDeepPageTreePdf(40);
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+        using var stream = new MemoryStream(pdfBytes);
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(stream));
     }
 
     #endregion
@@ -9124,8 +9160,9 @@ public class PdfDocumentTests
     {
         // Arrange
         var bytes = BuildSinglePagePdf(100, 100, "BT ET");
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
-        var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>());
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
+        var fontDict = PdfDocument.PdfObject.FromDictionary([]);
 
         // Act
         var result = document.ResolveToUnicodeMap(fontDict);
@@ -9142,7 +9179,8 @@ public class PdfDocumentTests
         var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfchar\n<0041> <0048>\nendbfchar");
         var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
         {
             ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
@@ -9164,7 +9202,8 @@ public class PdfDocumentTests
         var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<0001> <0003> <0048>\nendbfrange");
         var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
         {
             ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
@@ -9195,7 +9234,8 @@ public class PdfDocumentTests
         var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<000000> <010000> <0048>\nendbfrange");
         var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
         {
             ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
@@ -9222,7 +9262,8 @@ public class PdfDocumentTests
         var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<80000000> <00000001> <0048>\nendbfrange");
         var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
         {
             ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
@@ -9246,7 +9287,8 @@ public class PdfDocumentTests
         var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<7FFFFFFF> <7FFFFFFF> <0048>\nendbfrange");
         var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
         {
             ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
@@ -9270,7 +9312,8 @@ public class PdfDocumentTests
         var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<0001> <0002> [<0048> <004F>]\nendbfrange");
         var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
         {
             ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
@@ -9293,7 +9336,8 @@ public class PdfDocumentTests
         var cmapBytes = BuildToUnicodeCMapStreamBytes("2 beginbfchar\n<0003> <>\n<0041> <0048>\nendbfchar");
         var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
         {
             ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
@@ -9316,7 +9360,8 @@ public class PdfDocumentTests
         var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<0001> <0003> <>\nendbfrange");
         var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
         {
             ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
@@ -9338,7 +9383,8 @@ public class PdfDocumentTests
         var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<0001> <0002> [<> <004F>]\nendbfrange");
         var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
         {
             ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
@@ -9361,7 +9407,8 @@ public class PdfDocumentTests
         var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfchar\n<0041> <00>\nendbfchar");
         var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
         {
             ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
@@ -9379,7 +9426,8 @@ public class PdfDocumentTests
         var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<0001> <0001> [[<0048>]]\nendbfrange");
         var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
         {
             ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
@@ -9401,7 +9449,8 @@ public class PdfDocumentTests
         var cmapBytes = BuildToUnicodeCMapStreamBytes(operatorName);
         var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
         {
             ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
@@ -11797,7 +11846,8 @@ public class PdfDocumentTests
     {
         var functionStream = BuildStreamObjectBody(dictionaryEntries, sampleBytes);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [functionStream]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         return document.ResolveFunction(PdfDocument.PdfObject.FromReference(5, 0));
     }
 
@@ -12057,7 +12107,8 @@ public class PdfDocumentTests
     {
         var functionStream = BuildStreamObjectBody(dictionaryEntries, streamBytes);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [functionStream]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         return document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0));
     }
 
@@ -12092,7 +12143,8 @@ public class PdfDocumentTests
         var stitchingStream = BuildStreamObjectBody(
             "/FunctionType 3 /Domain [0 1] /Functions [6 0 R 7 0 R] /Bounds [0.5] /Encode [0 1 0 1]", []);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn0, fn1]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var function = document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0));
 
         // Act
@@ -12122,7 +12174,8 @@ public class PdfDocumentTests
         var stitchingStream = BuildStreamObjectBody(
             "/FunctionType 3 /Domain [0 1] /Functions [5 0 R] /Bounds [] /Encode [0 1]", []);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(
@@ -12142,7 +12195,8 @@ public class PdfDocumentTests
         var stitchingStream = BuildStreamObjectBody(
             $"/FunctionType 3 /Functions [6 0 R 6 0 R 6 0 R] {domainAndBounds} /Encode [0 1 0 1 0 1]", []);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(
@@ -12159,7 +12213,8 @@ public class PdfDocumentTests
         var stitchingStream = BuildStreamObjectBody(
             $"/FunctionType 3 /Domain [0 1] /Functions [6 0 R 6 0 R] /Bounds [{huge}] /Encode [0 1 0 1]", []);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
 
         // Act & Assert
         var exception = Assert.Throws<InvalidDataException>(
@@ -12182,7 +12237,8 @@ public class PdfDocumentTests
         var stitchingStream = BuildStreamObjectBody(
             "/FunctionType 3 /Domain [0 1] /Functions [6 0 R 7 0 R 8 0 R] /Bounds [0.5 0.5] /Encode [0 1 0 1 0 1]", []);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn0, fn1, fn2]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var function = document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0));
 
         // Act
@@ -12202,7 +12258,8 @@ public class PdfDocumentTests
         var stitchingStream = BuildStreamObjectBody(
             "/FunctionType 3 /Domain [0 1] /Functions [6 0 R 7 0 R] /Bounds [0.5] /Encode [0 1 0 1]", []);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn0, fn1]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
 
         // Act & Assert
         var exception = Assert.Throws<InvalidDataException>(
@@ -12222,7 +12279,8 @@ public class PdfDocumentTests
         var stitchingStream = BuildStreamObjectBody(
             "/FunctionType 3 /Domain [0 1] /Functions [6 0 R 7 0 R] /Bounds [0.5] /Encode [0 1 0 1]", []);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn0, fn1]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         var function = document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0));
 
         // Act
@@ -12243,7 +12301,8 @@ public class PdfDocumentTests
         var stitchingStream = BuildStreamObjectBody(
             $"/FunctionType 3 /Domain [0 1] /Functions [6 0 R 6 0 R] /Bounds [0.5] /Encode [0 1 0 {huge}]", []);
         var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn]);
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
 
         // Act & Assert
         var exception = Assert.Throws<InvalidDataException>(

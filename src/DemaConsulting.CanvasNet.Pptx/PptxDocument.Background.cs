@@ -34,6 +34,27 @@ public sealed partial class PptxDocument
     private const uint BgFillStyleListIdxOffset = 1001;
 
     /// <summary>
+    ///     The optional color map and per-tier blip resolvers for <see cref="ResolveSlideBackgroundFill"/>.
+    ///     A blip's <c>r:embed</c> relationship is scoped to its own owning part, so each tier needs
+    ///     its own resolver bound to its own part's path (see <see cref="ResolveFill"/>'s matching
+    ///     parameter); only the winning tier's resolver is used.
+    /// </summary>
+    internal readonly record struct BackgroundContext
+    {
+        /// <summary>Gets the effective color map, or <see langword="null"/> for the default.</summary>
+        public PptxColorMap? ColorMap { get; init; }
+
+        /// <summary>Gets the resolver used when the slide's own background wins.</summary>
+        public Func<XElement, Surface>? SlideResolveBlipImage { get; init; }
+
+        /// <summary>Gets the resolver used when the layout's background wins.</summary>
+        public Func<XElement, Surface>? LayoutResolveBlipImage { get; init; }
+
+        /// <summary>Gets the resolver used when the master's background wins.</summary>
+        public Func<XElement, Surface>? MasterResolveBlipImage { get; init; }
+    }
+
+    /// <summary>
     ///     Resolves the first-present-wins slide -&gt; layout -&gt; master <c>&lt;p:bg&gt;</c>
     ///     background fill into a concrete <see cref="PptxPaint"/>, matching the Phase 1b
     ///     placeholder-inheritance "first element present at all wins" precedent exactly (see
@@ -46,25 +67,9 @@ public sealed partial class PptxDocument
     /// <param name="theme">The resolved theme, used to resolve any <c>&lt;a:schemeClr&gt;</c> and, for a <c>&lt;p:bgRef&gt;</c>, its <see cref="PptxTheme.BgFillStyleList"/>.</param>
     /// <param name="widthEmu">The slide's own declared width, in EMU (needed to position a gradient background fill).</param>
     /// <param name="heightEmu">The slide's own declared height, in EMU (needed to position a gradient background fill).</param>
-    /// <param name="colorMap">
-    ///     The effective color map consulted when the resolved background declares an
-    ///     <c>&lt;a:schemeClr val="bg1"/&gt;</c>-shaped token, or <see langword="null"/> (the
-    ///     default) - see <see cref="ResolveFill"/>'s matching parameter.
-    /// </param>
-    /// <param name="slideResolveBlipImage">
-    ///     Passed through to <see cref="ResolveFill"/> only when <paramref name="slideBackground"/>
-    ///     is the tier that wins (the slide's own <c>&lt;p:bg&gt;</c> declares an
-    ///     <c>&lt;a:blipFill&gt;</c>) - a blip's <c>r:embed</c> relationship is scoped to its own
-    ///     owning part (the slide part, in this case), so each tier needs its own resolver bound
-    ///     to its own part's path. See <see cref="ResolveFill"/>'s matching parameter.
-    /// </param>
-    /// <param name="layoutResolveBlipImage">
-    ///     The layout-tier counterpart of <paramref name="slideResolveBlipImage"/>, passed through
-    ///     only when <paramref name="layoutBackground"/> is the tier that wins.
-    /// </param>
-    /// <param name="masterResolveBlipImage">
-    ///     The master-tier counterpart of <paramref name="slideResolveBlipImage"/>, passed through
-    ///     only when <paramref name="masterBackground"/> is the tier that wins.
+    /// <param name="context">
+    ///     The optional color map and per-tier blip resolvers (see <see cref="BackgroundContext"/>),
+    ///     or <see langword="null"/> (the default) for no color map and no blip resolution.
     /// </param>
     /// <returns>
     ///     The resolved <see cref="PptxPaint"/>, or <see langword="null"/> when none of
@@ -94,10 +99,7 @@ public sealed partial class PptxDocument
         PptxTheme theme,
         float widthEmu,
         float heightEmu,
-        PptxColorMap? colorMap = null,
-        Func<XElement, Surface>? slideResolveBlipImage = null,
-        Func<XElement, Surface>? layoutResolveBlipImage = null,
-        Func<XElement, Surface>? masterResolveBlipImage = null)
+        BackgroundContext? context = null)
     {
         var background = slideBackground ?? layoutBackground ?? masterBackground;
         if (background is null)
@@ -105,21 +107,22 @@ public sealed partial class PptxDocument
             return null;
         }
 
+        var resolvers = context ?? default;
         Func<XElement, Surface>? resolveBlipImage;
         if (ReferenceEquals(background, slideBackground))
         {
-            resolveBlipImage = slideResolveBlipImage;
+            resolveBlipImage = resolvers.SlideResolveBlipImage;
         }
         else if (ReferenceEquals(background, layoutBackground))
         {
-            resolveBlipImage = layoutResolveBlipImage;
+            resolveBlipImage = resolvers.LayoutResolveBlipImage;
         }
         else
         {
-            resolveBlipImage = masterResolveBlipImage;
+            resolveBlipImage = resolvers.MasterResolveBlipImage;
         }
 
-        return ResolveBackgroundElement(background, theme, widthEmu, heightEmu, colorMap, resolveBlipImage);
+        return ResolveBackgroundElement(background, theme, widthEmu, heightEmu, resolvers.ColorMap, resolveBlipImage);
     }
 
     /// <summary>

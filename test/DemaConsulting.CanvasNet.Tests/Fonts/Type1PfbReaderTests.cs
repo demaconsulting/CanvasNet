@@ -142,13 +142,7 @@ public class Type1PfbReaderTests
     [Fact]
     public void Type1PfbReader_Read_UnrecognizedSegmentType_ThrowsInvalidDataException()
     {
-        var buf = new List<byte>();
-        buf.Add(0x80);
-        buf.Add(0x05); // unrecognized segment type
-        buf.Add(0);
-        buf.Add(0);
-        buf.Add(0);
-        buf.Add(0);
+        List<byte> buf = [0x80, 0x05, 0, 0, 0, 0]; // 0x05 is an unrecognized segment type
 
         Assert.Throws<InvalidDataException>(() => Type1PfbReader.Read([.. buf]));
     }
@@ -169,13 +163,7 @@ public class Type1PfbReaderTests
     [Fact]
     public void Type1PfbReader_Read_TruncatedPayload_ThrowsInvalidDataException()
     {
-        var buf = new List<byte>();
-        buf.Add(0x80);
-        buf.Add(0x02);
-        buf.Add(100); // declares 100 bytes of payload
-        buf.Add(0);
-        buf.Add(0);
-        buf.Add(0);
+        List<byte> buf = [0x80, 0x02, 100, 0, 0, 0]; // declares 100 bytes of payload
         buf.AddRange("short"u8.ToArray()); // but only 5 bytes actually follow
 
         Assert.Throws<InvalidDataException>(() => Type1PfbReader.Read([.. buf]));

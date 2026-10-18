@@ -115,7 +115,7 @@ public sealed partial class VsdxDocument
     ///     Thrown when the archive contains two entries whose full names are exactly identical
     ///     (a malformed/corrupt ZIP, since a well-formed ZIP never duplicates an entry name).
     /// </exception>
-    private static IReadOnlyDictionary<string, ZipArchiveEntry> BuildEntryLookup(ZipArchive archive)
+    private static Dictionary<string, ZipArchiveEntry> BuildEntryLookup(ZipArchive archive)
     {
         var entries = new Dictionary<string, ZipArchiveEntry>(StringComparer.Ordinal);
         foreach (var entry in archive.Entries)
@@ -229,7 +229,7 @@ public sealed partial class VsdxDocument
     ///     skipping the malformed relationship or overwriting the first relationship with the
     ///     duplicate.
     /// </exception>
-    private static IReadOnlyDictionary<string, PackageRelationship> ParseRelationships(ZipArchiveEntry entry)
+    private static Dictionary<string, PackageRelationship> ParseRelationships(ZipArchiveEntry entry)
     {
         var root = LoadXmlRoot(entry);
         if (root.Name != RelationshipsNamespace + "Relationships")

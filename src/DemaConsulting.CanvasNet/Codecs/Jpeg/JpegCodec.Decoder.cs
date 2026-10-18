@@ -414,33 +414,7 @@ public static partial class JpegCodec
 
             while (true)
             {
-                if (!probe.TryEnsureLength(pos + 2))
-                {
-                    throw ProbeExhaustedException(probe);
-                }
-
-                // Skip any fill bytes (0xFF) before the marker code.
-                while (probe[pos] != MarkerPrefix)
-                {
-                    pos++;
-                    if (!probe.TryEnsureLength(pos + 2))
-                    {
-                        throw ProbeExhaustedException(probe);
-                    }
-                }
-
-                while (probe.TryEnsureLength(pos + 2) && probe[pos + 1] == MarkerPrefix)
-                {
-                    pos++;
-                }
-
-                if (!probe.TryEnsureLength(pos + 2))
-                {
-                    throw ProbeExhaustedException(probe);
-                }
-
-                var marker = probe[pos + 1];
-                pos += 2;
+                var marker = ReadNextProbeMarker(probe, ref pos);
 
                 switch (marker)
                 {
@@ -494,6 +468,46 @@ public static partial class JpegCodec
                         break;
                 }
             }
+        }
+
+        /// <summary>
+        ///     Advances <paramref name="pos"/> past any fill bytes and the marker prefix, and
+        ///     returns the next marker code, leaving <paramref name="pos"/> immediately after it.
+        /// </summary>
+        /// <param name="probe">The incremental probe buffer to read from.</param>
+        /// <param name="pos">The current scan position; updated in place.</param>
+        /// <returns>The marker code byte.</returns>
+        /// <exception cref="InvalidDataException">Thrown when the probe runs out of readable data.</exception>
+        private static byte ReadNextProbeMarker(IncrementalProbeBuffer probe, ref int pos)
+        {
+            if (!probe.TryEnsureLength(pos + 2))
+            {
+                throw ProbeExhaustedException(probe);
+            }
+
+            // Skip any fill bytes (0xFF) before the marker code.
+            while (probe[pos] != MarkerPrefix)
+            {
+                pos++;
+                if (!probe.TryEnsureLength(pos + 2))
+                {
+                    throw ProbeExhaustedException(probe);
+                }
+            }
+
+            while (probe.TryEnsureLength(pos + 2) && probe[pos + 1] == MarkerPrefix)
+            {
+                pos++;
+            }
+
+            if (!probe.TryEnsureLength(pos + 2))
+            {
+                throw ProbeExhaustedException(probe);
+            }
+
+            var marker = probe[pos + 1];
+            pos += 2;
+            return marker;
         }
 
         /// <summary>

@@ -62,45 +62,13 @@ internal static class Type1PfbReader
         var pos = 0;
         while (true)
         {
-            if (pos >= data.Length)
-            {
-                throw new InvalidDataException("Type 1 PFB file is missing its terminating end-of-file segment.");
-            }
-
-            if (data[pos] != SegmentMarker)
-            {
-                throw new InvalidDataException("Type 1 PFB file segment header does not start with the expected 0x80 marker byte.");
-            }
-
-            if (pos + 1 >= data.Length)
-            {
-                throw new InvalidDataException("Type 1 PFB file segment header is truncated.");
-            }
-
-            var segmentType = data[pos + 1];
-            if (segmentType == TypeEndOfFile)
+            var segment = ReadSegmentHeader(data, pos);
+            if (segment is null)
             {
                 break;
             }
 
-            if (segmentType != TypeAscii && segmentType != TypeBinary)
-            {
-                throw new InvalidDataException(
-                    $"Type 1 PFB file contains an unrecognized segment type byte (0x{segmentType:X2}).");
-            }
-
-            if (pos + HeaderSize > data.Length)
-            {
-                throw new InvalidDataException("Type 1 PFB file segment header is truncated.");
-            }
-
-            var length = ReadLengthLittleEndian(data, pos + 2);
-            var payloadStart = pos + HeaderSize;
-            if (length < 0 || checked((long)payloadStart + length) > data.Length)
-            {
-                throw new InvalidDataException("Type 1 PFB file segment payload is truncated.");
-            }
-
+            var (segmentType, payloadStart, length) = segment.Value;
             if (segmentType == TypeAscii)
             {
                 if (!sawBinarySegment)
@@ -130,6 +98,54 @@ internal static class Type1PfbReader
         encrypted.CopyTo(fontFileBytes, cleartext.Count);
 
         return (fontFileBytes, cleartext.Count, encrypted.Count);
+    }
+
+    /// <summary>
+    ///     Validates and reads the segment header at <paramref name="pos"/>; returns
+    ///     <see langword="null"/> for the end-of-file segment.
+    /// </summary>
+    private static (byte SegmentType, int PayloadStart, int Length)? ReadSegmentHeader(byte[] data, int pos)
+    {
+        if (pos >= data.Length)
+        {
+            throw new InvalidDataException("Type 1 PFB file is missing its terminating end-of-file segment.");
+        }
+
+        if (data[pos] != SegmentMarker)
+        {
+            throw new InvalidDataException("Type 1 PFB file segment header does not start with the expected 0x80 marker byte.");
+        }
+
+        if (pos + 1 >= data.Length)
+        {
+            throw new InvalidDataException("Type 1 PFB file segment header is truncated.");
+        }
+
+        var segmentType = data[pos + 1];
+        if (segmentType == TypeEndOfFile)
+        {
+            return null;
+        }
+
+        if (segmentType != TypeAscii && segmentType != TypeBinary)
+        {
+            throw new InvalidDataException(
+                $"Type 1 PFB file contains an unrecognized segment type byte (0x{segmentType:X2}).");
+        }
+
+        if (pos + HeaderSize > data.Length)
+        {
+            throw new InvalidDataException("Type 1 PFB file segment header is truncated.");
+        }
+
+        var length = ReadLengthLittleEndian(data, pos + 2);
+        var payloadStart = pos + HeaderSize;
+        if (length < 0 || checked((long)payloadStart + length) > data.Length)
+        {
+            throw new InvalidDataException("Type 1 PFB file segment payload is truncated.");
+        }
+
+        return (segmentType, payloadStart, length);
     }
 
     private static int ReadLengthLittleEndian(byte[] data, int offset) =>

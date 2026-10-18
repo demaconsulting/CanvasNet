@@ -21,46 +21,32 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 internal sealed class VsdxShapeNode
 {
     /// <summary>Initializes a new instance of the <see cref="VsdxShapeNode"/> class from its raw, as-parsed fields.</summary>
-    /// <param name="id">The shape's <c>ID=</c> attribute.</param>
-    /// <param name="type">The shape's <c>Type=</c> attribute (for example <c>"Shape"</c>, <c>"Group"</c>), or <see cref="string.Empty"/> when absent.</param>
-    /// <param name="masterId">The shape's own <c>Master=</c> attribute, or <see langword="null"/> when absent.</param>
-    /// <param name="masterShapeId">The shape's own <c>MasterShape=</c> attribute, or <see langword="null"/> when absent.</param>
-    /// <param name="lineStyleId">The shape's own <c>LineStyle=</c> attribute, or <see langword="null"/> when absent.</param>
-    /// <param name="fillStyleId">The shape's own <c>FillStyle=</c> attribute, or <see langword="null"/> when absent.</param>
-    /// <param name="textStyleId">The shape's own <c>TextStyle=</c> attribute, or <see langword="null"/> when absent.</param>
+    /// <param name="identity">The shape's identifying attributes (<c>ID=</c>, <c>Type=</c>, <c>Master=</c>, <c>MasterShape=</c>).</param>
+    /// <param name="styles">The shape's own <c>LineStyle=</c>, <c>FillStyle=</c> and <c>TextStyle=</c> attributes.</param>
     /// <param name="rawCells">The shape's own direct <c>&lt;Cell&gt;</c> children.</param>
     /// <param name="rawGeometrySections">The shape's own direct <c>&lt;Section N="Geometry"&gt;</c> children, unmerged.</param>
-    /// <param name="rawText">The shape's own direct <c>&lt;Text&gt;</c> child, parsed into marker-delimited runs - see <see cref="VsdxDocument.ParseTextElement"/>.</param>
-    /// <param name="rawCharacterRows">The shape's own direct <c>&lt;Section N="Character"&gt;</c> child's <c>&lt;Row IX="k"&gt;</c> children, unmerged with any Master shape.</param>
-    /// <param name="rawParagraphRows">The shape's own direct <c>&lt;Section N="Paragraph"&gt;</c> child's <c>&lt;Row IX="k"&gt;</c> children, unmerged with any Master shape.</param>
+    /// <param name="text">The shape's own direct <c>&lt;Text&gt;</c> child and its <c>Character</c>/<c>Paragraph</c> section rows, all unmerged with any Master shape.</param>
     /// <param name="children">The shape's own direct <c>&lt;Shapes&gt;</c>/<c>&lt;Shape&gt;</c> descendants, recursively parsed but not resolved.</param>
     public VsdxShapeNode(
-        string id,
-        string type,
-        string? masterId,
-        string? masterShapeId,
-        string? lineStyleId,
-        string? fillStyleId,
-        string? textStyleId,
+        VsdxShapeIdentity identity,
+        VsdxShapeStyleIds styles,
         VsdxCellBag rawCells,
         IReadOnlyList<VsdxGeometrySectionRaw> rawGeometrySections,
-        VsdxRawText rawText,
-        IReadOnlyDictionary<int, VsdxCellBag> rawCharacterRows,
-        IReadOnlyDictionary<int, VsdxCellBag> rawParagraphRows,
+        VsdxShapeTextData text,
         IReadOnlyList<VsdxShapeNode> children)
     {
-        Id = id;
-        Type = type;
-        MasterId = masterId;
-        MasterShapeId = masterShapeId;
-        LineStyleId = lineStyleId;
-        FillStyleId = fillStyleId;
-        TextStyleId = textStyleId;
+        Id = identity.Id;
+        Type = identity.Type;
+        MasterId = identity.MasterId;
+        MasterShapeId = identity.MasterShapeId;
+        LineStyleId = styles.LineStyleId;
+        FillStyleId = styles.FillStyleId;
+        TextStyleId = styles.TextStyleId;
         RawCells = rawCells;
         RawGeometrySections = rawGeometrySections;
-        RawText = rawText;
-        RawCharacterRows = rawCharacterRows;
-        RawParagraphRows = rawParagraphRows;
+        RawText = text.RawText;
+        RawCharacterRows = text.RawCharacterRows;
+        RawParagraphRows = text.RawParagraphRows;
         Children = children;
     }
 
@@ -175,3 +161,25 @@ internal sealed class VsdxShapeNode
     /// </summary>
     public bool HiddenByLayer { get; internal set; }
 }
+
+/// <summary>A shape's identifying attributes.</summary>
+/// <param name="Id">The shape's <c>ID=</c> attribute.</param>
+/// <param name="Type">The shape's <c>Type=</c> attribute (for example <c>"Shape"</c>, <c>"Group"</c>), or <see cref="string.Empty"/> when absent.</param>
+/// <param name="MasterId">The shape's own <c>Master=</c> attribute, or <see langword="null"/> when absent.</param>
+/// <param name="MasterShapeId">The shape's own <c>MasterShape=</c> attribute, or <see langword="null"/> when absent.</param>
+internal readonly record struct VsdxShapeIdentity(string Id, string Type, string? MasterId, string? MasterShapeId);
+
+/// <summary>A shape's own style-sheet references.</summary>
+/// <param name="LineStyleId">The shape's own <c>LineStyle=</c> attribute, or <see langword="null"/> when absent.</param>
+/// <param name="FillStyleId">The shape's own <c>FillStyle=</c> attribute, or <see langword="null"/> when absent.</param>
+/// <param name="TextStyleId">The shape's own <c>TextStyle=</c> attribute, or <see langword="null"/> when absent.</param>
+internal readonly record struct VsdxShapeStyleIds(string? LineStyleId, string? FillStyleId, string? TextStyleId);
+
+/// <summary>A shape's own raw text content and its text-formatting section rows, unmerged with any Master shape.</summary>
+/// <param name="RawText">The shape's own direct <c>&lt;Text&gt;</c> child, parsed into marker-delimited runs - see <see cref="VsdxDocument.ParseTextElement"/>.</param>
+/// <param name="RawCharacterRows">The shape's own <c>&lt;Section N="Character"&gt;</c> rows.</param>
+/// <param name="RawParagraphRows">The shape's own <c>&lt;Section N="Paragraph"&gt;</c> rows.</param>
+internal readonly record struct VsdxShapeTextData(
+    VsdxRawText RawText,
+    IReadOnlyDictionary<int, VsdxCellBag> RawCharacterRows,
+    IReadOnlyDictionary<int, VsdxCellBag> RawParagraphRows);

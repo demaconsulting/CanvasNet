@@ -93,7 +93,7 @@ public static partial class ChartRenderer
                 var labelRadius = (innerRadius + outerRadius) / 2f;
                 var labelX = centerX + MathF.Cos(midAngle) * labelRadius;
                 var labelY = centerY + MathF.Sin(midAngle) * labelRadius;
-                PaintPointDataLabel(canvas, series, i, labelX, labelY + options.DataLabelFontSize * 0.35f, TextAlign.Center, options, font);
+                PaintPointDataLabel(canvas, series, i, new Vector2(labelX, labelY + options.DataLabelFontSize * 0.35f), TextAlign.Center, options, font);
 
                 angle = endAngle;
             }

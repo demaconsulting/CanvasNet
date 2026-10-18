@@ -82,7 +82,8 @@ public class PdfDocumentJpxTests
 
     private static Surface Render(params byte[][] extraObjects)
     {
-        using var document = PdfDocument.Open(new MemoryStream(BuildPdf(extraObjects)));
+        using var stream = new MemoryStream(BuildPdf(extraObjects));
+        using var document = PdfDocument.Open(stream);
         return document.Render(0, 100, 100, Transparent);
     }
 
@@ -118,7 +119,8 @@ public class PdfDocumentJpxTests
         var pdf = BuildPdf("100 0 0 70 0 30 cm /Im0 Do", [ImageObject(string.Empty, jpx)]);
 
         // Act
-        using var document = PdfDocument.Open(new MemoryStream(pdf));
+        using var stream = new MemoryStream(pdf);
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, 100, 100, Transparent);
 
         // Assert: the image fills the top 70 pixel rows (PDF y 30..100). The renderer resamples
@@ -514,7 +516,8 @@ public class PdfDocumentJpxTests
     public void PdfDocument_Images_DctGrayWithDecode_InvertsSamples()
     {
         var jpeg = File.ReadAllBytes(Path.Join(AppContext.BaseDirectory, "JpegFixtures", "grayscale_baseline.jpg"));
-        var info = JpegCodec.GetInfo(new MemoryStream(jpeg));
+        using var stream = new MemoryStream(jpeg);
+        var info = JpegCodec.GetInfo(stream);
         Assert.Equal(1, info.Channels);
         var dictionary = $"/Type /XObject /Subtype /Image /Width {info.Width} /Height {info.Height} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /DCTDecode";
         using var reference = Render(StreamObject(dictionary, jpeg));

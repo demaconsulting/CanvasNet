@@ -164,7 +164,7 @@ public sealed partial class PdfDocument
                 return (winningFont, glyphIndex, declaredWidth / 1000.0);
             }
 
-            if (MissingWidth != 0)
+            if (!MissingWidth.Equals(0d))
             {
                 return (winningFont, glyphIndex, MissingWidth / 1000.0);
             }
@@ -361,7 +361,8 @@ public sealed partial class PdfDocument
             }
 
             var fontBytes = GetStreamDecodedBytes(fontFileStream);
-            fonts = [TrueTypeFont.Load(new MemoryStream(fontBytes))];
+            using var stream = new MemoryStream(fontBytes);
+            fonts = [TrueTypeFont.Load(stream)];
         }
         else if (fontFileEntry is not null)
         {
@@ -432,7 +433,7 @@ public sealed partial class PdfDocument
     ///     Thrown when the named base encoding is neither <c>/WinAnsiEncoding</c>,
     ///     <c>/MacRomanEncoding</c>, nor <c>/StandardEncoding</c>.
     /// </exception>
-    private IReadOnlyDictionary<int, int> ResolveEncoding(PdfObject? encodingEntry, int[]? defaultBaseTable = null)
+    private Dictionary<int, int> ResolveEncoding(PdfObject? encodingEntry, int[]? defaultBaseTable = null)
     {
         var table = (int[])(defaultBaseTable ?? WinAnsiEncodingTable).Clone();
         PdfObject? differences = null;
@@ -787,7 +788,7 @@ public sealed partial class PdfDocument
     ///     The enriched codepoint-to-glyph-name map, newly allocated so mutating it never affects
     ///     <see cref="CodepointToStandardGlyphName"/> itself.
     /// </returns>
-    private IReadOnlyDictionary<int, string> BuildEmbeddedFontGlyphNameMap(PdfObject? encodingEntry)
+    private Dictionary<int, string> BuildEmbeddedFontGlyphNameMap(PdfObject? encodingEntry)
     {
         var map = new Dictionary<int, string>(CodepointToStandardGlyphName);
 
@@ -867,7 +868,7 @@ public sealed partial class PdfDocument
     ///     silent mis-mapping to codepoint <c>0</c>/<c>.notdef</c>) - see that method's own
     ///     remarks.
     /// </remarks>
-    private static readonly IReadOnlyDictionary<string, int> StandardGlyphNames = new Dictionary<string, int>
+    private static readonly Dictionary<string, int> StandardGlyphNames = new Dictionary<string, int>
     {
         ["A"] = 0x0041,
         ["AE"] = 0x00C6,
@@ -1373,7 +1374,7 @@ public sealed partial class PdfDocument
     private static readonly IReadOnlyDictionary<int, string> CodepointToStandardGlyphName =
         BuildCodepointToStandardGlyphName();
 
-    private static IReadOnlyDictionary<int, string> BuildCodepointToStandardGlyphName()
+    private static Dictionary<int, string> BuildCodepointToStandardGlyphName()
     {
         var result = new Dictionary<int, string>();
         foreach (var (name, codepoint) in StandardGlyphNames)

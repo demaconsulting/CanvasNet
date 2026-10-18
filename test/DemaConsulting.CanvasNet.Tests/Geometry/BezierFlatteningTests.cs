@@ -31,7 +31,7 @@ public class BezierFlatteningTests
     /// <summary>
     ///     Computes the minimum perpendicular distance from a point to any segment of a polyline.
     /// </summary>
-    private static float DistanceToPolyline(Vector2 point, IReadOnlyList<Vector2> polyline)
+    private static float DistanceToPolyline(Vector2 point, List<Vector2> polyline)
     {
         var minDistance = float.PositiveInfinity;
         for (var i = 0; i < polyline.Count - 1; i++)

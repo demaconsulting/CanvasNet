@@ -273,6 +273,64 @@ public static partial class SvgCodec
         ((0.2125f * r) + (0.7154f * g) + (0.0721f * b)) / 255f;
 
     /// <summary>
+    ///     Groups the recursion-depth counters and the shared work budgets that are threaded
+    ///     unchanged through nearly every render method, so those methods stay within a
+    ///     reasonable parameter count. The running <c>totalElements</c> counter is deliberately
+    ///     not part of this type because it is passed by <see langword="ref"/>.
+    /// </summary>
+    /// <param name="UseDepth">The current <c>use</c>-reference nesting depth.</param>
+    /// <param name="ElementDepth">The current element recursion depth.</param>
+    /// <param name="MarkerDepth">The current <c>marker</c>-reference nesting depth.</param>
+    /// <param name="WorkBudget">The shared geometry-parsing work budget.</param>
+    /// <param name="FilterWorkBudget">The shared cumulative filter-evaluation work budget.</param>
+    /// <param name="BoundsPrePassBudget">The shared cumulative bounds-pre-pass work budget.</param>
+    private readonly record struct RenderScope(
+        int UseDepth,
+        int ElementDepth,
+        int MarkerDepth,
+        GeometryWorkBudget WorkBudget,
+        FilterWorkBudget FilterWorkBudget,
+        BoundsPrePassWorkBudget BoundsPrePassBudget)
+    {
+        /// <summary>Gets this scope one element level deeper (<see cref="ElementDepth"/> + 1).</summary>
+        /// <returns>The nested scope.</returns>
+        public RenderScope Nested() => this with { ElementDepth = ElementDepth + 1 };
+
+        /// <summary>Gets this scope one <c>use</c> level and one element level deeper.</summary>
+        /// <returns>The nested scope.</returns>
+        public RenderScope NestedUse() => this with { UseDepth = UseDepth + 1, ElementDepth = ElementDepth + 1 };
+
+        /// <summary>Gets this scope one <c>marker</c> level and one element level deeper.</summary>
+        /// <returns>The nested scope.</returns>
+        public RenderScope NestedMarker() => this with { MarkerDepth = MarkerDepth + 1, ElementDepth = ElementDepth + 1 };
+    }
+
+    /// <summary>
+    ///     The resolved <c>filter</c>/<c>clip-path</c>/<c>mask</c> elements of one element (any of
+    ///     which may be <see langword="null"/> when that effect does not apply).
+    /// </summary>
+    /// <param name="Filter">The resolved <c>filter</c> element, or <see langword="null"/>.</param>
+    /// <param name="ClipPath">The resolved <c>clipPath</c> element, or <see langword="null"/>.</param>
+    /// <param name="Mask">The resolved <c>mask</c> element, or <see langword="null"/>.</param>
+    private readonly record struct EffectsSet(XElement? Filter, XElement? ClipPath, XElement? Mask);
+
+    /// <summary>
+    ///     The offscreen buffer an effects pipeline (<c>clip-path</c> / <c>mask</c> / <c>filter</c>)
+    ///     operates on, together with the geometry needed to map it back to the referencing element.
+    /// </summary>
+    /// <param name="Content">The referencing element's own offscreen content buffer.</param>
+    /// <param name="ReferenceBounds">The referencing element's own local-space painted-content bounds.</param>
+    /// <param name="PixelX">The pixel-space X origin <paramref name="Content"/> was allocated at.</param>
+    /// <param name="PixelY">The pixel-space Y origin <paramref name="Content"/> was allocated at.</param>
+    /// <param name="Transform">The accumulated transform from the referencing element's own local space into pixel space.</param>
+    private readonly record struct EffectsTarget(
+        Surface Content,
+        Rect ReferenceBounds,
+        int PixelX,
+        int PixelY,
+        Matrix3x2 Transform);
+
+    /// <summary>
     ///     Tracks the cumulative "geometry parsing work" - path <c>d</c> data commands,
     ///     points-list coordinate pairs, and text characters - charged across a single
     ///     <c>Load</c> call, throwing once a fixed combined budget is exceeded. This bounds the

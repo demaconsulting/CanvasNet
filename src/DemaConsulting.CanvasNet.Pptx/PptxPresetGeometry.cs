@@ -370,7 +370,7 @@ internal static class PptxPresetGeometry
         return new PathBuilder()
             .MoveTo(new Vector2(cx, cy))
             .LineTo(start)
-            .ArcTo(new Vector2(rx, ry), 0f, largeArc: sweepDeg > 180f, sweep: true, end)
+            .ArcTo(new Vector2(rx, ry), 0f, largeArc: true, sweep: true, end) // the fixed 270-degree sweep exceeds 180 degrees
             .Close()
             .Build();
     }

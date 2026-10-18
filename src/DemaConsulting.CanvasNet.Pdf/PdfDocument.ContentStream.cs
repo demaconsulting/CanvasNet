@@ -79,7 +79,7 @@ public sealed partial class PdfDocument
         _subpathStart = default;
         _hasOpenSubpath = false;
         _pendingClipFillRule = null;
-        _fontCache = new Dictionary<PdfObject, IResolvedFont>();
+        _fontCache = [];
         _textMatrix = Matrix3x2.Identity;
         _lineMatrix = Matrix3x2.Identity;
         _textClipBuilder = null;
@@ -182,6 +182,18 @@ public sealed partial class PdfDocument
     /// </exception>
     private void DispatchOperator(string operatorName, List<PdfObject> operands)
     {
+        // Each category helper returns true when it recognized (and handled) the operator;
+        // any keyword none of them recognizes is silently skipped (see the final helper).
+        _ = DispatchGraphicsStateOperator(operatorName, operands)
+            || DispatchPathOperator(operatorName, operands)
+            || DispatchColorOperator(operatorName, operands)
+            || DispatchXObjectAndShadingOperator(operatorName, operands)
+            || DispatchTextOperator(operatorName, operands);
+    }
+
+    /// <summary>Dispatches a graphics-state operator; returns <see langword="false"/> when <paramref name="operatorName"/> is not one.</summary>
+    private bool DispatchGraphicsStateOperator(string operatorName, List<PdfObject> operands)
+    {
         switch (operatorName)
         {
             // Graphics-state operators (PdfDocument.GraphicsState.cs).
@@ -212,6 +224,18 @@ public sealed partial class PdfDocument
                 OpSetDashPattern(operands);
                 break;
 
+            default:
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>Dispatches a path-construction, path-painting, or clipping operator; returns <see langword="false"/> when <paramref name="operatorName"/> is not one.</summary>
+    private bool DispatchPathOperator(string operatorName, List<PdfObject> operands)
+    {
+        switch (operatorName)
+        {
             // Path-construction operators (PdfDocument.PathOps.cs).
             case "m":
                 OpMoveTo(operands);
@@ -287,6 +311,18 @@ public sealed partial class PdfDocument
                 OpMarkPendingClip(FillRule.EvenOdd);
                 break;
 
+            default:
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>Dispatches a color operator; returns <see langword="false"/> when <paramref name="operatorName"/> is not one.</summary>
+    private bool DispatchColorOperator(string operatorName, List<PdfObject> operands)
+    {
+        switch (operatorName)
+        {
             // Device color operators (PdfDocument.Color.cs).
             case "g":
                 OpSetGrayFill(operands);
@@ -321,6 +357,18 @@ public sealed partial class PdfDocument
                 OpSetColorStroke(operands, operatorName);
                 break;
 
+            default:
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>Dispatches the <c>Do</c> and <c>sh</c> operators; returns <see langword="false"/> when <paramref name="operatorName"/> is neither.</summary>
+    private bool DispatchXObjectAndShadingOperator(string operatorName, List<PdfObject> operands)
+    {
+        switch (operatorName)
+        {
             // Image XObject operator (PdfDocument.Images.cs).
             case "Do":
                 OpDrawXObject(operands);
@@ -335,6 +383,18 @@ public sealed partial class PdfDocument
                 OpPaintShading(operands);
                 break;
 
+            default:
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>Dispatches a text or Type 3 glyph-description operator; returns <see langword="false"/> when <paramref name="operatorName"/> is not one.</summary>
+    private bool DispatchTextOperator(string operatorName, List<PdfObject> operands)
+    {
+        switch (operatorName)
+        {
             // Text object operators (PdfDocument.Text.cs).
             case "BT":
                 RequireOperandCount(operands, "BT", 0);
@@ -413,8 +473,10 @@ public sealed partial class PdfDocument
                 // (ExtGState, inline images) per this phase's documented lenient-consumer posture
                 // toward unrecognized operators. W/W* (clipping) and sh (shading) are handled
                 // above, not skipped here.
-                break;
+                return false;
         }
+
+        return true;
     }
 
     /// <summary>

@@ -135,7 +135,7 @@ public sealed partial class PptxDocument
     ///     this content is rare in practice (only consulted by a <c>&lt;p:bgRef&gt;</c> background
     ///     reference), so its absence is tolerated rather than treated as malformed.
     /// </returns>
-    private static IReadOnlyList<XElement> ParseBgFillStyleList(XElement themeElementsElement)
+    private static List<XElement> ParseBgFillStyleList(XElement themeElementsElement)
     {
         var bgFillStyleLst = themeElementsElement.Element(DrawingNamespace + "fmtScheme")?
             .Element(DrawingNamespace + "bgFillStyleLst");
@@ -153,7 +153,7 @@ public sealed partial class PptxDocument
     ///     The <c>&lt;a:fillStyleLst&gt;</c>'s children, or an empty list when the theme declares
     ///     no <c>&lt;a:fmtScheme&gt;</c> or no <c>&lt;a:fillStyleLst&gt;</c> at all.
     /// </returns>
-    private static IReadOnlyList<XElement> ParseFillStyleList(XElement themeElementsElement)
+    private static List<XElement> ParseFillStyleList(XElement themeElementsElement)
     {
         var fillStyleLst = themeElementsElement.Element(DrawingNamespace + "fmtScheme")?
             .Element(DrawingNamespace + "fillStyleLst");
@@ -171,7 +171,7 @@ public sealed partial class PptxDocument
     ///     The <c>&lt;a:lnStyleLst&gt;</c>'s children, or an empty list when the theme declares no
     ///     <c>&lt;a:fmtScheme&gt;</c> or no <c>&lt;a:lnStyleLst&gt;</c> at all.
     /// </returns>
-    private static IReadOnlyList<XElement> ParseLnStyleList(XElement themeElementsElement)
+    private static List<XElement> ParseLnStyleList(XElement themeElementsElement)
     {
         var lnStyleLst = themeElementsElement.Element(DrawingNamespace + "fmtScheme")?
             .Element(DrawingNamespace + "lnStyleLst");

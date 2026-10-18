@@ -65,7 +65,7 @@ public sealed partial class PdfDocument
         var parmsObject = streamObject.Get("DecodeParms");
         if (parmsObject is null)
         {
-            return new List<PdfObject?>(new PdfObject?[filterCount]);
+            return [.. new PdfObject?[filterCount]];
         }
 
         var resolvedParms = Resolve(parmsObject);

@@ -46,28 +46,24 @@ public static partial class SvgCodec
     /// <param name="state">The cascaded render state at the <c>use</c> element itself.</param>
     /// <param name="transform">The accumulated transform at the <c>use</c> element itself.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth.</param>
-    /// <param name="elementDepth">
-    ///     The current recursion depth of the enclosing <see cref="RenderElement"/> call,
-    ///     propagated to the re-rendered target so it also contributes toward
-    ///     <see cref="MaxElementDepth"/>.
-    /// </param>
-    /// <param name="markerDepth">
-    ///     The current <c>marker</c>-reference nesting depth, propagated unchanged to the
-    ///     re-rendered target - a <c>use</c> reference is not itself a marker reference, but a
-    ///     <c>marker</c> reference reached inside the re-rendered target must still contribute
-    ///     toward <see cref="MaxMarkerDepth"/>. Also determines whether this <c>use</c> element's
-    ///     own <c>filter</c> attribute is resolved at all (see this method's remarks).
+    /// <param name="scope">
+    ///     The recursion depths and shared work budgets of the enclosing <see cref="RenderElement"/>
+    ///     call. <see cref="RenderScope.UseDepth"/> is the current <c>use</c>-reference nesting
+    ///     depth, and <see cref="RenderScope.ElementDepth"/> is propagated (incremented) to the
+    ///     re-rendered target so it also contributes toward <see cref="MaxElementDepth"/>.
+    ///     <see cref="RenderScope.MarkerDepth"/> is propagated unchanged to the re-rendered target
+    ///     - a <c>use</c> reference is not itself a marker reference, but a <c>marker</c>
+    ///     reference reached inside the re-rendered target must still contribute toward
+    ///     <see cref="MaxMarkerDepth"/> - and also determines whether this <c>use</c> element's
+    ///     own <c>filter</c> attribute is resolved at all (see this method's remarks). The geometry,
+    ///     filter-evaluation and bounds-pre-pass work budgets are propagated to the re-rendered target.
     /// </param>
     /// <param name="totalElements">
     ///     The running total-rendered-elements count, propagated to the re-rendered target so it
     ///     also contributes toward <see cref="MaxTotalRenderedElements"/>.
     /// </param>
-    /// <param name="workBudget">The shared geometry-parsing work budget, propagated to the re-rendered target.</param>
-    /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget, propagated to the re-rendered target.</param>
-    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, propagated to the re-rendered target.</param>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <paramref name="useDepth"/> has already reached <see cref="MaxUseDepth"/>,
+    ///     Thrown when <see cref="RenderScope.UseDepth"/> has already reached <see cref="MaxUseDepth"/>,
     ///     guarding against a reference cycle that would otherwise recurse indefinitely.
     /// </exception>
     /// <remarks>
@@ -76,7 +72,7 @@ public static partial class SvgCodec
     ///     handling elsewhere.
     ///     <para>
     ///     This <c>use</c> element's own <c>filter</c> presentation attribute is resolved (via
-    ///     <see cref="ResolveFilterElement"/>) unless <paramref name="markerDepth"/> is greater
+    ///     <see cref="ResolveFilterElement"/>) unless <see cref="RenderScope.MarkerDepth"/> is greater
     ///     than zero - i.e. unless this very <c>use</c> element is itself part of a <c>marker</c>
     ///     element's own content - per the documented "filters on marker content have no effect"
     ///     scope decision shared with shape/text filtering. When resolved, the referenced target
@@ -87,9 +83,9 @@ public static partial class SvgCodec
     ///     <see cref="RenderGroupWithEffects"/>'s own remarks).
     ///     </para>
     /// </remarks>
-    private static void RenderUse(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, int useDepth, int elementDepth, int markerDepth, ref int totalElements, GeometryWorkBudget workBudget, FilterWorkBudget filterWorkBudget, BoundsPrePassWorkBudget boundsPrePassBudget)
+    private static void RenderUse(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, RenderScope scope, ref int totalElements)
     {
-        if (useDepth >= MaxUseDepth)
+        if (scope.UseDepth >= MaxUseDepth)
         {
             throw new InvalidDataException("Exceeded the maximum <use> reference nesting depth.");
         }
@@ -132,17 +128,15 @@ public static partial class SvgCodec
         // is not itself rendered as part of any marker's content (only RenderOneMarker increments
         // markerDepth), so markerDepth > 0 here means the *referenced* target is being rendered as
         // part of a marker's own content instead.
-        var suppressEffects = markerDepth > 0;
-        var useFilterElement = suppressEffects ? null : ResolveFilterElement(element, context);
-        var useClipPathElement = suppressEffects ? null : ResolveClipPathElement(element, context);
-        var useMaskElement = suppressEffects ? null : ResolveMaskElement(element, context);
-        if (useFilterElement == null && useClipPathElement == null && useMaskElement == null)
+        var suppressEffects = scope.MarkerDepth > 0;
+        var effects = ResolveEffectsSet(element, context, suppressEffects);
+        if (effects.Filter == null && effects.ClipPath == null && effects.Mask == null)
         {
-            RenderElement(target, targetState, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            RenderElement(target, targetState, useTransform, context, scope.NestedUse(), ref totalElements);
         }
         else
         {
-            RenderGroupWithEffects(useFilterElement, useClipPathElement, useMaskElement, [target], targetState, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            RenderGroupWithEffects(effects, [target], targetState, useTransform, context, scope.NestedUse(), ref totalElements);
         }
     }
 
@@ -259,21 +253,13 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Classifies a marker-eligible vertex's position within its shape's whole, flattened
-    ///     (whole-document-order, not per-subpath) vertex sequence, selecting which of
-    ///     <c>marker-start</c>/<c>marker-mid</c>/<c>marker-end</c> applies to it.
+    ///     One marker instance's placement at a shape vertex.
     /// </summary>
-    private enum MarkerVertexRole
-    {
-        /// <summary>The very first vertex of the whole shape - uses <c>marker-start</c>.</summary>
-        Start,
-
-        /// <summary>Every vertex strictly between the first and last - uses <c>marker-mid</c>.</summary>
-        Mid,
-
-        /// <summary>The very last vertex of the whole shape - uses <c>marker-end</c>.</summary>
-        End
-    }
+    /// <param name="Position">The vertex position, in the referencing shape's own local space.</param>
+    /// <param name="AngleDegrees">The vertex's own computed tangent angle.</param>
+    /// <param name="IsStartVertex">Whether this vertex is the shape's very first vertex.</param>
+    /// <param name="LocalStrokeWidth">The shape's own <c>stroke-width</c>, in local user-space units.</param>
+    private readonly record struct MarkerPlacement(Vector2 Position, float AngleDegrees, bool IsStartVertex, float LocalStrokeWidth);
 
     /// <summary>
     ///     Builds the ordered, whole-shape list of marker-eligible vertices (and their tangents)
@@ -412,13 +398,8 @@ public static partial class SvgCodec
     /// <param name="state">The shape's own cascaded render state, supplying the three marker specs and local <c>stroke-width</c>.</param>
     /// <param name="transform">The shape's own accumulated transform - every marker instance is transformed through this same transform.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, propagated unchanged to each marker's content.</param>
-    /// <param name="elementDepth">The current element-tree recursion depth, propagated to each marker's content.</param>
-    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, propagated to each marker's content.</param>
+    /// <param name="scope">The recursion depths and budgets at the host shape element, propagated to each marker's content.</param>
     /// <param name="totalElements">The running total-rendered-elements count.</param>
-    /// <param name="workBudget">The shared geometry-parsing work budget.</param>
-    /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget.</param>
-    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget.</param>
     /// <remarks>
     ///     Never called for <c>rect</c>/<c>circle</c>/<c>ellipse</c> - those shapes have no
     ///     natural vertices to orient a marker along, per the SVG specification, and this class's
@@ -433,13 +414,8 @@ public static partial class SvgCodec
         RenderState state,
         Matrix3x2 transform,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget)
+        RenderScope scope,
+        ref int totalElements)
     {
         if (state.MarkerStart == "none" && state.MarkerMid == "none" && state.MarkerEnd == "none")
         {
@@ -456,56 +432,13 @@ public static partial class SvgCodec
 
         for (var i = 0; i < vertices.Count; i++)
         {
-            MarkerVertexRole role;
-            if (i == 0)
-            {
-                role = MarkerVertexRole.Start;
-            }
-            else if (i == vertices.Count - 1)
-            {
-                role = MarkerVertexRole.End;
-            }
-            else
-            {
-                role = MarkerVertexRole.Mid;
-            }
-
-            var spec = role switch
-            {
-                MarkerVertexRole.Start => state.MarkerStart,
-                MarkerVertexRole.End => state.MarkerEnd,
-                _ => state.MarkerMid
-            };
-
-            if (string.Equals(spec.Trim(), "none", StringComparison.OrdinalIgnoreCase))
+            if (!TryGetVertexMarker(vertices, i, state, context, out var markerElement, out var isStartVertex))
             {
                 continue;
             }
 
-            var markerElement = ResolveMarkerElement(spec, context);
-            if (markerElement == null)
-            {
-                continue;
-            }
-
-            var vertex = vertices[i];
-            var angleDegrees = ComputeVertexAngleDegrees(vertex);
-            RenderOneMarker(
-                markerElement,
-                vertex.Position,
-                angleDegrees,
-                isStartVertex: role == MarkerVertexRole.Start,
-                state.StrokeWidth,
-                state,
-                transform,
-                context,
-                useDepth,
-                elementDepth,
-                markerDepth,
-                ref totalElements,
-                workBudget,
-                filterWorkBudget,
-                boundsPrePassBudget);
+            var placement = new MarkerPlacement(vertices[i].Position, ComputeVertexAngleDegrees(vertices[i]), isStartVertex, state.StrokeWidth);
+            RenderOneMarker(markerElement, placement, state, transform, context, scope, ref totalElements);
         }
     }
 
@@ -548,23 +481,17 @@ public static partial class SvgCodec
     ///     (never inheriting <paramref name="shapeTransform"/>'s own fill/stroke state).
     /// </summary>
     /// <param name="markerElement">The resolved <c>marker</c> element.</param>
-    /// <param name="vertexPosition">The vertex's position, in the referencing shape's own local space.</param>
-    /// <param name="vertexAngleDegrees">
-    ///     The vertex's own computed tangent angle (see <see cref="ComputeVertexAngleDegrees"/>),
-    ///     used when <c>orient</c> is <c>auto</c>/<c>auto-start-reverse</c>/absent.
-    /// </param>
-    /// <param name="isStartVertex">
-    ///     Whether this vertex is the referencing shape's very first vertex - needed only to
-    ///     resolve <c>orient="auto-start-reverse"</c>, which reverses by 180 degrees at the start
-    ///     vertex only.
-    /// </param>
-    /// <param name="localStrokeWidth">
-    ///     The referencing shape's own <c>stroke-width</c>, in local (pre-<paramref name="shapeTransform"/>)
-    ///     user-space units - not the pixel-scaled effective width - used to scale this marker
-    ///     instance when <c>markerUnits</c> is <c>strokeWidth</c> (the SVG default). Deliberately
-    ///     left unscaled: <paramref name="shapeTransform"/>, composed last below, is the only place
-    ///     the pixel scale is applied, so composing an already-pixel-scaled width here would apply
-    ///     that scale twice.
+    /// <param name="placement">
+    ///     The vertex position (in the referencing shape's own local space), its computed tangent
+    ///     angle (see <see cref="ComputeVertexAngleDegrees"/>, used when <c>orient</c> is
+    ///     <c>auto</c>/<c>auto-start-reverse</c>/absent), whether it is the shape's very first
+    ///     vertex (needed only to resolve <c>orient="auto-start-reverse"</c>), and the shape's own
+    ///     <c>stroke-width</c> in local (pre-<paramref name="shapeTransform"/>) user-space units -
+    ///     not the pixel-scaled effective width - used to scale this marker instance when
+    ///     <c>markerUnits</c> is <c>strokeWidth</c> (the SVG default). Deliberately left unscaled:
+    ///     <paramref name="shapeTransform"/>, composed last below, is the only place the pixel
+    ///     scale is applied, so composing an already-pixel-scaled width here would apply that
+    ///     scale twice.
     /// </param>
     /// <param name="viewportState">
     ///     The referencing shape's own cascaded render state, supplying the current viewport/
@@ -574,19 +501,14 @@ public static partial class SvgCodec
     /// </param>
     /// <param name="shapeTransform">The referencing shape's own accumulated transform.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, propagated unchanged to the marker's content.</param>
-    /// <param name="elementDepth">The current element-tree recursion depth, propagated (incremented by one) to the marker's content.</param>
-    /// <param name="markerDepth">
-    ///     The current <c>marker</c>-reference nesting depth, checked against
-    ///     <see cref="MaxMarkerDepth"/> before any other work, then propagated (incremented by
-    ///     one) to the marker's own content.
+    /// <param name="scope">
+    ///     The recursion depths and budgets at the host shape element. Its marker depth is
+    ///     checked against <see cref="MaxMarkerDepth"/> before any other work, then propagated
+    ///     (incremented by one, along with the element depth) to the marker's own content.
     /// </param>
     /// <param name="totalElements">The running total-rendered-elements count.</param>
-    /// <param name="workBudget">The shared geometry-parsing work budget.</param>
-    /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget.</param>
-    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget.</param>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <paramref name="markerDepth"/> has already reached
+    ///     Thrown when the scope's marker depth has already reached
     ///     <see cref="MaxMarkerDepth"/>, guarding against a marker-referencing-marker reference
     ///     cycle (directly, or via a chain) that would otherwise recurse indefinitely - mirrors
     ///     <see cref="RenderUse"/>'s identical <see cref="MaxUseDepth"/> guard, checked before any
@@ -604,27 +526,19 @@ public static partial class SvgCodec
     /// </remarks>
     private static void RenderOneMarker(
         XElement markerElement,
-        Vector2 vertexPosition,
-        float vertexAngleDegrees,
-        bool isStartVertex,
-        float localStrokeWidth,
+        MarkerPlacement placement,
         RenderState viewportState,
         Matrix3x2 shapeTransform,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget)
+        RenderScope scope,
+        ref int totalElements)
     {
-        if (markerDepth >= MaxMarkerDepth)
+        if (scope.MarkerDepth >= MaxMarkerDepth)
         {
             throw new InvalidDataException("Exceeded the maximum <marker> reference nesting depth.");
         }
 
-        if (!TryComputeMarkerContentTransform(markerElement, vertexPosition, vertexAngleDegrees, isStartVertex, localStrokeWidth, viewportState, shapeTransform, out var contentTransform))
+        if (!TryComputeMarkerContentTransform(markerElement, placement, viewportState, shapeTransform, out var contentTransform))
         {
             return;
         }
@@ -641,9 +555,10 @@ public static partial class SvgCodec
             ViewportWidth = viewportState.ViewportWidth,
             ViewportHeight = viewportState.ViewportHeight
         };
+        var childScope = scope.NestedMarker();
         foreach (var child in markerElement.Elements())
         {
-            RenderElement(child, markerState, contentTransform, context, useDepth, elementDepth + 1, markerDepth + 1, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            RenderElement(child, markerState, contentTransform, context, childScope, ref totalElements);
         }
     }
 
@@ -658,21 +573,13 @@ public static partial class SvgCodec
     ///     call sites can never silently diverge on how a marker instance is placed/scaled/oriented.
     /// </summary>
     /// <param name="markerElement">The resolved <c>marker</c> element.</param>
-    /// <param name="vertexPosition">The vertex's position, in the referencing shape's own local space.</param>
-    /// <param name="vertexAngleDegrees">
-    ///     The vertex's own computed tangent angle (see <see cref="ComputeVertexAngleDegrees"/>),
-    ///     used when <c>orient</c> is <c>auto</c>/<c>auto-start-reverse</c>/absent.
-    /// </param>
-    /// <param name="isStartVertex">
-    ///     Whether this vertex is the referencing shape's very first vertex - needed only to
-    ///     resolve <c>orient="auto-start-reverse"</c>, which reverses by 180 degrees at the start
-    ///     vertex only.
-    /// </param>
-    /// <param name="localStrokeWidth">
-    ///     The referencing shape's own <c>stroke-width</c>, in local (pre-<paramref name="shapeTransform"/>)
-    ///     user-space units - see <see cref="RenderOneMarker"/>'s identical parameter for the full
-    ///     rationale.
-    /// </param>
+    /// <param name="placement">
+    ///     The vertex position, its computed tangent angle (used when <c>orient</c> is
+    ///     <c>auto</c>/<c>auto-start-reverse</c>/absent), whether it is the shape's very first
+    ///     vertex (needed only for <c>orient="auto-start-reverse"</c>), and the shape's own local
+    ///     <c>stroke-width</c> - see <see cref="RenderOneMarker"/>'s identical parameter for the
+    ///     full rationale.
+    /// </param>/
     /// <param name="viewportState">
     ///     The referencing shape's own cascaded render state, supplying the current viewport/
     ///     font-size basis for the marker's own percentage-eligible <c>markerWidth</c>/
@@ -708,15 +615,16 @@ public static partial class SvgCodec
     /// </remarks>
     private static bool TryComputeMarkerContentTransform(
         XElement markerElement,
-        Vector2 vertexPosition,
-        float vertexAngleDegrees,
-        bool isStartVertex,
-        float localStrokeWidth,
+        MarkerPlacement placement,
         RenderState viewportState,
         Matrix3x2 shapeTransform,
         out Matrix3x2 contentTransform)
     {
         contentTransform = Matrix3x2.Identity;
+        var vertexPosition = placement.Position;
+        var vertexAngleDegrees = placement.AngleDegrees;
+        var isStartVertex = placement.IsStartVertex;
+        var localStrokeWidth = placement.LocalStrokeWidth;
 
         var markerWidth = GetFloatAttribute(markerElement, "markerWidth", viewportState, PercentageAxis.Horizontal, 3f);
         var markerHeight = GetFloatAttribute(markerElement, "markerHeight", viewportState, PercentageAxis.Vertical, 3f);
@@ -794,35 +702,28 @@ public static partial class SvgCodec
     ///     rationale).
     /// </summary>
     /// <param name="markerElement">The resolved <c>marker</c> element.</param>
-    /// <param name="vertexPosition">The vertex's position, in the referencing shape's own local space.</param>
-    /// <param name="vertexAngleDegrees">The vertex's own computed tangent angle.</param>
-    /// <param name="isStartVertex">Whether this vertex is the referencing shape's very first vertex.</param>
-    /// <param name="localStrokeWidth">The referencing shape's own <c>stroke-width</c>, in local units.</param>
+    /// <param name="placement">The vertex position, tangent angle, start-vertex flag and local stroke width the marker instance is placed with.</param>
     /// <param name="viewportState">The referencing shape's own cascaded render state, supplying the current viewport/font-size basis for the marker's own percentage-eligible attributes.</param>
     /// <param name="shapeTransform">The referencing shape's own accumulated transform.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth.</param>
-    /// <param name="elementDepth">The current recursion depth, propagated (incremented by one) to the marker's content.</param>
-    /// <param name="markerDepth">
-    ///     The current <c>marker</c>-reference nesting depth, checked against
-    ///     <see cref="MaxMarkerDepth"/> before any other work - identical to
+    /// <param name="scope">
+    ///     The recursion depths and budgets at the host shape element. Its element depth is
+    ///     propagated (incremented by one) to the marker's content, and its marker depth is checked
+    ///     against <see cref="MaxMarkerDepth"/> before any other work - identical to
     ///     <see cref="RenderOneMarker"/>'s own guard, so a marker-referencing-marker reference
     ///     cycle throws during this bounds pre-pass exactly as it would during the real render
-    ///     pass that follows it, rather than only being caught later.
+    ///     pass that follows it, rather than only being caught later. Its geometry work budget is
+    ///     the caller-supplied one, subject to the same scoping as <paramref name="totalElements"/>,
+    ///     while its bounds-pre-pass budget is the shared, per-<c>Load</c>-call cumulative budget
+    ///     (see <see cref="BoundsPrePassWorkBudget"/>), so this method's own
+    ///     <see cref="ComputeSubtreeLocalBounds"/> recursion still contributes toward the one
+    ///     cumulative ceiling shared by every nested filtered group in the whole document.
     /// </param>
     /// <param name="totalElements">
     ///     The running total-rendered-elements count - the caller-supplied instance, which for
     ///     <see cref="RenderGroupWithEffects"/>'s own bounds pre-pass is a local, independently
     ///     bounded scratch counter, never the real per-<c>Load</c>-call counter (see
     ///     <see cref="ComputeSubtreeLocalBounds"/>'s remarks).
-    /// </param>
-    /// <param name="workBudget">The caller-supplied geometry-parsing work budget, subject to the same scoping as <paramref name="totalElements"/>.</param>
-    /// <param name="boundsPrePassBudget">
-    ///     The shared, per-<c>Load</c>-call cumulative bounds-pre-pass work budget (see
-    ///     <see cref="BoundsPrePassWorkBudget"/>) - deliberately not local-scratch-scoped like
-    ///     <paramref name="totalElements"/>/<paramref name="workBudget"/> above, so this method's
-    ///     own <see cref="ComputeSubtreeLocalBounds"/> recursion still contributes toward the one
-    ///     cumulative ceiling shared by every nested filtered group in the whole document.
     /// </param>
     /// <returns>
     ///     The union of every descendant shape/text element's stroke-expanded, transformed local
@@ -832,30 +733,23 @@ public static partial class SvgCodec
     ///     nothing.
     /// </returns>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <paramref name="markerDepth"/> has already reached <see cref="MaxMarkerDepth"/>.
+    ///     Thrown when the scope's marker depth has already reached <see cref="MaxMarkerDepth"/>.
     /// </exception>
     private static Rect? ComputeOneMarkerLocalBounds(
         XElement markerElement,
-        Vector2 vertexPosition,
-        float vertexAngleDegrees,
-        bool isStartVertex,
-        float localStrokeWidth,
+        MarkerPlacement placement,
         RenderState viewportState,
         Matrix3x2 shapeTransform,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget)
+        RenderScope scope,
+        ref int totalElements)
     {
-        if (markerDepth >= MaxMarkerDepth)
+        if (scope.MarkerDepth >= MaxMarkerDepth)
         {
             throw new InvalidDataException("Exceeded the maximum <marker> reference nesting depth.");
         }
 
-        if (!TryComputeMarkerContentTransform(markerElement, vertexPosition, vertexAngleDegrees, isStartVertex, localStrokeWidth, viewportState, shapeTransform, out var contentTransform))
+        if (!TryComputeMarkerContentTransform(markerElement, placement, viewportState, shapeTransform, out var contentTransform))
         {
             return null;
         }
@@ -865,10 +759,11 @@ public static partial class SvgCodec
             ViewportWidth = viewportState.ViewportWidth,
             ViewportHeight = viewportState.ViewportHeight
         };
+        var childScope = scope.NestedMarker();
         var bounds = Rect.Empty;
         foreach (var child in markerElement.Elements())
         {
-            var childBounds = ComputeSubtreeLocalBounds(child, markerState, contentTransform, context, useDepth, elementDepth + 1, markerDepth + 1, ref totalElements, workBudget, boundsPrePassBudget);
+            var childBounds = ComputeSubtreeLocalBounds(child, markerState, contentTransform, context, childScope, ref totalElements);
             if (childBounds != null)
             {
                 bounds = bounds.Union(childBounds.Value);
@@ -894,12 +789,8 @@ public static partial class SvgCodec
     /// <param name="state">The cascaded render state.</param>
     /// <param name="transform">The accumulated transform from local space into the caller's reference frame.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth.</param>
-    /// <param name="elementDepth">The current recursion depth at the host shape element itself.</param>
-    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth.</param>
+    /// <param name="scope">The recursion depths and budgets at the host shape element itself (see <see cref="ComputeOneMarkerLocalBounds"/>'s remarks on scoping).</param>
     /// <param name="totalElements">The running total-rendered-elements count (see <see cref="ComputeOneMarkerLocalBounds"/>'s remarks on scoping).</param>
-    /// <param name="workBudget">The shared geometry-parsing work budget (see <see cref="ComputeOneMarkerLocalBounds"/>'s remarks on scoping).</param>
-    /// <param name="boundsPrePassBudget">The shared, per-<c>Load</c>-call cumulative bounds-pre-pass work budget (see <see cref="ComputeOneMarkerLocalBounds"/>'s remarks on scoping).</param>
     /// <returns>
     ///     The union of every placed marker instance's own content bounds, or <see langword="null"/>
     ///     if <paramref name="state"/> specifies no markers at all, <paramref name="localPath"/> has
@@ -911,12 +802,8 @@ public static partial class SvgCodec
         RenderState state,
         Matrix3x2 transform,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget)
+        RenderScope scope,
+        ref int totalElements)
     {
         if (state.MarkerStart == "none" && state.MarkerMid == "none" && state.MarkerEnd == "none")
         {
@@ -932,56 +819,13 @@ public static partial class SvgCodec
         var bounds = Rect.Empty;
         for (var i = 0; i < vertices.Count; i++)
         {
-            MarkerVertexRole role;
-            if (i == 0)
-            {
-                role = MarkerVertexRole.Start;
-            }
-            else if (i == vertices.Count - 1)
-            {
-                role = MarkerVertexRole.End;
-            }
-            else
-            {
-                role = MarkerVertexRole.Mid;
-            }
-
-            var spec = role switch
-            {
-                MarkerVertexRole.Start => state.MarkerStart,
-                MarkerVertexRole.End => state.MarkerEnd,
-                _ => state.MarkerMid
-            };
-
-            if (string.Equals(spec.Trim(), "none", StringComparison.OrdinalIgnoreCase))
+            if (!TryGetVertexMarker(vertices, i, state, context, out var markerElement, out var isStartVertex))
             {
                 continue;
             }
 
-            var markerElement = ResolveMarkerElement(spec, context);
-            if (markerElement == null)
-            {
-                continue;
-            }
-
-            var vertex = vertices[i];
-            var angleDegrees = ComputeVertexAngleDegrees(vertex);
-            var markerBounds = ComputeOneMarkerLocalBounds(
-                markerElement,
-                vertex.Position,
-                angleDegrees,
-                isStartVertex: role == MarkerVertexRole.Start,
-                state.StrokeWidth,
-                state,
-                transform,
-                context,
-                useDepth,
-                elementDepth,
-                markerDepth,
-                ref totalElements,
-                workBudget,
-                boundsPrePassBudget);
-
+            var placement = new MarkerPlacement(vertices[i].Position, ComputeVertexAngleDegrees(vertices[i]), isStartVertex, state.StrokeWidth);
+            var markerBounds = ComputeOneMarkerLocalBounds(markerElement, placement, state, transform, context, scope, ref totalElements);
             if (markerBounds != null)
             {
                 bounds = bounds.Union(markerBounds.Value);
@@ -989,6 +833,51 @@ public static partial class SvgCodec
         }
 
         return bounds.IsEmpty ? null : bounds;
+    }
+
+    /// <summary>
+    ///     Resolves the <c>marker</c> element (if any) that applies at one vertex of a
+    ///     marker-eligible shape, selecting <c>marker-start</c>/<c>marker-mid</c>/<c>marker-end</c>
+    ///     by the vertex's position in the whole vertex sequence.
+    /// </summary>
+    /// <param name="vertices">The shape's whole vertex sequence.</param>
+    /// <param name="index">The vertex index.</param>
+    /// <param name="state">The shape's own cascaded render state, supplying the three marker specs.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="markerElement">The resolved <c>marker</c> element when this method returns <see langword="true"/>.</param>
+    /// <param name="isStartVertex">Whether the vertex is the shape's very first vertex.</param>
+    /// <returns><see langword="true"/> if a marker applies at the vertex; otherwise <see langword="false"/>.</returns>
+    private static bool TryGetVertexMarker(
+        List<MarkerVertex> vertices,
+        int index,
+        RenderState state,
+        RenderContext context,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out XElement? markerElement,
+        out bool isStartVertex)
+    {
+        isStartVertex = index == 0;
+        markerElement = null;
+        string spec;
+        if (isStartVertex)
+        {
+            spec = state.MarkerStart;
+        }
+        else if (index == vertices.Count - 1)
+        {
+            spec = state.MarkerEnd;
+        }
+        else
+        {
+            spec = state.MarkerMid;
+        }
+
+        if (string.Equals(spec.Trim(), "none", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        markerElement = ResolveMarkerElement(spec, context);
+        return markerElement != null;
     }
 
     /// <summary>

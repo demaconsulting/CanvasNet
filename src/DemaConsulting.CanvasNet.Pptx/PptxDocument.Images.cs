@@ -637,6 +637,22 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>
+    ///     Builds the per-pixel clip-coverage mask for a picture, or returns <see langword="null"/> when
+    ///     the picture has no clip path.
+    /// </summary>
+    private static Surface? BuildClipMask(Path? clipPath, Surface surface, Matrix3x2 shapeToSurfaceTransform)
+    {
+        if (clipPath is null)
+        {
+            return null;
+        }
+
+        var clipMask = new Surface(surface.Width, surface.Height);
+        PathFiller.Fill(clipMask, clipPath.Transform(shapeToSurfaceTransform), new Rgba32(255, 255, 255, 255));
+        return clipMask;
+    }
+
+    /// <summary>
     ///     Composites a decoded picture <paramref name="image"/> onto <paramref name="surface"/>,
     ///     mapping its (optionally <paramref name="srcRect"/>-cropped) unit square through a
     ///     <c>CreateScale(widthEmu, heightEmu) * shapeToSurfaceTransform</c> transform and
@@ -726,26 +742,84 @@ public sealed partial class PptxDocument
         var startY = Math.Max(0, (int)MathF.Floor(minY));
         var endY = Math.Min(surface.Height - 1, (int)MathF.Ceiling(maxY));
 
+        // Build the clip-coverage mask (see this method's own <paramref name="clipPath"/> remarks)
+        // once, up front, rather than per-pixel.
+        using var clipMask = BuildClipMask(clipPath, surface, shapeToSurfaceTransform);
+
+        // Axis-aligned pictures (the overwhelmingly common case) are resampled once to the exact
+        // device-pixel rectangle they cover and composited 1:1; the srcRect crop becomes part of
+        // the pixel-to-device mapping.
+        var crop = ComputeCropWindow(srcRect, image);
+        var cropped = crop.WindowWidth == image.Width && crop.WindowHeight == image.Height
+            ? null
+            : image.Crop(crop.WindowX0, crop.WindowY0, crop.WindowWidth, crop.WindowHeight);
+        var source = cropped ?? image;
+        using var croppedOwner = cropped;
+
+        // Maps a source-window pixel to the unit square: add the window origin, subtract the crop origin, divide by the crop size
+        var pixelToUnit = new Matrix3x2(
+            (float)(1.0 / crop.CropWidthPx), 0f,
+            0f, (float)(1.0 / crop.CropHeightPx),
+            (float)((crop.WindowX0 - crop.CropLeftPx) / crop.CropWidthPx), (float)((crop.WindowY0 - crop.CropTopPx) / crop.CropHeightPx));
+        var pixelToSurface = pixelToUnit * unitToSurface;
+        // A crop reaching beyond the image (negative srcRect edges) must replicate the edge pixels
+        // across the overhang, which the edge-clamped inverse-mapped path below does and the
+        // window-only resample would not (it would leave the overhang transparent).
+        var cropOverhangs = crop.CropLeftPx < 0 || crop.CropTopPx < 0
+            || crop.CropLeftPx + crop.CropWidthPx > image.Width + 1e-6
+            || crop.CropTopPx + crop.CropHeightPx > image.Height + 1e-6;
+        if (!cropOverhangs
+            && SurfaceResampler.TryResampleToDevice(source, pixelToSurface, surface.Width, surface.Height, ResamplingMode.Auto, out var window, out var origin))
+        {
+            using (window)
+            {
+                if (window is not null)
+                {
+                    CompositeWindow(surface, window, origin.X, origin.Y, clipMask, surfaceToUnit);
+                }
+            }
+
+            return;
+        }
+
+        // Rotated or skewed pictures: inverse-map each destination pixel and sample the
+        // source window (prefiltered when shrinking) bilinearly.
+        PaintInverseMapped(surface, source, pixelToSurface, surfaceToUnit, clipMask, crop, (startX, endX, startY, endY));
+    }
+
+    /// <summary>The srcRect crop and the whole-pixel source window containing it, in source-image pixels.</summary>
+    /// <param name="CropLeftPx">The crop's left edge.</param>
+    /// <param name="CropTopPx">The crop's top edge.</param>
+    /// <param name="CropWidthPx">The crop's width.</param>
+    /// <param name="CropHeightPx">The crop's height.</param>
+    /// <param name="WindowX0">The window's left pixel.</param>
+    /// <param name="WindowY0">The window's top pixel.</param>
+    /// <param name="WindowWidth">The window's width.</param>
+    /// <param name="WindowHeight">The window's height.</param>
+    private readonly record struct CropWindow(
+        double CropLeftPx,
+        double CropTopPx,
+        double CropWidthPx,
+        double CropHeightPx,
+        int WindowX0,
+        int WindowY0,
+        int WindowWidth,
+        int WindowHeight);
+
+    /// <summary>
+    ///     Resolves the srcRect crop in source-image pixels, together with the smallest
+    ///     whole-pixel window containing it.
+    /// </summary>
+    /// <param name="srcRect">The picture's source crop, or <see langword="null"/> for none.</param>
+    /// <param name="image">The decoded source image.</param>
+    /// <returns>The crop and its containing window.</returns>
+    private static CropWindow ComputeCropWindow(PptxSrcRect? srcRect, Surface image)
+    {
         var left = srcRect?.Left ?? 0f;
         var top = srcRect?.Top ?? 0f;
         var right = srcRect?.Right ?? 0f;
         var bottom = srcRect?.Bottom ?? 0f;
 
-        // Build the clip-coverage mask (see this method's own <paramref name="clipPath"/> remarks)
-        // once, up front, rather than per-pixel - the same opaque-white-path-fill-onto-a-fresh-
-        // transparent-surface pattern already used by DemaConsulting.CanvasNet.Svg's own
-        // ApplyClipPath, repurposed here as a per-pixel alpha-scaling mask instead of a
-        // post-composite coverage clip.
-        using var clipMask = clipPath is null ? null : new Surface(surface.Width, surface.Height);
-        if (clipPath is not null && clipMask is not null)
-        {
-            var transformedClip = clipPath.Transform(shapeToSurfaceTransform);
-            PathFiller.Fill(clipMask, transformedClip, new Rgba32(255, 255, 255, 255));
-        }
-
-        // Axis-aligned pictures (the overwhelmingly common case) are resampled once to the exact
-        // device-pixel rectangle they cover and composited 1:1; the srcRect crop becomes part of
-        // the pixel-to-device mapping.
         // The fraction math is done in double: float rounding (e.g. 0.6f) can push an exact
         // integer pixel boundary a hair past the integer and pull in a whole excluded column.
         var cropWidth = Math.Max(1e-6, 1.0 - left - right);
@@ -772,48 +846,38 @@ public sealed partial class PptxDocument
         var windowY0 = Math.Clamp((int)Math.Floor(Snap(cropTopPx)), 0, image.Height - 1);
         var windowX1 = Math.Clamp((int)Math.Ceiling(Snap(cropLeftPx + cropWidthPx)) - 1, windowX0, image.Width - 1);
         var windowY1 = Math.Clamp((int)Math.Ceiling(Snap(cropTopPx + cropHeightPx)) - 1, windowY0, image.Height - 1);
-        var windowW = windowX1 - windowX0 + 1;
-        var windowH = windowY1 - windowY0 + 1;
-        var cropped = windowW == image.Width && windowH == image.Height
-            ? null
-            : image.Crop(windowX0, windowY0, windowW, windowH);
-        var source = cropped ?? image;
-        using var croppedOwner = cropped;
+        return new CropWindow(
+            cropLeftPx, cropTopPx, cropWidthPx, cropHeightPx,
+            windowX0, windowY0, windowX1 - windowX0 + 1, windowY1 - windowY0 + 1);
+    }
 
-        // Maps a source-window pixel to the unit square: add the window origin, subtract the crop origin, divide by the crop size
-        var pixelToUnit = new Matrix3x2(
-            (float)(1.0 / cropWidthPx), 0f,
-            0f, (float)(1.0 / cropHeightPx),
-            (float)((windowX0 - cropLeftPx) / cropWidthPx), (float)((windowY0 - cropTopPx) / cropHeightPx));
-        var pixelToSurface = pixelToUnit * unitToSurface;
-        // A crop reaching beyond the image (negative srcRect edges) must replicate the edge pixels
-        // across the overhang, which the edge-clamped inverse-mapped path below does and the
-        // window-only resample would not (it would leave the overhang transparent).
-        var cropOverhangs = cropLeftPx < 0 || cropTopPx < 0
-            || cropLeftPx + cropWidthPx > image.Width + 1e-6
-            || cropTopPx + cropHeightPx > image.Height + 1e-6;
-        if (!cropOverhangs
-            && SurfaceResampler.TryResampleToDevice(source, pixelToSurface, surface.Width, surface.Height, ResamplingMode.Auto, out var window, out var originX, out var originY))
-        {
-            using (window)
-            {
-                if (window is not null)
-                {
-                    CompositeWindow(surface, window, originX, originY, clipMask, surfaceToUnit);
-                }
-            }
-
-            return;
-        }
-
-        // Rotated or skewed pictures: inverse-map each destination pixel and sample the
-        // source window (prefiltered when shrinking) bilinearly.
+    /// <summary>
+    ///     Paints a rotated or skewed picture by inverse-mapping each destination pixel in
+    ///     <paramref name="bounds"/> and sampling the source window (prefiltered when shrinking)
+    ///     bilinearly.
+    /// </summary>
+    /// <param name="surface">The destination surface.</param>
+    /// <param name="source">The source window surface.</param>
+    /// <param name="pixelToSurface">Maps a source-window pixel to the destination surface.</param>
+    /// <param name="surfaceToUnit">Maps a destination pixel to the picture's unit square.</param>
+    /// <param name="clipMask">The optional clip-coverage mask.</param>
+    /// <param name="crop">The srcRect crop and its source window.</param>
+    /// <param name="bounds">The inclusive destination pixel bounds to visit.</param>
+    private static void PaintInverseMapped(
+        Surface surface,
+        Surface source,
+        Matrix3x2 pixelToSurface,
+        Matrix3x2 surfaceToUnit,
+        Surface? clipMask,
+        CropWindow crop,
+        (int StartX, int EndX, int StartY, int EndY) bounds)
+    {
         var prefiltered = SurfaceResampler.Prefilter(source, pixelToSurface, out _, out var factorX, out var factorY);
-        try
+        using (ReferenceEquals(prefiltered, source) ? null : prefiltered)
         {
-            for (var y = startY; y <= endY; y++)
+            for (var y = bounds.StartY; y <= bounds.EndY; y++)
             {
-                for (var x = startX; x <= endX; x++)
+                for (var x = bounds.StartX; x <= bounds.EndX; x++)
                 {
                     var devicePoint = new Vector2(x + 0.5f, y + 0.5f);
                     var unitPoint = Vector2.Transform(devicePoint, surfaceToUnit);
@@ -831,18 +895,11 @@ public sealed partial class PptxDocument
                     }
 
                     // Remap the unit-square sample point through the srcRect crop; no (1 - v) flip
-                    var imageX = (float)(cropLeftPx - windowX0 + (u * cropWidthPx));
-                    var imageY = (float)(cropTopPx - windowY0 + (v * cropHeightPx));
+                    var imageX = (float)(crop.CropLeftPx - crop.WindowX0 + (u * crop.CropWidthPx));
+                    var imageY = (float)(crop.CropTopPx - crop.WindowY0 + (v * crop.CropHeightPx));
                     var sourcePixel = SurfaceResampler.SampleBilinearReduced(prefiltered, imageX, imageY, factorX, factorY, source.Width, source.Height);
                     surface[x, y] = Rgba32.CompositeOver(surface[x, y], ScaleAlpha(sourcePixel, maskAlpha));
                 }
-            }
-        }
-        finally
-        {
-            if (!ReferenceEquals(prefiltered, source))
-            {
-                prefiltered.Dispose();
             }
         }
     }

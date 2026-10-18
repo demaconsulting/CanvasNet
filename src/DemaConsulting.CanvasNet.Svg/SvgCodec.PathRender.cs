@@ -122,25 +122,15 @@ public static partial class SvgCodec
     /// <param name="state">The cascaded render state supplying fill/stroke paint and style.</param>
     /// <param name="transform">The accumulated transform mapping local space to pixel space.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, forwarded to a <c>pattern</c> fill/stroke's own tile content walk (see <see cref="RenderFill"/>/<see cref="RenderStroke"/>).</param>
-    /// <param name="elementDepth">The current recursion depth, forwarded (incremented by one further) to a <c>pattern</c> fill/stroke's own tile content walk - the sole guard against a pattern-reference cycle.</param>
-    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, forwarded unchanged.</param>
+    /// <param name="scope">The recursion depths and budgets, forwarded to a <c>pattern</c> fill/stroke's own tile content walk (see <see cref="RenderFill"/>/<see cref="RenderStroke"/>); the element depth is the sole guard against a pattern-reference cycle.</param>
     /// <param name="totalElements">The running total-rendered-elements count, forwarded to a <c>pattern</c> fill/stroke's own tile content walk.</param>
-    /// <param name="workBudget">The shared geometry-parsing work budget, forwarded to a <c>pattern</c> fill/stroke's own tile content walk.</param>
-    /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget, charged by a <c>pattern</c> fill/stroke's own offscreen-buffer allocations (see <see cref="RenderPatternFill"/>).</param>
-    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, forwarded to a <c>pattern</c> fill/stroke's own tile content walk.</param>
     private static void RenderShape(
         Path localPath,
         RenderState state,
         Matrix3x2 transform,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget)
+        RenderScope scope,
+        ref int totalElements)
     {
         if (localPath.Subpaths.Count == 0)
         {
@@ -170,12 +160,8 @@ public static partial class SvgCodec
             return;
         }
 
-        RenderFill(
-            localPath, pixelPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements,
-            workBudget, filterWorkBudget, boundsPrePassBudget);
-        RenderStroke(
-            localPath, pixelPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements,
-            workBudget, filterWorkBudget, boundsPrePassBudget);
+        RenderFill(localPath, pixelPath, state, transform, context, scope, ref totalElements);
+        RenderStroke(localPath, pixelPath, state, transform, context, scope, ref totalElements);
     }
 
     /// <summary>
@@ -197,49 +183,29 @@ public static partial class SvgCodec
     /// </remarks>
     private static bool IsWithinCoordinateMagnitudeBudget(Path path)
     {
-        foreach (var subpath in path.Subpaths)
-        {
-            if (!IsFiniteAndWithinCoordinateMagnitude(subpath.Start))
-            {
-                return false;
-            }
-
-            foreach (var command in subpath.Commands)
-            {
-                switch (command.Type)
-                {
-                    case PathCommandType.LineTo:
-                        if (!IsFiniteAndWithinCoordinateMagnitude(command.EndPoint))
-                        {
-                            return false;
-                        }
-
-                        break;
-
-                    case PathCommandType.QuadraticBezierTo:
-                        if (!IsFiniteAndWithinCoordinateMagnitude(command.Control1)
-                            || !IsFiniteAndWithinCoordinateMagnitude(command.EndPoint))
-                        {
-                            return false;
-                        }
-
-                        break;
-
-                    case PathCommandType.CubicBezierTo:
-                        if (!IsFiniteAndWithinCoordinateMagnitude(command.Control1)
-                            || !IsFiniteAndWithinCoordinateMagnitude(command.Control2)
-                            || !IsFiniteAndWithinCoordinateMagnitude(command.EndPoint))
-                        {
-                            return false;
-                        }
-
-                        break;
-                }
-            }
-        }
-
-        return true;
+        return path.Subpaths.All(subpath =>
+            IsFiniteAndWithinCoordinateMagnitude(subpath.Start) &&
+            subpath.Commands.All(IsCommandWithinCoordinateMagnitudeBudget));
     }
+
+    /// <summary>
+    ///     Determines whether every control/end point of a single path command is finite and
+    ///     within <see cref="MaxCoordinateMagnitude"/>.
+    /// </summary>
+    /// <param name="command">The command to check.</param>
+    private static bool IsCommandWithinCoordinateMagnitudeBudget(PathCommand command) =>
+        command.Type switch
+        {
+            PathCommandType.LineTo => IsFiniteAndWithinCoordinateMagnitude(command.EndPoint),
+            PathCommandType.QuadraticBezierTo =>
+                IsFiniteAndWithinCoordinateMagnitude(command.Control1)
+                && IsFiniteAndWithinCoordinateMagnitude(command.EndPoint),
+            PathCommandType.CubicBezierTo =>
+                IsFiniteAndWithinCoordinateMagnitude(command.Control1)
+                && IsFiniteAndWithinCoordinateMagnitude(command.Control2)
+                && IsFiniteAndWithinCoordinateMagnitude(command.EndPoint),
+            _ => true
+        };
 
     /// <summary>
     ///     Determines whether a single point is finite and within <see cref="MaxCoordinateMagnitude"/>
@@ -257,13 +223,8 @@ public static partial class SvgCodec
     /// <param name="state">The cascaded render state.</param>
     /// <param name="transform">The accumulated transform, used to resolve a gradient's or pattern's own transform.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, forwarded to a <c>pattern</c> fill's own tile content walk (see <see cref="RenderPatternFill"/>).</param>
-    /// <param name="elementDepth">The current recursion depth, forwarded (incremented by one further) to a <c>pattern</c> fill's own tile content walk.</param>
-    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, forwarded unchanged.</param>
+    /// <param name="scope">The recursion depths and budgets, forwarded to a <c>pattern</c> fill's own tile content walk (see <see cref="RenderPatternFill"/>); the filter work budget is charged by its own offscreen-buffer allocations.</param>
     /// <param name="totalElements">The running total-rendered-elements count, forwarded to a <c>pattern</c> fill's own tile content walk.</param>
-    /// <param name="workBudget">The shared geometry-parsing work budget, forwarded to a <c>pattern</c> fill's own tile content walk.</param>
-    /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget, charged by a <c>pattern</c> fill's own offscreen-buffer allocations.</param>
-    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, forwarded to a <c>pattern</c> fill's own tile content walk.</param>
     /// <remarks>
     ///     When <paramref name="state"/>'s <c>fill</c> resolves to a <c>url(#id)</c> reference to a
     ///     <c>pattern</c> element (see <see cref="ResolvePatternElement"/>), rendering is dispatched
@@ -279,21 +240,15 @@ public static partial class SvgCodec
         RenderState state,
         Matrix3x2 transform,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget)
+        RenderScope scope,
+        ref int totalElements)
     {
         var patternElement = ResolvePatternElement(state.Fill, context);
         if (patternElement != null)
         {
             RenderPatternFill(
                 patternElement, localPath, pixelPath, state.FillRule, state.FillOpacity * state.Opacity, transform,
-                state, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget,
-                boundsPrePassBudget);
+                state, context, scope, ref totalElements);
             return;
         }
 
@@ -311,13 +266,8 @@ public static partial class SvgCodec
     /// <param name="state">The cascaded render state.</param>
     /// <param name="transform">The accumulated transform, used to estimate the pixel-space stroke-width scale, and to resolve a pattern's own transform.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, forwarded to a <c>pattern</c> stroke's own tile content walk (see <see cref="RenderPatternFill"/>).</param>
-    /// <param name="elementDepth">The current recursion depth, forwarded (incremented by one further) to a <c>pattern</c> stroke's own tile content walk.</param>
-    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, forwarded unchanged.</param>
+    /// <param name="scope">The recursion depths and budgets, forwarded to a <c>pattern</c> stroke's own tile content walk (see <see cref="RenderPatternFill"/>); the filter work budget is charged by its own offscreen-buffer allocations.</param>
     /// <param name="totalElements">The running total-rendered-elements count, forwarded to a <c>pattern</c> stroke's own tile content walk.</param>
-    /// <param name="workBudget">The shared geometry-parsing work budget, forwarded to a <c>pattern</c> stroke's own tile content walk.</param>
-    /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget, charged by a <c>pattern</c> stroke's own offscreen-buffer allocations.</param>
-    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, forwarded to a <c>pattern</c> stroke's own tile content walk.</param>
     /// <remarks>
     ///     <para>
     ///     When <paramref name="state"/>'s <c>stroke</c> resolves to a <c>url(#id)</c> reference to
@@ -373,13 +323,8 @@ public static partial class SvgCodec
         RenderState state,
         Matrix3x2 transform,
         RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget)
+        RenderScope scope,
+        ref int totalElements)
     {
         var scale = EstimateUniformScale(transform);
         var strokeWidth = EstimateEffectiveStrokeWidth(state.StrokeWidth, scale);
@@ -457,8 +402,7 @@ public static partial class SvgCodec
         {
             RenderPatternFill(
                 patternElement, localPath, outline, FillRule.NonZero, state.StrokeOpacity * state.Opacity, transform,
-                state, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget,
-                boundsPrePassBudget);
+                state, context, scope, ref totalElements);
             return;
         }
 

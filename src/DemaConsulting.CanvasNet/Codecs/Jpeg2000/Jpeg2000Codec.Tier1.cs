@@ -33,6 +33,13 @@ public static partial class Jpeg2000Codec
     /// <summary>Code-block style bit: segmentation symbols.</summary>
     private const int StyleSegSym = 0x20;
 
+    /// <summary>Describes the component plane a decoded code-block is stored into.</summary>
+    /// <param name="Reversible">Whether the 5/3 reversible path is in use.</param>
+    /// <param name="Ints">The integer plane (reversible path) or <see langword="null"/>.</param>
+    /// <param name="Floats">The float plane (irreversible path) or <see langword="null"/>.</param>
+    /// <param name="PlaneStride">The row stride of the plane.</param>
+    internal readonly record struct BlockOutput(bool Reversible, int[]? Ints, float[]? Floats, int PlaneStride);
+
     /// <summary>Decodes code-blocks; one instance owns the scratch buffers and is reused across blocks.</summary>
     internal sealed class Tier1Decoder
     {
@@ -52,14 +59,9 @@ public static partial class Jpeg2000Codec
         /// <param name="band">The owning sub-band.</param>
         /// <param name="style">The code-block style flags.</param>
         /// <param name="roiShift">The region-of-interest shift.</param>
-        /// <param name="reversible">Whether the 5/3 reversible path is in use.</param>
-        /// <param name="ints">The integer plane (reversible path) or <see langword="null"/>.</param>
-        /// <param name="floats">The float plane (irreversible path) or <see langword="null"/>.</param>
-        /// <param name="planeStride">The row stride of the plane.</param>
+        /// <param name="output">The destination plane description.</param>
         /// <param name="budget">The decode-wide budget.</param>
-        public void DecodeBlock(
-            CodeBlock block, Band band, int style, int roiShift, bool reversible, int[]? ints, float[]? floats, int planeStride,
-            DecodeBudget budget)
+        public void DecodeBlock(CodeBlock block, Band band, int style, int roiShift, BlockOutput output, DecodeBudget budget)
         {
             if (block.Segments.Count == 0 || block.TotalPasses == 0)
             {
@@ -78,7 +80,7 @@ public static partial class Jpeg2000Codec
             budget.ChargeTier1((long)_w * _h * block.TotalPasses);
             Prepare(style, band.Orient);
             RunPasses(block, style, numPlanes);
-            Store(block, band, roiShift, reversible, ints, floats, planeStride);
+            Store(block, band, roiShift, output);
         }
 
         private void Prepare(int style, int orient)
@@ -128,38 +130,47 @@ public static partial class Jpeg2000Codec
                 var decode = seg.Length > 0 && offset + seg.Length <= block.DataLength;
                 if (decode)
                 {
-                    if (raw)
-                    {
-                        _raw.Init(block.Data, offset, seg.Length);
-                    }
-                    else
-                    {
-                        _mq.Init(block.Data, offset, seg.Length);
-                    }
+                    InitSegment(block, offset, seg.Length, raw);
                 }
 
-                for (var k = 0; k < seg.Passes; k++)
-                {
-                    if (bp < 0)
-                    {
-                        throw Malformed("code-block has more coding passes than bit-planes.");
-                    }
-
-                    var type = (passIndex + 2) % 3;
-                    if (decode)
-                    {
-                        RunPass(type, bp, raw, style);
-                    }
-
-                    if (type == 2)
-                    {
-                        bp--;
-                    }
-
-                    passIndex++;
-                }
-
+                RunSegmentPasses(seg.Passes, decode, raw, style, ref passIndex, ref bp);
                 offset += seg.Length;
+            }
+        }
+
+        private void InitSegment(CodeBlock block, int offset, int length, bool raw)
+        {
+            if (raw)
+            {
+                _raw.Init(block.Data, offset, length);
+            }
+            else
+            {
+                _mq.Init(block.Data, offset, length);
+            }
+        }
+
+        private void RunSegmentPasses(int passes, bool decode, bool raw, int style, ref int passIndex, ref int bp)
+        {
+            for (var k = 0; k < passes; k++)
+            {
+                if (bp < 0)
+                {
+                    throw Malformed("code-block has more coding passes than bit-planes.");
+                }
+
+                var type = (passIndex + 2) % 3;
+                if (decode)
+                {
+                    RunPass(type, bp, raw, style);
+                }
+
+                if (type == 2)
+                {
+                    bp--;
+                }
+
+                passIndex++;
             }
         }
 
@@ -200,27 +211,31 @@ public static partial class Jpeg2000Codec
                 {
                     for (var y = y0; y < y1; y++)
                     {
-                        var idx = ((y + 1) * _stride) + x + 1;
-                        var f = _flags[idx];
-                        if ((f & FlagSig) != 0)
-                        {
-                            continue;
-                        }
-
-                        var ctx = ZeroContext(idx, y);
-                        if (ctx == 0)
-                        {
-                            continue;
-                        }
-
-                        int bit = raw ? _raw.ReadBit() : _mq.DecodeBit(ctx);
-                        _flags[idx] |= FlagVisit;
-                        if (bit != 0)
-                        {
-                            BecomeSignificant(idx, x, y, bp, raw);
-                        }
+                        SigPropSample(x, y, bp, raw);
                     }
                 }
+            }
+        }
+
+        private void SigPropSample(int x, int y, int bp, bool raw)
+        {
+            var idx = ((y + 1) * _stride) + x + 1;
+            if ((_flags[idx] & FlagSig) != 0)
+            {
+                return;
+            }
+
+            var ctx = ZeroContext(idx, y);
+            if (ctx == 0)
+            {
+                return;
+            }
+
+            int bit = raw ? _raw.ReadBit() : _mq.DecodeBit(ctx);
+            _flags[idx] |= FlagVisit;
+            if (bit != 0)
+            {
+                BecomeSignificant(idx, x, y, bp, raw);
             }
         }
 
@@ -233,40 +248,39 @@ public static partial class Jpeg2000Codec
                 {
                     for (var y = y0; y < y1; y++)
                     {
-                        var idx = ((y + 1) * _stride) + x + 1;
-                        var f = _flags[idx];
-                        if ((f & FlagSig) == 0 || (f & FlagVisit) != 0)
-                        {
-                            continue;
-                        }
-
-                        int bit;
-                        if (raw)
-                        {
-                            bit = _raw.ReadBit();
-                        }
-                        else
-                        {
-                            int ctx;
-                            if ((f & FlagRefined) != 0)
-                            {
-                                ctx = 16;
-                            }
-                            else
-                            {
-                                ctx = HasSignificantNeighbor(idx, y) ? 15 : 14;
-                            }
-
-                            bit = _mq.DecodeBit(ctx);
-                        }
-
-                        var m = (y * _w) + x;
-                        _mag[m] |= bit << bp;
-                        _low[m] = (byte)bp;
-                        _flags[idx] |= FlagRefined;
+                        MagRefSample(x, y, bp, raw);
                     }
                 }
             }
+        }
+
+        private void MagRefSample(int x, int y, int bp, bool raw)
+        {
+            var idx = ((y + 1) * _stride) + x + 1;
+            var f = _flags[idx];
+            if ((f & FlagSig) == 0 || (f & FlagVisit) != 0)
+            {
+                return;
+            }
+
+            int bit;
+            if (raw)
+            {
+                bit = _raw.ReadBit();
+            }
+            else if ((f & FlagRefined) != 0)
+            {
+                bit = _mq.DecodeBit(16);
+            }
+            else
+            {
+                bit = _mq.DecodeBit(HasSignificantNeighbor(idx, y) ? 15 : 14);
+            }
+
+            var m = (y * _w) + x;
+            _mag[m] |= bit << bp;
+            _low[m] = (byte)bp;
+            _flags[idx] |= FlagRefined;
         }
 
         private void Cleanup(int bp)
@@ -276,33 +290,7 @@ public static partial class Jpeg2000Codec
                 var full = y0 + 4 <= _h;
                 for (var x = 0; x < _w; x++)
                 {
-                    var start = y0;
-                    if (full && RunLengthEligible(x, y0))
-                    {
-                        if (_mq.DecodeBit(17) == 0)
-                        {
-                            continue;
-                        }
-
-                        var run = (_mq.DecodeBit(18) << 1) | _mq.DecodeBit(18);
-                        var y = y0 + run;
-                        BecomeSignificant(((y + 1) * _stride) + x + 1, x, y, bp, false);
-                        start = y + 1;
-                    }
-
-                    for (var y = start; y < Math.Min(y0 + 4, _h); y++)
-                    {
-                        var idx = ((y + 1) * _stride) + x + 1;
-                        if ((_flags[idx] & (FlagSig | FlagVisit)) != 0)
-                        {
-                            continue;
-                        }
-
-                        if (_mq.DecodeBit(ZeroContext(idx, y)) != 0)
-                        {
-                            BecomeSignificant(idx, x, y, bp, false);
-                        }
-                    }
+                    CleanupColumn(x, y0, full, bp);
                 }
             }
 
@@ -313,6 +301,37 @@ public static partial class Jpeg2000Codec
                 for (var x = 0; x < _w; x++)
                 {
                     _flags[row + x] &= unchecked((byte)~FlagVisit);
+                }
+            }
+        }
+
+        private void CleanupColumn(int x, int y0, bool full, int bp)
+        {
+            var start = y0;
+            if (full && RunLengthEligible(x, y0))
+            {
+                if (_mq.DecodeBit(17) == 0)
+                {
+                    return;
+                }
+
+                var run = (_mq.DecodeBit(18) << 1) | _mq.DecodeBit(18);
+                var y = y0 + run;
+                BecomeSignificant(((y + 1) * _stride) + x + 1, x, y, bp, false);
+                start = y + 1;
+            }
+
+            for (var y = start; y < Math.Min(y0 + 4, _h); y++)
+            {
+                var idx = ((y + 1) * _stride) + x + 1;
+                if ((_flags[idx] & (FlagSig | FlagVisit)) != 0)
+                {
+                    continue;
+                }
+
+                if (_mq.DecodeBit(ZeroContext(idx, y)) != 0)
+                {
+                    BecomeSignificant(idx, x, y, bp, false);
                 }
             }
         }
@@ -470,11 +489,11 @@ public static partial class Jpeg2000Codec
             return _mq.DecodeBit(ctx) ^ xor;
         }
 
-        private void Store(CodeBlock block, Band band, int roiShift, bool reversible, int[]? ints, float[]? floats, int planeStride)
+        private void Store(CodeBlock block, Band band, int roiShift, BlockOutput output)
         {
             for (var y = 0; y < _h; y++)
             {
-                var rowBase = ((band.OffY + block.Y0 + y) * planeStride) + band.OffX + block.X0;
+                var rowBase = ((band.OffY + block.Y0 + y) * output.PlaneStride) + band.OffX + block.X0;
                 for (var x = 0; x < _w; x++)
                 {
                     var m = (y * _w) + x;
@@ -492,17 +511,22 @@ public static partial class Jpeg2000Codec
                     }
 
                     var neg = (_flags[((y + 1) * _stride) + x + 1] & FlagNeg) != 0;
-                    if (reversible)
-                    {
-                        var v = low > 0 ? mag + (1 << (low - 1)) : mag;
-                        ints![rowBase + x] = neg ? -v : v;
-                    }
-                    else
-                    {
-                        var v = (mag + (0.5f * (1 << low))) * band.Step;
-                        floats![rowBase + x] = neg ? -v : v;
-                    }
+                    StoreSample(output, band, rowBase + x, mag, low, neg);
                 }
+            }
+        }
+
+        private static void StoreSample(BlockOutput output, Band band, int position, int mag, int low, bool neg)
+        {
+            if (output.Reversible)
+            {
+                var v = low > 0 ? mag + (1 << (low - 1)) : mag;
+                output.Ints![position] = neg ? -v : v;
+            }
+            else
+            {
+                var v = (mag + (0.5f * (1 << low))) * band.Step;
+                output.Floats![position] = neg ? -v : v;
             }
         }
     }

@@ -520,7 +520,7 @@ public sealed partial class PdfDocument
     ///     The scaled dash array, or <see langword="null"/> when the current graphics state has
     ///     no dash pattern (a solid stroke).
     /// </returns>
-    private IReadOnlyList<float>? ScaledDashArray()
+    private float[]? ScaledDashArray()
     {
         if (_gs.DashArray is null)
         {

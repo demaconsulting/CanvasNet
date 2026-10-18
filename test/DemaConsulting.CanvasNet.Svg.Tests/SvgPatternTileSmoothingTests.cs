@@ -21,7 +21,7 @@ public class SvgPatternTileSmoothingTests
         using var coverage = new Surface(regionWidth, 1);
         coverage.Clear(new Rgba32(255, 255, 255, 255));
         return SvgCodec.SampleTileIntoRegion(
-            tile, coverage, 0, 0, regionWidth, 1, 0f, 0f, tileWidth, 1f, Matrix3x2.CreateScale(1f / scale));
+            tile, coverage, 0, 0, new SvgCodec.TileRect(0f, 0f, tileWidth, 1f), Matrix3x2.CreateScale(1f / scale));
     }
 
     /// <summary>A tile drawn well above one device pixel per tile pixel (a scaled pattern) is smoothly interpolated, not blocky.</summary>

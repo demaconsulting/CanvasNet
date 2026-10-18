@@ -45,6 +45,7 @@ internal readonly record struct SfntFaceInfo(
 internal static class SfntHeaderReader
 {
     private const uint TtcTag = 0x74746366; // 'ttcf'
+    private static readonly string[] RequiredTables = ["head", "maxp", "hhea", "hmtx"];
     private const uint TrueTypeVersion = 0x00010000;
     private const uint MacTrueVersion = 0x74727565; // 'true'
     private const uint OttoVersion = 0x4F54544F; // 'OTTO'
@@ -89,8 +90,41 @@ internal static class SfntHeaderReader
     public static SfntFaceInfo ReadFace(Stream stream, int faceIndex)
     {
         var length = stream.Length;
-        var offsetTableStart = 0L;
+        var offsetTableStart = ResolveOffsetTableStart(stream, length, faceIndex);
+        var tables = ReadTableDirectory(stream, offsetTableStart, length, out var version);
 
+        var isCff = tables.ContainsKey("CFF ");
+        ValidateRequiredTables(tables, version, isCff);
+
+        var macStyle = ValidateHeadAndMaxp(stream, tables, isCff);
+
+        var name = tables.TryGetValue("name", out var nameRange)
+            ? NameTable.Parse(ReadAt(stream, nameRange.Offset, checked((int)nameRange.Length)), 0, (int)nameRange.Length)
+            : NameTable.Empty;
+
+        // OS/2 and post are packed (truncated to the bytes StyleTable reads) into one small buffer.
+        var os2Length = tables.TryGetValue("OS/2", out var os2Range) ? (int)Math.Min(os2Range.Length, Os2Prefix) : -1;
+        var postLength = tables.TryGetValue("post", out var postRange) ? (int)Math.Min(postRange.Length, PostPrefix) : -1;
+        var packed = new byte[Math.Max(os2Length, 0) + Math.Max(postLength, 0)];
+        if (os2Length >= 0)
+        {
+            ReadAt(stream, os2Range.Offset, os2Length).CopyTo(packed, 0);
+        }
+
+        if (postLength >= 0)
+        {
+            ReadAt(stream, postRange.Offset, postLength).CopyTo(packed, Math.Max(os2Length, 0));
+        }
+
+        (int, int)? os2 = os2Length >= 0 ? (0, os2Length) : null;
+        (int, int)? post = postLength >= 0 ? (Math.Max(os2Length, 0), postLength) : null;
+        var style = StyleTable.Parse(packed, macStyle, os2, post);
+
+        return new SfntFaceInfo(name.FamilyName, name.SubfamilyName, style.IsBold, style.IsItalic, style.IsFixedPitch);
+    }
+
+    private static long ResolveOffsetTableStart(Stream stream, long length, int faceIndex)
+    {
         if (length >= 4 && SfntContainer.ReadUInt32(ReadAt(stream, 0, 4), 0) == TtcTag)
         {
             var offsets = ReadFaceOffsets(stream, length);
@@ -99,20 +133,27 @@ internal static class SfntHeaderReader
                 throw new InvalidDataException("Face index is outside the collection.");
             }
 
-            offsetTableStart = offsets[faceIndex];
+            return offsets[faceIndex];
         }
-        else if (faceIndex != 0)
+
+        if (faceIndex != 0)
         {
             throw new InvalidDataException("Face index must be 0 for a non-collection font file.");
         }
 
+        return 0L;
+    }
+
+    private static Dictionary<string, (long Offset, long Length)> ReadTableDirectory(
+        Stream stream, long offsetTableStart, long length, out uint version)
+    {
         if (offsetTableStart + OffsetTableSize > length)
         {
             throw new InvalidDataException("Font data is too short to contain an SFNT offset table.");
         }
 
         var header = ReadAt(stream, offsetTableStart, OffsetTableSize);
-        var version = SfntContainer.ReadUInt32(header, 0);
+        version = SfntContainer.ReadUInt32(header, 0);
         if (version != TrueTypeVersion && version != MacTrueVersion && version != OttoVersion)
         {
             throw new InvalidDataException($"Unrecognized SFNT version 0x{version:X8}.");
@@ -142,13 +183,17 @@ internal static class SfntHeaderReader
             tables[tag] = (tableOffset, tableLength);
         }
 
-        var isCff = tables.ContainsKey("CFF ");
+        return tables;
+    }
+
+    private static void ValidateRequiredTables(Dictionary<string, (long Offset, long Length)> tables, uint version, bool isCff)
+    {
         if (version == OttoVersion && !isCff)
         {
             throw new InvalidDataException("Font uses CFF/OpenType ('OTTO') outlines but has no 'CFF ' table.");
         }
 
-        var missingTable = new[] { "head", "maxp", "hhea", "hmtx" }.FirstOrDefault(t => !tables.ContainsKey(t));
+        var missingTable = RequiredTables.FirstOrDefault(t => !tables.ContainsKey(t));
         if (missingTable is not null)
         {
             throw new InvalidDataException($"Required table '{missingTable}' is missing from the font.");
@@ -158,7 +203,10 @@ internal static class SfntHeaderReader
         {
             throw new InvalidDataException("Required table 'loca' or 'glyf' is missing from the font.");
         }
+    }
 
+    private static ushort ValidateHeadAndMaxp(Stream stream, Dictionary<string, (long Offset, long Length)> tables, bool isCff)
+    {
         var head = tables["head"];
         if (head.Length < HeadSize)
         {
@@ -195,29 +243,7 @@ internal static class SfntHeaderReader
             throw new InvalidDataException("The 'maxp' table is inconsistent with the font's outline flavor.");
         }
 
-        var name = tables.TryGetValue("name", out var nameRange)
-            ? NameTable.Parse(ReadAt(stream, nameRange.Offset, checked((int)nameRange.Length)), 0, (int)nameRange.Length)
-            : NameTable.Empty;
-
-        // OS/2 and post are packed (truncated to the bytes StyleTable reads) into one small buffer.
-        var os2Length = tables.TryGetValue("OS/2", out var os2Range) ? (int)Math.Min(os2Range.Length, Os2Prefix) : -1;
-        var postLength = tables.TryGetValue("post", out var postRange) ? (int)Math.Min(postRange.Length, PostPrefix) : -1;
-        var packed = new byte[Math.Max(os2Length, 0) + Math.Max(postLength, 0)];
-        if (os2Length >= 0)
-        {
-            ReadAt(stream, os2Range.Offset, os2Length).CopyTo(packed, 0);
-        }
-
-        if (postLength >= 0)
-        {
-            ReadAt(stream, postRange.Offset, postLength).CopyTo(packed, Math.Max(os2Length, 0));
-        }
-
-        (int, int)? os2 = os2Length >= 0 ? (0, os2Length) : null;
-        (int, int)? post = postLength >= 0 ? (Math.Max(os2Length, 0), postLength) : null;
-        var style = StyleTable.Parse(packed, macStyle, os2, post);
-
-        return new SfntFaceInfo(name.FamilyName, name.SubfamilyName, style.IsBold, style.IsItalic, style.IsFixedPitch);
+        return macStyle;
     }
 
     private static long[] ReadFaceOffsets(Stream stream, long length)

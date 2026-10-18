@@ -54,7 +54,8 @@ public class PdfDocumentImageColorConversionTests
     /// <summary>Renders the image and returns its four pixels as <c>(R, G, B)</c> triples.</summary>
     private static (int R, int G, int B)[] RenderPixels(string colorSpace, byte[] samples)
     {
-        using var document = PdfDocument.Open(new MemoryStream(BuildPdf(colorSpace, samples)));
+        using var stream = new MemoryStream(BuildPdf(colorSpace, samples));
+        using var document = PdfDocument.Open(stream);
         using var surface = document.Render(0, ImageWidth, 1, Opaque);
         var pixels = new (int, int, int)[ImageWidth];
         for (var x = 0; x < ImageWidth; x++)

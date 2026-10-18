@@ -88,30 +88,7 @@ public sealed partial class PdfDocument
             }
 
             sequence.Clear();
-            if (oldCode is null)
-            {
-                if (code >= 256)
-                {
-                    throw new InvalidDataException($"Invalid LZWDecode code {code} before any table entry exists.");
-                }
-
-                sequence.Add((byte)code);
-            }
-            else if (code < nextCode)
-            {
-                ExpandLzwCode(code, prefixOf, suffixOf, sequence);
-            }
-            else if (code == nextCode)
-            {
-                // The classic "KwKwK" special case: the code being decoded is the one about to
-                // be added to the table (the previous sequence followed by its own first byte).
-                ExpandLzwCode(oldCode.Value, prefixOf, suffixOf, sequence);
-                sequence.Add(sequence[0]);
-            }
-            else
-            {
-                throw new InvalidDataException($"Invalid LZWDecode code {code}: not yet present in the table.");
-            }
+            BuildLzwSequence(code, oldCode, nextCode, prefixOf, suffixOf, sequence);
 
             output.AddRange(sequence);
             if (output.Count > LzwMaxOutputBytes)
@@ -137,6 +114,42 @@ public sealed partial class PdfDocument
         }
 
         return [.. output];
+    }
+
+    /// <summary>Builds the byte sequence for <paramref name="code"/> into <paramref name="sequence"/>.</summary>
+    /// <exception cref="InvalidDataException">Thrown when the code is not valid for the current table state.</exception>
+    private static void BuildLzwSequence(
+        int code,
+        int? oldCode,
+        int nextCode,
+        int[] prefixOf,
+        byte[] suffixOf,
+        List<byte> sequence)
+    {
+        if (oldCode is null)
+        {
+            if (code >= 256)
+            {
+                throw new InvalidDataException($"Invalid LZWDecode code {code} before any table entry exists.");
+            }
+
+            sequence.Add((byte)code);
+        }
+        else if (code < nextCode)
+        {
+            ExpandLzwCode(code, prefixOf, suffixOf, sequence);
+        }
+        else if (code == nextCode)
+        {
+            // The classic "KwKwK" special case: the code being decoded is the one about to
+            // be added to the table (the previous sequence followed by its own first byte).
+            ExpandLzwCode(oldCode.Value, prefixOf, suffixOf, sequence);
+            sequence.Add(sequence[0]);
+        }
+        else
+        {
+            throw new InvalidDataException($"Invalid LZWDecode code {code}: not yet present in the table.");
+        }
     }
 
     /// <summary>Expands a table code back into its full byte sequence, appending it to <paramref name="sequence"/>.</summary>

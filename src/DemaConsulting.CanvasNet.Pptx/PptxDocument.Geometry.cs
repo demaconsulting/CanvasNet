@@ -103,8 +103,8 @@ public sealed partial class PptxDocument
 
         // A zero-width/height child coordinate space cannot be meaningfully scaled from - fall
         // back to an identity scale factor of 1 along that axis rather than dividing by zero.
-        var scaleX = chExtCx == 0f ? 1f : groupFrame.WidthEmu / chExtCx;
-        var scaleY = chExtCy == 0f ? 1f : groupFrame.HeightEmu / chExtCy;
+        var scaleX = chExtCx.Equals(0f) ? 1f : groupFrame.WidthEmu / chExtCx;
+        var scaleY = chExtCy.Equals(0f) ? 1f : groupFrame.HeightEmu / chExtCy;
 
         var childToLocal = Matrix3x2.CreateTranslation(-chOffX, -chOffY) * Matrix3x2.CreateScale(scaleX, scaleY);
         return childToLocal * groupFrame.Transform;
@@ -200,8 +200,8 @@ public sealed partial class PptxDocument
     {
         var pathW = ParseOptionalFloatAttribute(pathElement, "w", widthEmu);
         var pathH = ParseOptionalFloatAttribute(pathElement, "h", heightEmu);
-        var scaleX = pathW == 0f ? 1f : widthEmu / pathW;
-        var scaleY = pathH == 0f ? 1f : heightEmu / pathH;
+        var scaleX = pathW.Equals(0f) ? 1f : widthEmu / pathW;
+        var scaleY = pathH.Equals(0f) ? 1f : heightEmu / pathH;
 
         Vector2 Scale(XElement ptElement)
         {

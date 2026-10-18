@@ -31,7 +31,8 @@ public class PdfImageResamplingTests
 
         var pageHeight = 792;
         var pdf = PdfDocumentImageDownscaleTests.BuildPdf(PageWidth, pageHeight, "468 0 0 40 72 700 cm", SourceWidth, SourceHeight, gray);
-        using var document = PdfDocument.Open(new MemoryStream(pdf));
+        using var stream = new MemoryStream(pdf);
+        using var document = PdfDocument.Open(stream);
         var pixelHeight = pixelWidth * pageHeight / PageWidth;
         using var surface = document.Render(0, pixelWidth, pixelHeight, White);
 

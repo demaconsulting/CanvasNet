@@ -260,7 +260,7 @@ public class PptxChartsTests
     ///     one slide's <c>&lt;p:spTree&gt;</c> declares a single chart <c>&lt;p:graphicFrame&gt;</c>
     ///     referencing <paramref name="chartSpace"/> as <c>ppt/charts/chart1.xml</c>.
     /// </summary>
-    private static Stream BuildChartOnlySlidePackage(XElement chartSpace)
+    private static MemoryStream BuildChartOnlySlidePackage(XElement chartSpace)
     {
         const string contentTypesXml =
             """

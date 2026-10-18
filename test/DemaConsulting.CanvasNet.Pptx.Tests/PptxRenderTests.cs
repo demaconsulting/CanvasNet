@@ -110,7 +110,7 @@ public class PptxRenderTests
     ///     to prove per-slide substitution against a genuine multi-slide deck, not a single slide
     ///     rendered twice.
     /// </param>
-    private static Stream BuildRenderPackage(
+    private static MemoryStream BuildRenderPackage(
         string spTreeInnerXml,
         string masterTxStylesXml = "",
         string layoutPlaceholderXml = "",
@@ -2671,7 +2671,7 @@ public class PptxRenderTests
     ///     prove a layout's own decorative shapes paint only on slides using that specific layout,
     ///     not on sibling slides using a different layout that shares the same master.
     /// </summary>
-    private static Stream BuildTwoLayoutTwoSlideRenderPackage(string layout1ShapeTreeXml, string layout2ShapeTreeXml)
+    private static MemoryStream BuildTwoLayoutTwoSlideRenderPackage(string layout1ShapeTreeXml, string layout2ShapeTreeXml)
     {
         const string contentTypesXml =
             """

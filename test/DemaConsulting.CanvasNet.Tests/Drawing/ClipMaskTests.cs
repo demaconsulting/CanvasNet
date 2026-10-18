@@ -262,7 +262,7 @@ public class ClipMaskTests
         const int segments = 24;
         for (var i = 0; i < segments; i++)
         {
-            var angle = i * 2 * MathF.PI / segments;
+            var angle = i * 2f * MathF.PI / segments;
             var p = new Vector2(cx + (radius * MathF.Cos(angle)), cy + (radius * MathF.Sin(angle)));
             _ = i == 0 ? builder.MoveTo(p) : builder.LineTo(p);
         }

@@ -66,7 +66,7 @@ public class PptxDocumentTests
     ///     handful of entries relevant to the scenario under test, rather than a complete,
     ///     feature-complete presentation package.
     /// </summary>
-    private static Stream BuildPackage(params (string Name, string Content)[] entries)
+    private static MemoryStream BuildPackage(params (string Name, string Content)[] entries)
     {
         var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))

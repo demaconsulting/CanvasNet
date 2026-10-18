@@ -79,10 +79,7 @@ public static class PathStroker
                     style,
                     flattenTolerance);
 
-                foreach (var outline in outlines.Where(outline => AppendOutlinePolygon(builder, outline)))
-                {
-                    polygonCount++;
-                }
+                polygonCount += outlines.Count(outline => AppendOutlinePolygon(builder, outline));
             }
         }
 
@@ -101,7 +98,7 @@ public static class PathStroker
     /// <param name="builder">The path builder to append to.</param>
     /// <param name="outline">The outline's vertices, in order.</param>
     /// <returns><see langword="true"/> if a subpath was appended; <see langword="false"/> if <paramref name="outline"/> was degenerate.</returns>
-    private static bool AppendOutlinePolygon(PathBuilder builder, IReadOnlyList<Vector2> outline)
+    private static bool AppendOutlinePolygon(PathBuilder builder, List<Vector2> outline)
     {
         if (outline.Count < 3)
         {

@@ -22,7 +22,7 @@ public sealed partial class VsdxDocument
     /// <param name="mergedSections">The shape's merged (Master/instance) geometry sections, in <c>IX</c> order.</param>
     /// <param name="effectiveCells">The shape's merged flat cell bag, supplying the <c>Width</c>/<c>Height</c> values <c>RelMoveTo</c>/<c>RelLineTo</c> rows are normalized against.</param>
     /// <returns>The resolved geometry sections, one per merged section, in the same order.</returns>
-    private static IReadOnlyList<VsdxGeometrySection> BuildGeometrySections(
+    private static List<VsdxGeometrySection> BuildGeometrySections(
         IReadOnlyList<VsdxGeometrySectionRaw> mergedSections,
         VsdxCellBag effectiveCells)
     {
@@ -60,196 +60,229 @@ public sealed partial class VsdxDocument
     /// <returns>The resolved <see cref="VsdxGeometrySection"/>.</returns>
     private static VsdxGeometrySection BuildGeometrySection(VsdxGeometrySectionRaw section, double width, double height)
     {
-        var builder = new PathBuilder();
-        var hasOpenSubpath = false;
-        var currentPoint = Vector2.Zero;
-
-        SplineAccumulator? spline = null;
+        var state = new GeometryBuildState();
 
         foreach (var row in section.Rows.OrderBy(r => r.Index))
         {
-            // A SplineStart/SplineKnot group ends at the first row that is not a SplineKnot.
-            if (spline is not null && row.Type != "SplineKnot")
-            {
-                currentPoint = FlushSpline(builder, spline);
-                spline = null;
-            }
-
-            // A row that continues a subpath (everything except the MoveTo-like rows and the
-            // SplineKnot, which has its own orphan report) before any MoveTo/RelMoveTo/Ellipse has
-            // opened one has nothing to extend: skip it and report it rather than dropping it silently.
-            if (!hasOpenSubpath && IsSubpathContinuationRow(row.Type))
-            {
-                ReportUnsupported(
-                    $"vsdx-geometry-row-{row.Type}",
-                    $"A {row.Type} row with no preceding MoveTo/RelMoveTo/Ellipse row (no open subpath) is not supported and was skipped.");
-                continue;
-            }
-
-            switch (row.Type)
-            {
-                case "SplineStart":
-                    if (hasOpenSubpath)
-                    {
-                        spline = BeginSpline(currentPoint, row.Cells);
-                    }
-
-                    break;
-
-                case "SplineKnot":
-                    if (spline is not null)
-                    {
-                        AddSplineKnot(spline, row.Cells);
-                    }
-                    else
-                    {
-                        // Reported whether or not a subpath is open (a knot before the first
-                        // MoveTo is just as orphaned).
-                        ReportUnsupported(
-                            "vsdx-geometry-row-SplineKnot",
-                            "A SplineKnot row without a preceding SplineStart row is not supported and was skipped.");
-                    }
-
-                    break;
-
-                case "NURBSTo":
-                    if (hasOpenSubpath)
-                    {
-                        if (TryAppendNurbsTo(builder, currentPoint, row.Cells, width, height, out var nurbsEnd))
-                        {
-                            currentPoint = nurbsEnd;
-                        }
-                        else
-                        {
-                            ReportUnsupported(
-                                "vsdx-geometry-row-NURBSTo",
-                                "A NURBSTo row has a missing, malformed or oversized NURBS formula, or a missing, non-finite or non-positive-weight X, Y, A, B, C or D cell, and was skipped.");
-                        }
-                    }
-
-                    break;
-
-                case "PolylineTo":
-                    if (hasOpenSubpath)
-                    {
-                        if (TryAppendPolylineTo(builder, row.Cells, width, height, out var polylineEnd))
-                        {
-                            currentPoint = polylineEnd;
-                        }
-                        else
-                        {
-                            ReportUnsupported(
-                                "vsdx-geometry-row-PolylineTo",
-                                "A PolylineTo row has a missing, malformed or oversized POLYLINE formula, or a missing or non-finite X or Y cell, and was skipped.");
-                        }
-                    }
-
-                    break;
-
-                case "MoveTo":
-                    currentPoint = ToLocalPoint(row.Cells.GetDouble("X"), row.Cells.GetDouble("Y"));
-                    builder.MoveTo(currentPoint);
-                    hasOpenSubpath = true;
-                    break;
-
-                case "LineTo":
-                    if (hasOpenSubpath)
-                    {
-                        currentPoint = ToLocalPoint(row.Cells.GetDouble("X"), row.Cells.GetDouble("Y"));
-                        builder.LineTo(currentPoint);
-                    }
-
-                    break;
-
-                case "RelMoveTo":
-                    currentPoint = ToLocalPoint(row.Cells.GetDouble("X") * width, row.Cells.GetDouble("Y") * height);
-                    builder.MoveTo(currentPoint);
-                    hasOpenSubpath = true;
-                    break;
-
-                case "RelLineTo":
-                    if (hasOpenSubpath)
-                    {
-                        currentPoint = ToLocalPoint(row.Cells.GetDouble("X") * width, row.Cells.GetDouble("Y") * height);
-                        builder.LineTo(currentPoint);
-                    }
-
-                    break;
-
-                case "EllipticalArcTo":
-                    if (hasOpenSubpath)
-                    {
-                        currentPoint = AppendEllipticalArcTo(builder, currentPoint, row.Cells);
-                    }
-
-                    break;
-
-                case "ArcTo":
-                    if (hasOpenSubpath)
-                    {
-                        currentPoint = AppendArcTo(builder, currentPoint, row.Cells);
-                    }
-
-                    break;
-
-                case "Ellipse":
-                    currentPoint = AppendEllipse(builder, row.Cells);
-                    hasOpenSubpath = true;
-                    break;
-
-                case "RelCubBezTo":
-                    if (hasOpenSubpath)
-                    {
-                        var cubicEnd = ToLocalPoint(row.Cells.GetDouble("X") * width, row.Cells.GetDouble("Y") * height);
-                        builder.CubicBezierTo(
-                            ToLocalPoint(row.Cells.GetDouble("A") * width, row.Cells.GetDouble("B") * height),
-                            ToLocalPoint(row.Cells.GetDouble("C") * width, row.Cells.GetDouble("D") * height),
-                            cubicEnd);
-                        currentPoint = cubicEnd;
-                    }
-
-                    break;
-
-                case "RelQuadBezTo":
-                    if (hasOpenSubpath)
-                    {
-                        var quadEnd = ToLocalPoint(row.Cells.GetDouble("X") * width, row.Cells.GetDouble("Y") * height);
-                        builder.QuadraticBezierTo(
-                            ToLocalPoint(row.Cells.GetDouble("A") * width, row.Cells.GetDouble("B") * height),
-                            quadEnd);
-                        currentPoint = quadEnd;
-                    }
-
-                    break;
-
-                default:
-                    // Unrecognized geometry row type (for example InfiniteLine; the curve rows
-                    // NURBSTo, PolylineTo, SplineStart/SplineKnot, Ellipse and RelCubBezTo are
-                    // recognized above): per
-                    // canvas-net-vsdx.md's Risk Control Measures ("an unrecognized ... construct
-                    // is tolerantly skipped rather than failing the whole parse"), this row is
-                    // silently skipped, leaving the pen position exactly where the previous
-                    // recognized row left it, rather than throwing. Confirmed exercised directly
-                    // by davehoward-test5-master.vsdx's master1.xml, Shape ID='6', whose rounded-
-                    // corner outline alternates recognized LineTo rows with unrecognized NURBSTo
-                    // rows. The skip is never silent: it is reported as an unsupported feature.
-                    ReportUnsupported(
-                        $"vsdx-geometry-row-{row.Type}",
-                        $"Geometry row type '{row.Type}' is not supported and was skipped.");
-                    break;
-            }
+            ApplyGeometryRow(state, row, width, height);
         }
 
-        if (spline is not null)
+        if (state.Spline is not null)
         {
-            FlushSpline(builder, spline);
+            FlushSpline(state.Builder, state.Spline);
         }
 
         return new VsdxGeometrySection(
             NoFill: section.Cells.GetBool("NoFill"),
             NoLine: section.Cells.GetBool("NoLine"),
             NoShow: section.Cells.GetBool("NoShow"),
-            Path: builder.Build());
+            Path: state.Builder.Build());
+    }
+
+    /// <summary>Mutable pen state shared by the per-row geometry handlers.</summary>
+    private sealed class GeometryBuildState
+    {
+        /// <summary>Gets the path builder being appended to.</summary>
+        public PathBuilder Builder { get; } = new();
+
+        /// <summary>Gets or sets a value indicating whether a subpath is currently open.</summary>
+        public bool HasOpenSubpath { get; set; }
+
+        /// <summary>Gets or sets the current pen position, in local space.</summary>
+        public Vector2 CurrentPoint { get; set; } = Vector2.Zero;
+
+        /// <summary>Gets or sets the spline group currently being accumulated, if any.</summary>
+        public SplineAccumulator? Spline { get; set; }
+    }
+
+    /// <summary>Applies one geometry row to the build state.</summary>
+    /// <param name="state">The mutable build state.</param>
+    /// <param name="row">The row to apply.</param>
+    /// <param name="width">The owning shape's resolved <c>Width</c>, in inches.</param>
+    /// <param name="height">The owning shape's resolved <c>Height</c>, in inches.</param>
+    private static void ApplyGeometryRow(GeometryBuildState state, VsdxGeometryRowRaw row, double width, double height)
+    {
+        // A SplineStart/SplineKnot group ends at the first row that is not a SplineKnot.
+        if (state.Spline is not null && row.Type != "SplineKnot")
+        {
+            state.CurrentPoint = FlushSpline(state.Builder, state.Spline);
+            state.Spline = null;
+        }
+
+        // A row that continues a subpath (everything except the MoveTo-like rows and the
+        // SplineKnot, which has its own orphan report) before any MoveTo/RelMoveTo/Ellipse has
+        // opened one has nothing to extend: skip it and report it rather than dropping it silently.
+        if (!state.HasOpenSubpath && IsSubpathContinuationRow(row.Type))
+        {
+            ReportUnsupported(
+                $"vsdx-geometry-row-{row.Type}",
+                $"A {row.Type} row with no preceding MoveTo/RelMoveTo/Ellipse row (no open subpath) is not supported and was skipped.");
+            return;
+        }
+
+        // Every continuation row below is guaranteed an open subpath by the guard above.
+        switch (row.Type)
+        {
+            case "SplineStart":
+                state.Spline = BeginSpline(state.CurrentPoint, row.Cells);
+                break;
+            case "SplineKnot":
+                ApplySplineKnotRow(state, row);
+                break;
+            case "NURBSTo":
+                ApplyNurbsRow(state, row, width, height);
+                break;
+            case "PolylineTo":
+                ApplyPolylineRow(state, row, width, height);
+                break;
+            case "MoveTo":
+                StartSubpath(state, ToLocalPoint(row.Cells.GetDouble("X"), row.Cells.GetDouble("Y")));
+                break;
+            case "LineTo":
+                LineToPoint(state, ToLocalPoint(row.Cells.GetDouble("X"), row.Cells.GetDouble("Y")));
+                break;
+            case "RelMoveTo":
+                StartSubpath(state, ToLocalPoint(row.Cells.GetDouble("X") * width, row.Cells.GetDouble("Y") * height));
+                break;
+            case "RelLineTo":
+                LineToPoint(state, ToLocalPoint(row.Cells.GetDouble("X") * width, row.Cells.GetDouble("Y") * height));
+                break;
+            case "EllipticalArcTo":
+                state.CurrentPoint = AppendEllipticalArcTo(state.Builder, state.CurrentPoint, row.Cells);
+                break;
+            case "ArcTo":
+                state.CurrentPoint = AppendArcTo(state.Builder, state.CurrentPoint, row.Cells);
+                break;
+            case "Ellipse":
+                state.CurrentPoint = AppendEllipse(state.Builder, row.Cells);
+                state.HasOpenSubpath = true;
+                break;
+            case "RelCubBezTo":
+                ApplyRelCubicRow(state, row, width, height);
+                break;
+            case "RelQuadBezTo":
+                ApplyRelQuadraticRow(state, row, width, height);
+                break;
+            default:
+                // Unrecognized geometry row type (for example InfiniteLine; the curve rows
+                // NURBSTo, PolylineTo, SplineStart/SplineKnot, Ellipse and RelCubBezTo are
+                // recognized above): per
+                // canvas-net-vsdx.md's Risk Control Measures ("an unrecognized ... construct
+                // is tolerantly skipped rather than failing the whole parse"), this row is
+                // silently skipped, leaving the pen position exactly where the previous
+                // recognized row left it, rather than throwing. Confirmed exercised directly
+                // by davehoward-test5-master.vsdx's master1.xml, Shape ID='6', whose rounded-
+                // corner outline alternates recognized LineTo rows with unrecognized NURBSTo
+                // rows. The skip is never silent: it is reported as an unsupported feature.
+                ReportUnsupported(
+                    $"vsdx-geometry-row-{row.Type}",
+                    $"Geometry row type '{row.Type}' is not supported and was skipped.");
+                break;
+        }
+    }
+
+    /// <summary>Moves the pen to <paramref name="point"/>, opening a new subpath.</summary>
+    /// <param name="state">The mutable build state.</param>
+    /// <param name="point">The new pen position, in local space.</param>
+    private static void StartSubpath(GeometryBuildState state, Vector2 point)
+    {
+        state.CurrentPoint = point;
+        state.Builder.MoveTo(point);
+        state.HasOpenSubpath = true;
+    }
+
+    /// <summary>Draws a straight line from the pen to <paramref name="point"/>.</summary>
+    /// <param name="state">The mutable build state.</param>
+    /// <param name="point">The line's end point, in local space.</param>
+    private static void LineToPoint(GeometryBuildState state, Vector2 point)
+    {
+        state.CurrentPoint = point;
+        state.Builder.LineTo(point);
+    }
+
+    /// <summary>Applies a <c>SplineKnot</c> row, reporting it when no spline group is open.</summary>
+    /// <param name="state">The mutable build state.</param>
+    /// <param name="row">The row to apply.</param>
+    private static void ApplySplineKnotRow(GeometryBuildState state, VsdxGeometryRowRaw row)
+    {
+        if (state.Spline is not null)
+        {
+            AddSplineKnot(state.Spline, row.Cells);
+            return;
+        }
+
+        // Reported whether or not a subpath is open (a knot before the first
+        // MoveTo is just as orphaned).
+        ReportUnsupported(
+            "vsdx-geometry-row-SplineKnot",
+            "A SplineKnot row without a preceding SplineStart row is not supported and was skipped.");
+    }
+
+    /// <summary>Applies a <c>NURBSTo</c> row, reporting it when it cannot be resolved.</summary>
+    /// <param name="state">The mutable build state.</param>
+    /// <param name="row">The row to apply.</param>
+    /// <param name="width">The owning shape's resolved <c>Width</c>, in inches.</param>
+    /// <param name="height">The owning shape's resolved <c>Height</c>, in inches.</param>
+    private static void ApplyNurbsRow(GeometryBuildState state, VsdxGeometryRowRaw row, double width, double height)
+    {
+        if (TryAppendNurbsTo(state.Builder, state.CurrentPoint, row.Cells, width, height, out var nurbsEnd))
+        {
+            state.CurrentPoint = nurbsEnd;
+            return;
+        }
+
+        ReportUnsupported(
+            "vsdx-geometry-row-NURBSTo",
+            "A NURBSTo row has a missing, malformed or oversized NURBS formula, or a missing, non-finite or non-positive-weight X, Y, A, B, C or D cell, and was skipped.");
+    }
+
+    /// <summary>Applies a <c>PolylineTo</c> row, reporting it when it cannot be resolved.</summary>
+    /// <param name="state">The mutable build state.</param>
+    /// <param name="row">The row to apply.</param>
+    /// <param name="width">The owning shape's resolved <c>Width</c>, in inches.</param>
+    /// <param name="height">The owning shape's resolved <c>Height</c>, in inches.</param>
+    private static void ApplyPolylineRow(GeometryBuildState state, VsdxGeometryRowRaw row, double width, double height)
+    {
+        if (TryAppendPolylineTo(state.Builder, row.Cells, width, height, out var polylineEnd))
+        {
+            state.CurrentPoint = polylineEnd;
+            return;
+        }
+
+        ReportUnsupported(
+            "vsdx-geometry-row-PolylineTo",
+            "A PolylineTo row has a missing, malformed or oversized POLYLINE formula, or a missing or non-finite X or Y cell, and was skipped.");
+    }
+
+    /// <summary>Applies a <c>RelCubBezTo</c> row.</summary>
+    /// <param name="state">The mutable build state.</param>
+    /// <param name="row">The row to apply.</param>
+    /// <param name="width">The owning shape's resolved <c>Width</c>, in inches.</param>
+    /// <param name="height">The owning shape's resolved <c>Height</c>, in inches.</param>
+    private static void ApplyRelCubicRow(GeometryBuildState state, VsdxGeometryRowRaw row, double width, double height)
+    {
+        var cells = row.Cells;
+        var end = ToLocalPoint(cells.GetDouble("X") * width, cells.GetDouble("Y") * height);
+        state.Builder.CubicBezierTo(
+            ToLocalPoint(cells.GetDouble("A") * width, cells.GetDouble("B") * height),
+            ToLocalPoint(cells.GetDouble("C") * width, cells.GetDouble("D") * height),
+            end);
+        state.CurrentPoint = end;
+    }
+
+    /// <summary>Applies a <c>RelQuadBezTo</c> row.</summary>
+    /// <param name="state">The mutable build state.</param>
+    /// <param name="row">The row to apply.</param>
+    /// <param name="width">The owning shape's resolved <c>Width</c>, in inches.</param>
+    /// <param name="height">The owning shape's resolved <c>Height</c>, in inches.</param>
+    private static void ApplyRelQuadraticRow(GeometryBuildState state, VsdxGeometryRowRaw row, double width, double height)
+    {
+        var cells = row.Cells;
+        var end = ToLocalPoint(cells.GetDouble("X") * width, cells.GetDouble("Y") * height);
+        state.Builder.QuadraticBezierTo(
+            ToLocalPoint(cells.GetDouble("A") * width, cells.GetDouble("B") * height),
+            end);
+        state.CurrentPoint = end;
     }
 
     /// <summary>
@@ -274,9 +307,9 @@ public sealed partial class VsdxDocument
         var angle = cells.GetDouble("C");
         var ratio = cells.GetDouble("D", 1d);
 
-        if (TryResolveEllipticalArc(start, control, end, angle, ratio, out var radius, out var rotationDegrees, out var largeArc, out var sweep))
+        if (TryResolveEllipticalArc(start, control, end, angle, ratio, out var arc))
         {
-            builder.ArcTo(radius, rotationDegrees, largeArc, sweep, end);
+            builder.ArcTo(arc.Radius, arc.RotationDegrees, arc.LargeArc, arc.Sweep, end);
         }
         else
         {
@@ -301,10 +334,7 @@ public sealed partial class VsdxDocument
     /// <param name="end">The arc's end point (cells <c>X</c>/<c>Y</c>), in local space.</param>
     /// <param name="angle">The ellipse's own major-axis angle, in radians (cell <c>C</c>).</param>
     /// <param name="ratio">The ellipse's own major-to-minor-axis ratio (cell <c>D</c>).</param>
-    /// <param name="radius">The resolved SVG arc x-/y-radii, when this method returns <see langword="true"/>.</param>
-    /// <param name="rotationDegrees">The resolved SVG arc x-axis rotation, in degrees, when this method returns <see langword="true"/>.</param>
-    /// <param name="largeArc">The resolved SVG arc "large-arc-flag", when this method returns <see langword="true"/>.</param>
-    /// <param name="sweep">The resolved SVG arc "sweep-flag", when this method returns <see langword="true"/>.</param>
+    /// <param name="arc">The resolved SVG arc parameters, when this method returns <see langword="true"/>.</param>
     /// <returns>
     ///     <see langword="true"/> when <paramref name="start"/>/<paramref name="control"/>/
     ///     <paramref name="end"/> (after the un-rotate/un-scale transform) are not collinear, and
@@ -319,17 +349,11 @@ public sealed partial class VsdxDocument
         Vector2 end,
         double angle,
         double ratio,
-        out Vector2 radius,
-        out float rotationDegrees,
-        out bool largeArc,
-        out bool sweep)
+        out EllipticalArcParameters arc)
     {
-        radius = Vector2.Zero;
-        rotationDegrees = 0f;
-        largeArc = false;
-        sweep = false;
+        arc = default;
 
-        var eccentricity = double.IsFinite(ratio) && ratio != 0d ? ratio : 1d;
+        var eccentricity = double.IsFinite(ratio) && !ratio.Equals(0d) ? ratio : 1d;
         var cosAngle = Math.Cos(angle);
         var sinAngle = Math.Sin(angle);
 
@@ -367,13 +391,23 @@ public sealed partial class VsdxDocument
         // chord - the same side/sweep determination the reference implementation uses.
         var centerSide = ((x3 - x1) * (centerY - y1)) - ((y3 - y1) * (centerX - x1));
         var controlSide = ((x3 - x1) * (y2 - y1)) - ((y3 - y1) * (x2 - x1));
-        largeArc = (centerSide > 0 && controlSide > 0) || (centerSide < 0 && controlSide < 0);
-        sweep = controlSide <= 0;
+        var largeArc = (centerSide > 0 && controlSide > 0) || (centerSide < 0 && controlSide < 0);
+        var sweep = controlSide <= 0;
 
-        radius = new Vector2((float)majorRadius, (float)minorRadius);
-        rotationDegrees = (float)(angle * 180.0 / Math.PI);
+        arc = new EllipticalArcParameters(
+            new Vector2((float)majorRadius, (float)minorRadius),
+            (float)(angle * 180.0 / Math.PI),
+            largeArc,
+            sweep);
         return true;
     }
+
+    /// <summary>SVG-style arc parameters resolved from an <c>EllipticalArcTo</c> row.</summary>
+    /// <param name="Radius">The SVG arc x-/y-radii.</param>
+    /// <param name="RotationDegrees">The SVG arc x-axis rotation, in degrees.</param>
+    /// <param name="LargeArc">The SVG arc "large-arc-flag".</param>
+    /// <param name="Sweep">The SVG arc "sweep-flag".</param>
+    private readonly record struct EllipticalArcParameters(Vector2 Radius, float RotationDegrees, bool LargeArc, bool Sweep);
 
     /// <summary>
     ///     Appends an <c>ArcTo</c> row (a circular arc: endpoint cells <c>X</c>/<c>Y</c> plus a
@@ -392,7 +426,7 @@ public sealed partial class VsdxDocument
         var end = ToLocalPoint(cells.GetDouble("X"), cells.GetDouble("Y"));
         var bow = cells.GetDouble("A");
 
-        if (bow == 0d)
+        if (bow.Equals(0d))
         {
             builder.LineTo(end);
             return end;

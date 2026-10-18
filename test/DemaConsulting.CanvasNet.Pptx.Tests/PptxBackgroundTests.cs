@@ -220,8 +220,8 @@ public class PptxBackgroundTests
         _ = PptxDocument.ResolveSlideBackgroundFill(background, null, null, theme, 9144000, 6858000);
 
         Assert.Same(originalBgFillStyleLst, bgFillStyleListEntry.Parent);
-        Assert.Single(theme.BgFillStyleList);
-        Assert.Same(bgFillStyleListEntry, theme.BgFillStyleList[0]);
+        var themeItem = Assert.Single(theme.BgFillStyleList);
+        Assert.Same(bgFillStyleListEntry, themeItem);
     }
 
     /// <summary>Resolve Slide Background Fill - Bg Ref Idx Past End Of Bg Fill Style List - Throws Invalid Data Exception.</summary>
@@ -388,7 +388,7 @@ public class PptxBackgroundTests
     }
 
     /// <summary>Builds a minimal, navigable presentation package whose single slide master's theme declares the given <c>&lt;a:fmtScheme&gt;</c> inner XML (or none, when empty).</summary>
-    private static Stream BuildThemeOnlyPackage(string fmtSchemeXml)
+    private static MemoryStream BuildThemeOnlyPackage(string fmtSchemeXml)
     {
         const string contentTypesXml =
             """

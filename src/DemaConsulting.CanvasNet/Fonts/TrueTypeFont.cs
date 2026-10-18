@@ -200,10 +200,28 @@ public sealed class TrueTypeFont
     /// </summary>
     public bool IsFixedPitch { get; }
 
-    private TrueTypeFont(
-        int unitsPerEm, int glyphCount, HmtxHheaReader metrics, IGlyphOutlineSource glyphs, CmapTable cmap, KernTable kern,
-        NameTable name, bool isBold, bool isItalic, bool isFixedPitch)
+    /// <summary>
+    ///     The parsed font components handed to the <see cref="TrueTypeFont"/> constructor.
+    /// </summary>
+    /// <param name="UnitsPerEm">The design units per em.</param>
+    /// <param name="GlyphCount">The total number of glyphs.</param>
+    /// <param name="Metrics">The horizontal metrics reader.</param>
+    /// <param name="Glyphs">The glyph outline source.</param>
+    /// <param name="Cmap">The character map.</param>
+    /// <param name="Kern">The kerning table.</param>
+    /// <param name="Name">The name table.</param>
+    private readonly record struct FontComponents(
+        int UnitsPerEm,
+        int GlyphCount,
+        HmtxHheaReader Metrics,
+        IGlyphOutlineSource Glyphs,
+        CmapTable Cmap,
+        KernTable Kern,
+        NameTable Name);
+
+    private TrueTypeFont(FontComponents parts, bool isBold, bool isItalic, bool isFixedPitch)
     {
+        var (unitsPerEm, glyphCount, metrics, glyphs, cmap, kern, name) = parts;
         UnitsPerEm = unitsPerEm;
         GlyphCount = glyphCount;
         Ascender = metrics.Ascender;
@@ -744,7 +762,7 @@ public sealed class TrueTypeFont
         var cmap = CmapTable.FromMap(codepointToGlyphIndex);
 
         return new TrueTypeFont(
-            type1UnitsPerEm, table.GlyphCount, metrics, table, cmap, KernTable.Empty, NameTable.Empty,
+            new FontComponents(type1UnitsPerEm, table.GlyphCount, metrics, table, cmap, KernTable.Empty, NameTable.Empty),
             isBold: false, isItalic: false, isFixedPitch: false);
     }
 
@@ -787,7 +805,7 @@ public sealed class TrueTypeFont
         var cmap = CmapTable.FromMap(codepointToGlyphIndex);
 
         return new TrueTypeFont(
-            cffUnitsPerEm, table.GlyphCount, metrics, table, cmap, KernTable.Empty, NameTable.Empty,
+            new FontComponents(cffUnitsPerEm, table.GlyphCount, metrics, table, cmap, KernTable.Empty, NameTable.Empty),
             isBold: false, isItalic: false, isFixedPitch: false);
     }
 
@@ -817,60 +835,16 @@ public sealed class TrueTypeFont
             throw new InvalidDataException("'head.unitsPerEm' must not be zero.");
         }
 
-        var isCff = container.TryGetTable("CFF ", out var cff);
+        var isCff = container.TryGetTable("CFF ", out _);
 
         if (maxp.Length < 6)
         {
             throw new InvalidDataException("The 'maxp' table is too short.");
         }
 
-        var maxpVersion = SfntContainer.ReadUInt32(data, maxp.Offset);
         var numGlyphs = SfntContainer.ReadUInt16(data, maxp.Offset + 4);
 
-        IGlyphOutlineSource glyphs;
-        if (isCff)
-        {
-            const uint maxpVersion05 = 0x00005000;
-            if (maxpVersion != maxpVersion05)
-            {
-                throw new InvalidDataException(
-                    "The 'maxp' table version is not 0.5 (0x00005000), as required for a CFF-outline font.");
-            }
-
-            var cffTable = CffTable.Parse(data, cff.Offset, cff.Length);
-            if (cffTable.GlyphCount != numGlyphs)
-            {
-                throw new InvalidDataException(
-                    $"'CFF ' CharStrings count ({cffTable.GlyphCount}) does not match 'maxp.numGlyphs' ({numGlyphs}).");
-            }
-
-            glyphs = cffTable;
-        }
-        else
-        {
-            const uint maxpVersion10 = 0x00010000;
-            if (maxpVersion != maxpVersion10)
-            {
-                throw new InvalidDataException(
-                    "The 'maxp' table version is not 1.0 (0x00010000); CFF-oriented maxp (version 0.5) fonts require a 'CFF ' table.");
-            }
-
-            const int maxpVersion10Size = 32;
-            if (maxp.Length < maxpVersion10Size)
-            {
-                throw new InvalidDataException("The 'maxp' table (version 1.0) is too short; expected 32 bytes.");
-            }
-
-            var indexToLocFormat = SfntContainer.ReadInt16(data, head.Offset + 50);
-            if (indexToLocFormat != 0 && indexToLocFormat != 1)
-            {
-                throw new InvalidDataException($"'head.indexToLocFormat' has an unsupported value ({indexToLocFormat}).");
-            }
-
-            var loca = container.RequireTable("loca");
-            var glyf = container.RequireTable("glyf");
-            glyphs = GlyfLocaReader.Parse(data, loca.Offset, loca.Length, glyf.Offset, glyf.Length, numGlyphs, indexToLocFormat == 1);
-        }
+        var glyphs = BuildGlyphSource(data, container, head, maxp, isCff);
 
         var metrics = HmtxHheaReader.Parse(data, hhea.Offset, hhea.Length, hmtx.Offset, hmtx.Length, numGlyphs);
 
@@ -893,7 +867,61 @@ public sealed class TrueTypeFont
         var style = StyleTable.Parse(data, macStyle, os2, post);
 
         return new TrueTypeFont(
-            unitsPerEm, numGlyphs, metrics, glyphs, cmap, kern,
-            name, style.IsBold, style.IsItalic, style.IsFixedPitch);
+            new FontComponents(unitsPerEm, numGlyphs, metrics, glyphs, cmap, kern, name),
+            style.IsBold, style.IsItalic, style.IsFixedPitch);
+    }
+
+    /// <summary>
+    ///     Builds the glyph outline source for a CFF-flavored or glyf-flavored font, validating
+    ///     the <c>maxp</c> version and flavor-specific tables.
+    /// </summary>
+    private static IGlyphOutlineSource BuildGlyphSource(
+        byte[] data, SfntContainer container, (int Offset, int Length) head, (int Offset, int Length) maxp, bool isCff)
+    {
+        var maxpVersion = SfntContainer.ReadUInt32(data, maxp.Offset);
+        var numGlyphs = SfntContainer.ReadUInt16(data, maxp.Offset + 4);
+
+        if (isCff)
+        {
+            const uint maxpVersion05 = 0x00005000;
+            if (maxpVersion != maxpVersion05)
+            {
+                throw new InvalidDataException(
+                    "The 'maxp' table version is not 0.5 (0x00005000), as required for a CFF-outline font.");
+            }
+
+            container.TryGetTable("CFF ", out var cff);
+            var cffTable = CffTable.Parse(data, cff.Offset, cff.Length);
+            if (cffTable.GlyphCount != numGlyphs)
+            {
+                throw new InvalidDataException(
+                    $"'CFF ' CharStrings count ({cffTable.GlyphCount}) does not match 'maxp.numGlyphs' ({numGlyphs}).");
+            }
+
+            return cffTable;
+        }
+
+        const uint maxpVersion10 = 0x00010000;
+        if (maxpVersion != maxpVersion10)
+        {
+            throw new InvalidDataException(
+                "The 'maxp' table version is not 1.0 (0x00010000); CFF-oriented maxp (version 0.5) fonts require a 'CFF ' table.");
+        }
+
+        const int maxpVersion10Size = 32;
+        if (maxp.Length < maxpVersion10Size)
+        {
+            throw new InvalidDataException("The 'maxp' table (version 1.0) is too short; expected 32 bytes.");
+        }
+
+        var indexToLocFormat = SfntContainer.ReadInt16(data, head.Offset + 50);
+        if (indexToLocFormat != 0 && indexToLocFormat != 1)
+        {
+            throw new InvalidDataException($"'head.indexToLocFormat' has an unsupported value ({indexToLocFormat}).");
+        }
+
+        var loca = container.RequireTable("loca");
+        var glyf = container.RequireTable("glyf");
+        return GlyfLocaReader.Parse(data, loca.Offset, loca.Length, glyf.Offset, glyf.Length, numGlyphs, indexToLocFormat == 1);
     }
 }

@@ -1389,7 +1389,7 @@ internal static class ScanlineRasterizer
                 return;
             }
 
-            AccumulateSlantedSpan(edge.XAtY0, edge.Y0, edge.XAtY1, edge.Y1, edge.Direction, clipMinX, clipMaxX, cover, area);
+            AccumulateSlantedSpan(edge, clipMinX, clipMaxX, cover, area);
         }
 
         /// <summary>
@@ -1495,9 +1495,13 @@ internal static class ScanlineRasterizer
         ///     range of x (a slanted line), splitting it at the visible clip boundaries first,
         ///     then walking each pixel column the visible portion crosses.
         /// </summary>
-        private static void AccumulateSlantedSpan(
-            float xa, float sy0, float xb, float sy1, int direction, int clipMinX, int clipMaxX, float[] cover, float[] area)
+        private static void AccumulateSlantedSpan(RowEdge edge, int clipMinX, int clipMaxX, float[] cover, float[] area)
         {
+            var xa = edge.XAtY0;
+            var sy0 = edge.Y0;
+            var xb = edge.XAtY1;
+            var sy1 = edge.Y1;
+            var direction = edge.Direction;
             var xLeft = Math.Min(xa, xb);
             var xRight = Math.Max(xa, xb);
 

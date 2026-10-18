@@ -366,7 +366,7 @@ public sealed partial class PdfDocument
     ///     followed by a number), when any array entry is not a finite, non-negative number, or
     ///     when the phase is not a number.
     /// </exception>
-    private void OpSetDashPattern(IReadOnlyList<PdfObject> operands)
+    private void OpSetDashPattern(List<PdfObject> operands)
     {
         if (operands.Count != 2 || operands[0].Kind != PdfKind.Array || operands[1].Kind != PdfKind.Number)
         {
@@ -389,7 +389,7 @@ public sealed partial class PdfDocument
         }
 
         // An empty array ("[] 0 d") is the documented "reset to solid" form.
-        _gs.DashArray = dashArray.Length == 0 ? null : dashArray;
+        _gs.DashArray = array.Items.Count == 0 ? null : dashArray;
         _gs.DashPhase = (float)operands[1].Number;
     }
 

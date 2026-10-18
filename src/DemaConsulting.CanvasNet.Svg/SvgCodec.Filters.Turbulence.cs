@@ -59,6 +59,8 @@ public static partial class SvgCodec
         var numOctaves = ResolveTurbulenceNumOctaves(element);
         var fractalSum = string.Equals(((string?)element.Attribute("type"))?.Trim(), "fractalNoise", StringComparison.OrdinalIgnoreCase);
 
+        var parameters = new TurbulenceParameters(baseFrequencyX, baseFrequencyY, numOctaves, fractalSum);
+
         var output = new Surface(width, height);
         for (var y = 0; y < height; y++)
         {
@@ -68,10 +70,10 @@ public static partial class SvgCodec
                 var pointX = (regionPixelX + x) / scale;
                 var pointY = (regionPixelY + y) / scale;
 
-                var r = EvaluateTurbulenceChannel(tables, 0, pointX, pointY, baseFrequencyX, baseFrequencyY, numOctaves, fractalSum);
-                var g = EvaluateTurbulenceChannel(tables, 1, pointX, pointY, baseFrequencyX, baseFrequencyY, numOctaves, fractalSum);
-                var b = EvaluateTurbulenceChannel(tables, 2, pointX, pointY, baseFrequencyX, baseFrequencyY, numOctaves, fractalSum);
-                var a = EvaluateTurbulenceChannel(tables, 3, pointX, pointY, baseFrequencyX, baseFrequencyY, numOctaves, fractalSum);
+                var r = EvaluateTurbulenceChannel(tables, 0, pointX, pointY, parameters);
+                var g = EvaluateTurbulenceChannel(tables, 1, pointX, pointY, parameters);
+                var b = EvaluateTurbulenceChannel(tables, 2, pointX, pointY, parameters);
+                var a = EvaluateTurbulenceChannel(tables, 3, pointX, pointY, parameters);
 
                 row[x] = new Rgba32(ToByte(r), ToByte(g), ToByte(b), ToByte(a));
             }
@@ -88,30 +90,38 @@ public static partial class SvgCodec
     /// <param name="channel">The channel index (0=R, 1=G, 2=B, 3=A).</param>
     /// <param name="pointX">The local-space X coordinate.</param>
     /// <param name="pointY">The local-space Y coordinate.</param>
-    /// <param name="baseFrequencyX">The resolved <c>baseFrequency</c> X component.</param>
-    /// <param name="baseFrequencyY">The resolved <c>baseFrequency</c> Y component.</param>
-    /// <param name="numOctaves">The resolved <c>numOctaves</c>.</param>
-    /// <param name="fractalSum">
-    ///     <see langword="true"/> for <c>type="fractalNoise"</c> (signed sum, remapped to
-    ///     <c>((sum * 255) + 255) / 2</c>); <see langword="false"/> for <c>type="turbulence"</c>
-    ///     (absolute-value sum, remapped to <c>sum * 255</c>).
-    /// </param>
+    /// <param name="parameters">The resolved <c>baseFrequency</c>, <c>numOctaves</c> and noise type.</param>
     /// <returns>The clamped <c>[0, 255]</c> channel value.</returns>
     private static float EvaluateTurbulenceChannel(
         TurbulenceTables tables,
         int channel,
         float pointX,
         float pointY,
-        float baseFrequencyX,
-        float baseFrequencyY,
-        int numOctaves,
-        bool fractalSum)
+        TurbulenceParameters parameters)
     {
-        var sum = tables.Turbulence(channel, pointX, pointY, baseFrequencyX, baseFrequencyY, numOctaves, fractalSum);
+        var fractalSum = parameters.FractalSum;
+        var sum = tables.Turbulence(channel, pointX, pointY, parameters.BaseFrequencyX, parameters.BaseFrequencyY, parameters.NumOctaves, fractalSum);
         return fractalSum
             ? Math.Clamp(((sum * 255f) + 255f) / 2f, 0f, 255f)
             : Math.Clamp(sum * 255f, 0f, 255f);
     }
+
+    /// <summary>
+    ///     The resolved <c>feTurbulence</c> noise parameters.
+    /// </summary>
+    /// <param name="BaseFrequencyX">The resolved <c>baseFrequency</c> X component.</param>
+    /// <param name="BaseFrequencyY">The resolved <c>baseFrequency</c> Y component.</param>
+    /// <param name="NumOctaves">The resolved <c>numOctaves</c>.</param>
+    /// <param name="FractalSum">
+    ///     <see langword="true"/> for <c>type="fractalNoise"</c> (signed sum, remapped to
+    ///     <c>((sum * 255) + 255) / 2</c>); <see langword="false"/> for <c>type="turbulence"</c>
+    ///     (absolute-value sum, remapped to <c>sum * 255</c>).
+    /// </param>
+    private readonly record struct TurbulenceParameters(
+        float BaseFrequencyX,
+        float BaseFrequencyY,
+        int NumOctaves,
+        bool FractalSum);
 
     /// <summary>
     ///     Resolves <c>feTurbulence</c>'s <c>baseFrequency</c> attribute (one or two
@@ -220,11 +230,22 @@ public static partial class SvgCodec
         public TurbulenceTables(long seed)
         {
             var currentSeed = SetupSeed(seed);
+            currentSeed = InitializeChannelTables(currentSeed);
+            ShuffleLatticeSelector(currentSeed);
+            DuplicateTablesIntoSecondHalf();
+        }
 
-            // Per-channel permutation-selector identity fill and gradient-vector generation, for
-            // lattice indices 0..255. The running currentSeed threads through every random() call
-            // below in document/loop order - this exact sequencing (not just the individual
-            // formulas) is part of the spec's own published test-vector-verified algorithm.
+        /// <summary>
+        ///     Fills the per-channel permutation-selector identity and generates the normalized
+        ///     gradient vectors, for lattice indices 0..255.
+        /// </summary>
+        /// <param name="currentSeed">The running PRNG state.</param>
+        /// <returns>The updated PRNG state.</returns>
+        private long InitializeChannelTables(long currentSeed)
+        {
+            // The running currentSeed threads through every random() call below in document/loop
+            // order - this exact sequencing (not just the individual formulas) is part of the
+            // spec's own published test-vector-verified algorithm.
             for (var channel = 0; channel < 4; channel++)
             {
                 for (var i = 0; i < BSize; i++)
@@ -238,7 +259,7 @@ public static partial class SvgCodec
                     }
 
                     var s = MathF.Sqrt((_gradient[channel, i, 0] * _gradient[channel, i, 0]) + (_gradient[channel, i, 1] * _gradient[channel, i, 1]));
-                    if (s != 0f)
+                    if (!s.Equals(0f))
                     {
                         _gradient[channel, i, 0] /= s;
                         _gradient[channel, i, 1] /= s;
@@ -246,8 +267,17 @@ public static partial class SvgCodec
                 }
             }
 
-            // Fisher-Yates-style shuffle of the lattice selector table, continuing to consume
-            // random() calls from wherever the loop above left off. The spec's own reference
+            return currentSeed;
+        }
+
+        /// <summary>
+        ///     Fisher-Yates-style shuffle of the lattice selector table, continuing to consume
+        ///     random() calls from wherever <see cref="InitializeChannelTables"/> left off.
+        /// </summary>
+        /// <param name="currentSeed">The running PRNG state.</param>
+        private void ShuffleLatticeSelector(long currentSeed)
+        {
+            // The spec's own reference
             // implementation pre-decrements its loop index from BSize (256) and tests truthiness
             // on each pass, so the loop body visits index values 255 down to 1 inclusive, and
             // never visits index value 0. Do not "simplify" this into an ordinary descending
@@ -262,9 +292,14 @@ public static partial class SvgCodec
                 _latticeSelector[latticeIndex] = _latticeSelector[j];
                 _latticeSelector[j] = k;
             }
+        }
 
-            // Duplicate the first BSize+2 entries into the table's second half, so lattice lookups
-            // never need to wrap the index themselves.
+        /// <summary>
+        ///     Duplicates the first BSize+2 entries into the tables' second half, so lattice
+        ///     lookups never need to wrap the index themselves.
+        /// </summary>
+        private void DuplicateTablesIntoSecondHalf()
+        {
             for (var i = 0; i < BSize + 2; i++)
             {
                 _latticeSelector[BSize + i] = _latticeSelector[i];

@@ -87,7 +87,8 @@ public class PdfDocumentColorSpaceTests
 
     private static Surface Render(byte[] pdf, int width = 100, int height = 100)
     {
-        using var document = PdfDocument.Open(new MemoryStream(pdf));
+        using var stream = new MemoryStream(pdf);
+        using var document = PdfDocument.Open(stream);
         return document.Render(0, width, height, new PdfRenderOptions { BackgroundColor = Background });
     }
 

@@ -62,7 +62,7 @@ public static class CornerRoundEffect
             throw new ArgumentOutOfRangeException(nameof(radius), radius, "Radius must be finite and non-negative.");
         }
 
-        if (radius == 0f || source.Subpaths.Count == 0)
+        if (radius.Equals(0f) || source.Subpaths.Count == 0)
         {
             return source;
         }
@@ -71,100 +71,106 @@ public static class CornerRoundEffect
 
         foreach (var subpath in source.Subpaths)
         {
-            var commands = subpath.Commands;
-            var lastIndex = commands.Count - 1;
-
-            var (hasWrapAroundCorner, wrapRadius, moveToPoint) = ComputeWrapAroundCorner(subpath, radius);
-
-            builder.MoveTo(moveToPoint);
-
-            if (commands.Count == 0)
-            {
-                continue;
-            }
-
-            for (var i = 0; i < commands.Count; i++)
-            {
-                var command = commands[i];
-
-                // The implicit closing edge of a wrap-around corner is replaced by the tangent
-                // arc back to the (already-computed) moveToPoint, in place of a plain Close.
-                if (hasWrapAroundCorner && i == lastIndex)
-                {
-                    builder.TangentArcTo(subpath.Start, commands[0].EndPoint, wrapRadius);
-                    builder.Close();
-                    continue;
-                }
-
-                // A "polyline corner" is the endpoint of a LineTo whose *following* command is
-                // also a LineTo, or the implicit closing edge (a trailing Close, whose effective
-                // endpoint is always subpath.Start). When either condition holds, we replace the
-                // two straight edges that meet at command.EndPoint with LineTo(tangent-in) +
-                // CubicBezier(tangent-arc) to tangent-out (all handled internally by
-                // PathBuilder.TangentArcTo). The subsequent command, on the next loop iteration,
-                // starts from the tangent-out point and goes to its own vertex (which may itself
-                // be another polyline corner handled the same way).
-                //
-                // Both the INCOMING and OUTGOING edges meeting at this vertex must be straight
-                // for it to qualify: the incoming edge is `command` itself (the edge arriving at
-                // command.EndPoint from the previous command's endpoint, or from subpath.Start
-                // when i == 0), so requiring command.Type == LineTo is what enforces "incoming
-                // edge is straight" - a curved command (QuadraticBezierTo/CubicBezierTo/ArcTo)
-                // immediately before a LineTo never satisfies this, so the vertex where a curve
-                // meets a following LineTo is correctly left unrounded. The outgoing edge is the
-                // next command, `next`, checked separately below.
-                var next = i + 1 < commands.Count ? (PathCommandType?)commands[i + 1].Type : null;
-                var isIncomingStraight = command.Type == PathCommandType.LineTo;
-                var isOutgoingStraight = next == PathCommandType.LineTo || next == PathCommandType.Close;
-                var isPolylineCorner = isIncomingStraight && isOutgoingStraight;
-
-                if (isPolylineCorner)
-                {
-                    var cornerPoint = command.EndPoint;
-                    var nextEnd = next == PathCommandType.Close ? subpath.Start : commands[i + 1].EndPoint;
-
-                    // Clamp radius per corner to min(incoming length, outgoing length) / 2 so
-                    // an aggressive requested radius never overshoots either adjacent segment.
-                    // "Incoming length" here uses the builder pen's current position (which is
-                    // the tangent-out point of the previous corner if the previous vertex was
-                    // also rounded, or the previous vertex itself otherwise). For the first
-                    // corner (i == 0), the pen's actual current position is moveToPoint, but when
-                    // a wrap-around corner was rounded, moveToPoint is already the tangent-out
-                    // point of that rounding - i.e. it has been pulled in along this same edge.
-                    // Using it here would shorten the apparent edge length and clamp this
-                    // corner's radius too aggressively. The clamp must instead reflect the
-                    // original (pre-rounding) edge length, so use the subpath's original,
-                    // un-adjusted start point in that case.
-                    var incomingStart = i >= 1 ? commands[i - 1].EndPoint : subpath.Start;
-                    var effectiveRadius = ClampRadius(radius, incomingStart, cornerPoint, nextEnd);
-
-                    builder.TangentArcTo(cornerPoint, nextEnd, effectiveRadius);
-                }
-                else
-                {
-                    switch (command.Type)
-                    {
-                        case PathCommandType.LineTo:
-                            builder.LineTo(command.EndPoint);
-                            break;
-                        case PathCommandType.QuadraticBezierTo:
-                            builder.QuadraticBezierTo(command.Control1, command.EndPoint);
-                            break;
-                        case PathCommandType.CubicBezierTo:
-                            builder.CubicBezierTo(command.Control1, command.Control2, command.EndPoint);
-                            break;
-                        case PathCommandType.ArcTo:
-                            builder.ArcTo(command.Radius, command.RotationDegrees, command.LargeArc, command.Sweep, command.EndPoint);
-                            break;
-                        case PathCommandType.Close:
-                            builder.Close();
-                            break;
-                    }
-                }
-            }
+            EmitSubpath(builder, subpath, radius);
         }
 
         return builder.Build();
+    }
+
+    /// <summary>Emits one subpath into <paramref name="builder"/>, rounding its polyline corners.</summary>
+    private static void EmitSubpath(PathBuilder builder, Subpath subpath, float radius)
+    {
+        var commands = subpath.Commands;
+        var lastIndex = commands.Count - 1;
+
+        var (hasWrapAroundCorner, wrapRadius, moveToPoint) = ComputeWrapAroundCorner(subpath, radius);
+
+        builder.MoveTo(moveToPoint);
+
+        for (var i = 0; i < commands.Count; i++)
+        {
+            var command = commands[i];
+
+            // The implicit closing edge of a wrap-around corner is replaced by the tangent
+            // arc back to the (already-computed) moveToPoint, in place of a plain Close.
+            if (hasWrapAroundCorner && i == lastIndex)
+            {
+                builder.TangentArcTo(subpath.Start, commands[0].EndPoint, wrapRadius);
+                builder.Close();
+                continue;
+            }
+
+            // A "polyline corner" is the endpoint of a LineTo whose *following* command is
+            // also a LineTo, or the implicit closing edge (a trailing Close, whose effective
+            // endpoint is always subpath.Start). When either condition holds, we replace the
+            // two straight edges that meet at command.EndPoint with LineTo(tangent-in) +
+            // CubicBezier(tangent-arc) to tangent-out (all handled internally by
+            // PathBuilder.TangentArcTo). The subsequent command, on the next loop iteration,
+            // starts from the tangent-out point and goes to its own vertex (which may itself
+            // be another polyline corner handled the same way).
+            //
+            // Both the INCOMING and OUTGOING edges meeting at this vertex must be straight
+            // for it to qualify: the incoming edge is `command` itself (the edge arriving at
+            // command.EndPoint from the previous command's endpoint, or from subpath.Start
+            // when i == 0), so requiring command.Type == LineTo is what enforces "incoming
+            // edge is straight" - a curved command (QuadraticBezierTo/CubicBezierTo/ArcTo)
+            // immediately before a LineTo never satisfies this, so the vertex where a curve
+            // meets a following LineTo is correctly left unrounded. The outgoing edge is the
+            // next command, `next`, checked separately below.
+            var next = i + 1 < commands.Count ? (PathCommandType?)commands[i + 1].Type : null;
+            var isIncomingStraight = command.Type == PathCommandType.LineTo;
+            var isOutgoingStraight = next == PathCommandType.LineTo || next == PathCommandType.Close;
+
+            if (isIncomingStraight && isOutgoingStraight)
+            {
+                var cornerPoint = command.EndPoint;
+                var nextEnd = next == PathCommandType.Close ? subpath.Start : commands[i + 1].EndPoint;
+
+                // Clamp radius per corner to min(incoming length, outgoing length) / 2 so
+                // an aggressive requested radius never overshoots either adjacent segment.
+                // "Incoming length" here uses the builder pen's current position (which is
+                // the tangent-out point of the previous corner if the previous vertex was
+                // also rounded, or the previous vertex itself otherwise). For the first
+                // corner (i == 0), the pen's actual current position is moveToPoint, but when
+                // a wrap-around corner was rounded, moveToPoint is already the tangent-out
+                // point of that rounding - i.e. it has been pulled in along this same edge.
+                // Using it here would shorten the apparent edge length and clamp this
+                // corner's radius too aggressively. The clamp must instead reflect the
+                // original (pre-rounding) edge length, so use the subpath's original,
+                // un-adjusted start point in that case.
+                var incomingStart = i >= 1 ? commands[i - 1].EndPoint : subpath.Start;
+                var effectiveRadius = ClampRadius(radius, incomingStart, cornerPoint, nextEnd);
+
+                builder.TangentArcTo(cornerPoint, nextEnd, effectiveRadius);
+            }
+            else
+            {
+                EmitCommand(builder, command);
+            }
+        }
+    }
+
+    /// <summary>Re-emits <paramref name="command"/> unchanged into <paramref name="builder"/>.</summary>
+    private static void EmitCommand(PathBuilder builder, PathCommand command)
+    {
+        switch (command.Type)
+        {
+            case PathCommandType.LineTo:
+                builder.LineTo(command.EndPoint);
+                break;
+            case PathCommandType.QuadraticBezierTo:
+                builder.QuadraticBezierTo(command.Control1, command.EndPoint);
+                break;
+            case PathCommandType.CubicBezierTo:
+                builder.CubicBezierTo(command.Control1, command.Control2, command.EndPoint);
+                break;
+            case PathCommandType.ArcTo:
+                builder.ArcTo(command.Radius, command.RotationDegrees, command.LargeArc, command.Sweep, command.EndPoint);
+                break;
+            case PathCommandType.Close:
+                builder.Close();
+                break;
+        }
     }
 
     /// <summary>

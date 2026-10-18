@@ -88,6 +88,64 @@ public static partial class TiffCodec
 
         var width = (int)RequireTagValues(source, tags, TagImageWidth, "ImageWidth", bigEndian, MaxImageLevelTagCount)[0];
         var height = (int)RequireTagValues(source, tags, TagImageLength, "ImageLength", bigEndian, MaxImageLevelTagCount)[0];
+        ValidateImageDimensions(width, height, enforceMaxDimension);
+
+        var bitsPerSample = RequireTagValues(source, tags, TagBitsPerSample, "BitsPerSample", bigEndian, MaxImageLevelTagCount);
+        if (Array.Exists(bitsPerSample, static bits => bits != 8))
+        {
+            var invalidBits = Array.Find(bitsPerSample, static bits => bits != 8);
+            throw new InvalidDataException(
+                $"Unsupported TIFF bits per sample {invalidBits}; only 8 bits per sample is supported.");
+        }
+
+        var samplesPerPixel = ReadOptionalTagValue(source, tags, TagSamplesPerPixel, bigEndian, bitsPerSample.Length);
+
+        var compressionValue = (int)RequireTagValues(source, tags, TagCompression, "Compression", bigEndian, MaxImageLevelTagCount)[0];
+        if (!Enum.IsDefined((TiffCompression)compressionValue))
+        {
+            throw new InvalidDataException(
+                $"Unsupported TIFF compression {compressionValue}; only None (1), LZW (5), Deflate (8), and PackBits (32773) are supported.");
+        }
+
+        var compression = (TiffCompression)compressionValue;
+
+        var photometric = (int)RequireTagValues(source, tags, TagPhotometricInterpretation, "PhotometricInterpretation", bigEndian, MaxImageLevelTagCount)[0];
+        if (photometric != PhotometricGrayscale && photometric != PhotometricRgb)
+        {
+            throw new InvalidDataException(
+                $"Unsupported TIFF photometric interpretation {photometric}; only Grayscale (1) and RGB (2) are supported.");
+        }
+
+        var planarConfiguration = ReadOptionalTagValue(source, tags, TagPlanarConfiguration, bigEndian, PlanarChunky);
+        if (planarConfiguration != PlanarChunky)
+        {
+            throw new InvalidDataException(
+                $"Unsupported TIFF planar configuration {planarConfiguration}; only Chunky (1) is supported.");
+        }
+
+        var predictor = ReadOptionalTagValue(source, tags, TagPredictor, bigEndian, PredictorNone);
+        if (predictor != PredictorNone && predictor != PredictorHorizontal)
+        {
+            throw new InvalidDataException(
+                $"Unsupported TIFF predictor {predictor}; only None (1) and horizontal differencing (2) are supported.");
+        }
+
+        ValidateSamplesPerPixel(source, tags, photometric, samplesPerPixel, bigEndian);
+
+        return new TiffImageInfo(width, height, samplesPerPixel, compression, photometric, planarConfiguration, predictor);
+    }
+
+    /// <summary>
+    ///     Validates the declared image dimensions: both must be positive, and, when
+    ///     <paramref name="enforceMaxDimension"/> is set, neither may exceed
+    ///     <see cref="Surface.MaxDimension"/>.
+    /// </summary>
+    /// <param name="width">The declared width.</param>
+    /// <param name="height">The declared height.</param>
+    /// <param name="enforceMaxDimension">Whether to enforce <see cref="Surface.MaxDimension"/>.</param>
+    /// <exception cref="System.IO.InvalidDataException">Thrown when a dimension is invalid or too large.</exception>
+    private static void ValidateImageDimensions(int width, int height, bool enforceMaxDimension)
+    {
         if (width <= 0 || height <= 0)
         {
             throw new InvalidDataException($"Invalid TIFF dimensions {width}x{height}.");
@@ -106,57 +164,27 @@ public static partial class TiffCodec
                 $"TIFF dimensions {width}x{height} exceed the maximum supported size of " +
                 $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
         }
-
-        var bitsPerSample = RequireTagValues(source, tags, TagBitsPerSample, "BitsPerSample", bigEndian, MaxImageLevelTagCount);
-        if (Array.Exists(bitsPerSample, static bits => bits != 8))
-        {
-            var invalidBits = Array.Find(bitsPerSample, static bits => bits != 8);
-            throw new InvalidDataException(
-                $"Unsupported TIFF bits per sample {invalidBits}; only 8 bits per sample is supported.");
-        }
-
-        var samplesPerPixel = TryGetTagValues(source, tags, TagSamplesPerPixel, bigEndian, MaxImageLevelTagCount) is { } sppValues
-            ? (int)sppValues[0]
-            : bitsPerSample.Length;
-
-        var compressionValue = (int)RequireTagValues(source, tags, TagCompression, "Compression", bigEndian, MaxImageLevelTagCount)[0];
-        if (!Enum.IsDefined((TiffCompression)compressionValue))
-        {
-            throw new InvalidDataException(
-                $"Unsupported TIFF compression {compressionValue}; only None (1), LZW (5), Deflate (8), and PackBits (32773) are supported.");
-        }
-
-        var compression = (TiffCompression)compressionValue;
-
-        var photometric = (int)RequireTagValues(source, tags, TagPhotometricInterpretation, "PhotometricInterpretation", bigEndian, MaxImageLevelTagCount)[0];
-        if (photometric != PhotometricGrayscale && photometric != PhotometricRgb)
-        {
-            throw new InvalidDataException(
-                $"Unsupported TIFF photometric interpretation {photometric}; only Grayscale (1) and RGB (2) are supported.");
-        }
-
-        var planarConfiguration = TryGetTagValues(source, tags, TagPlanarConfiguration, bigEndian, MaxImageLevelTagCount) is { } planarValues
-            ? (int)planarValues[0]
-            : PlanarChunky;
-        if (planarConfiguration != PlanarChunky)
-        {
-            throw new InvalidDataException(
-                $"Unsupported TIFF planar configuration {planarConfiguration}; only Chunky (1) is supported.");
-        }
-
-        var predictor = TryGetTagValues(source, tags, TagPredictor, bigEndian, MaxImageLevelTagCount) is { } predictorValues
-            ? (int)predictorValues[0]
-            : PredictorNone;
-        if (predictor != PredictorNone && predictor != PredictorHorizontal)
-        {
-            throw new InvalidDataException(
-                $"Unsupported TIFF predictor {predictor}; only None (1) and horizontal differencing (2) are supported.");
-        }
-
-        ValidateSamplesPerPixel(source, tags, photometric, samplesPerPixel, bigEndian);
-
-        return new TiffImageInfo(width, height, samplesPerPixel, compression, photometric, planarConfiguration, predictor);
     }
+
+    /// <summary>
+    ///     Reads the first value of an optional image-level tag, or returns a default when the
+    ///     tag is absent.
+    /// </summary>
+    /// <param name="source">The TIFF byte source.</param>
+    /// <param name="tags">The parsed IFD tag lookup.</param>
+    /// <param name="tag">The tag to read.</param>
+    /// <param name="bigEndian">The file's byte order.</param>
+    /// <param name="defaultValue">The value returned when the tag is absent.</param>
+    /// <returns>The tag's first value, or <paramref name="defaultValue"/>.</returns>
+    private static int ReadOptionalTagValue(
+        ITiffDataSource source,
+        Dictionary<ushort, IfdEntry> tags,
+        ushort tag,
+        bool bigEndian,
+        int defaultValue) =>
+        TryGetTagValues(source, tags, tag, bigEndian, MaxImageLevelTagCount) is { } values
+            ? (int)values[0]
+            : defaultValue;
 
     /// <summary>
     ///     Validates that <paramref name="samplesPerPixel"/> is a supported value for the given

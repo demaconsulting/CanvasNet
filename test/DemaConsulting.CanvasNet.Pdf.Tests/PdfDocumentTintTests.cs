@@ -85,7 +85,8 @@ public class PdfDocumentTintTests
 
     private static Surface Render(byte[] pdf)
     {
-        using var document = PdfDocument.Open(new MemoryStream(pdf));
+        using var stream = new MemoryStream(pdf);
+        using var document = PdfDocument.Open(stream);
         return document.Render(0, 100, 100, new PdfRenderOptions { BackgroundColor = Background });
     }
 
@@ -109,14 +110,16 @@ public class PdfDocumentTintTests
     {
         var range = string.Join(' ', Enumerable.Repeat("-1000 1000", outputs));
         var bytes = BuildPdf("BT ET", string.Empty, PsFunction("[-1000 1000]", $"[{range}]", program));
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         return document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0)).Evaluate(input);
     }
 
     private static Exception? ResolvePsError(string program)
     {
         var bytes = BuildPdf("BT ET", string.Empty, PsFunction("[-1000 1000]", "[-1000 1000]", program));
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
         return Record.Exception(
             () => document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0)).Evaluate(1));
     }
@@ -263,7 +266,8 @@ public class PdfDocumentTintTests
         // Arrange
         var bytes = BuildPdf(
             "BT ET", string.Empty, "<< /FunctionType 4 /Domain [0 1] /Range [0 1] >>"u8.ToArray());
-        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(

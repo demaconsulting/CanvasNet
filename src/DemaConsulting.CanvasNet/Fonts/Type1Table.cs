@@ -319,23 +319,8 @@ internal sealed class Type1Table : IGlyphOutlineSource
                 throw new InvalidDataException("Type 1 font program's '/Subrs' entry has a malformed index.");
             }
 
-            var length = ReadLengthToken(text, ref pos, end, "'/Subrs'");
-            SkipProcNameToken(text, ref pos, end, "'/Subrs'");
-
-            if (pos >= end || !IsWhitespace(text[pos]))
-            {
-                throw new InvalidDataException("Type 1 font program's '/Subrs' entry is missing its single separator byte before the raw data.");
-            }
-
-            pos++;
-
-            if (checked((long)pos + length) > end)
-            {
-                throw new InvalidDataException("Type 1 font program's '/Subrs' raw charstring data is truncated.");
-            }
-
-            result[index] = (pos, length);
-            pos += length;
+            var (dataOffset, length) = ReadRawEntry(text, ref pos, end, "'/Subrs'");
+            result[index] = (dataOffset, length);
         }
     }
 
@@ -365,23 +350,9 @@ internal sealed class Type1Table : IGlyphOutlineSource
 
             if (text[tokenStart] != '/')
             {
-                var tokenLength = tokenEnd - tokenStart;
-                if (tokenLength == 5 && text.AsSpan(tokenStart, 5).SequenceEqual("begin"))
+                if (TrackDictionaryNesting(text, tokenStart, tokenEnd, ref depth))
                 {
-                    depth++;
-                }
-                else if (tokenLength == 3 && text[tokenStart] == 'e' && text[tokenStart + 1] == 'n' && text[tokenStart + 2] == 'd')
-                {
-                    if (depth == 0)
-                    {
-                        break; // an 'end' with no matching 'begin' seen yet - stop defensively
-                    }
-
-                    depth--;
-                    if (depth == 0)
-                    {
-                        break; // the 'end' matching this dictionary's own opening 'begin'
-                    }
+                    break;
                 }
 
                 continue; // not a glyph-name token - skip unrelated tokens between entries
@@ -393,25 +364,62 @@ internal sealed class Type1Table : IGlyphOutlineSource
                 throw new InvalidDataException("Type 1 font program's '/CharStrings' dictionary contains an empty glyph name.");
             }
 
-            var length = ReadLengthToken(text, ref pos, end, "'/CharStrings'");
-            SkipProcNameToken(text, ref pos, end, "'/CharStrings'");
-
-            if (pos >= end || !IsWhitespace(text[pos]))
-            {
-                throw new InvalidDataException(
-                    "Type 1 font program's '/CharStrings' entry is missing its single separator byte before the raw data.");
-            }
-
-            pos++;
-
-            if (checked((long)pos + length) > end)
-            {
-                throw new InvalidDataException("Type 1 font program's '/CharStrings' raw charstring data is truncated.");
-            }
-
-            result.Add((name, pos, length));
-            pos += length;
+            var (dataOffset, length) = ReadRawEntry(text, ref pos, end, "'/CharStrings'");
+            result.Add((name, dataOffset, length));
         }
+    }
+
+    /// <summary>
+    ///     Tracks <c>begin</c>/<c>end</c> nesting for a non-glyph-name token; returns
+    ///     <see langword="true"/> when the dictionary's own closing <c>end</c> (or a stray
+    ///     <c>end</c> with no matching <c>begin</c>) has been reached.
+    /// </summary>
+    private static bool TrackDictionaryNesting(string text, int tokenStart, int tokenEnd, ref int depth)
+    {
+        var tokenLength = tokenEnd - tokenStart;
+        if (tokenLength == 5 && text.AsSpan(tokenStart, 5).SequenceEqual("begin"))
+        {
+            depth++;
+            return false;
+        }
+
+        if (tokenLength == 3 && text[tokenStart] == 'e' && text[tokenStart + 1] == 'n' && text[tokenStart + 2] == 'd')
+        {
+            // depth 0: an 'end' with no matching 'begin' seen yet - stop defensively;
+            // otherwise stop at the 'end' matching this dictionary's own opening 'begin'.
+            depth = Math.Max(depth - 1, 0);
+            return depth == 0;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Reads the <c>&lt;length&gt; &lt;token&gt; &lt;separator&gt; &lt;raw bytes&gt;</c> tail
+    ///     of a Subrs/CharStrings entry, advancing <paramref name="pos"/> past the raw bytes.
+    /// </summary>
+    private static (int Offset, int Length) ReadRawEntry(string text, ref int pos, int end, string entryKind)
+    {
+        var length = ReadLengthToken(text, ref pos, end, entryKind);
+        SkipProcNameToken(text, ref pos, end, entryKind);
+
+        if (pos >= end || !IsWhitespace(text[pos]))
+        {
+            throw new InvalidDataException(
+                string.Create(CultureInfo.InvariantCulture, $"Type 1 font program's {entryKind} entry is missing its single separator byte before the raw data."));
+        }
+
+        pos++;
+
+        if (checked((long)pos + length) > end)
+        {
+            throw new InvalidDataException(
+                string.Create(CultureInfo.InvariantCulture, $"Type 1 font program's {entryKind} raw charstring data is truncated."));
+        }
+
+        var offset = pos;
+        pos += length;
+        return (offset, length);
     }
 
     private static int ReadLengthToken(string text, ref int pos, int end, string entryKind)
@@ -507,12 +515,7 @@ internal sealed class Type1Table : IGlyphOutlineSource
             pos++;
             if (b0 == 13) // hsbw
             {
-                if (stack.Count != 2)
-                {
-                    throw new InvalidDataException("Type 1 charstring 'hsbw' requires exactly two operands.");
-                }
-
-                return (int)Math.Round(stack[1], MidpointRounding.AwayFromZero);
+                return PeekWidth(stack, 2, 1, "hsbw", "exactly two");
             }
 
             if (b0 == 12)
@@ -526,26 +529,12 @@ internal sealed class Type1Table : IGlyphOutlineSource
                 pos++;
                 if (escOp == 7) // sbw
                 {
-                    if (stack.Count != 4)
-                    {
-                        throw new InvalidDataException("Type 1 charstring 'sbw' requires exactly four operands.");
-                    }
-
-                    return (int)Math.Round(stack[2], MidpointRounding.AwayFromZero);
+                    return PeekWidth(stack, 4, 2, "sbw", "exactly four");
                 }
 
                 if (escOp == 12) // div - see this method's remarks
                 {
-                    if (stack.Count < 2)
-                    {
-                        throw new InvalidDataException("Type 1 charstring 'div' requires at least two operands.");
-                    }
-
-                    var divisor = stack[^1];
-                    var dividend = stack[^2];
-                    stack.RemoveAt(stack.Count - 1);
-                    stack.RemoveAt(stack.Count - 1);
-                    stack.Add(dividend / divisor);
+                    ApplyDiv(stack);
                     continue;
                 }
             }
@@ -554,5 +543,30 @@ internal sealed class Type1Table : IGlyphOutlineSource
         }
 
         throw new InvalidDataException("Type 1 charstring is truncated before 'hsbw'/'sbw'.");
+    }
+
+    private static int PeekWidth(List<double> stack, int expectedCount, int widthIndex, string operatorName, string countText)
+    {
+        if (stack.Count != expectedCount)
+        {
+            throw new InvalidDataException(
+                string.Create(CultureInfo.InvariantCulture, $"Type 1 charstring '{operatorName}' requires {countText} operands."));
+        }
+
+        return (int)Math.Round(stack[widthIndex], MidpointRounding.AwayFromZero);
+    }
+
+    private static void ApplyDiv(List<double> stack)
+    {
+        if (stack.Count < 2)
+        {
+            throw new InvalidDataException("Type 1 charstring 'div' requires at least two operands.");
+        }
+
+        var divisor = stack[^1];
+        var dividend = stack[^2];
+        stack.RemoveAt(stack.Count - 1);
+        stack.RemoveAt(stack.Count - 1);
+        stack.Add(dividend / divisor);
     }
 }

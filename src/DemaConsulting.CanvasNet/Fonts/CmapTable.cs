@@ -106,6 +106,64 @@ internal sealed class CmapTable
             return Empty;
         }
 
+        CollectCandidates(data, tableOffset, tableLength, numTables, candidates, symbolSubtables);
+        candidates.Sort((a, b) => a.Priority.CompareTo(b.Priority));
+
+        var enclosingTableEnd = tableOffset + tableLength;
+        foreach (var candidate in candidates)
+        {
+            var subtableEnd = ComputeSubtableEnd(data, candidate.SubtableOffset, candidate.Format, enclosingTableEnd);
+            if (subtableEnd == null)
+            {
+                continue;
+            }
+
+            var lookup = candidate.Format == 12
+                ? TryParseFormat12(data, candidate.SubtableOffset, subtableEnd.Value)
+                : TryParseFormat4(data, candidate.SubtableOffset, subtableEnd.Value);
+
+            if (lookup != null)
+            {
+                return new CmapTable(symbolSubtables.Contains(candidate.SubtableOffset) ? WrapSymbolLookup(lookup) : lookup);
+            }
+        }
+
+        return Empty;
+    }
+
+    /// <summary>
+    ///     Wraps a symbol-subtable lookup so a plain 8-bit code also resolves via U+F000..U+F0FF.
+    /// </summary>
+    /// <param name="inner">The underlying lookup.</param>
+    /// <returns>The wrapped lookup.</returns>
+    private static Func<int, int> WrapSymbolLookup(Func<int, int> inner)
+    {
+        // Symbol-encoded fonts map their 8-bit codes into U+F000..U+F0FF; accept the
+        // plain 8-bit code (what text in a symbol font actually contains) as well.
+        return codepoint =>
+        {
+            var direct = inner(codepoint);
+            return direct != 0 || codepoint is < 0x20 or > 0xFF ? direct : inner(0xF000 | codepoint);
+        };
+    }
+
+    /// <summary>
+    ///     Reads the encoding records and collects the supported candidate subtables.
+    /// </summary>
+    /// <param name="data">The complete font file contents.</param>
+    /// <param name="tableOffset">The offset of the <c>cmap</c> table.</param>
+    /// <param name="tableLength">The length of the <c>cmap</c> table.</param>
+    /// <param name="numTables">The number of encoding records.</param>
+    /// <param name="candidates">Receives the supported candidates.</param>
+    /// <param name="symbolSubtables">Receives the offsets of symbol subtables.</param>
+    private static void CollectCandidates(
+        byte[] data,
+        int tableOffset,
+        int tableLength,
+        int numTables,
+        List<(int Priority, int SubtableOffset, int Format)> candidates,
+        HashSet<int> symbolSubtables)
+    {
         for (var i = 0; i < numTables; i++)
         {
             var recordOffset = tableOffset + 4 + i * 8;
@@ -132,41 +190,6 @@ internal sealed class CmapTable
                 candidates.Add((priority, absoluteSubtableOffset, format));
             }
         }
-
-        candidates.Sort((a, b) => a.Priority.CompareTo(b.Priority));
-
-        var enclosingTableEnd = tableOffset + tableLength;
-        foreach (var candidate in candidates)
-        {
-            var subtableEnd = ComputeSubtableEnd(data, candidate.SubtableOffset, candidate.Format, enclosingTableEnd);
-            if (subtableEnd == null)
-            {
-                continue;
-            }
-
-            var lookup = candidate.Format == 12
-                ? TryParseFormat12(data, candidate.SubtableOffset, subtableEnd.Value)
-                : TryParseFormat4(data, candidate.SubtableOffset, subtableEnd.Value);
-
-            if (lookup != null)
-            {
-                if (symbolSubtables.Contains(candidate.SubtableOffset))
-                {
-                    // Symbol-encoded fonts map their 8-bit codes into U+F000..U+F0FF; accept the
-                    // plain 8-bit code (what text in a symbol font actually contains) as well.
-                    var inner = lookup;
-                    lookup = codepoint =>
-                    {
-                        var direct = inner(codepoint);
-                        return direct != 0 || codepoint is < 0x20 or > 0xFF ? direct : inner(0xF000 | codepoint);
-                    };
-                }
-
-                return new CmapTable(lookup);
-            }
-        }
-
-        return Empty;
     }
 
     /// <summary>
@@ -332,8 +355,30 @@ internal sealed class CmapTable
             return null;
         }
 
-        return codepoint => LookupFormat4(codepoint, segCount, endCodes, startCodes, idDeltas, idRangeOffsets, idRangeOffsetOffset, glyphIdArrayOffset, tableEnd, data);
+        var segments = new Format4Segments(segCount, endCodes, startCodes, idDeltas, idRangeOffsets, idRangeOffsetOffset, glyphIdArrayOffset, tableEnd);
+        return codepoint => LookupFormat4(codepoint, segments, data);
     }
+
+    /// <summary>
+    ///     The parsed and validated segment arrays and offsets of a format-4 subtable.
+    /// </summary>
+    /// <param name="SegCount">The number of segments.</param>
+    /// <param name="EndCodes">The per-segment end codes.</param>
+    /// <param name="StartCodes">The per-segment start codes.</param>
+    /// <param name="IdDeltas">The per-segment id deltas.</param>
+    /// <param name="IdRangeOffsets">The per-segment id range offsets.</param>
+    /// <param name="IdRangeOffsetOffset">The position of the idRangeOffset array.</param>
+    /// <param name="GlyphIdArrayOffset">The position of the glyph id array.</param>
+    /// <param name="TableEnd">The subtable's effective end position.</param>
+    private readonly record struct Format4Segments(
+        int SegCount,
+        int[] EndCodes,
+        int[] StartCodes,
+        short[] IdDeltas,
+        ushort[] IdRangeOffsets,
+        int IdRangeOffsetOffset,
+        int GlyphIdArrayOffset,
+        int TableEnd);
 
     /// <summary>
     ///     Resolves one codepoint via a parsed format-4 subtable's segment arrays, performing the
@@ -345,23 +390,14 @@ internal sealed class CmapTable
     ///     independently testable from, the parsing/validation that produced those arrays.
     /// </remarks>
     /// <returns>The resolved glyph index, or <c>0</c> (".notdef") if unmapped or malformed.</returns>
-    private static int LookupFormat4(
-        int codepoint,
-        int segCount,
-        int[] endCodes,
-        int[] startCodes,
-        short[] idDeltas,
-        ushort[] idRangeOffsets,
-        int idRangeOffsetOffset,
-        int glyphIdArrayOffset,
-        int tableEnd,
-        byte[] data)
+    private static int LookupFormat4(int codepoint, Format4Segments segments, byte[] data)
     {
         if (codepoint is < 0 or > 0xFFFF)
         {
             return 0;
         }
 
+        var (segCount, endCodes, startCodes, idDeltas, idRangeOffsets, idRangeOffsetOffset, glyphIdArrayOffset, tableEnd) = segments;
         for (var i = 0; i < segCount; i++)
         {
             if (codepoint > endCodes[i])

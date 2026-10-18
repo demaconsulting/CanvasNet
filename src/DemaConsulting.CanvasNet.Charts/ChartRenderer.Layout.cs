@@ -122,78 +122,145 @@ public static partial class ChartRenderer
 
         // Reserve the title band first (top of the remaining area) - only when a title is
         // present and doing so leaves a positive-height remainder.
-        var hasTitle = false;
-        var titleRect = Rect.Empty;
-        if (chart.Title is not null)
-        {
-            var titleFontSize = chart.Title.FontSize ?? options.TitleFontSize;
-            var titleHeight = titleFontSize * 1.6f + TitleBandPadding * 2f;
-            if (titleHeight > 0f && remaining.Height - titleHeight > 0f)
-            {
-                titleRect = new Rect(remaining.X, remaining.Y, remaining.Width, titleHeight);
-                remaining = new Rect(remaining.X, remaining.Y + titleHeight, remaining.Width, remaining.Height - titleHeight);
-                hasTitle = true;
-            }
-        }
+        var hasTitle = TryReserveTitleBand(chart, options, ref remaining, out var titleRect);
 
         // Reserve the legend band second, from whichever edge of the remaining area its
         // ChartLegendPosition indicates - only when the legend is visible, has a real position,
         // has at least one entry to show, and doing so leaves a positive plot area.
-        var hasLegend = false;
-        var legendRect = Rect.Empty;
-        if (chart.Legend is { IsVisible: true, Position: not ChartLegendPosition.None })
-        {
-            var entries = GetLegendEntries(chart, options);
-            if (entries.Count > 0)
-            {
-                var isHorizontal = chart.Legend.Position is ChartLegendPosition.Top or ChartLegendPosition.Bottom;
-                if (isHorizontal)
-                {
-                    var bandHeight = options.LegendFontSize * 1.4f + LegendBandPadding * 2f;
-                    if (bandHeight > 0f && remaining.Height - bandHeight > 0f)
-                    {
-                        hasLegend = true;
-                        if (chart.Legend.Position == ChartLegendPosition.Top)
-                        {
-                            legendRect = new Rect(remaining.X, remaining.Y, remaining.Width, bandHeight);
-                            remaining = new Rect(remaining.X, remaining.Y + bandHeight, remaining.Width, remaining.Height - bandHeight);
-                        }
-                        else
-                        {
-                            legendRect = new Rect(remaining.X, remaining.Bottom - bandHeight, remaining.Width, bandHeight);
-                            remaining = new Rect(remaining.X, remaining.Y, remaining.Width, remaining.Height - bandHeight);
-                        }
-                    }
-                }
-                else
-                {
-                    var maxLabelWidth = 0f;
-                    foreach (var entry in entries)
-                    {
-                        var measured = TextRenderer.MeasureText(entry.Label, font, options.LegendFontSize).Width;
-                        maxLabelWidth = MathF.Max(maxLabelWidth, measured);
-                    }
-
-                    var desiredWidth = LegendSwatchSize + LegendEntryGap + maxLabelWidth + LegendBandPadding * 2f;
-                    var bandWidth = MathF.Min(desiredWidth, remaining.Width * MaxLegendWidthFraction);
-                    if (bandWidth > 0f && remaining.Width - bandWidth > 0f)
-                    {
-                        hasLegend = true;
-                        if (chart.Legend.Position == ChartLegendPosition.Left)
-                        {
-                            legendRect = new Rect(remaining.X, remaining.Y, bandWidth, remaining.Height);
-                            remaining = new Rect(remaining.X + bandWidth, remaining.Y, remaining.Width - bandWidth, remaining.Height);
-                        }
-                        else
-                        {
-                            legendRect = new Rect(remaining.Right - bandWidth, remaining.Y, bandWidth, remaining.Height);
-                            remaining = new Rect(remaining.X, remaining.Y, remaining.Width - bandWidth, remaining.Height);
-                        }
-                    }
-                }
-            }
-        }
+        var hasLegend = TryReserveLegendBand(chart, options, font, ref remaining, out var legendRect);
 
         return new ChartLayout(titleRect, legendRect, remaining, hasTitle, hasLegend);
+    }
+
+    /// <summary>
+    ///     Reserves the title band at the top of <paramref name="remaining"/> when a title is present
+    ///     and doing so leaves a positive-height remainder.
+    /// </summary>
+    /// <param name="chart">The chart being rendered.</param>
+    /// <param name="options">The effective render options.</param>
+    /// <param name="remaining">The remaining area; shrunk when the band is reserved.</param>
+    /// <param name="titleRect">Receives the reserved band, or <see cref="Rect.Empty"/>.</param>
+    /// <returns><see langword="true"/> when the band was reserved.</returns>
+    private static bool TryReserveTitleBand(Chart chart, ChartRenderOptions options, ref Rect remaining, out Rect titleRect)
+    {
+        titleRect = Rect.Empty;
+        if (chart.Title is null)
+        {
+            return false;
+        }
+
+        var titleFontSize = chart.Title.FontSize ?? options.TitleFontSize;
+        var titleHeight = titleFontSize * 1.6f + TitleBandPadding * 2f;
+        if (titleHeight <= 0f || remaining.Height - titleHeight <= 0f)
+        {
+            return false;
+        }
+
+        titleRect = new Rect(remaining.X, remaining.Y, remaining.Width, titleHeight);
+        remaining = new Rect(remaining.X, remaining.Y + titleHeight, remaining.Width, remaining.Height - titleHeight);
+        return true;
+    }
+
+    /// <summary>
+    ///     Reserves the legend band from the edge of <paramref name="remaining"/> indicated by the
+    ///     chart's legend position, when the legend is visible, has entries, and leaves a positive plot area.
+    /// </summary>
+    /// <param name="chart">The chart being rendered.</param>
+    /// <param name="options">The effective render options.</param>
+    /// <param name="font">The resolved font used to measure legend text.</param>
+    /// <param name="remaining">The remaining area; shrunk when the band is reserved.</param>
+    /// <param name="legendRect">Receives the reserved band, or <see cref="Rect.Empty"/>.</param>
+    /// <returns><see langword="true"/> when the band was reserved.</returns>
+    private static bool TryReserveLegendBand(Chart chart, ChartRenderOptions options, TrueTypeFont font, ref Rect remaining, out Rect legendRect)
+    {
+        legendRect = Rect.Empty;
+        if (chart.Legend is not { IsVisible: true, Position: not ChartLegendPosition.None } legend)
+        {
+            return false;
+        }
+
+        var entries = GetLegendEntries(chart, options);
+        if (entries.Count == 0)
+        {
+            return false;
+        }
+
+        return legend.Position is ChartLegendPosition.Top or ChartLegendPosition.Bottom
+            ? TryReserveHorizontalLegendBand(legend.Position, options, ref remaining, out legendRect)
+            : TryReserveVerticalLegendBand(legend.Position, entries, options, font, ref remaining, out legendRect);
+    }
+
+    /// <summary>
+    ///     Reserves a Top/Bottom legend band.
+    /// </summary>
+    /// <param name="position">The legend position (Top or Bottom).</param>
+    /// <param name="options">The effective render options.</param>
+    /// <param name="remaining">The remaining area; shrunk when the band is reserved.</param>
+    /// <param name="legendRect">Receives the reserved band, or <see cref="Rect.Empty"/>.</param>
+    /// <returns><see langword="true"/> when the band was reserved.</returns>
+    private static bool TryReserveHorizontalLegendBand(ChartLegendPosition position, ChartRenderOptions options, ref Rect remaining, out Rect legendRect)
+    {
+        legendRect = Rect.Empty;
+        var bandHeight = options.LegendFontSize * 1.4f + LegendBandPadding * 2f;
+        if (bandHeight <= 0f || remaining.Height - bandHeight <= 0f)
+        {
+            return false;
+        }
+
+        if (position == ChartLegendPosition.Top)
+        {
+            legendRect = new Rect(remaining.X, remaining.Y, remaining.Width, bandHeight);
+            remaining = new Rect(remaining.X, remaining.Y + bandHeight, remaining.Width, remaining.Height - bandHeight);
+        }
+        else
+        {
+            legendRect = new Rect(remaining.X, remaining.Bottom - bandHeight, remaining.Width, bandHeight);
+            remaining = new Rect(remaining.X, remaining.Y, remaining.Width, remaining.Height - bandHeight);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Reserves a Left/Right legend band, sized from the widest entry label.
+    /// </summary>
+    /// <param name="position">The legend position (Left or Right).</param>
+    /// <param name="entries">The legend entries to measure.</param>
+    /// <param name="options">The effective render options.</param>
+    /// <param name="font">The resolved font used to measure legend text.</param>
+    /// <param name="remaining">The remaining area; shrunk when the band is reserved.</param>
+    /// <param name="legendRect">Receives the reserved band, or <see cref="Rect.Empty"/>.</param>
+    /// <returns><see langword="true"/> when the band was reserved.</returns>
+    private static bool TryReserveVerticalLegendBand(
+        ChartLegendPosition position, IReadOnlyList<LegendEntry> entries, ChartRenderOptions options, TrueTypeFont font,
+        ref Rect remaining, out Rect legendRect)
+    {
+        legendRect = Rect.Empty;
+        var maxLabelWidth = 0f;
+        foreach (var entry in entries)
+        {
+            var measured = TextRenderer.MeasureText(entry.Label, font, options.LegendFontSize).Width;
+            maxLabelWidth = MathF.Max(maxLabelWidth, measured);
+        }
+
+        var desiredWidth = LegendSwatchSize + LegendEntryGap + maxLabelWidth + LegendBandPadding * 2f;
+        var bandWidth = MathF.Min(desiredWidth, remaining.Width * MaxLegendWidthFraction);
+        if (bandWidth <= 0f || remaining.Width - bandWidth <= 0f)
+        {
+            return false;
+        }
+
+        if (position == ChartLegendPosition.Left)
+        {
+            legendRect = new Rect(remaining.X, remaining.Y, bandWidth, remaining.Height);
+            remaining = new Rect(remaining.X + bandWidth, remaining.Y, remaining.Width - bandWidth, remaining.Height);
+        }
+        else
+        {
+            legendRect = new Rect(remaining.Right - bandWidth, remaining.Y, bandWidth, remaining.Height);
+            remaining = new Rect(remaining.X, remaining.Y, remaining.Width - bandWidth, remaining.Height);
+        }
+
+        return true;
     }
 }

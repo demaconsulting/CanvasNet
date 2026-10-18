@@ -11,41 +11,17 @@ public static partial class SvgCodec
     ///     Evaluates one <c>feImage</c> primitive against the current filter buffer.
     /// </summary>
     /// <param name="element">The <c>feImage</c> element.</param>
-    /// <param name="width">The filter buffer width.</param>
-    /// <param name="height">The filter buffer height.</param>
+    /// <param name="chain">The mutable evaluation state of the enclosing filter chain (buffer size, region origin, transform, state, context and scope).</param>
     /// <param name="primitiveSubregion">The primitive's own resolved subregion.</param>
-    /// <param name="transform">The referencing element's accumulated transform.</param>
-    /// <param name="regionPixelX">The enclosing filter region's absolute pixel-space X origin.</param>
-    /// <param name="regionPixelY">The enclosing filter region's absolute pixel-space Y origin.</param>
-    /// <param name="state">The referencing element's own cascaded render state.</param>
-    /// <param name="context">The fixed per-document render context.</param>
-    /// <param name="useDepth">The current <c>use</c>-reference nesting depth.</param>
-    /// <param name="elementDepth">The current element-recursion depth.</param>
-    /// <param name="markerDepth">The current marker-recursion depth.</param>
     /// <param name="totalElements">The running total-rendered-elements count.</param>
-    /// <param name="workBudget">The shared geometry work budget.</param>
-    /// <param name="filterWorkBudget">The shared cumulative filter work budget.</param>
-    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget.</param>
     /// <returns>A new, independent output buffer.</returns>
     private static Surface ApplyFeImage(
         XElement element,
-        int width,
-        int height,
+        FilterChain chain,
         PixelRect primitiveSubregion,
-        Matrix3x2 transform,
-        int regionPixelX,
-        int regionPixelY,
-        RenderState state,
-        RenderContext context,
-        int useDepth,
-        int elementDepth,
-        int markerDepth,
-        ref int totalElements,
-        GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget,
-        BoundsPrePassWorkBudget boundsPrePassBudget)
+        ref int totalElements)
     {
-        var output = new Surface(width, height);
+        var output = new Surface(chain.SourceGraphic.Width, chain.SourceGraphic.Height);
         var href = GetHrefAttribute(element);
         if (href == null)
         {
@@ -54,81 +30,97 @@ public static partial class SvgCodec
 
         if (TryParseDataUri(href, out var mimeType, out var base64Payload))
         {
-            if (!filterWorkBudget.TryCharge(base64Payload.Length) || primitiveSubregion.IsEmpty)
-            {
-                return output;
-            }
-
-            var decodeRaster = ResolveRasterDecoder(mimeType);
-            if (decodeRaster == null)
-            {
-                return output;
-            }
-
-            Surface decodedSurface;
-            try
-            {
-                var bytes = Convert.FromBase64String(base64Payload);
-                using var payloadStream = new MemoryStream(bytes);
-                decodedSurface = decodeRaster(payloadStream);
-            }
-            catch (Exception ex) when (ex is FormatException or InvalidDataException or ArgumentOutOfRangeException or IOException)
-            {
-                return output;
-            }
-
-            var fitTransform = ComputePreserveAspectRatioFit(
-                Vector2.Zero,
-                new Vector2(decodedSurface.Width, decodedSurface.Height),
-                primitiveSubregion.Width,
-                primitiveSubregion.Height,
-                GetPreserveAspectRatio(element));
-            var imageToPixel = fitTransform * Matrix3x2.CreateTranslation(primitiveSubregion.X, primitiveSubregion.Y);
-            if (!IsFiniteTransform(imageToPixel) || !Matrix3x2.Invert(imageToPixel, out var pixelToImage))
-            {
-                return output;
-            }
-
-            var sampled = SampleImageIntoRegion(
-                decodedSurface,
-                primitiveSubregion.X,
-                primitiveSubregion.Y,
-                primitiveSubregion.Width,
-                primitiveSubregion.Height,
-                imageToPixel,
-                pixelToImage,
-                nearest: false);
-            CopySurfaceInto(sampled, output, primitiveSubregion.X, primitiveSubregion.Y);
+            RenderFeImageDataUri(element, mimeType, base64Payload, chain.Scope.FilterWorkBudget, primitiveSubregion, output);
             return output;
         }
 
-        var hrefId = ExtractFragmentId(href);
-        if (hrefId == null || !context.IdIndex.TryGetValue(hrefId, out var target) || useDepth >= MaxUseDepth)
-        {
-            return output;
-        }
-
-        var regionArea = (long)width * height;
-        if (!filterWorkBudget.TryCharge(regionArea))
-        {
-            return output;
-        }
-
-        var localToTemp = transform * Matrix3x2.CreateTranslation(-regionPixelX, -regionPixelY);
-        var targetState = RenderState.Initial with { ViewportWidth = state.ViewportWidth, ViewportHeight = state.ViewportHeight };
-        var targetContext = context with { Surface = output };
-        RenderElement(
-            target,
-            targetState,
-            localToTemp,
-            targetContext,
-            useDepth + 1,
-            elementDepth + 1,
-            markerDepth,
-            ref totalElements,
-            workBudget,
-            filterWorkBudget,
-            boundsPrePassBudget);
+        RenderFeImageReference(href, chain, output, ref totalElements);
         return output;
+    }
+
+    /// <summary>
+    ///     Decodes a <c>feImage</c> data-URI payload and samples it into
+    ///     <paramref name="output"/> at <paramref name="primitiveSubregion"/>; tolerantly leaves
+    ///     <paramref name="output"/> untouched on any budget, decode or transform failure.
+    /// </summary>
+    /// <param name="element">The <c>feImage</c> element.</param>
+    /// <param name="mimeType">The parsed MIME type token.</param>
+    /// <param name="base64Payload">The raw base64 payload.</param>
+    /// <param name="filterWorkBudget">The shared cumulative filter work budget.</param>
+    /// <param name="primitiveSubregion">The primitive's own resolved subregion.</param>
+    /// <param name="output">The output buffer to paint into.</param>
+    private static void RenderFeImageDataUri(
+        XElement element,
+        string mimeType,
+        string base64Payload,
+        FilterWorkBudget filterWorkBudget,
+        PixelRect primitiveSubregion,
+        Surface output)
+    {
+        if (!filterWorkBudget.TryCharge(base64Payload.Length) || primitiveSubregion.IsEmpty)
+        {
+            return;
+        }
+
+        var decodeRaster = ResolveRasterDecoder(mimeType);
+        if (decodeRaster == null)
+        {
+            return;
+        }
+
+        var decodedSurface = TryDecodeImageSurface(decodeRaster, base64Payload);
+        if (decodedSurface == null)
+        {
+            return;
+        }
+
+        var fitTransform = ComputePreserveAspectRatioFit(
+            Vector2.Zero,
+            new Vector2(decodedSurface.Width, decodedSurface.Height),
+            primitiveSubregion.Width,
+            primitiveSubregion.Height,
+            GetPreserveAspectRatio(element));
+        var imageToPixel = fitTransform * Matrix3x2.CreateTranslation(primitiveSubregion.X, primitiveSubregion.Y);
+        if (!IsFiniteTransform(imageToPixel) || !Matrix3x2.Invert(imageToPixel, out var pixelToImage))
+        {
+            return;
+        }
+
+        var sampled = SampleImageIntoRegion(decodedSurface, primitiveSubregion, imageToPixel, pixelToImage, nearest: false);
+        CopySurfaceInto(sampled, output, primitiveSubregion.X, primitiveSubregion.Y);
+    }
+
+    /// <summary>
+    ///     Renders a <c>feImage</c> element-reference <c>href</c> into <paramref name="output"/>
+    ///     through <see cref="RenderElement"/>; tolerantly leaves <paramref name="output"/>
+    ///     untouched when the reference dangles or a depth/budget limit is hit.
+    /// </summary>
+    /// <param name="href">The element's <c>href</c> value.</param>
+    /// <param name="chain">The mutable evaluation state of the enclosing filter chain.</param>
+    /// <param name="output">The output buffer to render into.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    private static void RenderFeImageReference(
+        string href,
+        FilterChain chain,
+        Surface output,
+        ref int totalElements)
+    {
+        var scope = chain.Scope;
+        var hrefId = ExtractFragmentId(href);
+        if (hrefId == null || !chain.Context.IdIndex.TryGetValue(hrefId, out var target) || scope.UseDepth >= MaxUseDepth)
+        {
+            return;
+        }
+
+        var regionArea = (long)output.Width * output.Height;
+        if (!scope.FilterWorkBudget.TryCharge(regionArea))
+        {
+            return;
+        }
+
+        var localToTemp = chain.Transform * Matrix3x2.CreateTranslation(-chain.RegionPixelX, -chain.RegionPixelY);
+        var targetState = RenderState.Initial with { ViewportWidth = chain.State.ViewportWidth, ViewportHeight = chain.State.ViewportHeight };
+        var targetContext = chain.Context with { Surface = output };
+        RenderElement(target, targetState, localToTemp, targetContext, scope.NestedUse(), ref totalElements);
     }
 }

@@ -194,7 +194,7 @@ public sealed partial class PptxDocument : IDisposable
         _tableStylesCache = new Dictionary<string, IReadOnlyDictionary<string, XElement>>(StringComparer.Ordinal);
         _masterCache = new Dictionary<string, PptxMaster>(StringComparer.Ordinal);
         _layoutCache = new Dictionary<string, PptxLayout>(StringComparer.Ordinal);
-        _slideCache = new Dictionary<int, PptxSlide>();
+        _slideCache = [];
 
         InitializePackage();
         InitializePresentation();
