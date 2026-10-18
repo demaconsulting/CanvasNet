@@ -1,3 +1,4 @@
+using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Tests.Canvas;
@@ -234,5 +235,28 @@ public class Rgba32Tests
         var result = Rgba32.CompositeOver(background, foreground);
 
         Assert.Equal(default, result);
+    }
+
+    /// <summary>
+    ///     Proves <see cref="Rgba32.ToString"/> renders the documented <c>Rgba32(R, G, B, A)</c>
+    ///     form with decimal channel values, independent of the current culture.
+    /// </summary>
+    [Fact]
+    public void Rgba32_ToString_RepresentativeChannels_ReturnsInvariantFormattedString()
+    {
+        var color = new Rgba32(255, 0, 7, 128);
+        var originalCulture = CultureInfo.CurrentCulture;
+        string result;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("ar-SA");
+            result = color.ToString();
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+
+        Assert.Equal("Rgba32(255, 0, 7, 128)", result);
     }
 }

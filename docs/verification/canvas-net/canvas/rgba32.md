@@ -20,6 +20,8 @@ verified by `test/DemaConsulting.CanvasNet.Tests/Canvas/Rgba32Tests.cs`.
   non-hex-character message includes the actual offending character.
 - **TryParse**: valid, invalid, and null inputs all behave per contract, with `result` set to
   `default` on failure.
+- **ToString**: representative channel values (including a multi-digit and a zero channel) render
+  as `Rgba32(R, G, B, A)` under a non-invariant current culture.
 - **CompositeOver** (internal, shared single-pixel Porter-Duff "over" helper): a fully
   transparent foreground leaves the background unchanged; a fully opaque foreground exactly
   replaces it; a partially transparent foreground over an opaque background, and both background
@@ -83,6 +85,13 @@ actual offending character.
 
 Verifies valid, invalid, and `null` inputs all behave per contract, with `result` set to
 `default` on failure.
+
+#### CanvasNet-Canvas-Rgba32-ToString: Readable Invariant-Culture String Representation
+
+**Tests**: `Rgba32_ToString_RepresentativeChannels_ReturnsInvariantFormattedString`
+
+Verifies `ToString()` returns `Rgba32(R, G, B, A)` with decimal channel values, unaffected by the
+current culture.
 
 #### CanvasNet-Canvas-Rgba32-CompositeOver: Shared Single-Pixel Porter-Duff "Over" Alpha Compositing
 

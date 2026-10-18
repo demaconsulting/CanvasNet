@@ -384,16 +384,18 @@ sections:
             title: >-
               The Canvas subsystem shall parse an Rgba32 pixel value from a "#RRGGBB" or
               "#AARRGGBB" hex color literal string, case-insensitively, via both a throwing
-              Parse method and a non-throwing TryParse method.
+              Parse method and a non-throwing TryParse method, and render it as a readable
+              "Rgba32(R, G, B, A)" string.
             justification: |
               Callers commonly author colors as web-style hex string literals (for example from
               configuration or markup); parsing them directly into Rgba32 avoids callers
-              hand-decoding hex digits themselves.
+              hand-decoding hex digits themselves. A stable readable rendering aids diagnostics.
             children:
               - CanvasNet-Canvas-Rgba32-ParseSixHex
               - CanvasNet-Canvas-Rgba32-ParseEightHex
               - CanvasNet-Canvas-Rgba32-ParseValidation
               - CanvasNet-Canvas-Rgba32-TryParse
+              - CanvasNet-Canvas-Rgba32-ToString
             tests:
               - Rgba32_Parse_6HexUppercase_ReturnsExpectedRgbaWithAlpha255
               - Rgba32_TryParse_ValidInput_ReturnsTrueAndSetsResult

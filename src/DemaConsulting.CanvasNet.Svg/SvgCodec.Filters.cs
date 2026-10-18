@@ -605,7 +605,7 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Computes a line/polyline/polygon/path element's own bounds, unioned with the bounds of
+    ///     Computes a line/polyline/polygon/path element's own bounds, combined with the bounds of
     ///     any marker content it places.
     /// </summary>
     /// <param name="element">The shape element.</param>
@@ -1127,7 +1127,7 @@ public static partial class SvgCodec
     ///     starts at identity) - mirrors a single shape's own <c>localPath.GetBounds()</c> call,
     ///     just folded over an entire subtree instead of one already-built path.
     /// </summary>
-    /// <param name="children">The elements whose subtree bounds are unioned.</param>
+    /// <param name="children">The elements whose subtree bounds are combined.</param>
     /// <param name="state">The cascaded render state at the referencing element.</param>
     /// <param name="context">The fixed per-document render context.</param>
     /// <param name="childScope">The scope the children are visited with; only its depth counters and shared pre-pass budget are reused.</param>
