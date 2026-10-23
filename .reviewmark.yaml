@@ -1114,6 +1114,261 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Vsdx.Tests/**/*.cs"             # unit/integration tests
       - "test/DemaConsulting.CanvasNet.Vsdx.Tests/VsdxFixtures/**"      # fixture corpus (promoted)
 
+  # CanvasNetRender3D-Architecture Review (one per system)
+  - id: CanvasNetRender3D-Architecture
+    title: Review that CanvasNetRender3D Architecture Satisfies Requirements
+    context:
+      - "README.md"
+      - "docs/user_guide/**/*.md"
+    paths:
+      - "docs/reqstream/canvas-net-render3d.yaml"                     # system requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-render3d.md"                          # system design
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-render3d.md"                    # system verification
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/Render3DSystemIntegrationTests.cs"  # integration tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/Render3DTestHelpers.cs"  # shared test helpers
+      - "src/DemaConsulting.CanvasNet.Render3D/DemaConsulting.CanvasNet.Render3D.csproj"  # package project file
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/DemaConsulting.CanvasNet.Render3D.Tests.csproj"  # test project
+
+  # CanvasNetRender3D-Design Review (one per system)
+  - id: CanvasNetRender3D-Design
+    title: Review that CanvasNetRender3D Design is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-render3d.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/platform-requirements.yaml"  # platform requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-render3d.md"                          # system design
+      - "docs/design/canvas-net-render3d/**/*.md"                     # all system design documents
+
+  # CanvasNetRender3D-Verification Review (one per system)
+  - id: CanvasNetRender3D-Verification
+    title: Review that CanvasNetRender3D Verification is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-render3d.yaml"
+    paths:
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-render3d.md"                    # system verification
+      - "docs/verification/canvas-net-render3d/**/*.md"               # all verification documents
+
+  # CanvasNetRender3D-AllRequirements Review (one per system)
+  - id: CanvasNetRender3D-AllRequirements
+    title: Review that All CanvasNetRender3D Requirements are Complete
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/**/*.yaml"                # all requirements files
+
+  # CanvasNetRender3D-SceneModel Review (one per subsystem)
+  - id: CanvasNetRender3D-SceneModel
+    title: Review that CanvasNetRender3D SceneModel Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/scene-model.yaml"         # subsystem requirements
+      - "docs/design/canvas-net-render3d/scene-model.md"              # subsystem design
+      - "docs/verification/canvas-net-render3d/scene-model.md"        # subsystem verification
+      - "docs/sysml2/model/canvas-net-render3d/scene-model.sysml"     # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneModel/SceneModelTests.cs"  # subsystem tests
+
+  # CanvasNetRender3D-SceneModel-DoublePrecisionMath Review (one per unit)
+  - id: CanvasNetRender3D-SceneModel-DoublePrecisionMath
+    title: Review that CanvasNetRender3D SceneModel DoublePrecisionMath Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+      - "docs/design/canvas-net-render3d/scene-model.md"
+      - "docs/reqstream/canvas-net-render3d/scene-model.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/scene-model/double-precision-math.yaml"  # unit requirements
+      - "docs/design/canvas-net-render3d/scene-model/double-precision-math.md"  # unit design
+      - "docs/verification/canvas-net-render3d/scene-model/double-precision-math.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-render3d/scene-model/double-precision-math.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/Vector2D.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/Vector3D.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/Matrix4x4D.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/BoundingBox3D.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneModel/Vector2DTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneModel/Vector3DTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneModel/Matrix4x4DTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneModel/BoundingBox3DTests.cs"  # unit tests
+
+  # CanvasNetRender3D-SceneModel-Mesh Review (one per unit)
+  - id: CanvasNetRender3D-SceneModel-Mesh
+    title: Review that CanvasNetRender3D SceneModel Mesh Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+      - "docs/design/canvas-net-render3d/scene-model.md"
+      - "docs/reqstream/canvas-net-render3d/scene-model.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/scene-model/mesh.yaml"    # unit requirements
+      - "docs/design/canvas-net-render3d/scene-model/mesh.md"         # unit design
+      - "docs/verification/canvas-net-render3d/scene-model/mesh.md"   # unit verification
+      - "docs/sysml2/model/canvas-net-render3d/scene-model/mesh.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/Mesh.cs"    # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/MeshBuilder.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/MeshTopology.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneModel/MeshTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneModel/MeshBuilderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneModel/MeshTopologyTests.cs"  # unit tests
+
+  # CanvasNetRender3D-SceneModel-SceneGraph Review (one per unit)
+  - id: CanvasNetRender3D-SceneModel-SceneGraph
+    title: Review that CanvasNetRender3D SceneModel SceneGraph Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+      - "docs/design/canvas-net-render3d/scene-model.md"
+      - "docs/reqstream/canvas-net-render3d/scene-model.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/scene-model/scene-graph.yaml"  # unit requirements
+      - "docs/design/canvas-net-render3d/scene-model/scene-graph.md"  # unit design
+      - "docs/verification/canvas-net-render3d/scene-model/scene-graph.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-render3d/scene-model/scene-graph.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/SceneNode.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/MeshNode.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/GroupNode.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/NodeAppearance.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/Scene.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/SceneInstance.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneModel/SceneGraphTests.cs"  # unit tests
+
+  # CanvasNetRender3D-Tessellation Review (one per subsystem)
+  - id: CanvasNetRender3D-Tessellation
+    title: Review that CanvasNetRender3D Tessellation Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/tessellation.yaml"        # subsystem requirements
+      - "docs/design/canvas-net-render3d/tessellation.md"             # subsystem design
+      - "docs/verification/canvas-net-render3d/tessellation.md"       # subsystem verification
+      - "docs/sysml2/model/canvas-net-render3d/tessellation.sysml"    # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Render3D/Tessellation/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/Tessellation/TessellationTests.cs"  # subsystem tests
+
+  # CanvasNetRender3D-Tessellation-PrimitiveTessellator Review (one per unit)
+  - id: CanvasNetRender3D-Tessellation-PrimitiveTessellator
+    title: Review that CanvasNetRender3D Tessellation PrimitiveTessellator Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+      - "docs/design/canvas-net-render3d/tessellation.md"
+      - "docs/reqstream/canvas-net-render3d/tessellation.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/tessellation/primitive-tessellator.yaml"  # unit requirements
+      - "docs/design/canvas-net-render3d/tessellation/primitive-tessellator.md"  # unit design
+      - "docs/verification/canvas-net-render3d/tessellation/primitive-tessellator.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-render3d/tessellation/primitive-tessellator.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Render3D/Tessellation/PrimitiveTessellator.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/Tessellation/PrimitiveTessellatorTests.cs"  # unit tests
+
+  # CanvasNetRender3D-SceneRendering Review (one per subsystem)
+  - id: CanvasNetRender3D-SceneRendering
+    title: Review that CanvasNetRender3D SceneRendering Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/scene-rendering.yaml"     # subsystem requirements
+      - "docs/design/canvas-net-render3d/scene-rendering.md"          # subsystem design
+      - "docs/verification/canvas-net-render3d/scene-rendering.md"    # subsystem verification
+      - "docs/sysml2/model/canvas-net-render3d/scene-rendering.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SceneRenderingTests.cs"  # subsystem tests
+
+  # CanvasNetRender3D-SceneRendering-Camera Review (one per unit)
+  - id: CanvasNetRender3D-SceneRendering-Camera
+    title: Review that CanvasNetRender3D SceneRendering Camera Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+      - "docs/design/canvas-net-render3d/scene-rendering.md"
+      - "docs/reqstream/canvas-net-render3d/scene-rendering.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/scene-rendering/camera.yaml"  # unit requirements
+      - "docs/design/canvas-net-render3d/scene-rendering/camera.md"   # unit design
+      - "docs/verification/canvas-net-render3d/scene-rendering/camera.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-render3d/scene-rendering/camera.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/Camera.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/CameraProjection.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/ViewTransform.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/CameraTests.cs"  # unit tests
+
+  # CanvasNetRender3D-SceneRendering-Lighting Review (one per unit)
+  - id: CanvasNetRender3D-SceneRendering-Lighting
+    title: Review that CanvasNetRender3D SceneRendering Lighting Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+      - "docs/design/canvas-net-render3d/scene-rendering.md"
+      - "docs/reqstream/canvas-net-render3d/scene-rendering.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/scene-rendering/lighting.yaml"  # unit requirements
+      - "docs/design/canvas-net-render3d/scene-rendering/lighting.md"  # unit design
+      - "docs/verification/canvas-net-render3d/scene-rendering/lighting.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-render3d/scene-rendering/lighting.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/Light.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/AmbientLight.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/DirectionalLight.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/LightingModel.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/LightTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/LightingModelTests.cs"  # unit tests
+
+  # CanvasNetRender3D-SceneRendering-TriangleRasterizer Review (one per unit)
+  - id: CanvasNetRender3D-SceneRendering-TriangleRasterizer
+    title: Review that CanvasNetRender3D SceneRendering TriangleRasterizer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+      - "docs/design/canvas-net-render3d/scene-rendering.md"
+      - "docs/reqstream/canvas-net-render3d/scene-rendering.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/scene-rendering/triangle-rasterizer.yaml"  # unit requirements
+      - "docs/design/canvas-net-render3d/scene-rendering/triangle-rasterizer.md"  # unit design
+      - "docs/verification/canvas-net-render3d/scene-rendering/triangle-rasterizer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-render3d/scene-rendering/triangle-rasterizer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/TriangleRasterizer.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/TriangleClipper.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/ClipVertex.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/ClipPlane.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/SampleProjection.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/ScreenTriangle.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/ViewTriangle.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/TileRect.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/IFragmentVisitor.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/DepthTestVisitor.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/TriangleRasterizerTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/TriangleClipperTests.cs"  # unit tests
+
+  # CanvasNetRender3D-SceneRendering-SceneRenderer Review (one per unit)
+  - id: CanvasNetRender3D-SceneRendering-SceneRenderer
+    title: Review that CanvasNetRender3D SceneRendering SceneRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+      - "docs/design/canvas-net-render3d/scene-rendering.md"
+      - "docs/reqstream/canvas-net-render3d/scene-rendering.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/scene-rendering/scene-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-render3d/scene-rendering/scene-renderer.md"  # unit design
+      - "docs/verification/canvas-net-render3d/scene-rendering/scene-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-render3d/scene-rendering/scene-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/SceneRenderer.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/SceneRenderOptions.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/TileBinner.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/SampleResolver.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/TileWorkspace.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SceneRendererTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SceneRenderOptionsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/TileBinnerTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SampleResolverTests.cs"  # unit tests
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality
