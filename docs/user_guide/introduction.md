@@ -2514,6 +2514,402 @@ var options = new PptxRenderOptions
 using var surface = document.Render(0, 96f, options);
 ```
 
+### 3D Rendering Overview
+
+The `DemaConsulting.CanvasNet.Render3D` package is a separate, optional NuGet package containing a
+pure-managed software 3D rasterizer. It depends only on the core `CanvasNet` package (for `Surface`
+and `Rgba32`) and has no knowledge of any 3D file format. Its types live in three namespaces:
+
+- `DemaConsulting.CanvasNet.Render3D.SceneModel` - double-precision math, meshes, and the scene graph
+- `DemaConsulting.CanvasNet.Render3D.Tessellation` - primitive mesh factories
+- `DemaConsulting.CanvasNet.Render3D.SceneRendering` - camera, lights, options, and the renderer
+
+The conventions used throughout: world space is right-handed with +Z up; the camera looks down -Z
+in view space; a triangle whose vertices are counter-clockwise as seen from outside faces outward;
+matrices use the same row-vector convention as `System.Numerics.Matrix4x4` (a point transforms as
+`v * M`, and `a * b` applies `a` first); and angles are in degrees. All model-space math is done in
+`double` precision, so scenes positioned far from the origin render without precision loss.
+
+### Vector3D, Matrix4x4D, and BoundingBox3D
+
+`Vector2D`, `Vector3D`, `Matrix4x4D`, and `BoundingBox3D` are immutable double-precision value types.
+
+```csharp
+public readonly record struct Vector3D(double X, double Y, double Z)
+{
+    public static Vector3D Zero { get; }
+    public static Vector3D One { get; }
+    public static Vector3D UnitX { get; }
+    public static Vector3D UnitY { get; }
+    public static Vector3D UnitZ { get; }
+    public double Length { get; }
+    public bool IsFinite { get; }
+    public static double Dot(Vector3D left, Vector3D right);
+    public static Vector3D Cross(Vector3D left, Vector3D right);
+    public Vector3D Normalize(); // a zero-length vector returns Vector3D.Zero
+    public Vector3 ToVector3(); // explicit narrowing to System.Numerics.Vector3
+    // plus +, -, unary -, * and / by a scalar
+}
+
+public readonly struct Matrix4x4D : IEquatable<Matrix4x4D>
+{
+    public static Matrix4x4D Identity { get; } // default(Matrix4x4D) is the ZERO matrix
+    public static Matrix4x4D CreateTranslation(Vector3D offset);
+    public static Matrix4x4D CreateScale(Vector3D scale);
+    public static Matrix4x4D CreateScale(double scale);
+    public static Matrix4x4D CreateRotationX(double degrees); // also Y and Z
+    public static Matrix4x4D CreateFromAxisAngle(Vector3D axis, double degrees);
+    public static Matrix4x4D CreateMirror(Vector3D planeNormal);
+    public static Matrix4x4D FromRowMajor(ReadOnlySpan<double> elements); // exactly 16 elements
+    public static Matrix4x4D operator *(Matrix4x4D left, Matrix4x4D right); // left is applied first
+    public double Determinant { get; }
+    public bool IsFinite { get; }
+    public bool TryInvert(out Matrix4x4D inverse);
+    public Vector3D TransformPoint(Vector3D point);
+    public Vector3D TransformDirection(Vector3D direction); // ignores translation
+}
+
+public readonly record struct BoundingBox3D(Vector3D Min, Vector3D Max)
+{
+    public static BoundingBox3D Empty { get; }
+    public bool IsEmpty { get; }
+    public Vector3D Size { get; }
+    public Vector3D Center { get; }
+    public double Diagonal { get; }
+    public BoundingBox3D Union(BoundingBox3D other);
+    public BoundingBox3D Union(Vector3D point);
+    public BoundingBox3D Transform(Matrix4x4D matrix); // axis-aligned box of the transformed corners
+}
+```
+
+Rotations by multiples of 90 degrees are exact (no rounding error). A mirror matrix has a negative
+determinant; the library compensates by flipping triangle winding, so a mirrored mesh is shaded
+like the original.
+
+```csharp
+using DemaConsulting.CanvasNet.Render3D.SceneModel;
+
+// Rotate 90 degrees about Z, then move 10 units along X (the left operand is applied first)
+var matrix = Matrix4x4D.CreateRotationZ(90) * Matrix4x4D.CreateTranslation(new Vector3D(10, 0, 0));
+Console.WriteLine(matrix.TransformPoint(new Vector3D(1, 0, 0))); // X = 10, Y = 1, Z = 0
+```
+
+**Exceptions:**
+
+- `ArgumentException`: Thrown by `FromRowMajor` when the span does not hold exactly 16 elements, and by
+  `CreateFromAxisAngle`/`CreateMirror` when the axis or normal is zero-length or not finite.
+
+### Mesh and MeshBuilder
+
+`Mesh` is an immutable, validated, indexed triangle mesh: a list of `Vector3D` vertices and a flat
+list of triangle indices (three per triangle). The winding contract is counter-clockwise as seen
+from outside. `MeshBuilder` assembles a mesh and welds identical vertices.
+
+```csharp
+public sealed class Mesh
+{
+    public Mesh(IEnumerable<Vector3D> vertices, IEnumerable<int> triangleIndices);
+    public IReadOnlyList<Vector3D> Vertices { get; }
+    public IReadOnlyList<int> TriangleIndices { get; }
+    public int VertexCount { get; }
+    public int TriangleCount { get; }
+    public BoundingBox3D Bounds { get; }
+    public bool IsClosed { get; } // every edge shared by exactly two consistently wound triangles
+    public double SignedVolume { get; } // positive for a closed, outward-oriented mesh
+    public double SurfaceArea { get; }
+    public Mesh Transform(Matrix4x4D matrix); // reverses winding when the determinant is negative
+    public Mesh Reverse(); // flips every triangle (repairs an inside-out mesh)
+}
+
+public sealed class MeshBuilder
+{
+    public int VertexCount { get; }
+    public int TriangleCount { get; }
+    public int AddVertex(Vector3D position); // returns the index of an identical existing vertex
+    public void AddTriangle(int a, int b, int c);
+    public void AddPolygon(ReadOnlySpan<int> polygon); // convex, counter-clockwise; fan-triangulated
+    public Mesh Build();
+}
+```
+
+The `Mesh` constructor copies its inputs, so later changes to the caller's collections have no
+effect. A mesh with zero triangles is allowed (it has empty bounds and is not closed).
+
+```csharp
+using DemaConsulting.CanvasNet.Render3D.SceneModel;
+
+// A tetrahedron with outward-facing (counter-clockwise) triangles
+var builder = new MeshBuilder();
+var a = builder.AddVertex(new Vector3D(0, 0, 0));
+var b = builder.AddVertex(new Vector3D(1, 0, 0));
+var c = builder.AddVertex(new Vector3D(0, 1, 0));
+var d = builder.AddVertex(new Vector3D(0, 0, 1));
+builder.AddTriangle(a, c, b);
+builder.AddTriangle(a, d, c);
+builder.AddTriangle(a, b, d);
+builder.AddTriangle(b, c, d);
+Mesh tetrahedron = builder.Build();
+Console.WriteLine($"{tetrahedron.IsClosed} {tetrahedron.SignedVolume}"); // Output: True 0.16666666666666666
+```
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown by the `Mesh` constructor for a null sequence.
+- `ArgumentException`: Thrown by the `Mesh` constructor for an index count that is not a multiple of
+  three or a non-finite vertex; by `Transform` for a non-finite matrix or result; by
+  `AddVertex` for a non-finite position; by `AddTriangle` for repeated indices; and by `AddPolygon`
+  for fewer than three indices.
+- `ArgumentOutOfRangeException`: Thrown by the `Mesh` constructor and by `AddTriangle` for an index
+  that does not address a vertex.
+
+### PrimitiveTessellator
+
+`PrimitiveTessellator` (namespace `DemaConsulting.CanvasNet.Render3D.Tessellation`) creates closed,
+welded, outward-oriented meshes for common solids.
+
+```csharp
+public static class PrimitiveTessellator
+{
+    public static Mesh Box(Vector3D size, bool center = false);
+    public static Mesh Sphere(double radius, int segments);
+    public static Mesh Cylinder(double height, double radius1, double radius2, int segments, bool center = false);
+    public static Mesh Polyhedron(IReadOnlyList<Vector3D> points, IReadOnlyList<IReadOnlyList<int>> facesCcw);
+}
+```
+
+- `Box` spans `[0, size]` on each axis, or is centered on the origin when `center` is true.
+- `Sphere` is a UV sphere centered on the origin with its poles on the Z axis; `segments` (at
+  least 3) is the number of divisions around the Z axis.
+- `Cylinder` extends along +Z from 0 to `height` (or symmetrically about 0 when `center` is true).
+  `radius1` is the bottom radius and `radius2` the top radius, so unequal radii make a frustum and a
+  radius of 0 makes a cone (not both 0).
+- `Polyhedron` welds the points and fan-triangulates each face. Faces must be **convex** and listed
+  **counter-clockwise as seen from outside**; neither is checked, so for an inside-out polyhedron
+  (negative `SignedVolume`) call `Mesh.Reverse()`.
+
+**Exceptions:**
+
+- `ArgumentOutOfRangeException`: Thrown for a non-positive or non-finite size, radius, or height,
+  fewer than three segments, both cylinder radii zero, or a face index outside the point list.
+- `ArgumentException`: Thrown by `Polyhedron` for a face with fewer than three indices.
+- `ArgumentNullException`: Thrown by `Polyhedron` for a null point list, face list, or face.
+
+### Scene
+
+A `Scene` is an immutable tree of nodes. Each node has a `Transform` (a `Matrix4x4D`, default
+identity) applied to the node and everything below it, and an optional `Appearance`. A node's
+effective color is that of the innermost node that has an appearance; the alpha of a node color is
+ignored (surfaces are opaque). A group is the union of its children - constructive solid geometry
+is not available yet.
+
+```csharp
+public abstract class SceneNode
+{
+    public Matrix4x4D Transform { get; init; } // default Matrix4x4D.Identity; must be finite
+    public NodeAppearance? Appearance { get; init; }
+}
+
+public sealed class MeshNode : SceneNode
+{
+    public MeshNode(Mesh mesh);
+    public Mesh Mesh { get; }
+}
+
+public sealed class GroupNode : SceneNode
+{
+    public GroupNode(IEnumerable<SceneNode> children);
+    public IReadOnlyList<SceneNode> Children { get; }
+}
+
+public sealed record NodeAppearance(Rgba32 Color);
+
+public sealed class Scene
+{
+    public Scene(SceneNode root);
+    public SceneNode Root { get; }
+    public BoundingBox3D ComputeBounds(); // tight world-space bounds
+}
+```
+
+The node hierarchy is closed (you cannot derive your own node types). A node (including a mesh
+node) may appear under several parents. Coincident faces of different meshes are resolved by scene
+order: the node that comes first in a depth-first traversal wins.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown by `MeshNode` for a null mesh, by `GroupNode` for a null child
+  list, and by `Scene` for a null root.
+- `ArgumentException`: Thrown by `GroupNode` for a null child, and when a node `Transform` contains
+  a non-finite element.
+
+### Camera
+
+`Camera` describes the viewpoint and projection. A default-constructed camera is valid (the eye on
+the -Y axis looking at the origin with +Z up, perspective, 22.5 degree vertical field of view).
+
+```csharp
+public enum CameraProjection { Perspective, Orthographic }
+
+public sealed class Camera
+{
+    public const double DefaultFieldOfViewDegrees = 22.5;
+    public const double DefaultAzimuthDegrees = 45.0;
+    public static readonly double DefaultElevationDegrees; // about 35.26 (isometric)
+
+    public Vector3D Eye { get; init; }
+    public Vector3D Target { get; init; }
+    public Vector3D Up { get; init; } // default +Z
+    public CameraProjection Projection { get; init; }
+    public double FieldOfViewDegrees { get; init; } // vertical; between 0 and 180 (exclusive)
+    public double? OrthographicHeight { get; init; } // required for Orthographic
+    public double? NearPlane { get; init; } // null = automatic
+    public double? FarPlane { get; init; } // null = automatic
+
+    public static Camera LookAt(Vector3D eye, Vector3D target, Vector3D up);
+    public static Camera FitToBounds(
+        BoundingBox3D bounds,
+        double azimuthDegrees,
+        double elevationDegrees,
+        double aspectRatio,
+        CameraProjection projection = CameraProjection.Perspective,
+        double fieldOfViewDegrees = DefaultFieldOfViewDegrees,
+        double marginFraction = 0.05);
+    public Matrix4x4D GetViewMatrix();
+}
+```
+
+`FitToBounds` places the camera so the bounding box fills the frame (with `marginFraction` of
+margin) when viewed from the given orbit angles: azimuth 0 and elevation 0 look along +Y from the
+-Y axis (a front view), positive elevation raises the eye toward +Z, and positive azimuth moves the
+eye counter-clockwise as seen from above. An empty or zero-size bounding box falls back to a unit
+cube at the origin. When the view direction is parallel to the up vector (for example, looking
+straight down), an alternate up vector is substituted. With `NearPlane`/`FarPlane` left `null`, the
+renderer chooses them from the scene's depth range; geometry that crosses the near plane is clipped,
+so a camera inside or beside a model works.
+
+**Exceptions:**
+
+- `ArgumentException`: Thrown by an initializer for a non-finite `Eye`, `Target`, or `Up`; by
+  `LookAt` when the eye equals the target or `up` is zero; and by `SceneRenderer.Render` (not at
+  initialization) when the eye equals the target, an orthographic camera has no `OrthographicHeight`,
+  or `NearPlane` is not less than `FarPlane`.
+- `ArgumentOutOfRangeException`: Thrown for a field of view outside (0, 180), a non-positive
+  or non-finite height or clip distance, and by `FitToBounds` for a non-finite angle, a non-positive
+  aspect ratio, or a negative margin.
+
+### Lights
+
+Lights are set through `SceneRenderOptions.Lights`. If it is `null`, a neutral default rig is used:
+an ambient light of 0.35, a camera-relative headlight of 0.55, and a camera-relative key light of
+0.25 from the upper left (also available as `Light.DefaultRig`). An explicit empty list renders
+everything black; to get flat, unshaded color use a single `AmbientLight { Intensity = 1 }`.
+
+```csharp
+public abstract class Light
+{
+    public static IReadOnlyList<Light> DefaultRig { get; }
+    public Rgba32 Color { get; init; } // default white; alpha is ignored
+    public float Intensity { get; init; } // default 1; finite and not negative
+}
+
+public sealed class AmbientLight : Light
+{
+}
+
+public sealed class DirectionalLight : Light
+{
+    public Vector3D Direction { get; init; } // direction the light TRAVELS; non-zero
+    public bool IsCameraRelative { get; init; }
+}
+```
+
+A `DirectionalLight.Direction` is the direction the light travels, normalized when set. When
+`IsCameraRelative` is `true` the direction is expressed in view space (+X right, +Y up, -Z forward),
+so the light moves with the camera; otherwise it is a world-space direction. Shading is flat
+(one color per triangle) Lambertian shading plus an optional Blinn-Phong highlight controlled by
+`SceneRenderOptions.SpecularStrength`/`SpecularPower`.
+
+**Exceptions:**
+
+- `ArgumentOutOfRangeException`: Thrown when `Intensity` is negative or not finite.
+- `ArgumentException`: Thrown when `Direction` is zero-length or not finite.
+
+### SceneRenderOptions
+
+`SceneRenderOptions` is an immutable options bag. Every property is validated when it is
+initialized, so an options instance is always valid.
+
+```csharp
+public sealed class SceneRenderOptions
+{
+    public static SceneRenderOptions Default { get; }
+
+    public Rgba32 BackgroundColor { get; init; } // default opaque white; alpha is honored
+    public Rgba32 DefaultColor { get; init; } // default (180, 180, 180): nodes without an appearance
+    public Rgba32 BackFaceColor { get; init; } // default (200, 70, 70): surfaces seen from behind
+    public IReadOnlyList<Light>? Lights { get; init; } // null = Light.DefaultRig; copied
+    public float SpecularStrength { get; init; } // default 0.10; 0 to 1
+    public float SpecularPower { get; init; } // default 32; greater than 0
+    public int Supersampling { get; init; } // default 3; 1 to 4 samples per axis
+    public int MaxDegreeOfParallelism { get; init; } // default -1; 1 = sequential
+}
+```
+
+`Supersampling` of `k` shades `k x k` samples per pixel and resolves them with a box filter, so
+cost grows with the square of `k`; a transparent `BackgroundColor` is preserved, and antialiased
+edges keep their color at partial opacity. `MaxDegreeOfParallelism` of `-1` lets the scheduler
+choose how many tiles to render at once, `1` renders sequentially, and the output is byte-identical
+for every setting. A back-facing surface is not culled but painted with `BackFaceColor`, which makes
+inside-out or open meshes easy to spot.
+
+**Exceptions:**
+
+- `ArgumentOutOfRangeException`: Thrown by an initializer for `Supersampling` outside 1 to 4,
+  `SpecularStrength` outside 0 to 1, a non-positive or non-finite `SpecularPower`, or a
+  `MaxDegreeOfParallelism` of 0 or below -1.
+- `ArgumentException`: Thrown when `Lights` contains a null light.
+
+### SceneRenderer
+
+`SceneRenderer` is the static entry point that renders a `Scene` into a new `Surface`. The caller
+owns, and must dispose, the returned surface.
+
+```csharp
+public static class SceneRenderer
+{
+    public static Surface Render(
+        Scene scene,
+        Camera camera,
+        int width,
+        int height,
+        SceneRenderOptions? options = null,
+        CancellationToken cancellationToken = default);
+
+    public static Surface RenderFitted(
+        Scene scene,
+        int width,
+        int height,
+        SceneRenderOptions? options = null,
+        CancellationToken cancellationToken = default);
+}
+```
+
+`Render` draws the scene as seen by the camera. `RenderFitted` builds an isometric camera (azimuth
+45 degrees, elevation about 35.26 degrees) that frames the whole scene with a 5 % margin, which is
+a convenient way to preview a scene; an empty scene renders the background only. Rendering is
+deterministic, and a scene, camera, or options instance may be shared between threads and renders.
+Passing a `CancellationToken` lets you abandon a long render: cancellation throws
+`OperationCanceledException` (never an `AggregateException`) and releases the partial surface.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `scene` or `camera` is null.
+- `ArgumentOutOfRangeException`: Thrown when `width` or `height` is outside 1 to
+  `Surface.MaxDimension`.
+- `ArgumentException`: Thrown by `Render` when the camera is invalid (eye equals target, an
+  orthographic camera without `OrthographicHeight`, or `NearPlane` not less than `FarPlane`).
+- `OperationCanceledException`: Thrown when `cancellationToken` is cancelled.
+
 # Examples
 
 ## Example 1: Surface Pixel Access
@@ -3017,6 +3413,61 @@ Console.WriteLine(pdf.PageCount);
 var options = new PdfRenderOptions { BackgroundColor = new Rgba32(0, 0, 0, 0) };
 using var page = pdf.Render(0, 150f, options);
 PngCodec.Save(page, "page1.png");
+```
+
+## Example 20: Rendering a 3D Scene
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Render3D.SceneModel;
+using DemaConsulting.CanvasNet.Render3D.SceneRendering;
+using DemaConsulting.CanvasNet.Render3D.Tessellation;
+
+// Build a scene: a gray base plate, a red sphere, and a blue cone. Nodes without an appearance
+// use SceneRenderOptions.DefaultColor (neutral gray).
+var plate = new MeshNode(PrimitiveTessellator.Box(new Vector3D(10, 10, 1), center: true))
+{
+    Transform = Matrix4x4D.CreateTranslation(new Vector3D(0, 0, -0.5)),
+};
+var ball = new MeshNode(PrimitiveTessellator.Sphere(2, 48))
+{
+    Transform = Matrix4x4D.CreateTranslation(new Vector3D(-2, 0, 2)),
+    Appearance = new NodeAppearance(new Rgba32(200, 40, 40, 255)),
+};
+var cone = new MeshNode(PrimitiveTessellator.Cylinder(4, 1.5, 0, 48))
+{
+    Transform = Matrix4x4D.CreateTranslation(new Vector3D(2.5, 0, 0)),
+    Appearance = new NodeAppearance(new Rgba32(40, 80, 200, 255)),
+};
+var scene = new Scene(new GroupNode([plate, ball, cone]));
+
+// A quick preview: an isometric view that frames the whole scene automatically
+using var preview = SceneRenderer.RenderFitted(scene, 640, 480);
+PngCodec.Save(preview, "scene-preview.png");
+
+// A full render: an explicit camera, custom lights, a transparent background, 4 x 4
+// supersampling, and a 30-second cancellation timeout
+var camera = Camera.FitToBounds(
+    scene.ComputeBounds(),
+    azimuthDegrees: 30,
+    elevationDegrees: 25,
+    aspectRatio: 640.0 / 480.0);
+var options = new SceneRenderOptions
+{
+    BackgroundColor = new Rgba32(0, 0, 0, 0),
+    Lights =
+    [
+        new AmbientLight { Intensity = 0.3f },
+        new DirectionalLight { Direction = new Vector3D(-1, 1, -1), Intensity = 0.8f },
+    ],
+    Supersampling = 4,
+    MaxDegreeOfParallelism = Environment.ProcessorCount,
+};
+using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+using var render = SceneRenderer.Render(scene, camera, 640, 480, options, cts.Token);
+PngCodec.Save(render, "scene.png");
+Console.WriteLine(render[0, 0].A); // Output: 0 (the corner is untouched transparent background)
 ```
 
 ## Rendering (transform-aware Canvas, text, and shapes)

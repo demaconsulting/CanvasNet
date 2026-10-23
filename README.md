@@ -40,6 +40,7 @@ load/crop/resize/save workflows.
 - 📊 **Chart Rendering** - Build and paint Bar/Column/Line/Area/Pie/Doughnut charts
 - 📈 **OOXML Chart Parsing** - Parse ECMA-376 DrawingML charts, including from `.pptx`
 - 🔷 **Visio Rendering** - Rasterize `.vsdx` diagrams; unsupported constructs are reported
+- 🧊 **3D Rendering** - Rasterize meshes and scenes (box/sphere/cylinder/polyhedron) with camera, lights and antialiasing
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
@@ -64,13 +65,14 @@ dotnet add package DemaConsulting.CanvasNet
 Each optional file-format/rendering feature ships as its own additional package - install only
 the ones you need, the same way as above:
 
-| Package                           | Adds                                             |
-|-----------------------------------|--------------------------------------------------|
-| `DemaConsulting.CanvasNet.Svg`    | SVG rasterization                                |
-| `DemaConsulting.CanvasNet.Pdf`    | PDF document rendering                           |
-| `DemaConsulting.CanvasNet.Charts` | Chart building/rendering and OOXML chart parsing |
-| `DemaConsulting.CanvasNet.Pptx`   | PowerPoint (`.pptx`) document rendering          |
-| `DemaConsulting.CanvasNet.Vsdx`   | Visio (`.vsdx`) diagram rendering                |
+| Package                             | Adds                                             |
+|-------------------------------------|--------------------------------------------------|
+| `DemaConsulting.CanvasNet.Svg`      | SVG rasterization                                |
+| `DemaConsulting.CanvasNet.Pdf`      | PDF document rendering                           |
+| `DemaConsulting.CanvasNet.Charts`   | Chart building/rendering and OOXML chart parsing |
+| `DemaConsulting.CanvasNet.Pptx`     | PowerPoint (`.pptx`) document rendering          |
+| `DemaConsulting.CanvasNet.Vsdx`     | Visio (`.vsdx`) diagram rendering                |
+| `DemaConsulting.CanvasNet.Render3D` | 3D mesh/scene rasterization                      |
 
 ## Usage
 
@@ -158,9 +160,36 @@ var triangle = new PathBuilder()
 PathFiller.Fill(canvas, triangle, new Rgba32(0, 128, 255, 255));
 ```
 
+Render a 3D scene (a pure-managed software rasterizer with camera, lights, antialiasing, and
+parallel tile rendering):
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Render3D.SceneModel;
+using DemaConsulting.CanvasNet.Render3D.SceneRendering;
+using DemaConsulting.CanvasNet.Render3D.Tessellation;
+
+// A gray plate with a red sphere on it; node colors are optional and default to neutral gray
+var plate = new MeshNode(PrimitiveTessellator.Box(new Vector3D(10, 10, 1), center: true))
+{
+    Transform = Matrix4x4D.CreateTranslation(new Vector3D(0, 0, -0.5)),
+};
+var ball = new MeshNode(PrimitiveTessellator.Sphere(2, 48))
+{
+    Transform = Matrix4x4D.CreateTranslation(new Vector3D(0, 0, 2)),
+    Appearance = new NodeAppearance(new Rgba32(200, 40, 40, 255)),
+};
+var scene = new Scene(new GroupNode([plate, ball]));
+
+// Render an automatically framed isometric view and save it
+using var image = SceneRenderer.RenderFitted(scene, 640, 480);
+PngCodec.Save(image, "scene.png");
+```
+
 See the [User Guide][link-releases] for the full API reference and additional worked examples,
 including stroking, gradients, tile paint, font loading/metadata, chart building, OOXML chart
-parsing, PDF, PowerPoint and Visio rendering, and SVG and JPEG 2000 decoding.
+parsing, PDF, PowerPoint and Visio rendering, 3D scene rendering, and SVG and JPEG 2000 decoding.
 
 ## Building
 
