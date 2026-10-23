@@ -1,0 +1,119 @@
+---
+# cspell:ignore overbright
+#
+# Software Unit Requirements for Lighting
+#
+# These requirements describe the design-level behavior of the Lighting unit: the public Light,
+# AmbientLight, and DirectionalLight types and the internal LightingModel in the
+# DemaConsulting.CanvasNet.Render3D.SceneRendering namespace. Shading is flat (one color per
+# triangle); colors are used as sRGB values without gamma conversion, consistent with the core 2-D
+# engine.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: SceneRendering Requirements
+        sections:
+          - title: Lighting Requirements
+            requirements:
+              - id: CanvasNetRender3D-SceneRendering-Lighting-LightTypes
+                title: >-
+                  The AmbientLight and DirectionalLight types shall each carry a color and a
+                  non-negative finite intensity, and a DirectionalLight shall carry a non-zero
+                  finite direction of travel that is normalized, rejecting a negative intensity or
+                  a zero direction.
+                justification: |
+                  Invalid light parameters would yield NaN or negative radiance; rejecting them at
+                  configuration time keeps shading well-defined.
+                tests:
+                  - Light_Constructors_NegativeIntensity_Throws
+                  - DirectionalLight_ZeroDirection_Throws
+                  - DirectionalLight_NormalizesDirection
+
+              - id: CanvasNetRender3D-SceneRendering-Lighting-DefaultRig
+                title: >-
+                  The Light DefaultRig property shall provide an immutable neutral CAD light rig
+                  consisting of an ambient light, a camera-relative headlight, and a camera-relative
+                  key light, with the documented intensities.
+                justification: |
+                  A good default keeps the common no-lights-specified render legible and gives
+                  every face a distinct, predictable shade.
+                tests:
+                  - Light_DefaultRig_HasAmbientHeadlightAndKey_WithDocumentedIntensities
+
+              - id: CanvasNetRender3D-SceneRendering-Lighting-Ambient
+                title: >-
+                  An ambient light shall contribute its color scaled by its intensity to every
+                  surface regardless of orientation, scaling the surface's base color.
+                justification: |
+                  Ambient light prevents surfaces facing away from every directional light from
+                  rendering pure black.
+                tests:
+                  - LightingModel_Shade_AmbientOnly_ScalesBaseColor
+
+              - id: CanvasNetRender3D-SceneRendering-Lighting-Lambert
+                title: >-
+                  A directional light shall contribute its color scaled by its intensity and by the
+                  clamped cosine of the angle between the surface normal and the direction to the
+                  light, so that a face toward the light receives full intensity, a face tilted
+                  sixty degrees receives half, and a face turned away receives only ambient light.
+                justification: |
+                  Lambertian diffuse shading is the standard, predictable cue for surface
+                  orientation.
+                tests:
+                  - LightingModel_Shade_HeadlightFacingViewer_AppliesFullIntensity
+                  - LightingModel_Shade_SixtyDegreeTilt_AppliesHalfIntensity
+                  - LightingModel_Shade_FaceTurnedAwayFromLight_ReceivesOnlyAmbient
+
+              - id: CanvasNetRender3D-SceneRendering-Lighting-Specular
+                title: >-
+                  When the specular strength is greater than zero, the lighting model shall add a
+                  Blinn-Phong specular highlight computed with a constant viewer vector, and when
+                  it is zero the result shall equal diffuse shading alone.
+                justification: |
+                  A subtle highlight improves perception of curvature; disabling it must restore
+                  pure diffuse output exactly.
+                tests:
+                  - LightingModel_Shade_SpecularEnabled_BrightensFaceAlignedWithHalfVector
+                  - LightingModel_Shade_SpecularZero_MatchesDiffuseOnly
+
+              - id: CanvasNetRender3D-SceneRendering-Lighting-CameraRelative
+                title: >-
+                  A directional light shall be expressed either in world space, in which case its
+                  direction rotates with the view transform, or camera-relative, in which case its
+                  direction is used as given in view space regardless of the camera orientation.
+                justification: |
+                  Headlights that follow the camera and fixed world lights are both needed for CAD
+                  and scene-style rendering.
+                tests:
+                  - LightingModel_Shade_WorldLight_RotatesWithViewTransform
+                  - LightingModel_Shade_CameraRelativeLight_IgnoresViewRotation
+
+              - id: CanvasNetRender3D-SceneRendering-Lighting-BackFace
+                title: >-
+                  A back-facing triangle shall be shaded from its flipped normal using the
+                  configured back-face color as its base color.
+                justification: |
+                  A distinct back-face color exposes inverted or open meshes to the caller.
+                tests:
+                  - LightingModel_ShadeBackFace_UsesFlippedNormalAndBackColor
+
+              - id: CanvasNetRender3D-SceneRendering-Lighting-NoLights
+                title: >-
+                  An empty light list shall shade every surface black (unlit), as distinct from a
+                  null light list, which selects the default rig.
+                justification: |
+                  Silently substituting lights for an explicit empty list would surprise a caller
+                  who deliberately asked for none.
+                tests:
+                  - LightingModel_Shade_EmptyLightList_ReturnsBlack
+
+              - id: CanvasNetRender3D-SceneRendering-Lighting-Clamp
+                title: >-
+                  The lighting model shall clamp each shaded color channel to the displayable range
+                  0 to 255 when the combined lights over-brighten a surface.
+                justification: |
+                  Light intensities may sum above one; unclamped values would wrap and corrupt the
+                  color.
+                tests:
+                  - LightingModel_Shade_OverbrightLights_ClampsTo255

@@ -1,0 +1,121 @@
+---
+# cspell:ignore closedness orientable
+#
+# Software Unit Requirements for Mesh
+#
+# These requirements describe the design-level behavior of the Mesh unit: the public Mesh and
+# MeshBuilder types and the internal MeshTopology analyzer in the
+# DemaConsulting.CanvasNet.Render3D.SceneModel namespace. A mesh's winding contract is
+# counter-clockwise as seen from outside (a right-hand outward normal).
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: SceneModel Requirements
+        sections:
+          - title: Mesh Requirements
+            requirements:
+              - id: CanvasNetRender3D-SceneModel-Mesh-Construction
+                title: >-
+                  The Mesh constructor shall create a mesh from a vertex sequence and a triangle
+                  index sequence (allowing zero triangles), rejecting null arguments, an index
+                  count that is not a multiple of three, an out-of-range index, and a non-finite
+                  vertex.
+                justification: |
+                  A mesh must be structurally valid by construction so that no later stage needs to
+                  re-validate or guard against out-of-range access.
+                tests:
+                  - Mesh_Constructor_ValidTriangle_SetsCounts
+                  - Mesh_Constructor_IndexCountNotMultipleOfThree_Throws
+                  - Mesh_Constructor_IndexOutOfRange_Throws
+                  - Mesh_Constructor_NonFiniteVertex_Throws
+                  - Mesh_Constructor_NullArguments_Throw
+                  - Mesh_Constructor_ZeroTriangles_AllowedWithEmptyBounds
+
+              - id: CanvasNetRender3D-SceneModel-Mesh-DefensiveCopy
+                title: >-
+                  The Mesh constructor shall copy the caller's vertex and index data so that
+                  mutating the caller's collections afterwards has no effect on the mesh.
+                justification: |
+                  Immutability is what makes a mesh safe to share between scenes and to render
+                  concurrently.
+                tests:
+                  - Mesh_Constructor_MutatingSourceListsAfterwards_DoesNotAffectMesh
+
+              - id: CanvasNetRender3D-SceneModel-Mesh-Bounds
+                title: >-
+                  The Mesh type shall expose the axis-aligned bounding box of its vertices.
+                justification: |
+                  Mesh bounds feed scene bounds and camera framing.
+                tests:
+                  - Mesh_Bounds_Cube_MatchesVertexExtents
+
+              - id: CanvasNetRender3D-SceneModel-Mesh-Topology
+                title: >-
+                  The Mesh type shall report IsClosed as true exactly when every directed edge
+                  occurs once and its reverse occurs once (an orientable, consistently wound closed
+                  surface, including multi-shell meshes) and false for an open surface, an
+                  inconsistent winding, or an edge shared by more than two triangles.
+                justification: |
+                  Closedness and consistent winding are the preconditions for correct inside/outside
+                  classification and volume computation, and for later boolean operations.
+                tests:
+                  - MeshTopology_IsClosed_Cube_True
+                  - MeshTopology_IsClosed_MissingTriangle_False
+                  - MeshTopology_IsClosed_InconsistentWinding_False
+                  - MeshTopology_IsClosed_EdgeSharedByThreeTriangles_False
+                  - MeshTopology_IsClosed_TwoDisjointCubes_True
+                  - Mesh_IsClosed_Tetrahedron_True
+
+              - id: CanvasNetRender3D-SceneModel-Mesh-VolumeArea
+                title: >-
+                  The Mesh type shall compute its signed volume (positive for an outward-oriented
+                  closed mesh) and its surface area analytically.
+                justification: |
+                  A signed volume exposes inverted meshes to the caller, and analytic area and
+                  volume give an independent check on tessellation correctness.
+                tests:
+                  - Mesh_SignedVolume_UnitCube_ReturnsOne
+                  - Mesh_SignedVolume_Tetrahedron_ReturnsAnalytic
+                  - Mesh_SurfaceArea_UnitCube_ReturnsSix
+
+              - id: CanvasNetRender3D-SceneModel-Mesh-Transform
+                title: >-
+                  The Mesh Transform method shall return a new mesh with every vertex transformed
+                  in double precision, reversing the winding of every triangle when the transform's
+                  determinant is negative so that a mirrored mesh stays outward-oriented, and
+                  rejecting a transform that produces a non-finite vertex.
+                justification: |
+                  Without winding compensation a mirrored mesh would turn inside out and render
+                  with its back faces.
+                tests:
+                  - Mesh_Transform_Translation_MovesBounds
+                  - Mesh_Transform_MirrorScale_ReversesWindingAndKeepsPositiveVolume
+                  - Mesh_Transform_NonFiniteResult_Throws
+
+              - id: CanvasNetRender3D-SceneModel-Mesh-Reverse
+                title: >-
+                  The Mesh Reverse method shall return a new mesh with the winding of every
+                  triangle reversed, negating the signed volume of a closed mesh.
+                justification: |
+                  Callers need a supported way to repair an inverted mesh.
+                tests:
+                  - Mesh_Reverse_ClosedMesh_NegatesSignedVolume
+
+              - id: CanvasNetRender3D-SceneModel-Mesh-Builder
+                title: >-
+                  The MeshBuilder type shall weld exactly equal vertices (treating negative and
+                  positive zero as equal), add triangles and fan-triangulated convex polygons,
+                  reject repeated or out-of-range indices and polygons with fewer than three
+                  indices, and build independent meshes on every Build call.
+                justification: |
+                  A welding builder is what lets generators produce topologically closed meshes
+                  without tracking duplicate vertices themselves.
+                tests:
+                  - MeshBuilder_AddVertex_IdenticalPoints_AreWelded
+                  - MeshBuilder_AddVertex_NegativeZero_WeldsWithPositiveZero
+                  - MeshBuilder_AddTriangle_RepeatedIndex_Throws
+                  - MeshBuilder_AddTriangle_IndexOutOfRange_Throws
+                  - MeshBuilder_AddPolygon_Quad_FansToTwoTriangles
+                  - MeshBuilder_AddPolygon_TwoIndices_Throws
+                  - MeshBuilder_Build_CalledTwice_ReturnsIndependentMeshes

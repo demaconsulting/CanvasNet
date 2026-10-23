@@ -1,0 +1,33 @@
+---
+# cspell:ignore tessellator
+#
+# Software Subsystem Requirements for Tessellation
+#
+# These requirements decompose the CanvasNetRender3D system's primitive-mesh responsibility into the
+# Tessellation subsystem (namespace DemaConsulting.CanvasNet.Render3D.Tessellation). Each
+# requirement here links down to the PrimitiveTessellator unit requirements that implement it.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: Tessellation Requirements
+        requirements:
+          - id: CanvasNetRender3D-Tessellation-PrimitiveMeshes
+            title: >-
+              The Tessellation subsystem shall convert box, sphere, cylinder/cone/frustum, and
+              polyhedron descriptions into welded, closed (except an open polyhedron),
+              outward-oriented meshes, rejecting invalid dimensions, segment counts, and indices.
+            justification: |
+              Primitive meshes are the basic building blocks of CAD-style scenes; their
+              topological soundness and orientation contract determine correct shading and
+              back-face behavior downstream.
+            children:
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Box
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Sphere
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Cylinder
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Cone
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Polyhedron
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Validation
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-ClosedOutward
+            tests:
+              - Tessellation_AllPrimitives_AreClosedAndOutwardOriented

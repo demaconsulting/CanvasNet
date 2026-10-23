@@ -1,0 +1,118 @@
+---
+# Software Unit Requirements for TriangleRasterizer
+#
+# These requirements describe the design-level behavior of the TriangleRasterizer unit: the internal
+# fixed-point triangle setup, TriangleClipper, rasterization, and DepthTestVisitor types in the
+# DemaConsulting.CanvasNet.Render3D.SceneRendering namespace. Sample coordinates are 24.8 fixed
+# point; coverage uses 64-bit integer edge functions only (no floating point), so results are
+# identical on every platform.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: SceneRendering Requirements
+        sections:
+          - title: TriangleRasterizer Requirements
+            requirements:
+              - id: CanvasNetRender3D-SceneRendering-TriangleRasterizer-FixedPointCoverage
+                title: >-
+                  The TriangleRasterizer shall round triangle vertices to 24.8 fixed-point sample
+                  coordinates and determine which sample centers a triangle covers using integer
+                  edge functions, covering the analytically expected number of samples for an
+                  axis-aligned right triangle.
+                justification: |
+                  Integer coverage is exact and platform-independent, which is the basis of the
+                  library's byte-identical determinism guarantee.
+                tests:
+                  - TriangleRasterizer_Rasterize_AxisAlignedRightTriangle_CoversAnalyticSampleCount
+                  - TriangleRasterizer_Rasterize_SubSampleVertexOffsets_RoundToNearestEighthOf256
+
+              - id: CanvasNetRender3D-SceneRendering-TriangleRasterizer-TopLeftRule
+                title: >-
+                  The TriangleRasterizer shall assign a sample lying exactly on an edge to the
+                  triangle owning that edge under the top-left rule, so that every sample on an edge
+                  shared by two triangles, around a shared vertex, or within a randomly
+                  triangulated grid is covered exactly once and no sample outside the grid is
+                  covered.
+                justification: |
+                  Without a consistent tie rule, shared edges either leave gaps or are drawn twice,
+                  producing visible seams and breaking later transparency and boolean stages.
+                tests:
+                  - TriangleRasterizer_Rasterize_SharedEdgeOnSampleCenters_CoveredExactlyOnce
+                  - TriangleRasterizer_Rasterize_TriangleFanAroundVertex_CoversEachSampleOnce
+                  - TriangleRasterizer_Rasterize_RandomTriangulatedGrid_EveryInteriorSampleCoveredOnceNoneOutside
+
+              - id: CanvasNetRender3D-SceneRendering-TriangleRasterizer-Winding
+                title: >-
+                  The TriangleRasterizer setup shall classify a triangle whose world winding is
+                  counter-clockwise as seen from the camera as front-facing and a reversed triangle
+                  as back-facing.
+                justification: |
+                  Front/back classification selects the surface color and drives the back-face
+                  diagnostic color.
+                tests:
+                  - TriangleRasterizer_Setup_CounterClockwiseOutwardQuad_IsFrontFacing
+                  - TriangleRasterizer_Setup_ReversedWinding_IsBackFacing
+
+              - id: CanvasNetRender3D-SceneRendering-TriangleRasterizer-NearClipping
+                title: >-
+                  The TriangleClipper shall clip a triangle crossing the near plane to its portion
+                  in front of the plane, produce nothing for a triangle entirely behind it, and
+                  compute the intersection point of an edge shared by two triangles bit-identically
+                  for both.
+                justification: |
+                  A camera inside or beside geometry (such as a large ground plane) requires
+                  clipping, and bit-identical shared-edge intersections prevent cracks after
+                  clipping.
+                tests:
+                  - TriangleClipper_NearPlane_TriangleCrossingPlane_ClipsToFrontPortion
+                  - TriangleClipper_NearPlane_FullyBehind_ProducesNothing
+                  - TriangleClipper_SharedEdgeIntersection_IsBitIdenticalForBothNeighbors
+
+              - id: CanvasNetRender3D-SceneRendering-TriangleRasterizer-GuardBand
+                title: >-
+                  The TriangleClipper shall clip a triangle extending far beyond the visible area
+                  to a guard band so that all fixed-point coordinates stay within the safe integer
+                  range, and a huge triangle covering a tile shall cover every sample of that tile.
+                justification: |
+                  Unbounded screen coordinates would overflow the 64-bit edge-function arithmetic
+                  and corrupt coverage.
+                tests:
+                  - TriangleClipper_GuardBand_HugeTriangle_ClipsAndStaysWithinFixedPointRange
+                  - TriangleRasterizer_Rasterize_HugeTriangleCoveringTile_CoversAllSamples
+
+              - id: CanvasNetRender3D-SceneRendering-TriangleRasterizer-DepthInterpolation
+                title: >-
+                  The TriangleRasterizer shall interpolate view depth perspective-correctly for a
+                  perspective projection and linearly for an orthographic projection.
+                justification: |
+                  Linear screen-space interpolation of depth under perspective would resolve
+                  visibility incorrectly for intersecting or steeply inclined surfaces.
+                tests:
+                  - TriangleRasterizer_Rasterize_PerspectivePlane_DepthIsPerspectiveCorrect
+                  - TriangleRasterizer_Rasterize_OrthographicSlantedPlane_DepthIsLinear
+
+              - id: CanvasNetRender3D-SceneRendering-TriangleRasterizer-Degenerate
+                title: >-
+                  The TriangleRasterizer setup shall produce no triangle for collinear (zero-area)
+                  vertices and shall skip a triangle with a non-finite vertex.
+                justification: |
+                  Degenerate input must never cause a division by zero or corrupt the depth buffer.
+                tests:
+                  - TriangleRasterizer_Setup_CollinearVertices_ProducesNoTriangle
+                  - TriangleRasterizer_Setup_NonFiniteVertex_IsSkipped
+
+              - id: CanvasNetRender3D-SceneRendering-TriangleRasterizer-TieResolution
+                title: >-
+                  The DepthTestVisitor shall let the nearer fragment win when depths differ by more
+                  than a relative tolerance and otherwise let a front-facing fragment beat a
+                  back-facing one and then the lower draw priority win, storing the minimum depth of
+                  a tie winner.
+                justification: |
+                  Coincident faces must resolve the same way on every run and on every platform so
+                  that output is deterministic and flicker-free.
+                tests:
+                  - DepthTestVisitor_Visit_CoincidentWithinTolerance_LowerPriorityWins
+                  - DepthTestVisitor_Visit_FrontBeatsBackWithinTolerance
+                  - DepthTestVisitor_Visit_BeyondTolerance_NearerWins
+                  - DepthTestVisitor_Visit_TieWinner_StoresMinimumDepth

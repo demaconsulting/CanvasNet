@@ -1,4 +1,5 @@
 ---
+# cspell:ignore tessellator
 # Root requirements file - includes all system, unit, platform, and OTS requirements
 # root-tags: any requirement not (transitively) linked as a child of a requirement
 # tagged with one of these tags is reported as an orphan by
@@ -56,6 +57,19 @@ includes:
   - docs/reqstream/canvas-net-charts/chart-model/chart-renderer.yaml
   - docs/reqstream/canvas-net-charts/open-xml-chart.yaml
   - docs/reqstream/canvas-net-charts/open-xml-chart/open-xml-chart-parser.yaml
+  - docs/reqstream/canvas-net-render3d.yaml
+  - docs/reqstream/canvas-net-render3d/platform-requirements.yaml
+  - docs/reqstream/canvas-net-render3d/scene-model.yaml
+  - docs/reqstream/canvas-net-render3d/scene-model/double-precision-math.yaml
+  - docs/reqstream/canvas-net-render3d/scene-model/mesh.yaml
+  - docs/reqstream/canvas-net-render3d/scene-model/scene-graph.yaml
+  - docs/reqstream/canvas-net-render3d/tessellation.yaml
+  - docs/reqstream/canvas-net-render3d/tessellation/primitive-tessellator.yaml
+  - docs/reqstream/canvas-net-render3d/scene-rendering.yaml
+  - docs/reqstream/canvas-net-render3d/scene-rendering/camera.yaml
+  - docs/reqstream/canvas-net-render3d/scene-rendering/lighting.yaml
+  - docs/reqstream/canvas-net-render3d/scene-rendering/triangle-rasterizer.yaml
+  - docs/reqstream/canvas-net-render3d/scene-rendering/scene-renderer.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml
   - docs/reqstream/ots/buildmark.yaml

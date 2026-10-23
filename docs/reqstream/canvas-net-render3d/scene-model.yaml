@@ -1,0 +1,76 @@
+---
+# cspell:ignore closedness tessellator
+#
+# Software Subsystem Requirements for SceneModel
+#
+# These requirements decompose the CanvasNetRender3D system's scene-description responsibility into
+# the SceneModel subsystem (namespace DemaConsulting.CanvasNet.Render3D.SceneModel): double-precision
+# math, immutable validated meshes, and the immutable scene graph. Each requirement here links down
+# to the unit requirements that implement it.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: SceneModel Requirements
+        requirements:
+          - id: CanvasNetRender3D-SceneModel-DoublePrecision
+            title: >-
+              The SceneModel subsystem shall provide double-precision vector, 4x4 matrix, and
+              axis-aligned bounding-box value types that compose transforms without loss of
+              precision, transform points and directions, and reject malformed input.
+            justification: |
+              Model-space geometry may sit far from the origin; carrying every transform in double
+              precision until the renderer's camera-relative step preserves accuracy that a
+              single-precision model could not.
+            children:
+              - CanvasNetRender3D-SceneModel-DoublePrecisionMath-VectorArithmetic
+              - CanvasNetRender3D-SceneModel-DoublePrecisionMath-MatrixComposition
+              - CanvasNetRender3D-SceneModel-DoublePrecisionMath-MatrixInversion
+              - CanvasNetRender3D-SceneModel-DoublePrecisionMath-MirrorTransform
+              - CanvasNetRender3D-SceneModel-DoublePrecisionMath-PointDirectionTransform
+              - CanvasNetRender3D-SceneModel-DoublePrecisionMath-BoundingBoxes
+              - CanvasNetRender3D-SceneModel-DoublePrecisionMath-InputValidation
+            tests:
+              - SceneModel_TransformChain_ComposesInDouble
+
+          - id: CanvasNetRender3D-SceneModel-MeshModel
+            title: >-
+              The SceneModel subsystem shall provide an immutable, validated, defensively copied
+              triangle mesh with a counter-clockwise-outward winding contract, bounds, closedness,
+              signed volume, surface area, winding-correct transformation, and reversal, together
+              with a welding mesh builder.
+            justification: |
+              Every renderable shape reduces to a triangle mesh; a validated, immutable mesh with
+              a defined orientation contract is the foundation the tessellator and rasterizer
+              rely on.
+            children:
+              - CanvasNetRender3D-SceneModel-Mesh-Construction
+              - CanvasNetRender3D-SceneModel-Mesh-DefensiveCopy
+              - CanvasNetRender3D-SceneModel-Mesh-Bounds
+              - CanvasNetRender3D-SceneModel-Mesh-Topology
+              - CanvasNetRender3D-SceneModel-Mesh-VolumeArea
+              - CanvasNetRender3D-SceneModel-Mesh-Transform
+              - CanvasNetRender3D-SceneModel-Mesh-Reverse
+              - CanvasNetRender3D-SceneModel-Mesh-Builder
+            tests:
+              - SceneModel_MirroredMeshInGroup_KeepsPositiveVolumeAndClosed
+
+          - id: CanvasNetRender3D-SceneModel-SceneGraph
+            title: >-
+              The SceneModel subsystem shall provide an immutable scene graph of mesh and group
+              nodes with validated double-precision transforms and optional node colors, whose
+              traversal composes transforms child-then-parent, applies innermost-color-wins
+              inheritance, assigns a stable draw order, handles very deep nesting without stack
+              overflow, and yields tight world-space bounds.
+            justification: |
+              Callers describe assemblies hierarchically; the renderer needs a flattened,
+              deterministic, transform-composed view of that hierarchy.
+            children:
+              - CanvasNetRender3D-SceneModel-SceneGraph-NodeConstruction
+              - CanvasNetRender3D-SceneModel-SceneGraph-TransformValidation
+              - CanvasNetRender3D-SceneModel-SceneGraph-HierarchyComposition
+              - CanvasNetRender3D-SceneModel-SceneGraph-AppearanceInheritance
+              - CanvasNetRender3D-SceneModel-SceneGraph-SceneBounds
+              - CanvasNetRender3D-SceneModel-SceneGraph-DeepNesting
+            tests:
+              - SceneModel_NestedGroups_BoundsMatchAnalytic
