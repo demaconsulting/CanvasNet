@@ -348,6 +348,42 @@ public class CameraTests
     }
 
     /// <summary>
+    ///     Validates that an undefined <see cref="CameraProjection"/> value is rejected by
+    ///     <c>Validate</c> and by the view transform, instead of rendering as perspective.
+    /// </summary>
+    [Fact]
+    public void Camera_Validate_UndefinedProjection_Throws()
+    {
+        // Arrange
+        var camera = new Camera { Projection = (CameraProjection)42, OrthographicHeight = 5.0 };
+
+        // Act / Assert
+        Assert.Throws<ArgumentException>(() => camera.Validate());
+        Assert.Throws<ArgumentException>(() => new ViewTransform(camera, 1.0));
+    }
+
+    /// <summary>
+    ///     Validates that <c>FitToBounds</c> rejects an undefined <see cref="CameraProjection"/>
+    ///     value while still accepting both defined values.
+    /// </summary>
+    [Fact]
+    public void Camera_FitToBounds_UndefinedProjection_Throws()
+    {
+        // Arrange
+        var bounds = new BoundingBox3D(Vector3D.Zero, Vector3D.One);
+
+        // Act
+        var perspective = Camera.FitToBounds(bounds, 0, 0, 1.0, CameraProjection.Perspective);
+        var orthographic = Camera.FitToBounds(bounds, 0, 0, 1.0, CameraProjection.Orthographic);
+
+        // Assert
+        Assert.Equal(CameraProjection.Perspective, perspective.Projection);
+        Assert.Equal(CameraProjection.Orthographic, orthographic.Projection);
+        Assert.Throws<ArgumentOutOfRangeException>(() => Camera.FitToBounds(bounds, 0, 0, 1.0, (CameraProjection)42));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Camera.FitToBounds(bounds, 0, 0, 1.0, (CameraProjection)(-1)));
+    }
+
+    /// <summary>
     ///     Validates that non-finite eye/target/up values are rejected at initialization.
     /// </summary>
     [Fact]

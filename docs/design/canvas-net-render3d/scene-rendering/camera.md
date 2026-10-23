@@ -27,7 +27,7 @@ ratio into the matrices the renderer applies in double precision.
 | `Eye` | `Vector3D` | `(0, -1, 0)` | Finite |
 | `Target` | `Vector3D` | origin | Finite |
 | `Up` | `Vector3D` | `+Z` | Finite |
-| `Projection` | `CameraProjection` | `Perspective` | None |
+| `Projection` | `CameraProjection` | `Perspective` | Must be defined (`Validate()`) |
 | `FieldOfViewDegrees` | `double` | 22.5 (vertical) | Strictly between 0 and 180 |
 | `OrthographicHeight` | `double?` | `null` | When set: finite and greater than zero |
 | `NearPlane` | `double?` | `null` (automatic) | When set: finite and greater than zero |
@@ -38,8 +38,9 @@ static `DefaultElevationDegrees` (`atan(1/sqrt 2)`, about 35.26 degrees, the tru
 elevation) define the default view used by `SceneRenderer.RenderFitted`. A default-constructed
 `Camera` is itself valid (eye on -Y looking at the origin). Rules that span properties — eye must
 differ from target, an orthographic camera needs an `OrthographicHeight`, and `NearPlane` must be
-less than `FarPlane` — cannot be checked at initialization and are enforced by the internal
-`Camera.Validate()`, which `ViewTransform`'s constructor calls when rendering starts.
+less than `FarPlane`, and `Projection` must be a defined `CameraProjection` value — cannot be
+checked at initialization and are enforced by the internal
+`Camera.Validate()` (`ArgumentException`), which `ViewTransform`'s constructor calls when rendering starts.
 
 `ViewTransform` holds the eye, the translation `-eye`, the view rotation, the projection kind, the
 aspect ratio, `tan(fov/2)`, and the orthographic half-height. View space is right-handed with the
@@ -55,7 +56,8 @@ camera looking down -Z and +Y up.
   down rather than failing; this keeps a top or bottom view of a Z-up scene well defined.
 - `Camera.FitToBounds(bounds, azimuthDegrees, elevationDegrees, aspectRatio, projection,
   fieldOfViewDegrees, marginFraction)`: frames a bounding box tightly. Arguments are validated
-  (`ArgumentOutOfRangeException` for a non-finite angle, a non-positive aspect ratio, a field of
+  (`ArgumentOutOfRangeException` for a non-finite angle, a non-positive aspect ratio, an undefined
+  `projection` value, a field of
   view outside (0, 180), or a negative margin). The orbit direction from the center toward the eye
   is
   `(sin az cos el, -cos az cos el, sin el)`. Empty or degenerate (zero-diagonal) bounds fall back to

@@ -71,12 +71,18 @@ fallback for empty bounds, and the rejection of a non-positive aspect ratio.
 **Tests**: `CameraTests.Camera_FieldOfView_OutOfRange_Throws`,
 `CameraTests.Camera_NearFar_Invalid_Throws`,
 `CameraTests.Camera_OrthographicHeight_NonPositive_Throws`,
-`CameraTests.Camera_Vectors_NonFinite_Throw`
+`CameraTests.Camera_Vectors_NonFinite_Throw`,
+`CameraTests.Camera_Validate_UndefinedProjection_Throws`,
+`CameraTests.Camera_FitToBounds_UndefinedProjection_Throws`,
+`SceneRendererTests.SceneRenderer_Render_UndefinedProjection_ThrowsArgumentException`
 
 Asserts the documented exceptions for a field of view outside (0, 180), a non-positive or
 non-finite clip distance, a non-positive orthographic height, and non-finite eye, target, or up
 vectors. The `Camera_NearFar_Invalid_Throws` scenario also covers the cross-property rule that
-the near plane must be less than the far plane.
+the near plane must be less than the far plane. The undefined-projection scenarios assert that a
+`CameraProjection` value outside the enumeration (for example 42) is rejected with
+`ArgumentException` by `Camera.Validate()` and the render path, and with
+`ArgumentOutOfRangeException` by `Camera.FitToBounds`, while both defined values are accepted.
 
 ##### CanvasNetRender3D-SceneRendering-Camera-DegenerateUp: Parallel Up Vector Is Handled
 

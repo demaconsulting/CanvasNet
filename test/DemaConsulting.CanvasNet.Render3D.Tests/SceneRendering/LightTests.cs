@@ -35,6 +35,19 @@ public class LightTests
     }
 
     /// <summary>
+    ///     Validates that a direction whose squared length overflows is still normalized to a unit vector.
+    /// </summary>
+    [Fact]
+    public void DirectionalLight_LargeDirection_NormalizesToUnitVector()
+    {
+        // Arrange / Act: the squared length of this direction overflows double
+        var light = new DirectionalLight { Direction = new Vector3D(0.0, 0.0, -1e200) };
+
+        // Assert
+        Assert.Equal(new Vector3D(0, 0, -1), light.Direction);
+    }
+
+    /// <summary>
     ///     Validates that the stored direction is normalized.
     /// </summary>
     [Fact]

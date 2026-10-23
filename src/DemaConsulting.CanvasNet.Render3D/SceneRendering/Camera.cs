@@ -210,7 +210,7 @@ public sealed class Camera
     /// <param name="fieldOfViewDegrees">The vertical field of view (perspective) in degrees, in (0, 180).</param>
     /// <param name="marginFraction">The fractional margin added around the bounds; finite and not negative (0.05 = 5 %).</param>
     /// <returns>The framing camera; its <see cref="Target"/> is the bounds centre.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when an angle is not finite, the aspect ratio is not positive, the field of view is outside (0, 180) or the margin is negative.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when an angle is not finite, the aspect ratio is not positive, the field of view is outside (0, 180), the margin is negative or <paramref name="projection"/> is not a defined <see cref="CameraProjection"/> value.</exception>
     public static Camera FitToBounds(
         BoundingBox3D bounds,
         double azimuthDegrees,
@@ -220,7 +220,7 @@ public sealed class Camera
         double fieldOfViewDegrees = DefaultFieldOfViewDegrees,
         double marginFraction = 0.05)
     {
-        ValidateFitArguments(azimuthDegrees, elevationDegrees, aspectRatio, fieldOfViewDegrees, marginFraction);
+        ValidateFitArguments(azimuthDegrees, elevationDegrees, aspectRatio, projection, fieldOfViewDegrees, marginFraction);
 
         // Resolve a usable centre and half extents, falling back to a unit cube for empty or degenerate bounds
         var centre = bounds.IsEmpty ? Vector3D.Zero : bounds.Center;
@@ -305,12 +305,19 @@ public sealed class Camera
     ///     Checks the cross-property rules that cannot be enforced by the individual initializers.
     /// </summary>
     /// <exception cref="ArgumentException">
-    ///     Thrown when the eye equals the target, the up vector is zero, an orthographic camera has
-    ///     no height, or the near plane is not below the far plane.
+    ///     Thrown when the eye equals the target, the up vector is zero, the projection is not a
+    ///     defined <see cref="CameraProjection"/> value, an orthographic camera has no height, or
+    ///     the near plane is not below the far plane.
     /// </exception>
     internal void Validate()
     {
         RequireViewDirection();
+
+        // An undefined enum value would render as perspective but be treated as orthographic elsewhere
+        if (!Enum.IsDefined(Projection))
+        {
+            throw new ArgumentException($"The camera projection {(int)Projection} is not a defined CameraProjection value.");
+        }
 
         if (Projection == CameraProjection.Orthographic && OrthographicHeight is null)
         {
@@ -409,12 +416,14 @@ public sealed class Camera
     /// <param name="azimuthDegrees">The azimuth.</param>
     /// <param name="elevationDegrees">The elevation.</param>
     /// <param name="aspectRatio">The aspect ratio.</param>
+    /// <param name="projection">The projection.</param>
     /// <param name="fieldOfViewDegrees">The field of view.</param>
     /// <param name="marginFraction">The margin.</param>
     private static void ValidateFitArguments(
         double azimuthDegrees,
         double elevationDegrees,
         double aspectRatio,
+        CameraProjection projection,
         double fieldOfViewDegrees,
         double marginFraction)
     {
@@ -431,6 +440,11 @@ public sealed class Camera
         if (!double.IsFinite(aspectRatio) || aspectRatio <= 0.0)
         {
             throw new ArgumentOutOfRangeException(nameof(aspectRatio), aspectRatio, "The aspect ratio must be finite and greater than zero.");
+        }
+
+        if (!Enum.IsDefined(projection))
+        {
+            throw new ArgumentOutOfRangeException(nameof(projection), projection, "The projection must be a defined CameraProjection value.");
         }
 
         if (!(fieldOfViewDegrees > 0.0 && fieldOfViewDegrees < 180.0))

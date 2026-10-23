@@ -124,6 +124,21 @@ public class Matrix4x4DTests
     }
 
     /// <summary>
+    ///     Validates that an axis whose squared length overflows is still normalized, so the
+    ///     rotation matches the equivalent unit-axis rotation.
+    /// </summary>
+    [Fact]
+    public void Matrix4x4D_CreateFromAxisAngle_LargeAxis_MatchesRotationZ()
+    {
+        // Arrange / Act
+        var axisAngle = Matrix4x4D.CreateFromAxisAngle(new Vector3D(0.0, 0.0, 1e200), 37.0);
+        var rotation = Matrix4x4D.CreateRotationZ(37.0);
+
+        // Assert
+        Render3DTestHelpers.AssertMatrix(rotation, axisAngle);
+    }
+
+    /// <summary>
     ///     Validates that rotating about the (1,1,1) diagonal by 120 degrees cycles the axes.
     /// </summary>
     [Fact]

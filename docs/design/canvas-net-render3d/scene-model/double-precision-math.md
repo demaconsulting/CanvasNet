@@ -48,9 +48,12 @@ validate it.
 - Operators `+`, `-` (binary and unary), `*` (vector times scalar, in both operand orders), and `/`
   (vector divided by scalar), all component-wise.
 - `Dot(a, b)`; `Cross(a, b)` (a vector for `Vector3D`; the scalar z component for `Vector2D`).
-- `LengthSquared`, `Length`.
-- `Normalize()`: returns the unit-length vector, or `Zero` when the length is zero (documented, so
-  callers can test the result's `LengthSquared`).
+- `LengthSquared`, `Length`. For `Vector3D`, `Length` and `Normalize` divide by the largest
+  absolute component before squaring, so a finite vector never overflows or flushes to zero (for example
+  `(1e200, 0, 0)` has length `1e200` and `(1e-200, 0, 0)` has length `1e-200`). `LengthSquared`
+  remains the plain sum of squares and can overflow or underflow.
+- `Normalize()`: returns the unit-length vector, or `Zero` when the length is zero or a component is
+  NaN (documented, so callers can test the result's `LengthSquared`).
 - `Vector3D.Min(a, b)` / `Max(a, b)`: component-wise minimum / maximum.
 - `Vector3D.ToVector3()`: the explicit single-precision narrowing to `System.Numerics.Vector3`, used
   only at the documented narrowing step of the renderer.

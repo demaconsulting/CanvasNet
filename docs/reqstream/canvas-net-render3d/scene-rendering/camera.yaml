@@ -80,6 +80,9 @@ sections:
                   - Camera_FieldOfView_OutOfRange_Throws
                   - Camera_NearFar_Invalid_Throws
                   - Camera_OrthographicHeight_NonPositive_Throws
+                  - Camera_Validate_UndefinedProjection_Throws
+                  - Camera_FitToBounds_UndefinedProjection_Throws
+                  - SceneRenderer_Render_UndefinedProjection_ThrowsArgumentException
 
               - id: CanvasNetRender3D-SceneRendering-Camera-DegenerateUp
                 title: >-

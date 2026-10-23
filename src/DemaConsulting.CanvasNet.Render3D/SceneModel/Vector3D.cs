@@ -36,7 +36,27 @@ public readonly record struct Vector3D(double X, double Y, double Z)
     public double LengthSquared => (X * X) + (Y * Y) + (Z * Z);
 
     /// <summary>Gets the Euclidean length of the vector.</summary>
-    public double Length => Math.Sqrt(LengthSquared);
+    /// <remarks>
+    ///     The length is computed by scaling with the largest absolute component first, so a finite
+    ///     vector never overflows (for example <c>(1e200, 0, 0)</c> has length <c>1e200</c>) or
+    ///     becomes zero (for example <c>(1e-200, 0, 0)</c> has length <c>1e-200</c>) merely
+    ///     because its components are squared. A zero vector has length zero; a NaN component
+    ///     yields NaN and an infinite component yields infinity, as for <see cref="double"/>.
+    /// </remarks>
+    public double Length
+    {
+        get
+        {
+            // The largest absolute component is the scale; NaN propagates through Math.Max
+            var scale = MaxAbsComponent();
+            if (scale == 0.0 || !double.IsFinite(scale))
+            {
+                return scale;
+            }
+
+            return scale * ScaledLength(scale);
+        }
+    }
 
     /// <summary>Gets a value indicating whether all components are finite (none is NaN or infinite).</summary>
     public bool IsFinite => double.IsFinite(X) && double.IsFinite(Y) && double.IsFinite(Z);
@@ -119,12 +139,31 @@ public readonly record struct Vector3D(double X, double Y, double Z)
     ///     normalizes to <see cref="Zero"/> rather than producing NaN components, so degenerate
     ///     input (for example a zero-area triangle normal) never poisons later arithmetic.
     /// </summary>
+    /// <remarks>
+    ///     The components are divided by the largest absolute component before the length is
+    ///     taken, so a finite non-zero vector of any magnitude (including <c>(1e200, 0, 0)</c> and
+    ///     <c>(1e-200, 0, 0)</c>) normalizes to a true unit vector instead of overflowing or
+    ///     collapsing to <see cref="Zero"/>.
+    /// </remarks>
     /// <returns>The normalized vector, or <see cref="Zero"/> when the length is zero.</returns>
     public Vector3D Normalize()
     {
-        // A zero length has no direction; return Zero instead of dividing by 0
-        var length = Length;
-        return length > 0.0 ? this / length : Zero;
+        // A zero (or NaN) length has no direction; return Zero instead of dividing by 0
+        var scale = MaxAbsComponent();
+        if (!(scale > 0.0))
+        {
+            return Zero;
+        }
+
+        // An infinite component cannot be scaled meaningfully; keep the plain division behavior
+        if (double.IsInfinity(scale))
+        {
+            return this / Length;
+        }
+
+        // Scale so the largest component has magnitude 1, then divide by the (safe) scaled length
+        var scaled = this / scale;
+        return scaled / Math.Sqrt(scaled.LengthSquared);
     }
 
     /// <summary>
@@ -134,4 +173,23 @@ public readonly record struct Vector3D(double X, double Y, double Z)
     /// </summary>
     /// <returns>The nearest single-precision <see cref="System.Numerics.Vector3"/>.</returns>
     public Vector3 ToVector3() => new((float)X, (float)Y, (float)Z);
+
+    /// <summary>Returns the largest absolute component value (NaN if any component is NaN).</summary>
+    /// <returns>The maximum of <c>|X|</c>, <c>|Y|</c> and <c>|Z|</c>.</returns>
+    private double MaxAbsComponent() =>
+        Math.Max(Math.Abs(X), Math.Max(Math.Abs(Y), Math.Abs(Z)));
+
+    /// <summary>
+    ///     Computes the length of this vector divided by <paramref name="scale"/>, which is safe
+    ///     from overflow and underflow because every scaled component has magnitude at most one.
+    /// </summary>
+    /// <param name="scale">The largest absolute component; finite and greater than zero.</param>
+    /// <returns>The length of the scaled vector (between 1 and the square root of 3).</returns>
+    private double ScaledLength(double scale)
+    {
+        var x = X / scale;
+        var y = Y / scale;
+        var z = Z / scale;
+        return Math.Sqrt((x * x) + (y * y) + (z * z));
+    }
 }

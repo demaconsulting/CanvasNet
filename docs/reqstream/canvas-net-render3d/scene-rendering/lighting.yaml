@@ -29,6 +29,7 @@ sections:
                   - Light_Constructors_NegativeIntensity_Throws
                   - DirectionalLight_ZeroDirection_Throws
                   - DirectionalLight_NormalizesDirection
+                  - DirectionalLight_LargeDirection_NormalizesToUnitVector
 
               - id: CanvasNetRender3D-SceneRendering-Lighting-DefaultRig
                 title: >-

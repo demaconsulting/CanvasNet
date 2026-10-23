@@ -79,6 +79,20 @@ public class SceneRendererTests
     }
 
     /// <summary>
+    ///     Validates that a camera with an undefined projection value is rejected by the renderer.
+    /// </summary>
+    [Fact]
+    public void SceneRenderer_Render_UndefinedProjection_ThrowsArgumentException()
+    {
+        // Arrange
+        var scene = SceneOf(Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, Vector3D.One));
+        var camera = new Camera { Eye = new Vector3D(0, 0, 10), Target = Vector3D.Zero, Projection = (CameraProjection)42 };
+
+        // Act / Assert
+        Assert.Throws<ArgumentException>(() => SceneRenderer.Render(scene, camera, 8, 8, null, TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
     ///     Validates that an invalid supersampling factor cannot reach the renderer.
     /// </summary>
     [Fact]
