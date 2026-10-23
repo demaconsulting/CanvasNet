@@ -51,6 +51,39 @@ internal static class Render3DTestHelpers
             [0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]);
 
     /// <summary>
+    ///     Asserts that a convex mesh is closed, has positive signed volume and that every
+    ///     triangle's normal points away from the vertex centroid (i.e. winding is outward).
+    /// </summary>
+    /// <param name="mesh">The convex mesh to check.</param>
+    public static void AssertClosedAndOutward(Mesh mesh)
+    {
+        Assert.True(mesh.IsClosed, "The mesh must be closed.");
+        Assert.True(mesh.SignedVolume > 0.0, "The mesh must have positive signed volume.");
+
+        // The vertex average lies strictly inside a convex polytope
+        var centroid = Vector3D.Zero;
+        foreach (var vertex in mesh.Vertices)
+        {
+            centroid += vertex;
+        }
+
+        centroid /= mesh.VertexCount;
+
+        var vertices = mesh.Vertices;
+        var indices = mesh.TriangleIndices;
+        for (var t = 0; t < indices.Count; t += 3)
+        {
+            var a = vertices[indices[t]];
+            var b = vertices[indices[t + 1]];
+            var c = vertices[indices[t + 2]];
+            var normal = Vector3D.Cross(b - a, c - a);
+            Assert.True(normal.Length > 0.0, $"Triangle {t / 3} is degenerate.");
+            var outward = (a + b + c) / 3.0 - centroid;
+            Assert.True(Vector3D.Dot(normal, outward) > 0.0, $"Triangle {t / 3} faces inward.");
+        }
+    }
+
+    /// <summary>
     ///     Asserts that two vectors are component-wise equal within an absolute tolerance.
     /// </summary>
     /// <param name="expected">The expected vector.</param>
