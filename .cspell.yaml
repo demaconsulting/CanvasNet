@@ -477,7 +477,9 @@ words:
   - Lucidchart
   - lucidchart
   - borderless
-
+  - tessellator
+  - closedness
+  - binner
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"
