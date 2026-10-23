@@ -62,6 +62,18 @@ internal readonly struct ViewTransform
     /// <summary>Gets half the visible world height for orthographic projection.</summary>
     public double OrthographicHalfHeight { get; }
 
+    /// <summary>
+    ///     Gets the factor that scales a view-space X to a clip-space X (so that the visible range is
+    ///     <c>[-w, w]</c>): <c>1 / (tan(fov/2) * aspect)</c> for perspective, <c>1 / (halfHeight * aspect)</c> for orthographic.
+    /// </summary>
+    public double ClipScaleX => 1.0 / ((IsOrthographic ? OrthographicHalfHeight : TanHalfFovY) * Aspect);
+
+    /// <summary>
+    ///     Gets the factor that scales a view-space Y to a clip-space Y: <c>1 / tan(fov/2)</c> for
+    ///     perspective, <c>1 / halfHeight</c> for orthographic.
+    /// </summary>
+    public double ClipScaleY => 1.0 / (IsOrthographic ? OrthographicHalfHeight : TanHalfFovY);
+
     /// <summary>Gets the full world-to-view matrix (translation followed by rotation).</summary>
     public Matrix4x4D WorldToView => Translation * Rotation;
 
