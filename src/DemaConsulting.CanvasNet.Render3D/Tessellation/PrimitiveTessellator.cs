@@ -1,3 +1,5 @@
+// cspell:ignore tessellator
+
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 
 namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
@@ -13,7 +15,7 @@ namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
 ///         is shared by exactly two triangles in opposite directions) and wound
 ///         counter-clockwise when seen from outside, giving a positive
 ///         <see cref="Mesh.SignedVolume"/>. The primitives are oriented in right-handed Z-up model
-///         space. The only exception is <see cref="Polyhedron"/>, whose orientation and closedness
+///         space. The only exception is <see cref="Polyhedron"/>, whose orientation and closed-surface property
 ///         are those of the caller's faces.
 ///     </para>
 ///     <para>

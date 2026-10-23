@@ -3,7 +3,7 @@ using DemaConsulting.CanvasNet.Render3D.SceneModel;
 namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
 /// <summary>
-///     A light with parallel rays (like the sun) travelling in a fixed direction.
+///     A light with parallel rays (like the sun) traveling in a fixed direction.
 /// </summary>
 /// <remarks>
 ///     A surface is lit in proportion to the cosine between its normal and the direction toward the

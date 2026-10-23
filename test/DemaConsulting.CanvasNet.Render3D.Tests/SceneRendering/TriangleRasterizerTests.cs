@@ -28,7 +28,7 @@ public class TriangleRasterizerTests
         new(false, 1.0 / TanHalfFov, 1.0 / TanHalfFov, size, size, 0.1);
 
     /// <summary>
-    ///     Creates a view-space triangle with identical front/back colours.
+    ///     Creates a view-space triangle with identical front/back colors.
     /// </summary>
     /// <param name="a">The first vertex.</param>
     /// <param name="b">The second vertex.</param>
@@ -234,7 +234,7 @@ public class TriangleRasterizerTests
 
     /// <summary>
     ///     Validates that a counter-clockwise (outward) quad facing the camera is front-facing and
-    ///     takes the front colour.
+    ///     takes the front color.
     /// </summary>
     [Fact]
     public void TriangleRasterizer_Setup_CounterClockwiseOutwardQuad_IsFrontFacing()
@@ -264,7 +264,7 @@ public class TriangleRasterizerTests
     }
 
     /// <summary>
-    ///     Validates that reversing the winding makes the triangle back-facing with the back colour.
+    ///     Validates that reversing the winding makes the triangle back-facing with the back color.
     /// </summary>
     [Fact]
     public void TriangleRasterizer_Setup_ReversedWinding_IsBackFacing()

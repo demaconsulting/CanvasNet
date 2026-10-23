@@ -1,3 +1,5 @@
+// cspell:ignore Orientable
+
 namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 
 /// <summary>
@@ -16,7 +18,7 @@ internal static class MeshTopology
     ///     <c>b -&gt; a</c> also occurs exactly once.
     /// </summary>
     /// <remarks>
-    ///     This single rule rejects open edges (missing reverse), inconsistently wound neighbours
+    ///     This single rule rejects open edges (missing reverse), inconsistently wound neighbors
     ///     (the same directed edge twice), edges shared by more than two triangles (some direction
     ///     repeats) and degenerate triangles with a repeated index. Multi-shell meshes (for example
     ///     two disjoint cubes) are closed. The check sorts one <see cref="long"/> key per directed

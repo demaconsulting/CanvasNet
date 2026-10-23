@@ -4,7 +4,7 @@ using DemaConsulting.CanvasNet.Render3D.SceneModel;
 namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
 /// <summary>
-///     The base class of all light sources used by <c>SceneRenderOptions.Lights</c>.
+///     The base class of all light sources used by <see cref="SceneRenderOptions.Lights"/>.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -42,7 +42,7 @@ public abstract class Light
         new DirectionalLight { Direction = new Vector3D(0.5, -0.6, -0.62), IsCameraRelative = true, Intensity = 0.25f },
     });
 
-    /// <summary>Gets the light colour (alpha ignored). Defaults to white.</summary>
+    /// <summary>Gets the light color (alpha ignored). Defaults to white.</summary>
     public Rgba32 Color { get; init; } = new(255, 255, 255, 255);
 
     /// <summary>

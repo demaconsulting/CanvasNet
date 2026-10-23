@@ -5,7 +5,7 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 /// </summary>
 /// <remarks>
 ///     A scene is pure geometry and appearance; the look of a render (camera, lights, background,
-///     default colours) is chosen at render time so the same scene can be rendered many ways.
+///     default colors) is chosen at render time so the same scene can be rendered many ways.
 ///     Scenes are thread-safe and may be rendered concurrently.
 /// </remarks>
 public sealed class Scene

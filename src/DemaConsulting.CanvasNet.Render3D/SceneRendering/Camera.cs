@@ -159,7 +159,7 @@ public sealed class Camera
     /// <param name="eye">The camera position; finite.</param>
     /// <param name="target">The point looked at; finite and different from <paramref name="eye"/>.</param>
     /// <param name="up">The up hint; finite and non-zero.</param>
-    /// <returns>The camera (customise further with <see langword="with"/>-style object initializers on a new instance).</returns>
+    /// <returns>The camera (customize further with <see langword="with"/>-style object initializers on a new instance).</returns>
     /// <exception cref="ArgumentException">Thrown when an argument is not finite, the eye equals the target or the up vector is zero.</exception>
     public static Camera LookAt(Vector3D eye, Vector3D target, Vector3D up)
     {

@@ -8,7 +8,7 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///     <para>
 ///         An intersection on edge <c>(a, b)</c> is computed with the endpoints first put into the
 ///         canonical lexicographic (X, Y, Z) order, so <c>Clip(a, b)</c> and <c>Clip(b, a)</c> yield
-///         the same double-precision point. Two neighbouring triangles that share an edge therefore
+///         the same double-precision point. Two neighboring triangles that share an edge therefore
 ///         share the exact clipped end point and no crack opens along clipped edges.
 ///     </para>
 ///     <para>

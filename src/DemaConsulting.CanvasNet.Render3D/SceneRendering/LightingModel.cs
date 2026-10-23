@@ -4,7 +4,7 @@ using DemaConsulting.CanvasNet.Render3D.SceneModel;
 namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
 /// <summary>
-///     Computes the flat-shaded colour of a face from its view-space normal and a light rig.
+///     Computes the flat-shaded color of a face from its view-space normal and a light rig.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -23,7 +23,7 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///         face constant across its pixels, so shading runs once per triangle.
 ///     </para>
 ///     <para>
-///         An empty light list produces black (no light, no colour); callers wanting an unshaded
+///         An empty light list produces black (no light, no color); callers wanting an unshaded
 ///         look supply a single <see cref="AmbientLight"/> of intensity 1. Stateless and thread-safe.
 ///     </para>
 /// </remarks>
@@ -36,12 +36,12 @@ internal static class LightingModel
     ///     Shades a face whose visible side has the given normal.
     /// </summary>
     /// <param name="normal">The unit view-space normal of the visible side (pointing toward the viewer).</param>
-    /// <param name="baseColor">The surface colour before lighting (alpha ignored).</param>
-    /// <param name="lights">The light rig (non-empty for any colour).</param>
+    /// <param name="baseColor">The surface color before lighting (alpha ignored).</param>
+    /// <param name="lights">The light rig (non-empty for any color).</param>
     /// <param name="specularStrength">The specular strength in [0, 1]; 0 disables the specular term.</param>
     /// <param name="specularPower">The specular exponent (greater than zero).</param>
     /// <param name="worldToView">The world-to-view matrix whose rotation orients world-space lights.</param>
-    /// <returns>The opaque shaded colour.</returns>
+    /// <returns>The opaque shaded color.</returns>
     public static Rgba32 Shade(
         Vector3D normal,
         Rgba32 baseColor,
@@ -102,15 +102,15 @@ internal static class LightingModel
 
     /// <summary>
     ///     Shades a face that is seen from behind: the geometric (outward) normal is flipped toward
-    ///     the viewer and the back-face colour replaces the base colour.
+    ///     the viewer and the back-face color replaces the base color.
     /// </summary>
     /// <param name="frontNormal">The unit view-space outward normal of the face (pointing away from the viewer).</param>
-    /// <param name="backFaceColor">The colour used for back faces (alpha ignored).</param>
+    /// <param name="backFaceColor">The color used for back faces (alpha ignored).</param>
     /// <param name="lights">The light rig.</param>
     /// <param name="specularStrength">The specular strength in [0, 1].</param>
     /// <param name="specularPower">The specular exponent (greater than zero).</param>
     /// <param name="worldToView">The world-to-view matrix whose rotation orients world-space lights.</param>
-    /// <returns>The opaque shaded colour.</returns>
+    /// <returns>The opaque shaded color.</returns>
     public static Rgba32 ShadeBackFace(
         Vector3D frontNormal,
         Rgba32 backFaceColor,

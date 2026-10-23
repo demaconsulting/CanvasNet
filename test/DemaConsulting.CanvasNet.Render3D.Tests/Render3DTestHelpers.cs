@@ -1,6 +1,9 @@
+// cspell:ignore tessellator
+
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
+using DemaConsulting.CanvasNet.Render3D.Tessellation;
 
 namespace DemaConsulting.CanvasNet.Render3D.Tests;
 
@@ -62,7 +65,7 @@ internal static class Render3DTestHelpers
         Assert.True(mesh.IsClosed, "The mesh must be closed.");
         Assert.True(mesh.SignedVolume > 0.0, "The mesh must have positive signed volume.");
 
-        // The vertex average lies strictly inside a convex polytope
+        // The vertex average lies strictly inside a convex polyhedron
         var centroid = Vector3D.Zero;
         foreach (var vertex in mesh.Vertices)
         {
@@ -191,7 +194,7 @@ internal static class Render3DTestHelpers
     ///     Counts the pixels of <paramref name="surface"/> that equal <paramref name="color"/>.
     /// </summary>
     /// <param name="surface">The surface to scan.</param>
-    /// <param name="color">The colour to count.</param>
+    /// <param name="color">The color to count.</param>
     /// <returns>The number of matching pixels.</returns>
     public static int CountPixels(Surface surface, Rgba32 color)
     {
@@ -210,7 +213,134 @@ internal static class Render3DTestHelpers
         return count;
     }
 
-    /// <summary>Compares two byte spans for equality (a span-friendly wrapper so callers need no extension imports).</summary>
+    /// <summary>
+    ///     Creates a flat quad mesh (two triangles) from four corners given counter-clockwise as seen from the front.
+    /// </summary>
+    /// <param name="a">The first corner.</param>
+    /// <param name="b">The second corner.</param>
+    /// <param name="c">The third corner.</param>
+    /// <param name="d">The fourth corner.</param>
+    /// <returns>The open (non-closed) quad mesh.</returns>
+    public static Mesh CreateQuadMesh(Vector3D a, Vector3D b, Vector3D c, Vector3D d) =>
+        new([a, b, c, d], [0, 1, 2, 0, 2, 3]);
+
+    /// <summary>
+    ///     Creates an axis-aligned square quad in the plane <c>z = z0</c> facing +Z.
+    /// </summary>
+    /// <param name="minX">The minimum X.</param>
+    /// <param name="minY">The minimum Y.</param>
+    /// <param name="maxX">The maximum X.</param>
+    /// <param name="maxY">The maximum Y.</param>
+    /// <param name="z0">The plane height.</param>
+    /// <returns>The quad mesh.</returns>
+    public static Mesh CreateFloorQuad(double minX, double minY, double maxX, double maxY, double z0 = 0.0) =>
+        CreateQuadMesh(new Vector3D(minX, minY, z0), new Vector3D(maxX, minY, z0), new Vector3D(maxX, maxY, z0), new Vector3D(minX, maxY, z0));
+
+    /// <summary>
+    ///     Creates an orthographic camera.
+    /// </summary>
+    /// <param name="eye">The eye position.</param>
+    /// <param name="target">The target position.</param>
+    /// <param name="up">The up direction.</param>
+    /// <param name="height">The visible world height.</param>
+    /// <returns>The camera.</returns>
+    public static Camera OrthoCamera(Vector3D eye, Vector3D target, Vector3D up, double height) =>
+        new() { Eye = eye, Target = target, Up = up, Projection = CameraProjection.Orthographic, OrthographicHeight = height };
+
+    /// <summary>
+    ///     Creates options that render the pure base colors (a single full-intensity ambient light), without
+    ///     antialiasing unless requested, so pixel colors can be asserted exactly.
+    /// </summary>
+    /// <param name="supersampling">The supersampling factor.</param>
+    /// <param name="background">The background color, or <see langword="null"/> for opaque white.</param>
+    /// <param name="defaultColor">The default surface color, or <see langword="null"/> for the library default.</param>
+    /// <param name="backFace">The back-face color, or <see langword="null"/> for the library default.</param>
+    /// <returns>The options.</returns>
+    public static SceneRenderOptions FlatOptions(int supersampling = 1, Rgba32? background = null, Rgba32? defaultColor = null, Rgba32? backFace = null) =>
+        new()
+        {
+            Lights = [new AmbientLight { Intensity = 1.0f }],
+            Supersampling = supersampling,
+            BackgroundColor = background ?? new Rgba32(255, 255, 255, 255),
+            DefaultColor = defaultColor ?? new Rgba32(180, 180, 180, 255),
+            BackFaceColor = backFace ?? new Rgba32(200, 70, 70, 255),
+        };
+
+    /// <summary>
+    ///     Collects the distinct pixel colors of a surface.
+    /// </summary>
+    /// <param name="surface">The surface to scan.</param>
+    /// <returns>The set of distinct colors.</returns>
+    public static HashSet<Rgba32> DistinctColors(Surface surface)
+    {
+        var colors = new HashSet<Rgba32>();
+        for (var y = 0; y < surface.Height; y++)
+        {
+            foreach (var pixel in surface.GetRowSpan(y))
+            {
+                colors.Add(pixel);
+            }
+        }
+
+        return colors;
+    }
+
+    /// <summary>
+    ///     Finds the inclusive bounding box of all pixels that differ from a color.
+    /// </summary>
+    /// <param name="surface">The surface to scan.</param>
+    /// <param name="background">The color to ignore.</param>
+    /// <returns>The bounding box and the number of differing pixels (count 0 when none).</returns>
+    public static (int MinX, int MinY, int MaxX, int MaxY, int Count) BoundsOfNon(Surface surface, Rgba32 background)
+    {
+        var minX = int.MaxValue;
+        var minY = int.MaxValue;
+        var maxX = -1;
+        var maxY = -1;
+        var count = 0;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                if (surface[x, y] == background)
+                {
+                    continue;
+                }
+
+                count++;
+                minX = Math.Min(minX, x);
+                maxX = Math.Max(maxX, x);
+                minY = Math.Min(minY, y);
+                maxY = Math.Max(maxY, y);
+            }
+        }
+
+        return (minX, minY, maxX, maxY, count);
+    }
+
+    /// <summary>
+    ///     Builds a scene of a sphere, a cylinder and a box for determinism and fitting tests.
+    /// </summary>
+    /// <returns>The mixed-primitive scene.</returns>
+    public static Scene CreateMixedScene()
+    {
+        var sphere = new MeshNode(PrimitiveTessellator.Sphere(1.5, 48));
+        var cylinder = new MeshNode(PrimitiveTessellator.Cylinder(3.0, 1.0, 0.5, 32, center: true))
+        {
+            Transform = Matrix4x4D.CreateTranslation(new Vector3D(3.5, 0, 0)),
+            Appearance = new NodeAppearance(new Rgba32(60, 140, 220, 255)),
+        };
+        var box = new MeshNode(PrimitiveTessellator.Box(new Vector3D(1.5, 2.0, 1.0), center: true))
+        {
+            Transform = Matrix4x4D.CreateRotationZ(25.0) * Matrix4x4D.CreateTranslation(new Vector3D(-3.0, 1.0, 0.5)),
+            Appearance = new NodeAppearance(new Rgba32(220, 120, 60, 255)),
+        };
+        return new Scene(new GroupNode([sphere, cylinder, box]));
+    }
+
+    /// <summary>
+    ///     Compares two byte spans for equality (a span-friendly wrapper so callers need no extension imports).
+    /// </summary>
     /// <param name="left">The first span.</param>
     /// <param name="right">The second span.</param>
     /// <returns><see langword="true"/> when the contents are equal.</returns>

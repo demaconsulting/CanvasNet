@@ -14,7 +14,7 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///         The pipeline flattens the scene graph, transforms vertices into camera-relative view
 ///         space in double precision, clips against the near plane, rasterizes with fixed-point
 ///         (24.8) top-left-rule edge functions into 32x32-pixel tiles with a z-buffer, shades each
-///         face flat with a Lambertian light rig, and resolves k-by-k ordered-grid supersamples
+///         face flat with a Lambertian light rig, and resolves k-by-k ordered-grid sub-pixel samples
 ///         with a premultiplied box filter. Tiles are independent, so rendering can run in
 ///         parallel with byte-identical output.
 ///     </para>

@@ -10,7 +10,7 @@ public class SceneModelTests
 {
     /// <summary>
     ///     Validates that a rotate-translate-scale chain across nested nodes composes in double
-    ///     precision and keeps sub-millimetre detail at a million-unit offset.
+    ///     precision and keeps sub-millimeter detail at a million-unit offset.
     /// </summary>
     [Fact]
     public void SceneModel_TransformChain_ComposesInDouble()

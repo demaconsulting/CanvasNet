@@ -196,7 +196,7 @@ public class SceneGraphTests
     }
 
     /// <summary>
-    ///     Validates that without any appearance the instance reports null (renderer default colour applies).
+    ///     Validates that without any appearance the instance reports null (renderer default color applies).
     /// </summary>
     [Fact]
     public void Scene_EnumerateInstances_NoAppearance_ReportsNull()

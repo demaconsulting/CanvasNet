@@ -7,9 +7,9 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The <b>innermost</b> appearance wins: a mesh takes the colour of the closest ancestor (or
+///         The <b>innermost</b> appearance wins: a mesh takes the color of the closest ancestor (or
 ///         itself) that has an appearance; a mesh with none uses the renderer's configurable default
-///         colour. The type is an immutable record so one appearance instance can be shared by many
+///         color. The type is an immutable record so one appearance instance can be shared by many
 ///         nodes.
 ///     </para>
 ///     <para>
@@ -17,5 +17,5 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 ///         are always opaque); transparency is planned for a later phase.
 ///     </para>
 /// </remarks>
-/// <param name="Color">The base surface colour before lighting; alpha is ignored.</param>
+/// <param name="Color">The base surface color before lighting; alpha is ignored.</param>
 public sealed record NodeAppearance(Rgba32 Color);

@@ -1,3 +1,5 @@
+// cspell:ignore Tessellator Uncentered
+
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.Tessellation;
 
@@ -46,7 +48,7 @@ public class PrimitiveTessellatorTests
     }
 
     /// <summary>
-    ///     Validates that an uncentered box spans from the origin to its size.
+    ///     Validates that an non-centered box spans from the origin to its size.
     /// </summary>
     [Fact]
     public void PrimitiveTessellator_Box_Uncentered_SpansZeroToSize()

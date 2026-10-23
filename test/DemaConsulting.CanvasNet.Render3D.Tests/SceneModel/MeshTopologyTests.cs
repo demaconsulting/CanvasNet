@@ -1,3 +1,5 @@
+// cspell:ignore Orientable
+
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 
 namespace DemaConsulting.CanvasNet.Render3D.Tests.SceneModel;

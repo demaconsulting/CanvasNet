@@ -87,7 +87,7 @@ public readonly record struct Vector2D(double X, double Y)
     /// <returns>The normalized vector, or <see cref="Zero"/> when the length is zero.</returns>
     public Vector2D Normalize()
     {
-        // A zero (or underflowing) length has no direction; return Zero instead of dividing by 0
+        // A zero length has no direction; return Zero instead of dividing by 0
         var length = Length;
         return length > 0.0 ? this / length : Zero;
     }

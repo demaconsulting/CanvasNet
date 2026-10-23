@@ -1,3 +1,5 @@
+// cspell:ignore Overbright
+
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
@@ -9,7 +11,7 @@ namespace DemaConsulting.CanvasNet.Render3D.Tests.SceneRendering;
 /// </summary>
 public class LightingModelTests
 {
-    /// <summary>The neutral CAD gray used as the base colour in these tests.</summary>
+    /// <summary>The neutral CAD gray used as the base color in these tests.</summary>
     private static readonly Rgba32 Gray = new(180, 180, 180, 255);
 
     /// <summary>A camera-relative headlight shining straight into the screen at the given intensity.</summary>
@@ -23,12 +25,12 @@ public class LightingModelTests
     /// </summary>
     /// <param name="normal">The view-space normal of the visible side.</param>
     /// <param name="lights">The lights.</param>
-    /// <returns>The shaded colour.</returns>
+    /// <returns>The shaded color.</returns>
     private static Rgba32 Shade(Vector3D normal, params Light[] lights) =>
         LightingModel.Shade(normal, Gray, lights, 0.0f, 32.0f, Matrix4x4D.Identity);
 
     /// <summary>
-    ///     Validates that ambient light alone scales the base colour (0.5 x 180 = 90).
+    ///     Validates that ambient light alone scales the base color (0.5 x 180 = 90).
     /// </summary>
     [Fact]
     public void LightingModel_Shade_AmbientOnly_ScalesBaseColor()
@@ -97,7 +99,7 @@ public class LightingModelTests
     }
 
     /// <summary>
-    ///     Validates that the light colour tints the result per channel.
+    ///     Validates that the light color tints the result per channel.
     /// </summary>
     [Fact]
     public void LightingModel_Shade_ColoredLight_TintsChannels()
@@ -154,7 +156,7 @@ public class LightingModelTests
     [Fact]
     public void LightingModel_Shade_WorldLight_RotatesWithViewTransform()
     {
-        // Arrange: a world light travelling along -Z; a 90 degree X rotation maps that direction to +Y in view space
+        // Arrange: a world light traveling along -Z; a 90 degree X rotation maps that direction to +Y in view space
         var world = new DirectionalLight { Direction = new Vector3D(0, 0, -1) };
         var lights = new Light[] { world };
         var rotation = Matrix4x4D.CreateRotationX(90.0);
@@ -188,7 +190,7 @@ public class LightingModelTests
     }
 
     /// <summary>
-    ///     Validates that back faces use the flipped normal and the back-face colour.
+    ///     Validates that back faces use the flipped normal and the back-face color.
     /// </summary>
     [Fact]
     public void LightingModel_ShadeBackFace_UsesFlippedNormalAndBackColor()
@@ -200,7 +202,7 @@ public class LightingModelTests
         // Act
         var color = LightingModel.ShadeBackFace(new Vector3D(0, 0, -1), backColor, lights, 0.0f, 32.0f, Matrix4x4D.Identity);
 
-        // Assert: (0.5 + 0.25) of the back colour (70 * 0.75 = 52.5 may round either way)
+        // Assert: (0.5 + 0.25) of the back color (70 * 0.75 = 52.5 may round either way)
         Assert.Equal(150, color.R);
         Assert.InRange(color.G, 52, 53);
         Assert.InRange(color.B, 52, 53);

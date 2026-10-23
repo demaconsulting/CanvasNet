@@ -15,7 +15,7 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///         whether the original winding showed the triangle's back.
 ///     </para>
 ///     <para>
-///         Shading is flat, so the colour of the visible side is precomputed once per triangle
+///         Shading is flat, so the color of the visible side is precomputed once per triangle
 ///         (<see cref="Color"/>); the per-sample work is only the coverage and depth test.
 ///     </para>
 /// </remarks>
@@ -63,6 +63,6 @@ internal readonly struct ScreenTriangle
     /// <summary>Gets a value indicating whether the viewer sees the triangle's back side.</summary>
     public bool BackFacing { get; init; }
 
-    /// <summary>Gets the opaque flat-shaded colour of the visible side.</summary>
+    /// <summary>Gets the opaque flat-shaded color of the visible side.</summary>
     public Rgba32 Color { get; init; }
 }

@@ -1,3 +1,5 @@
+// cspell:ignore binner
+
 namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
 /// <summary>
@@ -18,7 +20,7 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///         <c>(i, j)</c> has its centre at <c>(256 i + 128, 256 j + 128)</c>; a sample is covered when
 ///         all three edge functions are positive, or zero on an edge that is a top or left edge
 ///         (with the normalized orientation an edge <c>(dx, dy)</c> owns its boundary samples iff
-///         <c>dy &lt; 0</c> or <c>dy == 0 &amp;&amp; dx &gt; 0</c>). A neighbouring triangle sees the shared edge
+///         <c>dy &lt; 0</c> or <c>dy == 0 &amp;&amp; dx &gt; 0</c>). A neighboring triangle sees the shared edge
 ///         reversed, so every boundary sample belongs to exactly one of them: no gaps, no double
 ///         hits. Float arithmetic is used only for the interpolated depth of covered samples.
 ///     </para>
@@ -122,14 +124,11 @@ internal static class TriangleRasterizer
         long y2 = triangle.Y2;
 
         // Sample range whose centres can lie inside the bounding box, clipped to the tile
-        var minX = Math.Min(x0, Math.Min(x1, x2));
-        var maxX = Math.Max(x0, Math.Max(x1, x2));
-        var minY = Math.Min(y0, Math.Min(y1, y2));
-        var maxY = Math.Max(y0, Math.Max(y1, y2));
-        var xStart = (int)Math.Max(tile.X0, CeilDiv(minX - FixedHalf, FixedOne));
-        var xEnd = (int)Math.Min(tile.X1 - 1, FloorDiv(maxX - FixedHalf, FixedOne));
-        var yStart = (int)Math.Max(tile.Y0, CeilDiv(minY - FixedHalf, FixedOne));
-        var yEnd = (int)Math.Min(tile.Y1 - 1, FloorDiv(maxY - FixedHalf, FixedOne));
+        var bounds = GetSampleBounds(in triangle);
+        var xStart = (int)Math.Max(tile.X0, bounds.XStart);
+        var xEnd = (int)Math.Min(tile.X1 - 1, bounds.XEnd);
+        var yStart = (int)Math.Max(tile.Y0, bounds.YStart);
+        var yEnd = (int)Math.Min(tile.Y1 - 1, bounds.YEnd);
         if (xStart > xEnd || yStart > yEnd)
         {
             return;
@@ -188,12 +187,33 @@ internal static class TriangleRasterizer
     }
 
     /// <summary>
+    ///     Computes the inclusive range of sample indices whose centres lie inside the triangle's
+    ///     fixed-point bounding box (empty when <c>End &lt; Start</c>).
+    /// </summary>
+    /// <remarks>Shared by the rasterizer and the tile binner so both agree exactly on which samples a triangle can touch.</remarks>
+    /// <param name="triangle">The prepared triangle.</param>
+    /// <returns>The first and last sample column and row.</returns>
+    public static (long XStart, long XEnd, long YStart, long YEnd) GetSampleBounds(in ScreenTriangle triangle)
+    {
+        var minX = Math.Min(triangle.X0, Math.Min(triangle.X1, triangle.X2));
+        var maxX = Math.Max(triangle.X0, Math.Max(triangle.X1, triangle.X2));
+        var minY = Math.Min(triangle.Y0, Math.Min(triangle.Y1, triangle.Y2));
+        var maxY = Math.Max(triangle.Y0, Math.Max(triangle.Y1, triangle.Y2));
+
+        // Sample i has its centre at 256 i + 128
+        return (
+            CeilDiv(minX - FixedHalf, FixedOne),
+            FloorDiv(maxX - FixedHalf, FixedOne),
+            CeilDiv(minY - FixedHalf, FixedOne),
+            FloorDiv(maxY - FixedHalf, FixedOne));
+    }
+    /// <summary>
     ///     Projects, rounds and orients one clipped triangle, appending it to the output when it has non-zero area.
     /// </summary>
     /// <param name="a">The first vertex.</param>
     /// <param name="b">The second vertex.</param>
     /// <param name="c">The third vertex.</param>
-    /// <param name="source">The source triangle supplying priority and colours.</param>
+    /// <param name="source">The source triangle supplying priority and colors.</param>
     /// <param name="projection">The sample projection.</param>
     /// <param name="output">The output list.</param>
     private static void Emit(

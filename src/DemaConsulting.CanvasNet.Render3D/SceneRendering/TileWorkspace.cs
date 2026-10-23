@@ -3,7 +3,7 @@ using DemaConsulting.CanvasNet.Canvas;
 namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
 /// <summary>
-///     Per-worker sample buffers for one tile: depth, winner metadata and colour for every sample.
+///     Per-worker sample buffers for one tile: depth, winner metadata and color for every sample.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -34,7 +34,7 @@ internal sealed class TileWorkspace
     /// <summary>Gets the packed winner metadata per sample: <c>(priority &lt;&lt; 1) | backFacing</c>.</summary>
     public int[] Meta { get; }
 
-    /// <summary>Gets the shaded colour of the winning triangle per sample (valid where <see cref="Depth"/> is finite).</summary>
+    /// <summary>Gets the shaded color of the winning triangle per sample (valid where <see cref="Depth"/> is finite).</summary>
     public Rgba32[] Colors { get; }
 
     /// <summary>Gets the global sample column of the tile's first column.</summary>
