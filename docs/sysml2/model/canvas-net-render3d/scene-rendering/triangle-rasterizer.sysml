@@ -1,0 +1,11 @@
+package CanvasNet {
+    part def TriangleRasterizer {
+        doc /* The internal fixed-point triangle rasterization engine: triangle setup (ViewTriangle to ScreenTriangle with exact winding classification and degenerate/non-finite rejection), homogeneous Sutherland-Hodgman TriangleClipper against the near plane and a guard band with canonical, bit-identical shared-edge intersections, SampleProjection to 24.8 fixed-point sample space, integer edge-function coverage with the top-left rule so every shared-edge sample is covered exactly once, perspective-correct (or orthographic-linear) depth interpolation delivered to an IFragmentVisitor, and the DepthTestVisitor tolerance-based depth/front-face/priority tie resolution restricted to a TileRect. */
+
+        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.Render3D/SceneRendering/TriangleRasterizer.cs, src/DemaConsulting.CanvasNet.Render3D/SceneRendering/TriangleClipper.cs, src/DemaConsulting.CanvasNet.Render3D/SceneRendering/ClipVertex.cs, src/DemaConsulting.CanvasNet.Render3D/SceneRendering/ClipPlane.cs, src/DemaConsulting.CanvasNet.Render3D/SceneRendering/SampleProjection.cs, src/DemaConsulting.CanvasNet.Render3D/SceneRendering/ScreenTriangle.cs, src/DemaConsulting.CanvasNet.Render3D/SceneRendering/ViewTriangle.cs, src/DemaConsulting.CanvasNet.Render3D/SceneRendering/TileRect.cs, src/DemaConsulting.CanvasNet.Render3D/SceneRendering/IFragmentVisitor.cs, src/DemaConsulting.CanvasNet.Render3D/SceneRendering/DepthTestVisitor.cs */
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/TriangleRasterizerTests.cs, test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/TriangleClipperTests.cs */
+        comment designRef /* Design: docs/design/canvas-net-render3d/scene-rendering/triangle-rasterizer.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net-render3d/scene-rendering/triangle-rasterizer.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net-render3d/scene-rendering/triangle-rasterizer.yaml */
+    }
+}

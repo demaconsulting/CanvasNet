@@ -1,0 +1,17 @@
+package CanvasNet {
+    part def CanvasNetRender3DSystem {
+        doc /* CanvasNetRender3D is a pure-managed software 3D mesh/scene rasterizer, distributed as the separate DemaConsulting.CanvasNet.Render3D NuGet package. Phase 1 delivers a format-agnostic pipeline in three subsystems: SceneModel (double-precision vector/matrix/bounding-box math, immutable triangle meshes with a MeshBuilder, and an immutable scene graph of mesh and group nodes with transforms and per-node colors), Tessellation (closed, outward-oriented box/sphere/cylinder/cone meshes and validated polyhedra), and SceneRendering (a perspective/orthographic camera, an ambient/directional lighting model, a fixed-point top-left-rule triangle rasterizer with near-plane clipping, and a tiled z-buffer scene renderer with supersampling antialiasing, deterministic tile parallelism and cooperative cancellation) which renders a Scene onto a new core Canvas.Surface. Constructive solid geometry, transparency, and any file-format front end remain explicitly deferred to later phases - see docs/design/canvas-net-render3d.md's Design Constraints and Implementation Phase Plan sections. */
+
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.Render3D.Tests/Render3DSystemIntegrationTests.cs */
+        comment designRef /* Design: docs/design/canvas-net-render3d.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net-render3d.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net-render3d.yaml */
+        comment /* CanvasNetRender3D depends on the sibling CanvasNet system's Canvas subsystem only (the Surface pixel buffer that SceneRenderer allocates and returns, and the Rgba32 color type used for node, light, and background colors) - modeled below as a non-owning `dependency` relationship to the existing Canvas subsystem part (not an ordinary `part` usage, which would incorrectly model it as an owned child of CanvasNetRender3DSystem), since both systems live in this same git repository (though each is distributed as its own separate NuGet package - CanvasNetRender3D is not folded into the CanvasNet package) rather than being third-party (OTS) or Shared Package dependencies (both of which are reserved for a package produced by a different repository). All geometry math is its own double-precision SceneModel code on the BCL (System.Numerics and System.Threading.Tasks.Parallel are platform types, not OTS items). CanvasNetRender3D must never reference CanvasNetSvg, CanvasNetPdf, CanvasNetPptx, CanvasNetVsdx, or CanvasNetCharts, nor any future 3D file-format front end - this is a hard architectural constraint (the renderer is format-agnostic, and format packages depend on it, never the reverse) - see the CanvasNetRender3D System Design document's Dependencies section. */
+
+        part sceneModel : SceneModel;
+        part tessellation : Tessellation;
+        part sceneRendering : SceneRendering;
+
+        dependency usesCanvas from CanvasNetRender3DSystem to Canvas;
+    }
+}
