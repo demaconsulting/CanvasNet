@@ -11,7 +11,8 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 public sealed class Scene
 {
     /// <summary>Lazily computed tight bounds (idempotent, so a benign race merely recomputes).</summary>
-    private BoundingBox3D? _bounds;
+    /// <remarks>Held as a boxed immutable value so a reference write publishes it atomically.</remarks>
+    private object? _bounds;
 
     /// <summary>Creates a scene from a root node.</summary>
     /// <param name="root">The root node; must not be <see langword="null"/>.</param>
@@ -33,7 +34,7 @@ public sealed class Scene
     /// <returns>The bounds, or <see cref="BoundingBox3D.Empty"/> for a scene without vertices.</returns>
     public BoundingBox3D ComputeBounds()
     {
-        if (_bounds is { } cached)
+        if (Volatile.Read(ref _bounds) is BoundingBox3D cached)
         {
             return cached;
         }
@@ -47,7 +48,7 @@ public sealed class Scene
             }
         }
 
-        _bounds = bounds;
+        Volatile.Write(ref _bounds, bounds);
         return bounds;
     }
 
