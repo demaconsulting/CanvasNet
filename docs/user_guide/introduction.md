@@ -2524,6 +2524,9 @@ and `Rgba32`) and has no knowledge of any 3D file format. Its types live in thre
 - `DemaConsulting.CanvasNet.Render3D.Tessellation` - primitive mesh factories
 - `DemaConsulting.CanvasNet.Render3D.SceneRendering` - camera, lights, options, and the renderer
 
+Scenes can combine solids with constructive solid geometry (union, difference, and intersection of
+closed meshes) through `CsgNode`; see *Constructive Solid Geometry*.
+
 The conventions used throughout: world space is right-handed with +Z up; the camera looks down -Z
 in view space; a triangle whose vertices are counter-clockwise as seen from outside faces outward;
 matrices use the same row-vector convention as `System.Numerics.Matrix4x4` (a point transforms as
@@ -2704,8 +2707,8 @@ public static class PrimitiveTessellator
 A `Scene` is an immutable tree of nodes. Each node has a `Transform` (a `Matrix4x4D`, default
 identity) applied to the node and everything below it, and an optional `Appearance`. A node's
 effective color is that of the innermost node that has an appearance; the alpha of a node color is
-ignored (surfaces are opaque). A group is the union of its children - constructive solid geometry
-is not available yet.
+ignored (surfaces are opaque). A group is the union of its children; a `CsgNode` combines its
+children by union, difference, or intersection (see *Constructive Solid Geometry* below).
 
 ```csharp
 public abstract class SceneNode
@@ -2726,6 +2729,15 @@ public sealed class GroupNode : SceneNode
     public IReadOnlyList<SceneNode> Children { get; }
 }
 
+public enum CsgOperation { Union, Difference, Intersection }
+
+public sealed class CsgNode : SceneNode
+{
+    public CsgNode(CsgOperation operation, IEnumerable<SceneNode> children);
+    public CsgOperation Operation { get; }
+    public IReadOnlyList<SceneNode> Children { get; } // for Difference the first is the minuend
+}
+
 public sealed record NodeAppearance(Rgba32 Color);
 
 public sealed class Scene
@@ -2742,10 +2754,100 @@ order: the node that comes first in a depth-first traversal wins.
 
 **Exceptions:**
 
-- `ArgumentNullException`: Thrown by `MeshNode` for a null mesh, by `GroupNode` for a null child
-  list, and by `Scene` for a null root.
-- `ArgumentException`: Thrown by `GroupNode` for a null child, and when a node `Transform` contains
-  a non-finite element.
+- `ArgumentNullException`: Thrown by `MeshNode` for a null mesh, by `GroupNode` and `CsgNode` for a
+  null child list, and by `Scene` for a null root.
+- `ArgumentException`: Thrown by `GroupNode` and `CsgNode` for a null child, and when a node
+  `Transform` contains a non-finite element.
+- `ArgumentOutOfRangeException`: Thrown by `CsgNode` for an undefined `CsgOperation` value.
+
+### Constructive Solid Geometry
+
+A `CsgNode` builds a solid from other solids. `Union` is inside where any child is inside,
+`Difference` is the first child minus every other child, and `Intersection` is inside where every
+child is inside. The operations are n-ary and nest freely (a `CsgNode` may be a child of a
+`CsgNode` or a `GroupNode`), the node's `Transform` and `Appearance` apply to all of its children,
+and a node without children is empty for every operation. The renderer never builds a boolean mesh:
+each sample of the image is resolved from the surfaces its view ray crosses, so a result can be
+rendered and re-rendered cheaply, and the operand meshes are never modified.
+
+```csharp
+// A 4 x 4 x 4 cube hollowed out by a centered sphere (a round window in every face)
+var cube = new MeshNode(PrimitiveTessellator.Box(new Vector3D(4, 4, 4), center: true));
+var bite = new MeshNode(PrimitiveTessellator.Sphere(2.6, 48));
+var part = new CsgNode(CsgOperation.Difference, [cube, bite]);
+```
+
+**Operands must be solids.** Every mesh that takes part in a CSG scene should be a closed,
+consistently wound, outward-oriented (counter-clockwise from outside) mesh: `Mesh.IsClosed` must
+be `true` and `Mesh.SignedVolume` positive. The `PrimitiveTessellator` box, sphere, cylinder, and
+cone meshes satisfy this; for a closed mesh with a negative `SignedVolume` (inside-out), use
+`Mesh.Reverse`. Checking applies to every mesh in a scene that contains a difference or an
+intersection, not only the direct operands, because an open mesh anywhere in the scene would vanish
+from the result. By default the renderer is **tolerant**: it renders anyway, and the output is
+deterministic but visibly wrong where an operand is not a solid. To find out about such operands,
+set `SceneRenderOptions.UnsupportedFeatureHandler` (called once per problem, on the calling
+thread, before any pixels are produced) or set `ThrowOnUnsupportedFeature` for **strict** behavior
+(the first problem throws `SceneRenderUnsupportedFeatureException`). Without either option no
+analysis is performed.
+
+```csharp
+public sealed record SceneRenderUnsupportedFeature(string Feature, string Message, MeshNode? Node = null);
+
+public sealed class SceneRenderUnsupportedFeatureException : InvalidOperationException
+{
+    public SceneRenderUnsupportedFeatureException(string feature, string message, MeshNode? node = null);
+    public string Feature { get; } // the same token as SceneRenderUnsupportedFeature.Feature
+    public MeshNode? Node { get; }
+}
+```
+
+The `Feature` tokens are stable and machine-matchable:
+
+| Token | Meaning |
+| ----- | ------- |
+| `render3d-csg-open-mesh` | The mesh has a boundary edge (it is not closed) |
+| `render3d-csg-non-manifold-edge` | An edge is shared by three or more triangles |
+| `render3d-csg-inconsistent-winding` | Neighboring triangles are wound in conflicting directions |
+| `render3d-csg-degenerate-triangle` | The mesh has zero-area triangles |
+| `render3d-csg-inverted-mesh` | The mesh is closed but inside-out (negative `SignedVolume`) |
+| `render3d-csg-near-plane-clips-operands` | An explicit `Camera.NearPlane` clips operands (no node) |
+
+Each `MeshNode` is reported once however many places in the scene share it. Reports are delivered
+in scene order, and `Node` identifies the offending mesh node so a front end can map it back to its
+source.
+
+Rendering behavior worth knowing:
+
+- **Unions are free.** A scene whose `CsgNode`s are all unions (or whose difference/intersection
+  nodes have a single child) is rendered exactly as a scene of groups: the same z-buffer path, no
+  extra memory, no operand analysis, and byte-identical output to a render without `CsgNode`.
+- **Per-tile budget.** A scene with a difference or an intersection stores every surface crossing
+  of a 32 x 32 pixel tile. `SceneRenderOptions.MaxFragmentsPerTile` (default 4 Mi, about 32 MB per
+  worker) bounds that memory; a tile that needs more throws `RenderBudgetExceededException`
+  (with the `MaxFragmentsPerTile` that was exceeded), identically for every thread count. Lower
+  `Supersampling`, the image size, or the scene complexity - or raise the budget - to avoid it.
+- **Cut surfaces.** A surface exposed by a subtrahend is painted in that subtrahend's own color,
+  lit as seen by the viewer; it is never painted with `BackFaceColor`.
+- **Camera inside a solid.** An eye inside a solid starts inside it: the first exit is the visible
+  surface and is painted with `BackFaceColor`, as for any back face. For an orthographic camera
+  (which has no eye position along its rays) set an explicit `Camera.NearPlane` to place the
+  viewpoint. An explicit `NearPlane` in front of some geometry clips the operands and makes the
+  result unreliable there, which is why it is reported as `render3d-csg-near-plane-clips-operands`;
+  leave `NearPlane` as `null` for CSG scenes whenever you can.
+- **Coincident faces.** Faces of different operands that coincide (for example a subtrahend whose
+  face lies exactly on a face of the minuend) are resolved without speckle when their coordinates
+  are identical. Meshes that merely coincide mathematically but are placed through different
+  transforms are within a small depth tolerance of each other and are also resolved, but along the
+  edge-on silhouette of such walls a few isolated pixels (the tests tolerate up to 12 in an
+  80 x 80 image across many views) can still be wrong. Features thinner than the depth tolerance
+  (one millionth of the scene size) are treated as coincident. Where you can, give a subtrahend a
+  small overlap instead of an exactly flush face.
+- **Mirrored transforms.** An operand under a negative-determinant (mirroring) transform renders
+  as if the mirror were baked into its vertices; the inside-out check is unaffected by mirroring.
+- **Determinism.** The output is byte-identical for every `MaxDegreeOfParallelism`, every run, and
+  every `Supersampling` setting, as for scenes without CSG.
+- **Bounds.** `Scene.ComputeBounds` includes every operand, even the removed parts, so
+  `RenderFitted` and `Camera.FitToBounds` frame everything and may leave extra margin.
 
 ### Camera
 
@@ -2857,6 +2959,9 @@ public sealed class SceneRenderOptions
     public float SpecularPower { get; init; } // default 32; greater than 0
     public int Supersampling { get; init; } // default 3; 1 to 4 samples per axis
     public int MaxDegreeOfParallelism { get; init; } // default -1; 1 = sequential
+    public long MaxFragmentsPerTile { get; init; } // default 4 Mi; 1 to Array.MaxLength; CSG scenes only
+    public Action<SceneRenderUnsupportedFeature>? UnsupportedFeatureHandler { get; init; } // default null
+    public bool ThrowOnUnsupportedFeature { get; init; } // default false (tolerant)
 }
 ```
 
@@ -2867,11 +2972,18 @@ choose how many tiles to render at once, `1` renders sequentially, and the outpu
 for every setting. A back-facing surface is not culled but painted with `BackFaceColor`, which makes
 inside-out or open meshes easy to spot.
 
+The last three properties apply to scenes with a `CsgNode` difference or intersection (see
+*Constructive Solid Geometry*): `MaxFragmentsPerTile` bounds the per-tile fragment storage and is
+ignored for scenes without such nodes, `UnsupportedFeatureHandler` receives a
+`SceneRenderUnsupportedFeature` for each operand problem, and `ThrowOnUnsupportedFeature` turns the
+first problem into a `SceneRenderUnsupportedFeatureException` instead.
+
 **Exceptions:**
 
 - `ArgumentOutOfRangeException`: Thrown by an initializer for `Supersampling` outside 1 to 4,
-  `SpecularStrength` outside 0 to 1, a non-positive or non-finite `SpecularPower`, or a
-  `MaxDegreeOfParallelism` of 0 or below -1.
+  `SpecularStrength` outside 0 to 1, a non-positive or non-finite `SpecularPower`, a
+  `MaxDegreeOfParallelism` of 0 or below -1, or a `MaxFragmentsPerTile` below 1 or above
+  `Array.MaxLength`.
 - `ArgumentException`: Thrown when `Lights` contains a null light.
 
 ### SceneRenderer
@@ -2914,6 +3026,10 @@ Passing a `CancellationToken` lets you abandon a long render: cancellation throw
 - `ArgumentException`: Thrown by `Render` when the camera is invalid (eye equals target, an
   orthographic camera without `OrthographicHeight`, or `NearPlane` not less than `FarPlane`).
 - `OperationCanceledException`: Thrown when `cancellationToken` is cancelled.
+- `RenderBudgetExceededException`: Thrown when a scene with a CSG difference or intersection needs
+  more than `MaxFragmentsPerTile` fragments in a tile.
+- `SceneRenderUnsupportedFeatureException`: Thrown when `ThrowOnUnsupportedFeature` is set and a CSG
+  operand is not a closed, outward-oriented solid (or an explicit near plane clips the operands).
 
 # Examples
 
@@ -3473,6 +3589,67 @@ using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 using var render = SceneRenderer.Render(scene, camera, 640, 480, options, cts.Token);
 PngCodec.Save(render, "scene.png");
 Console.WriteLine(render[0, 0].A); // Output: 0 (the corner is untouched transparent background)
+```
+
+## Example 21: Cube Minus Sphere (Constructive Solid Geometry)
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Render3D.SceneModel;
+using DemaConsulting.CanvasNet.Render3D.SceneRendering;
+using DemaConsulting.CanvasNet.Render3D.Tessellation;
+
+// A red 4 x 4 x 4 cube from which a blue sphere is subtracted. The sphere is centered in the cube and
+// larger than the cube's inscribed sphere, so it hollows the cube out and cuts a round window in
+// every face. The surface exposed by the subtraction takes the sphere's color. Both operands are
+// closed, outward-oriented meshes, as constructive solid geometry requires.
+var cube = new MeshNode(PrimitiveTessellator.Box(new Vector3D(4, 4, 4), center: true))
+{
+    Appearance = new NodeAppearance(new Rgba32(200, 60, 50, 255)),
+};
+var hollow = new MeshNode(PrimitiveTessellator.Sphere(2.6, 64))
+{
+    Appearance = new NodeAppearance(new Rgba32(50, 110, 210, 255)),
+};
+var scene = new Scene(new CsgNode(CsgOperation.Difference, [cube, hollow]));
+
+// Collect operand problems instead of failing: a tolerant render still produces an image
+var problems = new List<SceneRenderUnsupportedFeature>();
+var options = new SceneRenderOptions
+{
+    UnsupportedFeatureHandler = problems.Add,
+    MaxFragmentsPerTile = 8 * 1024 * 1024, // raise the default memory budget (4 Mi fragments per tile)
+};
+
+try
+{
+    using var image = SceneRenderer.RenderFitted(scene, 640, 480, options);
+    PngCodec.Save(image, "cube-minus-sphere.png");
+    Console.WriteLine(problems.Count); // Output: 0 (both operands are closed solids)
+}
+catch (RenderBudgetExceededException ex)
+{
+    // A tile needed more fragments than allowed: raise MaxFragmentsPerTile or lower Supersampling
+    Console.WriteLine($"Scene too complex for a budget of {ex.MaxFragmentsPerTile} fragments per tile");
+}
+
+// Strict mode: fail fast when an operand is not a closed solid (here an open, single-triangle mesh)
+var openMesh = new MeshBuilder();
+openMesh.AddTriangle(
+    openMesh.AddVertex(new Vector3D(0, 0, 0)),
+    openMesh.AddVertex(new Vector3D(1, 0, 0)),
+    openMesh.AddVertex(new Vector3D(0, 1, 0)));
+var broken = new Scene(new CsgNode(CsgOperation.Difference, [cube, new MeshNode(openMesh.Build())]));
+try
+{
+    using var failed = SceneRenderer.RenderFitted(
+        broken, 640, 480, new SceneRenderOptions { ThrowOnUnsupportedFeature = true });
+}
+catch (SceneRenderUnsupportedFeatureException ex)
+{
+    Console.WriteLine(ex.Feature); // Output: render3d-csg-open-mesh
+}
 ```
 
 ## Rendering (transform-aware Canvas, text, and shapes)

@@ -326,7 +326,7 @@ These conventions are part of the public contract and are pinned by tests:
 - **Cancellation**: cooperative; surfaces as a plain `OperationCanceledException` (never wrapped in
   an `AggregateException`).
 
-### Alpha and Transparency (Phase 1 Limitation)
+### Alpha and Transparency (Current Limitation)
 
 Surfaces are opaque in Phases 1 and 2: the alpha of a node color, light color, default color, or
 back-face color is ignored and shaded surfaces are written with alpha 255. The background color's

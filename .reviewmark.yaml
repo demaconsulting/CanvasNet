@@ -1361,6 +1361,7 @@ reviews:
       - "docs/reqstream/canvas-net-render3d/scene-rendering/fragment-buffer.yaml"  # unit requirements
       - "docs/design/canvas-net-render3d/scene-rendering/fragment-buffer.md"  # unit design
       - "docs/verification/canvas-net-render3d/scene-rendering/fragment-buffer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-render3d/scene-rendering/fragment-buffer.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/FragmentBuffer.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/FragmentBufferTests.cs"  # unit tests
 
@@ -1376,6 +1377,7 @@ reviews:
       - "docs/reqstream/canvas-net-render3d/scene-rendering/csg-resolver.yaml"  # unit requirements
       - "docs/design/canvas-net-render3d/scene-rendering/csg-resolver.md"  # unit design
       - "docs/verification/canvas-net-render3d/scene-rendering/csg-resolver.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-render3d/scene-rendering/csg-resolver.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/CsgProgram.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/CsgCompiler.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/CsgResolver.cs"  # unit source

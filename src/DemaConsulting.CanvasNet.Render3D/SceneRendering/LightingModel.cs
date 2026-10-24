@@ -13,7 +13,7 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///         space (camera-relative lights use their direction as given; world lights are rotated by
 ///         the view rotation). The result is <c>clamp(base * radiance + specular)</c> per channel
 ///         with sRGB values used as-is (no gamma), consistent with the 2D engine; alpha is always
-///         255 (surfaces are opaque in Phase 1).
+///         255 (surfaces are opaque).
 ///     </para>
 ///     <para>
 ///         When <c>specularStrength &gt; 0</c> a Blinn-Phong term

@@ -13,8 +13,8 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 ///         nodes.
 ///     </para>
 ///     <para>
-///         <b>Phase 1 limitation:</b> the alpha channel of <see cref="Color"/> is ignored (surfaces
-///         are always opaque); transparency is planned for a later phase.
+///         <b>Limitation:</b> the alpha channel of <see cref="Color"/> is ignored (surfaces
+///         are always opaque); transparency is planned for a later release.
 ///     </para>
 /// </remarks>
 /// <param name="Color">The base surface color before lighting; alpha is ignored.</param>
