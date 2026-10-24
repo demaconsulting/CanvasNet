@@ -63,4 +63,10 @@ internal interface IScadBuiltinHost
     /// <param name="steps">The number of steps; at least one.</param>
     /// <exception cref="ScadEvaluationException">Thrown when the step limit is exceeded.</exception>
     void Charge(long steps);
+
+    /// <summary>
+    ///     Polls for cancellation; long-running work calls it at bounded, deterministic intervals.
+    /// </summary>
+    /// <exception cref="OperationCanceledException">Thrown when cancellation was requested.</exception>
+    void Poll();
 }

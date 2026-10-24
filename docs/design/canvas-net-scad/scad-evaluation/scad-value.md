@@ -29,7 +29,8 @@ and number formatting. The rules are the CanvasNetScad dialect's own decisions, 
 language-design reasoning and pinned by tests; no OpenSCAD source, manual, or test material was consulted
 (see _CanvasNetScad System Design_, Clean-Room Provenance). The unit does not know about scopes, calls, or
 limits: it never charges evaluation steps (the evaluator does) and it never enforces the list and string
-limits (the constructs that build values do).
+limits (the constructs that build values do). The one exception is the matrix product, which, when given an
+evaluation host, checks its result size and charges its work itself because only the product knows its dimensions.
 
 The unit's behavior is specified by the `CanvasNetScad-ScadEvaluation-ScadValue-*` requirements (`Kinds`,
 `Truthiness`, `Equality`, `Ordering`, `Arithmetic`, `Products`, `Indexing`, `Ranges`, `NumberFormatting`,
@@ -106,11 +107,39 @@ of the same shape whose bad elements are `undef`), and the evaluator turns the i
   negates every element; string `+` is `undef` (use `str` or `concat`).
 - **Products** (`ScadValue.Matrix.cs`): the product of two equal-length numeric vectors is the **dot
   product**; a matrix (a rectangular list of numeric lists) times a vector, a vector times a matrix, and two
-  matrices give the linear-algebra product; mismatched dimensions give `undef`.
+  matrices give the linear-algebra product; mismatched dimensions give `undef`. Sums accumulate left to right,
+  and the right matrix is read through contiguous column arrays, which changes memory access but not the
+  summation order, so results are bit-identical.
 - **Equality and logic** (`==`, `!=`, `&&`, `||`, `!`) never produce a type error.
 
-The evaluator charges evaluation steps for vector work (the unit itself does not), because a product of two
-large matrices allocates quadratic work.
+**Products and limits.** The dot, matrix-by-vector, and vector-by-matrix products do work equal to the number of
+elements of their operands, which the evaluator already charges. A **matrix product** does `rows × inner ×
+columns` multiply-adds and creates `rows × columns` result elements, so it is the one operation whose cost
+exceeds its operands. `Binary` therefore takes an optional trailing `IScadBuiltinHost? host`; the evaluator
+always passes itself, and `null` (value-level use and unit tests only) means the product is unbounded and never
+polled. With a host, `MatrixProduct` does, in this fixed order, so one input always gives the same diagnostic:
+
+1. the shape check (a mismatch is `undef`, as before);
+2. `host.CheckListLength(rows × columns)` — the error `List too long (limit N)` when the result has more
+   elements than `MaxListLength`;
+3. `host.Charge(rows × columns + ceil(rows × inner × columns / MultiplyAddsPerStep))` with
+   `MultiplyAddsPerStep = 16`; `ProductWork` and `ProductSteps` use saturating `long` arithmetic, so no
+   dimension can overflow, and the evaluator's `Charge` itself saturates;
+4. the multiplication, which calls `host.Poll()` (the cancellation token) after every
+   `PollIntervalMultiplyAdds = 65,536` multiply-adds, counted across the whole product and inside long dot
+   products. The interval is counted, not timed, so the poll points are deterministic.
+
+_Calibration._ On the development machine (.NET 10, x64) a contiguous multiply-add costs about 1 ns (300 × 300
+by 300 × 300 takes about 20–30 ms) and an evaluation step about 30–50 ns, so 16 multiply-adds per step charges
+about two to three times the measured cost, leaving margin for slower hosts. The worst case is therefore a
+default budget of 50,000,000 steps spent entirely on products, about 800 million multiply-adds, about one
+second; a 1000 × 1000 by 1000 × 1000 product (about 63.5 million steps) is refused outright under the default
+limits. The constant is pinned by `ScadValueProduct_Binary_MatrixTimesMatrix_ChargesResultElementsPlusScaledWork`.
+The operator's own location is used for both diagnostics (the evaluator sets the host location to the `*`
+token before a product of two vectors).
+
+The evaluator charges evaluation steps for the remaining vector work (the unit itself does not): element
+counts before an operation, so a vector operation is charged before it allocates.
 
 ##### Indexing and members (`Index`, `Member`)
 

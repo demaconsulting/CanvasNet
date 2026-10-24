@@ -44,7 +44,8 @@ order reaches any output), so every member is thread-safe.
 
 **Host (`IScadBuiltinHost`).** `Location` (the location of the call, for warnings and errors),
 `MaxStringLength`, `UnseededRandom` (the per-evaluation random stream), `Warn`, `Unsupported`,
-`CheckListLength`, `CheckStringLength`, and `Charge`. The evaluator implements it in `ScadEvaluator.Host.cs`;
+`CheckListLength`, `CheckStringLength`, `Charge`, and `Poll` (a cancellation poll that long-running work calls at
+bounded, deterministic intervals; matrix products use it). The evaluator implements it in `ScadEvaluator.Host.cs`;
 the limit checks raise the same `ScadEvaluationException` as the evaluator's own checks.
 
 **Random generator (`ScadRandom`).** A SplitMix64 generator over a 64-bit state: `NextUInt64` advances the

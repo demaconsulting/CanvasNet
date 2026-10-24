@@ -25,7 +25,8 @@ rather than crash the process. Conversion is verified with endless and self-refe
 rejected instead of running forever.
 
 Unit tests reside in `ScadValueTests.cs` (kinds, truthiness, equality, hashing, ordering, immutability, depth),
-`ScadValueArithmeticTests.cs` (operators, products, indexing, members), `ScadValueFormatTests.cs` (text forms),
+`ScadValueArithmeticTests.cs` (operators, products, indexing, members), `ScadValueProductLimitTests.cs` (matrix
+product limits under a host), `ScadValueFormatTests.cs` (text forms),
 `ScadValueConversionTests.cs`, `ScadValueNestingTests.cs`, `ScadNumberFormatterTests.cs`, `ScadRangeTests.cs`, and
 `ScadTextTests.cs` within the `DemaConsulting.CanvasNet.Scad.Tests` project, in the `Evaluation` folder, with the
 shared helpers (`N`, `S`, `B`, `Vec`, `Nums`, `Nested`, `OnSmallStack`, and `WithCulture`) in
@@ -108,10 +109,24 @@ and the unary operators.
 `ScadValueArithmeticTests.ScadValue_Binary_MatrixTimesVector_ReturnsProduct`,
 `ScadValueArithmeticTests.ScadValue_Binary_VectorTimesMatrix_ReturnsProduct`,
 `ScadValueArithmeticTests.ScadValue_Binary_MatrixTimesMatrix_ReturnsProduct`,
-`ScadValueArithmeticTests.ScadValue_Binary_IdentityMatrixTimesVector_ReturnsSameVector`
+`ScadValueArithmeticTests.ScadValue_Binary_IdentityMatrixTimesVector_ReturnsSameVector`,
+`ScadValueProductLimitTests.ScadValueProduct_Binary_MatrixTimesMatrix_ResultOverListLimit_ThrowsBeforeCharging`,
+`ScadValueProductLimitTests.ScadValueProduct_Binary_MatrixTimesMatrix_ChargesResultElementsPlusScaledWork`,
+`ScadValueProductLimitTests.ScadValueProduct_Binary_MatrixTimesMatrix_OverStepBudget_ThrowsWithoutComputing`,
+`ScadValueProductLimitTests.ScadValueProduct_ProductWork_HugeDimensions_SaturatesWithoutOverflow`,
+`ScadValueProductLimitTests.ScadValueProduct_Binary_LargeProducts_PollCancellationAtBoundedIntervals`,
+`ScadValueProductLimitTests.ScadValueProduct_Binary_WithoutHost_ComputesUnbounded`
 
 Asserts the dot product, the three matrix and vector products with known results, undef for mismatched
-dimensions, and that the identity matrix leaves a vector unchanged.
+dimensions, and that the identity matrix leaves a vector unchanged. The limit scenarios use the recording
+`ScadTestBuiltinHost` (which counts steps and cancellation polls): a matrix product with more result elements than
+the list limit throws `List too long` before any step is charged (a product of exactly the limit succeeds); the
+charge is `rows × columns + ceil(rows × inner × columns / 16)` for several shapes, so the constant is pinned; a
+product over the step budget throws before it multiplies (no poll happens); the work computation saturates for
+`int.MaxValue` dimensions instead of overflowing; matrix-by-matrix, matrix-by-vector, and vector-by-matrix products
+poll exactly once per 65,536 multiply-adds (counted, so the assertion is exact and independent of timing), a poll
+that throws stops the product, and a single dot product longer than the interval polls inside itself; and, without
+a host, the product is unbounded and returns the same values as before.
 
 ##### CanvasNetScad-ScadEvaluation-ScadValue-Indexing: Indexing, Members, And Unicode Scalars
 

@@ -54,4 +54,7 @@ internal sealed partial class ScadEvaluator : IScadBuiltinHost
 
     /// <inheritdoc />
     void IScadBuiltinHost.Charge(long steps) => Charge(steps);
+
+    /// <inheritdoc />
+    void IScadBuiltinHost.Poll() => _settings.Cancellation.ThrowIfCancellationRequested();
 }

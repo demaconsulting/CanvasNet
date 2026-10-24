@@ -44,7 +44,8 @@ Unit tests reside in `ScadEvaluatorScopingTests.cs`, `ScadEvaluatorSpecialVariab
 `ScadEvaluatorFunctionTests.cs`, `ScadEvaluatorTailCallTests.cs`, `ScadEvaluatorModuleTests.cs`,
 `ScadEvaluatorControlFlowTests.cs`, `ScadEvaluatorComprehensionTests.cs`, `ScadEvaluatorExpressionTests.cs`,
 `ScadEvaluatorInstanceTreeTests.cs`, `ScadEvaluatorIncludeUseTests.cs`, `ScadEvaluatorOverrideTests.cs`,
-`ScadEvaluatorDiagnosticsTests.cs`, `ScadEvaluatorLimitTests.cs`, `ScadEvaluatorStackTests.cs`,
+`ScadEvaluatorDiagnosticsTests.cs`, `ScadEvaluatorLimitTests.cs`, `ScadEvaluatorProductLimitTests.cs`,
+`ScadEvaluatorStackTests.cs`,
 `ScadEvaluatorCancellationTests.cs`, `ScadEvaluatorDeterminismTests.cs`, `ScadEvaluatorEntryPointTests.cs`,
 `ScadEvaluatorFixtureTests.cs`, and `ScadEvaluationSinkTests.cs` within the `DemaConsulting.CanvasNet.Scad.Tests`
 project, in the `Evaluation` folder, with the shared helpers in `ScadEvaluatorTestSupport.cs` and
@@ -400,10 +401,18 @@ the over-limit error is identical on every stack size.
 **Tests**: `ScadEvaluatorLimitTests.ScadEvaluatorLimit_Steps_AtLimitSucceeds_OneOverFails`,
 `ScadEvaluatorLimitTests.ScadEvaluatorLimit_Steps_VectorArithmetic_IsChargedPerElement`,
 `ScadEvaluatorLimitTests.ScadEvaluatorLimit_Steps_SharedNestedVectors_AreChargedDeeply`,
-`ScadEvaluatorLimitTests.ScadEvaluatorLimit_Steps_LongScopeWalk_IsCharged`
+`ScadEvaluatorLimitTests.ScadEvaluatorLimit_Steps_LongScopeWalk_IsCharged`,
+`ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_MatrixTimesMatrix_WorkIsChargedUpFront`,
+`ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_MatrixTimesMatrix_DefaultLimits_LargeProductFailsFast`,
+`ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_MatrixTimesVector_StillComputesAndCharges`,
+`ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_VectorTimesScalar_ChargedBeforeAllocation`
 
 Asserts the exact step limit, that vector arithmetic is charged per element, that a nested vector shared many times
-is charged by its full contents, and that a long scope walk is charged.
+is charged by its full contents, and that a long scope walk is charged. The product scenarios assert that a matrix
+product is charged at least `n³ / 16` steps beyond its operands and that a smaller budget fails at the operator; that
+two 1000 × 1000 matrices (about the cost that ran for minutes before the work was charged) fail under the default
+limits in well under a second of work; that matrix-by-vector, vector-by-matrix, and dot products keep their results;
+and that scaling a vector is charged before it is allocated.
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-LoopLimit: Loop Iterations
 
@@ -419,10 +428,14 @@ iteration.
 **Tests**: `ScadEvaluatorLimitTests.ScadEvaluatorLimit_ListLength_AtLimitSucceeds_OneOverFails`,
 `ScadEvaluatorLimitTests.ScadEvaluatorLimit_StringLength_AtLimitSucceeds_OneOverFails`,
 `ScadEvaluatorLimitTests.ScadEvaluatorLimit_ListNesting_AtLimitSucceeds_OneOverFails`,
-`ScadEvaluatorComprehensionTests.ScadEvaluatorComprehension_ListLimit_AtLimitSucceeds_OneOverFails`
+`ScadEvaluatorComprehensionTests.ScadEvaluatorComprehension_ListLimit_AtLimitSucceeds_OneOverFails`,
+`ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_MatrixTimesMatrix_ResultAtListLimit_Succeeds_OneOverFails`,
+`ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_MatrixTimesMatrix_HugeResult_FailsBeforeAllocating`
 
 Asserts the list-length, string-length, and 256-level nesting limits at the limit and one over, including inside a
-comprehension.
+comprehension; that a matrix product whose result has exactly the list-length limit's elements succeeds and one more
+element fails with `List too long` located at the `*` operator; and that a product whose result would have four
+million elements fails quickly without allocating anything near that size.
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-InstanceLimit: Instance Count
 
@@ -445,10 +458,13 @@ single over-long line fails.
 `ScadEvaluatorCancellationTests.ScadEvaluatorCancellation_DuringEndlessTailRecursion_StopsAndKeepsEarlierEvents`,
 `ScadEvaluatorCancellationTests.ScadEvaluatorCancellation_DuringHugeLoop_Stops`,
 `ScadEvaluatorCancellationTests.ScadEvaluatorCancellation_DuringIncludeLoading_StopsBeforeNextFile`,
-`ScadEvaluatorCancellationTests.ScadEvaluatorCancellation_NotCanceled_EvaluatesNormally`
+`ScadEvaluatorCancellationTests.ScadEvaluatorCancellation_NotCanceled_EvaluatesNormally`,
+`ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_MatrixTimesMatrix_DuringProduct_CanBeCanceled`
 
 Asserts the cancellation behavior described in the requirement, always a plain `OperationCanceledException`, that
-the earlier events are kept, and that an uncanceled token changes nothing.
+the earlier events are kept, and that an uncanceled token changes nothing. The product scenario cancels from a timer
+while 21 products of 27 million multiply-adds each are running; the deterministic proof that a single product
+polls at fixed intervals is the `ScadValueProduct` poll scenario in the unit verification of `ScadValue`.
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-StackSafety: Restart On A Large Stack
 

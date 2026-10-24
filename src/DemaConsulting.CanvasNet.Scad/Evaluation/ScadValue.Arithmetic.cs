@@ -32,8 +32,12 @@ internal readonly partial struct ScadValue
     /// <param name="left">The left operand.</param>
     /// <param name="right">The right operand.</param>
     /// <param name="typeError">Set to <see langword="true"/> when the operands (or some of their elements) were invalid for the operator.</param>
+    /// <param name="host">
+    ///     The evaluation host that bounds the work and result size of a matrix product, or <see langword="null"/>
+    ///     for unbounded products (value-level use).
+    /// </param>
     /// <returns>The result.</returns>
-    public static ScadValue Binary(ScadBinaryOperator op, ScadValue left, ScadValue right, out bool typeError)
+    public static ScadValue Binary(ScadBinaryOperator op, ScadValue left, ScadValue right, out bool typeError, IScadBuiltinHost? host = null)
     {
         typeError = false;
         switch (op)
@@ -52,7 +56,7 @@ internal readonly partial struct ScadValue
             case ScadBinaryOperator.Or:
                 return FromBoolean(left.IsTrue || right.IsTrue);
             default:
-                return Arithmetic(op, left, right, ref typeError);
+                return Arithmetic(op, left, right, ref typeError, host);
         }
     }
 
@@ -157,8 +161,9 @@ internal readonly partial struct ScadValue
     /// <param name="left">The left operand.</param>
     /// <param name="right">The right operand.</param>
     /// <param name="typeError">Receives the error flag.</param>
+    /// <param name="host">The evaluation host for matrix products, or <see langword="null"/>; only a top-level product uses it.</param>
     /// <returns>The result.</returns>
-    private static ScadValue Arithmetic(ScadBinaryOperator op, ScadValue left, ScadValue right, ref bool typeError)
+    private static ScadValue Arithmetic(ScadBinaryOperator op, ScadValue left, ScadValue right, ref bool typeError, IScadBuiltinHost? host = null)
     {
         // Every arithmetic operator shares the scalar case; the vector forms differ per operator
         if (left._kind == ScadValueKind.Number && right._kind == ScadValueKind.Number)
@@ -169,7 +174,7 @@ internal readonly partial struct ScadValue
         return op switch
         {
             ScadBinaryOperator.Add or ScadBinaryOperator.Subtract => AddOrSubtract(op, left, right, ref typeError),
-            ScadBinaryOperator.Multiply => Multiply(left, right, ref typeError),
+            ScadBinaryOperator.Multiply => Multiply(left, right, ref typeError, host),
             ScadBinaryOperator.Divide => Divide(left, right, ref typeError),
             _ => InvalidOperand(ref typeError),
         };
@@ -231,12 +236,13 @@ internal readonly partial struct ScadValue
     /// <param name="left">The left operand.</param>
     /// <param name="right">The right operand.</param>
     /// <param name="typeError">Receives the error flag.</param>
+    /// <param name="host">The evaluation host that bounds a matrix product, or <see langword="null"/>.</param>
     /// <returns>The product, or <c>undef</c> for invalid operands.</returns>
-    private static ScadValue Multiply(ScadValue left, ScadValue right, ref bool typeError)
+    private static ScadValue Multiply(ScadValue left, ScadValue right, ref bool typeError, IScadBuiltinHost? host)
     {
         if (left._kind == ScadValueKind.Vector && right._kind == ScadValueKind.Vector)
         {
-            return ProductOfVectors((ScadVector)left._reference!, (ScadVector)right._reference!, ref typeError);
+            return ProductOfVectors((ScadVector)left._reference!, (ScadVector)right._reference!, ref typeError, host);
         }
 
         // Exactly one vector and one number: scale every element (recursively)

@@ -65,6 +65,22 @@ internal sealed class ScadTestBuiltinHost : IScadBuiltinHost
         }
     }
 
+    /// <summary>Gets the number of cancellation polls made.</summary>
+    public int Polls { get; private set; }
+
+    /// <summary>Gets the number of polls after which the next poll throws <see cref="OperationCanceledException"/>, or sets it (0 = never).</summary>
+    public int CancelAfterPolls { get; init; }
+
+    /// <inheritdoc />
+    public void Poll()
+    {
+        Polls++;
+        if (CancelAfterPolls > 0 && Polls >= CancelAfterPolls)
+        {
+            throw new OperationCanceledException();
+        }
+    }
+
     /// <summary>
     ///     Calls a built-in function with positional arguments and asserts that the name is a built-in.
     /// </summary>

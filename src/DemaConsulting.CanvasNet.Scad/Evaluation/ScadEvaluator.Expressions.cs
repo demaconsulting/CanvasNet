@@ -126,7 +126,15 @@ internal sealed partial class ScadEvaluator
         var right = Evaluate(binary.Right, scope);
         ChargeDeep(left);
         ChargeDeep(right);
-        var result = ScadValue.Binary(binary.Operator, left, right, out var typeError);
+
+        // A product of two vectors may be a matrix product: its limit and step diagnostics belong to the operator
+        if (binary.Operator == ScadBinaryOperator.Multiply && left.Kind == ScadValueKind.Vector && right.Kind == ScadValueKind.Vector)
+        {
+            _hostLocation = binary.Location;
+            _lastFrameLocation = binary.Location;
+        }
+
+        var result = ScadValue.Binary(binary.Operator, left, right, out var typeError, this);
         if (typeError)
         {
             Warn($"Cannot apply operator '{OperatorText(binary.Operator)}' to {left.KindDescription} and {right.KindDescription}", binary.Location);

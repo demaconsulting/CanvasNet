@@ -290,14 +290,20 @@ These formulas are pinned by tests in `ScadEvaluatorStackTests`, `ScadEvaluatorT
 **Steps.** Every expression node, statement, loop turn, and tail-call turn charges **one step**; an `echo`,
 `let`, or other construct that does extra work charges for it. Operations on vectors charge the **deep
 element count** (so shared nested vectors cannot dodge the limit; counting stops once the remaining budget is
-exceeded). Scope and special-chain walks of 32 hops or more charge `hops / 32` extra steps. Built-in
-functions charge their own O(n) work through the host. When the total exceeds `MaxEvaluationSteps` the
-error `Evaluation step limit exceeded (limit N)` is raised at the last frame's location.
+exceeded). A **matrix product** additionally charges its result elements plus its multiply-add work divided by
+16, rounded up, before it computes anything (see _ScadValue_, Products and limits). Scope and special-chain walks
+of 32 hops or more charge `hops / 32` extra steps. Built-in functions charge their own O(n) work through the host.
+Every element a vector operation creates is charged at least one step before it is allocated, so live elements
+are bounded by `MaxEvaluationSteps` as well as by the per-list `MaxListLength`; there is no separate
+total-element limit. When the total exceeds `MaxEvaluationSteps` the error
+`Evaluation step limit exceeded (limit N)` is raised at the last frame's location (at the `*` operator for a
+matrix product).
 
 **Loop iterations** are counted across the whole evaluation (every `for` turn and every comprehension loop
 turn), checked against `MaxLoopIterations`, and each turn also polls cancellation. **Instances** are counted at
 creation. **Cancellation** is polled whenever the step count crosses a multiple of 1,024, at every loop turn,
-at every file load, and at entry.
+at every file load, at entry, and (through the host's `Poll`) every 65,536 multiply-adds inside a matrix
+product.
 
 ##### Stack Safety: Restart On A Large Stack
 

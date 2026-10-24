@@ -351,7 +351,7 @@ internal sealed partial class ScadEvaluator
     /// <exception cref="OperationCanceledException">Thrown when cancellation was requested.</exception>
     private void Charge(long steps)
     {
-        _steps += steps;
+        _steps = steps > long.MaxValue - _steps ? long.MaxValue : _steps + steps;
         if (_steps > _limits.MaxEvaluationSteps)
         {
             throw Fail($"Evaluation step limit exceeded (limit {_limits.MaxEvaluationSteps})", _lastFrameLocation);

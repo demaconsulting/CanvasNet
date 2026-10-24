@@ -189,7 +189,9 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   of kept diagnostics are each bounded by a limit in `ScadLimits` that the caller can set (a limit is validated
   when set and enforced at its exact value). Exceeding one raises a `ScadEvaluationException` located at the
   offending construct. A range too large for the remaining loop budget is rejected before its first
-  iteration, and every built-in function that can grow its output checks the limits before building it.
+  iteration, and every built-in function that can grow its output checks the limits before building it. A matrix
+  product is bounded the same way: its result must fit the list-length limit and its multiply-add work is charged
+  against the step budget before it is computed.
 - **Deterministic recursion limit and stack safety.** The recursion limit is counted (a frame counter), never
   measured, so a program succeeds or fails identically on every platform and stack size. The pass runs inline
   and, only when the runtime stack guard reports that the caller's stack is too small, is discarded and
@@ -205,8 +207,8 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   number of statements include expansion may produce are bounded. A document with `include` or `use` but no
   base directory, library path, or resolver is an error rather than a search of the current directory.
 - **Cancellation.** A `CancellationToken` is honored before any work (and before any resolver call), between
-  files, every 1,024 evaluation steps, and at every loop turn; the exception is never wrapped, so even a
-  program with the step limit raised to the maximum can be abandoned.
+  files, every 1,024 evaluation steps, every 65,536 multiply-adds of a matrix product, and at every loop turn; the
+  exception is never wrapped, so even a program with the step limit raised to the maximum can be abandoned.
 - **Buffered, ordered event delivery.** Echo lines, warnings, and unsupported-feature reports are buffered
   while evaluating and delivered to the caller's handlers afterwards, in order, on the calling thread only
   (also when evaluation fails; a handler exception on a failure path cannot hide the failure). User code

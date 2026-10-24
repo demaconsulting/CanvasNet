@@ -78,7 +78,8 @@ public sealed class ScadLimits
 
     /// <summary>
     ///     Gets the maximum number of evaluation steps (one per expression, statement and loop turn, more for
-    ///     built-ins that process lists or strings); 50,000,000 by default.
+    ///     built-ins that process lists or strings and for the multiply-add work of matrix products);
+    ///     50,000,000 by default.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public long MaxEvaluationSteps
@@ -99,7 +100,8 @@ public sealed class ScadLimits
     }
 
     /// <summary>
-    ///     Gets the maximum number of elements in one list; 1,000,000 by default.
+    ///     Gets the maximum number of elements in one list, and in the result of a matrix product (rows times
+    ///     columns); 1,000,000 by default.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxListLength

@@ -464,9 +464,10 @@ sections:
                 title: >-
                   The ScadEvaluator unit shall charge evaluation steps for every expression,
                   statement, loop turn, and tail-call turn, more for work proportional to the size of
-                  the vectors it handles (counting shared nested vectors by their full contents) and
-                  to the length of a long scope walk, and shall abort with an evaluation error when
-                  the configured step limit is exceeded, while a program at the limit succeeds.
+                  the vectors it handles (counting shared nested vectors by their full contents), to
+                  the multiply-add work of matrix products, and to the length of a long scope walk,
+                  and shall abort with an evaluation error when the configured step limit is
+                  exceeded, while a program at the limit succeeds.
                 justification: |
                   Time is bounded by counting work, not by wall-clock time, so that the limit is
                   deterministic and cannot be dodged by cheap-looking but expensive constructs.
@@ -475,6 +476,10 @@ sections:
                   - ScadEvaluatorLimit_Steps_VectorArithmetic_IsChargedPerElement
                   - ScadEvaluatorLimit_Steps_SharedNestedVectors_AreChargedDeeply
                   - ScadEvaluatorLimit_Steps_LongScopeWalk_IsCharged
+                  - ScadEvaluatorProductLimit_MatrixTimesMatrix_WorkIsChargedUpFront
+                  - ScadEvaluatorProductLimit_MatrixTimesMatrix_DefaultLimits_LargeProductFailsFast
+                  - ScadEvaluatorProductLimit_MatrixTimesVector_StillComputesAndCharges
+                  - ScadEvaluatorProductLimit_VectorTimesScalar_ChargedBeforeAllocation
 
               - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-LoopLimit
                 title: >-
@@ -491,9 +496,10 @@ sections:
               - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-ListAndStringLimits
                 title: >-
                   The ScadEvaluator unit shall abort with an evaluation error when a list would exceed
-                  the configured list-length limit, when a string would exceed the configured
-                  string-length limit, or when a vector would be nested more than 256 levels deep,
-                  while a value exactly at a limit is accepted.
+                  the configured list-length limit (including a matrix product that would have more
+                  elements than that limit, refused before it is computed), when a string would
+                  exceed the configured string-length limit, or when a vector would be nested more
+                  than 256 levels deep, while a value exactly at a limit is accepted.
                 justification: |
                   Memory use is bounded by bounding the size and depth of every value a model can
                   construct.
@@ -502,6 +508,8 @@ sections:
                   - ScadEvaluatorLimit_StringLength_AtLimitSucceeds_OneOverFails
                   - ScadEvaluatorLimit_ListNesting_AtLimitSucceeds_OneOverFails
                   - ScadEvaluatorComprehension_ListLimit_AtLimitSucceeds_OneOverFails
+                  - ScadEvaluatorProductLimit_MatrixTimesMatrix_ResultAtListLimit_Succeeds_OneOverFails
+                  - ScadEvaluatorProductLimit_MatrixTimesMatrix_HugeResult_FailsBeforeAllocating
 
               - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-InstanceLimit
                 title: >-
@@ -529,7 +537,8 @@ sections:
                 title: >-
                   The ScadEvaluator unit shall honor a cancellation token: it shall do no work when
                   the token is already canceled, shall stop promptly when it is canceled during
-                  endless recursion or a huge loop, throwing OperationCanceledException that is never
+                  endless recursion, a huge loop or a large matrix product, throwing
+                  OperationCanceledException that is never
                   wrapped in an evaluation error, shall keep the events recorded before the
                   cancellation, and shall evaluate normally when the token is never canceled.
                 justification: |
@@ -539,6 +548,7 @@ sections:
                   - ScadEvaluatorCancellation_AlreadyCanceled_ThrowsBeforeAnyResolverCall
                   - ScadEvaluatorCancellation_DuringEndlessTailRecursion_StopsAndKeepsEarlierEvents
                   - ScadEvaluatorCancellation_DuringHugeLoop_Stops
+                  - ScadEvaluatorProductLimit_MatrixTimesMatrix_DuringProduct_CanBeCanceled
                   - ScadEvaluatorCancellation_DuringIncludeLoading_StopsBeforeNextFile
                   - ScadEvaluatorCancellation_NotCanceled_EvaluatesNormally
 
