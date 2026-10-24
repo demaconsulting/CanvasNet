@@ -315,7 +315,7 @@ classification.
 **Test**: `SceneRendererCsgTests.SceneRenderer_Render_CsgScene_ParallelAndSequentialAreByteIdentical`
 
 Renders a scene with coincident faces, a mirrored operand, and several leaves with a maximum degree
-of parallelism of 1, 2, and -1, repeated, for every supersampling factor, and asserts byte-identical
+of parallelism of 1, 2, and -1, repeated, at each supersampling factor, and asserts byte-identical
 surfaces (acceptance scenario A10).
 
 #### Acceptance Criteria

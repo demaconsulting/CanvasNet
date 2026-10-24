@@ -2840,12 +2840,14 @@ Rendering behavior worth knowing:
   transforms are within a small depth tolerance of each other and are also resolved, but along the
   edge-on silhouette of such walls a few isolated pixels (the tests tolerate up to 12 in an
   80 x 80 image across many views) can still be wrong. Features thinner than the depth tolerance
-  (one millionth of the scene size) are treated as coincident. Where you can, give a subtrahend a
+  (one millionth of the scene size; up to about one thousand times that between different mesh
+  instances seen at grazing angles) are treated as coincident. Where you can, give a subtrahend a
   small overlap instead of an exactly flush face.
 - **Mirrored transforms.** An operand under a negative-determinant (mirroring) transform renders
   as if the mirror were baked into its vertices; the inside-out check is unaffected by mirroring.
-- **Determinism.** The output is byte-identical for every `MaxDegreeOfParallelism`, every run, and
-  every `Supersampling` setting, as for scenes without CSG.
+- **Determinism.** At any given `Supersampling` setting, the output is byte-identical for every
+  `MaxDegreeOfParallelism` and every run, as for scenes without CSG. (Different `Supersampling`
+  factors naturally produce different antialiasing.)
 - **Bounds.** `Scene.ComputeBounds` includes every operand, even the removed parts, so
   `RenderFitted` and `Camera.FitToBounds` frame everything and may leave extra margin.
 

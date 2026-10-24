@@ -422,7 +422,8 @@ The algorithm is exact when all of the following hold:
 - **Epsilon scaling.** The base tie tolerance is `1e-6 * max(scene diameter, |largest depth|)`,
   the Phase 1 value, so it scales with the scene. Events closer than the tolerance anywhere (thin
   features smaller than it, or a grazing silhouette fold whose front and back surfaces lie within
-  it) are treated as coincident. This is why forcing the fragment path onto a union-only scene can
+  it) are treated as coincident; between different mesh instances the tolerance is widened by up to
+  1000 times at grazing angles (see the next bullet). This is why forcing the fragment path onto a union-only scene can
   differ from the z-buffer in a couple of grazing silhouette samples.
 - **Coincident and nearly coincident faces.** Two independently tessellated or placed meshes whose
   faces coincide mathematically rasterize from vertices rounded to 1/256 sample, so at oblique
@@ -503,7 +504,7 @@ tile work.
 The visible surface of a sample is a pure function of the tile's fragment set: fragments are sorted
 by a total order, tie groups and the choice within a group use no thread-dependent state, and tiles
 write disjoint pixels. The output is therefore byte-identical across `MaxDegreeOfParallelism` (1,
-2, and -1), repeated runs, and every supersampling factor.
+2, and -1) and repeated runs, at each supersampling factor.
 
 ### Pure-Managed Implementation
 

@@ -225,7 +225,9 @@ sections:
                   the subtrahend's own color lit from the flipped normal (never the back-face
                   color), an intersection shows the clipped silhouette, nested operations equal an
                   analytic box-CSG oracle (a fixed set of seeded random trees included), coincident
-                  and nearly coincident faces leave no speckle, and a camera inside solid material
+                  and nearly coincident faces leave no speckle (nearly coincident walls seen edge-on
+                  may leave at most a few isolated pixels, tolerated up to 12 in the stress test),
+                  and a camera inside solid material
                   sees only back-face shading, with the viewer outside the solid unaffected.
                 justification: |
                   These are the behaviors that make CSG output correct and usable: exact per-pixel
@@ -312,7 +314,7 @@ sections:
                 title: >-
                   The SceneRenderer shall produce byte-identical output for a CSG scene with
                   coincident faces, a mirrored operand and several leaves across tile parallelism
-                  (sequential, two-way, automatic), repeated runs and every supersampling factor.
+                  (sequential, two-way, automatic) and repeated runs, at each supersampling factor.
                 justification: |
                   Per-sample resolution is a pure function of the fragment set and tiles are
                   independent, so parallel rendering must reproduce the sequential image exactly;
