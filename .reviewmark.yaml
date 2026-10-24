@@ -1456,102 +1456,6 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/TileBinnerTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SampleResolverTests.cs"  # unit tests
 
-  # OTS-BuildMark Review (one per OTS item)
-  - id: OTS-BuildMark
-    title: Review that BuildMark Provides Required Functionality
-    paths:
-      - "docs/reqstream/ots/buildmark.yaml"                                 # OTS requirements
-      - "docs/design/ots/buildmark.md"                                      # OTS integration design
-      - "docs/verification/ots/buildmark.md"                               # OTS verification
-
-  # OTS-FileAssert Review (one per OTS item)
-  - id: OTS-FileAssert
-    title: Review that FileAssert Provides Required Functionality
-    paths:
-      - "docs/reqstream/ots/fileassert.yaml"                               # OTS requirements
-      - "docs/design/ots/fileassert.md"                                    # OTS integration design
-      - "docs/verification/ots/fileassert.md"                              # OTS verification
-
-  # OTS-Pandoc Review (one per OTS item)
-  - id: OTS-Pandoc
-    title: Review that Pandoc Provides Required Functionality
-    paths:
-      - "docs/reqstream/ots/pandoc.yaml"                                   # OTS requirements
-      - "docs/design/ots/pandoc.md"                                       # OTS integration design
-      - "docs/verification/ots/pandoc.md"                                 # OTS verification
-
-  # OTS-ReqStream Review (one per OTS item)
-  - id: OTS-ReqStream
-    title: Review that ReqStream Provides Required Functionality
-    paths:
-      - "docs/reqstream/ots/reqstream.yaml"                                # OTS requirements
-      - "docs/design/ots/reqstream.md"                                     # OTS integration design
-      - "docs/verification/ots/reqstream.md"                               # OTS verification
-
-  # OTS-ReviewMark Review (one per OTS item)
-  - id: OTS-ReviewMark
-    title: Review that ReviewMark Provides Required Functionality
-    paths:
-      - "docs/reqstream/ots/reviewmark.yaml"                               # OTS requirements
-      - "docs/design/ots/reviewmark.md"                                    # OTS integration design
-      - "docs/verification/ots/reviewmark.md"                             # OTS verification
-
-  # OTS-SarifMark Review (one per OTS item)
-  - id: OTS-SarifMark
-    title: Review that SarifMark Provides Required Functionality
-    paths:
-      - "docs/reqstream/ots/sarifmark.yaml"                                # OTS requirements
-      - "docs/design/ots/sarifmark.md"                                     # OTS integration design
-      - "docs/verification/ots/sarifmark.md"                              # OTS verification
-
-  # OTS-SonarMark Review (one per OTS item)
-  - id: OTS-SonarMark
-    title: Review that SonarMark Provides Required Functionality
-    paths:
-      - "docs/reqstream/ots/sonarmark.yaml"                                # OTS requirements
-      - "docs/design/ots/sonarmark.md"                                     # OTS integration design
-      - "docs/verification/ots/sonarmark.md"                              # OTS verification
-
-  # OTS-SysML2Tools Review (one per OTS item)
-  - id: OTS-SysML2Tools
-    title: Review that SysML2Tools Provides Required Functionality
-    paths:
-      - "docs/reqstream/ots/sysml2tools.yaml"                              # OTS requirements
-      - "docs/design/ots/sysml2tools.md"                                   # OTS integration design
-      - "docs/verification/ots/sysml2tools.md"                            # OTS verification
-
-  # OTS-SystemNumericsTensors Review (one per OTS item)
-  - id: OTS-SystemNumericsTensors
-    title: Review that System.Numerics.Tensors Provides Required Functionality
-    paths:
-      - "docs/reqstream/ots/system-numerics-tensors.yaml"                  # OTS requirements
-      - "docs/design/ots/system-numerics-tensors.md"                       # OTS integration design
-      - "docs/verification/ots/system-numerics-tensors.md"                # OTS verification
-
-  # OTS-VersionMark Review (one per OTS item)
-  - id: OTS-VersionMark
-    title: Review that VersionMark Provides Required Functionality
-    paths:
-      - "docs/reqstream/ots/versionmark.yaml"                              # OTS requirements
-      - "docs/design/ots/versionmark.md"                                   # OTS integration design
-      - "docs/verification/ots/versionmark.md"                           # OTS verification
-
-  # OTS-WeasyPrint Review (one per OTS item)
-  - id: OTS-WeasyPrint
-    title: Review that WeasyPrint Provides Required Functionality
-    paths:
-      - "docs/reqstream/ots/weasyprint.yaml"                              # OTS requirements
-      - "docs/design/ots/weasyprint.md"                                   # OTS integration design
-      - "docs/verification/ots/weasyprint.md"                            # OTS verification
-
-  # OTS-xUnit Review (one per OTS item)
-  - id: OTS-xUnit
-    title: Review that xUnit Provides Required Functionality
-    paths:
-      - "docs/reqstream/ots/xunit.yaml"                                   # OTS requirements
-      - "docs/design/ots/xunit.md"                                        # OTS integration design
-      - "docs/verification/ots/xunit.md"                                 # OTS verification
-
   # ---------------------------------------------------------------------------------------------
   # CanvasNetScad review-sets (clean-room OpenSCAD-language front end)
   # Provenance check for every CanvasNetScad set: reviewers confirm that the reviewed items are original
@@ -1682,3 +1586,99 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Scad/Language/ScadTreeDepth.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadParser*.cs"  # unit tests and test support
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadAstDumper.cs"  # test support
+
+  # OTS-BuildMark Review (one per OTS item)
+  - id: OTS-BuildMark
+    title: Review that BuildMark Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/buildmark.yaml"                                 # OTS requirements
+      - "docs/design/ots/buildmark.md"                                      # OTS integration design
+      - "docs/verification/ots/buildmark.md"                               # OTS verification
+
+  # OTS-FileAssert Review (one per OTS item)
+  - id: OTS-FileAssert
+    title: Review that FileAssert Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/fileassert.yaml"                               # OTS requirements
+      - "docs/design/ots/fileassert.md"                                    # OTS integration design
+      - "docs/verification/ots/fileassert.md"                              # OTS verification
+
+  # OTS-Pandoc Review (one per OTS item)
+  - id: OTS-Pandoc
+    title: Review that Pandoc Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/pandoc.yaml"                                   # OTS requirements
+      - "docs/design/ots/pandoc.md"                                       # OTS integration design
+      - "docs/verification/ots/pandoc.md"                                 # OTS verification
+
+  # OTS-ReqStream Review (one per OTS item)
+  - id: OTS-ReqStream
+    title: Review that ReqStream Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/reqstream.yaml"                                # OTS requirements
+      - "docs/design/ots/reqstream.md"                                     # OTS integration design
+      - "docs/verification/ots/reqstream.md"                               # OTS verification
+
+  # OTS-ReviewMark Review (one per OTS item)
+  - id: OTS-ReviewMark
+    title: Review that ReviewMark Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/reviewmark.yaml"                               # OTS requirements
+      - "docs/design/ots/reviewmark.md"                                    # OTS integration design
+      - "docs/verification/ots/reviewmark.md"                             # OTS verification
+
+  # OTS-SarifMark Review (one per OTS item)
+  - id: OTS-SarifMark
+    title: Review that SarifMark Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/sarifmark.yaml"                                # OTS requirements
+      - "docs/design/ots/sarifmark.md"                                     # OTS integration design
+      - "docs/verification/ots/sarifmark.md"                              # OTS verification
+
+  # OTS-SonarMark Review (one per OTS item)
+  - id: OTS-SonarMark
+    title: Review that SonarMark Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/sonarmark.yaml"                                # OTS requirements
+      - "docs/design/ots/sonarmark.md"                                     # OTS integration design
+      - "docs/verification/ots/sonarmark.md"                              # OTS verification
+
+  # OTS-SysML2Tools Review (one per OTS item)
+  - id: OTS-SysML2Tools
+    title: Review that SysML2Tools Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/sysml2tools.yaml"                              # OTS requirements
+      - "docs/design/ots/sysml2tools.md"                                   # OTS integration design
+      - "docs/verification/ots/sysml2tools.md"                            # OTS verification
+
+  # OTS-SystemNumericsTensors Review (one per OTS item)
+  - id: OTS-SystemNumericsTensors
+    title: Review that System.Numerics.Tensors Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/system-numerics-tensors.yaml"                  # OTS requirements
+      - "docs/design/ots/system-numerics-tensors.md"                       # OTS integration design
+      - "docs/verification/ots/system-numerics-tensors.md"                # OTS verification
+
+  # OTS-VersionMark Review (one per OTS item)
+  - id: OTS-VersionMark
+    title: Review that VersionMark Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/versionmark.yaml"                              # OTS requirements
+      - "docs/design/ots/versionmark.md"                                   # OTS integration design
+      - "docs/verification/ots/versionmark.md"                           # OTS verification
+
+  # OTS-WeasyPrint Review (one per OTS item)
+  - id: OTS-WeasyPrint
+    title: Review that WeasyPrint Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/weasyprint.yaml"                              # OTS requirements
+      - "docs/design/ots/weasyprint.md"                                   # OTS integration design
+      - "docs/verification/ots/weasyprint.md"                            # OTS verification
+
+  # OTS-xUnit Review (one per OTS item)
+  - id: OTS-xUnit
+    title: Review that xUnit Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/xunit.yaml"                                   # OTS requirements
+      - "docs/design/ots/xunit.md"                                        # OTS integration design
+      - "docs/verification/ots/xunit.md"                                 # OTS verification

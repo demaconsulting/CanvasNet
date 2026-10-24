@@ -19,7 +19,7 @@ Phase 4 of `CanvasNetScad` is parse-only, so the system scenarios assert on what
 source rather than on geometry: that the three entry points (string, stream, and path) agree, that every
 authored fixture parses, that malformed fixtures fail at an exact file, line, and column, that directives and
 definitions are reported in source order, and that hostile input (excessive nesting, oversize source) fails
-closed with a typed, catchable exception. The error contract is part of what is verified:
+closed with a typed exception that callers can catch. The error contract is part of what is verified:
 `ScadSyntaxException` derives from `FormatException` (it does **not** derive from `InvalidDataException`, which
 is sealed in the base class library), while source longer than 4,194,304 characters throws a plain
 `InvalidDataException` because no source location is meaningful for it.

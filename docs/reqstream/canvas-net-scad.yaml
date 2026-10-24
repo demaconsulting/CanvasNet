@@ -138,8 +138,8 @@ sections:
         justification: |
           Source text may come from an untrusted origin; a stack overflow, which cannot be caught,
           or unbounded memory growth would take down the host process, so every resource the
-          parser uses must be bounded and every violation reported as a catchable, typed
-          exception.
+          parser uses must be bounded and every violation reported as a typed
+          exception that callers can catch.
         children:
           - CanvasNetScad-ScadLanguage-InputLimits
           - CanvasNetScad-ScadDocument-SourceLimit

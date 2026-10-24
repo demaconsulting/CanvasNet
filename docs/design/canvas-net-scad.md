@@ -243,7 +243,7 @@ fixture README, and the purpose of each unit design, and every `CanvasNetScad` r
 | `include`/`use` directives | Recorded (Phase 4) | File-scope only; never resolved or opened |
 | Public `ScadOpenOptions.BaseDirectory`, `LibraryPaths`, `FileResolver` | Accepted, not consumed | Consumed from Phase 5 |
 | Expression evaluation, variable scoping, special-variable semantics, built-in functions | Deferred (Phase 5) | Adds `ScadEvaluationException` and `ScadLimits` |
-| Module resolution, `include`/`use` file resolution, sandboxing policy | Deferred (Phase 5) | Governed by the open options |
+| Module resolution, `include`/`use` file resolution, file-access sandbox policy | Deferred (Phase 5) | Governed by the open options |
 | Primitive solids and 2D shapes, transforms, boolean operations, extrusions | Deferred (Phase 6) | Mapped onto `CanvasNetRender3D` |
 | Public render entry point, render options, unsupported-feature reporting | Deferred (Phase 6) | Adds `Render`, `ScadRenderOptions`, `ScadUnsupportedFeature` types and the diagnostics |
 | Packaging as a NuGet package, README and user guide | Deferred (Phase 6) | `IsPackable` is `false` until then |
