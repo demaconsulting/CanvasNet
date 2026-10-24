@@ -74,7 +74,7 @@ and a deterministic per-tile fragment budget.
 - **`CsgOperandValidator` feature tokens**: `render3d-csg-open-mesh`,
   `render3d-csg-non-manifold-edge`, `render3d-csg-inconsistent-winding`,
   `render3d-csg-degenerate-triangle`, `render3d-csg-inverted-mesh`,
-  `render3d-csg-singular-transform`, and `render3d-csg-near-plane-clips-operands`; the report
+  `render3d-csg-singular-transform`; the report
   table is in _CanvasNetRender3D System Design_, Operand Validation Contract.
 - **Constants**: tile size 32 x 32 output pixels; a cancellation check every 4096 triangles (also
   while collecting fragments); depth tolerance factor 1e-6; automatic near floor factor 1e-4; near
@@ -105,8 +105,7 @@ and a deterministic per-tile fragment budget.
    incident triangle), tracking the component-wise view-space minimum and maximum. The token is
    checked per instance. On the CSG path, `CsgOperandValidator.ValidateTransformed` then checks
    every instance's world transform and view-space triangles (only when validation is enabled; see
-   _Operand validation_), and `CsgOperandValidator.ValidateNearPlane` runs once
-   with the camera's explicit near plane and the smallest view depth (still before any tile work).
+   _Operand validation_). The camera's near plane is not validated.
 5. **Depth statistics**: nearest depth `-max.Z`, farthest depth `-min.Z`, and the diameter of the
    view-space bounding box, over **all** instances (operands included).
 6. **Clip range**: a `NearPlane`/`FarPlane` set on the camera wins. Otherwise, for a perspective
@@ -192,8 +191,9 @@ paths is analyzed and reported once), checks the token per instance, skips meshe
 and for each remaining node reports, in this fixed order, `render3d-csg-open-mesh` (boundary edge),
 `render3d-csg-non-manifold-edge`, `render3d-csg-inconsistent-winding`,
 `render3d-csg-degenerate-triangle` (a repeated index or coincident or collinear vertices, as
-`Mesh.OperandDefects` reports), and `render3d-csg-inverted-mesh` (a defect-free closed mesh
-with negative signed volume beyond its rounding error bound, `Mesh.IsInverted`). Every mesh instance
+`Mesh.OperandDefects` reports, evaluated on position-welded indices), and
+`render3d-csg-inverted-mesh` (a defect-free closed mesh in which a connected shell's signed volume
+disagrees with its nesting depth parity, `Mesh.IsInverted`). Every mesh instance
 of the scene is validated, not
 only the direct operands of a difference or intersection: all leaves use the signed counter, so an
 open mesh in a top-level union branch would also vanish. Inversion is a property of the mesh and
@@ -216,10 +216,10 @@ otherwise the handler is invoked with `SceneRenderUnsupportedFeature(feature, me
 report on the calling thread and rendering proceeds tolerantly (deterministic, bounded, and visibly
 wrong where an operand is not a solid).
 
-`ValidateNearPlane` reports `render3d-csg-near-plane-clips-operands` (node `null`) once, with the
-same delivery rules, when the camera's explicit `NearPlane` is greater than the smallest vertex view
-depth of the scene. Whole-ray initial-state inference needs the near plane to clip nothing; the
-automatic near plane never does except when the eye is inside or behind geometry.
+The camera's near plane is deliberately not validated: the resolver infers the ray's initial state
+from the fragments that remain after near clipping, so an explicit `NearPlane` (including a camera
+inside an operand) yields the CSG solid clipped to the near plane of the view frustum, with no cap
+surfaces drawn on that plane.
 
 ##### `SampleResolver.Resolve`
 
@@ -247,8 +247,8 @@ triangle preparation. The exception contract of `Render` beyond argument errors:
   partially rendered surface disposed. Cancellation takes precedence over a budget failure.
 - `RenderBudgetExceededException` when a CSG tile needs more fragments than `MaxFragmentsPerTile`;
   identical content for sequential and parallel rendering, never wrapped, surface disposed.
-- `SceneRenderUnsupportedFeatureException` in strict mode for the first unsuitable operand (or the
-  near-plane report), thrown before any rendering work so no surface exists yet.
+- `SceneRenderUnsupportedFeatureException` in strict mode for the first unsuitable operand, thrown
+  before any rendering work so no surface exists yet.
 
 Without strict mode, operand problems are delivered to the handler and are not errors. A handler
 that throws propagates unchanged, and one that cancels the token stops the validation with

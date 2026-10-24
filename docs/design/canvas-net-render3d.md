@@ -410,12 +410,13 @@ The algorithm is exact when all of the following hold:
 
 ### Known Limits
 
-- **Near plane.** Whole-ray initial-state inference needs the near plane to clip nothing. The
-  automatic near and far planes derive from all instances' vertices, so no operand is clipped unless
-  the eye is inside or behind geometry. An explicit `Camera.NearPlane` greater than the smallest
-  vertex view depth clips operands and is reported as `render3d-csg-near-plane-clips-operands`.
-  Fragments beyond the far plane are retained for the inference and are only filtered when chosen
-  as the visible surface.
+- **Near plane.** The camera's near plane clips the fragments in front of it, and the counter at the
+  start of the ray is inferred from the remaining fragments, i.e. it is the state _at the near
+  plane_. The result is therefore exactly the CSG solid clipped to the near plane of the view
+  frustum; no cap surfaces are drawn on the near plane (the cut is open). Any near plane, derived or
+  explicit, is supported, including a camera inside an operand (for example inside a hollow room,
+  which shows the room's walls); it is not reported. Fragments beyond the far plane are retained
+  for the inference and are only filtered when chosen as the visible surface.
 - **Scene bounds are conservative.** `Scene.ComputeBounds` includes every operand, even the
   subtracted or intersected-away parts, so `FitToBounds` frames everything and an image may show
   more margin than the result alone needs.
@@ -483,6 +484,9 @@ internal forced-fragment-path test seam), when `UnsupportedFeatureHandler` is se
   Otherwise the handler receives `SceneRenderUnsupportedFeature(feature, message, node)` for each
   report, on the calling thread, and rendering proceeds tolerantly: the output is deterministic and
   bounded, and visibly wrong where an operand is not a solid.
+- Meshes are analyzed geometrically: vertices at exactly the same position are welded before the
+  topology, shell and orientation analysis, so a closed mesh that stores its corners several times
+  (STL style) is closed and its inversion is checked.
 - Inversion is a property of the mesh data, independent of the instance's mirroring transform: the
   renderer reverses the winding of a mirrored instance, which restores the orientation the mesh data
   describes, so an outward mesh stays outward and an inward mesh stays inward under a mirror.
@@ -494,10 +498,11 @@ internal forced-fragment-path test seam), when `UnsupportedFeatureHandler` is se
 | `render3d-csg-non-manifold-edge` | An edge is shared by three or more triangles | The mesh node |
 | `render3d-csg-inconsistent-winding` | Neighboring triangles are wound in conflicting directions | The mesh node |
 | `render3d-csg-degenerate-triangle` | The mesh has zero-area triangles (a repeated index, or distinct vertices that are coincident or collinear) | The mesh node |
-| `render3d-csg-inverted-mesh` | A defect-free closed mesh has negative signed volume beyond its rounding error bound (`Mesh.IsInverted`) | The mesh node |
+| `render3d-csg-inverted-mesh` | A defect-free closed (welded) mesh has a connected shell whose signed volume (beyond its rounding error bound) disagrees with its nesting depth parity: an outermost shell or one nested at even depth must be positive, a cavity wall at odd depth negative (`Mesh.IsInverted`) | The mesh node |
 | `render3d-csg-singular-transform` | The instance's composed world transform has a zero or non-finite determinant (for example a zero scale), so the whole mesh collapses (reported per instance) | The mesh node of that instance |
-| `render3d-csg-near-plane-clips-operands` | The explicit `Camera.NearPlane` is greater than the smallest vertex view depth of the scene | None |
 <!-- markdownlint-enable MD013 -->
+
+The camera's near plane is not validated: a camera inside an operand is supported (see _Known Limits_).
 
 The mesh-level tokens depend only on the mesh and are reported once per node. Because a world
 transform can destroy a valid closed mesh, a second, transform-dependent check runs per **instance**

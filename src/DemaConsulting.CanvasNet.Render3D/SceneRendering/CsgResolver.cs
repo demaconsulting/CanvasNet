@@ -11,8 +11,12 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///         (entering, +1) and back-facing (leaving, -1) fragments, so a leaf's <em>signed crossing
 ///         counter</em> is positive exactly while the ray is inside the leaf. The counter at the start
 ///         of the ray is minus the sum of the signs of <em>all</em> the sample's fragments (a ray
-///         starting inside a solid sees only the exit), which makes a camera inside material correct
-///         as long as the near plane clips nothing. Fragments beyond the far distance take part in
+///         starting inside a solid sees only the exit), which makes a camera inside material correct.
+///         The camera's near plane clips the fragments in front of it, so the counter at the start of
+///         the ray is the state <em>at the near plane</em>, exactly what the remaining fragments imply:
+///         the result is the CSG solid clipped to the near plane of the view frustum (no cap surfaces are
+///         drawn on the near plane; the cut is simply open). A camera inside a hollow room therefore
+///         sees the room's walls. Fragments beyond the far distance take part in
 ///         this inference.
 ///     </para>
 ///     <para>

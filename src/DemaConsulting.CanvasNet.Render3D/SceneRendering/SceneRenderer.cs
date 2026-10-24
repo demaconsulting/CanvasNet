@@ -179,19 +179,14 @@ public static class SceneRenderer
         // Flatten and transform in double precision; the depth range drives near/far/tolerance
         var instances = TransformInstances(scene, view, cancellationToken, out var stats);
         cancellationToken.ThrowIfCancellationRequested();
-        if (csgScene)
+        if (csgScene && CsgOperandValidator.IsEnabled(options))
         {
             // Transform-dependent operand problems (singular or flattening world transforms) per instance
-            if (CsgOperandValidator.IsEnabled(options))
+            foreach (var instance in instances)
             {
-                foreach (var instance in instances)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    CsgOperandValidator.ValidateTransformed(options, instance.Source, instance.Vertices);
-                }
+                cancellationToken.ThrowIfCancellationRequested();
+                CsgOperandValidator.ValidateTransformed(options, instance.Source, instance.Vertices);
             }
-
-            CsgOperandValidator.ValidateNearPlane(options, camera.NearPlane, stats.HasVertices, stats.MinDepth);
         }
 
         // Prepare the screen-space triangles (shading, clipping, projection, fixed point)

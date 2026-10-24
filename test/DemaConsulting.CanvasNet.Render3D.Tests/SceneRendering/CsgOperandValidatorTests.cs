@@ -435,47 +435,140 @@ public class CsgOperandValidatorTests
     }
 
     /// <summary>
-    ///     Validates the near-plane report: an explicit near plane in front of operand geometry is reported once,
-    ///     and an explicit near plane behind all geometry is not.
+    ///     Validates that an explicit near plane in front of operand geometry is not a reportable problem
+    ///     (the resolver supports it): nothing is delivered and strict mode does not throw.
     /// </summary>
     [Fact]
-    public void CsgOperandValidator_ValidateNearPlane_ClippedOperands_Reported()
+    public void CsgOperandValidator_Validate_ExplicitNearPlaneInFrontOfOperands_ReportsNothing()
     {
-        // Arrange: the nearest cube vertex is about 8 units from the eye
+        // Arrange: the nearest cube vertex is about 8 units from the eye, the near plane is at 9.5
         var scene = new Scene(new CsgNode(CsgOperation.Difference, [new MeshNode(Cube), new MeshNode(Render3DTestHelpers.CreateBoxMesh(new Vector3D(0, 0, 0), new Vector3D(2, 2, 2)))]));
-        var eye = new Vector3D(10, 0, 0);
-        var clipping = new Camera { Eye = eye, Target = Vector3D.Zero, Up = Vector3D.UnitZ, NearPlane = 9.5 };
-        var clear = new Camera { Eye = eye, Target = Vector3D.Zero, Up = Vector3D.UnitZ, NearPlane = 2.0 };
-        var clippedReports = new List<SceneRenderUnsupportedFeature>();
-        var clearReports = new List<SceneRenderUnsupportedFeature>();
+        var camera = new Camera { Eye = new Vector3D(10, 0, 0), Target = Vector3D.Zero, Up = Vector3D.UnitZ, NearPlane = 9.5 };
+        var reports = new List<SceneRenderUnsupportedFeature>();
+        var options = new SceneRenderOptions { Supersampling = 1, UnsupportedFeatureHandler = reports.Add, ThrowOnUnsupportedFeature = true };
 
         // Act
-        using var a = SceneRenderer.Render(scene, clipping, 32, 32, new SceneRenderOptions { Supersampling = 1, UnsupportedFeatureHandler = clippedReports.Add }, TestContext.Current.CancellationToken);
-        using var b = SceneRenderer.Render(scene, clear, 32, 32, new SceneRenderOptions { Supersampling = 1, UnsupportedFeatureHandler = clearReports.Add }, TestContext.Current.CancellationToken);
+        using var surface = SceneRenderer.Render(scene, camera, 32, 32, options, TestContext.Current.CancellationToken);
 
         // Assert
-        var report = Assert.Single(clippedReports);
-        Assert.Equal("render3d-csg-near-plane-clips-operands", report.Feature);
-        Assert.Null(report.Node);
-        Assert.Empty(clearReports);
+        Assert.Empty(reports);
+        Assert.Equal(32, surface.Width);
     }
 
     /// <summary>
-    ///     Validates that strict mode throws for a clipping near plane before any tile work.
+    ///     Validates that a valid shell plus a disjoint, non-nested inside-out shell is reported as inverted even though
+    ///     the total signed volume is positive (a 4 x 4 x 4 cube and a reversed 1 x 1 x 1 cube at x = 5).
     /// </summary>
     [Fact]
-    public void CsgOperandValidator_ValidateNearPlane_StrictMode_Throws()
+    public void CsgOperandValidator_Validate_DisjointInvertedShell_ReportsInvertedMesh()
     {
         // Arrange
-        var scene = new Scene(new CsgNode(CsgOperation.Difference, [new MeshNode(Cube), new MeshNode(Render3DTestHelpers.CreateBoxMesh(new Vector3D(0, 0, 0), new Vector3D(2, 2, 2)))]));
-        var camera = new Camera { Eye = new Vector3D(10, 0, 0), Target = Vector3D.Zero, Up = Vector3D.UnitZ, NearPlane = 9.5 };
+        var mesh = Render3DTestHelpers.Combine(
+            Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, new Vector3D(4, 4, 4)),
+            Render3DTestHelpers.CreateBoxMesh(new Vector3D(5, 0, 0), Vector3D.One).Reverse());
+        var node = new MeshNode(mesh);
+        var reports = new List<SceneRenderUnsupportedFeature>();
 
         // Act
-        var ex = Assert.Throws<SceneRenderUnsupportedFeatureException>(() =>
-            SceneRenderer.Render(scene, camera, 32, 32, new SceneRenderOptions { ThrowOnUnsupportedFeature = true }, TestContext.Current.CancellationToken));
+        RenderDifference(node, reports);
 
         // Assert
-        Assert.Equal("render3d-csg-near-plane-clips-operands", ex.Feature);
+        Assert.Equal(63.0, mesh.SignedVolume, 1e-9);
+        var report = Assert.Single(reports);
+        Assert.Equal("render3d-csg-inverted-mesh", report.Feature);
+        Assert.Same(node, report.Node);
+    }
+
+    /// <summary>
+    ///     Validates that a hollow solid (outward outer shell, inward cavity shell) is not reported.
+    /// </summary>
+    [Fact]
+    public void CsgOperandValidator_Validate_HollowSolid_ReportsNothing()
+    {
+        // Arrange
+        var hollow = Render3DTestHelpers.Combine(
+            Render3DTestHelpers.CreateBoxMesh(new Vector3D(-5, -5, -5), new Vector3D(10, 10, 10)),
+            Render3DTestHelpers.CreateBoxMesh(new Vector3D(-2, -2, -2), new Vector3D(4, 4, 4)).Reverse());
+        var reports = new List<SceneRenderUnsupportedFeature>();
+
+        // Act
+        RenderDifference(new MeshNode(hollow), reports);
+
+        // Assert
+        Assert.Empty(reports);
+    }
+
+    /// <summary>
+    ///     Validates the three-level nesting: a solid inside a cavity inside a solid is valid, while wrong
+    ///     orientation at any level (here the solid in the cavity wound inward) is reported.
+    /// </summary>
+    [Fact]
+    public void CsgOperandValidator_Validate_NestedThreeLevelShells_JudgedByNestingParity()
+    {
+        // Arrange: outer (depth 0, outward), cavity (depth 1, inward), core (depth 2, outward or wrongly inward)
+        var outer = Render3DTestHelpers.CreateBoxMesh(new Vector3D(-5, -5, -5), new Vector3D(10, 10, 10));
+        var cavity = Render3DTestHelpers.CreateBoxMesh(new Vector3D(-3, -3, -3), new Vector3D(6, 6, 6)).Reverse();
+        var core = Render3DTestHelpers.CreateBoxMesh(new Vector3D(-1, -1, -1), new Vector3D(2, 2, 2));
+        var valid = Render3DTestHelpers.Combine(outer, cavity, core);
+        var wrongCore = Render3DTestHelpers.Combine(outer, cavity, core.Reverse());
+        var wrongCavity = Render3DTestHelpers.Combine(outer, cavity.Reverse(), core);
+        var validReports = new List<SceneRenderUnsupportedFeature>();
+        var wrongCoreReports = new List<SceneRenderUnsupportedFeature>();
+        var wrongCavityReports = new List<SceneRenderUnsupportedFeature>();
+
+        // Act
+        RenderDifference(new MeshNode(valid), validReports);
+        RenderDifference(new MeshNode(wrongCore), wrongCoreReports);
+        RenderDifference(new MeshNode(wrongCavity), wrongCavityReports);
+
+        // Assert
+        Assert.Empty(validReports);
+        Assert.Equal(["render3d-csg-inverted-mesh"], wrongCoreReports.Select(r => r.Feature).ToArray());
+        Assert.Equal(["render3d-csg-inverted-mesh"], wrongCavityReports.Select(r => r.Feature).ToArray());
+    }
+
+    /// <summary>
+    ///     Validates that an unwelded (one-vertex-per-corner, STL-style) closed cube is not reported as open,
+    ///     even in strict mode, while an unwelded reversed cube is reported as inverted.
+    /// </summary>
+    [Fact]
+    public void CsgOperandValidator_Validate_UnweldedClosedCube_NotOpenAndInversionDetected()
+    {
+        // Arrange
+        var unwelded = Render3DTestHelpers.ToUnwelded(Cube);
+        var unweldedReversed = Render3DTestHelpers.ToUnwelded(Cube.Reverse());
+        var healthy = new List<SceneRenderUnsupportedFeature>();
+        var inverted = new List<SceneRenderUnsupportedFeature>();
+
+        // Act: strict mode must not throw for the healthy unwelded cube
+        RenderDifference(
+            new MeshNode(unwelded),
+            healthy,
+            _ => new SceneRenderOptions { Supersampling = 1, UnsupportedFeatureHandler = healthy.Add, ThrowOnUnsupportedFeature = true });
+        RenderDifference(new MeshNode(unweldedReversed), inverted);
+
+        // Assert
+        Assert.Equal(36, unwelded.VertexCount);
+        Assert.Empty(healthy);
+        Assert.Equal(["render3d-csg-inverted-mesh"], inverted.Select(r => r.Feature).ToArray());
+    }
+
+    /// <summary>
+    ///     Validates that an unwelded mesh with a genuine hole is still reported as open.
+    /// </summary>
+    [Fact]
+    public void CsgOperandValidator_Validate_UnweldedOpenCube_StillReportsOpenMesh()
+    {
+        // Arrange: drop one triangle of the unwelded cube
+        var unwelded = Render3DTestHelpers.ToUnwelded(Cube);
+        var open = new Mesh(unwelded.Vertices, unwelded.TriangleIndices.Take(unwelded.TriangleIndices.Count - 3));
+        var reports = new List<SceneRenderUnsupportedFeature>();
+
+        // Act
+        RenderDifference(new MeshNode(open), reports);
+
+        // Assert
+        Assert.Contains(reports, r => r.Feature == "render3d-csg-open-mesh");
     }
 
     /// <summary>
@@ -531,7 +624,6 @@ public class CsgOperandValidatorTests
         // Arrange / Act / Assert
         Assert.Throws<ArgumentNullException>(() => CsgOperandValidator.IsEnabled(null!));
         Assert.Throws<ArgumentNullException>(() => CsgOperandValidator.Validate(null!, SceneRenderOptions.Default, CancellationToken.None));
-        Assert.Throws<ArgumentNullException>(() => CsgOperandValidator.ValidateNearPlane(null!, 1.0, true, 0.0));
         Assert.Throws<ArgumentNullException>(() => CsgOperandValidator.ValidateTransformed(null!, new SceneInstance(Cube, Matrix4x4D.Identity, null, 0, new MeshNode(Cube)), []));
         Assert.Throws<ArgumentNullException>(() => CsgOperandValidator.ValidateTransformed(SceneRenderOptions.Default, new SceneInstance(Cube, Matrix4x4D.Identity, null, 0, new MeshNode(Cube)), null!));
         Assert.False(CsgOperandValidator.IsEnabled(SceneRenderOptions.Default));

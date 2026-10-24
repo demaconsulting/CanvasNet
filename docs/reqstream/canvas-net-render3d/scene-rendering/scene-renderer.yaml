@@ -269,7 +269,11 @@ sections:
                   any rendering work and observing cancellation, validate every mesh node once in scene
                   pre-order and report each open mesh, non-manifold edge, inconsistent winding,
                   degenerate triangle (a repeated index or a zero-area triangle that the renderer
-                  would discard) and inside-out (inverted) mesh as a SceneRenderUnsupportedFeature
+                  would discard) and inside-out (inverted) mesh, where inversion means a connected
+                  shell of the position-welded mesh whose orientation disagrees with its nesting
+                  (an outermost shell or a solid nested at even depth must be outward, a cavity wall
+                  inward) so that hollow solids are valid, and an unwelded closed mesh is not open,
+                  as a SceneRenderUnsupportedFeature
                   with a stable feature token to the handler, or throw
                   SceneRenderUnsupportedFeatureException for the first problem in strict mode, while
                   rendering tolerantly otherwise; it shall additionally check every mesh instance
@@ -277,13 +281,17 @@ sections:
                   (zero-determinant or non-finite) world transform, or triangles that are degenerate
                   after the transform by the renderer's own discard criterion, naming the offending
                   node; it shall judge inversion independently of a mirroring
-                  transform, report an explicit near plane that clips operand geometry, and neither
+                  transform, neither report nor reject an explicit near plane or a camera inside an
+                  operand, and neither
                   analyze nor report anything for union-only scenes or when neither a handler nor
                   strict mode is set.
                 justification: |
                   A non-solid operand silently produces a wrong image; naming the problem with a
                   machine-matchable token lets callers (such as a language front end) translate it into
-                  their own diagnostics, while the tolerant default keeps rendering robust.
+                  their own diagnostics, while the tolerant default keeps rendering robust. A
+                  shell wound against its nesting is dropped or inverted in the image even when the
+                  total volume is positive, whereas hollow solids and STL-style unwelded closed
+                  meshes render correctly and must not be reported.
                 tests:
                   - CsgOperandValidator_Validate_DefectKind_ReportsFeatureAndRendersAnyway
                   - CsgOperandValidator_Validate_HealthyOperands_ReportsNothing
@@ -294,8 +302,14 @@ sections:
                   - CsgOperandValidator_Validate_AllInstances_DeduplicatedInPreOrder
                   - CsgOperandValidator_Validate_MirroredOperands_InversionIsIndependentOfDeterminant
                   - CsgOperandValidator_Validate_MirroredInvertedOperand_RendersLikeBakedMesh
-                  - CsgOperandValidator_ValidateNearPlane_ClippedOperands_Reported
-                  - CsgOperandValidator_ValidateNearPlane_StrictMode_Throws
+                  - CsgOperandValidator_Validate_ExplicitNearPlaneInFrontOfOperands_ReportsNothing
+                  - CsgOperandValidator_Validate_DisjointInvertedShell_ReportsInvertedMesh
+                  - CsgOperandValidator_Validate_HollowSolid_ReportsNothing
+                  - CsgOperandValidator_Validate_NestedThreeLevelShells_JudgedByNestingParity
+                  - CsgOperandValidator_Validate_UnweldedClosedCube_NotOpenAndInversionDetected
+                  - CsgOperandValidator_Validate_UnweldedOpenCube_StillReportsOpenMesh
+                  - SceneRenderer_Render_CameraInsideHollowRoomWithExplicitNearPlane_StrictModeShowsCavityWall
+                  - SceneRenderer_Render_UnweldedOperands_RenderIdenticallyToWelded
                   - CsgOperandValidator_Validate_RunsBeforeRendering
                   - CsgOperandValidator_Validate_CancelledFromHandler_ThrowsOperationCanceled
                   - CsgOperandValidator_ValidateTransformed_ZeroScaleOperand_Reported

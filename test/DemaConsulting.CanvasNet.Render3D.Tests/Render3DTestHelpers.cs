@@ -56,6 +56,33 @@ internal static class Render3DTestHelpers
             [0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]);
 
     /// <summary>
+    ///     Concatenates meshes into one multi-shell mesh (vertices and re-based indices appended in order).
+    /// </summary>
+    /// <param name="meshes">The meshes to combine.</param>
+    /// <returns>The combined mesh.</returns>
+    public static Mesh Combine(params Mesh[] meshes)
+    {
+        var vertices = new List<Vector3D>();
+        var indices = new List<int>();
+        foreach (var mesh in meshes)
+        {
+            var offset = vertices.Count;
+            vertices.AddRange(mesh.Vertices);
+            indices.AddRange(mesh.TriangleIndices.Select(i => i + offset));
+        }
+
+        return new Mesh(vertices, indices);
+    }
+
+    /// <summary>
+    ///     Creates the STL-style unwelded form of a mesh: every triangle gets three vertices of its own.
+    /// </summary>
+    /// <param name="mesh">The mesh to split into per-triangle vertices.</param>
+    /// <returns>An equivalent mesh with <c>3 * TriangleCount</c> vertices.</returns>
+    public static Mesh ToUnwelded(Mesh mesh) =>
+        new(mesh.TriangleIndices.Select(i => mesh.Vertices[i]).ToArray(), Enumerable.Range(0, mesh.TriangleIndices.Count));
+
+    /// <summary>
     ///     Asserts that a convex mesh is closed, has positive signed volume and that every
     ///     triangle's normal points away from the vertex centroid (i.e. winding is outward).
     /// </summary>

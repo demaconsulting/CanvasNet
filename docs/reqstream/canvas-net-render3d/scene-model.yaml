@@ -50,6 +50,7 @@ sections:
               - CanvasNetRender3D-SceneModel-Mesh-Bounds
               - CanvasNetRender3D-SceneModel-Mesh-Topology
               - CanvasNetRender3D-SceneModel-Mesh-TopologyDefects
+              - CanvasNetRender3D-SceneModel-Mesh-WeldedTopology
               - CanvasNetRender3D-SceneModel-Mesh-VolumeArea
               - CanvasNetRender3D-SceneModel-Mesh-Transform
               - CanvasNetRender3D-SceneModel-Mesh-Reverse

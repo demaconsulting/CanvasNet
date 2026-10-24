@@ -318,6 +318,112 @@ public class MeshTests
     }
 
     /// <summary>
+    ///     Validates that a valid shell plus a disjoint, non-nested inside-out shell is inverted although the total volume is positive.
+    /// </summary>
+    [Fact]
+    public void Mesh_IsInverted_DisjointInvertedShell_True()
+    {
+        // Arrange: 4-cube plus a reversed unit cube at x = 5 (total volume 64 - 1 = 63 > 0)
+        var mesh = Render3DTestHelpers.Combine(
+            Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, new Vector3D(4, 4, 4)),
+            Render3DTestHelpers.CreateBoxMesh(new Vector3D(5, 0, 0), Vector3D.One).Reverse());
+
+        // Act / Assert
+        Assert.True(mesh.IsClosed);
+        Assert.Equal(63.0, mesh.SignedVolume, 1e-9);
+        Assert.True(mesh.IsInverted);
+        Assert.True(mesh.IsInverted);
+    }
+
+    /// <summary>
+    ///     Validates that a disjoint outward shell next to a hollow solid does not disturb the hollow solid's validity.
+    /// </summary>
+    [Fact]
+    public void Mesh_IsInverted_HollowSolidPlusDisjointSolid_False()
+    {
+        // Arrange
+        var hollow = Render3DTestHelpers.Combine(
+            Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, new Vector3D(10, 10, 10)),
+            Render3DTestHelpers.CreateBoxMesh(new Vector3D(3, 3, 3), new Vector3D(4, 4, 4)).Reverse(),
+            Render3DTestHelpers.CreateBoxMesh(new Vector3D(20, 0, 0), Vector3D.One));
+
+        // Act / Assert
+        Assert.False(hollow.IsInverted);
+    }
+
+    /// <summary>
+    ///     Validates that three nested shells (solid, cavity, solid in the cavity) are valid and that a wrongly oriented level at any depth is inverted.
+    /// </summary>
+    [Fact]
+    public void Mesh_IsInverted_NestedThreeLevelShells_JudgedByDepthParity()
+    {
+        // Arrange
+        var outer = Render3DTestHelpers.CreateBoxMesh(new Vector3D(-5, -5, -5), new Vector3D(10, 10, 10));
+        var cavity = Render3DTestHelpers.CreateBoxMesh(new Vector3D(-3, -3, -3), new Vector3D(6, 6, 6)).Reverse();
+        var core = Render3DTestHelpers.CreateBoxMesh(new Vector3D(-1, -1, -1), new Vector3D(2, 2, 2));
+
+        // Act / Assert: outward / inward / outward is valid; any other combination is not
+        Assert.False(Render3DTestHelpers.Combine(outer, cavity, core).IsInverted);
+        Assert.False(Render3DTestHelpers.Combine(core, outer, cavity).IsInverted);
+        Assert.True(Render3DTestHelpers.Combine(outer, cavity, core.Reverse()).IsInverted);
+        Assert.True(Render3DTestHelpers.Combine(outer, cavity.Reverse(), core).IsInverted);
+        Assert.True(Render3DTestHelpers.Combine(outer.Reverse(), cavity, core).IsInverted);
+    }
+
+    /// <summary>
+    ///     Validates that a closed mesh with unwelded duplicate vertices (36-vertex cube, STL style) is closed by welded
+    ///     topology, free of defects and not inverted, and that its reversed form is inverted.
+    /// </summary>
+    [Fact]
+    public void Mesh_IsClosed_UnweldedCube_ClosedByWeldedTopology()
+    {
+        // Arrange
+        var cube = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, new Vector3D(2, 2, 2));
+        var unwelded = Render3DTestHelpers.ToUnwelded(cube);
+
+        // Act / Assert
+        Assert.Equal(36, unwelded.VertexCount);
+        Assert.True(unwelded.IsClosed);
+        Assert.Equal(MeshTopologyDefects.None, unwelded.TopologyDefects);
+        Assert.Equal(MeshTopologyDefects.None, unwelded.OperandDefects);
+        Assert.False(unwelded.IsInverted);
+        Assert.Equal(cube.SignedVolume, unwelded.SignedVolume, 1e-12);
+        Assert.True(Render3DTestHelpers.ToUnwelded(cube.Reverse()).IsInverted);
+    }
+
+    /// <summary>
+    ///     Validates that welding does not hide a real hole: an unwelded cube missing a triangle is still open.
+    /// </summary>
+    [Fact]
+    public void Mesh_IsClosed_UnweldedOpenCube_False()
+    {
+        // Arrange
+        var unwelded = Render3DTestHelpers.ToUnwelded(Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, Vector3D.One));
+        var open = new Mesh(unwelded.Vertices, unwelded.TriangleIndices.Take(unwelded.TriangleIndices.Count - 3));
+
+        // Act / Assert
+        Assert.False(open.IsClosed);
+        Assert.Equal(MeshTopologyDefects.BoundaryEdge, open.TopologyDefects);
+    }
+
+    /// <summary>
+    ///     Validates that vertices at the same position are welded before analysis: two triangles on coincident vertices
+    ///     traverse the same edges in the same direction, and a triangle whose distinct vertices share a position is degenerate.
+    /// </summary>
+    [Fact]
+    public void Mesh_TopologyDefects_CoincidentDistinctVertices_WeldedBeforeAnalysis()
+    {
+        // Arrange: vertices 0 and 3 coincide
+        var mesh = new Mesh([Vector3D.Zero, Vector3D.UnitX, Vector3D.UnitY, Vector3D.Zero], [0, 1, 2, 3, 1, 2]);
+
+        // Act / Assert
+        Assert.True(mesh.TopologyDefects.HasFlag(MeshTopologyDefects.InconsistentWinding));
+        Assert.False(mesh.IsClosed);
+        var collapsed = new Mesh([Vector3D.Zero, Vector3D.UnitX, Vector3D.Zero], [0, 1, 2]);
+        Assert.Equal(MeshTopologyDefects.DegenerateTriangle, collapsed.TopologyDefects);
+    }
+
+    /// <summary>
     ///     Validates that a thin but valid solid has its orientation detected: a reversed 1 x 1 x 1e-12 box is inverted
     ///     and the correctly wound thin box is not (the criterion is scale-aware, not a fixed fraction of the bounds).
     /// </summary>
@@ -341,13 +447,17 @@ public class MeshTests
     [Fact]
     public void Mesh_IsInverted_ZeroVolumeClosedMesh_False()
     {
-        // Arrange: a box flattened to zero thickness (topologically closed, no enclosed volume) in both windings
-        var flat = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, new Vector3D(1.0, 1.0, 0.0));
+        // Arrange: a double-sided triangle (a closed surface with no enclosed volume) in both windings, and a
+        // box flattened to zero thickness (which collapses onto itself when welded, so it is not even closed)
+        var flat = new Mesh([Vector3D.Zero, Vector3D.UnitX, Vector3D.UnitY], [0, 1, 2, 0, 2, 1]);
+        var collapsedBox = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, new Vector3D(1.0, 1.0, 0.0));
 
         // Act / Assert
         Assert.True(flat.IsClosed);
         Assert.False(flat.IsInverted);
         Assert.False(flat.Reverse().IsInverted);
+        Assert.False(collapsedBox.IsInverted);
+        Assert.False(collapsedBox.Reverse().IsInverted);
     }
 
     /// <summary>

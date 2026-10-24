@@ -268,8 +268,14 @@ fast-path scenario above.
 `CsgOperandValidatorTests.CsgOperandValidator_Validate_AllInstances_DeduplicatedInPreOrder`,
 `CsgOperandValidatorTests.CsgOperandValidator_Validate_MirroredOperands_InversionIsIndependentOfDeterminant`,
 `CsgOperandValidatorTests.CsgOperandValidator_Validate_MirroredInvertedOperand_RendersLikeBakedMesh`,
-`CsgOperandValidatorTests.CsgOperandValidator_ValidateNearPlane_ClippedOperands_Reported`,
-`CsgOperandValidatorTests.CsgOperandValidator_ValidateNearPlane_StrictMode_Throws`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_ExplicitNearPlaneInFrontOfOperands_ReportsNothing`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_DisjointInvertedShell_ReportsInvertedMesh`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_HollowSolid_ReportsNothing`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_NestedThreeLevelShells_JudgedByNestingParity`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_UnweldedClosedCube_NotOpenAndInversionDetected`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_UnweldedOpenCube_StillReportsOpenMesh`,
+`SceneRendererCsgTests.SceneRenderer_Render_CameraInsideHollowRoomWithExplicitNearPlane_StrictModeShowsCavityWall`,
+`SceneRendererCsgTests.SceneRenderer_Render_UnweldedOperands_RenderIdenticallyToWelded`,
 `CsgOperandValidatorTests.CsgOperandValidator_Validate_RunsBeforeRendering`,
 `CsgOperandValidatorTests.CsgOperandValidator_Validate_CancelledFromHandler_ThrowsOperationCanceled`,
 `CsgOperandValidatorTests.CsgOperandValidator_NullArguments_Throw`,
@@ -297,9 +303,17 @@ scenario A8). Asserts that:
 - inversion is independent of the mirroring transform: a mirrored outward mesh reports nothing, a
   mirrored inverted mesh is still reported as inverted, and it really renders inside out (equal to
   the baked inverted-and-mirrored mesh), so the report is accurate;
-- an explicit near plane in front of operand geometry yields one
-  `render3d-csg-near-plane-clips-operands` report (with a null node), throws in strict mode before
-  any tile work, and a near plane behind all geometry reports nothing;
+- a valid shell plus a disjoint, non-nested inside-out shell (a 4-cube with a reversed unit cube
+  beside it, total volume still positive) is reported as inverted; a hollow solid is not; three
+  nested shells (solid, cavity, solid in the cavity) are valid, and a wrongly wound shell at any of
+  the levels is reported;
+- an unwelded (36-vertex, STL-style) closed cube is not reported as open (even in strict mode) and
+  renders identically to the welded cube, an unwelded reversed cube is reported as inverted, and
+  an unwelded cube with a missing triangle is still open;
+- an explicit near plane in front of operand geometry, or a camera inside a hollow room with an
+  explicit near plane in strict mode, is not reported: nothing is delivered or thrown and the
+  render shows the cavity wall (the CSG solid clipped to the near plane), identical to the render
+  with an automatic near plane;
 - every instance (not only every node) is also checked after its world transform is composed: a
   zero-scale operand yields `render3d-csg-singular-transform` for its node (and throws in strict
   mode), a node shared by a valid and a singular instance is reported for the singular one only,

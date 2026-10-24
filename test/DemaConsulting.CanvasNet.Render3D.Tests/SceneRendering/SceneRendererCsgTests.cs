@@ -410,6 +410,63 @@ public class SceneRendererCsgTests
     }
 
     /// <summary>
+    ///     Validates that a camera inside a hollow room with an explicit near plane renders the cavity wall in strict
+    ///     mode without an exception: the result is the CSG solid clipped to the near plane, so every sample sees the
+    ///     room's walls (the cut surface of the subtrahend), exactly as with an automatic near plane.
+    /// </summary>
+    [Fact]
+    public void SceneRenderer_Render_CameraInsideHollowRoomWithExplicitNearPlane_StrictModeShowsCavityWall()
+    {
+        // Arrange: a 10-unit blue block with a 6-unit green cavity, the eye at the center of the cavity
+        var block = Render3DTestHelpers.ColoredBox(new Vector3D(-5, -5, -5), new Vector3D(10, 10, 10), Blue);
+        var cavity = Render3DTestHelpers.ColoredBox(new Vector3D(-3, -3, -3), new Vector3D(6, 6, 6), Green);
+        var scene = new Scene(new CsgNode(CsgOperation.Difference, [block, cavity]));
+        var explicitNear = new Camera { Eye = Vector3D.Zero, Target = new Vector3D(0.3, -0.2, -1), Up = Vector3D.UnitY, NearPlane = 0.5 };
+        var automaticNear = new Camera { Eye = Vector3D.Zero, Target = new Vector3D(0.3, -0.2, -1), Up = Vector3D.UnitY };
+        var strict = new SceneRenderOptions
+        {
+            Lights = [new AmbientLight { Intensity = 1.0f }],
+            Supersampling = 1,
+            BackFaceColor = Magenta,
+            ThrowOnUnsupportedFeature = true,
+        };
+
+        // Act: the explicit near plane (0.5) lies in front of the room's nearest vertices only in the sense that
+        // the camera is inside the operands, which is supported and must not be reported
+        using var clipped = Render(scene, explicitNear, 48, 48, strict);
+        using var automatic = Render(scene, automaticNear, 48, 48, Flat());
+
+        // Assert: every sample sees the cavity wall (green), identical to the automatic near plane
+        Assert.Equal(48 * 48, Render3DTestHelpers.CountPixels(clipped, Green));
+        Render3DTestHelpers.AssertSurfacesIdentical(automatic, clipped);
+    }
+
+    /// <summary>
+    ///     Validates that an unwelded (STL-style, 36-vertex) operand renders identically to its welded equivalent.
+    /// </summary>
+    [Fact]
+    public void SceneRenderer_Render_UnweldedOperands_RenderIdenticallyToWelded()
+    {
+        // Arrange
+        var blockMesh = Render3DTestHelpers.CreateBoxMesh(new Vector3D(-2, -2, -2), new Vector3D(4, 4, 4));
+        var toolMesh = Render3DTestHelpers.CreateBoxMesh(new Vector3D(-1, -1, 0), new Vector3D(2, 2, 3));
+        Scene Build(Mesh block, Mesh tool) => new(new CsgNode(
+            CsgOperation.Difference,
+            [new MeshNode(block) { Appearance = new NodeAppearance(Blue) }, new MeshNode(tool) { Appearance = new NodeAppearance(Green) }]));
+        var camera = Camera.LookAt(new Vector3D(6, -7, 5), Vector3D.Zero, Vector3D.UnitZ);
+        var options = new SceneRenderOptions { Supersampling = 1, ThrowOnUnsupportedFeature = true };
+
+        // Act: strict mode proves the unwelded meshes are accepted as closed
+        using var welded = Render(Build(blockMesh, toolMesh), camera, 64, 64, options);
+        using var unwelded = Render(Build(Render3DTestHelpers.ToUnwelded(blockMesh), Render3DTestHelpers.ToUnwelded(toolMesh)), camera, 64, 64, options);
+
+        // Assert
+        Assert.Equal(36, Render3DTestHelpers.ToUnwelded(blockMesh).VertexCount);
+        Assert.True(Render3DTestHelpers.DistinctColors(welded).Count > 2);
+        Render3DTestHelpers.AssertSurfacesIdentical(welded, unwelded);
+    }
+
+    /// <summary>
     ///     Validates that a camera outside the solid (fitted to the bounds) still shows the cavity from the front.
     /// </summary>
     [Fact]

@@ -2779,7 +2779,13 @@ var part = new CsgNode(CsgOperation.Difference, [cube, bite]);
 
 **Operands must be solids.** Every mesh that takes part in a CSG scene should be a closed,
 consistently wound, outward-oriented (counter-clockwise from outside) mesh: `Mesh.IsClosed` must
-be `true` and `Mesh.SignedVolume` positive. The `PrimitiveTessellator` box, sphere, cylinder, and
+be `true` and `Mesh.SignedVolume` positive. Closedness is geometric: vertices at exactly the same
+position count as one vertex, so a mesh that stores every triangle's corners separately (for
+example one read from an STL file) is closed when its triangles form a closed surface. A hollow
+solid is valid: an outward outer shell with inward-wound cavity shells (and outward solids nested
+inside a cavity again); a shell whose orientation disagrees with how deeply it is nested - for
+example an inside-out cube next to a valid one - is reported even when the total volume is
+positive. The `PrimitiveTessellator` box, sphere, cylinder, and
 cone meshes satisfy this; for a closed mesh with a negative `SignedVolume` (inside-out), use
 `Mesh.Reverse`. Checking applies to every mesh in a scene that contains a difference or an
 intersection, not only the direct operands, because an open mesh anywhere in the scene would vanish
@@ -2809,9 +2815,8 @@ The `Feature` tokens are stable and machine-matchable:
 | `render3d-csg-non-manifold-edge` | An edge is shared by three or more triangles |
 | `render3d-csg-inconsistent-winding` | Neighboring triangles are wound in conflicting directions |
 | `render3d-csg-degenerate-triangle` | The mesh has zero-area triangles (repeated index, or collinear vertices) |
-| `render3d-csg-inverted-mesh` | The mesh is closed but inside-out (negative `SignedVolume`) |
+| `render3d-csg-inverted-mesh` | A closed mesh has a shell wound against its nesting |
 | `render3d-csg-singular-transform` | An instance's world transform is singular (zero or non-finite determinant) |
-| `render3d-csg-near-plane-clips-operands` | An explicit `Camera.NearPlane` clips operands (no node) |
 
 Mesh problems are reported once per `MeshNode` however many places in the scene share it; a
 singular transform (or triangles that collapse under an extreme transform, reported as
@@ -2835,9 +2840,10 @@ Rendering behavior worth knowing:
 - **Camera inside a solid.** An eye inside a solid starts inside it: the first exit is the visible
   surface and is painted with `BackFaceColor`, as for any back face. For an orthographic camera
   (which has no eye position along its rays) set an explicit `Camera.NearPlane` to place the
-  viewpoint. An explicit `NearPlane` in front of some geometry clips the operands and makes the
-  result unreliable there, which is why it is reported as `render3d-csg-near-plane-clips-operands`;
-  leave `NearPlane` as `null` for CSG scenes whenever you can.
+  viewpoint. An explicit `NearPlane` (including one in front of some geometry, or a camera inside
+  an operand such as a hollow room) is supported and not reported: the result is the CSG solid
+  clipped to the near plane of the view frustum, and no cap surfaces are drawn on that plane, so
+  from inside a hollow room you see the room's walls.
 - **Coincident faces.** Faces of different operands that coincide (for example a subtrahend whose
   face lies exactly on a face of the minuend) are resolved without speckle when their coordinates
   are identical. Meshes that merely coincide mathematically but are placed through different
@@ -3035,7 +3041,7 @@ Passing a `CancellationToken` lets you abandon a long render: cancellation throw
 - `RenderBudgetExceededException`: Thrown when a scene with a CSG difference or intersection needs
   more than `MaxFragmentsPerTile` fragments in a tile.
 - `SceneRenderUnsupportedFeatureException`: Thrown when `ThrowOnUnsupportedFeature` is set and a CSG
-  operand is not a closed, outward-oriented solid (or an explicit near plane clips the operands).
+  operand is not a closed, outward-oriented solid.
 
 # Examples
 

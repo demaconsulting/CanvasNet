@@ -309,6 +309,83 @@ public class MeshTopologyTests
     }
 
     /// <summary>
+    ///     Validates that welding returns the very same index array for an already welded mesh and otherwise maps every
+    ///     index to the first vertex at exactly the same position (negative and positive zero are the same position).
+    /// </summary>
+    [Fact]
+    public void MeshTopology_Weld_MergesExactDuplicatesOnly()
+    {
+        // Arrange
+        var cube = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, Vector3D.One);
+        var indices = new[] { 0, 1, 2, 3, 4, 5 };
+        var vertices = new[]
+        {
+            new Vector3D(0.0, 1.0, 2.0),
+            new Vector3D(1.0, 1.0, 1.0),
+            new Vector3D(-0.0, 1.0, 2.0),
+            new Vector3D(0.0, 1.0, Math.BitIncrement(2.0)),
+            new Vector3D(1.0, 1.0, 1.0),
+            new Vector3D(5.0, 5.0, 5.0),
+        };
+
+        // Act
+        var same = MeshTopology.Weld(cube.VertexSpan, [.. cube.TriangleIndices]);
+        var welded = MeshTopology.Weld(vertices, indices);
+
+        // Assert
+        Assert.Equal([.. cube.TriangleIndices], same);
+        Assert.Equal([0, 1, 0, 3, 1, 5], welded);
+        Assert.Equal([0, 1, 2, 3, 4, 5], indices);
+    }
+
+    /// <summary>
+    ///     Validates the shell-orientation analysis over a seeded corpus of concentric (and unwelded) shells: a mesh is
+    ///     inverted exactly when some shell's orientation disagrees with its nesting depth parity.
+    /// </summary>
+    [Fact]
+    public void MeshTopology_HasInvertedShell_ConcentricShells_MatchesDepthParity()
+    {
+        var random = new Random(20250611);
+        var invertedSeen = 0;
+        for (var round = 0; round < 200; round++)
+        {
+            // Arrange: 1 to 4 nested boxes (depth = nesting level) with random winding, optionally unwelded
+            var levels = random.Next(1, 5);
+            var shells = new List<Mesh>();
+            var expectedInverted = false;
+            for (var level = 0; level < levels; level++)
+            {
+                var half = 10.0 - (2.0 * level) - (random.NextDouble() * 0.5);
+                var shell = Render3DTestHelpers.CreateBoxMesh(new Vector3D(-half, -half * 0.9, -half * 1.1), new Vector3D(2 * half, 1.8 * half, 2.2 * half));
+                var reversed = random.Next(2) == 0;
+                expectedInverted |= reversed != (level % 2 == 1);
+                shells.Add(reversed ? shell.Reverse() : shell);
+            }
+
+            // Disjoint extra shell elsewhere with its own random winding
+            var extraReversed = random.Next(3) == 0;
+            expectedInverted |= extraReversed;
+            var extra = Render3DTestHelpers.CreateBoxMesh(new Vector3D(30, 0, 0), Vector3D.One);
+            shells.Add(extraReversed ? extra.Reverse() : extra);
+            var mesh = Render3DTestHelpers.Combine([.. shells]);
+            var unwelded = Render3DTestHelpers.ToUnwelded(mesh);
+
+            // Act
+            var welded = MeshTopology.Weld(unwelded.VertexSpan, [.. unwelded.TriangleIndices]);
+            var actual = MeshTopology.HasInvertedShell(mesh.VertexSpan, mesh.IndexSpan);
+            var actualUnwelded = MeshTopology.HasInvertedShell(unwelded.VertexSpan, welded);
+
+            // Assert
+            Assert.Equal(expectedInverted, actual);
+            Assert.Equal(expectedInverted, actualUnwelded);
+            invertedSeen += expectedInverted ? 1 : 0;
+        }
+
+        // Both outcomes must occur or the comparison proves little
+        Assert.InRange(invertedSeen, 1, 199);
+    }
+
+    /// <summary>
     ///     Independent reference: every directed edge exactly once and its reverse exactly once, with no repeated index.
     /// </summary>
     /// <param name="indices">The triangle index list.</param>

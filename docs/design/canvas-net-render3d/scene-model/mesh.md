@@ -43,10 +43,11 @@ generators and callers assemble a welded mesh without managing vertex de-duplica
   the invariants above.
 - `Bounds`: the axis-aligned box of the vertices (empty for a mesh with no vertices).
 - `IsClosed`: computed on first request and cached (through the cached topology defects). A mesh
-  is closed when it has at least one triangle and the topology analysis (below) reports no defect:
+  is closed when it has at least one triangle and the topology analysis (below) of its **welded**
+  indices (vertices at exactly the same position are one vertex) reports no defect:
   every **directed** edge `a -> b` occurs exactly once across all triangles, its reverse `b -> a`
-  also occurs, and no triangle repeats a vertex index. A mesh made of several disjoint closed shells
-  is closed.
+  also occurs, and no triangle repeats a vertex. A mesh made of several disjoint closed shells
+  is closed, and so is an unwelded (STL-style) mesh whose triangles form a closed surface.
 - `MeshTopology.Analyze(indices)` (internal): classifies every defect in one pass. Each triangle
   that repeats an index is flagged `DegenerateTriangle` and its edges are ignored (so one collapsed
   triangle does not also appear as edge defects). For every other triangle edge it records the
@@ -63,20 +64,39 @@ generators and callers assemble a welded mesh without managing vertex de-duplica
   non-finite). Its edges stay in the edge table, so such a triangle does not also appear as edge
   defects of its neighbors. A triangle that is merely very thin but has a representable normal is
   rendered, not discarded, and is not reported.
-- `TopologyDefects` (internal): `Analyze` over the mesh's indices, computed lazily on first use and
-  cached (a benign race because the analysis is deterministic). `IsClosed` is defined through it and
-  therefore stays purely topological. `OperandDefects` (internal) is the cached
-  `Analyze(vertices, indices)` result, used by the renderer's operand validation so that every
+- `MeshTopology.Weld(vertices, indices)` (internal): maps every index to the lowest index of a
+  vertex at exactly the same position (exact component equality, negative and positive zero equal,
+  never a tolerance - the rule `MeshBuilder` uses) through a position dictionary, O(V). It returns the
+  original array when no two vertices coincide (nothing extra is retained for a welded mesh).
+- `TopologyDefects` (internal): `Analyze` over the mesh's **welded** indices, computed lazily on first
+  use and cached (a benign race because the analysis is deterministic). Welding makes the topology
+  geometric: a closed surface stored STL-style (every triangle with vertices of its own, for example
+  a 36-vertex cube) has no defect, while a real hole is still a boundary edge. `IsClosed` (public) is
+  defined through it, so it **reflects welded (geometric) topology** and stays purely topological
+  (no geometric degeneracy). A triangle whose distinct vertices share a position becomes a
+  `DegenerateTriangle` after welding. `OperandDefects` (internal) is the cached
+  `Analyze(vertices, weldedIndices)` result, used by the renderer's operand validation so that every
   triangle the renderer would drop from a CSG operand is reported.
-- `IsInverted` (internal): true when the mesh is closed (no topology defect) and its signed volume is
-  below the negative of the rounding error bound of that volume
-  (`MeshTopology.SignedVolume` with its `errorBound` output), i.e. a closed mesh wound inside out.
-  The bound is `(n + 12) * 2^-52 * sum(|a| . (|b| x |c|)) / 6` over the `n` triangles'
-  reference-relative vertices, so it scales with the mesh's own magnitude instead of a fixed
-  fraction of its bounds: a thin valid solid (for example a reversed 1 x 1 x 1e-12 box) is detected,
-  while a zero-volume closed surface, whose volume is only rounding noise, is not. A hollow
-  mesh (an outward outer shell and an inward inner shell) keeps a positive total volume and is not
-  inverted; open and empty meshes are never inverted because their volume is meaningless.
+- `MeshTopology.HasInvertedShell(vertices, weldedIndices)` (internal): splits the welded mesh into
+  connected shells (union-find over vertex indices; triangles sharing an index share a shell),
+  measures each shell's signed volume relative to its own bounds center with the same rounding error
+  bound as below (a shell within the bound has no determinable orientation and is ignored), and
+  determines each shell's nesting depth: the number of other shells enclosing one of its vertices,
+  by the parity of the crossings of a fixed generic ray with each candidate shell (orientation
+  independent; a shared-edge crossing is counted exactly once through a canonical index-order
+  tie-break; a bounds pre-test skips impossible candidates). Even depth must be positive, odd depth
+  (a cavity wall) negative; any disagreement is an inverted mesh. A single shell needs no ray tests;
+  the cost is O(shells x triangles).
+- `IsInverted` (internal): true when the mesh is closed (no welded topology defect) and
+  `HasInvertedShell` holds, cached. Each shell's bound is `(n + 12) * 2^-52 * sum(|a| . (|b| x |c|)) / 6`
+  over the shell's `n` triangles' reference-relative vertices, so it scales with the shell's own
+  magnitude instead of a fixed fraction of its bounds: a thin valid solid (for example a reversed
+  1 x 1 x 1e-12 box) is detected, while a zero-volume closed surface, whose volume is only rounding
+  noise, is not. A hollow solid (an outward outer shell and an inward cavity shell, with solids
+  nested in the cavity outward again) is valid; a valid shell plus a disjoint, non-nested inside-out
+  shell is inverted even though the total volume stays positive; open and empty meshes are never
+  inverted because their volume is meaningless. Inversion is evaluated on welded indices, so an
+  unwelded reversed cube is inverted.
 - `SignedVolume`: the sum of signed tetrahedron volumes `a . (b x c) / 6` taken relative to the
   center of the bounds (so the value keeps its precision for a mesh far from the origin); positive
   for a closed, outward-CCW mesh, negative when inside-out; 0 for an empty mesh.

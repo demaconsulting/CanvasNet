@@ -25,10 +25,18 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///         is reported once (a node shared by several parents or visited per path is analyzed once), and
 ///         its problems are reported in the fixed order open mesh, non-manifold edge, inconsistent winding,
 ///         degenerate triangle, inverted mesh. Reports are delivered on the calling thread before any
-///         tile work starts. An inverted mesh is a defect-free closed mesh whose signed volume is
-///         negative; a mirroring transform does not change that (the renderer reverses the winding of a
+///         tile work starts. Meshes are analyzed geometrically: vertices at exactly the same position are
+///         welded first, so an unwelded (for example STL-style) closed mesh is a closed mesh. An inverted
+///         mesh is a defect-free closed mesh in which some connected shell is wound against its nesting
+///         (an outermost shell, or a solid inside a cavity, must have a positive signed volume; the wall of
+///         a cavity a negative one), so a hollow solid is valid whereas a disjoint inside-out shell is
+///         reported even when the total volume is positive; a mirroring transform does not change that (the renderer reverses the winding of a
 ///         mirrored instance, which restores the orientation the mesh data describes), so inversion is a
 ///         property of the mesh itself.
+///     </para>
+///     <para>
+///         The camera's near plane is deliberately not validated: a camera inside an operand is
+///         supported (see <see cref="CsgResolver"/>).
 ///     </para>
 ///     <para>
 ///         <b>Transform-dependent checks.</b> The checks above depend only on the mesh and are done once per
@@ -56,14 +64,11 @@ internal static class CsgOperandValidator
     /// <summary>The feature token of a mesh containing zero-area (repeated index) triangles.</summary>
     public const string DegenerateTriangleFeature = "render3d-csg-degenerate-triangle";
 
-    /// <summary>The feature token of a closed mesh that is wound inside out.</summary>
+    /// <summary>The feature token of a mesh containing a shell wound against its nesting (an inside-out solid or a cavity wound outward).</summary>
     public const string InvertedMeshFeature = "render3d-csg-inverted-mesh";
 
     /// <summary>The feature token of a mesh instance whose composed world transform is singular (zero or non-finite determinant).</summary>
     public const string SingularTransformFeature = "render3d-csg-singular-transform";
-
-    /// <summary>The feature token reported when a user-set near plane lies behind operand geometry.</summary>
-    public const string NearPlaneClipsFeature = "render3d-csg-near-plane-clips-operands";
 
     /// <summary>
     ///     Gets a value indicating whether the options ask for any validation to be performed.
@@ -132,7 +137,7 @@ internal static class CsgOperandValidator
 
             if (mesh.IsInverted)
             {
-                Report(options, InvertedMeshFeature, "A mesh used in a constructive solid geometry scene is wound inside out (negative volume); its inside and outside are swapped.", instance.Node);
+                Report(options, InvertedMeshFeature, "A mesh used in a constructive solid geometry scene has a shell wound inside out (its orientation disagrees with its nesting: outer shells must be outward, cavity shells inward); its inside and outside are swapped there.", instance.Node);
             }
         }
     }
@@ -198,26 +203,6 @@ internal static class CsgOperandValidator
                 return;
             }
         }
-    }
-
-    /// <summary>
-    ///     Reports that a user-supplied near plane lies in front of some operand geometry, so the
-    ///     sample ray state of a CSG scene may be wrong where that geometry is clipped.
-    /// </summary>
-    /// <param name="options">The render options supplying the handler and strict flag.</param>
-    /// <param name="nearPlane">The camera's explicit near distance, or <see langword="null"/> when it is derived.</param>
-    /// <param name="hasVertices">Whether the scene has any vertex.</param>
-    /// <param name="minDepth">The smallest view depth of any vertex.</param>
-    /// <exception cref="SceneRenderUnsupportedFeatureException">Thrown when strict mode is on and the near plane clips geometry.</exception>
-    public static void ValidateNearPlane(SceneRenderOptions options, double? nearPlane, bool hasVertices, double minDepth)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        if (!IsEnabled(options) || nearPlane is not { } near || !hasVertices || minDepth >= near)
-        {
-            return;
-        }
-
-        Report(options, NearPlaneClipsFeature, "The camera's near plane lies in front of geometry of a constructive solid geometry scene; clipped operands make the result undefined.", null);
     }
 
     /// <summary>Delivers one report to the handler or throws it in strict mode.</summary>

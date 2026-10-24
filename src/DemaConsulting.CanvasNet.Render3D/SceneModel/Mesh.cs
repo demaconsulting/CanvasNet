@@ -41,6 +41,12 @@ public sealed class Mesh
     /// <summary>Lazily computed operand defects (topology plus geometric degeneracy) plus one (0 = unknown; idempotent).</summary>
     private int _operandDefectState;
 
+    /// <summary>Lazily computed inversion state (0 = unknown, 1 = not inverted, 2 = inverted; idempotent).</summary>
+    private int _invertedState;
+
+    /// <summary>Lazily computed index list with coincident vertices welded (idempotent, so benign races are harmless).</summary>
+    private int[]? _weldedIndices;
+
     /// <summary>
     ///     Creates a mesh from vertex positions and triangle indices, copying both.
     /// </summary>
@@ -112,16 +118,20 @@ public sealed class Mesh
     public BoundingBox3D Bounds { get; }
 
     /// <summary>
-    ///     Gets a value indicating whether the mesh is a closed, consistently oriented surface:
-    ///     every directed edge occurs once and is matched by its reverse (see the winding
-    ///     contract in the type remarks). Computed lazily on first use and cached.
+    ///     Gets a value indicating whether the mesh is a geometrically closed, consistently oriented
+    ///     surface: every directed edge occurs once and is matched by its reverse (see the winding
+    ///     contract in the type remarks). Vertices at exactly the same position count as one vertex
+    ///     (exact component equality, as <see cref="MeshBuilder"/> welds), so a mesh that stores every
+    ///     triangle's corners separately (for example one read from an STL file) is closed when its
+    ///     triangles form a closed surface. Computed lazily on first use and cached.
     /// </summary>
     public bool IsClosed => _indices.Length > 0 && TopologyDefects == MeshTopologyDefects.None;
 
     /// <summary>
     ///     Gets the topology defects of the mesh (boundary edges, non-manifold edges, inconsistent
-    ///     winding, degenerate triangles), computed lazily on first use and cached; used by the
-    ///     renderer to report unsuitable constructive-solid-geometry operands.
+    ///     winding, degenerate triangles), computed on the welded indices (see <see cref="IsClosed"/>)
+    ///     lazily on first use and cached; used by the renderer to report unsuitable
+    ///     constructive-solid-geometry operands.
     /// </summary>
     internal MeshTopologyDefects TopologyDefects
     {
@@ -131,7 +141,7 @@ public sealed class Mesh
             var state = Volatile.Read(ref _defectState);
             if (state == 0)
             {
-                state = (int)MeshTopology.Analyze(_indices) + 1;
+                state = (int)MeshTopology.Analyze(WeldedIndices) + 1;
                 Volatile.Write(ref _defectState, state);
             }
 
@@ -140,24 +150,51 @@ public sealed class Mesh
     }
 
     /// <summary>
-    ///     Gets a value indicating whether the mesh is a defect-free closed surface that is wound
-    ///     inside out: its signed volume is negative by more than the rounding error bound of its own
-    ///     computation (see <see cref="MeshTopology.SignedVolume(ReadOnlySpan{Vector3D}, ReadOnlySpan{int}, Vector3D, out double)"/>).
-    ///     The criterion is scale-aware, so a thin but valid solid (for example a reversed
-    ///     1 x 1 x 1e-12 box) is detected while a zero-volume surface is not. A multi-shell mesh with
-    ///     cavities (inner shells wound inward) keeps a positive total volume and is therefore not inverted.
+    ///     Gets the triangle indices with every vertex replaced by the first vertex at exactly the same
+    ///     position (see <see cref="MeshTopology.Weld"/>), computed lazily and cached. Equal to the plain
+    ///     indices for an already welded mesh. Must not be modified.
+    /// </summary>
+    private int[] WeldedIndices
+    {
+        get
+        {
+            // The result is deterministic, so a racing recomputation stores an equivalent array
+            var welded = Volatile.Read(ref _weldedIndices);
+            if (welded is null)
+            {
+                welded = MeshTopology.Weld(_vertices, _indices);
+                Volatile.Write(ref _weldedIndices, welded);
+            }
+
+            return welded;
+        }
+    }
+
+    /// <summary>
+    ///     Gets a value indicating whether the mesh is a defect-free closed surface with a shell wound
+    ///     against its nesting. The (welded) mesh is split into connected shells; a shell enclosed by an
+    ///     even number of other shells must have a positive signed volume, one enclosed by an odd number
+    ///     (the wall of a cavity) a negative one, otherwise the mesh is inverted (see
+    ///     <see cref="MeshTopology.HasInvertedShell"/>). A hollow solid (outward outer shell, inward cavity
+    ///     shell), including a solid nested in the cavity, is valid; a disjoint inside-out shell next to a
+    ///     valid one is inverted even though the total volume stays positive. Each shell's volume uses the
+    ///     rounding error bound of <see cref="MeshTopology.SignedVolume(ReadOnlySpan{Vector3D}, ReadOnlySpan{int}, Vector3D, out double)"/>,
+    ///     so the criterion is scale-aware: a thin but valid solid (for example a reversed
+    ///     1 x 1 x 1e-12 box) is detected while a zero-volume surface is not. Computed lazily and cached.
     /// </summary>
     internal bool IsInverted
     {
         get
         {
-            if (!IsClosed)
+            // The analysis is deterministic, so a racing recomputation stores the same value
+            var state = Volatile.Read(ref _invertedState);
+            if (state == 0)
             {
-                return false;
+                state = IsClosed && MeshTopology.HasInvertedShell(_vertices, WeldedIndices) ? 2 : 1;
+                Volatile.Write(ref _invertedState, state);
             }
 
-            var volume = MeshTopology.SignedVolume(_vertices, _indices, Bounds.Center, out var errorBound);
-            return volume < -errorBound;
+            return state == 2;
         }
     }
 
@@ -175,7 +212,7 @@ public sealed class Mesh
             var state = Volatile.Read(ref _operandDefectState);
             if (state == 0)
             {
-                state = (int)MeshTopology.Analyze(_vertices, _indices) + 1;
+                state = (int)MeshTopology.Analyze(_vertices, WeldedIndices) + 1;
                 Volatile.Write(ref _operandDefectState, state);
             }
 

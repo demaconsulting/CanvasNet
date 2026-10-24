@@ -83,6 +83,10 @@ and mutated tetrahedra the verdict equals an independent directed-edge-counting 
 `MeshTests.Mesh_IsInverted_ThinBox_DetectedByOrientation`,
 `MeshTests.Mesh_IsInverted_ZeroVolumeClosedMesh_False`,
 `MeshTests.Mesh_IsInverted_CavityMesh_False`,
+`MeshTests.Mesh_IsInverted_DisjointInvertedShell_True`,
+`MeshTests.Mesh_IsInverted_HollowSolidPlusDisjointSolid_False`,
+`MeshTests.Mesh_IsInverted_NestedThreeLevelShells_JudgedByDepthParity`,
+`MeshTopologyTests.MeshTopology_HasInvertedShell_ConcentricShells_MatchesDepthParity`,
 `MeshTests.Mesh_IsInverted_OpenOrEmptyMesh_False`
 
 Asserts that a cube, two disjoint cubes and an empty list report no defect; that a lone triangle, a
@@ -96,9 +100,29 @@ shared face-normal criterion rejects exactly the zero-area and overflowing trian
 independent defects combine as flags. At mesh level it asserts the cached classification for a
 closed, an open, a degenerate and an empty mesh, that a reversed cube and tetrahedron are inverted
 while the originals are not, that a reversed 1 x 1 x 1e-12 box is inverted while the correctly wound
-thin box and a zero-thickness closed box are not (the volume's own rounding error bound decides, and
+thin box and a zero-volume closed surface (a double-sided triangle) are not (the volume's own
+rounding error bound decides, and
 it is far below the thin box's volume), that a hollow cube with an inward cavity shell is closed with
-a positive volume and not inverted, and that an open or empty mesh is never inverted.
+a positive volume and not inverted, that a disjoint outward shell beside a hollow solid does not
+disturb it, that three nested shells (solid, cavity, solid in the cavity) are valid while a wrongly
+wound shell at any level is inverted, that a valid shell plus a disjoint inside-out shell (total volume
+63, positive) is inverted, that over a seeded corpus of concentric shells (welded and unwelded, with an
+extra disjoint shell) the verdict equals the depth-parity expectation, and that an open or empty mesh
+is never inverted.
+
+##### CanvasNetRender3D-SceneModel-Mesh-WeldedTopology: Closedness And Orientation Are Geometric
+
+**Tests**: `MeshTests.Mesh_IsClosed_UnweldedCube_ClosedByWeldedTopology`,
+`MeshTests.Mesh_IsClosed_UnweldedOpenCube_False`,
+`MeshTests.Mesh_TopologyDefects_CoincidentDistinctVertices_WeldedBeforeAnalysis`,
+`MeshTopologyTests.MeshTopology_Weld_MergesExactDuplicatesOnly`
+
+Asserts that a 36-vertex (one vertex per triangle corner) cube is closed, has no topology or operand
+defect, is not inverted, and has the volume of its welded form, while its reversed copy is inverted;
+that an unwelded cube missing a triangle is still open; that coincident distinct vertices are welded
+before the edge analysis; and that welding merges exactly equal positions (negative and positive
+zero are equal, a one-ulp difference is not) and returns the very same index array for an already
+welded mesh.
 
 ##### CanvasNetRender3D-SceneModel-Mesh-VolumeArea: Signed Volume And Surface Area Are Analytic
 
