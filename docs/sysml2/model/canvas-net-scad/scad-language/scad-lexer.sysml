@@ -1,0 +1,11 @@
+package CanvasNet {
+    part def ScadLexer {
+        doc /* The internal ScadLexer class, ScadToken record struct, and ScadTokenKind enumeration: ScadLexer.Tokenize converts a whole source string into a token list ending with an end-of-file token, skipping white space and non-nesting line and block comments, producing numbers (integer, decimal, leading-dot, trailing-dot, and exponent forms, overflowing to infinity), double-quoted strings with the newline, tab, carriage-return, quote, backslash, two-digit, four-digit, and six-digit hexadecimal escapes, ASCII identifiers and dollar-prefixed special variables, the reserved keywords, longest-match operators and punctuation, and include/use directive tokens carrying their angle-bracketed path. Locations are one-based (UTF-16 code units, a tab is one column, carriage-return-line-feed, line feed, and lone carriage return each end one line, a leading byte-order mark is skipped). Every lexical error is a ScadSyntaxException located at the offending construct. */
+
+        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.Scad/Language/ScadTokenKind.cs, src/DemaConsulting.CanvasNet.Scad/Language/ScadToken.cs, src/DemaConsulting.CanvasNet.Scad/Language/ScadLexer.cs, src/DemaConsulting.CanvasNet.Scad/Language/ScadLexer.Literals.cs, src/DemaConsulting.CanvasNet.Scad/Language/NamespaceDoc.cs */
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadLexerTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadLexerNumberTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadLexerStringTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadLexerCommentTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadLexerDirectiveTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadLexerLocationTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadLexerTestSupport.cs */
+        comment designRef /* Design: docs/design/canvas-net-scad/scad-language/scad-lexer.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net-scad/scad-language/scad-lexer.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net-scad/scad-language/scad-lexer.yaml */
+    }
+}

@@ -1,0 +1,117 @@
+---
+# Software Subsystem Requirements for ScadLanguage
+#
+# These requirements decompose the CanvasNetScad system's syntax-recognition responsibility into the
+# ScadLanguage subsystem (internal namespace DemaConsulting.CanvasNet.Scad.Language): the lexer that
+# turns source text into tokens, and the parser that turns tokens into an immutable syntax tree.
+# Each requirement here links down to the unit requirements that implement it.
+
+sections:
+  - title: CanvasNetScad Requirements
+    sections:
+      - title: ScadLanguage Requirements
+        requirements:
+          - id: CanvasNetScad-ScadLanguage-Tokenization
+            title: >-
+              The ScadLanguage subsystem shall convert source text into tokens - numbers, strings
+              with escapes, identifiers, keywords, operators, and punctuation - skipping comments
+              and white space, tracking one-based line and column positions for every line-ending
+              style, and ending every token list with an end-of-file token.
+            justification: |
+              Tokenization is the foundation of parsing; its rules (what is a number, a string, a
+              comment) must be precisely specified so the parser and every diagnostic agree.
+            children:
+              - CanvasNetScad-ScadLanguage-ScadLexer-Numbers
+              - CanvasNetScad-ScadLanguage-ScadLexer-Strings
+              - CanvasNetScad-ScadLanguage-ScadLexer-StringEscapes
+              - CanvasNetScad-ScadLanguage-ScadLexer-Identifiers
+              - CanvasNetScad-ScadLanguage-ScadLexer-Keywords
+              - CanvasNetScad-ScadLanguage-ScadLexer-Operators
+              - CanvasNetScad-ScadLanguage-ScadLexer-Comments
+              - CanvasNetScad-ScadLanguage-ScadLexer-Locations
+            tests:
+              - ScadLanguage_Parse_AllAuthoredFixtures_Succeed
+              - ScadLanguage_Parse_LineEndingVariants_ProduceIdenticalTrees
+              - ScadLanguage_Parse_FixtureLineEndingConversion_ProducesIdenticalTrees
+
+          - id: CanvasNetScad-ScadLanguage-Parsing
+            title: >-
+              The ScadLanguage subsystem shall parse a token list into an immutable syntax tree
+              covering assignments, module and function definitions, module instantiations with
+              modifiers, conditionals, loops, let, echo, and assert, and the full expression
+              language (literals, vectors, ranges, postfix operations, function literals,
+              list comprehensions, and the documented operator precedence), with a source location
+              on every node, and shall produce the same tree whether the lexer and parser are run
+              together or one after the other.
+            justification: |
+              The syntax tree is the contract between the front end and later evaluation phases;
+              it must capture every supported construct faithfully and be safe to share.
+            children:
+              - CanvasNetScad-ScadLanguage-ScadParser-Assignments
+              - CanvasNetScad-ScadLanguage-ScadParser-Definitions
+              - CanvasNetScad-ScadLanguage-ScadParser-Instantiations
+              - CanvasNetScad-ScadLanguage-ScadParser-Modifiers
+              - CanvasNetScad-ScadLanguage-ScadParser-Conditionals
+              - CanvasNetScad-ScadLanguage-ScadParser-Loops
+              - CanvasNetScad-ScadLanguage-ScadParser-LetEchoAssert
+              - CanvasNetScad-ScadLanguage-ScadParser-Literals
+              - CanvasNetScad-ScadLanguage-ScadParser-Ranges
+              - CanvasNetScad-ScadLanguage-ScadParser-Precedence
+              - CanvasNetScad-ScadLanguage-ScadParser-Postfix
+              - CanvasNetScad-ScadLanguage-ScadParser-FunctionLiterals
+              - CanvasNetScad-ScadLanguage-ScadParser-Comprehensions
+              - CanvasNetScad-ScadLanguage-ScadParser-NodeLocations
+              - CanvasNetScad-ScadLanguage-ScadParser-Immutability
+            tests:
+              - ScadLanguage_Parse_AllAuthoredFixtures_Succeed
+              - ScadLanguage_TokenizeThenParse_Fixture_MatchesParseOfSource
+              - ScadLanguage_TokenizeThenParse_Program_MatchesParseOfSource
+
+          - id: CanvasNetScad-ScadLanguage-Directives
+            title: >-
+              The ScadLanguage subsystem shall tokenize include and use directives with their
+              angle-bracket paths and shall record them in the syntax tree, in source order, only
+              at file scope.
+            justification: |
+              Directives are the language's dependency mechanism; recognizing them precisely and
+              restricting them to file scope keeps the dependency list of a document reliable.
+            children:
+              - CanvasNetScad-ScadLanguage-ScadLexer-Directives
+              - CanvasNetScad-ScadLanguage-ScadParser-Directives
+            tests:
+              - ScadLanguage_Parse_IncludeAndUseFixture_RecordsDirectivesInOrder
+
+          - id: CanvasNetScad-ScadLanguage-SyntaxErrors
+            title: >-
+              The ScadLanguage subsystem shall report the first lexical or grammatical error as a
+              ScadSyntaxException with the location and a description of the problem, reporting any
+              lexical error in the file before any grammatical error because the whole source is
+              tokenized before it is parsed.
+            justification: |
+              A single, deterministic error with a trustworthy location is the contract callers
+              rely on; the ordering consequence of tokenize-then-parse is pinned so that it
+              cannot change unnoticed.
+            children:
+              - CanvasNetScad-ScadLanguage-ScadLexer-UnexpectedCharacters
+              - CanvasNetScad-ScadLanguage-ScadParser-SyntaxErrors
+            tests:
+              - ScadLanguage_Parse_LexicalErrorInsideStatement_SurfacesAsSyntaxExceptionWithLocation
+              - ScadLanguage_Parse_LexicalErrorAfterGrammarError_IsReportedFirst
+
+          - id: CanvasNetScad-ScadLanguage-InputLimits
+            title: >-
+              The ScadLanguage subsystem shall bound its resource use on hostile input: nesting
+              deeper than 256 levels, measured both while parsing and on the finished syntax tree,
+              shall be rejected with a ScadSyntaxException, and source longer than 4,194,304
+              characters shall be rejected with an InvalidDataException; neither shall be able to
+              overflow the call stack, including on a thread with a small stack.
+            justification: |
+              A stack overflow cannot be caught and terminates the host process; bounding the depth
+              of both the parser's recursion and the resulting tree also keeps every later
+              recursive consumer of the tree stack-safe.
+            children:
+              - CanvasNetScad-ScadLanguage-ScadParser-NestingLimit
+              - CanvasNetScad-ScadLanguage-ScadParser-SourceLength
+            tests:
+              - ScadLanguage_Parse_DeepNesting_FailsClosedWithTypedException
+              - ScadLanguage_Parse_DeepNesting_OnSmallStackThread_DoesNotOverflow

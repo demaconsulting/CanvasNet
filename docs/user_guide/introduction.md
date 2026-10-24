@@ -2521,7 +2521,8 @@ pure-managed software 3D rasterizer. It depends only on the core `CanvasNet` pac
 and `Rgba32`) and has no knowledge of any 3D file format. Its types live in three namespaces:
 
 - `DemaConsulting.CanvasNet.Render3D.SceneModel` - double-precision math, meshes, and the scene graph
-- `DemaConsulting.CanvasNet.Render3D.Tessellation` - primitive mesh factories
+- `DemaConsulting.CanvasNet.Render3D.Tessellation` - primitive mesh factories, 2D polygon regions,
+  polygon triangulation, and linear and rotational extrusion
 - `DemaConsulting.CanvasNet.Render3D.SceneRendering` - camera, lights, options, and the renderer
 
 Scenes can combine solids with constructive solid geometry (union, difference, and intersection of
@@ -2678,6 +2679,12 @@ public static class PrimitiveTessellator
     public static Mesh Sphere(double radius, int segments);
     public static Mesh Cylinder(double height, double radius1, double radius2, int segments, bool center = false);
     public static Mesh Polyhedron(IReadOnlyList<Vector3D> points, IReadOnlyList<IReadOnlyList<int>> facesCcw);
+
+    // 2D profiles for the Extruder (see PolygonRegion)
+    public static PolygonRegion Rectangle(Vector2D size, bool center = false);
+    public static PolygonRegion Ellipse(double radiusX, double radiusY, int segments);
+    public static PolygonRegion Circle(double radius, int segments);
+    public static PolygonRegion Polygon(IReadOnlyList<Vector2D> points, IReadOnlyList<IReadOnlyList<int>>? paths = null);
 }
 ```
 
@@ -2693,14 +2700,192 @@ public static class PrimitiveTessellator
   **counter-clockwise as seen from outside** for an outward-facing result; neither is checked, so
   inspect `Mesh.IsClosed` and `Mesh.SignedVolume`, and for an inside-out polyhedron (negative
   `SignedVolume`) call `Mesh.Reverse()`.
+- `Rectangle` is a counter-clockwise rectangle from the origin to `size` (or centered on the origin
+  when `center` is true). `Ellipse` and `Circle` are inscribed polygons centered on the origin whose
+  vertex `j` is at the angle `2 pi j / segments` counter-clockwise from +X (the same ring as
+  `Cylinder`, so extruding `Circle(r, n)` gives the same solid as `Cylinder(h, r, r, n)`); their
+  area is slightly below the true ellipse. `Polygon` builds a region from a point list: with no
+  `paths` the points form one contour in order, otherwise each path is a list of indices into
+  `points` forming one contour (a nested contour is a hole). All four return a `PolygonRegion`.
 
 **Exceptions:**
 
 - `ArgumentOutOfRangeException`: Thrown for a non-positive or non-finite size, radius, or height,
-  fewer than three segments, both cylinder radii zero, or a face index outside the point list.
+  fewer than three segments, both cylinder radii zero, a face index outside the point list, or a
+  `Polygon` path index outside the point list.
 - `ArgumentException`: Thrown by `Polyhedron` for a face with fewer than three indices, a repeated
-  index, or two indices that address identical (welded) points.
-- `ArgumentNullException`: Thrown by `Polyhedron` for a null point list, face list, or face.
+  index, or two indices that address identical (welded) points, and by the 2D factories for an
+  invalid polygon (see *PolygonRegion*).
+- `ArgumentNullException`: Thrown by `Polyhedron` for a null point list, face list, or face, and by
+  `Polygon` for a null point list or path.
+
+### PolygonRegion
+
+`PolygonRegion` (namespace `DemaConsulting.CanvasNet.Render3D.Tessellation`) is an immutable,
+validated 2D region bounded by simple polygon contours, with holes expressed by nesting. It is the
+input of `Extruder` and `PolygonTriangulator`.
+
+```csharp
+public sealed class PolygonRegion
+{
+    public PolygonRegion(IEnumerable<IReadOnlyList<Vector2D>> contours);
+    public static PolygonRegion Empty { get; }
+    public IReadOnlyList<IReadOnlyList<Vector2D>> Contours { get; }
+    public IReadOnlyList<Vector2D> Vertices { get; }
+    public int VertexCount { get; }
+    public bool IsEmpty { get; }
+    public double Area { get; }
+}
+```
+
+- Each contour is a list of at least three distinct points that is closed implicitly. The even-odd
+  rule decides what is solid: a contour inside no other contour is an outer boundary, a contour
+  inside one is a hole, and a contour inside a hole is an island, whatever winding you supply.
+  `Contours` returns the normalized contours (outer boundaries counter-clockwise, holes clockwise).
+- Closing duplicates (a last point equal to the first) and consecutive duplicate points are
+  dropped; collinear points are kept and become vertices of the extruded mesh.
+- `Area` is the area of the region (outer boundaries minus holes plus islands). `Empty` has no
+  contours; extruding it gives an empty mesh. `Vertices` is all contour vertices in order, the index
+  space of `PolygonTriangulator.Triangulate`.
+- **Invalid polygons are rejected, never repaired**: the constructor throws `ArgumentException`
+  (naming the contour) for a non-finite point, a contour with fewer than three distinct vertices or
+  with zero area (all points collinear, or an area too small for a normal double, such as a triangle with
+  legs of `1e-200`), a contour that crosses or touches itself (a bow tie, a
+  spike, or a repeated non-consecutive point), and contours that cross or touch each other (a shared
+  point, or a vertex on another contour's edge). Move touching contours apart or merge them
+  yourself. `ArgumentNullException` is thrown for a null contour list or contour. Finite but
+  extreme coordinates (beyond about 1e154, where the area overflows) are also rejected with
+  `ArgumentException`, so `Area` is always a finite number.
+
+```csharp
+// A 10 x 10 square plate with a 4 x 4 hole (winding does not matter)
+var plate = new PolygonRegion(
+[
+    new Vector2D[] { new(0, 0), new(10, 0), new(10, 10), new(0, 10) },
+    new Vector2D[] { new(3, 3), new(3, 7), new(7, 7), new(7, 3) },
+]);
+Console.WriteLine(plate.Area); // Output: 84
+```
+
+### PolygonTriangulator
+
+`PolygonTriangulator` triangulates a `PolygonRegion` into counter-clockwise triangles that use only
+the region's own vertices (no points are added, and every collinear vertex is kept).
+
+```csharp
+public static class PolygonTriangulator
+{
+    public static IReadOnlyList<int> Triangulate(PolygonRegion region);
+}
+```
+
+- The result lists three indices per triangle into `region.Vertices`. A region with `V` vertices,
+  `H` holes and `P` outer boundaries gives exactly `V + 2H - 2P` triangles, which tile the region
+  exactly and leave the holes uncovered. The decisions use exact arithmetic (no tolerances), and the
+  result is deterministic.
+- Holes are connected to their outer boundary by zero-width bridges before the ears are clipped.
+  A convex polygon is linear. A concave polygon costs up to the number of vertices times the number
+  of reflex (inward-pointing) vertices, so the worst case is quadratic in the number of vertices:
+  fine for typical CAD-sized profiles, but a comb with 8,000 vertices and many deep teeth takes about
+  two seconds, and the time keeps growing quadratically beyond that. There is no cancellation, so
+  split very large concave profiles.
+- `ArgumentNullException` is thrown for a null region.
+
+```csharp
+var triangles = PolygonTriangulator.Triangulate(plate);
+Console.WriteLine(triangles.Count / 3); // Output: 8 (8 vertices + 2 * 1 hole - 2 * 1 boundary)
+```
+
+### Extruder
+
+`Extruder` turns a `PolygonRegion` into a solid `Mesh` by extruding it along +Z or by revolving it
+about the Z axis.
+
+```csharp
+public static class Extruder
+{
+    public static Mesh Linear(PolygonRegion region, double height, bool center = false,
+        double twistDegrees = 0.0, int slices = 1, Vector2D? scale = null);
+    public static Mesh Linear(PolygonRegion region, double height, bool center,
+        double twistDegrees, int slices, double uniformScale);
+    public static Mesh Rotate(PolygonRegion region, double angleDegrees, int segments);
+}
+```
+
+Every result is a welded, closed, outward-oriented mesh with positive `SignedVolume` and no
+degenerate triangles, so it is a valid operand for constructive solid geometry (`CsgNode`) without
+any operand report. An empty region gives an empty mesh. These guarantees hold for profiles and
+parameters of ordinary magnitude and are subject to two caveats:
+
+- **Finite precision.** With extreme values (a tiny non-zero scale such as `1e-17`, a height near
+  `double.MaxValue`, or coordinates of about `1e200`) rounding can make a triangle degenerate; the
+  operand validator then reports `render3d-csg-degenerate-triangle`. Use scales, heights, and
+  coordinates of moderate magnitude.
+- **Scale and twist are about the origin.** For an apex (scale `(0, 0)`), a large scale change, or a
+  per-axis scale combined with a twist, the profile should be **star-shaped about the origin** (every
+  point of the profile is visible from the origin). Otherwise the solid can intersect itself (it may
+  even come out inverted) and is not a valid operand.
+
+The `Linear` method:
+
+- The solid spans `z = 0` to `z = height`, or `+/- height/2` when `center` is true.
+- `twistDegrees` rotates the top relative to the bottom about +Z: a **positive** angle turns the top
+  **counter-clockwise** as seen from +Z (right-hand rule). If you are porting from a language with
+  the opposite sign, negate the angle.
+- `scale` is the scale of the top relative to the bottom about the origin (per axis, interpolated
+  linearly; applied before the twist). Each component must be finite and not negative. A scale of
+  `(0, 0)` makes the top a single **apex** point (no top cap), giving a pyramid or cone shape; the apex
+  needs a region with a **single contour**, because a hole or a second island would meet the outer
+  shell at one pinched (non-manifold) vertex, so such a region throws `ArgumentException`. A
+  scale that is zero in only one axis, or negative in either, is rejected: it would flatten the top
+  to a line or make the solid pass through itself. The `uniformScale` overload scales both axes.
+- `slices` is the number of slices along the height (at least 1). A straight extrusion without
+  taper or twist needs only one. Twisted or non-uniformly scaled walls are not planar, so the mesh
+  approximates the smooth solid and the approximation improves as `slices` grows: use enough slices
+  that the twist per slice is small (the volume error is about 1.7% for 90 degrees in 32 slices, and
+  shrinks as slices increase). The slice count is never refined automatically.
+- A region with a hole becomes **one connected solid with a through-hole**: the outer wall, the
+  hole wall (facing into the hole), and both caps share their vertices. An island inside a hole is
+  a separate solid.
+
+The `Rotate` method:
+
+- The profile's X is the radius and its Y is the height; it is revolved about the +Z axis, turning
+  from azimuth 0 toward `+angleDegrees` (counter-clockwise as seen from +Z).
+- `angleDegrees` must be in `(0, 360]`, and not so small that its radian value rounds to zero
+  (`double.Epsilon` is rejected). Exactly 360 is a full revolution (`segments` at least 3, no
+  end caps); a smaller angle is a partial sweep (`segments` at least 1) with end caps at both ends.
+- The whole profile must lie on **one side of the axis**: every vertex with `x >= 0`, or every
+  vertex with `x <= 0`. A profile that **crosses the axis** (vertices with both signs) throws
+  `ArgumentException`, as does a profile lying only on the axis. There is no tolerance: `x == 0`
+  exactly means on the axis. Vertices on the axis are welded into single points, so a profile
+  touching the axis along an edge gives a cone, cylinder, or lens without degenerate triangles. A
+  profile that touches the axis only at an **isolated vertex** (both neighboring edges leave the axis)
+  would pinch the solid at that point and throws `ArgumentException`.
+- The mesh is faceted: its volume is `segments * sin(angle / segments) * integral(|x| dA)` over the
+  profile, which approaches the exact `angle * x_centroid * area` as `segments` grows (for a
+  full revolution, `angle` is 2 pi radians).
+- A profile with a hole gives a hollow solid (its cavity is a second, inward-facing shell).
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown for a null region.
+- `ArgumentOutOfRangeException`: Thrown for a height that is not finite and positive, fewer than one
+  slice, an invalid scale, an angle outside `(0, 360]` (or one whose radian value is zero), or too few
+  segments.
+- `ArgumentException`: Thrown for a non-finite twist, an apex (zero scale) over a region with a hole or
+  several contours, a profile that crosses or lies on the rotation axis or touches it at an isolated
+  vertex, a sweep step too small to resolve at a profile vertex's radius, or a result too
+  large for a mesh.
+
+```csharp
+var plate3D = Extruder.Linear(plate, 2.0, center: true);
+Console.WriteLine(plate3D.SignedVolume); // Output: 168 (84 * 2)
+
+// A cone: revolve a right triangle that touches the axis
+var cone = Extruder.Rotate(new PolygonRegion([new Vector2D[] { new(0, 0), new(2, 0), new(0, 5) }]), 360.0, 32);
+Console.WriteLine(cone.IsClosed); // Output: True
+```
 
 ### Scene
 
@@ -3662,6 +3847,62 @@ catch (SceneRenderUnsupportedFeatureException ex)
 {
     Console.WriteLine(ex.Feature); // Output: render3d-csg-open-mesh
 }
+```
+
+## Example 22: Extruding a Polygon With a Hole
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Render3D.SceneModel;
+using DemaConsulting.CanvasNet.Render3D.SceneRendering;
+using DemaConsulting.CanvasNet.Render3D.Tessellation;
+
+// A 20 x 20 square plate with a round hole: the second contour lies inside the first, so it is a
+// hole (the winding of the contours does not matter). Invalid polygons, such as a self-intersecting
+// bow tie or contours that touch, throw ArgumentException here, when the region is created.
+var plate = new PolygonRegion(
+[
+    PrimitiveTessellator.Rectangle(new Vector2D(20, 20), center: true).Contours[0],
+    PrimitiveTessellator.Circle(5.0, 48).Contours[0],
+]);
+
+// Extrude 4 units along Z: one closed solid with a through-hole, outward-oriented
+var plateMesh = Extruder.Linear(plate, 4.0, center: true);
+Console.WriteLine(plateMesh.IsClosed); // Output: True
+
+// A star twisted by 90 degrees (positive is counter-clockwise from above) and tapered to a point.
+// Twisted solids are approximated by slices, so use enough of them.
+var star = PrimitiveTessellator.Polygon(Enumerable.Range(0, 10)
+    .Select(i => new Vector2D(
+        (i % 2 == 0 ? 3.0 : 1.2) * Math.Cos(i * Math.PI / 5.0),
+        (i % 2 == 0 ? 3.0 : 1.2) * Math.Sin(i * Math.PI / 5.0)))
+    .ToArray());
+var spire = Extruder.Linear(star, 8.0, twistDegrees: 90.0, slices: 32, scale: Vector2D.Zero);
+
+// A vase: revolve a profile (X = radius, Y = height) that stays on one side of the Z axis
+var vase = Extruder.Rotate(
+    PrimitiveTessellator.Polygon([new(0, 0), new(3, 0), new(4, 3), new(2, 6), new(2.5, 8), new(0, 8)]),
+    360.0,
+    48);
+
+var scene = new Scene(new GroupNode(
+[
+    new MeshNode(plateMesh) { Appearance = new NodeAppearance(new Rgba32(70, 130, 180, 255)) },
+    new MeshNode(spire)
+    {
+        Transform = Matrix4x4D.CreateTranslation(new Vector3D(0, 0, 2)),
+        Appearance = new NodeAppearance(new Rgba32(220, 170, 60, 255)),
+    },
+    new MeshNode(vase)
+    {
+        Transform = Matrix4x4D.CreateTranslation(new Vector3D(25, 0, -2)),
+        Appearance = new NodeAppearance(new Rgba32(190, 90, 80, 255)),
+    },
+]));
+
+using var image = SceneRenderer.RenderFitted(scene, 800, 400);
+PngCodec.Save(image, "extrusions.png");
 ```
 
 ## Rendering (transform-aware Canvas, text, and shapes)

@@ -19,6 +19,8 @@
 # z-buffer triangle rasterizer, supersampling antialiasing, deterministic tile parallelism, and
 # cooperative cancellation. Phase 2 adds constructive solid geometry (union, difference,
 # intersection) through per-pixel fragment lists, with a memory budget and closed-operand reporting.
+# Phase 3 adds validated 2D polygon regions, an exact polygon triangulator, and linear and
+# rotational extrusion of those regions into closed, outward-oriented meshes.
 # Transparency and file-format front ends are added by later phases; their requirements will be
 # added to this file (and new per-unit files) when each phase lands, mirroring
 # canvas-net-pptx.yaml's own per-phase header-comment convention.
@@ -67,6 +69,28 @@ sections:
         tests:
           - CanvasNetRender3D_SystemIntegration_PrimitiveMeshes_BoxSphereCylinderAreClosedWithAnalyticVolume
           - CanvasNetRender3D_SystemIntegration_PrimitiveMeshes_PolyhedronPreservesSuppliedWinding
+
+      - id: CanvasNetRender3D-PolygonExtrusion
+        title: >-
+          The library shall create validated 2D polygon regions (rectangle, ellipse, circle, and
+          polygon with holes, with self-intersecting, touching, zero-area, and non-finite polygons
+          rejected at construction) and extrude them linearly (optionally twisted and scaled) or by
+          rotation about the Z axis into welded, closed, outward-oriented meshes that are valid
+          constructive-solid-geometry operands, with a polygon hole extruded as a through-hole that
+          is visible when rendered and a cut of an extruded solid rendering without any operand
+          report, in strict mode included.
+        tags: [system]
+        justification: |
+          Extruded and revolved 2D profiles are, with primitives, the building blocks of CAD-style
+          models; rendering them correctly (the hole open, the walls shaded) and accepting them as
+          difference and intersection operands without reports shows the extrusion guarantees hold
+          through the whole pipeline, while rejecting invalid polygons keeps defective meshes out
+          of the scene.
+        children:
+          - CanvasNetRender3D-Tessellation-PolygonExtrusion
+        tests:
+          - CanvasNetRender3D_SystemIntegration_Extrusion_HoleExtrusionRendersThroughHole
+          - CanvasNetRender3D_SystemIntegration_Extrusion_ExtrudedShapesAreValidCsgOperands
 
       - id: CanvasNetRender3D-Render
         title: >-

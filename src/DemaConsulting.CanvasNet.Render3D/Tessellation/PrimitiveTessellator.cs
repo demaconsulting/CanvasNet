@@ -6,7 +6,8 @@ namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
 
 /// <summary>
 ///     Converts analytic primitives (box, sphere, cylinder/cone, polyhedron) into
-///     <see cref="Mesh"/> instances.
+///     <see cref="Mesh"/> instances, and builds two-dimensional shapes (rectangle, ellipse, circle, polygon)
+///     as <see cref="PolygonRegion"/> instances for extrusion.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -16,7 +17,7 @@ namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
 ///         counter-clockwise when seen from outside, giving a positive
 ///         <see cref="Mesh.SignedVolume"/>. The primitives are oriented in right-handed Z-up model
 ///         space. The only exception is <see cref="Polyhedron"/>, whose orientation and closed-surface property
-///         are those of the caller's faces.
+///         are those of the caller's faces. The 2D shapes live in <c>PrimitiveTessellator.Shapes2D.cs</c>.
 ///     </para>
 ///     <para>
 ///         Curved primitives are faceted: a sphere or cylinder with <c>n</c> segments is an
@@ -25,7 +26,7 @@ namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
 ///         thread-safe.
 ///     </para>
 /// </remarks>
-public static class PrimitiveTessellator
+public static partial class PrimitiveTessellator
 {
     /// <summary>Smallest accepted number of azimuthal segments for curved primitives.</summary>
     private const int MinimumSegments = 3;

@@ -1,0 +1,157 @@
+---
+# cspell:ignore triangulator triangulations triangulation triangulated collinear Ngon
+#
+# Software Unit Requirements for PolygonTriangulator
+#
+# These requirements describe the design-level behavior of the PolygonTriangulator unit: the public
+# immutable PolygonRegion type (validated, even-odd, winding-normalized 2D regions), the public static
+# PolygonTriangulator class (exact ear clipping with hole bridging) and the internal PolygonPredicates
+# class (epsilon-free orientation, intersection, and containment predicates) in the
+# DemaConsulting.CanvasNet.Render3D.Tessellation namespace.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: Tessellation Requirements
+        sections:
+          - title: PolygonTriangulator Requirements
+            requirements:
+              - id: CanvasNetRender3D-Tessellation-PolygonTriangulator-RegionModel
+                title: >-
+                  A PolygonRegion shall classify its contours by the even-odd nesting rule,
+                  normalizing every solid contour to counter-clockwise and every hole to
+                  clockwise winding regardless of the supplied winding (an island inside a hole being
+                  solid again), shall drop closing and consecutive duplicate points while keeping
+                  collinear points, shall report the region area as solid minus holes plus islands,
+                  shall allow a region without contours (zero area, no vertices to triangulate), and
+                  shall hold private snapshots of its input that later changes to the caller's
+                  collections cannot affect.
+                justification: |
+                  A single normalized representation (solid on the left of every contour) lets the
+                  triangulator and the extruder use one wall and cap formula for outer boundaries and
+                  hole walls alike, independent of how the caller wound the input; immutability makes
+                  the region safe to share between threads and to reuse.
+                tests:
+                  - PolygonRegion_Constructor_ClockwiseOuter_IsNormalizedToCounterClockwise
+                  - PolygonRegion_Constructor_CounterClockwiseHole_IsNormalizedToClockwise
+                  - PolygonRegion_Constructor_IslandInHole_HasEvenDepthAndCounterClockwise
+                  - PolygonRegion_Constructor_ClosingAndRepeatedPoints_AreRemoved
+                  - PolygonRegion_Constructor_CollinearPoints_AreKept
+                  - PolygonRegion_Constructor_NoContours_IsEmptyWithZeroArea
+                  - PolygonRegion_Area_RingWithHoleAndIsland_IsAnalytic
+                  - PolygonRegion_Contours_AreSnapshotsOfInput
+
+              - id: CanvasNetRender3D-Tessellation-PolygonTriangulator-RegionValidation
+                title: >-
+                  The PolygonRegion constructor shall reject, with an ArgumentException (or an
+                  ArgumentNullException for null arguments), every polygon that cannot be extruded into a
+                  closed manifold solid: a non-finite point, finite coordinates so extreme that the
+                  area of the region is not a finite number, a contour with fewer than three distinct
+                  vertices or with zero area (including an area that is zero or subnormal in a
+                  double), a contour that crosses
+                  or touches itself (a bow tie, a
+                  spike of overlapping edges, or a repeated non-consecutive point), and contours that
+                  cross or touch one another; it shall never leave such input as undefined behavior.
+                justification: |
+                  Triangulation and extrusion are only well defined for simple, non-degenerate
+                  polygons. Failing closed at construction, with a message naming the offending
+                  contour, keeps every later mesh closed, manifold, and a valid constructive solid
+                  geometry operand instead of producing cracked or overlapping geometry far from the
+                  cause.
+                tests:
+                  - PolygonRegion_Constructor_FewerThanThreeDistinctPoints_Throws
+                  - PolygonRegion_Constructor_ZeroAreaContour_Throws
+                  - PolygonRegion_Constructor_AreaBelowDoubleRange_Throws
+                  - PolygonRegion_Constructor_NonFinitePoint_Throws
+                  - PolygonRegion_Constructor_AreaNotFinite_Throws
+                  - PolygonRegion_Constructor_NullArguments_Throw
+                  - PolygonRegion_Constructor_SelfIntersectingBowTie_Throws
+                  - PolygonRegion_Constructor_SpikeOverlappingEdges_Throws
+                  - PolygonRegion_Constructor_RepeatedNonConsecutivePoint_Throws
+                  - PolygonRegion_Constructor_CrossingContours_Throws
+                  - PolygonRegion_Constructor_TouchingContours_Throws
+
+              - id: CanvasNetRender3D-Tessellation-PolygonTriangulator-ExactCoverage
+                title: >-
+                  The PolygonTriangulator Triangulate method shall return, for every valid region,
+                  strictly counter-clockwise triangles over the region's own vertices (no added points)
+                  whose number is exactly V + 2H - 2P for V vertices, H holes, and P solid contours,
+                  whose areas sum to the region area, that use every vertex, and in which every contour
+                  edge appears once in its own direction and every other edge once in each direction (so
+                  the triangles tile the region exactly and leave holes uncovered), and shall return no
+                  triangles for an empty region and reject a null region.
+                justification: |
+                  Extruded caps must cover exactly the region and reuse the side-wall vertex indices so
+                  the solid is watertight; an exact count and edge invariant lets tests prove coverage,
+                  absence of overlap, and absence of T-junctions without a reference triangulation.
+                tests:
+                  - PolygonTriangulator_Triangulate_Square_ReturnsTwoCounterClockwiseTriangles
+                  - PolygonTriangulator_Triangulate_ConcavePolygons_CoverRegionExactly
+                  - PolygonTriangulator_Triangulate_RegularNgon_HasNMinusTwoTriangles
+                  - PolygonTriangulator_Triangulate_RandomStarPolygons_Fuzz_CoverRegionExactly
+                  - PolygonTriangulator_Triangulate_EmptyRegion_ReturnsNoTriangles
+                  - PolygonTriangulator_Triangulate_NullRegion_Throws
+
+              - id: CanvasNetRender3D-Tessellation-PolygonTriangulator-Holes
+                title: >-
+                  The PolygonTriangulator shall triangulate regions with holes by bridging each hole to
+                  its containing solid contour at a mutually visible vertex, covering the region exactly
+                  while leaving every hole empty, for a single hole, a grid of holes, an island inside a
+                  hole with a second outer contour, a hole whose bridge ray passes a reflex vertex, a hole
+                  vertex collinear with outer vertices, and randomized hole layouts.
+                justification: |
+                  Holes are the principal reason for a triangulator beyond convex fans; bridging them
+                  into one weakly simple ring keeps a hole extrusion a single connected closed shell,
+                  which is visible on the z-buffer path and valid for constructive solid geometry.
+                tests:
+                  - PolygonTriangulator_Triangulate_RingWithOneHole_CoversRegionAndLeavesHoleEmpty
+                  - PolygonTriangulator_Triangulate_RectangleWithGridOfHoles_IsExact
+                  - PolygonTriangulator_Triangulate_HoleWithIslandAndSecondOuterContour_IsExact
+                  - PolygonTriangulator_Triangulate_HoleWhoseBridgeRayHitsReflexVertex_IsExact
+                  - PolygonTriangulator_Triangulate_HoleVertexCollinearWithOuterVertices_BridgesToNearestVisible
+                  - PolygonTriangulator_Triangulate_RandomHoleLayouts_Fuzz_CoverRegionExactly
+
+              - id: CanvasNetRender3D-Tessellation-PolygonTriangulator-CollinearAndDuplicatePoints
+                title: >-
+                  The PolygonTriangulator shall keep every collinear vertex as a vertex of the
+                  triangulation, never emitting a zero-area triangle and never leaving a T-junction, for
+                  vertices collinear along edges, for rectangles with many collinear points on every
+                  side, and for nearly collinear vertices.
+                justification: |
+                  Wall edges of an extrusion run between consecutive contour vertices; a cap that
+                  dropped a collinear vertex would leave a T-junction and an open mesh, and a zero-area
+                  triangle would fail the constructive solid geometry operand checks.
+                tests:
+                  - PolygonTriangulator_Triangulate_CollinearVerticesOnEdges_UseEveryVertexWithoutDegenerateTriangles
+                  - PolygonTriangulator_Triangulate_RectangleWithManyCollinearPointsOnAllSides_IsExact
+                  - PolygonTriangulator_Triangulate_NearlyCollinearVertices_StillTriangulates
+
+              - id: CanvasNetRender3D-Tessellation-PolygonTriangulator-ExactPredicates
+                title: >-
+                  The orientation, segment-intersection, point-in-polygon, corner, and
+                  point-in-triangle predicates shall return the exact result for the given double
+                  values with no tolerance, including for nearly collinear and exactly collinear
+                  points and for extreme magnitudes, agreeing with an independent integer reference.
+                justification: |
+                  A single wrong orientation sign on a nearly collinear triple yields overlapping or
+                  missing triangles; tolerances only move the failure to different input, so every
+                  decision of the polygon code rests on exact predicates.
+                tests:
+                  - PolygonPredicates_Orient2D_NearCollinearPoints_ReturnsExactSign
+                  - PolygonPredicates_Orient2D_ExactCollinearAndExtremeMagnitudes_ReturnExactSign
+                  - PolygonPredicates_Orient2D_RandomPoints_MatchIntegerReference
+                  - PolygonPredicates_SegmentsIntersect_TouchingCollinearAndCrossing_AreClassified
+                  - PolygonPredicates_PointInPolygon_InsideAndOutside_AreClassified
+                  - PolygonPredicates_InsideCorner_ConvexReflexAndStraightCorners_AreClassified
+                  - PolygonPredicates_PointInClosedTriangle_InteriorBoundaryAndExterior_AreClassified
+
+              - id: CanvasNetRender3D-Tessellation-PolygonTriangulator-Determinism
+                title: >-
+                  The PolygonTriangulator shall return identical triangles for identical input and
+                  identical triangulations for a region supplied clockwise or counter-clockwise.
+                justification: |
+                  Deterministic output keeps rendered images and meshes reproducible; because regions
+                  are winding-normalized, the supplied winding must not influence the result.
+                tests:
+                  - PolygonTriangulator_Triangulate_SameInput_IsDeterministic
+                  - PolygonTriangulator_Triangulate_ClockwiseAndCounterClockwiseInput_GiveIdenticalTriangulation

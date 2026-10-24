@@ -621,6 +621,92 @@ public class Render3DSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates polygon extrusion end to end through the public API on the z-buffer path: a square plate with a
+    ///     circular hole renders the hole as background, the plate with the analytic area, and (from an oblique
+    ///     perspective view) the inner wall of the hole as a surface shaded differently from the top face.
+    /// </summary>
+    [Fact]
+    public void CanvasNetRender3D_SystemIntegration_Extrusion_HoleExtrusionRendersThroughHole()
+    {
+        // Arrange: a 20 x 20 plate, 4 thick, with a 48-gon hole of radius 5 (a single bridged shell)
+        const int segments = 48;
+        var plate = new PolygonRegion(
+        [
+            PrimitiveTessellator.Rectangle(new Vector2D(20, 20), center: true).Contours[0],
+            PrimitiveTessellator.Circle(5.0, segments).Contours[0],
+        ]);
+        var scene = new Scene(new MeshNode(Extruder.Linear(plate, 4.0, center: true)));
+        var top = Render3DTestHelpers.OrthoCamera(new Vector3D(0, 0, 50), Vector3D.Zero, Vector3D.UnitY, 24.0);
+
+        // Act: top view at 10 pixels per unit with flat colors
+        using var surface = SceneRenderer.Render(scene, top, 240, 240, Render3DTestHelpers.FlatOptions(), TestContext.Current.CancellationToken);
+
+        // Assert: the hole is open (background), a ring pixel is the node color, and the covered area is analytic
+        Assert.Equal(White, surface[120, 120]);
+        Assert.Equal(Gray, surface[190, 120]);
+        Assert.Equal(White, surface[5, 5]);
+        var holeArea = 0.5 * segments * 25.0 * Math.Sin(2.0 * Math.PI / segments);
+        var expected = (400.0 - holeArea) * 100.0;
+        var covered = (240 * 240) - Render3DTestHelpers.CountPixels(surface, White);
+        Assert.InRange(covered, expected * 0.99, expected * 1.01);
+
+        // Act: an oblique perspective view with the default lighting rig, looking through the hole at its far wall
+        var oblique = new Camera { Eye = new Vector3D(0, -14, 16), Target = Vector3D.Zero, Up = Vector3D.UnitZ, FieldOfViewDegrees = 60.0 };
+        using var tilted = SceneRenderer.Render(scene, oblique, 200, 200, new SceneRenderOptions { Supersampling = 1 }, TestContext.Current.CancellationToken);
+        var (wallX, wallY) = ToPixel(oblique, new Vector3D(0, 5, 0), 200, 200);
+        var (faceX, faceY) = ToPixel(oblique, new Vector3D(0, 8, 2), 200, 200);
+
+        // Assert: the far inner wall of the hole is visible and shaded differently from the top face
+        Assert.NotEqual(White, tilted[wallX, wallY]);
+        Assert.NotEqual(tilted[faceX, faceY], tilted[wallX, wallY]);
+    }
+
+    /// <summary>
+    ///     Validates that an extruded polygon with a hole is a valid constructive-solid-geometry operand end to end:
+    ///     a box cut from the plate renders without any report (strict mode included) and the cut surface appears at
+    ///     the analytically expected pixels.
+    /// </summary>
+    [Fact]
+    public void CanvasNetRender3D_SystemIntegration_Extrusion_ExtrudedShapesAreValidCsgOperands()
+    {
+        // Arrange: the 20 x 20 plate with a hole (blue) minus a red box spanning x 6..9, y -2..2, z 0..6
+        var blue = new Rgba32(30, 60, 220, 255);
+        var red = new Rgba32(220, 40, 40, 255);
+        var plate = new PolygonRegion(
+        [
+            PrimitiveTessellator.Rectangle(new Vector2D(20, 20), center: true).Contours[0],
+            PrimitiveTessellator.Circle(5.0, 48).Contours[0],
+        ]);
+        var plateNode = new MeshNode(Extruder.Linear(plate, 4.0, center: true)) { Appearance = new NodeAppearance(blue) };
+        var cutter = new MeshNode(PrimitiveTessellator.Box(new Vector3D(3, 4, 6)))
+        {
+            Transform = Matrix4x4D.CreateTranslation(new Vector3D(6, -2, 0)),
+            Appearance = new NodeAppearance(red),
+        };
+        var scene = new Scene(new CsgNode(CsgOperation.Difference, [plateNode, cutter]));
+        var top = Render3DTestHelpers.OrthoCamera(new Vector3D(0, 0, 50), Vector3D.Zero, Vector3D.UnitY, 24.0);
+        var reports = new List<SceneRenderUnsupportedFeature>();
+        var options = new SceneRenderOptions
+        {
+            Lights = [new AmbientLight { Intensity = 1.0f }],
+            Supersampling = 1,
+            UnsupportedFeatureHandler = reports.Add,
+            ThrowOnUnsupportedFeature = true,
+        };
+
+        // Act: no exception may be thrown in strict mode
+        using var surface = SceneRenderer.Render(scene, top, 240, 240, options, TestContext.Current.CancellationToken);
+
+        // Assert: no report; the pocket floor (cut surface at z = 0) is red, the rest of the plate is blue, the hole stays open
+        Assert.Empty(reports);
+        Assert.Equal(red, surface[195, 120]);
+        Assert.Equal(blue, surface[195, 80]);
+        Assert.Equal(blue, surface[120, 20]);
+        Assert.Equal(White, surface[120, 120]);
+        Assert.InRange(Render3DTestHelpers.CountPixels(surface, red), 1200 * 0.97, 1200 * 1.03);
+    }
+
+    /// <summary>
     ///     Validates cooperative cancellation: a pre-cancelled token throws OperationCanceledException.
     /// </summary>
     [Fact]
