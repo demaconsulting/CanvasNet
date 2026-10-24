@@ -26,7 +26,9 @@ of scenes, cameras, lights, or tiles beyond a sample rectangle to restrict to.
 #### Data Model
 
 - **`ViewTriangle`**: three `ClipVertex` positions in counter-clockwise-outward order, a draw
-  `Priority` (the scene pre-order index), and the `FrontColor` and `BackColor` shades.
+  `Priority` (the scene pre-order index), the `FrontColor` and `BackColor` shades, and, used only by
+  the fragment-list CSG path, the CSG `Leaf` and four shades chosen by facing and by the visible
+  event: `FrontEnterColor`, `FrontExitColor`, `BackEnterColor`, `BackExitColor`.
 - **`ClipVertex(X, Y, Z)`**: a double-precision view-space vertex (promoted exactly from the
   single-precision narrowed position); `Depth` is `-Z`. `IsBefore` is the canonical lexicographic
   (X, Y, Z) order used to make clipped-edge intersections direction-independent.
@@ -41,7 +43,8 @@ of scenes, cameras, lights, or tiles beyond a sample rectangle to restrict to.
 - **`ScreenTriangle`**: six `int` 24.8 fixed-point coordinates in global sample space, `long Area2`
   (twice the signed area; always positive after normalization), three `float` view depths, a flag
   for perspective-correct depth, the `Priority`, a `BackFacing` flag, and the single `Color` of the
-  visible side.
+  visible side. For the CSG path it also carries the `Leaf` and the `EnterColor` / `ExitColor`
+  shades (the pair selected by the facing); the z-buffer path ignores them.
 - **`TileRect`**: `[X0, X1) x [Y0, Y1)` in samples.
 
 Fixed-point format: a value `v` samples is stored as `round(v * 256)`. Sample `(i, j)` has its center
@@ -70,6 +73,9 @@ output list:
    **negative** raw `area2` and is front-facing; a positive raw area means the viewer sees the back.
    `Emit` reorders two vertices (and their depths) of a front-facing triangle so that `Area2` is
    positive in every stored triangle, records `BackFacing`, and selects `FrontColor` or `BackColor`.
+   It also copies the CSG `Leaf` and selects the `FrontEnterColor`/`FrontExitColor` or the
+   `BackEnterColor`/`BackExitColor` pair as the triangle's `EnterColor`/`ExitColor`; coverage,
+   depth, and winding code is unaffected.
 
 ##### Clipping (`TriangleClipper.Clip`)
 
@@ -138,4 +144,6 @@ performed here: the `Lighting` unit's output arrives as ready-made colors. The u
 
 `SceneRenderer` calls `Setup` once per triangle while preparing the scene and `Rasterize`, with a
 `DepthTestVisitor`, once per binned triangle per tile; `TileBinner` calls `GetSampleBounds`. The
-unit tests also call `Rasterize` with a coverage-counting visitor.
+`FragmentBuffer` unit calls `Rasterize` twice per binned triangle per tile on the CSG path (with
+its own count and fill visitors). The unit tests also call `Rasterize` with a coverage-counting
+visitor.

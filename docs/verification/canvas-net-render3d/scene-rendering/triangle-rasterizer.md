@@ -107,6 +107,14 @@ Asserts that, within the tolerance, the lower draw priority wins and a front-fac
 back-facing one, that beyond the tolerance the nearer fragment wins, and that the stored depth after
 a tie is the minimum of the two depths.
 
+##### CanvasNetRender3D-SceneRendering-TriangleRasterizer-CsgAttributes: CSG Attributes Follow The Facing
+
+**Tests**: `TriangleRasterizerTests.TriangleRasterizer_Setup_CsgAttributes_AreCopiedAndSelectedByFacing`
+
+Asserts that a front-facing and a reversed (back-facing) triangle both carry the view triangle's CSG
+leaf, that the front shade pair is selected for the front-facing triangle and the back shade pair
+for the back-facing one, and that the z-buffer `Color`, facing, and area are unchanged.
+
 #### Acceptance Criteria
 
 A unit-level test run passes when every scenario above passes without error or exception beyond

@@ -29,4 +29,32 @@ internal readonly struct ViewTriangle
 
     /// <summary>Gets the shade used when the triangle is seen from behind.</summary>
     public Rgba32 BackColor { get; init; }
+
+    /// <summary>Gets the CSG leaf (collapsed union-only subtree) the triangle belongs to; ignored by the z-buffer path.</summary>
+    public int Leaf { get; init; }
+
+    /// <summary>
+    ///     Gets the CSG shade when the triangle is seen from its front and the visible event enters the
+    ///     solid (the result surface faces the viewer); ignored by the z-buffer path.
+    /// </summary>
+    public Rgba32 FrontEnterColor { get; init; }
+
+    /// <summary>
+    ///     Gets the CSG shade when the triangle is seen from its front and the visible event leaves the
+    ///     solid (the viewer is inside material); ignored by the z-buffer path.
+    /// </summary>
+    public Rgba32 FrontExitColor { get; init; }
+
+    /// <summary>
+    ///     Gets the CSG shade when the triangle is seen from behind and the visible event enters the
+    ///     solid (a cut surface exposed by a subtrahend, shaded from the flipped normal); ignored by the
+    ///     z-buffer path.
+    /// </summary>
+    public Rgba32 BackEnterColor { get; init; }
+
+    /// <summary>
+    ///     Gets the CSG shade when the triangle is seen from behind and the visible event leaves the
+    ///     solid (the viewer is inside material); ignored by the z-buffer path.
+    /// </summary>
+    public Rgba32 BackExitColor { get; init; }
 }

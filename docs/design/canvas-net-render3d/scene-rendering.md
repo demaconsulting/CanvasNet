@@ -8,7 +8,7 @@
 
 The `SceneRendering` subsystem (namespace `DemaConsulting.CanvasNet.Render3D.SceneRendering`,
 folder `src/DemaConsulting.CanvasNet.Render3D/SceneRendering/`) renders a `SceneModel` `Scene`
-onto a new core `Surface`. It contains four units:
+onto a new core `Surface`. It contains six units:
 
 - **Camera** — `Camera`, `CameraProjection`, and the internal camera-relative `ViewTransform`;
   see _Camera Unit Design_ (`scene-rendering/camera.md`)
@@ -18,6 +18,12 @@ onto a new core `Surface`. It contains four units:
   `ClipPlane`, `SampleProjection`, `ViewTriangle`, `ScreenTriangle`, `TileRect`,
   `IFragmentVisitor`, and `DepthTestVisitor`; see _TriangleRasterizer Unit Design_
   (`scene-rendering/triangle-rasterizer.md`)
+- **FragmentBuffer** — the internal per-worker `FragmentBuffer` that collects every fragment of a
+  tile for the fragment-list CSG path; see _FragmentBuffer Unit Design_
+  (`scene-rendering/fragment-buffer.md`)
+- **CsgResolver** — the internal `CsgCompiler`, `CsgProgram`, and `CsgResolver` that compile the
+  scene tree and resolve each sample's visible CSG surface; see _CsgResolver Unit Design_
+  (`scene-rendering/csg-resolver.md`)
 - **SceneRenderer** — the public `SceneRenderer` and `SceneRenderOptions`, and the internal
   `TileBinner` (with `TileBins`), `SampleResolver`, and `TileWorkspace`; see _SceneRenderer Unit
   Design_ (`scene-rendering/scene-renderer.md`)
@@ -56,3 +62,14 @@ deterministic: coverage never depends on floating-point rounding, and tiles shar
 beyond disjoint regions of the output `Surface`. The conventions and numeric rules are defined in
 _CanvasNetRender3D System Design_ (`../canvas-net-render3d.md`), Design Constraints; the detailed
 algorithms are in the unit designs.
+
+**Fragment-list CSG building blocks.** Difference and intersection cannot be resolved by a depth
+test, so the subsystem contains the units that resolve them per sample from all of a sample's
+fragments: `CsgCompiler` turns the scene tree into a `CsgProgram` over union-collapsed leaves (and
+reports no program for a union-only scene, which keeps the z-buffer fast path); `FragmentBuffer`
+collects every fragment of a tile through the same `IFragmentVisitor` rasterization in an
+exact-sized count pass and fill pass, with a deterministic per-tile budget; and `CsgResolver`
+sorts a sample's fragments, infers the ray's starting state, applies atomic tie groups, and writes
+the visible surface into the `TileWorkspace` in the same form the z-buffer does, so the existing
+`SampleResolver`, tiling, and supersampling are reused unchanged. These units do not know scenes
+beyond the node tree, cameras, or lights; the `SceneRenderer` unit is their only caller.

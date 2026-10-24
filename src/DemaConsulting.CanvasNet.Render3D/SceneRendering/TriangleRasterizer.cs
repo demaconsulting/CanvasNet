@@ -263,6 +263,9 @@ internal static class TriangleRasterizer
                 Priority = source.Priority,
                 BackFacing = false,
                 Color = source.FrontColor,
+                Leaf = source.Leaf,
+                EnterColor = source.FrontEnterColor,
+                ExitColor = source.FrontExitColor,
             }
             : new ScreenTriangle
             {
@@ -280,6 +283,9 @@ internal static class TriangleRasterizer
                 Priority = source.Priority,
                 BackFacing = true,
                 Color = source.BackColor,
+                Leaf = source.Leaf,
+                EnterColor = source.BackEnterColor,
+                ExitColor = source.BackExitColor,
             });
     }
 

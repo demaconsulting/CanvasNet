@@ -175,7 +175,9 @@ software items, specifically:
   sphere, cylinder and cone meshes and validated polyhedra), and `SceneRendering` (units `Camera` —
   perspective/orthographic projection and `FitToBounds` framing; `Lighting` — ambient/directional
   lights with flat Lambert and optional Blinn-Phong shading; `TriangleRasterizer` — homogeneous
-  clipping and a fixed-point 24.8 top-left-rule rasterizer; and `SceneRenderer` — a tiled z-buffer
+  clipping and a fixed-point 24.8 top-left-rule rasterizer; `FragmentBuffer` — a per-worker,
+  budgeted, exact-sized store of all fragments of a tile; `CsgResolver` — the boolean-tree compiler
+  and the per-sample fragment-list resolver; and `SceneRenderer` — a tiled z-buffer
   driver with supersampling antialiasing, deterministic tile parallelism, and cooperative
   cancellation). It renders a `Scene` onto a new core `Surface`. Phase 1 deliberately excludes
   constructive solid geometry, transparency, and any 3D file-format front end — see _CanvasNetRender3D
@@ -283,7 +285,8 @@ alongside `CanvasNet`, distributed as its own separate NuGet package
 (`DemaConsulting.CanvasNet.Render3D`) and depending only on the `CanvasNet` system's `Canvas`
 subsystem. Unlike the single-unit siblings it has three subsystems of its own — `SceneModel`
 (`DoublePrecisionMath`, `Mesh`, `SceneGraph`), `Tessellation` (`PrimitiveTessellator`), and
-`SceneRendering` (`Camera`, `Lighting`, `TriangleRasterizer`, `SceneRenderer`) — one per
+`SceneRendering` (`Camera`, `Lighting`, `TriangleRasterizer`, `FragmentBuffer`, `CsgResolver`,
+`SceneRenderer`) — one per
 sub-namespace (`DemaConsulting.CanvasNet.Render3D.SceneModel`, `.Tessellation`, and
 `.SceneRendering`), so that the 3D math and scene model, the mesh generators, and the rasterization
 pipeline can each evolve (for example, a later constructive-solid-geometry phase) behind their own
@@ -624,6 +627,10 @@ src/DemaConsulting.CanvasNet.Render3D/
     ├── TileRect.cs                — TriangleRasterizer: internal sample rectangle
     ├── IFragmentVisitor.cs        — TriangleRasterizer: internal fragment callback contract
     ├── DepthTestVisitor.cs        — TriangleRasterizer: internal z-buffer visitor with tie rule
+    ├── FragmentBuffer.cs          — FragmentBuffer: internal per-tile fragment store with budget
+    ├── CsgProgram.cs              — CsgResolver: internal postfix CSG program and evaluator
+    ├── CsgCompiler.cs             — CsgResolver: internal scene tree to program compiler
+    ├── CsgResolver.cs             — CsgResolver: internal per-sample visible-surface resolver
     ├── SceneRenderer.cs           — SceneRenderer: Render/RenderFitted entry points
     ├── SceneRenderOptions.cs      — SceneRenderer: immutable, validated render options
     ├── RenderBudgetExceededException.cs — SceneRenderer: per-tile fragment budget exception

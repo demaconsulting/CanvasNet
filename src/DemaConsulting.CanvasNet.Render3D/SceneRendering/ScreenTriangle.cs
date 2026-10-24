@@ -65,4 +65,19 @@ internal readonly struct ScreenTriangle
 
     /// <summary>Gets the opaque flat-shaded color of the visible side.</summary>
     public Rgba32 Color { get; init; }
+
+    /// <summary>Gets the CSG leaf (collapsed union-only subtree) the triangle belongs to; used only by the fragment-list CSG path.</summary>
+    public int Leaf { get; init; }
+
+    /// <summary>
+    ///     Gets the shade used when this triangle is the visible surface where the CSG result changes
+    ///     from outside to inside; used only by the fragment-list CSG path.
+    /// </summary>
+    public Rgba32 EnterColor { get; init; }
+
+    /// <summary>
+    ///     Gets the shade used when this triangle is the visible surface where the CSG result changes
+    ///     from inside to outside (the viewer starts inside material); used only by the fragment-list CSG path.
+    /// </summary>
+    public Rgba32 ExitColor { get; init; }
 }

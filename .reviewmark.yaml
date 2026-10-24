@@ -1349,6 +1349,39 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/TriangleRasterizerTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/TriangleClipperTests.cs"  # unit tests
 
+  # CanvasNetRender3D-SceneRendering-FragmentBuffer Review (one per unit)
+  - id: CanvasNetRender3D-SceneRendering-FragmentBuffer
+    title: Review that CanvasNetRender3D SceneRendering FragmentBuffer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+      - "docs/design/canvas-net-render3d/scene-rendering.md"
+      - "docs/reqstream/canvas-net-render3d/scene-rendering.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/scene-rendering/fragment-buffer.yaml"  # unit requirements
+      - "docs/design/canvas-net-render3d/scene-rendering/fragment-buffer.md"  # unit design
+      - "docs/verification/canvas-net-render3d/scene-rendering/fragment-buffer.md"  # unit verification
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/FragmentBuffer.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/FragmentBufferTests.cs"  # unit tests
+
+  # CanvasNetRender3D-SceneRendering-CsgResolver Review (one per unit)
+  - id: CanvasNetRender3D-SceneRendering-CsgResolver
+    title: Review that CanvasNetRender3D SceneRendering CsgResolver Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+      - "docs/design/canvas-net-render3d/scene-rendering.md"
+      - "docs/reqstream/canvas-net-render3d/scene-rendering.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/scene-rendering/csg-resolver.yaml"  # unit requirements
+      - "docs/design/canvas-net-render3d/scene-rendering/csg-resolver.md"  # unit design
+      - "docs/verification/canvas-net-render3d/scene-rendering/csg-resolver.md"  # unit verification
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/CsgProgram.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/CsgCompiler.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/CsgResolver.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/CsgProgramTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/CsgResolverTests.cs"  # unit tests
+
   # CanvasNetRender3D-SceneRendering-SceneRenderer Review (one per unit)
   - id: CanvasNetRender3D-SceneRendering-SceneRenderer
     title: Review that CanvasNetRender3D SceneRendering SceneRenderer Implementation is Correct

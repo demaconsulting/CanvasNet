@@ -1,0 +1,152 @@
+---
+# cspell:ignore subtrahend subtrahends minuend postfix
+#
+# Software Unit Requirements for CsgResolver
+#
+# These requirements describe the design-level behavior of the CsgResolver unit: the internal
+# CsgCompiler (scene tree to postfix CsgProgram over union-collapsed leaves), CsgProgram (the
+# immutable bitset-evaluated expression) and CsgResolver (per-sample resolution of the visible
+# surface from a sorted fragment list using signed crossing counters and atomic tie groups) types in
+# the DemaConsulting.CanvasNet.Render3D.SceneRendering namespace.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: SceneRendering Requirements
+        sections:
+          - title: CsgResolver Requirements
+            requirements:
+              - id: CanvasNetRender3D-SceneRendering-CsgResolver-Program
+                title: >-
+                  The CsgCompiler shall compile a scene tree, without recursion, into a postfix
+                  program over leaves: each maximal union-only subtree becomes one leaf shared by
+                  all its mesh instances, a difference folds its second and further children with
+                  AND NOT, an intersection with AND, a union or group with OR, and a node without
+                  children or meshes is FALSE for every operation; it shall map every mesh
+                  instance, in the pre-order of Scene.EnumerateInstances and expanding shared nodes
+                  once per path, to its leaf.
+                justification: |
+                  A compact, validated expression over leaves lets the resolver decide "inside"
+                  per sample cheaply, and the instance-to-leaf mapping connects flattened triangles
+                  to the expression. Explicit stacks keep deeply nested scenes from overflowing
+                  the call stack.
+                tests:
+                  - CsgCompiler_Compile_NaryDifference_CollapsesUnionOperandsIntoLeaves
+                  - CsgCompiler_Compile_NaryIntersection_AndsAllChildren
+                  - CsgCompiler_Compile_NestedBooleans_ProducesPostfixOfTheTree
+                  - CsgCompiler_Compile_MixedGroupAndSingleChildBooleans_OrsChildren
+                  - CsgCompiler_Compile_EmptyNodesInsideBooleans_AreFalse
+                  - CsgCompiler_Compile_SharedNodeDag_MatchesInstanceEnumerationPerPath
+                  - CsgCompiler_Compile_MixedScene_LeafOfInstanceFollowsEnumerationOrder
+                  - CsgCompiler_Compile_DeeplyNestedDifferences_AreIterative
+                  - CsgCompiler_Compile_NullRoot_ThrowsArgumentNullException
+
+              - id: CanvasNetRender3D-SceneRendering-CsgResolver-Evaluation
+                title: >-
+                  The CsgProgram shall evaluate its postfix expression over a leaf-state bitset of
+                  any size (including more than 64 leaves) with the boolean truth table of each
+                  operator, evaluate to outside when every leaf is outside, use no recursion
+                  regardless of expression depth, and reject a malformed instruction sequence.
+                justification: |
+                  The program is evaluated for every state change of every sample, so it must be
+                  exact for any number of leaves and any nesting depth, and malformed programs must
+                  never be evaluated.
+                tests:
+                  - CsgProgram_Evaluate_EveryOpcode_FollowsBooleanTruthTable
+                  - CsgProgram_Evaluate_MoreThan64Leaves_UsesMultipleBitsetWords
+                  - CsgProgram_Evaluate_AllLeavesOutside_IsOutside
+                  - CsgProgram_Constructor_MalformedInstructions_ThrowsArgumentException
+
+              - id: CanvasNetRender3D-SceneRendering-CsgResolver-FastPath
+                title: >-
+                  The CsgCompiler shall produce no program for a scene without a difference or
+                  intersection of two or more children (including a single mesh and empty nodes),
+                  mapping all instances to a single leaf, so that such scenes are rendered by the
+                  z-buffer without any fragment storage.
+                justification: |
+                  The nearest front face of a union of closed solids is always on the union's
+                  boundary, so the common union-only scene needs neither fragment lists nor CSG
+                  evaluation; detecting it keeps the fast path free of CSG cost.
+                tests:
+                  - CsgCompiler_Compile_UnionOnlyScene_HasNoProgramAndOneLeaf
+                  - CsgCompiler_Compile_SingleMeshAndEmptyNodes_HaveNoProgram
+                  - CsgCompiler_Compile_DeeplyNestedUnion_CollapsesIteratively
+
+              - id: CanvasNetRender3D-SceneRendering-CsgResolver-InitialState
+                title: >-
+                  The CsgResolver shall infer each leaf's inside state at the start of a sample's
+                  ray from all of its fragments, including those beyond the far distance, as
+                  minus the sum of the signed crossings (front +1, back -1), so that a camera inside
+                  a solid sees the exit surface and a camera inside the minuend and subtrahend sees
+                  the subtrahend's cut surface.
+                justification: |
+                  A fragment list of a ray that starts inside a solid contains only the exit; without
+                  whole-ray inference the solid would be treated as outside and vanish.
+                tests:
+                  - CsgResolver_Resolve_CameraInsideMinuend_ShowsFirstExitWithExitShade
+                  - CsgResolver_Resolve_CameraInsideMinuendThenSubtrahendFront_ShowsSubtrahendFrontWithExitShade
+                  - CsgResolver_Resolve_CameraInsideBothOperands_ShowsSubtrahendCutSurface
+                  - CsgResolver_Resolve_FragmentsBeyondFar_InferStateButAreNotVisible
+
+              - id: CanvasNetRender3D-SceneRendering-CsgResolver-VisibleSurface
+                title: >-
+                  The CsgResolver shall report as the visible surface of a sample the fragment at
+                  which the CSG result first changes along the ray, using the triangle's enter shade
+                  when the result changes from outside to inside and its exit shade when it changes
+                  from inside to outside, so that a cut made by a subtrahend shows the subtrahend's
+                  back face with its own color, a union leaf stays inside until its last overlapping
+                  member is left, nothing is reported when the ray never becomes inside or the
+                  surface lies beyond the far distance, and the result is written into the tile
+                  workspace as depth, color and winner metadata.
+                justification: |
+                  This is the core of constructive solid geometry on rasterized fragments: the first
+                  boundary of the combined solid along each ray is the visible surface, and its
+                  shade must match what the renderer promises for cut surfaces.
+                tests:
+                  - CsgResolver_Resolve_RayHitsMinuendFirst_ShowsMinuendFrontFace
+                  - CsgResolver_Resolve_RayPassesThroughSubtrahend_ShowsSubtrahendBackFaceAsCutSurface
+                  - CsgResolver_Resolve_NoFragmentsOrOnlySubtrahend_ShowsNothing
+                  - CsgResolver_Resolve_OverlappingUnionLeaf_StaysInsideUntilLastMemberLeft
+                  - CsgResolver_Resolve_Intersection_ShowsEntryIntoOverlap
+                  - CsgResolver_ResolveTile_RasterizedOperands_WritesVisibleSurfaceIntoWorkspace
+                  - CsgResolver_ResolveTile_CancelledToken_ThrowsOperationCanceledException
+                  - CsgResolver_Constructor_NullProgram_ThrowsArgumentNullException
+
+              - id: CanvasNetRender3D-SceneRendering-CsgResolver-TieGroups
+                title: >-
+                  The CsgResolver shall treat fragments whose depths lie within the tolerance of the
+                  first depth of a group as one atomic group, apply all of them before re-evaluating
+                  the program, without chaining across a series of close fragments, so that
+                  coincident faces of different operands do not produce speckle; when a group
+                  changes the result it shall choose the fragment whose leaf alone explains the
+                  change, then the lowest draw priority, then the lowest triangle index.
+                justification: |
+                  Coincident faces of different meshes differ only by float noise; resolving them
+                  one at a time would flip the result for a single fragment and leave isolated wrong
+                  pixels, and the choice among equal candidates must be deterministic.
+                tests:
+                  - CsgResolver_Resolve_CoincidentFrontFaces_AreOneAtomicGroupAndFlushFaceIsRemoved
+                  - CsgResolver_Resolve_FragmentsBeyondTolerance_AreSeparateGroups
+                  - CsgResolver_Resolve_ChainOfCloseFragments_GroupIsAnchoredAtFirstDepth
+                  - CsgResolver_Resolve_CoincidentBackFaces_DoNotSpeckle
+                  - CsgResolver_Resolve_FlushEnterAndExit_LowerPriorityOfEquallyExplainingFragmentsWins
+                  - CsgResolver_Resolve_EqualPriority_LowerTriangleIndexWins
+                  - CsgResolver_Resolve_OnlyOneLeafExplainsTheChange_ItIsPreferredOverBetterPriority
+                  - CsgResolver_Resolve_NoSingleLeafExplainsTheChange_LowestPriorityOfChangedLeavesWins
+
+              - id: CanvasNetRender3D-SceneRendering-CsgResolver-Determinism
+                title: >-
+                  The CsgResolver shall sort a sample's fragments by the total order (depth, triangle
+                  index) so that the result does not depend on the order in which fragments were
+                  collected, shall agree with an analytic ray-interval evaluation of the CSG tree
+                  for seeded random box scenes (including exact ties, a camera inside material, and
+                  more than 64 leaves), and shall remain bounded and deterministic, leaving no state
+                  behind, for unbalanced fragment lists of open or inverted operands.
+                justification: |
+                  Tile-parallel rendering must be byte-identical to sequential rendering, which
+                  requires a resolution that is a pure function of the fragment set; an independent
+                  analytic oracle is the primary correctness net for the algorithm.
+                tests:
+                  - CsgResolver_Resolve_UnbalancedFragments_AreBoundedDeterministicAndLeaveNoState
+                  - CsgResolver_Resolve_RandomBoxTrees_MatchAnalyticOracle
+                  - CsgResolver_Resolve_MoreThan64Leaves_MatchesAnalyticOracle

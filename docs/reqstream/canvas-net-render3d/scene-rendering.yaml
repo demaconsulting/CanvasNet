@@ -72,6 +72,7 @@ sections:
               - CanvasNetRender3D-SceneRendering-TriangleRasterizer-DepthInterpolation
               - CanvasNetRender3D-SceneRendering-TriangleRasterizer-Degenerate
               - CanvasNetRender3D-SceneRendering-TriangleRasterizer-TieResolution
+              - CanvasNetRender3D-SceneRendering-TriangleRasterizer-CsgAttributes
             tests:
               - SceneRendering_TwoAdjacentQuads_LeaveNoGap
 
@@ -102,3 +103,30 @@ sections:
               - CanvasNetRender3D-SceneRendering-SceneRenderer-Mirrored
             tests:
               - SceneRendering_SceneStraddlingTileBoundaries_HasNoSeams
+
+          - id: CanvasNetRender3D-SceneRendering-FragmentListCsg
+            title: >-
+              The SceneRendering subsystem shall provide the fragment-list resolution of constructive
+              solid geometry: collecting every rasterized fragment of a tile into an exact-sized,
+              budgeted per-worker buffer, compiling the scene tree into a leaf-based program (no
+              program for union-only scenes), and resolving each sample's visible surface from its
+              sorted fragments with whole-ray initial state, atomic tie groups and cut-surface
+              shading, deterministically and independent of fragment order.
+            justification: |
+              Difference and intersection cannot be rendered by a depth buffer; resolving the
+              combined solid per sample from all fragments gives exact CSG without mesh boolean
+              operations, and bounding and ordering the fragment data keeps it safe and repeatable.
+            children:
+              - CanvasNetRender3D-SceneRendering-FragmentBuffer-Collect
+              - CanvasNetRender3D-SceneRendering-FragmentBuffer-Budget
+              - CanvasNetRender3D-SceneRendering-FragmentBuffer-Reuse
+              - CanvasNetRender3D-SceneRendering-FragmentBuffer-Lifecycle
+              - CanvasNetRender3D-SceneRendering-CsgResolver-Program
+              - CanvasNetRender3D-SceneRendering-CsgResolver-Evaluation
+              - CanvasNetRender3D-SceneRendering-CsgResolver-FastPath
+              - CanvasNetRender3D-SceneRendering-CsgResolver-InitialState
+              - CanvasNetRender3D-SceneRendering-CsgResolver-VisibleSurface
+              - CanvasNetRender3D-SceneRendering-CsgResolver-TieGroups
+              - CanvasNetRender3D-SceneRendering-CsgResolver-Determinism
+            tests:
+              - SceneRendering_FragmentListPipeline_BoxMinusBox_ShowsCutSurfaceInsideTheCutout

@@ -264,6 +264,43 @@ public class TriangleRasterizerTests
     }
 
     /// <summary>
+    ///     Validates that the CSG attributes of a view triangle are carried to the screen triangle and the enter/exit shades are chosen by facing.
+    /// </summary>
+    [Fact]
+    public void TriangleRasterizer_Setup_CsgAttributes_AreCopiedAndSelectedByFacing()
+    {
+        // Arrange: a front-facing triangle and its reversal with four distinct CSG shades
+        var projection = UnitOrthographic();
+        var output = new List<ScreenTriangle>();
+        var source = View(new ClipVertex(-4, -4, -5), new ClipVertex(4, -4, -5), new ClipVertex(4, 4, -5)) with
+        {
+            Leaf = 7,
+            FrontEnterColor = new Rgba32(1, 0, 0, 255),
+            FrontExitColor = new Rgba32(2, 0, 0, 255),
+            BackEnterColor = new Rgba32(3, 0, 0, 255),
+            BackExitColor = new Rgba32(4, 0, 0, 255),
+        };
+        var reversed = source with { A = source.B, B = source.A };
+
+        // Act
+        TriangleRasterizer.Setup(source, projection, output);
+        TriangleRasterizer.Setup(reversed, projection, output);
+
+        // Assert: the facing picks the shade pair; coverage attributes are untouched
+        Assert.Equal(2, output.Count);
+        Assert.False(output[0].BackFacing);
+        Assert.Equal(7, output[0].Leaf);
+        Assert.Equal(new Rgba32(1, 0, 0, 255), output[0].EnterColor);
+        Assert.Equal(new Rgba32(2, 0, 0, 255), output[0].ExitColor);
+        Assert.Equal(new Rgba32(10, 20, 30, 255), output[0].Color);
+        Assert.True(output[1].BackFacing);
+        Assert.Equal(7, output[1].Leaf);
+        Assert.Equal(new Rgba32(3, 0, 0, 255), output[1].EnterColor);
+        Assert.Equal(new Rgba32(4, 0, 0, 255), output[1].ExitColor);
+        Assert.Equal(new Rgba32(200, 0, 0, 255), output[1].Color);
+    }
+
+    /// <summary>
     ///     Validates that reversing the winding makes the triangle back-facing with the back color.
     /// </summary>
     [Fact]
