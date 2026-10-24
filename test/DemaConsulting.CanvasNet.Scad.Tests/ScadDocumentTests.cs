@@ -1,3 +1,4 @@
+// cspell:ignore FEFF Fmodule
 using System.Text;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests;

@@ -23,6 +23,8 @@ endings on checkout. Tests that depend on other line-ending conventions build th
 
 ## Fixtures
 
+<!-- markdownlint-disable MD013 -->
+
 | File | Purpose |
 | ---- | ------- |
 | `basic-shapes.scad` | Variables, special variables, primitive calls with positional and named arguments, transform chains and blocks |
@@ -38,6 +40,8 @@ endings on checkout. Tests that depend on other line-ending conventions build th
 | `invalid-unterminated-block-comment.scad` | A block comment that is never closed |
 | `invalid-missing-semicolon.scad` | A statement without its terminating semicolon |
 | `invalid-unbalanced-brace.scad` | A module body whose closing brace is missing |
+
+<!-- markdownlint-enable MD013 -->
 
 ## Expected Errors
 

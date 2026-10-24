@@ -1,3 +1,4 @@
+// cspell:ignore FEFF
 namespace DemaConsulting.CanvasNet.Scad.Language;
 
 /// <summary>
