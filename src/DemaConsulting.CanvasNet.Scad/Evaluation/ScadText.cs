@@ -27,7 +27,13 @@ internal static class ScadText
     /// <returns>The number of scalars.</returns>
     public static int ScalarCount(string text)
     {
-        // Without surrogates every UTF-16 unit is a scalar; otherwise count each pair once
+        // Fast path: without surrogates every UTF-16 unit is a scalar
+        if (!text.AsSpan().ContainsAnyInRange((char)FirstSurrogate, (char)LastSurrogate))
+        {
+            return text.Length;
+        }
+
+        // Otherwise count each well-formed pair once
         var position = 0;
         var count = 0;
         while (position < text.Length)
