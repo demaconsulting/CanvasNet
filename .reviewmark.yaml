@@ -1528,11 +1528,27 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Scad/ScadSyntaxException.cs"    # unit source
       - "src/DemaConsulting.CanvasNet.Scad/ScadDirective.cs"          # unit source
       - "src/DemaConsulting.CanvasNet.Scad/ScadDirectiveKind.cs"      # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadDocument.Evaluate.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadEvaluationOptions.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadEvaluationResult.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadEvaluationException.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadLimits.cs"             # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadDiagnostic.cs"         # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadUnsupportedFeature.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadUnsupportedFeatureException.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadOpenOptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadSourceLocationTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadSyntaxExceptionTests.cs"  # unit tests
-      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadFixtures/**"    # original fixtures and provenance README
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentEvaluateTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentEvaluateSafetyTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadEvaluationOptionsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadEvaluationExceptionTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadLimitsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDiagnosticTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadUnsupportedFeatureTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadFixtureEvaluationTests.cs"  # unit tests (golden fixtures)
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadFixtures/**"    # original fixtures, goldens, provenance README
 
   # CanvasNetScad-ScadLanguage Review (one per subsystem)
   - id: CanvasNetScad-ScadLanguage
@@ -1586,6 +1602,113 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Scad/Language/ScadTreeDepth.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadParser*.cs"  # unit tests and test support
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadAstDumper.cs"  # test support
+
+  # CanvasNetScad-ScadEvaluation Review (one per subsystem)
+  - id: CanvasNetScad-ScadEvaluation
+    title: Review that CanvasNetScad ScadEvaluation Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/scad-evaluation.yaml"         # subsystem requirements
+      - "docs/design/canvas-net-scad/scad-evaluation.md"              # subsystem design
+      - "docs/verification/canvas-net-scad/scad-evaluation.md"        # subsystem verification
+      - "docs/sysml2/model/canvas-net-scad/scad-evaluation.sysml"     # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorEntryPointTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorFixtureTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorIncludeUseTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorDiagnosticsTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorLimitTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorStackTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorCancellationTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorDeterminismTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluationTestHelpers.cs"  # shared test support
+
+  # CanvasNetScad-ScadEvaluation-ScadValue Review (one per unit)
+  - id: CanvasNetScad-ScadEvaluation-ScadValue
+    title: Review that CanvasNetScad ScadEvaluation ScadValue Implementation is Correct
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+      - "docs/design/canvas-net-scad/scad-evaluation.md"
+      - "docs/reqstream/canvas-net-scad/scad-evaluation.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/scad-evaluation/scad-value.yaml"  # unit requirements
+      - "docs/design/canvas-net-scad/scad-evaluation/scad-value.md"   # unit design
+      - "docs/verification/canvas-net-scad/scad-evaluation/scad-value.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-scad/scad-evaluation/scad-value.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadValue*.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadVector.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadRange.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/IScadFunctionValue.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadNumberFormatter.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadNumbers.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadText.cs"    # unit source
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadValue*Tests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadNumberFormatterTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadRangeTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadTextTests.cs"  # unit tests
+
+  # CanvasNetScad-ScadEvaluation-ScadEvaluator Review (one per unit)
+  - id: CanvasNetScad-ScadEvaluation-ScadEvaluator
+    title: Review that CanvasNetScad ScadEvaluation ScadEvaluator Implementation is Correct
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+      - "docs/design/canvas-net-scad/scad-evaluation.md"
+      - "docs/reqstream/canvas-net-scad/scad-evaluation.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/scad-evaluation/scad-evaluator.yaml"  # unit requirements
+      - "docs/design/canvas-net-scad/scad-evaluation/scad-evaluator.md"  # unit design
+      - "docs/verification/canvas-net-scad/scad-evaluation/scad-evaluator.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-scad/scad-evaluation/scad-evaluator.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadEvaluator*.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadScope.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadInstance.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadBuiltinModules.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadEvaluationSettings.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadEvaluationOutput.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadEvaluationSink.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluator*.cs"  # unit tests and test support
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluationSinkTests.cs"  # unit tests
+
+  # CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions Review (one per unit)
+  - id: CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions
+    title: Review that CanvasNetScad ScadEvaluation ScadBuiltinFunctions Implementation is Correct
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+      - "docs/design/canvas-net-scad/scad-evaluation.md"
+      - "docs/reqstream/canvas-net-scad/scad-evaluation.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/scad-evaluation/scad-builtin-functions.yaml"  # unit requirements
+      - "docs/design/canvas-net-scad/scad-evaluation/scad-builtin-functions.md"  # unit design
+      - "docs/verification/canvas-net-scad/scad-evaluation/scad-builtin-functions.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-scad/scad-evaluation/scad-builtin-functions.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/IScadBuiltinHost.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadBuiltinFunctions*.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadRandom.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadBuiltin*Tests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadTestBuiltinHost.cs"  # test support
+
+  # CanvasNetScad-ScadEvaluation-ScadFileResolver Review (one per unit)
+  - id: CanvasNetScad-ScadEvaluation-ScadFileResolver
+    title: Review that CanvasNetScad ScadEvaluation ScadFileResolver Implementation is Correct
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+      - "docs/design/canvas-net-scad/scad-evaluation.md"
+      - "docs/reqstream/canvas-net-scad/scad-evaluation.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/scad-evaluation/scad-file-resolver.yaml"  # unit requirements
+      - "docs/design/canvas-net-scad/scad-evaluation/scad-file-resolver.md"  # unit design
+      - "docs/verification/canvas-net-scad/scad-evaluation/scad-file-resolver.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-scad/scad-evaluation/scad-file-resolver.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadSourceUnit.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadFileResolver*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadFileResolver*Tests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadResolverTestSupport.cs"  # test support
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
