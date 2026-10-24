@@ -1,0 +1,4 @@
+ECHO: "size", 6, 3
+ECHO: "tag", "custom"
+ECHO: "fragments", 48
+ECHO: "extra", [1, 2]

@@ -5,16 +5,20 @@ namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 
 /// <summary>
 ///     Tests that evaluate the original-work parse fixtures: every one must evaluate without error and without
-///     warnings, except <c>include-and-use.scad</c> whose paths intentionally do not exist.
+///     warnings, except <c>include-and-use.scad</c> whose paths intentionally do not exist and the <c>eval-*</c>
+///     golden fixtures, which are compared with their expected outputs by the public-API fixture tests.
 /// </summary>
 public class ScadEvaluatorFixtureTests
 {
     /// <summary>The fixture whose include and use paths intentionally do not exist.</summary>
     private const string ExcludedFixture = "include-and-use.scad";
 
+    /// <summary>The name prefix of the golden-output fixtures; they are evaluated by <c>ScadFixtureEvaluationTests</c>.</summary>
+    private const string GoldenPrefix = "eval-";
+
     /// <summary>Gets the names of the fixtures that must evaluate cleanly.</summary>
     public static TheoryData<string> CleanFixtures =>
-        [.. ScadFixtureHelpers.ValidFixtures().Select(p => Path.GetFileName(p)).Where(n => n != ExcludedFixture)];
+        [.. ScadFixtureHelpers.ValidFixtures().Select(p => Path.GetFileName(p)).Where(n => n != ExcludedFixture && !n.StartsWith(GoldenPrefix, StringComparison.Ordinal))];
 
     /// <summary>
     ///     Validates that a fixture evaluates without error and without warnings.

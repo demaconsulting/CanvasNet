@@ -1,0 +1,3 @@
+3:75: Function 'len' expects a vector or a string, got a number
+19:24: Function 'len' expects a vector or a string, got undef
+19:36: Function 'chr' expects at least 1 arguments, got 0

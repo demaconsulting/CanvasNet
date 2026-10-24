@@ -1,0 +1,8 @@
+ECHO: "closure", 15, 3
+ECHO: "compose", 11, 12
+ECHO: "apply all", [7, 12, 36]
+ECHO: "immediate", 6
+ECHO: "captured loop variable", [10, 20, 30]
+ECHO: "fold", 10
+ECHO: "type tests", true, false, true, true, true, true, true
+ECHO: "function as text", "function(x)"

@@ -1,0 +1,17 @@
+group<peg_ring>
+  group<for>
+    rotate([0, 0, 0])
+      translate([5, 0, 0])
+        group<peg>
+          cylinder(h=2, r=1)
+    rotate([0, 0, 120])
+      translate([5, 0, 0])
+        group<peg>
+          cylinder(h=3, r=1)
+    rotate([0, 0, 240])
+      translate([5, 0, 0])
+        group<peg>
+          cylinder(h=4, r=1)
+translate([0, 0, 10])
+  group<peg>
+    cylinder(h=2, r=1)

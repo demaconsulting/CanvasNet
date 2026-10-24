@@ -1,0 +1,31 @@
+ECHO: "range", 0
+ECHO: "range", 1
+ECHO: "range", 2
+ECHO: "descending", 5
+ECHO: "descending", 3
+ECHO: "descending", 1
+ECHO: "fractional", 0
+ECHO: "fractional", 0.5
+ECHO: "fractional", 1
+ECHO: "fractional", 1.5
+ECHO: "pairs", 1, "x"
+ECHO: "pairs", 1, "y"
+ECHO: "pairs", 2, "x"
+ECHO: "pairs", 2, "y"
+ECHO: "rows", [1, 2]
+ECHO: "rows", [3, 4]
+ECHO: "scalar iterates once", 7
+ECHO: "not two", 1
+ECHO: "two"
+ECHO: "not two", 3
+ECHO: "else-if branch"
+ECHO: "let and for", 1, 6
+ECHO: "let and for", 2, 6
+ECHO: "let and for", 3, 6
+ECHO: "body", 1
+ECHO: "body", 2
+ECHO: "last"
+ECHO: "intersection_for body", 1
+ECHO: "intersection_for body", 2
+ECHO: "intersection_for body", 3
+ECHO: "assert statement follows"

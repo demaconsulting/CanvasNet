@@ -1,0 +1,12 @@
+ECHO: "a seen early", 2
+ECHO: "forward reference", 20
+ECHO: "module x", 7
+ECHO: "block x", 8
+ECHO: "module x again", 7
+ECHO: "outer x", 5
+ECHO: "let sequence", 12
+ECHO: "hoisted function", 12
+ECHO: "loop scope", 1, 100
+ECHO: "loop scope", 2, 200
+ECHO: "circular", undef, undef
+ECHO: "unknown", undef

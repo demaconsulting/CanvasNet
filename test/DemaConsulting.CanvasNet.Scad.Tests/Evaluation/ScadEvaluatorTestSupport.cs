@@ -130,13 +130,42 @@ internal static class ScadInstanceDumper
     public static string Dump(ScadInstance instance) => Dump([instance]);
 
     /// <summary>
-    ///     Appends the description of an instance without its children and schedules the children.
+    ///     Describes a list of sibling instances one per line, children indented by two spaces, with the fragment
+    ///     settings that differ from the defaults appended as <c>$fn=…</c>, <c>$fa=…</c>, <c>$fs=…</c>.
     /// </summary>
-    /// <param name="text">The output.</param>
-    /// <param name="instance">The instance.</param>
-    /// <param name="work">The work stack; the braces and the children are pushed onto it in reverse order.</param>
-    private static void AppendHead(StringBuilder text, ScadInstance instance, Stack<object> work)
+    /// <param name="instances">The instances.</param>
+    /// <returns>The lines joined by <c>\n</c> (no trailing line break).</returns>
+    public static string DumpIndented(IReadOnlyList<ScadInstance> instances)
     {
+        // Iterative for the same reason as Dump: the tree can be very deep
+        var lines = new List<string>();
+        var work = new Stack<(ScadInstance Instance, int Depth)>();
+        for (var i = instances.Count - 1; i >= 0; i--)
+        {
+            work.Push((instances[i], 0));
+        }
+
+        while (work.Count > 0)
+        {
+            var (instance, depth) = work.Pop();
+            lines.Add(new string(' ', depth * 2) + Head(instance) + Fragments(instance));
+            for (var i = instance.Children.Count - 1; i >= 0; i--)
+            {
+                work.Push((instance.Children[i], depth + 1));
+            }
+        }
+
+        return string.Join('\n', lines);
+    }
+
+    /// <summary>
+    ///     Describes an instance without its children: modifiers, then <c>name(arguments)</c> or <c>group&lt;name&gt;</c>.
+    /// </summary>
+    /// <param name="instance">The instance.</param>
+    /// <returns>The description.</returns>
+    private static string Head(ScadInstance instance)
+    {
+        var text = new StringBuilder();
         if ((instance.Modifiers & ScadModifiers.ShowOnly) != 0)
         {
             text.Append('!');
@@ -160,6 +189,58 @@ internal static class ScadInstanceDumper
         {
             text.Append(instance.Name).Append('(').Append(string.Join(", ", instance.Arguments.Select(Describe))).Append(')');
         }
+
+        return text.ToString();
+    }
+
+    /// <summary>
+    ///     Describes the fragment settings of a built-in instance that differ from the defaults (0, 12, 2).
+    /// </summary>
+    /// <param name="instance">The instance.</param>
+    /// <returns>The text, empty when nothing differs or the instance is a group.</returns>
+    private static string Fragments(ScadInstance instance)
+    {
+        if (instance.Kind == ScadInstanceKind.Group)
+        {
+            return string.Empty;
+        }
+
+        var text = new StringBuilder();
+        if (Differs(instance.Fragments.Fn, 0))
+        {
+            text.Append(" $fn=").Append(ScadNumberFormatter.Format(instance.Fragments.Fn));
+        }
+
+        if (Differs(instance.Fragments.Fa, 12))
+        {
+            text.Append(" $fa=").Append(ScadNumberFormatter.Format(instance.Fragments.Fa));
+        }
+
+        if (Differs(instance.Fragments.Fs, 2))
+        {
+            text.Append(" $fs=").Append(ScadNumberFormatter.Format(instance.Fragments.Fs));
+        }
+
+        return text.ToString();
+    }
+
+    /// <summary>
+    ///     Determines whether a fragment setting differs from its default.
+    /// </summary>
+    /// <param name="value">The setting.</param>
+    /// <param name="defaultValue">The default.</param>
+    /// <returns><see langword="true"/> when they differ.</returns>
+    private static bool Differs(double value, double defaultValue) => Math.Abs(value - defaultValue) > 0;
+
+    /// <summary>
+    ///     Appends the description of an instance without its children and schedules the children.
+    /// </summary>
+    /// <param name="text">The output.</param>
+    /// <param name="instance">The instance.</param>
+    /// <param name="work">The work stack; the braces and the children are pushed onto it in reverse order.</param>
+    private static void AppendHead(StringBuilder text, ScadInstance instance, Stack<object> work)
+    {
+        text.Append(Head(instance));
 
         if (instance.Children.Count > 0)
         {

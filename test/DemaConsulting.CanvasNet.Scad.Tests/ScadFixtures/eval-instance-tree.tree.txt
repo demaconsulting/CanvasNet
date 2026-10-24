@@ -1,0 +1,21 @@
+group<bracket>
+  difference() $fn=32
+    union() $fn=32
+      group<plate>
+        cube([40, 10, 3]) $fn=32
+      group<rib>
+        rotate([90, 0, 0]) $fn=32
+          linear_extrude(height=3) $fn=32
+            polygon([[0, 0], [20, 0], [0, 25]]) $fn=32
+    group<holes>
+      group<for>
+        translate([8, 5, -1]) $fn=32
+          cylinder(h=5, r=2, $fn=16) $fn=16
+        translate([20, 5, -1]) $fn=32
+          cylinder(h=5, r=2, $fn=16) $fn=16
+        translate([32, 5, -1]) $fn=32
+          cylinder(h=5, r=2, $fn=16) $fn=16
+#translate([0, 20, 0]) $fn=32
+  sphere(r=4) $fn=32
+%color("red") $fn=32
+  cube(1) $fn=32

@@ -1,0 +1,14 @@
+ECHO: "squares", [1, 4, 9, 16, 25]
+ECHO: "filtered", [3, 6, 9]
+ECHO: "if else", ["odd", "even", "odd", "even"]
+ECHO: "two generators", [[1, 1], [1, 2], [2, 1], [2, 2]]
+ECHO: "let", [2, 5, 10]
+ECHO: "each", [1, 2, 3, 4]
+ECHO: "flatten", [1, 2, 3, 4]
+ECHO: "nested", [[0], [0, 1], [0, 1, 2]]
+ECHO: "c-style", [1, 2, 4, 8, 16]
+ECHO: "parenthesized", [1, 2]
+ECHO: "mixed", [0, 10, 20, 99]
+ECHO: "empty", [], 0
+ECHO: "strings", ["aa", "bb"]
+ECHO: "grid", [[0, 1], [10, 11], [20, 21]], 3, 2
