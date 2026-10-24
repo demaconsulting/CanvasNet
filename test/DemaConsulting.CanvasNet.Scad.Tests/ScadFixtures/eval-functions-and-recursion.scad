@@ -24,7 +24,7 @@ function clamp(v, lo, hi) = max(lo, min(hi, v));
 echo("clamp", clamp(15, 0, 10), clamp(-3, 0, 10), clamp(4, 0, 10));
 
 function repeat(s, n) = n <= 0 ? "" : str(s, repeat(s, n - 1));
-echo("repeat", repeat("ab", 3));
+echo("repeat", repeat("ab-", 3));
 
 function min(a, b) = a < b ? a : b;
 echo("user min shadows the built-in", min(3, 9));

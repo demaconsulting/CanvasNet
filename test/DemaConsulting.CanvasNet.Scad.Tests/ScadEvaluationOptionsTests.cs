@@ -102,7 +102,7 @@ public class ScadEvaluationOptionsTests
     ///     Validates that the variables are copied when set and listed in ordinal key order.
     /// </summary>
     [Fact]
-    public void ScadEvaluationOptions_Variables_AreCopiedAndOrderedOrdinally()
+    public void ScadEvaluationOptions_Variables_AreCopiedAndOrderedByKey()
     {
         // Arrange
         var source = new Dictionary<string, object?> { ["b"] = 2, ["B"] = "x", ["a"] = null, ["$fn"] = 12.5 };

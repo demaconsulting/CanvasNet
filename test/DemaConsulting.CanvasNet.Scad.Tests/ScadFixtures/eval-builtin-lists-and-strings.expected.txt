@@ -1,6 +1,6 @@
 ECHO: "len", 3, 0, 5, 2, undef
 ECHO: "concat", [1, 2, 3, 4, [5]], [], ["a", "b"]
-ECHO: "str", "1a[1, \"b\"]trueundef", "", "0.333333", "0.3"
+ECHO: "str", "1a[1, \"b\"]true undef", "", "0.333333", "0.3"
 ECHO: "chr ord", "A", "Hi", "ab", 65, 97, undef
 ECHO: "lookup", 50, 250, 0, 400
 ECHO: "search list", [1], [1, 2], [[]]

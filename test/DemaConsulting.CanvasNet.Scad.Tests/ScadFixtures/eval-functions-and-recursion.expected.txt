@@ -7,5 +7,5 @@ ECHO: "describing", 4
 ECHO: "expression forms", 9
 ECHO: "assert passes", 3
 ECHO: "clamp", 10, 0, 4
-ECHO: "repeat", "ababab"
+ECHO: "repeat", "ab-ab-ab-"
 ECHO: "user min shadows the built-in", 3

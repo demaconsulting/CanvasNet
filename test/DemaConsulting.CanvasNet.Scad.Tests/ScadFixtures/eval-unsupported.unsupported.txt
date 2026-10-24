@@ -1,3 +1,4 @@
+# cspell:ignore fontmetrics textmetrics
 7:16: scad-function-fontmetrics: Function 'fontmetrics' is not supported
 5:19: scad-function-parent_module: Function 'parent_module' is not supported
 6:35: scad-function-textmetrics: Function 'textmetrics' is not supported

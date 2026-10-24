@@ -70,7 +70,8 @@ named after the topic, not after any other implementation's behavior.
 ## Expected Outputs
 
 Each `eval-<topic>.scad` is evaluated through the public `ScadDocument.Evaluate` and compared with the files beside it.
-Line endings are normalized before comparison and the comparison is culture-invariant.
+Line endings are normalized before comparison and the comparison is culture-invariant. A line that starts with `#`
+(a hash and a space) in an expected-output file is a comment (it carries spelling directives) and is ignored.
 
 | File | Content | When absent |
 | ---- | ------- | ----------- |

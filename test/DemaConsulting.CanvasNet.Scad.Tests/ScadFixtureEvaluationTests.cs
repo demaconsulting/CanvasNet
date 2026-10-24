@@ -251,7 +251,8 @@ public class ScadFixtureEvaluationTests
             .Where(n => n.StartsWith(GoldenPrefix, StringComparison.Ordinal));
 
     /// <summary>
-    ///     Reads a golden file as lines with normalized line endings; a missing file is an empty list.
+    ///     Reads a golden file as lines with normalized line endings; lines starting with <c># </c> (a hash and a
+    ///     space) are comments that carry spelling directives, and a missing file is an empty list.
     /// </summary>
     /// <param name="fileName">The file name inside the fixture folder.</param>
     /// <returns>The lines, without trailing empty lines.</returns>
@@ -263,7 +264,9 @@ public class ScadFixtureEvaluationTests
             return [];
         }
 
-        var lines = File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n').ToList();
+        var lines = File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n')
+            .Where(line => !line.StartsWith("# ", StringComparison.Ordinal))
+            .ToList();
         while (lines.Count > 0 && lines[^1].Length == 0)
         {
             lines.RemoveAt(lines.Count - 1);

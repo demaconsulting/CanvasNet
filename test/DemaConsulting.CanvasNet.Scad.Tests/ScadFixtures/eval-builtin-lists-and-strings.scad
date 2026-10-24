@@ -2,7 +2,7 @@
 
 echo("len", len([1, 2, 3]), len([]), len("hello"), len([[1, 2], [3]]), len(5));
 echo("concat", concat([1], [2, 3], 4, [[5]]), concat(), concat("a", ["b"]));
-echo("str", str(1, "a", [1, "b"], true, undef), str(), str(1 / 3), str(0.1 + 0.2));
+echo("str", str(1, "a", [1, "b"], true, " ", undef), str(), str(1 / 3), str(0.1 + 0.2));
 echo("chr ord", chr(65), chr(72, 105), chr([97, 98]), ord("A"), ord("abc"), ord(""));
 
 table = [[0, 0], [10, 100], [20, 400]];
