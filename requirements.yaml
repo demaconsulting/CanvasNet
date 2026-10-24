@@ -65,6 +65,8 @@ includes:
   - docs/reqstream/canvas-net-render3d/scene-model/scene-graph.yaml
   - docs/reqstream/canvas-net-render3d/tessellation.yaml
   - docs/reqstream/canvas-net-render3d/tessellation/primitive-tessellator.yaml
+  - docs/reqstream/canvas-net-render3d/tessellation/polygon-triangulator.yaml
+  - docs/reqstream/canvas-net-render3d/tessellation/extruder.yaml
   - docs/reqstream/canvas-net-render3d/scene-rendering.yaml
   - docs/reqstream/canvas-net-render3d/scene-rendering/camera.yaml
   - docs/reqstream/canvas-net-render3d/scene-rendering/lighting.yaml
@@ -72,6 +74,12 @@ includes:
   - docs/reqstream/canvas-net-render3d/scene-rendering/fragment-buffer.yaml
   - docs/reqstream/canvas-net-render3d/scene-rendering/csg-resolver.yaml
   - docs/reqstream/canvas-net-render3d/scene-rendering/scene-renderer.yaml
+  - docs/reqstream/canvas-net-scad.yaml
+  - docs/reqstream/canvas-net-scad/platform-requirements.yaml
+  - docs/reqstream/canvas-net-scad/scad-document.yaml
+  - docs/reqstream/canvas-net-scad/scad-language.yaml
+  - docs/reqstream/canvas-net-scad/scad-language/scad-lexer.yaml
+  - docs/reqstream/canvas-net-scad/scad-language/scad-parser.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml
   - docs/reqstream/ots/buildmark.yaml

@@ -1,30 +1,36 @@
 ## Tessellation Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Tessellation` subsystem,
-containing one unit: `PrimitiveTessellator`.
+containing three units: `PrimitiveTessellator`, `PolygonTriangulator`, and `Extruder`.
 
 ### Verification Approach
 
-The `Tessellation` subsystem is verified by the unit tests of `PrimitiveTessellator` (see
-_PrimitiveTessellator Unit Verification Design_, `tessellation/primitive-tessellator.md`) and by one
-subsystem-level test in `TessellationTests.cs`. Because the subsystem consumes the `SceneModel`
-subsystem's `Mesh` and `MeshBuilder`, the subsystem-level test verifies the combination through the
-public API: it creates one mesh of each primitive kind and asserts, with the shared helper
-`Render3DTestHelpers.AssertClosedAndOutward`, that every mesh is closed, has positive signed volume,
-and has every triangle normal pointing away from the mesh centroid. No mocking or stubbing is used.
+The `Tessellation` subsystem is verified by the unit tests of `PrimitiveTessellator`,
+`PolygonTriangulator`, and `Extruder` (see _PrimitiveTessellator Unit Verification Design_,
+_PolygonTriangulator Unit Verification Design_, and _Extruder Unit Verification Design_ under
+`tessellation/`) and by four subsystem-level tests in `TessellationTests.cs`. Because the subsystem
+consumes the `SceneModel` subsystem's `Mesh` and `MeshBuilder`, the subsystem-level tests verify the
+combination through the public API. The primitive test creates one mesh of each primitive kind and
+asserts, with the shared helper `Render3DTestHelpers.AssertClosedAndOutward`, that every mesh is
+closed, has positive signed volume, and has every triangle normal pointing away from the mesh
+centroid. The polygon tests build regions with the 2D factories, extrude them, and assert with
+`Render3DTestHelpers.AssertValidCsgOperand` that every result is a valid constructive-solid-geometry
+operand, and that invalid polygons are rejected when the region is created. No mocking or stubbing is
+used.
 
 ### Test Environment
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required; the subsystem depends only on the in-house `SceneModel` subsystem
-- **Isolation**: Each test creates its own meshes; no shared state
+- **Isolation**: Each test creates its own meshes and regions; no shared state
 
 ### Acceptance Criteria
 
-The `Tessellation` subsystem's verification passes when the subsystem-level scenario below and every
-unit-level scenario in the _PrimitiveTessellator Unit Verification Design_ pass without error or
-unexpected exception.
+The `Tessellation` subsystem's verification passes when the subsystem-level scenarios below and every
+unit-level scenario in the _PrimitiveTessellator Unit Verification Design_, the
+_PolygonTriangulator Unit Verification Design_, and the _Extruder Unit Verification Design_ pass
+without error or unexpected exception.
 
 ### Test Scenarios
 
@@ -36,3 +42,14 @@ unexpected exception.
   `TessellationTests.Tessellation_Polyhedron_OpenFaceSet_IsPreservedWithoutClosureOrReorientation` —
   builds a polyhedron from three clockwise faces of a tetrahedron and asserts that the mesh is
   still open and contains exactly the supplied triangle indices in the supplied order.
+- **Polygon Extrusion Results Are Closed And Valid CSG Operands**:
+  `TessellationTests.Tessellation_PolygonExtrusion_AllResults_AreClosedAndValidCsgOperands` —
+  builds a square plate with a 32-gon hole from the 2D factories, a ten-point star, and an off-axis
+  profile, extrudes them (the plate linearly, the star with twist and a per-axis scale and with a
+  twist to an apex, the profile by full and partial rotation, and an on-axis rectangle by full
+  rotation) and asserts that every result passes `AssertValidCsgOperand` and that the plate volume
+  equals the plate area minus the 32-gon hole area, times the height.
+- **Invalid Polygons Are Rejected**:
+  `TessellationTests.Tessellation_PolygonRegion_InvalidPolygon_IsRejected` — asserts that a bow tie
+  (through the constructor and through `PrimitiveTessellator.Polygon`), a zero-area contour, crossing
+  contours, and touching contours throw `ArgumentException` when the region is created.

@@ -31,9 +31,13 @@ of `src/DemaConsulting.CanvasNet.Render3D/` (the root namespace itself contains 
   `NodeAppearance`, and the `Scene` root — and the internal `SceneInstance` flattened view. See
   _SceneModel Subsystem Design_ (`canvas-net-render3d/scene-model.md`).
 - **Tessellation** (namespace `DemaConsulting.CanvasNet.Render3D.Tessellation`, folder
-  `Tessellation/`): one unit, `PrimitiveTessellator`, a static factory for closed, welded,
-  outward-oriented box, sphere, and cylinder (including cone and frustum) meshes, and for polyhedron
-  meshes built from caller-supplied faces whose winding and closure are preserved as given. See
+  `Tessellation/`): three units. `PrimitiveTessellator` is a static factory for closed, welded,
+  outward-oriented box, sphere, and cylinder (including cone and frustum) meshes, for polyhedron
+  meshes built from caller-supplied faces whose winding and closure are preserved as given, and for
+  2D profile regions (rectangle, ellipse, circle, polygon). `PolygonTriangulator` provides the
+  immutable validated `PolygonRegion`, the exact predicates, and the ear-clipping triangulator with
+  hole bridging. `Extruder` turns a region into a closed, outward-oriented mesh by linear extrusion
+  (with twist and scale) or by rotation about the Z axis. See
   _Tessellation Subsystem Design_ (`canvas-net-render3d/tessellation.md`).
 - **SceneRendering** (namespace `DemaConsulting.CanvasNet.Render3D.SceneRendering`, folder
   `SceneRendering/`): the rasterization pipeline, with six units. `Camera` provides the
@@ -66,7 +70,9 @@ The system exposes the following public API:
   `GroupNode`, and `CsgNode` (with the `CsgOperation` enumeration); the `NodeAppearance` record; and
   `Scene`.
 - **`Tessellation` namespace**: the static `PrimitiveTessellator` with `Box`, `Sphere`, `Cylinder`,
-  and `Polyhedron`.
+  `Polyhedron`, and the 2D factories `Rectangle`, `Ellipse`, `Circle`, and `Polygon`; the immutable
+  `PolygonRegion`; the static `PolygonTriangulator` (`Triangulate`); and the static `Extruder`
+  (`Linear`, `Rotate`).
 - **`SceneRendering` namespace**: `Camera` and `CameraProjection`; `Light`, `AmbientLight`, and
   `DirectionalLight`; `SceneRenderOptions` (including `MaxFragmentsPerTile`,
   `UnsupportedFeatureHandler`, and `ThrowOnUnsupportedFeature`); the diagnostics
@@ -80,7 +86,9 @@ The system exposes the following public API:
 | `Mesh` constructor | Inbound | Vertex and triangle-index sequences | Index count a multiple of three; indices in range; vertices finite; inputs copied |
 | `GroupNode` constructor | Inbound | Child node sequence | Sequence and each child non-null; sequence copied |
 | `SceneNode.Transform` | Inbound | `Matrix4x4D` | Every element finite |
-| `PrimitiveTessellator.*` | Inbound/Outbound | Dimensions / `Mesh` return | Positive finite dimensions, at least three segments, valid face indices |
+| `PrimitiveTessellator.*` | Inbound/Outbound | Dimensions / `Mesh` or `PolygonRegion` return | Positive finite dimensions, at least three segments, valid face indices and path indices |
+| `PolygonRegion` constructor | Inbound | Contours of `Vector2D` points | Finite points; at least three distinct vertices and non-zero area per contour; no self-intersecting or touching contours (`ArgumentException`) |
+| `Extruder.Linear` / `Extruder.Rotate` | Inbound/Outbound | `PolygonRegion`, numeric parameters / `Mesh` return | Positive finite height, at least one slice, scale zero in both axes or positive in both, angle in (0, 360], profile not crossing the axis |
 | `Camera` properties | Inbound | `Vector3D`, `double`, enumeration | Each value validated at initialization; cross-property rules at render time |
 | `SceneRenderOptions` properties | Inbound | Colors, lights, numeric options | Each value validated at initialization; instance therefore always valid |
 | `SceneRenderOptions.UnsupportedFeatureHandler` | Outbound | `SceneRenderUnsupportedFeature` report (token, message, node) | Called on the calling thread before tile work, only for CSG scenes with an unsuitable operand |
@@ -342,7 +350,8 @@ operand must be a closed, consistently wound, outward-oriented (outward-CCW) mes
 inside-out and can be repaired with `Mesh.Reverse`. `PrimitiveTessellator.Polyhedron` validates only
 the structure of its input and intentionally preserves the supplied faces and winding as given,
 without closing the surface or correcting its orientation; closure and outward orientation of a
-polyhedron are the caller's responsibility.
+polyhedron are the caller's responsibility. Meshes produced by the `Extruder` always satisfy the
+contract (see _Polygon and Extrusion Contract_).
 
 For scenes on the constructive-solid-geometry path the contract is enforced by observation rather
 than by refusing to render: the operand validator (see _Operand Validation Contract_) names every
@@ -350,6 +359,29 @@ violating mesh through the handler or a strict-mode exception, and the mirror te
 winding correction of a negative-determinant transform keeps mirrored operands correct. On the
 z-buffer path a back-facing surface is not culled but painted with `SceneRenderOptions.BackFaceColor`,
 which makes inside-out or open meshes visible instead of silently disappearing.
+
+### Polygon and Extrusion Contract
+
+The `Tessellation` subsystem extrudes 2D profiles held in the immutable `PolygonRegion`. Its
+constructor is the single place where polygon validity is decided, and it decides it exactly (no
+tolerances): a non-finite point, a contour with fewer than three distinct vertices or with zero area,
+a contour that crosses or touches itself, and contours that cross or touch one another are rejected
+with an `ArgumentException`; they are never left as undefined behavior. Closing and consecutive
+duplicate points are dropped, collinear points are kept, and holes follow from nesting (the even-odd
+rule), independent of the supplied winding. Every `Extruder` result is welded, closed, outward, free
+of degenerate triangles, and therefore a valid constructive-solid-geometry operand that the operand
+validator accepts without a report.
+
+A hole is extruded as one connected shell with a through-hole (the outer wall, an inward-facing hole
+wall, and both caps share vertices); the caps are triangulated around the hole by bridging it to the
+outer contour. This deliberately replaces the earlier idea of independent, alternately oriented
+outer and hole shells: with that representation the coplanar outer cap would be painted across the
+hole on the z-buffer path, which never evaluates solids, so the hole would not be visible. Only an
+island inside a hole is a separate shell (it is outside the ring solid), and it is outward oriented.
+Rotation requires the profile to lie on one side of the axis and rejects a profile that crosses it
+with an `ArgumentException`. See _Extruder Unit Design_ and _PolygonTriangulator Unit Design_ for
+the algorithms and the exact conventions (twist sign, scale rules, apex, volume formulas, faceting
+tolerance).
 
 ### Constructive Solid Geometry Algorithm
 
@@ -545,8 +577,13 @@ requirements, design, verification, and tests for its own scope.
    (`FragmentBuffer`, `CsgResolver`) integrated into `SceneRenderer` (union-only scenes keep the
    z-buffer path), with a per-tile fragment budget and operand reporting, relying on the
    closed-mesh, consistent-winding, and watertight-clipping guarantees established in Phase 1.
-3. **Later — Polygons and extrusions**, with polygon triangulation (Phase 1 polyhedron faces must
-   be convex) and linear/rotational extrusion.
+3. **Phase 3 — Polygons and extrusions (delivered).** The `Tessellation` subsystem gains validated 2D
+   polygon regions (`PolygonRegion`), an exact ear-clipping `PolygonTriangulator` with hole bridging,
+   the `Extruder` (linear extrusion with twist, scale, and apex; rotation about the Z axis), and the
+   2D factories of `PrimitiveTessellator` (`Rectangle`, `Ellipse`, `Circle`, `Polygon`). All
+   extruded meshes are closed, outward, and valid constructive-solid-geometry operands, so no
+   `SceneRendering` change was needed. Polyhedron faces remain convex-only; the triangulator is a
+   2D facility.
 4. **Later — Format front ends**, as separate packages that depend on this one.
 5. **Later — Hull and Minkowski operations**, **transparency** (sorted fragment compositing; node
    alpha is ignored until then), and **performance work** (vectorized edge evaluation and per-tile

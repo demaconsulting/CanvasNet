@@ -7,6 +7,7 @@
     <Project Path="src/DemaConsulting.CanvasNet.Vsdx/DemaConsulting.CanvasNet.Vsdx.csproj" />
     <Project Path="src/DemaConsulting.CanvasNet.Charts/DemaConsulting.CanvasNet.Charts.csproj" />
     <Project Path="src/DemaConsulting.CanvasNet.Render3D/DemaConsulting.CanvasNet.Render3D.csproj" />
+    <Project Path="src/DemaConsulting.CanvasNet.Scad/DemaConsulting.CanvasNet.Scad.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/DemaConsulting.CanvasNet.Tests/DemaConsulting.CanvasNet.Tests.csproj" />
@@ -16,5 +17,6 @@
     <Project Path="test/DemaConsulting.CanvasNet.Vsdx.Tests/DemaConsulting.CanvasNet.Vsdx.Tests.csproj" />
     <Project Path="test/DemaConsulting.CanvasNet.Charts.Tests/DemaConsulting.CanvasNet.Charts.Tests.csproj" />
     <Project Path="test/DemaConsulting.CanvasNet.Render3D.Tests/DemaConsulting.CanvasNet.Render3D.Tests.csproj" />
+    <Project Path="test/DemaConsulting.CanvasNet.Scad.Tests/DemaConsulting.CanvasNet.Scad.Tests.csproj" />
   </Folder>
 </Solution>

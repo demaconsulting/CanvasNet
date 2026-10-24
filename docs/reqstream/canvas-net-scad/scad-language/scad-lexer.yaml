@@ -1,0 +1,195 @@
+---
+# Software Unit Requirements for ScadLexer
+#
+# These requirements describe the design-level behavior of the ScadLexer unit: the internal static
+# ScadLexer class (Tokenize), the ScadToken record struct, and the ScadTokenKind enumeration in the
+# DemaConsulting.CanvasNet.Scad.Language namespace. Locations are one-based; the column counts UTF-16
+# code units and a tab is one column; "\r\n", "\n", and a lone "\r" each end exactly one line. Every
+# lexical error is a ScadSyntaxException located at the construct that is wrong. Identifiers are
+# ASCII, may not start with a digit, and a dollar sign introduces a special variable.
+
+sections:
+  - title: CanvasNetScad Requirements
+    sections:
+      - title: ScadLanguage Requirements
+        sections:
+          - title: ScadLexer Requirements
+            requirements:
+              - id: CanvasNetScad-ScadLanguage-ScadLexer-Numbers
+                title: >-
+                  The ScadLexer Tokenize method shall recognize numeric literals in the integer,
+                  decimal, leading-dot, trailing-dot, and exponent forms, producing the value as a
+                  double (overflowing to infinity rather than failing), and shall end a number
+                  before a letter that is not part of an exponent so that the remainder is lexed
+                  separately.
+                justification: |
+                  Numbers are the most common literal; exact, documented rules for their forms and
+                  boundaries keep expressions such as a number followed by a name unambiguous.
+                tests:
+                  - ScadLexer_Tokenize_DecimalNumber_ProducesNumberTokenWithValue
+                  - ScadLexer_Tokenize_LeadingDotNumber_ProducesNumberToken
+                  - ScadLexer_Tokenize_TrailingDotNumber_ProducesNumberToken
+                  - ScadLexer_Tokenize_ExponentNumber_ProducesNumberTokenWithValue
+                  - ScadLexer_Tokenize_ExponentWithoutDigits_SplitsNumberAndIdentifier
+                  - ScadLexer_Tokenize_ExponentOverflow_ProducesInfinity
+                  - ScadLexer_Tokenize_NumberFollowedByLetters_SplitsIntoNumberAndIdentifier
+                  - ScadLexer_Tokenize_DotBeforeDigitOrLetter_DistinguishesNumberFromMember
+
+              - id: CanvasNetScad-ScadLanguage-ScadLexer-Strings
+                title: >-
+                  The ScadLexer Tokenize method shall recognize double-quoted string literals,
+                  including empty strings and strings that contain raw line breaks (which advance
+                  the line count), producing the decoded value, and shall reject an unterminated
+                  string with a ScadSyntaxException located at the opening quote.
+                justification: |
+                  Strings carry file names and text; their boundaries and the position of the
+                  error for a missing closing quote must be exact.
+                tests:
+                  - ScadLexer_Tokenize_String_ProducesStringTokenWithValue
+                  - ScadLexer_Tokenize_EmptyString_ProducesEmptyValue
+                  - ScadLexer_Tokenize_StringContainingNewline_TracksLineAndColumn
+                  - ScadLexer_Tokenize_UnterminatedString_ThrowsAtOpeningQuote
+                  - ScadLexer_Tokenize_EscapedQuote_DoesNotTerminateString
+
+              - id: CanvasNetScad-ScadLanguage-ScadLexer-StringEscapes
+                title: >-
+                  The ScadLexer Tokenize method shall decode the string escapes for newline, tab,
+                  carriage return, quote, and backslash and the hexadecimal escapes with two, four,
+                  and six digits (the six-digit form producing a surrogate pair above U+FFFF), and
+                  shall reject an unknown escape, a truncated or non-hexadecimal escape, and an
+                  escape that names a surrogate or a code point above U+10FFFF, each with a
+                  ScadSyntaxException located at the backslash.
+                justification: |
+                  Strict escape handling prevents silently corrupted text and invalid UTF-16 from
+                  entering the syntax tree.
+                tests:
+                  - ScadLexer_Tokenize_SimpleEscapes_ProducesControlCharacters
+                  - ScadLexer_Tokenize_HexEscape_ProducesLatin1Character
+                  - ScadLexer_Tokenize_ShortUnicodeEscape_ProducesBmpCharacter
+                  - ScadLexer_Tokenize_LongUnicodeEscape_ProducesSurrogatePair
+                  - ScadLexer_Tokenize_UnknownEscape_ThrowsAtBackslash
+                  - ScadLexer_Tokenize_TruncatedHexEscape_Throws
+                  - ScadLexer_Tokenize_SurrogateOrOutOfRangeCodePoint_Throws
+
+              - id: CanvasNetScad-ScadLanguage-ScadLexer-Identifiers
+                title: >-
+                  The ScadLexer Tokenize method shall recognize ASCII identifiers that start with a
+                  letter or underscore, special variables that start with a dollar sign followed by
+                  at least one name character, shall split an identifier-like run that starts with a
+                  digit into a number and an identifier, and shall reject a lone dollar sign.
+                justification: |
+                  Identifier rules decide which names are legal; a precise definition prevents
+                  ambiguity with numbers and keeps special variables distinguishable.
+                tests:
+                  - ScadLexer_Tokenize_Identifier_ProducesIdentifierToken
+                  - ScadLexer_Tokenize_SpecialVariable_ProducesIdentifierWithDollar
+                  - ScadLexer_Tokenize_LoneDollar_Throws
+                  - ScadLexer_Tokenize_IdentifierStartingWithDigit_SplitsNumberAndIdentifier
+
+              - id: CanvasNetScad-ScadLanguage-ScadLexer-Keywords
+                title: >-
+                  The ScadLexer Tokenize method shall produce a distinct keyword token for each of
+                  the reserved words module, function, if, else, for, intersection_for, let, each,
+                  assert, echo, true, false, and undef when the whole identifier equals the word,
+                  and an ordinary identifier when the word is only a prefix or suffix of a longer
+                  name.
+                justification: |
+                  Keywords drive the grammar; recognizing them only as whole words keeps names such
+                  as a module called "format" usable.
+                tests:
+                  - ScadLexer_Tokenize_Keyword_ProducesKeywordKind
+                  - ScadLexer_Tokenize_KeywordPrefixOrSuffix_IsIdentifier
+
+              - id: CanvasNetScad-ScadLanguage-ScadLexer-Operators
+                title: >-
+                  The ScadLexer Tokenize method shall produce a token of the matching kind for every
+                  operator and punctuation character, choosing the longest match, keeping a minus
+                  sign separate from a following number, treating a lone slash as division, and
+                  rejecting a lone ampersand or vertical bar with a message that suggests the
+                  doubled operator.
+                justification: |
+                  Operator tokens are the grammar's vocabulary for expressions; longest-match rules
+                  and the unary-minus split must be exact for precedence to be correct.
+                tests:
+                  - ScadLexer_Tokenize_Operator_ProducesOperatorKind
+                  - ScadLexer_Tokenize_AdjacentOperators_UsesLongestMatch
+                  - ScadLexer_Tokenize_MinusAndNumber_ProducesSeparateTokens
+                  - ScadLexer_Tokenize_SlashAlone_IsDivide
+                  - ScadLexer_Tokenize_SingleAmpersandOrPipe_Throws
+                  - ScadLexer_Tokenize_Statement_ProducesTokensEndingWithEndOfFile
+
+              - id: CanvasNetScad-ScadLanguage-ScadLexer-Comments
+                title: >-
+                  The ScadLexer Tokenize method shall skip line comments (to the end of the line or
+                  of the file) and block comments (which do not nest and advance the line count),
+                  shall not treat comment markers inside a string as comments, and shall reject an
+                  unterminated block comment with a ScadSyntaxException located at the opening
+                  marker.
+                justification: |
+                  Comments must be ignored exactly and without side effects on positions; the error
+                  for an unterminated block comment must point to where the comment began.
+                tests:
+                  - ScadLexer_Tokenize_LineComment_IsSkippedToEndOfLine
+                  - ScadLexer_Tokenize_LineCommentAtEndOfFileWithoutNewline_IsSkipped
+                  - ScadLexer_Tokenize_LineCommentEndedByCarriageReturn_ContinuesOnNextLine
+                  - ScadLexer_Tokenize_BlockComment_IsSkippedAndCountsLines
+                  - ScadLexer_Tokenize_BlockCommentsDoNotNest_FirstTerminatorCloses
+                  - ScadLexer_Tokenize_CommentMarkersInsideString_AreNotComments
+                  - ScadLexer_Tokenize_UnterminatedBlockComment_ThrowsAtCommentStart
+                  - ScadLexer_Tokenize_EmptyBlockComment_IsSkipped
+
+              - id: CanvasNetScad-ScadLanguage-ScadLexer-Directives
+                title: >-
+                  The ScadLexer Tokenize method shall recognize an include or use keyword followed
+                  by an angle-bracketed path on the same line as a single directive token whose
+                  text is the exact path and whose location is the keyword, and shall reject a
+                  directive without an opening angle bracket, without a closing angle bracket
+                  before the end of the line or file, or with an empty path, each located at the
+                  keyword.
+                justification: |
+                  Directive paths are not expressions; lexing them as one token keeps paths with
+                  slashes and dots intact and gives precise diagnostics for malformed directives.
+                tests:
+                  - ScadLexer_Tokenize_IncludeDirective_ProducesPathToken
+                  - ScadLexer_Tokenize_UseDirective_ProducesPathToken
+                  - ScadLexer_Tokenize_DirectiveWithWhitespaceBeforeAngle_ProducesPathToken
+                  - ScadLexer_Tokenize_DirectiveAfterOtherTokens_CarriesKeywordLocation
+                  - ScadLexer_Tokenize_DirectiveWithoutAngleBracket_Throws
+                  - ScadLexer_Tokenize_DirectiveUnterminated_Throws
+                  - ScadLexer_Tokenize_DirectiveEmptyPath_Throws
+
+              - id: CanvasNetScad-ScadLanguage-ScadLexer-Locations
+                title: >-
+                  The ScadLexer Tokenize method shall give every token a one-based line and column
+                  (counting UTF-16 code units, a tab as one column), count each of the line endings
+                  carriage-return-line-feed, line feed, and lone carriage return as exactly one line
+                  break, treat vertical tab and form feed as white space, skip a leading byte-order
+                  mark without consuming a column, reject a byte-order mark anywhere else, propagate
+                  the supplied file name into every location, and append an end-of-file token at the
+                  position just after the last character.
+                justification: |
+                  Locations are the basis of every diagnostic; they must be deterministic and
+                  identical across platforms and line-ending conventions.
+                tests:
+                  - ScadLexer_Tokenize_Tokens_CarryOneBasedLineAndColumn
+                  - ScadLexer_Tokenize_LineEndings_CountOneLineEach
+                  - ScadLexer_Tokenize_MixedLineEndings_CountEachBreak
+                  - ScadLexer_Tokenize_Tab_CountsAsOneColumn
+                  - ScadLexer_Tokenize_VerticalTabAndFormFeed_AreWhitespace
+                  - ScadLexer_Tokenize_FileName_IsPropagatedToTokenLocations
+                  - ScadLexer_Tokenize_EndOfFileToken_IsAppendedAtEndLocation
+                  - ScadLexer_Tokenize_LeadingByteOrderMark_IsSkipped
+                  - ScadLexer_Tokenize_ByteOrderMarkInsideSource_Throws
+
+              - id: CanvasNetScad-ScadLanguage-ScadLexer-UnexpectedCharacters
+                title: >-
+                  The ScadLexer Tokenize method shall reject any character that cannot start a token
+                  (including non-ASCII characters outside strings and comments) with a
+                  ScadSyntaxException located at that character, and shall reject a null source with
+                  ArgumentNullException.
+                justification: |
+                  Silently skipping an unknown character would hide errors; failing at the character
+                  gives the caller an exact position.
+                tests:
+                  - ScadLexer_Tokenize_UnexpectedCharacter_ThrowsWithLocation
+                  - ScadLexer_Tokenize_NullSource_ThrowsArgumentNullException

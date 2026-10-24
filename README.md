@@ -40,7 +40,8 @@ load/crop/resize/save workflows.
 - 📊 **Chart Rendering** - Build and paint Bar/Column/Line/Area/Pie/Doughnut charts
 - 📈 **OOXML Chart Parsing** - Parse ECMA-376 DrawingML charts, including from `.pptx`
 - 🔷 **Visio Rendering** - Rasterize `.vsdx` diagrams; unsupported constructs are reported
-- 🧊 **3D Rendering** - Rasterize meshes and scenes with camera, lights, antialiasing, and CSG (union/difference/intersection)
+- 🧊 **3D Rendering** - Rasterize meshes and scenes with camera, lights, antialiasing, and CSG
+  (union/difference/intersection), plus polygon extrusion (linear/rotational)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines

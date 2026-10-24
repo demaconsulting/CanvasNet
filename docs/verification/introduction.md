@@ -58,11 +58,16 @@ constituent software items, specifically:
   `VsdxDocument` — see _CanvasNetVsdx System Verification_ (`canvas-net-vsdx.md`)
 - **CanvasNetRender3D (System)** — A separate, independently-distributed, format-agnostic software
   system providing a pure-managed 3D mesh/scene rasterizer, containing three subsystems:
-  `SceneModel` (units `DoublePrecisionMath`, `Mesh`, and `SceneGraph`), `Tessellation` (unit
-  `PrimitiveTessellator`), and `SceneRendering` (units `Camera`, `Lighting`, `TriangleRasterizer`,
+  `SceneModel` (units `DoublePrecisionMath`, `Mesh`, and `SceneGraph`), `Tessellation` (units
+  `PrimitiveTessellator`, `PolygonTriangulator`, and `Extruder`), and `SceneRendering` (units `Camera`, `Lighting`, `TriangleRasterizer`,
   `FragmentBuffer`, `CsgResolver`, and `SceneRenderer`), including constructive solid geometry
-  (union, difference, intersection) through per-pixel fragment lists — see _CanvasNetRender3D
+  (union, difference, intersection) through per-pixel fragment lists and polygon extrusion — see _CanvasNetRender3D
   System Verification_ (`canvas-net-render3d.md`)
+- **CanvasNetScad (System)** — A separate software system providing a clean-room, parse-only front
+  end for the OpenSCAD language, containing a single direct unit, `ScadDocument` (the public parse
+  API, options, locations, and syntax exception), and an internal `ScadLanguage` subsystem with the
+  units `ScadLexer` and `ScadParser` — see _CanvasNetScad System Verification_
+  (`canvas-net-scad.md`)
 
 The following OTS items are also covered:
 

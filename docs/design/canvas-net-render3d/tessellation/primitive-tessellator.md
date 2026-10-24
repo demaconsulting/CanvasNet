@@ -2,9 +2,10 @@
 
 <!-- cspell:ignore tessellator tessellation polyhedra -->
 
-The `PrimitiveTessellator` unit is the only software unit in the `Tessellation` subsystem. It is a
-single public static class, `PrimitiveTessellator`, in the
-`DemaConsulting.CanvasNet.Render3D.Tessellation` namespace, with four factory methods.
+The `PrimitiveTessellator` unit is the primitive-shape unit of the `Tessellation` subsystem. It is a
+single public static partial class, `PrimitiveTessellator`, in the
+`DemaConsulting.CanvasNet.Render3D.Tessellation` namespace, with four 3D factory methods
+(`PrimitiveTessellator.cs`) and four 2D factory methods (`PrimitiveTessellator.Shapes2D.cs`).
 
 #### Purpose
 
@@ -13,7 +14,8 @@ scene is built from, so callers need not hand-assemble vertex and index lists. E
 `Sphere`, and `Cylinder` result is welded, closed, and counter-clockwise-outward oriented, which is
 the contract the renderer's lighting and back-face handling assume. `Polyhedron` is the exception:
 it builds its mesh from the caller-supplied points and faces and preserves the supplied faces and
-winding as given, leaving closure and outward orientation to the caller.
+winding as given, leaving closure and outward orientation to the caller. The 2D factories return
+validated `PolygonRegion` profiles for the `Extruder`.
 
 #### Data Model
 
@@ -50,24 +52,40 @@ being equal.
   `facesCcw`) before the face is added. Faces must be **convex** and listed **counter-clockwise as
   seen from outside**; neither property is checked, so an inside-out polyhedron yields a mesh with
   negative `SignedVolume`
-  (the caller repairs it with `Mesh.Reverse`), and a non-convex face triangulates incorrectly until
-  ear-clipping triangulation arrives in a later phase.
+  (the caller repairs it with `Mesh.Reverse`), and a non-convex face triangulates incorrectly (the
+  2D `PolygonTriangulator` does not triangulate polyhedron faces).
+- `Rectangle(Vector2D size, bool center = false)`: a counter-clockwise rectangle region with the
+  corners `(0,0) (sx,0) (sx,sy) (0,sy)`, or symmetric about the origin when `center` is true. Both
+  components of `size` must be finite and greater than zero.
+- `Ellipse(double radiusX, double radiusY, int segments)`: an inscribed polygon region centered on
+  the origin whose vertex `j` is `(radiusX cos(theta_j), radiusY sin(theta_j))` with
+  `theta_j = 2 pi j / segments` (counter-clockwise, starting on the +X axis). Its area is
+  `n / 2 * radiusX * radiusY * sin(2 pi / n)`, slightly below the ellipse. Radii finite and greater
+  than zero; `segments` at least 3.
+- `Circle(double radius, int segments)`: `Ellipse(radius, radius, segments)`. The ring equals the
+  ring of `Cylinder`, so `Extruder.Linear` of a circle has the volume of the cylinder.
+- `Polygon(IReadOnlyList<Vector2D> points, IReadOnlyList<IReadOnlyList<int>>? paths = null)`: with no
+  paths, one contour of all points in order; otherwise one contour per index path (each index must
+  address a point). Which contours are outer boundaries and which are holes follows from their
+  nesting (the even-odd rule of `PolygonRegion`), not from path order or winding.
 
 #### Error Handling
 
 All validation precedes any construction. `ArgumentOutOfRangeException` for a non-positive or
-non-finite size, radius, or height, for fewer than three segments, for both radii zero, and for a
-face index outside the point list; `ArgumentException` for a face with fewer than three indices, a
-repeated index, or indices of identical (welded) points;
-`ArgumentNullException` for a null point list, face list, or face. Exceptions from `MeshBuilder`
-(for example a non-finite point) propagate unchanged.
+non-finite size, radius, or height, for fewer than three segments, for both radii zero, for a face
+index outside the point list, and for a 2D path index outside the point list; `ArgumentException` for
+a face with fewer than three indices, a repeated index, or indices of identical (welded) points, and
+(from `PolygonRegion`) for an invalid 2D polygon, for example a zero-area or self-intersecting one;
+`ArgumentNullException` for a null point list, face list, face, or path. Exceptions from
+`MeshBuilder` (for example a non-finite point) propagate unchanged.
 
 #### Dependencies
 
-The `Mesh` unit (`Mesh`, `MeshBuilder`) and the `DoublePrecisionMath` unit (`Vector3D`), both in the
-`SceneModel` subsystem. No dependency on `SceneRendering`.
+The `Mesh` unit (`Mesh`, `MeshBuilder`) and the `DoublePrecisionMath` unit (`Vector2D`, `Vector3D`),
+both in the `SceneModel` subsystem, and the `PolygonTriangulator` unit (`PolygonRegion`) for the 2D
+factories. No dependency on `SceneRendering`.
 
 #### Callers
 
-Callers building scenes invoke the factories directly and wrap the result in a `MeshNode`; a future
-format front end will use them to realize primitive shapes.
+Callers building scenes invoke the factories directly and wrap the result in a `MeshNode`; the 2D
+factories feed `Extruder`; a future format front end will use them to realize primitive shapes.
