@@ -48,6 +48,14 @@ package CanvasNet {
         expose SceneRendering;
     }
 
+    view CanvasNetScadView {
+        expose CanvasNetScadSystem;
+    }
+
+    view ScadLanguageView {
+        expose ScadLanguage;
+    }
+
     view ChartModelView {
         expose ChartModel;
     }

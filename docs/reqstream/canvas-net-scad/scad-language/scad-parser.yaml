@@ -1,0 +1,361 @@
+---
+# Software Unit Requirements for ScadParser
+#
+# These requirements describe the design-level behavior of the ScadParser unit: the internal ScadParser
+# class (static Parse entry points, recursive descent for statements and precedence climbing for
+# expressions), the immutable syntax-tree records (ScadSyntax, ScadStatements, ScadExpressions), and the
+# ScadTreeDepth tree-height verifier, in the DemaConsulting.CanvasNet.Scad.Language namespace.
+#
+# The parser is name-agnostic: every "name(arguments) children" statement is a module instantiation, so
+# an unknown or unsupported module name never produces a syntax error. Parsing is fail-fast: the first
+# error aborts with a ScadSyntaxException. Nesting is limited to 256 levels by a recursion counter
+# (with a stack-space guard) and by a verification of the finished tree's height; the source length is
+# limited to 4,194,304 characters. Each documented strictness rule (for example, that a C-style for loop
+# is accepted only inside a list comprehension) is pinned by a test below.
+
+sections:
+  - title: CanvasNetScad Requirements
+    sections:
+      - title: ScadLanguage Requirements
+        sections:
+          - title: ScadParser Requirements
+            requirements:
+              - id: CanvasNetScad-ScadLanguage-ScadParser-Assignments
+                title: >-
+                  The ScadParser Parse method shall parse a variable assignment, including an
+                  assignment to a special variable, at file scope and inside a block, into an
+                  assignment statement.
+                justification: |
+                  Assignments carry the parameters of a model and are the most common statement.
+                tests:
+                  - ScadParser_Parse_Assignment_FileScope_ProducesAssignmentStatement
+                  - ScadParser_Parse_SpecialVariableAssignment_ProducesAssignmentStatement
+                  - ScadParser_Parse_AssignmentInBlock_ProducesBlockOfAssignments
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-Definitions
+                title: >-
+                  The ScadParser Parse method shall parse module and function definitions with
+                  optional default parameter values and an optional trailing comma, definitions
+                  nested inside a braced body, and a module with a single unbraced statement as its
+                  body.
+                justification: |
+                  Modules and functions are the language's units of reuse; every legal definition
+                  shape must be captured.
+                tests:
+                  - ScadParser_Parse_ModuleDefinition_WithDefaultParameters_ProducesModuleDefinition
+                  - ScadParser_Parse_FunctionDefinition_ProducesFunctionDefinition
+                  - ScadParser_Parse_NestedDefinitionInBlock_ProducesNestedDefinitions
+                  - ScadParser_Parse_ModuleWithSingleStatementBody_ProducesSingleChildBody
+                  - ScadParser_Parse_ParameterTrailingComma_IsAccepted
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-Instantiations
+                title: >-
+                  The ScadParser Parse method shall parse a module instantiation with positional
+                  and named arguments and a trailing comma, with no child, a single child, or a
+                  braced list of children (flattened into the instantiation), nested to any
+                  permitted depth, and regardless of whether the module name is known.
+                justification: |
+                  Instantiations are how geometry is described; the parser must not depend on the
+                  set of built-in names so that unknown and future modules parse.
+                tests:
+                  - ScadParser_Parse_Instantiation_PositionalAndNamedArguments_ProducesArguments
+                  - ScadParser_Parse_Instantiation_SemicolonOnly_HasNoChildren
+                  - ScadParser_Parse_Instantiation_SingleChild_ProducesNestedInstantiation
+                  - ScadParser_Parse_Instantiation_BlockChildren_AreFlattened
+                  - ScadParser_Parse_Instantiation_ChainOfSingleChildren_NestsRightward
+                  - ScadParser_Parse_Instantiation_UnknownName_Parses
+                  - ScadParser_Parse_Instantiation_TrailingCommaAndEquality_AreDistinguished
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-Modifiers
+                title: >-
+                  The ScadParser Parse method shall parse the disable, show-only, highlight, and
+                  background modifier characters, singly and combined in any order, in front of
+                  an instantiation-like statement or a block, and shall reject a modifier in front
+                  of an assignment or any other non-instantiation statement.
+                justification: |
+                  Modifiers change how a subtree is treated; they must be recorded exactly and
+                  restricted to the statements they can apply to.
+                tests:
+                  - ScadParser_Parse_Modifier_Each_ProducesModifiedStatement
+                  - ScadParser_Parse_Modifiers_Combined_AccumulateFlags
+                  - ScadParser_Parse_Modifier_OnForIfLetBlock_ProducesModifiedStatements
+                  - ScadParser_Parse_Modifier_BeforeAssignment_Throws
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-Conditionals
+                title: >-
+                  The ScadParser Parse method shall parse if statements with optional else branches,
+                  chains of else-if, a dangling else bound to the nearest if, and block, single
+                  statement, or empty bodies, distinguishing an absent else from an empty one.
+                justification: |
+                  Conditionals select geometry; the dangling-else rule and the absent/empty else
+                  distinction determine which tree is produced.
+                tests:
+                  - ScadParser_Parse_If_WithoutElse_ProducesIfStatement
+                  - ScadParser_Parse_If_Else_ProducesBothBranches
+                  - ScadParser_Parse_If_ElseIfChain_NestsInElseBranch
+                  - ScadParser_Parse_If_DanglingElse_BindsToNearestIf
+                  - ScadParser_Parse_If_EmptyBody_ProducesEmptyBranches
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-Loops
+                title: >-
+                  The ScadParser Parse method shall parse for and intersection_for statements with
+                  one or more range or vector iterators, and shall reject a for statement without
+                  iterators and the C-style three-part for header in statement position.
+                justification: |
+                  Loops generate repeated geometry; the C-style header is accepted only inside list
+                  comprehensions, a documented strictness rule that is pinned here.
+                tests:
+                  - ScadParser_Parse_For_SingleIteratorRange_ProducesForStatement
+                  - ScadParser_Parse_For_MultipleIterators_ProducesAllIterators
+                  - ScadParser_Parse_For_VectorIterator_ProducesForStatement
+                  - ScadParser_Parse_IntersectionFor_ProducesIntersectionForStatement
+                  - ScadParser_Parse_For_CStyleInStatementPosition_Throws
+                  - ScadParser_Parse_For_NoIterators_Throws
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-LetEchoAssert
+                title: >-
+                  The ScadParser Parse method shall parse let, echo, and assert both as statements
+                  (with optional children) and as expressions (whose body extends as far to the
+                  right as possible).
+                justification: |
+                  These forms scope variables and report diagnostics in both statement and
+                  expression position; the greedy body rule decides how an expression groups.
+                tests:
+                  - ScadParser_Parse_LetStatement_ProducesLetStatement
+                  - ScadParser_Parse_EchoStatement_ProducesEchoStatement
+                  - ScadParser_Parse_AssertStatement_ProducesAssertStatement
+                  - ScadParser_Parse_EchoExpression_ProducesEchoExpression
+                  - ScadParser_Parse_AssertExpression_ProducesAssertExpression
+                  - ScadParser_Parse_LetExpression_ProducesLetExpression
+                  - ScadParser_Parse_LetExpression_BodyExtendsRight_ConsumesRemainingExpression
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-Literals
+                title: >-
+                  The ScadParser Parse method shall parse number, string, boolean, undef, and
+                  identifier expressions into typed literal nodes, and vectors (empty, nested, with
+                  a trailing comma) into vector nodes, rejecting an empty element.
+                justification: |
+                  Literals and vectors are the leaves and containers of every expression.
+                tests:
+                  - ScadParser_Parse_Literals_ProduceLiteralNodes
+                  - ScadParser_Parse_Literals_CarryTypedValues
+                  - ScadParser_Parse_Vector_TrailingComma_IsAccepted
+                  - ScadParser_Parse_Vector_Nested_ProducesNestedVectors
+                  - ScadParser_Parse_Vector_EmptyElement_Throws
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-Ranges
+                title: >-
+                  The ScadParser Parse method shall parse a range of two parts (start and end) or
+                  three parts (start, step, and end, in written order) with arbitrary expression
+                  bounds, shall give a conditional expression's own colon priority over the range
+                  colon, and shall reject a range containing a comma, a range of four parts, and a
+                  range whose start begins a comprehension.
+                justification: |
+                  Ranges drive loops; the ordering of the step and the colon disambiguation
+                  determine which values a loop visits.
+                tests:
+                  - ScadParser_Parse_Range_TwoParts_ProducesRangeWithoutStep
+                  - ScadParser_Parse_Range_ThreeParts_ProducesRangeWithStepInWrittenOrder
+                  - ScadParser_Parse_Range_ExpressionBounds_ProducesBoundExpressions
+                  - ScadParser_Parse_Range_TernaryStart_ConsumesTernaryColonFirst
+                  - ScadParser_Parse_Range_WithComma_Throws
+                  - ScadParser_Parse_Range_FourParts_Throws
+                  - ScadParser_Parse_Range_ComprehensionStart_Throws
+                  - ScadParser_Parse_Range_ComprehensionFormStart_Throws
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-Precedence
+                title: >-
+                  The ScadParser Parse method shall group binary, unary, power, conditional, and
+                  parenthesized expressions according to the documented precedence table: power
+                  binds tighter than unary operators and is right-associative with a unary exponent
+                  allowed, multiplicative binds tighter than additive, then relational, equality,
+                  logical and, logical or, and the right-associative conditional, with all other
+                  binary operators left-associative, and shall not fold constants.
+                justification: |
+                  Precedence and associativity decide the meaning of every expression; a single
+                  documented table, pinned by tests, is the contract with later evaluation.
+                tests:
+                  - ScadParser_Parse_Precedence_BinaryLevels_GroupAsTable
+                  - ScadParser_Parse_Associativity_LeftAssociativeOperators_GroupLeft
+                  - ScadParser_Parse_Power_IsRightAssociative
+                  - ScadParser_Parse_Power_BindsTighterThanUnaryMinus
+                  - ScadParser_Parse_Power_AllowsUnaryExponent
+                  - ScadParser_Parse_Ternary_IsRightAssociative
+                  - ScadParser_Parse_Ternary_ConditionIsLogicalOr
+                  - ScadParser_Parse_Unary_Chains_NestRightward
+                  - ScadParser_Parse_Parentheses_OverridePrecedence
+                  - ScadParser_Parse_Unary_MinusLiteral_IsNotConstantFolded
+                  - ScadParser_Parse_Binary_EveryOperator_MapsToOperatorKind
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-Postfix
+                title: >-
+                  The ScadParser Parse method shall parse index, member, and call postfix
+                  operations on any primary expression (an identifier, a parenthesized expression,
+                  a function literal, or the result of another postfix operation), applied from left
+                  to right in chains.
+                justification: |
+                  Postfix chains such as a call result indexed by a member are ordinary in
+                  parametric models; they must nest in a predictable direction.
+                tests:
+                  - ScadParser_Parse_Index_ProducesIndexExpression
+                  - ScadParser_Parse_Member_XYZAndGenericIdentifier_ProducesMemberExpression
+                  - ScadParser_Parse_Call_OnIdentifier_ProducesCallExpression
+                  - ScadParser_Parse_Call_OnParenthesizedExpression_ProducesCallExpression
+                  - ScadParser_Parse_Call_OnFunctionLiteral_ProducesCallExpression
+                  - ScadParser_Parse_PostfixChain_LeftToRight_NestsLeftward
+                  - ScadParser_Parse_Call_ResultIndexedAndMember_ProducesPostfixChain
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-FunctionLiterals
+                title: >-
+                  The ScadParser Parse method shall parse function literals with parameters and a
+                  body that extends as far to the right as possible (ending at a comma when the
+                  literal is an argument), including nested literals and literals that are called
+                  immediately.
+                justification: |
+                  Function literals are first-class values; their body extent decides how a
+                  surrounding expression or argument list is read.
+                tests:
+                  - ScadParser_Parse_FunctionLiteral_ProducesFunctionLiteral
+                  - ScadParser_Parse_FunctionLiteral_BodyExtendsRight_ConsumesOperators
+                  - ScadParser_Parse_FunctionLiteral_AsArgument_StopsAtComma
+                  - ScadParser_Parse_FunctionLiteral_Nested_ProducesCurriedLiteral
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-Comprehensions
+                title: >-
+                  The ScadParser Parse method shall parse list comprehension elements inside a
+                  vector - for with one or more iterators, C-style for with a required condition,
+                  if with optional else, let, and each - nested to any permitted depth and mixed
+                  with plain elements in source order, and shall reject a C-style for without a
+                  condition, a comprehension outside a vector, and an empty comprehension header.
+                justification: |
+                  Comprehensions are the language's data-generation mechanism; they are valid only
+                  as vector elements, a rule that the parser must enforce.
+                tests:
+                  - ScadParser_Parse_Comprehension_For_ProducesListFor
+                  - ScadParser_Parse_Comprehension_MultipleIterators_ProducesAllIterators
+                  - ScadParser_Parse_Comprehension_CStyleFor_ProducesListCFor
+                  - ScadParser_Parse_Comprehension_IfElse_ProducesListIf
+                  - ScadParser_Parse_Comprehension_Let_ProducesListLet
+                  - ScadParser_Parse_Comprehension_Each_ProducesListEach
+                  - ScadParser_Parse_Comprehension_Nested_ProducesNestedElements
+                  - ScadParser_Parse_Comprehension_MixedWithPlainElements_KeepsSourceOrder
+                  - ScadParser_Parse_Comprehension_CStyleWithoutCondition_Throws
+                  - ScadParser_Parse_Comprehension_OutsideVector_Throws
+                  - ScadParser_Parse_Comprehension_EmptyHeader_Throws
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-NodeLocations
+                title: >-
+                  The ScadParser Parse method shall give every syntax-tree node the location of the
+                  token that identifies the construct (a literal or name by its own token, an
+                  operator expression by its operator, an index or vector by its opening bracket, a
+                  member access by its dot, a call by its opening parenthesis, a statement by its
+                  first modifier, keyword, or name), and shall carry the supplied file name into
+                  every location.
+                justification: |
+                  Later diagnostics point at node locations; a consistent rule keeps them useful.
+                tests:
+                  - ScadParser_Parse_Locations_Statements_PointAtIdentifyingToken
+                  - ScadParser_Parse_Locations_Expressions_PointAtIdentifyingToken
+                  - ScadParser_Parse_Locations_Expressions_BracketAndKeywordForms
+                  - ScadParser_Parse_Locations_Parts_PointAtFirstToken
+                  - ScadParser_Parse_Locations_FileName_Propagated
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-Immutability
+                title: >-
+                  The ScadParser Parse method shall produce a syntax tree whose collections are
+                  read-only and whose nodes are immutable records without public setters, so that
+                  a tree may be shared between threads and later phases.
+                justification: |
+                  An immutable tree can be shared and cached without defensive copies.
+                tests:
+                  - ScadParser_Parse_Result_Collections_AreReadOnly
+                  - ScadParser_Parse_Result_Nodes_AreImmutableRecords
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-Directives
+                title: >-
+                  The ScadParser Parse method shall parse include and use directive tokens into
+                  directive statements in source order at file scope, and shall reject a directive
+                  inside a block or module body and as a single unbraced child.
+                justification: |
+                  Directives are meaningful only at file scope; accepting them elsewhere would
+                  hide a source error.
+                tests:
+                  - ScadParser_Parse_Directive_FileScope_RecordedInOrder
+                  - ScadParser_Parse_Directive_InsideBlockOrModule_Throws
+                  - ScadParser_Parse_Directive_AsSingleChild_Throws
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-SyntaxErrors
+                title: >-
+                  The ScadParser Parse method shall report the first grammatical error as a
+                  ScadSyntaxException whose message, prefixed by the file, line, and column, names
+                  the expected and found tokens (a missing semicolon, an unclosed brace,
+                  parenthesis, or bracket, a missing expression, a missing child, an assignment or
+                  definition as an unbraced child, a function keyword without a name, and an
+                  unexpected token), shall report only the first of several errors, shall treat an
+                  empty source as an empty program, and shall reject a null source with
+                  ArgumentNullException.
+                justification: |
+                  Precise, actionable errors are the user-facing result of a parse-only front end.
+                tests:
+                  - ScadParser_Parse_MissingSemicolon_ReportsNextToken
+                  - ScadParser_Parse_UnclosedBrace_ReportsEndOfInput
+                  - ScadParser_Parse_UnclosedParenthesis_ReportsExpectedParenthesis
+                  - ScadParser_Parse_UnclosedBracket_ReportsExpectedBracket
+                  - ScadParser_Parse_UnexpectedClosingBrace_ReportsToken
+                  - ScadParser_Parse_ExpressionExpected_ReportsToken
+                  - ScadParser_Parse_StatementStart_InvalidToken_ReportsUnexpectedToken
+                  - ScadParser_Parse_IdentifierWithoutAssignOrCall_ReportsFollowingToken
+                  - ScadParser_Parse_AssignmentAsSingleChild_Throws
+                  - ScadParser_Parse_DefinitionAsSingleChild_Throws
+                  - ScadParser_Parse_ChildMissing_ReportsExpectedChild
+                  - ScadParser_Parse_FunctionKeywordWithoutName_AtStatementStart_Throws
+                  - ScadParser_Parse_MultipleErrors_ReportsFirstOnly
+                  - ScadParser_Parse_ErrorMessage_ContainsFileLineColumn
+                  - ScadParser_Parse_MalformedConstructs_ReportExpectedLocations
+                  - ScadParser_Parse_NullSource_ThrowsArgumentNullException
+                  - ScadParser_Parse_EmptySource_ProducesEmptyProgram
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-NestingLimit
+                title: >-
+                  The ScadParser Parse method shall reject input whose nesting exceeds 256 levels
+                  with a ScadSyntaxException of the message "Nesting too deep (limit 256)", located
+                  at the offending token or node, whether the depth arises from parentheses,
+                  vectors, prefix operators, conditional or power chains, blocks, single-child
+                  chains, else-if chains, comprehensions, or left-associative and postfix chains
+                  (whose resulting tree height is verified after parsing), shall accept input at
+                  the limit, and shall not overflow the call stack on a thread with a small or tiny
+                  stack.
+                justification: |
+                  Bounding both the parser's recursion and the finished tree's height prevents an
+                  stack overflow, which cannot be caught, here and in every later recursive
+                  consumer.
+                tests:
+                  - ScadParser_Parse_Nesting_Parentheses_AtLimit_Succeeds
+                  - ScadParser_Parse_Nesting_Parentheses_OverLimit_Throws
+                  - ScadParser_Parse_Nesting_Vectors_OverLimit_Throws
+                  - ScadParser_Parse_Nesting_UnaryChain_OverLimit_Throws
+                  - ScadParser_Parse_Nesting_TernaryChain_OverLimit_Throws
+                  - ScadParser_Parse_Nesting_PowerChain_OverLimit_Throws
+                  - ScadParser_Parse_Nesting_BlockStatements_OverLimit_Throws
+                  - ScadParser_Parse_Nesting_SingleChildChain_OverLimit_Throws
+                  - ScadParser_Parse_Nesting_ElseIfChain_OverLimit_Throws
+                  - ScadParser_Parse_Nesting_ComprehensionChain_OverLimit_Throws
+                  - ScadParser_Parse_Nesting_LeftAssociativeChain_OverLimit_Throws
+                  - ScadParser_Parse_Nesting_LeftAssociativeChain_UnderLimit_Succeeds
+                  - ScadParser_Parse_Nesting_PostfixChain_OverLimit_Throws
+                  - ScadParser_Parse_Nesting_InteriorLeftChainsAcrossLevels_OverLimit_Throws
+                  - ScadParser_Parse_Nesting_MultiLineInput_ReportsLineOfOffendingConstruct
+                  - ScadParser_Parse_Nesting_OnSmallStackThread_DoesNotOverflow
+                  - ScadParser_Parse_Nesting_OnTinyStackThread_StackGuardReportsNestingError
+
+              - id: CanvasNetScad-ScadLanguage-ScadParser-SourceLength
+                title: >-
+                  The ScadParser Parse method shall accept source of exactly 4,194,304 UTF-16
+                  characters and shall reject longer source with an InvalidDataException that is
+                  not a ScadSyntaxException, because no location is meaningful for it.
+                justification: |
+                  The memory needed for the syntax tree grows with the source size; a hard limit
+                  bounds it, and a plain exception distinguishes "too large" from "malformed".
+                tests:
+                  - ScadParser_Parse_SourceLength_AtLimit_Parses
+                  - ScadParser_Parse_SourceLength_OverLimit_ThrowsInvalidDataExceptionNotSyntaxException

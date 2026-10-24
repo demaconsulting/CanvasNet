@@ -1,0 +1,165 @@
+---
+# Software Unit Requirements for ScadDocument
+#
+# These requirements describe the design-level behavior of the ScadDocument unit, the sole direct
+# unit of the CanvasNetScad system outside the ScadLanguage subsystem. It comprises the public
+# types in the DemaConsulting.CanvasNet.Scad namespace: ScadDocument (Parse and Open entry points,
+# SourceName, Directives, ModuleNames, FunctionNames), ScadOpenOptions, ScadSourceLocation,
+# ScadSyntaxException (a FormatException), ScadDirective, and ScadDirectiveKind.
+#
+# Delivery status: Phase 4 is parse-only. Every "tests" entry below cites an existing test method in
+# the DemaConsulting.CanvasNet.Scad.Tests project; see docs/verification/canvas-net-scad/scad-document.md
+# for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetScad Requirements
+    sections:
+      - title: ScadDocument Requirements
+        requirements:
+          - id: CanvasNetScad-ScadDocument-ParseString
+            title: >-
+              The ScadDocument Parse method shall parse source text into a document, rejecting a
+              null source with ArgumentNullException, treating empty, whitespace-only, and
+              comment-only text as a valid empty document, and ignoring a leading byte-order mark.
+            justification: |
+              Parsing text already held in memory is the primary entry point; its edge cases (no
+              source, nothing but trivia, a decoded file's BOM) must behave predictably.
+            tests:
+              - ScadDocument_Parse_NullSource_ThrowsArgumentNullException
+              - ScadDocument_Parse_EmptyOrCommentOnlySource_ReturnsEmptyDocument
+              - ScadDocument_Parse_LeadingBom_IsIgnored
+
+          - id: CanvasNetScad-ScadDocument-OpenStream
+            title: >-
+              The ScadDocument Open(Stream) method shall read the stream from its current position
+              as UTF-8 with byte-order-mark detection, leave the stream open, reject a null stream
+              with ArgumentNullException and an unreadable stream with ArgumentException, and stop
+              reading a stream that exceeds the maximum source length with InvalidDataException so
+              that a non-terminating stream cannot consume unbounded memory.
+            justification: |
+              Callers need to parse source from any stream without the library taking ownership of
+              it, and must not let an adversarial or endless stream exhaust available memory.
+            tests:
+              - ScadDocument_Open_NullStream_ThrowsArgumentNullException
+              - ScadDocument_Open_UnreadableStream_ThrowsArgumentException
+              - ScadDocument_Open_Utf8WithAndWithoutBom_Parses
+              - ScadDocument_Open_Stream_IsLeftOpen
+              - ScadDocument_Open_NonTerminatingStream_ThrowsInvalidDataException
+
+          - id: CanvasNetScad-ScadDocument-OpenPath
+            title: >-
+              The ScadDocument Open(string) method shall read the named file as UTF-8, reject a
+              null path with ArgumentNullException and an empty or whitespace path with
+              ArgumentException, let a missing file or directory surface its natural
+              FileNotFoundException or DirectoryNotFoundException, name the source by the path as
+              supplied unless overridden, and default the effective base directory to the folder of
+              the file's full path.
+            justification: |
+              Opening a file by path is the most common use; the defaults for the source name and
+              base directory are the contract that later include/use resolution builds on.
+            tests:
+              - ScadDocument_Open_NullPath_ThrowsArgumentNullException
+              - ScadDocument_Open_WhitespacePath_ThrowsArgumentException
+              - ScadDocument_Open_FixtureFile_ParsesAndNamesSource
+              - ScadDocument_Open_MissingFile_ThrowsFileNotFoundException
+              - ScadDocument_Open_DefaultBaseDirectory_IsFileFolder
+
+          - id: CanvasNetScad-ScadDocument-SourceName
+            title: >-
+              The ScadDocument SourceName property shall report the name supplied through the
+              options or, for a file, the path, and null for an unnamed document, and the name
+              shall appear in the location of every syntax error raised for that document.
+            justification: |
+              A diagnostic that names its file is actionable; an unnamed in-memory document must
+              not invent a name.
+            tests:
+              - ScadDocument_SourceName_FromOptionsOrPath_ReflectsSupplier
+              - ScadDocument_Parse_SourceNameOption_AppearsInErrorLocation
+
+          - id: CanvasNetScad-ScadDocument-Directives
+            title: >-
+              The ScadDocument Directives property shall list the file-scope include and use
+              directives, each with its kind, path, and source location, in source order as a
+              read-only list, and shall never invoke a file resolver or open a file while parsing.
+            justification: |
+              Recording dependencies without resolving them lets a caller inspect a document
+              safely and keeps resolution policy out of the parser.
+            tests:
+              - ScadDocument_Directives_IncludeAndUse_AreRecordedInOrder
+              - ScadDocument_Directives_ReadOnlyList
+              - ScadDocument_Directives_FileResolverNotInvokedDuringParse
+
+          - id: CanvasNetScad-ScadDocument-Definitions
+            title: >-
+              The ScadDocument ModuleNames and FunctionNames properties shall list the names of the
+              file-scope module and function definitions in source order, keeping duplicates,
+              excluding definitions nested inside other definitions or blocks, as read-only lists.
+            justification: |
+              A caller discovering what a library file offers needs its top-level names without
+              evaluating the program.
+            tests:
+              - ScadDocument_ModuleAndFunctionNames_FileScopeOnly_InOrder
+              - ScadDocument_ModuleAndFunctionNames_Duplicates_AreKept
+
+          - id: CanvasNetScad-ScadDocument-SyntaxException
+            title: >-
+              The ScadSyntaxException class shall be a FormatException that exposes the
+              ScadSourceLocation of the error, prefixes its message with that location when it is
+              known, leaves the message unprefixed when it is not, and provides the standard
+              exception constructors; a syntax error in parsed source shall be reported as this
+              exception.
+            justification: |
+              A typed exception with a structured location lets a caller distinguish bad source
+              from other failures and point at the exact position.
+            tests:
+              - ScadSyntaxException_IsFormatException
+              - ScadSyntaxException_Location_MessageFormat
+              - ScadSyntaxException_UnknownLocation_MessageHasNoPrefix
+              - ScadSyntaxException_StandardConstructors_SetMessageAndInnerException
+              - ScadDocument_Parse_SyntaxError_ThrowsScadSyntaxExceptionWithLocation
+
+          - id: CanvasNetScad-ScadDocument-SourceLocation
+            title: >-
+              The ScadSourceLocation type shall be a value-equal record struct of file, one-based
+              line, and one-based column whose ToString renders file:line:column, line:column
+              without a file, or a question mark for the default (unknown, line zero) value.
+            justification: |
+              A single, culture-independent location representation keeps diagnostics consistent
+              across the lexer, the parser, and callers.
+            tests:
+              - ScadSourceLocation_Equality_SameComponents_AreEqual
+              - ScadSourceLocation_ToString_WithAndWithoutFile_FormatsCoordinates
+              - ScadSourceLocation_Default_IsUnknown
+
+          - id: CanvasNetScad-ScadDocument-OpenOptions
+            title: >-
+              The ScadOpenOptions class shall be immutable with init-only properties BaseDirectory,
+              LibraryPaths, FileResolver, and SourceName, shall validate each value when it is
+              initialized (null or non-whitespace for the text values; a non-null list with no
+              null or whitespace entries for LibraryPaths), shall copy the supplied library paths,
+              and shall default to unset values and an empty list; the base directory, library
+              paths, and file resolver are accepted but not consumed by parsing.
+            justification: |
+              Validated, immutable options let every consumer trust an instance, and accepting the
+              evaluation-phase options now keeps the public API additive when they gain behavior.
+            tests:
+              - ScadOpenOptions_Defaults_AreUnsetAndEmpty
+              - ScadOpenOptions_ValidValues_AreStored
+              - ScadOpenOptions_InvalidValues_Throw
+              - ScadOpenOptions_NullLibraryPaths_ThrowArgumentNullException
+              - ScadOpenOptions_NullTextValues_AreAccepted
+              - ScadOpenOptions_LibraryPaths_AreCopied
+              - ScadOpenOptions_AcceptedButNotConsumedYet_DoNotAffectParse
+              - ScadOpenOptions_Properties_AreInitOnly
+
+          - id: CanvasNetScad-ScadDocument-SourceLimit
+            title: >-
+              The ScadDocument entry points shall reject source longer than 4,194,304 UTF-16
+              characters with an InvalidDataException, whether the source is a string or is read
+              from a stream.
+            justification: |
+              The size of the syntax tree grows with the size of the source, so the source size is
+              the first line of defense against resource exhaustion by hostile input.
+            tests:
+              - ScadDocument_Parse_OverLimit_ThrowsInvalidDataException
+              - ScadDocument_Open_OverLimitStream_ThrowsInvalidDataException
