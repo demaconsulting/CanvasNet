@@ -2658,9 +2658,9 @@ Console.WriteLine($"{tetrahedron.IsClosed} {tetrahedron.SignedVolume}"); // Outp
 - `ArgumentException`: Thrown by the `Mesh` constructor for an index count that is not a multiple of
   three or a non-finite vertex; by `Transform` for a non-finite matrix or result; by
   `AddVertex` for a non-finite position; by `AddTriangle` for repeated indices; and by `AddPolygon`
-  for fewer than three indices.
-- `ArgumentOutOfRangeException`: Thrown by the `Mesh` constructor and by `AddTriangle` for an index
-  that does not address a vertex.
+  for fewer than three indices or a repeated index.
+- `ArgumentOutOfRangeException`: Thrown by the `Mesh` constructor and by `AddTriangle` and
+  `AddPolygon` for an index that does not address a vertex.
 
 ### PrimitiveTessellator
 
@@ -2695,7 +2695,8 @@ public static class PrimitiveTessellator
 
 - `ArgumentOutOfRangeException`: Thrown for a non-positive or non-finite size, radius, or height,
   fewer than three segments, both cylinder radii zero, or a face index outside the point list.
-- `ArgumentException`: Thrown by `Polyhedron` for a face with fewer than three indices or a repeated index.
+- `ArgumentException`: Thrown by `Polyhedron` for a face with fewer than three indices, a repeated
+  index, or two indices that address identical (welded) points.
 - `ArgumentNullException`: Thrown by `Polyhedron` for a null point list, face list, or face.
 
 ### Scene

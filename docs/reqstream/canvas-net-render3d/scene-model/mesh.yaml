@@ -118,4 +118,5 @@ sections:
                   - MeshBuilder_AddTriangle_IndexOutOfRange_Throws
                   - MeshBuilder_AddPolygon_Quad_FansToTwoTriangles
                   - MeshBuilder_AddPolygon_TwoIndices_Throws
+                  - MeshBuilder_AddPolygon_RepeatedIndex_ThrowsAndLeavesBuilderUnchanged
                   - MeshBuilder_Build_CalledTwice_ReturnsIndependentMeshes

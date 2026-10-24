@@ -93,7 +93,8 @@ sections:
                   The PrimitiveTessellator methods shall reject a non-positive box size, fewer than
                   three sphere or cylinder segments, a cylinder with both radii zero, and a
                   polyhedron with a null argument, a face that is shorter than three indices or
-                  repeats an index, or a face that references an invalid point index.
+                  repeats an index (including distinct indices that address identical, welded
+                  points), or a face that references an invalid point index.
                 justification: |
                   Invalid dimensions would produce degenerate or malformed meshes; failing at the
                   call site gives the caller an actionable error.
@@ -102,6 +103,9 @@ sections:
                   - PrimitiveTessellator_Sphere_TooFewSegments_Throws
                   - PrimitiveTessellator_Cylinder_BothRadiiZero_Throws
                   - PrimitiveTessellator_Polyhedron_BadIndexOrShortFace_Throws
+                  - PrimitiveTessellator_Polyhedron_RepeatedIndex_Throws
+                  - PrimitiveTessellator_Polyhedron_DistinctIndicesOfIdenticalPoints_Throws
+                  - PrimitiveTessellator_Polyhedron_DuplicatePointsOnSeparateFaces_WeldsAndSucceeds
 
               - id: CanvasNetRender3D-Tessellation-PrimitiveTessellator-ClosedOutward
                 title: >-

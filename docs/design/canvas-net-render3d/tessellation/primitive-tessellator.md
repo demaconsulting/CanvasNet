@@ -45,9 +45,11 @@ being equal.
 - `Polyhedron(IReadOnlyList<Vector3D> points, IReadOnlyList<IReadOnlyList<int>> facesCcw)`: welds the
   points, then fan-triangulates each face, preserving the supplied faces and winding exactly as
   given; it never adds faces to close the surface and never reorients faces. Each face needs at
-  least three distinct indices, each addressing
-  a point. Faces must be **convex** and listed **counter-clockwise as seen from outside**; neither
-  property is checked, so an inside-out polyhedron yields a mesh with negative `SignedVolume`
+  least three indices, each addressing a point, and all distinct after welding: a face that repeats
+  an index, or lists two indices of identical points, throws `ArgumentException` (parameter
+  `facesCcw`) before the face is added. Faces must be **convex** and listed **counter-clockwise as
+  seen from outside**; neither property is checked, so an inside-out polyhedron yields a mesh with
+  negative `SignedVolume`
   (the caller repairs it with `Mesh.Reverse`), and a non-convex face triangulates incorrectly until
   ear-clipping triangulation arrives in a later phase.
 
@@ -55,7 +57,8 @@ being equal.
 
 All validation precedes any construction. `ArgumentOutOfRangeException` for a non-positive or
 non-finite size, radius, or height, for fewer than three segments, for both radii zero, and for a
-face index outside the point list; `ArgumentException` for a face with fewer than three indices;
+face index outside the point list; `ArgumentException` for a face with fewer than three indices, a
+repeated index, or indices of identical (welded) points;
 `ArgumentNullException` for a null point list, face list, or face. Exceptions from `MeshBuilder`
 (for example a non-finite point) propagate unchanged.
 

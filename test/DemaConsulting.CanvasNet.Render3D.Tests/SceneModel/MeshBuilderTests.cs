@@ -116,6 +116,27 @@ public class MeshBuilderTests
     }
 
     /// <summary>
+    ///     Validates that a polygon repeating a non-adjacent index is rejected atomically.
+    /// </summary>
+    [Fact]
+    public void MeshBuilder_AddPolygon_RepeatedIndex_ThrowsAndLeavesBuilderUnchanged()
+    {
+        // Arrange
+        var builder = new MeshBuilder();
+        builder.AddVertex(Vector3D.Zero);
+        builder.AddVertex(Vector3D.UnitX);
+        builder.AddVertex(Vector3D.UnitY);
+        builder.AddVertex(Vector3D.UnitZ);
+
+        // Act / Assert: the fan (0,1,2),(0,2,1) would pass the per-triangle check
+        Assert.Throws<ArgumentException>(() => builder.AddPolygon([0, 1, 2, 1]));
+        Assert.Throws<ArgumentOutOfRangeException>(() => builder.AddPolygon([0, 1, 2, 9]));
+
+        // Assert: no partial triangles were added
+        Assert.Equal(0, builder.Build().TriangleCount);
+    }
+
+    /// <summary>
     ///     Validates that Build can be called repeatedly and each mesh is independent of later additions.
     /// </summary>
     [Fact]

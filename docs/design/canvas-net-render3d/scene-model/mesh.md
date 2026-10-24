@@ -61,7 +61,9 @@ generators and callers assemble a welded mesh without managing vertex de-duplica
   the three are distinct (`ArgumentException`) before modifying any state, so a failed call leaves
   the builder unchanged.
 - `MeshBuilder.AddPolygon(ReadOnlySpan<int>)`: fan-triangulates a convex polygon around its first
-  index, `(0,1,2), (0,2,3), ...`; fewer than three indices throws `ArgumentException`. The polygon
+  index, `(0,1,2), (0,2,3), ...`; fewer than three indices or any repeated index throws
+  `ArgumentException`, and an out-of-range index throws `ArgumentOutOfRangeException`. All
+  validation precedes any mutation, so a failed call leaves the builder unchanged. The polygon
   must be convex and counter-clockwise; no check is made.
 - `MeshBuilder.Build()`: creates a new `Mesh` from the current state; repeatable, and each result is
   independent of the builder and of earlier results.

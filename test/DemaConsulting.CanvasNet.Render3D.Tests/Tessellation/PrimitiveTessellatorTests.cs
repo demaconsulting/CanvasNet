@@ -339,6 +339,65 @@ public class PrimitiveTessellatorTests
     }
 
     /// <summary>
+    ///     Validates that a face repeating an input index is rejected wherever the repeat falls in the fan.
+    /// </summary>
+    [Fact]
+    public void PrimitiveTessellator_Polyhedron_RepeatedIndex_Throws()
+    {
+        // Arrange
+        Vector3D[] points = [Vector3D.Zero, Vector3D.UnitX, Vector3D.UnitY, Vector3D.UnitZ];
+
+        // Act
+        var nonAdjacent = Assert.Throws<ArgumentException>(() => PrimitiveTessellator.Polyhedron(points, [[1, 2, 3, 2]]));
+        var firstAndLast = Assert.Throws<ArgumentException>(() => PrimitiveTessellator.Polyhedron(points, [[0, 1, 2, 3, 0]]));
+        var adjacent = Assert.Throws<ArgumentException>(() => PrimitiveTessellator.Polyhedron(points, [[0, 1, 1, 2]]));
+
+        // Assert
+        Assert.Equal("facesCcw", nonAdjacent.ParamName);
+        Assert.Equal("facesCcw", firstAndLast.ParamName);
+        Assert.Equal("facesCcw", adjacent.ParamName);
+        Assert.Contains("repeat", nonAdjacent.Message);
+    }
+
+    /// <summary>
+    ///     Validates that a face is rejected when distinct indices address identical points that weld together.
+    /// </summary>
+    [Fact]
+    public void PrimitiveTessellator_Polyhedron_DistinctIndicesOfIdenticalPoints_Throws()
+    {
+        // Arrange: points 0 and 3 are identical and weld to one vertex
+        Vector3D[] points = [Vector3D.Zero, Vector3D.UnitX, Vector3D.UnitY, Vector3D.Zero];
+
+        // Act
+        var triangle = Assert.Throws<ArgumentException>(() => PrimitiveTessellator.Polyhedron(points, [[0, 1, 3]]));
+        var quad = Assert.Throws<ArgumentException>(() => PrimitiveTessellator.Polyhedron(points, [[0, 1, 2, 3]]));
+
+        // Assert
+        Assert.Equal("facesCcw", triangle.ParamName);
+        Assert.Equal("facesCcw", quad.ParamName);
+        Assert.Contains("weld", triangle.Message);
+    }
+
+    /// <summary>
+    ///     Validates that a valid face set containing identical points on different faces is still accepted.
+    /// </summary>
+    [Fact]
+    public void PrimitiveTessellator_Polyhedron_DuplicatePointsOnSeparateFaces_WeldsAndSucceeds()
+    {
+        // Arrange: index 4 duplicates index 0, but no single face uses both
+        Vector3D[] points = [Vector3D.Zero, Vector3D.UnitX, Vector3D.UnitY, Vector3D.UnitZ, Vector3D.Zero];
+        int[][] faces = [[0, 2, 1], [4, 1, 3], [0, 3, 2], [1, 2, 3]];
+
+        // Act
+        var mesh = PrimitiveTessellator.Polyhedron(points, faces);
+
+        // Assert
+        Assert.Equal(4, mesh.Vertices.Count);
+        Assert.Equal(4, mesh.TriangleCount);
+        Assert.True(mesh.IsClosed);
+    }
+
+    /// <summary>
     ///     Validates that every convex primitive is closed and outward oriented.
     /// </summary>
     [Fact]

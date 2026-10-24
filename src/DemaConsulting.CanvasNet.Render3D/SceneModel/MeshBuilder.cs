@@ -80,13 +80,31 @@ public sealed class MeshBuilder
     ///     Adds a convex counter-clockwise polygon, fan-triangulated from its first vertex.
     /// </summary>
     /// <param name="polygon">The polygon's vertex indices in counter-clockwise order (at least three).</param>
-    /// <exception cref="ArgumentException">Thrown when fewer than three indices are supplied or a triangle would be degenerate.</exception>
+    /// <remarks>
+    ///     The call is atomic: every index is validated, including that no index appears more than
+    ///     once in the polygon, before any triangle is added, so a failed call leaves the builder
+    ///     unchanged.
+    /// </remarks>
+    /// <exception cref="ArgumentException">Thrown when fewer than three indices are supplied or the polygon repeats an index.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when an index does not address an added vertex.</exception>
     public void AddPolygon(ReadOnlySpan<int> polygon)
     {
         if (polygon.Length < 3)
         {
             throw new ArgumentException("A polygon requires at least three vertices.", nameof(polygon));
+        }
+
+        // Validate the whole polygon before mutating state so a failed call leaves the builder unchanged
+        for (var i = 0; i < polygon.Length; i++)
+        {
+            CheckIndex(polygon[i], nameof(polygon));
+            for (var j = 0; j < i; j++)
+            {
+                if (polygon[i] == polygon[j])
+                {
+                    throw new ArgumentException("A polygon must not repeat a vertex index.", nameof(polygon));
+                }
+            }
         }
 
         // Fan around the first vertex: (0,1,2), (0,2,3), ...

@@ -95,10 +95,12 @@ Asserts that reversing a closed mesh negates its signed volume.
 `MeshBuilderTests.MeshBuilder_AddTriangle_IndexOutOfRange_Throws`,
 `MeshBuilderTests.MeshBuilder_AddPolygon_Quad_FansToTwoTriangles`,
 `MeshBuilderTests.MeshBuilder_AddPolygon_TwoIndices_Throws`,
+`MeshBuilderTests.MeshBuilder_AddPolygon_RepeatedIndex_ThrowsAndLeavesBuilderUnchanged`,
 `MeshBuilderTests.MeshBuilder_Build_CalledTwice_ReturnsIndependentMeshes`
 
 Asserts exact-value welding (including negative zero), the exceptions for a repeated or
-out-of-range triangle index and for a polygon with fewer than three indices, fan triangulation of a
+out-of-range triangle index and for a polygon with fewer than three indices, a repeated index, or
+an out-of-range index (leaving the builder unchanged), fan triangulation of a
 quad into two triangles, and that two `Build` calls return independent meshes.
 
 #### Acceptance Criteria

@@ -220,15 +220,16 @@ public static class PrimitiveTessellator
     ///         is negative.
     ///     </para>
     ///     <para>
-    ///         Identical points are welded, so faces that become degenerate after welding are
-    ///         rejected.
+    ///         Identical points are welded, so a face that repeats an index, or that lists two
+    ///         distinct indices addressing identical points, is rejected (every vertex of a face
+    ///         must be distinct after welding).
     ///     </para>
     /// </remarks>
     /// <param name="points">The vertex positions; each must be finite.</param>
     /// <param name="facesCcw">The faces as lists of at least three distinct, in-range point indices in counter-clockwise order.</param>
     /// <returns>The mesh.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument or a face is <see langword="null"/>.</exception>
-    /// <exception cref="ArgumentException">Thrown when a face has fewer than three vertices, repeats an index, or a point is not finite.</exception>
+    /// <exception cref="ArgumentException">Thrown when a face has fewer than three vertices, repeats an index, lists indices of identical (welded) points, or a point is not finite.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when a face index does not address a point.</exception>
     public static Mesh Polyhedron(IReadOnlyList<Vector3D> points, IReadOnlyList<IReadOnlyList<int>> facesCcw)
     {
@@ -255,7 +256,7 @@ public static class PrimitiveTessellator
                 throw new ArgumentException("A face requires at least three vertices.", nameof(facesCcw));
             }
 
-            // Translate and range-check face indices, then fan-triangulate
+            // Translate and range-check face indices
             var polygon = new int[face.Count];
             for (var k = 0; k < polygon.Length; k++)
             {
@@ -265,6 +266,24 @@ public static class PrimitiveTessellator
                 }
 
                 polygon[k] = map[face[k]];
+            }
+
+            // Reject any repeated vertex (the fan would otherwise accept non-adjacent repeats)
+            for (var k = 1; k < polygon.Length; k++)
+            {
+                for (var m = 0; m < k; m++)
+                {
+                    if (polygon[k] != polygon[m])
+                    {
+                        continue;
+                    }
+
+                    throw new ArgumentException(
+                        face[k] == face[m]
+                            ? $"A face must not repeat an index (index {face[k]})."
+                            : $"A face collapses after welding identical points (indices {face[m]} and {face[k]}).",
+                        nameof(facesCcw));
+                }
             }
 
             builder.AddPolygon(polygon);

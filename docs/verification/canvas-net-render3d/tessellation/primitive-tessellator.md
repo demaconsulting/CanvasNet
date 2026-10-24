@@ -82,11 +82,16 @@ orientation correction is applied.
 **Tests**: `PrimitiveTessellatorTests.PrimitiveTessellator_Box_NonPositiveSize_Throws`,
 `PrimitiveTessellatorTests.PrimitiveTessellator_Sphere_TooFewSegments_Throws`,
 `PrimitiveTessellatorTests.PrimitiveTessellator_Cylinder_BothRadiiZero_Throws`,
-`PrimitiveTessellatorTests.PrimitiveTessellator_Polyhedron_BadIndexOrShortFace_Throws`
+`PrimitiveTessellatorTests.PrimitiveTessellator_Polyhedron_BadIndexOrShortFace_Throws`,
+`PrimitiveTessellatorTests.PrimitiveTessellator_Polyhedron_RepeatedIndex_Throws`,
+`PrimitiveTessellatorTests.PrimitiveTessellator_Polyhedron_DistinctIndicesOfIdenticalPoints_Throws`,
+`PrimitiveTessellatorTests.PrimitiveTessellator_Polyhedron_DuplicatePointsOnSeparateFaces_WeldsAndSucceeds`
 
 Asserts the documented exception for a non-positive box size, fewer than three segments, both
 cylinder radii zero, and a polyhedron with a null argument, a face with an out-of-range or repeated
-index, or fewer than three indices.
+index (adjacent, non-adjacent, and first-equals-last repeats), a face whose distinct indices address
+identical points that weld together, or fewer than three indices; and that identical points
+appearing on separate faces still weld and build a valid mesh.
 
 ##### CanvasNetRender3D-Tessellation-PrimitiveTessellator-ClosedOutward: Every Primitive Is Closed And Outward Oriented
 
