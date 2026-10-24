@@ -258,6 +258,33 @@ public class PrimitiveTessellatorTests
     }
 
     /// <summary>
+    ///     Validates that an open (unclosed) face set is built exactly as supplied: faces and winding are
+    ///     preserved and the caller's responsibility for closure is not overridden.
+    /// </summary>
+    [Fact]
+    public void PrimitiveTessellator_Polyhedron_OpenFaceSet_PreservesSuppliedFacesAndWinding()
+    {
+        // Arrange: an outward unit cube with one face omitted, and a single face listed in the opposite sense to its natural one
+        var cube = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, Vector3D.One);
+        int[][] openFaces = [[0, 2, 3, 1], [0, 1, 5, 4], [2, 6, 7, 3], [0, 4, 6, 2], [1, 3, 7, 5]];
+        Vector3D[] points = [Vector3D.Zero, Vector3D.UnitX, Vector3D.UnitY];
+        int[][] singleFace = [[0, 2, 1]];
+
+        // Act
+        var open = PrimitiveTessellator.Polyhedron(cube.Vertices, openFaces);
+        var single = PrimitiveTessellator.Polyhedron(points, singleFace);
+
+        // Assert: no face is added, so the mesh stays open with exactly the fan triangulation of the supplied faces
+        Assert.Equal(10, open.TriangleCount);
+        Assert.False(open.IsClosed);
+
+        // Assert: the supplied winding is reproduced as given, not reoriented
+        Assert.Equal([0, 2, 1], single.TriangleIndices);
+        Assert.Equal(points, single.Vertices);
+        Assert.Equal([0, 2, 3, 0, 3, 1], open.TriangleIndices.Take(6));
+    }
+
+    /// <summary>
     ///     Validates that non-positive or non-finite box sizes are rejected.
     /// </summary>
     [Fact]

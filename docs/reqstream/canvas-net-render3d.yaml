@@ -47,20 +47,24 @@ sections:
 
       - id: CanvasNetRender3D-PrimitiveMeshes
         title: >-
-          The library shall provide box, sphere, cylinder (including cone and frustum), and
-          polyhedron mesh factories whose results are welded, closed, and outward-oriented
-          (counter-clockwise seen from outside), with analytically correct volumes within the
-          expected tessellation error, and shall reject invalid dimensions, segment counts, and
+          The library shall provide box, sphere, and cylinder (including cone and frustum) mesh
+          factories whose results are welded, closed, and outward-oriented (counter-clockwise seen
+          from outside) with analytically correct volumes within the expected tessellation error,
+          and a polyhedron mesh factory that builds a mesh from caller-supplied points and faces
+          while preserving the supplied faces and winding (closure and outward orientation being
+          the caller's responsibility), and shall reject invalid dimensions, segment counts, and
           face indices.
         tags: [system]
         justification: |
           Callers building CAD-style scenes need ready-made, topologically sound primitives whose
           orientation contract matches the renderer's lighting and back-face handling, without
-          hand-assembling vertex and index lists.
+          hand-assembling vertex and index lists; arbitrary caller-defined polyhedra are
+          reproduced as supplied so the caller keeps control of their geometry.
         children:
           - CanvasNetRender3D-Tessellation-PrimitiveMeshes
         tests:
           - CanvasNetRender3D_SystemIntegration_PrimitiveMeshes_BoxSphereCylinderAreClosedWithAnalyticVolume
+          - CanvasNetRender3D_SystemIntegration_PrimitiveMeshes_PolyhedronPreservesSuppliedWinding
 
       - id: CanvasNetRender3D-Render
         title: >-

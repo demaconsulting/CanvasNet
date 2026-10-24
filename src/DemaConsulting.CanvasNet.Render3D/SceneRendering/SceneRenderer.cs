@@ -155,6 +155,9 @@ public static class SceneRenderer
         ArgumentNullException.ThrowIfNull(scene);
         ValidateSize(width, height);
 
+        // Honor cancellation before the potentially expensive bounds computation
+        cancellationToken.ThrowIfCancellationRequested();
+
         var camera = Camera.FitToBounds(
             scene.ComputeBounds(),
             Camera.DefaultAzimuthDegrees,

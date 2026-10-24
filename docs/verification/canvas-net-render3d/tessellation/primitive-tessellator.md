@@ -63,14 +63,19 @@ spans plus and minus half the height, and the frustum volume for unequal radii.
 Asserts that a zero top radius produces a single apex vertex, no degenerate triangles, and a closed
 mesh.
 
-##### CanvasNetRender3D-Tessellation-PrimitiveTessellator-Polyhedron: Polyhedron Welds And Fan-Triangulates
+##### CanvasNetRender3D-Tessellation-PrimitiveTessellator-Polyhedron: Polyhedron Preserves Supplied Faces And Winding
 
 **Tests**: `PrimitiveTessellatorTests.PrimitiveTessellator_Polyhedron_Tetrahedron_IsClosedWithAnalyticVolume`,
 `PrimitiveTessellatorTests.PrimitiveTessellator_Polyhedron_QuadFaces_FanTriangulates`,
-`PrimitiveTessellatorTests.PrimitiveTessellator_Polyhedron_InvertedWinding_HasNegativeVolumeAndReverseFixes`
+`PrimitiveTessellatorTests.PrimitiveTessellator_Polyhedron_InvertedWinding_HasNegativeVolumeAndReverseFixes`,
+`PrimitiveTessellatorTests.PrimitiveTessellator_Polyhedron_OpenFaceSet_PreservesSuppliedFacesAndWinding`
 
-Asserts that a tetrahedron is closed with the analytic volume, that quad faces fan into two
-triangles each, and that an inverted polyhedron has a negative volume that `Mesh.Reverse` repairs.
+Asserts that a tetrahedron built from outward faces is closed with the analytic volume, that quad
+faces fan into two triangles each, that an inverted polyhedron has a negative volume that
+`Mesh.Reverse` repairs, and
+that an open face set (and a single face listed in the opposite sense) is reproduced exactly as
+supplied, with the same triangle indices and still not closed, proving that no closure or
+orientation correction is applied.
 
 ##### CanvasNetRender3D-Tessellation-PrimitiveTessellator-Validation: Invalid Arguments Are Rejected
 
@@ -80,7 +85,8 @@ triangles each, and that an inverted polyhedron has a negative volume that `Mesh
 `PrimitiveTessellatorTests.PrimitiveTessellator_Polyhedron_BadIndexOrShortFace_Throws`
 
 Asserts the documented exception for a non-positive box size, fewer than three segments, both
-cylinder radii zero, and a polyhedron face with an out-of-range index or fewer than three indices.
+cylinder radii zero, and a polyhedron with a null argument, a face with an out-of-range or repeated
+index, or fewer than three indices.
 
 ##### CanvasNetRender3D-Tessellation-PrimitiveTessellator-ClosedOutward: Every Primitive Is Closed And Outward Oriented
 

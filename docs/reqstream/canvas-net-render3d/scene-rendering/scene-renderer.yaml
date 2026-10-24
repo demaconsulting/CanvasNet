@@ -109,13 +109,16 @@ sections:
                 title: >-
                   The SceneRenderer shall throw OperationCanceledException (never wrapped in an
                   AggregateException, in both sequential and parallel modes) when the supplied
-                  CancellationToken is canceled, and shall release the partially rendered Surface.
+                  CancellationToken is canceled, including before any scene processing begins in
+                  both Render and RenderFitted, and shall release the partially rendered Surface.
                 justification: |
                   Callers must be able to abandon a long render promptly and handle a single,
                   well-known exception type.
                 tests:
                   - SceneRenderer_Render_PreCancelledToken_ThrowsOperationCanceledException
                   - SceneRenderer_Render_PreCancelledToken_Parallel_ThrowsOperationCanceledNotAggregate
+                  - SceneRenderer_Render_PreCancelledToken_ThrowsBeforeProcessingScene
+                  - SceneRenderer_RenderFitted_PreCancelledToken_ThrowsBeforeComputingBounds
 
               - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Options
                 title: >-

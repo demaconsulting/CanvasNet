@@ -5,7 +5,8 @@
 #
 # These requirements describe the design-level behavior of the PrimitiveTessellator unit: the
 # public static PrimitiveTessellator class in the DemaConsulting.CanvasNet.Render3D.Tessellation
-# namespace. Every result honors the Mesh winding contract (counter-clockwise seen from outside).
+# namespace. Box, sphere, and cylinder results honor the Mesh winding contract (counter-clockwise
+# seen from outside); a Polyhedron preserves the caller-supplied faces and winding as given.
 
 sections:
   - title: CanvasNetRender3D Requirements
@@ -69,24 +70,30 @@ sections:
 
               - id: CanvasNetRender3D-Tessellation-PrimitiveTessellator-Polyhedron
                 title: >-
-                  The PrimitiveTessellator Polyhedron method shall build a mesh from caller-supplied
-                  points and counter-clockwise convex faces, fan-triangulating each face and
-                  preserving the supplied orientation so that an inverted polyhedron is detectable
-                  through a negative signed volume and repairable with Mesh.Reverse.
+                  The PrimitiveTessellator Polyhedron method shall build a mesh from the
+                  caller-supplied points and convex faces, welding identical points and
+                  fan-triangulating each face, and shall preserve the supplied faces and winding
+                  as given, without closing the surface or correcting its orientation, so that
+                  closure and outward orientation remain the caller's responsibility and an open
+                  or inverted polyhedron is detectable through Mesh.IsClosed and a negative signed
+                  volume and repairable with Mesh.Reverse.
                 justification: |
-                  Polyhedra describe arbitrary convex-faced solids; orientation is left to the
-                  caller because the renderer has no channel for warnings.
+                  Polyhedra describe arbitrary caller-defined solids and shells, including open
+                  surfaces; silently closing or reorienting them would alter the caller's
+                  geometry, and the renderer has no channel for warnings. The caller therefore
+                  owns closure and orientation and can inspect the resulting mesh.
                 tests:
                   - PrimitiveTessellator_Polyhedron_Tetrahedron_IsClosedWithAnalyticVolume
                   - PrimitiveTessellator_Polyhedron_QuadFaces_FanTriangulates
                   - PrimitiveTessellator_Polyhedron_InvertedWinding_HasNegativeVolumeAndReverseFixes
+                  - PrimitiveTessellator_Polyhedron_OpenFaceSet_PreservesSuppliedFacesAndWinding
 
               - id: CanvasNetRender3D-Tessellation-PrimitiveTessellator-Validation
                 title: >-
                   The PrimitiveTessellator methods shall reject a non-positive box size, fewer than
                   three sphere or cylinder segments, a cylinder with both radii zero, and a
-                  polyhedron face that is shorter than three indices or references an invalid
-                  point index.
+                  polyhedron with a null argument, a face that is shorter than three indices or
+                  repeats an index, or a face that references an invalid point index.
                 justification: |
                   Invalid dimensions would produce degenerate or malformed meshes; failing at the
                   call site gives the caller an actionable error.

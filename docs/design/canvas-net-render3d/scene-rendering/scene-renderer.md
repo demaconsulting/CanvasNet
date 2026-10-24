@@ -105,7 +105,7 @@ memory.
 
 ##### `RenderFitted(scene, width, height, options, cancellationToken)`
 
-Validates the scene and size, builds `Camera.FitToBounds(scene.ComputeBounds(),
+Validates the scene and size, honors the cancellation token (before any bounds work), builds `Camera.FitToBounds(scene.ComputeBounds(),
 Camera.DefaultAzimuthDegrees, Camera.DefaultElevationDegrees, width / (double)height)`, and calls
 `Render`. An empty scene yields a fallback unit-cube framing and therefore the background only.
 

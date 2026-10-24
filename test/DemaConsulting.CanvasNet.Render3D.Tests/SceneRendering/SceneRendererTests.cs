@@ -29,6 +29,16 @@ public class SceneRendererTests
     private static Scene SceneOf(Mesh mesh) => new(new MeshNode(mesh));
 
     /// <summary>
+    ///     Creates a scene whose node transform overflows to infinity when applied to its vertices, so
+    ///     that any scene processing (bounds computation, flattening) would fail with an exception.
+    /// </summary>
+    /// <returns>The scene.</returns>
+    private static Scene CreateOverflowingScene() => new(new MeshNode(Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, new Vector3D(1e300, 1e300, 1e300)))
+    {
+        Transform = Matrix4x4D.CreateScale(1e300),
+    });
+
+    /// <summary>
     ///     Validates that null scene or camera arguments are rejected.
     /// </summary>
     [Fact]
@@ -322,6 +332,43 @@ public class SceneRendererTests
 
         // Act
         var ex = Assert.ThrowsAny<OperationCanceledException>(() => SceneRenderer.RenderFitted(scene, 64, 64, new SceneRenderOptions { MaxDegreeOfParallelism = 1 }, source.Token));
+
+        // Assert
+        Assert.Equal(source.Token, ex.CancellationToken);
+    }
+
+    /// <summary>
+    ///     Validates that Render honors a pre-cancelled token before doing any work, even for a scene whose
+    ///     processing would otherwise fail.
+    /// </summary>
+    [Fact]
+    public void SceneRenderer_Render_PreCancelledToken_ThrowsBeforeProcessingScene()
+    {
+        // Arrange: a scene whose transform overflows when applied, so any processing would throw a different exception
+        using var source = new CancellationTokenSource();
+        source.Cancel();
+        var scene = CreateOverflowingScene();
+
+        // Act
+        var ex = Assert.ThrowsAny<OperationCanceledException>(() => SceneRenderer.Render(scene, TopDown, 16, 16, null, source.Token));
+
+        // Assert
+        Assert.Equal(source.Token, ex.CancellationToken);
+    }
+
+    /// <summary>
+    ///     Validates that RenderFitted honors a pre-cancelled token before computing the fitted scene bounds.
+    /// </summary>
+    [Fact]
+    public void SceneRenderer_RenderFitted_PreCancelledToken_ThrowsBeforeComputingBounds()
+    {
+        // Arrange: a scene whose transform overflows when bounds are computed, so any bounds work would throw a different exception
+        using var source = new CancellationTokenSource();
+        source.Cancel();
+        var scene = CreateOverflowingScene();
+
+        // Act
+        var ex = Assert.ThrowsAny<OperationCanceledException>(() => SceneRenderer.RenderFitted(scene, 16, 16, null, source.Token));
 
         // Assert
         Assert.Equal(source.Token, ex.CancellationToken);

@@ -2664,8 +2664,9 @@ Console.WriteLine($"{tetrahedron.IsClosed} {tetrahedron.SignedVolume}"); // Outp
 
 ### PrimitiveTessellator
 
-`PrimitiveTessellator` (namespace `DemaConsulting.CanvasNet.Render3D.Tessellation`) creates closed,
-welded, outward-oriented meshes for common solids.
+`PrimitiveTessellator` (namespace `DemaConsulting.CanvasNet.Render3D.Tessellation`) creates welded
+meshes for common solids: `Box`, `Sphere`, and `Cylinder` results are closed and outward-oriented,
+while `Polyhedron` builds its mesh from the points and faces you supply and preserves them as given.
 
 ```csharp
 public static class PrimitiveTessellator
@@ -2683,15 +2684,18 @@ public static class PrimitiveTessellator
 - `Cylinder` extends along +Z from 0 to `height` (or symmetrically about 0 when `center` is true).
   `radius1` is the bottom radius and `radius2` the top radius, so unequal radii make a frustum and a
   radius of 0 makes a cone (not both 0).
-- `Polyhedron` welds the points and fan-triangulates each face. Faces must be **convex** and listed
-  **counter-clockwise as seen from outside**; neither is checked, so for an inside-out polyhedron
-  (negative `SignedVolume`) call `Mesh.Reverse()`.
+- `Polyhedron` welds the points and fan-triangulates each face, preserving the faces and winding you
+  supply exactly as given: it neither closes the surface nor corrects its orientation, so closure and
+  outward orientation are your responsibility. Faces must be **convex** and should be listed
+  **counter-clockwise as seen from outside** for an outward-facing result; neither is checked, so
+  inspect `Mesh.IsClosed` and `Mesh.SignedVolume`, and for an inside-out polyhedron (negative
+  `SignedVolume`) call `Mesh.Reverse()`.
 
 **Exceptions:**
 
 - `ArgumentOutOfRangeException`: Thrown for a non-positive or non-finite size, radius, or height,
   fewer than three segments, both cylinder radii zero, or a face index outside the point list.
-- `ArgumentException`: Thrown by `Polyhedron` for a face with fewer than three indices.
+- `ArgumentException`: Thrown by `Polyhedron` for a face with fewer than three indices or a repeated index.
 - `ArgumentNullException`: Thrown by `Polyhedron` for a null point list, face list, or face.
 
 ### Scene

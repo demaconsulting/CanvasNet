@@ -108,11 +108,16 @@ and that a maximum degree of parallelism of zero or below negative one is reject
 ##### CanvasNetRender3D-SceneRendering-SceneRenderer-Cancellation: Cancellation Throws OperationCanceledException
 
 **Tests**: `SceneRendererTests.SceneRenderer_Render_PreCancelledToken_ThrowsOperationCanceledException`,
-`SceneRendererTests.SceneRenderer_Render_PreCancelledToken_Parallel_ThrowsOperationCanceledNotAggregate`
+`SceneRendererTests.SceneRenderer_Render_PreCancelledToken_Parallel_ThrowsOperationCanceledNotAggregate`,
+`SceneRendererTests.SceneRenderer_Render_PreCancelledToken_ThrowsBeforeProcessingScene`,
+`SceneRendererTests.SceneRenderer_RenderFitted_PreCancelledToken_ThrowsBeforeComputingBounds`
 
 Asserts that a pre-cancelled token throws `OperationCanceledException` carrying the token, in both
 the sequential and the parallel configuration, and that the exception is never an
-`AggregateException`. `SceneRendererTests.SceneRenderer_Render_CancelledDuringRender_ThrowsOperationCanceledException`
+`AggregateException`. The last two tests use a scene whose node transform overflows to infinity, so
+any scene processing would raise a different exception; they prove that `Render` and `RenderFitted`
+observe the token before computing bounds or flattening the scene.
+`SceneRendererTests.SceneRenderer_Render_CancelledDuringRender_ThrowsOperationCanceledException`
 additionally verifies cancellation while a render is in progress.
 
 ##### CanvasNetRender3D-SceneRendering-SceneRenderer-Options: Options Defaults And Light Handling

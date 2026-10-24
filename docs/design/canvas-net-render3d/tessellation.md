@@ -31,7 +31,10 @@ depend on `SceneRendering` or on the core `CanvasNet` system.
 Every primitive is built through `MeshBuilder`, which welds bit-identical vertices, and each vertex
 is computed once and referenced by index everywhere it is used (the sphere's azimuthal seam wraps by
 index rather than duplicating vertices; cylinder caps use a dedicated center vertex; a cone has a
-single apex vertex). The results are therefore watertight, closed meshes (`Mesh.IsClosed` is true)
-with counter-clockwise-outward winding and positive `SignedVolume`, the contract the renderer's
-lighting and back-face handling rely on. Argument validation is eager and fail-closed. See
+single apex vertex). The `Box`, `Sphere`, and `Cylinder` results are therefore watertight, closed
+meshes (`Mesh.IsClosed` is true) with counter-clockwise-outward winding and positive `SignedVolume`,
+the contract the renderer's lighting and back-face handling rely on. `Polyhedron` is the deliberate
+exception: it reproduces the caller-supplied faces and winding as given, with no closure or
+orientation correction, so those properties are the caller's responsibility. Argument validation is
+eager and fail-closed. See
 _CanvasNetRender3D System Design_ (`../canvas-net-render3d.md`) for the coordinate conventions.

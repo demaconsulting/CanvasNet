@@ -32,3 +32,7 @@ unexpected exception.
   `TessellationTests.Tessellation_AllPrimitives_AreClosedAndOutwardOriented` — creates a centered
   box, a sphere, a cylinder, and a cone and asserts that each is closed with positive volume and
   outward-pointing triangle normals.
+- **Polyhedron Preserves Supplied Faces**:
+  `TessellationTests.Tessellation_Polyhedron_OpenFaceSet_IsPreservedWithoutClosureOrReorientation` —
+  builds a polyhedron from three clockwise faces of a tetrahedron and asserts that the mesh is
+  still open and contains exactly the supplied triangle indices in the supplied order.

@@ -32,4 +32,23 @@ public class TessellationTests
             Render3DTestHelpers.AssertClosedAndOutward(mesh);
         }
     }
+
+    /// <summary>
+    ///     Validates that the subsystem reproduces a caller-supplied polyhedron as given: an open, inverted
+    ///     face set is neither closed nor reoriented.
+    /// </summary>
+    [Fact]
+    public void Tessellation_Polyhedron_OpenFaceSet_IsPreservedWithoutClosureOrReorientation()
+    {
+        // Arrange: three faces of a tetrahedron, all listed clockwise from outside
+        Vector3D[] points = [Vector3D.Zero, Vector3D.UnitX, Vector3D.UnitY, Vector3D.UnitZ];
+        int[][] faces = [[0, 1, 2], [0, 3, 1], [0, 2, 3]];
+
+        // Act
+        var mesh = PrimitiveTessellator.Polyhedron(points, faces);
+
+        // Assert: exactly the supplied triangles in the supplied order, still open
+        Assert.False(mesh.IsClosed);
+        Assert.Equal([0, 1, 2, 0, 3, 1, 0, 2, 3], mesh.TriangleIndices);
+    }
 }

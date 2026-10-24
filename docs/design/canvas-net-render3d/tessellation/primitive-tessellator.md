@@ -9,9 +9,11 @@ single public static class, `PrimitiveTessellator`, in the
 #### Purpose
 
 `PrimitiveTessellator` produces ready-made, topologically sound meshes for the solids a CAD-style
-scene is built from, so callers need not hand-assemble vertex and index lists. Every result is
-welded, closed (except an open `Polyhedron` input), and counter-clockwise-outward oriented, which
-is the contract the renderer's lighting and back-face handling assume.
+scene is built from, so callers need not hand-assemble vertex and index lists. Every `Box`,
+`Sphere`, and `Cylinder` result is welded, closed, and counter-clockwise-outward oriented, which is
+the contract the renderer's lighting and back-face handling assume. `Polyhedron` is the exception:
+it builds its mesh from the caller-supplied points and faces and preserves the supplied faces and
+winding as given, leaving closure and outward orientation to the caller.
 
 #### Data Model
 
@@ -41,7 +43,9 @@ being equal.
   side wall is two triangles per segment (one when an end is an apex). `height` must be finite and
   greater than zero; each radius finite and not negative; `segments` at least 3.
 - `Polyhedron(IReadOnlyList<Vector3D> points, IReadOnlyList<IReadOnlyList<int>> facesCcw)`: welds the
-  points, then fan-triangulates each face. Each face needs at least three indices, each addressing
+  points, then fan-triangulates each face, preserving the supplied faces and winding exactly as
+  given; it never adds faces to close the surface and never reorients faces. Each face needs at
+  least three distinct indices, each addressing
   a point. Faces must be **convex** and listed **counter-clockwise as seen from outside**; neither
   property is checked, so an inside-out polyhedron yields a mesh with negative `SignedVolume`
   (the caller repairs it with `Mesh.Reverse`), and a non-convex face triangulates incorrectly until

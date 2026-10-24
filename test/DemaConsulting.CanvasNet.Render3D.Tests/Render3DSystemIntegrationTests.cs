@@ -109,6 +109,29 @@ public class Render3DSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that a caller-supplied polyhedron keeps its supplied winding and closure: an inverted closed
+    ///     polyhedron is not reoriented and a face set missing a face is not closed.
+    /// </summary>
+    [Fact]
+    public void CanvasNetRender3D_SystemIntegration_PrimitiveMeshes_PolyhedronPreservesSuppliedWinding()
+    {
+        // Arrange: a tetrahedron with every face listed clockwise from outside, and the same with one face omitted
+        Vector3D[] points = [Vector3D.Zero, Vector3D.UnitX, Vector3D.UnitY, Vector3D.UnitZ];
+        int[][] inverted = [[0, 1, 2], [0, 3, 1], [0, 2, 3], [1, 3, 2]];
+
+        // Act
+        var closed = PrimitiveTessellator.Polyhedron(points, inverted);
+        var open = PrimitiveTessellator.Polyhedron(points, inverted[..3]);
+
+        // Assert: the supplied inverted winding is preserved (negative volume), repairable by Reverse, and the open set stays open
+        Assert.True(closed.IsClosed);
+        Assert.Equal(-1.0 / 6.0, closed.SignedVolume, 1e-12);
+        Assert.Equal(1.0 / 6.0, closed.Reverse().SignedVolume, 1e-12);
+        Assert.False(open.IsClosed);
+        Assert.Equal(3, open.TriangleCount);
+    }
+
+    /// <summary>
     ///     Validates the headline render: a perspective cube's silhouette matches the analytic projected area (and is the platform requirements' shared test).
     /// </summary>
     [Fact]

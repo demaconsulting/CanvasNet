@@ -73,6 +73,15 @@ Creates a box, a sphere, a cylinder, and a cone and asserts that each is closed 
 volume matching the analytic (or polygon-corrected analytic) volume within the expected tessellation
 error.
 
+### Primitive Meshes: Polyhedron Preserves Supplied Winding
+
+**Test**: `CanvasNetRender3D_SystemIntegration_PrimitiveMeshes_PolyhedronPreservesSuppliedWinding`
+
+Builds a tetrahedron with every face listed clockwise from outside and asserts that it is closed
+with a negative signed volume (the supplied winding is preserved, not corrected) that
+`Mesh.Reverse` repairs, and that the same faces with one omitted yield an open mesh of three
+triangles (no face is added to close it).
+
 ### Render: Cube Silhouette Matches Analytic Coverage
 
 **Test**: `CanvasNetRender3D_SystemIntegration_Render_CubeSilhouetteMatchesAnalyticCoverage`

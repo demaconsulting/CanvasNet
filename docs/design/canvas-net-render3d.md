@@ -30,7 +30,8 @@ of `src/DemaConsulting.CanvasNet.Render3D/` (the root namespace itself contains 
   flattened view. See _SceneModel Subsystem Design_ (`canvas-net-render3d/scene-model.md`).
 - **Tessellation** (namespace `DemaConsulting.CanvasNet.Render3D.Tessellation`, folder
   `Tessellation/`): one unit, `PrimitiveTessellator`, a static factory for closed, welded,
-  outward-oriented box, sphere, cylinder (including cone and frustum), and polyhedron meshes. See
+  outward-oriented box, sphere, and cylinder (including cone and frustum) meshes, and for polyhedron
+  meshes built from caller-supplied faces whose winding and closure are preserved as given. See
   _Tessellation Subsystem Design_ (`canvas-net-render3d/tessellation.md`).
 - **SceneRendering** (namespace `DemaConsulting.CanvasNet.Render3D.SceneRendering`, folder
   `SceneRendering/`): the rasterization pipeline, with four units. `Camera` provides the
@@ -238,7 +239,8 @@ These conventions are part of the public contract and are pinned by tests:
   `i + 0.5`.
 - **Mesh winding**: a triangle whose vertices are **counter-clockwise (CCW) as seen from outside**
   has its right-hand-rule normal pointing outward. Every primitive produced by
-  `PrimitiveTessellator` follows this convention, and a closed mesh with this winding has a
+  `PrimitiveTessellator` follows this convention (except `Polyhedron`, which preserves the
+  caller-supplied winding as given), and a closed mesh with this winding has a
   positive `SignedVolume`.
 - **Matrices** use the same row-vector convention as `System.Numerics.Matrix4x4`: a point
   transforms as `v' = v * M`, translation lives in `M41`..`M43`, and `a * b` applies `a` first and
@@ -297,7 +299,9 @@ The renderer assumes, but does not verify, that meshes follow the outward-CCW co
 `Mesh.IsClosed` (every directed edge occurs exactly once and its reverse occurs exactly once) and
 `Mesh.SignedVolume` let a caller check this; a closed mesh with negative `SignedVolume` is
 inside-out and can be repaired with `Mesh.Reverse`. `PrimitiveTessellator.Polyhedron` validates only
-the structure of its input; the orientation of a polyhedron is the caller's responsibility. A
+the structure of its input and intentionally preserves the supplied faces and winding as given,
+without closing the surface or correcting its orientation; closure and outward orientation of a
+polyhedron are the caller's responsibility. A
 back-facing surface is not culled but painted with `SceneRenderOptions.BackFaceColor`, which makes
 inside-out or open meshes visible instead of silently disappearing.
 
