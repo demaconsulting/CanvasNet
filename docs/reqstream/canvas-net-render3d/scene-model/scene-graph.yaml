@@ -1,0 +1,91 @@
+---
+# Software Unit Requirements for SceneGraph
+#
+# These requirements describe the design-level behavior of the SceneGraph unit: the public
+# SceneNode, MeshNode, GroupNode, NodeAppearance, and Scene types (and the internal SceneInstance
+# record) in the DemaConsulting.CanvasNet.Render3D.SceneModel namespace. A group's semantics in
+# Phase 1 is the implicit union of its children; constructive solid geometry arrives in a later
+# phase.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: SceneModel Requirements
+        sections:
+          - title: SceneGraph Requirements
+            requirements:
+              - id: CanvasNetRender3D-SceneModel-SceneGraph-NodeConstruction
+                title: >-
+                  The MeshNode, GroupNode, and Scene constructors shall reject null arguments
+                  (including a null child element), defensively copy a group's children, and allow
+                  an empty group.
+                justification: |
+                  A scene graph must be valid and immutable by construction, with an empty group
+                  being a legitimate (empty) assembly.
+                tests:
+                  - MeshNode_Constructor_NullMesh_Throws
+                  - GroupNode_Constructor_NullChildren_Throws
+                  - GroupNode_Constructor_NullChildElement_Throws
+                  - GroupNode_Constructor_CopiesChildren
+                  - GroupNode_Constructor_Empty_Allowed
+                  - Scene_Constructor_NullRoot_Throws
+
+              - id: CanvasNetRender3D-SceneModel-SceneGraph-TransformValidation
+                title: >-
+                  A SceneNode's Transform shall default to the identity matrix and shall reject a
+                  non-finite matrix with ArgumentException.
+                justification: |
+                  A default-constructed matrix is the zero matrix, so an explicit identity default
+                  is required, and a non-finite transform would poison every descendant.
+                tests:
+                  - SceneNode_Transform_NonFiniteMatrix_ThrowsArgumentException
+                  - SceneNode_Transform_DefaultIsIdentity
+
+              - id: CanvasNetRender3D-SceneModel-SceneGraph-HierarchyComposition
+                title: >-
+                  The Scene shall enumerate mesh instances by depth-first pre-order traversal,
+                  composing each instance's world transform as its own transform followed by its
+                  ancestors' transforms, assigning each instance a stable pre-order index used as
+                  its draw priority, and enumerating a child shared by several parents once per
+                  path.
+                justification: |
+                  Correct transform composition order and a stable draw order are required for
+                  correct placement and for deterministic resolution of coincident faces.
+                tests:
+                  - Scene_EnumerateInstances_NestedTransforms_ComposeChildThenParent
+                  - Scene_EnumerateInstances_PreOrderIndexIsStable
+                  - Scene_EnumerateInstances_SharedChild_EnumeratedPerPath
+
+              - id: CanvasNetRender3D-SceneModel-SceneGraph-AppearanceInheritance
+                title: >-
+                  The Scene shall resolve each mesh instance's appearance as that of its innermost
+                  enclosing node that specifies one, and report no appearance when none does.
+                justification: |
+                  Innermost-wins inheritance lets a caller color an assembly and override a single
+                  part.
+                tests:
+                  - Scene_EnumerateInstances_InnermostAppearanceWins
+                  - Scene_EnumerateInstances_NoAppearance_ReportsNull
+
+              - id: CanvasNetRender3D-SceneModel-SceneGraph-SceneBounds
+                title: >-
+                  The Scene ComputeBounds method shall return the tight world-space bounding box
+                  obtained by transforming every instance's vertices in double precision, an empty
+                  box for an empty scene, and the same result on repeated calls.
+                justification: |
+                  Exact scene bounds give the camera a tight framing and the renderer an accurate
+                  depth range.
+                tests:
+                  - Scene_ComputeBounds_TransformedGroup_MatchesAnalytic
+                  - Scene_ComputeBounds_EmptyGroup_IsEmpty
+                  - Scene_ComputeBounds_CalledTwice_ReturnsSame
+
+              - id: CanvasNetRender3D-SceneModel-SceneGraph-DeepNesting
+                title: >-
+                  The Scene traversal shall use an explicit stack rather than recursion so that a
+                  scene nested ten thousand groups deep is enumerated without stack overflow.
+                justification: |
+                  Generated models (for example from CAD import) can nest very deeply, and a stack
+                  overflow cannot be caught by the caller.
+                tests:
+                  - Scene_EnumerateInstances_TenThousandNestedGroups_DoesNotOverflowStack

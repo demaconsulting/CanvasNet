@@ -1,0 +1,119 @@
+---
+# cspell:ignore tessellator uncentered
+#
+# Software Unit Requirements for PrimitiveTessellator
+#
+# These requirements describe the design-level behavior of the PrimitiveTessellator unit: the
+# public static PrimitiveTessellator class in the DemaConsulting.CanvasNet.Render3D.Tessellation
+# namespace. Box, sphere, and cylinder results honor the Mesh winding contract (counter-clockwise
+# seen from outside); a Polyhedron preserves the caller-supplied faces and winding as given.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: Tessellation Requirements
+        sections:
+          - title: PrimitiveTessellator Requirements
+            requirements:
+              - id: CanvasNetRender3D-Tessellation-PrimitiveTessellator-Box
+                title: >-
+                  The PrimitiveTessellator Box method shall produce a closed twelve-triangle,
+                  eight-vertex box mesh of the requested size with analytically exact volume,
+                  spanning the origin-anchored range [0, size] by default or symmetric about the
+                  origin when centered.
+                justification: |
+                  The box is the most common CAD primitive; its exact geometry gives an analytic
+                  reference for rendering tests.
+                tests:
+                  - PrimitiveTessellator_Box_Size_HasTwelveTrianglesAndAnalyticVolume
+                  - PrimitiveTessellator_Box_Centered_IsSymmetricAboutOrigin
+                  - PrimitiveTessellator_Box_Uncentered_SpansZeroToSize
+
+              - id: CanvasNetRender3D-Tessellation-PrimitiveTessellator-Sphere
+                title: >-
+                  The PrimitiveTessellator Sphere method shall produce a closed UV-sphere mesh with
+                  true pole vertices at plus and minus the radius on the Z axis, every vertex on
+                  the requested radius, and a volume that converges monotonically toward (and stays
+                  below) the analytic sphere volume as the segment count increases.
+                justification: |
+                  A sphere approximated by inscribed facets has a predictable, testable volume
+                  error, and pole vertices avoid degenerate pole geometry.
+                tests:
+                  - PrimitiveTessellator_Sphere_AllVerticesOnRadius
+                  - PrimitiveTessellator_Sphere_VolumeConvergesBelowAnalytic
+                  - PrimitiveTessellator_Sphere_MinimumSegments_IsClosed
+                  - PrimitiveTessellator_Sphere_PolesAtPlusMinusRadius
+
+              - id: CanvasNetRender3D-Tessellation-PrimitiveTessellator-Cylinder
+                title: >-
+                  The PrimitiveTessellator Cylinder method shall produce a closed mesh along the Z
+                  axis with the requested height and bottom and top radii (a frustum when the radii
+                  differ), optionally centered on the origin, whose volume matches the analytic
+                  volume of the inscribed polygonal prism or frustum.
+                justification: |
+                  Cylinders and frusta model holes, shafts, and tapers; an analytic volume check
+                  proves the side and cap geometry are correct.
+                tests:
+                  - PrimitiveTessellator_Cylinder_VolumeMatchesPolygonCorrectedAnalytic
+                  - PrimitiveTessellator_Cylinder_Centered_SpansPlusMinusHalfHeight
+                  - PrimitiveTessellator_Cylinder_FrustumVolume_MatchesAnalytic
+
+              - id: CanvasNetRender3D-Tessellation-PrimitiveTessellator-Cone
+                title: >-
+                  The PrimitiveTessellator Cylinder method shall produce a cone, with a single apex
+                  vertex and no degenerate triangles, when exactly one of the two radii is zero.
+                justification: |
+                  A zero-radius end would otherwise yield zero-area triangles that fail topology
+                  checks and waste rasterization work.
+                tests:
+                  - PrimitiveTessellator_Cylinder_ZeroRadius_IsConeWithSingleApexAndNoDegenerateTriangles
+
+              - id: CanvasNetRender3D-Tessellation-PrimitiveTessellator-Polyhedron
+                title: >-
+                  The PrimitiveTessellator Polyhedron method shall build a mesh from the
+                  caller-supplied points and convex faces, welding identical points and
+                  fan-triangulating each face, and shall preserve the supplied faces and winding
+                  as given, without closing the surface or correcting its orientation, so that
+                  closure and outward orientation remain the caller's responsibility and an open
+                  or inverted polyhedron is detectable through Mesh.IsClosed and a negative signed
+                  volume and repairable with Mesh.Reverse.
+                justification: |
+                  Polyhedra describe arbitrary caller-defined solids and shells, including open
+                  surfaces; silently closing or reorienting them would alter the caller's
+                  geometry, and the renderer has no channel for warnings. The caller therefore
+                  owns closure and orientation and can inspect the resulting mesh.
+                tests:
+                  - PrimitiveTessellator_Polyhedron_Tetrahedron_IsClosedWithAnalyticVolume
+                  - PrimitiveTessellator_Polyhedron_QuadFaces_FanTriangulates
+                  - PrimitiveTessellator_Polyhedron_InvertedWinding_HasNegativeVolumeAndReverseFixes
+                  - PrimitiveTessellator_Polyhedron_OpenFaceSet_PreservesSuppliedFacesAndWinding
+
+              - id: CanvasNetRender3D-Tessellation-PrimitiveTessellator-Validation
+                title: >-
+                  The PrimitiveTessellator methods shall reject a non-positive box size, fewer than
+                  three sphere or cylinder segments, a cylinder with both radii zero, and a
+                  polyhedron with a null argument, a face that is shorter than three indices or
+                  repeats an index (including distinct indices that address identical, welded
+                  points), or a face that references an invalid point index.
+                justification: |
+                  Invalid dimensions would produce degenerate or malformed meshes; failing at the
+                  call site gives the caller an actionable error.
+                tests:
+                  - PrimitiveTessellator_Box_NonPositiveSize_Throws
+                  - PrimitiveTessellator_Sphere_TooFewSegments_Throws
+                  - PrimitiveTessellator_Cylinder_BothRadiiZero_Throws
+                  - PrimitiveTessellator_Polyhedron_BadIndexOrShortFace_Throws
+                  - PrimitiveTessellator_Polyhedron_RepeatedIndex_Throws
+                  - PrimitiveTessellator_Polyhedron_DistinctIndicesOfIdenticalPoints_Throws
+                  - PrimitiveTessellator_Polyhedron_DuplicatePointsOnSeparateFaces_WeldsAndSucceeds
+
+              - id: CanvasNetRender3D-Tessellation-PrimitiveTessellator-ClosedOutward
+                title: >-
+                  Every box, sphere, and cylinder mesh produced by PrimitiveTessellator shall be
+                  closed, have a positive signed volume, and have every triangle's normal pointing
+                  away from the mesh centroid.
+                justification: |
+                  Outward orientation is the contract on which lighting and back-face detection
+                  depend; a single inverted facet would render in the back-face color.
+                tests:
+                  - PrimitiveTessellator_AllPrimitives_AreClosedAndOutwardOriented

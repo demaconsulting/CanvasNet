@@ -32,6 +32,22 @@ package CanvasNet {
         expose CanvasNetVsdxSystem;
     }
 
+    view CanvasNetRender3DView {
+        expose CanvasNetRender3DSystem;
+    }
+
+    view SceneModelView {
+        expose SceneModel;
+    }
+
+    view TessellationView {
+        expose Tessellation;
+    }
+
+    view SceneRenderingView {
+        expose SceneRendering;
+    }
+
     view ChartModelView {
         expose ChartModel;
     }

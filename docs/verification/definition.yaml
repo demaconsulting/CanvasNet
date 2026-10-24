@@ -8,6 +8,18 @@ input-files:
   - docs/verification/canvas-net.md
   - docs/verification/canvas-net-svg.md
   - docs/verification/canvas-net-svg/svg-codec.md
+  - docs/verification/canvas-net-render3d.md
+  - docs/verification/canvas-net-render3d/scene-model.md
+  - docs/verification/canvas-net-render3d/scene-model/double-precision-math.md
+  - docs/verification/canvas-net-render3d/scene-model/mesh.md
+  - docs/verification/canvas-net-render3d/scene-model/scene-graph.md
+  - docs/verification/canvas-net-render3d/tessellation.md
+  - docs/verification/canvas-net-render3d/tessellation/primitive-tessellator.md
+  - docs/verification/canvas-net-render3d/scene-rendering.md
+  - docs/verification/canvas-net-render3d/scene-rendering/camera.md
+  - docs/verification/canvas-net-render3d/scene-rendering/lighting.md
+  - docs/verification/canvas-net-render3d/scene-rendering/triangle-rasterizer.md
+  - docs/verification/canvas-net-render3d/scene-rendering/scene-renderer.md
   - docs/verification/ots.md
   - docs/verification/ots/buildmark.md
   - docs/verification/ots/fileassert.md

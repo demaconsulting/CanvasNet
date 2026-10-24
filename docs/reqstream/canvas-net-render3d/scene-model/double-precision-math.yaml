@@ -1,0 +1,131 @@
+---
+# Software Unit Requirements for DoublePrecisionMath
+#
+# These requirements describe the design-level behavior of the DoublePrecisionMath unit: the public
+# Vector2D, Vector3D, Matrix4x4D, and BoundingBox3D value types in the
+# DemaConsulting.CanvasNet.Render3D.SceneModel namespace.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: SceneModel Requirements
+        sections:
+          - title: DoublePrecisionMath Requirements
+            requirements:
+              - id: CanvasNetRender3D-SceneModel-DoublePrecisionMath-VectorArithmetic
+                title: >-
+                  The Vector2D and Vector3D types shall provide component-wise addition,
+                  subtraction, negation, scalar multiplication and division, dot and cross
+                  products, length, and normalization (a zero-length vector normalizing to the zero
+                  vector), and Vector3D shall narrow explicitly to a single-precision
+                  System.Numerics.Vector3.
+                justification: |
+                  Vector arithmetic is the basis of every geometric computation; a defined result
+                  for the zero-length case avoids NaN propagation into later stages.
+                tests:
+                  - Vector3D_Operators_AddSubtractScale_ComponentWise
+                  - Vector3D_Dot_OrthogonalVectors_ReturnsZero
+                  - Vector3D_Cross_UnitXUnitY_ReturnsUnitZ
+                  - Vector3D_Length_ThreeFourTwelve_ReturnsThirteen
+                  - Vector3D_Normalize_ZeroVector_ReturnsZero
+                  - Vector3D_Normalize_LargeVector_ReturnsUnitVector
+                  - Vector3D_Normalize_TinyVector_ReturnsUnitVector
+                  - Vector3D_Normalize_NaNComponent_ReturnsZero
+                  - Vector3D_Length_LargeVector_ReturnsFiniteLength
+                  - Vector3D_Length_TinyVector_ReturnsNonZeroLength
+                  - Vector3D_Length_ZeroVector_ReturnsZero
+                  - Vector3D_ToVector3_NarrowsToFloat
+                  - Vector2D_Dot_Cross_Normalize_MatchAnalytic
+                  - Vector2D_Length_TinyVector_ReturnsNonZeroLength
+                  - Vector2D_Length_LargeVector_ReturnsFiniteLength
+                  - Vector2D_Length_ZeroVector_ReturnsZero
+                  - Vector2D_Normalize_TinyVector_ReturnsUnitVector
+                  - Vector2D_Normalize_LargeVector_ReturnsUnitVector
+                  - Vector2D_Normalize_ZeroOrNaNVector_ReturnsZero
+
+              - id: CanvasNetRender3D-SceneModel-DoublePrecisionMath-MatrixComposition
+                title: >-
+                  The Matrix4x4D type shall use the row-vector convention of
+                  System.Numerics.Matrix4x4, provide identity, translation, scale, axis rotation
+                  (exact for multiples of 90 degrees), and axis-angle factories, and compose by
+                  multiplication so that the left operand is applied first.
+                justification: |
+                  A System.Numerics-compatible convention keeps transform composition unsurprising,
+                  and exact right-angle rotations keep axis-aligned CAD models free of rounding
+                  noise.
+                tests:
+                  - Matrix4x4D_Identity_TransformPoint_ReturnsSamePoint
+                  - Matrix4x4D_CreateTranslation_TransformPoint_Translates
+                  - Matrix4x4D_Multiply_TranslateThenScale_AppliesLeftOperandFirst
+                  - Matrix4x4D_CreateRotationZ_Ninety_MapsUnitXToUnitYExactly
+                  - Matrix4x4D_CreateRotation_MultiplesOfNinety_AreExact
+                  - Matrix4x4D_CreateFromAxisAngle_ZAxis_MatchesRotationZ
+                  - Matrix4x4D_CreateFromAxisAngle_LargeAxis_MatchesRotationZ
+                  - Matrix4x4D_CreateFromAxisAngle_TinyAxis_MatchesRotationZ
+                  - Matrix4x4D_CreateScale_Vector_ScalesComponents
+
+              - id: CanvasNetRender3D-SceneModel-DoublePrecisionMath-MatrixInversion
+                title: >-
+                  The Matrix4x4D type shall compute its determinant and invert via TryInvert,
+                  returning false rather than throwing for a singular or non-finite matrix.
+                justification: |
+                  Determinants drive winding-order correction for mirrored instances, and
+                  inversion must fail safely for degenerate transforms.
+                tests:
+                  - Matrix4x4D_Determinant_Scale_ReturnsProduct
+                  - Matrix4x4D_TryInvert_Invertible_MultipliesToIdentity
+                  - Matrix4x4D_TryInvert_Singular_ReturnsFalse
+
+              - id: CanvasNetRender3D-SceneModel-DoublePrecisionMath-MirrorTransform
+                title: >-
+                  The Matrix4x4D type shall provide a mirror factory reflecting across the plane
+                  through the origin with a given normal, producing a negative determinant, and
+                  shall reject a zero normal with ArgumentException.
+                justification: |
+                  Mirrored instances are common in CAD assemblies; a negative determinant is the
+                  signal that the renderer must correct triangle winding.
+                tests:
+                  - Matrix4x4D_CreateMirror_PlaneNormalX_NegatesXAndHasNegativeDeterminant
+                  - Matrix4x4D_CreateMirror_ZeroNormal_ThrowsArgumentException
+                  - Matrix4x4D_CreateMirror_TinyNormal_MatchesUnitNormalMirror
+                  - Matrix4x4D_CreateMirror_LargeNormal_MatchesUnitNormalMirror
+
+              - id: CanvasNetRender3D-SceneModel-DoublePrecisionMath-PointDirectionTransform
+                title: >-
+                  The Matrix4x4D type shall transform points (applying translation) and directions
+                  (ignoring translation), retaining double precision for points far from the
+                  origin.
+                justification: |
+                  Normals and light directions must not be translated, and geometry positioned at
+                  very large coordinates must not lose its sub-unit detail.
+                tests:
+                  - Matrix4x4D_TransformDirection_Translation_IgnoresTranslation
+                  - Matrix4x4D_TransformPoint_LargeOffset_RetainsDoublePrecision
+
+              - id: CanvasNetRender3D-SceneModel-DoublePrecisionMath-BoundingBoxes
+                title: >-
+                  The BoundingBox3D type shall provide an empty box that is the identity of union,
+                  union with a box or a point, size, center, and diagonal, and an axis-aligned
+                  transform of the box's eight corners.
+                justification: |
+                  Bounds drive camera framing and clipping-range estimation; the empty-box identity
+                  lets bounds be accumulated without special cases.
+                tests:
+                  - BoundingBox3D_Empty_IsEmptyAndUnionIdentity
+                  - BoundingBox3D_Union_TwoBoxes_CoversBoth
+                  - BoundingBox3D_Transform_Rotation90_ReturnsAxisAlignedBounds
+                  - BoundingBox3D_SizeCenterDiagonal_MatchAnalytic
+
+              - id: CanvasNetRender3D-SceneModel-DoublePrecisionMath-InputValidation
+                title: >-
+                  The math types shall reject malformed input with the documented exception (a
+                  row-major matrix of the wrong length or a zero axis with ArgumentException) and
+                  shall report non-finite components through IsFinite.
+                justification: |
+                  Non-finite or malformed values must be detectable so that they can be rejected at
+                  the model boundary instead of corrupting the render.
+                tests:
+                  - Matrix4x4D_FromRowMajor_WrongLength_ThrowsArgumentException
+                  - Matrix4x4D_CreateFromAxisAngle_ZeroAxis_ThrowsArgumentException
+                  - Matrix4x4D_IsFinite_NaNElement_ReturnsFalse
+                  - Vector3D_IsFinite_Infinity_ReturnsFalse

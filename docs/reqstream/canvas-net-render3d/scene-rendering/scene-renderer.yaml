@@ -1,0 +1,157 @@
+---
+# cspell:ignore binner
+#
+# Software Unit Requirements for SceneRenderer
+#
+# These requirements describe the design-level behavior of the SceneRenderer unit: the public static
+# SceneRenderer class and SceneRenderOptions type, plus the internal TileBinner, SampleResolver, and
+# TileWorkspace types, in the DemaConsulting.CanvasNet.Render3D.SceneRendering namespace. Output is a
+# new core Surface owned (and disposed) by the caller. Node and light color alpha is ignored in
+# Phase 1 (surfaces are opaque); background alpha is honored.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: SceneRendering Requirements
+        sections:
+          - title: SceneRenderer Requirements
+            requirements:
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Validation
+                title: >-
+                  The SceneRenderer Render method shall reject a null scene or camera, a
+                  non-positive or over-limit width or height with ArgumentOutOfRangeException, an
+                  orthographic camera without a height with ArgumentException, and an unsupported
+                  supersampling value.
+                justification: |
+                  The renderer is the public entry point and must fail predictably, before doing
+                  any work, on invalid input.
+                tests:
+                  - SceneRenderer_Render_NullSceneOrCamera_Throws
+                  - SceneRenderer_Render_InvalidDimensions_ThrowsArgumentOutOfRange
+                  - SceneRenderer_Render_OrthographicWithoutHeight_ThrowsArgumentException
+                  - SceneRenderer_Render_InvalidSupersampling_Throws
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-OutputSize
+                title: >-
+                  The SceneRenderer Render method shall return a Surface of exactly the requested
+                  width and height, including sizes that are not a multiple of the tile size.
+                justification: |
+                  Output dimensions are part of the public contract, and partial edge tiles are a
+                  likely source of off-by-one errors.
+                tests:
+                  - SceneRenderer_Render_ReturnsSurfaceOfRequestedSize
+                  - SceneRenderer_Render_NonTileMultipleSize_RendersPartialTiles
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Background
+                title: >-
+                  The SceneRenderer shall fill every pixel not covered by geometry with the
+                  configured background color, including the entire image for an empty scene.
+                justification: |
+                  The background defines the output's appearance outside the model and the
+                  transparency of the result when composited.
+                tests:
+                  - SceneRenderer_Render_EmptyScene_FillsBackgroundColor
+                  - SceneRenderer_Render_PixelsOutsideSilhouette_AreBackground
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Tiling
+                title: >-
+                  The SceneRenderer shall bin each triangle into every 32 by 32 pixel tile it
+                  overlaps in ascending triangle order, and shall render geometry straddling tile
+                  boundaries without seams, covering exactly the analytically expected pixels for a
+                  box aligned to the sample grid.
+                justification: |
+                  Tiling bounds per-worker memory independent of image size and enables
+                  parallelism; it must be invisible in the output.
+                tests:
+                  - TileBinner_Bin_TriangleSpanningTiles_AppearsInEachOverlappedTileInAscendingOrder
+                  - SceneRenderer_Render_QuadStraddlingTileBoundaries_HasNoSeams
+                  - SceneRenderer_Render_OrthoCubeOnDyadicGrid_CoversExactly32By32Pixels
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Supersampling
+                title: >-
+                  The SceneRenderer shall render with k by k ordered-grid supersampling and resolve
+                  each pixel as the box-filter average of its samples, so that supersampling of 1
+                  produces no intermediate edge colors and larger values do.
+                justification: |
+                  Supersampling is the antialiasing mechanism; its resolve must average correctly
+                  and be switchable off.
+                tests:
+                  - SampleResolver_Resolve_HalfCoveredPixelTwoByTwo_AveragesColors
+                  - SceneRenderer_Render_Supersampling1_HasNoIntermediateEdgeColors
+                  - SceneRenderer_Render_Supersampling3_ProducesIntermediateEdgeColors
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-AlphaResolve
+                title: >-
+                  The SampleResolver shall average samples in premultiplied-alpha arithmetic so that
+                  a half-covered pixel over a transparent background resolves to half alpha with the
+                  surface's own color.
+                justification: |
+                  Averaging straight-alpha colors would darken antialiased edges over a transparent
+                  background.
+                tests:
+                  - SampleResolver_Resolve_TransparentBackgroundHalfCovered_PremultipliedAverageKeepsColor
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Parallelism
+                title: >-
+                  The SceneRenderer shall render tiles in parallel by default, honoring the
+                  MaxDegreeOfParallelism option (1 meaning sequential), producing output
+                  byte-identical to sequential rendering and across repeated renders, and shall
+                  reject a degree of parallelism of zero or below minus one.
+                justification: |
+                  Parallel tiles scale rendering across cores; determinism and option validation
+                  make that safe.
+                tests:
+                  - SceneRenderer_Render_ParallelismOneVersusMany_ByteIdentical
+                  - SceneRenderer_Render_RepeatedRender_ByteIdentical
+                  - SceneRenderOptions_MaxDegreeOfParallelism_ZeroOrBelowMinusOne_Throws
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Cancellation
+                title: >-
+                  The SceneRenderer shall throw OperationCanceledException (never wrapped in an
+                  AggregateException, in both sequential and parallel modes) when the supplied
+                  CancellationToken is canceled, including before any scene processing begins in
+                  both Render and RenderFitted, and shall release the partially rendered Surface.
+                justification: |
+                  Callers must be able to abandon a long render promptly and handle a single,
+                  well-known exception type.
+                tests:
+                  - SceneRenderer_Render_PreCancelledToken_ThrowsOperationCanceledException
+                  - SceneRenderer_Render_PreCancelledToken_Parallel_ThrowsOperationCanceledNotAggregate
+                  - SceneRenderer_Render_PreCancelledToken_ThrowsBeforeProcessingScene
+                  - SceneRenderer_RenderFitted_PreCancelledToken_ThrowsBeforeComputingBounds
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Options
+                title: >-
+                  The SceneRenderOptions type shall default to a neutral gray surface color, a white
+                  background, and three-by-three supersampling, shall use the default light rig when
+                  its light list is null, and shall copy a caller-supplied light list defensively.
+                justification: |
+                  Sensible defaults make the common case a one-line call, and immutability keeps
+                  shared options safe for concurrent renders.
+                tests:
+                  - SceneRenderOptions_Defaults_AreNeutralGrayWhiteBackgroundThreeSamples
+                  - SceneRenderOptions_Lights_Null_UsesDefaultRig
+                  - SceneRenderOptions_Lights_CopiedDefensively
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Precision
+                title: >-
+                  The SceneRenderer shall render a cube (and its camera) translated one million
+                  units from the origin identically to the same cube at the origin, in both
+                  orthographic and perspective projection.
+                justification: |
+                  A single-precision pipeline cannot pass this test, so it proves that the
+                  camera-relative double-precision view transform is effective end to end.
+                tests:
+                  - SceneRenderer_Render_CubeOneMillionUnitsAway_IdenticalToCubeAtOrigin
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Mirrored
+                title: >-
+                  The SceneRenderer shall render an instance under a negative-determinant (mirror or
+                  negative-scale) transform with correct winding, so that a mirrored symmetric cube
+                  is identical to the original and its faces are front-facing.
+                justification: |
+                  Mirrored parts are common in CAD assemblies; without winding compensation they
+                  would render inside out in the back-face color.
+                tests:
+                  - SceneRenderer_Render_MirroredSymmetricCube_IdenticalToOriginal
+                  - SceneRenderer_Render_NegativeScaleInGroup_FacesAreFrontFacing

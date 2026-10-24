@@ -2,6 +2,7 @@
 
 <!-- cspell:ignore glyf sfnt -->
 <!-- cspell:ignore Visio -->
+<!-- cspell:ignore rasterizer tessellator -->
 
 This document provides the verification design for CanvasNet, a .NET library
 providing a canvas-based drawing and rendering API.
@@ -55,6 +56,11 @@ constituent software items, specifically:
 - **CanvasNetVsdx (System)** — A separate, independently-distributed software system providing
   Microsoft Visio (`.vsdx`) diagram-rendering support, containing a single unit,
   `VsdxDocument` — see _CanvasNetVsdx System Verification_ (`canvas-net-vsdx.md`)
+- **CanvasNetRender3D (System)** — A separate, independently-distributed, format-agnostic software
+  system providing a pure-managed 3D mesh/scene rasterizer, containing three subsystems:
+  `SceneModel` (units `DoublePrecisionMath`, `Mesh`, and `SceneGraph`), `Tessellation` (unit
+  `PrimitiveTessellator`), and `SceneRendering` (units `Camera`, `Lighting`, `TriangleRasterizer`,
+  and `SceneRenderer`) — see _CanvasNetRender3D System Verification_ (`canvas-net-render3d.md`)
 
 The following OTS items are also covered:
 

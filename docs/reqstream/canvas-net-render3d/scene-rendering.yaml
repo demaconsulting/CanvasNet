@@ -1,0 +1,102 @@
+---
+# cspell:ignore supersamples
+#
+# Software Subsystem Requirements for SceneRendering
+#
+# These requirements decompose the CanvasNetRender3D system's image-production responsibility into
+# the SceneRendering subsystem (namespace DemaConsulting.CanvasNet.Render3D.SceneRendering): the
+# camera, the lighting model, the fixed-point triangle rasterizer, and the tiled scene renderer.
+# Each requirement here links down to the unit requirements that implement it.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: SceneRendering Requirements
+        requirements:
+          - id: CanvasNetRender3D-SceneRendering-CameraModel
+            title: >-
+              The SceneRendering subsystem shall provide a validated perspective or orthographic
+              camera with LookAt, a double-precision view matrix, tight FitToBounds framing, and
+              graceful handling of a view direction parallel to the up vector.
+            justification: |
+              The camera defines what the renderer sees; precise, validated framing makes renders
+              predictable and lets callers obtain a good default view of an arbitrary scene.
+            children:
+              - CanvasNetRender3D-SceneRendering-Camera-LookAt
+              - CanvasNetRender3D-SceneRendering-Camera-ViewMatrix
+              - CanvasNetRender3D-SceneRendering-Camera-Projection
+              - CanvasNetRender3D-SceneRendering-Camera-FitToBounds
+              - CanvasNetRender3D-SceneRendering-Camera-Validation
+              - CanvasNetRender3D-SceneRendering-Camera-DegenerateUp
+            tests:
+              - SceneRendering_FittedCamera_RendersObjectInsideFrame
+
+          - id: CanvasNetRender3D-SceneRendering-LightingModel
+            title: >-
+              The SceneRendering subsystem shall provide ambient and directional lights and a
+              shading model that computes flat Lambertian color with optional specular highlights,
+              supports camera-relative and world-space lights, shades back faces from the flipped
+              normal, renders unlit for an empty light list, and clamps results.
+            justification: |
+              Lighting converts geometry orientation into visible shading cues; its behavior must
+              be exactly specified so that rendered colors are predictable and testable.
+            children:
+              - CanvasNetRender3D-SceneRendering-Lighting-LightTypes
+              - CanvasNetRender3D-SceneRendering-Lighting-DefaultRig
+              - CanvasNetRender3D-SceneRendering-Lighting-Ambient
+              - CanvasNetRender3D-SceneRendering-Lighting-Lambert
+              - CanvasNetRender3D-SceneRendering-Lighting-Specular
+              - CanvasNetRender3D-SceneRendering-Lighting-CameraRelative
+              - CanvasNetRender3D-SceneRendering-Lighting-BackFace
+              - CanvasNetRender3D-SceneRendering-Lighting-NoLights
+              - CanvasNetRender3D-SceneRendering-Lighting-Clamp
+            tests:
+              - SceneRendering_CustomHeadlight_ShadesFaceAnalytically
+
+          - id: CanvasNetRender3D-SceneRendering-Rasterization
+            title: >-
+              The SceneRendering subsystem shall rasterize triangles with fixed-point,
+              integer-exact coverage using the top-left fill rule, classify winding, clip against
+              the near plane and a guard band, interpolate depth perspective-correctly, discard
+              degenerate input, and resolve coincident-depth ties deterministically, so that
+              adjacent triangles leave no gaps and no double-covered samples.
+            justification: |
+              Rasterization correctness is the foundation of image quality: cracks, double hits,
+              or float-dependent coverage would show as streaks and break determinism.
+            children:
+              - CanvasNetRender3D-SceneRendering-TriangleRasterizer-FixedPointCoverage
+              - CanvasNetRender3D-SceneRendering-TriangleRasterizer-TopLeftRule
+              - CanvasNetRender3D-SceneRendering-TriangleRasterizer-Winding
+              - CanvasNetRender3D-SceneRendering-TriangleRasterizer-NearClipping
+              - CanvasNetRender3D-SceneRendering-TriangleRasterizer-GuardBand
+              - CanvasNetRender3D-SceneRendering-TriangleRasterizer-DepthInterpolation
+              - CanvasNetRender3D-SceneRendering-TriangleRasterizer-Degenerate
+              - CanvasNetRender3D-SceneRendering-TriangleRasterizer-TieResolution
+            tests:
+              - SceneRendering_TwoAdjacentQuads_LeaveNoGap
+
+          - id: CanvasNetRender3D-SceneRendering-Rendering
+            title: >-
+              The SceneRendering subsystem shall render a scene onto a new Surface by binning
+              triangles into fixed-size tiles, depth-testing each tile, resolving ordered-grid
+              supersamples with correct alpha, running tiles in parallel with output identical to
+              sequential rendering, honoring cooperative cancellation, and validating its
+              arguments and options, with no visible seams at tile boundaries.
+            justification: |
+              The renderer is the public entry point that ties the pipeline together; bounded
+              per-tile memory, deterministic parallelism, and cancellation make it usable for
+              large images and in interactive or server settings.
+            children:
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-Validation
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-OutputSize
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-Background
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-Tiling
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-Supersampling
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-AlphaResolve
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-Parallelism
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-Cancellation
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-Options
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-Precision
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-Mirrored
+            tests:
+              - SceneRendering_SceneStraddlingTileBoundaries_HasNoSeams

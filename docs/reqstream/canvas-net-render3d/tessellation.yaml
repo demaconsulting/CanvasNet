@@ -1,0 +1,37 @@
+---
+# cspell:ignore tessellator
+#
+# Software Subsystem Requirements for Tessellation
+#
+# These requirements decompose the CanvasNetRender3D system's primitive-mesh responsibility into the
+# Tessellation subsystem (namespace DemaConsulting.CanvasNet.Render3D.Tessellation). Each
+# requirement here links down to the PrimitiveTessellator unit requirements that implement it.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: Tessellation Requirements
+        requirements:
+          - id: CanvasNetRender3D-Tessellation-PrimitiveMeshes
+            title: >-
+              The Tessellation subsystem shall convert box, sphere, and cylinder/cone/frustum
+              descriptions into welded, closed, outward-oriented meshes, shall build a polyhedron
+              mesh from caller-supplied points and faces while preserving the supplied faces and
+              winding (closure and outward orientation being the caller's responsibility), and
+              shall reject invalid dimensions, segment counts, and indices.
+            justification: |
+              Primitive meshes are the basic building blocks of CAD-style scenes; the topological
+              soundness and orientation contract of the analytic primitives determine correct
+              shading and back-face behavior downstream, while caller-supplied polyhedra are
+              reproduced faithfully so the caller keeps control of their geometry.
+            children:
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Box
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Sphere
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Cylinder
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Cone
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Polyhedron
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Validation
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-ClosedOutward
+            tests:
+              - Tessellation_AllPrimitives_AreClosedAndOutwardOriented
+              - Tessellation_Polyhedron_OpenFaceSet_IsPreservedWithoutClosureOrReorientation

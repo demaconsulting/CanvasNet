@@ -1,0 +1,216 @@
+---
+# cspell:ignore untextured unmirrored
+#
+# Software System Requirements for CanvasNetRender3D
+#
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Render3D
+# package (namespaces DemaConsulting.CanvasNet.Render3D.SceneModel, .Tessellation, and
+# .SceneRendering) from the perspective of its consumers, without specifying implementation details.
+#
+# CanvasNetRender3D is an independent software system, distributed as its own NuGet package,
+# depending on the core CanvasNet system (docs/reqstream/canvas-net.yaml) for its Canvas subsystem's
+# Surface and Rgba32 units only - see docs/design/canvas-net-render3d.md's Dependencies section for
+# details. It is a pure-managed, format-agnostic software 3D rasterizer; it has no knowledge of any
+# 3D file format.
+#
+# CanvasNetRender3D is being delivered incrementally. Phase 1 (these requirements) delivers
+# double-precision math, immutable meshes, an immutable scene graph without constructive solid
+# geometry, primitive tessellation (box, sphere, cylinder/cone, polyhedron), a perspective/orthographic
+# camera, ambient/directional lighting, a fixed-point tiled z-buffer triangle rasterizer, supersampling
+# antialiasing, deterministic tile parallelism, and cooperative cancellation. Constructive solid
+# geometry, transparency, and file-format front ends are added by later phases; their requirements
+# will be added to this file (and new per-unit files) when each phase lands, mirroring
+# canvas-net-pptx.yaml's own per-phase header-comment convention.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    requirements:
+      - id: CanvasNetRender3D-Scene
+        title: >-
+          The library shall let a caller assemble an immutable scene from mesh and group nodes that
+          carry double-precision transforms and optional per-node colors, compute its tight
+          world-space bounding box, and reject invalid input (null arguments, non-finite
+          transforms or vertices, malformed index lists) at construction time rather than
+          silently coercing it.
+        tags: [system]
+        justification: |
+          A scene is the single, already-validated, immutable description of "what to draw" that
+          the renderer consumes; it must fail closed on invalid data and must not change after
+          construction, so that rendering is deterministic and safe to run concurrently.
+        children:
+          - CanvasNetRender3D-SceneModel-DoublePrecision
+          - CanvasNetRender3D-SceneModel-MeshModel
+          - CanvasNetRender3D-SceneModel-SceneGraph
+        tests:
+          - CanvasNetRender3D_SystemIntegration_Scene_TransformedGroupBoundsMatchAnalytic
+          - CanvasNetRender3D_SystemIntegration_Scene_InvalidInputIsRejected
+
+      - id: CanvasNetRender3D-PrimitiveMeshes
+        title: >-
+          The library shall provide box, sphere, and cylinder (including cone and frustum) mesh
+          factories whose results are welded, closed, and outward-oriented (counter-clockwise seen
+          from outside) with analytically correct volumes within the expected tessellation error,
+          and a polyhedron mesh factory that builds a mesh from caller-supplied points and faces
+          while preserving the supplied faces and winding (closure and outward orientation being
+          the caller's responsibility), and shall reject invalid dimensions, segment counts, and
+          face indices.
+        tags: [system]
+        justification: |
+          Callers building CAD-style scenes need ready-made, topologically sound primitives whose
+          orientation contract matches the renderer's lighting and back-face handling, without
+          hand-assembling vertex and index lists; arbitrary caller-defined polyhedra are
+          reproduced as supplied so the caller keeps control of their geometry.
+        children:
+          - CanvasNetRender3D-Tessellation-PrimitiveMeshes
+        tests:
+          - CanvasNetRender3D_SystemIntegration_PrimitiveMeshes_BoxSphereCylinderAreClosedWithAnalyticVolume
+          - CanvasNetRender3D_SystemIntegration_PrimitiveMeshes_PolyhedronPreservesSuppliedWinding
+
+      - id: CanvasNetRender3D-Render
+        title: >-
+          The library shall render a scene, as seen by a camera, into a new Surface of the
+          caller-requested pixel width and height (rendering only the background for an empty
+          scene), and shall reject a null scene or camera and an out-of-range size or option with
+          the documented exception contract.
+        tags: [system]
+        justification: |
+          Producing a Surface that every core CanvasNet codec can encode is the library's reason to
+          exist; the entry point must behave predictably for both valid and invalid input.
+        children:
+          - CanvasNetRender3D-SceneRendering-Rendering
+        tests:
+          - CanvasNetRender3D_SystemIntegration_Render_CubeSilhouetteMatchesAnalyticCoverage
+          - CanvasNetRender3D_SystemIntegration_Render_EmptySceneProducesBackgroundOnly
+          - CanvasNetRender3D_SystemIntegration_Render_InvalidArgumentsThrow
+
+      - id: CanvasNetRender3D-Camera
+        title: >-
+          The library shall provide a perspective or orthographic camera defined by eye, target,
+          up vector, field of view or orthographic height, and optional near/far planes, a LookAt
+          constructor, and a FitToBounds helper that frames a bounding box from a given azimuth and
+          elevation.
+        tags: [system]
+        justification: |
+          Callers must be able to choose the viewpoint explicitly, or obtain a sensible framing of
+          an arbitrary scene without computing camera distance themselves.
+        children:
+          - CanvasNetRender3D-SceneRendering-CameraModel
+        tests:
+          - CanvasNetRender3D_SystemIntegration_Camera_FitToBoundsFramesCubeWithinMargin
+          - CanvasNetRender3D_SystemIntegration_Camera_OrthographicAndPerspectiveCenterRay
+
+      - id: CanvasNetRender3D-Lighting
+        title: >-
+          The library shall shade surfaces with a user-adjustable set of ambient and directional
+          lights (camera-relative or world-space), providing a neutral default light rig and
+          computing flat Lambertian shading with optional specular highlights, clamped to the
+          displayable range.
+        tags: [system]
+        justification: |
+          Shaded output is what makes a flat-colored mesh legible as a 3D object; callers need
+          control over the lights, and a good default for the common case of no explicit lights.
+        children:
+          - CanvasNetRender3D-SceneRendering-LightingModel
+        tests:
+          - CanvasNetRender3D_SystemIntegration_Lighting_CustomLightsProduceAnalyticShade
+          - CanvasNetRender3D_SystemIntegration_Lighting_DefaultRigShadesFacesInExpectedOrder
+
+      - id: CanvasNetRender3D-Appearance
+        title: >-
+          The library shall color surfaces with a neutral default color unless a node supplies its
+          own color (the innermost enclosing node's color winning), shall paint back-facing
+          surfaces with a configurable back-face color, and shall fill uncovered pixels with a
+          configurable background color whose transparency is preserved in the output.
+        tags: [system]
+        justification: |
+          A neutral default makes untextured geometry readable, per-node colors let a caller
+          distinguish parts, a distinct back-face color exposes inside-out or open meshes, and a
+          preserved transparent background allows compositing the render onto other content.
+        children:
+          - CanvasNetRender3D-SceneModel-SceneGraph
+          - CanvasNetRender3D-SceneRendering-Rendering
+        tests:
+          - CanvasNetRender3D_SystemIntegration_Appearance_DefaultNodeAndBackFaceColorsApplied
+          - CanvasNetRender3D_SystemIntegration_Appearance_TransparentBackgroundPreserved
+
+      - id: CanvasNetRender3D-VisibleSurface
+        title: >-
+          The library shall resolve hidden surfaces so that the surface nearest the camera is
+          visible regardless of submission order, shall resolve coincident faces deterministically
+          by scene traversal order, shall render a mirrored (negative-determinant) instance
+          identically to its unmirrored equivalent, and shall clip geometry that crosses the
+          camera's near plane so that a camera inside or beside geometry renders correctly.
+        tags: [system]
+        justification: |
+          Correct hidden-surface removal is fundamental to a 3D renderer; deterministic handling
+          of coincident faces avoids flicker, and winding-correct mirroring and near-plane clipping
+          are required for CAD-style models containing mirrored parts and large ground planes.
+        children:
+          - CanvasNetRender3D-SceneRendering-Rasterization
+        tests:
+          - CanvasNetRender3D_SystemIntegration_Visibility_NearerSurfaceOccludesRegardlessOfOrder
+          - CanvasNetRender3D_SystemIntegration_Visibility_CoincidentFacesResolveByTraversalOrder
+          - CanvasNetRender3D_SystemIntegration_Visibility_MirroredCubeRendersIdenticallyToOriginal
+          - CanvasNetRender3D_SystemIntegration_Visibility_GroundPlaneCrossingNearPlaneRendersHorizon
+
+      - id: CanvasNetRender3D-Antialiasing
+        title: >-
+          The library shall antialias edges by ordered-grid supersampling of 1 to 4 samples per
+          axis resolved with a box filter, correctly blending color and alpha so that a
+          half-covered pixel over a transparent background keeps its color at half opacity.
+        tags: [system]
+        justification: |
+          Aliased (stair-stepped) edges are unacceptable for documentation-quality output;
+          correct alpha blending keeps antialiased edges free of dark fringes when the render is
+          composited.
+        children:
+          - CanvasNetRender3D-SceneRendering-Rendering
+        tests:
+          - CanvasNetRender3D_SystemIntegration_Antialiasing_HalfCoveredPixelBlendsToMidColor
+
+      - id: CanvasNetRender3D-NumericPrecision
+        title: >-
+          The library shall perform model-space math in double precision and project through a
+          camera-relative view transform, so that an object (and its camera) translated far from
+          the origin renders identically to the same object at the origin.
+        tags: [system]
+        justification: |
+          CAD models are frequently positioned in large global coordinates; a single-precision
+          pipeline would visibly jitter or collapse such geometry, so precision must not depend on
+          distance from the origin.
+        children:
+          - CanvasNetRender3D-SceneModel-DoublePrecision
+          - CanvasNetRender3D-SceneRendering-Rasterization
+        tests:
+          - CanvasNetRender3D_SystemIntegration_NumericPrecision_ObjectOneMillionUnitsAwayRendersIdentically
+
+      - id: CanvasNetRender3D-Determinism
+        title: >-
+          The library shall produce byte-identical output for repeated renders of the same input
+          and for every supported degree of parallelism, and shall cover every sample on an edge
+          shared by two triangles exactly once so that no gaps or double-covered seams appear.
+        tags: [system]
+        justification: |
+          Reproducible output is required for regression testing and for byte-exact comparison of
+          rendered documentation artifacts, and parallel execution must never change the result.
+        children:
+          - CanvasNetRender3D-SceneRendering-Rasterization
+          - CanvasNetRender3D-SceneRendering-Rendering
+        tests:
+          - CanvasNetRender3D_SystemIntegration_Determinism_ParallelAndSequentialRendersAreByteIdentical
+          - CanvasNetRender3D_SystemIntegration_Determinism_RepeatedRenderIsByteIdentical
+
+      - id: CanvasNetRender3D-Cancellation
+        title: >-
+          The library shall honor a caller-supplied CancellationToken during rendering by throwing
+          OperationCanceledException and releasing the partially rendered Surface, and shall
+          reject an invalid degree-of-parallelism option.
+        tags: [system]
+        justification: |
+          Rendering large scenes is CPU-intensive; interactive and server callers must be able to
+          abandon a render promptly without leaking memory or receiving a wrapped exception.
+        children:
+          - CanvasNetRender3D-SceneRendering-Rendering
+        tests:
+          - CanvasNetRender3D_SystemIntegration_Cancellation_PreCancelledTokenThrowsOperationCanceled
+          - CanvasNetRender3D_SystemIntegration_Cancellation_InvalidParallelismIsRejected

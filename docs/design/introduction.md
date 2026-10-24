@@ -1,6 +1,6 @@
 # Introduction
 
-<!-- cspell:ignore glyf sfnt cmap loca hmtx hhea codepoint Zapf Noto Visio visio -->
+<!-- cspell:ignore glyf sfnt cmap loca hmtx hhea codepoint Zapf Noto Visio visio rasterizer tessellator -->
 
 This document provides the detailed design for CanvasNet, a .NET library
 providing a canvas-based drawing and rendering API.
@@ -166,6 +166,23 @@ software items, specifically:
   `CanvasNetPdf`, or `CanvasNetCharts` — a future, explicitly out-of-scope dependency on the
   sibling `CanvasNetSvg` system (to rasterize an embedded SVG foreign object) is anticipated but
   not yet modeled — see _CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`)
+- **CanvasNetRender3D (System)** — A separate, independently-distributed, format-agnostic software
+  system providing a pure-managed 3D mesh/scene rasterizer, containing three subsystems:
+  `SceneModel` (units `DoublePrecisionMath` — `Vector2D`/`Vector3D`/`Matrix4x4D`/`BoundingBox3D`;
+  `Mesh` — immutable triangle meshes, `MeshBuilder` and the internal `MeshTopology`; and
+  `SceneGraph` — an immutable scene graph of `MeshNode`/`GroupNode` with transforms and per-node
+  colors, and `Scene`), `Tessellation` (unit `PrimitiveTessellator` — closed, outward-oriented box,
+  sphere, cylinder and cone meshes and validated polyhedra), and `SceneRendering` (units `Camera` —
+  perspective/orthographic projection and `FitToBounds` framing; `Lighting` — ambient/directional
+  lights with flat Lambert and optional Blinn-Phong shading; `TriangleRasterizer` — homogeneous
+  clipping and a fixed-point 24.8 top-left-rule rasterizer; and `SceneRenderer` — a tiled z-buffer
+  driver with supersampling antialiasing, deterministic tile parallelism, and cooperative
+  cancellation). It renders a `Scene` onto a new core `Surface`. Phase 1 deliberately excludes
+  constructive solid geometry, transparency, and any 3D file-format front end — see _CanvasNetRender3D
+  System Design_ (`canvas-net-render3d.md`) for the full supported/deferred boundary and its
+  Implementation Phase Plan. `CanvasNetRender3D` depends on the `CanvasNet` system's `Canvas`
+  subsystem only (for `Surface` and `Rgba32`), and must never reference `CanvasNetSvg`,
+  `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, or `CanvasNetCharts`
 
 The following OTS items are also covered:
 
@@ -260,6 +277,18 @@ paintable paths — including Milestone 11's real `EllipticalArcTo`/`ArcTo`-to-B
 composes arbitrarily nested group/child-shape transforms, and paints a page's full shape tree,
 including text, in document order) — see the Folder Layout section below and
 _CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`).
+
+A further sibling top-level system, `CanvasNetRender3D`, likewise lives in this same repository
+alongside `CanvasNet`, distributed as its own separate NuGet package
+(`DemaConsulting.CanvasNet.Render3D`) and depending only on the `CanvasNet` system's `Canvas`
+subsystem. Unlike the single-unit siblings it has three subsystems of its own — `SceneModel`
+(`DoublePrecisionMath`, `Mesh`, `SceneGraph`), `Tessellation` (`PrimitiveTessellator`), and
+`SceneRendering` (`Camera`, `Lighting`, `TriangleRasterizer`, `SceneRenderer`) — one per
+sub-namespace (`DemaConsulting.CanvasNet.Render3D.SceneModel`, `.Tessellation`, and
+`.SceneRendering`), so that the 3D math and scene model, the mesh generators, and the rasterization
+pipeline can each evolve (for example, a later constructive-solid-geometry phase) behind their own
+architectural boundary. The root namespace contains no types. See the Folder Layout section below
+and _CanvasNetRender3D System Design_ (`canvas-net-render3d.md`).
 
 ## Folder Layout
 
@@ -546,6 +575,62 @@ src/DemaConsulting.CanvasNet.Vsdx/
 (`src/DemaConsulting.CanvasNet.Pptx/`, `src/DemaConsulting.CanvasNet.Charts/`); their folder-layout
 trees are not yet documented in this section — a pre-existing gap predating this branch, tracked
 separately and not addressed here.
+
+The `CanvasNetRender3D` system lives in the `src/DemaConsulting.CanvasNet.Render3D/` project folder
+(distributed as the separate `DemaConsulting.CanvasNet.Render3D` NuGet package). Its three
+subsystems each occupy one sub-folder whose name equals the sub-namespace; no unit has a
+nested sub-folder of its own (see _CanvasNetRender3D System Design_, `canvas-net-render3d.md`):
+
+```text
+src/DemaConsulting.CanvasNet.Render3D/
+├── DemaConsulting.CanvasNet.Render3D.csproj — Package definition (net8.0/net9.0/net10.0)
+├── SceneModel/                    — SceneModel subsystem
+│   ├── NamespaceDoc.cs            — Namespace-level XML documentation
+│   ├── Vector2D.cs                — DoublePrecisionMath: 2D double-precision vector
+│   ├── Vector3D.cs                — DoublePrecisionMath: 3D double-precision vector
+│   ├── Matrix4x4D.cs              — DoublePrecisionMath: 4x4 double-precision matrix (row-vector convention)
+│   ├── BoundingBox3D.cs           — DoublePrecisionMath: axis-aligned bounding box
+│   ├── Mesh.cs                    — Mesh: immutable indexed triangle mesh
+│   ├── MeshBuilder.cs             — Mesh: vertex-welding mesh construction helper
+│   ├── MeshTopology.cs            — Mesh: internal closedness, volume and area computations
+│   ├── SceneNode.cs               — SceneGraph: abstract node (transform, appearance)
+│   ├── MeshNode.cs                — SceneGraph: leaf node referencing a Mesh
+│   ├── GroupNode.cs               — SceneGraph: node grouping child nodes
+│   ├── NodeAppearance.cs          — SceneGraph: per-node surface color
+│   ├── Scene.cs                   — SceneGraph: scene root, bounds, instance enumeration
+│   └── SceneInstance.cs           — SceneGraph: internal flattened mesh instance
+├── Tessellation/                  — Tessellation subsystem
+│   ├── NamespaceDoc.cs            — Namespace-level XML documentation
+│   └── PrimitiveTessellator.cs    — PrimitiveTessellator: box/sphere/cylinder/cone/polyhedron meshes
+└── SceneRendering/                — SceneRendering subsystem
+    ├── NamespaceDoc.cs            — Namespace-level XML documentation
+    ├── Camera.cs                  — Camera: perspective/orthographic camera, LookAt, FitToBounds
+    ├── CameraProjection.cs        — Camera: projection enumeration
+    ├── ViewTransform.cs           — Camera: internal camera-relative view transform
+    ├── Light.cs                   — Lighting: abstract light and default rig
+    ├── AmbientLight.cs            — Lighting: ambient light
+    ├── DirectionalLight.cs        — Lighting: directional light
+    ├── LightingModel.cs           — Lighting: internal flat Lambert/Blinn-Phong shading
+    ├── TriangleRasterizer.cs      — TriangleRasterizer: setup and fixed-point rasterization
+    ├── TriangleClipper.cs         — TriangleRasterizer: homogeneous polygon clipping
+    ├── ClipVertex.cs              — TriangleRasterizer: internal clip-space vertex
+    ├── ClipPlane.cs               — TriangleRasterizer: internal clip plane
+    ├── SampleProjection.cs        — TriangleRasterizer: internal view-to-sample projection, guard band
+    ├── ViewTriangle.cs            — TriangleRasterizer: internal shaded view-space triangle
+    ├── ScreenTriangle.cs          — TriangleRasterizer: internal fixed-point screen triangle
+    ├── TileRect.cs                — TriangleRasterizer: internal sample rectangle
+    ├── IFragmentVisitor.cs        — TriangleRasterizer: internal fragment callback contract
+    ├── DepthTestVisitor.cs        — TriangleRasterizer: internal z-buffer visitor with tie rule
+    ├── SceneRenderer.cs           — SceneRenderer: Render/RenderFitted entry points
+    ├── SceneRenderOptions.cs      — SceneRenderer: immutable, validated render options
+    ├── TileBinner.cs              — SceneRenderer: internal triangle-to-tile binning
+    ├── SampleResolver.cs          — SceneRenderer: internal antialiasing resolve
+    └── TileWorkspace.cs           — SceneRenderer: internal per-worker sample buffers
+```
+
+`CanvasNetRender3D`'s only dependency on the rest of this repository is the `CanvasNet` system's
+`Canvas` subsystem (`Surface`, `Rgba32`) — see _CanvasNetRender3D System Design_
+(`canvas-net-render3d.md`).
 
 ## Document Conventions
 

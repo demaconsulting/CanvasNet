@@ -1,0 +1,101 @@
+---
+# Software Unit Requirements for Camera
+#
+# These requirements describe the design-level behavior of the Camera unit: the public Camera class
+# and CameraProjection enumeration (plus the internal ViewTransform) in the
+# DemaConsulting.CanvasNet.Render3D.SceneRendering namespace. World space is right-handed with +Z up;
+# view space looks down -Z with +Y up. FitToBounds uses an orbit convention: azimuth 0 and elevation 0
+# place the eye on the -Y axis looking toward +Y, positive elevation raises the eye toward +Z, and
+# positive azimuth moves the eye counter-clockwise as seen from +Z.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: SceneRendering Requirements
+        sections:
+          - title: Camera Requirements
+            requirements:
+              - id: CanvasNetRender3D-SceneRendering-Camera-LookAt
+                title: >-
+                  The Camera LookAt method shall create a camera with the given eye, target, and
+                  up vector, rejecting an eye equal to the target.
+                justification: |
+                  LookAt is the primary way to place a camera; an eye coincident with the target
+                  defines no view direction.
+                tests:
+                  - Camera_LookAt_SetsEyeTargetUp
+                  - Camera_LookAt_EyeEqualsTarget_Throws
+                  - Camera_LookAt_TinyOffsetAndUp_IsAccepted
+                  - Camera_LookAt_HugeOffsetAndUp_IsAccepted
+                  - Camera_LookAt_TinyUpParallelToForward_SubstitutesAlternateUp
+                  - Camera_GetViewMatrix_TinyOffsetAndUp_AcceptedAndZeroRejected
+
+              - id: CanvasNetRender3D-SceneRendering-Camera-ViewMatrix
+                title: >-
+                  The Camera GetViewMatrix method shall return a double-precision matrix mapping
+                  the eye to the origin, the target onto the negative Z axis, and the up direction
+                  toward positive Y.
+                justification: |
+                  A precisely defined view matrix is the contract between the camera and the
+                  projection stage.
+                tests:
+                  - Camera_GetViewMatrix_MapsEyeToOriginAndTargetToNegativeZ
+                  - Camera_GetViewMatrix_UpMapsToPositiveY
+
+              - id: CanvasNetRender3D-SceneRendering-Camera-Projection
+                title: >-
+                  A Camera shall default to a perspective projection with the documented default
+                  vertical field of view, and an orthographic camera shall retain its configured
+                  orthographic height.
+                justification: |
+                  Defaults make a camera usable with minimal configuration, and orthographic
+                  projection is essential for technical drawings.
+                tests:
+                  - Camera_Defaults_PerspectiveWithDocumentedFieldOfView
+                  - Camera_Orthographic_WithHeight_RetainsHeight
+
+              - id: CanvasNetRender3D-SceneRendering-Camera-FitToBounds
+                title: >-
+                  The Camera FitToBounds method shall return a perspective or orthographic camera
+                  looking at the center of a bounding box from the requested azimuth and elevation
+                  (the front view placing the eye on the negative Y axis), positioned so that every
+                  box corner projects inside the frame and the tightest corner touches the margin,
+                  falling back to a unit cube for empty bounds and rejecting a non-positive aspect
+                  ratio.
+                justification: |
+                  Automatic, tight framing lets callers render an arbitrary scene without
+                  computing camera distance, and exact framing is analytically testable.
+                tests:
+                  - Camera_FitToBounds_FrontView_EyeOnNegativeYAxis
+                  - Camera_FitToBounds_Perspective_AllCornersProjectInsideFrame
+                  - Camera_FitToBounds_Perspective_TightestCornerTouchesMargin
+                  - Camera_FitToBounds_Orthographic_HeightCoversBounds
+                  - Camera_FitToBounds_EmptyBounds_FallsBackToUnitCube
+                  - Camera_FitToBounds_NonPositiveAspect_Throws
+
+              - id: CanvasNetRender3D-SceneRendering-Camera-Validation
+                title: >-
+                  The Camera shall reject a field of view outside the open interval (0, 180)
+                  degrees, an invalid near/far plane, and a non-positive orthographic height.
+                justification: |
+                  Out-of-range values produce a degenerate or inverted projection; rejecting them
+                  at configuration time pinpoints the error.
+                tests:
+                  - Camera_FieldOfView_OutOfRange_Throws
+                  - Camera_NearFar_Invalid_Throws
+                  - Camera_OrthographicHeight_NonPositive_Throws
+                  - Camera_Validate_UndefinedProjection_Throws
+                  - Camera_FitToBounds_UndefinedProjection_Throws
+                  - SceneRenderer_Render_UndefinedProjection_ThrowsArgumentException
+
+              - id: CanvasNetRender3D-SceneRendering-Camera-DegenerateUp
+                title: >-
+                  When the view direction is parallel to the up vector (for example at plus or
+                  minus 90 degrees elevation), the Camera shall substitute an alternate up vector
+                  rather than throw.
+                justification: |
+                  Top-down and bottom-up views are common and must not fail merely because the
+                  nominal up vector is degenerate.
+                tests:
+                  - Camera_LookAt_ForwardParallelToUp_SubstitutesAlternateUp
+                  - Camera_FitToBounds_Elevation90_DoesNotThrow
