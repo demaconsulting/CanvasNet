@@ -275,7 +275,7 @@ public class ScadEvaluatorScopingTests
     ///     Validates the built-in constant <c>PI</c> and that a user assignment may shadow it.
     /// </summary>
     [Fact]
-    public void ScadEvaluatorScoping_Pi_IsDefinedAndShadowable()
+    public void ScadEvaluatorScoping_Pi_IsDefinedAndCanBeShadowed()
     {
         // Arrange
         const string Source = "echo(PI);\n{ PI = 3; echo(PI); }";

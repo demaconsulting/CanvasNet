@@ -28,10 +28,10 @@ public class ScadEvaluatorIncludeUseTests
     }
 
     /// <summary>
-    ///     Validates that the includer's later assignment wins over an included one and that the warning points into the included file.
+    ///     Validates that the later assignment of the including file wins over an included one and that the warning points into the included file.
     /// </summary>
     [Fact]
-    public void ScadEvaluatorIncludeUse_Include_LaterAssignmentOfIncluderWins_WarnsInIncludedFile()
+    public void ScadEvaluatorIncludeUse_Include_LaterAssignmentOfIncludingFileWins_WarnsInIncludedFile()
     {
         // Arrange
         var files = new ScadVirtualFiles(("defs.scad", "size = 1;\n"));
@@ -166,12 +166,12 @@ public class ScadEvaluatorIncludeUseTests
         var files = new ScadVirtualFiles();
 
         // Act
-        var output = Run("include <nope.scad>\nuse <alsonope.scad>\ncube(1);", null, files);
+        var output = Run("include <nope.scad>\nuse <other-missing.scad>\ncube(1);", null, files);
 
         // Assert
         Assert.Equal("cube(1)", ScadInstanceDumper.Dump(output.Roots));
         Assert.Equal(
-            ["Can't open include file 'nope.scad'", "Can't open include file 'alsonope.scad'"],
+            ["Can't open include file 'nope.scad'", "Can't open include file 'other-missing.scad'"],
             output.Diagnostics.Select(d => d.Message));
     }
 
@@ -218,11 +218,11 @@ public class ScadEvaluatorIncludeUseTests
         // Arrange
         var files = new ScadVirtualFiles(
             ("inc.scad", "w = 1;\n"),
-            ("lib.scad", "w = 10;\nfunction libw() = w;\n"));
+            ("lib.scad", "w = 10;\nfunction library_width() = w;\n"));
         var settings = new ScadEvaluationSettings { Overrides = new Dictionary<string, ScadValue> { ["w"] = ScadValue.FromNumber(99) } };
 
         // Act
-        var output = Run("include <inc.scad>\nuse <lib.scad>\nw = 2;\necho(w, libw());", settings, files);
+        var output = Run("include <inc.scad>\nuse <lib.scad>\nw = 2;\necho(w, library_width());", settings, files);
 
         // Assert
         Assert.Equal("ECHO: 99, 10", Assert.Single(output.Echo));

@@ -3,6 +3,8 @@ using static DemaConsulting.CanvasNet.Scad.Tests.Evaluation.ScadEvaluatorTestSup
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 
+// cspell:ignore multmatrix minkowski
+
 /// <summary>
 ///     Tests of the shape of the instantiation tree produced by <see cref="ScadEvaluator"/>: built-in modules,
 ///     groups, splicing constructs, modifiers, fragment settings and counting.
