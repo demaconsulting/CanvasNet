@@ -10,10 +10,13 @@ namespace DemaConsulting.CanvasNet.Scad;
 ///         copied defensively, so later changes to the caller's list have no effect.
 ///     </para>
 ///     <para>
-///         <see cref="BaseDirectory"/>, <see cref="LibraryPaths"/> and <see cref="FileResolver"/> are accepted
-///         and stored now but are not consumed until file resolution is added in a later phase; parsing never
-///         accesses another file. <see cref="SourceName"/> is consumed immediately: it appears in every
-///         <see cref="ScadSourceLocation"/>.
+///         <see cref="SourceName"/> is consumed when the document is parsed: it appears in every
+///         <see cref="ScadSourceLocation"/>. <see cref="BaseDirectory"/>, <see cref="LibraryPaths"/> and
+///         <see cref="FileResolver"/> are consumed when the document is evaluated
+///         (<see cref="ScadDocument.Evaluate(ScadEvaluationOptions?, CancellationToken)"/>) to find the files named by
+///         <c>include</c> and <c>use</c>; parsing never accesses another file. Only the directories given here (and
+///         the folder of an opened file) are searched, and a path that leaves them is rejected; environment variables
+///         are ignored.
 ///     </para>
 /// </remarks>
 public sealed class ScadOpenOptions
@@ -28,9 +31,15 @@ public sealed class ScadOpenOptions
     private readonly string? _sourceName;
 
     /// <summary>
-    ///     Gets the directory against which relative <c>include</c>/<c>use</c> paths will be resolved, or
-    ///     <see langword="null"/> to use the folder of the opened file (or the current directory for strings and streams).
+    ///     Gets the directory against which relative <c>include</c>/<c>use</c> paths are resolved and outside of which
+    ///     no file is read, or <see langword="null"/> to use the folder of the opened file.
     /// </summary>
+    /// <remarks>
+    ///     A document created from a string or a stream has no folder: unless it supplies a base directory, a
+    ///     <see cref="LibraryPaths"/> entry or a <see cref="FileResolver"/>, its <c>include</c> and <c>use</c>
+    ///     directives cannot be resolved and evaluating them fails with a <see cref="ScadEvaluationException"/>. The
+    ///     current directory is never used implicitly.
+    /// </remarks>
     /// <exception cref="ArgumentException">Thrown on initialization when the value is empty or whitespace.</exception>
     public string? BaseDirectory
     {
@@ -39,7 +48,8 @@ public sealed class ScadOpenOptions
     }
 
     /// <summary>
-    ///     Gets the additional library directories that will be searched for referenced files; empty by default.
+    ///     Gets the additional library directories that are searched, after the including file's folder, for
+    ///     referenced files; empty by default.
     /// </summary>
     /// <exception cref="ArgumentNullException">Thrown on initialization when the value or an entry is null.</exception>
     /// <exception cref="ArgumentException">Thrown on initialization when an entry is empty or whitespace.</exception>
@@ -50,8 +60,11 @@ public sealed class ScadOpenOptions
     }
 
     /// <summary>
-    ///     Gets a callback that will supply the content of referenced files in place of the file system, or
-    ///     <see langword="null"/>. It is never invoked while parsing.
+    ///     Gets a callback that supplies the content of referenced files in place of the file system, or
+    ///     <see langword="null"/>. It is never invoked while parsing. When set, evaluation does not touch the file
+    ///     system at all: the callback receives normalized logical paths (forward slashes, no leading slash) and
+    ///     returns a readable stream, which the evaluator disposes, or <see langword="null"/> when there is no such file.
+    ///     It is only called on the thread that called <c>Evaluate</c>.
     /// </summary>
     public Func<string, Stream?>? FileResolver { get; init; }
 

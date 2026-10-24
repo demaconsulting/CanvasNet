@@ -3,17 +3,21 @@ namespace DemaConsulting.CanvasNet.Scad;
 // cspell:ignore lexer lexing
 
 /// <summary>
-///     The <c>Scad</c> namespace is the parse-only front end for the OpenSCAD language: it reads
-///     OpenSCAD-language source from a string, a stream or a file and produces a validated document
-///     (<c>ScadDocument</c>) that reports file-scope <c>include</c>/<c>use</c> directives
-///     (<c>ScadDirective</c>) and the names of file-scope modules and functions, or fails with a
-///     <c>ScadSyntaxException</c> carrying a precise <c>ScadSourceLocation</c>.
+///     The <c>Scad</c> namespace is the front end for the OpenSCAD language: it reads OpenSCAD-language source
+///     from a string, a stream or a file and produces a validated document (<c>ScadDocument</c>) that reports
+///     file-scope <c>include</c>/<c>use</c> directives (<c>ScadDirective</c>) and the names of file-scope modules
+///     and functions, or fails with a <c>ScadSyntaxException</c> carrying a precise <c>ScadSourceLocation</c>. The
+///     document can then be evaluated (<c>ScadDocument.Evaluate</c>) under resource limits (<c>ScadLimits</c>) to
+///     obtain the program's <c>echo</c> output, warnings (<c>ScadDiagnostic</c>) and unsupported features
+///     (<c>ScadUnsupportedFeature</c>), or a <c>ScadEvaluationException</c> with the failing location.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Open behavior is configured through <c>ScadOpenOptions</c>. The lexer, the syntax tree and the
-///         parser are internal (the <c>Language</c> subsystem); only the document surface is public so that
-///         the tree can evolve while evaluation and rendering are added in later phases.
+///         Open behavior is configured through <c>ScadOpenOptions</c> (which also defines the sandbox for
+///         <c>include</c>/<c>use</c>) and evaluation through <c>ScadEvaluationOptions</c>. The lexer, the syntax
+///         tree, the parser and the evaluator are internal (the <c>Language</c> and <c>Evaluation</c> subsystems);
+///         only the document surface is public so that the internals can evolve while rendering is added in a
+///         later phase.
 ///     </para>
 ///     <para>
 ///         Clean-room provenance: this package was written from general knowledge of the language only;

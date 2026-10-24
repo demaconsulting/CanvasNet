@@ -13,7 +13,7 @@
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>DemaConsulting.CanvasNet.Scad is a parse-only front end for the OpenSCAD language: a clean-room lexer and parser that produce a syntax tree from OpenSCAD-language source, with file/line/column diagnostics. Evaluation and rendering are planned.</Description>
+    <Description>DemaConsulting.CanvasNet.Scad is a front end for the OpenSCAD language: a clean-room lexer and parser that produce a syntax tree from OpenSCAD-language source with file/line/column diagnostics, and a deterministic, resource-limited evaluator that reports echo output, warnings and unsupported features. Rendering is planned.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>
