@@ -50,7 +50,6 @@ public class ExtruderLinearTests
         "frustum" => Extruder.Linear(new PolygonRegion([LShape]), 3.0, scale: new Vector2D(0.5, 0.5)),
         "uniformFrustum" => Extruder.Linear(new PolygonRegion([LShape]), 3.0, false, 0.0, 2, 1.5),
         "pyramid" => Extruder.Linear(new PolygonRegion([LShape]), 3.0, slices: 3, scale: Vector2D.Zero),
-        "pyramidHole" => Extruder.Linear(RingRegion(), 3.0, scale: Vector2D.Zero),
         "perAxis" => Extruder.Linear(new PolygonRegion([LShape]), 3.0, slices: 8, scale: new Vector2D(2.0, 0.5)),
         "twist" => Extruder.Linear(new PolygonRegion([Rect(-1, -1, 2, 2)]), 4.0, twistDegrees: 90.0, slices: 8),
         "twistScale" => Extruder.Linear(StarRegion(), 4.0, twistDegrees: 120.0, slices: 12, scale: new Vector2D(0.5, 1.5)),
@@ -237,17 +236,41 @@ public class ExtruderLinearTests
     }
 
     /// <summary>
-    ///     Validates that a pyramid over a region with a hole is closed and has the analytic volume.
+    ///     Validates that an apex over a region with several contours (a hole, or two separate islands) is
+    ///     rejected, because every contour would collapse onto one pinched vertex, while a single contour is accepted.
     /// </summary>
     [Fact]
-    public void Extruder_Linear_ScaleZeroWithHole_IsClosedAndMatchesAnalytic()
+    public void Extruder_Linear_ScaleZeroWithHoleOrIslands_Throws()
     {
-        // Arrange / Act
-        var mesh = Variant("pyramidHole");
+        // Arrange
+        var ring = RingRegion();
+        var islands = new PolygonRegion([Rect(0, 0, 2, 2), Rect(5, 0, 2, 2)]);
+        var single = new PolygonRegion([Rect(0, 0, 2, 2)]);
 
-        // Assert: (100 - 16) * 3 / 3
-        Assert.Equal(84.0, mesh.SignedVolume, 1e-9);
-        Render3DTestHelpers.AssertValidCsgOperand(mesh);
+        // Act / Assert: both overloads reject, naming the scale
+        var exception = Assert.Throws<ArgumentException>(() => Extruder.Linear(ring, 3.0, scale: Vector2D.Zero));
+        Assert.Equal("scale", exception.ParamName);
+        Assert.Throws<ArgumentException>(() => Extruder.Linear(ring, 3.0, false, 45.0, 4, Vector2D.Zero));
+        Assert.Throws<ArgumentException>(() => Extruder.Linear(islands, 3.0, scale: Vector2D.Zero));
+        Assert.Throws<ArgumentException>(() => Extruder.Linear(ring, 3.0, false, 0.0, 1, 0.0));
+
+        // The same region with a positive scale and the single-contour apex still work
+        Render3DTestHelpers.AssertValidCsgOperand(Extruder.Linear(ring, 3.0, scale: new Vector2D(0.5, 0.5)));
+        Render3DTestHelpers.AssertValidCsgOperand(Extruder.Linear(single, 3.0, scale: Vector2D.Zero));
+    }
+
+    /// <summary>
+    ///     Validates that a scale that is zero in only one axis is rejected for a region with a hole as well.
+    /// </summary>
+    [Fact]
+    public void Extruder_Linear_ScaleWithOneZeroComponentAndHole_Throws()
+    {
+        // Arrange
+        var ring = RingRegion();
+
+        // Act / Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => Extruder.Linear(ring, 1.0, scale: new Vector2D(0.0, 1.0)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Extruder.Linear(ring, 1.0, scale: new Vector2D(1.0, 0.0)));
     }
 
     /// <summary>
@@ -478,7 +501,6 @@ public class ExtruderLinearTests
     [InlineData("frustum")]
     [InlineData("uniformFrustum")]
     [InlineData("pyramid")]
-    [InlineData("pyramidHole")]
     [InlineData("perAxis")]
     [InlineData("twist")]
     [InlineData("twistScale")]

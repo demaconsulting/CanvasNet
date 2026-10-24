@@ -28,9 +28,11 @@ the `Extruder` XML remarks and the user guide:
 - *Self-overlap about the origin.* Scale and twist act about the origin. An apex, a large scale
   change, or a per-axis scale combined with twist is only guaranteed valid when the profile is
   star-shaped about the origin; otherwise the result can self-intersect (it can be reported as
-  inverted) and is not a valid operand. An apex over a region with a hole, and a rotational profile
-  that touches the axis at one isolated vertex, leave a pinched (non-manifold) vertex, although
-  every edge stays manifold.
+  inverted) and is not a valid operand.
+
+A third class would be inputs whose result is pinched (a non-manifold vertex although every edge
+stays manifold); these are **rejected** instead of documented: an apex over a region with more than one
+contour, and a rotational profile that touches the axis at one isolated vertex.
 
 #### Data Model
 
@@ -65,7 +67,10 @@ outward normals for outer walls and for hole walls (which then face into the hol
   would self-intersect. Interpolation is linear per ring from 1 at the bottom to the requested scale
   at the top.
 - *Apex*: with scale `(0, 0)` the last ring is the single apex vertex `(0, 0, z_top)` shared by every
-  contour; a wall triangle with a repeated corner is skipped, leaving one wall triangle per edge in the
+  contour. Because every contour would then meet at that one vertex, the apex is accepted only for a region
+  with a **single contour**: a hole or a second island would leave a pinched (non-manifold) vertex, so
+  such a region is rejected with `ArgumentException` (the scale case with exactly one zero component is
+  rejected for every region). A wall triangle with a repeated corner is skipped, leaving one wall triangle per edge in the
   last slice, and **no top cap** is emitted. The volume of a prism-to-apex extrusion is `A h / 3`.
 - *Walls and caps*: for every contour edge `i -> i+1` and slice `k -> k+1`, the triangles
   `(b_i, b_i+1, t_i+1)` and `(b_i, t_i+1, t_i)` are emitted (`b` = ring `k`, `t` = ring `k+1`). The
@@ -95,6 +100,10 @@ outward normals for outer walls and for hole walls (which then face into the hol
   toward `+angleDegrees`. A profile with vertices on both sides (it *crosses the axis*) and a profile
   entirely on the axis are rejected with `ArgumentException`. There is **no tolerance**: `x == 0`
   exactly means a vertex on the axis (a tolerance policy belongs to the caller).
+- *Isolated axis contact*: a vertex on the axis whose two contour neighbors are both off the axis is shared by
+  every angular ring, so the swept surfaces would meet only at that point (a pinched, non-manifold
+  vertex); the profile is rejected with `ArgumentException`. A vertex that ends an edge lying on the axis
+  (a pole) is accepted.
 - *Angle and segments*: `angleDegrees` must be finite in `(0, 360]`, and its radian value must not
   round to zero (for example `double.Epsilon`), which would weld the end ring onto the start ring
   and return an open mesh. Exactly 360 is a full revolution
@@ -120,7 +129,8 @@ All validation precedes any construction. `ArgumentNullException` for a null reg
 `ArgumentOutOfRangeException` for a height that is not finite and greater than zero, fewer than one
 slice, an invalid scale (non-finite, negative, or zero in only one axis), an angle outside `(0, 360]`
 or not finite or so small that its radian value is zero, and too few segments; `ArgumentException`
-for a non-finite twist, a profile that crosses or lies entirely on the rotation axis, a sweep step
+for a non-finite twist, an apex (zero scale) over a region with more than one contour, a profile that
+crosses or lies entirely on the rotation axis or touches it at an isolated vertex, a sweep step
 too small to resolve at a profile vertex's radius (two rings would coincide), and a result that would
 exceed the maximum mesh size
 (checked in `long` before allocation, so hostile counts fail with a clear exception). An empty region

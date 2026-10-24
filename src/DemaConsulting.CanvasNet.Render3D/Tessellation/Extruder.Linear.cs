@@ -21,7 +21,10 @@ public static partial class Extruder
     ///     </para>
     ///     <para>
     ///         A scale of <c>(0, 0)</c> collapses the top to a single apex vertex (no top cap, one triangle per
-    ///         wall edge in the last slice); exactly one zero component or a negative component is rejected
+    ///         wall edge in the last slice) and is accepted only for a region with a single contour: with a
+    ///         hole or a second island every contour would collapse onto the same vertex and the shells would
+    ///         meet at a pinched (non-manifold) vertex, so such a region is rejected. Exactly one zero
+    ///         component or a negative component is rejected
     ///         because it would flatten the top to a line or pass through zero and self-intersect. Contours
     ///         are normalized (solid on the left), so one wall formula gives outward normals for outer walls
     ///         and hole walls alike. Twisted or non-uniformly scaled wall quads are not planar; the facet
@@ -29,8 +32,7 @@ public static partial class Extruder
     ///         twist per slice can make neighboring slices intersect, so choose the slice count accordingly.
     ///         Scale and twist are about the origin: for an apex, a large scale change or a per-axis scale with
     ///         twist the profile must be star-shaped about the origin, otherwise the solid can self-intersect and
-    ///         is not a valid operand; an apex over a region with a hole also leaves a pinched (non-manifold)
-    ///         vertex. Extreme magnitudes (tiny non-zero scales, huge heights or coordinates) can round to
+    ///         is not a valid operand. Extreme magnitudes (tiny non-zero scales, huge heights or coordinates) can round to
     ///         degenerate triangles that the operand validator flags; see <see cref="Extruder"/>.
     ///     </para>
     /// </remarks>
@@ -41,12 +43,12 @@ public static partial class Extruder
     /// <param name="slices">The number of slices along the height (at least one).</param>
     /// <param name="scale">
     ///     The per-axis scale of the top ring about the origin relative to the bottom; each component finite and not
-    ///     negative, and either both zero (apex) or both positive. <see langword="null"/> means <c>(1, 1)</c>.
+    ///     negative, and either both zero (apex, single-contour regions only) or both positive. <see langword="null"/> means <c>(1, 1)</c>.
     /// </param>
     /// <returns>The closed, outward-oriented mesh; empty for an empty region.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="region"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the height is not finite and positive, <paramref name="slices"/> is below 1, or the scale is invalid.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="twistDegrees"/> is not finite or the result would exceed the maximum mesh size.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="twistDegrees"/> is not finite, <paramref name="scale"/> is an apex (zero) and the region has more than one contour (a hole or separate islands), or the result would exceed the maximum mesh size.</exception>
     public static Mesh Linear(PolygonRegion region, double height, bool center = false, double twistDegrees = 0.0, int slices = 1, Vector2D? scale = null)
     {
         // Validate everything before doing any work
@@ -67,6 +69,15 @@ public static partial class Extruder
         if (region.IsEmpty)
         {
             return EmptyMesh();
+        }
+
+        // Every contour would collapse onto the same apex vertex, so the shells of a hole or a second island
+        // would meet the outer shell at one pinched (non-manifold) vertex; only a single contour stays valid
+        if (apex && region.ContourTable.Length > 1)
+        {
+            throw new ArgumentException(
+                "An apex (zero scale) is only valid for a region with a single contour; holes and separate islands would meet at one pinched vertex.",
+                nameof(scale));
         }
 
         // Upper bounds: V(S+1) vertices; 2VS wall triangles plus two caps of at most V triangles each

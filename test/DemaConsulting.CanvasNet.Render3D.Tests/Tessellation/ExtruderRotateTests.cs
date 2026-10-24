@@ -68,7 +68,7 @@ public class ExtruderRotateTests
         "negative" => new PolygonRegion([Rect(-5, 0, 3, 3)]),
         "negativeTouching" => new PolygonRegion([Rect(-3, 0, 3, 4)]),
         "negativeHole" => new PolygonRegion([Rect(-10, 0, 8, 8), Rect(-8, 2, 4, 4)]),
-        "diamond" => new PolygonRegion([[new(0, 0), new(1, -1), new(2, 0), new(1, 1)]]),
+        "lens" => new PolygonRegion([[new(0, 0), new(2, 2), new(0, 4)]]),
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, "Unknown profile."),
     };
 
@@ -263,6 +263,44 @@ public class ExtruderRotateTests
     }
 
     /// <summary>
+    ///     Validates that a profile touching the axis at an isolated vertex (both adjacent edges leave the axis)
+    ///     is rejected, on either side of the axis and also next to an edge lying on the axis.
+    /// </summary>
+    [Fact]
+    public void Extruder_Rotate_IsolatedAxisVertex_Throws()
+    {
+        // Arrange: triangles whose single vertex (0, 0) touches the axis, and a notched profile whose vertex (0, 1)
+        // touches the axis in isolation although its edge from (0, 6) to (0, 4) lies on the axis
+        var positive = new PolygonRegion([[new Vector2D(0, 0), new Vector2D(2, -1), new Vector2D(2, 1)]]);
+        var negative = new PolygonRegion([[new Vector2D(0, 0), new Vector2D(-2, 1), new Vector2D(-2, -1)]]);
+        var notched = new PolygonRegion([[new Vector2D(0, 1), new Vector2D(3, 0), new Vector2D(3, 6), new Vector2D(0, 6), new Vector2D(0, 4), new Vector2D(2, 3)]]);
+
+        // Act / Assert
+        var exception = Assert.Throws<ArgumentException>(() => Extruder.Rotate(positive, 360.0, 12));
+        Assert.Contains("isolated", exception.Message, StringComparison.Ordinal);
+        Assert.Equal("region", exception.ParamName);
+        Assert.Throws<ArgumentException>(() => Extruder.Rotate(positive, 90.0, 4));
+        Assert.Throws<ArgumentException>(() => Extruder.Rotate(negative, 360.0, 12));
+        Assert.Throws<ArgumentException>(() => Extruder.Rotate(notched, 360.0, 12));
+    }
+
+    /// <summary>
+    ///     Validates that a profile whose axis vertices all end an edge lying on the axis (poles) is still accepted.
+    /// </summary>
+    [Fact]
+    public void Extruder_Rotate_PoleVerticesWithAxisEdge_AreAccepted()
+    {
+        // Arrange: a lens-like profile with one edge along the axis from (0, 0) to (0, 4)
+        var region = new PolygonRegion([[new Vector2D(0, 0), new Vector2D(2, 2), new Vector2D(0, 4)]]);
+
+        // Act
+        var mesh = Extruder.Rotate(region, 360.0, 12);
+
+        // Assert
+        Render3DTestHelpers.AssertValidCsgOperand(mesh);
+    }
+
+    /// <summary>
     ///     Validates that a profile on both sides of the axis is rejected.
     /// </summary>
     [Fact]
@@ -361,8 +399,8 @@ public class ExtruderRotateTests
     [InlineData("negative", 120.0, 5)]
     [InlineData("negativeTouching", 200.0, 7)]
     [InlineData("negativeHole", 360.0, 12)]
-    [InlineData("diamond", 360.0, 12)]
-    [InlineData("diamond", 90.0, 3)]
+    [InlineData("lens", 360.0, 12)]
+    [InlineData("lens", 90.0, 3)]
     public void Extruder_Rotate_AllVariants_AreValidCsgOperands(string name, double angle, int segments)
     {
         // Arrange / Act

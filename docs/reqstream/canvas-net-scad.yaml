@@ -31,13 +31,15 @@ sections:
         title: >-
           The library shall parse OpenSCAD-language source supplied as a string, a readable stream,
           or a file path into a ScadDocument that is identical whichever entry point is used, and
-          shall reject null, unreadable, and empty arguments with the documented exception
-          contract.
+          shall reject null arguments and unreadable sources with the documented exception
+          contract, while empty, whitespace-only, and comment-only source text is valid and parses
+          to an empty document.
         tags: [system]
         justification: |
           Callers hold source text in different forms; every entry point must yield the same
           validated result, and invalid arguments must fail closed with a predictable exception
-          rather than being coerced.
+          rather than being coerced; a source without any statement is a legitimate empty program,
+          not an invalid argument.
         children:
           - CanvasNetScad-ScadDocument-ParseString
           - CanvasNetScad-ScadDocument-OpenStream

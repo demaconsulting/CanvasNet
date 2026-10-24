@@ -31,8 +31,9 @@ public static partial class Extruder
     ///         volume has the exact closed form <c>segments sin(delta) integral(x dA)</c> with
     ///         <c>delta = angle / segments</c>, which approaches the Pappus volume as the segment count grows.
     ///         A profile with a hole yields a hollow solid (outer shell outward, cavity shell inward). A profile
-    ///         that touches the axis at one isolated vertex (not along an edge) sweeps two surfaces that meet
-    ///         at that vertex, which becomes a pinched (non-manifold) vertex although every edge stays manifold.
+    ///         that touches the axis at one isolated vertex (not along an edge) would sweep two surfaces that meet
+    ///         at that vertex, a pinched (non-manifold) vertex, so it is rejected; a vertex on the axis must be
+    ///         an end of an edge lying on the axis (a pole).
     ///     </para>
     /// </remarks>
     /// <param name="region">The profile in the (X = radius, Y = height) plane.</param>
@@ -43,7 +44,7 @@ public static partial class Extruder
     /// <returns>The closed, outward-oriented mesh; empty for an empty region.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="region"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the angle is not in (0, 360], is so small that it converts to a zero radian sweep, or the segment count is too small.</exception>
-    /// <exception cref="ArgumentException">Thrown when the profile crosses or lies entirely on the axis, a sweep step is too small to resolve at a profile vertex's radius, or the result would exceed the maximum mesh size.</exception>
+    /// <exception cref="ArgumentException">Thrown when the profile crosses or lies entirely on the axis, touches the axis at an isolated vertex, a sweep step is too small to resolve at a profile vertex's radius, or the result would exceed the maximum mesh size.</exception>
     public static Mesh Rotate(PolygonRegion region, double angleDegrees, int segments)
     {
         // Validate everything before doing any work
@@ -71,6 +72,7 @@ public static partial class Extruder
         }
 
         var negative = CheckProfileSide(region);
+        RejectIsolatedAxisContacts(region);
 
         // Upper bounds: V * (segments + 1) vertices; two wall triangles per edge and segment plus two caps
         var vertexCount = region.VertexCount;
@@ -115,6 +117,38 @@ public static partial class Extruder
 
         return left;
     }
+
+    /// <summary>
+    ///     Rejects a profile vertex that touches the axis while both of its contour neighbors are off the axis.
+    ///     Such a vertex is shared by every angular ring, so the two swept surfaces would meet only at that point
+    ///     (a pinched, non-manifold vertex); a vertex at the end of an edge lying on the axis (a pole) is fine.
+    /// </summary>
+    /// <param name="region">The profile.</param>
+    /// <exception cref="ArgumentException">Thrown when the profile touches the axis at an isolated vertex.</exception>
+    private static void RejectIsolatedAxisContacts(PolygonRegion region)
+    {
+        var points = region.VertexSpan;
+        foreach (var contour in region.ContourTable)
+        {
+            for (var i = 0; i < contour.Count; i++)
+            {
+                var current = contour.Start + i;
+                var previous = contour.Start + ((i + contour.Count - 1) % contour.Count);
+                var next = contour.Start + ((i + 1) % contour.Count);
+                if (IsOnAxis(points[current]) && !IsOnAxis(points[previous]) && !IsOnAxis(points[next]))
+                {
+                    throw new ArgumentException(
+                        $"The profile touches the rotation axis at the isolated vertex ({points[current].X}, {points[current].Y}); a vertex on the axis needs an adjacent edge lying on the axis.",
+                        nameof(region));
+                }
+            }
+        }
+    }
+
+    /// <summary>Tests whether a profile point lies exactly on the rotation axis (no tolerance).</summary>
+    /// <param name="point">The profile point.</param>
+    /// <returns><see langword="true"/> when <c>x == 0</c>.</returns>
+    private static bool IsOnAxis(Vector2D point) => !(point.X > 0.0) && !(point.X < 0.0);
 
     /// <summary>
     ///     Creates the vertex rings: one vertex per axis profile vertex (shared by all rings) and one vertex

@@ -72,14 +72,18 @@ sections:
                 title: >-
                   The Extruder Linear method shall collapse the top ring to a single shared apex vertex,
                   with no top cap and no degenerate triangle, when the scale is zero in both axes,
-                  yielding a pyramid of volume A h / 3 (also for a region with a hole and when combined
-                  with a twist), as a closed mesh.
+                  yielding a pyramid of volume A h / 3 (also when combined with a twist) as a closed
+                  mesh for a region with a single contour, and shall reject with an ArgumentException an
+                  apex over a region with a hole or with several contours.
                 justification: |
                   An apex is the only legal collapse of the top ring; a single shared vertex keeps the
                   mesh closed and free of zero-area triangles, which would fail the operand checks.
+                  With several contours every contour would collapse onto the same vertex, so the
+                  shells would meet at a pinched (non-manifold) vertex and the result would not be a
+                  valid operand.
                 tests:
                   - Extruder_Linear_ScaleZero_IsPyramidWithSingleApex
-                  - Extruder_Linear_ScaleZeroWithHole_IsClosedAndMatchesAnalytic
+                  - Extruder_Linear_ScaleZeroWithHoleOrIslands_Throws
                   - Extruder_Linear_TwistAndScaleToApex_IsValidClosedMesh
 
               - id: CanvasNetRender3D-Tessellation-Extruder-LinearTwist
@@ -105,7 +109,9 @@ sections:
                 title: >-
                   The Extruder Linear method shall reject a null region, a height that is not finite and
                   greater than zero, fewer than one slice, a non-finite twist, and a scale that is
-                  non-finite, negative, or zero in only one axis, and a result that would exceed the
+                  non-finite, negative, or zero in only one axis (for any region, with or without
+                  holes), and a result that
+                  would exceed the
                   maximum mesh size, before doing any work.
                 justification: |
                   A scale with exactly one zero component flattens the top to a line (degenerate
@@ -115,6 +121,7 @@ sections:
                   - Extruder_Linear_InvalidArguments_Throw
                   - Extruder_Linear_ScaleWithOneZeroComponent_Throws
                   - Extruder_Linear_NegativeOrNonFiniteScale_Throws
+                  - Extruder_Linear_ScaleWithOneZeroComponentAndHole_Throws
 
               - id: CanvasNetRender3D-Tessellation-Extruder-RotateFull
                 title: >-
@@ -168,8 +175,11 @@ sections:
               - id: CanvasNetRender3D-Tessellation-Extruder-RotateValidation
                 title: >-
                   The Extruder Rotate method shall reject, with an ArgumentException, a profile that
-                  crosses the rotation axis (vertices with both positive and negative x) or lies
-                  entirely on it, and shall reject a null region, an angle that is not finite and in the
+                  crosses the rotation axis (vertices with both positive and negative x), lies
+                  entirely on it, or touches it at an isolated vertex (a vertex on the axis whose two
+                  adjacent edges both leave the axis), and shall reject a null region, an angle that
+                  is not finite and in
+                  the
                   range greater than 0 up to 360 degrees (an angle whose radian value rounds to
                   zero, such as the smallest positive double, with an ArgumentOutOfRangeException), a
                   segment count below 3 for a full revolution or below 1 for a partial sweep, and a
@@ -177,12 +187,16 @@ sections:
                   ArgumentException, a sweep step too small to separate the rings at a profile vertex's
                   radius, rather than return an open mesh.
                 justification: |
-                  A profile crossing the axis would sweep self-intersecting material and a profile on the
-                  axis sweeps no volume; both are rejected rather than silently repaired. A sweep that
+                  A profile crossing the axis would sweep self-intersecting material, a profile on the
+                  axis sweeps no volume, and an isolated axis vertex would join the swept surfaces at a
+                  single pinched (non-manifold) vertex; all are rejected rather than silently repaired.
+                  A vertex ending an edge on the axis (a pole) stays valid. A sweep that
                   rounds to zero would weld the end ring onto the start ring and leave an open mesh.
                 tests:
                   - Extruder_Rotate_ProfileCrossingAxis_Throws
                   - Extruder_Rotate_ProfileOnlyOnAxis_Throws
+                  - Extruder_Rotate_IsolatedAxisVertex_Throws
+                  - Extruder_Rotate_PoleVerticesWithAxisEdge_AreAccepted
                   - Extruder_Rotate_InvalidArguments_Throw
                   - Extruder_Rotate_TinyAngleRoundingToZeroRadians_Throws
                   - Extruder_Rotate_StepUnresolvableAtRadius_Throws

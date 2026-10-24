@@ -25,7 +25,8 @@ namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
 ///         <b>Accepted and normalized.</b> A closing duplicate of the first point and consecutive duplicate
 ///         points are dropped; collinear points are kept (they stay vertices of every triangulation).
 ///         <b>Rejected</b> (<see cref="ArgumentException"/>): non-finite coordinates, fewer than three distinct
-///         vertices, zero-area (all collinear) contours, contours that cross or touch themselves (including
+///         vertices, zero-area (all collinear) contours and contours whose area is zero or subnormal in a
+///         subnormal number (such as a triangle with legs of 1e-200), contours that cross or touch themselves (including
 ///         a repeated non-consecutive point and edges that fold back onto each other), and contours that cross
 ///         or touch one another (a shared point or a vertex lying on another contour's edge), because touching
 ///         contours would create non-manifold vertices in an extrusion, and regions whose area is not a finite
@@ -63,7 +64,8 @@ public sealed class PolygonRegion
     /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="contours"/> or one of the contours is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">
-    ///     Thrown when a point is not finite, a contour has fewer than three distinct vertices or zero area,
+    ///     Thrown when a point is not finite, a contour has fewer than three distinct vertices or zero area
+    ///     (including an area too small for a normal double),
     ///     a contour intersects or touches itself, two contours intersect or touch each other, or the
     ///     coordinates are so large that the area of the region is not a finite number (the region is
     ///     rejected rather than reporting infinity or NaN). The message names the offending contour (and
@@ -103,6 +105,15 @@ public sealed class PolygonRegion
             _table[c] = new ContourInfo(start, points.Length, nesting[c].Depth, nesting[c].Parent);
             _contours[c] = Array.AsReadOnly(points);
             var magnitude = Math.Abs(SignedArea(points));
+
+            // An exactly non-zero orientation can still give a computed area that is zero (the products fall below
+            // the double range) or subnormal (so it has
+            // lost most of its precision); such a contour has no usable area and would extrude to degenerate geometry
+            if (magnitude == 0.0 || double.IsSubnormal(magnitude))
+            {
+                throw new ArgumentException($"Contour {c} has zero area (its area falls below the range of a double).", nameof(contours));
+            }
+
             area.Add(solid ? magnitude : -magnitude);
             start += points.Length;
         }

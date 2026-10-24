@@ -33,9 +33,9 @@ namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
 ///         <b>Shapes that can self-overlap.</b> Scale and twist act about the origin. Scaling to an apex, a large
 ///         scale change or a per-axis scale combined with twist keeps the solid valid only when the profile is
 ///         star-shaped about the origin; otherwise the result may self-intersect (it can even be inverted) and is
-///         not a valid operand. An apex over a region with a hole, or a rotational profile that touches the
-///         axis at a single vertex, produces a pinched (non-manifold) vertex although every edge stays
-///         manifold.
+///         not a valid operand. A rotational profile that touches the axis only at an isolated vertex, and a
+///         linear extrusion to an apex of a region with several contours, would create a pinched (non-manifold)
+///         vertex and are therefore rejected with an <see cref="ArgumentException"/>.
 ///     </para>
 ///     <para>
 ///         Invalid polygons cannot reach this type: <see cref="PolygonRegion"/> rejects them at construction.
@@ -59,7 +59,7 @@ public static partial class Extruder
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="region"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the height, slice count or scale is invalid.</exception>
-    /// <exception cref="ArgumentException">Thrown when the twist is not finite or the result would exceed the maximum mesh size.</exception>
+    /// <exception cref="ArgumentException">Thrown when the twist is not finite, the scale is zero and the region has more than one contour (a hole or separate islands), or the result would exceed the maximum mesh size.</exception>
     public static Mesh Linear(PolygonRegion region, double height, bool center, double twistDegrees, int slices, double uniformScale)
     {
         // Reject the scale here so the exception names this overload's parameter

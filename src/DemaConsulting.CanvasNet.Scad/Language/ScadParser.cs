@@ -19,10 +19,12 @@ namespace DemaConsulting.CanvasNet.Scad.Language;
 ///     <para>
 ///         Hostile input is bounded in two complementary ways. A recursion counter limits how deeply the parser
 ///         itself nests (statements, expressions, prefix operators, exponent chains and comprehension
-///         elements); every parse runs on a dedicated thread whose stack (<see cref="ParserStackSize"/>) is sized
-///         for the worst case at that limit, so the limit is honored on every platform whatever the caller's
-///         stack size, and <see cref="RuntimeHelpers.EnsureSufficientExecutionStack"/> remains only as
-///         defense-in-depth; after parsing,
+///         elements); it is deterministic and independent of any stack size, so the nominal limit behaves the
+///         same on every platform. The parse first runs inline on the calling thread, guarded by
+///         <see cref="RuntimeHelpers.EnsureSufficientExecutionStack"/>; only when that guard reports that the
+///         caller's stack is too small is the parse restarted on a dedicated thread whose stack
+///         (<see cref="ParserStackSize"/>) is sized for the worst case at the limit, with the number of such
+///         threads bounded (<see cref="MaxConcurrentFallbackThreads"/>). After parsing,
 ///         an iterative check limits the height of the resulting tree, which also covers left-associative
 ///         operator and postfix chains that the parser builds without recursing. Together they guarantee that
 ///         every later recursive consumer sees a tree of bounded depth. Input size is bounded by
@@ -57,6 +59,43 @@ internal sealed partial class ScadParser
     ///     runtimes. The memory is reserved address space that is committed only as it is touched.
     /// </remarks>
     internal const int ParserStackSize = 16 * 1024 * 1024;
+
+    /// <summary>The name of the dedicated fallback thread.</summary>
+    internal const string FallbackThreadName = "ScadParser";
+
+    /// <summary>
+    ///     The most fallback threads that may run at once. Each reserves <see cref="ParserStackSize"/> of address
+    ///     space, so the bound keeps the reservation of a burst of concurrent small-stack callers finite.
+    /// </summary>
+    internal static readonly int MaxConcurrentFallbackThreads = Math.Max(2, Environment.ProcessorCount);
+
+    /// <summary>Limits the number of concurrently running fallback threads; callers beyond the limit wait for a slot.</summary>
+    private static readonly SemaphoreSlim FallbackGate = new(MaxConcurrentFallbackThreads, MaxConcurrentFallbackThreads);
+
+    /// <summary>The number of parses that had to be restarted on a fallback thread (updated with <see cref="Interlocked"/>).</summary>
+    private static long _fallbackCount;
+
+    /// <summary>Gets the number of parses restarted on a dedicated fallback thread since process start (a test hook).</summary>
+    internal static long FallbackCount => Interlocked.Read(ref _fallbackCount);
+
+    /// <summary>The number of fallback threads currently running (updated with <see cref="Interlocked"/>).</summary>
+    private static int _activeFallbacks;
+
+    /// <summary>The largest number of fallback threads that ran at once (updated with <see cref="Interlocked"/>).</summary>
+    private static int _peakFallbacks;
+
+    /// <summary>Gets the largest number of fallback threads that ever ran at once (a test hook).</summary>
+    internal static int PeakConcurrentFallbackThreads => Volatile.Read(ref _peakFallbacks);
+
+    /// <summary>The managed thread id that completed the most recent parse started by the current thread.</summary>
+    [ThreadStatic]
+    private static int _lastParseThreadId;
+
+    /// <summary>
+    ///     Gets the managed thread id that completed the most recent parse started by the calling thread: the
+    ///     calling thread itself unless the parse fell back to a dedicated thread (a test hook; per calling thread).
+    /// </summary>
+    internal static int LastParseThreadId => _lastParseThreadId;
 
     /// <summary>The message names of the token kinds the grammar requires with <c>Expect</c>.</summary>
     private static readonly Dictionary<ScadTokenKind, string> ExpectedNames = new()
@@ -108,8 +147,8 @@ internal sealed partial class ScadParser
             throw CreateSourceTooLongException();
         }
 
-        // Tokenizing is iterative, but it runs on the same dedicated thread so that a single thread serves the call
-        return RunOnParserThread(() => ParseOnCurrentThread(ScadLexer.Tokenize(source, file)));
+        // Tokenizing is iterative and needs no large stack, so it always runs on the calling thread
+        return ParseTokens(ScadLexer.Tokenize(source, file));
     }
 
 
@@ -122,29 +161,63 @@ internal sealed partial class ScadParser
     public static ScadProgram Parse(IReadOnlyList<ScadToken> tokens)
     {
         ArgumentNullException.ThrowIfNull(tokens);
-        return RunOnParserThread(() => ParseOnCurrentThread(tokens));
+        return ParseTokens(tokens);
     }
 
     /// <summary>
-    ///     Parses a token list on the calling thread; the caller must already be on a thread with a parser-sized stack.
+    ///     Parses a token list on the calling thread and, only when the calling thread's stack runs short,
+    ///     restarts the parse on a dedicated large-stack thread.
     /// </summary>
+    /// <remarks>
+    ///     The inline attempt costs nothing extra for ordinary input. The runtime stack guard
+    ///     (<see cref="RuntimeHelpers.EnsureSufficientExecutionStack"/>) tripping means the caller's stack is
+    ///     too small for the nesting reached so far; that is a property of the caller, not of the input, so the
+    ///     parse is repeated from the start (the parser is pure, so a restart is safe) on a thread whose stack is
+    ///     sized for <see cref="MaxNestingDepth"/>. The nominal depth counter never triggers the fallback: it
+    ///     reports the nesting error identically on every platform and stack size. The number of fallback threads
+    ///     that may exist at once is bounded by <see cref="FallbackGate"/>.
+    /// </remarks>
     /// <param name="tokens">The tokens, ending with an end-of-file token.</param>
     /// <returns>The syntax tree.</returns>
-    private static ScadProgram ParseOnCurrentThread(IReadOnlyList<ScadToken> tokens) =>
-        new ScadParser(tokens).ParseProgramGuarded();
+    private static ScadProgram ParseTokens(IReadOnlyList<ScadToken> tokens)
+    {
+        var executedOn = Environment.CurrentManagedThreadId;
+        try
+        {
+            try
+            {
+                return new ScadParser(tokens).ParseProgramGuarded(stackShortageIsSyntaxError: false);
+            }
+            catch (InsufficientExecutionStackException)
+            {
+                // The caller's stack is too small; fall through to the dedicated thread
+            }
+
+            return RunOnParserThread(() =>
+            {
+                executedOn = Environment.CurrentManagedThreadId;
+                return new ScadParser(tokens).ParseProgramGuarded(stackShortageIsSyntaxError: true);
+            });
+        }
+        finally
+        {
+            _lastParseThreadId = executedOn;
+        }
+    }
 
     /// <summary>
     ///     Runs work on a dedicated thread whose stack is sized for the nominal nesting limit, so that the limit
-    ///     is honored independently of the stack size of the calling thread.
+    ///     is honored when the calling thread's stack is too small, with the number of such threads bounded.
     /// </summary>
     /// <remarks>
-    ///     The caller blocks until the thread finishes, so the observable behavior is synchronous. An exception
-    ///     thrown by the work is captured and rethrown on the calling thread with
+    ///     The caller first waits for a slot of <see cref="FallbackGate"/>, so a burst of concurrent callers with
+    ///     small stacks reserves at most <see cref="MaxConcurrentFallbackThreads"/> large stacks instead of one
+    ///     per request, then blocks until the thread finishes, so the observable behavior is synchronous. An
+    ///     exception thrown by the work is captured and rethrown on the calling thread with
     ///     <see cref="ExceptionDispatchInfo"/>, which preserves its type and original stack trace. The calling
-    ///     thread's current culture and UI culture are applied to the dedicated thread. Creating a thread per call
-    ///     costs on the order of tens to a few hundred microseconds, which is negligible next to parsing, and the
-    ///     stack is reserved (not committed) address space that is returned when the thread ends. No shared state
-    ///     is used, so the entry points remain safe for concurrent use.
+    ///     thread's current culture and UI culture are applied to the dedicated thread. The stack is reserved
+    ///     (not committed) address space that is returned when the thread ends, and the only shared state is the
+    ///     thread-safe gate, so the entry points remain safe for concurrent use.
     /// </remarks>
     /// <typeparam name="T">The result type.</typeparam>
     /// <param name="work">The work to run.</param>
@@ -156,31 +229,53 @@ internal sealed partial class ScadParser
         var culture = CultureInfo.CurrentCulture;
         var uiCulture = CultureInfo.CurrentUICulture;
 
-        var thread = new Thread(
-            () =>
-            {
-                CultureInfo.CurrentCulture = culture;
-                CultureInfo.CurrentUICulture = uiCulture;
-                try
-                {
-                    result = work();
-                }
-                catch (Exception ex)
-                {
-                    // Every exception is handed back to the caller unchanged, so none may be lost here
-                    failure = ExceptionDispatchInfo.Capture(ex);
-                }
-            },
-            ParserStackSize)
+        FallbackGate.Wait();
+        TrackFallbackStart();
+        try
         {
-            IsBackground = true,
-            Name = "ScadParser",
-        };
-        thread.Start();
-        thread.Join();
+            Interlocked.Increment(ref _fallbackCount);
+            var thread = new Thread(
+                () =>
+                {
+                    CultureInfo.CurrentCulture = culture;
+                    CultureInfo.CurrentUICulture = uiCulture;
+                    try
+                    {
+                        result = work();
+                    }
+                    catch (Exception ex)
+                    {
+                        // Every exception is handed back to the caller unchanged, so none may be lost here
+                        failure = ExceptionDispatchInfo.Capture(ex);
+                    }
+                },
+                ParserStackSize)
+            {
+                IsBackground = true,
+                Name = FallbackThreadName,
+            };
+            thread.Start();
+            thread.Join();
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _activeFallbacks);
+            FallbackGate.Release();
+        }
 
         failure?.Throw();
         return result!;
+    }
+
+    /// <summary>Records that a fallback thread is starting, keeping the observed peak up to date (a test hook).</summary>
+    private static void TrackFallbackStart()
+    {
+        var active = Interlocked.Increment(ref _activeFallbacks);
+        int peak;
+        while (active > (peak = Volatile.Read(ref _peakFallbacks)) && Interlocked.CompareExchange(ref _peakFallbacks, active, peak) != peak)
+        {
+            // Another thread raised the peak concurrently; re-read and compare again
+        }
     }
 
     /// <summary>
@@ -191,19 +286,25 @@ internal sealed partial class ScadParser
         new($"Source exceeds the maximum length of {MaxSourceLength} characters");
 
     /// <summary>
-    ///     Parses the whole program, converting stack exhaustion into a syntax error and verifying the tree height.
+    ///     Parses the whole program and verifies the tree height.
     /// </summary>
+    /// <param name="stackShortageIsSyntaxError">
+    ///     <see langword="true"/> to report a tripped runtime stack guard as the nesting syntax error (used on the
+    ///     dedicated thread, where it is only defense-in-depth); <see langword="false"/> to let
+    ///     <see cref="InsufficientExecutionStackException"/> escape so the caller can retry on a larger stack.
+    /// </param>
     /// <returns>The syntax tree.</returns>
-    private ScadProgram ParseProgramGuarded()
+    /// <exception cref="InsufficientExecutionStackException">Thrown on a short stack when <paramref name="stackShortageIsSyntaxError"/> is false.</exception>
+    private ScadProgram ParseProgramGuarded(bool stackShortageIsSyntaxError)
     {
         ScadProgram program;
         try
         {
             program = ParseProgram();
         }
-        catch (InsufficientExecutionStackException)
+        catch (InsufficientExecutionStackException) when (stackShortageIsSyntaxError)
         {
-            // The runtime stack guard fired before the depth counter did; report it the same way
+            // Not expected with a parser-sized stack; report it like the depth counter would
             throw Error(Current, $"Nesting too deep (limit {MaxNestingDepth})");
         }
 

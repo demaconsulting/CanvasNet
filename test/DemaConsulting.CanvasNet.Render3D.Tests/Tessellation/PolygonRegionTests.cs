@@ -165,6 +165,23 @@ public class PolygonRegionTests
     }
 
     /// <summary>
+    ///     Validates that a contour whose exact orientation is non-zero but whose area falls below the double
+    ///     range (zero or subnormal) is rejected, so an accepted region always has a positive, normal area.
+    /// </summary>
+    [Fact]
+    public void PolygonRegion_Constructor_AreaBelowDoubleRange_Throws()
+    {
+        // Arrange / Act / Assert: legs of 1e-200 give a cross product of 1e-400 (zero); 1e-160 legs a subnormal area
+        Assert.Throws<ArgumentException>(() => new PolygonRegion([new Vector2D[] { new(0, 0), new(1e-200, 0), new(0, 1e-200) }]));
+        Assert.Throws<ArgumentException>(() => new PolygonRegion([new Vector2D[] { new(0, 0), new(1e-160, 0), new(0, 1e-160) }]));
+
+        // The smallest accepted triangle has a normal, positive area
+        var region = new PolygonRegion([new Vector2D[] { new(0, 0), new(1e-100, 0), new(0, 1e-100) }]);
+        Assert.True(region.Area > 0.0);
+        Assert.True(double.IsNormal(region.Area));
+    }
+
+    /// <summary>
     ///     Validates that non-finite coordinates are rejected.
     /// </summary>
     [Fact]

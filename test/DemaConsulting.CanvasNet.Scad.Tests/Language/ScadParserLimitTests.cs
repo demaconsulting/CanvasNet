@@ -303,8 +303,9 @@ public class ScadParserLimitTests
     /// </summary>
     /// <typeparam name="T">The result type.</typeparam>
     /// <param name="function">The function to run.</param>
+    /// <param name="stackSize">The stack size of the thread in bytes.</param>
     /// <returns>The result.</returns>
-    private static T OnSmallStack<T>(Func<T> function)
+    private static T OnSmallStack<T>(Func<T> function, int stackSize = SmallCallerStackSize)
     {
         T? result = default;
         Exception? error = null;
@@ -320,7 +321,7 @@ public class ScadParserLimitTests
                     error = ex;
                 }
             },
-            SmallCallerStackSize);
+            stackSize);
         thread.Start();
         thread.Join();
         if (error is not null)
@@ -333,7 +334,7 @@ public class ScadParserLimitTests
 
     /// <summary>
     ///     Validates that every shape nested exactly at the limit parses when the caller has only a small stack,
-    ///     because the parser runs on its own sized thread.
+    ///     because the parser restarts on its own sized thread when the caller's stack guard trips.
     /// </summary>
     /// <param name="shape">The name of the shape.</param>
     [Theory]
@@ -391,6 +392,120 @@ public class ScadParserLimitTests
         // Assert
         Assert.Null(error);
         Assert.NotNull(program);
+    }
+
+    /// <summary>
+    ///     Validates that a normal parse runs on the calling thread and does not spawn a fallback thread.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_NormalInput_RunsOnCallerThread()
+    {
+        // Arrange: moderately nested input that fits any reasonable stack
+        var source = $"x = {ScadParserTestSupport.Repeat("(", 20)}1{ScadParserTestSupport.Repeat(")", 20)}; module m() {{ cube(1); }}";
+        var tokens = ScadLexer.Tokenize(source, null);
+
+        // Act
+        var fromSource = ScadParserTestSupport.Parse(source);
+        var sourceThread = ScadParser.LastParseThreadId;
+        var fromTokens = ScadParser.Parse(tokens);
+        var tokenThread = ScadParser.LastParseThreadId;
+
+        // Assert: both entry points completed on this thread
+        Assert.Equal(2, fromSource.Statements.Count);
+        Assert.Equal(2, fromTokens.Statements.Count);
+        Assert.Equal(Environment.CurrentManagedThreadId, sourceThread);
+        Assert.Equal(Environment.CurrentManagedThreadId, tokenThread);
+    }
+
+    /// <summary>
+    ///     Validates that a parse needing more stack than the caller has falls back to a different thread and
+    ///     still produces the correct tree.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_AtLimit_OnTinyCallerStack_FallsBackToDedicatedThread()
+    {
+        // Arrange: a 64 KiB caller is below the runtime guard's reserve, so the inline attempt must give up
+        var source = Shapes["parentheses"].Make(Limit - 2);
+
+        // Act
+        var (program, callerThread, parseThread) = OnSmallStack(
+            () =>
+            {
+                var parsed = ScadParserTestSupport.Parse(source);
+                return (parsed, Environment.CurrentManagedThreadId, ScadParser.LastParseThreadId);
+            },
+            64 * 1024);
+
+        // Assert
+        Assert.Single(program.Statements);
+        Assert.NotEqual(callerThread, parseThread);
+    }
+
+    /// <summary>
+    ///     Validates that the fallback path keeps exception type, location and stack trace, the caller's culture,
+    ///     and the nesting error for input over the limit.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_OnTinyCallerStack_PreservesExceptionsAndCulture()
+    {
+        // Arrange
+        var overLimit = Shapes["parentheses"].Make(Limit - 1);
+        var decimalSource = $"x = {ScadParserTestSupport.Repeat("(", 10)}1.5{ScadParserTestSupport.Repeat(")", 10)};";
+
+        // Act
+        var (error, errorOnCaller, number, numberOnCaller) = OnSmallStack(
+            () =>
+            {
+                var caught = Record.Exception(() => ScadParserTestSupport.Parse(overLimit));
+                var failedOnCaller = ScadParser.LastParseThreadId == Environment.CurrentManagedThreadId;
+                CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+                var program = ScadParserTestSupport.Parse(decimalSource);
+                var value = Assert.IsType<ScadNumberLiteral>(Assert.IsType<ScadAssignmentStatement>(program.Statements[0]).Value).Value;
+                return (caught, failedOnCaller, value, ScadParser.LastParseThreadId == Environment.CurrentManagedThreadId);
+            },
+            64 * 1024);
+
+        // Assert
+        var syntax = Assert.IsType<ScadSyntaxException>(error);
+        Assert.Contains($"Nesting too deep (limit {Limit})", syntax.Message, StringComparison.Ordinal);
+        Assert.Contains(nameof(ScadParser), syntax.StackTrace, StringComparison.Ordinal);
+        Assert.False(errorOnCaller);
+        Assert.Equal(1.5, number);
+        Assert.False(numberOnCaller);
+    }
+
+    /// <summary>
+    ///     Validates that many concurrent small-stack callers all succeed while the number of simultaneously
+    ///     running fallback threads never exceeds the bound.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_ConcurrentTinyCallerStacks_BoundFallbackThreads()
+    {
+        // Arrange: several times more callers than the bound allows at once
+        var source = Shapes["parentheses"].Make(Limit - 2);
+        var callers = new Thread[ScadParser.MaxConcurrentFallbackThreads * 4];
+        var failures = new Exception?[callers.Length];
+        for (var i = 0; i < callers.Length; i++)
+        {
+            var index = i;
+            callers[i] = new Thread(() => failures[index] = Record.Exception(() => ScadParserTestSupport.Parse(source)), 64 * 1024);
+        }
+
+        // Act
+        foreach (var caller in callers)
+        {
+            caller.Start();
+        }
+
+        foreach (var caller in callers)
+        {
+            caller.Join();
+        }
+
+        // Assert
+        Assert.All(failures, Assert.Null);
+        Assert.InRange(ScadParser.PeakConcurrentFallbackThreads, 1, ScadParser.MaxConcurrentFallbackThreads);
+        Assert.True(ScadParser.FallbackCount >= callers.Length);
     }
 
     /// <summary>

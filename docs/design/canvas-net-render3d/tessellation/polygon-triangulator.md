@@ -113,6 +113,9 @@ message names the contour and the point or edge) for:
   NaN: the region could not report a usable area or volume;
 - a contour with fewer than three distinct vertices after cleaning, or with zero area (all
   collinear);
+- a contour whose exact orientation is non-zero but whose computed area is zero or subnormal (the
+  shoelace products fall below the double range, for example legs of 1e-200): `Area` of an accepted region is always a
+  finite, normal, positive number, so such a contour has no usable area and is rejected;
 - a contour that crosses itself (a bow tie) or touches itself (a repeated non-consecutive point, or
   edges that fold back onto each other as a spike);
 - two contours that cross or **touch** each other (a shared point, or a vertex lying on another

@@ -47,7 +47,9 @@ sections:
                   ArgumentNullException for null arguments), every polygon that cannot be extruded into a
                   closed manifold solid: a non-finite point, finite coordinates so extreme that the
                   area of the region is not a finite number, a contour with fewer than three distinct
-                  vertices or with zero area, a contour that crosses or touches itself (a bow tie, a
+                  vertices or with zero area (including an area that is zero or subnormal in a
+                  double), a contour that crosses
+                  or touches itself (a bow tie, a
                   spike of overlapping edges, or a repeated non-consecutive point), and contours that
                   cross or touch one another; it shall never leave such input as undefined behavior.
                 justification: |
@@ -59,6 +61,7 @@ sections:
                 tests:
                   - PolygonRegion_Constructor_FewerThanThreeDistinctPoints_Throws
                   - PolygonRegion_Constructor_ZeroAreaContour_Throws
+                  - PolygonRegion_Constructor_AreaBelowDoubleRange_Throws
                   - PolygonRegion_Constructor_NonFinitePoint_Throws
                   - PolygonRegion_Constructor_AreaNotFinite_Throws
                   - PolygonRegion_Constructor_NullArguments_Throw

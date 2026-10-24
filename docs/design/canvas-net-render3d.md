@@ -87,8 +87,8 @@ The system exposes the following public API:
 | `GroupNode` constructor | Inbound | Child node sequence | Sequence and each child non-null; sequence copied |
 | `SceneNode.Transform` | Inbound | `Matrix4x4D` | Every element finite |
 | `PrimitiveTessellator.*` | Inbound/Outbound | Dimensions / `Mesh` or `PolygonRegion` return | Positive finite dimensions, at least three segments, valid face indices and path indices |
-| `PolygonRegion` constructor | Inbound | Contours of `Vector2D` points | Finite points; at least three distinct vertices and non-zero area per contour; no self-intersecting or touching contours (`ArgumentException`) |
-| `Extruder.Linear` / `Extruder.Rotate` | Inbound/Outbound | `PolygonRegion`, numeric parameters / `Mesh` return | Positive finite height, at least one slice, scale zero in both axes or positive in both, angle in (0, 360], profile not crossing the axis |
+| `PolygonRegion` constructor | Inbound | Contours of `Vector2D` points | Finite points; at least three distinct vertices and a normal, non-zero area per contour; no self-intersecting or touching contours (`ArgumentException`) |
+| `Extruder.Linear` / `Extruder.Rotate` | Inbound/Outbound | `PolygonRegion`, numeric parameters / `Mesh` return | Positive finite height, at least one slice, scale zero in both axes (single-contour region only) or positive in both, angle in (0, 360], profile not crossing the axis or touching it at an isolated vertex |
 | `Camera` properties | Inbound | `Vector3D`, `double`, enumeration | Each value validated at initialization; cross-property rules at render time |
 | `SceneRenderOptions` properties | Inbound | Colors, lights, numeric options | Each value validated at initialization; instance therefore always valid |
 | `SceneRenderOptions.UnsupportedFeatureHandler` | Outbound | `SceneRenderUnsupportedFeature` report (token, message, node) | Called on the calling thread before tile work, only for CSG scenes with an unsuitable operand |
@@ -364,7 +364,7 @@ which makes inside-out or open meshes visible instead of silently disappearing.
 
 The `Tessellation` subsystem extrudes 2D profiles held in the immutable `PolygonRegion`. Its
 constructor is the single place where polygon validity is decided, and it decides it exactly (no
-tolerances): a non-finite point, a contour with fewer than three distinct vertices or with zero area,
+tolerances): a non-finite point, a contour with fewer than three distinct vertices or with zero (or subnormal) area,
 a contour that crosses or touches itself, and contours that cross or touch one another are rejected
 with an `ArgumentException`; they are never left as undefined behavior. Closing and consecutive
 duplicate points are dropped, collinear points are kept, and holes follow from nesting (the even-odd

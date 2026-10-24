@@ -335,14 +335,17 @@ sections:
                   chains, else-if chains, comprehensions, or left-associative and postfix chains
                   (whose resulting tree height is verified after parsing), shall accept input at
                   the limit on every platform regardless of the stack size of the calling thread
-                  (by parsing on a dedicated thread with an explicitly sized stack and
-                  propagating any exception faithfully to the caller), and shall not overflow the
-                  call stack.
+                  (by parsing inline on the calling thread and restarting on a bounded number of
+                  dedicated threads with an explicitly sized stack only when the caller's stack is
+                  too small, and propagating any exception faithfully to the caller), and shall not
+                  overflow the call stack.
                 justification: |
                   Bounding both the parser's recursion and the finished tree's height prevents an
                   stack overflow, which cannot be caught, here and in every later recursive
                   consumer. The documented limit must not depend on the platform or on the caller's
-                  thread stack, so the runtime stack guard is only defense-in-depth.
+                  thread stack, so the deterministic depth counter decides the nominal limit and the
+                  runtime stack guard only triggers a bounded large-stack fallback, which avoids a
+                  thread per parse and unbounded stack reservations under concurrent use.
                 tests:
                   - ScadParser_Parse_Nesting_Parentheses_AtLimit_Succeeds
                   - ScadParser_Parse_Nesting_Parentheses_OverLimit_Throws
@@ -363,6 +366,10 @@ sections:
                   - ScadParser_Parse_Nesting_AtLimit_OnSmallCallerStack_Succeeds
                   - ScadParser_Parse_Nesting_OverLimit_OnSmallCallerStack_ThrowsNestingError
                   - ScadParser_Parse_Nesting_AtLimit_OnTinyCallerStack_Succeeds
+                  - ScadParser_Parse_NormalInput_RunsOnCallerThread
+                  - ScadParser_Parse_AtLimit_OnTinyCallerStack_FallsBackToDedicatedThread
+                  - ScadParser_Parse_OnTinyCallerStack_PreservesExceptionsAndCulture
+                  - ScadParser_Parse_ConcurrentTinyCallerStacks_BoundFallbackThreads
                   - ScadParser_Parse_Exception_RethrownFromParserThread_PreservesTypeAndStackTrace
                   - ScadParser_Parse_NumberLiteral_UnderGermanCulture_ParsesDotDecimal
                   - ScadParser_Parse_Concurrent_ProducesIndependentResults

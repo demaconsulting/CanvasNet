@@ -2749,7 +2749,8 @@ public sealed class PolygonRegion
   space of `PolygonTriangulator.Triangulate`.
 - **Invalid polygons are rejected, never repaired**: the constructor throws `ArgumentException`
   (naming the contour) for a non-finite point, a contour with fewer than three distinct vertices or
-  with zero area (all points collinear), a contour that crosses or touches itself (a bow tie, a
+  with zero area (all points collinear, or an area too small for a normal double, such as a triangle with
+  legs of `1e-200`), a contour that crosses or touches itself (a bow tie, a
   spike, or a repeated non-consecutive point), and contours that cross or touch each other (a shared
   point, or a vertex on another contour's edge). Move touching contours apart or merge them
   yourself. `ArgumentNullException` is thrown for a null contour list or contour. Finite but
@@ -2823,9 +2824,7 @@ parameters of ordinary magnitude and are subject to two caveats:
 - **Scale and twist are about the origin.** For an apex (scale `(0, 0)`), a large scale change, or a
   per-axis scale combined with a twist, the profile should be **star-shaped about the origin** (every
   point of the profile is visible from the origin). Otherwise the solid can intersect itself (it may
-  even come out inverted) and is not a valid operand. An apex over a profile with a hole, and a
-  `Rotate` profile that touches the axis at one isolated vertex, leave a pinched (non-manifold)
-  vertex, although every edge stays manifold.
+  even come out inverted) and is not a valid operand.
 
 The `Linear` method:
 
@@ -2835,7 +2834,9 @@ The `Linear` method:
   the opposite sign, negate the angle.
 - `scale` is the scale of the top relative to the bottom about the origin (per axis, interpolated
   linearly; applied before the twist). Each component must be finite and not negative. A scale of
-  `(0, 0)` makes the top a single **apex** point (no top cap), giving a pyramid or cone shape. A
+  `(0, 0)` makes the top a single **apex** point (no top cap), giving a pyramid or cone shape; the apex
+  needs a region with a **single contour**, because a hole or a second island would meet the outer
+  shell at one pinched (non-manifold) vertex, so such a region throws `ArgumentException`. A
   scale that is zero in only one axis, or negative in either, is rejected: it would flatten the top
   to a line or make the solid pass through itself. The `uniformScale` overload scales both axes.
 - `slices` is the number of slices along the height (at least 1). A straight extrusion without
@@ -2858,7 +2859,9 @@ The `Rotate` method:
   vertex with `x <= 0`. A profile that **crosses the axis** (vertices with both signs) throws
   `ArgumentException`, as does a profile lying only on the axis. There is no tolerance: `x == 0`
   exactly means on the axis. Vertices on the axis are welded into single points, so a profile
-  touching the axis gives a cone, cylinder, or lens without degenerate triangles.
+  touching the axis along an edge gives a cone, cylinder, or lens without degenerate triangles. A
+  profile that touches the axis only at an **isolated vertex** (both neighboring edges leave the axis)
+  would pinch the solid at that point and throws `ArgumentException`.
 - The mesh is faceted: its volume is `segments * sin(angle / segments) * integral(|x| dA)` over the
   profile, which approaches the exact `angle * x_centroid * area` as `segments` grows (for a
   full revolution, `angle` is 2 pi radians).
@@ -2870,8 +2873,9 @@ The `Rotate` method:
 - `ArgumentOutOfRangeException`: Thrown for a height that is not finite and positive, fewer than one
   slice, an invalid scale, an angle outside `(0, 360]` (or one whose radian value is zero), or too few
   segments.
-- `ArgumentException`: Thrown for a non-finite twist, a profile that crosses or lies on the
-  rotation axis, a sweep step too small to resolve at a profile vertex's radius, or a result too
+- `ArgumentException`: Thrown for a non-finite twist, an apex (zero scale) over a region with a hole or
+  several contours, a profile that crosses or lies on the rotation axis or touches it at an isolated
+  vertex, a sweep step too small to resolve at a profile vertex's radius, or a result too
   large for a mesh.
 
 ```csharp

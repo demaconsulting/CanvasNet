@@ -65,6 +65,7 @@ value, and that later changes to the caller's lists do not affect the region.
 
 **Tests**: `PolygonRegionTests.PolygonRegion_Constructor_FewerThanThreeDistinctPoints_Throws`,
 `PolygonRegionTests.PolygonRegion_Constructor_ZeroAreaContour_Throws`,
+`PolygonRegionTests.PolygonRegion_Constructor_AreaBelowDoubleRange_Throws`,
 `PolygonRegionTests.PolygonRegion_Constructor_NonFinitePoint_Throws`,
 `PolygonRegionTests.PolygonRegion_Constructor_AreaNotFinite_Throws`,
 `PolygonRegionTests.PolygonRegion_Constructor_NullArguments_Throw`,
@@ -75,7 +76,9 @@ value, and that later changes to the caller's lists do not affect the region.
 `PolygonRegionTests.PolygonRegion_Constructor_TouchingContours_Throws`
 
 Asserts the documented exception for each rejection rule: fewer than three distinct points, a
-zero-area (collinear) contour, a non-finite coordinate, finite coordinates whose area overflows (a
+zero-area (collinear) contour, a contour whose exactly non-zero area is zero or subnormal in a double (legs of
+1e-200 or 1e-160 are rejected while 1e-100 is accepted with a normal area), a non-finite coordinate, finite
+coordinates whose area overflows (a
 1e308 square and a 1e200 square are rejected while a 1e100 square is accepted with a finite area),
 null arguments, a bow tie, a spike of
 overlapping edges, a repeated non-consecutive point, crossing contours, and touching contours (a

@@ -19,7 +19,7 @@ valid constructive-solid-geometry operand.
 - *Frustum*: with a uniform top scale `s` the volume is `A h (1 + (s - 1) + (s - 1)^2 / 3)`, exact
   (relative `1e-12`) for one and four slices.
 - *Pyramid*: with scale `(0, 0)` the volume is `A h / 3`, with exactly one vertex at the top, no top cap
-  and no degenerate triangles; also for a region with a hole.
+  and no degenerate triangles; a region with a hole or several contours is rejected.
 - *Per-axis scale and twist*: wall quads are not planar, so the facet volume only approaches the smooth
   solid. The per-axis scale test uses 64 slices and relative tolerance `1e-3`; the twist test uses a
   90 degree twist with 64 slices and relative tolerance `1e-2` and also asserts convergence (the
@@ -102,12 +102,14 @@ volume within `1e-3` for a per-axis scale with 64 slices.
 ##### CanvasNetRender3D-Tessellation-Extruder-LinearApex: Zero Scale Gives A Single Apex
 
 **Tests**: `ExtruderLinearTests.Extruder_Linear_ScaleZero_IsPyramidWithSingleApex`,
-`ExtruderLinearTests.Extruder_Linear_ScaleZeroWithHole_IsClosedAndMatchesAnalytic`,
+`ExtruderLinearTests.Extruder_Linear_ScaleZeroWithHoleOrIslands_Throws`,
 `ExtruderLinearTests.Extruder_Linear_TwistAndScaleToApex_IsValidClosedMesh`
 
 Asserts the pyramid volume `A h / 3`, a single top vertex, no top cap triangle and no degenerate
-triangle; the same for a region with a hole; and that a twist combined with an apex is a valid closed
-mesh.
+triangle; that an apex over a region with a hole or with two separate islands is rejected with an
+`ArgumentException` naming `scale` (every contour would collapse onto one pinched vertex) while the same
+region with a positive scale and a single-contour apex are valid operands; and that a twist combined with an
+apex is a valid closed mesh.
 
 ##### CanvasNetRender3D-Tessellation-Extruder-LinearTwist: Twist Is Counter-Clockwise And Watertight
 
@@ -125,7 +127,8 @@ operand.
 
 **Tests**: `ExtruderLinearTests.Extruder_Linear_InvalidArguments_Throw`,
 `ExtruderLinearTests.Extruder_Linear_ScaleWithOneZeroComponent_Throws`,
-`ExtruderLinearTests.Extruder_Linear_NegativeOrNonFiniteScale_Throws`
+`ExtruderLinearTests.Extruder_Linear_NegativeOrNonFiniteScale_Throws`,
+`ExtruderLinearTests.Extruder_Linear_ScaleWithOneZeroComponentAndHole_Throws`
 
 Asserts the documented exception for a null region, a non-positive or non-finite height, fewer than one
 slice, a non-finite twist, a scale with exactly one zero component, and a negative or non-finite
@@ -166,13 +169,17 @@ outward oriented with the same volume as its mirror image.
 
 **Tests**: `ExtruderRotateTests.Extruder_Rotate_ProfileCrossingAxis_Throws`,
 `ExtruderRotateTests.Extruder_Rotate_ProfileOnlyOnAxis_Throws`,
+`ExtruderRotateTests.Extruder_Rotate_IsolatedAxisVertex_Throws`,
+`ExtruderRotateTests.Extruder_Rotate_PoleVerticesWithAxisEdge_AreAccepted`,
 `ExtruderRotateTests.Extruder_Rotate_InvalidArguments_Throw`,
 `ExtruderRotateTests.Extruder_Rotate_TinyAngleRoundingToZeroRadians_Throws`,
 `ExtruderRotateTests.Extruder_Rotate_StepUnresolvableAtRadius_Throws`
 
 Asserts `ArgumentException` for a profile that crosses the axis and for a profile lying only on it
 (which the region constructor rejects as zero area, so the test asserts the exception from that
-path, while the defensive check in `Rotate` remains), and the documented exception for a null
+path, while the defensive check in `Rotate` remains), for a profile touching the axis at an isolated
+vertex (on either side of the axis, and next to an edge lying on the axis) while a vertex ending an edge on
+the axis (a pole) is accepted, and the documented exception for a null
 region, an angle of zero, above 360, or not a number, and too few segments for a full revolution and
 for a partial sweep. The smallest positive double as an angle (its radian value rounds to zero)
 is rejected with an `ArgumentOutOfRangeException` naming `angleDegrees`, and a `1e-300` degree
