@@ -36,6 +36,9 @@ the visible fragment and its shade.
 - **`CsgResolver` scratch.** `int[] counters`, `ulong[] bits`, `bool[] changed`, and the evaluation
   stack, sized from the program; they are all zero/false between samples and only touched for leaves
   that have fragments.
+- **Tie constants and per-triangle inputs.** `SlopeQuantum` (1/128 sample) and `SlopeToleranceCap`
+  (1000 base tolerances) are private constants; the resolver reads each triangle's `Priority`
+  (the mesh instance) and `DepthSlope` from the `ScreenTriangle` list to decide group membership.
 
 #### Key Methods
 
@@ -65,11 +68,26 @@ For one sample's fragments:
    crossings of **all** its fragments, including those beyond the far distance. A camera inside a
    solid sees only the solid's exit, so its leaf starts inside. Set the leaf bits (`counter > 0`) and
    evaluate the program: `inside` at the ray start.
-3. **Sweep tie groups.** A group starts at a fragment and contains every following fragment whose
-   depth is within `epsilon` of the group's **first** depth (anchored, so a chain of close fragments
-   does not merge). Stop when the group starts beyond the far distance. Apply all fragments of the
-   group to the counters, mark leaves whose state changed, and only if some leaf changed update the
-   bits and re-evaluate the program.
+3. **Sweep tie groups.** A group starts at a fragment (the **anchor**) and takes the following
+   fragments that satisfy the join rule below (anchored at the first fragment, so a chain of close
+   fragments does not merge). Stop when the group starts beyond the far distance. Apply all
+   fragments of the group to the counters, mark leaves whose state changed, and only if some leaf
+   changed update the bits and re-evaluate the program.
+
+   **Join rule (`JoinsGroup`).** With `gap` the depth difference to the anchor and `epsilon` the
+   base tolerance (`1e-6 * max(scene diameter, |largest depth|)`, the Phase 1 value), a fragment
+   joins when `gap <= epsilon`. Otherwise it joins only if no fragment already in the group belongs
+   to its own mesh instance (`ScreenTriangle.Priority`, the instance's pre-order number) and
+   `gap <= epsilon + noise`, where
+   `noise = min((slopeAnchor + slopeCandidate) * SlopeQuantum, SlopeToleranceCap * epsilon)`,
+   `slope` is the triangle's `ScreenTriangle.DepthSlope`, `SlopeQuantum` is 1/128 sample (two
+   fixed-point 24.8 quanta of 1/256), and `SlopeToleranceCap` is 1000. Rationale: two independently
+   tessellated or placed meshes with mathematically coincident faces rasterize from vertices
+   rounded to 1/256 sample, so at oblique angles their interpolated depths differ by about slope
+   times quantum, far above `epsilon`, which would otherwise leave isolated wrong pixels. A
+   fragment of an instance that is already in the group is a different event (for example the far
+   side of a thin fold or wall) and is never merged by slope noise: it falls back to `epsilon`
+   only.
 4. **Visible surface.** The first group that changes the root result is visible. If the result
    became inside, the chosen triangle's `EnterColor` is the shade; if it became outside (only
    possible when the ray started inside) its `ExitColor`. The renderer precomputes these shades per
@@ -94,6 +112,15 @@ first and show the flush face (or, from above, turn inside between two coinciden
 single fragment). Within the tolerance they form one group, so the root does not change there and
 the cut surface (the box top, where the box ends) is shown instead.
 
+**Limits.** Exactly coincident faces (identical vertex coordinates) give zero speckle. Nearly
+coincident faces from different transform chains are speckle-free in the tested views, but along
+the edge-on silhouette of coincident walls a few lone samples can remain (the stress test allows
+up to 12 isolated pixels in an 80 x 80 image over 72 placements and views); where exact faces
+cannot be avoided, use a small overlap for subtracted operands. Events closer than the tolerance
+anywhere (thin features smaller than `epsilon`, or a grazing silhouette fold whose front and back
+surfaces lie within `epsilon`) are treated as coincident, so forcing the fragment path onto a
+union-only scene can differ from the z-buffer in a couple of grazing silhouette samples.
+
 #### Error Handling
 
 - `CsgCompiler.Compile` throws `ArgumentNullException` for a null root; `CsgProgram` and
@@ -101,7 +128,8 @@ the cut surface (the box top, where the box ends) is shown instead.
   `ArgumentOutOfRangeException` for malformed input.
 - Open, non-manifold, inverted, or clipped operands produce unmatched crossings; the resolver never
   throws for them. Their counters can be wrong (a visible streak), but the outcome stays bounded and
-  deterministic. Detection and reporting of such operands belong to the renderer.
+  deterministic. Detection and reporting of such operands belong to the renderer (the
+  `CsgOperandValidator` of the `SceneRenderer` unit).
 - The unit validates nothing about triangle indices or leaf numbers beyond the .NET bounds checks:
   its inputs are produced by `SceneRenderer`.
 

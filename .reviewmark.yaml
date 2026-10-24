@@ -1400,10 +1400,13 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/RenderBudgetExceededException.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/SceneRenderUnsupportedFeature.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/SceneRenderUnsupportedFeatureException.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/CsgOperandValidator.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/TileBinner.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/SampleResolver.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/TileWorkspace.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SceneRendererTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SceneRendererCsgTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/CsgOperandValidatorTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SceneRenderOptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SceneRenderDiagnosticsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/TileBinnerTests.cs"  # unit tests

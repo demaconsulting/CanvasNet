@@ -60,7 +60,9 @@ constituent software items, specifically:
   system providing a pure-managed 3D mesh/scene rasterizer, containing three subsystems:
   `SceneModel` (units `DoublePrecisionMath`, `Mesh`, and `SceneGraph`), `Tessellation` (unit
   `PrimitiveTessellator`), and `SceneRendering` (units `Camera`, `Lighting`, `TriangleRasterizer`,
-  and `SceneRenderer`) — see _CanvasNetRender3D System Verification_ (`canvas-net-render3d.md`)
+  `FragmentBuffer`, `CsgResolver`, and `SceneRenderer`), including constructive solid geometry
+  (union, difference, intersection) through per-pixel fragment lists — see _CanvasNetRender3D
+  System Verification_ (`canvas-net-render3d.md`)
 
 The following OTS items are also covered:
 

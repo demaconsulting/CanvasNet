@@ -15,8 +15,9 @@ access. Three techniques are combined:
   against `Scene.EnumerateInstances`), and truth tables of the evaluator, including 130 leaves and
   10 000-deep trees.
 - **Resolver scenarios** use hand-built `ScreenTriangle`s that carry only a leaf, facing, priority,
-  and identifiable enter/exit shades, and hand-built fragment lists, so each rule (initial state,
-  tie groups, choice within a group, far filtering) is isolated with an exact expected result.
+  an optional depth slope, and identifiable enter/exit shades, and hand-built fragment lists, so
+  each rule (initial state, tie groups including the slope-widened tolerance, choice within a group,
+  far filtering) is isolated with an exact expected result.
 - **Analytic oracle.** Seeded random scene trees of integer-coordinate boxes (groups, unions,
   differences with several subtrahends, intersections, single-child and empty nodes, shared nodes)
   are resolved for a grid of rays. The expected visible depth and event kind come from a direct
@@ -113,6 +114,9 @@ overlapping union leaf, the entry into an intersection, the tile path with real 
 `CsgResolverTests.CsgResolver_Resolve_FragmentsBeyondTolerance_AreSeparateGroups`,
 `CsgResolverTests.CsgResolver_Resolve_ChainOfCloseFragments_GroupIsAnchoredAtFirstDepth`,
 `CsgResolverTests.CsgResolver_Resolve_CoincidentBackFaces_DoNotSpeckle`,
+`CsgResolverTests.CsgResolver_Resolve_CoincidentFacesWithSlopeNoise_AreOneGroupAcrossInstances`,
+`CsgResolverTests.CsgResolver_Resolve_SlopeNoise_NeverMergesSameInstanceAndIsCapped`,
+`CsgResolverTests.CsgResolver_Resolve_CoincidentSolidsAtThinFold_ResolvesAsFrontPairAndBackPair`,
 `CsgResolverTests.CsgResolver_Resolve_FlushEnterAndExit_LowerPriorityOfEquallyExplainingFragmentsWins`,
 `CsgResolverTests.CsgResolver_Resolve_EqualPriority_LowerTriangleIndexWins`,
 `CsgResolverTests.CsgResolver_Resolve_OnlyOneLeafExplainsTheChange_ItIsPreferredOverBetterPriority`,
@@ -122,7 +126,19 @@ Asserts that a flush face between a cube and a box is removed (offsets of zero a
 1e-5 inside the tolerance), that fragments beyond the tolerance are separate groups, that groups are
 anchored at their first depth, that coincident back faces never flip the result between them, and the
 choice rules (single explaining leaf, then lowest priority, then lowest triangle index) over every
-insertion order.
+insertion order. The slope scenarios use hand-built triangles whose `DepthSlope` is set explicitly:
+
+- **Slope widens the tolerance across instances.** Two flush front faces 0.004 apart (far beyond the
+  base tolerance of 1e-4) are seen as separate groups with slope zero, so the minuend front is
+  visible, but with a slope of 1 they are one group, the flush faces cancel, and the cut surface at
+  the subtrahend's back face is shown.
+- **Slope never merges one instance and is capped.** Two fragments of one thin minuend (gap 0.004,
+  steep slope) remain separate events, so the thin sheet is seen; and a huge slope (1e6) cannot
+  merge fragments farther apart than the cap of 1000 base tolerances (a gap of 0.2 against a cap of
+  0.1), so the minuend front stays visible.
+- **Thin fold.** Two coincident solids entering at the same depth and leaving at nearly equal depths
+  (a grazing fold) resolve as a front pair and a back pair, never crosswise, so nothing is visible;
+  a crosswise grouping through slope noise would flip the root at the minuend's front.
 
 ##### CanvasNetRender3D-SceneRendering-CsgResolver-Determinism: Results Are Order-Independent And Match The Oracle
 

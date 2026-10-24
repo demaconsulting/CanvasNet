@@ -18,9 +18,15 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///     <para>
 ///         <b>Sweep.</b> Fragments are sorted by the total order (depth, triangle index), so the
 ///         result never depends on insertion order. They are then swept in <b>tie groups</b>: a group
-///         starts at a fragment and contains every following fragment whose depth is within
-///         <c>epsilon</c> of the group's <em>first</em> depth (coincident faces of different operands
-///         differ only by float noise). All fragments of a group are applied to the counters
+///         starts at a fragment and contains the following fragments whose depth gap to the group's
+///         <em>first</em> fragment is within <c>epsilon</c> (coincident faces of different operands
+///         differ only by float noise). Fragments of <em>different mesh instances</em> are also grouped
+///         when the gap is within <c>epsilon</c> plus the depth noise of one fixed-point vertex quantum
+///         on their two triangles (their <see cref="ScreenTriangle.DepthSlope"/> times 1/128 sample,
+///         capped at 1000 epsilons): two meshes whose coincident faces are equal only up to rounding
+///         rasterize from vertices that may differ by a quantum, and at oblique angles that moves their
+///         depths apart by far more than <c>epsilon</c>. Triangles of one instance share rounded vertices,
+///         so they only ever use <c>epsilon</c>. All fragments of a group are applied to the counters
 ///         <em>atomically</em>, and only then is the compiled <see cref="CsgProgram"/> re-evaluated, and
 ///         only when some leaf changed state. Processing coincident faces one at a time would flip the
 ///         root between them and leave a speckle; for example, in <c>cube - box</c> with the box flush
@@ -48,6 +54,15 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 /// </remarks>
 internal sealed class CsgResolver
 {
+    /// <summary>
+    ///     The depth error, in samples, that rounding the vertices of two independently placed triangles to
+    ///     24.8 fixed point can cause: one quantum is 1/256 sample, so two quanta (1/128) cover the rounding of
+    ///     both triangles; multiplied by the depth slope per sample it gives the depth noise of coincident faces.
+    /// </summary>
+    private const float SlopeQuantum = 1.0f / 128.0f;
+
+    /// <summary>The largest slope-derived tolerance, as a multiple of the base tolerance (bounds the merging of grazing faces).</summary>
+    private const float SlopeToleranceCap = 1000.0f;
     /// <summary>The compiled CSG expression.</summary>
     private readonly CsgProgram _program;
 
@@ -219,9 +234,9 @@ internal sealed class CsgResolver
                 return false;
             }
 
-            // The tie group is anchored at its first depth so it cannot chain across a gap
+            // The tie group is anchored at its first fragment so it cannot chain across a gap
             var end = start + 1;
-            while (end < fragments.Length && fragments[end].Depth - first <= epsilon)
+            while (end < fragments.Length && JoinsGroup(fragments, start, end, triangles, epsilon))
             {
                 end++;
             }
@@ -315,6 +330,52 @@ internal sealed class CsgResolver
         }
 
         return best;
+    }
+
+    /// <summary>
+    ///     Decides whether a fragment joins the tie group that starts at <paramref name="start"/> and
+    ///     currently extends over <c>[start, end)</c>.
+    /// </summary>
+    /// <param name="fragments">The sorted fragments.</param>
+    /// <param name="start">The index of the group's first (anchor) fragment.</param>
+    /// <param name="end">The index of the candidate (the group so far is <c>[start, end)</c>).</param>
+    /// <param name="triangles">The triangle list.</param>
+    /// <param name="epsilon">The base depth tolerance.</param>
+    /// <returns>
+    ///     <see langword="true"/> when the candidate's depth gap to the anchor is within the base tolerance or,
+    ///     provided no fragment of the group is from the candidate's own mesh instance, within the base
+    ///     tolerance plus the depth noise that one fixed-point vertex quantum causes on the two triangles
+    ///     (their slopes times <see cref="SlopeQuantum"/>, capped at <see cref="SlopeToleranceCap"/> base tolerances).
+    /// </returns>
+    private static bool JoinsGroup(
+        Span<FragmentBuffer.Fragment> fragments,
+        int start,
+        int end,
+        ReadOnlySpan<ScreenTriangle> triangles,
+        float epsilon)
+    {
+        var anchor = fragments[start];
+        var candidate = fragments[end];
+        var gap = candidate.Depth - anchor.Depth;
+        if (gap <= epsilon)
+        {
+            return true;
+        }
+
+        // Triangles of one instance share rounded vertices, so their depths agree to the base tolerance and a
+        // fragment of an instance already in the group is a different event (e.g. the far side of a thin fold);
+        // independently placed meshes with coincident faces can disagree by a vertex quantum times the slope
+        ref readonly var b = ref triangles[candidate.Triangle];
+        for (var i = start; i < end; i++)
+        {
+            if (triangles[fragments[i].Triangle].Priority == b.Priority)
+            {
+                return false;
+            }
+        }
+
+        var noise = Math.Min((triangles[anchor.Triangle].DepthSlope + b.DepthSlope) * SlopeQuantum, SlopeToleranceCap * epsilon);
+        return gap <= epsilon + noise;
     }
 
     /// <summary>

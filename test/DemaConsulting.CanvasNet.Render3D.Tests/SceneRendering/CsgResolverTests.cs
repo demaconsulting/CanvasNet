@@ -320,6 +320,77 @@ public class CsgResolverTests
     }
 
     /// <summary>
+    ///     Validates that coincident front faces of different instances whose depths differ by fixed-point noise (the
+    ///     gap is within their slope times a vertex quantum) form one group, while without slope information they do not.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_CoincidentFacesWithSlopeNoise_AreOneGroupAcrossInstances()
+    {
+        // Arrange: A front 1.0 and B front 1.004 (noise of an oblique plane), B back 6, A back 11
+        var fragments = new[] { F(1.0f, 0), F(1.004f, 2), F(6, 3), F(11, 1) };
+        var flat = DifferenceTriangles();
+        var oblique = DifferenceTriangles().Select(t => t with { DepthSlope = 1.0f }).ToArray();
+
+        // Act
+        var withoutSlope = Resolve(Difference(), flat, fragments, epsilon: 1e-4f);
+        var withSlope = Resolve(Difference(), oblique, fragments, epsilon: 1e-4f);
+
+        // Assert: without slope the minuend front is seen; with slope the flush faces cancel and the cut surface at B's back remains
+        Assert.Equal(1.0f, withoutSlope.Depth);
+        Assert.Equal(Enter(0, 0), withoutSlope.Color);
+        Assert.Equal(6.0f, withSlope.Depth);
+        Assert.Equal(Enter(1, 1), withSlope.Color);
+    }
+
+    /// <summary>
+    ///     Validates that slope-derived noise never merges two fragments of the same instance (a thin fold or wall
+    ///     keeps its two sides as separate events) and is capped.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_SlopeNoise_NeverMergesSameInstanceAndIsCapped()
+    {
+        // Arrange: a thin minuend (front 1.0, back 1.004) with a steep slope; and a flush subtrahend front 1.2 with a huge slope
+        var steep = DifferenceTriangles().Select(t => t with { DepthSlope = 1.0f }).ToArray();
+        var thin = new[] { F(1.0f, 0), F(1.004f, 1) };
+        var huge = DifferenceTriangles().Select(t => t with { DepthSlope = 1.0e6f }).ToArray();
+        var far = new[] { F(1.0f, 0), F(1.2f, 2), F(6, 3), F(11, 1) };
+
+        // Act
+        var thinResult = Resolve(Difference(), steep, thin, epsilon: 1e-4f);
+        var cappedResult = Resolve(Difference(), huge, far, epsilon: 1e-4f);
+
+        // Assert: the thin sheet is seen (its two sides are not one group); the cap (1000 tolerances = 0.1) keeps a 0.2 gap apart
+        Assert.True(thinResult.Found);
+        Assert.Equal(1.0f, thinResult.Depth);
+        Assert.Equal(1.0f, cappedResult.Depth);
+        Assert.Equal(Enter(0, 0), cappedResult.Color);
+    }
+
+    /// <summary>
+    ///     Validates that a fragment cannot join a group through slope noise when its own instance is already in
+    ///     the group: the front and back faces of two coincident solids resolve as two pairs, never crosswise.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_CoincidentSolidsAtThinFold_ResolvesAsFrontPairAndBackPair()
+    {
+        // Arrange: both solids enter at 1.0, the subtrahend leaves at 1.0062 and the minuend 25 millionths later (a grazing fold)
+        var triangles = new[]
+        {
+            Tri(0, false, 0) with { DepthSlope = 0.33f },
+            Tri(0, true, 0) with { DepthSlope = 0.6f },
+            Tri(1, false, 1) with { DepthSlope = 0.29f },
+            Tri(1, true, 1) with { DepthSlope = 0.53f },
+        };
+        var fragments = new[] { F(1.0f, 0), F(1.0f, 2), F(1.0062f, 3), F(1.00623f, 1) };
+
+        // Act
+        var result = Resolve(Difference(), triangles, fragments, epsilon: 5.4e-5f);
+
+        // Assert: nothing is visible; a crosswise grouping would flip the root at the minuend front
+        Assert.False(result.Found);
+    }
+
+    /// <summary>
     ///     Validates that a tie group is anchored at its first depth and does not chain across a series of close fragments.
     /// </summary>
     [Fact]

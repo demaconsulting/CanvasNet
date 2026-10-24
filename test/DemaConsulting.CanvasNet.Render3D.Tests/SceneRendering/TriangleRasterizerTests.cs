@@ -301,6 +301,47 @@ public class TriangleRasterizerTests
     }
 
     /// <summary>
+    ///     Validates that the depth slope of a screen triangle is the screen-space gradient magnitude of its depth
+    ///     (orthographic: a plane; perspective: scaled gradient of the reciprocal) and zero when it is undefined.
+    /// </summary>
+    [Fact]
+    public void TriangleRasterizer_Setup_DepthSlope_IsDepthGradientPerSample()
+    {
+        // Arrange: depth 5, 7, 5 over an 8-sample right triangle: gradient (0.25, -0.25) per sample
+        var projection = UnitOrthographic();
+        var output = new List<ScreenTriangle>();
+
+        // Act
+        TriangleRasterizer.Setup(View(new ClipVertex(-4, -4, -5), new ClipVertex(4, -4, -7), new ClipVertex(4, 4, -5)), projection, output);
+        var flatOutput = new List<ScreenTriangle>();
+        TriangleRasterizer.Setup(View(new ClipVertex(-4, -4, -5), new ClipVertex(4, -4, -5), new ClipVertex(4, 4, -5)), projection, flatOutput);
+
+        // Assert
+        Assert.Equal(Math.Sqrt(0.125), Assert.Single(output).DepthSlope, 1e-4);
+        Assert.Equal(0.0f, Assert.Single(flatOutput).DepthSlope);
+    }
+
+    /// <summary>
+    ///     Validates the depth slope computation for perspective depth and for degenerate input.
+    /// </summary>
+    [Fact]
+    public void TriangleRasterizer_ComputeDepthSlope_PerspectiveAndDegenerateInput()
+    {
+        // Arrange: 1/depth = 0.1, 0.1, 0.2 over a 4 x 4 sample (fixed point 24.8) right triangle
+        const int Four = 4 * 256;
+
+        // Act
+        var perspective = TriangleRasterizer.ComputeDepthSlope(0, 0, Four, 0, 0, Four, 10.0f, 10.0f, 5.0f, true);
+        var collinear = TriangleRasterizer.ComputeDepthSlope(0, 0, Four, 0, 2 * Four, 0, 1.0f, 2.0f, 3.0f, false);
+        var behindEye = TriangleRasterizer.ComputeDepthSlope(0, 0, Four, 0, 0, Four, 10.0f, -1.0f, 5.0f, true);
+
+        // Assert: gradient of 1/depth is (0, 0.025) per sample, times the deepest depth squared (100)
+        Assert.Equal(2.5f, perspective, 1e-3f);
+        Assert.Equal(0.0f, collinear);
+        Assert.Equal(0.0f, behindEye);
+    }
+
+    /// <summary>
     ///     Validates that reversing the winding makes the triangle back-facing with the back color.
     /// </summary>
     [Fact]

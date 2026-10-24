@@ -43,8 +43,9 @@ of scenes, cameras, lights, or tiles beyond a sample rectangle to restrict to.
 - **`ScreenTriangle`**: six `int` 24.8 fixed-point coordinates in global sample space, `long Area2`
   (twice the signed area; always positive after normalization), three `float` view depths, a flag
   for perspective-correct depth, the `Priority`, a `BackFacing` flag, and the single `Color` of the
-  visible side. For the CSG path it also carries the `Leaf` and the `EnterColor` / `ExitColor`
-  shades (the pair selected by the facing); the z-buffer path ignores them.
+  visible side. For the CSG path it also carries the `Leaf`, the `EnterColor` / `ExitColor`
+  shades (the pair selected by the facing), and the `float DepthSlope` (internal, init-only), the
+  screen-space gradient magnitude of depth per sample; the z-buffer path ignores them.
 - **`TileRect`**: `[X0, X1) x [Y0, Y1)` in samples.
 
 Fixed-point format: a value `v` samples is stored as `round(v * 256)`. Sample `(i, j)` has its center
@@ -75,7 +76,26 @@ output list:
    positive in every stored triangle, records `BackFacing`, and selects `FrontColor` or `BackColor`.
    It also copies the CSG `Leaf` and selects the `FrontEnterColor`/`FrontExitColor` or the
    `BackEnterColor`/`BackExitColor` pair as the triangle's `EnterColor`/`ExitColor`; coverage,
-   depth, and winding code is unaffected.
+   depth, and winding code is unaffected. Finally it stores the triangle's `DepthSlope` (see
+   `ComputeDepthSlope` below), computed once per emitted triangle from the fixed-point vertices and
+   depths.
+
+##### Depth slope (`TriangleRasterizer.ComputeDepthSlope`)
+
+Returns the magnitude of the screen-space gradient of depth, in depth units per sample, from the
+three fixed-point vertices (24.8) and vertex depths. The edge vectors from vertex 0 are taken in
+sample units and the gradient `(gx, gy)` solved as a 2 x 2 linear system, so the result is
+`sqrt(gx^2 + gy^2)`:
+
+- **Orthographic** depth is linear on screen, so `(gx, gy)` is the gradient of the plane through
+  the three vertex depths.
+- **Perspective** depth is not linear, but `1 / depth` is: the gradient is that of `1 / depth`
+  scaled by `depth^2` evaluated at the deepest vertex (an upper bound over the triangle).
+- The result is `0` for a degenerate (zero-determinant) triangle, for a perspective triangle with a
+  non-positive vertex depth, and when the value is not finite.
+
+The `CsgResolver` unit uses the slope to widen the tie tolerance of independently placed coincident
+faces (see _CsgResolver Unit Design_); it does not affect coverage, depth, or the z-buffer.
 
 ##### Clipping (`TriangleClipper.Clip`)
 

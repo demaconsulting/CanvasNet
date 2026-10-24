@@ -214,4 +214,32 @@ public class SceneRenderingTests
         Assert.Equal(1, workspace.Meta[inside] & 1);
         Assert.True(float.IsPositiveInfinity(workspace.Depth[workspace.IndexOf(0, 0)]));
     }
+
+    /// <summary>
+    ///     Validates the whole subsystem on a constructive solid geometry scene: camera, lights, tessellated
+    ///     operands, validation, fragment collection, resolution and antialiasing together produce a lit image whose
+    ///     cavity is shaded differently from the surrounding face, identically for sequential and parallel tiles.
+    /// </summary>
+    [Fact]
+    public void SceneRendering_ConstructiveSolidGeometry_CubeMinusSphere_RendersLitCavityDeterministically()
+    {
+        // Arrange: a cube with a spherical bite out of its top, default lights and antialiasing
+        var cube = new MeshNode(PrimitiveTessellator.Box(new Vector3D(10, 10, 10), center: true));
+        var bite = new MeshNode(PrimitiveTessellator.Sphere(3.0, 32)) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(0, 0, 5)) };
+        var scene = new Scene(new CsgNode(CsgOperation.Difference, [cube, bite]));
+        var camera = Camera.LookAt(new Vector3D(0, -2, 30), new Vector3D(0, 0, 2), Vector3D.UnitY);
+        var reports = new List<SceneRenderUnsupportedFeature>();
+        var sequential = new SceneRenderOptions { Supersampling = 2, MaxDegreeOfParallelism = 1, UnsupportedFeatureHandler = reports.Add };
+        var parallel = new SceneRenderOptions { Supersampling = 2, MaxDegreeOfParallelism = -1 };
+
+        // Act
+        using var a = SceneRenderer.Render(scene, camera, 120, 120, sequential, TestContext.Current.CancellationToken);
+        using var b = SceneRenderer.Render(scene, camera, 120, 120, parallel, TestContext.Current.CancellationToken);
+
+        // Assert: closed primitives raise no report, the cavity centre differs from the top face, and tiles agree byte for byte
+        Assert.Empty(reports);
+        Assert.NotEqual(a[60, 60], a[10, 60]);
+        Assert.True(Render3DTestHelpers.DistinctColors(a).Count > 4);
+        Render3DTestHelpers.AssertSurfacesIdentical(a, b);
+    }
 }

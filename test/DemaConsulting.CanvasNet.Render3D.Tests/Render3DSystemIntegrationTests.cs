@@ -515,6 +515,112 @@ public class Render3DSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates constructive solid geometry end to end through the public API: a cube minus a sphere shows
+    ///     the cavity (cut surface in the sphere's color) at analytically expected pixels, a union of the same
+    ///     operands does not, and an intersection shows the clipped silhouette.
+    /// </summary>
+    [Fact]
+    public void CanvasNetRender3D_SystemIntegration_Csg_CubeMinusSphereShowsCavity()
+    {
+        // Arrange: top view at 10 pixels per unit; flat colors so pixels identify the visible surface
+        var blue = new Rgba32(30, 60, 220, 255);
+        var red = new Rgba32(220, 40, 40, 255);
+        var cube = new MeshNode(PrimitiveTessellator.Box(new Vector3D(10, 10, 10), center: true)) { Appearance = new NodeAppearance(blue) };
+        var sphere = new MeshNode(PrimitiveTessellator.Sphere(3.0, 48))
+        {
+            Transform = Matrix4x4D.CreateTranslation(new Vector3D(0, 0, 5)),
+            Appearance = new NodeAppearance(red),
+        };
+        var camera = Render3DTestHelpers.OrthoCamera(new Vector3D(0, 0, 50), Vector3D.Zero, Vector3D.UnitY, 14.0);
+        var options = Render3DTestHelpers.FlatOptions();
+
+        // Act
+        using var difference = SceneRenderer.Render(new Scene(new CsgNode(CsgOperation.Difference, [cube, sphere])), camera, 140, 140, options, TestContext.Current.CancellationToken);
+        using var intersection = SceneRenderer.Render(new Scene(new CsgNode(CsgOperation.Intersection, [cube, sphere])), camera, 140, 140, options, TestContext.Current.CancellationToken);
+
+        // Assert: the cavity centre is the cut surface, the cube's top ring and background follow; the intersection is the
+        // sphere's lower half, entered through the cube's top face inside the disc and absent outside it
+        Assert.Equal(red, difference[70, 70]);
+        Assert.Equal(blue, difference[110, 70]);
+        Assert.Equal(White, difference[2, 2]);
+        Assert.Equal(blue, intersection[70, 70]);
+        Assert.Equal(White, intersection[110, 70]);
+        Assert.InRange(Render3DTestHelpers.CountPixels(difference, red), 2650, 2850);
+    }
+
+    /// <summary>
+    ///     Validates determinism of constructive solid geometry: sequential, two-way and automatic tile
+    ///     parallelism and repeated runs give byte-identical images for every supersampling factor, for a scene with
+    ///     coincident faces, a mirrored operand and several leaves.
+    /// </summary>
+    [Fact]
+    public void CanvasNetRender3D_SystemIntegration_Csg_DeterministicAcrossParallelismAndRuns()
+    {
+        // Arrange: cube minus a flush box (ties) minus a mirrored sheared solid, next to an intersected pair of spheres
+        var cube = Render3DTestHelpers.ColoredBox(Vector3D.Zero, new Vector3D(10, 10, 10), new Rgba32(30, 60, 220, 255));
+        var flush = Render3DTestHelpers.ColoredBox(Vector3D.Zero, new Vector3D(10, 10, 5), new Rgba32(40, 200, 70, 255));
+        var mirrored = new MeshNode(Render3DTestHelpers.CreateAsymmetricSolid())
+        {
+            Transform = Matrix4x4D.CreateMirror(Vector3D.UnitX) * Matrix4x4D.CreateTranslation(new Vector3D(5, 5, 8)),
+            Appearance = new NodeAppearance(new Rgba32(220, 40, 40, 255)),
+        };
+        var lens = new CsgNode(
+            CsgOperation.Intersection,
+            [
+                new MeshNode(PrimitiveTessellator.Sphere(3.0, 36)) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(16, 5, 3)) },
+                new MeshNode(PrimitiveTessellator.Sphere(3.0, 36)) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(18, 5, 3)) },
+            ]);
+        var scene = new Scene(new GroupNode([new CsgNode(CsgOperation.Difference, [cube, flush, mirrored]), lens]));
+        var camera = Camera.FitToBounds(scene.ComputeBounds(), 40.0, 35.0, 160.0 / 120.0);
+
+        foreach (var supersampling in new[] { 1, 2, 3 })
+        {
+            // Act
+            using var sequential = SceneRenderer.Render(scene, camera, 160, 120, new SceneRenderOptions { Supersampling = supersampling, MaxDegreeOfParallelism = 1 }, TestContext.Current.CancellationToken);
+            using var two = SceneRenderer.Render(scene, camera, 160, 120, new SceneRenderOptions { Supersampling = supersampling, MaxDegreeOfParallelism = 2 }, TestContext.Current.CancellationToken);
+            using var automatic = SceneRenderer.Render(scene, camera, 160, 120, new SceneRenderOptions { Supersampling = supersampling, MaxDegreeOfParallelism = -1 }, TestContext.Current.CancellationToken);
+            using var again = SceneRenderer.Render(scene, camera, 160, 120, new SceneRenderOptions { Supersampling = supersampling, MaxDegreeOfParallelism = -1 }, TestContext.Current.CancellationToken);
+
+            // Assert
+            Render3DTestHelpers.AssertSurfacesIdentical(sequential, two);
+            Render3DTestHelpers.AssertSurfacesIdentical(sequential, automatic);
+            Render3DTestHelpers.AssertSurfacesIdentical(automatic, again);
+        }
+    }
+
+    /// <summary>
+    ///     Validates the budget and reporting contracts through the public API: an over-budget scene throws the
+    ///     typed exception, a defective operand is reported (or thrown in strict mode) without a budget problem
+    ///     for union-only scenes.
+    /// </summary>
+    [Fact]
+    public void CanvasNetRender3D_SystemIntegration_Csg_BudgetAndOperandReporting()
+    {
+        // Arrange
+        var cube = new MeshNode(PrimitiveTessellator.Box(new Vector3D(4, 4, 4), center: true));
+        var openQuad = new MeshNode(Render3DTestHelpers.CreateFloorQuad(-1, -1, 1, 1));
+        var csg = new Scene(new CsgNode(CsgOperation.Difference, [cube, openQuad]));
+        var unionOnly = new Scene(new GroupNode([cube, openQuad]));
+        var camera = Camera.LookAt(new Vector3D(8, -9, 7), Vector3D.Zero, Vector3D.UnitZ);
+        var reports = new List<SceneRenderUnsupportedFeature>();
+
+        // Act / Assert: the budget
+        var budget = Assert.Throws<RenderBudgetExceededException>(() => SceneRenderer.Render(csg, camera, 64, 64, new SceneRenderOptions { Supersampling = 1, MaxFragmentsPerTile = 50 }, TestContext.Current.CancellationToken));
+        Assert.Equal(50L, budget.MaxFragmentsPerTile);
+
+        // Act / Assert: the open operand is reported by handler or thrown in strict mode; union-only scenes ignore both
+        using (SceneRenderer.Render(csg, camera, 64, 64, new SceneRenderOptions { Supersampling = 1, UnsupportedFeatureHandler = reports.Add }, TestContext.Current.CancellationToken))
+        {
+            Assert.Equal("render3d-csg-open-mesh", Assert.Single(reports).Feature);
+        }
+
+        var strict = Assert.Throws<SceneRenderUnsupportedFeatureException>(() => SceneRenderer.Render(csg, camera, 64, 64, new SceneRenderOptions { ThrowOnUnsupportedFeature = true }, TestContext.Current.CancellationToken));
+        Assert.Same(openQuad, strict.Node);
+        using var fast = SceneRenderer.Render(unionOnly, camera, 64, 64, new SceneRenderOptions { Supersampling = 1, MaxFragmentsPerTile = 1, ThrowOnUnsupportedFeature = true }, TestContext.Current.CancellationToken);
+        Assert.Equal(64, fast.Width);
+    }
+
+    /// <summary>
     ///     Validates cooperative cancellation: a pre-cancelled token throws OperationCanceledException.
     /// </summary>
     [Fact]

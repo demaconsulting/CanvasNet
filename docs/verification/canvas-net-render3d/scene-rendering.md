@@ -15,9 +15,11 @@ _SceneRenderer Unit Verification Design_ under `scene-rendering/`) verify each u
 isolation, including its internal types. The subsystem-level tests in `SceneRenderingTests.cs`
 verify the units working together: a fitted camera frames an object inside
 the image, a custom headlight shades a face with the analytic Lambert value, two adjacent quads
-leave no gap, a closed shape crossing tile boundaries has no seams, and the fragment-list
+leave no gap, a closed shape crossing tile boundaries has no seams, the fragment-list
 pipeline (triangle setup, rasterization, fragment collection, and CSG resolution) shows the cut
-surface of a box cut into another. Rendered output is verified
+surface of a box cut into another, and the integrated renderer renders a cube with a spherical
+bite lit, antialiased, and byte-identically in parallel and sequential modes. Rendered output is
+verified
 with analytic oracles (exact computed colors and structural pixel properties) rather than golden
 images. No mocking or stubbing is used.
 
@@ -60,3 +62,13 @@ unexpected exception.
   `A - B`, and asserts that samples outside the cutout hold A's front face at the analytic depth,
   samples inside it hold B's back face (the cut surface, back-facing metadata) at its analytic
   depth, and samples off both are background.
+- **Cube Minus Sphere Renders A Lit Cavity Deterministically** (requirement
+  `CanvasNetRender3D-SceneRendering-CsgRendering`):
+  `SceneRenderingTests.SceneRendering_ConstructiveSolidGeometry_CubeMinusSphere_RendersLitCavityDeterministically` —
+  renders a `CsgNode` difference of a 10-unit cube and a sphere of radius 3 centered on its top face
+  through the integrated `SceneRenderer` (default lights, supersampling 2, a handler attached) once
+  sequentially and once with automatic parallelism, and asserts that the closed primitives raise no
+  operand report, that the cavity center differs from the top-face color, that the image contains
+  more than four distinct (shaded and antialiased) colors, and that the two renders are
+  byte-identical. This proves that path selection, fragment collection, resolution, shading,
+  supersampling, tile parallelism, and operand validation compose.

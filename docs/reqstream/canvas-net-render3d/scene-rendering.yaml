@@ -130,3 +130,27 @@ sections:
               - CanvasNetRender3D-SceneRendering-CsgResolver-Determinism
             tests:
               - SceneRendering_FragmentListPipeline_BoxMinusBox_ShowsCutSurfaceInsideTheCutout
+
+          - id: CanvasNetRender3D-SceneRendering-CsgRendering
+            title: >-
+              The SceneRendering subsystem shall integrate constructive solid geometry into the
+              renderer: scenes without a difference or intersection stay on the z-buffer path
+              unchanged, other scenes are rendered per tile from collected fragments (honoring
+              supersampling, tile parallelism, cancellation and the per-tile fragment budget,
+              with a deterministic budget exception), their operands are validated and
+              reported before any work, mirrored operands are classified with the corrected
+              facing, and the output is byte-identical across parallelism and runs.
+            justification: |
+              Resolution of a CSG scene is only useful if it composes with the rest of the
+              renderer: it must reuse the tiling, antialiasing and parallelism, fail
+              predictably when memory would be exceeded, tell the caller about operands that are
+              not solids, and stay exactly reproducible.
+            children:
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-CsgFastPath
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-CsgSurfaces
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-Budget
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-OperandReporting
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-MirroredCsg
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-CsgDeterminism
+            tests:
+              - SceneRendering_ConstructiveSolidGeometry_CubeMinusSphere_RendersLitCavityDeterministically

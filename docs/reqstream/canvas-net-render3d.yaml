@@ -18,8 +18,7 @@
 # polyhedron), a perspective/orthographic camera, ambient/directional lighting, a fixed-point tiled
 # z-buffer triangle rasterizer, supersampling antialiasing, deterministic tile parallelism, and
 # cooperative cancellation. Phase 2 adds constructive solid geometry (union, difference,
-# intersection) through per-pixel fragment lists; its scene-model and options requirements are
-# in place and its rendering requirements are added together with the renderer integration.
+# intersection) through per-pixel fragment lists, with a memory budget and closed-operand reporting.
 # Transparency and file-format front ends are added by later phases; their requirements will be
 # added to this file (and new per-unit files) when each phase lands, mirroring
 # canvas-net-pptx.yaml's own per-phase header-comment convention.
@@ -156,6 +155,30 @@ sections:
           - CanvasNetRender3D_SystemIntegration_Visibility_MirroredCubeRendersIdenticallyToOriginal
           - CanvasNetRender3D_SystemIntegration_Visibility_GroundPlaneCrossingNearPlaneRendersHorizon
 
+      - id: CanvasNetRender3D-ConstructiveSolidGeometry
+        title: >-
+          The library shall render the union, difference and intersection of scene nodes
+          (CsgNode) exactly per pixel from the visible surface of the combined solid - a cut
+          surface showing the subtracted operand's own color lit from the flipped normal, a
+          camera inside solid material seeing only back-face shading, coincident faces leaving
+          no speckle, and mirrored operands behaving like their baked equivalents - while
+          rendering scenes without a difference or intersection through the unchanged z-buffer
+          path, bounding the per-tile fragment memory with a deterministic
+          RenderBudgetExceededException, and reporting operands that are not closed solids to a
+          handler (or as an exception in strict mode) without refusing to render.
+        tags: [system]
+        justification: |
+          Constructive solid geometry is what lets CAD-style models (parts with holes, cut-outs
+          and intersections) be described from simple primitives; it must be exact for closed
+          operands, safe in memory, and honest about operands that violate its contract, while
+          costing nothing for scenes that do not use it.
+        children:
+          - CanvasNetRender3D-SceneRendering-FragmentListCsg
+          - CanvasNetRender3D-SceneRendering-CsgRendering
+        tests:
+          - CanvasNetRender3D_SystemIntegration_Csg_CubeMinusSphereShowsCavity
+          - CanvasNetRender3D_SystemIntegration_Csg_BudgetAndOperandReporting
+
       - id: CanvasNetRender3D-Antialiasing
         title: >-
           The library shall antialias edges by ordered-grid supersampling of 1 to 4 samples per
@@ -199,9 +222,11 @@ sections:
         children:
           - CanvasNetRender3D-SceneRendering-Rasterization
           - CanvasNetRender3D-SceneRendering-Rendering
+          - CanvasNetRender3D-SceneRendering-CsgRendering
         tests:
           - CanvasNetRender3D_SystemIntegration_Determinism_ParallelAndSequentialRendersAreByteIdentical
           - CanvasNetRender3D_SystemIntegration_Determinism_RepeatedRenderIsByteIdentical
+          - CanvasNetRender3D_SystemIntegration_Csg_DeterministicAcrossParallelismAndRuns
 
       - id: CanvasNetRender3D-Cancellation
         title: >-

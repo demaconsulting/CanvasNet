@@ -170,19 +170,22 @@ software items, specifically:
   system providing a pure-managed 3D mesh/scene rasterizer, containing three subsystems:
   `SceneModel` (units `DoublePrecisionMath` — `Vector2D`/`Vector3D`/`Matrix4x4D`/`BoundingBox3D`;
   `Mesh` — immutable triangle meshes, `MeshBuilder` and the internal `MeshTopology`; and
-  `SceneGraph` — an immutable scene graph of `MeshNode`/`GroupNode` with transforms and per-node
-  colors, and `Scene`), `Tessellation` (unit `PrimitiveTessellator` — closed, outward-oriented box,
+  `SceneGraph` — an immutable scene graph of `MeshNode`/`GroupNode`/`CsgNode` with transforms and
+  per-node colors, and `Scene`), `Tessellation` (unit `PrimitiveTessellator` — closed, outward-oriented box,
   sphere, cylinder and cone meshes and validated polyhedra), and `SceneRendering` (units `Camera` —
   perspective/orthographic projection and `FitToBounds` framing; `Lighting` — ambient/directional
   lights with flat Lambert and optional Blinn-Phong shading; `TriangleRasterizer` — homogeneous
   clipping and a fixed-point 24.8 top-left-rule rasterizer; `FragmentBuffer` — a per-worker,
   budgeted, exact-sized store of all fragments of a tile; `CsgResolver` — the boolean-tree compiler
-  and the per-sample fragment-list resolver; and `SceneRenderer` — a tiled z-buffer
-  driver with supersampling antialiasing, deterministic tile parallelism, and cooperative
-  cancellation). It renders a `Scene` onto a new core `Surface`. Phase 1 deliberately excludes
-  constructive solid geometry, transparency, and any 3D file-format front end — see _CanvasNetRender3D
-  System Design_ (`canvas-net-render3d.md`) for the full supported/deferred boundary and its
-  Implementation Phase Plan. `CanvasNetRender3D` depends on the `CanvasNet` system's `Canvas`
+  and the per-sample fragment-list resolver; and `SceneRenderer` — a tiled driver with a z-buffer
+  path and a fragment-list constructive-solid-geometry path, supersampling antialiasing,
+  deterministic tile parallelism, a per-tile fragment budget, closed-operand reporting, and
+  cooperative cancellation). It renders a `Scene` onto a new core `Surface`. Constructive solid
+  geometry (union, difference, intersection) is delivered through per-pixel fragment lists, and
+  scenes without a difference or intersection keep the z-buffer path; transparency and any 3D
+  file-format front end remain out of scope — see _CanvasNetRender3D System Design_
+  (`canvas-net-render3d.md`) for the full supported/deferred boundary and its Implementation Phase
+  Plan. `CanvasNetRender3D` depends on the `CanvasNet` system's `Canvas`
   subsystem only (for `Surface` and `Rgba32`), and must never reference `CanvasNetSvg`,
   `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, or `CanvasNetCharts`
 
@@ -286,10 +289,10 @@ alongside `CanvasNet`, distributed as its own separate NuGet package
 subsystem. Unlike the single-unit siblings it has three subsystems of its own — `SceneModel`
 (`DoublePrecisionMath`, `Mesh`, `SceneGraph`), `Tessellation` (`PrimitiveTessellator`), and
 `SceneRendering` (`Camera`, `Lighting`, `TriangleRasterizer`, `FragmentBuffer`, `CsgResolver`,
-`SceneRenderer`) — one per
-sub-namespace (`DemaConsulting.CanvasNet.Render3D.SceneModel`, `.Tessellation`, and
-`.SceneRendering`), so that the 3D math and scene model, the mesh generators, and the rasterization
-pipeline can each evolve (for example, a later constructive-solid-geometry phase) behind their own
+`SceneRenderer`) — one per sub-namespace (`DemaConsulting.CanvasNet.Render3D.SceneModel`,
+`.Tessellation`, and `.SceneRendering`), so that the 3D math and scene model, the mesh generators,
+and the rasterization pipeline can each evolve (the constructive-solid-geometry phase, for
+example, added units to `SceneRendering` without touching the other two) behind their own
 architectural boundary. The root namespace contains no types. See the Folder Layout section below
 and _CanvasNetRender3D System Design_ (`canvas-net-render3d.md`).
 
@@ -633,6 +636,7 @@ src/DemaConsulting.CanvasNet.Render3D/
     ├── CsgResolver.cs             — CsgResolver: internal per-sample visible-surface resolver
     ├── SceneRenderer.cs           — SceneRenderer: Render/RenderFitted entry points
     ├── SceneRenderOptions.cs      — SceneRenderer: immutable, validated render options
+    ├── CsgOperandValidator.cs     — SceneRenderer: internal closed-operand validation and reporting
     ├── RenderBudgetExceededException.cs — SceneRenderer: per-tile fragment budget exception
     ├── SceneRenderUnsupportedFeature.cs — SceneRenderer: unsupported-feature report record
     ├── SceneRenderUnsupportedFeatureException.cs — SceneRenderer: strict-mode unsupported-feature exception

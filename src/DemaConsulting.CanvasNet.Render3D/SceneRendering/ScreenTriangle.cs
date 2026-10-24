@@ -66,6 +66,14 @@ internal readonly struct ScreenTriangle
     /// <summary>Gets the opaque flat-shaded color of the visible side.</summary>
     public Rgba32 Color { get; init; }
 
+    /// <summary>
+    ///     Gets the largest rate of change of depth per sample step (the magnitude of the screen-space depth
+    ///     gradient, in depth units per sample); used only by the fragment-list CSG path to size the tie
+    ///     tolerance of coincident faces of different meshes, whose rounded vertices can differ by a
+    ///     fixed-point quantum. Zero (the default) means "flat or unknown".
+    /// </summary>
+    public float DepthSlope { get; init; }
+
     /// <summary>Gets the CSG leaf (collapsed union-only subtree) the triangle belongs to; used only by the fragment-list CSG path.</summary>
     public int Leaf { get; init; }
 

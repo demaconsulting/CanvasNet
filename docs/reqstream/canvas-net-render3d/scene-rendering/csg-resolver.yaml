@@ -117,18 +117,28 @@ sections:
                   The CsgResolver shall treat fragments whose depths lie within the tolerance of the
                   first depth of a group as one atomic group, apply all of them before re-evaluating
                   the program, without chaining across a series of close fragments, so that
-                  coincident faces of different operands do not produce speckle; when a group
-                  changes the result it shall choose the fragment whose leaf alone explains the
-                  change, then the lowest draw priority, then the lowest triangle index.
+                  coincident faces of different operands do not produce speckle; it shall widen
+                  that tolerance, for a fragment of a mesh instance that is not yet in the group, by
+                  the depth noise of one fixed-point vertex quantum on the two triangles (their
+                  depth slopes times a quantum, capped) so that coincident faces of independently
+                  placed meshes still tie at oblique angles, never merging two fragments of one
+                  instance this way; and when a group changes the result it shall choose the
+                  fragment whose leaf alone explains the change, then the lowest draw priority,
+                  then the lowest triangle index.
                 justification: |
-                  Coincident faces of different meshes differ only by float noise; resolving them
-                  one at a time would flip the result for a single fragment and leave isolated wrong
-                  pixels, and the choice among equal candidates must be deterministic.
+                  Coincident faces of different meshes differ only by float noise and, at oblique
+                  angles, by the rounding of their vertices to the fixed-point sample grid;
+                  resolving them one at a time would flip the result for a single fragment and
+                  leave isolated wrong pixels, and the choice among equal candidates must be
+                  deterministic.
                 tests:
                   - CsgResolver_Resolve_CoincidentFrontFaces_AreOneAtomicGroupAndFlushFaceIsRemoved
                   - CsgResolver_Resolve_FragmentsBeyondTolerance_AreSeparateGroups
                   - CsgResolver_Resolve_ChainOfCloseFragments_GroupIsAnchoredAtFirstDepth
                   - CsgResolver_Resolve_CoincidentBackFaces_DoNotSpeckle
+                  - CsgResolver_Resolve_CoincidentFacesWithSlopeNoise_AreOneGroupAcrossInstances
+                  - CsgResolver_Resolve_SlopeNoise_NeverMergesSameInstanceAndIsCapped
+                  - CsgResolver_Resolve_CoincidentSolidsAtThinFold_ResolvesAsFrontPairAndBackPair
                   - CsgResolver_Resolve_FlushEnterAndExit_LowerPriorityOfEquallyExplainingFragmentsWins
                   - CsgResolver_Resolve_EqualPriority_LowerTriangleIndexWins
                   - CsgResolver_Resolve_OnlyOneLeafExplainsTheChange_ItIsPreferredOverBetterPriority

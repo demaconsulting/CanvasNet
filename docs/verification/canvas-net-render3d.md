@@ -23,7 +23,10 @@ example, a cube viewed head-on from a known distance must cover a number of pixe
 tolerance of the analytically projected area, and a face lit by an ambient light and a headlight
 must have the exact color `round(180 * (0.25 + 0.5))`). Where the contract is exact (determinism,
 mirrored equivalence, numeric precision, exactly-once edge coverage) the scenarios compare entire
-surfaces byte for byte.
+surfaces byte for byte. Constructive solid geometry is verified the same way: pixels identify the
+visible surface through flat shading, and analytic oracles (a disc area, the clipped silhouette,
+exact byte equality across degrees of parallelism) replace golden images; its budget and
+operand-reporting contracts are verified through the public options and exceptions.
 
 System tests reside in `Render3DSystemIntegrationTests.cs` within the
 `DemaConsulting.CanvasNet.Render3D.Tests` project; the shared helpers (pixel counting, color-region
@@ -176,6 +179,44 @@ surfaces (a missing winding correction would paint every face with the back-face
 
 Places the camera above a large ground plane that extends behind the camera and asserts that all
 rows below the horizon are ground, all rows above are background, and nothing else appears.
+
+### Constructive Solid Geometry: Cube Minus Sphere Shows Cavity
+
+**Test**: `CanvasNetRender3D_SystemIntegration_Csg_CubeMinusSphereShowsCavity`
+
+Satisfies `CanvasNetRender3D-ConstructiveSolidGeometry`. Builds, with the public API only, a
+10-unit blue cube and a red sphere of radius 3 centered on its top face, and renders the
+`CsgNode` difference and intersection of the two from above with an orthographic camera at ten
+pixels per unit and flat shading, so that a pixel's color identifies the visible surface. Asserts
+that the cavity center of the difference is the cut surface in the subtrahend's own (red) color,
+that a pixel on the cube's top ring is blue and the corner is the background, that the red area is
+within the analytic disc-area range, and that the intersection shows the clipped silhouette (blue
+inside the disc, background outside it). Confirms acceptance scenarios A1 (cube minus sphere cavity
+pixels) and A2 (cube intersect sphere silhouette) end to end.
+
+### Constructive Solid Geometry: Budget And Operand Reporting
+
+**Test**: `CanvasNetRender3D_SystemIntegration_Csg_BudgetAndOperandReporting`
+
+Satisfies `CanvasNetRender3D-ConstructiveSolidGeometry`. Renders a cube minus an open quad (not a
+solid) and asserts, through the public API, that a small `MaxFragmentsPerTile` throws
+`RenderBudgetExceededException` carrying the exceeded budget; that an
+`UnsupportedFeatureHandler` receives exactly one report with the feature token
+`render3d-csg-open-mesh` while the render succeeds; that `ThrowOnUnsupportedFeature` throws
+`SceneRenderUnsupportedFeatureException` whose `Node` is the open quad; and that the same meshes in
+a union-only group render normally even with a budget of one fragment and strict mode, proving that
+union-only scenes use neither the budget nor the validator. Confirms acceptance scenarios A6
+(budget) and A8 (operand reporting) and the union-only part of A9 end to end.
+
+### Determinism: Constructive Solid Geometry Is Byte Identical
+
+**Test**: `CanvasNetRender3D_SystemIntegration_Csg_DeterministicAcrossParallelismAndRuns`
+
+Satisfies `CanvasNetRender3D-Determinism` for the CSG path. Renders a scene combining a cube minus
+a flush (coincident-face) box minus a mirrored asymmetric solid, next to an intersected pair of
+spheres, with a `FitToBounds` camera, for supersampling 1, 2, and 3, and asserts byte-identical
+surfaces for a maximum degree of parallelism of 1, 2, and -1 and for a repeated automatic render
+(acceptance scenario A10).
 
 ### Antialiasing: Half-Covered Pixel Blends To Mid Color
 

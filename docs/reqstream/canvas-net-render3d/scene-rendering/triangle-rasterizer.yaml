@@ -120,12 +120,16 @@ sections:
               - id: CanvasNetRender3D-SceneRendering-TriangleRasterizer-CsgAttributes
                 title: >-
                   The TriangleRasterizer setup shall carry a view triangle's CSG leaf and select its
-                  enter and exit shades from the facing classification (front or back shade pair)
-                  without changing the coverage, depth, winding or z-buffer color of the screen
-                  triangle.
+                  enter and exit shades from the facing classification (front or back shade pair),
+                  and shall compute the depth slope (the screen-space depth gradient magnitude,
+                  for orthographic and perspective depth, zero when undefined), without changing
+                  the coverage, depth, winding or z-buffer color of the screen triangle.
                 justification: |
                   The fragment-list CSG path shades a surface differently depending on whether the
-                  ray enters or leaves the solid there; the pair must follow the projected facing
+                  ray enters or leaves the solid there, and sizes its tie tolerance for coincident
+                  faces from each triangle's depth slope; the pair must follow the projected facing
                   while the z-buffer path stays unaffected.
                 tests:
                   - TriangleRasterizer_Setup_CsgAttributes_AreCopiedAndSelectedByFacing
+                  - TriangleRasterizer_Setup_DepthSlope_IsDepthGradientPerSample
+                  - TriangleRasterizer_ComputeDepthSlope_PerspectiveAndDegenerateInput
