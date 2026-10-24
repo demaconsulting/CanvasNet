@@ -1,0 +1,295 @@
+---
+# cspell:ignore Parameterizing
+# Software Subsystem Requirements for ScadEvaluation
+#
+# These requirements decompose the CanvasNetScad system's evaluation responsibility into the ScadEvaluation
+# subsystem (internal namespace DemaConsulting.CanvasNet.Scad.Evaluation): the value model (ScadValue), the
+# evaluator that turns a parsed program into a geometry-agnostic instantiation tree (ScadEvaluator), the
+# built-in function library (ScadBuiltinFunctions), and the include/use resolver (ScadFileResolver). Each
+# requirement here links down to the unit requirements that implement it.
+#
+# The subsystem boundary is the internal ScadEvaluator entry point, which resolves files (phase A, on the
+# calling thread) and then evaluates purely in memory (phase B). The subsystem-level tests below therefore
+# drive that entry point across all four units. See docs/verification/canvas-net-scad/scad-evaluation.md for
+# the test-evidence mapping.
+
+sections:
+  - title: CanvasNetScad Requirements
+    sections:
+      - title: ScadEvaluation Requirements
+        requirements:
+          - id: CanvasNetScad-ScadEvaluation-Values
+            title: >-
+              The ScadEvaluation subsystem shall give every value of the language - undef, booleans,
+              numbers, strings, vectors, ranges, and functions - documented truthiness, equality,
+              ordering, arithmetic, indexing, and text forms, and shall render numbers identically in
+              every culture.
+            justification: |
+              The value rules are the foundation of every computation in a model and of the echo
+              output that callers compare; they must be defined once and used everywhere.
+            children:
+              - CanvasNetScad-ScadEvaluation-ScadValue-Kinds
+              - CanvasNetScad-ScadEvaluation-ScadValue-Truthiness
+              - CanvasNetScad-ScadEvaluation-ScadValue-Equality
+              - CanvasNetScad-ScadEvaluation-ScadValue-Ordering
+              - CanvasNetScad-ScadEvaluation-ScadValue-Arithmetic
+              - CanvasNetScad-ScadEvaluation-ScadValue-Products
+              - CanvasNetScad-ScadEvaluation-ScadValue-Indexing
+              - CanvasNetScad-ScadEvaluation-ScadValue-Ranges
+              - CanvasNetScad-ScadEvaluation-ScadValue-NumberFormatting
+              - CanvasNetScad-ScadEvaluation-ScadValue-TextForms
+              - CanvasNetScad-ScadEvaluation-ScadValue-Conversion
+              - CanvasNetScad-ScadEvaluation-ScadValue-Immutability
+            tests:
+              - ScadEvaluatorFixture_Evaluate_CompletesWithoutWarnings
+              - ScadEvaluatorDeterminism_UnderOtherCultures_GivesIdenticalResults
+
+          - id: CanvasNetScad-ScadEvaluation-Evaluation
+            title: >-
+              The ScadEvaluation subsystem shall evaluate a parsed program with the documented
+              semantics of the dialect - position-independent, last-assignment-wins scoping with lazily
+              evaluated variables, dynamically scoped special variables, user functions, closures, and
+              tail calls, user modules with children, conditionals, loops, ranges, list comprehensions,
+              operators, and echo and assert - and shall return the echo output and the instantiation
+              tree.
+            justification: |
+              Evaluation is the subsystem's purpose; the semantics are the contract that models are
+              written against, so they must be specified rather than inherited from another
+              implementation.
+            children:
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Scoping
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-LazyCells
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-SpecialVariables
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Functions
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Closures
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-TailCalls
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Modules
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Children
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-ControlFlow
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Ranges
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Comprehensions
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Operators
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Echo
+            tests:
+              - ScadEvaluatorFixture_Evaluate_CompletesWithoutWarnings
+              - ScadEvaluatorFixture_ParametricBracket_ProducesInstances
+              - ScadEvaluatorEntryPoint_Evaluate_ResolvedUnit_ProducesInstances
+
+          - id: CanvasNetScad-ScadEvaluation-InstanceTree
+            title: >-
+              The ScadEvaluation subsystem shall produce an immutable, geometry-agnostic instantiation
+              tree - built-in module nodes with evaluated arguments, children, modifiers, fragment
+              settings, and source locations, and groups for user modules and loops - that a later
+              phase can convert to geometry without access to the syntax tree or the scopes, while
+              interpreting no geometry itself.
+            justification: |
+              The instantiation tree is the contract between evaluation and geometry generation; a
+              clean boundary lets the geometry phase evolve independently.
+            children:
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-InstanceTree
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Modifiers
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-FragmentSettings
+            tests:
+              - ScadEvaluatorFixture_ParametricBracket_ProducesInstances
+              - ScadEvaluatorEntryPoint_Output_ReportsAccounting
+              - ScadEvaluatorEntryPoint_BuiltinModules_RecognizeGeometryNamesOnly
+
+          - id: CanvasNetScad-ScadEvaluation-BuiltinFunctions
+            title: >-
+              The ScadEvaluation subsystem shall provide the documented library of built-in functions -
+              mathematics, trigonometry in degrees, vector and list functions, lookup and search,
+              string functions, type tests, version, and a platform-independent random-number
+              generator - with defined behavior for wrong arguments, and shall let a user definition
+              shadow a built-in function.
+            justification: |
+              Parametric models rely on a small standard library; its results, including edge cases,
+              must be specified and identical on every platform.
+            children:
+              - CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Math
+              - CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Trigonometry
+              - CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Aggregates
+              - CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Vectors
+              - CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Lookup
+              - CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Search
+              - CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Strings
+              - CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-TypeTests
+              - CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Random
+              - CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Arguments
+            tests:
+              - ScadEvaluatorFixture_Evaluate_CompletesWithoutWarnings
+              - ScadEvaluatorDeterminism_Rands_AreReproduciblePerEvaluation
+
+          - id: CanvasNetScad-ScadEvaluation-FileResolution
+            title: >-
+              The ScadEvaluation subsystem shall resolve include and use directives before evaluating
+              - textual inclusion for include and definitions-only import for use - from the file
+              system or through a caller-supplied resolver, confined to the base directory and library
+              paths, with a missing file reported as a warning and a syntax error in a referenced file
+              reported with that file's name.
+            justification: |
+              Multi-file models are common, and file access is the most security-sensitive thing an
+              evaluator can do; it must be explicit, confined, and complete before evaluation starts.
+            children:
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-Include
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-Use
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-Resolution
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-Sandbox
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-ResolverCallback
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-FileSystem
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-MissingFiles
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-NoBase
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-SyntaxErrors
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Imports
+            tests:
+              - ScadEvaluatorIncludeUse_Include_BehavesAsTextualInclusion
+              - ScadEvaluatorIncludeUse_Use_ImportsOnlyDefinitions
+              - ScadEvaluatorIncludeUse_MissingFile_WarnsAndContinues
+              - ScadEvaluatorIncludeUse_SyntaxErrorInIncludedFile_Propagates
+              - ScadEvaluatorIncludeUse_Resolver_RunsOnCallingThreadBeforeEvaluation
+              - ScadEvaluatorEntryPoint_Evaluate_IncludeWithoutAnySource_IsAnEvaluationError
+
+          - id: CanvasNetScad-ScadEvaluation-ResourceLimits
+            title: >-
+              The ScadEvaluation subsystem shall bound every resource a document can consume -
+              recursion depth, evaluation steps, loop iterations, list length, string length, value
+              nesting, include depth, included files, instance count, echo output, and diagnostics -
+              and shall fail closed with a located evaluation error when a limit is exceeded, accepting
+              exactly the limit.
+            justification: |
+              Evaluation runs untrusted programs; every way of consuming unbounded time or memory
+              must have a limit that the caller controls.
+            children:
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-RecursionLimit
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-StepLimit
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-LoopLimit
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-ListAndStringLimits
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-InstanceLimit
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-OutputLimit
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-DiagnosticCap
+              - CanvasNetScad-ScadEvaluation-ScadValue-NestingLimit
+              - CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Limits
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-Cycles
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-DepthLimit
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-FileCountLimit
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-SourceLimit
+            tests:
+              - ScadEvaluatorLimit_Steps_AtLimitSucceeds_OneOverFails
+              - ScadEvaluatorLimit_LoopIterations_AtLimitSucceeds_OneOverFails
+              - ScadEvaluatorLimit_ListLength_AtLimitSucceeds_OneOverFails
+              - ScadEvaluatorLimit_Instances_AtLimitSucceeds_OneOverFails
+              - ScadEvaluatorLimit_OutputLength_AtLimitSucceeds_OneOverFails
+              - ScadEvaluatorLimit_Include_CycleAndDepth_AreEvaluationErrors
+              - ScadEvaluatorLimit_Diagnostics_AreCappedWithNotice
+
+          - id: CanvasNetScad-ScadEvaluation-StackSafety
+            title: >-
+              The ScadEvaluation subsystem shall enforce its recursion limit deterministically and
+              without overflowing the call stack: the limit shall be counted, not measured, so that
+              the same program succeeds or fails identically on every stack size, and a caller whose
+              stack is too small shall be served by a bounded restart on a dedicated large-stack
+              thread that is invisible to the caller.
+            justification: |
+              A stack overflow terminates the host process and cannot be caught; callers run on
+              threads of very different stack sizes, and the outcome must not depend on that.
+            children:
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-StackSafety
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-BufferedDelivery
+            tests:
+              - ScadEvaluatorStack_Evaluate_AtLimit_OnSmallCallerStack_MatchesBigStackResult
+              - ScadEvaluatorStack_Evaluate_OverLimit_IsIdenticalOnEveryStackSize
+              - ScadEvaluatorStack_Evaluate_ValueNestingAtLimit_OnSmallCallerStack_MatchesBigStack
+              - ScadEvaluatorStack_Evaluate_TinyCallerStack_FallsBackToDedicatedThread
+              - ScadEvaluatorStack_Evaluate_Restart_DoesNotRepeatOrMoveResolverCalls
+
+          - id: CanvasNetScad-ScadEvaluation-Cancellation
+            title: >-
+              The ScadEvaluation subsystem shall observe a cancellation token during file loading and
+              during evaluation, including endless recursion and huge loops, and shall stop with an
+              OperationCanceledException that is not wrapped, without any resolver call when the
+              token is canceled beforehand.
+            justification: |
+              Callers need a way to abandon work that takes longer than they can afford.
+            children:
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Cancellation
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-Cancellation
+            tests:
+              - ScadEvaluatorCancellation_AlreadyCanceled_ThrowsBeforeAnyResolverCall
+              - ScadEvaluatorCancellation_DuringEndlessTailRecursion_StopsAndKeepsEarlierEvents
+              - ScadEvaluatorCancellation_DuringIncludeLoading_StopsBeforeNextFile
+
+          - id: CanvasNetScad-ScadEvaluation-Overrides
+            title: >-
+              The ScadEvaluation subsystem shall apply caller-supplied variable overrides to the main
+              document - including to assignments pulled in by include but not to used libraries -
+              replacing every top-level assignment of the name without evaluating it.
+            justification: |
+              Parameterizing a model from outside without editing its text is the basis of batch
+              rendering and variant generation.
+            children:
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Overrides
+            tests:
+              - ScadEvaluatorIncludeUse_Overrides_ReplaceIncludedAssignmentsButNotLibraries
+
+          - id: CanvasNetScad-ScadEvaluation-Diagnostics
+            title: >-
+              The ScadEvaluation subsystem shall report recoverable problems as located, de-duplicated
+              warnings - continuing with undef or nothing - and shall bound how many it keeps, so that
+              an unknown name or a bad operand never aborts an evaluation.
+            justification: |
+              Authors need feedback on mistakes, but a model with a mistake should still produce what
+              it can.
+            children:
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Warnings
+            tests:
+              - ScadEvaluatorDiagnostics_Warning_HasExpectedTextAndLocation
+              - ScadEvaluatorDiagnostics_Location_CarriesTheSourceName
+              - ScadEvaluatorIncludeUse_MissingFile_WarnsAndContinues
+
+          - id: CanvasNetScad-ScadEvaluation-UnsupportedFeatures
+            title: >-
+              The ScadEvaluation subsystem shall report a recognized but unsupported feature - an
+              unimplemented built-in function or argument form - as an unsupported-feature report,
+              once per feature and location, continuing with undef or aborting at the first use when
+              the caller requires it.
+            justification: |
+              Unsupported features are a different problem from mistakes and must be distinguishable
+              from them.
+            children:
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-UnsupportedFeatures
+              - CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-UnsupportedFunctions
+            tests:
+              - ScadEvaluatorDiagnostics_UnsupportedFunction_IsReportedAndEvaluationContinues
+              - ScadEvaluatorDiagnostics_ThrowOnUnsupportedFeature_AbortsWithFeatureAndLocation
+
+          - id: CanvasNetScad-ScadEvaluation-Errors
+            title: >-
+              The ScadEvaluation subsystem shall abort an evaluation with a located error for a failed
+              assertion, an exceeded limit, an include cycle, a sandbox violation, or an include
+              without any source of files, and shall retain the output recorded before the failure.
+            justification: |
+              Some problems make a result meaningless; they must stop the evaluation, say where, and
+              leave the caller what was produced so far.
+            children:
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Assert
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-ErrorLocations
+            tests:
+              - ScadEvaluatorDiagnostics_AssertFailure_HasLocationAndMessage
+              - ScadEvaluatorLimit_FailedEvaluation_KeepsEventsRecordedBeforeTheFailure
+              - ScadEvaluatorEntryPoint_Evaluate_IncludeWithoutAnySource_IsAnEvaluationError
+
+          - id: CanvasNetScad-ScadEvaluation-Determinism
+            title: >-
+              The ScadEvaluation subsystem shall be deterministic: the same document and options shall
+              give identical echo output, diagnostics, and instantiation tree on every platform, in
+              every culture, on every thread, and across a restart on a larger stack, including for
+              random numbers drawn without a seed.
+            justification: |
+              Reproducibility is required for golden tests, caching, and trustworthy use of the
+              results.
+            children:
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-Determinism
+            tests:
+              - ScadEvaluatorDeterminism_SameDocumentTwice_GivesIdenticalResults
+              - ScadEvaluatorDeterminism_UnderOtherCultures_GivesIdenticalResults
+              - ScadEvaluatorDeterminism_Rands_AreReproduciblePerEvaluation
+              - ScadEvaluatorDeterminism_ConcurrentEvaluations_GiveIdenticalResults

@@ -1,0 +1,248 @@
+---
+# cspell:ignore ordinally
+# Software Unit Requirements for ScadValue
+#
+# These requirements describe the design-level behavior of the ScadValue unit: the internal value model
+# of the evaluator in the DemaConsulting.CanvasNet.Scad.Evaluation namespace - the ScadValue struct
+# (undef, boolean, number, string, vector, range, and function values) with its truthiness, equality,
+# ordering, arithmetic, indexing, text-form, and conversion rules, the ScadVector and ScadRange value
+# types, the number formatter, and the Unicode-scalar text helpers.
+#
+# The value semantics are the CanvasNetScad dialect's own: they were specified from general language-design
+# reasoning and are pinned by the tests below, not copied from any other implementation (see
+# docs/design/canvas-net-scad.md, Clean-Room Provenance). Each "tests" entry cites an existing test
+# method in the DemaConsulting.CanvasNet.Scad.Tests project; see
+# docs/verification/canvas-net-scad/scad-evaluation/scad-value.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetScad Requirements
+    sections:
+      - title: ScadEvaluation Requirements
+        sections:
+          - title: ScadValue Requirements
+            requirements:
+              - id: CanvasNetScad-ScadEvaluation-ScadValue-Kinds
+                title: >-
+                  The ScadValue type shall represent exactly seven kinds of value - undef, boolean,
+                  number, string, vector, range, and function - shall treat the default value as
+                  undef, shall name each kind in diagnostics, and shall refuse to read a payload of a
+                  kind the value does not hold.
+                justification: |
+                  A closed, well-defined set of value kinds is the foundation of every evaluation
+                  rule; an undefined default and a checked payload access prevent a value from
+                  silently being read as something it is not.
+                tests:
+                  - ScadValue_Default_IsUndef
+                  - ScadValue_Factories_ProduceMatchingKindAndPayload
+                  - ScadValue_Payload_WrongKind_Throws
+                  - ScadValue_KindDescription_NamesEachKind
+
+              - id: CanvasNetScad-ScadEvaluation-ScadValue-Truthiness
+                title: >-
+                  The ScadValue type shall treat undef, false, zero (including negative zero), the
+                  empty string, and the empty vector as false and every other value - including NaN,
+                  every range, and every function - as true.
+                justification: |
+                  Conditions in statements, expressions, comprehensions, and assertions all depend on
+                  one documented truth table; pinning the unusual cases (NaN, ranges) keeps models
+                  portable.
+                tests:
+                  - ScadValue_IsTrue_Table
+
+              - id: CanvasNetScad-ScadEvaluation-ScadValue-Equality
+                title: >-
+                  The ScadValue type shall compare values for equality only within one kind - numbers
+                  by IEEE rules (NaN is never equal to anything, negative zero equals zero), strings
+                  ordinally, vectors element by element with equal lengths, ranges by start, step, and
+                  end, and functions by reference - shall never consider values of different kinds
+                  equal, and shall give equal values equal hash codes.
+                justification: |
+                  Equality is observable through the == and != operators and through lookups; a
+                  precise rule with no cross-kind coercion prevents surprising matches.
+                tests:
+                  - ScadValue_Equals_SameKind_ComparesByValue
+                  - ScadValue_Equals_DifferentKinds_AreNotEqual
+                  - ScadValue_Equals_NaNAndNegativeZero_FollowIeee
+                  - ScadValue_Equals_Functions_ByReference
+                  - ScadValue_GetHashCode_EqualValues_HaveEqualHashCodes
+                  - ScadNumbers_AreEqual_FollowsIeee
+
+              - id: CanvasNetScad-ScadEvaluation-ScadValue-Ordering
+                title: >-
+                  The ScadValue type shall order two numbers numerically, two strings ordinally, two
+                  booleans with false before true, and two vectors lexicographically, and shall make
+                  every other pairing - including NaN, mixed kinds, and undef - unordered so that all
+                  four relational operators are false for it.
+                justification: |
+                  Relational operators must be total and predictable without raising errors, and
+                  unordered pairs must not produce accidental truth.
+                tests:
+                  - ScadValue_TryCompare_OrderedPairs_ReturnsSign
+                  - ScadValue_Relational_UnorderedPairs_AreAllFalse
+                  - ScadValue_Binary_Relational_OrderedPair_AppliesOperators
+
+              - id: CanvasNetScad-ScadEvaluation-ScadValue-Arithmetic
+                title: >-
+                  The ScadValue type shall apply the arithmetic, logical, and unary operators to
+                  numbers by IEEE rules (division by zero yields an infinity or NaN), apply addition
+                  and subtraction element-wise to equal-length vectors, scale vectors by numbers, and
+                  yield undef together with a type-error indication, without throwing, for any other
+                  operand combination.
+                justification: |
+                  Models compute with numbers and vectors of numbers; operators that cannot apply must
+                  report a recoverable error instead of failing the whole evaluation.
+                tests:
+                  - ScadValue_Binary_Numbers_ComputesResult
+                  - ScadValue_Binary_DivisionByZero_FollowsIeee
+                  - ScadValue_Binary_EqualityAndLogic_NeverTypeError
+                  - ScadValue_Binary_InvalidOperands_ReturnsUndefWithError
+                  - ScadValue_Binary_VectorAddSubtract_IsElementWise
+                  - ScadValue_Binary_VectorWithBadElement_KeepsShapeAndFlagsError
+                  - ScadValue_Binary_ScaleAndDivide_ApplyToEveryElement
+                  - ScadValue_Unary_NegatePlusNot_Apply
+                  - ScadValue_Unary_InvalidOperand_ReturnsUndefWithError
+
+              - id: CanvasNetScad-ScadEvaluation-ScadValue-Products
+                title: >-
+                  The ScadValue type shall multiply two equal-length numeric vectors as a dot
+                  product and shall multiply a matrix by a vector, a vector by a matrix, and two
+                  matrices (rectangular lists of numeric lists) as linear-algebra products, yielding
+                  undef for mismatched dimensions.
+                justification: |
+                  Transformations in parametric models are written as matrix and vector products; the
+                  product rules must be explicit and dimension-checked.
+                tests:
+                  - ScadValue_Binary_VectorTimesVector_IsDotProduct
+                  - ScadValue_Binary_MatrixTimesVector_ReturnsProduct
+                  - ScadValue_Binary_VectorTimesMatrix_ReturnsProduct
+                  - ScadValue_Binary_MatrixTimesMatrix_ReturnsProduct
+                  - ScadValue_Binary_IdentityMatrixTimesVector_ReturnsSameVector
+
+              - id: CanvasNetScad-ScadEvaluation-ScadValue-Indexing
+                title: >-
+                  The ScadValue type shall index a vector by a finite number truncated toward zero,
+                  index a string by Unicode scalar value, read the x, y, and z members of a vector as
+                  its first three elements, and yield undef, without raising an error, for an
+                  out-of-range or non-numeric index, a non-indexable target, or any other member.
+                justification: |
+                  Element access is pervasive in parametric models; lenient, well-defined results let
+                  a model probe optional data without failing.
+                tests:
+                  - ScadValue_Index_Vector_ReturnsElementOrUndef
+                  - ScadValue_Index_NonIndexableTarget_ReturnsUndef
+                  - ScadValue_Index_String_UsesUnicodeScalars
+                  - ScadValue_Member_XyzOnVector_ReturnsElements
+                  - ScadText_ScalarCount_CountsPairsOnce
+                  - ScadText_ScalarAt_ReturnsScalarOrNull
+                  - ScadText_Scalars_SplitsIntoScalars
+                  - ScadText_FirstCodePoint_HandlesPairsAndLoneSurrogates
+                  - ScadText_FromCodePoint_ValidAndInvalid
+
+              - id: CanvasNetScad-ScadEvaluation-ScadValue-Ranges
+                title: >-
+                  The ScadValue type shall hold a range as a start, step, and end without
+                  materializing its elements, compute its element count and the element at an index
+                  from the start and step (never by accumulation), saturate the count for enormous
+                  ranges, and flag a range with a zero step or a non-finite part as invalid.
+                justification: |
+                  Ranges such as 0 to 1e12 must be cheap to hold and to measure so that a loop budget
+                  can reject them before any iteration happens.
+                tests:
+                  - ScadRange_Count_ReturnsExpected
+                  - ScadRange_Count_HugeRange_Saturates
+                  - ScadRange_ElementAt_ComputesFromIndex
+                  - ScadRange_IsInvalid_ZeroOrNonFiniteParts
+                  - ScadRange_Equals_ComparesStartStepEnd
+
+              - id: CanvasNetScad-ScadEvaluation-ScadValue-NumberFormatting
+                title: >-
+                  The ScadValue number formatter shall render a number as at most six significant
+                  digits in fixed or scientific notation chosen by its decimal exponent, with
+                  trailing zeros removed, a signed exponent of at least two digits, the words nan,
+                  inf, and -inf for the non-finite values, and -0 for negative zero, using only
+                  invariant-culture characters so that the text is identical in every culture.
+                justification: |
+                  Echo output and string conversion are compared byte for byte by golden tests and by
+                  downstream tools; the text of a number must not depend on the platform or locale.
+                tests:
+                  - ScadNumberFormatter_Format_Table_ReturnsPinnedText
+                  - ScadNumberFormatter_Format_OtherCultures_IsIdentical
+                  - ScadNumberFormatter_Format_ExactTie_RoundsToEvenDigit
+                  - ScadNumberFormatter_Format_SmallestFixed_UsesFixedNotation
+                  - ScadNumberFormatter_Format_AnyValue_UsesOnlyInvariantCharacters
+
+              - id: CanvasNetScad-ScadEvaluation-ScadValue-TextForms
+                title: >-
+                  The ScadValue type shall render a value as text in two forms - the string form used
+                  by string conversion (strings raw at the top level, nested strings quoted, vectors
+                  as bracketed comma-separated lists, ranges as start, step, and end, functions with
+                  their parameter names) and the echo form (strings always quoted, with quotes,
+                  backslashes, and line breaks escaped so that a rendered value never contains a raw
+                  line break) - and shall be able to stop rendering as soon as a length limit is
+                  exceeded.
+                justification: |
+                  Echo output is line oriented and string conversion feeds further computation; both
+                  forms must be stable, culture independent, and bounded so that a huge value cannot
+                  exhaust memory while being printed.
+                tests:
+                  - ScadValue_ToStr_Scalars_AreRawAndFormatted
+                  - ScadValue_ToEchoText_Strings_AreQuotedAndEscaped
+                  - ScadValue_ToEchoText_StringWithBreaks_HasNoRawLineBreak
+                  - ScadValue_ToStr_Vectors_UseCommaSpaceAndQuoteNestedStrings
+                  - ScadValue_ToStr_Range_ShowsStartStepEnd
+                  - ScadValue_ToStr_Function_ShowsParameterNames
+                  - ScadValue_ToStr_OtherCultures_IsIdentical
+                  - ScadValue_TryToStr_Limit_FitsOrFails
+                  - ScadValue_TryToStr_HugeVector_StopsEarly
+
+              - id: CanvasNetScad-ScadEvaluation-ScadValue-NestingLimit
+                title: >-
+                  The ScadValue type shall report the nesting depth of a vector, shall leave the
+                  enforcement of the 256-level nesting limit to the construct that builds the value,
+                  shall never increase the nesting depth through arithmetic, and shall perform its
+                  recursive operations (equality, ordering, hashing, formatting, and arithmetic) on
+                  values nested 256 levels deep without overflowing the call stack, including on a
+                  thread with a small stack, by signaling insufficient stack instead of crashing.
+                justification: |
+                  A deeply nested value is a hostile-input vector; recursive operations on it must be
+                  bounded and must fail in a way the evaluator can handle instead of terminating the
+                  host process with a stack overflow.
+                tests:
+                  - ScadValue_MaxNestingDepth_Is256_AndFactoryDoesNotLimit
+                  - ScadValue_Depth_ReflectsNesting
+                  - ScadValue_ReadOnlyOperations_AtDepth256_OnSmallStack_Succeed
+                  - ScadValue_Arithmetic_AtDepth256_OnModerateStack_Succeeds
+                  - ScadValue_Arithmetic_NeverIncreasesDepth
+                  - ScadValue_Equals_ExtremeDepthOnTinyStack_ThrowsInsufficientStackNotCrash
+
+              - id: CanvasNetScad-ScadEvaluation-ScadValue-Conversion
+                title: >-
+                  The ScadValue type shall convert a caller-supplied object into a value - null as
+                  undef, booleans, every integer and floating-point type and decimal as numbers,
+                  strings, and non-string sequences of supported values as vectors - and shall reject
+                  an unsupported object, a sequence nested more than 256 levels deep, a sequence with
+                  more than 1,000,000 elements in total, and an endless or self-referential
+                  sequence.
+                justification: |
+                  Callers inject values from host-language objects; the conversion must be total,
+                  bounded, and safe against sequences that never end.
+                tests:
+                  - ScadValue_TryFromObject_Scalars_Convert
+                  - ScadValue_TryFromObject_NumericTypes_ConvertToNumbers
+                  - ScadValue_TryFromObject_Sequences_ConvertToVectors
+                  - ScadValue_TryFromObject_UnsupportedObjects_AreRejected
+                  - ScadValue_TryFromObject_EndlessSequence_IsRejected
+                  - ScadValue_TryFromObject_SelfReferentialList_IsRejected
+                  - ScadValue_TryFromObject_Nesting_IsBoundedAt256
+                  - ScadValue_TryFromObject_TooManyElements_IsRejected
+
+              - id: CanvasNetScad-ScadEvaluation-ScadValue-Immutability
+                title: >-
+                  The ScadValue type shall be immutable: a vector value shall expose its elements
+                  only through a read-only view, so that a value, once built, never changes and can
+                  be shared freely.
+                justification: |
+                  Lazy variable cells, closures, and shared sub-vectors rely on values never changing
+                  after they are built.
+                tests:
+                  - ScadValue_Vector_IsImmutableView

@@ -1,0 +1,235 @@
+---
+# Software Unit Requirements for ScadFileResolver
+#
+# These requirements describe the design-level behavior of the ScadFileResolver unit: the internal
+# resolver that, before any evaluation, turns the include and use directives of a document into an
+# immutable, include-expanded source unit and the list of used library units (ScadFileResolver,
+# ScadFileResolver.Paths, ScadSourceUnit) in the DemaConsulting.CanvasNet.Scad.Evaluation namespace.
+#
+# The resolver is the only code that touches the file system or calls the caller's file resolver, and it
+# enforces a sandbox: environment variables are never consulted, and a path may only name a file under the
+# base directory or a library path (file-system mode) or a logical path handed to the caller's callback
+# (resolver mode). Each "tests" entry cites an existing test method in the
+# DemaConsulting.CanvasNet.Scad.Tests project; see
+# docs/verification/canvas-net-scad/scad-evaluation/scad-file-resolver.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetScad Requirements
+    sections:
+      - title: ScadEvaluation Requirements
+        sections:
+          - title: ScadFileResolver Requirements
+            requirements:
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-Include
+                title: >-
+                  The ScadFileResolver unit shall expand an include directive as textual inclusion:
+                  the included file's statements of every kind replace the directive in place and keep
+                  their own source locations (naming the included file), nested includes are resolved
+                  relative to the including file, and a file included several times is expanded each
+                  time but read only once.
+                justification: |
+                  Include is the language's mechanism for sharing parameters and definitions; its
+                  textual semantics, and diagnostics that point into the included file, are what
+                  authors rely on.
+                tests:
+                  - ScadFileResolver_Load_NoDirectives_ReturnsStatementsUnchanged
+                  - ScadFileResolver_Load_Include_ReplacesDirectiveInPlaceWithIncludedLocations
+                  - ScadFileResolver_Load_NestedIncludes_ResolveRelativeToIncludingFile
+                  - ScadFileResolver_Load_SameFileTwice_ExpandsTwiceReadsOnce
+                  - ScadFileResolver_Load_Include_BringsInEveryKindOfStatement
+
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-Use
+                title: >-
+                  The ScadFileResolver unit shall load a file named by a use directive as a separate
+                  library unit that is not expanded into the including file, keep the libraries a
+                  library itself uses private to it, order the used libraries by their last use, load
+                  each distinct library once, collect the use directives found in included files into
+                  the including file, expand a library's own includes inside the library, and
+                  terminate for libraries that use each other or themselves.
+                justification: |
+                  Use imports definitions without importing the library's geometry or output; its
+                  isolation rules and termination guarantee must be exact.
+                tests:
+                  - ScadFileResolver_Load_Use_CreatesLibraryUnitAndRemovesDirective
+                  - ScadFileResolver_Load_UseSameFileTwice_LoadsOnce
+                  - ScadFileResolver_Load_SeveralUses_KeepsOrderOfLastUse
+                  - ScadFileResolver_Load_LibraryUse_StaysPrivateToLibrary
+                  - ScadFileResolver_Load_MutuallyUsingLibraries_Terminate
+                  - ScadFileResolver_Load_SelfUsingLibrary_Terminates
+                  - ScadFileResolver_Load_UseInsideInclude_IsCollectedByIncludingFile
+                  - ScadFileResolver_Load_LibraryInclude_IsExpandedInsideLibrary
+                  - ScadFileResolver_Load_LongLibraryChain_OnSmallStack_Succeeds
+
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-Resolution
+                title: >-
+                  The ScadFileResolver unit shall normalize a directive path (backslashes to forward
+                  slashes, dot segments collapsed) and search the directory of the including file
+                  first and then each library path in order, taking the base directory from the open
+                  options or, for an opened file, from the file's folder, and shall treat two
+                  spellings of one path as one file.
+                justification: |
+                  Authors write paths in different styles and on different platforms; one
+                  deterministic search order makes a document resolve identically everywhere.
+                tests:
+                  - ScadFileResolver_Load_BackslashPath_IsNormalizedToForwardSlashes
+                  - ScadFileResolver_Load_DotSegments_AreCollapsedInRequestedPath
+                  - ScadFileResolver_Load_Include_FallsBackToLibraryPath
+                  - ScadFileResolver_Load_LibraryPath_IsSearchedAfterIncludingDirectory
+                  - ScadFileResolver_Load_ExplicitBaseDirectory_OverridesFileFolder
+                  - ScadFileResolver_Load_StringDocument_UsesBaseDirectoryOption
+                  - ScadFileResolver_Load_FileSystem_CandidateOrderIsIncludingDirectoryThenLibraries
+                  - ScadFileResolver_Load_TwoSpellingsOfOnePath_AreOneFile
+                  - ScadFileResolver_Load_FileNameCase_FollowsPlatform
+
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-Sandbox
+                title: >-
+                  The ScadFileResolver unit shall confine every file access to the base directory and
+                  the configured library paths: it shall reject, with an evaluation error and without
+                  asking the caller's resolver or the file system, an absolute path, a drive or colon,
+                  an empty path, a control character, and a path that climbs above its root, while
+                  allowing dot-dot segments that stay inside the root; it shall refuse an existing
+                  file outside every root, including a sibling folder that merely shares a name
+                  prefix with a root.
+                justification: |
+                  A document may come from an untrusted source; an include path must never be a way to
+                  read arbitrary files of the host.
+                tests:
+                  - ScadFileResolver_Load_HostilePath_InResolverMode_ThrowsWithoutAskingResolver
+                  - ScadFileResolver_Load_HostilePath_InFileSystemMode_Throws
+                  - ScadFileResolver_Load_DotDotInsideRoot_IsAllowed
+                  - ScadFileResolver_Load_NestedFileEscapingRoot_Throws
+                  - ScadFileResolver_Load_FileSystem_LibraryRootConfinesCandidates
+                  - ScadFileResolver_Load_FileSystem_ExistingFileOutsideRoot_IsRefused
+                  - ScadFileResolver_Load_FileSystem_SiblingWithSharedPrefix_IsOutsideRoot
+
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-ResolverCallback
+                title: >-
+                  When the open options supply a file resolver, the ScadFileResolver unit shall use
+                  only that resolver and shall not touch the file system, shall pass it only
+                  normalized logical paths, shall ask it once for a path that is missing, shall use
+                  the stream it returns, shall ignore library paths that are not valid logical
+                  paths, and shall let an exception thrown by the resolver propagate unchanged.
+                justification: |
+                  Hosts that serve documents from memory, archives, or a database need to control
+                  file access completely, and must be able to trust that no other access happens.
+                tests:
+                  - ScadFileResolver_Load_ResolverMode_RequestsOnlyNormalizedLogicalPaths
+                  - ScadFileResolver_Load_ResolverMode_DoesNotTouchFileSystem
+                  - ScadFileResolver_Load_ResolverMode_UsesCallbackStream
+                  - ScadFileResolver_Load_ResolverException_Propagates
+                  - ScadFileResolver_Load_InvalidLogicalLibraryPaths_AreIgnored
+                  - ScadFileResolver_Load_MissingFileTwice_AsksResolverOnce
+
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-FileSystem
+                title: >-
+                  When no resolver is supplied, the ScadFileResolver unit shall read included files
+                  from the file system as UTF-8 with byte-order-mark detection, resolving relative
+                  includes against the folder of an opened file, and shall treat a directory in place
+                  of a file as a missing file.
+                justification: |
+                  Opening a model from disk and including its neighbors is the common case and must
+                  work without any callback.
+                tests:
+                  - ScadFileResolver_Load_OpenedFile_ResolvesRelativeIncludes
+                  - ScadFileResolver_Load_Utf8BomFile_IsAccepted
+                  - ScadFileResolver_Load_DirectoryInsteadOfFile_IsMissing
+
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-Cycles
+                title: >-
+                  The ScadFileResolver unit shall reject an include cycle - including a file that
+                  includes itself and a file that includes the main file - with an evaluation error
+                  that names the chain of files, while accepting a diamond in which one file is
+                  included along two different paths.
+                justification: |
+                  An include cycle would never terminate; a harmless diamond must not be mistaken for
+                  a cycle.
+                tests:
+                  - ScadFileResolver_Load_IncludeCycle_ThrowsWithChain
+                  - ScadFileResolver_Load_SelfInclude_ThrowsCycle
+                  - ScadFileResolver_Load_DiamondInclude_IsNotACycle
+                  - ScadFileResolver_Load_MainFileIncludingItself_IsACycle
+                  - ScadFileResolver_Load_IncludeBackToMain_IsACycle
+
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-DepthLimit
+                title: >-
+                  The ScadFileResolver unit shall reject include nesting deeper than the configured
+                  include-depth limit with an evaluation error, accept nesting exactly at the limit,
+                  and resolve a chain of the maximum permitted depth without overflowing the call
+                  stack, including on a thread with a small stack.
+                justification: |
+                  Include depth bounds the recursion of expansion; the limit must hold identically on
+                  every stack size.
+                tests:
+                  - ScadFileResolver_Load_IncludeDepth_AtLimit_Succeeds_OneOver_Throws
+                  - ScadFileResolver_Load_DefaultDepthLimit_StopsLongChain_OnSmallStack
+                  - ScadFileResolver_Load_MaximumDepth64_OnSmallStack_Succeeds
+
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-FileCountLimit
+                title: >-
+                  The ScadFileResolver unit shall reject, with an evaluation error, a document that
+                  needs more resolved inclusions than the configured included-file limit or whose
+                  include expansion would produce more statements than the configured instance limit
+                  (which stops a diamond-shaped blow-up), while accepting exactly the limit and
+                  counting each distinct library once.
+                justification: |
+                  Repeated inclusion multiplies work and memory before any evaluation budget exists;
+                  the resolver must bound it itself.
+                tests:
+                  - ScadFileResolver_Load_IncludedFiles_AtLimit_Succeeds_OneOver_Throws
+                  - ScadFileResolver_Load_Libraries_CountOncePerDistinctFile
+                  - ScadFileResolver_Load_DiamondBlowUp_IsStoppedByInclusionLimit
+                  - ScadFileResolver_Load_ExpandedStatements_AtLimit_Succeeds_OneOver_Throws
+
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-MissingFiles
+                title: >-
+                  The ScadFileResolver unit shall report an include or use of a file that cannot be
+                  found as a warning and continue without it, producing no library unit for a missing
+                  use.
+                justification: |
+                  A missing optional library should not make the rest of a model unusable, but the
+                  author must be told.
+                tests:
+                  - ScadFileResolver_Load_MissingInclude_WarnsAndContinues
+                  - ScadFileResolver_Load_MissingUse_WarnsAndCreatesNoUnit
+                  - ScadFileResolver_Load_MissingFile_WarnsOnDisk
+
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-NoBase
+                title: >-
+                  The ScadFileResolver unit shall fail with an evaluation error, instead of guessing a
+                  location such as the current directory, when a document contains an include or use
+                  directive but has no base directory, no library path, and no file resolver.
+                justification: |
+                  An implicit current directory would make a document's behavior depend on the host's
+                  working directory and could expose unrelated files.
+                tests:
+                  - ScadFileResolver_Load_NoBaseNoLibraryNoResolver_DirectiveIsError
+
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-SyntaxErrors
+                title: >-
+                  The ScadFileResolver unit shall report a syntax error in an included or used file as
+                  a ScadSyntaxException whose location names that file.
+                justification: |
+                  The author must be pointed at the file that actually contains the error.
+                tests:
+                  - ScadFileResolver_Load_SyntaxErrorInInclude_ThrowsSyntaxExceptionWithFileName
+                  - ScadFileResolver_Load_SyntaxErrorInLibrary_ThrowsWithLibraryName
+
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-SourceLimit
+                title: >-
+                  The ScadFileResolver unit shall reject an included or used file longer than
+                  4,194,304 characters with an InvalidDataException.
+                justification: |
+                  Included files are as untrusted as the main document and need the same size bound.
+                tests:
+                  - ScadFileResolver_Load_OversizeInclude_ThrowsInvalidData
+
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-Cancellation
+                title: >-
+                  The ScadFileResolver unit shall honor cancellation: it shall make no request when
+                  the token is already canceled and shall stop between two files when the token is
+                  canceled while loading, throwing OperationCanceledException.
+                justification: |
+                  Loading may touch slow storage; a caller must be able to abandon it promptly.
+                tests:
+                  - ScadFileResolver_Load_CanceledToken_ThrowsBeforeAnyRequest
+                  - ScadFileResolver_Load_CancelDuringLoading_StopsBetweenFiles
