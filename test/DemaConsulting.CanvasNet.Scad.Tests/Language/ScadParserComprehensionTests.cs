@@ -110,6 +110,77 @@ public class ScadParserComprehensionTests
     }
 
     /// <summary>
+    ///     Validates that a parenthesized comprehension element produces the same tree as the bare element.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_Comprehension_Parenthesized_MatchesUnparenthesized()
+    {
+        // Arrange / Act / Assert
+        Assert.Equal(
+            "(vec (lfor ((i (range 0 1))) (lfor ((j (range 0 1))) (+ i j))))",
+            ScadParserTestSupport.Expr("[for (i=[0:1]) (for (j=[0:1]) i+j)]"));
+        Assert.Equal(ScadParserTestSupport.Expr("[for (i=a) if (c) i else 0]"), ScadParserTestSupport.Expr("[for (i=a) (if (c) i else 0)]"));
+        Assert.Equal(ScadParserTestSupport.Expr("[for (i=a) each i]"), ScadParserTestSupport.Expr("[for (i=a) (each i)]"));
+        Assert.Equal(ScadParserTestSupport.Expr("[for (i=a) let(k=i) k]"), ScadParserTestSupport.Expr("[for (i=a) (let(k=i) k)]"));
+        Assert.Equal(ScadParserTestSupport.Expr("[for (i=a) i, 1]"), ScadParserTestSupport.Expr("[(for (i=a) i), 1]"));
+    }
+
+    /// <summary>
+    ///     Validates parenthesized elements in every body position: if branches, else, let and nested parentheses.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_Comprehension_ParenthesizedInBodies_Parses()
+    {
+        // Arrange / Act / Assert
+        Assert.Equal(
+            "(vec (lfor ((x v)) (lif c (lfor ((y w)) y) (each z))))",
+            ScadParserTestSupport.Expr("[for (x=v) if (c) (for (y=w) y) else (each z)]"));
+        Assert.Equal(
+            "(vec (lfor ((x v)) (llet ((k 1)) (lfor ((y w)) y))))",
+            ScadParserTestSupport.Expr("[for (x=v) let (k=1) (for (y=w) y)]"));
+        Assert.Equal("(vec (lfor ((i a)) (lfor ((j b)) j)))", ScadParserTestSupport.Expr("[((for (i=a) ((for (j=b) j))))]"));
+        Assert.Equal(
+            "(vec (lcfor ((i 0)) (< i 2) ((i (+ i 1))) (lfor ((j a)) j)))",
+            ScadParserTestSupport.Expr("[for (i=0; i<2; i=i+1) (for (j=a) j)]"));
+    }
+
+    /// <summary>
+    ///     Validates that plain parenthesized expressions are still expressions, including a parenthesized
+    ///     <c>let</c> used as an operand.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_Comprehension_ParenthesizedExpression_StillParsesAsExpression()
+    {
+        // Arrange / Act / Assert
+        Assert.Equal("(vec (+ 1 2))", ScadParserTestSupport.Expr("[(1+2)]"));
+        Assert.Equal("(vec (lfor ((i (range 0 1))) (+ i 1)))", ScadParserTestSupport.Expr("[for (i=[0:1]) (i+1)]"));
+        Assert.Equal("(vec (* (+ 1 2) 3))", ScadParserTestSupport.Expr("[(1+2)*3]"));
+        Assert.Equal("(vec (index (let ((a 1)) (vec a)) 0))", ScadParserTestSupport.Expr("[(let(a=1) [a])[0]]"));
+        Assert.Equal("(vec (llet ((a 1)) a))", ScadParserTestSupport.Expr("[(let(a=1) a)]"));
+    }
+
+    /// <summary>
+    ///     Validates that a parenthesized comprehension still cannot start a range or appear outside a vector.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_Comprehension_ParenthesizedMisuse_Throws()
+    {
+        // Arrange / Act / Assert
+        ScadParserTestSupport.AssertParseError("x = [(for (i=a) i) : 2];", 1, 20, "Expected ',' or ']' but found ':'");
+        ScadParserTestSupport.AssertParseError("x = (for (i=a) i);", 1, 6, "Expected an expression but found 'for'");
+    }
+
+    /// <summary>
+    ///     Validates that a parenthesized comprehension element must be closed.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_Comprehension_ParenthesizedUnclosed_Throws()
+    {
+        // Arrange / Act / Assert
+        ScadParserTestSupport.AssertParseError("x = [(for (i=a) i];", 1, 18, "Expected ')' but found ']'");
+    }
+
+    /// <summary>
     ///     Validates that a C-style comprehension header requires a condition.
     /// </summary>
     [Fact]

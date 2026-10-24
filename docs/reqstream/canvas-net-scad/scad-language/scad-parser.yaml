@@ -116,7 +116,8 @@ sections:
                 title: >-
                   The ScadParser Parse method shall parse let, echo, and assert both as statements
                   (with optional children) and as expressions (whose body extends as far to the
-                  right as possible).
+                  right as possible), and shall treat each in statement position as a module
+                  instantiation.
                 justification: |
                   These forms scope variables and report diagnostics in both statement and
                   expression position; the greedy body rule decides how an expression groups.
@@ -128,6 +129,10 @@ sections:
                   - ScadParser_Parse_AssertExpression_ProducesAssertExpression
                   - ScadParser_Parse_LetExpression_ProducesLetExpression
                   - ScadParser_Parse_LetExpression_BodyExtendsRight_ConsumesRemainingExpression
+                  - ScadParser_Parse_EachStatement_ProducesModuleInstantiation
+                  - ScadParser_Parse_EachStatement_ModifiedAndNested_ProducesModuleInstantiation
+                  - ScadParser_Parse_KeywordStatements_WithChildren_ProduceExpectedNodes
+                  - ScadParser_Parse_EachStatement_WithoutParenthesis_Throws
 
               - id: CanvasNetScad-ScadLanguage-ScadParser-Literals
                 title: >-
@@ -225,7 +230,8 @@ sections:
                   The ScadParser Parse method shall parse list comprehension elements inside a
                   vector - for with one or more iterators, C-style for with a required condition,
                   if with optional else, let, and each - nested to any permitted depth and mixed
-                  with plain elements in source order, and shall reject a C-style for without a
+                  with plain elements in source order, and optionally parenthesized (without
+                  changing the produced tree), and shall reject a C-style for without a
                   condition, a comprehension outside a vector, and an empty comprehension header.
                 justification: |
                   Comprehensions are the language's data-generation mechanism; they are valid only
@@ -239,6 +245,11 @@ sections:
                   - ScadParser_Parse_Comprehension_Each_ProducesListEach
                   - ScadParser_Parse_Comprehension_Nested_ProducesNestedElements
                   - ScadParser_Parse_Comprehension_MixedWithPlainElements_KeepsSourceOrder
+                  - ScadParser_Parse_Comprehension_Parenthesized_MatchesUnparenthesized
+                  - ScadParser_Parse_Comprehension_ParenthesizedInBodies_Parses
+                  - ScadParser_Parse_Comprehension_ParenthesizedExpression_StillParsesAsExpression
+                  - ScadParser_Parse_Comprehension_ParenthesizedMisuse_Throws
+                  - ScadParser_Parse_Comprehension_ParenthesizedUnclosed_Throws
                   - ScadParser_Parse_Comprehension_CStyleWithoutCondition_Throws
                   - ScadParser_Parse_Comprehension_OutsideVector_Throws
                   - ScadParser_Parse_Comprehension_EmptyHeader_Throws

@@ -163,12 +163,19 @@ comprehension` at the first semicolon; and that a for or intersection-for with n
 `ScadParserControlFlowTests.ScadParser_Parse_EchoExpression_ProducesEchoExpression`,
 `ScadParserControlFlowTests.ScadParser_Parse_AssertExpression_ProducesAssertExpression`,
 `ScadParserControlFlowTests.ScadParser_Parse_LetExpression_ProducesLetExpression`,
-`ScadParserControlFlowTests.ScadParser_Parse_LetExpression_BodyExtendsRight_ConsumesRemainingExpression`
+`ScadParserControlFlowTests.ScadParser_Parse_LetExpression_BodyExtendsRight_ConsumesRemainingExpression`,
+`ScadParserControlFlowTests.ScadParser_Parse_EachStatement_ProducesModuleInstantiation`,
+`ScadParserControlFlowTests.ScadParser_Parse_EachStatement_ModifiedAndNested_ProducesModuleInstantiation`,
+`ScadParserControlFlowTests.ScadParser_Parse_KeywordStatements_WithChildren_ProduceExpectedNodes`,
+`ScadParserControlFlowTests.ScadParser_Parse_EachStatement_WithoutParenthesis_Throws`
 
 Asserts that let, echo, and assert parse as statements with and without children (including an empty let and a
 named assert argument) and as expressions with a body, and that a let expression body extends as far to the right
 as possible: in `1+let(x=2) x*3` the body is `x*3`, and in `let(x=2) x ? 1 : 0` the body includes the
-conditional.
+conditional. Also asserts that `each` in statement position is a module instantiation named `each` (with
+arguments, a single child, a braced body, after a modifier, and as the child of `translate` or `let`), that let,
+echo, and assert statements accept a module child, and that `each` without an argument list throws
+`Expected '(' but found 'a'` at the offending token.
 
 ##### CanvasNetScad-ScadLanguage-ScadParser-Literals: Literals And Vectors
 
@@ -260,6 +267,11 @@ at the next comma; and that a literal returning another literal nests (`function
 `ScadParserComprehensionTests.ScadParser_Parse_Comprehension_Each_ProducesListEach`,
 `ScadParserComprehensionTests.ScadParser_Parse_Comprehension_Nested_ProducesNestedElements`,
 `ScadParserComprehensionTests.ScadParser_Parse_Comprehension_MixedWithPlainElements_KeepsSourceOrder`,
+`ScadParserComprehensionTests.ScadParser_Parse_Comprehension_Parenthesized_MatchesUnparenthesized`,
+`ScadParserComprehensionTests.ScadParser_Parse_Comprehension_ParenthesizedInBodies_Parses`,
+`ScadParserComprehensionTests.ScadParser_Parse_Comprehension_ParenthesizedExpression_StillParsesAsExpression`,
+`ScadParserComprehensionTests.ScadParser_Parse_Comprehension_ParenthesizedMisuse_Throws`,
+`ScadParserComprehensionTests.ScadParser_Parse_Comprehension_ParenthesizedUnclosed_Throws`,
 `ScadParserComprehensionTests.ScadParser_Parse_Comprehension_CStyleWithoutCondition_Throws`,
 `ScadParserComprehensionTests.ScadParser_Parse_Comprehension_OutsideVector_Throws`,
 `ScadParserComprehensionTests.ScadParser_Parse_Comprehension_EmptyHeader_Throws`
@@ -271,6 +283,13 @@ nested vector; that they mix with plain elements in source order and may have a 
 a C-style header without a condition throws `Expected an expression but found ';'`; that a comprehension keyword
 outside a vector throws `Expected an expression but found 'for'` (or `'each'`); and that an empty header throws
 `Expected an identifier but found ')'`.
+
+Parenthesized elements are verified by asserting that `(for …)`, `(if … else …)`, `(each …)`, and `(let …)`
+produce exactly the dump of the unparenthesized element in a vector and in the bodies of `for`, C-style `for`,
+`if`, `else`, and `let` (including nested parentheses); that plain parenthesized expressions (`[(1+2)]`,
+`[(1+2)*3]`, `[for (i=[0:1]) (i+1)]`) and a parenthesized `let` used as an operand (`[(let(a=1) [a])[0]]`) still
+parse as expressions; that a parenthesized comprehension cannot start a range or appear outside a vector; and
+that an unclosed parenthesis throws `Expected ')' but found ']'`.
 
 ##### CanvasNetScad-ScadLanguage-ScadParser-NodeLocations: Node Locations
 

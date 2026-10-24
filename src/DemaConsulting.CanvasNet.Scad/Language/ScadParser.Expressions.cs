@@ -310,7 +310,8 @@ internal sealed partial class ScadParser
             or ScadListLetExpression or ScadListEachExpression;
 
     /// <summary>
-    ///     Parses one element of a vector: a list comprehension element or an ordinary expression.
+    ///     Parses one element of a vector: a list comprehension element (optionally parenthesized) or an
+    ///     ordinary expression.
     /// </summary>
     /// <returns>The element.</returns>
     private ScadExpression ParseListElement()
@@ -322,11 +323,61 @@ internal sealed partial class ScadParser
             ScadTokenKind.If => ParseListIf(),
             ScadTokenKind.Let => ParseListLet(),
             ScadTokenKind.Each => ParseListEach(),
+            ScadTokenKind.LeftParen when IsParenthesizedElementStart() => ParseParenthesizedListElement(),
             _ => ParseExpression(),
         };
         Leave();
         return element;
     }
+
+    /// <summary>
+    ///     Determines whether the current <c>(</c> opens a parenthesized comprehension element, which is the case
+    ///     when the next token is one of the comprehension keywords <c>for</c>, <c>if</c>, <c>let</c> or <c>each</c>.
+    /// </summary>
+    /// <returns><see langword="true"/> when a comprehension keyword follows the parenthesis.</returns>
+    private bool IsParenthesizedElementStart()
+    {
+        // Parentheses nest, so look through any run of them for the keyword
+        var offset = 1;
+        while (PeekAt(offset).Kind == ScadTokenKind.LeftParen)
+        {
+            offset++;
+        }
+
+        return PeekAt(offset).Kind is ScadTokenKind.For or ScadTokenKind.If or ScadTokenKind.Let or ScadTokenKind.Each;
+    }
+
+    /// <summary>
+    ///     Parses <c>( element )</c> where the element is a comprehension form; parentheses produce no node of
+    ///     their own, so the result is the same as the unparenthesized element.
+    /// </summary>
+    /// <returns>The element.</returns>
+    private ScadExpression ParseParenthesizedListElement()
+    {
+        var start = _index;
+        Advance();
+        var element = ParseListElement();
+        Expect(ScadTokenKind.RightParen);
+
+        // A parenthesized let is also an ordinary expression, so it may be the operand of a postfix or binary
+        // operator, as in (let(a=1) [a])[0]; when something other than an element terminator follows, it is
+        // parsed again as an expression
+        if (element is ScadListLetExpression && !IsElementTerminator(Current.Kind))
+        {
+            _index = start;
+            return ParseExpression();
+        }
+
+        return element;
+    }
+
+    /// <summary>
+    ///     Determines whether a token can directly follow a complete list element.
+    /// </summary>
+    /// <param name="kind">The token kind.</param>
+    /// <returns><see langword="true"/> for <c>,</c>, <c>]</c>, <c>)</c> and <c>else</c>.</returns>
+    private static bool IsElementTerminator(ScadTokenKind kind) =>
+        kind is ScadTokenKind.Comma or ScadTokenKind.RightBracket or ScadTokenKind.RightParen or ScadTokenKind.Else;
 
     /// <summary>
     ///     Parses a comprehension <c>for</c> element, either iterator-style or C-style.

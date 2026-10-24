@@ -195,6 +195,57 @@ public class ScadParserControlFlowTests
     }
 
     /// <summary>
+    ///     Validates that <c>each</c> in statement position is a module instantiation, with or without children.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_EachStatement_ProducesModuleInstantiation()
+    {
+        // Arrange / Act
+        var program = ScadParserTestSupport.Parse("each(1);");
+
+        // Assert
+        var instantiation = Assert.IsType<ScadModuleInstantiation>(Assert.Single(program.Statements));
+        Assert.Equal("each", instantiation.Name);
+        Assert.Equal("(inst each (1))", ScadAstDumper.DumpStatements(program));
+        Assert.Equal("(inst each (a b) (inst cube ()))", ScadParserTestSupport.Stmts("each(a, b) cube();"));
+        Assert.Equal("(inst each () (inst a ()) (inst b ()))", ScadParserTestSupport.Stmts("each() { a(); b(); }"));
+    }
+
+    /// <summary>
+    ///     Validates <c>each</c> after modifiers and as an unbraced child.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_EachStatement_ModifiedAndNested_ProducesModuleInstantiation()
+    {
+        // Arrange / Act / Assert
+        Assert.Equal("(mod # (inst each (1)))", ScadParserTestSupport.Stmts("#each(1);"));
+        Assert.Equal("(inst translate (1) (inst each (2)))", ScadParserTestSupport.Stmts("translate(1) each(2);"));
+        Assert.Equal("(let ((a 1)) (inst each (a)))", ScadParserTestSupport.Stmts("let(a=1) each(a);"));
+    }
+
+    /// <summary>
+    ///     Validates that the keyword statement forms combine with module children and with each other.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_KeywordStatements_WithChildren_ProduceExpectedNodes()
+    {
+        // Arrange / Act / Assert
+        Assert.Equal("(let ((a 1)) (inst cube (a)))", ScadParserTestSupport.Stmts("let(a=1) cube(a);"));
+        Assert.Equal("(echo (\"x\") (inst cube ()))", ScadParserTestSupport.Stmts("echo(\"x\") cube();"));
+        Assert.Equal("(assert (true) (inst cube ()))", ScadParserTestSupport.Stmts("assert(true) cube();"));
+    }
+
+    /// <summary>
+    ///     Validates that <c>each</c> in statement position still requires an argument list.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_EachStatement_WithoutParenthesis_Throws()
+    {
+        // Arrange / Act / Assert
+        ScadParserTestSupport.AssertParseError("each a;", 1, 6, "Expected '(' but found 'a'");
+    }
+
+    /// <summary>
     ///     Validates an echo expression.
     /// </summary>
     [Fact]

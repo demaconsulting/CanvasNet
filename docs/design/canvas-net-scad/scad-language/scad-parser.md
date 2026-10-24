@@ -192,6 +192,7 @@ keyword-stmt    = "for" "(" assignments1 ")" children
                 | "let" "(" assignments ")" children
                 | "echo" "(" arguments ")" children
                 | "assert" "(" arguments ")" children
+                | "each" "(" arguments ")" children   (a module instantiation named each)
 children        = ";"                                (no children)
                 | "{" { statement } "}"              (children are the block contents, flattened)
                 | single-child
@@ -221,6 +222,8 @@ Notes on the statement grammar:
 - `for` and `intersection_for` require at least one iterator; the iterators have nested-loop
   semantics. A C-style header (`for (init; condition; step)`) is an error in statement position and is
   legal only in a list comprehension.
+- `each` is a keyword only inside a list comprehension; in statement position it is an ordinary module
+  name, so `each(1) cube();` is a `ScadModuleInstantiation` named `each` with its arguments and children.
 - A trailing comma is accepted in parameter lists, argument lists, and assignment lists.
 
 ##### Expression precedence
@@ -291,6 +294,7 @@ element    = "for" "(" assignments1 ")" element              (ScadListForExpress
            | "if" "(" expression ")" element [ "else" element ]   (ScadListIfExpression)
            | "let" "(" assignments ")" element               (ScadListLetExpression)
            | "each" expression                               (ScadListEachExpression)
+           | "(" element ")"                                 (parenthesized; same node as the element)
            | expression
 ```
 
@@ -305,6 +309,13 @@ element    = "for" "(" assignments1 ")" element              (ScadListForExpress
 - In the C-style header the initializer and increment lists may be empty (`for (; c; )`); the
   condition is required. An `else` in a comprehension binds to the nearest `if`.
 - Elements nest: `[for (i = a) for (j = b) if (c) each f(i, j)]` is a chain of comprehension nodes.
+- A comprehension element may be wrapped in parentheses wherever an element may appear (a vector element
+  or the body of a `for`, `if`, `else`, or `let`): `[for (i = a) (for (j = b) i + j)]`. Parentheses add no
+  node, so the tree equals that of the unparenthesized form. `ParseListElement` treats `(` as the start of a
+  parenthesized element only when, after any further `(` tokens, the next token is `for`, `if`, `let`, or
+  `each`; otherwise the parenthesis begins an ordinary expression (`[(1 + 2)]`, `[for (i = a) (i + 1)]`).
+  Because `let` is also an expression keyword, a parenthesized `let` that is followed by anything other than
+  `,`, `]`, `)`, or `else` (for example `[(let (a = 1) [a])[0]]`) is parsed again as an expression.
 
 #### Error Handling
 

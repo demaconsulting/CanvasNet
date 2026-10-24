@@ -112,10 +112,13 @@ internal sealed partial class ScadParser
     ///     Determines whether a token kind starts an instantiation-like statement other than a plain module call.
     /// </summary>
     /// <param name="kind">The token kind.</param>
-    /// <returns><see langword="true"/> for <c>for</c>, <c>intersection_for</c>, <c>if</c>, <c>let</c>, <c>echo</c> and <c>assert</c>.</returns>
+    /// <returns>
+    ///     <see langword="true"/> for <c>for</c>, <c>intersection_for</c>, <c>if</c>, <c>let</c>, <c>echo</c>,
+    ///     <c>assert</c> and <c>each</c> (which, in statement position, names a module like any identifier).
+    /// </returns>
     private static bool IsInstantiationKeyword(ScadTokenKind kind) =>
         kind is ScadTokenKind.For or ScadTokenKind.IntersectionFor or ScadTokenKind.If or ScadTokenKind.Let
-            or ScadTokenKind.Echo or ScadTokenKind.Assert;
+            or ScadTokenKind.Echo or ScadTokenKind.Assert or ScadTokenKind.Each;
 
     /// <summary>
     ///     Parses optional modifiers followed by an instantiation-like statement or a block.
@@ -188,8 +191,22 @@ internal sealed partial class ScadParser
         ScadTokenKind.If => ParseIfStatement(),
         ScadTokenKind.Let => ParseLetStatement(),
         ScadTokenKind.Echo => ParseEchoStatement(),
+        ScadTokenKind.Each => ParseEachStatement(),
         _ => ParseAssertStatement(),
     };
+
+    /// <summary>
+    ///     Parses <c>each ( arguments ) children</c>: <c>each</c> is only a keyword inside a list comprehension,
+    ///     so in statement position it is an ordinary module instantiation named <c>each</c>.
+    /// </summary>
+    /// <returns>The module instantiation.</returns>
+    private ScadModuleInstantiation ParseEachStatement()
+    {
+        var keyword = Advance();
+        Expect(ScadTokenKind.LeftParen);
+        var arguments = ParseArgumentsAfterParen();
+        return new ScadModuleInstantiation("each", arguments, ParseChildren()) { Location = keyword.Location };
+    }
 
     /// <summary>
     ///     Parses a braced block <c>{ statement* }</c> as a standalone statement.
