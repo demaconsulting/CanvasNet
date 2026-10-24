@@ -334,12 +334,15 @@ sections:
                   vectors, prefix operators, conditional or power chains, blocks, single-child
                   chains, else-if chains, comprehensions, or left-associative and postfix chains
                   (whose resulting tree height is verified after parsing), shall accept input at
-                  the limit, and shall not overflow the call stack on a thread with a small or tiny
-                  stack.
+                  the limit on every platform regardless of the stack size of the calling thread
+                  (by parsing on a dedicated thread with an explicitly sized stack and
+                  propagating any exception faithfully to the caller), and shall not overflow the
+                  call stack.
                 justification: |
                   Bounding both the parser's recursion and the finished tree's height prevents an
                   stack overflow, which cannot be caught, here and in every later recursive
-                  consumer.
+                  consumer. The documented limit must not depend on the platform or on the caller's
+                  thread stack, so the runtime stack guard is only defense-in-depth.
                 tests:
                   - ScadParser_Parse_Nesting_Parentheses_AtLimit_Succeeds
                   - ScadParser_Parse_Nesting_Parentheses_OverLimit_Throws
@@ -357,7 +360,12 @@ sections:
                   - ScadParser_Parse_Nesting_InteriorLeftChainsAcrossLevels_OverLimit_Throws
                   - ScadParser_Parse_Nesting_MultiLineInput_ReportsLineOfOffendingConstruct
                   - ScadParser_Parse_Nesting_OnSmallStackThread_DoesNotOverflow
-                  - ScadParser_Parse_Nesting_OnTinyStackThread_StackGuardReportsNestingError
+                  - ScadParser_Parse_Nesting_AtLimit_OnSmallCallerStack_Succeeds
+                  - ScadParser_Parse_Nesting_OverLimit_OnSmallCallerStack_ThrowsNestingError
+                  - ScadParser_Parse_Nesting_AtLimit_OnTinyCallerStack_Succeeds
+                  - ScadParser_Parse_Exception_RethrownFromParserThread_PreservesTypeAndStackTrace
+                  - ScadParser_Parse_NumberLiteral_UnderGermanCulture_ParsesDotDecimal
+                  - ScadParser_Parse_Concurrent_ProducesIndependentResults
 
               - id: CanvasNetScad-ScadLanguage-ScadParser-SourceLength
                 title: >-

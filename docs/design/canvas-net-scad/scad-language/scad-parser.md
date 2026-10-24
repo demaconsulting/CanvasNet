@@ -41,7 +41,8 @@ token, so lookahead can never run off the list. The static `Parse` entry points 
 concurrent use because each call creates a new instance.
 
 **Limit constants.** `MaxNestingDepth = 256` (applied to both parser recursion and finished-tree
-height) and `MaxSourceLength = 4_194_304` UTF-16 characters.
+height), `MaxSourceLength = 4_194_304` UTF-16 characters, and `ParserStackSize = 16 MiB` (the stack of
+the dedicated parser thread).
 
 **Syntax tree.** Every node is an immutable record (init-only properties, read-only collections) that
 derives from `ScadNode`, which carries a single `Location` (`ScadSourceLocation`). Collections are
@@ -133,10 +134,14 @@ never constant-folded: `-5` is `ScadUnaryExpression(Negate, ScadNumberLiteral(5)
 
 - `ScadParser.Parse(string source, string? file)` (static) — checks that `source` is not null
   (`ArgumentNullException`), rejects source longer than `MaxSourceLength` with a plain
-  `InvalidDataException` before any work, tokenizes with `ScadLexer.Tokenize`, and parses the tokens.
+  `InvalidDataException` before any work, then tokenizes with `ScadLexer.Tokenize` and parses the tokens
+  on the dedicated parser thread (`RunOnParserThread`).
 - `ScadParser.Parse(IReadOnlyList<ScadToken> tokens)` (static) — checks that `tokens` is not null,
-  creates a parser instance, and calls `ParseProgramGuarded`. The tokens must end with an end-of-file
-  token, as `ScadLexer.Tokenize` guarantees.
+  then, on the dedicated parser thread, creates a parser instance and calls `ParseProgramGuarded`. The
+  tokens must end with an end-of-file token, as `ScadLexer.Tokenize` guarantees.
+- `RunOnParserThread<T>(Func<T>)` (private, static) — runs the work on a new `ScadParser` thread with
+  `ParserStackSize` (16 MiB), joins it, and rethrows any captured exception with
+  `ExceptionDispatchInfo`; see _Depth and limit mechanics_.
 - `ParseProgramGuarded()` — runs `ParseProgram()` inside a `try` that converts
   `InsufficientExecutionStackException` into the `Nesting too deep` error, then calls
   `ScadTreeDepth.Verify` on the finished tree.
@@ -366,8 +371,38 @@ of the input is always reported through `ErrorExpected` (`Unexpected end of inpu
 
 ##### Depth and limit mechanics
 
-Nesting is bounded in two complementary parts, both with the limit `MaxNestingDepth` (256) and the same
+Nesting is bounded in three cooperating parts, all with the limit `MaxNestingDepth` (256) and the same
 message, `Nesting too deep (limit 256)`.
+
+**Part 0: dedicated parser thread.** The nominal limit must hold on every platform and runtime,
+regardless of how much stack the caller's thread happens to have (a macOS arm64 secondary thread has
+only 512 KiB, and the test host used one; the recursion needs about 0.8 MiB for 254 nested
+parentheses). Both `Parse` overloads therefore run the tokenize-and-parse work through
+`RunOnParserThread<T>`, which creates a new background thread named `ScadParser` with an explicit
+`ParserStackSize` of 16 MiB and blocks (`Join`) until it finishes, so the call stays synchronous. An
+exception thrown on that thread is captured with `ExceptionDispatchInfo` and rethrown on the caller,
+preserving its type, location, and original stack trace. The caller's `CurrentCulture` and
+`CurrentUICulture` are applied to the new thread, `ExecutionContext` flows as for any thread start, and
+no shared state is introduced, so the static entry points remain safe for concurrent use. The cost is
+one thread creation per `Parse` call (tens to a few hundred microseconds, with the stack reserved but
+committed only as touched and released when the thread ends), which is negligible next to tokenizing
+and parsing; `ScadDocument.Parse`/`Open` carry no cancellation token, so there is nothing to honor.
+The null-argument and source-length checks run before the thread is created.
+
+_Derivation of the stack size._ Each nesting level costs a fixed set of recursive frames (for a
+parenthesis: `ParseExpression`, `ParseConditional`, `ParseBinary`, `ParseUnary`, `ParsePower`,
+`ParsePostfix`, `ParsePrimary`, `ParseParenthesized`). `ParseBinary` is already a single
+precedence-climbing loop over the `BinaryOperators` table, recursing only for the right operand of an
+operator, so it contributes one frame per nesting level and no further restructuring is needed. For
+each pathological shape at the nominal limit (parentheses, vectors, vector-in-parenthesis,
+comprehension `for`/`if`/`let`/`each`/C-style chains, unary and exponent chains, ternaries, blocks,
+unbraced child chains, else-if chains, call and module arguments, indexing, function literals, and
+`let`/`echo`/`assert` expression and statement chains) the smallest stack on which the parser
+succeeded with the runtime guard active was found by bisection on an unoptimized Debug build. The
+worst case was a chain of function literals at about 0.9 MiB including the 64 to 128 KiB the guard
+reserves (roughly 3.5 KiB per level); parentheses need about 0.8 MiB. Mixed shapes cost at most the sum
+of their levels, so the bound is 256 levels times the costliest level, below 1 MiB. 16 MiB gives a
+margin of about 17 times for larger frames on other architectures and runtimes.
 
 **Part 1: recursion counter.** `Enter()` increments `_depth`, throws the nesting error at the current
 token when `_depth` exceeds 256, and then calls `RuntimeHelpers.EnsureSufficientExecutionStack()`;
@@ -380,11 +415,13 @@ through `ParseStatement`. Right operands of left-associative binary operators re
 step per precedence level and are not counted. Because `Leave()` is not called when an exception
 propagates, the parser instance must not be reused after an error; it is single-use.
 
-If the runtime stack guard fires first (for example on a thread with a very small stack), the resulting
-`InsufficientExecutionStackException` is caught in `ParseProgramGuarded` and reported as the same
-nesting error at the current token. A file-scope assignment `x = …;` already uses depth 2 (one for the
-statement, one for the expression), so an assignment wrapped in N nested parentheses succeeds exactly
-when N is at most 254, and N chained prefix operators succeed exactly when N is at most 254.
+The stack guard is defense-in-depth only. With the sized thread it cannot fire before the depth counter
+for any input within the limit; if it ever does (for example on a runtime that reserves less stack than
+requested), the resulting `InsufficientExecutionStackException` is caught in `ParseProgramGuarded` and
+reported as the same nesting error at the current token. A file-scope assignment `x = …;` already uses
+depth 2 (one for the statement, one for the expression), so an assignment wrapped in N nested
+parentheses succeeds exactly when N is at most 254, and N chained prefix operators succeed exactly when
+N is at most 254.
 
 **Part 2: tree-height verification.** The parser builds left-associative operator chains
 (`1+1+1+…`) and postfix chains (`a[0][0]…`, `f()()…`) in loops, so a hostile input produces an
@@ -401,9 +438,17 @@ traversal enumerates the children of every statement and expression record (`Chi
 `StatementChildren`, `ExpressionChildren`), skips absent optional children, and is safe for any tree
 the parser can produce within the source size limit.
 
-Together the two parts guarantee that every later recursive consumer of the tree (an evaluator, a
+Together the parts guarantee that every later recursive consumer of the tree (an evaluator, a
 dumper, record equality, or printing) sees a tree of bounded depth, and that the parser itself cannot
 overflow the stack, so hostile input fails closed with a typed, located exception.
+
+**Constraint for the Phase 5 evaluator.** The evaluator recurses over the tree and over user-defined
+module and function calls, and must apply the same approach for its own recursion limits: run on a
+dedicated thread with an explicitly sized stack derived from a measured worst case at the nominal limit
+(or use an explicit stack instead of recursion), with exceptions marshalled back through
+`ExceptionDispatchInfo`. A recursion limit that relies on the caller's stack, or on
+`EnsureSufficientExecutionStack` as the primary mechanism, is not acceptable, because the result would
+then depend on the platform and the caller's thread.
 
 #### Dependencies
 
@@ -414,6 +459,8 @@ overflow the stack, so hostile input fails closed with a typed, located exceptio
   Design_ (`scad-document.md`).
 - **.NET base class library** — `System.Runtime.CompilerServices.RuntimeHelpers`
   (`EnsureSufficientExecutionStack`), `InsufficientExecutionStackException`, `InvalidDataException`,
+  `System.Threading.Thread`, `System.Runtime.ExceptionServices.ExceptionDispatchInfo`,
+  `System.Globalization.CultureInfo`,
   and `System.Collections.Generic` collections.
 
 #### Callers

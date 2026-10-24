@@ -26,7 +26,8 @@ a list comprehension, a modifier may precede only an instantiation-like statemen
 contain a comma or start a comprehension. Hostile-input behavior is verified at the limits: nesting of exactly
 256 levels is accepted and one more is rejected for each construct that recurses, left-associative and postfix
 chains are bounded by the verified height of the finished tree, deep input does not overflow the call stack on
-a thread with a 1 MiB or a deliberately tiny stack, and source of exactly 4,194,304 characters parses while one
+a thread with a 1 MiB, 256 KiB, or 64 KiB caller stack (the parser uses its own sized thread), and source of
+exactly 4,194,304 characters parses while one
 more character throws a plain `InvalidDataException` (not a `ScadSyntaxException`, because no location is
 meaningful for it). Syntax errors are `ScadSyntaxException`, which derives from `FormatException` and not
 `InvalidDataException`.
@@ -61,8 +62,8 @@ directives), `ScadParserControlFlowTests.cs` (conditionals, loops, and the let, 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required
-- **Threads**: The stack-safety scenarios run the parse on a dedicated thread with a 1 MiB or a 160 KiB stack
-  and join it before asserting
+- **Threads**: The stack-safety scenarios run the parse from a caller thread with a 1 MiB, 256 KiB, or 64 KiB
+  stack and join it before asserting; the parser itself always parses on its own 16 MiB thread
 - **Isolation**: Each test parses its own source strings; no files are read
 
 #### Acceptance Criteria
@@ -382,7 +383,12 @@ and that a whitespace-and-comment-only source is an empty program located at the
 `ScadParserLimitTests.ScadParser_Parse_Nesting_InteriorLeftChainsAcrossLevels_OverLimit_Throws`,
 `ScadParserLimitTests.ScadParser_Parse_Nesting_MultiLineInput_ReportsLineOfOffendingConstruct`,
 `ScadParserLimitTests.ScadParser_Parse_Nesting_OnSmallStackThread_DoesNotOverflow`,
-`ScadParserLimitTests.ScadParser_Parse_Nesting_OnTinyStackThread_StackGuardReportsNestingError`
+`ScadParserLimitTests.ScadParser_Parse_Nesting_AtLimit_OnSmallCallerStack_Succeeds`,
+`ScadParserLimitTests.ScadParser_Parse_Nesting_OverLimit_OnSmallCallerStack_ThrowsNestingError`,
+`ScadParserLimitTests.ScadParser_Parse_Nesting_AtLimit_OnTinyCallerStack_Succeeds`,
+`ScadParserLimitTests.ScadParser_Parse_Exception_RethrownFromParserThread_PreservesTypeAndStackTrace`,
+`ScadParserLimitTests.ScadParser_Parse_NumberLiteral_UnderGermanCulture_ParsesDotDecimal`,
+`ScadParserLimitTests.ScadParser_Parse_Concurrent_ProducesIndependentResults`
 
 Asserts the limit of 256 levels with the documented accounting (a file-scope assignment already uses two
 levels): parentheses nested 254 deep are accepted and 255 deep are rejected with `Nesting too deep (limit 256)`
@@ -393,8 +399,15 @@ and chains of 256 and of 100,000 operands are rejected, while a 200-operand chai
 member, and call postfix chains are rejected; left-leaning chains stacked through parentheses are rejected by the
 verified tree height although the parser's own recursion stays shallow; and an input whose deep chain starts on
 line 3 reports line 3. Hostile inputs of seven shapes, 100,000 levels deep, are parsed on a thread with a 1 MiB
-stack and each produces the typed syntax exception rather than a stack overflow; on a deliberately tiny 160 KiB
-stack, input below the depth limit either parses or fails with the same nesting error from the stack guard.
+stack and each produces the typed syntax exception rather than a stack overflow. Determinism independent of the
+caller's stack is proved by two theories over eleven pathological shapes (parentheses, vectors, prefix
+operators, ternaries, exponent chains, comprehension chains, function literals, call arguments, blocks,
+child chains, and else-if chains), each run from a caller thread with only a 256 KiB stack: the input nested
+exactly at the limit parses, and the input one level beyond it throws `Nesting too deep (limit 256)` rather
+than overflowing. A further test parses parentheses at the limit from a caller with a 64 KiB stack. The parser
+thread is shown to marshal exceptions faithfully (a `ScadSyntaxException` keeps its type, location, and
+parser stack frames), to apply the caller's culture (a `de-DE` caller still reads `1.5` as 1.5), and to be
+safe for concurrent callers (16 parallel parses yield independent results).
 
 ##### CanvasNetScad-ScadLanguage-ScadParser-SourceLength: Source Length Limit
 

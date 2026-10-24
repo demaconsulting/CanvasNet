@@ -71,9 +71,13 @@ leave later recursive consumers of the tree safe. Three limits apply:
   reading streams and files.
 - **Parser recursion** — a depth counter (`Enter`/`Leave`) limits how deeply the parser itself nests
   (statements, expressions, prefix operators, exponent chains, comprehension elements, and unbraced
-  single children) to `MaxNestingDepth` (256) and is backed by
-  `RuntimeHelpers.EnsureSufficientExecutionStack`; an `InsufficientExecutionStackException` is converted
-  to the same `Nesting too deep (limit 256)` error. The lexer is iterative and needs no such guard.
+  single children) to `MaxNestingDepth` (256). Parsing runs on a dedicated thread with a 16 MiB stack
+  sized for the worst case at that limit, so the limit is honored on every platform regardless of the
+  caller's stack; `RuntimeHelpers.EnsureSufficientExecutionStack` stays as defense-in-depth only, and an
+  `InsufficientExecutionStackException` is converted to the same `Nesting too deep (limit 256)` error.
+  The lexer is iterative and needs no such guard. Any later recursive component, notably the Phase 5
+  evaluator, must use the same approach (a dedicated sized-stack thread or an explicit stack) for its
+  own recursion limits.
 - **Tree height** — left-associative operator chains and postfix chains are built in loops without
   parser recursion, so a hostile `1+1+1+…` yields an arbitrarily deep left-leaning tree. After a
   successful parse, `ScadTreeDepth.Verify` measures the finished tree iteratively (explicit stack) and

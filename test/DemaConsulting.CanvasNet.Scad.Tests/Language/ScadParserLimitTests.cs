@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Runtime.ExceptionServices;
 using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Language;
@@ -271,30 +273,183 @@ public class ScadParserLimitTests
     }
 
     /// <summary>
-    ///     Validates that when the runtime stack runs low before the depth limit is reached, the stack guard
-    ///     reports the same typed nesting error instead of the process crashing.
+    ///     The pathological shapes used by the caller-stack determinism tests: each maps a repeat count to a source,
+    ///     and <c>Max</c> is the largest count accepted at the nominal nesting limit (a count of <c>Max + 1</c> is
+    ///     rejected). The counts follow from the depth accounting in the class remarks.
+    /// </summary>
+    private static readonly Dictionary<string, (Func<int, string> Make, int Max)> Shapes = new()
+    {
+        ["parentheses"] = (n => $"x = {ScadParserTestSupport.Repeat("(", n)}1{ScadParserTestSupport.Repeat(")", n)};", Limit - 2),
+        ["vectors"] = (n => $"x = {ScadParserTestSupport.Repeat("[", n)}1{ScadParserTestSupport.Repeat("]", n)};", (Limit / 2) - 1),
+        ["unary"] = (n => $"x = {ScadParserTestSupport.Repeat("-", n)}1;", Limit - 2),
+        ["ternary"] = (n => $"x = {ScadParserTestSupport.Repeat("a?b:", n)}c;", Limit - 2),
+        ["power"] = (n => $"x = {ScadParserTestSupport.Repeat("2^", n)}2;", Limit - 2),
+        ["comprehension"] = (n => $"x = [{ScadParserTestSupport.Repeat("for (i=a) ", n)}1];", Limit - 4),
+        ["function-literals"] = (n => $"x = {ScadParserTestSupport.Repeat("function(a) ", n)}1;", Limit - 2),
+        ["call-arguments"] = (n => $"x = {ScadParserTestSupport.Repeat("f(", n)}1{ScadParserTestSupport.Repeat(")", n)};", (Limit / 2) - 1),
+        ["blocks"] = (n => ScadParserTestSupport.Repeat("{", n) + ScadParserTestSupport.Repeat("}", n), Limit),
+        ["children"] = (n => ScadParserTestSupport.Repeat("a() ", n) + ";", Limit),
+        ["else-if"] = (n => ScadParserTestSupport.Repeat("if (a) b(); else ", n) + "c();", Limit - 1),
+    };
+
+    /// <summary>The names of <see cref="Shapes"/>, as theory data.</summary>
+    public static TheoryData<string> ShapeNames => [.. Shapes.Keys];
+
+    /// <summary>The stack size, in bytes, of the deliberately small caller threads.</summary>
+    private const int SmallCallerStackSize = 256 * 1024;
+
+    /// <summary>
+    ///     Runs a function on a new thread with a small stack and returns its result, propagating any exception.
+    /// </summary>
+    /// <typeparam name="T">The result type.</typeparam>
+    /// <param name="function">The function to run.</param>
+    /// <returns>The result.</returns>
+    private static T OnSmallStack<T>(Func<T> function)
+    {
+        T? result = default;
+        Exception? error = null;
+        var thread = new Thread(
+            () =>
+            {
+                try
+                {
+                    result = function();
+                }
+                catch (Exception ex)
+                {
+                    error = ex;
+                }
+            },
+            SmallCallerStackSize);
+        thread.Start();
+        thread.Join();
+        if (error is not null)
+        {
+            ExceptionDispatchInfo.Capture(error).Throw();
+        }
+
+        return result!;
+    }
+
+    /// <summary>
+    ///     Validates that every shape nested exactly at the limit parses when the caller has only a small stack,
+    ///     because the parser runs on its own sized thread.
+    /// </summary>
+    /// <param name="shape">The name of the shape.</param>
+    [Theory]
+    [MemberData(nameof(ShapeNames))]
+    public void ScadParser_Parse_Nesting_AtLimit_OnSmallCallerStack_Succeeds(string shape)
+    {
+        // Arrange
+        var (make, max) = Shapes[shape];
+        var source = make(max);
+
+        // Act
+        var program = OnSmallStack(() => ScadParserTestSupport.Parse(source));
+
+        // Assert
+        Assert.Single(program.Statements);
+    }
+
+    /// <summary>
+    ///     Validates that every shape one level over the limit still fails with the nesting error, not a stack
+    ///     overflow, when the caller has only a small stack.
+    /// </summary>
+    /// <param name="shape">The name of the shape.</param>
+    [Theory]
+    [MemberData(nameof(ShapeNames))]
+    public void ScadParser_Parse_Nesting_OverLimit_OnSmallCallerStack_ThrowsNestingError(string shape)
+    {
+        // Arrange
+        var (make, max) = Shapes[shape];
+        var source = make(max + 1);
+
+        // Act
+        var ex = Assert.Throws<ScadSyntaxException>(() => OnSmallStack(() => ScadParserTestSupport.Parse(source)));
+
+        // Assert
+        Assert.Contains($"Nesting too deep (limit {Limit})", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the dedicated parser thread has a stack at least as large as the measured worst case
+    ///     needs by parsing a mixed worst-case input at the limit on a caller whose stack is tiny.
     /// </summary>
     [Fact]
-    public void ScadParser_Parse_Nesting_OnTinyStackThread_StackGuardReportsNestingError()
+    public void ScadParser_Parse_Nesting_AtLimit_OnTinyCallerStack_Succeeds()
     {
-        // Arrange: nesting below the depth limit, on a thread whose stack is too small to hold it
-        var source = $"x = {ScadParserTestSupport.Repeat("(", 240)}1{ScadParserTestSupport.Repeat(")", 240)};";
+        // Arrange: parentheses at the limit, parsed by a caller thread that could never hold them itself
+        var source = Shapes["parentheses"].Make(Limit - 2);
+        ScadProgram? program = null;
         Exception? error = null;
 
         // Act
-        var thread = new Thread(() => error = Record.Exception(() => ScadParserTestSupport.Parse(source)), 160 * 1024);
+        var thread = new Thread(() => error = Record.Exception(() => program = ScadParserTestSupport.Parse(source)), 64 * 1024);
         thread.Start();
         thread.Join();
 
-        // Assert: either the stack guard or the depth limit stopped it, and in both cases with the same exception;
-        // a larger default stack may legitimately parse the input, so success is also acceptable
-        if (error is not null)
+        // Assert
+        Assert.Null(error);
+        Assert.NotNull(program);
+    }
+
+    /// <summary>
+    ///     Validates that an exception raised on the parser thread reaches the caller with its type, location and
+    ///     original stack trace intact.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_Exception_RethrownFromParserThread_PreservesTypeAndStackTrace()
+    {
+        // Arrange / Act
+        var ex = Assert.Throws<ScadSyntaxException>(() => ScadParserTestSupport.Parse("x = ;"));
+
+        // Assert: the original frames inside the parser are still present
+        Assert.Equal(1, ex.Location.Line);
+        Assert.Contains(nameof(ScadParser), ex.StackTrace, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the parser thread uses the calling thread's culture.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_NumberLiteral_UnderGermanCulture_ParsesDotDecimal()
+    {
+        // Arrange: a culture whose decimal separator is a comma
+        var original = CultureInfo.CurrentCulture;
+        try
         {
-            var ex = Assert.IsType<ScadSyntaxException>(error);
-            Assert.Contains("Nesting too deep", ex.Message, StringComparison.Ordinal);
+            CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+
+            // Act
+            var program = ScadParserTestSupport.Parse("x = 1.5;");
+
+            // Assert
+            var literal = Assert.IsType<ScadNumberLiteral>(Assert.IsType<ScadAssignmentStatement>(program.Statements[0]).Value);
+            Assert.Equal(1.5, literal.Value);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = original;
         }
     }
 
+    /// <summary>
+    ///     Validates that concurrent parses on the shared static entry point do not interfere.
+    /// </summary>
+    [Fact]
+    public async Task ScadParser_Parse_Concurrent_ProducesIndependentResults()
+    {
+        // Arrange / Act
+        var results = await Task.WhenAll(
+            Enumerable.Range(0, 16).Select(i => Task.Run(() => ScadParserTestSupport.Parse($"x = {i};"), TestContext.Current.CancellationToken)));
+
+        // Assert
+        for (var i = 0; i < results.Length; i++)
+        {
+            var value = Assert.IsType<ScadNumberLiteral>(Assert.IsType<ScadAssignmentStatement>(results[i].Statements[0]).Value);
+            Assert.Equal((double)i, value.Value);
+        }
+    }
     /// <summary>
     ///     Validates that a source of exactly the maximum length is accepted.
     /// </summary>

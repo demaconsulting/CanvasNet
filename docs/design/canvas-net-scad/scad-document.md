@@ -104,7 +104,10 @@ source text and options: no file other than the one named by `Open(path)` is acc
 - Source that cannot be tokenized or parsed throws `ScadSyntaxException` with the location of the
   first error (see _ScadLanguage_, `scad-language.md`, for the fail-fast model and the exact message
   catalogue in _ScadParser_ and _ScadLexer_). Nesting deeper than 256 levels is reported the same way
-  rather than overflowing the stack.
+  rather than overflowing the stack. Every `Parse`/`Open` call parses on a dedicated thread with a
+  16 MiB stack (one thread creation per call), so the limit does not depend on the caller's stack size;
+  exceptions are rethrown on the calling thread with their original type and stack trace. The
+  operations take no cancellation token, so none is honored.
 - Source longer than 4,194,304 UTF-16 characters throws a plain `InvalidDataException` with the message
   `Source exceeds the maximum length of 4194304 characters`, not a `ScadSyntaxException`, because no
   source location is meaningful for it. This applies to `Parse` (checked before any lexing), to

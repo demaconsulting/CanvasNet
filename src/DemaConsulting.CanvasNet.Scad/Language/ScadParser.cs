@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 
 namespace DemaConsulting.CanvasNet.Scad.Language;
 
@@ -17,7 +19,10 @@ namespace DemaConsulting.CanvasNet.Scad.Language;
 ///     <para>
 ///         Hostile input is bounded in two complementary ways. A recursion counter limits how deeply the parser
 ///         itself nests (statements, expressions, prefix operators, exponent chains and comprehension
-///         elements) and is backed by <see cref="RuntimeHelpers.EnsureSufficientExecutionStack"/>; after parsing,
+///         elements); every parse runs on a dedicated thread whose stack (<see cref="ParserStackSize"/>) is sized
+///         for the worst case at that limit, so the limit is honored on every platform whatever the caller's
+///         stack size, and <see cref="RuntimeHelpers.EnsureSufficientExecutionStack"/> remains only as
+///         defense-in-depth; after parsing,
 ///         an iterative check limits the height of the resulting tree, which also covers left-associative
 ///         operator and postfix chains that the parser builds without recursing. Together they guarantee that
 ///         every later recursive consumer sees a tree of bounded depth. Input size is bounded by
@@ -37,6 +42,21 @@ internal sealed partial class ScadParser
 
     /// <summary>The maximum accepted source length in UTF-16 characters.</summary>
     internal const int MaxSourceLength = 4_194_304;
+
+    /// <summary>
+    ///     The stack size in bytes of the dedicated parser thread (16 MiB).
+    /// </summary>
+    /// <remarks>
+    ///     Derived by measurement. For every pathological shape at the nominal <see cref="MaxNestingDepth"/> (nested
+    ///     parentheses, vectors, comprehension chains, unary and exponent chains, ternaries, blocks, child chains,
+    ///     else-if chains, call arguments, function literals, <c>let</c>/<c>echo</c>/<c>assert</c> chains and
+    ///     combinations), the smallest stack on which the parser succeeds with the runtime guard active was found
+    ///     by bisection. The worst case is about 0.9 MiB (a chain of <c>function(a)</c> literals, roughly 3.5 KiB
+    ///     per nesting level in an unoptimized Debug build, including the 64 to 128 KiB the guard reserves), so
+    ///     16 MiB is a margin of roughly 17 times; it also absorbs larger frames on other architectures and
+    ///     runtimes. The memory is reserved address space that is committed only as it is touched.
+    /// </remarks>
+    internal const int ParserStackSize = 16 * 1024 * 1024;
 
     /// <summary>The message names of the token kinds the grammar requires with <c>Expect</c>.</summary>
     private static readonly Dictionary<ScadTokenKind, string> ExpectedNames = new()
@@ -88,7 +108,8 @@ internal sealed partial class ScadParser
             throw CreateSourceTooLongException();
         }
 
-        return Parse(ScadLexer.Tokenize(source, file));
+        // Tokenizing is iterative, but it runs on the same dedicated thread so that a single thread serves the call
+        return RunOnParserThread(() => ParseOnCurrentThread(ScadLexer.Tokenize(source, file)));
     }
 
 
@@ -101,7 +122,65 @@ internal sealed partial class ScadParser
     public static ScadProgram Parse(IReadOnlyList<ScadToken> tokens)
     {
         ArgumentNullException.ThrowIfNull(tokens);
-        return new ScadParser(tokens).ParseProgramGuarded();
+        return RunOnParserThread(() => ParseOnCurrentThread(tokens));
+    }
+
+    /// <summary>
+    ///     Parses a token list on the calling thread; the caller must already be on a thread with a parser-sized stack.
+    /// </summary>
+    /// <param name="tokens">The tokens, ending with an end-of-file token.</param>
+    /// <returns>The syntax tree.</returns>
+    private static ScadProgram ParseOnCurrentThread(IReadOnlyList<ScadToken> tokens) =>
+        new ScadParser(tokens).ParseProgramGuarded();
+
+    /// <summary>
+    ///     Runs work on a dedicated thread whose stack is sized for the nominal nesting limit, so that the limit
+    ///     is honored independently of the stack size of the calling thread.
+    /// </summary>
+    /// <remarks>
+    ///     The caller blocks until the thread finishes, so the observable behavior is synchronous. An exception
+    ///     thrown by the work is captured and rethrown on the calling thread with
+    ///     <see cref="ExceptionDispatchInfo"/>, which preserves its type and original stack trace. The calling
+    ///     thread's current culture and UI culture are applied to the dedicated thread. Creating a thread per call
+    ///     costs on the order of tens to a few hundred microseconds, which is negligible next to parsing, and the
+    ///     stack is reserved (not committed) address space that is returned when the thread ends. No shared state
+    ///     is used, so the entry points remain safe for concurrent use.
+    /// </remarks>
+    /// <typeparam name="T">The result type.</typeparam>
+    /// <param name="work">The work to run.</param>
+    /// <returns>The result of the work.</returns>
+    private static T RunOnParserThread<T>(Func<T> work)
+    {
+        var result = default(T);
+        ExceptionDispatchInfo? failure = null;
+        var culture = CultureInfo.CurrentCulture;
+        var uiCulture = CultureInfo.CurrentUICulture;
+
+        var thread = new Thread(
+            () =>
+            {
+                CultureInfo.CurrentCulture = culture;
+                CultureInfo.CurrentUICulture = uiCulture;
+                try
+                {
+                    result = work();
+                }
+                catch (Exception ex)
+                {
+                    // Every exception is handed back to the caller unchanged, so none may be lost here
+                    failure = ExceptionDispatchInfo.Capture(ex);
+                }
+            },
+            ParserStackSize)
+        {
+            IsBackground = true,
+            Name = "ScadParser",
+        };
+        thread.Start();
+        thread.Join();
+
+        failure?.Throw();
+        return result!;
     }
 
     /// <summary>
