@@ -231,6 +231,49 @@ public class Matrix4x4DTests
     }
 
     /// <summary>
+    ///     Validates that a tiny non-zero axis whose squared length flushes to zero is accepted and
+    ///     rotates like the equivalent unit axis.
+    /// </summary>
+    [Fact]
+    public void Matrix4x4D_CreateFromAxisAngle_TinyAxis_MatchesRotationZ()
+    {
+        // Arrange / Act
+        var axisAngle = Matrix4x4D.CreateFromAxisAngle(new Vector3D(0.0, 0.0, 1e-200), 37.0);
+        var rotation = Matrix4x4D.CreateRotationZ(37.0);
+
+        // Assert
+        Render3DTestHelpers.AssertMatrix(rotation, axisAngle);
+    }
+
+    /// <summary>
+    ///     Validates that a tiny non-zero mirror normal is accepted and mirrors like a unit normal.
+    /// </summary>
+    [Fact]
+    public void Matrix4x4D_CreateMirror_TinyNormal_MatchesUnitNormalMirror()
+    {
+        // Arrange / Act
+        var mirror = Matrix4x4D.CreateMirror(new Vector3D(3e-200, 0.0, 0.0));
+
+        // Assert
+        Assert.Equal(new Vector3D(-1.0, 2.0, 3.0), mirror.TransformPoint(new Vector3D(1.0, 2.0, 3.0)));
+        Assert.Equal(-1.0, mirror.Determinant, 1e-12);
+    }
+
+    /// <summary>
+    ///     Validates that a mirror normal whose squared length overflows is still accepted.
+    /// </summary>
+    [Fact]
+    public void Matrix4x4D_CreateMirror_LargeNormal_MatchesUnitNormalMirror()
+    {
+        // Arrange / Act
+        var mirror = Matrix4x4D.CreateMirror(new Vector3D(3e200, 0.0, 0.0));
+
+        // Assert
+        Assert.Equal(new Vector3D(-1.0, 2.0, 3.0), mirror.TransformPoint(new Vector3D(1.0, 2.0, 3.0)));
+        Assert.Equal(-1.0, mirror.Determinant, 1e-12);
+    }
+
+    /// <summary>
     ///     Validates that a zero mirror normal is rejected.
     /// </summary>
     [Fact]

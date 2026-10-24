@@ -30,6 +30,7 @@ sections:
                   - DirectionalLight_ZeroDirection_Throws
                   - DirectionalLight_NormalizesDirection
                   - DirectionalLight_LargeDirection_NormalizesToUnitVector
+                  - DirectionalLight_TinyDirection_NormalizesToUnitVector
 
               - id: CanvasNetRender3D-SceneRendering-Lighting-DefaultRig
                 title: >-

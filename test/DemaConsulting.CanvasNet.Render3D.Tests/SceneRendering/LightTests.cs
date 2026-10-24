@@ -35,7 +35,23 @@ public class LightTests
     }
 
     /// <summary>
-    ///     Validates that a direction whose squared length overflows is still normalized to a unit vector.
+    ///     Validates that a tiny direction whose squared length flushes to zero is accepted and normalized.
+    /// </summary>
+    [Fact]
+    public void DirectionalLight_TinyDirection_NormalizesToUnitVector()
+    {
+        // Arrange / Act: the squared length of these components flushes to zero
+        var axisAligned = new DirectionalLight { Direction = new Vector3D(0.0, 0.0, -1e-200) };
+        var diagonal = new DirectionalLight { Direction = new Vector3D(3e-200, 4e-200, 0.0) };
+
+        // Assert
+        Assert.Equal(new Vector3D(0, 0, -1), axisAligned.Direction);
+        Assert.Equal(0.6, diagonal.Direction.X, 1e-12);
+        Assert.Equal(0.8, diagonal.Direction.Y, 1e-12);
+    }
+
+    /// <summary>
+    ///     Validates that a directional light accepts a very large direction (squared length overflows).
     /// </summary>
     [Fact]
     public void DirectionalLight_LargeDirection_NormalizesToUnitVector()

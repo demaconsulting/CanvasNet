@@ -32,10 +32,11 @@ Unit tests reside in `LightTests.cs` and `LightingModelTests.cs` within the
 **Tests**: `LightTests.Light_Constructors_NegativeIntensity_Throws`,
 `LightTests.DirectionalLight_ZeroDirection_Throws`,
 `LightTests.DirectionalLight_NormalizesDirection`,
-`LightTests.DirectionalLight_LargeDirection_NormalizesToUnitVector`
+`LightTests.DirectionalLight_LargeDirection_NormalizesToUnitVector`,
+`LightTests.DirectionalLight_TinyDirection_NormalizesToUnitVector`
 
 Asserts that a negative intensity and a zero direction are rejected, and that a directional light's
-direction is normalized when set (including a direction whose squared length overflows).
+direction is normalized when set (including a direction whose squared length overflows or flushes to zero).
 
 ##### CanvasNetRender3D-SceneRendering-Lighting-DefaultRig: Default Rig Has The Documented Lights
 

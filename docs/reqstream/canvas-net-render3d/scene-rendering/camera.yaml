@@ -25,6 +25,10 @@ sections:
                 tests:
                   - Camera_LookAt_SetsEyeTargetUp
                   - Camera_LookAt_EyeEqualsTarget_Throws
+                  - Camera_LookAt_TinyOffsetAndUp_IsAccepted
+                  - Camera_LookAt_HugeOffsetAndUp_IsAccepted
+                  - Camera_LookAt_TinyUpParallelToForward_SubstitutesAlternateUp
+                  - Camera_GetViewMatrix_TinyOffsetAndUp_AcceptedAndZeroRejected
 
               - id: CanvasNetRender3D-SceneRendering-Camera-ViewMatrix
                 title: >-

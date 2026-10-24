@@ -29,7 +29,8 @@ back face, so the per-sample cost during rasterization is a color lookup.
   of intensity 0.25.
 - **`AmbientLight`**: no additional state.
 - **`DirectionalLight`**: `Vector3D Direction` (init-only; the direction the light **travels**;
-  must be finite and non-zero, otherwise `ArgumentException`; normalized when set; defaults to
+  must be finite and non-zero (tested with the overflow/underflow-safe `Vector3D.Length`),
+  otherwise `ArgumentException`; normalized when set; defaults to
   `(0, 0, -1)`) and `bool IsCameraRelative` (init-only; defaults to false). When true the
   direction is expressed in view space (+X right, +Y up, -Z forward) and so moves with the camera;
   when false it is a world-space direction.

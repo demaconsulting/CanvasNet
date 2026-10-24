@@ -31,9 +31,15 @@ in the `SceneRendering` folder.
 ##### CanvasNetRender3D-SceneRendering-Camera-LookAt: LookAt Sets The Camera And Validates
 
 **Tests**: `CameraTests.Camera_LookAt_SetsEyeTargetUp`,
-`CameraTests.Camera_LookAt_EyeEqualsTarget_Throws`
+`CameraTests.Camera_LookAt_EyeEqualsTarget_Throws`,
+`CameraTests.Camera_LookAt_TinyOffsetAndUp_IsAccepted`,
+`CameraTests.Camera_LookAt_HugeOffsetAndUp_IsAccepted`,
+`CameraTests.Camera_LookAt_TinyUpParallelToForward_SubstitutesAlternateUp`,
+`CameraTests.Camera_GetViewMatrix_TinyOffsetAndUp_AcceptedAndZeroRejected`
 
-Asserts that `LookAt` stores the eye, target, and up vectors and rejects an eye equal to the target.
+Asserts that `LookAt` stores the eye, target, and up vectors, rejects an eye equal to the target,
+and accepts tiny or huge (but non-zero) view offsets and up hints, including a scale-invariant
+parallel up/forward substitution.
 
 ##### CanvasNetRender3D-SceneRendering-Camera-ViewMatrix: View Matrix Maps Eye, Target, And Up
 

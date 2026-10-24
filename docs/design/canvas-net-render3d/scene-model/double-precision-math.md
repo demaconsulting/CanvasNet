@@ -48,12 +48,14 @@ validate it.
 - Operators `+`, `-` (binary and unary), `*` (vector times scalar, in both operand orders), and `/`
   (vector divided by scalar), all component-wise.
 - `Dot(a, b)`; `Cross(a, b)` (a vector for `Vector3D`; the scalar z component for `Vector2D`).
-- `LengthSquared`, `Length`. For `Vector3D`, `Length` and `Normalize` divide by the largest
-  absolute component before squaring, so a finite vector never overflows or flushes to zero (for example
-  `(1e200, 0, 0)` has length `1e200` and `(1e-200, 0, 0)` has length `1e-200`). `LengthSquared`
-  remains the plain sum of squares and can overflow or underflow.
+- `LengthSquared`, `Length`. For `Vector2D` and `Vector3D`, `Length` and `Normalize` divide by the
+  largest absolute component before squaring, so a finite vector never overflows or flushes to zero
+  (for example `(1e200, 0, 0)` has length `1e200` and `(1e-200, 0, 0)` has length `1e-200`).
+  `LengthSquared` remains the plain sum of squares and can overflow or underflow, so zero and
+  degeneracy checks on caller-supplied vectors use `Length` (or an exact zero test), never
+  `LengthSquared`.
 - `Normalize()`: returns the unit-length vector, or `Zero` when the length is zero or a component is
-  NaN (documented, so callers can test the result's `LengthSquared`).
+  NaN (documented, so callers can test the result's `Length`).
 - `Vector3D.Min(a, b)` / `Max(a, b)`: component-wise minimum / maximum.
 - `Vector3D.ToVector3()`: the explicit single-precision narrowing to `System.Numerics.Vector3`, used
   only at the documented narrowing step of the renderer.
@@ -67,7 +69,8 @@ validate it.
   formula; right-handed, so `CreateRotationZ(90)` maps +X to +Y). Sine and cosine come from a helper
   that returns exact 0 and plus or minus 1 for any angle within 1e-12 quarter turns of a multiple of
   90 degrees, so axis-aligned CAD rotations carry no rounding error. A zero or non-finite axis
-  throws `ArgumentException`.
+  throws `ArgumentException`; any finite non-zero axis (including components of 1e-200 or 1e200) is
+  accepted and normalized.
 - `CreateMirror(Vector3D planeNormal)`: the reflection `I - 2 n n^T` across the plane through the
   origin with the given normal (the normal is normalized first); a zero or non-finite normal throws
   `ArgumentException`. The result has a negative determinant.

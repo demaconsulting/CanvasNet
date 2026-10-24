@@ -257,7 +257,7 @@ public readonly struct Matrix4x4D : IEquatable<Matrix4x4D>
     public static Matrix4x4D CreateFromAxisAngle(Vector3D axis, double degrees)
     {
         // A zero or non-finite axis has no direction to rotate about
-        if (!axis.IsFinite || axis.LengthSquared <= 0.0)
+        if (!axis.IsFinite || axis.Length <= 0.0)
         {
             throw new ArgumentException("The rotation axis must be finite and non-zero.", nameof(axis));
         }
@@ -291,7 +291,7 @@ public readonly struct Matrix4x4D : IEquatable<Matrix4x4D>
     public static Matrix4x4D CreateMirror(Vector3D planeNormal)
     {
         // A zero normal does not define a plane
-        if (!planeNormal.IsFinite || planeNormal.LengthSquared <= 0.0)
+        if (!planeNormal.IsFinite || planeNormal.Length <= 0.0)
         {
             throw new ArgumentException("The mirror plane normal must be finite and non-zero.", nameof(planeNormal));
         }

@@ -169,12 +169,12 @@ public sealed class Camera
             throw new ArgumentException("The eye, target and up vectors must be finite.");
         }
 
-        if ((target - eye).LengthSquared <= 0.0)
+        if ((target - eye).Length <= 0.0)
         {
             throw new ArgumentException("The eye and the target must be different points.", nameof(target));
         }
 
-        if (up.LengthSquared <= 0.0)
+        if (up.Length <= 0.0)
         {
             throw new ArgumentException("The up vector must be non-zero.", nameof(up));
         }
@@ -345,12 +345,12 @@ public sealed class Camera
     /// <exception cref="ArgumentException">Thrown when the eye equals the target or the up vector is zero.</exception>
     private void RequireViewDirection()
     {
-        if ((Target - Eye).LengthSquared <= 0.0)
+        if ((Target - Eye).Length <= 0.0)
         {
             throw new ArgumentException("The camera eye and target must be different points.");
         }
 
-        if (Up.LengthSquared <= 0.0)
+        if (Up.Length <= 0.0)
         {
             throw new ArgumentException("The camera up vector must be non-zero.");
         }

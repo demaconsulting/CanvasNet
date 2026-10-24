@@ -26,7 +26,27 @@ public readonly record struct Vector2D(double X, double Y)
     public double LengthSquared => (X * X) + (Y * Y);
 
     /// <summary>Gets the Euclidean length of the vector.</summary>
-    public double Length => Math.Sqrt(LengthSquared);
+    /// <remarks>
+    ///     The length is computed by scaling with the largest absolute component first, so a finite
+    ///     vector never overflows (for example <c>(1e200, 0)</c> has length <c>1e200</c>) or
+    ///     becomes zero (for example <c>(1e-200, 0)</c> has length <c>1e-200</c>) merely because
+    ///     its components are squared. A zero vector has length zero; a NaN component yields NaN
+    ///     and an infinite component yields infinity, as for <see cref="double"/>.
+    /// </remarks>
+    public double Length
+    {
+        get
+        {
+            // The largest absolute component is the scale; NaN propagates through Math.Max
+            var scale = MaxAbsComponent();
+            if (scale == 0.0 || !double.IsFinite(scale))
+            {
+                return scale;
+            }
+
+            return scale * ScaledLength(scale);
+        }
+    }
 
     /// <summary>Adds two vectors component-wise.</summary>
     /// <param name="left">The left operand.</param>
@@ -84,14 +104,50 @@ public readonly record struct Vector2D(double X, double Y)
     ///     normalizes to <see cref="Zero"/> rather than producing NaN components, so degenerate
     ///     input never poisons later arithmetic.
     /// </summary>
+    /// <remarks>
+    ///     The components are divided by the largest absolute component before the length is
+    ///     taken, so a finite non-zero vector of any magnitude (including <c>(1e200, 0)</c> and
+    ///     <c>(1e-200, 0)</c>) normalizes to a true unit vector instead of overflowing or
+    ///     collapsing to <see cref="Zero"/>.
+    /// </remarks>
     /// <returns>The normalized vector, or <see cref="Zero"/> when the length is zero.</returns>
     public Vector2D Normalize()
     {
-        // A zero length has no direction; return Zero instead of dividing by 0
-        var length = Length;
-        return length > 0.0 ? this / length : Zero;
+        // A zero (or NaN) length has no direction; return Zero instead of dividing by 0
+        var scale = MaxAbsComponent();
+        if (!(scale > 0.0))
+        {
+            return Zero;
+        }
+
+        // An infinite component cannot be scaled meaningfully; keep the plain division behavior
+        if (double.IsInfinity(scale))
+        {
+            return this / Length;
+        }
+
+        // Scale so the largest component has magnitude 1, then divide by the (safe) scaled length
+        var scaled = this / scale;
+        return scaled / Math.Sqrt(scaled.LengthSquared);
     }
 
     /// <summary>Gets a value indicating whether both components are finite (neither NaN nor infinite).</summary>
     public bool IsFinite => double.IsFinite(X) && double.IsFinite(Y);
+
+    /// <summary>Returns the largest absolute component value (NaN if any component is NaN).</summary>
+    /// <returns>The maximum of <c>|X|</c> and <c>|Y|</c>.</returns>
+    private double MaxAbsComponent() => Math.Max(Math.Abs(X), Math.Abs(Y));
+
+    /// <summary>
+    ///     Computes the length of this vector divided by <paramref name="scale"/>, which is safe
+    ///     from overflow and underflow because every scaled component has magnitude at most one.
+    /// </summary>
+    /// <param name="scale">The largest absolute component; finite and greater than zero.</param>
+    /// <returns>The length of the scaled vector (between 1 and the square root of 2).</returns>
+    private double ScaledLength(double scale)
+    {
+        var x = X / scale;
+        var y = Y / scale;
+        return Math.Sqrt((x * x) + (y * y));
+    }
 }

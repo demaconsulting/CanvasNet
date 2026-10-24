@@ -32,7 +32,7 @@ public sealed class DirectionalLight : Light
         init
         {
             // A zero or non-finite direction cannot be normalized into a ray direction
-            if (!value.IsFinite || value.LengthSquared <= 0.0)
+            if (!value.IsFinite || value.Length <= 0.0)
             {
                 throw new ArgumentException("The light direction must be finite and non-zero.", nameof(value));
             }

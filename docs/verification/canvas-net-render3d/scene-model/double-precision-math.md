@@ -39,11 +39,18 @@ Unit tests reside in `Vector2DTests.cs`, `Vector3DTests.cs`, `Matrix4x4DTests.cs
 `Vector3DTests.Vector3D_Length_TinyVector_ReturnsNonZeroLength`,
 `Vector3DTests.Vector3D_Length_ZeroVector_ReturnsZero`,
 `Vector3DTests.Vector3D_ToVector3_NarrowsToFloat`,
-`Vector2DTests.Vector2D_Dot_Cross_Normalize_MatchAnalytic`
+`Vector2DTests.Vector2D_Dot_Cross_Normalize_MatchAnalytic`,
+`Vector2DTests.Vector2D_Length_TinyVector_ReturnsNonZeroLength`,
+`Vector2DTests.Vector2D_Length_LargeVector_ReturnsFiniteLength`,
+`Vector2DTests.Vector2D_Length_ZeroVector_ReturnsZero`,
+`Vector2DTests.Vector2D_Normalize_TinyVector_ReturnsUnitVector`,
+`Vector2DTests.Vector2D_Normalize_LargeVector_ReturnsUnitVector`,
+`Vector2DTests.Vector2D_Normalize_ZeroOrNaNVector_ReturnsZero`
 
 Exercises the operators, dot and cross products, length, normalization (including the documented
 zero-vector result), the single-precision narrowing conversion, and the 2D equivalents. The
-large- and tiny-vector scenarios assert that `Length` and `Normalize` scale by the largest
+large- and tiny-vector scenarios (for both `Vector3D` and `Vector2D`) assert that `Length` and
+`Normalize` scale by the largest
 component, so components of magnitude 1e200 or 1e-200 neither overflow nor underflow, and that a
 vector with a NaN component normalizes to `Zero`.
 
@@ -56,11 +63,12 @@ vector with a NaN component normalizes to `Zero`.
 `Matrix4x4DTests.Matrix4x4D_CreateRotation_MultiplesOfNinety_AreExact`,
 `Matrix4x4DTests.Matrix4x4D_CreateFromAxisAngle_ZAxis_MatchesRotationZ`,
 `Matrix4x4DTests.Matrix4x4D_CreateFromAxisAngle_LargeAxis_MatchesRotationZ`,
+`Matrix4x4DTests.Matrix4x4D_CreateFromAxisAngle_TinyAxis_MatchesRotationZ`,
 `Matrix4x4DTests.Matrix4x4D_CreateScale_Vector_ScalesComponents`
 
 Verifies the identity, translation, and scale factories, the row-vector product order, exact
 rotations for multiples of 90 degrees, and that the axis-angle rotation about Z equals the Z
-rotation (including for an axis whose squared length overflows).
+rotation (including for an axis whose squared length overflows or flushes to zero).
 
 ##### CanvasNetRender3D-SceneModel-DoublePrecisionMath-MatrixInversion: Determinant And Inverse
 
@@ -74,10 +82,12 @@ identity within tolerance, and that a singular matrix reports failure.
 ##### CanvasNetRender3D-SceneModel-DoublePrecisionMath-MirrorTransform: Mirror Matrix Flips Orientation
 
 **Tests**: `Matrix4x4DTests.Matrix4x4D_CreateMirror_PlaneNormalX_NegatesXAndHasNegativeDeterminant`,
-`Matrix4x4DTests.Matrix4x4D_CreateMirror_ZeroNormal_ThrowsArgumentException`
+`Matrix4x4DTests.Matrix4x4D_CreateMirror_ZeroNormal_ThrowsArgumentException`,
+`Matrix4x4DTests.Matrix4x4D_CreateMirror_TinyNormal_MatchesUnitNormalMirror`,
+`Matrix4x4DTests.Matrix4x4D_CreateMirror_LargeNormal_MatchesUnitNormalMirror`
 
 Verifies that mirroring through a plane with normal X negates the X coordinate and has determinant
-negative one, and that a zero normal is rejected.
+negative one, that a zero normal is rejected, and that tiny and huge non-zero normals are accepted.
 
 ##### CanvasNetRender3D-SceneModel-DoublePrecisionMath-PointDirectionTransform: Points Translate, Directions Do Not
 

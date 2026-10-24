@@ -415,6 +415,84 @@ public class CameraTests
     }
 
     /// <summary>
+    ///     Validates that LookAt accepts a tiny non-zero view offset and up hint whose squared
+    ///     lengths underflow, and still builds the correct view.
+    /// </summary>
+    [Fact]
+    public void Camera_LookAt_TinyOffsetAndUp_IsAccepted()
+    {
+        // Arrange: the target is 1e-200 in front of the eye and the up hint is 1e-200 long
+        var eye = Vector3D.Zero;
+        var target = new Vector3D(0.0, 1e-200, 0.0);
+        var up = new Vector3D(0.0, 0.0, 1e-200);
+
+        // Act
+        var camera = Camera.LookAt(eye, target, up);
+        var forwardInView = camera.GetViewMatrix().TransformDirection(Vector3D.UnitY);
+        var upInView = camera.GetViewMatrix().TransformDirection(Vector3D.UnitZ);
+
+        // Assert: forward maps to -Z and the up hint maps to +Y
+        Render3DTestHelpers.AssertVector(new Vector3D(0.0, 0.0, -1.0), forwardInView, 1e-12);
+        Render3DTestHelpers.AssertVector(Vector3D.UnitY, upInView, 1e-12);
+    }
+
+    /// <summary>
+    ///     Validates that LookAt accepts a view offset and up hint whose squared lengths overflow.
+    /// </summary>
+    [Fact]
+    public void Camera_LookAt_HugeOffsetAndUp_IsAccepted()
+    {
+        // Arrange
+        var eye = Vector3D.Zero;
+        var target = new Vector3D(0.0, 1e200, 0.0);
+        var up = new Vector3D(0.0, 0.0, 1e200);
+
+        // Act
+        var camera = Camera.LookAt(eye, target, up);
+        var forwardInView = camera.GetViewMatrix().TransformDirection(Vector3D.UnitY);
+        var upInView = camera.GetViewMatrix().TransformDirection(Vector3D.UnitZ);
+
+        // Assert
+        Render3DTestHelpers.AssertVector(new Vector3D(0.0, 0.0, -1.0), forwardInView, 1e-12);
+        Render3DTestHelpers.AssertVector(Vector3D.UnitY, upInView, 1e-12);
+    }
+
+    /// <summary>
+    ///     Validates that the parallel up/forward degeneracy check is scale invariant: a tiny up
+    ///     hint parallel to a tiny view direction still has an alternate up substituted.
+    /// </summary>
+    [Fact]
+    public void Camera_LookAt_TinyUpParallelToForward_SubstitutesAlternateUp()
+    {
+        // Arrange / Act
+        var camera = Camera.LookAt(new Vector3D(0.0, 0.0, 1e-200), Vector3D.Zero, new Vector3D(0.0, 0.0, 1e-200));
+
+        // Assert: looking down along -Z with +Z up substitutes +Y, as for unit-scale input
+        Assert.Equal(Vector3D.UnitY, camera.Up);
+    }
+
+    /// <summary>
+    ///     Validates that a camera whose eye and target differ by a tiny amount, or whose up vector
+    ///     is tiny, is accepted when its view basis is computed, while exact zero is still rejected.
+    /// </summary>
+    [Fact]
+    public void Camera_GetViewMatrix_TinyOffsetAndUp_AcceptedAndZeroRejected()
+    {
+        // Arrange
+        var tiny = new Camera { Eye = Vector3D.Zero, Target = new Vector3D(0.0, 1e-200, 0.0), Up = new Vector3D(0.0, 0.0, 1e-200) };
+        var zeroOffset = new Camera { Eye = Vector3D.One, Target = Vector3D.One, Up = Vector3D.UnitZ };
+        var zeroUp = new Camera { Eye = Vector3D.Zero, Target = Vector3D.UnitY, Up = Vector3D.Zero };
+
+        // Act
+        var view = tiny.GetViewMatrix();
+
+        // Assert
+        Assert.Equal(1.0, view.Determinant, 1e-12);
+        Assert.Throws<ArgumentException>(() => zeroOffset.GetViewMatrix());
+        Assert.Throws<ArgumentException>(() => zeroUp.GetViewMatrix());
+    }
+
+    /// <summary>
     ///     Validates that a straight-down elevation of 90 degrees does not throw and yields a finite view.
     /// </summary>
     [Fact]

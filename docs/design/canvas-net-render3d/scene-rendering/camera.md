@@ -49,7 +49,8 @@ camera looking down -Z and +Y up.
 #### Key Methods
 
 - `Camera.LookAt(eye, target, up)`: validates that all three are finite, eye differs from target,
-  and `up` is non-zero (`ArgumentException`), then returns a camera whose stored `Up` is already
+  and `up` is non-zero (`ArgumentException`; the checks use the overflow/underflow-safe
+  `Vector3D.Length`, so any finite non-zero offset or up hint is accepted), then returns a camera whose stored `Up` is already
   the alternative up vector when the view direction is parallel to `up` (see below).
 - **Degenerate up**: when the view direction is parallel to the up hint (for example a camera
   looking straight down), the basis builder substitutes `-Y` when looking up or `+Y` when looking

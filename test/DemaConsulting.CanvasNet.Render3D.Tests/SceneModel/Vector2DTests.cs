@@ -34,6 +34,110 @@ public class Vector2DTests
     }
 
     /// <summary>
+    ///     Validates that the length of a tiny non-zero vector is not flushed to zero by underflow.
+    /// </summary>
+    [Fact]
+    public void Vector2D_Length_TinyVector_ReturnsNonZeroLength()
+    {
+        // Arrange: the squared components flush to zero
+        var vector = new Vector2D(3e-200, 4e-200);
+
+        // Act
+        var length = vector.Length;
+
+        // Assert
+        Assert.True(length > 0.0);
+        Assert.Equal(5e-200, length, 1e-212);
+    }
+
+    /// <summary>
+    ///     Validates that the length of a finite vector with very large components is finite and
+    ///     exact rather than overflowing to infinity.
+    /// </summary>
+    [Fact]
+    public void Vector2D_Length_LargeVector_ReturnsFiniteLength()
+    {
+        // Arrange
+        var vector = new Vector2D(3e200, 4e200);
+
+        // Act
+        var length = vector.Length;
+
+        // Assert
+        Assert.True(double.IsFinite(length));
+        Assert.Equal(5e200, length, 1e188);
+    }
+
+    /// <summary>
+    ///     Validates that the zero vector has exactly zero length.
+    /// </summary>
+    [Fact]
+    public void Vector2D_Length_ZeroVector_ReturnsZero()
+    {
+        // Arrange / Act
+        var length = Vector2D.Zero.Length;
+
+        // Assert
+        Assert.Equal(0.0, length);
+    }
+
+    /// <summary>
+    ///     Validates that a tiny non-zero vector normalizes to a unit vector instead of zero.
+    /// </summary>
+    [Fact]
+    public void Vector2D_Normalize_TinyVector_ReturnsUnitVector()
+    {
+        // Arrange
+        var axisAligned = new Vector2D(0.0, -1e-200);
+        var diagonal = new Vector2D(3e-200, 4e-200);
+
+        // Act
+        var normalizedAxis = axisAligned.Normalize();
+        var normalizedDiagonal = diagonal.Normalize();
+
+        // Assert
+        Assert.Equal(-Vector2D.UnitY, normalizedAxis);
+        Assert.Equal(0.6, normalizedDiagonal.X, 1e-12);
+        Assert.Equal(0.8, normalizedDiagonal.Y, 1e-12);
+    }
+
+    /// <summary>
+    ///     Validates that a vector with very large components normalizes to a unit vector instead
+    ///     of overflowing.
+    /// </summary>
+    [Fact]
+    public void Vector2D_Normalize_LargeVector_ReturnsUnitVector()
+    {
+        // Arrange
+        var axisAligned = new Vector2D(1e200, 0.0);
+        var diagonal = new Vector2D(3e200, 4e200);
+
+        // Act
+        var normalizedAxis = axisAligned.Normalize();
+        var normalizedDiagonal = diagonal.Normalize();
+
+        // Assert
+        Assert.Equal(Vector2D.UnitX, normalizedAxis);
+        Assert.Equal(0.6, normalizedDiagonal.X, 1e-12);
+        Assert.Equal(0.8, normalizedDiagonal.Y, 1e-12);
+    }
+
+    /// <summary>
+    ///     Validates that the zero vector and a NaN-component vector normalize to zero.
+    /// </summary>
+    [Fact]
+    public void Vector2D_Normalize_ZeroOrNaNVector_ReturnsZero()
+    {
+        // Arrange / Act
+        var zero = Vector2D.Zero.Normalize();
+        var nan = new Vector2D(double.NaN, 1.0).Normalize();
+
+        // Assert
+        Assert.Equal(Vector2D.Zero, zero);
+        Assert.Equal(Vector2D.Zero, nan);
+    }
+
+    /// <summary>
     ///     Validates the arithmetic operators and the zero-vector normalization rule.
     /// </summary>
     [Fact]
