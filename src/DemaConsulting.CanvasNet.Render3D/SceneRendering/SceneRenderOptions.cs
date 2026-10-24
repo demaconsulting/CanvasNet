@@ -17,11 +17,16 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///     <para>
 ///         Numeric properties are validated when they are set and throw
 ///         <see cref="ArgumentOutOfRangeException"/> immediately, so an options instance is always
-///         valid. Instances are immutable and thread-safe and may be shared between renders.
+///         valid (<see cref="MaxFragmentsPerTile"/> included). The unsupported-feature settings
+///         are passed through unchanged. Instances are immutable and thread-safe and may be shared
+///         between renders (a supplied handler must itself be safe for that use).
 ///     </para>
 /// </remarks>
 public sealed class SceneRenderOptions
 {
+    /// <summary>The default per-tile fragment budget: 4 Mi (4 * 1024 * 1024) fragments.</summary>
+    internal const long DefaultMaxFragmentsPerTile = 4L * 1024 * 1024;
+
     /// <summary>Smallest supported supersampling factor (no antialiasing).</summary>
     private const int MinSupersampling = 1;
 
@@ -42,6 +47,9 @@ public sealed class SceneRenderOptions
 
     /// <summary>Backing field for <see cref="MaxDegreeOfParallelism"/>.</summary>
     private readonly int _maxDegreeOfParallelism = -1;
+
+    /// <summary>Backing field for <see cref="MaxFragmentsPerTile"/>.</summary>
+    private readonly long _maxFragmentsPerTile = DefaultMaxFragmentsPerTile;
 
     /// <summary>
     ///     Gets the default options instance, used by <see cref="SceneRenderer"/> whenever the caller
@@ -176,6 +184,47 @@ public sealed class SceneRenderOptions
             _maxDegreeOfParallelism = value;
         }
     }
+
+    /// <summary>
+    ///     Gets the maximum number of fragments (covered samples of all triangles) a single 32 by 32
+    ///     pixel render tile may need when the scene is resolved per pixel, which is the case for
+    ///     scenes that use a <see cref="SceneModel.CsgOperation.Difference"/> or
+    ///     <see cref="SceneModel.CsgOperation.Intersection"/>. It bounds the memory of that step
+    ///     (roughly 8 to 12 bytes per fragment per worker); when a tile would exceed it the render
+    ///     throws <see cref="RenderBudgetExceededException"/> deterministically. Scenes that only
+    ///     use unions are never subject to the budget. Defaults to 4 Mi (4 * 1024 * 1024).
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown (from the <see langword="init"/> accessor) when the value is less than 1 or greater than <see cref="Array.MaxLength"/>.</exception>
+    public long MaxFragmentsPerTile
+    {
+        get => _maxFragmentsPerTile;
+        init
+        {
+            // Fragment storage is array-backed, so the budget can never usefully exceed an array's capacity
+            if (value < 1 || value > Array.MaxLength)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "The fragment budget must be between 1 and the maximum array length.");
+            }
+
+            _maxFragmentsPerTile = value;
+        }
+    }
+
+    /// <summary>
+    ///     Gets the handler that receives each <see cref="SceneRenderUnsupportedFeature"/> report
+    ///     (for example a constructive-solid-geometry operand that is not a closed, outward-oriented
+    ///     mesh). Reports are delivered on the calling thread, in deterministic scene order, before
+    ///     any pixels are produced. <see langword="null"/> (default) means reports are not
+    ///     generated at all unless <see cref="ThrowOnUnsupportedFeature"/> is set.
+    /// </summary>
+    public Action<SceneRenderUnsupportedFeature>? UnsupportedFeatureHandler { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether the first unsupported-feature report is thrown as a
+    ///     <see cref="SceneRenderUnsupportedFeatureException"/> instead of being rendered tolerantly.
+    ///     Defaults to <see langword="false"/> (tolerant: render and report).
+    /// </summary>
+    public bool ThrowOnUnsupportedFeature { get; init; }
 
     /// <summary>Gets the lights actually used for shading: <see cref="Lights"/> or, when that is <see langword="null"/>, <see cref="Light.DefaultRig"/>.</summary>
     internal IReadOnlyList<Light> EffectiveLights => _lights ?? Light.DefaultRig;

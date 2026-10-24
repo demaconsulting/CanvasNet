@@ -283,4 +283,233 @@ public class SceneGraphTests
         Assert.Equal(10_000.0, instance.World.M41);
         Assert.Equal(10_000.0, bounds.Min.X);
     }
+
+    /// <summary>
+    ///     Validates that a null child collection is rejected by <see cref="CsgNode"/>.
+    /// </summary>
+    [Fact]
+    public void CsgNode_Constructor_NullChildren_Throws()
+    {
+        // Arrange / Act / Assert
+        Assert.Throws<ArgumentNullException>(() => new CsgNode(CsgOperation.Union, null!));
+    }
+
+    /// <summary>
+    ///     Validates that a null child element is rejected by <see cref="CsgNode"/>.
+    /// </summary>
+    [Fact]
+    public void CsgNode_Constructor_NullChildElement_Throws()
+    {
+        // Arrange / Act / Assert
+        Assert.Throws<ArgumentException>(() => new CsgNode(CsgOperation.Difference, [new MeshNode(UnitCube), null!]));
+    }
+
+    /// <summary>
+    ///     Validates that an undefined operation value is rejected by <see cref="CsgNode"/>.
+    /// </summary>
+    [Fact]
+    public void CsgNode_Constructor_UndefinedOperation_Throws()
+    {
+        // Arrange / Act / Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CsgNode((CsgOperation)3, [new MeshNode(UnitCube)]));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CsgNode((CsgOperation)(-1), []));
+    }
+
+    /// <summary>
+    ///     Validates that <see cref="CsgNode"/> keeps its operation and copies its children so later source changes do not affect it.
+    /// </summary>
+    [Theory]
+    [InlineData(CsgOperation.Union)]
+    [InlineData(CsgOperation.Difference)]
+    [InlineData(CsgOperation.Intersection)]
+    public void CsgNode_Constructor_KeepsOperationAndCopiesChildren(CsgOperation operation)
+    {
+        // Arrange
+        var first = new MeshNode(UnitCube);
+        var second = new MeshNode(UnitCube);
+        var source = new List<SceneNode> { first, second };
+        var node = new CsgNode(operation, source);
+
+        // Act
+        source.Clear();
+        source.Add(new MeshNode(UnitCube));
+
+        // Assert
+        Assert.Equal(operation, node.Operation);
+        Assert.Equal(2, node.Children.Count);
+        Assert.Same(first, node.Children[0]);
+        Assert.Same(second, node.Children[1]);
+    }
+
+    /// <summary>
+    ///     Validates that a childless <see cref="CsgNode"/> is allowed for every operation, is empty and has empty bounds.
+    /// </summary>
+    [Theory]
+    [InlineData(CsgOperation.Union)]
+    [InlineData(CsgOperation.Difference)]
+    [InlineData(CsgOperation.Intersection)]
+    public void CsgNode_Constructor_Empty_AllowedAndEmptyForEveryOperation(CsgOperation operation)
+    {
+        // Arrange / Act
+        var node = new CsgNode(operation, []);
+        var scene = new Scene(node);
+
+        // Assert
+        Assert.Empty(node.Children);
+        Assert.Empty(scene.EnumerateInstances());
+        Assert.True(scene.ComputeBounds().IsEmpty);
+    }
+
+    /// <summary>
+    ///     Validates that a single-child <see cref="CsgNode"/> enumerates exactly that child's instances for every operation.
+    /// </summary>
+    [Theory]
+    [InlineData(CsgOperation.Union)]
+    [InlineData(CsgOperation.Difference)]
+    [InlineData(CsgOperation.Intersection)]
+    public void CsgNode_SingleChild_EnumeratesThatChild(CsgOperation operation)
+    {
+        // Arrange
+        var child = new MeshNode(UnitCube);
+        var scene = new Scene(new CsgNode(operation, [child]));
+
+        // Act
+        var instance = Assert.Single(scene.EnumerateInstances());
+
+        // Assert
+        Assert.Same(child, instance.Node);
+        Assert.Same(UnitCube, instance.Mesh);
+    }
+
+    /// <summary>
+    ///     Validates that a non-finite transform is rejected on a <see cref="CsgNode"/> like on every other node.
+    /// </summary>
+    [Fact]
+    public void CsgNode_Transform_NonFiniteMatrix_ThrowsArgumentException()
+    {
+        // Arrange
+        var nan = Matrix4x4D.CreateTranslation(new Vector3D(double.NaN, 0, 0));
+
+        // Act / Assert
+        Assert.Throws<ArgumentException>(() => new CsgNode(CsgOperation.Union, []) { Transform = nan });
+        Assert.Equal(Matrix4x4D.Identity, new CsgNode(CsgOperation.Union, []).Transform);
+    }
+
+    /// <summary>
+    ///     Validates that the traversal descends into a <see cref="CsgNode"/> (operands are never silently dropped), in pre-order, mixed with groups.
+    /// </summary>
+    [Fact]
+    public void Scene_EnumerateInstances_CsgNode_DescendsIntoOperandsInPreOrder()
+    {
+        // Arrange: root group[ a, csg-difference[ b, group[ c, csg-intersection[ d, e ] ] ], f ]
+        var nodes = Enumerable.Range(1, 6)
+            .Select(i => new MeshNode(UnitCube) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(i, 0, 0)) })
+            .ToArray();
+        var intersection = new CsgNode(CsgOperation.Intersection, [nodes[3], nodes[4]]);
+        var difference = new CsgNode(CsgOperation.Difference, [nodes[1], new GroupNode([nodes[2], intersection])]);
+        var scene = new Scene(new GroupNode([nodes[0], difference, nodes[5]]));
+
+        // Act
+        var instances = scene.EnumerateInstances().ToList();
+
+        // Assert: all six are present, in pre-order, and each reports its source node
+        Assert.Equal([0, 1, 2, 3, 4, 5], instances.Select(i => i.Order));
+        Assert.Equal([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], instances.Select(i => i.World.M41));
+        Assert.Equal(nodes, instances.Select(i => i.Node));
+    }
+
+    /// <summary>
+    ///     Validates that a child shared by two CSG parents is enumerated once per path with each path's transform.
+    /// </summary>
+    [Fact]
+    public void Scene_EnumerateInstances_CsgNode_SharedChild_EnumeratedPerPath()
+    {
+        // Arrange: one shared node under a union and a difference node at different offsets
+        var shared = new MeshNode(UnitCube);
+        var left = new CsgNode(CsgOperation.Union, [shared]) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(-5, 0, 0)) };
+        var right = new CsgNode(CsgOperation.Difference, [shared, new MeshNode(UnitCube)]) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(5, 0, 0)) };
+
+        // Act
+        var instances = new Scene(new GroupNode([left, right])).EnumerateInstances().ToList();
+
+        // Assert
+        Assert.Equal(3, instances.Count);
+        Assert.Same(shared, instances[0].Node);
+        Assert.Same(shared, instances[1].Node);
+        Assert.Equal(-5.0, instances[0].World.M41);
+        Assert.Equal(5.0, instances[1].World.M41);
+    }
+
+    /// <summary>
+    ///     Validates that a <see cref="CsgNode"/> composes its transform child-then-parent and passes its appearance to operands without one.
+    /// </summary>
+    [Fact]
+    public void Scene_EnumerateInstances_CsgNode_ComposesTransformAndInheritsAppearance()
+    {
+        // Arrange: operand scales by 2, CSG node translates by (10,0,0), grandparent group is blue
+        var red = new NodeAppearance(new Rgba32(255, 0, 0, 255));
+        var blue = new NodeAppearance(new Rgba32(0, 0, 255, 255));
+        var scaled = new MeshNode(UnitCube) { Transform = Matrix4x4D.CreateScale(2.0) };
+        var own = new MeshNode(UnitCube) { Appearance = red };
+        var csg = new CsgNode(CsgOperation.Difference, [scaled, own]) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(10, 0, 0)) };
+        var scene = new Scene(new GroupNode([csg]) { Appearance = blue });
+
+        // Act
+        var instances = scene.EnumerateInstances().ToList();
+
+        // Assert: unit corner (1,1,1) -> (2,2,2) -> (12,2,2); appearance blue inherited, red own
+        Render3DTestHelpers.AssertVector(new Vector3D(12, 2, 2), instances[0].World.TransformPoint(Vector3D.One));
+        Assert.Equal(blue, instances[0].Appearance);
+        Assert.Equal(red, instances[1].Appearance);
+
+        // A CSG node's own appearance applies to its operands as well
+        var tinted = new Scene(new CsgNode(CsgOperation.Union, [new MeshNode(UnitCube)]) { Appearance = red });
+        Assert.Equal(red, Assert.Single(tinted.EnumerateInstances()).Appearance);
+    }
+
+    /// <summary>
+    ///     Validates that scene bounds include every operand of a difference or intersection (conservative bounds).
+    /// </summary>
+    [Fact]
+    public void Scene_ComputeBounds_CsgNode_IncludesAllOperands()
+    {
+        // Arrange: a unit cube minus a cube far away still reports both operands in the bounds
+        var far = new MeshNode(UnitCube) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(9, 0, 0)) };
+        var difference = new Scene(new CsgNode(CsgOperation.Difference, [new MeshNode(UnitCube), far]));
+        var intersection = new Scene(new CsgNode(CsgOperation.Intersection, [new MeshNode(UnitCube), far]));
+
+        // Act
+        var differenceBounds = difference.ComputeBounds();
+        var intersectionBounds = intersection.ComputeBounds();
+
+        // Assert
+        Assert.Equal(new Vector3D(0, 0, 0), differenceBounds.Min);
+        Assert.Equal(new Vector3D(10, 1, 1), differenceBounds.Max);
+        Assert.Equal(differenceBounds, intersectionBounds);
+    }
+
+    /// <summary>
+    ///     Validates that a scene nested ten thousand CSG nodes deep is enumerated without stack overflow.
+    /// </summary>
+    [Fact]
+    public void Scene_EnumerateInstances_TenThousandNestedCsgNodes_DoesNotOverflowStack()
+    {
+        // Arrange: alternate operations around one mesh, translating +1 in X each level
+        SceneNode node = new MeshNode(UnitCube);
+        for (var i = 0; i < 10_000; i++)
+        {
+            var operation = (CsgOperation)(i % 3);
+            node = new CsgNode(operation, [node]) { Transform = Matrix4x4D.CreateTranslation(Vector3D.UnitX) };
+        }
+
+        var scene = new Scene(node);
+
+        // Act
+        var instance = Assert.Single(scene.EnumerateInstances());
+        var bounds = scene.ComputeBounds();
+
+        // Assert
+        Assert.Equal(10_000.0, instance.World.M41);
+        Assert.Equal(10_000.0, bounds.Min.X);
+    }
 }

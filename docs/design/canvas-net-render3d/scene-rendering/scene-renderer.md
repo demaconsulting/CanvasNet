@@ -3,12 +3,15 @@
 <!-- cspell:ignore Binner binner supersampling supersamples rasterizer rasterize -->
 
 The `SceneRenderer` unit is the fourth software unit in the `SceneRendering` subsystem. It
-comprises two public types in the `DemaConsulting.CanvasNet.Render3D.SceneRendering` namespace plus
+comprises five public types in the `DemaConsulting.CanvasNet.Render3D.SceneRendering` namespace plus
 three internal types:
 
 - `SceneRenderer` (static class): the public `Render` and `RenderFitted` entry points
 - `SceneRenderOptions` (sealed class): immutable, validated render options with a `Default`
   instance
+- `RenderBudgetExceededException`, `SceneRenderUnsupportedFeatureException` (sealed exception
+  classes) and `SceneRenderUnsupportedFeature` (sealed record): the diagnostics of fragment-list
+  constructive solid geometry rendering
 - `TileBinner` (internal static class) and `TileBins` (internal sealed class): triangle-to-tile
   binning
 - `SampleResolver` (internal static class): antialiasing resolve into output pixels
@@ -36,10 +39,22 @@ render into a new `Surface`, in parallel when allowed, with cooperative cancella
   | `SpecularPower` | 32 | finite, greater than 0 |
   | `Supersampling` | 3 | 1 to 4 |
   | `MaxDegreeOfParallelism` | -1 | -1 (scheduler chooses) or at least 1; 1 means sequential; 0 and below -1 rejected |
+  | `MaxFragmentsPerTile` | 4 Mi (4194304) | `long`, 1 to `Array.MaxLength`; the per-tile fragment budget of per-pixel fragment resolution |
+  | `UnsupportedFeatureHandler` | `null` | none; receives `SceneRenderUnsupportedFeature` reports |
+  | `ThrowOnUnsupportedFeature` | `false` | none; when `true` the first report is thrown instead |
   <!-- markdownlint-enable MD013 -->
 
   Violations of a numeric range throw `ArgumentOutOfRangeException`. `SceneRenderOptions.Default`
   is a shared instance of the defaults.
+- **Diagnostics**: `RenderBudgetExceededException` (an `InvalidOperationException`) carries only the
+  exceeded `long MaxFragmentsPerTile` and a message that depends on nothing else, so the failure is
+  identical whichever tile or thread detects it. `SceneRenderUnsupportedFeature(Feature, Message,
+  Node)` is the record delivered to the handler: `Feature` is a short, stable, machine-matchable
+  token, `Node` the optional `MeshNode` concerned. `SceneRenderUnsupportedFeatureException` (an
+  `InvalidOperationException`) carries the same `Feature` and `Node`; it mirrors the
+  unsupported-feature exceptions of the sibling packages (tolerant by default, strict opt-in).
+  Both exceptions provide the standard parameterless, message and message-plus-inner constructors.
+  The options and diagnostics types are defined ahead of the renderer integration that raises them.
 - **`TileBins`**: a flat `int[]` of triangle indices plus a per-tile offsets array; `GetTriangles(tile)`
   returns the tile's slice.
 - **`TileWorkspace`**: three arrays sized for one tile at the chosen supersampling (`float` depth,

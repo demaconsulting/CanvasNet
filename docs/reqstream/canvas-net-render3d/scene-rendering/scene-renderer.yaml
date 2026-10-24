@@ -133,6 +133,42 @@ sections:
                   - SceneRenderOptions_Lights_Null_UsesDefaultRig
                   - SceneRenderOptions_Lights_CopiedDefensively
 
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-CsgOptions
+                title: >-
+                  The SceneRenderOptions type shall provide a per-tile fragment budget
+                  (MaxFragmentsPerTile) defaulting to 4 Mi (4194304) fragments and rejecting a
+                  value below one or above the maximum array length with
+                  ArgumentOutOfRangeException, and an unsupported-feature handler and strict flag
+                  that default to no handler and tolerant (non-throwing) behavior.
+                justification: |
+                  The budget bounds the memory of per-pixel fragment resolution and must be
+                  validated when set so an options instance is always valid, and the handler and
+                  strict flag follow the unsupported-feature convention of the sibling render
+                  options so callers can choose between reporting and failing.
+                tests:
+                  - SceneRenderOptions_CsgDefaults_BudgetFourMiAndTolerant
+                  - SceneRenderOptions_MaxFragmentsPerTile_OutOfRange_Throws
+                  - SceneRenderOptions_UnsupportedFeatureSettings_StoredAsGiven
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Diagnostics
+                title: >-
+                  The SceneRenderer shall provide the public RenderBudgetExceededException
+                  (carrying the exceeded budget and a tile-independent message), the
+                  SceneRenderUnsupportedFeature report (feature token, message and optional mesh
+                  node) and the SceneRenderUnsupportedFeatureException (feature token and optional
+                  mesh node), each with the standard exception constructors.
+                justification: |
+                  A caller must be able to tell a budget overflow or an unsupported scene feature
+                  from a programming error without string-matching a message, and a message that
+                  does not depend on which tile or thread detected the overflow keeps failures
+                  deterministic.
+                tests:
+                  - RenderBudgetExceededException_Budget_CarriesBudgetAndStandardMessage
+                  - RenderBudgetExceededException_StandardConstructors_UseDefaultBudget
+                  - SceneRenderUnsupportedFeature_Record_ExposesValues
+                  - SceneRenderUnsupportedFeatureException_FeatureConstructor_CarriesFeatureAndNode
+                  - SceneRenderUnsupportedFeatureException_StandardConstructors_HaveEmptyFeature
+
               - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Precision
                 title: >-
                   The SceneRenderer shall render a cube (and its camera) translated one million

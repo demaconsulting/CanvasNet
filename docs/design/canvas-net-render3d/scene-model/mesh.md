@@ -7,7 +7,9 @@ types in the `DemaConsulting.CanvasNet.Render3D.SceneModel` namespace plus one i
 
 - `Mesh` (sealed class): an immutable, validated, indexed triangle mesh
 - `MeshBuilder` (sealed class): a mutable construction helper that welds identical vertices
-- `MeshTopology` (internal static class): closedness, signed volume, and surface-area algorithms
+- `MeshTopology` (internal static class): closedness, topology-defect classification, signed volume,
+  and surface-area algorithms
+- `MeshTopologyDefects` (internal flags enum): the defect kinds the analysis reports
 
 #### Purpose
 
@@ -31,6 +33,8 @@ generators and callers assemble a welded mesh without managing vertex de-duplica
   value equality** of the three components, with `-0.0` and `+0.0` treated as equal; no tolerance is
   applied.
 - **`MeshTopology`**: stateless.
+- **`MeshTopologyDefects`**: a `[Flags]` enum: `None`, `BoundaryEdge`, `NonManifoldEdge`,
+  `InconsistentWinding`, `DegenerateTriangle`.
 
 #### Key Methods
 
@@ -38,13 +42,26 @@ generators and callers assemble a welded mesh without managing vertex de-duplica
   into private arrays (so later mutation of the caller's collections has no effect), then validates
   the invariants above.
 - `Bounds`: the axis-aligned box of the vertices (empty for a mesh with no vertices).
-- `IsClosed`: computed on first request and cached. A mesh is closed when it has at least one
-  triangle, no triangle repeats a vertex index, every **directed** edge `a -> b` occurs exactly once
-  across all triangles, and its reverse `b -> a` also occurs. This rejects open edges, two
-  triangles sharing an edge in the same direction (inconsistent winding), and an edge shared by
-  more than two triangles; a mesh made of several disjoint closed shells is closed. The algorithm
-  builds one 64-bit key per directed edge, sorts the keys, scans for duplicates, and binary-searches
-  for each reverse edge: O(E log E) with no per-edge allocation.
+- `IsClosed`: computed on first request and cached (through the cached topology defects). A mesh
+  is closed when it has at least one triangle and the topology analysis (below) reports no defect:
+  every **directed** edge `a -> b` occurs exactly once across all triangles, its reverse `b -> a`
+  also occurs, and no triangle repeats a vertex index. A mesh made of several disjoint closed shells
+  is closed.
+- `MeshTopology.Analyze(indices)` (internal): classifies every defect in one pass. Each triangle
+  that repeats an index is flagged `DegenerateTriangle` and its edges are ignored (so one collapsed
+  triangle does not also appear as edge defects). For every other triangle edge it records the
+  **undirected** edge key (lower index, higher index) with a direction flag, sorts the keys (with
+  the flags as a parallel array) and, per run of equal keys, counts the traversals low-to-high
+  (`n_ab`) and high-to-low (`n_ba`): one traversal in total is a `BoundaryEdge`; three or more is a
+  `NonManifoldEdge`; exactly two in the same direction is `InconsistentWinding`; one in each
+  direction is correct. The result is the OR of the defects found; an empty list has none.
+  O(E log E) with two array allocations. `IsClosedOrientable` is `length > 0 && Analyze == None`.
+- `TopologyDefects` (internal): `Analyze` over the mesh's indices, computed lazily on first use and
+  cached (a benign race because the analysis is deterministic).
+- `IsInverted` (internal): true when the mesh is closed (no defect) and its signed volume is below
+  `-1e-9 * diagonal^3` (the bounds diagonal cubed), i.e. a closed mesh wound inside out. A hollow
+  mesh (an outward outer shell and an inward inner shell) keeps a positive total volume and is not
+  inverted; open and empty meshes are never inverted because their volume is meaningless.
 - `SignedVolume`: the sum of signed tetrahedron volumes `a . (b x c) / 6` taken relative to the
   center of the bounds (so the value keeps its precision for a mesh far from the origin); positive
   for a closed, outward-CCW mesh, negative when inside-out; 0 for an empty mesh.
@@ -85,4 +102,5 @@ library (`System.Collections.ObjectModel.ReadOnlyCollection<T>`).
 
 `MeshNode` references a `Mesh`; `Scene` reads `Bounds`, `VertexSpan`, and `IndexSpan`;
 `PrimitiveTessellator` builds every result through `MeshBuilder`; `SceneRenderer` reads the vertex
-and index spans; callers use `IsClosed`, `SignedVolume`, `Transform`, and `Reverse` directly.
+and index spans (and, for constructive solid geometry operand validation, `TopologyDefects` and
+`IsInverted`); callers use `IsClosed`, `SignedVolume`, `Transform`, and `Reverse` directly.

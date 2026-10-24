@@ -96,6 +96,8 @@ sections:
               - CanvasNetRender3D-SceneRendering-SceneRenderer-Parallelism
               - CanvasNetRender3D-SceneRendering-SceneRenderer-Cancellation
               - CanvasNetRender3D-SceneRendering-SceneRenderer-Options
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-CsgOptions
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-Diagnostics
               - CanvasNetRender3D-SceneRendering-SceneRenderer-Precision
               - CanvasNetRender3D-SceneRendering-SceneRenderer-Mirrored
             tests:

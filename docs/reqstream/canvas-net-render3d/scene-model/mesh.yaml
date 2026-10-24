@@ -66,6 +66,35 @@ sections:
                   - MeshTopology_IsClosed_EdgeSharedByThreeTriangles_False
                   - MeshTopology_IsClosed_TwoDisjointCubes_True
                   - Mesh_IsClosed_Tetrahedron_True
+                  - MeshTopology_IsClosed_RandomSoups_MatchesDirectedEdgeReference
+
+              - id: CanvasNetRender3D-SceneModel-Mesh-TopologyDefects
+                title: >-
+                  The Mesh unit shall classify the topology defects of a triangle index list as
+                  boundary edge (an edge of one triangle), non-manifold edge (an edge of three or
+                  more triangles), inconsistent winding (two triangles traversing an edge in the
+                  same direction), and degenerate triangle (a repeated index), reporting no defect
+                  for a closed, consistently oriented surface (including multi-shell meshes) and
+                  for an empty list, and shall treat a defect-free closed mesh with a negative
+                  signed volume as inverted while never flagging an open mesh or a hollow mesh
+                  whose total volume is positive.
+                justification: |
+                  The renderer reports constructive-solid-geometry operands that are not closed,
+                  outward-oriented solids, and a single closed/open flag cannot tell the user
+                  which modelling error to fix; an inverted mesh is closed but has the wrong
+                  winding.
+                tests:
+                  - MeshTopology_Analyze_ClosedSurfaces_NoDefects
+                  - MeshTopology_Analyze_OpenSurface_BoundaryEdgeOnly
+                  - MeshTopology_Analyze_EdgeSharedByThreeTriangles_NonManifold
+                  - MeshTopology_Analyze_TwoShellsSharingAnEdge_NonManifold
+                  - MeshTopology_Analyze_FlippedTriangle_InconsistentWindingOnly
+                  - MeshTopology_Analyze_RepeatedIndex_DegenerateTriangleOnly
+                  - MeshTopology_Analyze_MultipleDefects_CombineFlags
+                  - Mesh_TopologyDefects_ClassifiesClosedOpenAndDegenerate
+                  - Mesh_IsInverted_ReversedClosedMesh_True
+                  - Mesh_IsInverted_CavityMesh_False
+                  - Mesh_IsInverted_OpenOrEmptyMesh_False
 
               - id: CanvasNetRender3D-SceneModel-Mesh-VolumeArea
                 title: >-

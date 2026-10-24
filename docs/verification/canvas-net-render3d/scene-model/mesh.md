@@ -57,11 +57,37 @@ Asserts that a cube's `Bounds` equals the minimum and maximum of its vertices.
 `MeshTopologyTests.MeshTopology_IsClosed_InconsistentWinding_False`,
 `MeshTopologyTests.MeshTopology_IsClosed_EdgeSharedByThreeTriangles_False`,
 `MeshTopologyTests.MeshTopology_IsClosed_TwoDisjointCubes_True`,
-`MeshTests.Mesh_IsClosed_Tetrahedron_True`
+`MeshTests.Mesh_IsClosed_Tetrahedron_True`,
+`MeshTopologyTests.MeshTopology_IsClosed_RandomSoups_MatchesDirectedEdgeReference`
 
 Asserts that a closed cube and a tetrahedron are closed, that a cube missing a triangle, a mesh with
-inconsistent winding, and a mesh with an edge shared by three triangles are not, and that two
-disjoint closed cubes in one mesh are closed.
+inconsistent winding, and a mesh with an edge shared by three triangles are not, that two
+disjoint closed cubes in one mesh are closed, and that over a seeded corpus of random triangle soups
+and mutated tetrahedra the verdict equals an independent directed-edge-counting reference.
+
+##### CanvasNetRender3D-SceneModel-Mesh-TopologyDefects: Defects Are Classified And Inversion Detected
+
+**Tests**: `MeshTopologyTests.MeshTopology_Analyze_ClosedSurfaces_NoDefects`,
+`MeshTopologyTests.MeshTopology_Analyze_OpenSurface_BoundaryEdgeOnly`,
+`MeshTopologyTests.MeshTopology_Analyze_EdgeSharedByThreeTriangles_NonManifold`,
+`MeshTopologyTests.MeshTopology_Analyze_TwoShellsSharingAnEdge_NonManifold`,
+`MeshTopologyTests.MeshTopology_Analyze_FlippedTriangle_InconsistentWindingOnly`,
+`MeshTopologyTests.MeshTopology_Analyze_RepeatedIndex_DegenerateTriangleOnly`,
+`MeshTopologyTests.MeshTopology_Analyze_MultipleDefects_CombineFlags`,
+`MeshTests.Mesh_TopologyDefects_ClassifiesClosedOpenAndDegenerate`,
+`MeshTests.Mesh_IsInverted_ReversedClosedMesh_True`,
+`MeshTests.Mesh_IsInverted_CavityMesh_False`,
+`MeshTests.Mesh_IsInverted_OpenOrEmptyMesh_False`
+
+Asserts that a cube, two disjoint cubes and an empty list report no defect; that a lone triangle, a
+quad and a cube missing a triangle report exactly `BoundaryEdge`; that a book of three triangles on
+one edge and two shells welded along an edge report `NonManifoldEdge`; that one flipped cube
+triangle reports exactly `InconsistentWinding`; that a repeated index reports exactly
+`DegenerateTriangle` even when appended to a closed cube; and that independent defects combine as
+flags. At mesh level it asserts the cached classification for a closed, an open, a degenerate and
+an empty mesh, that a reversed cube and tetrahedron are inverted while the originals are not, that
+a hollow cube with an inward cavity shell is closed with a positive volume and not inverted, and
+that an open or empty mesh is never inverted.
 
 ##### CanvasNetRender3D-SceneModel-Mesh-VolumeArea: Signed Volume And Surface Area Are Analytic
 

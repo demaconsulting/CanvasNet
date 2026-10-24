@@ -7,8 +7,8 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 /// <remarks>
 ///     The hierarchy is deliberately closed (the constructor is <see langword="private"/>
 ///     <see langword="protected"/>): the renderer enumerates the concrete node types it knows
-///     (<see cref="MeshNode"/>, <see cref="GroupNode"/>), and further node kinds are added inside
-///     this assembly in later phases. Nodes are immutable after construction and may be shared
+///     (<see cref="MeshNode"/>, <see cref="GroupNode"/>, <see cref="CsgNode"/>), and further node
+///     kinds are added inside this assembly. Nodes are immutable after construction and may be shared
 ///     between several parents. The world transform of a node is
 ///     <c>node.Transform * parent.Transform * ...</c> (child first, row-vector convention).
 /// </remarks>

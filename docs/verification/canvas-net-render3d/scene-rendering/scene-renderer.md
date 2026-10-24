@@ -20,7 +20,8 @@ hand-built triangles and a hand-filled `TileWorkspace`. Cancellation is verified
 tokens (sequential and parallel) and with a token cancelled during rendering. No mocking or stubbing
 is required.
 
-Unit tests reside in `SceneRendererTests.cs`, `SceneRenderOptionsTests.cs`, `TileBinnerTests.cs`,
+Unit tests reside in `SceneRendererTests.cs`, `SceneRenderOptionsTests.cs`,
+`SceneRenderDiagnosticsTests.cs`, `TileBinnerTests.cs`,
 and `SampleResolverTests.cs` within the `DemaConsulting.CanvasNet.Render3D.Tests` project, in the
 `SceneRendering` folder. Shared helpers (flat-shading options, orthographic cameras, quad and box
 mesh builders, surface comparison) are in `Render3DTestHelpers.cs`.
@@ -130,6 +131,31 @@ Asserts the documented defaults (neutral gray surfaces, white background, three 
 that a null light list selects the default rig, and that the supplied light list is copied so later
 mutation has no effect. `SceneRenderOptionsTests.SceneRenderOptions_NumericRanges_AreValidated`
 verifies the range checks of the numeric options.
+
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-CsgOptions: Fragment Budget And Unsupported-Feature Options
+
+**Tests**: `SceneRenderOptionsTests.SceneRenderOptions_CsgDefaults_BudgetFourMiAndTolerant`,
+`SceneRenderOptionsTests.SceneRenderOptions_MaxFragmentsPerTile_OutOfRange_Throws`,
+`SceneRenderOptionsTests.SceneRenderOptions_UnsupportedFeatureSettings_StoredAsGiven`
+
+Asserts that the default budget is 4 Mi (4194304) fragments with no handler and non-strict
+behavior, that a budget below one or above `Array.MaxLength` is rejected with
+`ArgumentOutOfRangeException` while the inclusive bounds 1 and `Array.MaxLength` are accepted, and
+that a supplied handler and strict flag are stored unchanged.
+
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-Diagnostics: Diagnostic Types Carry Their Data
+
+**Tests**: `SceneRenderDiagnosticsTests.RenderBudgetExceededException_Budget_CarriesBudgetAndStandardMessage`,
+`SceneRenderDiagnosticsTests.RenderBudgetExceededException_StandardConstructors_UseDefaultBudget`,
+`SceneRenderDiagnosticsTests.SceneRenderUnsupportedFeature_Record_ExposesValues`,
+`SceneRenderDiagnosticsTests.SceneRenderUnsupportedFeatureException_FeatureConstructor_CarriesFeatureAndNode`,
+`SceneRenderDiagnosticsTests.SceneRenderUnsupportedFeatureException_StandardConstructors_HaveEmptyFeature`
+
+Asserts that the budget exception carries the exceeded budget and an identical message for the same
+budget, that the standard constructors report the default budget, that the report record exposes
+its feature, message and optional node with value equality, and that the unsupported-feature
+exception carries its feature token and node (empty feature and null node for the standard
+constructors).
 
 ##### CanvasNetRender3D-SceneRendering-SceneRenderer-Precision: Far-Away Geometry Renders Identically
 

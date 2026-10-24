@@ -256,4 +256,78 @@ public class MeshTests
         // Act / Assert: computing relative to the bounds center keeps the result exact
         Assert.Equal(1.0, mesh.SignedVolume, 1e-9);
     }
+
+    /// <summary>
+    ///     Validates that the cached topology defects classify a closed, an open and a degenerate mesh, and that <see cref="Mesh.IsClosed"/> is consistent with them.
+    /// </summary>
+    [Fact]
+    public void Mesh_TopologyDefects_ClassifiesClosedOpenAndDegenerate()
+    {
+        // Arrange
+        var cube = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, Vector3D.One);
+        var open = new Mesh(cube.Vertices, cube.TriangleIndices.Take(cube.TriangleIndices.Count - 3));
+        var degenerate = new Mesh(cube.Vertices, cube.TriangleIndices.Concat([0, 0, 1]));
+        var empty = new Mesh([], []);
+
+        // Act / Assert
+        Assert.Equal(MeshTopologyDefects.None, cube.TopologyDefects);
+        Assert.Equal(MeshTopologyDefects.None, cube.TopologyDefects);
+        Assert.True(cube.IsClosed);
+        Assert.Equal(MeshTopologyDefects.BoundaryEdge, open.TopologyDefects);
+        Assert.False(open.IsClosed);
+        Assert.Equal(MeshTopologyDefects.DegenerateTriangle, degenerate.TopologyDefects);
+        Assert.False(degenerate.IsClosed);
+        Assert.Equal(MeshTopologyDefects.None, empty.TopologyDefects);
+        Assert.False(empty.IsClosed);
+    }
+
+    /// <summary>
+    ///     Validates that an outward closed mesh is not inverted while its reversed copy is.
+    /// </summary>
+    [Fact]
+    public void Mesh_IsInverted_ReversedClosedMesh_True()
+    {
+        // Arrange
+        var cube = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, Vector3D.One);
+
+        // Act / Assert
+        Assert.False(cube.IsInverted);
+        Assert.True(cube.Reverse().IsInverted);
+        Assert.False(cube.Reverse().Reverse().IsInverted);
+        Assert.False(Render3DTestHelpers.CreateTetrahedronMesh().IsInverted);
+        Assert.True(Render3DTestHelpers.CreateTetrahedronMesh().Reverse().IsInverted);
+    }
+
+    /// <summary>
+    ///     Validates that a hollow solid (an outward outer shell plus an inward inner shell) keeps a positive total volume and is not inverted.
+    /// </summary>
+    [Fact]
+    public void Mesh_IsInverted_CavityMesh_False()
+    {
+        // Arrange: 10-cube with a reversed 4-cube cavity (volume 1000 - 64 > 0)
+        var outer = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, new Vector3D(10, 10, 10));
+        var inner = Render3DTestHelpers.CreateBoxMesh(new Vector3D(3, 3, 3), new Vector3D(4, 4, 4)).Reverse();
+        var hollow = new Mesh(
+            outer.Vertices.Concat(inner.Vertices),
+            outer.TriangleIndices.Concat(inner.TriangleIndices.Select(i => i + outer.VertexCount)));
+
+        // Act / Assert
+        Assert.True(hollow.IsClosed);
+        Assert.Equal(936.0, hollow.SignedVolume, 1e-9);
+        Assert.False(hollow.IsInverted);
+    }
+
+    /// <summary>
+    ///     Validates that open and empty meshes are never reported as inverted (their volume is meaningless).
+    /// </summary>
+    [Fact]
+    public void Mesh_IsInverted_OpenOrEmptyMesh_False()
+    {
+        // Arrange: a downward-facing open triangle and an empty mesh
+        var open = new Mesh([Vector3D.Zero, Vector3D.UnitX, Vector3D.UnitY], [0, 2, 1]);
+
+        // Act / Assert
+        Assert.False(open.IsInverted);
+        Assert.False(new Mesh([], []).IsInverted);
+    }
 }

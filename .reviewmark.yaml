@@ -1213,6 +1213,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/Mesh.cs"    # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/MeshBuilder.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/MeshTopology.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/MeshTopologyDefects.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneModel/MeshTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneModel/MeshBuilderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneModel/MeshTopologyTests.cs"  # unit tests
@@ -1233,6 +1234,8 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/SceneNode.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/MeshNode.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/GroupNode.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/CsgNode.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/CsgOperation.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/NodeAppearance.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/Scene.cs"   # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/SceneInstance.cs"  # unit source
@@ -1361,11 +1364,15 @@ reviews:
       - "docs/sysml2/model/canvas-net-render3d/scene-rendering/scene-renderer.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/SceneRenderer.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/SceneRenderOptions.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/RenderBudgetExceededException.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/SceneRenderUnsupportedFeature.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/SceneRenderUnsupportedFeatureException.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/TileBinner.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/SampleResolver.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/TileWorkspace.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SceneRendererTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SceneRenderOptionsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SceneRenderDiagnosticsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/TileBinnerTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SampleResolverTests.cs"  # unit tests
 

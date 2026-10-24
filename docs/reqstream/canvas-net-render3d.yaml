@@ -13,13 +13,15 @@
 # details. It is a pure-managed, format-agnostic software 3D rasterizer; it has no knowledge of any
 # 3D file format.
 #
-# CanvasNetRender3D is being delivered incrementally. Phase 1 (these requirements) delivers
-# double-precision math, immutable meshes, an immutable scene graph without constructive solid
-# geometry, primitive tessellation (box, sphere, cylinder/cone, polyhedron), a perspective/orthographic
-# camera, ambient/directional lighting, a fixed-point tiled z-buffer triangle rasterizer, supersampling
-# antialiasing, deterministic tile parallelism, and cooperative cancellation. Constructive solid
-# geometry, transparency, and file-format front ends are added by later phases; their requirements
-# will be added to this file (and new per-unit files) when each phase lands, mirroring
+# CanvasNetRender3D is being delivered incrementally. Phase 1 delivers double-precision math,
+# immutable meshes, an immutable scene graph, primitive tessellation (box, sphere, cylinder/cone,
+# polyhedron), a perspective/orthographic camera, ambient/directional lighting, a fixed-point tiled
+# z-buffer triangle rasterizer, supersampling antialiasing, deterministic tile parallelism, and
+# cooperative cancellation. Phase 2 adds constructive solid geometry (union, difference,
+# intersection) through per-pixel fragment lists; its scene-model and options requirements are
+# in place and its rendering requirements are added together with the renderer integration.
+# Transparency and file-format front ends are added by later phases; their requirements will be
+# added to this file (and new per-unit files) when each phase lands, mirroring
 # canvas-net-pptx.yaml's own per-phase header-comment convention.
 
 sections:
@@ -27,7 +29,8 @@ sections:
     requirements:
       - id: CanvasNetRender3D-Scene
         title: >-
-          The library shall let a caller assemble an immutable scene from mesh and group nodes that
+          The library shall let a caller assemble an immutable scene from mesh, group, and
+          constructive-solid-geometry nodes that
           carry double-precision transforms and optional per-node colors, compute its tight
           world-space bounding box, and reject invalid input (null arguments, non-finite
           transforms or vertices, malformed index lists) at construction time rather than

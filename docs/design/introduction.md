@@ -592,10 +592,13 @@ src/DemaConsulting.CanvasNet.Render3D/
 │   ├── BoundingBox3D.cs           — DoublePrecisionMath: axis-aligned bounding box
 │   ├── Mesh.cs                    — Mesh: immutable indexed triangle mesh
 │   ├── MeshBuilder.cs             — Mesh: vertex-welding mesh construction helper
-│   ├── MeshTopology.cs            — Mesh: internal closedness, volume and area computations
+│   ├── MeshTopology.cs            — Mesh: internal closedness, defect classification, volume and area computations
+│   ├── MeshTopologyDefects.cs     — Mesh: internal topology-defect flags
 │   ├── SceneNode.cs               — SceneGraph: abstract node (transform, appearance)
 │   ├── MeshNode.cs                — SceneGraph: leaf node referencing a Mesh
-│   ├── GroupNode.cs               — SceneGraph: node grouping child nodes
+│   ├── GroupNode.cs               — SceneGraph: node grouping child nodes (union)
+│   ├── CsgNode.cs                 — SceneGraph: node combining child nodes with a boolean operation
+│   ├── CsgOperation.cs            — SceneGraph: union/difference/intersection enumeration
 │   ├── NodeAppearance.cs          — SceneGraph: per-node surface color
 │   ├── Scene.cs                   — SceneGraph: scene root, bounds, instance enumeration
 │   └── SceneInstance.cs           — SceneGraph: internal flattened mesh instance
@@ -623,6 +626,9 @@ src/DemaConsulting.CanvasNet.Render3D/
     ├── DepthTestVisitor.cs        — TriangleRasterizer: internal z-buffer visitor with tie rule
     ├── SceneRenderer.cs           — SceneRenderer: Render/RenderFitted entry points
     ├── SceneRenderOptions.cs      — SceneRenderer: immutable, validated render options
+    ├── RenderBudgetExceededException.cs — SceneRenderer: per-tile fragment budget exception
+    ├── SceneRenderUnsupportedFeature.cs — SceneRenderer: unsupported-feature report record
+    ├── SceneRenderUnsupportedFeatureException.cs — SceneRenderer: strict-mode unsupported-feature exception
     ├── TileBinner.cs              — SceneRenderer: internal triangle-to-tile binning
     ├── SampleResolver.cs          — SceneRenderer: internal antialiasing resolve
     └── TileWorkspace.cs           — SceneRenderer: internal per-worker sample buffers
